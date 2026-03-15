@@ -1,0 +1,5 @@
+// Auto-generated header stub
+#ifndef DNFFUNCTIONLIBWRAPPER_H_
+#define DNFFUNCTIONLIBWRAPPER_H_
+
+#endif // DNFFUNCTIONLIBWRAPPER_H_

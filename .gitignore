@@ -1,0 +1,24 @@
+# C/C++ build artifacts (reconstruction workspace)
+dnf_decompile/source/build/
+dnf_decompile/source/build-*/
+dnf_decompile/source/cmake-build-*/
+dnf_decompile/source/**/CMakeFiles/
+dnf_decompile/source/**/CMakeCache.txt
+dnf_decompile/source/**/compile_commands.json
+dnf_decompile/source/**/cmake_install.cmake
+**/*.o
+**/*.obj
+**/*.so
+**/*.a
+**/*.la
+**/*.lo
+**/*.out
+
+# GCC toolchain build outputs
+gcc-4.1.2/
+gcc-4.1.2/build/
+gcc-4.1.2-install/
+
+# Logs and temp
+**/*.log
+**/.DS_Store

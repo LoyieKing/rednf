@@ -1,0 +1,5 @@
+// Auto-generated header stub
+#ifndef AVERAGEPRICEDICTIONARY_H_
+#define AVERAGEPRICEDICTIONARY_H_
+
+#endif // AVERAGEPRICEDICTIONARY_H_
