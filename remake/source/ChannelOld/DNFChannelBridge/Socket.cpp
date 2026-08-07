@@ -73,6 +73,7 @@ bool TCPSocket::connect(const char* ip, unsigned short port)
     svradr.sin_family = 2;
     svradr.sin_addr.s_addr = inet_addr(ip);
     svradr.sin_port = htons(port);
+    int len = 0x10;
     int nRet = ::connect(sock_, (sockaddr*)&svradr, 0x10);
     if (-1 < nRet)
     {
@@ -200,26 +201,29 @@ bool TCPSocket::accept(TCPSocket& accepted)
 bool TCPSocket::setOptLinger(bool b)
 {
     linger l;
-    l.l_onoff = (int)b;
+    l.l_onoff = b ? 1 : 0;
     l.l_linger = 0;
-    return -1 < setsockopt(sock_, 1, 13, &l, 8);
+    int nRet = setsockopt(sock_, 1, 0xd, &l, 8);
+    return -1 < nRet;
 }
 
 bool TCPSocket::setOptNonBlock()
 {
-    unsigned int flags = fcntl(sock_, 3, 0);
-    int nRet = fcntl(sock_, 4, flags | 0x800);
-    if (-1 >= nRet)
+    int flags = fcntl(sock_, 3, 0);
+    flags = flags | 0x800;
+    if (-1 >= fcntl(sock_, 4, flags))
     {
         puts("[TCPSocket::nonblock] Can't make nonblock socket");
+        return false;
     }
-    return -1 < nRet;
+    return true;
 }
 
 bool TCPSocket::setOptReuseAdrs(bool b)
 {
-    int t = (int)b;
-    return -1 < setsockopt(sock_, 1, 2, &t, 4);
+    int t = b ? 1 : 0;
+    int nRet = setsockopt(sock_, 1, 2, &t, 4);
+    return -1 < nRet;
 }
 
 bool TCPSocket::setOptResizeSendBuf(int size)
@@ -228,7 +232,10 @@ bool TCPSocket::setOptResizeSendBuf(int size)
     {
         return false;
     }
-    if (setsockopt(sock_, 1, 7, &size, 4) < 0)
+    int sndbuf = 0;
+    socklen_t optlen = 4;
+    int nRet = setsockopt(sock_, 1, 7, &size, 4);
+    if (nRet < 0)
     {
         return false;
     }
@@ -325,18 +332,18 @@ UDPSocket::~UDPSocket()
 
 bool UDPSocket::open()
 {
+    if (sock_ != -1)
+    {
+        return false;
+    }
+    sock_ = socket(2, 2, 0);
     if (sock_ == -1)
     {
-        sock_ = socket(2, 2, 0);
-        if (sock_ == -1)
-        {
-            int err = *__errno_location();
-            printf("Could not create a UDP socket : %d\n", err);
-            return false;
-        }
-        return true;
+        int err = *__errno_location();
+        printf("Could not create a UDP socket : %d\n", err);
+        return false;
     }
-    return false;
+    return true;
 }
 
 bool UDPSocket::bind(unsigned short port, bool bNonBlock)
@@ -346,28 +353,28 @@ bool UDPSocket::bind(unsigned short port, bool bNonBlock)
     adrs_.sin_family = 2;
     adrs_.sin_addr.s_addr = htonl(0);
     adrs_.sin_port = htons(port_);
-    if (::bind(sock_, (sockaddr*)&adrs_, 0x10) == 0)
+    if (::bind(sock_, (sockaddr*)&adrs_, 0x10) != 0)
     {
-        if (bNonBlock)
+        int err = *__errno_location();
+        if (err == 0x62)
         {
-            setOptNonBlock();
+            printf("Port %d for receiving UDP is in use\n", (unsigned int)port);
         }
-        return true;
+        else if (err == 99)
+        {
+            puts("Cannot assign requested address");
+        }
+        else if (err != 0)
+        {
+            printf("Could not bind UDP receive port. Error= %d , strerror = %s\n", err, strerror(err));
+        }
+        return false;
     }
-    int err = *__errno_location();
-    if (err == 0x62)
+    if (bNonBlock)
     {
-        printf("Port %d for receiving UDP is in use\n", (unsigned int)port);
+        setOptNonBlock();
     }
-    else if (err == 99)
-    {
-        puts("Cannot assign requested address");
-    }
-    else if (err != 0)
-    {
-        printf("Could not bind UDP receive port. Error= %d , strerror = %s\n", err, strerror(err));
-    }
-    return false;
+    return true;
 }
 
 int UDPSocket::send(char* buf, int size, unsigned short nPort, const char* szDestIp)
@@ -421,8 +428,9 @@ void UDPSocket::close()
 
 bool UDPSocket::setOptNonBlock()
 {
-    unsigned int flags = fcntl(sock_, 3, 0);
-    int nRet = fcntl(sock_, 4, flags | 0x800);
+    int flags = fcntl(sock_, 3, 0);
+    flags = flags | 0x800;
+    int nRet = fcntl(sock_, 4, flags);
     return -1 < nRet;
 }
 
