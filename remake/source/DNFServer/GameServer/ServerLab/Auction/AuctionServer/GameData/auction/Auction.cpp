@@ -138,6 +138,11 @@ int Auction::Bidding(int buyer_id, const char* buyer_name, unsigned long long au
     return 0;
 }
 
+int Auction::IsOwnerVIP(unsigned long long auction_id, OwnerInfo& ownerInfo)
+{
+    return 0;
+}
+
 // AuctionDictionary TU pending; provide the two methods Auction inline wrappers link against.
 int AuctionDictionary::GetNowRegistedItemNum(int owner_id)
 {
