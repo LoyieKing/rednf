@@ -2,6 +2,16 @@
 #include "Zone.h"
 #include "GlobalInstance.h"
 
+int GSArea::GetSpareKey()
+{
+    return ++mSpareKey;
+}
+
+void GSArea::SetServiceRunning(bool bRun)
+{
+    mbServiceRunning = bRun;
+}
+
 Zone::Zone()
 {
     GSArea* pArea = new GSArea(0);
@@ -10,10 +20,7 @@ Zone::Zone()
 
 Zone::~Zone()
 {
-    if (mArea[0] != NULL)
-    {
-        delete mArea[0];
-    }
+    delete mArea[0];
 }
 
 Zone* G_Zone()

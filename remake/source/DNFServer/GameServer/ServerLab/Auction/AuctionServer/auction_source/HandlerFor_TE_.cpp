@@ -51,7 +51,7 @@ void HandlerFor_TE_::init()
 void HandlerFor_TE_::initTimeEvent()
 {
     G_TraceLog()->sysLog(8, "In  initTimeEvent");
-    nsl::GameDataPool* pPool = (nsl::GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId);
+    GameDataPool* pPool = (GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId);
     nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity;
     nsl::InternalMsg* pArg;
 
@@ -122,7 +122,7 @@ void HandlerFor_TE_::initTimeEvent()
     G_TraceLog()->sysLog(8, "Out initTimeEvent");
 }
 
-unsigned int HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK(nsl::InternalMsg* pArg)
+unsigned long HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK(nsl::InternalMsg* pArg)
 {
     G_TraceLog()->sysLog(8, "In  onTIME_AUCTION_EXPIRE_EVENT_CHECK");
     Zone* pZone = G_Zone();
@@ -134,7 +134,7 @@ unsigned int HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK(nsl::InternalMsg*
     return 0;
 }
 
-unsigned int HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR(nsl::InternalMsg* pArg)
+unsigned long HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR(nsl::InternalMsg* pArg)
 {
     G_TraceLog()->sysLog(8, "In  onTIME_AUCTION_STATISTICS_COLLECTOR");
     G_StatisticsCollector()->LoggingPerSec();
@@ -145,7 +145,7 @@ unsigned int HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR(nsl::InternalMs
     return 0;
 }
 
-unsigned int HandlerFor_TE_::onTIME_CHECK_CONFIG(nsl::InternalMsg* pArg)
+unsigned long HandlerFor_TE_::onTIME_CHECK_CONFIG(nsl::InternalMsg* pArg)
 {
     struct stat st;
     int rst = stat(nsl::configpath, &st);
@@ -168,9 +168,9 @@ unsigned int HandlerFor_TE_::onTIME_CHECK_CONFIG(nsl::InternalMsg* pArg)
     return 0;
 }
 
-unsigned int HandlerFor_TE_::onTIME_AUCTION_DB_PING(nsl::InternalMsg* pArg)
+unsigned long HandlerFor_TE_::onTIME_AUCTION_DB_PING(nsl::InternalMsg* pArg)
 {
-    nsl::tagAUCTION_DB_PING dbtrPing;
+    tagAUCTION_DB_PING dbtrPing;
     nsl::Message* pMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
     nsl::CMsgCell* pNewCell = pMsg->getCellFromMessage();
     *pNewCell << &dbtrPing;
@@ -178,7 +178,7 @@ unsigned int HandlerFor_TE_::onTIME_AUCTION_DB_PING(nsl::InternalMsg* pArg)
     return 0;
 }
 
-unsigned int HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg)
+unsigned long HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg)
 {
     G_TraceLog()->sysLog(7, "In  onTIME_AUCTION_TRY_SHUTDOWN");
     size_t pendingWorkNumSum = 0;
@@ -197,7 +197,7 @@ unsigned int HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg)
     }
     else
     {
-        nsl::PCK_AUCTION_SERVICE_UNAVAILABLE_AG pck;
+        PCK_AUCTION_SERVICE_UNAVAILABLE_AG pck;
         nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter();
         while (!pArea->isIterEnd(iter))
         {
@@ -215,7 +215,7 @@ unsigned int HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg)
     return 0;
 }
 
-unsigned int HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE(nsl::InternalMsg* pArg)
+unsigned long HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE(nsl::InternalMsg* pArg)
 {
     G_TraceLog()->sysLog(8, "In  onTIME_AUCTION_UPDATE_AVERAGE_PRICE");
     time_t current_time;

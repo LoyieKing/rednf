@@ -5,9 +5,9 @@
 #include "InternalMsg.h"
 #include "HandlerFor_TE_.h"
 
-namespace nsl {
+using namespace nsl;
 
-unsigned int uniqueCharacKey = 0;
+static unsigned int uniqueCharacKey = 0;
 
 GameDataPool::GameDataPool()
 {
@@ -49,7 +49,7 @@ void GameDataPool::destroyCharacter(auction::Character* pCharactor)
     pool_check_character = pool_check_character - 1;
 }
 
-ConInterface* GameDataPool::createConInfo(int direction, char* remote_ip_, int remote_port_,
+ConInterface* GameDataPool::createConInfo(int direction, const char* remote_ip_, int remote_port_,
                                           TCPUser::ENUM_DATA_TYPE send_data_type_,
                                           TCPUser::ENUM_DATA_TYPE recv_data_type_, bool need_to_recon_)
 {
@@ -83,5 +83,3 @@ void GameDataPool::destroyTimeEntity(void* pTimeEntity)
     pool_check_timeEntity = pool_check_timeEntity - 1;
     pool_check_timeInternal = pool_check_timeInternal - 1;
 }
-
-} // namespace nsl

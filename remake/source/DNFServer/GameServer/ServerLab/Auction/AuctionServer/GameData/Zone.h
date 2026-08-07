@@ -9,10 +9,22 @@ public:
     GSArea(int mapIndex)
         : nsl::IArea(mapIndex)
     {
-        mBackServerKey = 0;
-        mSpareKey = 0;
+        mSpareKey = 0x61a80;
         mbServiceRunning = false;
     }
+    virtual ~GSArea()
+    {
+    }
+    virtual void setBackServerKey(int key)
+    {
+        mBackServerKey = key;
+    }
+    virtual int getBackServerKey()
+    {
+        return mBackServerKey;
+    }
+    int GetSpareKey();
+    void SetServiceRunning(bool bRun);
     bool IsServiceRunning()
     {
         return mbServiceRunning;
