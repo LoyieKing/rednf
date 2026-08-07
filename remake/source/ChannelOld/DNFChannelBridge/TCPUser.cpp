@@ -527,30 +527,31 @@ int TCircularQueueBuffer<Size>::pop(int in_nSize)
     {
         return -1;
     }
-    if (m_nPushIndex < m_nPopIndex)
+    if (m_nPushIndex >= m_nPopIndex)
     {
-        int nFirstCut = 0xa0000 - m_nPopIndex;
-        if (nFirstCut < in_nSize)
+        int nLength = (int)(m_nPushIndex - m_nPopIndex);
+        if (nLength < in_nSize)
         {
-            if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
-            {
-                return -3;
-            }
-            m_nPopIndex = in_nSize - nFirstCut;
-            return 0;
+            return -2;
         }
         m_nPopIndex = m_nPopIndex + in_nSize;
-        if (m_nPopIndex == 0xa0000)
-        {
-            m_nPopIndex = 0;
-        }
         return 0;
     }
-    if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
+    int nFirstCut = 0xa0000 - m_nPopIndex;
+    if (nFirstCut < in_nSize)
     {
-        return -2;
+        if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
+        {
+            return -3;
+        }
+        m_nPopIndex = in_nSize - nFirstCut;
+        return 0;
     }
     m_nPopIndex = m_nPopIndex + in_nSize;
+    if (m_nPopIndex == 0xa0000)
+    {
+        m_nPopIndex = 0;
+    }
     return 0;
 }
 
@@ -561,35 +562,35 @@ bool TCircularQueueBuffer<Size>::popCopy(int in_nSize, char* pCopyee)
     {
         return false;
     }
-    if (m_nPushIndex < m_nPopIndex)
+    if (m_nPushIndex >= m_nPopIndex)
     {
-        unsigned int nFirstCut = 0xa0000 - m_nPopIndex;
-        if ((int)nFirstCut < in_nSize)
+        if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
         {
-            if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
-            {
-                return false;
-            }
-            memcpy(pCopyee, &m_buffer[m_nPopIndex], nFirstCut);
-            memcpy(pCopyee + nFirstCut, &m_buffer[0], in_nSize - nFirstCut);
-            m_nPopIndex = m_nPopIndex + in_nSize;
-            m_nPopIndex = in_nSize - nFirstCut;
-            return true;
+            return false;
         }
         memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
         m_nPopIndex = m_nPopIndex + in_nSize;
-        if (m_nPopIndex == 0xa0000)
-        {
-            m_nPopIndex = 0;
-        }
         return true;
     }
-    if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
+    unsigned int nFirstCut = 0xa0000 - m_nPopIndex;
+    if ((int)nFirstCut < in_nSize)
     {
-        return false;
+        if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
+        {
+            return false;
+        }
+        memcpy(pCopyee, &m_buffer[m_nPopIndex], nFirstCut);
+        memcpy(pCopyee + nFirstCut, &m_buffer[0], in_nSize - nFirstCut);
+        m_nPopIndex = m_nPopIndex + in_nSize;
+        m_nPopIndex = in_nSize - nFirstCut;
+        return true;
     }
     memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
     m_nPopIndex = m_nPopIndex + in_nSize;
+    if (m_nPopIndex == 0xa0000)
+    {
+        m_nPopIndex = 0;
+    }
     return true;
 }
 
@@ -600,25 +601,25 @@ bool TCircularQueueBuffer<Size>::peekCopy(int in_nSize, char* pCopyee)
     {
         return false;
     }
-    if (m_nPushIndex < m_nPopIndex)
+    if (m_nPushIndex >= m_nPopIndex)
     {
-        unsigned int nFirstCut = 0xa0000 - m_nPopIndex;
-        if ((int)nFirstCut < in_nSize)
+        if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
         {
-            if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
-            {
-                return false;
-            }
-            memcpy(pCopyee, &m_buffer[m_nPopIndex], nFirstCut);
-            memcpy(pCopyee + nFirstCut, &m_buffer[0], in_nSize - nFirstCut);
-            return true;
+            return false;
         }
         memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
         return true;
     }
-    if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
+    unsigned int nFirstCut = 0xa0000 - m_nPopIndex;
+    if ((int)nFirstCut < in_nSize)
     {
-        return false;
+        if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
+        {
+            return false;
+        }
+        memcpy(pCopyee, &m_buffer[m_nPopIndex], nFirstCut);
+        memcpy(pCopyee + nFirstCut, &m_buffer[0], in_nSize - nFirstCut);
+        return true;
     }
     memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
     return true;
