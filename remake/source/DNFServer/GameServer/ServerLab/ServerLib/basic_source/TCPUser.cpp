@@ -176,12 +176,12 @@ __int64 TCPUser::getLastAccessTime()
     return tickLast_;
 }
 
-bool TCPUser::isAboutToDisconnect()
+bool TCPUser::isAboutToDisconnect() const
 {
     return bAboutToDisconnect_;
 }
 
-bool TCPUser::isDisconnected()
+bool TCPUser::isDisconnected() const
 {
     return bDisconnected_;
 }
