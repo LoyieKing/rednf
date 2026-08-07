@@ -1,5 +1,352 @@
-// Auto-generated stub from DWARF info of df_point_r
-// Original source: /home/neople/source/DNFServer/GameServer/ServerLab/Auction/AuctionServer/GameData/auction/dictionary/AveragePriceDictionary.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
+// Rebuilt from df_auction_r DWARF (AveragePriceDictionary.cpp CU), 2026-08-08
+#include <stdlib.h>
 
 #include "AveragePriceDictionary.h"
+#include "TraceLog.h"
+
+using namespace nsl;
+
+AveragePriceDictionary::AveragePriceDictionary()
+    : mAvrgPriceDicDataPool(0x20)
+{
+}
+
+AveragePriceDictionary::~AveragePriceDictionary()
+{
+    for (int j = 0; j < 8; j = j + 1)
+    {
+        for (int i = 0; i < 0x20; i = i + 1)
+        {
+            mAvrgPriceDicTable[i][j].clear();
+            mAvrgPrice_ROI_DicTable[i][j].clear();
+        }
+    }
+}
+
+bool ROI_Average_Constraint::isVaildRange() const
+{
+    if ((inf_max_price <= 0) || (inf_max_price > 0x64))
+    {
+        return false;
+    }
+    if ((inf_min_price <= 0) || (inf_min_price > 0x2710))
+    {
+        return false;
+    }
+    if ((inf_prob <= 0) || (inf_prob > 0x64))
+    {
+        return false;
+    }
+    if ((inf_limit_count <= 0) || (inf_limit_count > 0x64))
+    {
+        return false;
+    }
+    if ((inf_base_mul_min_a <= 0) || (inf_base_mul_min_a > 0x3e8))
+    {
+        return false;
+    }
+    if ((inf_base_mul_max_b <= 0) || (inf_base_mul_max_b > 0x3e8))
+    {
+        return false;
+    }
+    return true;
+}
+
+int AveragePriceDictionary::makeItemAveragePrice(unsigned long itemId,
+                                                 unsigned char itemUpgradeValue,
+                                                 int averagePrice,
+                                                 unsigned int _purchase_cnt,
+                                                 const ROI_AverageKey& _roi_average_key,
+                                                 unsigned char itemRefineValue)
+{
+    if (!isValidUpgradeValue(itemUpgradeValue))
+    {
+        return 0x20;
+    }
+    if (!isValidRefineValue(itemRefineValue))
+    {
+        return 0x20;
+    }
+    AveragePriceDictionaryData* ptr_data = mAvrgPriceDicDataPool.malloc();
+    if (ptr_data == NULL)
+    {
+        return 9;
+    }
+    if (averagePrice < 0)
+    {
+        return 0x21;
+    }
+    ptr_data->average_price = averagePrice;
+    ptr_data->average_price_notice = averagePrice;
+    ptr_data->added_cnt = 0x0f;
+    if (_roi_average_key.option_category.isEmpty())
+    {
+        std::pair<std::map<unsigned long, AveragePriceDictionaryData*>::iterator, bool> ret_pair;
+        ret_pair = mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].insert(
+            std::make_pair<const unsigned long&, AveragePriceDictionaryData*&>(
+                itemId, ptr_data));
+        if (ret_pair.second != true)
+        {
+            return 0xd;
+        }
+    }
+    else
+    {
+        ptr_data->real_purchase_cnt = _purchase_cnt;
+        if (!mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].insert(
+                std::make_pair<const ROI_AverageKey&, AveragePriceDictionaryData*&>(
+                    _roi_average_key, ptr_data)).second)
+        {
+            return 0xd;
+        }
+    }
+    return 0;
+}
+
+bool AveragePriceDictionary::aver_Set_ROI_Constraint(
+    const ROI_Average_Constraint& _constraint)
+{
+    mRoiAverageConstraint.inf_max_price = _constraint.inf_max_price;
+    mRoiAverageConstraint.inf_min_price = _constraint.inf_min_price;
+    mRoiAverageConstraint.inf_prob = _constraint.inf_prob;
+    mRoiAverageConstraint.inf_limit_count = _constraint.inf_limit_count;
+    mRoiAverageConstraint.inf_base_mul_min_a = _constraint.inf_base_mul_min_a;
+    mRoiAverageConstraint.inf_base_mul_max_b = _constraint.inf_base_mul_max_b;
+    return true;
+}
+
+int AveragePriceDictionary::GetItemAveragePrice(
+    unsigned long itemId, unsigned char itemUpgradeValue,
+    const ROI_AverageKey& roi_average_key, unsigned char itemRefineValue,
+    int* pOutAveragePrice)
+{
+    if (!isValidUpgradeValue(itemUpgradeValue))
+    {
+        return 0x20;
+    }
+    if (roi_average_key.option_category.isEmpty())
+    {
+        std::map<unsigned long, AveragePriceDictionaryData*>::iterator find_iter =
+            mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].find(itemId);
+        if (find_iter == mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].end())
+        {
+            *pOutAveragePrice = -1;
+        }
+        else
+        {
+            *pOutAveragePrice = find_iter->second->average_price_notice;
+        }
+    }
+    else
+    {
+        std::map<ROI_AverageKey, AveragePriceDictionaryData*>::iterator find_iter =
+            mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].find(
+                roi_average_key);
+        if (find_iter != mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].end())
+        {
+            *pOutAveragePrice = find_iter->second->average_price_notice;
+        }
+        else
+        {
+            *pOutAveragePrice = -1;
+        }
+    }
+    return 0;
+}
+
+int AveragePriceDictionary::AddItemAveragePrice(
+    unsigned long itemId, unsigned char itemUpgradeValue, int price,
+    bool& rFristAdd, int& rAveragePrice, bool isStack,
+    const ROI_AverageKey& _roi_average_key, unsigned int& _real_purchase_cnt,
+    unsigned char itemRefineValue)
+{
+    bool is_first_add = false;
+    AveragePriceDictionaryData* ptr_data = NULL;
+    int error_code = 0;
+
+    if (!isValidUpgradeValue(itemUpgradeValue))
+    {
+        return 0x20;
+    }
+    if (!isValidRefineValue(itemRefineValue))
+    {
+        return 0x20;
+    }
+    if (_roi_average_key.option_category.isEmpty())
+    {
+        std::map<unsigned long, AveragePriceDictionaryData*>::iterator find_iter =
+            mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].find(itemId);
+        if (find_iter != mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].end())
+        {
+            ptr_data = find_iter->second;
+            goto continue_update;
+        }
+        is_first_add = true;
+        error_code = makeItemAveragePrice(itemId, itemUpgradeValue, price, 1,
+                                          _roi_average_key, itemRefineValue);
+    }
+    else
+    {
+        std::map<ROI_AverageKey, AveragePriceDictionaryData*>::iterator find_iter =
+            mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].find(
+                _roi_average_key);
+        if (find_iter != mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].end())
+        {
+            ptr_data = find_iter->second;
+            _real_purchase_cnt = ptr_data->real_purchase_cnt;
+            goto continue_update;
+        }
+        is_first_add = true;
+        error_code = makeItemAveragePrice(itemId, itemUpgradeValue, price,
+                                          _real_purchase_cnt, _roi_average_key,
+                                          itemRefineValue);
+    }
+    if (error_code != 0)
+    {
+        return error_code;
+    }
+continue_update:
+    if (is_first_add)
+    {
+        rFristAdd = true;
+        rAveragePrice = price;
+    }
+    else
+    {
+        unsigned long long average_max_limit = 0;
+        __int64 average_min_limit = 0;
+        bool submit = false;
+        bool roi_unseal_average_submit = true;
+        if (isStack)
+        {
+            average_max_limit =
+                (unsigned long long)ptr_data->average_price * 3;
+            average_min_limit =
+                (__int64)((double)ptr_data->average_price * (1.0 / 3.0));
+            submit = rand() % 10 == 0;
+        }
+        else
+        {
+            if (_roi_average_key.option_category.isEmpty())
+            {
+                average_max_limit =
+                    (unsigned long long)ptr_data->average_price * 3;
+                average_min_limit =
+                    (__int64)((double)ptr_data->average_price * 0.2);
+                submit = rand() % 5 == 0;
+            }
+            else
+            {
+                average_max_limit =
+                    (unsigned long long)ptr_data->average_price *
+                    (unsigned long long)mRoiAverageConstraint.inf_max_price;
+                average_min_limit =
+                    (__int64)(((double)mRoiAverageConstraint.inf_min_price / 10000.0) *
+                              (double)ptr_data->average_price);
+                submit = rand() % 100 + 1 <= mRoiAverageConstraint.inf_prob;
+                static ROI_AverageKey _static_UnsealRandomOptionItem;
+                static bool _isInit = false;
+                if (!_isInit)
+                {
+                    for (int i = 0; i < 3; i = i + 1)
+                    {
+                        _static_UnsealRandomOptionItem.option_category.field_0
+                            ._hcv._high_category_value[i] = 30000;
+                        _static_UnsealRandomOptionItem.option_category.field_1
+                            ._lcv._low_category_value[i] = 0;
+                    }
+                    _static_UnsealRandomOptionItem.option_index_key = 0;
+                    _isInit = true;
+                }
+                _static_UnsealRandomOptionItem.baseItem_index = itemId;
+                std::map<ROI_AverageKey, AveragePriceDictionaryData*>::iterator
+                    base_find_iter =
+                        mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue]
+                            .find(_static_UnsealRandomOptionItem);
+                if (base_find_iter !=
+                        mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].end() &&
+                    base_find_iter->second != NULL &&
+                    (double)price <
+                        ((double)mRoiAverageConstraint.inf_base_mul_min_a / 100.0) *
+                            (double)base_find_iter->second->average_price_notice)
+                {
+                    roi_unseal_average_submit = false;
+                }
+            }
+        }
+        if (((unsigned long long)price <= average_max_limit) &&
+            ((__int64)average_min_limit <= (__int64)price) &&
+            (submit != 0) && (roi_unseal_average_submit != 0))
+        {
+            unsigned int old_cnt = (unsigned int)ptr_data->added_cnt;
+            ptr_data->added_cnt = (unsigned char)(ptr_data->added_cnt + 1);
+            ptr_data->average_price = (int)(
+                ((unsigned long long)ptr_data->average_price * old_cnt +
+                 (unsigned int)price) /
+                (unsigned long long)ptr_data->added_cnt);
+            if (ptr_data->added_cnt > 0xf)
+            {
+                ptr_data->added_cnt = 0xf;
+            }
+        }
+        rAveragePrice = ptr_data->average_price;
+    }
+    return 0;
+}
+
+void AveragePriceDictionary::UpdateAveragePirce()
+{
+    for (int j = 0; j < 8; j = j + 1)
+    {
+        for (int i = 0; i < 0x20; i = i + 1)
+        {
+            std::map<unsigned long, AveragePriceDictionaryData*>::iterator iter_pos =
+                mAvrgPriceDicTable[i][j].begin();
+            while (iter_pos != mAvrgPriceDicTable[i][j].end())
+            {
+                AveragePriceDictionaryData* ptr_data = iter_pos->second;
+                unsigned long long average_max_limit =
+                    (unsigned long long)ptr_data->average_price_notice * 3;
+                __int64 average_min_limit =
+                    (__int64)((double)ptr_data->average_price_notice * 0.01);
+                if (((unsigned long long)ptr_data->average_price <=
+                     average_max_limit) &&
+                    (average_min_limit <=
+                     (__int64)ptr_data->average_price))
+                {
+                    G_TraceLog()->sysLog(
+                        5, "item_id:%u, count:%u, befor_average:%u, after_average:%u",
+                        iter_pos->first, (unsigned int)ptr_data->added_cnt,
+                        (unsigned int)ptr_data->average_price_notice,
+                        (unsigned int)ptr_data->average_price);
+                    ptr_data->average_price_notice = ptr_data->average_price;
+                }
+                ++iter_pos;
+            }
+        }
+    }
+    for (int j = 0; j < 8; j = j + 1)
+    {
+        for (int i = 0; i < 0x20; i = i + 1)
+        {
+            std::map<ROI_AverageKey, AveragePriceDictionaryData*>::iterator iter_pos =
+                mAvrgPrice_ROI_DicTable[i][j].begin();
+            while (iter_pos != mAvrgPrice_ROI_DicTable[i][j].end())
+            {
+                AveragePriceDictionaryData* ptr_data = iter_pos->second;
+                unsigned long long average_max_limit =
+                    (unsigned long long)ptr_data->average_price_notice * 3;
+                __int64 average_min_limit =
+                    (__int64)((double)ptr_data->average_price_notice * 0.01);
+                if (((unsigned long long)ptr_data->average_price <=
+                     average_max_limit) &&
+                    (average_min_limit <=
+                     (__int64)ptr_data->average_price))
+                {
+                    ptr_data->average_price_notice = ptr_data->average_price;
+                }
+                ++iter_pos;
+            }
+        }
+    }
+}
