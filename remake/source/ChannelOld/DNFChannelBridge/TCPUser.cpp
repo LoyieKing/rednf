@@ -79,7 +79,7 @@ void ChannelServiceApp::TCPUser::onClose(char* file, int line)
     ChannelServiceApp::gFileLogInfo << "call onClose from " << file << ", " << line << ", TCPUSER=" << getACCID()
                  << ", error=" << strerror(*__errno_location()) << endl;
     ChannelServiceApp::gFileLogInfo.Unlock();
-    if (bDisconnected_ == false)
+    if (!bDisconnected_)
     {
         getManager()->UserPools::destroyTCPUser(this, "TCPUser.cpp", 0x6a);
         if (pSock_ != NULL)
@@ -92,7 +92,8 @@ void ChannelServiceApp::TCPUser::onClose(char* file, int line)
 
 void ChannelServiceApp::TCPUser::onRead(char* file, int line)
 {
-    if (-1 < pSock_->getHandle())
+    SOCKET h = pSock_->getHandle();
+    if (h > -1)
     {
         if (!(isAboutToDisconnect() || isDisconnected()))
         {
@@ -472,7 +473,7 @@ int CMsgCell::GetSize() const
 template <unsigned int Size>
 int TCircularQueueBuffer<Size>::push(char* in_block, int in_nSize, char* file, int line)
 {
-    if (in_nSize <= 0x9ffff)
+    if ((unsigned int)in_nSize <= 0x9ffff)
     {
         if (m_nPushIndex < m_nPopIndex)
         {
@@ -640,7 +641,7 @@ bool TCircularQueueBuffer<Size>::isPopStraight(int in_nSize)
     ChannelServiceApp::gFileLogInfo.Lock();
     ChannelServiceApp::gFileLogInfo << "m_nPushIndex=" << m_nPushIndex << endl;
     ChannelServiceApp::gFileLogInfo.Unlock();
-    if (in_nSize <= 0x9ffff)
+    if ((unsigned int)in_nSize <= 0x9ffff)
     {
         if (m_nPopIndex < m_nPushIndex)
         {

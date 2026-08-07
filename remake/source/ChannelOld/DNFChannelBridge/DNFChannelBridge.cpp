@@ -80,11 +80,9 @@ bool App::load_script()
     if (ret == false)
     {
         printf("Can't open script file : %s", m_szConfigFileName);
+        return false;
     }
-    else
-    {
-        ret = G_Script()->parse_channel_script();
-    }
+    ret = G_Script()->parse_channel_script();
     return ret;
 }
 

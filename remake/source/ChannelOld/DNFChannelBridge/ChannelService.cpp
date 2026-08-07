@@ -103,7 +103,7 @@ void TMemoryPoolStatic<T, Size, Q>::startup()
         throw Exception("memory alloc failed");
     }
     printf("%d th allocated Success\n", Size);
-    for (int i = 0; i < Size; i++)
+    for (int i = 0; i <= Size - 1; i = i + 1)
     {
         T* t = repository_ + i;
         freeq_.push(t);
