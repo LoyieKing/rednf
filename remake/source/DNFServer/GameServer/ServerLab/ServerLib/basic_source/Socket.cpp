@@ -311,9 +311,69 @@ unsigned short TCPSocket::getPeerPort()
     return port_;
 }
 
-int TCPSocket::getHandle()
+int TCPSocket::getHandle() const
 {
     return sock_;
+}
+
+int TCPSocket::pollReadEvent() const
+{
+    fd_set rset;
+    fd_set* p = &rset;
+    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    {
+        p->fds_bits[i] = 0;
+    }
+    FD_SET((unsigned int)sock_, &rset);
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int ret = select(2, &rset, NULL, NULL, &tv);
+    if (ret == 0)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+int TCPSocket::pollWriteEvent() const
+{
+    fd_set wset;
+    fd_set* p = &wset;
+    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    {
+        p->fds_bits[i] = 0;
+    }
+    FD_SET((unsigned int)sock_, &wset);
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int ret = select(2, NULL, &wset, NULL, &tv);
+    if (ret == 0)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+int TCPSocket::pollErrorEvent() const
+{
+    fd_set eset;
+    fd_set* p = &eset;
+    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    {
+        p->fds_bits[i] = 0;
+    }
+    FD_SET((unsigned int)sock_, &eset);
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int ret = select(2, NULL, NULL, &eset, &tv);
+    if (ret == 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 UDPSocket::UDPSocket()
@@ -445,6 +505,66 @@ SOCKET UDPSocket::getHandle()
     return sock_;
 }
 
+int UDPSocket::pollReadEvent() const
+{
+    fd_set rset;
+    fd_set* p = &rset;
+    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    {
+        p->fds_bits[i] = 0;
+    }
+    FD_SET((unsigned int)sock_, &rset);
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int ret = select(2, &rset, NULL, NULL, &tv);
+    if (ret == 0)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+int UDPSocket::pollWriteEvent() const
+{
+    fd_set wset;
+    fd_set* p = &wset;
+    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    {
+        p->fds_bits[i] = 0;
+    }
+    FD_SET((unsigned int)sock_, &wset);
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int ret = select(2, NULL, &wset, NULL, &tv);
+    if (ret == 0)
+    {
+        return 0;
+    }
+    return 1;
+}
+
+int UDPSocket::pollErrorEvent() const
+{
+    fd_set eset;
+    fd_set* p = &eset;
+    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    {
+        p->fds_bits[i] = 0;
+    }
+    FD_SET((unsigned int)sock_, &eset);
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    int ret = select(2, NULL, NULL, &eset, &tv);
+    if (ret == 0)
+    {
+        return 0;
+    }
+    return 1;
+}
+
 void UDPSocket::close()
 {
     if (sock_ != -1)
@@ -481,6 +601,16 @@ bool UDPSocket::setOptResizeRecvBuf(int size)
         return false;
     }
     return true;
+}
+
+void TCPSocket::SetRecvBufSize(int bufSize)
+{
+    msRecvBufSize = bufSize;
+}
+
+void TCPSocket::SetSendBufSize(int bufSize)
+{
+    msSendBufSize = bufSize;
 }
 
 } // namespace nsl
