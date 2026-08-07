@@ -316,4 +316,171 @@ int TCPSocket::getHandle()
     return sock_;
 }
 
+UDPSocket::UDPSocket()
+{
+    sock_ = -1;
+    port_ = 0;
+}
+
+UDPSocket::~UDPSocket()
+{
+}
+
+bool UDPSocket::open()
+{
+    if (sock_ == -1)
+    {
+        sock_ = socket(AF_INET, SOCK_DGRAM, 0);
+        if (sock_ == -1)
+        {
+            printf("Could not create a UDP socket : %d\n", errno);
+            return false;
+        }
+        return true;
+    }
+    return false;
+}
+
+bool UDPSocket::bind(const char* strIp, unsigned short port)
+{
+    this->port_ = port;
+    memset(&this->adrs_, 0, 0x10);
+    this->adrs_.sin_family = AF_INET;
+    this->adrs_.sin_addr.s_addr = inet_addr(strIp);
+    this->adrs_.sin_port = htons(this->port_);
+    int iResult = ::bind(this->sock_, (sockaddr*)&this->adrs_, 0x10);
+    if (iResult != 0)
+    {
+        printf("Udp Port binding fail, %s , %d\n", strIp, (unsigned int)port);
+    }
+    return iResult == 0;
+}
+
+bool UDPSocket::bind(unsigned short port, bool bNonBlock)
+{
+    this->port_ = port;
+    memset(&this->adrs_, 0, 0x10);
+    this->adrs_.sin_family = AF_INET;
+    this->adrs_.sin_addr.s_addr = htonl(0);
+    this->adrs_.sin_port = htons(this->port_);
+    int iResult = ::bind(this->sock_, (sockaddr*)&this->adrs_, 0x10);
+    if (iResult == 0)
+    {
+        if (bNonBlock)
+        {
+            setOptNonBlock();
+        }
+        return true;
+    }
+    int err = errno;
+    if (err == 0x62)
+    {
+        printf("Port %d for receiving UDP is in use\n", (unsigned int)port);
+    }
+    else if (err == 99)
+    {
+        puts("Cannot assign requested address");
+    }
+    else if (err != 0)
+    {
+        printf("Could not bind UDP receive port. Error= %d , strerror = %s\n", err, strerror(err));
+    }
+    return false;
+}
+
+bool UDPSocket::setOptNonBlock()
+{
+    unsigned int flags = fcntl(this->sock_, F_GETFL, 0);
+    int iResult = fcntl(this->sock_, F_SETFL, flags | O_NONBLOCK);
+    return iResult > -1;
+}
+
+int UDPSocket::send(char* buf, const int size, unsigned short nPort, const char* szDestIp)
+{
+    if ((buf == NULL) || (size < 1))
+    {
+        return -1;
+    }
+    else if (szDestIp == NULL)
+    {
+        return 0;
+    }
+    sockaddr to;
+    memset(&to, 0, 0x10);
+    to.sa_family = AF_INET;
+    *(unsigned short*)to.sa_data = htons(nPort);
+    *(unsigned int*)(to.sa_data + 2) = inet_addr(szDestIp);
+    int n_bytes = sendto(this->sock_, buf, size, 0, &to, 0x10);
+    if ((n_bytes < 0) && ((errno == 0xb) || (errno == 4)))
+    {
+        n_bytes = 0;
+    }
+    return n_bytes;
+}
+
+int UDPSocket::recv(char* buf, const int size)
+{
+    if ((buf == NULL) || (size < 1))
+    {
+        return -1;
+    }
+    socklen_t fromLen = 0x10;
+    int len = recvfrom(this->sock_, buf, size, 0, (sockaddr*)&this->from_, &fromLen);
+    if (len < 0)
+    {
+        if ((errno == 0xb) || (errno == 4))
+        {
+            len = 0;
+        }
+        else
+        {
+            len = -1;
+        }
+    }
+    return len;
+}
+
+SOCKET UDPSocket::getHandle()
+{
+    return sock_;
+}
+
+void UDPSocket::close()
+{
+    if (sock_ != -1)
+    {
+        ::close(sock_);
+        sock_ = -1;
+        port_ = 0;
+    }
+}
+
+bool UDPSocket::setOptResizeSendBuf(int size)
+{
+    if (size < 1)
+    {
+        return false;
+    }
+    int iResult = setsockopt(this->sock_, SOL_SOCKET, SO_SNDBUF, &size, 4);
+    if (iResult < 0)
+    {
+        return false;
+    }
+    return true;
+}
+
+bool UDPSocket::setOptResizeRecvBuf(int size)
+{
+    if (size < 1)
+    {
+        return false;
+    }
+    int iResult = setsockopt(this->sock_, SOL_SOCKET, SO_RCVBUF, &size, 4);
+    if (iResult < 0)
+    {
+        return false;
+    }
+    return true;
+}
+
 } // namespace nsl

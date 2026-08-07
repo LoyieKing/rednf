@@ -3,7 +3,6 @@
 
 #include <iostream>
 #include "DNFFunctionLib.h"
-#include "CommonConstants.h"
 
 #include <cstdarg>
 #include <cstdio>

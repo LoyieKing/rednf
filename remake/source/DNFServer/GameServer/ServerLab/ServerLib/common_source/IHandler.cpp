@@ -1,5 +1,23 @@
-// Auto-generated stub from DWARF info of df_point_r
-// Original source: /home/neople/source/DNFServer/GameServer/ServerLab/ServerLib/common_source/IHandler.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
-
+// nsl::IHandler.cpp
 #include "IHandler.h"
+#include "ServiceFactory.h"
+#include "Threads.h"
+#include "TCPSendThread.h"
+
+namespace nsl {
+
+IHandler::~IHandler()
+{
+}
+
+void IHandler::init()
+{
+    setSendThread(pApp->super_Threads.getTCPSendThread());
+}
+
+void IHandler::setSendThread(TCPSendThread* pSendThread)
+{
+    sendTCP_ = pSendThread;
+}
+
+} // namespace nsl

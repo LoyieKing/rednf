@@ -1,5 +1,37 @@
-// Auto-generated header stub
-#ifndef ZONE_H_
-#define ZONE_H_
+#ifndef AUCTION_ZONE_H_
+#define AUCTION_ZONE_H_
 
-#endif // ZONE_H_
+#include "IArea.h"
+
+class GSArea : public nsl::IArea
+{
+public:
+    GSArea(int mapIndex)
+        : nsl::IArea(mapIndex)
+    {
+        mBackServerKey = 0;
+        mSpareKey = 0;
+        mbServiceRunning = false;
+    }
+    bool IsServiceRunning()
+    {
+        return mbServiceRunning;
+    }
+
+    int mBackServerKey;
+    int mSpareKey;
+    bool mbServiceRunning;
+};
+
+class Zone
+{
+public:
+    Zone();
+    ~Zone();
+
+    nsl::IArea* mArea[5];
+};
+
+Zone* G_Zone();
+
+#endif // AUCTION_ZONE_H_

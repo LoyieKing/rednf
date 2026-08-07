@@ -1,5 +1,22 @@
-// Auto-generated stub from DWARF info of df_point_r
-// Original source: /home/neople/source/DNFServer/GameServer/ServerLab/Auction/AuctionServer/GameData/Zone.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
-
+// Zone.cpp
 #include "Zone.h"
+#include "GlobalInstance.h"
+
+Zone::Zone()
+{
+    GSArea* pArea = new GSArea(0);
+    mArea[0] = pArea;
+}
+
+Zone::~Zone()
+{
+    if (mArea[0] != NULL)
+    {
+        delete mArea[0];
+    }
+}
+
+Zone* G_Zone()
+{
+    return nsl::GlobalInstance<Zone>::inst_ptr();
+}
