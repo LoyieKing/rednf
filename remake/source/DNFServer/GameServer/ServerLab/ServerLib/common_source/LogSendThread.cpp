@@ -7,6 +7,7 @@
 #include "TraceLog.h"
 #include "ServiceFactory.h"
 #include "DataPool.h"
+#include "TActiveConnect.h"
 #include "DNFPacket.h"
 
 namespace nsl {

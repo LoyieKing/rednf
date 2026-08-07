@@ -18,7 +18,7 @@
 
 namespace nsl {
 
-static __thread unsigned int aucWorkThreadId;
+__thread unsigned int tlsThreadId;
 
 WorkThread::WorkThread(int id)
     : orderQueue()
@@ -134,7 +134,7 @@ void WorkThread::InitTransactionCntPerSec()
 void WorkThread::loop(void* temp)
 {
     G_TraceLog()->sysLog(8, "Start up WorkThread");
-    aucWorkThreadId = GetThreadId();
+    tlsThreadId = GetThreadId();
     TCPDispatcher* handlerTCP = pApp->super_Dispatchers.getTCPDispatcher();
     InterDispatcher* pInterHandler = pApp->super_Dispatchers.GetInterDispatcher();
     TimerThread* timerThread = pApp->super_Threads.getTimerThread();
@@ -154,7 +154,7 @@ void WorkThread::loop(void* temp)
             ITimeEntity* teMsg = (ITimeEntity*)recvMessage;
             if (teMsg->isTerminated())
             {
-                CommonDataPool* pool = pApp->super_DataPools.getCommonDataPool(aucWorkThreadId);
+                CommonDataPool* pool = pApp->super_DataPools.getCommonDataPool(tlsThreadId);
                 pool->destroyTimeEntity(recvMessage);
             }
             else
@@ -186,12 +186,12 @@ void WorkThread::loop(void* temp)
             if (pInterMsg->bWillDelete == true)
             {
                 pInterMsg->bWillDelete = false;
-                CommonDataPool* pool = pApp->super_DataPools.getCommonDataPool(aucWorkThreadId);
+                CommonDataPool* pool = pApp->super_DataPools.getCommonDataPool(tlsThreadId);
                 pool->destroyMessage((Message*)recvMessage);
             }
             else
             {
-                pInterHandler->dispatch(recvMessage);
+                pInterHandler->dispatch((Message*)recvMessage);
                 pInterMsg->bWillDelete = true;
                 WorkThread* pWorkThread = pApp->super_Threads.getWorkThread(pInterMsg->mOwnerWorkId);
                 pWorkThread->PushTransaction(recvMessage);
