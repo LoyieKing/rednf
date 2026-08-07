@@ -23,15 +23,13 @@ void ChannelServiceApp::UDPThread::loop(void* temp)
 {
     puts("Start up UDPThread");
     UDPSocket sUDP;
-    bool ret = sUDP.open();
-    if (ret == false)
+    if (sUDP.open() == false)
     {
         puts("failed to open UDP socket port");
     }
     else
     {
-        ret = sUDP.bind((unsigned short)nPort_, true);
-        if (ret == false)
+        if (sUDP.bind((unsigned short)nPort_, true) == false)
         {
             printf("failed to bind UDP socket port #%d\n");
         }

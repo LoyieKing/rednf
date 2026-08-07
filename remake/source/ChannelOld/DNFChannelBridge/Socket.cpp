@@ -203,8 +203,11 @@ bool TCPSocket::setOptLinger(bool b)
     linger l;
     l.l_onoff = b ? 1 : 0;
     l.l_linger = 0;
-    int nRet = setsockopt(sock_, 1, 0xd, &l, 8);
-    return -1 < nRet;
+    if (setsockopt(sock_, 1, 0xd, &l, 8) < 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::setOptNonBlock()
@@ -221,9 +224,20 @@ bool TCPSocket::setOptNonBlock()
 
 bool TCPSocket::setOptReuseAdrs(bool b)
 {
-    int t = b ? 1 : 0;
-    int nRet = setsockopt(sock_, 1, 2, &t, 4);
-    return -1 < nRet;
+    int t = 0;
+    if (b)
+    {
+        t = 1;
+    }
+    else
+    {
+        t = 0;
+    }
+    if (setsockopt(sock_, 1, 2, &t, 4) < 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::setOptResizeSendBuf(int size)

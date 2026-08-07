@@ -21,12 +21,8 @@ void ChannelServiceApp::TCPThread::loop(void* temp)
     TReactor<EpollReactor<TCPUser>, TCPUser>* r = getManager()->getReactor();
     r->init(10000);
     r->startup();
-    while (true)
+    while (!isTerminating())
     {
-        if (isTerminating())
-        {
-            break;
-        }
         getManager()->setTick();
         while (true)
         {
