@@ -62,10 +62,11 @@ template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(char* s)
 {
     size_t sVar2 = strlen(s);
-    if ((int)(mPos + sVar2) <= 0x19000)
+    if ((int)(mPos + sVar2) > 0x19000)
     {
-        mPos = mPos + snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
+        return this;
     }
+    mPos = mPos + snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
     return this;
 }
 
@@ -73,54 +74,57 @@ template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(const char* s)
 {
     size_t sVar2 = strlen(s);
-    if ((int)(mPos + sVar2) <= 0x19000)
+    if ((int)(mPos + sVar2) > 0x19000)
     {
-        mPos = mPos + snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
+        return this;
     }
+    mPos = mPos + snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
     return this;
 }
 
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putValue(int n)
 {
-    if ((int)(mPos + 0xc) <= 0x19000)
+    if ((int)(mPos + 0xc) > 0x19000)
     {
-        char fmt[12];
-        char tmp[16];
-        memset(fmt, 0, 0xc);
-        sprintf(fmt, "%d", n);
-        if (hexadecimal_)
-        {
-            sprintf(tmp, "%%-%dx", strlen(fmt));
-        }
-        else
-        {
-            sprintf(tmp, "%%-%dd", strlen(fmt));
-        }
-        mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
+        return this;
     }
+    char fmt[12];
+    char tmp[16];
+    memset(fmt, 0, 0xc);
+    sprintf(fmt, "%d", n);
+    if (hexadecimal_)
+    {
+        sprintf(tmp, "%%-%dx", strlen(fmt));
+    }
+    else
+    {
+        sprintf(tmp, "%%-%dd", strlen(fmt));
+    }
+    mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
     return this;
 }
 
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putValue(unsigned int n)
 {
-    if ((int)(mPos + 0xc) <= 0x19000)
+    if ((int)(mPos + 0xc) > 0x19000)
     {
-        char fmt[12];
-        char tmp[16];
-        memset(fmt, 0, 0xc);
-        sprintf(fmt, "%d", n);
-        if (hexadecimal_)
-        {
-            sprintf(tmp, "%%-%dx", strlen(fmt));
-        }
-        else
-        {
-            sprintf(tmp, "%%-%dd", strlen(fmt));
-        }
-        mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
+        return this;
     }
+    char fmt[12];
+    char tmp[16];
+    memset(fmt, 0, 0xc);
+    sprintf(fmt, "%d", n);
+    if (hexadecimal_)
+    {
+        sprintf(tmp, "%%-%dx", strlen(fmt));
+    }
+    else
+    {
+        sprintf(tmp, "%%-%dd", strlen(fmt));
+    }
+    mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
     return this;
 }
 

@@ -12,8 +12,8 @@ int DBMgr::Mysql_logon()
     printf("DB pw='%s'\n", G_ScriptData()->db_pwd);
     printf("DB name='%s'\n", G_ScriptData()->db_name);
     puts("Try Mysql Login~~~~");
-    MYSQL* ret = mysql_real_connect(h_db, G_ScriptData()->db_ip, G_ScriptData()->db_id,
-                                    G_ScriptData()->db_pwd, G_ScriptData()->db_name, 0xcea, 0, 0);
+    int ret = mysql_real_connect(h_db, G_ScriptData()->db_ip, G_ScriptData()->db_id,
+                                 G_ScriptData()->db_pwd, G_ScriptData()->db_name, 0xcea, 0, 0) != 0;
     if (ret != 0)
     {
         puts("mysql connect success");
@@ -36,8 +36,8 @@ int DBMgr::Mysql_relogon()
     printf("DB pw='%s'\n", G_ScriptData()->db_pwd);
     printf("DB name='%s'\n", G_ScriptData()->db_name);
     puts("Try Mysql Re-Login~~~~");
-    MYSQL* ret = mysql_real_connect(h_db, G_ScriptData()->db_ip, G_ScriptData()->db_id,
-                                    G_ScriptData()->db_pwd, G_ScriptData()->db_name, 0xcea, 0, 0);
+    int ret = mysql_real_connect(h_db, G_ScriptData()->db_ip, G_ScriptData()->db_id,
+                                 G_ScriptData()->db_pwd, G_ScriptData()->db_name, 0xcea, 0, 0) != 0;
     if (ret != 0)
     {
         sleep(1);
@@ -74,8 +74,7 @@ void DBMgr::Mysql_error()
 
 MYSQL_RES* DBMgr::Mysql_query(char* query)
 {
-    int ret = mysql_query(h_db, query);
-    if (ret == 0)
+    if (mysql_query(h_db, query) == 0)
     {
         MYSQL_RES* res = mysql_store_result(h_db);
         if (res == NULL)
@@ -89,10 +88,10 @@ MYSQL_RES* DBMgr::Mysql_query(char* query)
     return NULL;
 }
 
-MYSQL_ROW* DBMgr::Mysql_fetch(MYSQL_ROW* row, MYSQL_RES* res)
+MYSQL_ROW* DBMgr::Mysql_fetch(MYSQL_ROW& row, MYSQL_RES* res)
 {
-    *row = mysql_fetch_row(res);
-    return row;
+    row = mysql_fetch_row(res);
+    return &row;
 }
 
 void DBMgr::Mysql_free(MYSQL_RES* res)

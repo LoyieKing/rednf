@@ -59,6 +59,7 @@ private:
     int sock_;
     sockaddr_in adrs_;
     unsigned short port_;
+    sockaddr_in from_;
 };
 
 #endif // SOCKET_H_

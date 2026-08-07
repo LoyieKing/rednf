@@ -10,12 +10,12 @@
 void Char2Hex(unsigned char ch, char* szHex)
 {
     static const char saucHex[] = "0123456789abcdef";
-    szHex[0] = saucHex[ch >> 4];
+    *szHex = saucHex[(int)(unsigned int)ch >> 4];
     szHex[1] = saucHex[ch & 0xf];
     szHex[2] = '\0';
 }
 
-bool Hex2Char(char* szHex, unsigned char* rch)
+bool Hex2Char(const char* szHex, unsigned char& rch)
 {
     if ((*szHex < '0') || ('9' < *szHex))
     {
@@ -23,26 +23,26 @@ bool Hex2Char(char* szHex, unsigned char* rch)
         {
             return false;
         }
-        *rch = *szHex + 0xa9;
+        rch = *szHex + 0xa9;
     }
     else
     {
-        *rch = *szHex + 0xd0;
+        rch = *szHex + 0xd0;
     }
-    char* pc = szHex + 1;
+    const char* pc = szHex + 1;
     if ((*pc < '0') || ('9' < *pc))
     {
         if ((*pc < 'a') || ('f' < *pc))
         {
             return false;
         }
-        *rch = *rch << 4;
-        *rch = *rch + *pc + 0xa9;
+        rch = rch << 4;
+        rch = rch + *pc + 0xa9;
     }
     else
     {
-        *rch = *rch << 4;
-        *rch = *rch + *pc + 0xd0;
+        rch = rch << 4;
+        rch = rch + *pc + 0xd0;
     }
     return true;
 }
@@ -60,7 +60,7 @@ void DNFFLib::Binary2Hex(const unsigned char* pucBinStr, int iBinSize, char* psz
     }
 }
 
-bool DNFFLib::Hex2Binary(char* pszHexStr, unsigned char* pucBinStr, int iBinSize)
+bool DNFFLib::Hex2Binary(const char* pszHexStr, unsigned char* pucBinStr, int iBinSize)
 {
     int i = 0;
     while (true)
@@ -70,7 +70,7 @@ bool DNFFLib::Hex2Binary(char* pszHexStr, unsigned char* pucBinStr, int iBinSize
             return true;
         }
         unsigned char ch;
-        bool ret = Hex2Char(pszHexStr, &ch);
+        bool ret = Hex2Char(pszHexStr, ch);
         if (!ret)
         {
             break;

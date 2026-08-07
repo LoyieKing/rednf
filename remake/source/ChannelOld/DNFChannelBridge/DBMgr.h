@@ -33,7 +33,7 @@ public:
     void Mysql_error();
     int Mysql_relogon();
     MYSQL_RES* Mysql_query(char* query);
-    MYSQL_ROW* Mysql_fetch(MYSQL_ROW* row, MYSQL_RES* res);
+    MYSQL_ROW* Mysql_fetch(MYSQL_ROW& row, MYSQL_RES* res);
     void Mysql_free(MYSQL_RES* res);
     MYSQL* Mysql_gethandle()
     {

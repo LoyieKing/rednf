@@ -1,5 +1,6 @@
 #include "Globals.h"
 #include "Method.h"
+#include <iostream>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>

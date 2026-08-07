@@ -40,7 +40,7 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
     memset(query, 0, 0x400);
     snprintf(query, 0x400, "select * from ch_script_version");
     res = db.Mysql_query(query);
-    row = *db.Mysql_fetch(&row, res);
+    row = *db.Mysql_fetch(row, res);
     memset(G_ScriptData(), 0, 0x10);
     strcpy(G_ScriptData()->channel_script_version, row[0]);
     db.Mysql_free(res);
@@ -51,7 +51,7 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
     count = 0;
     while (true)
     {
-        row = *db.Mysql_fetch(&row, res);
+        row = *db.Mysql_fetch(row, res);
         if (row == NULL)
         {
             break;
@@ -74,7 +74,7 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
         count = 0;
         while (true)
         {
-            row = *db.Mysql_fetch(&row, res);
+            row = *db.Mysql_fetch(row, res);
             if (row == NULL)
             {
                 break;
@@ -98,7 +98,7 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
             while (true)
             {
                 MYSQL_ROW sub_row;
-                sub_row = *db.Mysql_fetch(&sub_row, sub_res);
+                sub_row = *db.Mysql_fetch(sub_row, sub_res);
                 if (sub_row == NULL)
                 {
                     break;
@@ -125,7 +125,7 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
         count = 0;
         while (true)
         {
-            row = *db.Mysql_fetch(&row, res);
+            row = *db.Mysql_fetch(row, res);
             if (row == NULL)
             {
                 break;
@@ -176,7 +176,7 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
                 db.Mysql_relogon();
                 db.Mysql_query(query);
             }
-            row = *db.Mysql_fetch(&row, res);
+            row = *db.Mysql_fetch(row, res);
             cur_version = row[0];
             if (strcmp(G_ScriptData()->channel_script_version, cur_version) != 0)
             {
