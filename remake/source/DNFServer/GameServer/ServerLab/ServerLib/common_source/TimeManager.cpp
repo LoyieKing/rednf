@@ -23,31 +23,26 @@ TimeManager::~TimeManager()
 
 void TimeManager::insert2PeriodQueue(ITimeEntity* ent)
 {
-    unsigned int key = ent->entNo;
-    bool bRet = timePeriodMap.Insert(key, ent);
-    if (bRet)
-    {
-        G_TraceLog()->sysLog(8, "Success: ==>Insert TimeEntity!! uid=%d, pid=%d", ent->entNo, ent->proc_id);
-    }
-    else
+    if (!timePeriodMap.Insert(ent->entNo, ent))
     {
         G_TraceLog()->sysLog(8, "Fail: ==>Can't Insert TimeEntity!! uid=%d, pid=%d", ent->entNo, ent->proc_id);
         G_TraceLog()->sysLog(7, "Fail: ==>Can't Insert TimeEntity!! uid=%d, pid=%d", ent->entNo, ent->proc_id);
+    }
+    else
+    {
+        G_TraceLog()->sysLog(8, "Success: ==>Insert TimeEntity!! uid=%d, pid=%d", ent->entNo, ent->proc_id);
     }
 }
 
 void TimeManager::delete2PeriodQueue(ITimeEntity* ent)
 {
-    unsigned int key = ent->entNo;
-    bool bRet = timePeriodMap.Remove(key);
-    if (!bRet)
+    if (!timePeriodMap.Remove(ent->entNo))
     {
         G_TraceLog()->sysLog(7, "Fail: ==>Not found Time Entity entNo(%d), id(%d)", ent->entNo, ent->proc_id);
     }
     ent->setTerminated();
     InternalMsg* pArg = ent->getArg();
-    WorkThread* wt = pApp->super_Threads.getWorkThread(pArg->workIndex);
-    wt->PushTransaction((IMessageStruct*)ent);
+    pApp->super_Threads.getWorkThread(pArg->workIndex)->PushTransaction((IMessageStruct*)ent);
 }
 
 void TimeManager::onTime()
@@ -59,11 +54,10 @@ void TimeManager::onTime()
     {
         ITimeEntity* ent = *iter.GetDataPtr();
         ent->accumulated_tick += elapsedTick;
-        if (((long long)ent->accumulated_tick >> 32) != 0 || ent->check_period <= (unsigned int)ent->accumulated_tick)
+        if ((unsigned long long)ent->check_period <= (unsigned long long)ent->accumulated_tick)
         {
             InternalMsg* pArg = ent->getArg();
-            WorkThread* wt = pApp->super_Threads.getWorkThread(pArg->workIndex);
-            wt->PushTransaction((IMessageStruct*)ent);
+            pApp->super_Threads.getWorkThread(pArg->workIndex)->PushTransaction((IMessageStruct*)ent);
             ent->accumulated_tick = 0;
         }
         ++iter;
