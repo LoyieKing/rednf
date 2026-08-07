@@ -1,43 +1,62 @@
-// Auto-generated stub from DWARF info of df_point_r
-// Original source: /home/neople/source/DNFServer/GameServer/ServerLab/ServerLib/basic_source/Exception.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdio.h>
 
 #include "Exception.h"
 
-// --- Functions defined in this compilation unit ---
+namespace nsl {
 
-// nsl::Exception::Exception(char const*)
-/* TODO: implement */
+Exception::Exception(int iErrorCode)
+{
+    iErrorCode_ = iErrorCode;
+    nLine_ = 0;
+    szFunctionNameA_ = NULL;
+    szErrorMsg_[0] = '\0';
+}
 
-// nsl::Exception::Exception(char const*, int)
-/* TODO: implement */
+Exception::Exception(const char* szFunctionNameA, int nLine)
+{
+    iErrorCode_ = 0;
+    nLine_ = nLine;
+    szFunctionNameA_ = szFunctionNameA;
+    szErrorMsg_[0] = '\0';
+}
 
-// nsl::Exception::Exception(char const*, int, char const*, ...)
-/* TODO: implement */
+Exception::Exception(const char* szFunctionNameA, int nLine, int iErrorCode)
+{
+    iErrorCode_ = iErrorCode;
+    nLine_ = nLine;
+    szFunctionNameA_ = szFunctionNameA;
+}
 
-// nsl::Exception::Exception(char const*, int, int)
-/* TODO: implement */
+Exception::Exception(const char* szErrorMsg)
+{
+    iErrorCode_ = 0;
+    nLine_ = 0;
+    szFunctionNameA_ = NULL;
+}
 
-// nsl::Exception::Exception(int)
-/* TODO: implement */
+Exception::Exception(int iErrorCode, const char* szMessage, ...)
+{
+    iErrorCode_ = iErrorCode;
+    nLine_ = 0;
+    szFunctionNameA_ = NULL;
 
-// nsl::Exception::Exception(int, char const*, ...)
-/* TODO: implement */
+    va_list args;
+    va_start(args, szMessage);
+    vsprintf(szErrorMsg_, szMessage, args);
+    va_end(args);
+}
 
-// nsl::Exception::Exception(char const*)
-/* TODO: implement */
+Exception::Exception(const char* szFunctionNameA, int nLine, const char* szMessage, ...)
+{
+    nLine_ = nLine;
+    szFunctionNameA_ = szFunctionNameA;
 
-// nsl::Exception::Exception(char const*, int)
-/* TODO: implement */
+    va_list args;
+    va_start(args, szMessage);
+    vsprintf(szErrorMsg_, szMessage, args);
+    va_end(args);
+}
 
-// nsl::Exception::Exception(char const*, int, char const*, ...)
-/* TODO: implement */
-
-// nsl::Exception::Exception(char const*, int, int)
-/* TODO: implement */
-
-// nsl::Exception::Exception(int)
-/* TODO: implement */
-
-// nsl::Exception::Exception(int, char const*, ...)
-/* TODO: implement */
+} // namespace nsl

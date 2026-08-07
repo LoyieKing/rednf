@@ -1,31 +1,75 @@
-// Auto-generated stub from DWARF info of df_point_r
-// Original source: /home/neople/source/DNFServer/GameServer/ServerLab/ServerLib/basic_source/Token.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
+#include <assert.h>
+#include <string.h>
 
 #include "Token.h"
 
-// --- Functions defined in this compilation unit ---
+namespace nsl {
 
-// nsl::Token::free_token(int)
-/* TODO: implement */
+Token::Token()
+{
+    n_token = 0;
+    memset(seps, 0, 50);
+    seps[0] = ' ';
+    seps[1] = '=';
+    seps[2] = '\t';
+    seps[3] = 1;
+    seps[4] = 0;
+}
 
-// nsl::Token::get_context(int)
-/* TODO: implement */
+Token::~Token()
+{
+}
 
-// nsl::Token::get_n_token()
-/* TODO: implement */
+bool Token::get_token(char* str, int size)
+{
+    if (size <= 0)
+    {
+        return false;
+    }
 
-// nsl::Token::get_token(char*, int)
-/* TODO: implement */
+    char* temp = new char[size + 1];
+    assert(temp);
+    memset(temp, 0, size + 1);
+    strncpy(temp, str, size);
 
-// nsl::Token::Token()
-/* TODO: implement */
+    n_token = 0;
+    char* token = strtok(temp, seps);
+    while (token != NULL && n_token < MAX_TOKEN)
+    {
+        int nSize = strlen(token);
+        if (nSize > 0x800)
+        {
+            nSize = 0x800;
+        }
+        m_token[n_token] = new char[nSize + 1];
+        memset(m_token[n_token], 0, nSize + 1);
+        strncpy(m_token[n_token], token, nSize);
+        n_token++;
+        token = strtok(NULL, seps);
+    }
+    delete[] temp;
+    return true;
+}
 
-// nsl::Token::Token()
-/* TODO: implement */
+char* Token::get_context(int idx0)
+{
+    assert(idx0 >= 0 && idx0 < MAX_TOKEN);
+    return m_token[idx0];
+}
 
-// nsl::Token::~Token()
-/* TODO: implement */
+void Token::free_token(int idx0)
+{
+    assert(idx0 >= 0 && idx0 < MAX_TOKEN);
+    if (m_token[idx0] != NULL)
+    {
+        operator delete[](m_token[idx0]);
+    }
+    n_token = 0;
+}
 
-// nsl::Token::~Token()
-/* TODO: implement */
+int Token::get_n_token()
+{
+    return n_token;
+}
+
+} // namespace nsl

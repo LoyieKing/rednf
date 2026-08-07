@@ -1,16 +1,30 @@
-// Auto-generated stub from DWARF info of df_point_r
-// Original source: /home/neople/source/DNFServer/GameServer/ServerLab/ServerLib/basic_source/System.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
+#include <sys/select.h>
 
 #include "System.h"
 
-// --- Functions defined in this compilation unit ---
+namespace nsl {
 
-// nsl::LinuxSystem::sleep(int)
-/* TODO: implement */
+void LinuxSystem::sleep(int milisecond)
+{
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = milisecond * 1000;
+    select(0, NULL, NULL, NULL, &tv);
+}
 
-// nsl::LinuxSystem::usleep(int)
-/* TODO: implement */
+void LinuxSystem::usleep(int microsecond)
+{
+    timeval tv;
+    tv.tv_sec = 0;
+    tv.tv_usec = microsecond;
+    select(0, NULL, NULL, NULL, &tv);
+}
 
-// nsl::get_ms_tick()
-/* TODO: implement */
+long long get_ms_tick()
+{
+    timeval tv;
+    gettimeofday(&tv, NULL);
+    return (long long)tv.tv_sec * 1000 + (unsigned long long)tv.tv_usec / 1000;
+}
+
+} // namespace nsl
