@@ -42,7 +42,14 @@ TDebugTrace<T>& TDebugTrace<T>::operator<<(unsigned int in_Val)
 template <class T>
 TDebugTrace<T>& TDebugTrace<T>::operator<<(bool b)
 {
-    return *putValue(b ? 1 : 0);
+    if (b)
+    {
+        return *putValue(1);
+    }
+    else
+    {
+        return *putValue(0);
+    }
 }
 
 template <class T>
@@ -55,11 +62,9 @@ template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(char* s)
 {
     size_t sVar2 = strlen(s);
-    if ((int)(mPos + sVar2) < 0x19001)
+    if ((int)(mPos + sVar2) <= 0x19000)
     {
-        int i1 = mPos;
-        int i3 = snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
-        mPos = i1 + i3;
+        mPos = mPos + snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
     }
     return this;
 }
@@ -68,11 +73,9 @@ template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(const char* s)
 {
     size_t sVar2 = strlen(s);
-    if ((int)(mPos + sVar2) < 0x19001)
+    if ((int)(mPos + sVar2) <= 0x19000)
     {
-        int i1 = mPos;
-        int i3 = snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
-        mPos = i1 + i3;
+        mPos = mPos + snprintf(m_FormatBuf + mPos, sVar2 + 1, "%s", s);
     }
     return this;
 }
@@ -80,19 +83,19 @@ TDebugTrace<T>* TDebugTrace<T>::putText(const char* s)
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putValue(int n)
 {
-    if (mPos + 0xc < 0x19001)
+    if ((int)(mPos + 0xc) <= 0x19000)
     {
         char fmt[12];
         char tmp[16];
         memset(fmt, 0, 0xc);
         sprintf(fmt, "%d", n);
-        if (hexadecimal_ == false)
+        if (hexadecimal_)
         {
-            sprintf(tmp, "%%-%dd", strlen(fmt));
+            sprintf(tmp, "%%-%dx", strlen(fmt));
         }
         else
         {
-            sprintf(tmp, "%%-%dx", strlen(fmt));
+            sprintf(tmp, "%%-%dd", strlen(fmt));
         }
         mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
     }
@@ -102,19 +105,19 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(int n)
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putValue(unsigned int n)
 {
-    if (mPos + 0xc < 0x19001)
+    if ((int)(mPos + 0xc) <= 0x19000)
     {
         char fmt[12];
         char tmp[16];
         memset(fmt, 0, 0xc);
         sprintf(fmt, "%d", n);
-        if (hexadecimal_ == false)
+        if (hexadecimal_)
         {
-            sprintf(tmp, "%%-%dd", strlen(fmt));
+            sprintf(tmp, "%%-%dx", strlen(fmt));
         }
         else
         {
-            sprintf(tmp, "%%-%dx", strlen(fmt));
+            sprintf(tmp, "%%-%dd", strlen(fmt));
         }
         mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
     }
@@ -143,26 +146,27 @@ void TDebugTrace<T>::Unlock()
 template <class T>
 TDebugTrace<T>& endl(TDebugTrace<T>& in_Str)
 {
-    if (in_Str.pDevice_ != NULL)
+    if (in_Str.pDevice_ == NULL)
     {
-        if (in_Str.mPos < 0x19001)
+        return in_Str;
+    }
+    if (in_Str.mPos > 0x19000)
+    {
+        FILE* log = fopen("error.txt", "a+");
+        if (log != NULL)
         {
-            in_Str.pDevice_->serialize(in_Str.m_FormatBuf);
-            in_Str.flush();
-            in_Str.mPos = 0;
-            memset(in_Str.m_FormatBuf, 0, 0x19000);
+            fprintf(log, "DebugTrace error %d\n", in_Str.mPos);
+            fclose(log);
         }
-        else
-        {
-            FILE* log = fopen("error.txt", "a+");
-            if (log != NULL)
-            {
-                fprintf(log, "DebugTrace error %d\n", in_Str.mPos);
-                fclose(log);
-            }
-            in_Str.mPos = 0;
-            memset(in_Str.m_FormatBuf, 0, 0x19000);
-        }
+        in_Str.mPos = 0;
+        memset(in_Str.m_FormatBuf, 0, 0x19000);
+    }
+    else
+    {
+        in_Str.pDevice_->serialize(in_Str.m_FormatBuf);
+        in_Str.flush();
+        in_Str.mPos = 0;
+        memset(in_Str.m_FormatBuf, 0, 0x19000);
     }
     return in_Str;
 }

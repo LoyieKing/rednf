@@ -53,8 +53,7 @@ bool Script::fgetln(FILE* fp, char* buf)
     while (i <= 0x3ff)
     {
         int code = fgetc(fp);
-        int eof = feof(fp);
-        if (eof != 0)
+        if (feof(fp) != 0)
         {
             buf[i] = '\0';
             return false;
@@ -90,15 +89,12 @@ bool Script::remove_comment(char* line)
             }
             j = j + 1;
         }
-        if (n != 2)
-        {
-            i = i + 1;
-        }
-        else
+        if (n == 2)
         {
             memset(line + i, 0, 0x400 - i);
             return true;
         }
+        i = i + 1;
     }
     return false;
 }

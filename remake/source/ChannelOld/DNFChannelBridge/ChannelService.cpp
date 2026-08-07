@@ -259,10 +259,10 @@ void ChannelServiceApp::ChannelScript::ReloadScript()
         memset(buffer, 0, 0x100000);
         fread(buffer, lSize, 1, fp);
         buffer[lSize] = '\0';
-        printf("ScriptSize = '%d'\n", lSize);
-        printf("ScriptSize = '%d'\n", lSize);
-        printf("ScriptSize = '%d'\n", lSize);
         printf("ScriptSize = '%d'\n");
+        printf("ScriptSize = '%d'\n", lSize);
+        printf("ScriptSize = '%d'\n", lSize);
+        printf("ScriptSize = '%d'\n", lSize);
         if ((buffer[lSize - 1] == '\n') && (buffer[lSize - 2] == '\r'))
         {
             buffer[lSize - 2] = '\0';
@@ -496,14 +496,14 @@ void ChannelServiceApp::ChannelService::startup()
 
 DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADER pPCK)
 {
+    int ServerGroupIndex = -1;
+    int count = 0;
     tagCS_UPDATE_CHANNEL_INFO* _pPCK = (tagCS_UPDATE_CHANNEL_INFO*)pPCK;
     int gc_no = _pPCK->gc_no;
     if (gc_no < 1)
     {
         return 0;
     }
-    int ServerGroupIndex = -1;
-    int count = 0;
     for (std::map<char*, int>::iterator iter = gc_map.begin(); iter != gc_map.end(); iter++)
     {
         if ((0 < iter->second - gc_no) && (iter->second - gc_no <= 0x3e7))
@@ -970,14 +970,14 @@ TextOutputDevice_stdout::TextOutputDevice_stdout()
 bool TextOutputDevice_FILE::open(const TCHAR* s)
 {
     fp_ = fopen(s, "at");
-    if (fp_ != NULL)
+    if (fp_ == NULL)
     {
-        strncpy(szFileName_, s, 0x104);
-        printf("Success Log-File open : %s\n", szFileName_);
-        return true;
+        printf("Can't open [%s] file : %s\n", s, strerror(*__errno_location()));
+        return false;
     }
-    printf("Can't open [%s] file : %s\n", s, strerror(*__errno_location()));
-    return false;
+    strncpy(szFileName_, s, 0x104);
+    printf("Success Log-File open : %s\n", szFileName_);
+    return true;
 }
 
 bool TextOutputDevice_FILE::_reopen()
@@ -1048,7 +1048,10 @@ void TextOutputDevice_FILE::serialize(char* s)
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockFile);
     get_time(cur_date, cur_time);
     snprintf(out_buf, 0x19000, "%s %s : %s\n", cur_date, cur_time, s);
-    if (log_file_check())
+    if (log_file_check() == false)
+    {
+    }
+    else
     {
         fputs(out_buf, fp_);
     }

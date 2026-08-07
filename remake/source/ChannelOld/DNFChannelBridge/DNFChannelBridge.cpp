@@ -79,7 +79,7 @@ bool App::load_script()
     bool ret = G_Script()->load(filename);
     if (ret == false)
     {
-        printf("Can't open script file : %s", m_szConfigFileName, filename);
+        printf("Can't open script file : %s", m_szConfigFileName);
     }
     else
     {

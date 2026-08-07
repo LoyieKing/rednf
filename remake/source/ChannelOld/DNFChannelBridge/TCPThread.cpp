@@ -18,23 +18,19 @@ ChannelServiceApp::TCPThread::~TCPThread()
 void ChannelServiceApp::TCPThread::loop(void* temp)
 {
     puts("Start up TCPThread");
-    ChannelService* pApp = getManager();
-    TReactor<EpollReactor<TCPUser>, TCPUser>* r = pApp->getReactor();
+    TReactor<EpollReactor<TCPUser>, TCPUser>* r = getManager()->getReactor();
     r->init(10000);
     r->startup();
-    (void)pApp;
     while (true)
     {
         if (isTerminating())
         {
             break;
         }
-        pApp = getManager();
-        pApp->setTick();
+        getManager()->setTick();
         while (true)
         {
-            pApp = getManager();
-            TCPUser* pUser = pApp->getTCPAcceptThread()->lockPopAcceptedUser();
+            TCPUser* pUser = getManager()->getTCPAcceptThread()->lockPopAcceptedUser();
             if (pUser == NULL)
             {
                 break;

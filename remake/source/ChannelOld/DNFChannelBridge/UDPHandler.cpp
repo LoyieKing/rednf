@@ -30,6 +30,6 @@ void ChannelServiceApp::UDPHandlerRelay::dispatch(char* szBlock, int nSize, int 
     ChannelService::FPMessageHandlerExtra Handler = getManager()->GetMessageHandlerExtra(nProtoID);
     if (Handler != NULL)
     {
-        (getManager()->*Handler)(pPCK);
+        ret = (getManager()->*Handler)(pPCK);
     }
 }

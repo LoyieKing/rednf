@@ -24,10 +24,18 @@ void ChannelServiceApp::UDPThread::loop(void* temp)
     puts("Start up UDPThread");
     UDPSocket sUDP;
     bool ret = sUDP.open();
-    if (ret)
+    if (ret == false)
+    {
+        puts("failed to open UDP socket port");
+    }
+    else
     {
         ret = sUDP.bind((unsigned short)nPort_, true);
-        if (ret)
+        if (ret == false)
+        {
+            printf("failed to bind UDP socket port #%d\n");
+        }
+        else
         {
             printf("succeeded in binding UDP socket port! #%d\n");
             while (true)
@@ -50,13 +58,5 @@ void ChannelServiceApp::UDPThread::loop(void* temp)
             }
             setTerminated();
         }
-        else
-        {
-            printf("failed to bind UDP socket port #%d\n");
-        }
-    }
-    else
-    {
-        puts("failed to open UDP socket port");
     }
 }

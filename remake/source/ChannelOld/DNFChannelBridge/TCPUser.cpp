@@ -34,9 +34,9 @@ void ChannelServiceApp::TCPUser::startupAfterSetSocket()
 void ChannelServiceApp::TCPUser::postDisconnected(int nReason)
 {
     bAboutToDisconnect_ = true;
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In postDisconnected =" << nReason << endl;
-    gFileLogInfo.Unlock();
+    ChannelServiceApp::gFileLogInfo.Lock();
+    ChannelServiceApp::gFileLogInfo << "In postDisconnected =" << nReason << endl;
+    ChannelServiceApp::gFileLogInfo.Unlock();
     nReason_ = nReason;
 }
 
@@ -75,10 +75,10 @@ void ChannelServiceApp::TCPUser::onError()
 
 void ChannelServiceApp::TCPUser::onClose(char* file, int line)
 {
-    gFileLogInfo.Lock();
-    gFileLogInfo << "call onClose from " << file << ", " << line << ", TCPUSER=" << getACCID()
+    ChannelServiceApp::gFileLogInfo.Lock();
+    ChannelServiceApp::gFileLogInfo << "call onClose from " << file << ", " << line << ", TCPUSER=" << getACCID()
                  << ", error=" << strerror(*__errno_location()) << endl;
-    gFileLogInfo.Unlock();
+    ChannelServiceApp::gFileLogInfo.Unlock();
     if (bDisconnected_ == false)
     {
         getManager()->UserPools::destroyTCPUser(this, "TCPUser.cpp", 0x6a);
@@ -92,7 +92,7 @@ void ChannelServiceApp::TCPUser::onClose(char* file, int line)
 
 void ChannelServiceApp::TCPUser::onRead(char* file, int line)
 {
-    if (pSock_->getHandle() > -1)
+    if (-1 < pSock_->getHandle())
     {
         if (!(isAboutToDisconnect() || isDisconnected()))
         {
@@ -106,9 +106,9 @@ void ChannelServiceApp::TCPUser::onRead_()
 {
     char buf[0xa0000];
     int nRead = pSock_->recv(buf, 0xa0000);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "TCPUser.cpp" << " read=" << nRead << endl;
-    gFileLogInfo.Unlock();
+    ChannelServiceApp::gFileLogInfo.Lock();
+    ChannelServiceApp::gFileLogInfo << "TCPUser.cpp" << " read=" << nRead << endl;
+    ChannelServiceApp::gFileLogInfo.Unlock();
     if (nRead < 1)
     {
         if (nRead < 0)
@@ -137,9 +137,9 @@ void ChannelServiceApp::TCPUser::onRead_()
             tagPacketHeader hdr;
             if (!bufferRecv_.peekCopy(0xb, (char*)&hdr))
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "3.recv critical error occure!" << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "3.recv critical error occure!" << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 postDisconnected(9);
                 return;
             }
@@ -151,25 +151,25 @@ void ChannelServiceApp::TCPUser::onRead_()
             }
             if (nMessageSize < 1)
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "2.recv critical error occure!" << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "2.recv critical error occure!" << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 postDisconnected(8);
                 return;
             }
             if (bufferRecv_.getPushedLength() < nMessageSize)
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "2.need more body data : messagesize=" << nMessageSize << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "2.need more body data : messagesize=" << nMessageSize << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 return;
             }
             char szBuf[nMessageSize];
             if (!bufferRecv_.popCopy(nMessageSize, szBuf))
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 postDisconnected(7);
                 return;
             }
@@ -186,9 +186,9 @@ void ChannelServiceApp::TCPUser::onRead_()
             }
             if (nMessageSize < 1)
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "recv critical error occure!" << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "recv critical error occure!" << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 postDisconnected(5);
                 return;
             }
@@ -197,9 +197,9 @@ void ChannelServiceApp::TCPUser::onRead_()
                 TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, (char*)hdr, nMessageSize, 0);
                 if (bufferRecv_.pop(nMessageSize) < 0)
                 {
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     postDisconnected(3);
                     return;
                 }
@@ -208,17 +208,17 @@ void ChannelServiceApp::TCPUser::onRead_()
             {
             if (bufferRecv_.getPushedLength() < nMessageSize)
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "0.need more body data : messagesize=" << nMessageSize << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "0.need more body data : messagesize=" << nMessageSize << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 return;
             }
             char szBuf[nMessageSize];
             if (!bufferRecv_.popCopy(nMessageSize, szBuf))
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                     postDisconnected(4);
                     return;
             }
@@ -243,38 +243,38 @@ void ChannelServiceApp::TCPUser::onWrite_()
     int count = 0;
     if (pSock_ == NULL)
     {
-        gFileLogInfo.Lock();
+        ChannelServiceApp::gFileLogInfo.Lock();
         gFileLogInfo << "onWrite_ : Error(1)" << endl;
-        gFileLogInfo.Unlock();
+        ChannelServiceApp::gFileLogInfo.Unlock();
     }
-    else if (pSock_->getHandle() < 0)
+    else if (0 > pSock_->getHandle())
     {
-        gFileLogInfo.Lock();
+        ChannelServiceApp::gFileLogInfo.Lock();
         gFileLogInfo << "onWrite_ : Error(2)" << endl;
-        gFileLogInfo.Unlock();
+        ChannelServiceApp::gFileLogInfo.Unlock();
     }
     else if (isAboutToDisconnect() || isDisconnected())
     {
-        gFileLogInfo.Lock();
+        ChannelServiceApp::gFileLogInfo.Lock();
         gFileLogInfo << "onWrite_ : Error(3)" << endl;
-        gFileLogInfo.Unlock();
+        ChannelServiceApp::gFileLogInfo.Unlock();
     }
     else if (bufferSend_.isEmpty() == 0)
     {
         do
         {
-            gFileLogInfo.Lock();
+            ChannelServiceApp::gFileLogInfo.Lock();
             gFileLogInfo << "start~~ " << count << endl;
-            gFileLogInfo.Unlock();
+            ChannelServiceApp::gFileLogInfo.Unlock();
             count = count + 1;
             if (bufferSend_.isPushGreaterThanPop())
             {
                 int nSize = bufferSend_.getPushedLength();
                 if (nSize < 1)
                 {
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "AAA \xba\xf1\xc1\xa4\xbb\xf3 send queue \xb9\xdf\xbb\xfd nSize=" << nSize << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     postDisconnected(0xc);
                     return;
                 }
@@ -287,37 +287,37 @@ void ChannelServiceApp::TCPUser::onWrite_()
                 {
                     if (nSent == 0)
                     {
-                        gFileLogInfo.Lock();
+                        ChannelServiceApp::gFileLogInfo.Lock();
                         gFileLogInfo << "AAA send \xbd\xc7\xc6\xd0, \xbc\xd2\xc4\xcf \xc0\xcc\xba\xa5\xc6\xae \xbf\xa9\xc0\xfc\xc8\xf7 \xc1\xb8\xc0\xe7, \xb4\xd9\xc0\xbd \xb1\xe2\xc8\xb8\xbf\xa1 .. " << endl;
-                        gFileLogInfo.Unlock();
+                        ChannelServiceApp::gFileLogInfo.Unlock();
                         return;
                     }
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "AAA send \xbd\xc7\xc6\xd0, disconnect.. count =" << count << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     postDisconnected(0xb);
                     return;
                 }
                 if (bufferSend_.pop(nSent) < 0)
                 {
                     postDisconnected(10);
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "AAA 2.pop \xbf\xa1 \xbd\xc7\xc6\xd0\xb8\xe9 \xb9\xae\xc1\xa6\xc0\xd6\xb4\xd9." << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     return;
                 }
-                gFileLogInfo.Lock();
-                gFileLogInfo << "1.AAA pop \xbc\xba\xb0\xf8, " << nSent << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "1.AAA pop \xbc\xba\xb0\xf8, " << nSent << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
             }
             else
             {
                 int nSize = bufferSend_.getPopLengthToEnd();
                 if (nSize < 1)
                 {
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "AAA \xba\xf1\xc1\xa4\xbb\xf3 send queue \xb9\xdf\xbb\xfd  nSize=" << nSize << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     postDisconnected(0xf);
                     return;
                 }
@@ -330,39 +330,39 @@ void ChannelServiceApp::TCPUser::onWrite_()
                 {
                     if (nSent == 0)
                     {
-                        gFileLogInfo.Lock();
+                        ChannelServiceApp::gFileLogInfo.Lock();
                         gFileLogInfo << "AAA send \xbd\xc7\xc6\xd0, \xbc\xd2\xc4\xcf \xc0\xcc\xba\xa5\xc6\xae \xbf\xa9\xc0\xfc\xc8\xf7 \xc1\xb8\xc0\xe7, \xb4\xd9\xc0\xbd \xb1\xe2\xc8\xb8\xbf\xa1 .. " << endl;
-                        gFileLogInfo.Unlock();
+                        ChannelServiceApp::gFileLogInfo.Unlock();
                         return;
                     }
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "2.AAA send \xbd\xc7\xc6\xd0, disconnect.. count=" << count << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     postDisconnected(0xe);
                     return;
                 }
                 if (bufferSend_.pop(nSent) < 0)
                 {
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "AAA 3.pop \xbf\xa1 \xbd\xc7\xc6\xd0\xb8\xe9 \xb9\xae\xc1\xa6\xc0\xd6\xb4\xd9." << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     postDisconnected(0xd);
                     return;
                 }
-                gFileLogInfo.Lock();
-                gFileLogInfo << "AAA pop \xbc\xba\xb0\xf8, " << nSent << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "AAA pop \xbc\xba\xb0\xf8, " << nSent << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
             }
-            gFileLogInfo.Lock();
+            ChannelServiceApp::gFileLogInfo.Lock();
             gFileLogInfo << "send empty? =" << bufferSend_.isEmpty() << endl;
-            gFileLogInfo.Unlock();
+            ChannelServiceApp::gFileLogInfo.Unlock();
         } while (bufferSend_.isEmpty() == 0);
     }
     else
     {
-        gFileLogInfo.Lock();
+        ChannelServiceApp::gFileLogInfo.Lock();
         gFileLogInfo << "onWrite_ : Error(4)" << endl;
-        gFileLogInfo.Unlock();
+        ChannelServiceApp::gFileLogInfo.Unlock();
     }
 }
 
@@ -371,9 +371,9 @@ int ChannelServiceApp::TCPUser::onWrite2Buffer(CMsgCell* pMsgCell)
     int iVar5;
     if (pSock_ == NULL)
     {
-        gFileLogInfo.Lock();
+        ChannelServiceApp::gFileLogInfo.Lock();
         gFileLogInfo << "Send Queue Push error = -1" << endl;
-        gFileLogInfo.Unlock();
+        ChannelServiceApp::gFileLogInfo.Unlock();
         iVar5 = -1;
     }
     else
@@ -381,23 +381,23 @@ int ChannelServiceApp::TCPUser::onWrite2Buffer(CMsgCell* pMsgCell)
         SOCKET h = pSock_->getHandle();
         if (h < 0)
         {
-            gFileLogInfo.Lock();
+            ChannelServiceApp::gFileLogInfo.Lock();
             gFileLogInfo << "Send Queue Push error = -1" << endl;
-            gFileLogInfo.Unlock();
+            ChannelServiceApp::gFileLogInfo.Unlock();
             iVar5 = -2;
         }
         else if (isAboutToDisconnect() || isDisconnected())
         {
-            gFileLogInfo.Lock();
+            ChannelServiceApp::gFileLogInfo.Lock();
             gFileLogInfo << "Send Queue Push error = -1" << endl;
-            gFileLogInfo.Unlock();
+            ChannelServiceApp::gFileLogInfo.Unlock();
             iVar5 = -3;
         }
         else if (pMsgCell->GetSize() < 1)
         {
-            gFileLogInfo.Lock();
+            ChannelServiceApp::gFileLogInfo.Lock();
             gFileLogInfo << "Send Queue Push error = -1" << endl;
-            gFileLogInfo.Unlock();
+            ChannelServiceApp::gFileLogInfo.Unlock();
             iVar5 = -4;
         }
         else
@@ -408,9 +408,9 @@ int ChannelServiceApp::TCPUser::onWrite2Buffer(CMsgCell* pMsgCell)
                 iVar5 = bufferSend_.push(pMsgCell->GetBuf(), pMsgCell->GetSize(), "TCPUser.cpp", 0x213);
                 if (iVar5 < 0)
                 {
-                    gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo.Lock();
                     gFileLogInfo << "Send Queue Push error=" << iVar5 << endl;
-                    gFileLogInfo.Unlock();
+                    ChannelServiceApp::gFileLogInfo.Unlock();
                     iVar5 = -6;
                 }
             }
@@ -431,7 +431,7 @@ int ChannelServiceApp::TCPUser::send(CMsgCell* pMsgCell)
     {
         return -1;
     }
-    if (pSock_->getHandle() > -1)
+    if (-1 < pSock_->getHandle())
     {
         if (isAboutToDisconnect() || isDisconnected())
         {
@@ -447,9 +447,9 @@ int ChannelServiceApp::TCPUser::send(CMsgCell* pMsgCell)
             int nRet = bufferSend_.push(pMsgCell->GetBuf(), pMsgCell->GetSize(), "TCPUser.cpp", 0x1e4);
             if (nRet < 0)
             {
-                gFileLogInfo.Lock();
-                gFileLogInfo << "Send Queue Push error=" << nRet << endl;
-                gFileLogInfo.Unlock();
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "Send Queue Push error=" << nRet << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 return -6;
             }
             else
@@ -476,11 +476,11 @@ int CMsgCell::GetSize() const
 template <unsigned int Size>
 int TCircularQueueBuffer<Size>::push(char* in_block, int in_nSize, char* file, int line)
 {
-    if ((unsigned int)in_nSize < 0xa0000)
+    if (in_nSize <= 0x9ffff)
     {
         if (m_nPushIndex < m_nPopIndex)
         {
-            if ((int)(m_nPopIndex - m_nPushIndex) <= in_nSize)
+            if (m_nPopIndex - m_nPushIndex <= (unsigned int)in_nSize)
             {
                 return -4;
             }
@@ -490,7 +490,7 @@ int TCircularQueueBuffer<Size>::push(char* in_block, int in_nSize, char* file, i
         else
         {
             unsigned int nFirstCutSize = 0xa0000 - m_nPushIndex;
-            if (in_nSize < (int)nFirstCutSize)
+            if ((unsigned int)in_nSize < nFirstCutSize)
             {
                 memcpy(&m_buffer[m_nPushIndex], in_block, in_nSize);
                 m_nPushIndex = m_nPushIndex + in_nSize;
@@ -510,7 +510,7 @@ int TCircularQueueBuffer<Size>::push(char* in_block, int in_nSize, char* file, i
             }
             else
             {
-                if ((int)(nFirstCutSize + m_nPopIndex) <= in_nSize)
+                if (nFirstCutSize + m_nPopIndex <= (unsigned int)in_nSize)
                 {
                     return -3;
                 }
@@ -531,22 +531,12 @@ int TCircularQueueBuffer<Size>::pop(int in_nSize)
     {
         return -1;
     }
-    if (m_nPushIndex >= m_nPopIndex)
-    {
-        int nLength = m_nPushIndex - m_nPopIndex;
-        if (nLength < in_nSize)
-        {
-            return -2;
-        }
-        m_nPopIndex = m_nPopIndex + in_nSize;
-        return 0;
-    }
-    else
+    if (m_nPushIndex < m_nPopIndex)
     {
         int nFirstCut = 0xa0000 - m_nPopIndex;
         if (nFirstCut < in_nSize)
         {
-            if (m_nPushIndex + nFirstCut < in_nSize)
+            if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
             {
                 return -3;
             }
@@ -560,6 +550,12 @@ int TCircularQueueBuffer<Size>::pop(int in_nSize)
         }
         return 0;
     }
+    if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
+    {
+        return -2;
+    }
+    m_nPopIndex = m_nPopIndex + in_nSize;
+    return 0;
 }
 
 template <unsigned int Size>
@@ -569,24 +565,12 @@ bool TCircularQueueBuffer<Size>::popCopy(int in_nSize, char* pCopyee)
     {
         return false;
     }
-    if (m_nPushIndex >= m_nPopIndex)
+    if (m_nPushIndex < m_nPopIndex)
     {
-        int nLength = m_nPushIndex - m_nPopIndex;
-        if (nLength < in_nSize)
+        unsigned int nFirstCut = 0xa0000 - m_nPopIndex;
+        if ((int)nFirstCut < in_nSize)
         {
-            return false;
-        }
-        memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
-        m_nPopIndex = m_nPopIndex + in_nSize;
-        return true;
-    }
-    else
-    {
-        int nFirstCut = 0xa0000 - m_nPopIndex;
-        if (nFirstCut < in_nSize)
-        {
-            int nSecondCut = m_nPushIndex;
-            if (m_nPushIndex + nFirstCut < in_nSize)
+            if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
             {
                 return false;
             }
@@ -604,6 +588,13 @@ bool TCircularQueueBuffer<Size>::popCopy(int in_nSize, char* pCopyee)
         }
         return true;
     }
+    if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
+    {
+        return false;
+    }
+    memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
+    m_nPopIndex = m_nPopIndex + in_nSize;
+    return true;
 }
 
 template <unsigned int Size>
@@ -613,23 +604,12 @@ bool TCircularQueueBuffer<Size>::peekCopy(int in_nSize, char* pCopyee)
     {
         return false;
     }
-    if (m_nPushIndex >= m_nPopIndex)
+    if (m_nPushIndex < m_nPopIndex)
     {
-        int nLength = m_nPushIndex - m_nPopIndex;
-        if (nLength < in_nSize)
+        unsigned int nFirstCut = 0xa0000 - m_nPopIndex;
+        if ((int)nFirstCut < in_nSize)
         {
-            return false;
-        }
-        memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
-        return true;
-    }
-    else
-    {
-        int nFirstCut = 0xa0000 - m_nPopIndex;
-        if (nFirstCut < in_nSize)
-        {
-            int nSecondCut = m_nPushIndex;
-            if (m_nPushIndex + nFirstCut < in_nSize)
+            if ((int)(m_nPushIndex + nFirstCut) < in_nSize)
             {
                 return false;
             }
@@ -640,18 +620,39 @@ bool TCircularQueueBuffer<Size>::peekCopy(int in_nSize, char* pCopyee)
         memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
         return true;
     }
+    if ((int)(m_nPushIndex - m_nPopIndex) < in_nSize)
+    {
+        return false;
+    }
+    memcpy(pCopyee, &m_buffer[m_nPopIndex], in_nSize);
+    return true;
 }
 
 template <unsigned int Size>
 bool TCircularQueueBuffer<Size>::isPopStraight(int in_nSize)
 {
-    if ((unsigned int)in_nSize <= 0x9ffff)
+    ChannelServiceApp::gFileLogInfo.Lock();
+    ChannelServiceApp::gFileLogInfo << "In  isPopStraight" << endl;
+    ChannelServiceApp::gFileLogInfo.Unlock();
+    ChannelServiceApp::gFileLogInfo.Lock();
+    ChannelServiceApp::gFileLogInfo << "in_nSize=" << in_nSize << endl;
+    ChannelServiceApp::gFileLogInfo.Unlock();
+    ChannelServiceApp::gFileLogInfo.Lock();
+    ChannelServiceApp::gFileLogInfo << "m_nPopIndex=" << m_nPopIndex << endl;
+    ChannelServiceApp::gFileLogInfo.Unlock();
+    ChannelServiceApp::gFileLogInfo.Lock();
+    ChannelServiceApp::gFileLogInfo << "m_nPushIndex=" << m_nPushIndex << endl;
+    ChannelServiceApp::gFileLogInfo.Unlock();
+    if (in_nSize <= 0x9ffff)
     {
         if (m_nPopIndex < m_nPushIndex)
         {
             int nSize = m_nPushIndex - m_nPopIndex;
             if (nSize < in_nSize)
             {
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "Out isPopStraight" << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
                 return false;
             }
             return true;
@@ -659,7 +660,7 @@ bool TCircularQueueBuffer<Size>::isPopStraight(int in_nSize)
         else
         {
             unsigned int nFirstCutSize = 0xa0000 - m_nPopIndex;
-            if (nFirstCutSize < in_nSize)
+            if (nFirstCutSize < (unsigned int)in_nSize)
             {
                 return false;
             }
