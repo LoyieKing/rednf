@@ -58,76 +58,69 @@ void ChannelServiceApp::TCPAcceptThread::loop(void* temp)
     unsigned short accport = (unsigned short)getPort();
     ChannelService* pApp = TManager<ChannelService>::getManager();
     TCPSocket listenSocket;
-    if (listenSocket.open())
+    if (!listenSocket.open())
     {
-        if (listenSocket.bind(accport, false))
+        throw Exception("Fail to open socket");
+    }
+    if (!listenSocket.bind(accport, false))
+    {
+        throw Exception("Fail to bind listen");
+    }
+    if (!listenSocket.listen(0x400))
+    {
+        throw Exception("Fail to Create AcceptThread.");
+    }
+    while (!isTerminating())
+    {
+        usleep(100);
+        if (isStop())
         {
-            if (listenSocket.listen(0x400))
+            break;
+        }
+        sockaddr_in useradr;
+        int size = 0x10;
+        TCPSocket* s = pApp->UserPools::createTCPSocket("TCPAcceptThread.cpp", 0x4d);
+        if (s == NULL)
+        {
+            gFileLogInfo.Lock();
+            gFileLogInfo << "Create Error :  Remain TCP Sockets =" << pApp->UserPools::m_poolTCPSocket.getRemain() << endl;
+            gFileLogInfo.Unlock();
+        }
+        else
+        {
+            bool bRet = listenSocket.accept(*s);
+            if (bRet)
             {
-                while (!isTerminating())
+                TCPUser* acUser = TManager<ChannelService>::getManager()->UserPools::createTCPUser("TCPAcceptThread.cpp", 0x61);
+                if (acUser == NULL)
                 {
-                    usleep(100);
-                    if (isStop())
-                    {
-                        break;
-                    }
-                    sockaddr_in useradr;
-                    int size = 0x10;
-                    ChannelService* pApp2 = TManager<ChannelService>::getManager();
-                    TCPSocket* s = pApp2->UserPools::createTCPSocket("TCPAcceptThread.cpp", 0x4f);
-                    if (s == NULL)
-                    {
-                        gFileLogInfo << "Create Error :  Remain TCP Sockets =" << pApp->UserPools::m_poolTCPSocket.getRemain() << endl;
-                    }
-                    else
-                    {
-                        bool bRet = listenSocket.accept(*s);
-                        if (bRet)
-                        {
-                            ChannelService* pApp3 = TManager<ChannelService>::getManager();
-                            TCPUser* acUser = pApp3->UserPools::createTCPUser("TCPAcceptThread.cpp", 0x62);
-                            if (acUser == NULL)
-                            {
-                                gFileLogInfo << "Create Error :  Remain TCP Sockets =" << pApp->UserPools::m_poolTCPSocket.getRemain() << endl;
-                                gFileLogInfo << "Create Error :  Remain TCP Users =" << pApp->UserPools::m_poolTCPUser.getRemain() << endl;
-                                notifyCannotCreateUser(*s);
-                                s->close();
-                                TManager<ChannelService>::getManager()->UserPools::destroyTCPSocket(s);
-                            }
-                            else
-                            {
-                                acUser->TManager<ChannelService>::setManager(TManager<ChannelService>::getManager());
-                                acUser->setSocket(s);
-                                acUser->startupAfterSetSocket();
-                                acUser->setLastAccessTime();
-                                lockPushAcceptedUser(acUser);
-                            }
-                        }
-                        else
-                        {
-                            gFileLogInfo << "Create Error :  accept error" << strerror(*__errno_location()) << endl;
-                            TManager<ChannelService>::getManager()->UserPools::destroyTCPSocket(s);
-                        }
-                    }
+                    gFileLogInfo.Lock();
+                    gFileLogInfo << "Create Error :  Remain TCP Sockets =" << pApp->UserPools::m_poolTCPSocket.getRemain() << endl;
+                    gFileLogInfo.Unlock();
+                    gFileLogInfo.Lock();
+                    gFileLogInfo << "Create Error :  Remain TCP Users =" << pApp->UserPools::m_poolTCPUser.getRemain() << endl;
+                    gFileLogInfo.Unlock();
+                    notifyCannotCreateUser(*s);
+                    s->close();
+                    TManager<ChannelService>::getManager()->UserPools::destroyTCPSocket(s);
+                }
+                else
+                {
+                    acUser->TManager<ChannelService>::setManager(TManager<ChannelService>::getManager());
+                    acUser->setSocket(s);
+                    acUser->startupAfterSetSocket();
+                    acUser->setLastAccessTime();
+                    lockPushAcceptedUser(acUser);
                 }
             }
             else
             {
-                gFileLogError << "Fail to Create AcceptThread" << endl;
+                gFileLogInfo.Lock();
+                gFileLogInfo << "Create Error :  accept error" << strerror(*__errno_location()) << endl;
+                gFileLogInfo.Unlock();
+                TManager<ChannelService>::getManager()->UserPools::destroyTCPSocket(s);
             }
         }
-        else
-        {
-            gFileLogError << "Fail to bind listen" << endl;
-        }
-    }
-    else
-    {
-        gFileLogError << "Fail to open socket" << endl;
-    }
-    if (!isTerminating())
-    {
-        gFileLogError << "[EXIT] th_AcceptThread Return" << endl;
     }
     listenSocket.close();
     setTerminated();

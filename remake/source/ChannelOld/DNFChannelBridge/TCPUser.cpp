@@ -128,7 +128,57 @@ void ChannelServiceApp::TCPUser::onRead_()
     }
     do
     {
-        if (bufferRecv_.getPopLengthToEnd() < 0xb)
+        if (bufferRecv_.getPopLengthToEnd() > 0xa)
+        {
+            tagPacketHeader* hdr = (tagPacketHeader*)bufferRecv_.peekPop();
+            int nMessageSize = hdr->getSize();
+            if ((0xa0000 < nMessageSize) || (nMessageSize < 1))
+            {
+                postDisconnected(2);
+                return;
+            }
+            if (nMessageSize < 1)
+            {
+                ChannelServiceApp::gFileLogInfo.Lock();
+                ChannelServiceApp::gFileLogInfo << "recv critical error occure!" << endl;
+                ChannelServiceApp::gFileLogInfo.Unlock();
+                postDisconnected(5);
+                return;
+            }
+            if (bufferRecv_.isPopStraight(nMessageSize))
+            {
+                TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, (char*)hdr, nMessageSize, 0);
+                if (bufferRecv_.pop(nMessageSize) < 0)
+                {
+                    ChannelServiceApp::gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
+                    ChannelServiceApp::gFileLogInfo.Unlock();
+                    postDisconnected(3);
+                    return;
+                }
+            }
+            else
+            {
+                if (bufferRecv_.getPushedLength() < nMessageSize)
+                {
+                    ChannelServiceApp::gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo << "0.need more body data : messagesize=" << nMessageSize << endl;
+                    ChannelServiceApp::gFileLogInfo.Unlock();
+                    return;
+                }
+                char szBuf[nMessageSize];
+                if (!bufferRecv_.popCopy(nMessageSize, szBuf))
+                {
+                    ChannelServiceApp::gFileLogInfo.Lock();
+                    ChannelServiceApp::gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
+                    ChannelServiceApp::gFileLogInfo.Unlock();
+                    postDisconnected(4);
+                    return;
+                }
+                TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, szBuf, nMessageSize, 0);
+            }
+        }
+        else
         {
             if (bufferRecv_.getPushedLength() < 0xb)
             {
@@ -175,61 +225,7 @@ void ChannelServiceApp::TCPUser::onRead_()
             }
             TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, szBuf, nMessageSize, 0);
         }
-        else
-        {
-            tagPacketHeader* hdr = (tagPacketHeader*)bufferRecv_.peekPop();
-            int nMessageSize = hdr->getSize();
-            if ((0xa0000 < nMessageSize) || (nMessageSize < 1))
-            {
-                postDisconnected(2);
-                return;
-            }
-            if (nMessageSize < 1)
-            {
-                ChannelServiceApp::gFileLogInfo.Lock();
-                ChannelServiceApp::gFileLogInfo << "recv critical error occure!" << endl;
-                ChannelServiceApp::gFileLogInfo.Unlock();
-                postDisconnected(5);
-                return;
-            }
-            if (bufferRecv_.isPopStraight(nMessageSize))
-            {
-                TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, (char*)hdr, nMessageSize, 0);
-                if (bufferRecv_.pop(nMessageSize) < 0)
-                {
-                    ChannelServiceApp::gFileLogInfo.Lock();
-                    gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
-                    ChannelServiceApp::gFileLogInfo.Unlock();
-                    postDisconnected(3);
-                    return;
-                }
-            }
-            else
-            {
-            if (bufferRecv_.getPushedLength() < nMessageSize)
-            {
-                ChannelServiceApp::gFileLogInfo.Lock();
-                ChannelServiceApp::gFileLogInfo << "0.need more body data : messagesize=" << nMessageSize << endl;
-                ChannelServiceApp::gFileLogInfo.Unlock();
-                return;
-            }
-            char szBuf[nMessageSize];
-            if (!bufferRecv_.popCopy(nMessageSize, szBuf))
-            {
-                ChannelServiceApp::gFileLogInfo.Lock();
-                ChannelServiceApp::gFileLogInfo << "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9." << endl;
-                ChannelServiceApp::gFileLogInfo.Unlock();
-                    postDisconnected(4);
-                    return;
-            }
-            TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, szBuf, nMessageSize, 0);
-        }
-    }
-    if (bufferRecv_.isEmpty() != 0)
-    {
-        return;
-    }
-    } while (true);
+    } while (bufferRecv_.isEmpty() == 0);
 }
 
 void ChannelServiceApp::TCPUser::onWrite(char* file, int line)
