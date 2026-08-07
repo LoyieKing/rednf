@@ -4,7 +4,7 @@
 // Rebuilt from df_auction_r DWARF layouts (auction item domain data), 2026-08-08
 #include <string.h>
 
-typedef long long __int64;
+typedef unsigned long long __int64;
 
 enum ENUM_RANDOM_OPTION_NUMBER
 {
@@ -360,5 +360,35 @@ struct DnfItemInfo
     }
 };
 #pragma pack(pop)
+
+// Avatar emblem/expansion info (auction binary DWARF, decl lines 7380..7420)
+struct stAvatarEmblemInfo_t
+{
+    struct
+    {
+        unsigned short emblemSocketType_;   // @0
+        int emblemItemIdx_;                 // @2
+    } stEmblemSocket[5];                    // @0, total 30B
+
+    void init()
+    {
+        memset(this, 0, sizeof(stAvatarEmblemInfo_t));
+    }
+};
+
+struct stAvatarExpansionInfo_t
+{
+    short color[2];                     // @0, total 4B
+
+    void init()
+    {
+        memset(color, 0, sizeof(color));
+    }
+
+    bool operator==(const stAvatarExpansionInfo_t& _rhp) const
+    {
+        return color[0] == _rhp.color[0] && color[1] == _rhp.color[1];
+    }
+};
 
 #endif // AUCTION_AUCTIONITEM_H_

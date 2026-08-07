@@ -302,4 +302,5 @@ int DBConnection::exec_query()
     return db_ret;
 }
 
+
 } // namespace nsl

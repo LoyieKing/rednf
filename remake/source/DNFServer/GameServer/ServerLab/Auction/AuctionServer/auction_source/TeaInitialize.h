@@ -1,4 +1,3 @@
-// Auto-generated header stub
 #ifndef TEAINITIALIZE_H_
 #define TEAINITIALIZE_H_
 

@@ -110,7 +110,7 @@ void DataPool::destroyTCPUser(TCPUser* pTCPUser)
     if (pSession != NULL)
     {
         pSession = pTCPUser->getSession();
-        pSession->onClose();
+        pSession->onClose(false);
         pTCPUser->setSession(NULL);
     }
     TCPSocket* sock = pTCPUser->getSocket();
