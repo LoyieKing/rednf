@@ -10,7 +10,7 @@ public:
     char server_id;                   // offset 0x00
     int user_m_id;                    // offset 0x01
     int what_0x5;                     // offset 0x05
-    char channel_no;                  // offset 0x09
+    unsigned char channel_no;         // offset 0x09（原始：movzx 零扩展，unsigned char）
     int charac_no;                    // offset 0x0a
     char buddy_n_user_id_what[0x1e];  // offset 0x0e
     char variable_what1;              // offset 0x2c

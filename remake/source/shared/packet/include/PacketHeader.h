@@ -23,11 +23,10 @@ public:
     const ushort packetId;
     const ushort packetSize;
     const ushort reversed1;
-    const ushort reversed2;
-    const ushort reversed3;
+    const unsigned int reversed2;  // 0x06-0x09（uint，原始一次 movl 清零）
 
     PacketHeader(ushort packetId, ushort packetSize);
-};
+} __attribute__((packed));
 
 TEST_CLASS_SIZE(PacketHeader, 10)
 

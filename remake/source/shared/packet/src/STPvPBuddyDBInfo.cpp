@@ -15,4 +15,3 @@ STPvPBuddyDBInfo::STPvPBuddyDBInfo() {
     this->buddy_n_user_what3 = 0;
     memset(this->buddy_n_user_id_what, 0, sizeof(this->buddy_n_user_id_what));
 }
-STPvPBuddyDBInfo::~STPvPBuddyDBInfo() {}

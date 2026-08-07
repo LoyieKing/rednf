@@ -1,5 +1,45 @@
-// Auto-generated stub from DWARF info of df_channel_r
-// Original source: /home/neople/source/ChannelOld/DNFChannelServer/UDPHandler.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
+#include "ChannelServiceApp.h"
 
-#include "UDPHandler.h"
+DWORD tagPacketHeader::getPacketID()
+{
+    return msg_no;
+}
+
+ChannelServiceApp::UDPHandler::UDPHandler()
+{
+}
+
+ChannelServiceApp::ChannelService::FPMessageHandlerExtra ChannelServiceApp::ChannelService::GetMessageHandlerExtra(int n)
+{
+    if ((n < 0) || (0x1ff < n))
+    {
+        return NULL;
+    }
+    return m_HandlersExtra[n];
+}
+
+ChannelServiceApp::UDPHandlerRelay::UDPHandlerRelay()
+{
+}
+
+void ChannelServiceApp::UDPHandlerRelay::dispatch(char* szBlock, int nSize, int Catagory)
+{
+    LPPACKET_HEADER pPCK = (LPPACKET_HEADER)szBlock;
+    int nProtoID = pPCK->getPacketID();
+    DWORD ret = 0;
+    ChannelService::FPMessageHandlerExtra Handler = TManager<ChannelService>::getManager()->GetMessageHandlerExtra(nProtoID);
+    if (Handler != NULL)
+    {
+        ret = (TManager<ChannelService>::getManager()->*Handler)(pPCK);
+        if (ret == 0)
+        {
+            gLogInfo << "ERROR :" << "dispatch" << "ID" << nProtoID << endl;
+        }
+    }
+    else
+    {
+        gFileLogInfo.Lock();
+    }
+    gFileLogInfo << "ERROR : Not find Handler ID : " << nProtoID << endl;
+    gFileLogInfo.Unlock();
+}

@@ -6,6 +6,7 @@
 #define REDNF_PACKET_NOTICE_ADD_PVP_BUDDY_RESULT_H
 
 #include "PacketHeader.h"
+#include <cstring>
 
 #pragma pack(push, 1)
 class Packet_Notice_Add_PvP_Buddy_Result : public PacketHeader {
@@ -18,6 +19,13 @@ public:
     unsigned char error_code_what_50_0x32;  // offset 0x32
 
     Packet_Notice_Add_PvP_Buddy_Result() : PacketHeader(0x1b5f, 0x33) {
+        // 初始化行为对齐原始二进制（2026-08-06 反汇编验证）
+        charac_no = 0;
+        sTGameUserInfo_what3_0x05 = 0;
+        reason_what_18_0x12 = 0;
+        server_id = 0;
+        error_code_what_50_0x32 = 0;
+        memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
     }
 };
 

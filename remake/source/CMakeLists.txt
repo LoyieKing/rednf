@@ -2,9 +2,12 @@ cmake_minimum_required(VERSION 3.10)
 
 # ============================================================
 # Original build environment:
-#   Compiler: GNU C++ 4.1.2 20080704 (Red Hat 4.1.2-52)
+#   Compiler: gcc 4.4.x 系列（含 C++0x 符号），静态链入 4.4.x libstdc++
+#   （2026-08-07 复核：原始 ELF 含 std::error_code/system_category 等 4.4.x 符号，
+#    且每个 TU 有 <iostream> 的 static ios_base::Init __ioinit 初始化桩；
+#    4.1.2 仅作为早期近似，符号匹配远差于 4.4.4，见 docs/function_review/ 第四轮报告）
 #   Target:   x86_64-redhat-linux
-#   Standard: C++98
+#   Standard: gnu++0x
 #   Target mode: 32-bit
 #   Optimization: O0
 # ============================================================
@@ -13,15 +16,34 @@ project(DNFServer C CXX)
 message(STATUS "Using system compiler")
 
 # --- C++ standard matching original build ---
-set(CMAKE_CXX_STANDARD 98)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS ON)  # GNU extensions were used
+# 原始二进制含 C++0x 特征符号（std::decay_and_strip、右值 make_pair、变参 construct），
+# 判定原始使用 -std=gnu++0x 编译（2026-08-07）。允许通过缓存变量覆盖：
+#   -DDF_CXX_STANDARD=gnu++98  /  -DDF_CXX_STANDARD=gnu++0x
+if(NOT DF_CXX_STANDARD)
+    set(DF_CXX_STANDARD gnu++0x)
+endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=${DF_CXX_STANDARD}")
 
 # --- Global compiler/linker flags ---
 # Rebuild policy: force 32-bit + O0 for all targets/configurations.
-set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -m32 -pthread -O0")
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32 -pthread -O0")
-set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} -m32 -pthread")
+# 2026-08-06 对齐原始二进制（已从 ELF 验证）：
+#   - 原始为 EXEC（非 PIE），重建需 -no-pie + -fno-pie -fno-PIC；
+#   - 原始静态链入 libstdc++/libgcc（动态依赖仅 libpthread/librt/libm/libc）；
+#   - 原始为旧 string ABI（GCC 4.x），GCC>=5 需 -D_GLIBCXX_USE_CXX11_ABI=0；
+#   - 原始 GCC 4.1.2 工具链在当前环境不可用（无系统包/apt/Docker），以上为近似对齐。
+if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "8")
+    # 现代 GCC（>=8）：默认 PIE，需 -no-pie；libstdc++/libgcc 动态，需静态链入；
+    # 新 string ABI 需 -D_GLIBCXX_USE_CXX11_ABI=0。
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -m32 -pthread -O0 -fno-pie -fno-PIC")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32 -pthread -O0 -fno-pie -fno-PIC -D_GLIBCXX_USE_CXX11_ABI=0 -static-libstdc++ -static-libgcc")
+    set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} -m32 -pthread -no-pie -static-libstdc++ -static-libgcc -lpthread -lrt -lm")
+else()
+    # 旧 GCC（如 4.4.x）：默认非 PIE；libstdc++/libgcc 静态链入由外部构建参数提供
+    # （见 source/toolchain/c6-g++ 与 docs/df_community_r_reverification.md 第七节）。
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -m32 -pthread -O0")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32 -pthread -O0")
+    set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} -m32 -pthread")
+endif()
 set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m32 -pthread")
 set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -m32 -pthread")
 
@@ -195,6 +217,7 @@ set(DF_COMMUNITY_R_SOURCES
     Community/src/Epoll.cpp
     Community/src/FindBuddy.cpp
     Community/src/FindUser.cpp
+    Community/src/GlobalObjects.cpp
     Community/src/ISessionManager.cpp
     Community/src/NetworkSession.cpp
     Community/src/PacketDispatcher.cpp
@@ -204,14 +227,27 @@ set(DF_COMMUNITY_R_SOURCES
     Community/src/User.cpp
     Community/src/UserManager.cpp
     Community/src/global.cpp
+    Community/src/global_function.cpp
     Community/src/main.cpp
+    Community/src/CPacketParser.cpp
+    DNFServer/ServerCommon/DNFFileLog.cpp
+    DNFServer/ServerCommon/CFileLogWriterBase.cpp
+    DNFServer/ServerCommon/DNFFunctionLib.cpp
+    DNFServer/ServerCommon/Thread.cpp
     shared/packet/src/PacketHeader.cpp
     shared/packet/src/STGameUserInfo.cpp
     shared/packet/src/STPvPBuddyDBInfo.cpp
 )
+# 原始 ArchiveLog.cpp 以 -fno-exceptions 编译（无 __cxa_guard_abort/_Unwind_Resume，与
+# 其它 -fexceptions 文件混合；反编译确认 ArchiveLog C1 只有 guard acquire/release/atexit）。
+set_source_files_properties(Community/src/ArchiveLog.cpp PROPERTIES COMPILE_FLAGS "-fno-exceptions")
+# 原始 CFileLogWriterBase.cpp（构造/析构）亦为 -fno-exceptions（无 EH 清理路径）。
+set_source_files_properties(DNFServer/ServerCommon/CFileLogWriterBase.cpp PROPERTIES COMPILE_FLAGS "-fno-exceptions")
 add_executable(df_community_r ${DF_COMMUNITY_R_SOURCES})
 target_include_directories(df_community_r PRIVATE
     Community/src
+    DNFServer/ServerCommon
+    shared
     shared/common/include
     shared/packet/include
 )

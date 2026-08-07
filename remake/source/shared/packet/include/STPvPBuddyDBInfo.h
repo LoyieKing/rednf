@@ -17,7 +17,6 @@ public:
     char variable_what2;              // offset 0x29
     char buddy_n_user_what3;          // offset 0x2a
     STPvPBuddyDBInfo();
-    ~STPvPBuddyDBInfo();
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(STPvPBuddyDBInfo, 0x2b);

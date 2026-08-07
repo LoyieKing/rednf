@@ -6,6 +6,7 @@
 #define REDNF_PACKET_RESPONSE_REMOVE_PVP_BUDDY_H
 
 #include "PacketHeader.h"
+#include <cstring>
 
 #pragma pack(push, 1)
 class Packet_Response_Remove_PvP_Buddy : public PacketHeader {
@@ -17,6 +18,12 @@ public:
     unsigned char error_code_what_0x31;  // offset 0x31
 
     Packet_Response_Remove_PvP_Buddy() : PacketHeader(0x1b61, 0x32) {
+        // 初始化行为对齐原始二进制（2026-08-06 反汇编验证）
+        charac_no = 0;
+        sTGameUserInfo_what3_0x05 = 0;
+        server_id = 0;
+        error_code_what_0x31 = 0;
+        memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
     }
 };
 #pragma pack(pop)

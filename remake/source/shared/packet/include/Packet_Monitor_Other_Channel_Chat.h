@@ -17,7 +17,7 @@ public:
     int what_0x17;                  // offset 0x17
     char what_0x1b;                 // offset 0x1b
     char buddy_n_user_id_what[30];  // offset 0x1c
-    char chatLength;                // offset 0x3a
+    unsigned char chatLength;       // offset 0x3a（原始：movzx 零扩展）
     char chatContent[256];          // offset 0x3b
 
     Packet_Monitor_Other_Channel_Chat()

@@ -22,6 +22,7 @@ gcc-4.1.2-install/
 # Logs and temp
 **/*.log
 **/.DS_Store
+dnf_decompile/gccdump.s
 
 # Ghidra project files
 *.gpr

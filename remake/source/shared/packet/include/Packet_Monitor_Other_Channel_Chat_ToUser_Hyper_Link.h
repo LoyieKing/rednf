@@ -6,6 +6,7 @@
 #define REDNF_PACKET_MONITOR_OTHER_CHANNEL_CHAT_TOUSER_HYPER_LINK_H
 
 #include "PacketHeader.h"
+#include <cstring>
 
 #pragma pack(push, 1)
 class Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link : public PacketHeader {
@@ -22,6 +23,16 @@ public:
     char what_0x170[0x100];  // offset 0x170
 
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link() : PacketHeader(0x2719, 0x270) {
+        // 初始化行为对齐原始二进制（2026-08-06 反汇编验证）
+        what_0x0e = 0;
+        what_0x0f = -1;
+        what_0x13 = 0;
+        what_0x35 = 0;
+        what_0x36 = 0;
+        what_0x16f = 0;
+        memset(what_0x17, 0, sizeof(what_0x17));
+        memset(what_0x170, 0, sizeof(what_0x170));
+        memset(what_0x37, 0, sizeof(what_0x37));
     }
 };
 #pragma pack(pop)
