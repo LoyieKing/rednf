@@ -8,7 +8,9 @@
 // 原始 comp_by_time 为多个 TU 内的 static 函数（_ZL12comp_by_timeRK15STGuildCargoLogS1_），
 // 仅比较首字段（推断为时间）。
 struct STGuildCargoLog {
+    STGuildCargoLog();
     int time;  // offset 0
+    char m_rest[0x2c];
 };
 
 // 原始 comp_by_time 为头文件内 static 函数（_ZL12comp_by_timeRK15STGuildCargoLogS1_），
