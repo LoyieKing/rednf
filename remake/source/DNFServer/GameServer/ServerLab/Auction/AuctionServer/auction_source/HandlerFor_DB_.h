@@ -14,15 +14,13 @@ struct tagGAME_DB_SEND_PACKAGE;
 class HandlerFor_DB_ : public nsl::IDBHandler
 {
 public:
-    typedef unsigned int (HandlerFor_DB_::*DBHandlerFunc)(nsl::CMsgCell*);
-
     HandlerFor_DB_()
     {
     }
     virtual ~HandlerFor_DB_();
     void init();
     char* GetYYYYMM();
-    DBHandlerFunc SearchDBHandlerFunc(int typeId);
+    virtual nsl::IHandler::DBHandlerFunc SearchDBHandlerFunc(int typeId);
     void DecryptPassword(const char* pInput, char* pOutput);
     void registFuncMap();
     bool GetAuctionMainFetchResult(nsl::DBConnection* db,
@@ -58,7 +56,7 @@ public:
     unsigned int onAUCTION_DB_UPDATE_ITEM(nsl::CMsgCell* pCell);
 
 private:
-    DBHandlerFunc mArrayFunc[126];
+    nsl::IHandler::DBHandlerFunc mArrayFunc[126];
     char mSzBuffer[24576];
     nsl::CTEA mTEA;
 };

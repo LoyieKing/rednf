@@ -118,7 +118,7 @@ void StatisticsCollector::IncFailCnt(int kind, int error_no)
     }
 }
 
-bool StatisticsCollector::SetLogFileName(char* logDir, int serviceId)
+bool StatisticsCollector::SetLogFileName(const char* logDir, int serviceId)
 {
     mServiceId = serviceId;
     sprintf(mpDayFileName, "%s/%s/DaySt_%d.log", logDir, mpStLogDir, serviceId);

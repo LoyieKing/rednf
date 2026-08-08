@@ -40,7 +40,7 @@ public:
     void IncTryCnt(int kind);
     void IncFailCnt(int kind, int error_no);
     void LoggingPerSec();
-    bool SetLogFileName(char* logDir, int serviceId);
+    bool SetLogFileName(const char* logDir, int serviceId);
     bool DataInitialization(bool dayDateInit);
     void SetTimeToNow();
     int GetSec()

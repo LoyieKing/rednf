@@ -25,7 +25,7 @@ void DBDispatcher::dispatch(Message* pMsg)
     int dbid = pDbTr->dbId;
     int ret = 0;
     IDBHandler* pHandler = pApp->super_IHandlers.getDBHandler(dbid);
-    IDBHandler::DBHandlerFunc handle = pHandler->searchDBHandlerFunc(dbtrid);
+    IDBHandler::DBHandlerFunc handle = pHandler->SearchDBHandlerFunc(dbtrid);
     if (handle == NULL)
     {
         G_TraceLog()->sysLog(7, "DBDispatcher : can't find handler for dbtr : %d", dbtrid);

@@ -127,23 +127,37 @@ void HandlerFor_DB_::init()
 
 void HandlerFor_DB_::registFuncMap()
 {
-    mArrayFunc[0] = &HandlerFor_DB_::onAUCTION_DB_GET_REGISTED_ITEM;
-    mArrayFunc[1] = &HandlerFor_DB_::onAUCTION_DB_REGIST_ITEM;
-    mArrayFunc[2] = &HandlerFor_DB_::onAUCTION_DB_UPPER_BIDDING;
-    mArrayFunc[3] = &HandlerFor_DB_::onAUCTION_DB_INSERT_AVERAGE_PRICE;
-    mArrayFunc[4] = &HandlerFor_DB_::onAUCTION_DB_GET_AVERAGE_PRICE;
-    mArrayFunc[5] = &HandlerFor_DB_::onAUCTION_DB_UPDATE_AVERAGE_PRICE;
-    mArrayFunc[6] = &HandlerFor_DB_::onAUCTION_DB_DELETE_ITEM;
-    mArrayFunc[0x15] = &HandlerFor_DB_::onGAME_DB_SEND_PACKAGE;
-    mArrayFunc[0x16] = &HandlerFor_DB_::onGAME_DB_SEND_PACKAGE_BY_EXPIRE;
-    mArrayFunc[7] = &HandlerFor_DB_::onAUCTION_DB_EXPIRE_HISTORY;
-    mArrayFunc[8] = &HandlerFor_DB_::onAUCTION_DB_BUYER_HISTORY;
-    mArrayFunc[9] = &HandlerFor_DB_::onAUCTION_DB_PING;
-    mArrayFunc[0x11] = &HandlerFor_DB_::onAUCTION_DB_UPDATE_ITEM;
-    mArrayFunc[0x12] = &HandlerFor_DB_::onAUCTION_DB_GET_ROI_AVERAGE_PRICE;
+    mArrayFunc[0] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_GET_REGISTED_ITEM;
+    mArrayFunc[1] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_REGIST_ITEM;
+    mArrayFunc[2] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_UPPER_BIDDING;
+    mArrayFunc[3] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_INSERT_AVERAGE_PRICE;
+    mArrayFunc[4] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_GET_AVERAGE_PRICE;
+    mArrayFunc[5] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_UPDATE_AVERAGE_PRICE;
+    mArrayFunc[6] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_DELETE_ITEM;
+    mArrayFunc[0x15] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onGAME_DB_SEND_PACKAGE;
+    mArrayFunc[0x16] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onGAME_DB_SEND_PACKAGE_BY_EXPIRE;
+    mArrayFunc[7] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_EXPIRE_HISTORY;
+    mArrayFunc[8] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_BUYER_HISTORY;
+    mArrayFunc[9] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_PING;
+    mArrayFunc[0x11] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_UPDATE_ITEM;
+    mArrayFunc[0x12] =
+        (nsl::IHandler::DBHandlerFunc)&HandlerFor_DB_::onAUCTION_DB_GET_ROI_AVERAGE_PRICE;
 }
 
-HandlerFor_DB_::DBHandlerFunc HandlerFor_DB_::SearchDBHandlerFunc(int typeId)
+nsl::IHandler::DBHandlerFunc HandlerFor_DB_::SearchDBHandlerFunc(int typeId)
 {
     return mArrayFunc[typeId];
 }
