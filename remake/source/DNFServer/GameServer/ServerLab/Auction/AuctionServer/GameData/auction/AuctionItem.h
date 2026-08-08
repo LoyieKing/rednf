@@ -147,6 +147,7 @@ struct UpgradeSeparateInfo
     }
 };
 
+#pragma pack(push, 1)
 struct ReservedCapacity
 {
     int reserved_1[2];
@@ -268,6 +269,7 @@ struct ROI_Category
         }
     }
 };
+#pragma pack(pop)
 
 #pragma pack(push, 1)
 struct DnfItemInfo

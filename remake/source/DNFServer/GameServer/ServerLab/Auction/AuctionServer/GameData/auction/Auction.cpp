@@ -1,5 +1,6 @@
 // Rebuilt from df_auction_r, 2026-08-08 — ctor/dtor scaffold; Auction TU pending
 #include "Auction.h"
+#include "AuctionDictionary.h"
 
 Auction::Auction()
 {
@@ -11,10 +12,6 @@ Auction::~Auction()
 
 // Temporary stubs for methods referenced by HandlerFor_DB_; replaced when the
 // Auction TU is reconstructed.
-void Auction::UpdateAveragePrice()
-{
-}
-
 void Auction::ProcessMostRecentExpireItem()
 {
 }
@@ -57,10 +54,11 @@ int Auction::RegistItem(int ownerId, const char* ownerName, char ownerType,
     return 0;
 }
 
-void Auction::AddItemAveragePrice(unsigned long item_id, unsigned char upgrade,
-                                  int average_price, unsigned int purchase_cnt,
-                                  const ROI_AverageKey& roiKey, unsigned char refine, bool bFlag)
+int Auction::AddItemAveragePrice(unsigned long item_id, unsigned char upgrade,
+                                 int average_price, unsigned int purchase_cnt,
+                                 const ROI_AverageKey& roiKey, unsigned char refine, bool bFlag)
 {
+    return 0;
 }
 
 void Auction::Set_ROI_Constraint(const ROI_Average_Constraint& constraint)
@@ -143,15 +141,66 @@ int Auction::IsOwnerVIP(unsigned long long auction_id, OwnerInfo& ownerInfo)
     return 0;
 }
 
-// AuctionDictionary TU pending; provide the two methods Auction inline wrappers link against.
-int AuctionDictionary::GetNowRegistedItemNum(int owner_id)
+char* Auction::GetAvatarColorName(int ui_id)
+{
+    return NULL;
+}
+
+int Auction::CheckItemType(unsigned long item_id)
 {
     return 0;
 }
 
-AuctionDictionaryData* AuctionDictionary::GetAuctionDicData(unsigned long long auction_id) const
+void Auction::UnregistChkMapForAvatarCreature(bool bCreature, int add_info)
 {
-    return NULL;
+}
+
+int Auction::SubAvatarEmblemInfo(int ui_id)
+{
+    return 0;
+}
+
+int Auction::SubAvatarExpansionInfo(int ui_id)
+{
+    return 0;
+}
+
+bool Auction::IsPrivateStoreOpen(int owner_id)
+{
+    return false;
+}
+
+AuctionDictionaryData* Auction::GetAuctionDicData(unsigned long item_id) const
+{
+    return (AuctionDictionaryData*)(
+        ((const AuctionDictionary*)((const char*)this + 0x54))
+            ->GetAuctionDicData(item_id));
+}
+
+int Auction::GetNowRegistedItemNum(int owner_id)
+{
+    return ((AuctionDictionary*)((char*)this + 0x54))->GetNowRegistedItemNum(owner_id);
+}
+
+// Search TU pending; provide the methods AuctionDictionary links against.
+Search::Search()
+{
+}
+
+Search::~Search()
+{
+}
+
+int Search::Insert(unsigned long itemId, unsigned char upgrade,
+                   unsigned long long auctionId, bool bIsStackable, int price,
+                   unsigned char refine)
+{
+    return 0;
+}
+
+int Search::Delete(unsigned long long auctionId)
+{
+    return 0;
 }
 
 void PrintDnfItemInfo(DnfItemInfo& itemInfo, char* out)
