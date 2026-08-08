@@ -682,7 +682,6 @@ fail_fetch:
 
 unsigned int HandlerFor_DB_::onAUCTION_DB_EXPIRE_HISTORY(nsl::CMsgCell* pCell)
 {
-    char randomOption[29];
     time_t time_now;
     DBConnection* db;
     LPDBTR_AUCTION_DB_EXPIRE_HISTORY pContext;
@@ -698,11 +697,11 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_EXPIRE_HISTORY(nsl::CMsgCell* pCell)
     {
         expire_time = G_Auction()->GetSystemAuctionExpireTime();
     }
-    memset(randomOption, 0, 29);
+    char randomOption[29] = {};
     DNFFLib::Binary2Hex((unsigned char*)&pContext->item_info.random_option_, 0xe, randomOption);
     unsigned char separate_upgrade = pContext->item_info.separate_info.GetUpgradeSeparate();
     char* guid_str = db->blob_to_str(0, &pContext->item_info.guid_, 10);
-    snprintf(mSzBuffer, 0x6000,
+    db->set_query(
         "inSert into auction_history_%s(auction_id,start_time,occ_time,event_type,owner_id,buyer_id,price,seal_flag,item_id,add_info,upgrade,seal_cnt,endurance,extend_info,owner_postal_id,buyer_postal_id,amplify_option,amplify_value,item_guid,unit_price,roi_high_key, roi_low_key, commission, owner_type,random_option,seperate_upgrade) values(%llu,from_unixtime(%d),from_unixtime(%d),%hhu,%d,%d,%d,%d,%u,%d,%hhu,%hhu,%hu,%hu,%u,%u,%hhu,%hu,\'%s\',%d,%llu, %d,%d,%d,0x%s,%d)",
         GetYYYYMM(), pContext->auction_id, pContext->expire_time - expire_time,
         time_now, (unsigned int)pContext->event_type, pContext->owner_id,
@@ -833,13 +832,11 @@ unsigned int HandlerFor_DB_::insertPackage(nsl::DBConnection* db, int charac_no,
                                            const char* letter_text, unsigned int& letter_id,
                                            time_t insertTime)
 {
-    char letter_text_ex[0x200];
-    char send_charac_name_ex[27];
     int ret;
 
-    memset(letter_text_ex, 0, 0x1ff);
+    char letter_text_ex[0x1ff] = {};
     db->escape_string(letter_text_ex, letter_text);
-    memset(send_charac_name_ex, 0, 0x1b);
+    char send_charac_name_ex[0x1b] = {};
     db->escape_string(send_charac_name_ex, send_charac_name);
     snprintf(mSzBuffer, 0x6000,
         "inSert into letter(charac_no,send_charac_no,send_charac_name,letter_text,reg_date,stat) values(%d,%d,\'%s\',\'%s\',from_unixtime(%d),%d)",
@@ -875,8 +872,6 @@ unsigned int HandlerFor_DB_::insertPackageData(nsl::DBConnection* db,
                                                tagGAME_DB_SEND_PACKAGE* sendPackageInfo,
                                                unsigned int& postal_id, int mailType)
 {
-    char strSenderName[87];
-    char randomOption[29];
     time_t nInsertTime;
     tm* tmCurTime;
     unsigned char isUnlimit;
@@ -956,7 +951,7 @@ unsigned int HandlerFor_DB_::insertPackageData(nsl::DBConnection* db,
             return ret;
         }
     }
-    memset(strSenderName, 0, 87);
+    char strSenderName[87] = {};
     if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
     {
         db->escape_string(strSenderName, SENDER_NAME_GOLD);
@@ -969,13 +964,13 @@ unsigned int HandlerFor_DB_::insertPackageData(nsl::DBConnection* db,
     {
         sendPackageInfo->item_info.uniItemAttr = '\0';
     }
-    memset(randomOption, 0, 29);
+    char randomOption[29] = {};
     DNFFLib::Binary2Hex((unsigned char*)&sendPackageInfo->item_info.random_option_, 0xe,
                         randomOption);
     unsigned char separate_upgrade =
         sendPackageInfo->item_info.separate_info.GetUpgradeSeparate();
     char* guid_str = db->blob_to_str(0, &sendPackageInfo->item_info.guid_, 10);
-    snprintf(mSzBuffer, 0x6000,
+    db->set_query(
         "inSert into postal(occ_time,send_charac_no,receive_charac_no,seal_flag,item_id,add_info,endurance,upgrade,amplify_option,amplify_value,gold,send_charac_name,creature_flag,avata_flag,letter_id,extend_info,unlimit_flag,item_guid,random_option,seperate_upgrade, type) values(from_unixtime(%d),%d,%d,%d,%u,%d,%d,%d,%d,%d,%d,\'%s\',%d,%d,%d,%d,%d,\'%s\',0x%s,%d,%d)",
         nInsertTime, sendPackageInfo->owner_id, sendPackageInfo->receiver,
         (int)sendPackageInfo->item_info.seal, sendPackageInfo->item_info.item_id,
@@ -987,14 +982,24 @@ unsigned int HandlerFor_DB_::insertPackageData(nsl::DBConnection* db,
         sendPackageInfo->item_info.extendInfo, (int)isUnlimit, guid_str, randomOption,
         (int)separate_upgrade, mailType);
     ret = db->exec(true);
-    if (ret == 0)
+    if (ret != 0)
+    {
+        G_TraceLog()->sysLog(7, "ERROR, HandlerFor_DB_::insertPackage(), inSert into postal");
+    }
+    else
     {
         postal_id = 0;
         db->set_query("seLect @@identity");
         ret = db->exec(true);
         if (ret == 0)
         {
-            if (db->fetch())
+            if (!db->fetch())
+            {
+                G_TraceLog()->sysLog(7,
+                    "ERROR, HandlerFor_DB_::insertPackage(), fetch(seLect @@identity)");
+                ret = 2;
+            }
+            else
             {
                 if (!db->get_uint(0, postal_id))
                 {
@@ -1004,17 +1009,7 @@ unsigned int HandlerFor_DB_::insertPackageData(nsl::DBConnection* db,
                     ret = 2;
                 }
             }
-            else
-            {
-                G_TraceLog()->sysLog(7,
-                    "ERROR, HandlerFor_DB_::insertPackage(), fetch(seLect @@identity)");
-                ret = 2;
-            }
         }
-    }
-    else
-    {
-        G_TraceLog()->sysLog(7, "ERROR, HandlerFor_DB_::insertPackage(), inSert into postal");
     }
     return ret;
 }
@@ -1198,10 +1193,7 @@ unsigned int HandlerFor_DB_::onGAME_DB_SEND_PACKAGE_BY_EXPIRE(nsl::CMsgCell* pCe
 }
 unsigned int HandlerFor_DB_::onAUCTION_DB_REGIST_ITEM(nsl::CMsgCell* pCell)
 {
-    char owner_name[26];
-    char buyer_name[26];
     int expire_time;
-    char randomOption[29];
     DBConnection* db;
     LPDBTR_AUCTION_DB_REGIST_ITEM pContext;
     int ret;
@@ -1209,8 +1201,8 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_REGIST_ITEM(nsl::CMsgCell* pCell)
     G_TraceLog()->sysLog(6, "In  onAUCTION_DB_REGIST_ITEM");
     db = pApp->super_DBConnections.getDBConnection(1);
     pContext = (LPDBTR_AUCTION_DB_REGIST_ITEM)pCell->GetDBTr();
-    memset(owner_name, 0, 0x1a);
-    memset(buyer_name, 0, 0x1a);
+    char owner_name[26] = {};
+    char buyer_name[26] = {};
     db->escape_string(owner_name, pContext->owner_name);
     db->escape_string(buyer_name, pContext->buyer_name);
     expire_time = 0;
@@ -1219,7 +1211,7 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_REGIST_ITEM(nsl::CMsgCell* pCell)
     {
         expire_time = G_Auction()->GetSystemAuctionExpireTime();
     }
-    memset(randomOption, 0, 29);
+    char randomOption[29] = {};
     DNFFLib::Binary2Hex((unsigned char*)&pContext->item_info.random_option_, 0xe, randomOption);
     unsigned char separate_upgrade = pContext->item_info.separate_info.GetUpgradeSeparate();
     char* guid_str = db->blob_to_str(0, &pContext->item_info.guid_, 10);

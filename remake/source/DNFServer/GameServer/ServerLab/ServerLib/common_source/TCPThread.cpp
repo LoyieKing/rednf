@@ -56,7 +56,7 @@ void TCPThread::loop(void* temp)
     long long HEART_BEAT_CHECK_INTERVAL = 30000;
     long long last_heartbeat_check_time = pApp->getTick();
     unsigned short accport = (unsigned short)getPort();
-    TCPUser* sUser = pPool->createTCPUser();
+    TCPUser* sUser = pApp->super_DataPools.getDataPool()->createTCPUser();
     TCPSocket listenSocket;
     if (!listenSocket.open())
     {
@@ -131,7 +131,7 @@ void TCPThread::loop(void* temp)
                     {
                         Message* msg = pApp->super_DataPools.getCommonDataPool(tlsThreadId)->getSendMessage(client_iter->second);
                         CMsgCell* cell = msg->getCellFromMessage();
-                        *cell << heart_beat_packet;
+                        *cell << &heart_beat_packet;
                         cell->PAD();
                         tcp_send_thread->PushSendMsg(msg);
                         int servercount = r->GetServerUserCount();

@@ -21,8 +21,7 @@ CSourceVersionMgr::~CSourceVersionMgr()
 
 void CSourceVersionMgr::InsertSourceVersion(char* source_file_name, int version)
 {
-    SourceVersion local_14(source_file_name, version);
-    source_version_list_.push_back(std::move(local_14));
+    source_version_list_.push_back(SourceVersion(source_file_name, version));
 }
 
 CSourceVersionMgr::SourceVersion::SourceVersion(char* source_file_name, int version)

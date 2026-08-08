@@ -33,6 +33,7 @@ bool InterDispatcher::dispatch(Message* msg)
         G_TraceLog()->sysLog(7, "InterDispatcher : can't find handler for category: %d, protocol : %d.", nCategory, nProtoId);
         return false;
     }
+    pInterHandler = pApp->super_IHandlers.getInterHandler(nCategory);
     ret = (pInterHandler->*handle)(pMsg);
     if (ret == 0)
     {

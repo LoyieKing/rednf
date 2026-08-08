@@ -94,10 +94,10 @@ void CTEA::ResetChain()
 void CTEA::Signature(char* pcSig)
 {
     char acSigData[23] = {0};
-    strcat(acSigData, "pt]");
+    strcat(acSigData, "TEA");
     int iLen = strlen(acSigData);
     memcpy(acSigData + iLen, m_apKey, m_keylength);
-    sprintf(acSigData + strlen(acSigData), "%d%d", m_iMode, m_iPadding);
+    sprintf(acSigData + m_keylength + iLen, "%d%d", m_iMode, m_iPadding);
     CSHA oSHA;
     oSHA.AddData(acSigData, strlen(acSigData));
     oSHA.FinalDigest(pcSig);
@@ -231,8 +231,8 @@ int CTEA::Decrypt(const char* in, char* result, size_t n)
         char* presult = result;
         for (; i < n / m_blockSize; i++)
         {
-            DecryptBlock((const unsigned char*)pin, (unsigned char*)presult);
-            Xor(presult, m_apchain);
+            EncryptBlock((const unsigned char*)m_apchain, (unsigned char*)presult);
+            Xor(presult, pin);
             memcpy(m_apchain, pin, m_blockSize);
             pin = pin + m_blockSize;
             presult = presult + m_blockSize;

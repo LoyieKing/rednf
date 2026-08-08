@@ -29,6 +29,7 @@ AuctionDictionary::AuctionDictionary()
     : mAuctionDicDataPool(0x20), mCharacterNamePool(0x20)
 {
     mpAuction = NULL;
+    memset(mpSzBuffer, 0, 0x1000);
 }
 
 AuctionDictionary::~AuctionDictionary()
@@ -255,18 +256,22 @@ int AuctionDictionary::GetRegistedItemInfo(int ownerId, int* pInOutItemNum,
         else
         {
             index_cnt = 0;
-            for (std::vector<unsigned long long>::iterator id_list_iter =
-                     ptr_data->auction_id_vector.begin();
-                 id_list_iter != ptr_data->auction_id_vector.end(); ++id_list_iter)
+            std::vector<unsigned long long>::iterator id_list_iter;
+            std::map<unsigned long long, AuctionDictionaryData*>::iterator auc_dic_iter;
+            id_list_iter = ptr_data->auction_id_vector.begin();
+            for (;;)
             {
+                if (!(id_list_iter != ptr_data->auction_id_vector.end()))
+                {
+                    break;
+                }
                 if (*pInOutItemNum == index_cnt)
                 {
                     error_code = 0x29;
                     break;
                 }
-                std::map<unsigned long long, AuctionDictionaryData*>::iterator auc_dic_iter =
-                    mAuctionDicTable.find(*id_list_iter);
-                if (auc_dic_iter == mAuctionDicTable.end())
+                auc_dic_iter = mAuctionDicTable.find(*id_list_iter);
+                if (!(auc_dic_iter != mAuctionDicTable.end()))
                 {
                     error_code = 0x24;
                     break;
@@ -288,11 +293,16 @@ int AuctionDictionary::GetRegistedItemInfo(int ownerId, int* pInOutItemNum,
                 pOutMyRegistedItemInfoArray[index_cnt].item_info = ptr_auc_data->item_info;
                 pOutMyRegistedItemInfoArray[index_cnt].expire_time =
                     getExpiringTime(ptr_auc_data->expire_time, 0);
+                CNRDItemInfoList::STItemInfo* pItemInfo = mpAuction->GetItemInfo(
+                    pOutMyRegistedItemInfoArray[index_cnt].item_info.item_id);
+                unsigned int category = pItemInfo->category_;
+                (void)category;
                 pOutMyRegistedItemInfoArray[index_cnt].item_info.abilityType_ =
                     ptr_auc_data->item_info.getAbilityType();
                 pOutMyRegistedItemInfoArray[index_cnt].item_info.abilityValue_ =
                     ptr_auc_data->item_info.getAbilityValue();
                 index_cnt = index_cnt + 1;
+                ++id_list_iter;
             }
             *pInOutItemNum = index_cnt;
         }
@@ -305,6 +315,7 @@ int AuctionDictionary::makeSuccessfulBid(unsigned long long auctionId,
                                          bool isInstantBuying, int& charge_point)
 {
     int error_code = 0;
+    int price = 0;
     int commission = 0;
     if ((!isInstantBuying) && (pAucDicData->buyer_id != -1))
     {
@@ -315,9 +326,24 @@ int AuctionDictionary::makeSuccessfulBid(unsigned long long auctionId,
         }
     }
     error_code = mRegisterDic.SubAuctionId(pAucDicData->owner_id, auctionId);
-    if (error_code == 0)
+    if (error_code != 0)
     {
-        PutDBDeleteItem(auctionId);
+        if ((!isInstantBuying) && (pAucDicData->buyer_id != -1))
+        {
+            mBidderDic.AddAuctionId(pAucDicData->buyer_id, auctionId);
+        }
+    }
+    else
+    {
+        tagAUCTION_DB_DELETE_ITEM dbtr_delete_item;
+        dbtr_delete_item.auction_id = auctionId;
+        CommonDataPool* pPoolDel =
+            pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId);
+        Message* pMsgDel = pPoolDel->createMessage(3);
+        CMsgCell* pNewCellDel = pMsgDel->getCellFromMessage();
+        *pNewCellDel << &dbtr_delete_item;
+        pApp->super_Threads.getDBThread(0)->PushTransaction(pMsgDel);
+        commission = 0;
         if (pAucDicData->buyer_id == -1)
         {
             char _itemName[128];
@@ -344,7 +370,7 @@ int AuctionDictionary::makeSuccessfulBid(unsigned long long auctionId,
                           dbtr_expire_package.send_to_buyer.item_info.add_info)
                     : LETTER_TEXT[7];
                 snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                         LETTER_TEXT[6], 0xff,
+                         LETTER_TEXT[3], 0xff,
                          mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
                              ->sName_.c_str(),
                          pacVar9);
@@ -368,7 +394,7 @@ int AuctionDictionary::makeSuccessfulBid(unsigned long long auctionId,
                     pcVar16 = _itemName;
                 }
                 snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                         LETTER_TEXT[6], 0xff, pcVar16, pacVar9);
+                         LETTER_TEXT[3], 0xff, pcVar16, pacVar9);
             }
             dbtr_expire_package.send_to_owner.temp_item_id =
                 pAucDicData->item_info.item_id;
@@ -395,7 +421,7 @@ int AuctionDictionary::makeSuccessfulBid(unsigned long long auctionId,
         }
         else
         {
-            int price = isInstantBuying ? pAucDicData->instant_price : pAucDicData->price;
+            price = isInstantBuying ? pAucDicData->instant_price : pAucDicData->price;
             if (mpAuction->IsPrivateStoreOpen(pAucDicData->owner_id))
             {
                 double dVar1 = (double)price / 100.0;
@@ -704,12 +730,12 @@ int AuctionDictionary::makeSuccessfulBid(unsigned long long auctionId,
                     auctionId, (unsigned short)pAucDicData->item_info.item_id);
                 int item_type =
                     mpAuction->CheckItemType(pAucDicData->item_info.item_id);
-                if (item_type == 3)
+                if (item_type == AUCTION_ITEM_TYPE_CREATURE)
                 {
                     mpAuction->UnregistChkMapForAvatarCreature(
                         false, pAucDicData->item_info.add_info);
                 }
-                else if (item_type == 2)
+                else if (item_type == AUCTION_ITEM_TYPE_AVATAR)
                 {
                     mpAuction->UnregistChkMapForAvatarCreature(
                         true, pAucDicData->item_info.add_info);
@@ -731,10 +757,6 @@ int AuctionDictionary::makeSuccessfulBid(unsigned long long auctionId,
                 7, "Error occured while delete auction info from search module, %s",
                 GetErrorStr(error_code));
         }
-    }
-    else if ((!isInstantBuying) && (pAucDicData->buyer_id != -1))
-    {
-        mBidderDic.AddAuctionId(pAucDicData->buyer_id, auctionId);
     }
     return error_code;
 }
@@ -780,7 +802,7 @@ int AuctionDictionary::ProcessMostRecentExpireItem(bool& one_processing, int auc
         {
             std::map<unsigned long long, AuctionDictionaryData*>::iterator iter =
                 mAuctionDicTable.find(au_id);
-            if (iter == mAuctionDicTable.end())
+            if (!(iter != mAuctionDicTable.end()))
             {
                 return 0x24;
             }
@@ -1073,7 +1095,7 @@ int AuctionDictionary::Bidding(const unsigned long long& auctionId, int buyerId,
             {
                 ptVar11 = _itemName;
             }
-            snprintf(dbtrSendPackage.letter_text, 0xff, LETTER_TEXT[4],
+            snprintf(dbtrSendPackage.letter_text, 0xff, LETTER_TEXT[0],
                      ptVar11, pacVar10);
             dbtrSendPackage.letter_text_length =
                 (unsigned short)strlen(dbtrSendPackage.letter_text);
@@ -1114,15 +1136,18 @@ int AuctionDictionary::GetBiddingInfo(int buyerId, int* pInOutItemNum,
         else
         {
             index_cnt = 0;
-            for (std::vector<unsigned long long>::iterator id_list_iter =
-                     ptr_data->auction_id_vector.begin();
-                 (id_list_iter != ptr_data->auction_id_vector.end()) &&
-                     (*pInOutItemNum != index_cnt);
-                 ++id_list_iter)
+            std::vector<unsigned long long>::iterator id_list_iter;
+            std::map<unsigned long long, AuctionDictionaryData*>::iterator auc_dic_iter;
+            id_list_iter = ptr_data->auction_id_vector.begin();
+            for (;;)
             {
-                std::map<unsigned long long, AuctionDictionaryData*>::iterator auc_dic_iter =
-                    mAuctionDicTable.find(*id_list_iter);
-                if (auc_dic_iter == mAuctionDicTable.end())
+                if (!(id_list_iter != ptr_data->auction_id_vector.end()) ||
+                    (*pInOutItemNum == index_cnt))
+                {
+                    break;
+                }
+                auc_dic_iter = mAuctionDicTable.find(*id_list_iter);
+                if (!(auc_dic_iter != mAuctionDicTable.end()))
                 {
                     break;
                 }
@@ -1137,7 +1162,16 @@ int AuctionDictionary::GetBiddingInfo(int buyerId, int* pInOutItemNum,
                 pOutMyBiddingItemInfoArray[index_cnt].expire_time =
                     getExpiringTime(ptr_auc_data->expire_time, 0);
                 pOutMyBiddingItemInfoArray[index_cnt].item_info = ptr_auc_data->item_info;
+                CNRDItemInfoList::STItemInfo* pItemInfo = mpAuction->GetItemInfo(
+                    pOutMyBiddingItemInfoArray[index_cnt].item_info.item_id);
+                unsigned int category = pItemInfo->category_;
+                (void)category;
+                pOutMyBiddingItemInfoArray[index_cnt].item_info.abilityType_ =
+                    ptr_auc_data->item_info.getAbilityType();
+                pOutMyBiddingItemInfoArray[index_cnt].item_info.abilityValue_ =
+                    ptr_auc_data->item_info.getAbilityValue();
                 index_cnt = index_cnt + 1;
+                ++id_list_iter;
             }
             *pInOutItemNum = index_cnt;
         }
@@ -1571,7 +1605,7 @@ int AuctionDictionary::RegistCancel(int ownerId, unsigned long long auctionId)
                                       ptr_data->item_info.add_info)
                                 : LETTER_TEXT[7];
                             snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
-                                     LETTER_TEXT[6],
+                                     LETTER_TEXT[4],
                                      mpAuction->GetItemInfo(ptr_data->item_info.item_id)
                                          ->sName_.c_str(),
                                      pacVar10);
@@ -1595,7 +1629,7 @@ int AuctionDictionary::RegistCancel(int ownerId, unsigned long long auctionId)
                                 ptVar13 = _itemName;
                             }
                             snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
-                                     LETTER_TEXT[6], ptVar13, pacVar10);
+                                     LETTER_TEXT[4], ptVar13, pacVar10);
                         }
                         dbtr_expire_package.send_to_buyer.letter_text_length =
                             (unsigned short)strlen(
@@ -1617,10 +1651,10 @@ int AuctionDictionary::RegistCancel(int ownerId, unsigned long long auctionId)
                                   dbtr_expire_package.send_to_owner.item_info.add_info)
                             : LETTER_TEXT[7];
                         snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                                 LETTER_TEXT[7],
+                                 LETTER_TEXT[5],
                                  mpAuction->GetItemInfo(ptr_data->item_info.item_id)
                                      ->sName_.c_str(),
-                                 pacVar10);
+                                     pacVar10);
                     }
                     else
                     {
@@ -1644,7 +1678,7 @@ int AuctionDictionary::RegistCancel(int ownerId, unsigned long long auctionId)
                             ptVar13 = _itemName;
                         }
                         snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                                 LETTER_TEXT[7], ptVar13, pacVar10);
+                                 LETTER_TEXT[5], ptVar13, pacVar10);
                     }
                     dbtr_expire_package.send_to_owner.temp_item_id =
                         ptr_data->item_info.item_id;

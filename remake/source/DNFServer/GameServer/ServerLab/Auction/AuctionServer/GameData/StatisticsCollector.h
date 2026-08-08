@@ -76,8 +76,8 @@ public:
     int mServiceId;
     char mpDayFileName[1024];
     char mpSecFileName[1024];
-    char mpStLogDir[1024];
-    char mpStOldLogDir[1024];
+    char mpStLogDir[512];
+    char mpStOldLogDir[512];
     char mpStatisticsTags[3][512];
     char LINE_STR[512];
     size_t LINE_LEN;

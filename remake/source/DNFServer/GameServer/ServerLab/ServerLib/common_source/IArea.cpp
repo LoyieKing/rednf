@@ -38,7 +38,8 @@ void IArea::unregist(unsigned int id)
 
 void IArea::notifyAllAreaMember()
 {
-    MAP_OBJECTS_ITER mapIter = mMapObj.begin();
+    MAP_OBJECTS_ITER mapIter;
+    mapIter = mMapObj.begin();
     while (mapIter != mMapObj.end())
     {
         ++mapIter;
@@ -62,7 +63,8 @@ ISession* IArea::getValueFromIter(MAP_OBJECTS_ITER iter)
 
 ISession* IArea::getMemberAt(unsigned int id)
 {
-    MAP_OBJECTS_ITER mapIter = mMapObj.find(id);
+    MAP_OBJECTS_ITER mapIter;
+    mapIter = mMapObj.find(id);
     if (mapIter != mMapObj.end())
     {
         return mapIter->second;
@@ -72,6 +74,7 @@ ISession* IArea::getMemberAt(unsigned int id)
 
 ISession* IArea::getMemberFirst()
 {
+    MAP_OBJECTS_ITER mapIter;
     if (mMapObj.begin() == mMapObj.end())
     {
         return NULL;

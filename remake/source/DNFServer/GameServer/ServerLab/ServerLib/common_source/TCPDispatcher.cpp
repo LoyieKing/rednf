@@ -47,8 +47,19 @@ bool TCPDispatcher::dispatch(TCPUser* u, Message* msg)
         INetWorkHandler* netWorkHandler = pApp->super_IHandlers.getNetWorkHandler(nCategory);
         if (netWorkHandler == NULL)
         {
-            unsigned char* adrs = u->pSock_->getPeerAdrs();
-            G_TraceLog()->sysLog(7, "NetWorkHandler is NULL. category=%d, ip=%d.%d.%d.%d", nCategory, adrs[0], adrs[1], adrs[2], adrs[3]);
+            unsigned char* adrs;
+            unsigned char b0, b1, b2, b3;
+            adrs = u->pSock_->getPeerAdrs();
+            b3 = adrs[3];
+            adrs = u->pSock_->getPeerAdrs();
+            b2 = adrs[2];
+            adrs = u->pSock_->getPeerAdrs();
+            b1 = adrs[1];
+            adrs = u->pSock_->getPeerAdrs();
+            b0 = adrs[0];
+            G_TraceLog()->sysLog(7,
+                "TCP : '%d' <- protocol category \xb0\xa1 \xb9\xfc\xc0\xa7\xb8\xa6 \xb9\xfe\xbe\xee\xb3\xb5\xbd\xc0\xb4\xcf\xb4\xd9, ip:%d.%d.%d.%d",
+                nCategory, (int)b0, (int)b1, (int)b2, (int)b3);
             return true;
         }
         else
@@ -59,12 +70,13 @@ bool TCPDispatcher::dispatch(TCPUser* u, Message* msg)
                 G_TraceLog()->sysLog(7, "TCP : could not find handler for Category :'%d' Protocol: '%d'.", nCategory, nProtoID);
                 return true;
             }
+            netWorkHandler = pApp->super_IHandlers.getNetWorkHandler(nCategory);
             ret = (netWorkHandler->*handle)(pMsg, u);
             if (ret == 0)
             {
                 return false;
             }
-            G_TraceLog()->sysLog(7, "TCP : protocol : %d , Error: %d", nProtoID, ret);
+            G_TraceLog()->sysLog(7, "TCP : '%d' \xc3\xb3\xb8\xae\xb5\xa1 \xbd\xc7\xc6\xd0 \xc7\xcf\xb4\xb5\xbd\xc0\xb4\xcf\xb4\xd9. Error: %d", nProtoID, ret);
             return true;
         }
     }

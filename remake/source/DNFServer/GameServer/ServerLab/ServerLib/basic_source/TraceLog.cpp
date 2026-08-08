@@ -9,6 +9,13 @@
 #include "TraceLog.h"
 #include "LogSendThread.h"
 
+extern "C" int __xstat(int ver, const char* path, struct stat* buf);
+
+extern "C" __attribute__((weak)) int stat(const char* __path, struct stat* __statbuf)
+{
+    return __xstat(3, __path, __statbuf);
+}
+
 namespace nsl {
 
 bool bChangedDataForLog = false;

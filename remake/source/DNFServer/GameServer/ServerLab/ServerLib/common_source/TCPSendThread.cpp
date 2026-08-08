@@ -106,49 +106,43 @@ void TCPSendThread::loop(void* temp)
     TMsgCell<524288> tmpbuffer;
     while (true)
     {
-        try
+        Message* msg = PopSendMsg();
+        TCPUser* pUser = msg->getUserFromMessage();
+        if ((pUser->isAboutToDisconnect()) || (pUser->isDisconnected()))
         {
-            Message* msg = PopSendMsg();
-            TCPUser* pUser = msg->getUserFromMessage();
-            if ((pUser->isAboutToDisconnect()) || (pUser->isDisconnected()))
+            SendDataPoolFree(msg, pUser);
+            continue;
+        }
+        CMsgCell* cell = msg->getCellFromMessage();
+        PACKET_HEADER* pPCK = cell->GetPacket();
+        pPCK->sequence = sequence;
+        sequence = sequence + 1;
+        G_TraceLog()->sysLog(8, "SEND MSG who id=%d, add=%p", pUser->mUserId, pUser);
+        pPCK = msg->getCellFromMessage()->GetPacket();
+        G_TraceLog()->sysLog(8, "SEND PCK ct    =%d", pPCK->getCategory());
+        pPCK = msg->getCellFromMessage()->GetPacket();
+        G_TraceLog()->sysLog(8, "SEND PCK id    =%d", pPCK->getPacketID());
+        pPCK = msg->getCellFromMessage()->GetPacket();
+        G_TraceLog()->sysLog(8, "SEND PCK size  =%d", pPCK->sLength);
+        if (msg->getDataTypeMask(2) == 0)
+        {
+            G_TraceLog()->sysLog(8, "size=%d", pPCK->sLength);
+            int ret = pUser->onWriteByCMsg(cell);
+            if (ret == 0)
             {
-                SendDataPoolFree(msg, pUser);
+                msg->setOffDataTypeMask(0);
+                msg->setOnDataTypeMask(0);
+                G_TraceLog()->sysLog(8, "Would block ... size=%d", cell->GetSize());
+                msg->SetWouldBlock();
+                PushSendMsg(msg);
                 continue;
             }
-            CMsgCell* cell = msg->getCellFromMessage();
-            PACKET_HEADER* pPCK = cell->GetPacket();
-            pPCK->sequence = sequence;
-            sequence = sequence + 1;
-            G_TraceLog()->sysLog(8, "SEND MSG who id=%d, add=%p", pUser->mUserId, pUser);
-            pPCK = msg->getCellFromMessage()->GetPacket();
-            G_TraceLog()->sysLog(8, "SEND PCK ct    =%d", pPCK->getCategory());
-            pPCK = msg->getCellFromMessage()->GetPacket();
-            G_TraceLog()->sysLog(8, "SEND PCK id    =%d", pPCK->getPacketID());
-            pPCK = msg->getCellFromMessage()->GetPacket();
-            G_TraceLog()->sysLog(8, "SEND PCK size  =%d", pPCK->sLength);
-            if (msg->getDataTypeMask(2) == 0)
+            if (pUser->GetPendingSendNum() == 0)
             {
-                G_TraceLog()->sysLog(8, "size=%d", pPCK->sLength);
-                int ret = pUser->onWriteByCMsg(cell);
-                if (ret == 0)
-                {
-                    msg->setOffDataTypeMask(0);
-                    msg->setOnDataTypeMask(0);
-                    G_TraceLog()->sysLog(8, "Would block ... size=%d", cell->GetSize());
-                    msg->SetWouldBlock();
-                    PushSendMsg(msg);
-                    continue;
-                }
-                if (pUser->GetPendingSendNum() == 0)
-                {
-                    pUser->SetSending(false);
-                }
+                pUser->SetSending(false);
             }
-            SendDataPoolFree(msg, pUser);
         }
-        catch (...)
-        {
-        }
+        SendDataPoolFree(msg, pUser);
     }
 }
 

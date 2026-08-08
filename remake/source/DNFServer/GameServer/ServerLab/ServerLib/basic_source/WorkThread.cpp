@@ -82,7 +82,7 @@ void WorkThread::PushTransaction(IMessageStruct* pMessage)
         u->IncPendingWorkNum();
         u->SetWorking(true);
         orderQueue.push(pMessage);
-        G_TraceLog()->sysLog(4, "RECV PUSH USER=%x, ID=%d, msg=%d", u, u->getUserId(), (int)Message::ident, (int)(Message::ident >> 32));
+        G_TraceLog()->sysLog(4, "RECV PUSH USER=%x, ID=%d, msg=%d", u, u->mUserId, (int)Message::ident, (int)(Message::ident >> 32));
     }
     mQueueSize = mQueueSize + 1;
     pthread_cond_signal(&isEmpty);

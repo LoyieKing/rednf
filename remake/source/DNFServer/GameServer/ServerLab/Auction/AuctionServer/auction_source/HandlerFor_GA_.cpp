@@ -783,7 +783,6 @@ unsigned int HandlerFor_GA_::onAUCTION_REGIST_ITEM_GA(nsl::CMsgCell* pCell, nsl:
         PrintDnfItemInfo(pPck->item_info, mpSzBuffer);
         G_TraceLog()->sysLog(5, "onAUCTION_REGIST_ITEM_GA(), before RegistItem(), o_id : %d , item : %s",
                              pPck->owner_id, mpSzBuffer);
-        PCK_AUCTION_LOG_MESSAGE_AG log_packet;
         log_packet.char_idx = pPck->char_idx;
         log_packet.auction_id = 0;
         log_packet.auction_log_type = 0;

@@ -119,11 +119,11 @@ int TCPSocket::send(char* buf, int size)
         }
         else
         {
-            G_TraceLog()->sysLog(0, "tcp send fail='%d', error ='%s'", n_bytes, strerror(error_number));
+            G_TraceLog()->sysLog(0, "tcp send fail='%d', error ='%s'", n_bytes, strerror(errno));
             return -1;
         }
     }
-    G_TraceLog()->sysLog(0, "tcp send ='%d'", n_bytes);
+    mSendRetryCount = 0;
     return n_bytes;
 }
 
@@ -384,6 +384,7 @@ UDPSocket::UDPSocket()
 
 UDPSocket::~UDPSocket()
 {
+    close();
 }
 
 bool UDPSocket::open()
@@ -471,7 +472,8 @@ int UDPSocket::send(char* buf, const int size, unsigned short nPort, const char*
     *(unsigned short*)to.sa_data = htons(nPort);
     *(unsigned int*)(to.sa_data + 2) = inet_addr(szDestIp);
     int n_bytes = sendto(this->sock_, buf, size, 0, &to, 0x10);
-    if ((n_bytes < 0) && ((errno == 0xb) || (errno == 4)))
+    if ((n_bytes < 0) &&
+        ((errno == 0xb) || (errno == 0xb) || (errno == 4)))
     {
         n_bytes = 0;
     }
@@ -488,7 +490,7 @@ int UDPSocket::recv(char* buf, const int size)
     int len = recvfrom(this->sock_, buf, size, 0, (sockaddr*)&this->from_, &fromLen);
     if (len < 0)
     {
-        if ((errno == 0xb) || (errno == 4))
+        if ((errno == 0xb) || (errno == 4) || (errno == 0xb))
         {
             len = 0;
         }

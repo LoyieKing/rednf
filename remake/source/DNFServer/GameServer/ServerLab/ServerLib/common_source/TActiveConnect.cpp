@@ -39,7 +39,17 @@ void ActiveConManager::CheckTheConnection(ConInterface* conInfo)
     while (true)
     {
         TCPUser* pUser = conInfo->getTCPUser();
-        if (!(pUser->isDisconnected() || pUser->isAboutToDisconnect()))
+        bool bDoReconnect;
+        if (pUser->isDisconnected())
+        {
+            bDoReconnect = true;
+        }
+        else
+        {
+            pUser = conInfo->getTCPUser();
+            bDoReconnect = pUser->isAboutToDisconnect();
+        }
+        if (!bDoReconnect)
         {
             return;
         }
@@ -77,13 +87,14 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
             }
             else
             {
-                TCPUserConnectMap::iterator iter;
-                for (iter = mapConnectedUser_.begin(); iter != mapConnectedUser_.end(); iter++)
+                for (TCPUserConnectMap::iterator iter = mapConnectedUser_.begin();
+                     iter != mapConnectedUser_.end(); iter++)
                 {
-                    printf("rConInfo->getId-%d\n", iter->second->getId());
-                    if (iter->second->getId() == conInfo->getId())
+                    ConInterface* rConInfo = iter->second;
+                    printf("rConInfo->getId-%d\n", rConInfo->getId());
+                    if (rConInfo->getId() == conInfo->getId())
                     {
-                        TCPUser* pUser = iter->second->getTCPUser();
+                        TCPUser* pUser = rConInfo->getTCPUser();
                         conInfo->setTCPUser(pUser);
                         mapConnectedUser_.erase(iter);
                         pUserRet = conInfo->getTCPUser();
@@ -125,12 +136,11 @@ bool ActiveConManager::PopRequestConnect(TCPUser*& outConnectedUser)
     }
     if (bExist)
     {
-        DataPool* pPool = pApp->super_DataPools.getDataPool();
-        TCPSocket* sTCP = pPool->createTCPSocket();
+        TCPSocket* sTCP = pApp->super_DataPools.getDataPool()->createTCPSocket();
         if (!sTCP->open())
         {
             puts("failed to open UDP socket port");
-            pPool->destroyTCPSocket(sTCP);
+            pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
             return false;
         }
         printf("try to connect-%s, %d\n", conInfo->getIp(), conInfo->getPort());
@@ -141,11 +151,11 @@ bool ActiveConManager::PopRequestConnect(TCPUser*& outConnectedUser)
         {
             conInfo->SetConnected(true);
             printf("connection success!!-%s, %d\n", conInfo->getIp(), conInfo->getPort());
-            TCPUser* acUser = pPool->createTCPUser();
+            TCPUser* acUser = pApp->super_DataPools.getDataPool()->createTCPUser();
             if (acUser == NULL)
             {
                 sTCP->close();
-                pPool->destroyTCPSocket(sTCP);
+                pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
                 puts("cannot create TCP USER");
                 return false;
             }
@@ -175,7 +185,7 @@ bool ActiveConManager::PopRequestConnect(TCPUser*& outConnectedUser)
         }
         G_TraceLog()->sysLog(7, "failed to connect remote server-ip=%s, port=%d", conInfo->getIp(), conInfo->getPort());
         sTCP->close();
-        pPool->destroyTCPSocket(sTCP);
+        pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
         conInfo->mIsRejected = true;
         return false;
     }

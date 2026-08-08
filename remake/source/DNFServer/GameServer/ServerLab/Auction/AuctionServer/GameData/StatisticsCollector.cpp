@@ -16,6 +16,13 @@
 
 using namespace nsl;
 
+extern "C" int __xstat(int ver, const char* path, struct stat* buf);
+
+extern "C" __attribute__((weak)) int stat(const char* __path, struct stat* __statbuf)
+{
+    return __xstat(3, __path, __statbuf);
+}
+
 StatisticsCollector::StatisticsCollector()
 {
     mpLogFile = NULL;
@@ -70,7 +77,8 @@ void StatisticsCollector::StData::toString(char* buf, int len)
     sprintf(buf, "%8d Try, %8d Fail", tryCnt, failCnt);
     if (failCnt != 0)
     {
-        strcat(buf, "\n");
+        size_t n = strlen(buf);
+        memcpy(buf + n, ",\n", 2);
         char tmp[256];
         for (unsigned int i = 0; i < 0x37; i++)
         {
@@ -171,7 +179,7 @@ bool StatisticsCollector::makeLogDir()
             return false;
         }
     }
-    sprintf(logdname, "%s/%s", logdir, mpStOldLogDir);
+    sprintf(logdname, "%s/%s", G_Script()->findCharValue(0, 1), mpStOldLogDir);
     if (stat(logdname, &st) < 0)
     {
         if (errno != 2)
@@ -259,11 +267,12 @@ void StatisticsCollector::LoggingPerSec()
             size_t dbTr = pApp->super_Threads.getDBThread(0)->GetTransactionCntPerSec();
             WorkThread* pWorkThread = pApp->super_Threads.getWorkThread(0);
             size_t workQueueSize = pWorkThread->GetQueueSizeNoLock();
-            size_t workTr = pWorkThread->GetTransactionCntPerSec();
-            char szLog[512];
-            char data_str[0x1000];
-            size_t szLogLen;
-            size_t write_len;
+            size_t workTr =
+                pApp->super_Threads.getWorkThread(0)->GetTransactionCntPerSec();
+            static char szLog[0x1000];
+            static char data_str[0x1000];
+            static size_t szLogLen;
+            static size_t write_len;
             sprintf(szLog, "[%02d%02d%02d_%02d:%02d:%02d] net_tr[%4d,%4d] db_tr[%4d,%4d]\n",
                     GetYear(), GetMonth(), GetDay(), GetHour(), GetMin(), GetSec(),
                     (int)workTr, (int)workQueueSize, (int)dbTr, dbQueueSize);
@@ -286,22 +295,7 @@ void StatisticsCollector::LoggingPerSec()
                     write_len = fwrite(szLog, 1, szLogLen, mpLogFile);
                     if (write_len < szLogLen)
                     {
-                        G_TraceLog()->sysLog(8, "StatisticsCollector::LoggingPerSec(), fwrite2 failed = %s", strerror(errno));
-                        fclose(mpLogFile);
-                        mpLogFile = NULL;
-                        return;
-                    }
-                }
-                for (unsigned int i = 0; i < 3; i++)
-                {
-                    mStDataPerDay[i].toString(data_str, 0x1000);
-                    sprintf(szLog, "[%02d%02d%02d] [%s] %s\n", GetYear(), GetMonth(), GetDay(), mpStatisticsTags[i], data_str);
-                    szLogLen = strlen(szLog);
-                    mStDataPerDay[i].reset();
-                    write_len = fwrite(szLog, 1, szLogLen, mpLogFile);
-                    if (write_len < szLogLen)
-                    {
-                        G_TraceLog()->sysLog(8, "StatisticsCollector::LoggingPerSec(), fwrite3 failed = %s", strerror(errno));
+                        G_TraceLog()->sysLog(8, "StatisticsCollector::LoggingPerSec(), fwrite1 failed = %s", strerror(errno));
                         fclose(mpLogFile);
                         mpLogFile = NULL;
                         return;
@@ -312,8 +306,43 @@ void StatisticsCollector::LoggingPerSec()
                     fclose(mpLogFile);
                 }
                 mpLogFile = NULL;
-                mLastLoggingDay = GetDay();
-                DataInitialization(true);
+                if (mLastLoggingDay != GetDay())
+                {
+                    mpLogFile = fopen(mpDayFileName, "a+");
+                    if (mpLogFile == NULL)
+                    {
+                        G_TraceLog()->sysLog(8, "StatisticsCollector::LoggingPerSec(), mpDayFileName fopen failed = %s", mpDayFileName);
+                    }
+                    else
+                    {
+                        for (unsigned int i = 0; i < 3; i++)
+                        {
+                            mStDataPerDay[i].toString(data_str, 0x1000);
+                            int iVar2 = GetDay();
+                            int iVar11 = GetMonth();
+                            int iVar12 = GetYear();
+                            sprintf(szLog, "[%02d%02d%02d] [%s] %s\n", iVar12, iVar11, iVar2,
+                                    mpStatisticsTags[i], data_str);
+                            szLogLen = strlen(szLog);
+                            mStDataPerDay[i].reset();
+                            write_len = fwrite(szLog, 1, szLogLen, mpLogFile);
+                            if (write_len < szLogLen)
+                            {
+                                G_TraceLog()->sysLog(8, "StatisticsCollector::LoggingPerSec(), fwrite3 failed = %s", strerror(errno));
+                                fclose(mpLogFile);
+                                mpLogFile = NULL;
+                                return;
+                            }
+                        }
+                        if (mpLogFile != NULL)
+                        {
+                            fclose(mpLogFile);
+                        }
+                        mpLogFile = NULL;
+                        mLastLoggingDay = GetDay();
+                        DataInitialization(true);
+                    }
+                }
             }
         }
     }

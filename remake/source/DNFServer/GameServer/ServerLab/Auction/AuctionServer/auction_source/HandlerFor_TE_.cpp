@@ -27,6 +27,13 @@ using namespace nsl;
 
 extern Auction* G_Auction();
 
+extern "C" int __xstat(int ver, const char* path, struct stat* buf);
+
+extern "C" __attribute__((weak)) int stat(const char* __path, struct stat* __statbuf)
+{
+    return __xstat(3, __path, __statbuf);
+}
+
 namespace nsl {
 extern char configpath[256];
 extern bool is_config_changed;
@@ -51,11 +58,11 @@ void HandlerFor_TE_::init()
 void HandlerFor_TE_::initTimeEvent()
 {
     G_TraceLog()->sysLog(8, "In  initTimeEvent");
-    GameDataPool* pPool = (GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId);
     nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity;
     nsl::InternalMsg* pArg;
 
-    pTimeEntity = pPool->createTimeEntity();
+    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+        ->createTimeEntity();
     pArg = pTimeEntity->getArg();
     pArg->workIndex = 0;
     pTimeEntity->regist(0x19, 2000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK);
@@ -68,7 +75,8 @@ void HandlerFor_TE_::initTimeEvent()
         pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
     }
 
-    pTimeEntity = pPool->createTimeEntity();
+    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+        ->createTimeEntity();
     pArg = pTimeEntity->getArg();
     pArg->workIndex = 0;
     pTimeEntity->regist(0x1c, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR);
@@ -81,7 +89,8 @@ void HandlerFor_TE_::initTimeEvent()
         pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
     }
 
-    pTimeEntity = pPool->createTimeEntity();
+    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+        ->createTimeEntity();
     pArg = pTimeEntity->getArg();
     pArg->workIndex = 0;
     pTimeEntity->regist(1, 5000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_CHECK_CONFIG);
@@ -94,7 +103,8 @@ void HandlerFor_TE_::initTimeEvent()
         pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
     }
 
-    pTimeEntity = pPool->createTimeEntity();
+    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+        ->createTimeEntity();
     pArg = pTimeEntity->getArg();
     pArg->workIndex = 0;
     pTimeEntity->regist(0x1d, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_DB_PING);
@@ -107,7 +117,8 @@ void HandlerFor_TE_::initTimeEvent()
         pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
     }
 
-    pTimeEntity = pPool->createTimeEntity();
+    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+        ->createTimeEntity();
     pArg = pTimeEntity->getArg();
     pArg->workIndex = 0;
     pTimeEntity->regist(0x28, 60000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE);
@@ -193,7 +204,7 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg
     {
         nsl::TSystem<nsl::LinuxSystem>::sleep(1000);
         G_TraceLog()->sysLog(5, "These two should be 0, work queue size: %d, db queue size: %d", (int)pendingWorkNumSum, pendingDbNum);
-        nsl::LinuxService::getInstance()->stopPending();
+        nsl::LinuxService::getInstance()->controlStop();
     }
     else
     {

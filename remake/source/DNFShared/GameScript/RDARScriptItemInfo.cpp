@@ -115,13 +115,11 @@ bool CNRDItemInfoList::Load(const TCHAR* szFilePath, ConvertFunction convertor)
     TCHAR newFilePath[260];
     FILE* pFile;
     bool result;
-    char szLineBuff[1025];
     int fileSize;
     char* pTotalBuffer;
     char* pTotalPtr;
     char* pszStr;
     const char* pszToken;
-    char localeName[256];
     int intData;
 
     result = false;
@@ -141,7 +139,7 @@ bool CNRDItemInfoList::Load(const TCHAR* szFilePath, ConvertFunction convertor)
         else
         {
             result = true;
-            memset(szLineBuff + 1, 0, 0x400);
+            char szLineBuff[0x400] = {};
             fileSize = 0;
             fseek(pFile, 0, SEEK_END);
             fileSize = (int)ftell(pFile);
@@ -157,7 +155,7 @@ bool CNRDItemInfoList::Load(const TCHAR* szFilePath, ConvertFunction convertor)
                     {
                         goto cleanup;
                     }
-                    char* pLineBuffPtr = szLineBuff + 1;
+                    char* pLineBuffPtr = szLineBuff;
                     for (; *pTotalPtr != '\n'; pTotalPtr = pTotalPtr + 1)
                     {
                         *pLineBuffPtr = *pTotalPtr;
@@ -170,14 +168,14 @@ bool CNRDItemInfoList::Load(const TCHAR* szFilePath, ConvertFunction convertor)
                     {
                         *pLineBuffPtr = '\0';
                     }
-                    if (strlen(szLineBuff + 1) > 1)
+                    if (strlen(szLineBuff) > 1)
                     {
                         break;
                     }
-                    memset(szLineBuff + 1, 0, 0x400);
+                    memset(szLineBuff, 0, 0x400);
                 }
                 pszStr = (char*)0;
-                pszToken = szLineBuff + 1;
+                pszToken = szLineBuff;
                 STItemInfo* pItemInfo = new CNRDItemInfoList::STItemInfo();
                 if (pItemInfo == (STItemInfo*)0)
                 {
@@ -195,7 +193,7 @@ bool CNRDItemInfoList::Load(const TCHAR* szFilePath, ConvertFunction convertor)
                 }
                 pszStr = NextToken(&pszToken, '`', ' ');
                 pItemInfo->nOriginalUsableLevel_ = atoi(pszStr);
-                memset(localeName, 0, 0x100);
+                char localeName[0x100] = {};
                 pszStr = NextToken(&pszToken, '`', ' ');
                 (*convertor)(pszStr, localeName);
                 pItemInfo->sName_ = localeName;
@@ -210,7 +208,7 @@ bool CNRDItemInfoList::Load(const TCHAR* szFilePath, ConvertFunction convertor)
                 {
                     itemInfoMap_.insert(std::make_pair(pItemInfo->nItemIndex_, pItemInfo));
                 }
-                memset(szLineBuff + 1, 0, 0x400);
+                memset(szLineBuff, 0, 0x400);
             }
 cleanup:
             if (pTotalBuffer != (char*)0)

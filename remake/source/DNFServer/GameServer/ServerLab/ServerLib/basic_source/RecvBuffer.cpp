@@ -186,7 +186,19 @@ bool RecvBuffer::ClearUsedMsgs()
         if (pRawMsg->getUse())
         {
             TCPUser* pTcpUserTmp = pRawMsg->getUserFromMessage();
-            G_TraceLog()->sysLog(5, "force delete activeclose size(%d) ident(%d) ip(%d.%d.%d.%d)", mRecvMsgs.size(), (int)Message::ident, (int)(Message::ident >> 32), pTcpUserTmp->pSock_->c_adrs_[0], pTcpUserTmp->pSock_->c_adrs_[1], pTcpUserTmp->pSock_->c_adrs_[2], pTcpUserTmp->pSock_->c_adrs_[3]);
+            unsigned char* adrs;
+            unsigned char b0, b1, b2, b3;
+            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
+            b3 = adrs[3];
+            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
+            b2 = adrs[2];
+            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
+            b1 = adrs[1];
+            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
+            b0 = adrs[0];
+            G_TraceLog()->sysLog(5, "force delete activeclose size(%d) ident(%d) ip(%d.%d.%d.%d)",
+                                 (int)mRecvMsgs.size(), (int)Message::ident,
+                                 (int)(Message::ident >> 32), (int)b0, (int)b1, (int)b2, (int)b3);
         }
         int msgSize = pRawMsg->mSize;
         mRecvMsgs.pop_front();

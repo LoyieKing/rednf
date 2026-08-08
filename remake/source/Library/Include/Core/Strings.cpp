@@ -569,7 +569,8 @@ int32 CharString::rfind(int32 pos, const char* pat, int32 patLength) const
 
 int32 CharString::rfind(const CharString& pat) const
 {
-    return rfind(length() - pat.length(), pat.c_str(), pat.length());
+    int32 patLength = pat.length();
+    return rfind(length() - patLength, pat.c_str(), patLength);
 }
 
 int32 CharString::rfind(int32 pos, const CharString& pat) const
@@ -1030,7 +1031,8 @@ int32 WideString::rfind(int32 pos, const wchar* pat, int32 patLength) const
 
 int32 WideString::rfind(const WideString& pat) const
 {
-    return rfind(length() - pat.length(), pat.c_str(), pat.length());
+    int32 patLength = pat.length();
+    return rfind(length() - patLength, pat.c_str(), patLength);
 }
 
 int32 WideString::rfind(int32 pos, const WideString& pat) const
@@ -1149,6 +1151,10 @@ CharString CharString::concat(const char* src1, int32 src1Len, const CharString&
     {
         return CharString(src2);
     }
+    else if (src2.length() == 0)
+    {
+        return CharString(src1, src1Len);
+    }
     else
     {
         return concat(src1, src1Len, src2.c_str(), src2.length());
@@ -1196,8 +1202,21 @@ CharString CharString::concat(const CharString& src1, char ch)
 
 CharString CharString::concat(char ch, const CharString& src1)
 {
-    CharString tmp(ch);
-    return tmp.concat(tmp, src1);
+    if (ch == '\0')
+    {
+        return CharString(src1);
+    }
+    else if (src1.length() == 0)
+    {
+        return CharString(ch);
+    }
+    else
+    {
+        CharStringData* newData = CharStringData::createTerminated(src1.length() + 1);
+        newData->getBuffer()[0] = ch;
+        memcpy(newData->getBuffer() + 1, src1.c_str(), src1.length());
+        return CharString(newData);
+    }
 }
 
 CharString CharString::pattern(const char* pattern, int32 count)
@@ -1391,9 +1410,10 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
          token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
          token_iterator++)
     {
+        const CharString& token = *token_iterator;
         while (token_runOnce)
         {
-            totalLength = totalLength + (*token_iterator).length();
+            totalLength = totalLength + token.length();
             token_runOnce = false;
         }
     }
@@ -1411,6 +1431,7 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
          token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
          token_iterator++)
     {
+        const CharString& token = *token_iterator;
         while (token_runOnce)
         {
             if (token_iterator != tokenVector.begin() && separatorStrLen >= 1)
@@ -1418,8 +1439,8 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
                 memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
                 newDataBuf = newDataBuf + separatorStrLen;
             }
-            int32 tokenLength = (*token_iterator).length();
-            memcpy(newDataBuf, (*token_iterator).c_str(), tokenLength);
+            int32 tokenLength = token.length();
+            memcpy(newDataBuf, token.c_str(), tokenLength);
             newDataBuf = newDataBuf + tokenLength;
             token_runOnce = false;
         }
@@ -1549,9 +1570,8 @@ WideString WideString::concat(wchar ch, const WideString& src1)
         else
         {
             WideStringData* newData = WideStringData::createTerminated(src1.length() + 1);
-            wchar* newDataBuf = newData->getBuffer();
-            newDataBuf[0] = ch;
-            memcpy(newDataBuf + 1, src1.c_str(), src1.length() * 4);
+            newData->getBuffer()[0] = ch;
+            memcpy(newData->getBuffer() + 1, src1.c_str(), src1.length() * 4);
             return WideString(newData);
         }
     }
@@ -1778,9 +1798,10 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
          token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
          token_iterator++)
     {
+        const WideString& token = *token_iterator;
         while (token_runOnce)
         {
-            totalLength = totalLength + (*token_iterator).length();
+            totalLength = totalLength + token.length();
             token_runOnce = false;
         }
     }
@@ -1798,6 +1819,7 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
          token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
          token_iterator++)
     {
+        const WideString& token = *token_iterator;
         while (token_runOnce)
         {
             if (token_iterator != tokenVector.begin() && separatorStrLen >= 1)
@@ -1805,8 +1827,8 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
                 memcpy(newDataBuf, separatorStrSrc, separatorStrLen * 4);
                 newDataBuf = newDataBuf + separatorStrLen;
             }
-            int32 tokenLength = (*token_iterator).length();
-            memcpy(newDataBuf, (*token_iterator).c_str(), tokenLength * 4);
+            int32 tokenLength = token.length();
+            memcpy(newDataBuf, token.c_str(), tokenLength * 4);
             newDataBuf = newDataBuf + tokenLength;
             token_runOnce = false;
         }
@@ -2015,22 +2037,20 @@ CharString trimLeft(const CharString& str)
         return CharString();
     }
     const char* strBuf = str.c_str();
-    int32 pos = 0;
-    while (pos < str.length())
+    for (int32 pos = 0; pos < (int32)str.length(); pos = pos + 1)
     {
         if (isspace((int)strBuf[pos]) == 0)
         {
-            break;
+            if (pos == 0)
+            {
+                return CharString(str);
+            }
+            CharStringData* newData = CharStringData::createTerminated(str.length() - pos);
+            memcpy(newData->getBuffer(), strBuf + pos, str.length() - pos);
+            return CharString(newData);
         }
-        pos = pos + 1;
     }
-    if (pos == 0)
-    {
-        return CharString(str);
-    }
-    CharStringData* newData = CharStringData::createTerminated(str.length() - pos);
-    memcpy(newData->getBuffer(), strBuf + pos, str.length() - pos);
-    return CharString(newData);
+    return CharString();
 }
 
 CharString trimRight(const CharString& str)
@@ -2095,7 +2115,18 @@ CharString insert(const CharString& str, int32 pos, const char* src, int32 srcLe
 
 CharString insert(const CharString& str, int32 pos, const CharString& src)
 {
-    return insert(str, pos, src.c_str(), src.length());
+    if (str.length() == 0)
+    {
+        return CharString(src);
+    }
+    else if (src.length() == 0)
+    {
+        return CharString(str);
+    }
+    else
+    {
+        return insert(str, pos, src.c_str(), src.length());
+    }
 }
 
 CharString insert(const CharString& str, int32 pos, char src)
@@ -2534,11 +2565,12 @@ WideString trimRight(const WideString& str)
         return WideString();
     }
     const wchar* strBuf = str.c_str();
-    for (int32 pos = str.length() - 1; pos > -1; pos = pos - 1)
+    int32 len = str.length();
+    for (int32 pos = len - 1; pos > -1; pos = pos - 1)
     {
         if (!WideString::isuspace(strBuf[pos]))
         {
-            if (pos == str.length() - 1)
+            if (pos == len - 1)
             {
                 return WideString(str);
             }
@@ -2577,10 +2609,10 @@ WideString insert(const WideString& str, int32 pos, const wchar* src, int32 srcL
         else
         {
             WideStringData* newData = WideStringData::createTerminated(str.length() + srcLength);
-            wchar* newBuf = newData->getBuffer();
-            memcpy(newBuf, str.c_str(), pos * 4);
-            memcpy(newBuf + pos, src, srcLength * 4);
-            memcpy(newBuf + pos + srcLength, str.c_str() + pos, (str.length() - pos) * 4);
+            memcpy(newData->getBuffer(), str.c_str(), pos * 4);
+            memcpy(newData->getBuffer() + pos, src, srcLength * 4);
+            memcpy(newData->getBuffer() + pos + srcLength, str.c_str() + pos,
+                   (str.length() - pos) * 4);
             return WideString(newData);
         }
     }
@@ -2616,10 +2648,10 @@ WideString insert(const WideString& str, int32 pos, wchar src)
         else
         {
             WideStringData* newData = WideStringData::createTerminated(str.length() + 1);
-            wchar* newBuf = newData->getBuffer();
-            memcpy(newBuf, str.c_str(), pos * 4);
-            newBuf[pos] = src;
-            memcpy(newBuf + pos + 1, str.c_str() + pos, (str.length() - pos) * 4);
+            memcpy(newData->getBuffer(), str.c_str(), pos * 4);
+            newData->getBuffer()[pos] = src;
+            memcpy(newData->getBuffer() + pos + 1, str.c_str() + pos,
+                   (str.length() - pos) * 4);
             return WideString(newData);
         }
     }
@@ -2644,9 +2676,8 @@ WideString remove(const WideString& str, int32 pos, int32 removeLength)
                     return WideString();
                 }
                 WideStringData* newData = WideStringData::createTerminated(str.length() - removeLength);
-                wchar* newBuf = newData->getBuffer();
-                memcpy(newBuf, str.c_str(), pos * 4);
-                memcpy(newBuf + pos, str.c_str() + pos + removeLength,
+                memcpy(newData->getBuffer(), str.c_str(), pos * 4);
+                memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
                        (str.length() - pos - removeLength) * 4);
                 return WideString(newData);
             }

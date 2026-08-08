@@ -49,11 +49,6 @@ void CSHA::AddData(const char* pcData, int iDataLength)
     if (uiT != 0)
     {
         size_t __n = 0x40 - uiT;
-        if (iDataLength < (int)__n)
-        {
-            memcpy(m_aucIn + uiT, pcData, iDataLength);
-            return;
-        }
         memcpy(m_aucIn + uiT, pcData, __n);
         Transform();
         pcData = pcData + __n;

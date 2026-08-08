@@ -57,8 +57,8 @@ struct Packet_Monitor_Notify_Auction_Mail
     RandomOption randomOption;
 
     Packet_Monitor_Notify_Auction_Mail()
+        : super_PacketHeader(0xc1c, 0x26)
     {
-        super_PacketHeader = PacketHeader(0xc1c, 0x26);
     }
 };
 
@@ -107,8 +107,67 @@ Auction::~Auction()
     mCreatureDupChkMap.clear();
 }
 
-void Auction::ProcessMostRecentExpireItem()
+int Auction::ProcessMostRecentExpireItem()
 {
+    int error_code = 0;
+    bool one_processing;
+    unsigned int cnt = 0;
+    do
+    {
+        if (99 < cnt)
+        {
+            goto system_loop;
+        }
+        one_processing = false;
+        error_code = mAuctionDic.ProcessMostRecentExpireItem(one_processing, ENUM_AUCTION_USER);
+        if (error_code != 0)
+        {
+            if (error_code != 0x2c)
+            {
+                G_TraceLog()->sysLog(7,
+                    "ERROR: Auction::ProcessMostRecentExpireItem(ENUM_AUCTION_USER), %s",
+                    GetErrorStr(error_code));
+            }
+            goto system_loop;
+        }
+        else
+        {
+            if (one_processing != true)
+            {
+                goto system_loop;
+            }
+            cnt = cnt + 1;
+        }
+    } while (true);
+system_loop:
+    unsigned int cnt2 = 0;
+    while (true)
+    {
+        if (2 < cnt2)
+        {
+            return error_code;
+        }
+        one_processing = false;
+        error_code = mAuctionDic.ProcessMostRecentExpireItem(one_processing, ENUM_AUCTION_SYSTEM);
+        if (error_code != 0)
+        {
+            break;
+        }
+        if (one_processing != true)
+        {
+            return 0;
+        }
+        cnt2 = cnt2 + 1;
+        error_code = 0;
+    }
+    if (error_code == 0x2c)
+    {
+        return 0x2c;
+    }
+    G_TraceLog()->sysLog(7,
+        "ERROR: Auction::ProcessMostRecentExpireItem(ENUM_AUCTION_SYSTEM), %s",
+        GetErrorStr(error_code));
+    return error_code;
 }
 
 CNRDItemInfoList::STItemInfo* Auction::GetItemInfo(unsigned long item_id) const
@@ -355,7 +414,7 @@ int Auction::RegistItem(int ownerId, const char* ownerName, char ownerType,
             else
             {
                 if ((strlen(ownerName) == 0xc) &&
-                    (strcmp(ownerName, "\xb0\xe6\xb8\xc5\xb7\xce\xc0\xfa\xb9\xf8\xba\xf3") == 0))
+                    (strcmp(ownerName, "\xb0\xe6\xb8\xc5\xb7\xce\xc0\xfa\xb7\xb9\xba\xf3") == 0))
                 {
                     expireTime = mSYSTEM_AUCTION_EXPIRE_TIME + expireTime;
                     ownerId = -1;
@@ -735,7 +794,7 @@ bool Auction::RegistChkMapForAvatarCreature(bool isAvatar, int ui_id)
     if (isAvatar)
     {
         iter = mCreatureDupChkMap.find(ui_id);
-        if (iter != mCreatureDupChkMap.end())
+        if (!(iter == mCreatureDupChkMap.end()))
         {
             return false;
         }
@@ -744,7 +803,7 @@ bool Auction::RegistChkMapForAvatarCreature(bool isAvatar, int ui_id)
     else
     {
         iter = mAvatarDupChkMap.find(ui_id);
-        if (iter != mAvatarDupChkMap.end())
+        if (!(iter == mAvatarDupChkMap.end()))
         {
             return false;
         }
@@ -844,5 +903,9 @@ AuctionDictionary::AuctionDictionaryData* Auction::GetAuctionDicData(unsigned lo
 
 void PrintDnfItemInfo(DnfItemInfo& itemInfo, char* out)
 {
-    out[0] = '\0';
+    sprintf(out, "s:%d, id:%d,up:%d,sc:%d,add:%d,en:%d,ex:%d",
+            (unsigned int)itemInfo.seal, itemInfo.item_id,
+            (unsigned int)(itemInfo.uniItemAttr & 0x1f),
+            (unsigned int)(itemInfo.uniItemAttr >> 5),
+            itemInfo.add_info, (unsigned int)itemInfo.endurance, itemInfo.extendInfo);
 }

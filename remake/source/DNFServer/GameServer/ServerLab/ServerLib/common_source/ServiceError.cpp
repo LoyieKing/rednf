@@ -31,8 +31,8 @@ const char* GetErrorStr(int err)
     if (it == ___errstr_map___.end())
     {
         G_TraceLog()->sysLog(7, "GetErrorStr() failed. error_no : %d\n", err);
-        sprintf(___errstr_tmp___, "[%d:%s]", -1, "***GetErrorStr() failed***");
-        return ___errstr_tmp___;
+        it = ___errstr_map___.find(0xffffffff);
+        return it->second.c_str();
     }
     return it->second.c_str();
 }
