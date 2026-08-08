@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string>
 #include <istream>
+#include <ostream>
 
 typedef std::string TiXmlString;
 
@@ -46,11 +47,25 @@ public:
     static bool condenseWhiteSpace;
     static TiXmlEntity entity[5];
     static std::string errorString[16];
+    static int IsAlphaNum(unsigned char anyByte, TiXmlEncoding encoding);
+    static int IsAlpha(unsigned char anyByte, TiXmlEncoding encoding);
+    static bool StringEqual(const char* p, const char* tag, bool ignoreCase, TiXmlEncoding encoding);
+    static void ConvertUTF32ToUTF8(unsigned long input, char* output, int* length);
+    static const char* SkipWhiteSpace(const char* p, TiXmlEncoding encoding);
+    static void StreamWhiteSpace(std::istream* in, std::string* tag);
+    static void StreamTo(std::istream* in, int character, std::string* tag);
+    static const char* ReadName(const char* p, std::string* name, TiXmlEncoding encoding);
+    static const char* ReadText(const char* p, std::string* text, bool trimWhiteSpace,
+                                const char* endTag, bool caseInsensitive, TiXmlEncoding encoding);
+    static const char* GetEntity(const char* p, char* value, int* length, TiXmlEncoding encoding);
+    static void EncodeString(const std::string& str, std::string* out);
 
 protected:
     int row;
     int col;
 };
+
+FILE* TiXmlFOpen(const char* filename, const char* mode);
 
 class TiXmlNode : public TiXmlBase
 {
@@ -70,7 +85,7 @@ public:
     virtual ~TiXmlNode();
 
     virtual void Print(FILE* cfile, int depth) const = 0;
-    virtual bool Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual const TiXmlDocument* ToDocument() const { return 0; }
     virtual const TiXmlElement* ToElement() const { return 0; }
     virtual const TiXmlComment* ToComment() const { return 0; }
@@ -85,7 +100,7 @@ public:
     virtual TiXmlDeclaration* ToDeclaration() { return 0; }
     virtual TiXmlNode* Clone() const = 0;
     virtual bool Accept(TiXmlVisitor* visitor) const = 0;
-    virtual void StreamIn(std::istream& in, std::string* tag) = 0;
+    virtual void StreamIn(std::istream* in, std::string* tag) = 0;
 
     const char* Value() const { return value.c_str(); }
     void SetValue(const char* _value) { value = _value; }
@@ -98,17 +113,35 @@ public:
     const TiXmlNode* FirstChild() const;
     TiXmlNode* FirstChild() { return const_cast<TiXmlNode*>(const_cast<const TiXmlNode*>(this)->FirstChild()); }
 
-    TiXmlNode* NextSibling() { return next; }
-    const TiXmlNode* NextSibling() const { return next; }
+    TiXmlNode* NextSibling();
+    const TiXmlNode* NextSibling() const;
     TiXmlNode* NextSibling(const char* _value);
     const TiXmlNode* NextSibling(const char* _value) const;
 
     void Clear();
     bool LinkEndChild(TiXmlNode* node);
+    TiXmlNode* InsertEndChild(const TiXmlNode& addThis);
+    TiXmlNode* InsertBeforeChild(TiXmlNode* beforeThis, const TiXmlNode& addThis);
+    TiXmlNode* InsertAfterChild(TiXmlNode* afterThis, const TiXmlNode& addThis);
+    bool RemoveChild(TiXmlNode* removeThis);
+    bool ReplaceChild(TiXmlNode* replaceThis, const TiXmlNode& withThis);
+    TiXmlNode* Identify(const char* start, TiXmlEncoding encoding);
 
-    TiXmlNode* FirstChildElement() { return FirstChild(); }
+    const TiXmlNode* FirstChildElement() const;
+    TiXmlNode* FirstChildElement();
+    const TiXmlNode* FirstChildElement(const char* _value) const;
+    TiXmlNode* FirstChildElement(const char* _value);
+    const TiXmlNode* NextSiblingElement() const;
+    TiXmlNode* NextSiblingElement();
+    const TiXmlNode* NextSiblingElement(const char* _value) const;
+    TiXmlNode* NextSiblingElement(const char* _value);
+    const TiXmlNode* PreviousSibling(const char* _value) const;
+    const TiXmlNode* LastChild(const char* _value) const;
+    const TiXmlNode* IterateChildren(const TiXmlNode* previous) const;
+    const TiXmlNode* IterateChildren(const char* val, const TiXmlNode* previous) const;
+    virtual void CopyTo(TiXmlNode* target) const;
 
-    TiXmlDocument* GetDocument() const { return document; }
+    TiXmlDocument* GetDocument() const;
 
 public:
     TiXmlDocument* document;
@@ -127,22 +160,27 @@ public:
     TiXmlDocument();
     TiXmlDocument(const char* documentName);
     TiXmlDocument(const std::string& documentName);
+    TiXmlDocument(const TiXmlDocument& copy);
     virtual ~TiXmlDocument();
+    TiXmlDocument& operator=(const TiXmlDocument& copy);
 
     bool LoadFile(const char* filename, TiXmlEncoding encoding = TIXML_ENCODING_UNKNOWN);
-    bool LoadFile(const std::string& filename, TiXmlEncoding encoding = TIXML_ENCODING_UNKNOWN)
-    {
-        return LoadFile(filename.c_str(), encoding);
-    }
+    bool LoadFile(const std::string& filename, TiXmlEncoding encoding = TIXML_ENCODING_UNKNOWN);
+    bool LoadFile(TiXmlEncoding encoding);
     bool LoadFile(FILE* file, TiXmlEncoding encoding);
     bool LoadFile();
     bool SaveFile(const char* filename) const;
+    bool SaveFile() const;
+    bool SaveFile(FILE* file) const;
 
     virtual void Print(FILE* cfile, int depth) const;
-    virtual bool Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual TiXmlNode* Clone() const;
     virtual bool Accept(TiXmlVisitor* visitor) const;
-    virtual void StreamIn(std::istream& in, std::string* tag);
+    virtual void StreamIn(std::istream* in, std::string* tag);
+    virtual const TiXmlDocument* ToDocument() const { return this; }
+    virtual TiXmlDocument* ToDocument() { return this; }
+    virtual void CopyTo(TiXmlDocument* target) const;
 
     void SetError(int err, const char* errorDesc, TiXmlParsingData* data, TiXmlEncoding encoding);
     bool Error() const { return error; }
@@ -174,6 +212,13 @@ public:
     void SetValue(const char* _value) { value = _value; }
 
     TiXmlAttribute* Next() const { return next; }
+    TiXmlAttribute* Previous() const;
+    int IntValue() const;
+    double DoubleValue() const;
+    int QueryIntValue(int* ival) const;
+    int QueryDoubleValue(double* dval) const;
+    void Print(FILE* cfile, int depth) const;
+    void Print(FILE* cfile, int depth, std::string* str) const;
 
     virtual void Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     void SetIntValue(int value);
@@ -197,6 +242,10 @@ public:
     void Add(TiXmlAttribute* attribute);
     const TiXmlAttribute* Find(const char* name) const;
     TiXmlAttribute* Find(const char* name);
+    const TiXmlAttribute* Find(const std::string& name) const;
+    TiXmlAttribute* FindOrCreate(const char* _name);
+    TiXmlAttribute* FindOrCreate(const std::string& _name);
+    void Remove(TiXmlAttribute* attribute);
 
 private:
     TiXmlAttribute* first;
@@ -208,18 +257,34 @@ class TiXmlElement : public TiXmlNode
 public:
     TiXmlElement(const char* in_value);
     TiXmlElement(const std::string& in_value);
+    TiXmlElement(const TiXmlElement& copy);
     virtual ~TiXmlElement();
+    TiXmlElement& operator=(const TiXmlElement& base);
 
     virtual const TiXmlElement* ToElement() const { return this; }
     virtual TiXmlElement* ToElement() { return this; }
     virtual void Print(FILE* cfile, int depth) const;
-    virtual bool Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual TiXmlNode* Clone() const;
     virtual bool Accept(TiXmlVisitor* visitor) const;
-    virtual void StreamIn(std::istream& in, std::string* tag);
+    virtual void StreamIn(std::istream* in, std::string* tag);
 
     const char* Attribute(const char* name) const;
+    const char* Attribute(const char* name, double* value) const;
     bool Attribute(const char* name, int* value) const;
+    const char* Attribute(const std::string& name) const;
+    bool Attribute(const std::string& name, int* value) const;
+    bool Attribute(const std::string& name, double* value) const;
+    int QueryIntAttribute(const char* name, int* value) const;
+    int QueryIntAttribute(const std::string& name, int* value) const;
+    int QueryDoubleAttribute(const char* name, double* value) const;
+    int QueryDoubleAttribute(const std::string& name, double* value) const;
+    int QueryBoolAttribute(const char* name, bool* value) const;
+    int QueryUnsignedAttribute(const char* name, unsigned int* value) const;
+    const char* GetText() const;
+    void ClearThis();
+    void ReadValue(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual void CopyTo(TiXmlElement* target) const;
     void SetAttribute(const char* name, const char* value);
     void SetAttribute(const char* name, int value);
     void SetAttribute(const std::string& name, const std::string& value);
@@ -236,14 +301,17 @@ class TiXmlComment : public TiXmlNode
 {
 public:
     TiXmlComment();
+    TiXmlComment(const TiXmlComment& copy);
     virtual ~TiXmlComment();
+    TiXmlComment& operator=(const TiXmlComment& base);
     virtual const TiXmlComment* ToComment() const { return this; }
     virtual TiXmlComment* ToComment() { return this; }
     virtual void Print(FILE* cfile, int depth) const;
-    virtual bool Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual TiXmlNode* Clone() const;
     virtual bool Accept(TiXmlVisitor* visitor) const;
-    virtual void StreamIn(std::istream& in, std::string* tag);
+    virtual void StreamIn(std::istream* in, std::string* tag);
+    virtual void CopyTo(TiXmlComment* target) const;
 };
 
 class TiXmlUnknown : public TiXmlNode
@@ -254,10 +322,11 @@ public:
     virtual const TiXmlUnknown* ToUnknown() const { return this; }
     virtual TiXmlUnknown* ToUnknown() { return this; }
     virtual void Print(FILE* cfile, int depth) const;
-    virtual bool Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual TiXmlNode* Clone() const;
     virtual bool Accept(TiXmlVisitor* visitor) const;
-    virtual void StreamIn(std::istream& in, std::string* tag);
+    virtual void StreamIn(std::istream* in, std::string* tag);
+    virtual void CopyTo(TiXmlUnknown* target) const;
 };
 
 class TiXmlText : public TiXmlNode
@@ -268,38 +337,103 @@ public:
     virtual const TiXmlText* ToText() const { return this; }
     virtual TiXmlText* ToText() { return this; }
     virtual void Print(FILE* cfile, int depth) const;
-    virtual bool Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual TiXmlNode* Clone() const;
     virtual bool Accept(TiXmlVisitor* visitor) const;
-    virtual void StreamIn(std::istream& in, std::string* tag);
+    virtual void StreamIn(std::istream* in, std::string* tag);
+    bool Blank() const;
+    virtual void CopyTo(TiXmlText* target) const;
 };
 
 class TiXmlDeclaration : public TiXmlNode
 {
 public:
     TiXmlDeclaration();
+    TiXmlDeclaration(const char* version, const char* encoding, const char* standalone);
+    TiXmlDeclaration(const std::string& version, const std::string& encoding,
+                     const std::string& standalone);
+    TiXmlDeclaration(const TiXmlDeclaration& copy);
     virtual ~TiXmlDeclaration();
+    TiXmlDeclaration& operator=(const TiXmlDeclaration& copy);
     virtual const TiXmlDeclaration* ToDeclaration() const { return this; }
     virtual TiXmlDeclaration* ToDeclaration() { return this; }
     virtual void Print(FILE* cfile, int depth) const;
-    virtual bool Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual TiXmlNode* Clone() const;
     virtual bool Accept(TiXmlVisitor* visitor) const;
-    virtual void StreamIn(std::istream& in, std::string* tag);
+    virtual void StreamIn(std::istream* in, std::string* tag);
+    void Print(FILE* cfile, int depth, std::string* str) const;
+    virtual void CopyTo(TiXmlDeclaration* target) const;
+
+private:
+    std::string version;      // +0x2c
+    std::string encoding;     // +0x30
+    std::string standalone;   // +0x34
 };
 
 class TiXmlVisitor
 {
 public:
-    virtual ~TiXmlVisitor() {}
-    virtual bool VisitEnter(const TiXmlDocument&) { return true; }
-    virtual bool VisitExit(const TiXmlDocument&) { return true; }
-    virtual bool VisitEnter(const TiXmlElement&, const TiXmlAttribute*) { return true; }
-    virtual bool VisitExit(const TiXmlElement&) { return true; }
-    virtual bool Visit(const TiXmlDeclaration&) { return true; }
-    virtual bool Visit(const TiXmlText&) { return true; }
-    virtual bool Visit(const TiXmlComment&) { return true; }
-    virtual bool Visit(const TiXmlUnknown&) { return true; }
+    virtual ~TiXmlVisitor();
+    virtual bool VisitEnter(const TiXmlDocument&);
+    virtual bool VisitExit(const TiXmlDocument&);
+    virtual bool VisitEnter(const TiXmlElement&, const TiXmlAttribute*);
+    virtual bool VisitExit(const TiXmlElement&);
+    virtual bool Visit(const TiXmlDeclaration&);
+    virtual bool Visit(const TiXmlText&);
+    virtual bool Visit(const TiXmlComment&);
+    virtual bool Visit(const TiXmlUnknown&);
+};
+
+class TiXmlPrinter : public TiXmlVisitor
+{
+public:
+    TiXmlPrinter() : depth(0), simpleTextPrint(false), buffer(), indent("    "), lineBreak("\n") {}
+    virtual bool VisitEnter(const TiXmlDocument&);
+    virtual bool VisitExit(const TiXmlDocument&);
+    virtual bool VisitEnter(const TiXmlElement&, const TiXmlAttribute*);
+    virtual bool VisitExit(const TiXmlElement&);
+    virtual bool Visit(const TiXmlDeclaration&);
+    virtual bool Visit(const TiXmlText&);
+    virtual bool Visit(const TiXmlComment&);
+    virtual bool Visit(const TiXmlUnknown&);
+    void SetIndent(const char* _indent) { indent = _indent; }
+    const char* Indent() { return indent.c_str(); }
+    void SetLineBreak(const char* _lineBreak) { lineBreak = _lineBreak; }
+    const char* LineBreak() { return lineBreak.c_str(); }
+    void SetSimpleTextPrint(bool set) { simpleTextPrint = set; }
+    const char* CStr() { return buffer.c_str(); }
+    int Depth() { return depth; }
+private:
+    int depth;
+    bool simpleTextPrint;
+    std::string buffer;
+    std::string indent;
+    std::string lineBreak;
+};
+
+class TiXmlHandle
+{
+public:
+    TiXmlHandle(TiXmlNode* node) { this->node = node; }
+    TiXmlHandle(const TiXmlNode* node) { this->node = const_cast<TiXmlNode*>(node); }
+    TiXmlHandle(const TiXmlHandle& ref) { this->node = ref.node; }
+    TiXmlHandle operator=(const TiXmlHandle& ref)
+    {
+        this->node = ref.node;
+        return *this;
+    }
+    TiXmlNode* ToNode() const { return node; }
+    TiXmlHandle FirstChild() const;
+    TiXmlHandle FirstChild(const char* value) const;
+    TiXmlHandle FirstChildElement() const;
+    TiXmlHandle FirstChildElement(const char* value) const;
+    TiXmlHandle Child(int count) const;
+    TiXmlHandle Child(const char* value, int count) const;
+    TiXmlHandle ChildElement(int count) const;
+    TiXmlHandle ChildElement(const char* value, int count) const;
+private:
+    TiXmlNode* node;
 };
 
 struct TiXmlParsingData
@@ -308,5 +442,9 @@ struct TiXmlParsingData
     int col;
     void Stamp(const char* now, TiXmlEncoding encoding);
 };
+
+std::ostream& operator<<(std::ostream& out, const TiXmlNode& base);
+std::string& operator<<(std::string& out, const TiXmlNode& base);
+std::istream& operator>>(std::istream& in, TiXmlNode& base);
 
 #endif // TINYXML_H_INCLUDED
