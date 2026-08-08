@@ -629,7 +629,7 @@ public:
 
 	/// Navigate to a sibling node.
 	const TiXmlNode* NextSibling() const				{ return next; }
-	TiXmlNode* NextSibling()							{ return next; }
+	TiXmlNode* NextSibling();
 
 	/// Navigate to a sibling node with the given 'value'.
 	const TiXmlNode* NextSibling( const char * ) const;
@@ -1429,10 +1429,7 @@ public:
 	bool SaveFile( FILE* ) const;
 
 	#ifdef TIXML_USE_STL
-	bool LoadFile( const std::string& filename, TiXmlEncoding encoding = TIXML_DEFAULT_ENCODING )			///< STL std::string version.
-	{
-		return LoadFile( filename.c_str(), encoding );
-	}
+	bool LoadFile( const std::string& filename, TiXmlEncoding encoding = TIXML_DEFAULT_ENCODING );			///< STL std::string version.
 	bool SaveFile( const std::string& filename ) const		///< STL std::string version.
 	{
 		return SaveFile( filename.c_str() );

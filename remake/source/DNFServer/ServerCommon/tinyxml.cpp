@@ -410,7 +410,7 @@ const TiXmlNode* TiXmlNode::IterateChildren( const char * val, const TiXmlNode* 
 }
 
 
-const TiXmlNode* TiXmlNode::NextSibling( const char * _value ) const 
+const TiXmlNode* TiXmlNode::NextSibling( const char * _value ) const
 {
 	const TiXmlNode* node;
 	for ( node = next; node; node = node->next )
@@ -419,6 +419,11 @@ const TiXmlNode* TiXmlNode::NextSibling( const char * _value ) const
 			return node;
 	}
 	return 0;
+}
+
+TiXmlNode* TiXmlNode::NextSibling()
+{
+	return next;
 }
 
 
@@ -954,6 +959,11 @@ TiXmlDocument& TiXmlDocument::operator=( const TiXmlDocument& copy )
 bool TiXmlDocument::LoadFile( TiXmlEncoding encoding )
 {
 	return LoadFile( Value(), encoding );
+}
+
+bool TiXmlDocument::LoadFile( const std::string& filename, TiXmlEncoding encoding )
+{
+	return LoadFile( filename.c_str(), encoding );
 }
 
 
@@ -1883,4 +1893,3 @@ bool TiXmlPrinter::Visit( const TiXmlUnknown& unknown )
 	DoLineBreak();
 	return true;
 }
-
