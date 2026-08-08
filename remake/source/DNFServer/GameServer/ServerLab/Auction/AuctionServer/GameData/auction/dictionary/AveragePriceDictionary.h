@@ -47,7 +47,7 @@ public:
     }
     bool isValidRefineValue(unsigned char itemRefineValue)
     {
-        if (itemRefineValue < 8)
+        if (itemRefineValue <= 0x7f)
         {
             return true;
         }

@@ -49,9 +49,9 @@ void SetAuctionServiceErrorStr()
     sprintf(nsl::___errstr_tmp___, "[%d:%s]", 5, "ERROR_AUCTION_CONNECTION_LOST_");
     nsl::___errstr_map___.insert(std::make_pair<AUCTION_ERROR_LIST, char(&)[2048]>(AUCTION_ERROR_LIST(5), nsl::___errstr_tmp___));
     sprintf(nsl::___errstr_tmp___, "[%d:%s]", 3, "ERROR_STOP_CALLED_");
-    nsl::___errstr_map___.insert(std::make_pair<AUCTION_ERROR_LIST, char(&)[2048]>(AUCTION_ERROR_LIST(3), nsl::___errstr_tmp___));
+    nsl::___errstr_map___.insert(std::make_pair<COMMON_ERROR_LIST, char(&)[2048]>(COMMON_ERROR_LIST(3), nsl::___errstr_tmp___));
     sprintf(nsl::___errstr_tmp___, "[%d:%s]", 2, "ERROR_DB_CONNECTION_LOST");
-    nsl::___errstr_map___.insert(std::make_pair<AUCTION_ERROR_LIST, char(&)[2048]>(AUCTION_ERROR_LIST(2), nsl::___errstr_tmp___));
+    nsl::___errstr_map___.insert(std::make_pair<COMMON_ERROR_LIST, char(&)[2048]>(COMMON_ERROR_LIST(2), nsl::___errstr_tmp___));
     sprintf(nsl::___errstr_tmp___, "[%d:%s]", 6, "ERROR_AUCTION_CONNECT_GA_FAIL_");
     nsl::___errstr_map___.insert(std::make_pair<AUCTION_ERROR_LIST, char(&)[2048]>(AUCTION_ERROR_LIST(6), nsl::___errstr_tmp___));
     sprintf(nsl::___errstr_tmp___, "[%d:%s]", 7, "ERROR_AUCTION_REGIST_GA_FAIL_ID_DUPLICATE_");

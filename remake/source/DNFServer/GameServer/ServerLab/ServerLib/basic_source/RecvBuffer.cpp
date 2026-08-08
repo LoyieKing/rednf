@@ -18,7 +18,7 @@ RecvBuffer::RecvBuffer(int queueSize, int maxPacketSize)
     mRearIdx = 0;
     mParseIdx = 0;
     mParseStatus = 0;
-    mQueue = (char*)operator new(queueSize);
+    mQueue = new char[queueSize];
     mQueueSize = queueSize;
     assert(mQueueSize > maxPacketSize && "Queue size smaller than MAX_PACKET");
     mPartialQueueSize = mQueueSize - maxPacketSize;
@@ -27,10 +27,7 @@ RecvBuffer::RecvBuffer(int queueSize, int maxPacketSize)
 
 RecvBuffer::~RecvBuffer()
 {
-    if (mQueue != NULL)
-    {
-        operator delete(mQueue);
-    }
+    delete[] mQueue;
 }
 
 bool RecvBuffer::IsEmpty()
@@ -65,7 +62,7 @@ int RecvBuffer::AvailableSize()
         }
         if (mParseStatus == 0)
         {
-            return mQueueSize - mRearIdx + 0x12;
+            return mParseIdx - mRearIdx + 0x12;
         }
         if (mParseStatus == 1)
         {

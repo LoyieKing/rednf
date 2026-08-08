@@ -2020,9 +2020,9 @@ CharString reverse(const CharString& str)
         return CharString();
     }
     CharStringData* newData = CharStringData::createTerminated(str.length());
+    int32 strLength = str.length();
     const char* strBuf = str.c_str();
     char* newBuf = newData->getBuffer();
-    int32 strLength = str.length();
     for (int32 i = 0; i < str.length(); i = i + 1)
     {
         newBuf[i] = strBuf[(strLength - i) - 1];

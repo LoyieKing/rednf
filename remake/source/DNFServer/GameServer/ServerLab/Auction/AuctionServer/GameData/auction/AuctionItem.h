@@ -403,6 +403,7 @@ struct DnfItemInfo
 // Avatar emblem/expansion info (auction binary DWARF, decl lines 7380..7420)
 typedef unsigned short avatarEmblemType_t;
 
+#pragma pack(push, 1)
 struct stAvatarEmblemInfo_t
 {
     struct
@@ -416,6 +417,8 @@ struct stAvatarEmblemInfo_t
         memset(this, 0, sizeof(stAvatarEmblemInfo_t));
     }
 };
+
+#pragma pack(pop)
 
 struct stAvatarExpansionInfo_t
 {

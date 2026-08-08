@@ -84,6 +84,8 @@ public:
     time_t mNowTimeT;
     tm* mpNowTm;
     int mLastLoggingDay;
+    char unused_tail[48];  // 原版 sizeof == 0x19a4（DWARF 只列到 mLastLoggingDay@6512，
+                           // 尾部 48 字节无任何代码访问，仅为对齐原版分配大小）
 };
 
 inline StatisticsCollector* G_StatisticsCollector()

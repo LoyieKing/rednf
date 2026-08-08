@@ -518,7 +518,7 @@ int UDPSocket::pollReadEvent() const
     FD_SET((unsigned int)sock_, &rset);
     timeval tv;
     tv.tv_sec = 0;
-    tv.tv_usec = 0;
+    tv.tv_usec = 5000;
     int ret = select(2, &rset, NULL, NULL, &tv);
     if (ret == 0)
     {

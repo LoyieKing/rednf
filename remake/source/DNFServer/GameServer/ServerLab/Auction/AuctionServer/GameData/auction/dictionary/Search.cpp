@@ -146,7 +146,7 @@ bool Search::IsValidUpgradeRange(BYTE upgradeStart, BYTE upgradeEnd)
 
 bool Search::IsValidRefine(BYTE refine)
 {
-    return refine < 8;
+    return refine <= 0x7f;
 }
 
 bool Search::IsValidRefineRange(BYTE refineStart, BYTE refineEnd)
@@ -1206,7 +1206,7 @@ int Search::SearchByLv(TCategoryParameter* pParameter, PLvContainer pParent)
     TLvContainer::iterator pos;
 
     pSearchResult = &pParameter->searchResult;
-    pParameter->searchResult.category = -1;
+    pSearchResult->category = -1;
     lvStart = pParameter->lvStart;
     pos = pParent->lower_bound(lvStart);
     while (pos != pParent->upper_bound(pParameter->lvEnd))
