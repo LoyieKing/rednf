@@ -21,12 +21,14 @@ int IArea::getMemberNum()
 
 bool IArea::regist(unsigned int id, ISession* obj)
 {
-    std::pair<MAP_OBJECTS_ITER, bool> ret = mMapObj.insert(std::make_pair(id, obj));
-    if (ret.second == false)
+    std::pair<MAP_OBJECTS_ITER, bool> ret;
+    ret = mMapObj.insert(std::make_pair(id, obj));
+    if (ret.second != false)
     {
-        G_TraceLog()->sysLog(7, "IArea Insert Fail-%d, %x\n", id, this);
+        return true;
     }
-    return ret.second != false;
+    G_TraceLog()->sysLog(7, "IArea Insert Fail-%d, %x\n", id, this);
+    return false;
 }
 
 void IArea::unregist(unsigned int id)

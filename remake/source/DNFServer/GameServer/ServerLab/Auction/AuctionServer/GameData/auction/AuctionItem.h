@@ -216,6 +216,43 @@ struct ROI_Category
         }
     }
 
+    bool isMatching(const ROI_Category& _cmp) const
+    {
+        if (_cmp.isEmpty())
+        {
+            return false;
+        }
+        if (isEmpty())
+        {
+            return false;
+        }
+        unsigned long long cmp = _cmp.field_0._qw;
+        unsigned long long ori = field_0._qw;
+        for (int i = 0; i < 3; i = i + 1)
+        {
+            if (*((short*)&cmp + i) != -1)
+            {
+                for (int j = 0; j < 3; j = j + 1)
+                {
+                    if (*((short*)&ori + j) == *((short*)&cmp + i))
+                    {
+                        *((short*)&cmp + i) = 0;
+                        *((short*)&ori + j) = 0;
+                        break;
+                    }
+                }
+            }
+        }
+        for (int k = 0; k < 3; k = k + 1)
+        {
+            if (*((short*)&cmp + k) > 0)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     bool operator<(const ROI_Category& _rhp) const
     {
         if (*(int*)&_rhp.field_0 == *(int*)&field_0 &&

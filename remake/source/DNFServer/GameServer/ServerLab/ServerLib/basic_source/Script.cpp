@@ -110,18 +110,15 @@ bool Script::get_key_val(char* line)
     int n_tok = tok.get_n_token();
     if (n_tok == 1)
     {
-        std::string s(tok.get_context(0));
-        mParentNames.push_back(s);
+        mParentNames.push_back(std::string(tok.get_context(0)));
         mChildNames.push_back(std::vector<std::string>());
         mChildValues.push_back(std::vector<std::string>());
         tok.free_token(0);
     }
     else if (n_tok == 2)
     {
-        std::string key(tok.get_context(0));
-        mChildNames[mParentNames.size() - 1].push_back(key);
-        std::string val(tok.get_context(1));
-        mChildValues[mParentNames.size() - 1].push_back(val);
+        mChildNames[mParentNames.size() - 1].push_back(std::string(tok.get_context(0)));
+        mChildValues[mParentNames.size() - 1].push_back(std::string(tok.get_context(1)));
         tok.free_token(0);
         tok.free_token(1);
     }

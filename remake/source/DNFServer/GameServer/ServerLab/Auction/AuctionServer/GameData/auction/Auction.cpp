@@ -842,42 +842,7 @@ AuctionDictionary::AuctionDictionaryData* Auction::GetAuctionDicData(unsigned lo
     return mAuctionDic.GetAuctionDicData(item_id);
 }
 
-// Search TU pending; provide the methods AuctionDictionary links against.
-Search::Search()
-{
-}
-
-Search::~Search()
-{
-}
-
-int Search::Insert(unsigned long itemId, unsigned char upgrade,
-                   unsigned long long auctionId, bool bIsStackable, int price,
-                   unsigned char refine)
-{
-    return 0;
-}
-
-int Search::Delete(unsigned long long auctionId)
-{
-    return 0;
-}
-
 void PrintDnfItemInfo(DnfItemInfo& itemInfo, char* out)
 {
     out[0] = '\0';
-}
-
-int Search::FindByItem(PSearchByItemId pSearchByItemId, unsigned long* pItemIdArray,
-                       unsigned int* pTotalNumberOfFound, unsigned short* pNumberOfFound,
-                       AuctionItemInfo* pOutAuctionItemInfoArray)
-{
-    return 0;
-}
-
-int Search::FindByCategory(PSearchByCategory pSearchByCategory,
-                           unsigned int* pTotalNumberOfFound, unsigned short* pNumberOfFound,
-                           AuctionItemInfo* pOutAuctionItemInfoArray)
-{
-    return 0;
 }

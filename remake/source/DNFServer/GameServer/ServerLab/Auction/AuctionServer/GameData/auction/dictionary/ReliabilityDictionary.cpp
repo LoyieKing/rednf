@@ -1,25 +1,28 @@
-// Auto-generated stub from DWARF info of df_point_r
-// Original source: /home/neople/source/DNFServer/GameServer/ServerLab/Auction/AuctionServer/GameData/auction/dictionary/ReliabilityDictionary.cpp
-// Compiler: GNU C++ 4.1.2 (Red Hat)
+// Rebuilt from df_auction_r DWARF (ReliabilityDictionary.cpp CU), 2026-08-08
+#include <iostream>
 
 #include "ReliabilityDictionary.h"
+#include "AuctionItem.h"
 
-// --- Functions defined in this compilation unit ---
+struct STGuildCargoLog
+{
+    int m_iTime;               // @0
+    char m_cBehavior;          // @4
+    char m_szCharacName[33];   // @5
+    int m_iItemID;             // @0x26
+    int m_iEtc;                // @0x30
+    RandomOption m_randomOption;  // @0x34
+};
 
-// comp_by_time(STGuildCargoLog const&, STGuildCargoLog const&)
-/* TODO: implement */
+static bool comp_by_time(const STGuildCargoLog& left, const STGuildCargoLog& right)
+{
+    return right.m_iTime < left.m_iTime;
+}
 
-// ReliabilityDictionary::ReliabilityDictionary()
-/* TODO: implement */
+ReliabilityDictionary::ReliabilityDictionary()
+{
+}
 
-// ReliabilityDictionary::ReliabilityDictionary()
-/* TODO: implement */
-
-// ReliabilityDictionary::~ReliabilityDictionary()
-/* TODO: implement */
-
-// ReliabilityDictionary::~ReliabilityDictionary()
-/* TODO: implement */
-
-// ReliabilityDictionary::~ReliabilityDictionary()
-/* TODO: implement */
+ReliabilityDictionary::~ReliabilityDictionary()
+{
+}

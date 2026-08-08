@@ -30,6 +30,8 @@ typedef unsigned long long __int64;
 
 class AuctionDictionary
 {
+    friend class Search;
+
 public:
     struct CharacterNameStruct
     {
