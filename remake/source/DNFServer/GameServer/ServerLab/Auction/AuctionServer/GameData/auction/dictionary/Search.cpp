@@ -146,7 +146,11 @@ bool Search::IsValidUpgradeRange(BYTE upgradeStart, BYTE upgradeEnd)
 
 bool Search::IsValidRefine(BYTE refine)
 {
+#ifdef POINT_SERVER
+    return refine <= 0x07;
+#else
     return refine <= 0x7f;
+#endif
 }
 
 bool Search::IsValidRefineRange(BYTE refineStart, BYTE refineEnd)
@@ -167,7 +171,11 @@ bool Search::IsSpecificRarity(BYTE rarity)
 
 bool Search::IsSpecificLv(TCategoryParameter* pParameter)
 {
+#ifdef POINT_SERVER
+    return pParameter->lvStart >= 1 && pParameter->lvStart <= 0x46;
+#else
     return pParameter->lvStart >= 1 && pParameter->lvStart <= 0x55;
+#endif
 }
 
 bool Search::IsAlternativeAvater(int category)
@@ -826,7 +834,11 @@ int Search::SetOperateParameter(TOperate* pOperate, unsigned long itemId, BYTE u
     {
         return 0x33;
     }
+#ifdef POINT_SERVER
+    if (pItemInfo->nOriginalUsableLevel_ > 0x46)
+#else
     if (pItemInfo->nOriginalUsableLevel_ > 0x55)
+#endif
     {
         return 0x1b;
     }
@@ -1065,11 +1077,19 @@ int Search::FindByCategory(TSearchByCategory_* pSearchByCategory,
     {
         return 0x1b;
     }
+#ifdef POINT_SERVER
+    if (pSearchByCategory->lvStart > 0x46)
+#else
     if (pSearchByCategory->lvStart > 0x55)
+#endif
     {
         return 0x1b;
     }
+#ifdef POINT_SERVER
+    if (pSearchByCategory->lvEnd > 0x46)
+#else
     if (pSearchByCategory->lvEnd > 0x55)
+#endif
     {
         return 0x1b;
     }

@@ -47,7 +47,11 @@ public:
     }
     bool isValidRefineValue(unsigned char itemRefineValue)
     {
+#ifdef POINT_SERVER
+        if (itemRefineValue <= 0x07)
+#else
         if (itemRefineValue <= 0x7f)
+#endif
         {
             return true;
         }

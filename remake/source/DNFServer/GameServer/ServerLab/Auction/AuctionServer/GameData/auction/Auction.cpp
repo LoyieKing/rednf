@@ -96,8 +96,13 @@ Auction::Auction()
     G_TraceLog()->sysLog(5, "successfully load avatar variation");
     mAvatarDupChkMap.clear();
     mCreatureDupChkMap.clear();
+#ifdef POINT_SERVER
+    SetPayType(PAY_TYPE_POINT);
+    G_TraceLog()->sysLog(5, "Setting PayType : Point");
+#else
     SetPayType(PAY_TYPE_GOLD);
     G_TraceLog()->sysLog(5, "Setting PayType : Gold");
+#endif
 }
 
 Auction::~Auction()
