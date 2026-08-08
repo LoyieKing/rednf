@@ -107,7 +107,9 @@ public:
     unsigned char GetOwnerIsVIP(__int64 auctionid, OwnerInfo& info);
 
 private:
+public:
     Auction* mpAuction;       // @4
+private:
     nsl::object_pool_by_boost_pool<AuctionDictionaryData, int, int, int>
         mAuctionDicDataPool;  // @8
     std::map<__int64, AuctionDictionaryData*> mAuctionDicTable;  // @40

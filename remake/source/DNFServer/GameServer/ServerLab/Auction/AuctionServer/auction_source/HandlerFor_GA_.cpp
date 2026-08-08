@@ -273,7 +273,7 @@ unsigned int HandlerFor_GA_::onAUCTION_BIDDING_GA(nsl::CMsgCell* pCell, nsl::TCP
     char temp_id[32];
     int temp_result_price = 0;
     int return_code = 0;
-    AuctionDictionaryData* ptr_data;
+    AuctionDictionary::AuctionDictionaryData* ptr_data;
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_BIDDING_GA");
     if (IsGoldServer())
@@ -642,7 +642,7 @@ unsigned int HandlerFor_GA_::onAUCTION_BUY_ITEM_APIECE_GA(nsl::CMsgCell* pCell,
     PCK_AUCTION_LOG_MESSAGE_AG log_packet;
     PCK_AUCTION_BUY_ITEM_APIECE_AG packet;
     int return_code = 0;
-    AuctionDictionaryData* ptr_data;
+    AuctionDictionary::AuctionDictionaryData* ptr_data;
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_BUY_ITEM_APIECE_GA");
     G_StatisticsCollector()->IncTryCnt(2);
