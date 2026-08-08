@@ -56,8 +56,8 @@ void InterHandler::initInterEvent()
 unsigned int InterHandler::onINTER_SERVICE_UNAVAILABLE(nsl::CMsgCell* pCell)
 {
     G_TraceLog()->sysLog(5, "In  onINTER_SERVICE_UNAVAILABLE");
-    nsl::INTERNALMSG_SERVICE_UNAVAILABLE* pInterMsg =
-        (nsl::INTERNALMSG_SERVICE_UNAVAILABLE*)pCell->GetInternalMsg();
+    INTERNALMSG_SERVICE_UNAVAILABLE* pInterMsg =
+        (INTERNALMSG_SERVICE_UNAVAILABLE*)pCell->GetInternalMsg();
     G_TraceLog()->sysLog(5, "Reason %s", nsl::GetErrorStr((int)pInterMsg->reason));
 
     GSArea* pArea = (GSArea*)G_Zone()->mArea[0];
@@ -112,8 +112,8 @@ unsigned int InterHandler::onINTER_SERVICE_UNAVAILABLE(nsl::CMsgCell* pCell)
 unsigned int InterHandler::onINTER_DESTORY_CHARACTER(nsl::CMsgCell* pCell)
 {
     G_TraceLog()->sysLog(5, "In  onINTER_DESTORY_CHARACTER");
-    nsl::INTERNALMSG_DESTROY_CHARACTER* pInterMsg =
-        (nsl::INTERNALMSG_DESTROY_CHARACTER*)pCell->GetInternalMsg();
+    INTERNALMSG_DESTROY_CHARACTER* pInterMsg =
+        (INTERNALMSG_DESTROY_CHARACTER*)pCell->GetInternalMsg();
     int workIndex = pInterMsg->workIndex;
     bool bActiveClosing = pInterMsg->bActiveClosing;
     unsigned int characKey = pInterMsg->characKey;

@@ -18,6 +18,16 @@ namespace auction {
 
 using namespace nsl;
 
+void Character::setCharacKey(unsigned int characKey)
+{
+    mCharacKey = characKey;
+}
+
+unsigned int Character::getCharacKey()
+{
+    return mCharacKey;
+}
+
 Character::Character()
 {
     mZone = G_Zone();
@@ -62,7 +72,7 @@ void Character::setInterHandler(InterHandler* pHandler)
 void Character::onClose(bool bActiveClosing)
 {
     printf("Close Type : %d\n", (unsigned int)bActiveClosing);
-    nsl::INTERNALMSG_DESTROY_CHARACTER interMsg;
+    INTERNALMSG_DESTROY_CHARACTER interMsg;
     if (bActiveUser != false)
     {
         interMsg.bActiveJob = true;

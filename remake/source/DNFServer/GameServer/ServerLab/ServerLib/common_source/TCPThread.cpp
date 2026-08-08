@@ -22,7 +22,7 @@
 
 namespace nsl {
 
-extern char* configpath;
+extern char configpath[256];
 extern bool is_config_changed;
 extern bool is_config_reloaded;
 

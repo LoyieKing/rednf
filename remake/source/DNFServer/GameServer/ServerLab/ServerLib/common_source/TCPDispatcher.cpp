@@ -16,6 +16,16 @@ TCPDispatcher::TCPDispatcher()
     NullHandler = NULL;
 }
 
+void TCPDispatcher::SetMaxCategory(int Category)
+{
+    MaxCategory = Category;
+}
+
+void TCPDispatcher::SetNullSessionHandler(NullSessionHandler* handler)
+{
+    NullHandler = handler;
+}
+
 bool TCPDispatcher::dispatch(TCPUser* u, Message* msg)
 {
     CMsgCell* pMsg = msg->getCellFromMessage();

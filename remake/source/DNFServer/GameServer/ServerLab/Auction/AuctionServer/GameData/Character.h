@@ -22,14 +22,8 @@ public:
     virtual void onClose(bool bActiveClosing);
     virtual void onDoClose();
     bool setArea(int areaIndex);
-    void setCharacKey(unsigned int characKey)
-    {
-        mCharacKey = characKey;
-    }
-    unsigned int getCharacKey()
-    {
-        return mCharacKey;
-    }
+    void setCharacKey(unsigned int characKey);
+    unsigned int getCharacKey();
     void setActiveTCPUser(nsl::ConInterface* info);
     void setPassiveTCPUser(nsl::TCPUser* u);
     void setInterHandler(InterHandler* pHandler);

@@ -13,6 +13,13 @@
 
 namespace nsl {
 
+ActiveConManager::ActiveConManager()
+    : queueRequestConnect(std::deque<ConInterface*>())
+{
+    bRequestInQueue = false;
+    bConnectedInQueue = false;
+}
+
 void ConInterface::setInfo(int con_id, const char* remote_ip, int remote_port,
                            TCPUser::ENUM_DATA_TYPE send_data_type,
                            TCPUser::ENUM_DATA_TYPE recv_data_type, bool need_to_recon)
@@ -71,7 +78,7 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
             else
             {
                 TCPUserConnectMap::iterator iter;
-                for (iter = mapConnectedUser_.begin(); iter != mapConnectedUser_.end(); ++iter)
+                for (iter = mapConnectedUser_.begin(); iter != mapConnectedUser_.end(); iter++)
                 {
                     printf("rConInfo->getId-%d\n", iter->second->getId());
                     if (iter->second->getId() == conInfo->getId())
