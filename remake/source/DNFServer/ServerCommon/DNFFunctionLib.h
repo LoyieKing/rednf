@@ -9,6 +9,7 @@
 // 仅比较首字段（推断为时间）。
 struct STGuildCargoLog {
     STGuildCargoLog();
+    ~STGuildCargoLog();
     int time;  // offset 0
     char m_rest[0x2c];
 };
@@ -35,6 +36,13 @@ unsigned int SDC_Rand(unsigned int* seed);
 
 class DNFFLib {
 public:
+    template<class T>
+    static void Swap(T* a, T* b)
+    {
+        T t = *a;
+        *a = *b;
+        *b = t;
+    }
     static void Binary2Hex(unsigned char const* data, int len, char* out);
     static int Hex2Binary(char const* hex, unsigned char* out, int maxLen);
     static unsigned int get_rand_int(int range);
