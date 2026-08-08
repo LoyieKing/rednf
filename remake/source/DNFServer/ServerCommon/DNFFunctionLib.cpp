@@ -32,9 +32,11 @@ void Char2Hex(unsigned char c, char* out) {
 
 
 // ---- 字符集全局（原始为 file-scope static std::string，_ZL 本地符号） ----
+#ifndef DF_NO_CODEPAGE
 static std::string gClientEncoding;
 static std::string gScriptEncoding;
 static std::string gDatabaseEncoding;
+#endif
 
 // ---- 自由函数 ----
 
@@ -139,6 +141,7 @@ bool Hex2Char(char const* hex, unsigned char& out) {
     return 1;
 }
 
+#ifndef DF_NO_CODEPAGE
 unsigned int SDC_Rand(unsigned int* seed) {
     if (seed == NULL) {
         return 0;
@@ -159,6 +162,7 @@ unsigned int SDC_Rand(unsigned int* seed) {
     *seed = a;
     return result;
 }
+#endif
 
 // ---- DNFFLib ----
 
@@ -268,6 +272,7 @@ void DNFFLib::fPrintTextFile(char* file, char* fmt, ...) {
     PrintTextFile(file, buffer);
 }
 
+#ifndef DF_NO_CODEPAGE
 bool DNFFLib::CharacSetSwitch(char const* from, char const* to, char* src, char* dst) {
     char* in = NULL;
     char* out = NULL;
@@ -310,6 +315,7 @@ bool DNFFLib::ConvertUTF8toGBK(char* src, char* dst) {
     }
     return 1;
 }
+#endif
 
 void DNFFLib::Make_Dir(char* path) {
     DIR* dir = opendir(path);
@@ -325,6 +331,7 @@ void DNFFLib::Sleep_Ext(int sec, int usec) {
     select(0, NULL, NULL, NULL, &tv);
 }
 
+#ifndef DF_NO_CODEPAGE
 // ---- CodePage ----
 
 void CodePage::initCodePage() {
@@ -372,3 +379,4 @@ bool CodePage::script2Database(char* src, char* dst) {
     }
     return DNFFLib::CharacSetSwitch(gScriptEncoding.c_str(), gDatabaseEncoding.c_str(), src, dst);
 }
+#endif

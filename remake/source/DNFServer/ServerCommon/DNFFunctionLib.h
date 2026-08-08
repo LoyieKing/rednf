@@ -27,7 +27,9 @@ char checkTimeToday(long t, int hour);
 void GetCurrentResetBaseTime(long t, int hour);
 void Char2Hex(unsigned char c, char* out);
 bool Hex2Char(char const* hex, unsigned char& out);  // 原始：bool 返回（调用处 xor 惯用法）
+#ifndef DF_NO_CODEPAGE
 unsigned int SDC_Rand(unsigned int* seed);
+#endif
 
 class DNFFLib {
 public:
@@ -37,13 +39,16 @@ public:
     static int ExplodeString(char* str, char* delims, char** out, int maxCount);
     static void PrintTextFile(char* file, char* text);
     static void fPrintTextFile(char* file, char* fmt, ...);
+#ifndef DF_NO_CODEPAGE
     static bool CharacSetSwitch(char const* from, char const* to, char* src, char* dst);
     static bool ConvertGBKtoUTF8(char* src, char* dst);
     static bool ConvertUTF8toGBK(char* src, char* dst);
+#endif
     static void Make_Dir(char* path);
     static void Sleep_Ext(int sec, int usec);
 };
 
+#ifndef DF_NO_CODEPAGE
 class CodePage {
 public:
     static void initCodePage();
@@ -55,5 +60,6 @@ public:
     static bool database2Script(char* src, char* dst);
     static bool script2Database(char* src, char* dst);
 };
+#endif
 
 #endif  // REDNF_DNFFUNCTIONLIB_H_
