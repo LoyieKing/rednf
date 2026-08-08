@@ -15,6 +15,33 @@ enum TiXmlEncoding
     TIXML_ENCODING_LEGACY
 };
 
+const TiXmlEncoding TIXML_DEFAULT_ENCODING = TIXML_ENCODING_UNKNOWN;
+
+enum
+{
+    TIXML_NO_ERROR = 0,
+    TIXML_ERROR,
+    TIXML_ERROR_OPENING_FILE,
+    TIXML_ERROR_PARSING_ELEMENT,
+    TIXML_ERROR_FAILED_TO_READ_ELEMENT_NAME,
+    TIXML_ERROR_READING_ELEMENT_VALUE,
+    TIXML_ERROR_READING_ATTRIBUTES,
+    TIXML_ERROR_PARSING_EMPTY,
+    TIXML_ERROR_READING_END_TAG,
+    TIXML_ERROR_PARSING_UNKNOWN,
+    TIXML_ERROR_PARSING_COMMENT,
+    TIXML_ERROR_PARSING_DECLARATION,
+    TIXML_ERROR_DOCUMENT_EMPTY,
+    TIXML_ERROR_EMBEDDED_NULL,
+    TIXML_ERROR_PARSING_CDATA,
+    TIXML_ERROR_DOCUMENT_TOP_ONLY,
+    TIXML_ERROR_STRING_COUNT
+};
+
+#define TIXML_UTF_LEAD_0 0xefU
+#define TIXML_UTF_LEAD_1 0xbbU
+#define TIXML_UTF_LEAD_2 0xbfU
+
 class TiXmlNode;
 class TiXmlDocument;
 class TiXmlElement;
@@ -39,6 +66,7 @@ class TiXmlBase
     friend class TiXmlNode;
     friend class TiXmlElement;
     friend class TiXmlDocument;
+    friend class TiXmlAttribute;
 
 public:
     TiXmlBase();
@@ -46,14 +74,15 @@ public:
 
     static bool condenseWhiteSpace;
     static TiXmlEntity entity[5];
-    static std::string errorString[16];
+    static const char* errorString[16];
+    static const int utf8ByteTable[256];
     static int IsAlphaNum(unsigned char anyByte, TiXmlEncoding encoding);
     static int IsAlpha(unsigned char anyByte, TiXmlEncoding encoding);
     static bool StringEqual(const char* p, const char* tag, bool ignoreCase, TiXmlEncoding encoding);
     static void ConvertUTF32ToUTF8(unsigned long input, char* output, int* length);
     static const char* SkipWhiteSpace(const char* p, TiXmlEncoding encoding);
     static void StreamWhiteSpace(std::istream* in, std::string* tag);
-    static void StreamTo(std::istream* in, int character, std::string* tag);
+    static bool StreamTo(std::istream* in, int character, std::string* tag);
     static const char* ReadName(const char* p, std::string* name, TiXmlEncoding encoding);
     static const char* ReadText(const char* p, std::string* text, bool trimWhiteSpace,
                                 const char* endTag, bool caseInsensitive, TiXmlEncoding encoding);
@@ -85,7 +114,7 @@ public:
     virtual ~TiXmlNode();
 
     virtual void Print(FILE* cfile, int depth) const = 0;
-    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding) = 0;
     virtual const TiXmlDocument* ToDocument() const { return 0; }
     virtual const TiXmlElement* ToElement() const { return 0; }
     virtual const TiXmlComment* ToComment() const { return 0; }
@@ -191,8 +220,8 @@ public:
     int TabSize() const { return tabSize; }
 
 protected:
-    int errorId;
     int error;
+    int errorId;
     std::string errorDesc;
     int tabSize;
     int errorRow;
@@ -200,7 +229,7 @@ protected:
     bool encoded;
 };
 
-class TiXmlAttribute
+class TiXmlAttribute : public TiXmlBase
 {
 public:
     TiXmlAttribute();
@@ -210,6 +239,8 @@ public:
     const char* Name() const { return name.c_str(); }
     const char* Value() const { return value.c_str(); }
     void SetValue(const char* _value) { value = _value; }
+    void SetDocument(TiXmlDocument* doc) { document = doc; }
+    TiXmlDocument* GetDocument() const { return document; }
 
     TiXmlAttribute* Next() const { return next; }
     TiXmlAttribute* Previous() const;
@@ -220,7 +251,7 @@ public:
     void Print(FILE* cfile, int depth) const;
     void Print(FILE* cfile, int depth, std::string* str) const;
 
-    virtual void Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    virtual const char* Parse(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     void SetIntValue(int value);
     void SetDoubleValue(double value);
 
@@ -229,6 +260,7 @@ public:
     std::string value;
     TiXmlAttribute* next;
     TiXmlAttribute* prev;
+    TiXmlDocument* document;
 };
 
 class TiXmlAttributeSet
@@ -283,7 +315,7 @@ public:
     int QueryUnsignedAttribute(const char* name, unsigned int* value) const;
     const char* GetText() const;
     void ClearThis();
-    void ReadValue(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
+    const char* ReadValue(const char* p, TiXmlParsingData* data, TiXmlEncoding encoding);
     virtual void CopyTo(TiXmlElement* target) const;
     void SetAttribute(const char* name, const char* value);
     void SetAttribute(const char* name, int value);
@@ -333,6 +365,7 @@ class TiXmlText : public TiXmlNode
 {
 public:
     TiXmlText(const char* initValue);
+    TiXmlText(const std::string& initValue);
     virtual ~TiXmlText();
     virtual const TiXmlText* ToText() const { return this; }
     virtual TiXmlText* ToText() { return this; }
@@ -343,6 +376,11 @@ public:
     virtual void StreamIn(std::istream* in, std::string* tag);
     bool Blank() const;
     virtual void CopyTo(TiXmlText* target) const;
+    void SetCDATA(bool _cdata) { cdata = _cdata; }
+    bool CDATA() const { return cdata; }
+
+private:
+    bool cdata;
 };
 
 class TiXmlDeclaration : public TiXmlNode
@@ -364,6 +402,9 @@ public:
     virtual void StreamIn(std::istream* in, std::string* tag);
     void Print(FILE* cfile, int depth, std::string* str) const;
     virtual void CopyTo(TiXmlDeclaration* target) const;
+    const char* Version() const { return version.c_str(); }
+    const char* Encoding() const { return encoding.c_str(); }
+    const char* Standalone() const { return standalone.c_str(); }
 
 private:
     std::string version;      // +0x2c
@@ -440,6 +481,8 @@ struct TiXmlParsingData
 {
     int row;
     int col;
+    const char* stamp;
+    int tabsize;
     void Stamp(const char* now, TiXmlEncoding encoding);
 };
 
