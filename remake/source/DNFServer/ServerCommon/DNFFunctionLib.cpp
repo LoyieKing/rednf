@@ -63,7 +63,7 @@ void PrintBackTrace() {
     if (symbols != NULL) {
         for (int i = 0; i < count; i++) {
             // 原始：先取 symbols[i] 到局部变量（触发 ebx 保存，ctor 调用前取值）
-            char* s = symbols[i];
+            register char* s = symbols[i];
             CMyFileLog log("PrintBackTrace", 0x1d1);
             log("./log/BackTrace", s);
         }
@@ -288,32 +288,29 @@ void DNFFLib::fPrintTextFile(char* file, char* fmt, ...) {
 
 #ifndef DF_NO_CODEPAGE
 bool DNFFLib::CharacSetSwitch(char const* from, char const* to, char* src, char* dst) {
-    // ORIG DWARF 局部：SrcPtr/DstPtr/size1/size2/string_size/cc/it（槽位映射待推敲，
-    // 见 identical_pitfalls 记录；保持现有可编译形态）。
-    char* in = NULL;
-    char* out = NULL;
-    size_t inLen = 0;
-    size_t outLen = 0;
-    size_t remain = 0;
-    iconv_t cd = iconv_open(to, from);
-    if (cd == (iconv_t)-1) {
-        // 原始：直接 return 0
+    char* SrcPtr = NULL;
+    char* DstPtr = NULL;
+    size_t size1 = 0;
+    size_t string_size = 0;
+    size_t size2 = 0;
+    size_t cc;
+    iconv_t it = iconv_open(to, from);
+    if (it == (iconv_t)-1) {
         printf("iconv_open error : %s\n", strerror(errno));
         return 0;
     }
-    in = src;
-    out = dst;
-    inLen = strlen(src);
-    outLen = inLen * 3;
-    remain = outLen;
-    // 原始：iconv 结果存局部变量（size_t），成功分支在尾部（jne 跳转）
-    size_t iconvResult = iconv(cd, &in, &inLen, &out, &remain);
-    if (iconvResult == (size_t)-1) {
+    SrcPtr = src;
+    DstPtr = dst;
+    size1 = strlen(SrcPtr);
+    string_size = size1 * 3;
+    size2 = string_size;
+    cc = iconv(it, &SrcPtr, &size1, &DstPtr, &string_size);
+    if (cc == (size_t)-1) {
         printf("iconv error : %s\n", strerror(errno));
         return 0;
     }
-    dst[outLen - remain] = '\0';
-    iconv_close(cd);
+    dst[size2 - string_size] = '\0';
+    iconv_close(it);
     return 1;
 }
 

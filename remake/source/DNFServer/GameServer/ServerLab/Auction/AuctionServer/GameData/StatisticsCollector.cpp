@@ -94,41 +94,6 @@ void StatisticsCollector::StData::toString(char* buf, int len)
     }
 }
 
-void StatisticsCollector::IncTryCnt(int kind)
-{
-    if ((kind < 0) || (2 < kind))
-    {
-        G_TraceLog()->sysLog(7, "StatisticsCollector::IncTryCnt() failed. kind(%d)", kind);
-    }
-    else
-    {
-        mStDataPerDay[kind].tryCnt = mStDataPerDay[kind].tryCnt + 1;
-        mStDataPerSec[kind].tryCnt = mStDataPerSec[kind].tryCnt + 1;
-    }
-}
-
-void StatisticsCollector::IncFailCnt(int kind, int error_no)
-{
-    if ((kind < 0) || (2 < kind))
-    {
-        G_TraceLog()->sysLog(7, "StatisticsCollector::IncFailCnt() failed. kind(%d), error_no(%d)", kind, error_no);
-    }
-    else
-    {
-        if (StData::isValidErrorNo(error_no))
-        {
-            mStDataPerDay[kind].failCnt = mStDataPerDay[kind].failCnt + 1;
-            mStDataPerDay[kind].becauseCnt[error_no] = mStDataPerDay[kind].becauseCnt[error_no] + 1;
-            mStDataPerSec[kind].failCnt = mStDataPerSec[kind].failCnt + 1;
-            mStDataPerSec[kind].becauseCnt[error_no] = mStDataPerSec[kind].becauseCnt[error_no] + 1;
-        }
-        else
-        {
-            G_TraceLog()->sysLog(7, "StatisticsCollector::IncFailCnt() failed. kind(%d), error_no(%d)", kind, error_no);
-        }
-    }
-}
-
 bool StatisticsCollector::SetLogFileName(const char* logDir, int serviceId)
 {
     mServiceId = serviceId;

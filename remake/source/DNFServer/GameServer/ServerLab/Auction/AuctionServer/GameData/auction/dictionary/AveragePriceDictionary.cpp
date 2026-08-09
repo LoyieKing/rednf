@@ -165,9 +165,9 @@ __attribute__((target("arch=i586"))) int AveragePriceDictionary::AddItemAverageP
     const ROI_AverageKey& _roi_average_key, unsigned int& _real_purchase_cnt,
     unsigned char itemRefineValue)
 {
+    AveragePriceDictionaryData* ptr_data;
     bool is_first_add = false;
-    AveragePriceDictionaryData* ptr_data = NULL;
-    int error_code = 0;
+    unsigned long long average_price_temp = 0;
 
     if (!isValidUpgradeValue(itemUpgradeValue))
     {
@@ -188,8 +188,8 @@ __attribute__((target("arch=i586"))) int AveragePriceDictionary::AddItemAverageP
             goto continue_update;
         }
         is_first_add = true;
-        error_code = makeItemAveragePrice(itemId, itemUpgradeValue, price, 1,
-                                          _roi_average_key, itemRefineValue);
+        int error_code = makeItemAveragePrice(itemId, itemUpgradeValue, price, 1,
+                                              _roi_average_key, itemRefineValue);
         if (error_code != 0)
         {
             return error_code;
@@ -209,9 +209,9 @@ __attribute__((target("arch=i586"))) int AveragePriceDictionary::AddItemAverageP
             goto continue_update;
         }
         is_first_add = true;
-        error_code = makeItemAveragePrice(itemId, itemUpgradeValue, price,
-                                          _real_purchase_cnt, _roi_average_key,
-                                          itemRefineValue);
+        int error_code = makeItemAveragePrice(itemId, itemUpgradeValue, price,
+                                              _real_purchase_cnt, _roi_average_key,
+                                              itemRefineValue);
         if (error_code != 0)
         {
             return error_code;
@@ -247,8 +247,9 @@ continue_update:
                     (unsigned long long)ptr_data->average_price *
                     (unsigned long long)mRoiAverageConstraint.inf_max_price;
                 average_min_limit =
-                    (__int64)(((double)mRoiAverageConstraint.inf_min_price / 10000.0) *
-                              (double)ptr_data->average_price);
+                    (__int64)((double)(__int64)ptr_data->average_price *
+                              ((double)mRoiAverageConstraint.inf_min_price /
+                               10000.0));
                 submit = rand() % 100 + 1 <= mRoiAverageConstraint.inf_prob;
                 static ROI_AverageKey _static_UnsealRandomOptionItem;
                 static bool _isInit = false;
@@ -270,13 +271,19 @@ continue_update:
                         mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue]
                             .find(_static_UnsealRandomOptionItem);
                 if (base_find_iter !=
-                        mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].end() &&
-                    base_find_iter->second != NULL &&
-                    (double)price <
-                        ((double)mRoiAverageConstraint.inf_base_mul_min_a / 100.0) *
-                            (double)base_find_iter->second->average_price_notice)
+                    mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue]
+                        .end())
                 {
-                    roi_unseal_average_submit = false;
+                    if (base_find_iter->second != NULL)
+                    {
+                        if ((double)price <
+                            (double)base_find_iter->second->average_price_notice *
+                                ((double)mRoiAverageConstraint.inf_base_mul_min_a /
+                                 100.0))
+                        {
+                            roi_unseal_average_submit = false;
+                        }
+                    }
                 }
             }
             else
@@ -288,20 +295,23 @@ continue_update:
                 submit = rand() % 5 == 0;
             }
         }
-        if (((unsigned long long)price <= average_max_limit) &&
-            ((__int64)average_min_limit <= (__int64)price) &&
+        if (((unsigned long long)price < average_max_limit) &&
+            ((__int64)average_min_limit < (__int64)price) &&
             (submit != 0) && (roi_unseal_average_submit != 0))
         {
-            unsigned int old_cnt = (unsigned int)ptr_data->added_cnt;
+            average_price_temp =
+                (unsigned int)ptr_data->added_cnt *
+                    (unsigned long long)ptr_data->average_price +
+                (__int64)price;
             ptr_data->added_cnt = (unsigned char)(ptr_data->added_cnt + 1);
-            ptr_data->average_price = (int)(
-                ((unsigned long long)ptr_data->average_price * old_cnt +
-                 (unsigned int)price) /
-                (unsigned long long)ptr_data->added_cnt);
+            average_price_temp =
+                average_price_temp /
+                (unsigned long long)ptr_data->added_cnt;
             if (ptr_data->added_cnt > 0xf)
             {
                 ptr_data->added_cnt = 0xf;
             }
+            ptr_data->average_price = (int)average_price_temp;
         }
         rAveragePrice = ptr_data->average_price;
     }
@@ -311,6 +321,9 @@ continue_update:
 // ORIG 的 FP 比较用 fucompp+fnstsw（i586 形态）；函数级 target 覆盖。
 __attribute__((target("arch=i586"))) void AveragePriceDictionary::UpdateAveragePirce()
 {
+    AveragePriceDictionaryData* ptr_data;
+    __int64 average_max_limit;
+    __int64 average_min_limit;
     for (int j = 0; j < 8; j = j + 1)
     {
         for (int i = 0; i < 0x20; i = i + 1)
@@ -319,14 +332,14 @@ __attribute__((target("arch=i586"))) void AveragePriceDictionary::UpdateAverageP
                 mAvrgPriceDicTable[i][j].begin();
             while (iter_pos != mAvrgPriceDicTable[i][j].end())
             {
-                AveragePriceDictionaryData* ptr_data = iter_pos->second;
+                ptr_data = iter_pos->second;
                 // use __int64 for max to match orig multi+sign-extend form
-                __int64 average_max_limit =
+                average_max_limit =
                     (__int64)ptr_data->average_price_notice * 3;
-                __int64 average_min_limit =
+                average_min_limit =
                     (__int64)((double)ptr_data->average_price_notice * 0.01);
-                if (((__int64)ptr_data->average_price <= average_max_limit) &&
-                    (average_min_limit <= (__int64)ptr_data->average_price))
+                if (((__int64)ptr_data->average_price < average_max_limit) &&
+                    (average_min_limit < (__int64)ptr_data->average_price))
                 {
                     G_TraceLog()->sysLog(
                         5, "item_id:%u, count:%u, befor_average:%u, after_average:%u",
@@ -347,13 +360,13 @@ __attribute__((target("arch=i586"))) void AveragePriceDictionary::UpdateAverageP
                 mAvrgPrice_ROI_DicTable[i][j].begin();
             while (iter_pos != mAvrgPrice_ROI_DicTable[i][j].end())
             {
-                AveragePriceDictionaryData* ptr_data = iter_pos->second;
-                __int64 average_max_limit =
+                ptr_data = iter_pos->second;
+                average_max_limit =
                     (__int64)ptr_data->average_price_notice * 3;
-                __int64 average_min_limit =
+                average_min_limit =
                     (__int64)((double)ptr_data->average_price_notice * 0.01);
-                if (((__int64)ptr_data->average_price <= average_max_limit) &&
-                    (average_min_limit <= (__int64)ptr_data->average_price))
+                if (((__int64)ptr_data->average_price < average_max_limit) &&
+                    (average_min_limit < (__int64)ptr_data->average_price))
                 {
                     ptr_data->average_price_notice = ptr_data->average_price;
                 }

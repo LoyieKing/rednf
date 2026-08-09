@@ -23,19 +23,11 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
     DBMgr_.Mysql_logon();
 
     char query[1024];
-    char sub_query[1024];
-    char kind_name[20];
-    char dungeon_name[30];
-    char dungeon_id[6];
-    char server_id[4];
-    char tm_id[4];
     char pre_server_id[4];
-    char tmp_buf[300];
     MYSQL_ROW row;
     MYSQL_RES* res;
     FILE* fp;
     int count;
-    int sub_count;
 
     memset(query, 0, 0x400);
     snprintf(query, 0x400, "select * from ch_script_version");
@@ -63,6 +55,13 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
 
     while (fp = fopen("./cfg/channel_info.etc", "w+"), fp != NULL)
     {
+        char sub_query[1024];
+        char kind_name[20];
+        char dungeon_name[30];
+        char tmp_buf[300];
+        char server_id[4];
+        char tm_id[4];
+        int sub_count;
         memset(query, 0, 0x400);
         snprintf(query, 0x400, "select kind_name, dungeon_name from ch_dungeon_data");
         res = DBMgr_.Mysql_query(query);
@@ -97,6 +96,7 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
             sub_count = 0;
             while (true)
             {
+                char dungeon_id[6];
                 MYSQL_ROW sub_row;
                 sub_row = *DBMgr_.Mysql_fetch(sub_row, sub_res);
                 if (sub_row == NULL)

@@ -23,12 +23,19 @@ public:
     {
         unsigned int tryCnt;
         unsigned int failCnt;
-        // ORIG 二进制存在双版本头：多数 TU（ctor/getter/LoggingPerSec/DataInitialization
-        // 等）用 becauseCnt[55]（228B），仅 IncTryCnt/IncFailCnt 所在 TU 用 [57]（236B）。
-        // 本实现跟随多数 + 运行时分配 0x19a4（228B + 尾部 48B 填充）。
+        // ORIG 二进制存在双版本头（ODR 违背，需按 TU 还原）：
+        //   StatisticsCollector.cpp 等多数 TU：becauseCnt[55]（228B）
+        //   HandlerFor_GA_/HandlerFor_GP_JPN（内含内联 IncTryCnt/IncFailCnt）：
+        //     becauseCnt[57]（236B，DWARF byte_size 236）
+        // 用 STATISTICS_STDATA_57 宏按 TU 切换；228/236 分别对应机器码
+        // imul 0xe4/0xec、sec 基址 0x2b0/0x2c8。运行时分配 0x19a4 覆盖两版。
         // 注意：isValidErrorNo 允许 error_no=55，[55] 时数组下标 55 越界——
         // 这是原版 228B-TU 自身的潜在缺陷，为保持与原版一致而保留。
+#ifdef STATISTICS_STDATA_57
+        unsigned int becauseCnt[57];
+#else
         unsigned int becauseCnt[55];
+#endif
 
         static bool isValidErrorNo(int err_no)
         {
@@ -45,8 +52,50 @@ public:
 
     StatisticsCollector();
     virtual ~StatisticsCollector();
+#ifdef STATISTICS_STDATA_57
+    inline void IncTryCnt(int kind)
+    {
+        if ((kind < 0) || (2 < kind))
+        {
+            nsl::G_TraceLog()->sysLog(7, "StatisticsCollector::IncTryCnt() failed. kind(%d)", kind);
+        }
+        else
+        {
+            // 用后置 ++ 复现 ORIG 的单装载寄存器流（x++ 与 x=x+1 的 GIMPLE 形态不同）
+            mStDataPerDay[kind].tryCnt++;
+            mStDataPerSec[kind].tryCnt++;
+        }
+    }
+
+    inline void IncFailCnt(int kind, int error_no)
+    {
+        if ((kind < 0) || (2 < kind))
+        {
+            nsl::G_TraceLog()->sysLog(7, "StatisticsCollector::IncFailCnt() failed. kind(%d), error_no(%d)", kind, error_no);
+        }
+        else
+        {
+            if (StData::isValidErrorNo(error_no))
+            {
+                // 同上：++ 形态与 ORIG 反汇编逐指令一致
+                mStDataPerDay[kind].failCnt++;
+                mStDataPerDay[kind].becauseCnt[error_no]++;
+                mStDataPerSec[kind].failCnt++;
+                mStDataPerSec[kind].becauseCnt[error_no]++;
+            }
+            else
+            {
+                // ORIG：无效 error_no 时先自增 becauseCnt[56]（[57] 版最后一个桶）再打日志
+                mStDataPerDay[kind].becauseCnt[56]++;
+                mStDataPerSec[kind].becauseCnt[56]++;
+                nsl::G_TraceLog()->sysLog(7, "StatisticsCollector::IncFailCnt() failed. kind(%d), error_no(%d)", kind, error_no);
+            }
+        }
+    }
+#else
     void IncTryCnt(int kind);
     void IncFailCnt(int kind, int error_no);
+#endif
     void LoggingPerSec();
     bool SetLogFileName(const char* logDir, int serviceId);
     void DataInitialization(bool dayDateInit);

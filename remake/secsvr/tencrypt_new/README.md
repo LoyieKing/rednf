@@ -73,6 +73,7 @@
 | desnew.cpp | DesNew | 自定义 8 字节块密码：NF 256 字节 S 盒；encrypt 9 轮（密钥索引 +7 mod 15），out4..out0 密钥索引 r/(r+1)/.../(r+6) mod 15，si 初始 0 并依次切到 key[7]/key[8]/key[9]，r+4==15 退出；decrypt 镜像（r-7 mod 15，si=key[9]→key[8]→key[7]→0） | encrypt/decrypt 与加解密闭环逐字节一致（8 组随机向量） |
 | blowfish.cpp | Blowfish | 标准 Blowfish（P/S 初始表从二进制提取，与公版一致）；BlowFish8/16/24/32/56 为 8/16/24/32/56 字节密钥 + 8 字节块 ECB + TsLocal 余数；Encrypt/Decrypt flag0=ECB flag1=CBC(m_oChain) | BlowFish/块/包装层逐字节一致（6 组随机向量） |
 | d3des.cpp | D3DES 族 | 自实现三密钥 3DES 变体（非 libdes）：deskey=PC1→totrot→PC2+bigbyte[0..23]→cookey 掩码公式；desfunc=经验提取 IP/FP 置换 + 8 轮 R^=F(ror4(L),k0,k1) 交错；des3key 解密模式密钥顺序 (key+8,EN0)→(key,DE1)→(key+16,DE1)；D3des161/162=24 字节密钥 + 8/16 字节块 ECB + TsLocal 余数，D3des24=72 字节密钥 + 24 字节块；TenD3desN 包装 key 在前 | D3des 加解密 + TenD3des161/162/24 与二进制逐字节一致 |
+| desbig.cpp | CDesBig | 自定义大表 DES：des_ky=密钥逐位反转（nibble/字节/16 位三段交换）→28 位半密钥按 KS_TAB 右移 1/2 →8 个 6 位索引查 P2_TAB[8][64] 交叉拼 64 位轮子钥；F 轮 = ror4(x)^sk_hi / x^sk_lo 分 8 字节查 SX_TAB[8][256]（偶数组取 a 字节、奇数组取 t 字节）OR 合并；des_ec/des_dc=自定义 IP（非标准 DES，奇数位→X、偶数位→Y）→16 轮（dc 子钥逆序 sk15..sk0）→自定义 FP（先 ror2(B)）；des_ecm=无置换核心；X_{r+1}=F(X_r,sk_r)^X_{r-1}，输出 (X15,X16)；TenDesBig 包装 | des_ky/ec/dc/ecm 160 向量逐字节一致；往返闭环；TenDesBig 对齐块 24/24 |
 
 ### DES 还原要点（Applied Cryptography 附录 B）
 
