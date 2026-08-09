@@ -165,7 +165,7 @@ void CGramary::Gramary(unsigned char *key, bool benc, unsigned char *buf,
 }
 
 // mangled: _Z10TenGramaryPhbS_j
-void TenGramary(unsigned char *buf, bool benc, unsigned char *key,
+void TenGramary(unsigned char *key, bool benc, unsigned char *buf,
                 unsigned int buflen) {
     CGramary gramary;
 

@@ -510,7 +510,7 @@ void CHpc::Hpc(u1byte *key, bool benc, u1byte *buf, u4byte buflen) {
 }
 
 // mangled: _Z7TenHpcPhbS_j
-void TenHpc(unsigned char *buf, bool benc, unsigned char *key,
+void TenHpc(unsigned char *key, bool benc, unsigned char *buf,
             unsigned int buflen) {
     CHpc hpc;
 

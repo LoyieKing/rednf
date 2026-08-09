@@ -161,7 +161,7 @@ void CRing::Ring(unsigned char *key, bool benc, unsigned char *buf,
 }
 
 // mangled: _Z7TenRingPhbS_j
-void TenRing(unsigned char *buf, bool benc, unsigned char *key,
+void TenRing(unsigned char *key, bool benc, unsigned char *buf,
              unsigned int buflen) {
     CRing ring;
 

@@ -86,7 +86,7 @@ CSubtracter::~CSubtracter() {
 }
 
 // mangled: _Z12TenSubtracterPhbS_j
-void TenSubtracter(unsigned char *buf, bool benc, unsigned char *key,
+void TenSubtracter(unsigned char *key, bool benc, unsigned char *buf,
                    unsigned int buflen) {
     CSubtracter subtracter;
 

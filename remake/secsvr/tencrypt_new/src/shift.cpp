@@ -126,7 +126,7 @@ void CShift::Shift(unsigned char *key, bool benc, unsigned char *buf,
 }
 
 // mangled: _Z8TenShiftPhbS_j
-void TenShift(unsigned char *buf, bool benc, unsigned char *key,
+void TenShift(unsigned char *key, bool benc, unsigned char *buf,
               unsigned int buflen) {
     CShift shift;
 

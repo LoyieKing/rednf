@@ -116,7 +116,7 @@ CGene::~CGene() {
 }
 
 // mangled: _Z7TenGenePhbS_j
-void TenGene(unsigned char *buf, bool benc, unsigned char *key,
+void TenGene(unsigned char *key, bool benc, unsigned char *buf,
              unsigned int buflen) {
     CGene gene;
 
@@ -124,7 +124,7 @@ void TenGene(unsigned char *buf, bool benc, unsigned char *key,
 }
 
 // mangled: _Z10TenGeneNewPhbS_j
-void TenGeneNew(unsigned char *buf, bool benc, unsigned char *key,
+void TenGeneNew(unsigned char *key, bool benc, unsigned char *buf,
                 unsigned int buflen) {
     GeneNew(key, benc, buf, buflen);
 }

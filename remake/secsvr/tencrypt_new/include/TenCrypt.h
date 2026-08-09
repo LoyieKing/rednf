@@ -17,7 +17,7 @@ public:
     virtual void * LocalGetProcAddress() = 0;                 // line 10
     virtual void Seattos(unsigned char *key, bool benc,
                          unsigned char *buf, unsigned int buflen) = 0; // line 12
-    virtual ~ITsLocal() {}                                     // line 13
+    virtual ~ITsLocal();                                       // line 13
 };
 
 extern ITsLocal * CreateTsLocal();

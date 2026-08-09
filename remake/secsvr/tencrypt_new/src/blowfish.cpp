@@ -340,7 +340,7 @@ void CBlowFish::BlowFish56(unsigned char *key, bool benc, unsigned char *buf,
 }
 
 // mangled: _Z11TenBlowFish8PhbS_j
-void TenBlowFish8(unsigned char *buf, bool benc, unsigned char *key,
+void TenBlowFish8(unsigned char *key, bool benc, unsigned char *buf,
                   unsigned int buflen) {
     CBlowFish bf;
 
@@ -348,7 +348,7 @@ void TenBlowFish8(unsigned char *buf, bool benc, unsigned char *key,
 }
 
 // mangled: _Z12TenBlowFish16PhbS_j
-void TenBlowFish16(unsigned char *buf, bool benc, unsigned char *key,
+void TenBlowFish16(unsigned char *key, bool benc, unsigned char *buf,
                    unsigned int buflen) {
     CBlowFish bf;
 
@@ -356,7 +356,7 @@ void TenBlowFish16(unsigned char *buf, bool benc, unsigned char *key,
 }
 
 // mangled: _Z12TenBlowFish24PhbS_j
-void TenBlowFish24(unsigned char *buf, bool benc, unsigned char *key,
+void TenBlowFish24(unsigned char *key, bool benc, unsigned char *buf,
                    unsigned int buflen) {
     CBlowFish bf;
 
@@ -364,7 +364,7 @@ void TenBlowFish24(unsigned char *buf, bool benc, unsigned char *key,
 }
 
 // mangled: _Z12TenBlowFish32PhbS_j
-void TenBlowFish32(unsigned char *buf, bool benc, unsigned char *key,
+void TenBlowFish32(unsigned char *key, bool benc, unsigned char *buf,
                    unsigned int buflen) {
     CBlowFish bf;
 
@@ -372,7 +372,7 @@ void TenBlowFish32(unsigned char *buf, bool benc, unsigned char *key,
 }
 
 // mangled: _Z12TenBlowFish56PhbS_j
-void TenBlowFish56(unsigned char *buf, bool benc, unsigned char *key,
+void TenBlowFish56(unsigned char *key, bool benc, unsigned char *buf,
                    unsigned int buflen) {
     CBlowFish bf;
 

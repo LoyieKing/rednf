@@ -108,7 +108,7 @@ void CSeattos::Seattos(unsigned char *key, bool benc, unsigned char *buf,
 }
 
 // mangled: _Z10TenSeattosPhbS_j
-void TenSeattos(unsigned char *buf, bool benc, unsigned char *key,
+void TenSeattos(unsigned char *key, bool benc, unsigned char *buf,
                 unsigned int buflen) {
     CSeattos seattos;
 

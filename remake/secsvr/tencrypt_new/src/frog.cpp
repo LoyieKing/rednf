@@ -233,7 +233,7 @@ void CFrog::Frog(u1byte *key, bool benc, u1byte *buf, u4byte buflen) {
 }
 
 // mangled: _Z10TenFrogPhbS_j
-void TenFrog(unsigned char *buf, bool benc, unsigned char *key,
+void TenFrog(unsigned char *key, bool benc, unsigned char *buf,
              unsigned int buflen) {
     CFrog frog;
 

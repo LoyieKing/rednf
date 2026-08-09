@@ -174,7 +174,7 @@ void CDesNew::Des_New(unsigned char *key, bool benc, unsigned char *buf,
 }
 
 // mangled: _Z10TenDesNewPhbS_j
-void TenDesNew(unsigned char *buf, bool benc, unsigned char *key,
+void TenDesNew(unsigned char *key, bool benc, unsigned char *buf,
                unsigned int buflen) {
     CDesNew desnew;
 

@@ -294,7 +294,7 @@ void CMars::Mars(unsigned char *key, bool benc, unsigned char *buf,
 }
 
 // mangled: _Z7TenMarsPhbS_j
-void TenMars(unsigned char *buf, bool benc, unsigned char *key,
+void TenMars(unsigned char *key, bool benc, unsigned char *buf,
              unsigned int buflen) {
     CMars mars;
 

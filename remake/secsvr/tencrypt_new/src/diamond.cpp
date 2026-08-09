@@ -328,7 +328,7 @@ void CDiamond::Diamond(byte *key, bool benc, byte *buf, uint buflen) {
 }
 
 // mangled: _Z10TenDiamondPhbS_j
-void TenDiamond(unsigned char *buf, bool benc, unsigned char *key,
+void TenDiamond(unsigned char *key, bool benc, unsigned char *buf,
                 unsigned int buflen) {
     CDiamond diamond;
 

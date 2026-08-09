@@ -88,7 +88,7 @@ CAdder::~CAdder() {
 }
 
 // mangled: _Z8TenAdderPhbS_j
-void TenAdder(unsigned char *buf, bool benc, unsigned char *key,
+void TenAdder(unsigned char *key, bool benc, unsigned char *buf,
               unsigned int buflen) {
     CAdder adder;
 
