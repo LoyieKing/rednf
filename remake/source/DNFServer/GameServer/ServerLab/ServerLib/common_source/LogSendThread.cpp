@@ -9,6 +9,7 @@
 #include "DataPool.h"
 #include "TActiveConnect.h"
 #include "DNFPacket.h"
+#include "System.h"
 
 namespace nsl {
 
@@ -23,53 +24,43 @@ LogSendThread::~LogSendThread()
 
 void LogSendThread::loop(void* temp)
 {
-    Message* msg = 0;
+    Message* msg;
     while (true)
     {
-        while (true)
+        mThreadLock.lock();
+        // ORIG: empty(); xor $1; je empty_path  => if (!empty()) process else empty
+        if (!mLogMessagePool.empty())
         {
-            mThreadLock.lock();
-            if (!mLogMessagePool.empty())
+            msg = mLogMessagePool.front();
+            mLogMessagePool.pop_front();
+            mThreadLock.unlock();
+            // ORIG || expansion: about? -> true; else check disconnected -> 0/1; test
+            if (mLogUser->isAboutToDisconnect() || mLogUser->isDisconnected())
             {
-                break;
+                pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
+                TSystem<LinuxSystem>::sleep(1000);
+                return;
             }
+            CMsgCell* cell = msg->getCellFromMessage();
+            if (mLogUser->onWriteByCMsg(cell) == 0)
+            {
+                msg->setOffDataTypeMask(0);
+                msg->setOnDataTypeMask(0);
+                G_TraceLog()->sysLog(7, "Would block \xC0\xCC\xB9\xC7\xB7\xCE \xB4\xD9\xBD\xC3 \xC5\xA5\xBF\xA1 \xB3\xD6\xB4\xC2\xB4\xD9. size=%d", cell->GetSize());
+                mLogMessagePool.push_front(msg);
+                TSystem<LinuxSystem>::sleep(1000);
+            }
+            else
+            {
+                pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
+            }
+        }
+        else
+        {
             mThreadLock.unlock();
             TSystem<LinuxSystem>::sleep(1000);
         }
-        msg = mLogMessagePool.front();
-        mLogMessagePool.pop_front();
-        mThreadLock.unlock();
-        bool bDisc = false;
-        if (mLogUser->isAboutToDisconnect() || mLogUser->isDisconnected())
-        {
-            bDisc = true;
-        }
-        else
-        {
-            bDisc = false;
-        }
-        if (bDisc)
-        {
-            break;
-        }
-        CMsgCell* cell = msg->getCellFromMessage();
-        int ret = mLogUser->onWriteByCMsg(cell);
-        if (ret == 0)
-        {
-            msg->setOffDataTypeMask(0);
-            msg->setOnDataTypeMask(0);
-            int size = cell->GetSize();
-            G_TraceLog()->sysLog(7, "Would block \xC0\xCC\xB9\xC7\xB7\xCE \xB4\xD9\xBD\xC3 \xC5\xA5\xBF\xA1 \xB3\xD6\xB4\xC2\xB4\xD9. size=%d", size);
-            mLogMessagePool.push_front(msg);
-            TSystem<LinuxSystem>::sleep(1000);
-        }
-        else
-        {
-            pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
-        }
     }
-    pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
-    TSystem<LinuxSystem>::sleep(1000);
 }
 
 bool LogSendThread::CheckLogServer()

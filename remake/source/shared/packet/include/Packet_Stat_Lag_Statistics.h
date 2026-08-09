@@ -10,6 +10,6 @@
 class Packet_Stat_Lag_Statistics : public PacketHeader {
 public:
     Packet_Stat_Lag_Statistics() : PacketHeader(0x17b9, 0x14c){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_STAT_LAG_STATISTICS_H

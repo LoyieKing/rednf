@@ -10,7 +10,7 @@
 class Packet_Event_UpgradeJar_Output_Statistic_GTS : public PacketHeader {
 public:
     Packet_Event_UpgradeJar_Output_Statistic_GTS(): PacketHeader(0x106e,0x12) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_EVENT_UPGRADEJAR_OUTPUT_STATISTIC_GTS_H

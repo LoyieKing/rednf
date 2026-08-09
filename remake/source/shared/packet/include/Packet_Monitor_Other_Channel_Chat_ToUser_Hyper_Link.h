@@ -34,7 +34,7 @@ public:
         memset(what_0x170, 0, sizeof(what_0x170));
         memset(what_0x37, 0, sizeof(what_0x37));
     }
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link, 0x270);

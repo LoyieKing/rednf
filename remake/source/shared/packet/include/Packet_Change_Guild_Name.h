@@ -10,6 +10,6 @@
 class Packet_Change_Guild_Name : public PacketHeader {
 public:
     Packet_Change_Guild_Name() : PacketHeader(0x444, 0x29){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_CHANGE_GUILD_NAME_H

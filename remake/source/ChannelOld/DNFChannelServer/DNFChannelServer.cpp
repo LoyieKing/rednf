@@ -49,18 +49,20 @@ void App::readConfig()
 bool App::load_script()
 {
     char filename[256];
-    sprintf(filename, "./cfg/%s.cfg", ServiceInfo::getConfigFileName());
-    printf("[!] Server environment(%s) script loading : %s\n", ServiceInfo::getConfigFileName(), filename);
+    sprintf(filename, "./cfg/%s.cfg", m_szConfigFileName);
+    printf("[!] Server environment(%s) script loading : %s\n", m_szConfigFileName, filename);
     bool ret = G_Script()->load(filename);
     if (ret == false)
     {
-        printf("Can't open script file : %s", ServiceInfo::getConfigFileName(), filename);
+        printf("Can't open script file : %s", m_szConfigFileName);
+        return false;
     }
-    else
+    ret = G_Script()->parse_channel_script();
+    if (ret == false)
     {
-        ret = G_Script()->parse_channel_script();
+        return false;
     }
-    return ret;
+    return true;
 }
 
 void App::prepareRun(char* service_identify)

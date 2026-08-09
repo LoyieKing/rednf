@@ -15,7 +15,7 @@ public:
 
     Packet_Request_PvP_Buddy_Conn_List()
         : PacketHeader(0x1b5a, 0x12){};
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Request_PvP_Buddy_Conn_List, 0x12);

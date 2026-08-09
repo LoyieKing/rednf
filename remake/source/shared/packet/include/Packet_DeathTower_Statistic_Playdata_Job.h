@@ -10,7 +10,7 @@
 class Packet_DeathTower_Statistic_Playdata_Job : public PacketHeader {
 public:
     Packet_DeathTower_Statistic_Playdata_Job(): PacketHeader(0xc3d,0x16) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_DEATHTOWER_STATISTIC_PLAYDATA_JOB_H

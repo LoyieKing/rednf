@@ -36,7 +36,8 @@ void CSHA::AddData(const char* pcData, int iDataLength)
 
     uint uiT = m_auiBits[0];
     m_auiBits[0] = iDataLength * 8 + uiT;
-    if (m_auiBits[0] < uiT)
+    register bool bCarry = (m_auiBits[0] < uiT);
+    if (bCarry)
     {
         m_auiBits[1] = m_auiBits[1] + 1;
     }
@@ -45,16 +46,17 @@ void CSHA::AddData(const char* pcData, int iDataLength)
     uiT = (uiT >> 3) & 0x3f;
     if (uiT != 0)
     {
-        size_t __n = 0x40 - uiT;
-        if (iDataLength < (int)__n)
+        unsigned char* pDst = m_aucIn + uiT;
+        uiT = 0x40 - uiT;
+        if (iDataLength < (int)uiT)
         {
-            memcpy(m_aucIn + uiT, pcData, iDataLength);
+            memcpy(pDst, pcData, iDataLength);
             return;
         }
-        memcpy(m_aucIn + uiT, pcData, __n);
+        memcpy(pDst, pcData, uiT);
         Transform();
-        pcData = pcData + __n;
-        iDataLength = iDataLength - __n;
+        pcData = pcData + uiT;
+        iDataLength = iDataLength - uiT;
     }
     for (; iDataLength > 0x3f; iDataLength = iDataLength - 0x40)
     {
@@ -76,23 +78,25 @@ void CSHA::FinalDigest(char* pcDigest)
     uint uiCount = (m_auiBits[0] >> 3) & 0x3f;
     unsigned char* puc = m_aucIn + uiCount;
     *puc = 0x80;
+    puc++;
     uiCount = 0x3f - uiCount;
     if (uiCount < 8)
     {
-        memset(puc + 1, 0, uiCount);
+        memset(puc, 0, uiCount);
         Transform();
         memset(m_aucIn, 0, 0x38);
     }
     else
     {
-        memset(puc + 1, 0, uiCount - 8);
+        memset(puc, 0, uiCount - 8);
     }
     Word2Bytes(m_auiBits[1], m_aucIn + 0x38);
     Word2Bytes(m_auiBits[0], m_aucIn + 0x3c);
     Transform();
-    for (int i = 0; i < 8; i++)
+    for (int i = 0; i < 8; )
     {
         Word2Bytes(m_auiBuf[i], (unsigned char*)pcDigest);
+        i++;
         pcDigest = pcDigest + 4;
     }
     Reset();
@@ -129,22 +133,21 @@ void CSHA::Word2Bytes(const unsigned int& ruiWord, unsigned char* pcBytes)
 void CSHA::Transform()
 {
     uint W[64];
-    uint n0, n1, n2, n3, n4, n5, n6, n7, T1;
 
     unsigned char* pcIn = m_aucIn;
-    for (int i = 0; i < 0x10; i++)
+    int i;
+    for (i = 0; i < 0x10; )
     {
         Bytes2Word(pcIn, W[i]);
+        i++;
         pcIn = pcIn + 4;
     }
-    for (int i = 0x10; i < 0x40; i++)
+    for (i = 0x10; i < 0x40; i++)
     {
-        uint uVar1 = sig1(W[i - 2]);
-        uint uVar3 = W[i - 7];
-        uint uVar2 = sig0(W[i - 0xf]);
-        W[i] = uVar1 + uVar3 + uVar2 + W[i - 0x10];
+        W[i] = sig1(W[i - 2]) + W[i - 7] + sig0(W[i - 0xf]) + W[i - 0x10];
     }
 
+    uint n0, n1, n2, n3, n4, n5, n6, n7, T1;
     n0 = m_auiBuf[0];
     n1 = m_auiBuf[1];
     n2 = m_auiBuf[2];

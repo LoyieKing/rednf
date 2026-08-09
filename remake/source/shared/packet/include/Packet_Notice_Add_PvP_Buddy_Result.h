@@ -27,7 +27,7 @@ public:
         error_code_what_50_0x32 = 0;
         memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
     }
-};
+} __attribute__((packed));
 
 #pragma pack(pop)
 

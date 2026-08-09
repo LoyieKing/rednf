@@ -10,6 +10,6 @@
 class Packet_Monitor_Del_Buddy : public PacketHeader {
 public:
     Packet_Monitor_Del_Buddy() : PacketHeader(0x674, 0x30){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_DEL_BUDDY_H

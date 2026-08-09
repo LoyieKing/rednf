@@ -28,9 +28,7 @@ void IMethod::Xor(char* buff, const char* chain)
     }
     for (int i = 0; i < m_blockSize; i++)
     {
-        *buff = *chain ^ *buff;
-        buff = buff + 1;
-        chain = chain + 1;
+        *buff++ ^= *chain++;
     }
 }
 

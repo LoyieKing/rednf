@@ -10,6 +10,6 @@
 class Packet_Monitor_Add_Buddy : public PacketHeader {
 public:
     Packet_Monitor_Add_Buddy() : PacketHeader(0x672, 0x30){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_ADD_BUDDY_H

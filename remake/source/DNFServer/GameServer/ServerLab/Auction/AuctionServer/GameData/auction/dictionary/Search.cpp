@@ -147,8 +147,10 @@ bool Search::IsValidUpgradeRange(BYTE upgradeStart, BYTE upgradeEnd)
 bool Search::IsValidRefine(BYTE refine)
 {
 #ifdef POINT_SERVER
-    return refine <= 0x07;
+    return refine < 0x08;
 #else
+    // ORIG: cmpb $0x7f; setbe. Imm 0x7f/0x80 folds to high-bit form on 4.4.7;
+    // keep semantic refine<=0x7f (same as IsValidUpgrade-style bound).
     return refine <= 0x7f;
 #endif
 }
@@ -186,12 +188,12 @@ bool Search::IsAlternativeAvater(int category)
 
 WORD Search::FindNextSameLevelCategory(WORD category)
 {
-    WORD next_same_level_category = category;
+    int next_same_level_category;
     std::map<unsigned short, unsigned short>::iterator iter;
-    iter = mCategoryNextContainer.find(next_same_level_category);
+    iter = mCategoryNextContainer.find(category);
     if (iter == mCategoryNextContainer.end())
     {
-        return next_same_level_category;
+        return category;
     }
     next_same_level_category = iter->second;
     return next_same_level_category;
@@ -199,9 +201,9 @@ WORD Search::FindNextSameLevelCategory(WORD category)
 
 int Search::SetSearchResult(TSearchResult* pSearchResult, PAuctionIdContainer pContainer)
 {
+    int result;
     std::multiset<AuctionId>::const_iterator i;
     AuctionItemInfo* pAuctionItemInfo;
-    int result;
 
     if (pContainer == (PAuctionIdContainer)0x0)
     {
@@ -243,7 +245,7 @@ int Search::SetSearchResult(TSearchResult* pSearchResult, PAuctionIdContainer pC
             }
             if (IsFindEnough(pSearchResult))
             {
-                return 0;
+                break;
             }
             ++i;
         }
@@ -253,10 +255,10 @@ int Search::SetSearchResult(TSearchResult* pSearchResult, PAuctionIdContainer pC
 
 int Search::ROI_SetSearchResult(TSearchResult* pSearchResult, PAuctionIdContainer pContainer)
 {
-    AuctionItemInfo _tempSearchItemInfo;
-    AuctionItemInfo* pAuctionItemInfo;
-    std::multiset<AuctionId>::const_iterator i;
     int result;
+    std::multiset<AuctionId>::const_iterator i;
+    AuctionItemInfo* pAuctionItemInfo;
+    AuctionItemInfo _tempSearchItemInfo;
 
     if (pContainer == (PAuctionIdContainer)0x0)
     {
@@ -282,6 +284,7 @@ int Search::ROI_SetSearchResult(TSearchResult* pSearchResult, PAuctionIdContaine
                 }
                 if (IsFindEnough(pSearchResult))
                 {
+                    ;
                 }
                 else
                 {
@@ -444,6 +447,7 @@ int Search::OperateByLv(TOperate* pOperate, PLvContainer pParent)
 
 int Search::OperateByRefineLv(TOperate* pOperate, PRefineLvContainer pParent)
 {
+    PLvContainer* pp_container = NULL;
     PLvContainer p_container = NULL;
     BYTE key = pOperate->refine;
     TRefineLvContainer::iterator pos;
@@ -454,7 +458,7 @@ int Search::OperateByRefineLv(TOperate* pOperate, PRefineLvContainer pParent)
         {
             return 0x13;
         }
-        PLvContainer* pp_container = new PLvContainer;
+        pp_container = new PLvContainer;
         if (pp_container == (PLvContainer*)0x0)
         {
             return 9;
@@ -484,6 +488,7 @@ int Search::OperateByRefineLv(TOperate* pOperate, PRefineLvContainer pParent)
 
 int Search::OperateByUpgradeLv(TOperate* pOperate, PUpgradeLvContainer pParent)
 {
+    PRefineLvContainer* pp_container = NULL;
     PRefineLvContainer p_container = NULL;
     BYTE key = pOperate->upgrade;
     TUpgradeLvContainer::iterator pos;
@@ -494,7 +499,7 @@ int Search::OperateByUpgradeLv(TOperate* pOperate, PUpgradeLvContainer pParent)
         {
             return 0x13;
         }
-        PRefineLvContainer* pp_container = new PRefineLvContainer;
+        pp_container = new PRefineLvContainer;
         if (pp_container == (PRefineLvContainer*)0x0)
         {
             return 9;
@@ -524,6 +529,7 @@ int Search::OperateByUpgradeLv(TOperate* pOperate, PUpgradeLvContainer pParent)
 
 int Search::OperateByRarityUpgrade(TOperate* pOperate, PRarityUpgradeContainer pParent)
 {
+    PUpgradeContainer* pp_container = NULL;
     PUpgradeContainer p_container = NULL;
     BYTE key = pOperate->rarity;
     TRarityUpgradeContainer::iterator pos;
@@ -534,7 +540,7 @@ int Search::OperateByRarityUpgrade(TOperate* pOperate, PRarityUpgradeContainer p
         {
             return 0x13;
         }
-        PUpgradeContainer* pp_container = new PUpgradeContainer;
+        pp_container = new PUpgradeContainer;
         if (pp_container == (PUpgradeContainer*)0x0)
         {
             return 9;
@@ -564,6 +570,7 @@ int Search::OperateByRarityUpgrade(TOperate* pOperate, PRarityUpgradeContainer p
 
 int Search::OperateByRarityUpgradeLv(TOperate* pOperate, PRarityUpgradeLvContainer pParent)
 {
+    PUpgradeLvContainer* pp_container = NULL;
     PUpgradeLvContainer p_container = NULL;
     BYTE key = pOperate->rarity;
     TRarityUpgradeLvContainer::iterator pos;
@@ -574,7 +581,7 @@ int Search::OperateByRarityUpgradeLv(TOperate* pOperate, PRarityUpgradeLvContain
         {
             return 0x13;
         }
-        PUpgradeLvContainer* pp_container = new PUpgradeLvContainer;
+        pp_container = new PUpgradeLvContainer;
         if (pp_container == (PUpgradeLvContainer*)0x0)
         {
             return 9;
@@ -644,6 +651,7 @@ int Search::OperateByItemIdUpgrade(TOperate* pOperate, PItemIdUpgradeContainer p
 
 int Search::OperateByCategoryUpgrade(TOperate* pOperate, PCategoryUpgradeContainer pParent)
 {
+    PUpgradeContainer* pp_container = NULL;
     PUpgradeContainer p_container = NULL;
     WORD key = pOperate->category;
     TCategoryUpgradeContainer::iterator pos;
@@ -654,7 +662,7 @@ int Search::OperateByCategoryUpgrade(TOperate* pOperate, PCategoryUpgradeContain
         {
             return 0x13;
         }
-        PUpgradeContainer* pp_container = new PUpgradeContainer;
+        pp_container = new PUpgradeContainer;
         if (pp_container == (PUpgradeContainer*)0x0)
         {
             return 9;
@@ -684,6 +692,7 @@ int Search::OperateByCategoryUpgrade(TOperate* pOperate, PCategoryUpgradeContain
 
 int Search::OperateByCategoryUpgradeLv(TOperate* pOperate, PCategoryUpgradeLvContainer pParent)
 {
+    PUpgradeLvContainer* pp_container = NULL;
     PUpgradeLvContainer p_container = NULL;
     WORD key = pOperate->category;
     TCategoryUpgradeLvContainer::iterator pos;
@@ -694,7 +703,7 @@ int Search::OperateByCategoryUpgradeLv(TOperate* pOperate, PCategoryUpgradeLvCon
         {
             return 0x13;
         }
-        PUpgradeLvContainer* pp_container = new PUpgradeLvContainer;
+        pp_container = new PUpgradeLvContainer;
         if (pp_container == (PUpgradeLvContainer*)0x0)
         {
             return 9;
@@ -725,6 +734,7 @@ int Search::OperateByCategoryUpgradeLv(TOperate* pOperate, PCategoryUpgradeLvCon
 int Search::OperateByCategoryRarityUpgrade(TOperate* pOperate,
                                            PCategoryRarityUpgradeContainer pParent)
 {
+    PRarityUpgradeContainer* pp_container = NULL;
     PRarityUpgradeContainer p_container = NULL;
     WORD key = pOperate->category;
     TCategoryRarityUpgradeContainer::iterator pos;
@@ -735,7 +745,7 @@ int Search::OperateByCategoryRarityUpgrade(TOperate* pOperate,
         {
             return 0x13;
         }
-        PRarityUpgradeContainer* pp_container = new PRarityUpgradeContainer;
+        pp_container = new PRarityUpgradeContainer;
         if (pp_container == (PRarityUpgradeContainer*)0x0)
         {
             return 9;
@@ -766,6 +776,7 @@ int Search::OperateByCategoryRarityUpgrade(TOperate* pOperate,
 int Search::OperateByCategoryRarityUpgradeLv(TOperate* pOperate,
                                              PCategoryRarityUpgradeLvContainer pParent)
 {
+    PRarityUpgradeLvContainer* pp_container = NULL;
     PRarityUpgradeLvContainer p_container = NULL;
     WORD key = pOperate->category;
     TCategoryRarityUpgradeLvContainer::iterator pos;
@@ -776,7 +787,7 @@ int Search::OperateByCategoryRarityUpgradeLv(TOperate* pOperate,
         {
             return 0x13;
         }
-        PRarityUpgradeLvContainer* pp_container = new PRarityUpgradeLvContainer;
+        pp_container = new PRarityUpgradeLvContainer;
         if (pp_container == (PRarityUpgradeLvContainer*)0x0)
         {
             return 9;
@@ -810,9 +821,8 @@ int Search::SetOperateParameter(TOperate* pOperate, unsigned long itemId, BYTE u
                                 STATE_SEARCH_MODULE_OPERATION operation, bool hasSocket,
                                 int instantPrice, BYTE refine)
 {
-    WORD category_before_convert;
-    WORD category_after_convert;
     WORD gap;
+    WORD category_before_convert;
 
     if (pItemInfo == (CNRDItemInfoList::STItemInfo*)0x0)
     {
@@ -847,20 +857,22 @@ int Search::SetOperateParameter(TOperate* pOperate, unsigned long itemId, BYTE u
     if (IsAlternativeAvater(pOperate->category))
     {
         category_before_convert = pOperate->category;
-        gap = pOperate->category - (pOperate->category < 25000 ? 0x59d8 : 0x61a8);
+        gap = (pOperate->category < 25000) ? (pOperate->category - 0x59d8)
+                                           : (pOperate->category - 0x61a8);
         if (hasSocket)
         {
-            pOperate->category = gap + (pOperate->category < 25000 ? 19000 : 21000);
+            pOperate->category = (pOperate->category < 25000) ? (gap + 19000)
+                                                              : (gap + 21000);
         }
         else
         {
-            pOperate->category = gap + (pOperate->category < 25000 ? 15000 : 17000);
+            pOperate->category = (pOperate->category < 25000) ? (gap + 15000)
+                                                              : (gap + 17000);
         }
-        category_after_convert = pOperate->category;
         nsl::G_TraceLog()->sysLog(
             5,
             "category converted(auction Id:%llu, has socket:%d), before:%d, after:%d",
-            pOperate->auctionId, hasSocket, category_before_convert, category_after_convert);
+            pOperate->auctionId, hasSocket, category_before_convert, pOperate->category);
     }
     pOperate->rarity = pItemInfo->rarity_;
     pOperate->upgrade = upgrade;
@@ -875,94 +887,80 @@ int Search::SetOperateParameter(TOperate* pOperate, unsigned long itemId, BYTE u
 int Search::Insert(unsigned long itemId, BYTE upgrade, unsigned long long auctionId,
                    bool hasSocket, int instantPrice, BYTE refine)
 {
+    int result;
     static TOperate search_regist_parameter;
     static TOperate* p_parameter = &search_regist_parameter;
 
-    CNRDItemInfoList::STItemInfo* pItemInfo;
-    int result;
-
-    pItemInfo = mpAuction->GetItemInfo(itemId);
-    result = SetOperateParameter(p_parameter, itemId, upgrade, auctionId, pItemInfo,
+    result = SetOperateParameter(p_parameter, itemId, upgrade, auctionId,
+                                 mpAuction->GetItemInfo(itemId),
                                  STATE_INSERT, hasSocket, instantPrice, refine);
-    if (result == 0)
+    if (result != 0)
     {
-        result = OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-        if (result == 0)
-        {
-            result = OperateByCategoryRarityUpgradeLv(p_parameter,
-                                                      &mCategoryRarityUpgradeLvContainer);
-            if (result == 0)
-            {
-                result = OperateByCategoryRarityUpgrade(p_parameter,
-                                                        &mCategoryRarityUpgradeContainer);
-                if (result == 0)
-                {
-                    result = OperateByCategoryUpgradeLv(p_parameter,
-                                                        &mCategoryUpgradeLvContainer);
-                    if (result == 0)
-                    {
-                        result = OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
-                        if (result != 0)
-                        {
-                            p_parameter->operation = STATE_DELETE;
-                            OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-                            OperateByCategoryRarityUpgradeLv(p_parameter,
-                                                             &mCategoryRarityUpgradeLvContainer);
-                            OperateByCategoryRarityUpgrade(p_parameter,
-                                                           &mCategoryRarityUpgradeContainer);
-                            OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
-                            OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
-                        }
-                    }
-                    else
-                    {
-                        p_parameter->operation = STATE_DELETE;
-                        OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-                        OperateByCategoryRarityUpgradeLv(p_parameter,
-                                                         &mCategoryRarityUpgradeLvContainer);
-                        OperateByCategoryRarityUpgrade(p_parameter,
-                                                       &mCategoryRarityUpgradeContainer);
-                        OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
-                    }
-                }
-                else
-                {
-                    p_parameter->operation = STATE_DELETE;
-                    OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-                    OperateByCategoryRarityUpgradeLv(p_parameter,
-                                                     &mCategoryRarityUpgradeLvContainer);
-                    OperateByCategoryRarityUpgrade(p_parameter, &mCategoryRarityUpgradeContainer);
-                }
-            }
-            else
-            {
-                p_parameter->operation = STATE_DELETE;
-                OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-                OperateByCategoryRarityUpgradeLv(p_parameter,
-                                                 &mCategoryRarityUpgradeLvContainer);
-            }
-        }
-        else
-        {
-            p_parameter->operation = STATE_DELETE;
-            OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-        }
+        return result;
     }
+
+    result = OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
+    if (result != 0)
+    {
+        p_parameter->operation = STATE_DELETE;
+        OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
+        return result;
+    }
+
+    result = OperateByCategoryRarityUpgradeLv(p_parameter, &mCategoryRarityUpgradeLvContainer);
+    if (result != 0)
+    {
+        p_parameter->operation = STATE_DELETE;
+        OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
+        OperateByCategoryRarityUpgradeLv(p_parameter, &mCategoryRarityUpgradeLvContainer);
+        return result;
+    }
+
+    result = OperateByCategoryRarityUpgrade(p_parameter, &mCategoryRarityUpgradeContainer);
+    if (result != 0)
+    {
+        p_parameter->operation = STATE_DELETE;
+        OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
+        OperateByCategoryRarityUpgradeLv(p_parameter, &mCategoryRarityUpgradeLvContainer);
+        OperateByCategoryRarityUpgrade(p_parameter, &mCategoryRarityUpgradeContainer);
+        return result;
+    }
+
+    result = OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
+    if (result != 0)
+    {
+        p_parameter->operation = STATE_DELETE;
+        OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
+        OperateByCategoryRarityUpgradeLv(p_parameter, &mCategoryRarityUpgradeLvContainer);
+        OperateByCategoryRarityUpgrade(p_parameter, &mCategoryRarityUpgradeContainer);
+        OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
+        return result;
+    }
+
+    result = OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
+    if (result != 0)
+    {
+        p_parameter->operation = STATE_DELETE;
+        OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
+        OperateByCategoryRarityUpgradeLv(p_parameter, &mCategoryRarityUpgradeLvContainer);
+        OperateByCategoryRarityUpgrade(p_parameter, &mCategoryRarityUpgradeContainer);
+        OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
+        OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
+        return result;
+    }
+
     return result;
 }
 
 int Search::Delete(unsigned long long auctionId)
 {
+    int result;
     static TOperate search_regist_parameter;
     static TOperate* p_parameter = &search_regist_parameter;
 
     unsigned long itemId;
     BYTE upgrade;
     BYTE refine;
-    CNRDItemInfoList::STItemInfo* pItemInfo;
-    bool hasSocket;
-    int sub_result;
-    int result;
 
     memset(&search_regist_parameter, 0, 0x20);
     result = GetRegisteredInfo(auctionId, &itemId, &upgrade, &refine);
@@ -973,10 +971,9 @@ int Search::Delete(unsigned long long auctionId)
             auctionId, result);
         return result;
     }
-    hasSocket = upgrade != 0;
-    pItemInfo = mpAuction->GetItemInfo(itemId);
-    result = SetOperateParameter(p_parameter, itemId, upgrade, auctionId, pItemInfo,
-                                 STATE_DELETE, hasSocket, 0, refine);
+    result = SetOperateParameter(p_parameter, itemId, upgrade, auctionId,
+                                 mpAuction->GetItemInfo(itemId),
+                                 STATE_DELETE, upgrade != 0, 0, refine);
     if (result != 0)
     {
         nsl::G_TraceLog()->sysLog(
@@ -986,14 +983,12 @@ int Search::Delete(unsigned long long auctionId)
         return result;
     }
     result = OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-    sub_result = OperateByCategoryRarityUpgradeLv(p_parameter, &mCategoryRarityUpgradeLvContainer);
-    result = sub_result + result;
-    sub_result = OperateByCategoryRarityUpgrade(p_parameter, &mCategoryRarityUpgradeContainer);
-    result = sub_result + result;
-    sub_result = OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
-    result = sub_result + result;
-    sub_result = OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
-    result = sub_result + result;
+    result = result + OperateByCategoryRarityUpgradeLv(p_parameter,
+                                                       &mCategoryRarityUpgradeLvContainer);
+    result = result + OperateByCategoryRarityUpgrade(p_parameter,
+                                                     &mCategoryRarityUpgradeContainer);
+    result = result + OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
+    result = result + OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
     return result;
 }
 
@@ -1039,13 +1034,14 @@ int Search::FindByItem(TSearchByItemId_* pSearchByItemId, unsigned long* pItemId
     p_parameter->refineStart = pSearchByItemId->refineStart;
     p_parameter->refineEnd = pSearchByItemId->refineEnd;
     result = SearchByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-    if (result == 0)
+    // ORIG：if (result != 0) return result;（return 块 fall-through，stores 跳转目标）
+    if (result != 0)
     {
-        *pNumberOfFound = p_parameter->searchResult.numberOfFound;
-        *pTotalNumberOfFound = p_parameter->searchResult.totalNumberOfFound;
-        result = 0;
+        return result;
     }
-    return result;
+    *pNumberOfFound = p_parameter->searchResult.numberOfFound;
+    *pTotalNumberOfFound = p_parameter->searchResult.totalNumberOfFound;
+    return 0;
 }
 
 int Search::FindByCategory(TSearchByCategory_* pSearchByCategory,
@@ -1221,14 +1217,15 @@ int Search::SearchByUpgrade(TCategoryParameter* pParameter, PUpgradeContainer pP
 
 int Search::SearchByLv(TCategoryParameter* pParameter, PLvContainer pParent)
 {
-    TSearchResult* pSearchResult;
-    BYTE lvStart;
+    // ORIG DWARF 声明序：result(1682)/pos(1684)/pSearchResult(1685)。
+    BYTE result;
     TLvContainer::iterator pos;
+    TSearchResult* pSearchResult;
 
     pSearchResult = &pParameter->searchResult;
     pSearchResult->category = -1;
-    lvStart = pParameter->lvStart;
-    pos = pParent->lower_bound(lvStart);
+    result = pParameter->lvStart;
+    pos = pParent->lower_bound(result);
     while (pos != pParent->upper_bound(pParameter->lvEnd))
     {
         if (!pSearchResult->roi_search_category.isEmpty())
@@ -1409,13 +1406,13 @@ int Search::SearchByCategoryRarityUpgradeLv(TCategoryParameter* pParameter,
 
 int Search::SearchByItemIdUpgrade(TItemIdParameter* pParameter, PItemIdUpgradeContainer pParent)
 {
+    TItemIdUpgradeContainer::iterator pos;
     unsigned long key;
+    int i;
     CNRDItemInfoList::STItemInfo* p_item_info;
     bool has_category_selected;
     BYTE upgrade_start_backup;
     BYTE upgrade_end_backup;
-    int i;
-    TItemIdUpgradeContainer::iterator pos;
 
     upgrade_start_backup = pParameter->upgradeStart;
     upgrade_end_backup = pParameter->upgradeEnd;
@@ -1458,7 +1455,7 @@ int Search::SearchByItemIdUpgrade(TItemIdParameter* pParameter, PItemIdUpgradeCo
             }
             if (IsRequireStopSearch(&pParameter->searchResult))
             {
-                return 0;
+                break;
             }
         }
         pParameter->upgradeStart = upgrade_start_backup;
@@ -1471,108 +1468,99 @@ int Search::SearchByItemIdUpgrade(TItemIdParameter* pParameter, PItemIdUpgradeCo
 int Search::GetRegisteredInfo(unsigned long long auctionId, unsigned long* pItemId,
                               BYTE* pUpgrade, BYTE* pRefine)
 {
-    AuctionDictionary* p_auction_dictionary = &mpAuction->mAuctionDic;
     AuctionDictionary::AuctionDictionaryData* p_auction_dictionary_data;
+    AuctionDictionary* p_auction_dictionary = &mpAuction->mAuctionDic;
+    int result;
     std::map<unsigned long long, AuctionDictionary::AuctionDictionaryData*>::iterator iter =
         p_auction_dictionary->mAuctionDicTable.find(auctionId);
-    int result;
 
     if (iter != p_auction_dictionary->mAuctionDicTable.end())
     {
         p_auction_dictionary_data = iter->second;
-        if (p_auction_dictionary_data != (AuctionDictionary::AuctionDictionaryData*)0x0)
-        {
-            *pItemId = p_auction_dictionary_data->item_info.GetItemId();
-            *pUpgrade = p_auction_dictionary_data->item_info.GetUpgradeValue();
-            *pRefine = p_auction_dictionary_data->item_info.separate_info.GetUpgradeSeparate();
-            result = 0;
-        }
-        else
-        {
-            result = 0x24;
-        }
     }
     else
     {
-        result = 0x24;
+        return 0x24;
     }
-    return result;
+    if (p_auction_dictionary_data == (AuctionDictionary::AuctionDictionaryData*)0x0)
+    {
+        return 0x24;
+    }
+    *pItemId = p_auction_dictionary_data->item_info.GetItemId();
+    *pUpgrade = p_auction_dictionary_data->item_info.GetUpgradeValue();
+    *pRefine = p_auction_dictionary_data->item_info.separate_info.GetUpgradeSeparate();
+    return 0;
 }
 
 int Search::GetAuctionItemInfo(unsigned long long auctionId,
-                               const ROI_Category& roi_search_category,
+                               const ROI_Category& _roi_search_category,
                                AuctionItemInfo* pAuctionItemInfo)
 {
+    AuctionDictionary::AuctionDictionaryData* p_auction_dictionary_data;
     AuctionDictionary* p_auction_dictionary = &mpAuction->mAuctionDic;
+    int result;
     memset(pAuctionItemInfo, 0, 0x89);
     std::map<unsigned long long, AuctionDictionary::AuctionDictionaryData*>::iterator iter =
         p_auction_dictionary->mAuctionDicTable.find(auctionId);
-    AuctionDictionary::AuctionDictionaryData* p_auction_dictionary_data;
-    unsigned long itemId;
-    unsigned char itemUpgradeValue;
-    unsigned char itemRefineValue;
-    int result;
+
     if (iter != p_auction_dictionary->mAuctionDicTable.end())
     {
         p_auction_dictionary_data = iter->second;
-        if (p_auction_dictionary_data == (AuctionDictionary::AuctionDictionaryData*)0x0)
-        {
-            result = 0x24;
-        }
-        else if (roi_search_category.isEmpty() ||
-                 p_auction_dictionary_data->_reg_roi_category_key.isMatching(
-                     roi_search_category))
-        {
-            ROI_AverageKey roi_average_key;
-
-            pAuctionItemInfo->auction_id = auctionId;
-            pAuctionItemInfo->price = p_auction_dictionary_data->price;
-            pAuctionItemInfo->instant_price = p_auction_dictionary_data->instant_price;
-            roi_average_key.baseItem_index = p_auction_dictionary_data->item_info.GetItemId();
-            roi_average_key.option_category = p_auction_dictionary_data->_reg_roi_category_key;
-            for (int i = 0; i < 3; i = i + 1)
-            {
-                roi_average_key._oiv.option_index_value[i] =
-                    (unsigned short)p_auction_dictionary_data->item_info.random_option_
-                        .option_[i].option_index_;
-            }
-            std::sort((short*)&roi_average_key.option_index_key,
-                      (short*)((int)&roi_average_key.option_index_key + 6));
-            itemRefineValue =
-                p_auction_dictionary_data->item_info.separate_info.GetUpgradeSeparate();
-            itemUpgradeValue = p_auction_dictionary_data->item_info.GetUpgradeValue();
-            itemId = p_auction_dictionary_data->item_info.GetItemId();
-            result = p_auction_dictionary->mAvrgPriceDic.GetItemAveragePrice(
-                itemId, itemUpgradeValue, roi_average_key, itemRefineValue,
-                &pAuctionItemInfo->average_price);
-            if (result == 0)
-            {
-                strncpy(pAuctionItemInfo->owner_name,
-                        p_auction_dictionary->getCharacterName(
-                            p_auction_dictionary_data->owner_id),
-                        0xc);
-                pAuctionItemInfo->expire_time = p_auction_dictionary->getExpiringTime(
-                    p_auction_dictionary_data->expire_time, 0);
-                pAuctionItemInfo->item_info = p_auction_dictionary_data->item_info;
-                pAuctionItemInfo->black_point = p_auction_dictionary_data->black_point;
-                pAuctionItemInfo->unit_price = p_auction_dictionary_data->unit_price;
-                pAuctionItemInfo->item_info.abilityType_ =
-                    p_auction_dictionary_data->item_info.getAbilityType();
-                pAuctionItemInfo->item_info.abilityValue_ =
-                    p_auction_dictionary_data->item_info.getAbilityValue();
-                result = 0;
-            }
-        }
-        else
-        {
-            result = 0x24;
-        }
     }
     else
     {
-        result = 0x24;
+        return 0x24;
     }
-    return result;
+    if (p_auction_dictionary_data == (AuctionDictionary::AuctionDictionaryData*)0x0)
+    {
+        return 0x24;
+    }
+    if (!_roi_search_category.isEmpty())
+    {
+        if (!p_auction_dictionary_data->_reg_roi_category_key.isMatching(
+                _roi_search_category))
+        {
+            return 0x24;
+        }
+    }
+
+    pAuctionItemInfo->auction_id = auctionId;
+    pAuctionItemInfo->price = p_auction_dictionary_data->price;
+    pAuctionItemInfo->instant_price = p_auction_dictionary_data->instant_price;
+    ROI_AverageKey _roi_average_key;
+    _roi_average_key.baseItem_index = p_auction_dictionary_data->item_info.GetItemId();
+    _roi_average_key.option_category = p_auction_dictionary_data->_reg_roi_category_key;
+    for (int i = 0; i < 3; i = i + 1)
+    {
+        _roi_average_key._oiv.option_index_value[i] =
+            (unsigned short)p_auction_dictionary_data->item_info.random_option_
+                .option_[i].option_index_;
+    }
+    std::sort((short*)&_roi_average_key.option_index_key,
+              (short*)((int)&_roi_average_key.option_index_key + 6));
+    result = p_auction_dictionary->mAvrgPriceDic.GetItemAveragePrice(
+        p_auction_dictionary_data->item_info.GetItemId(),
+        p_auction_dictionary_data->item_info.GetUpgradeValue(),
+        _roi_average_key,
+        p_auction_dictionary_data->item_info.separate_info.GetUpgradeSeparate(),
+        &pAuctionItemInfo->average_price);
+    if (result != 0)
+    {
+        return result;
+    }
+    strncpy(pAuctionItemInfo->owner_name,
+            p_auction_dictionary->getCharacterName(p_auction_dictionary_data->owner_id),
+            0xc);
+    pAuctionItemInfo->expire_time = p_auction_dictionary->getExpiringTime(
+        p_auction_dictionary_data->expire_time, 0);
+    pAuctionItemInfo->item_info = p_auction_dictionary_data->item_info;
+    pAuctionItemInfo->black_point = p_auction_dictionary_data->black_point;
+    pAuctionItemInfo->unit_price = p_auction_dictionary_data->unit_price;
+    pAuctionItemInfo->item_info.abilityType_ =
+        p_auction_dictionary_data->item_info.getAbilityType();
+    pAuctionItemInfo->item_info.abilityValue_ =
+        p_auction_dictionary_data->item_info.getAbilityValue();
+    return 0;
 }
 
 bool Search::IsValidCategory(WORD category, STATE_SEARCH_MODULE_OPERATION operation)

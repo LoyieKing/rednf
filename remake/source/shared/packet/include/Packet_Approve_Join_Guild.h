@@ -10,6 +10,6 @@
 class Packet_Approve_Join_Guild : public PacketHeader {
 public:
     Packet_Approve_Join_Guild() : PacketHeader(0x1bc2, 0x16){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_APPROVE_JOIN_GUILD_H

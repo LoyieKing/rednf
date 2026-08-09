@@ -10,6 +10,6 @@
 class Packet_Guild_Call_Guild_Invite : public PacketHeader {
 public:
     Packet_Guild_Call_Guild_Invite() : PacketHeader(0x434, 0x30){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GUILD_CALL_GUILD_INVITE_H

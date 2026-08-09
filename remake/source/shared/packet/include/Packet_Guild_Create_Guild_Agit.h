@@ -10,6 +10,6 @@
 class Packet_Guild_Create_Guild_Agit : public PacketHeader {
 public:
     Packet_Guild_Create_Guild_Agit() : PacketHeader(0x6dc, 0x1a){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GUILD_CREATE_GUILD_AGIT_H

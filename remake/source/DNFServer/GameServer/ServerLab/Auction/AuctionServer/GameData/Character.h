@@ -18,9 +18,10 @@ class Character : public nsl::ISession
 {
 public:
     Character();
-    virtual ~Character();
+    // Virtual order matches ISession/DWARF: onClose, onDoClose, then dtor.
     virtual void onClose(bool bActiveClosing);
     virtual void onDoClose();
+    virtual ~Character();
     bool setArea(int areaIndex);
     void setCharacKey(unsigned int characKey);
     unsigned int getCharacKey();

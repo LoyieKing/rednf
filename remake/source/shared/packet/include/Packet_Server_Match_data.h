@@ -10,6 +10,6 @@
 class Packet_Server_Match_data : public PacketHeader {
 public:
     Packet_Server_Match_data() : PacketHeader(0x1b67, 0xd){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_SERVER_MATCH_DATA_H

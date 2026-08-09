@@ -20,7 +20,7 @@ Script::~Script()
 bool Script::load(char* filename)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(mLoadScriptLock);
-    char buf[1025];
+    char buf[0x401];
     memset(buf, 0, 0x401);
     Clear();
     depth = 0;
@@ -30,11 +30,15 @@ bool Script::load(char* filename)
         return false;
     }
     bool ret;
-    do
+    for (;;)
     {
         ret = fgetln(fp, buf);
         parse(buf);
-    } while (ret);
+        if (!(ret == true))
+        {
+            break;
+        }
+    }
     fclose(fp);
     return true;
 }
@@ -42,16 +46,13 @@ bool Script::load(char* filename)
 bool Script::fgetln(FILE* fp, char* buf)
 {
     int i = 0;
-    while (true)
+    while (i <= 0x3ff)
     {
-        if (i > 0x3ff)
-        {
-            return true;
-        }
         int code = fgetc(fp);
         if (feof(fp) != 0)
         {
-            break;
+            buf[i] = '\0';
+            return false;
         }
         buf[i] = (char)code;
         if (buf[i] == '\n')
@@ -60,13 +61,13 @@ bool Script::fgetln(FILE* fp, char* buf)
             if ((i > 0) && (buf[i - 1] == '\r'))
             {
                 buf[i - 1] = '\0';
+                return true;
             }
             return true;
         }
         i = i + 1;
     }
-    buf[i] = '\0';
-    return false;
+    return true;
 }
 
 bool Script::parse(char* line)
@@ -105,25 +106,25 @@ bool Script::remove_comment(char* line)
 
 bool Script::get_key_val(char* line)
 {
-    size_t size = strlen(line);
-    tok.get_token(line, size);
+    tok.get_token(line, strlen(line));
     int n_tok = tok.get_n_token();
-    if (n_tok == 1)
+    switch (n_tok)
     {
+    case 1:
         mParentNames.push_back(std::string(tok.get_context(0)));
         mChildNames.push_back(std::vector<std::string>());
         mChildValues.push_back(std::vector<std::string>());
         tok.free_token(0);
-    }
-    else if (n_tok == 2)
-    {
+        break;
+    case 2:
         mChildNames[mParentNames.size() - 1].push_back(std::string(tok.get_context(0)));
         mChildValues[mParentNames.size() - 1].push_back(std::string(tok.get_context(1)));
         tok.free_token(0);
         tok.free_token(1);
-    }
-    else if (n_tok != 0)
-    {
+        break;
+    case 0:
+        break;
+    default:
         return false;
     }
     return true;
@@ -131,28 +132,21 @@ bool Script::get_key_val(char* line)
 
 bool Script::get_sections()
 {
-    uint i = 0;
-    do
+    const char* p = 0;
+    unsigned int i = 0;
+    for (; i < mParentNames.size(); i = i + 1)
     {
-        if (mParentNames.size() <= i)
+        unsigned int j = 0;
+        for (; j < mChildNames[i].size(); j = j + 1)
         {
-            return true;
-        }
-        uint j = 0;
-        while (true)
-        {
-            if (mChildNames[i].size() <= j)
-            {
-                break;
-            }
-            if (mChildValues[i][j].c_str() == 0)
+            p = mChildValues[i][j].c_str();
+            if (p == 0)
             {
                 return false;
             }
-            j = j + 1;
         }
-        i = i + 1;
-    } while (true);
+    }
+    return true;
 }
 
 void Script::Clear()

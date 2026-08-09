@@ -10,7 +10,7 @@
 class Packet_Monitor_Notice_Guild_Dismiss : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Dismiss(): PacketHeader(0x3fc,0xe) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_NOTICE_GUILD_DISMISS_H

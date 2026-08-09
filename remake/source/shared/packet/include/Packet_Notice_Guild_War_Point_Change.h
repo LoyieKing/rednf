@@ -10,7 +10,7 @@
 class Packet_Notice_Guild_War_Point_Change : public PacketHeader {
 public:
     Packet_Notice_Guild_War_Point_Change(): PacketHeader(0x417,0xf) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_NOTICE_GUILD_WAR_POINT_CHANGE_H

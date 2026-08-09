@@ -10,6 +10,6 @@
 class Packet_Monitor_Call_Guild_Info : public PacketHeader {
 public:
     Packet_Monitor_Call_Guild_Info() : PacketHeader(0x40d, 0x18f){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_CALL_GUILD_INFO_H

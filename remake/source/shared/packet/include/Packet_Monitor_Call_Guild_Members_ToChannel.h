@@ -45,6 +45,6 @@ public:
         }
         memset((char*)this + 0x16, 0, 0x17);
     }
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_CALL_GUILD_MEMBERS_TO_CHANNEL_H

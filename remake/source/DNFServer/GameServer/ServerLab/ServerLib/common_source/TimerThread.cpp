@@ -34,14 +34,15 @@ ITimeEntity* TimerThread::PopTimeReqEvent()
         return NULL;
     }
     ITimeEntity* ent = timeReqQueue.front();
-    if (ent->bWillDelete == false)
+    // ORIG: if (bWillDelete) insert; else log+delete  (test/je delete path)
+    if (ent->bWillDelete)
     {
-        G_TraceLog()->sysLog(8, "11Time Event Delete!!!!\n");
-        super_TimeManager.delete2PeriodQueue(ent);
+        super_TimeManager.insert2PeriodQueue(ent);
     }
     else
     {
-        super_TimeManager.insert2PeriodQueue(ent);
+        G_TraceLog()->sysLog(8, "11Time Event Delete!!!!\n");
+        super_TimeManager.delete2PeriodQueue(ent);
     }
     timeReqQueue.pop();
     pthread_mutex_unlock(&timerLock);
@@ -50,35 +51,32 @@ ITimeEntity* TimerThread::PopTimeReqEvent()
 
 void TimerThread::loop(void* temp)
 {
-    unsigned int elapsedTime = 0;
+    // ORIG: sign-extend time() to 64-bit via sar, sub/sbb into locals, cmpl mem for unsigned >
     do
     {
-        while (true)
+        long long startTime = (long long)time(NULL);
+        PopTimeReqEvent();
+        super_TimeManager.onTime();
+        long long endTime = (long long)time(NULL);
+        unsigned long long elapsedTime = (unsigned long long)endTime - (unsigned long long)startTime;
+        if (elapsedTime > (unsigned long long)0x14)
         {
-            unsigned int startTime = (unsigned int)time(NULL);
-            PopTimeReqEvent();
-            super_TimeManager.onTime();
-            unsigned int endTime = (unsigned int)time(NULL);
-            elapsedTime = endTime - startTime;
-            int carry = ((int)endTime >> 0x1f) - ((int)startTime >> 0x1f) - (unsigned int)(endTime < startTime);
-            if (carry != 0 || 0x14 < elapsedTime)
-            {
-                break;
-            }
-            if ((int)(0x14 - elapsedTime) < 0)
+            puts("TimerThread spent more time than NEXT_CHECK_TIME");
+            printf("Elapsed Time: %lld\n", (long long)elapsedTime);
+            printf("Map size: %d\n", super_TimeManager.timePeriodMap.Size());
+        }
+        else
+        {
+            if (0x14 - (int)elapsedTime < 0)
             {
                 TSystem<LinuxSystem>::sleep(0);
-                printf("\xBD\xBD\xB8\xB3 \xC5\xB8\xC0\xD3 : %d\n", 0x14 - elapsedTime);
+                printf("\xBD\xBD\xB8\xB3 \xC5\xB8\xC0\xD3 : %d\n", 0x14 - (int)elapsedTime);
             }
             else
             {
-                TSystem<LinuxSystem>::sleep(0x14 - elapsedTime);
+                TSystem<LinuxSystem>::sleep(0x14 - (int)elapsedTime);
             }
         }
-        puts("TimerThread spent more time than NEXT_CHECK_TIME");
-        printf("Elapsed Time: %lld\n", (long long)elapsedTime);
-        unsigned int size = super_TimeManager.timePeriodMap.Size();
-        printf("Map size: %d\n", size);
     } while (true);
 }
 

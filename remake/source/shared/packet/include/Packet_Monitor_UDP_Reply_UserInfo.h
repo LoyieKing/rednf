@@ -10,7 +10,7 @@
 class Packet_Monitor_UDP_Reply_UserInfo : public PacketHeader {
 public:
     Packet_Monitor_UDP_Reply_UserInfo(): PacketHeader(0x3ea,0x16e6) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_UDP_REPLY_USERINFO_H

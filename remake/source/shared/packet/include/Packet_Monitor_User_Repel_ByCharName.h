@@ -10,7 +10,7 @@
 class Packet_Monitor_User_Repel_ByCharName : public PacketHeader {
 public:
     Packet_Monitor_User_Repel_ByCharName(): PacketHeader(0x4d0,0x30) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_USER_REPEL_BYCHARNAME_H

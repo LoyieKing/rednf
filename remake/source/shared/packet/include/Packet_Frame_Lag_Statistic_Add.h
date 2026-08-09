@@ -10,6 +10,6 @@
 class Packet_Frame_Lag_Statistic_Add : public PacketHeader {
 public:
     Packet_Frame_Lag_Statistic_Add() : PacketHeader(0xc26, 0x186){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_FRAME_LAG_STATISTIC_ADD_H

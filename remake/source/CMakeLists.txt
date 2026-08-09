@@ -124,6 +124,9 @@ set(DF_AUCTION_R_SOURCES
     DNFServer/ServerCommon/DNFFileLog.cpp
     DNFServer/ServerCommon/DNFFunctionLib.cpp
     DNFServer/ServerCommon/ServerXml.cpp
+    DNFServer/ServerCommon/tinyxml.cpp
+    DNFServer/ServerCommon/tinyxmlerror.cpp
+    DNFServer/ServerCommon/tinyxmlparser.cpp
     DNFShared/GameScript/RDARScriptAvatarColorInfo.cpp
     DNFShared/GameScript/RDARScriptItemInfo.cpp
     Library/Include/Core/SecureStdio.cpp
@@ -131,6 +134,15 @@ set(DF_AUCTION_R_SOURCES
     Library/Include/Core/UnicodeConvert.cpp
 )
 add_executable(df_auction_r ${DF_AUCTION_R_SOURCES})
+# TinyXML 2.6.2 以原始编译形态单独编译（-O3 + gnu++98 + TIXML_USE_STL；
+# 用 c6 工具链构建时由 build-auction.sh 的 TINYXML_FLAGS 提供 4.4.6 头文件路径）。
+set_source_files_properties(
+    DNFServer/ServerCommon/tinyxml.cpp
+    DNFServer/ServerCommon/tinyxmlerror.cpp
+    DNFServer/ServerCommon/tinyxmlparser.cpp
+    PROPERTIES COMPILE_FLAGS "-O3 -std=gnu++98 -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS")
+target_include_directories(df_auction_r PRIVATE Library3rd/Boost/Include Library3rd/MySQL/include)
+target_compile_definitions(df_auction_r PRIVATE TIXML_USE_STL BOOST_DISABLE_ASSERTS)
 
 # === df_bridge_r ===
 set(DF_BRIDGE_R_SOURCES
@@ -247,10 +259,12 @@ add_executable(df_community_r ${DF_COMMUNITY_R_SOURCES})
 target_include_directories(df_community_r PRIVATE
     Community/src
     DNFServer/ServerCommon
+    Library3rd/Boost/Include
     shared
     shared/common/include
     shared/packet/include
 )
+target_compile_definitions(df_community_r PRIVATE BOOST_DISABLE_ASSERTS)
 
 # === df_coserver_r ===
 # No DWARF info available - placeholder
@@ -338,6 +352,9 @@ set(DF_POINT_R_SOURCES
     DNFServer/ServerCommon/DNFFileLog.cpp
     DNFServer/ServerCommon/DNFFunctionLib.cpp
     DNFServer/ServerCommon/ServerXml.cpp
+    DNFServer/ServerCommon/tinyxml.cpp
+    DNFServer/ServerCommon/tinyxmlerror.cpp
+    DNFServer/ServerCommon/tinyxmlparser.cpp
     DNFShared/GameScript/RDARScriptAvatarColorInfo.cpp
     DNFShared/GameScript/RDARScriptItemInfo.cpp
     Library/Include/Core/SecureStdio.cpp
@@ -345,6 +362,13 @@ set(DF_POINT_R_SOURCES
     Library/Include/Core/UnicodeConvert.cpp
 )
 add_executable(df_point_r ${DF_POINT_R_SOURCES})
+set_source_files_properties(
+    DNFServer/ServerCommon/tinyxml.cpp
+    DNFServer/ServerCommon/tinyxmlerror.cpp
+    DNFServer/ServerCommon/tinyxmlparser.cpp
+    PROPERTIES COMPILE_FLAGS "-O3 -std=gnu++98 -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS")
+target_include_directories(df_point_r PRIVATE Library3rd/Boost/Include Library3rd/MySQL/include)
+target_compile_definitions(df_point_r PRIVATE TIXML_USE_STL BOOST_DISABLE_ASSERTS)
 
 # === df_relay_r ===
 # No DWARF info available - placeholder

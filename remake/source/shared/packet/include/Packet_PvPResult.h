@@ -10,6 +10,6 @@
 class Packet_PvPResult : public PacketHeader {
 public:
     Packet_PvPResult() : PacketHeader(0xfa5, 0x80){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_PVPRESULT_H

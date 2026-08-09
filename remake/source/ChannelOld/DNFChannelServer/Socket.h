@@ -16,7 +16,7 @@ public:
     int send(char* buf, int size);
     int recv(char* buf, int size);
     void close();
-    int shutdown(int how);
+    int shutdown(int opt);
     bool accept(TCPSocket& accepted);
     bool setOptLinger(bool b);
     bool setOptNonBlock();
@@ -59,6 +59,7 @@ private:
     int sock_;
     sockaddr_in adrs_;
     unsigned short port_;
+    sockaddr_in from_;
 };
 
 #endif // SOCKET_H_

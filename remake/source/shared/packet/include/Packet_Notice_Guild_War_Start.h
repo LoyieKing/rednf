@@ -10,6 +10,6 @@
 class Packet_Notice_Guild_War_Start : public PacketHeader {
 public:
     Packet_Notice_Guild_War_Start() : PacketHeader(0x416, 0xb){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_NOTICE_GUILD_WAR_START_H

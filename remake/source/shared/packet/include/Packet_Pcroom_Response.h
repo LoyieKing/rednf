@@ -10,6 +10,6 @@
 class Packet_Pcroom_Response : public PacketHeader {
 public:
     Packet_Pcroom_Response() : PacketHeader(0xfaf, 0x1f){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_PCROOM_RESPONSE_H

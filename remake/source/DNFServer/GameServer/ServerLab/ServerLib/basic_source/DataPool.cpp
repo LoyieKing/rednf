@@ -29,8 +29,7 @@ Message* DataPool::getLogMessage(TCPUser* u)
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LogSendMsgLock);
     Message* msg = LogSendMessagePool->malloc();
     msg->setUserToMessage(u);
-    TCPUser::ENUM_DATA_TYPE bit = u->getSendDataType();
-    msg->setOnDataTypeMask(bit);
+    msg->setOnDataTypeMask(u->getSendDataType());
     SendBuffer* pSendBuffer = BufferLogSend->malloc();
     msg->setStringToMessage(pSendBuffer);
     return msg;
@@ -39,14 +38,18 @@ Message* DataPool::getLogMessage(TCPUser* u)
 void DataPool::destroyLogMessage(Message* msg)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LogSendMsgLock);
-    SendBuffer* chunk = msg->getSendBufferFromMessage();
-    BufferLogSend->free(chunk);
+    BufferLogSend->free(msg->getSendBufferFromMessage());
     LogSendMessagePool->free(msg);
 }
 
 TCPSocket* DataPool::createTCPSocket()
 {
-    return TCPSocketPool->construct();
+    TCPSocket* r = TCPSocketPool->construct();
+    if (r == NULL)
+    {
+        return NULL;
+    }
+    return r;
 }
 
 void DataPool::destroyTCPSocket(TCPSocket* pTCPSocket)
@@ -59,14 +62,11 @@ TCPUser* DataPool::createTCPUser()
     TCPUser* r = TCPUserPool->construct();
     if (r == NULL)
     {
-        r = NULL;
+        return NULL;
     }
-    else
-    {
-        r->initialize();
-        mTcpUserCount = mTcpUserCount + 1;
-        G_TraceLog()->sysLog(3, "createTCPUser(): Total Con = %d", GetTcpUserCount());
-    }
+    r->initialize();
+    mTcpUserCount = mTcpUserCount + 1;
+    G_TraceLog()->sysLog(3, "createTCPUser(): Total Con = %d", GetTcpUserCount());
     return r;
 }
 
@@ -74,23 +74,22 @@ void DataPool::destroyTCPUser(TCPUser* pTCPUser)
 {
     if (pTCPUser->isBindedSession())
     {
-        WorkThread* pWorkThread = pTCPUser->getWorkThread();
-        size_t wc = pWorkThread->orderQueue.size();
-        unsigned int sp = pTCPUser->GetPendingSendNum();
-        unsigned int rp = pTCPUser->GetPendingWorkNum();
-        bool sending = pTCPUser->IsSending();
-        G_TraceLog()->sysLog(8, "destroy!!! isSending=%d, rp-%d, sp-%d, wc-%d", sending, rp, sp, wc);
+        G_TraceLog()->sysLog(8, "destroy!!! isSending=%d, rp-%d, sp-%d, wc-%d",
+            pTCPUser->IsSending(),
+            pTCPUser->GetPendingWorkNum(),
+            pTCPUser->GetPendingSendNum(),
+            pTCPUser->getWorkThread()->orderQueue.size());
     }
     else
     {
-        unsigned int sp = pTCPUser->GetPendingSendNum();
-        unsigned int rp = pTCPUser->GetPendingWorkNum();
-        bool sending = pTCPUser->IsSending();
-        G_TraceLog()->sysLog(8, "destroy!!! isSending=%d, rp-%d, sp-%d", sending, rp, sp);
+        G_TraceLog()->sysLog(8, "destroy!!! isSending=%d, rp-%d, sp-%d",
+            pTCPUser->IsSending(),
+            pTCPUser->GetPendingWorkNum(),
+            pTCPUser->GetPendingSendNum());
     }
     if (pTCPUser->IsSending())
     {
-        unsigned int curTime = (unsigned int)time(NULL);
+        __int64 curTime = time(NULL);
         if (pTCPUser->DisLast_ == 0)
         {
             pTCPUser->DisLast_ = curTime;
@@ -106,11 +105,9 @@ void DataPool::destroyTCPUser(TCPUser* pTCPUser)
     G_TraceLog()->sysLog(8, "destroy!!!aaa");
     pTCPUser->ClearRecvMsgs();
     G_TraceLog()->sysLog(8, "destroy!!!bbb");
-    ISession* pSession = pTCPUser->getSession();
-    if (pSession != NULL)
+    if (pTCPUser->getSession() != NULL)
     {
-        pSession = pTCPUser->getSession();
-        pSession->onClose(false);
+        pTCPUser->getSession()->onClose(false);
         pTCPUser->setSession(NULL);
     }
     TCPSocket* sock = pTCPUser->getSocket();

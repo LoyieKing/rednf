@@ -10,6 +10,6 @@
 class Packet_Notice_Power_War_CFG : public PacketHeader {
 public:
     Packet_Notice_Power_War_CFG() : PacketHeader(0x6aa, 0x1c){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_NOTICE_POWER_WAR_CFG_H

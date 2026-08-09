@@ -58,45 +58,39 @@ bool EpollReactor<TSession>::handleEvents(unsigned int milisec)
         for (int i = 0; i < n_event; i++)
         {
             TSession* s = (TSession*)events_[i].data.ptr;
-            if ((events_[i].events & 8) == 0)
+            if ((events_[i].events & 8) != 0)
             {
-                if ((events_[i].events & 0x10) == 0)
-                {
-                    if ((events_[i].events & 1) != 0)
-                    {
-                        s->onRead("Reactor.inl", 0xa3);
-                        if (s->isDisconnected())
-                        {
-                            continue;
-                        }
-                    }
-                    if (((events_[i].events & 4) == 0) || !s->isToWrite())
-                    {
-                    }
-                    else
-                    {
-                        s->onWrite("Reactor.inl", 0xab);
-                        if (s->isDisconnected())
-                        {
-                            continue;
-                        }
-                    }
-                    if (s->isAboutToDisconnect())
-                    {
-                        ChannelServiceApp::gFileLogError.Lock();
-                        ChannelServiceApp::gFileLogError << "isAboutToDisconnect \xb7\xce \xb2\xf7\xbe\xee\xc1\xf8\xb4\xd9" << endl;
-                        ChannelServiceApp::gFileLogError.Unlock();
-                        s->onClose("Reactor.inl", 0xb5);
-                    }
-                }
-                else
-                {
-                    s->onClose("Reactor.inl", 0x9d);
-                }
+                s->onClose("Reactor.inl", 0x97);
+            }
+            else if ((events_[i].events & 0x10) != 0)
+            {
+                s->onClose("Reactor.inl", 0x9d);
             }
             else
             {
-                s->onClose("Reactor.inl", 0x97);
+                if ((events_[i].events & 1) != 0)
+                {
+                    s->onRead("Reactor.inl", 0xa3);
+                    if (s->isDisconnected())
+                    {
+                        continue;
+                    }
+                }
+                if (((events_[i].events & 4) != 0) && s->isToWrite())
+                {
+                    s->onWrite("Reactor.inl", 0xab);
+                    if (s->isDisconnected())
+                    {
+                        continue;
+                    }
+                }
+                if (s->isAboutToDisconnect())
+                {
+                    ChannelServiceApp::gFileLogError.Lock();
+                    ChannelServiceApp::gFileLogError << "isAboutToDisconnect \xb7\xce \xb2\xf7\xbe\xee\xc1\xf8\xb4\xd9" << endl;
+                    ChannelServiceApp::gFileLogError.Unlock();
+                    s->onClose("Reactor.inl", 0xb5);
+                }
             }
         }
     }
@@ -107,10 +101,13 @@ bool EpollReactor<TSession>::handleEvents(unsigned int milisec)
         {
             TSession* s = iter->first;
             ++iter;
-            if ((s != NULL) && s->isIdle())
+            if (s != NULL)
             {
-                s->onClose("Reactor.inl", 199);
-                break;
+                if (s->isIdle())
+                {
+                    s->onClose("Reactor.inl", 199);
+                    break;
+                }
             }
         }
     }

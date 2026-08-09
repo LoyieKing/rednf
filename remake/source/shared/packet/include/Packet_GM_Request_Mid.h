@@ -10,6 +10,6 @@
 class Packet_GM_Request_Mid : public PacketHeader {
 public:
     Packet_GM_Request_Mid() : PacketHeader(0x76c, 0x34){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GM_REQUEST_MID_H

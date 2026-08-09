@@ -10,7 +10,7 @@
 class Packet_Monitor_Call_Guild_Level_Up : public PacketHeader {
 public:
     Packet_Monitor_Call_Guild_Level_Up(): PacketHeader(0x408,0x1b) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_CALL_GUILD_LEVEL_UP_H

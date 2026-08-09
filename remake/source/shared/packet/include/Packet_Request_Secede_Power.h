@@ -10,6 +10,6 @@
 class Packet_Request_Secede_Power : public PacketHeader {
 public:
     Packet_Request_Secede_Power() : PacketHeader(0x6a9, 0x13){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_REQUEST_SECEDE_POWER_H

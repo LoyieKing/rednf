@@ -83,7 +83,11 @@ bool App::load_script()
         return false;
     }
     ret = G_Script()->parse_channel_script();
-    return ret;
+    if (ret == false)
+    {
+        return false;
+    }
+    return true;
 }
 
 void App::prepareRun(char* service_identify)

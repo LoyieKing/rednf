@@ -14,8 +14,8 @@ void GSArea::SetServiceRunning(bool bRun)
 
 Zone::Zone()
 {
-    GSArea* pArea = new GSArea(0);
-    mArea[0] = pArea;
+    // ORIG：无命名局部（new 结果寄存器直存 mArea[0]）。
+    mArea[0] = new GSArea(0);
 }
 
 Zone::~Zone()

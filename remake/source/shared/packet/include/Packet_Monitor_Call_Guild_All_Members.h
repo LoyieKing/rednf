@@ -10,7 +10,7 @@
 class Packet_Monitor_Call_Guild_All_Members : public PacketHeader {
 public:
     Packet_Monitor_Call_Guild_All_Members(): PacketHeader(0x424,0x12) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_CALL_GUILD_ALL_MEMBERS_H

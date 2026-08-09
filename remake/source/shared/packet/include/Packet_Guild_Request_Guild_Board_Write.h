@@ -10,7 +10,7 @@
 class Packet_Guild_Request_Guild_Board_Write : public PacketHeader {
 public:
     Packet_Guild_Request_Guild_Board_Write(): PacketHeader(0x232d,0x90) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GUILD_REQUEST_GUILD_BOARD_WRITE_H

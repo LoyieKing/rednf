@@ -10,6 +10,6 @@
 class Packet_Circulation_Statistic : public PacketHeader {
 public:
     Packet_Circulation_Statistic() : PacketHeader(0x17cb, 0xd0){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_CIRCULATION_STATISTIC_H

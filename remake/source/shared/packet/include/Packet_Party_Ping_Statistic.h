@@ -10,6 +10,6 @@
 class Packet_Party_Ping_Statistic : public PacketHeader {
 public:
     Packet_Party_Ping_Statistic() : PacketHeader(0xfa7, 0xe){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_PARTY_PING_STATISTIC_H

@@ -10,6 +10,6 @@
 class Packet_Guild_Attendance_Info : public PacketHeader {
 public:
     Packet_Guild_Attendance_Info() : PacketHeader(0x1bc6, 0x13){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GUILD_ATTENDANCE_INFO_H

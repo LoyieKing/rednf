@@ -40,106 +40,114 @@ extern bool is_config_changed;
 extern bool is_config_reloaded;
 }
 
-HandlerFor_TE_::HandlerFor_TE_()
-{
-}
-
-HandlerFor_TE_::~HandlerFor_TE_()
-{
-}
-
-void HandlerFor_TE_::init()
-{
-    nsl::IHandler::init();
-    initTimeEvent();
-    memset(&mOldTM, 0, sizeof(struct tm));
-}
+// ctor / dtor / init: weak inline in HandlerFor_TE_.h (ORIG form)
 
 void HandlerFor_TE_::initTimeEvent()
 {
     G_TraceLog()->sysLog(8, "In  initTimeEvent");
-    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity;
-    nsl::InternalMsg* pArg;
 
-    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+    // Separate locals per timer so frame size matches ORIG (~0x80)
+    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity0;
+    nsl::InternalMsg* pArg0;
+    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity1;
+    nsl::InternalMsg* pArg1;
+    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity2;
+    nsl::InternalMsg* pArg2;
+    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity3;
+    nsl::InternalMsg* pArg3;
+    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity4;
+    nsl::InternalMsg* pArg4;
+    // Extra slots to approach ORIG's 0x80 frame (member-ptr / getArg spills)
+    nsl::InternalMsg* pArg0b;
+    nsl::InternalMsg* pArg1b;
+    nsl::InternalMsg* pArg2b;
+    nsl::InternalMsg* pArg3b;
+    nsl::InternalMsg* pArg4b;
+
+    pTimeEntity0 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
         ->createTimeEntity();
-    pArg = pTimeEntity->getArg();
-    pArg->workIndex = 0;
-    pTimeEntity->regist(0x19, 2000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK);
-    if (pTimeEntity->check_period == 0)
+    pArg0 = pTimeEntity0->getArg();
+    pArg0->workIndex = 0;
+    pTimeEntity0->regist(0x19, 2000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK);
+    if (pTimeEntity0->check_period == 0)
     {
-        pApp->super_Threads.getWorkThread(pTimeEntity->getArg()->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity);
+        pArg0b = pTimeEntity0->getArg();
+        pApp->super_Threads.getWorkThread(pArg0b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity0);
     }
     else
     {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
+        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity0);
     }
 
-    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+    pTimeEntity1 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
         ->createTimeEntity();
-    pArg = pTimeEntity->getArg();
-    pArg->workIndex = 0;
-    pTimeEntity->regist(0x1c, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR);
-    if (pTimeEntity->check_period == 0)
+    pArg1 = pTimeEntity1->getArg();
+    pArg1->workIndex = 0;
+    pTimeEntity1->regist(0x1c, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR);
+    if (pTimeEntity1->check_period == 0)
     {
-        pApp->super_Threads.getWorkThread(pTimeEntity->getArg()->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity);
+        pArg1b = pTimeEntity1->getArg();
+        pApp->super_Threads.getWorkThread(pArg1b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity1);
     }
     else
     {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
+        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity1);
     }
 
-    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+    pTimeEntity2 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
         ->createTimeEntity();
-    pArg = pTimeEntity->getArg();
-    pArg->workIndex = 0;
-    pTimeEntity->regist(1, 5000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_CHECK_CONFIG);
-    if (pTimeEntity->check_period == 0)
+    pArg2 = pTimeEntity2->getArg();
+    pArg2->workIndex = 0;
+    pTimeEntity2->regist(1, 5000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_CHECK_CONFIG);
+    if (pTimeEntity2->check_period == 0)
     {
-        pApp->super_Threads.getWorkThread(pTimeEntity->getArg()->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity);
+        pArg2b = pTimeEntity2->getArg();
+        pApp->super_Threads.getWorkThread(pArg2b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity2);
     }
     else
     {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
+        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity2);
     }
 
-    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+    pTimeEntity3 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
         ->createTimeEntity();
-    pArg = pTimeEntity->getArg();
-    pArg->workIndex = 0;
-    pTimeEntity->regist(0x1d, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_DB_PING);
-    if (pTimeEntity->check_period == 0)
+    pArg3 = pTimeEntity3->getArg();
+    pArg3->workIndex = 0;
+    pTimeEntity3->regist(0x1d, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_DB_PING);
+    if (pTimeEntity3->check_period == 0)
     {
-        pApp->super_Threads.getWorkThread(pTimeEntity->getArg()->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity);
+        pArg3b = pTimeEntity3->getArg();
+        pApp->super_Threads.getWorkThread(pArg3b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity3);
     }
     else
     {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
+        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity3);
     }
 
-    pTimeEntity = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+    pTimeEntity4 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
         ->createTimeEntity();
-    pArg = pTimeEntity->getArg();
-    pArg->workIndex = 0;
-    pTimeEntity->regist(0x28, 60000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE);
-    if (pTimeEntity->check_period == 0)
+    pArg4 = pTimeEntity4->getArg();
+    pArg4->workIndex = 0;
+    pTimeEntity4->regist(0x28, 60000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE);
+    if (pTimeEntity4->check_period == 0)
     {
-        pApp->super_Threads.getWorkThread(pTimeEntity->getArg()->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity);
+        pArg4b = pTimeEntity4->getArg();
+        pApp->super_Threads.getWorkThread(pArg4b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity4);
     }
     else
     {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity);
+        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity4);
     }
     G_TraceLog()->sysLog(8, "Out initTimeEvent");
 }
 
 unsigned long HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK(nsl::InternalMsg* pArg)
 {
+    unsigned long return_code = 0;
     G_TraceLog()->sysLog(8, "In  onTIME_AUCTION_EXPIRE_EVENT_CHECK");
-    Zone* pZone = G_Zone();
-    if (((GSArea*)pZone->mArea[0])->IsServiceRunning())
+    if (((GSArea*)G_Zone()->mArea[0])->IsServiceRunning())
     {
-        G_Auction()->ProcessMostRecentExpireItem();
+        return_code = G_Auction()->ProcessMostRecentExpireItem();
     }
     G_TraceLog()->sysLog(8, "Out  onTIME_AUCTION_EXPIRE_EVENT_CHECK");
     return 0;
@@ -147,6 +155,7 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK(nsl::InternalMsg
 
 unsigned long HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR(nsl::InternalMsg* pArg)
 {
+    unsigned long result = 0;
     G_TraceLog()->sysLog(8, "In  onTIME_AUCTION_STATISTICS_COLLECTOR");
     G_StatisticsCollector()->LoggingPerSec();
     G_StatisticsCollector()->DataInitialization(false);
@@ -159,7 +168,8 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR(nsl::InternalM
 unsigned long HandlerFor_TE_::onTIME_CHECK_CONFIG(nsl::InternalMsg* pArg)
 {
     struct stat st;
-    int rst = stat(nsl::configpath, &st);
+    // volatile forces ORIG: store rst, reload, shr $0x1f, test (not cmpl/jns)
+    volatile int rst = stat(nsl::configpath, &st);
     if (rst < 0)
     {
         G_TraceLog()->sysLog(7, "onTIME_CHECK_CONFIG stat() : path[%s]", nsl::configpath);
@@ -181,6 +191,7 @@ unsigned long HandlerFor_TE_::onTIME_CHECK_CONFIG(nsl::InternalMsg* pArg)
 
 unsigned long HandlerFor_TE_::onTIME_AUCTION_DB_PING(nsl::InternalMsg* pArg)
 {
+    unsigned long result = 0;
     tagAUCTION_DB_PING dbtrPing;
     nsl::Message* pMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
     nsl::CMsgCell* pNewCell = pMsg->getCellFromMessage();
@@ -191,13 +202,16 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_DB_PING(nsl::InternalMsg* pArg)
 
 unsigned long HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg)
 {
+    unsigned long result = 0;
     G_TraceLog()->sysLog(7, "In  onTIME_AUCTION_TRY_SHUTDOWN");
     size_t pendingWorkNumSum = 0;
-    for (int i = 0; i < pApp->super_Threads.getWorkThreadNum(); i++)
+    for (int i = 0; i < pApp->super_Threads.getWorkThreadNum(); i = i + 1)
     {
-        pendingWorkNumSum += pApp->super_Threads.getWorkThread(i)->GetQueueSizeNoLock();
+        // No intermediate temp: ORIG does load-sum / add / store-sum
+        pendingWorkNumSum = pendingWorkNumSum + pApp->super_Threads.getWorkThread(i)->GetQueueSizeNoLock();
     }
-    int pendingDbNum = pApp->super_Threads.getDBThread(0)->mQueueSize;
+    int pendingDbNum = 0;
+    pendingDbNum = pApp->super_Threads.getDBThread(0)->mQueueSize;
     G_TraceLog()->sysLog(5, "work queue size: %d, db queue size: %d", (int)pendingWorkNumSum, pendingDbNum);
     nsl::IArea* pArea = G_Zone()->mArea[0];
     if ((pendingWorkNumSum == 0) && (pendingDbNum == 0))
@@ -212,9 +226,10 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg
         nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter();
         while (!pArea->isIterEnd(iter))
         {
-            nsl::ISession* pSession = pArea->getValueFromIter(iter);
-            nsl::TCPUser* u = pSession->getTCPUser();
-            nsl::Message* pNewMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
+            nsl::ISession* pCharacter = pArea->getValueFromIter(iter);
+            nsl::Message* pNewMsg =
+                pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)
+                    ->getSendMessage(pCharacter->getTCPUser());
             nsl::CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
             *pNewCell << &pck;
             pNewCell->PAD();
@@ -232,22 +247,18 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE(nsl::InternalM
     time_t current_time;
     time(&current_time);
     struct tm* now_tm = localtime(&current_time);
-    Zone* pZone = G_Zone();
-    if ((((GSArea*)pZone->mArea[0])->IsServiceRunning()) && (mOldTM.tm_mday != now_tm->tm_mday) && (now_tm->tm_hour == 6))
+    // Nested ifs (not &&) — ORIG short-circuits without materializing a bool
+    if (((GSArea*)G_Zone()->mArea[0])->IsServiceRunning())
     {
-        G_Auction()->UpdateAveragePrice();
-        mOldTM.tm_sec = now_tm->tm_sec;
-        mOldTM.tm_min = now_tm->tm_min;
-        mOldTM.tm_hour = now_tm->tm_hour;
-        mOldTM.tm_mday = now_tm->tm_mday;
-        mOldTM.tm_mon = now_tm->tm_mon;
-        mOldTM.tm_year = now_tm->tm_year;
-        mOldTM.tm_wday = now_tm->tm_wday;
-        mOldTM.tm_yday = now_tm->tm_yday;
-        mOldTM.tm_isdst = now_tm->tm_isdst;
-        mOldTM.tm_gmtoff = now_tm->tm_gmtoff;
-        mOldTM.tm_zone = now_tm->tm_zone;
-        G_TraceLog()->sysLog(5, "UPDATE AVERAGE PRICE");
+        if (mOldTM.tm_mday != now_tm->tm_mday)
+        {
+            if (now_tm->tm_hour == 6)
+            {
+                G_Auction()->UpdateAveragePrice();
+                mOldTM = *now_tm;
+                G_TraceLog()->sysLog(5, "UPDATE AVERAGE PRICE");
+            }
+        }
     }
     G_TraceLog()->sysLog(8, "Out  onTIME_AUCTION_UPDATE_AVERAGE_PRICE");
     return 0;

@@ -10,7 +10,7 @@
 class Packet_TowerOfDespair_Statistic_GTS : public PacketHeader {
 public:
     Packet_TowerOfDespair_Statistic_GTS(): PacketHeader(0x271c,0x17) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_TOWEROFDESPAIR_STATISTIC_GTS_H

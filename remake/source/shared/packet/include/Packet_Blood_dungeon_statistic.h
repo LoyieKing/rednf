@@ -10,6 +10,6 @@
 class Packet_Blood_dungeon_statistic : public PacketHeader {
 public:
     Packet_Blood_dungeon_statistic() : PacketHeader(0x1036, 0x14){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_BLOOD_DUNGEON_STATISTIC_H

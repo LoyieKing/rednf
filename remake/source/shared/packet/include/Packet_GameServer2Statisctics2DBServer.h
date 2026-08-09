@@ -10,7 +10,7 @@
 class Packet_GameServer2Statisctics2DBServer : public PacketHeader {
 public:
     Packet_GameServer2Statisctics2DBServer(): PacketHeader(0x27fd,0x35) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GAMESERVER2STATISCTICS2DBSERVER_H

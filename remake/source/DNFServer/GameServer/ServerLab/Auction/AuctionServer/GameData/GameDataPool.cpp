@@ -35,9 +35,7 @@ auction::Character* GameDataPool::createCharacter()
     {
         return NULL;
     }
-    unsigned int characKey = uniqueCharacKey;
-    uniqueCharacKey = uniqueCharacKey + 1;
-    r->setCharacKey(characKey);
+    r->setCharacKey(uniqueCharacKey++);
     pool_check_character = pool_check_character + 1;
     return r;
 }
@@ -68,8 +66,7 @@ void GameDataPool::destroyConInfo(ConInterface* pConInterface)
 TE_Entity<HandlerFor_TE_>* GameDataPool::createTimeEntity()
 {
     TE_Entity<HandlerFor_TE_>* r = TimeEntityPool->construct();
-    InternalMsg* pArg = InternalMsgPool->construct();
-    r->setArg(pArg);
+    r->setArg(InternalMsgPool->construct());
     pool_check_timeEntity = pool_check_timeEntity + 1;
     pool_check_timeInternal = pool_check_timeInternal + 1;
     return r;
@@ -77,8 +74,7 @@ TE_Entity<HandlerFor_TE_>* GameDataPool::createTimeEntity()
 
 void GameDataPool::destroyTimeEntity(void* pTimeEntity)
 {
-    InternalMsg* p = ((ITimeEntity*)pTimeEntity)->getArg();
-    InternalMsgPool->free(p);
+    InternalMsgPool->free(((ITimeEntity*)pTimeEntity)->getArg());
     TimeEntityPool->free((TE_Entity<HandlerFor_TE_>*)pTimeEntity);
     pool_check_timeEntity = pool_check_timeEntity - 1;
     pool_check_timeInternal = pool_check_timeInternal - 1;

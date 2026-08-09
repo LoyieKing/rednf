@@ -10,7 +10,7 @@
 class Packet_Monitor_Request_Charac_Info : public PacketHeader {
 public:
     Packet_Monitor_Request_Charac_Info(): PacketHeader(0x27de,0x23) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_REQUEST_CHARAC_INFO_H

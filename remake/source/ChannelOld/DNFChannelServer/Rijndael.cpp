@@ -137,7 +137,9 @@ void CRijndael::Initialize(const char* keydata, int keydatalength, const char* c
             m_iROUNDS = 0xe;
         }
 
-        int BC = (m_blockSize + (unsigned)(m_blockSize >> 31) / 4) >> 2;
+        // ORIG：(m_blockSize + (unsigned)(m_blockSize >> 31) >> 0x1e) >> 2
+        // （shr $30 而非 /4 的 shr $2）。
+        int BC = (m_blockSize + (int)((unsigned)(m_blockSize >> 31) >> 0x1e)) >> 2;
         int ROUND_KEY_COUNT = (m_iROUNDS + 1) * BC;
         int KC = (m_keylength + (unsigned)(m_keylength >> 31) / 4) >> 2;
 
@@ -254,7 +256,7 @@ void CRijndael::ResetChain()
 
 void CRijndael::Signature(char* pcSig)
 {
-    char acSigData[48];
+    char acSigData[12];
     memset(acSigData, 0, sizeof(acSigData));
     strcat(acSigData, "RIJNDAEL");
     size_t iLen = strlen(acSigData);
@@ -273,44 +275,65 @@ void CRijndael::DefEncryptBlock(const char* in, char* result)
         throw CCryptorException("DefEncryptBlock", 0x445, sm_szErrorMsg1);
     }
 
-    unsigned int a0 = ((unsigned char)in[0] << 0x18 | (unsigned char)in[1] << 0x10 | (unsigned char)in[2] << 8 | (unsigned char)in[3]) ^ m_Ke[0][0];
-    unsigned int a1 = ((unsigned char)in[4] << 0x18 | (unsigned char)in[5] << 0x10 | (unsigned char)in[6] << 8 | (unsigned char)in[7]) ^ m_Ke[0][1];
-    unsigned int a2 = ((unsigned char)in[8] << 0x18 | (unsigned char)in[9] << 0x10 | (unsigned char)in[10] << 8 | (unsigned char)in[11]) ^ m_Ke[0][2];
-    unsigned int a3 = ((unsigned char)in[12] << 0x18 | (unsigned char)in[13] << 0x10 | (unsigned char)in[14] << 8 | (unsigned char)in[15]) ^ m_Ke[0][3];
+    int* Ker = &m_Ke[0][0];
+    int a0, a1, a2, a3;
+    int t0, t1, t2, t3;
+
+    a0 = (unsigned char)*in++ << 24;
+    a0 |= (unsigned char)*in++ << 16;
+    a0 |= (unsigned char)*in++ << 8;
+    a0 |= (unsigned char)*in++;
+    a0 ^= Ker[0];
+    a1 = (unsigned char)*in++ << 24;
+    a1 |= (unsigned char)*in++ << 16;
+    a1 |= (unsigned char)*in++ << 8;
+    a1 |= (unsigned char)*in++;
+    a1 ^= Ker[1];
+    a2 = (unsigned char)*in++ << 24;
+    a2 |= (unsigned char)*in++ << 16;
+    a2 |= (unsigned char)*in++ << 8;
+    a2 |= (unsigned char)*in++;
+    a2 ^= Ker[2];
+    a3 = (unsigned char)*in++ << 24;
+    a3 |= (unsigned char)*in++ << 16;
+    a3 |= (unsigned char)*in++ << 8;
+    a3 |= (unsigned char)*in++;
+    a3 ^= Ker[3];
 
     for (int r = 1; r < m_iROUNDS; r++)
     {
-        unsigned int t0 = sm_T1[a0 >> 0x18] ^ sm_T2[(a1 >> 0x10) & 0xff] ^ sm_T3[(a2 >> 8) & 0xff] ^ sm_T4[a3 & 0xff] ^ m_Ke[r][0];
-        unsigned int t1 = sm_T1[a1 >> 0x18] ^ sm_T2[(a2 >> 0x10) & 0xff] ^ sm_T3[(a3 >> 8) & 0xff] ^ sm_T4[a0 & 0xff] ^ m_Ke[r][1];
-        unsigned int t2 = sm_T1[a2 >> 0x18] ^ sm_T2[(a3 >> 0x10) & 0xff] ^ sm_T3[(a0 >> 8) & 0xff] ^ sm_T4[a1 & 0xff] ^ m_Ke[r][2];
-        unsigned int t3 = sm_T1[a3 >> 0x18] ^ sm_T2[(a0 >> 0x10) & 0xff] ^ sm_T3[(a1 >> 8) & 0xff] ^ sm_T4[a2 & 0xff] ^ m_Ke[r][3];
+        Ker = &m_Ke[r][0];
+        t0 = sm_T1[(unsigned)a0 >> 24] ^ sm_T2[(a1 >> 16) & 0xff] ^ sm_T3[(a2 >> 8) & 0xff] ^ sm_T4[a3 & 0xff] ^ Ker[0];
+        t1 = sm_T1[(unsigned)a1 >> 24] ^ sm_T2[(a2 >> 16) & 0xff] ^ sm_T3[(a3 >> 8) & 0xff] ^ sm_T4[a0 & 0xff] ^ Ker[1];
+        t2 = sm_T1[(unsigned)a2 >> 24] ^ sm_T2[(a3 >> 16) & 0xff] ^ sm_T3[(a0 >> 8) & 0xff] ^ sm_T4[a1 & 0xff] ^ Ker[2];
+        t3 = sm_T1[(unsigned)a3 >> 24] ^ sm_T2[(a0 >> 16) & 0xff] ^ sm_T3[(a1 >> 8) & 0xff] ^ sm_T4[a2 & 0xff] ^ Ker[3];
         a0 = t0;
         a1 = t1;
         a2 = t2;
         a3 = t3;
     }
 
-    int r2 = m_iROUNDS;
-    int t = m_Ke[r2][0];
-    result[0] = sm_S[a0 >> 0x18] ^ (unsigned char)((unsigned int)t >> 0x18);
-    result[1] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_S[(a1 >> 0x10) & 0xff];
-    result[2] = (unsigned char)((unsigned int)t >> 8) ^ sm_S[(a2 >> 8) & 0xff];
-    result[3] = (unsigned char)t ^ sm_S[a3 & 0xff];
-    t = m_Ke[r2][1];
-    result[4] = (unsigned char)((unsigned int)t >> 0x18) ^ sm_S[a1 >> 0x18];
-    result[5] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_S[(a2 >> 0x10) & 0xff];
-    result[6] = (unsigned char)((unsigned int)t >> 8) ^ sm_S[(a3 >> 8) & 0xff];
-    result[7] = (unsigned char)t ^ sm_S[a0 & 0xff];
-    t = m_Ke[r2][2];
-    result[8] = (unsigned char)((unsigned int)t >> 0x18) ^ sm_S[a2 >> 0x18];
-    result[9] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_S[(a3 >> 0x10) & 0xff];
-    result[10] = (unsigned char)((unsigned int)t >> 8) ^ sm_S[(a0 >> 8) & 0xff];
-    result[11] = (unsigned char)t ^ sm_S[a1 & 0xff];
-    t = m_Ke[r2][3];
-    result[12] = (unsigned char)((unsigned int)t >> 0x18) ^ sm_S[a3 >> 0x18];
-    result[13] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_S[(a0 >> 0x10) & 0xff];
-    result[14] = (unsigned char)((unsigned int)t >> 8) ^ sm_S[(a1 >> 8) & 0xff];
-    result[15] = (unsigned char)t ^ sm_S[a2 & 0xff];
+    Ker = &m_Ke[m_iROUNDS][0];
+    int tt = Ker[0];
+    result[0] = sm_S[(unsigned)a0 >> 24] ^ (unsigned char)(tt >> 24);
+    result[1] = sm_S[(a1 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[2] = sm_S[(a2 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[3] = sm_S[a3 & 0xff] ^ (unsigned char)tt;
+    tt = Ker[1];
+    result[4] = sm_S[(unsigned)a1 >> 24] ^ (unsigned char)(tt >> 24);
+    result[5] = sm_S[(a2 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[6] = sm_S[(a3 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[7] = sm_S[a0 & 0xff] ^ (unsigned char)tt;
+    tt = Ker[2];
+    result[8] = sm_S[(unsigned)a2 >> 24] ^ (unsigned char)(tt >> 24);
+    result[9] = sm_S[(a3 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[10] = sm_S[(a0 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[11] = sm_S[a1 & 0xff] ^ (unsigned char)tt;
+    tt = Ker[3];
+    result[12] = sm_S[(unsigned)a3 >> 24] ^ (unsigned char)(tt >> 24);
+    result[13] = sm_S[(a0 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[14] = sm_S[(a1 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[15] = sm_S[a2 & 0xff] ^ (unsigned char)tt;
 }
 
 void CRijndael::DefDecryptBlock(const char* in, char* result)
@@ -320,150 +343,176 @@ void CRijndael::DefDecryptBlock(const char* in, char* result)
         throw CCryptorException("DefDecryptBlock", 0x497, sm_szErrorMsg1);
     }
 
-    unsigned int a0 = ((unsigned char)in[0] << 0x18 | (unsigned char)in[1] << 0x10 | (unsigned char)in[2] << 8 | (unsigned char)in[3]) ^ m_Kd[0][0];
-    unsigned int a1 = ((unsigned char)in[4] << 0x18 | (unsigned char)in[5] << 0x10 | (unsigned char)in[6] << 8 | (unsigned char)in[7]) ^ m_Kd[0][1];
-    unsigned int a2 = ((unsigned char)in[8] << 0x18 | (unsigned char)in[9] << 0x10 | (unsigned char)in[10] << 8 | (unsigned char)in[11]) ^ m_Kd[0][2];
-    unsigned int a3 = ((unsigned char)in[12] << 0x18 | (unsigned char)in[13] << 0x10 | (unsigned char)in[14] << 8 | (unsigned char)in[15]) ^ m_Kd[0][3];
+    int* Kdr = &m_Kd[0][0];
+    int a0, a1, a2, a3;
+    int t0, t1, t2, t3;
+
+    a0 = (unsigned char)*in++ << 24;
+    a0 |= (unsigned char)*in++ << 16;
+    a0 |= (unsigned char)*in++ << 8;
+    a0 |= (unsigned char)*in++;
+    a0 ^= Kdr[0];
+    a1 = (unsigned char)*in++ << 24;
+    a1 |= (unsigned char)*in++ << 16;
+    a1 |= (unsigned char)*in++ << 8;
+    a1 |= (unsigned char)*in++;
+    a1 ^= Kdr[1];
+    a2 = (unsigned char)*in++ << 24;
+    a2 |= (unsigned char)*in++ << 16;
+    a2 |= (unsigned char)*in++ << 8;
+    a2 |= (unsigned char)*in++;
+    a2 ^= Kdr[2];
+    a3 = (unsigned char)*in++ << 24;
+    a3 |= (unsigned char)*in++ << 16;
+    a3 |= (unsigned char)*in++ << 8;
+    a3 |= (unsigned char)*in++;
+    a3 ^= Kdr[3];
 
     for (int r = 1; r < m_iROUNDS; r++)
     {
-        unsigned int t0 = sm_T5[a0 >> 0x18] ^ sm_T6[(a3 >> 0x10) & 0xff] ^ sm_T7[(a2 >> 8) & 0xff] ^ sm_T8[a1 & 0xff] ^ m_Kd[r][0];
-        unsigned int t1 = sm_T5[a1 >> 0x18] ^ sm_T6[(a0 >> 0x10) & 0xff] ^ sm_T7[(a3 >> 8) & 0xff] ^ sm_T8[a2 & 0xff] ^ m_Kd[r][1];
-        unsigned int t2 = sm_T5[a2 >> 0x18] ^ sm_T6[(a1 >> 0x10) & 0xff] ^ sm_T7[(a0 >> 8) & 0xff] ^ sm_T8[a3 & 0xff] ^ m_Kd[r][2];
-        unsigned int t3 = sm_T5[a3 >> 0x18] ^ sm_T6[(a2 >> 0x10) & 0xff] ^ sm_T7[(a1 >> 8) & 0xff] ^ sm_T8[a0 & 0xff] ^ m_Kd[r][3];
+        Kdr = &m_Kd[r][0];
+        t0 = sm_T5[(unsigned)a0 >> 24] ^ sm_T6[(a3 >> 16) & 0xff] ^ sm_T7[(a2 >> 8) & 0xff] ^ sm_T8[a1 & 0xff] ^ Kdr[0];
+        t1 = sm_T5[(unsigned)a1 >> 24] ^ sm_T6[(a0 >> 16) & 0xff] ^ sm_T7[(a3 >> 8) & 0xff] ^ sm_T8[a2 & 0xff] ^ Kdr[1];
+        t2 = sm_T5[(unsigned)a2 >> 24] ^ sm_T6[(a1 >> 16) & 0xff] ^ sm_T7[(a0 >> 8) & 0xff] ^ sm_T8[a3 & 0xff] ^ Kdr[2];
+        t3 = sm_T5[(unsigned)a3 >> 24] ^ sm_T6[(a2 >> 16) & 0xff] ^ sm_T7[(a1 >> 8) & 0xff] ^ sm_T8[a0 & 0xff] ^ Kdr[3];
         a0 = t0;
         a1 = t1;
         a2 = t2;
         a3 = t3;
     }
 
-    int r2 = m_iROUNDS;
-    int t = m_Kd[r2][0];
-    result[0] = sm_Si[a0 >> 0x18] ^ (unsigned char)((unsigned int)t >> 0x18);
-    result[1] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_Si[(a3 >> 0x10) & 0xff];
-    result[2] = (unsigned char)((unsigned int)t >> 8) ^ sm_Si[(a2 >> 8) & 0xff];
-    result[3] = (unsigned char)t ^ sm_Si[a1 & 0xff];
-    t = m_Kd[r2][1];
-    result[4] = (unsigned char)((unsigned int)t >> 0x18) ^ sm_Si[a1 >> 0x18];
-    result[5] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_Si[(a0 >> 0x10) & 0xff];
-    result[6] = (unsigned char)((unsigned int)t >> 8) ^ sm_Si[(a3 >> 8) & 0xff];
-    result[7] = (unsigned char)t ^ sm_Si[a2 & 0xff];
-    t = m_Kd[r2][2];
-    result[8] = (unsigned char)((unsigned int)t >> 0x18) ^ sm_Si[a2 >> 0x18];
-    result[9] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_Si[(a1 >> 0x10) & 0xff];
-    result[10] = (unsigned char)((unsigned int)t >> 8) ^ sm_Si[(a0 >> 8) & 0xff];
-    result[11] = (unsigned char)t ^ sm_Si[a3 & 0xff];
-    t = m_Kd[r2][3];
-    result[12] = (unsigned char)((unsigned int)t >> 0x18) ^ sm_Si[a3 >> 0x18];
-    result[13] = (unsigned char)((unsigned int)t >> 0x10) ^ sm_Si[(a2 >> 0x10) & 0xff];
-    result[14] = (unsigned char)((unsigned int)t >> 8) ^ sm_Si[(a1 >> 8) & 0xff];
-    result[15] = (unsigned char)t ^ sm_Si[a0 & 0xff];
+    Kdr = &m_Kd[m_iROUNDS][0];
+    int tt = Kdr[0];
+    result[0] = sm_Si[(unsigned)a0 >> 24] ^ (unsigned char)(tt >> 24);
+    result[1] = sm_Si[(a3 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[2] = sm_Si[(a2 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[3] = sm_Si[a1 & 0xff] ^ (unsigned char)tt;
+    tt = Kdr[1];
+    result[4] = sm_Si[(unsigned)a1 >> 24] ^ (unsigned char)(tt >> 24);
+    result[5] = sm_Si[(a0 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[6] = sm_Si[(a3 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[7] = sm_Si[a2 & 0xff] ^ (unsigned char)tt;
+    tt = Kdr[2];
+    result[8] = sm_Si[(unsigned)a2 >> 24] ^ (unsigned char)(tt >> 24);
+    result[9] = sm_Si[(a1 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[10] = sm_Si[(a0 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[11] = sm_Si[a3 & 0xff] ^ (unsigned char)tt;
+    tt = Kdr[3];
+    result[12] = sm_Si[(unsigned)a3 >> 24] ^ (unsigned char)(tt >> 24);
+    result[13] = sm_Si[(a2 >> 16) & 0xff] ^ (unsigned char)(tt >> 16);
+    result[14] = sm_Si[(a1 >> 8) & 0xff] ^ (unsigned char)(tt >> 8);
+    result[15] = sm_Si[a0 & 0xff] ^ (unsigned char)tt;
 }
-
 void CRijndael::EncryptBlock(const char* in, char* result)
 {
-    if (m_bInit == true)
+    // ORIG：未初始化即 throw（CCryptorException，行 0x4e7）。
+    if (m_bInit != true)
     {
-        if (m_blockSize == 0x10)
+        throw CCryptorException("EncryptBlock", 0x4e7, sm_szErrorMsg1);
+    }
+    if (m_blockSize == 0x10)
+    {
+        DefEncryptBlock(in, result);
+    }
+    else
+    {
+            // ORIG：同 EncryptBlock，>> 0x1e。
+            int BC = (m_blockSize + (int)((unsigned)(m_blockSize >> 31) >> 0x1e)) >> 2;
+        int SC = BC == 4 ? 0 : (BC == 6 ? 1 : 2);
+        int s1 = sm_shifts[SC][1][0];
+        int s2 = sm_shifts[SC][2][0];
+        int s3 = sm_shifts[SC][3][0];
+
+        int* pi = t;
+        for (int i = 0; i < BC; i++)
         {
-            DefEncryptBlock(in, result);
+            *pi = (unsigned char)*in << 0x18;
+            *pi |= (unsigned char)in[1] << 0x10;
+            *pi |= (unsigned char)in[2] << 8;
+            *pi |= (unsigned char)in[3];
+            in = in + 4;
+            *pi = m_Ke[0][i] ^ *pi;
+            pi = pi + 1;
         }
-        else
+
+        for (int r = 1; r < m_iROUNDS; r++)
         {
-            int BC = (m_blockSize + (unsigned)(m_blockSize >> 31) / 4) >> 2;
-            int SC = BC == 4 ? 0 : (BC == 6 ? 1 : 2);
-            int s1 = sm_shifts[SC][1][0];
-            int s2 = sm_shifts[SC][2][0];
-            int s3 = sm_shifts[SC][3][0];
-
-            int* pi = t;
             for (int i = 0; i < BC; i++)
             {
-                *pi = (unsigned char)*in << 0x18;
-                *pi |= (unsigned char)in[1] << 0x10;
-                *pi |= (unsigned char)in[2] << 8;
-                *pi |= (unsigned char)in[3];
-                in = in + 4;
-                *pi = m_Ke[0][i] ^ *pi;
-                pi = pi + 1;
+                a[i] = sm_T1[(unsigned int)t[i] >> 0x18]
+                    ^ sm_T2[(t[(i + s1) % BC] >> 0x10) & 0xff]
+                    ^ sm_T3[(t[(i + s2) % BC] >> 8) & 0xff]
+                    ^ sm_T4[t[(i + s3) % BC] & 0xff] ^ m_Ke[r][i];
             }
+            memcpy(t, a, BC << 2);
+        }
 
-            for (int r = 1; r < m_iROUNDS; r++)
-            {
-                for (int i = 0; i < BC; i++)
-                {
-                    a[i] = sm_T1[(unsigned int)t[i] >> 0x18]
-                        ^ sm_T2[(t[(i + s1) % BC] >> 0x10) & 0xff]
-                        ^ sm_T3[(t[(i + s2) % BC] >> 8) & 0xff]
-                        ^ sm_T4[t[(i + s3) % BC] & 0xff] ^ m_Ke[r][i];
-                }
-                memcpy(t, a, BC << 2);
-            }
-
-            int j = 0;
-            for (int i = 0; i < BC; i++)
-            {
-                int t2 = m_Ke[m_iROUNDS][i];
-                result[j] = (unsigned char)((unsigned int)t2 >> 0x18) ^ sm_S[(unsigned int)t[i] >> 0x18];
-                result[j + 1] = (unsigned char)((unsigned int)t2 >> 0x10) ^ sm_S[(t[(i + s1) % BC] >> 0x10) & 0xff];
-                result[j + 2] = (unsigned char)((unsigned int)t2 >> 8) ^ sm_S[(t[(i + s2) % BC] >> 8) & 0xff];
-                result[j + 3] = (unsigned char)t2 ^ sm_S[t[(i + s3) % BC] & 0xff];
-                j = j + 4;
-            }
+        int j = 0;
+        for (int i = 0; i < BC; i++)
+        {
+            int t2 = m_Ke[m_iROUNDS][i];
+            result[j] = (unsigned char)((unsigned int)t2 >> 0x18) ^ sm_S[(unsigned int)t[i] >> 0x18];
+            result[j + 1] = (unsigned char)((unsigned int)t2 >> 0x10) ^ sm_S[(t[(i + s1) % BC] >> 0x10) & 0xff];
+            result[j + 2] = (unsigned char)((unsigned int)t2 >> 8) ^ sm_S[(t[(i + s2) % BC] >> 8) & 0xff];
+            result[j + 3] = (unsigned char)t2 ^ sm_S[t[(i + s3) % BC] & 0xff];
+            j = j + 4;
         }
     }
 }
 
 void CRijndael::DecryptBlock(const char* in, char* result)
 {
-    if (m_bInit == true)
+    // ORIG：未初始化即 throw（CCryptorException，行 0x51f）。
+    if (m_bInit != true)
     {
-        if (m_blockSize == 0x10)
+        throw CCryptorException("DecryptBlock", 0x51f, sm_szErrorMsg1);
+    }
+    if (m_blockSize == 0x10)
+    {
+        DefDecryptBlock(in, result);
+    }
+    else
+    {
+        // ORIG：>> 0x1e（shr $30）而非 /4（shr $2）。
+        int BC = (m_blockSize + (int)((unsigned)(m_blockSize >> 31) >> 0x1e)) >> 2;
+        int SC = BC == 4 ? 0 : (BC == 6 ? 1 : 2);
+        int s1 = sm_shifts[SC][1][1];
+        int s2 = sm_shifts[SC][2][1];
+        int s3 = sm_shifts[SC][3][1];
+
+        int* pi = t;
+        for (int i = 0; i < BC; i++)
         {
-            DefDecryptBlock(in, result);
+            *pi = (unsigned char)*in << 0x18;
+            *pi |= (unsigned char)in[1] << 0x10;
+            *pi |= (unsigned char)in[2] << 8;
+            *pi |= (unsigned char)in[3];
+            in = in + 4;
+            *pi = m_Kd[0][i] ^ *pi;
+            pi = pi + 1;
         }
-        else
+
+        for (int r = 1; r < m_iROUNDS; r++)
         {
-            int BC = (m_blockSize + (unsigned)(m_blockSize >> 31) / 4) >> 2;
-            int SC = BC == 4 ? 0 : (BC == 6 ? 1 : 2);
-            int s1 = sm_shifts[SC][1][1];
-            int s2 = sm_shifts[SC][2][1];
-            int s3 = sm_shifts[SC][3][1];
-
-            int* pi = t;
             for (int i = 0; i < BC; i++)
             {
-                *pi = (unsigned char)*in << 0x18;
-                *pi |= (unsigned char)in[1] << 0x10;
-                *pi |= (unsigned char)in[2] << 8;
-                *pi |= (unsigned char)in[3];
-                in = in + 4;
-                *pi = m_Kd[0][i] ^ *pi;
-                pi = pi + 1;
+                a[i] = sm_T5[(unsigned int)t[i] >> 0x18]
+                    ^ sm_T6[(t[(i + s1) % BC] >> 0x10) & 0xff]
+                    ^ sm_T7[(t[(i + s2) % BC] >> 8) & 0xff]
+                    ^ sm_T8[t[(i + s3) % BC] & 0xff] ^ m_Kd[r][i];
             }
+            memcpy(t, a, BC << 2);
+        }
 
-            for (int r = 1; r < m_iROUNDS; r++)
-            {
-                for (int i = 0; i < BC; i++)
-                {
-                    a[i] = sm_T5[(unsigned int)t[i] >> 0x18]
-                        ^ sm_T6[(t[(i + s1) % BC] >> 0x10) & 0xff]
-                        ^ sm_T7[(t[(i + s2) % BC] >> 8) & 0xff]
-                        ^ sm_T8[t[(i + s3) % BC] & 0xff] ^ m_Kd[r][i];
-                }
-                memcpy(t, a, BC << 2);
-            }
-
-            int j = 0;
-            for (int i = 0; i < BC; i++)
-            {
-                int t2 = m_Kd[m_iROUNDS][i];
-                result[j] = (unsigned char)((unsigned int)t2 >> 0x18) ^ sm_Si[(unsigned int)t[i] >> 0x18];
-                result[j + 1] = (unsigned char)((unsigned int)t2 >> 0x10) ^ sm_Si[(t[(i + s1) % BC] >> 0x10) & 0xff];
-                result[j + 2] = (unsigned char)((unsigned int)t2 >> 8) ^ sm_Si[(t[(i + s2) % BC] >> 8) & 0xff];
-                result[j + 3] = (unsigned char)t2 ^ sm_Si[t[(i + s3) % BC] & 0xff];
-                j = j + 4;
-            }
+        int j = 0;
+        for (int i = 0; i < BC; i++)
+        {
+            int t2 = m_Kd[m_iROUNDS][i];
+            result[j] = (unsigned char)((unsigned int)t2 >> 0x18) ^ sm_Si[(unsigned int)t[i] >> 0x18];
+            result[j + 1] = (unsigned char)((unsigned int)t2 >> 0x10) ^ sm_Si[(t[(i + s1) % BC] >> 0x10) & 0xff];
+            result[j + 2] = (unsigned char)((unsigned int)t2 >> 8) ^ sm_Si[(t[(i + s2) % BC] >> 8) & 0xff];
+            result[j + 3] = (unsigned char)t2 ^ sm_Si[t[(i + s3) % BC] & 0xff];
+            j = j + 4;
         }
     }
 }

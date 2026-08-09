@@ -10,6 +10,6 @@
 class Packet_Dungeon_Statistic_Party : public PacketHeader {
 public:
     Packet_Dungeon_Statistic_Party() : PacketHeader(0xc35, 0x40){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_DUNGEON_STATISTIC_PARTY_H

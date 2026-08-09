@@ -45,12 +45,11 @@ int ss_vswprintf(wchar_t* buffer, size_t count, const wchar_t* format, char* ap)
     assert(count > 0);
     assert(format != 0);
     int ret = vswprintf(buffer, count, format, (va_list)ap);
-    if ((-1 < ret) && (ret < (int)count))
+    if (ret < 0 || (int)count <= ret)
     {
-        return ret;
+        *buffer = L'\0';
+        assert(false);
     }
-    *buffer = L'\0';
-    assert(false);
     return ret;
 }
 
@@ -59,8 +58,8 @@ int ss_strcpy(char* dest, size_t count, const char* src)
     assert(dest != 0);
     assert(count > 0);
     assert(src != 0);
-    size_t len = strlen(src);
-    if ((int)count <= (int)len)
+    int len = strlen(src);
+    if ((int)count <= len)
     {
         *dest = '\0';
         assert(false);
@@ -74,8 +73,8 @@ int ss_wcscpy(wchar_t* dest, size_t count, const wchar_t* src)
     assert(dest != 0);
     assert(count > 0);
     assert(src != 0);
-    size_t len = wcslen(src);
-    if ((int)count <= (int)len)
+    int len = wcslen(src);
+    if ((int)count <= len)
     {
         *dest = L'\0';
         assert(false);
@@ -89,9 +88,9 @@ int ss_strcat(char* dest, size_t count, const char* src)
     assert(dest != 0);
     assert(count > 0);
     assert(src != 0);
-    size_t dlen = strlen(dest);
-    size_t slen = strlen(src);
-    if ((int)count <= (int)(dlen + slen))
+    int dlen = strlen(dest);
+    int slen = strlen(src);
+    if ((int)count <= dlen + slen)
     {
         assert(false);
     }
@@ -104,9 +103,9 @@ int ss_wcscat(wchar_t* dest, size_t count, const wchar_t* src)
     assert(dest != 0);
     assert(count > 0);
     assert(src != 0);
-    size_t dlen = wcslen(dest);
-    size_t slen = wcslen(src);
-    if ((int)count <= (int)(dlen + slen))
+    int dlen = wcslen(dest);
+    int slen = wcslen(src);
+    if ((int)count <= dlen + slen)
     {
         assert(false);
     }

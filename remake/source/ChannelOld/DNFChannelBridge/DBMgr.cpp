@@ -1,6 +1,8 @@
 #include "DBMgr.h"
 #include "ScriptData.h"
 #include "ChannelServiceApp.h"
+#include <errmsg.h>
+#include <mysqld_error.h>
 #include <stdio.h>
 #include <unistd.h>
 
@@ -61,8 +63,9 @@ void DBMgr::Mysql_error()
     ChannelServiceApp::gFileLogError.Lock();
     ChannelServiceApp::gFileLogError << "MySql Error = " << mysqlerrno << endl;
     ChannelServiceApp::gFileLogError.Unlock();
-    if ((mysqlerrno == 0x7dd) || (mysqlerrno == 0x7d3) || (mysqlerrno == 0x7d6) ||
-        (mysqlerrno == 0x7de) || (mysqlerrno == 0x480))
+    if ((mysqlerrno == CR_SERVER_LOST) || (mysqlerrno == CR_CONN_HOST_ERROR) ||
+        (mysqlerrno == CR_SERVER_GONE_ERROR) || (mysqlerrno == CR_COMMANDS_OUT_OF_SYNC) ||
+        (mysqlerrno == ER_ABORTING_CONNECTION))
     {
         Mysql_logoff();
         Mysql_logon();
@@ -80,7 +83,7 @@ MYSQL_RES* DBMgr::Mysql_query(char* query)
     if (res == NULL)
     {
         Mysql_error();
-        res = NULL;
+        return NULL;
     }
     return res;
 }

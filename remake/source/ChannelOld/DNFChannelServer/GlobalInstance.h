@@ -35,6 +35,10 @@ public:
             }
             assert(m_p);
         }
+        else
+        {
+            return;  // ORIG：外层 if/else + return 出口形态
+        }
     }
 };
 

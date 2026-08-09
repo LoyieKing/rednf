@@ -17,32 +17,32 @@ void Char2Hex(unsigned char ch, char* szHex)
 
 bool Hex2Char(const char* szHex, unsigned char& rch)
 {
-    if ((*szHex < '0') || ('9' < *szHex))
+    if (('0' <= *szHex) && (*szHex <= '9'))
     {
-        if ((*szHex < 'a') || ('f' < *szHex))
-        {
-            return false;
-        }
-        rch = *szHex + 0xa9;
+        rch = *szHex - 0x30;
+    }
+    else if (('a' <= *szHex) && (*szHex <= 'f'))
+    {
+        rch = *szHex - 0x57;
     }
     else
     {
-        rch = *szHex + 0xd0;
+        return false;
     }
-    const char* pc = szHex + 1;
-    if ((*pc < '0') || ('9' < *pc))
+    szHex++;
+    if (('0' <= *szHex) && (*szHex <= '9'))
     {
-        if ((*pc < 'a') || ('f' < *pc))
-        {
-            return false;
-        }
         rch = rch << 4;
-        rch = rch + *pc + 0xa9;
+        rch = rch + *szHex - 0x30;
+    }
+    else if (('a' <= *szHex) && (*szHex <= 'f'))
+    {
+        rch = rch << 4;
+        rch = rch + *szHex - 0x57;
     }
     else
     {
-        rch = rch << 4;
-        rch = rch + *pc + 0xd0;
+        return false;
     }
     return true;
 }
@@ -63,24 +63,19 @@ void DNFFLib::Binary2Hex(const unsigned char* pucBinStr, int iBinSize, char* psz
 bool DNFFLib::Hex2Binary(const char* pszHexStr, unsigned char* pucBinStr, int iBinSize)
 {
     int i = 0;
-    while (true)
+    while (i < iBinSize)
     {
-        if (iBinSize <= i)
-        {
-            return true;
-        }
         unsigned char ch;
-        bool ret = Hex2Char(pszHexStr, ch);
-        if (!ret)
+        if (!Hex2Char(pszHexStr, ch))
         {
-            break;
+            return false;
         }
         *pucBinStr = ch;
         i = i + 1;
         pszHexStr = pszHexStr + 2;
         pucBinStr = pucBinStr + 1;
     }
-    return false;
+    return true;
 }
 
 void DNFFLib::PrintTextFile(char* szOpenFileName, char* szText)
@@ -110,29 +105,31 @@ int DNFFLib::ExplodeString(char* cStr, char* cSep, char** pArray, int iMax)
     if ((iMax < 1) || (cStr == NULL))
     {
         *pArray = cStr;
-        iTokenCnt = 0;
+        return 0;
     }
-    else
+    // ORIG 声明序：pToken 先声明、pLast 后声明（与 auction 已对齐版本一致）。
+    char* pToken;
+    char* pLast;
+    pLast = cStr + strlen(cStr);
+    pToken = strtok(cStr, cSep);
+    while (pToken != NULL)
     {
-        size_t len = strlen(cStr);
-        char* pToken = strtok(cStr, cSep);
-        while (pToken != NULL)
+        pArray[iTokenCnt] = pToken;
+        iTokenCnt = iTokenCnt + 1;
+        if (iTokenCnt >= iMax)
         {
-            pArray[iTokenCnt] = pToken;
-            iTokenCnt = iTokenCnt + 1;
-            if (iMax <= iTokenCnt)
+            char* pTail = pToken + strlen(pToken);
+            if (pTail == pLast)
             {
-                size_t tlen = strlen(pToken);
-                if (pToken + tlen == cStr + len)
-                {
-                    pArray[iTokenCnt] = NULL;
-                    return iTokenCnt;
-                }
-                pArray[iTokenCnt] = pToken + tlen + 1;
-                return iTokenCnt;
+                pArray[iTokenCnt] = NULL;
             }
-            pToken = strtok(NULL, cSep);
+            else
+            {
+                pArray[iTokenCnt] = pTail + 1;
+            }
+            break;
         }
+        pToken = strtok(NULL, cSep);
     }
     return iTokenCnt;
 }
@@ -165,17 +162,22 @@ int DNFFLib::get_rand_int(int divide)
         return rand();
     }
     int seed = rand();
-    if (divide < seed)
+    if (seed > divide)
     {
-        int r = rand();
-        return r % divide;
+        return rand() % divide;
     }
-    int i1 = seed * 0x41c64e6d + 0x3039;
-    int i2 = i1 * 0x41c64e6d + 0x3039;
-    int i3 = i2 * 0x41c64e6d + 0x3039;
-    unsigned int result = ((((unsigned int)(i1 >> 0x1f) >> 0x10) + i1) >> 0x10 & 0x7ff) << 10 ^
-                          ((((unsigned int)(i2 >> 0x1f) >> 0x10) + i2) >> 0x10 & 0x3ff) << 10 ^
-                          ((((unsigned int)(i3 >> 0x1f) >> 0x10) + i3) >> 0x10 & 0x3ff);
+    unsigned int result;
+    seed = seed * 0x41c64e6d;
+    seed = seed + 0x3039;
+    result = (int)(((unsigned int)(seed >> 0x1f) >> 0x10) + seed) >> 0x10 & 0x7ff;
+    seed = seed * 0x41c64e6d;
+    seed = seed + 0x3039;
+    result = result << 10;
+    result = result ^ (int)(((unsigned int)(seed >> 0x1f) >> 0x10) + seed) >> 0x10 & 0x3ff;
+    seed = seed * 0x41c64e6d;
+    seed = seed + 0x3039;
+    result = result << 10;
+    result = result ^ (int)(((unsigned int)(seed >> 0x1f) >> 0x10) + seed) >> 0x10 & 0x3ff;
     if ((unsigned int)divide < result)
     {
         result = result % (unsigned int)divide;

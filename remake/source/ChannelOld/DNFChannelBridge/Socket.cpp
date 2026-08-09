@@ -74,13 +74,13 @@ bool TCPSocket::connect(const char* ip, unsigned short port)
     svradr.sin_addr.s_addr = inet_addr(ip);
     svradr.sin_port = htons(port);
     int len = 0x10;
-    int nRet = ::connect(sock_, (sockaddr*)&svradr, 0x10);
-    if (-1 < nRet)
+    if (::connect(sock_, (sockaddr*)&svradr, len) < 0)
     {
-        memcpy(c_adrs_, (char*)&svradr.sin_addr, 4);
-        port_ = svradr.sin_port;
+        return false;
     }
-    return -1 < nRet;
+    memcpy(c_adrs_, (char*)&svradr.sin_addr, 4);
+    port_ = svradr.sin_port;
+    return true;
 }
 
 int TCPSocket::send(char* buf, int size)
@@ -91,30 +91,22 @@ int TCPSocket::send(char* buf, int size)
     }
     if ((buf == NULL) || (size < 1))
     {
-        ChannelServiceApp::gFileLogInfo.Lock();
-        ChannelServiceApp::gFileLogInfo << "!buf or size<1 :" << endl;
-        ChannelServiceApp::gFileLogInfo.Unlock();
+        GLOG(ChannelServiceApp::gFileLogInfo, "!buf or size<1 :");
         return -1;
     }
     int n_bytes = write(sock_, buf, size);
     if (n_bytes < 1)
     {
-        if ((((*__errno_location() != 0xb) && (*__errno_location() != 4)) &&
-             (*__errno_location() != 0xb)) && (*__errno_location() != 0))
+        if ((((*__errno_location() == 0xb) || (*__errno_location() == 4)) ||
+             (*__errno_location() == 0xb)) || (*__errno_location() == 0))
         {
-            ChannelServiceApp::gFileLogInfo.Lock();
-            ChannelServiceApp::gFileLogInfo << "tcp send fail= " << n_bytes << " error = " << strerror(*__errno_location()) << endl;
-            ChannelServiceApp::gFileLogInfo.Unlock();
-            return -1;
+            GLOG(ChannelServiceApp::gFileLogInfo, "tcp send fail= " << n_bytes << " error = " << strerror(*__errno_location()));
+            return 0;
         }
-        ChannelServiceApp::gFileLogInfo.Lock();
-        ChannelServiceApp::gFileLogInfo << "tcp send fail= " << n_bytes << " error = " << strerror(*__errno_location()) << endl;
-        ChannelServiceApp::gFileLogInfo.Unlock();
-        return 0;
+        GLOG(ChannelServiceApp::gFileLogInfo, "tcp send fail= " << n_bytes << " error = " << strerror(*__errno_location()));
+        return -1;
     }
-    ChannelServiceApp::gFileLogInfo.Lock();
-    ChannelServiceApp::gFileLogInfo << "tcp send = " << n_bytes << " error = " << strerror(*__errno_location()) << endl;
-    ChannelServiceApp::gFileLogInfo.Unlock();
+    GLOG(ChannelServiceApp::gFileLogInfo, "tcp send = " << n_bytes << " error = " << strerror(*__errno_location()));
     return n_bytes;
 }
 
@@ -122,9 +114,7 @@ int TCPSocket::recv(char* buf, int size)
 {
     if ((buf == NULL) || (size < 1))
     {
-        ChannelServiceApp::gFileLogInfo.Lock();
-        ChannelServiceApp::gFileLogInfo << "tcp recv error : !buf or size=" << size << endl;
-        ChannelServiceApp::gFileLogInfo.Unlock();
+        GLOG(ChannelServiceApp::gFileLogInfo, "tcp recv error : !buf or size=" << size);
         return -1;
     }
     int n_read = read(sock_, buf, size);
@@ -133,38 +123,37 @@ int TCPSocket::recv(char* buf, int size)
         if ((((*__errno_location() == 0xb) || (*__errno_location() == 4)) ||
              (*__errno_location() == 0xb)) || (*__errno_location() == 0))
         {
-            ChannelServiceApp::gFileLogInfo.Lock();
-            ChannelServiceApp::gFileLogInfo << "tcp recv error : " << strerror(*__errno_location()) << endl;
-            ChannelServiceApp::gFileLogInfo.Unlock();
-            n_read = 0;
+            GLOG(ChannelServiceApp::gFileLogInfo, "tcp recv error : " << strerror(*__errno_location()));
+            return 0;
         }
     }
     else if (n_read == 0)
     {
-        ChannelServiceApp::gFileLogInfo.Lock();
-        ChannelServiceApp::gFileLogInfo << "tcp recv : FIN recv" << endl;
-        ChannelServiceApp::gFileLogInfo.Unlock();
-        n_read = -1;
+        GLOG(ChannelServiceApp::gFileLogInfo, "tcp recv : FIN recv");
+        return -1;
     }
     return n_read;
 }
 
 void TCPSocket::close()
 {
-    if (sock_ != -1)
+    if (sock_ == -1)
     {
-        ::close(sock_);
-        sock_ = -1;
-        memset(c_adrs_, 0, 4);
-        port_ = 0;
+        return;
     }
+    ::close(sock_);
+    sock_ = -1;
+    memset(c_adrs_, 0, 4);
+    port_ = 0;
 }
 
-int TCPSocket::shutdown(int how)
+int TCPSocket::shutdown(int opt)
 {
-    if (sock_ != -1)
-    {
-    }
+    // Verified from original: does NOT call ::shutdown(2); only loads sock_
+    // and compares against -1 (return value remains sock_ in eax).
+    (void)opt;
+    sock_ == -1;
+    return sock_;
 }
 
 bool TCPSocket::accept(TCPSocket& accepted)
@@ -291,46 +280,67 @@ unsigned short TCPSocket::getPeerPort()
 bool TCPSocket::pollReadEvent() const
 {
     fd_set set;
-    for (int i = 0; i < 0x20; i = i + 1)
+    int result;
+    unsigned int __i;
+    fd_set* __arr = &set;
+    for (__i = 0; __i < sizeof(fd_set) / sizeof(__fd_mask); ++__i)
     {
-        set.fds_bits[i] = 0;
+        __arr->fds_bits[__i] = 0;
     }
-    FD_SET(sock_, &set);
+    FD_SET((unsigned int)sock_, &set);
     timeval waitTimeStr;
     waitTimeStr.tv_sec = 0;
     waitTimeStr.tv_usec = 0;
-    int result = select(2, &set, NULL, NULL, &waitTimeStr);
-    return result != 0;
+    result = select(2, &set, NULL, NULL, &waitTimeStr);
+    if (result == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::pollWriteEvent() const
 {
     fd_set set;
-    for (int i = 0; i < 0x20; i = i + 1)
+    int result;
+    unsigned int __i;
+    fd_set* __arr = &set;
+    for (__i = 0; __i < sizeof(fd_set) / sizeof(__fd_mask); ++__i)
     {
-        set.fds_bits[i] = 0;
+        __arr->fds_bits[__i] = 0;
     }
-    FD_SET(sock_, &set);
+    FD_SET((unsigned int)sock_, &set);
     timeval waitTimeStr;
     waitTimeStr.tv_sec = 0;
     waitTimeStr.tv_usec = 0;
-    int result = select(2, NULL, &set, NULL, &waitTimeStr);
-    return result != 0;
+    result = select(2, NULL, &set, NULL, &waitTimeStr);
+    if (result == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::pollErrorEvent() const
 {
     fd_set set;
-    for (int i = 0; i < 0x20; i = i + 1)
+    int result;
+    unsigned int __i;
+    fd_set* __arr = &set;
+    for (__i = 0; __i < sizeof(fd_set) / sizeof(__fd_mask); ++__i)
     {
-        set.fds_bits[i] = 0;
+        __arr->fds_bits[__i] = 0;
     }
-    FD_SET(sock_, &set);
+    FD_SET((unsigned int)sock_, &set);
     timeval waitTimeStr;
     waitTimeStr.tv_sec = 0;
     waitTimeStr.tv_usec = 0;
-    int result = select(2, NULL, NULL, &set, &waitTimeStr);
-    return result != 0;
+    result = select(2, NULL, NULL, &set, &waitTimeStr);
+    if (result == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 UDPSocket::UDPSocket()
@@ -370,17 +380,19 @@ bool UDPSocket::bind(unsigned short port, bool bNonBlock)
     if (::bind(sock_, (sockaddr*)&adrs_, 0x10) != 0)
     {
         int err = *__errno_location();
-        if (err == 0x62)
+        switch (err)
         {
+        case 0x62:
             printf("Port %d for receiving UDP is in use\n", (unsigned int)port);
-        }
-        else if (err == 99)
-        {
+            break;
+        case 0x63:
             puts("Cannot assign requested address");
-        }
-        else if (err != 0)
-        {
+            break;
+        case 0:
+            break;
+        default:
             printf("Could not bind UDP receive port. Error= %d , strerror = %s\n", err, strerror(err));
+            break;
         }
         return false;
     }
@@ -407,10 +419,13 @@ int UDPSocket::send(char* buf, int size, unsigned short nPort, const char* szDes
     to.sin_port = htons(nPort);
     to.sin_addr.s_addr = inet_addr(szDestIp);
     int n_bytes = sendto(sock_, buf, size, 0, (sockaddr*)&to, 0x10);
-    if ((n_bytes < 0) && (((*__errno_location() == 0xb) || (*__errno_location() == 0xb)) ||
-                          (*__errno_location() == 4)))
+    if (n_bytes < 0)
     {
-        n_bytes = 0;
+        if (((*__errno_location() == 0xb) || (*__errno_location() == 0xb)) ||
+            (*__errno_location() == 4))
+        {
+            return 0;
+        }
     }
     return n_bytes;
 }
@@ -421,31 +436,33 @@ int UDPSocket::recv(char* buf, int size)
     {
         return -1;
     }
-    socklen_t fromLen = 0x10;
-    int n = recvfrom(sock_, buf, size, 0, (sockaddr*)&from_, &fromLen);
+    int fromLen = 0x10;
+    int n = recvfrom(sock_, buf, size, 0, (sockaddr*)&from_, (socklen_t*)&fromLen);
     if (n < 0)
     {
-        n = 0;
+        return 0;
     }
     return n;
 }
 
 void UDPSocket::close()
 {
-    if (sock_ != -1)
-    {
-        ::close(sock_);
-        sock_ = -1;
-        port_ = 0;
-    }
+    if (sock_ == -1)
+        return;
+    ::close(sock_);
+    sock_ = -1;
+    port_ = 0;
 }
 
 bool UDPSocket::setOptNonBlock()
 {
     int flags = fcntl(sock_, 3, 0);
     flags = flags | 0x800;
-    int nRet = fcntl(sock_, 4, flags);
-    return -1 < nRet;
+    if (fcntl(sock_, 4, flags) < 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 bool UDPSocket::setOptResizeSendBuf(int size)
@@ -484,44 +501,65 @@ SOCKET UDPSocket::getHandle()
 bool UDPSocket::pollReadEvent() const
 {
     fd_set set;
-    for (int i = 0; i < 0x20; i = i + 1)
+    int result;
+    unsigned int __i;
+    fd_set* __arr = &set;
+    for (__i = 0; __i < sizeof(fd_set) / sizeof(__fd_mask); ++__i)
     {
-        set.fds_bits[i] = 0;
+        __arr->fds_bits[__i] = 0;
     }
-    FD_SET(sock_, &set);
+    FD_SET((unsigned int)sock_, &set);
     timeval waitTimeStr;
     waitTimeStr.tv_sec = 0;
     waitTimeStr.tv_usec = 0;
-    int result = select(2, &set, NULL, NULL, &waitTimeStr);
-    return result != 0;
+    result = select(2, &set, NULL, NULL, &waitTimeStr);
+    if (result == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool UDPSocket::pollWriteEvent() const
 {
     fd_set set;
-    for (int i = 0; i < 0x20; i = i + 1)
+    int result;
+    unsigned int __i;
+    fd_set* __arr = &set;
+    for (__i = 0; __i < sizeof(fd_set) / sizeof(__fd_mask); ++__i)
     {
-        set.fds_bits[i] = 0;
+        __arr->fds_bits[__i] = 0;
     }
-    FD_SET(sock_, &set);
+    FD_SET((unsigned int)sock_, &set);
     timeval waitTimeStr;
     waitTimeStr.tv_sec = 0;
     waitTimeStr.tv_usec = 0;
-    int result = select(2, NULL, &set, NULL, &waitTimeStr);
-    return result != 0;
+    result = select(2, NULL, &set, NULL, &waitTimeStr);
+    if (result == 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool UDPSocket::pollErrorEvent() const
 {
     fd_set set;
-    for (int i = 0; i < 0x20; i = i + 1)
+    int result;
+    unsigned int __i;
+    fd_set* __arr = &set;
+    for (__i = 0; __i < sizeof(fd_set) / sizeof(__fd_mask); ++__i)
     {
-        set.fds_bits[i] = 0;
+        __arr->fds_bits[__i] = 0;
     }
-    FD_SET(sock_, &set);
+    FD_SET((unsigned int)sock_, &set);
     timeval waitTimeStr;
     waitTimeStr.tv_sec = 0;
     waitTimeStr.tv_usec = 0;
-    int result = select(2, NULL, NULL, &set, &waitTimeStr);
-    return result != 0;
+    result = select(2, NULL, NULL, &set, &waitTimeStr);
+    if (result == 0)
+    {
+        return false;
+    }
+    return true;
 }

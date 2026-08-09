@@ -10,7 +10,7 @@
 class Packet_Disable_User_OneToOneChat_Police : public PacketHeader {
 public:
     Packet_Disable_User_OneToOneChat_Police(): PacketHeader(0x1f43,0x30) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_DISABLE_USER_ONETOONECHAT_POLICE_H

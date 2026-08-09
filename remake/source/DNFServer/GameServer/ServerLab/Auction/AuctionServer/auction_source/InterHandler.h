@@ -39,7 +39,9 @@ public:
     unsigned int onINTER_DESTORY_CHARACTER(nsl::CMsgCell* pCell);
     unsigned int onINTER_SERVICE_UNAVAILABLE(nsl::CMsgCell* pCell);
 
-    InterFunc mArrayFunc[2048];
+    // PMF 8B x 1024 @ offset 12 => sizeof(InterHandler) = 0x200c (ORIG operator new size)
+    // init() already clears only 0x400 entries; HandlerFor_GA_/GP_ use the same 1024 length.
+    InterFunc mArrayFunc[1024];
 };
 
 #endif // AUCTION_INTERHANDLER_H_

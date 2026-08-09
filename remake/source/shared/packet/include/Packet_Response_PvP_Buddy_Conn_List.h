@@ -21,7 +21,7 @@ public:
     Packet_Response_PvP_Buddy_Conn_List() : PacketHeader(0x1b5b, 0x536), charac_no(0), sTGameUserInfo_what3_0x05(0), buddyCount(0) {
         memset(buddies, 0, sizeof(buddies));
     }
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Response_PvP_Buddy_Conn_List, 0x536);

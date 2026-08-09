@@ -14,6 +14,35 @@
 #include <queue>
 #include <deque>
 
+#define PACKET_CTOR_BODY(cat, pid, sz) \
+    memset(this, 0, sz); \
+    setCategory(cat); \
+    setPacketID(pid); \
+    setSize(sz)
+
+#define PACKET_HEADER_SET(cat, pid, sz) \
+    setCategory(cat); \
+    setPacketID(pid); \
+    setSize(sz)
+
+#define GLOG(stream, ...) \
+    (stream).Lock(); \
+    (stream) << __VA_ARGS__ << endl; \
+    (stream).Unlock()
+
+#define DNF_LOG_IN() GLOG(gFileLogInfo, "In  " << __FUNCTION__)
+#define DNF_LOG_OUT() GLOG(gFileLogInfo, "Out " << __FUNCTION__)
+
+#define CHANNEL_HANDLER_BEGIN(name) \
+    DWORD ChannelServiceApp::ChannelService::on##name(LPPACKET_HEADER pPCK, TCPUser* u) \
+    { \
+        DNF_LOG_IN();
+
+#define CHANNEL_HANDLER_END() \
+        DNF_LOG_OUT(); \
+        return 1; \
+    }
+
 #pragma pack(push, 1)
 
 class CMsgCell;

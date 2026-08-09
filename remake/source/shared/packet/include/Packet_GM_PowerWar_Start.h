@@ -10,6 +10,6 @@
 class Packet_GM_PowerWar_Start : public PacketHeader {
 public:
     Packet_GM_PowerWar_Start() : PacketHeader(0x6a6, 0xa){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GM_POWERWAR_START_H

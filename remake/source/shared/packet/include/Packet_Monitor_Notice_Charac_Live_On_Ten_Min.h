@@ -10,7 +10,7 @@
 class Packet_Monitor_Notice_Charac_Live_On_Ten_Min : public PacketHeader {
 public:
     Packet_Monitor_Notice_Charac_Live_On_Ten_Min(): PacketHeader(0x640,0xe) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_NOTICE_CHARAC_LIVE_ON_TEN_MIN_H

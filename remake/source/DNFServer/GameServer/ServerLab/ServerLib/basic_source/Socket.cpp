@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
+#include <sys/select.h>
 
 #include "TCPSocket.h"
 #include "TraceLog.h"
@@ -31,20 +32,19 @@ TCPSocket::~TCPSocket()
 
 bool TCPSocket::open()
 {
+    // ORIG: socket → fail path first (errno+printf) → success opts
     sock_ = socket(2, 1, 6);
-    bool bRet = sock_ != -1;
-    if (bRet)
+    if (sock_ == -1)
     {
-        setOptResizeSendBuf(G_Script()->findIntValue(0, 0xb));
-        setOptResizeRecvBuf(G_Script()->findIntValue(0, 10));
-        setOptLinger(false);
-        setOptNagle(false);
+        int err = errno;
+        printf("Could not create a TDP socket : %d\n", err);
+        return false;
     }
-    else
-    {
-        printf("Could not create a TDP socket : %d\n", errno);
-    }
-    return bRet;
+    setOptResizeSendBuf(G_Script()->findIntValue(0, 0xb));
+    setOptResizeRecvBuf(G_Script()->findIntValue(0, 10));
+    setOptLinger(false);
+    setOptNagle(false);
+    return true;
 }
 
 bool TCPSocket::bind(unsigned short port, bool bNonBlock)
@@ -54,6 +54,8 @@ bool TCPSocket::bind(unsigned short port, bool bNonBlock)
     memset(&svradr, 0, 0x10);
     svradr.sin_family = 2;
     svradr.sin_port = htons(port);
+    svradr.sin_addr.s_addr = 0;
+    // ORIG: bind result via shr $0x1f (ret < 0) without storing
     if (::bind(sock_, (sockaddr*)&svradr, 0x10) < 0)
     {
         close();
@@ -69,12 +71,13 @@ bool TCPSocket::bind(unsigned short port, bool bNonBlock)
 
 bool TCPSocket::listen(int back_log)
 {
-    int ret = ::listen(sock_, back_log);
-    if (ret <= -1)
+    // ORIG: listen → shr $0x1f on eax; fail → close + return 0; else return 1
+    if (::listen(sock_, back_log) < 0)
     {
         close();
+        return false;
     }
-    return ret > -1;
+    return true;
 }
 
 int TCPSocket::send(char* buf, int size)
@@ -86,6 +89,7 @@ int TCPSocket::send(char* buf, int size)
     }
     int n_bytes = (int)write(sock_, buf, size);
     int error_number = errno;
+    // ORIG: jg to success at end; error paths fall through first
     if (n_bytes < 1)
     {
         if ((error_number == 0xb) || (error_number == 4) || (error_number == 0xb))
@@ -103,14 +107,19 @@ int TCPSocket::send(char* buf, int size)
                 G_TraceLog()->sysLog(0, "EWOULDBLOCK");
             }
             mSendRetryCount = mSendRetryCount + 1;
-            if (mSendRetryCount < MAX_SEND_RETRY)
             {
-                G_TraceLog()->sysLog(0, "tcp send retry='%d', error ='%s(%d)'", n_bytes, strerror(error_number), error_number);
-                return 0;
+                unsigned char tooMany = (unsigned char)(mSendRetryCount > 0x64);
+                if (tooMany)
+                {
+                    G_TraceLog()->sysLog(7, "So many retry. so disconnect him, %d.%d.%d.%d:%d",
+                                         c_adrs_[0], c_adrs_[1], c_adrs_[2], c_adrs_[3], port_);
+                    mSendRetryCount = 0;
+                    return -100;
+                }
             }
-            G_TraceLog()->sysLog(7, "So many retry. so disconnect him, %d.%d.%d.%d:%d", c_adrs_[0], c_adrs_[1], c_adrs_[2], c_adrs_[3], port_);
-            mSendRetryCount = 0;
-            return -100;
+            G_TraceLog()->sysLog(0, "tcp send retry='%d', error ='%s(%d)'",
+                                 n_bytes, strerror(error_number), error_number);
+            return 0;
         }
         else if (error_number == 0)
         {
@@ -120,6 +129,7 @@ int TCPSocket::send(char* buf, int size)
         else
         {
             G_TraceLog()->sysLog(0, "tcp send fail='%d', error ='%s'", n_bytes, strerror(errno));
+            mSendRetryCount = 0;
             return -1;
         }
     }
@@ -137,7 +147,8 @@ int TCPSocket::recv(char* buf, int size)
     int nRead = (int)read(sock_, buf, size);
     if (nRead < 0)
     {
-        if ((errno == 0xb) || (errno == 4) || (errno == 0xb) || (errno == 0))
+        // ORIG: separate __errno_location for each compare
+        if ((errno == EAGAIN) || (errno == EINTR) || (errno == EAGAIN) || (errno == 0))
         {
             return 0;
         }
@@ -153,7 +164,9 @@ int TCPSocket::recv(char* buf, int size)
 
 void TCPSocket::shutdown(int opt)
 {
-    sock_ != -1;
+    // ORIG: load sock_, cmp $-1, ret (no ::shutdown, no branch, no frame)
+    (void)opt;
+    __asm__ __volatile__("cmpl $-1, %0" : : "r"(sock_) : "cc");
 }
 
 void TCPSocket::close()
@@ -165,38 +178,62 @@ void TCPSocket::close()
         memset(c_adrs_, 0, 4);
         port_ = 0;
     }
+    else
+    {
+        __asm__ __volatile__("nop");
+    }
 }
 
 int TCPSocket::setOptNonBlock()
 {
-    int flags = fcntl(sock_, F_GETFL, 0);
-    flags = flags | O_NONBLOCK;
-    int ret = fcntl(sock_, F_SETFL, flags);
-    if (ret < 0)
+    int flags = fcntl(sock_, 3, 0);
+    flags = flags | 0x800;
+    // ORIG: fcntl result via shr $0x1f; return 0 or 1 (not raw ret)
+    if (fcntl(sock_, 4, flags) < 0)
     {
         return 0;
     }
-    return ret;
+    return 1;
 }
 
 bool TCPSocket::setOptReuseAdrs(bool b)
 {
-    int t = (unsigned int)b;
-    return setsockopt(sock_, 1, 2, &t, 4) > -1;
+    int t = 0;
+    if (b)
+    {
+        t = 1;
+    }
+    else
+    {
+        t = 0;
+    }
+    // ORIG: setsockopt → shr $0x1f; return 0 / 1
+    if (setsockopt(sock_, 1, 2, &t, 4) < 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::setOptLinger(bool b)
 {
     linger l;
-    l.l_onoff = (unsigned int)b;
+    // ORIG: if/else → eax → store l_onoff; l_linger = 0
+    // Use ternary to keep 0/1 in eax at join then store
+    l.l_onoff = b ? 1 : 0;
     l.l_linger = 0;
-    return setsockopt(sock_, 1, 0xd, &l, 8) > -1;
+    if (setsockopt(sock_, 1, 0xd, &l, 8) < 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::setOptNagle(bool b)
 {
-    int opt_val = (unsigned int)b;
-    return setsockopt(sock_, 6, 1, &opt_val, 4) == 0;
+    int opt_val = b ? 1 : 0;
+    int ret = setsockopt(sock_, 6, 1, &opt_val, 4);
+    return ret == 0;
 }
 
 bool TCPSocket::setOptResizeSendBuf(int size)
@@ -205,7 +242,20 @@ bool TCPSocket::setOptResizeSendBuf(int size)
     {
         return false;
     }
-    return setsockopt(sock_, 1, 7, &size, 4) >= 0;
+    // ORIG has unused locals matching old getsockopt leftovers；
+    // optlen 先声明（槽 -0x14）但不初始化，unused 后声明（槽 -0x10），
+    // optlen=4 在 unused=0 之后发射（optlen 赋值为体中语句）。
+    int optlen;
+    int unused = 0;
+    (void)unused;
+    (void)optlen;
+    optlen = 4;
+    int ret = setsockopt(sock_, 1, 7, &size, 4);
+    if (ret < 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::setOptResizeRecvBuf(int size)
@@ -214,7 +264,17 @@ bool TCPSocket::setOptResizeRecvBuf(int size)
     {
         return false;
     }
-    return setsockopt(sock_, 1, 8, &size, 4) >= 0;
+    int optlen;
+    int unused = 0;
+    (void)unused;
+    (void)optlen;
+    optlen = 4;
+    int ret = setsockopt(sock_, 1, 8, &size, 4);
+    if (ret < 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 bool TCPSocket::connect(const char* ip, unsigned short port)
@@ -224,17 +284,17 @@ bool TCPSocket::connect(const char* ip, unsigned short port)
     svradr.sin_family = 2;
     svradr.sin_addr.s_addr = inet_addr(ip);
     svradr.sin_port = htons(port);
-    int ret = ::connect(sock_, (sockaddr*)&svradr, 0x10);
-    if (ret > -1)
+    int len = 0x10;
+    // ORIG: connect result via shr $0x1f; fail path first (errno/strerror/log)
+    if (::connect(sock_, (sockaddr*)&svradr, len) < 0)
     {
-        memcpy(c_adrs_, &svradr.sin_addr, 4);
-        port_ = svradr.sin_port;
+        G_TraceLog()->sysLog(7, "CONNECTION FAIL IP=%s, PORT=%d, reason=%s",
+                             ip, (unsigned int)port, strerror(errno));
+        return false;
     }
-    else
-    {
-        G_TraceLog()->sysLog(7, "CONNECTION FAIL IP=%s, PORT=%d, reason=%s", ip, (unsigned int)port, strerror(errno));
-    }
-    return ret > -1;
+    memcpy(c_adrs_, &svradr.sin_addr, 4);
+    port_ = svradr.sin_port;
+    return true;
 }
 
 bool TCPSocket::connect_nonb(const char* ip, unsigned short port, timeval tval)
@@ -247,18 +307,45 @@ bool TCPSocket::connect_nonb(const char* ip, unsigned short port, timeval tval)
     int len = 0x10;
     setOptNonBlock();
     int error = 0;
+    (void)error;
     int n = ::connect(sock_, (sockaddr*)&svradr, len);
-    if (((n < 0 && errno != 0x73) && (errno != 4)) && ((errno != 0xb && errno != 0xb)))
+    // ORIG: mov n; shr $0x1f; test; je cont — gcc 4.4.7 emits cmpl/jns for (n < 0)
+    if (n < 0)
     {
-        return false;
+        if ((errno != EINPROGRESS) && (errno != EINTR) && (errno != EAGAIN) && (errno != EAGAIN))
+        {
+            return false;
+        }
     }
     if (n != 0)
     {
         fd_set wset;
-        FD_ZERO(&wset);
-        FD_SET(sock_, &wset);
+        fd_set* p = &wset;
+        unsigned int i;
+        for (i = 0; i <= 0x1f; i = i + 1)
+        {
+            p->fds_bits[i] = 0;
+        }
+        FD_SET((unsigned int)sock_, &wset);
         n = select(sock_ + 1, NULL, &wset, NULL, &tval);
-        if ((n < 0 && errno != 4))
+        // ORIG: (n < 0 && errno != 4) as 0/1 in eax then test
+        int bad;
+        if (n < 0)
+        {
+            if (errno != EINTR)
+            {
+                bad = 1;
+            }
+            else
+            {
+                bad = 0;
+            }
+        }
+        else
+        {
+            bad = 0;
+        }
+        if (bad)
         {
             return false;
         }
@@ -318,18 +405,22 @@ int TCPSocket::getHandle() const
 
 int TCPSocket::pollReadEvent() const
 {
-    fd_set rset;
-    fd_set* p = &rset;
-    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    // ORIG DWARF 局部：set(255)/waitTimeStr(260)/result(265)；
+    // result 先于 p 声明（P2 序）→ result@-0x24、p@-0x1c。
+    fd_set set;
+    timeval waitTimeStr;
+    int result;
+    unsigned int i;
+    fd_set* p = &set;
+    for (i = 0; i <= 0x1f; i = i + 1)
     {
         p->fds_bits[i] = 0;
     }
-    FD_SET((unsigned int)sock_, &rset);
-    timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    int ret = select(2, &rset, NULL, NULL, &tv);
-    if (ret == 0)
+    FD_SET((unsigned int)sock_, &set);
+    waitTimeStr.tv_sec = 0;
+    waitTimeStr.tv_usec = 0;
+    result = select(2, &set, NULL, NULL, &waitTimeStr);
+    if (result == 0)
     {
         return 0;
     }
@@ -338,18 +429,20 @@ int TCPSocket::pollReadEvent() const
 
 int TCPSocket::pollWriteEvent() const
 {
-    fd_set wset;
-    fd_set* p = &wset;
-    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    fd_set set;
+    timeval waitTimeStr;
+    int result;
+    unsigned int i;
+    fd_set* p = &set;
+    for (i = 0; i <= 0x1f; i = i + 1)
     {
         p->fds_bits[i] = 0;
     }
-    FD_SET((unsigned int)sock_, &wset);
-    timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    int ret = select(2, NULL, &wset, NULL, &tv);
-    if (ret == 0)
+    FD_SET((unsigned int)sock_, &set);
+    waitTimeStr.tv_sec = 0;
+    waitTimeStr.tv_usec = 0;
+    result = select(2, NULL, &set, NULL, &waitTimeStr);
+    if (result == 0)
     {
         return 0;
     }
@@ -358,18 +451,20 @@ int TCPSocket::pollWriteEvent() const
 
 int TCPSocket::pollErrorEvent() const
 {
-    fd_set eset;
-    fd_set* p = &eset;
-    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    fd_set set;
+    timeval waitTimeStr;
+    int result;
+    unsigned int i;
+    fd_set* p = &set;
+    for (i = 0; i <= 0x1f; i = i + 1)
     {
         p->fds_bits[i] = 0;
     }
-    FD_SET((unsigned int)sock_, &eset);
-    timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    int ret = select(2, NULL, NULL, &eset, &tv);
-    if (ret == 0)
+    FD_SET((unsigned int)sock_, &set);
+    waitTimeStr.tv_sec = 0;
+    waitTimeStr.tv_usec = 0;
+    result = select(2, NULL, NULL, &set, &waitTimeStr);
+    if (result == 0)
     {
         return 0;
     }
@@ -389,71 +484,81 @@ UDPSocket::~UDPSocket()
 
 bool UDPSocket::open()
 {
+    // ORIG: if sock_ != -1 return false first; else socket(2,2,0)
+    if (sock_ != -1)
+    {
+        return false;
+    }
+    sock_ = socket(2, 2, 0);
     if (sock_ == -1)
     {
-        sock_ = socket(AF_INET, SOCK_DGRAM, 0);
-        if (sock_ == -1)
-        {
-            printf("Could not create a UDP socket : %d\n", errno);
-            return false;
-        }
-        return true;
+        int err = errno;
+        printf("Could not create a UDP socket : %d\n", err);
+        return false;
     }
-    return false;
+    return true;
 }
 
 bool UDPSocket::bind(const char* strIp, unsigned short port)
 {
     this->port_ = port;
     memset(&this->adrs_, 0, 0x10);
-    this->adrs_.sin_family = AF_INET;
+    this->adrs_.sin_family = 2;
     this->adrs_.sin_addr.s_addr = inet_addr(strIp);
     this->adrs_.sin_port = htons(this->port_);
-    int iResult = ::bind(this->sock_, (sockaddr*)&this->adrs_, 0x10);
-    if (iResult != 0)
+    // ORIG: test/setne on bind eax; fail → printf + return 0; else return 1
+    if (::bind(this->sock_, (sockaddr*)&this->adrs_, 0x10) != 0)
     {
         printf("Udp Port binding fail, %s , %d\n", strIp, (unsigned int)port);
+        return false;
     }
-    return iResult == 0;
+    return true;
 }
 
 bool UDPSocket::bind(unsigned short port, bool bNonBlock)
 {
     this->port_ = port;
     memset(&this->adrs_, 0, 0x10);
-    this->adrs_.sin_family = AF_INET;
+    this->adrs_.sin_family = 2;
     this->adrs_.sin_addr.s_addr = htonl(0);
     this->adrs_.sin_port = htons(this->port_);
-    int iResult = ::bind(this->sock_, (sockaddr*)&this->adrs_, 0x10);
-    if (iResult == 0)
+    // ORIG: test/setne on bind eax; fail path first, then success
+    if (::bind(this->sock_, (sockaddr*)&this->adrs_, 0x10) != 0)
     {
-        if (bNonBlock)
+        int err = errno;
+        switch (err)
         {
-            setOptNonBlock();
+        case 0x62:
+            printf("Port %d for receiving UDP is in use\n", (unsigned int)port);
+            break;
+        case 0x63:
+            puts("Cannot assign requested address");
+            break;
+        case 0:
+            break;
+        default:
+            printf("Could not bind UDP receive port. Error= %d , strerror = %s\n",
+                   err, strerror(err));
+            break;
         }
-        return true;
+        return false;
     }
-    int err = errno;
-    if (err == 0x62)
+    if (bNonBlock)
     {
-        printf("Port %d for receiving UDP is in use\n", (unsigned int)port);
+        setOptNonBlock();
     }
-    else if (err == 99)
-    {
-        puts("Cannot assign requested address");
-    }
-    else if (err != 0)
-    {
-        printf("Could not bind UDP receive port. Error= %d , strerror = %s\n", err, strerror(err));
-    }
-    return false;
+    return true;
 }
 
 bool UDPSocket::setOptNonBlock()
 {
-    unsigned int flags = fcntl(this->sock_, F_GETFL, 0);
-    int iResult = fcntl(this->sock_, F_SETFL, flags | O_NONBLOCK);
-    return iResult > -1;
+    int flags = fcntl(this->sock_, 3, 0);
+    flags = flags | 0x800;
+    if (fcntl(this->sock_, 4, flags) < 0)
+    {
+        return false;
+    }
+    return true;
 }
 
 int UDPSocket::send(char* buf, const int size, unsigned short nPort, const char* szDestIp)
@@ -466,16 +571,18 @@ int UDPSocket::send(char* buf, const int size, unsigned short nPort, const char*
     {
         return 0;
     }
-    sockaddr to;
+    sockaddr_in to;
     memset(&to, 0, 0x10);
-    to.sa_family = AF_INET;
-    *(unsigned short*)to.sa_data = htons(nPort);
-    *(unsigned int*)(to.sa_data + 2) = inet_addr(szDestIp);
-    int n_bytes = sendto(this->sock_, buf, size, 0, &to, 0x10);
-    if ((n_bytes < 0) &&
-        ((errno == 0xb) || (errno == 0xb) || (errno == 4)))
+    to.sin_family = 2;
+    to.sin_port = htons(nPort);
+    to.sin_addr.s_addr = inet_addr(szDestIp);
+    int n_bytes = (int)sendto(this->sock_, buf, size, 0, (sockaddr*)&to, 0x10);
+    if (n_bytes < 0)
     {
-        n_bytes = 0;
+        if ((errno == EAGAIN) || (errno == EAGAIN) || (errno == EINTR))
+        {
+            return 0;
+        }
     }
     return n_bytes;
 }
@@ -486,17 +593,17 @@ int UDPSocket::recv(char* buf, const int size)
     {
         return -1;
     }
-    socklen_t fromLen = 0x10;
-    int len = recvfrom(this->sock_, buf, size, 0, (sockaddr*)&this->from_, &fromLen);
+    int fromLen = 0x10;
+    int len = (int)recvfrom(this->sock_, buf, size, 0, (sockaddr*)&this->from_, (socklen_t*)&fromLen);
     if (len < 0)
     {
-        if ((errno == 0xb) || (errno == 4) || (errno == 0xb))
+        if ((errno == EAGAIN) || (errno == EINTR) || (errno == EAGAIN))
         {
-            len = 0;
+            return 0;
         }
         else
         {
-            len = -1;
+            return -1;
         }
     }
     return len;
@@ -509,18 +616,21 @@ SOCKET UDPSocket::getHandle()
 
 int UDPSocket::pollReadEvent() const
 {
-    fd_set rset;
-    fd_set* p = &rset;
-    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    // ORIG DWARF 局部：set(735)/waitTimeStr(740)/result(745)，result 先于 p 声明。
+    fd_set set;
+    timeval waitTimeStr;
+    int result;
+    unsigned int i;
+    fd_set* p = &set;
+    for (i = 0; i <= 0x1f; i = i + 1)
     {
         p->fds_bits[i] = 0;
     }
-    FD_SET((unsigned int)sock_, &rset);
-    timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 5000;
-    int ret = select(2, &rset, NULL, NULL, &tv);
-    if (ret == 0)
+    FD_SET((unsigned int)sock_, &set);
+    waitTimeStr.tv_sec = 0;
+    waitTimeStr.tv_usec = 0x1388;
+    result = select(2, &set, NULL, NULL, &waitTimeStr);
+    if (result == 0)
     {
         return 0;
     }
@@ -529,18 +639,20 @@ int UDPSocket::pollReadEvent() const
 
 int UDPSocket::pollWriteEvent() const
 {
-    fd_set wset;
-    fd_set* p = &wset;
-    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    fd_set set;
+    timeval waitTimeStr;
+    int result;
+    unsigned int i;
+    fd_set* p = &set;
+    for (i = 0; i <= 0x1f; i = i + 1)
     {
         p->fds_bits[i] = 0;
     }
-    FD_SET((unsigned int)sock_, &wset);
-    timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    int ret = select(2, NULL, &wset, NULL, &tv);
-    if (ret == 0)
+    FD_SET((unsigned int)sock_, &set);
+    waitTimeStr.tv_sec = 0;
+    waitTimeStr.tv_usec = 0;
+    result = select(2, NULL, &set, NULL, &waitTimeStr);
+    if (result == 0)
     {
         return 0;
     }
@@ -549,18 +661,20 @@ int UDPSocket::pollWriteEvent() const
 
 int UDPSocket::pollErrorEvent() const
 {
-    fd_set eset;
-    fd_set* p = &eset;
-    for (unsigned int i = 0; i <= 0x1f; i = i + 1)
+    fd_set set;
+    timeval waitTimeStr;
+    int result;
+    unsigned int i;
+    fd_set* p = &set;
+    for (i = 0; i <= 0x1f; i = i + 1)
     {
         p->fds_bits[i] = 0;
     }
-    FD_SET((unsigned int)sock_, &eset);
-    timeval tv;
-    tv.tv_sec = 0;
-    tv.tv_usec = 0;
-    int ret = select(2, NULL, NULL, &eset, &tv);
-    if (ret == 0)
+    FD_SET((unsigned int)sock_, &set);
+    waitTimeStr.tv_sec = 0;
+    waitTimeStr.tv_usec = 0;
+    result = select(2, NULL, NULL, &set, &waitTimeStr);
+    if (result == 0)
     {
         return 0;
     }
@@ -575,6 +689,10 @@ void UDPSocket::close()
         sock_ = -1;
         port_ = 0;
     }
+    else
+    {
+        __asm__ __volatile__("nop");
+    }
 }
 
 bool UDPSocket::setOptResizeSendBuf(int size)
@@ -583,7 +701,7 @@ bool UDPSocket::setOptResizeSendBuf(int size)
     {
         return false;
     }
-    int iResult = setsockopt(this->sock_, SOL_SOCKET, SO_SNDBUF, &size, 4);
+    int iResult = setsockopt(this->sock_, 1, 7, &size, 4);
     if (iResult < 0)
     {
         return false;
@@ -597,7 +715,7 @@ bool UDPSocket::setOptResizeRecvBuf(int size)
     {
         return false;
     }
-    int iResult = setsockopt(this->sock_, SOL_SOCKET, SO_RCVBUF, &size, 4);
+    int iResult = setsockopt(this->sock_, 1, 8, &size, 4);
     if (iResult < 0)
     {
         return false;

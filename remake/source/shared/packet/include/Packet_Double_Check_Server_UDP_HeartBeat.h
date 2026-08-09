@@ -10,7 +10,7 @@
 class Packet_Double_Check_Server_UDP_HeartBeat : public PacketHeader {
 public:
     Packet_Double_Check_Server_UDP_HeartBeat(): PacketHeader(0xbba,0xc) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_DOUBLE_CHECK_SERVER_UDP_HEARTBEAT_H

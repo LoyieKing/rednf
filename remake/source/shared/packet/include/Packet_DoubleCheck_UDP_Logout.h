@@ -10,6 +10,6 @@
 class Packet_DoubleCheck_UDP_Logout : public PacketHeader {
 public:
     Packet_DoubleCheck_UDP_Logout() : PacketHeader(0xbb9, 0x10){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_DOUBLECHECK_UDP_LOGOUT_H

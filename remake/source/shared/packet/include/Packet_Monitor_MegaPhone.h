@@ -10,6 +10,6 @@
 class Packet_Monitor_MegaPhone : public PacketHeader {
 public:
     Packet_Monitor_MegaPhone() : PacketHeader(0x546, 0x12e){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_MEGAPHONE_H

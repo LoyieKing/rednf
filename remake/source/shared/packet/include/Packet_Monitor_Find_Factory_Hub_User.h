@@ -10,7 +10,7 @@
 class Packet_Monitor_Find_Factory_Hub_User : public PacketHeader {
 public:
     Packet_Monitor_Find_Factory_Hub_User(): PacketHeader(0x100e,0x33) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_FIND_FACTORY_HUB_USER_H

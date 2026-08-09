@@ -13,9 +13,10 @@ CharacterDictionary::~CharacterDictionary()
 
 int CharacterDictionary::AddAuctionId(int characterId, __int64 auctionId)
 {
+    // ORIG DWARF 声明序：ptr_data(10) 先于 find_iter(11)。
+    CharacterDictionaryData* ptr_data;
     std::map<const int, CharacterDictionaryData*>::iterator find_iter =
         mCharacterDicTable.find(characterId);
-    CharacterDictionaryData* ptr_data;
     if (find_iter != mCharacterDicTable.end())
     {
         ptr_data = find_iter->second;
@@ -41,6 +42,8 @@ int CharacterDictionary::AddAuctionId(int characterId, __int64 auctionId)
 
 int CharacterDictionary::SubAuctionId(int characterId, __int64 auctionId)
 {
+    // Iterator default-constructed first (matches ORIG callset: C1 before map::find).
+    std::vector<unsigned long long>::iterator id_list_iterator;
     std::map<const int, CharacterDictionaryData*>::iterator find_iter =
         mCharacterDicTable.find(characterId);
     if (find_iter == mCharacterDicTable.end())
@@ -48,7 +51,6 @@ int CharacterDictionary::SubAuctionId(int characterId, __int64 auctionId)
         return 0x22;
     }
     CharacterDictionaryData* ptr_data = find_iter->second;
-    std::vector<unsigned long long>::iterator id_list_iterator;
     id_list_iterator = ptr_data->auction_id_vector.begin();
     while (id_list_iterator != ptr_data->auction_id_vector.end())
     {
@@ -73,12 +75,11 @@ int CharacterDictionary::GetAuctionIdList(int characterId,
         mCharacterDicTable.find(characterId);
     if (find_iter != mCharacterDicTable.end())
     {
-        rpOutCharacterDicData = find_iter->second;
+        CharacterDictionaryData* ptr_data = find_iter->second;
+        rpOutCharacterDicData = ptr_data;
+        return 0;
     }
-    else
-    {
-        rpOutCharacterDicData = NULL;
-    }
+    rpOutCharacterDicData = NULL;
     return 0;
 }
 

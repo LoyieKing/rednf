@@ -10,6 +10,6 @@
 class Packet_Secret_Shop_Statistic : public PacketHeader {
 public:
     Packet_Secret_Shop_Statistic() : PacketHeader(0x1b69, 0xfb2){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_SECRET_SHOP_STATISTIC_H

@@ -10,7 +10,7 @@
 class Packet_Monitor_Request_Member_Enter : public PacketHeader {
 public:
     Packet_Monitor_Request_Member_Enter(): PacketHeader(0x4b7,0x30) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_REQUEST_MEMBER_ENTER_H

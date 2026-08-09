@@ -10,7 +10,7 @@
 class Packet_Avater_Disjoint_Statistic : public PacketHeader {
 public:
     Packet_Avater_Disjoint_Statistic(): PacketHeader(0x17a2,0x28) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_AVATER_DISJOINT_STATISTIC_H

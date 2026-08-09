@@ -42,10 +42,7 @@ bool Character::setArea(int areaIndex)
 {
     bActiveUser = false;
     mAreaIndex = areaIndex;
-    unsigned int id = mCharacKey;
-    Zone* pZone = G_Zone();
-    bool bRet = pZone->mArea[areaIndex]->regist(id, this);
-    return bRet;
+    return G_Zone()->mArea[areaIndex]->regist(mCharacKey, this);
 }
 
 void Character::setActiveTCPUser(nsl::ConInterface* info)
@@ -79,14 +76,14 @@ void Character::onClose(bool bActiveClosing)
         interMsg.pConInfo = conInfo;
     }
     interMsg.workIndex = 0;
+    interMsg.bActiveClosing = bActiveClosing;
     interMsg.characKey = mCharacKey;
     interMsg.areaIndex = mAreaIndex;
-    interMsg.bActiveClosing = bActiveClosing;
     nsl::Message* pNextMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(1);
     nsl::CMsgCell* pNextCell = pNextMsg->getCellFromMessage();
     *pNextCell << &interMsg;
-    nsl::WorkThread* pWorkThread = pApp->super_Threads.getWorkThread(pNextMsg->getCellFromMessage()->GetInternalMsg()->workIndex);
-    pWorkThread->PushTransaction(pNextMsg);
+    pApp->super_Threads.getWorkThread(pNextMsg->getCellFromMessage()->GetInternalMsg()->workIndex)
+        ->PushTransaction(pNextMsg);
 }
 
 void Character::onDoClose()
@@ -103,21 +100,20 @@ void Character::setState(IState::STATE_COMMON in)
         currentState->exit();
         operator delete(currentState);
     }
-    if (in == IState::STATE_MOVE)
+    switch (in)
     {
+    case IState::STATE_MOVE:
         currentState = new Stand;
-    }
-    else if (in == IState::STATE_CAST)
-    {
-        currentState = new Cast;
-    }
-    else if (in == IState::STATE_ATTACK)
-    {
-        currentState = new Attack;
-    }
-    else
-    {
+        break;
+    default:
         currentState = new Move;
+        break;
+    case IState::STATE_ATTACK:
+        currentState = new Attack;
+        break;
+    case IState::STATE_CAST:
+        currentState = new Cast;
+        break;
     }
     currentState->enter();
 }

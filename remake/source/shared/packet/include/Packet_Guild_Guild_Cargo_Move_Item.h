@@ -10,7 +10,7 @@
 class Packet_Guild_Guild_Cargo_Move_Item : public PacketHeader {
 public:
     Packet_Guild_Guild_Cargo_Move_Item(): PacketHeader(0x70f,0x22) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GUILD_GUILD_CARGO_MOVE_ITEM_H

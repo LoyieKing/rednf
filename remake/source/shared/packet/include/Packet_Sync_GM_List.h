@@ -10,6 +10,6 @@
 class Packet_Sync_GM_List : public PacketHeader {
 public:
     Packet_Sync_GM_List() : PacketHeader(0x1f4d, 0x70){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_SYNC_GM_LIST_H

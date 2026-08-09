@@ -10,6 +10,6 @@
 class Packet_Hades_UserStatus : public PacketHeader {
 public:
     Packet_Hades_UserStatus() : PacketHeader(0xfdd, 0x12){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_HADES_USERSTATUS_H

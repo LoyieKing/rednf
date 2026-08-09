@@ -10,7 +10,7 @@
 class Packet_User_Ting_TimeCheck_Statistic_Add : public PacketHeader {
 public:
     Packet_User_Ting_TimeCheck_Statistic_Add(): PacketHeader(0xc45,0x12) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_USER_TING_TIMECHECK_STATISTIC_ADD_H

@@ -1,0 +1,370 @@
+'\" t
+.\"     Title: \fBndb_mgmd\fR
+.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 01/24/2011
+.\"    Manual: MySQL Database System
+.\"    Source: MySQL 5.0
+.\"  Language: English
+.\"
+.TH "\FBNDB_MGMD\FR" "8" "01/24/2011" "MySQL 5\&.0" "MySQL Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" ndb_mgmd (MySQL Cluster process)
+.\" MySQL Cluster: ndb_mgmd process
+.\" MySQL Cluster: management nodes
+.\" management nodes (MySQL Cluster)
+.\" ndb_mgmd
+.SH "NAME"
+ndb_mgmd \- the MySQL Cluster management server daemon
+.SH "SYNOPSIS"
+.HP \w'\fBndb_mgmd\ \fR\fB\fIoptions\fR\fR\ 'u
+\fBndb_mgmd \fR\fB\fIoptions\fR\fR
+.SH "DESCRIPTION"
+.PP
+The management server is the process that reads the cluster configuration file and distributes this information to all nodes in the cluster that request it\&. It also maintains a log of cluster activities\&. Management clients can connect to the management server and check the cluster\'s status\&.
+.\" MySQL Cluster: administration
+.\" MySQL Cluster: commands
+.\" command options (MySQL Cluster): ndb_mgmd
+.\" MySQL Cluster: mgmd process
+.PP
+The following table includes command options specific to the MySQL Cluster management node program
+\fBndb_mgmd\fR\&. Additional descriptions follow the table\&. For options common to all MySQL Cluster programs, see
+Section\ \&17.4.2, \(lqOptions Common to MySQL Cluster Programs\(rq\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" --config-file option (ndb_mgmd)
+.\" -f option (ndb_mgmd)
+.\" -c option (ndb_mgmd) (OBSOLETE)
+\fB\-\-config\-file=\fR\fB\fIfilename\fR\fR,
+\fB\-f \fR\fB\fIfilename\fR\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-config\-file
+T}
+T{
+T}:T{
+\-f
+T}
+T{
+T}:T{
+\-c
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+file name
+T}
+:T{
+\fBDefault\fR
+T}:T{
+\&./config\&.ini
+T}
+.TE
+.sp 1
+Instructs the management server as to which file it should use for its configuration file\&. By default, the management server looks for a file named
+config\&.ini
+in the same directory as the
+\fBndb_mgmd\fR
+executable; otherwise the file name and location must be specified explicitly\&.
+.sp
+This option also can be given as
+\fB\-c \fR\fB\fIfile_name\fR\fR, but this shortcut is obsolete and should
+\fInot\fR
+be used in new installations\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" --daemon option (ndb_mgmd)
+.\" -d option (ndb_mgmd)
+\fB\-\-daemon\fR,
+\fB\-d\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-daemon
+T}
+T{
+T}:T{
+\-d
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+boolean
+T}
+:T{
+\fBDefault\fR
+T}:T{
+TRUE
+T}
+.TE
+.sp 1
+Instructs
+\fBndb_mgmd\fR
+to start as a daemon process\&. This is the default behavior\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" --nodaemon option (ndb_mgmd)
+\fB\-\-nodaemon\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+^ l l s
+^ l l s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-nodaemon
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+boolean
+T}
+:T{
+\fBDefault\fR
+T}:T{
+FALSE
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR (windows)
+T}:T{
+boolean
+T}
+:T{
+\fBDefault\fR
+T}:T{
+TRUE
+T}
+.TE
+.sp 1
+Instructs
+\fBndb_mgmd\fR
+not to start as a daemon process\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" --print-full-config option (ndb_mgmd)
+.\" -P option (ndb_mgmd)
+\fB\-\-print\-full\-config\fR,
+\fB\-P\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.10
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-print\-full\-config
+T}
+T{
+T}:T{
+\-P
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+boolean
+T}
+:T{
+\fBDefault\fR
+T}:T{
+FALSE
+T}
+.TE
+.sp 1
+Shows extended information regarding the configuration of the cluster\&. With this option on the command line the
+\fBndb_mgmd\fR
+process prints information about the cluster setup including an extensive list of the cluster configuration sections as well as parameters and their values\&. Normally used together with the
+\fB\-\-config\-file\fR
+(\fB\-f\fR) option\&.
+.RE
+.PP
+It is not strictly necessary to specify a connectstring when starting the management server\&. However, if you are using more than one management server, a connectstring should be provided and each node in the cluster should specify its node ID explicitly\&.
+.PP
+See
+Section\ \&17.3.2.2, \(lqThe MySQL Cluster Connectstring\(rq, for information about using connectstrings\&.
+\fBndb_mgmd\fR(8), describes other options for
+\fBndb_mgmd\fR\&.
+.PP
+The following files are created or used by
+\fBndb_mgmd\fR
+in its starting directory, and are placed in the
+DataDir
+as specified in the
+config\&.ini
+configuration file\&. In the list that follows,
+\fInode_id\fR
+is the unique node identifier\&.
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" MySQL Cluster: configuration
+.\" configuring MySQL Cluster
+.\" config.ini (MySQL Cluster)
+config\&.ini
+is the configuration file for the cluster as a whole\&. This file is created by the user and read by the management server\&.
+Section\ \&17.3, \(lqMySQL Cluster Configuration\(rq, discusses how to set up this file\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+ndb_\fInode_id\fR_cluster\&.log
+is the cluster events log file\&. Examples of such events include checkpoint startup and completion, node startup events, node failures, and levels of memory usage\&. A complete listing of cluster events with descriptions may be found in
+Section\ \&17.5, \(lqManagement of MySQL Cluster\(rq\&.
+.sp
+When the size of the cluster log reaches one million bytes, the file is renamed to
+ndb_\fInode_id\fR_cluster\&.log\&.\fIseq_id\fR, where
+\fIseq_id\fR
+is the sequence number of the cluster log file\&. (For example: If files with the sequence numbers 1, 2, and 3 already exist, the next log file is named using the number
+4\&.)
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+ndb_\fInode_id\fR_out\&.log
+is the file used for
+stdout
+and
+stderr
+when running the management server as a daemon\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+ndb_\fInode_id\fR\&.pid
+is the process ID file used when running the management server as a daemon\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright \(co 1997, 2011, Oracle and/or its affiliates. All rights reserved.
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MySQL Reference Manual,
+which may already be installed locally and which is also available
+online at http://dev.mysql.com/doc/.
+.SH AUTHOR
+Oracle Corporation (http://dev.mysql.com/).

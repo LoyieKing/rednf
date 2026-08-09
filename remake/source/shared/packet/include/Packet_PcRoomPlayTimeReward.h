@@ -10,6 +10,6 @@
 class Packet_PcRoomPlayTimeReward : public PacketHeader {
 public:
     Packet_PcRoomPlayTimeReward() : PacketHeader(0x27ec, 0x13){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_PCROOMPLAYTIMEREWARD_H

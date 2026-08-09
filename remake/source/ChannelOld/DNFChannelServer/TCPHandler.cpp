@@ -10,7 +10,7 @@ ChannelServiceApp::ChannelService::FPMessageHandler ChannelServiceApp::ChannelSe
     {
         return NULL;
     }
-    return m_Handlers[n];
+    return m_pfnMsg[n];
 }
 
 ChannelServiceApp::TCPHandlerRelay::TCPHandlerRelay()

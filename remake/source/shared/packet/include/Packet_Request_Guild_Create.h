@@ -10,6 +10,6 @@
 class Packet_Request_Guild_Create : public PacketHeader {
 public:
     Packet_Request_Guild_Create() : PacketHeader(0x43f, 0x32){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_REQUEST_GUILD_CREATE_H

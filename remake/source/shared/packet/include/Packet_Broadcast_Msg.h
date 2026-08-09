@@ -10,6 +10,6 @@
 class Packet_Broadcast_Msg : public PacketHeader {
 public:
     Packet_Broadcast_Msg() : PacketHeader(0x2711, 0x10e){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_BROADCAST_MSG_H

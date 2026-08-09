@@ -10,6 +10,6 @@
 class Packet_Guild_Exp_Limit : public PacketHeader {
 public:
     Packet_Guild_Exp_Limit() : PacketHeader(0x6e5, 0x5a){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GUILD_EXP_LIMIT_H

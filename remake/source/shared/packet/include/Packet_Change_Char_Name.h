@@ -10,6 +10,6 @@
 class Packet_Change_Char_Name : public PacketHeader {
 public:
     Packet_Change_Char_Name() : PacketHeader(0x451, 0x34){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_CHANGE_CHAR_NAME_H

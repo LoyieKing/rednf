@@ -10,6 +10,6 @@
 class Packet_GM_PowerWar_End : public PacketHeader {
 public:
     Packet_GM_PowerWar_End() : PacketHeader(0x6a7, 0xa){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GM_POWERWAR_END_H

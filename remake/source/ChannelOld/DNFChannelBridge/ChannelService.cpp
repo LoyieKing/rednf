@@ -148,9 +148,7 @@ TCPSocket* ChannelServiceApp::UserPools::createTCPSocket(char* file, int line)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPSocket);
     TCPSocket* r = m_poolTCPSocket.alloc();
-    gFileLogInfo.Lock();
-    gFileLogInfo << "create tcp socket " << m_poolTCPSocket.getRemain() << ", from=" << file << ", " << line << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "create tcp socket " << m_poolTCPSocket.getRemain() << ", from=" << file << ", " << line);
     return r;
 }
 
@@ -158,27 +156,21 @@ void ChannelServiceApp::UserPools::destroyTCPSocket(TCPSocket* pTCPSocket)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPSocket);
     m_poolTCPSocket.free(pTCPSocket);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "destroy tcp socket " << m_poolTCPSocket.getRemain() << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "destroy tcp socket " << m_poolTCPSocket.getRemain());
 }
 
 ChannelServiceApp::TCPUser* ChannelServiceApp::UserPools::createTCPUser(char* file, int line)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPUser);
     TCPUser* r = m_poolTCPUser.alloc();
-    gFileLogInfo.Lock();
-    gFileLogInfo << "create tcp user =" << m_poolTCPUser.getRemain() << ", from=" << file << ", " << line << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "create tcp user =" << m_poolTCPUser.getRemain() << ", from=" << file << ", " << line);
     return r;
 }
 
 void ChannelServiceApp::UserPools::destroyTCPUser(TCPUser* pTCPUser, char* file, int line)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPUser);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "call destroyTCPUser from " << file << ", " << line << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "call destroyTCPUser from " << file << ", " << line);
     TCPSocket* s = pTCPUser->getSocket();
     if (s != NULL)
     {
@@ -189,9 +181,7 @@ void ChannelServiceApp::UserPools::destroyTCPUser(TCPUser* pTCPUser, char* file,
     }
     pTCPUser->setSocket(NULL);
     m_poolTCPUser.free(pTCPUser);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "destroy tcp user " << m_poolTCPUser.getRemain() << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "destroy tcp user " << m_poolTCPUser.getRemain());
 }
 
 ChannelServiceApp::ServerGroup::ServerGroup()
@@ -259,7 +249,7 @@ void ChannelServiceApp::ChannelScript::ReloadScript()
         memset(buffer, 0, 0x100000);
         fread(buffer, lSize, 1, fp);
         buffer[lSize] = '\0';
-        printf("ScriptSize = '%d'\n");
+        printf("ScriptSize = '%d'\n", lSize);
         printf("ScriptSize = '%d'\n", lSize);
         printf("ScriptSize = '%d'\n", lSize);
         printf("ScriptSize = '%d'\n", lSize);
@@ -449,35 +439,28 @@ void ChannelServiceApp::ChannelService::startup()
     m_poolTCPSocket.startup();
     m_poolTCPUser.startup();
 
-    TCPAcceptThread* pAccept = new TCPAcceptThread;
-    threadTCPAccept_ = pAccept;
-    pAccept->setManager(this);
-    pAccept->setPort(getTCPPort());
+    threadTCPAccept_ = new TCPAcceptThread;
+    threadTCPAccept_->setManager(this);
+    threadTCPAccept_->setPort(getTCPPort());
 
-    CheckThread* pCheck = new CheckThread;
-    threadCheck_ = pCheck;
-    pCheck->setManager(this);
+    threadCheck_ = new CheckThread;
+    threadCheck_->setManager(this);
 
-    ScriptThread* pScript = new ScriptThread;
-    threadScript_ = pScript;
-    pScript->setManager(this);
+    threadScript_ = new ScriptThread;
+    threadScript_->setManager(this);
 
-    TCPThread* pTCP = new TCPThread;
-    threadTCP_ = pTCP;
-    pTCP->setManager(this);
+    threadTCP_ = new TCPThread;
+    threadTCP_->setManager(this);
 
-    UDPThread* pUDP = new UDPThread;
-    threadUDP_ = pUDP;
-    pUDP->setManager(this);
-    pUDP->setPort(getUDPPort());
+    threadUDP_ = new UDPThread;
+    threadUDP_->setManager(this);
+    threadUDP_->setPort(getUDPPort());
 
-    TCPHandlerRelay* pTCPHandler = new TCPHandlerRelay;
-    handlerTCPRelay_ = pTCPHandler;
-    pTCPHandler->setManager(this);
+    handlerTCPRelay_ = new TCPHandlerRelay;
+    handlerTCPRelay_->setManager(this);
 
-    UDPHandlerRelay* pUDPHandler = new UDPHandlerRelay;
-    handlerUDPRelay_ = pUDPHandler;
-    pUDPHandler->setManager(this);
+    handlerUDPRelay_ = new UDPHandlerRelay;
+    handlerUDPRelay_->setManager(this);
 
     threadTCP_->setHandler(handlerTCPRelay_);
     threadUDP_->setHandler(handlerUDPRelay_);
@@ -537,9 +520,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
     for (i = 0; (i < 0x1000) && (Servers[ServerGroupIndex].ServerInfo[i].gc_no != gc_no); i = i + 1)
     {
     }
-    gFileLogInfo.Lock();
-    gFileLogInfo << "update ?" << i << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "update ?" << i);
     if (i == 0x1000)
     {
         for (i = 0; (i < 0x1000) && (Servers[ServerGroupIndex].ServerInfo[i].use == true); i = i + 1)
@@ -573,15 +554,9 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
     return 1;
 }
 
-DWORD ChannelServiceApp::ChannelService::onCS_NOTICE_CHANNEL_SERVER(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_NOTICE_CHANNEL_SERVER" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_NOTICE_CHANNEL_SERVER)
     tagCS_NOTICE_CHANNEL_SERVER* _pPCK = (tagCS_NOTICE_CHANNEL_SERVER*)pPCK;
-    gFileLogInfo.Lock();
-    gFileLogInfo << "==> ChannelServerID=" << _pPCK->id << ", IP=" << _pPCK->server_ip << ", PORT=" << _pPCK->port << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "==> ChannelServerID=" << _pPCK->id << ", IP=" << _pPCK->server_ip << ", PORT=" << _pPCK->port);
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockChannel);
     if (ChannelServerNumber == 0)
     {
@@ -591,30 +566,14 @@ DWORD ChannelServiceApp::ChannelService::onCS_NOTICE_CHANNEL_SERVER(LPPACKET_HEA
         ChannelServerNumber = ChannelServerNumber + 1;
         CServers[0].tic = time(NULL);
         CServers[0].uTCP = u;
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***************************************************************" << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "INDEX=" << 0 << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "TCP USER=" << (int)CServers[0].uTCP << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "TCP SOCK=" << (int)CServers[0].uTCP->getSocket() << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***************************************************************" << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***********************************************************" << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "First incomming ChannelServer IP =" << _pPCK->server_ip << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***********************************************************" << endl;
-        gFileLogInfo.Unlock();
+        GLOG(gFileLogInfo, "***************************************************************");
+        GLOG(gFileLogInfo, "INDEX=" << 0);
+        GLOG(gFileLogInfo, "TCP USER=" << (int)CServers[0].uTCP);
+        GLOG(gFileLogInfo, "TCP SOCK=" << (int)CServers[0].uTCP->getSocket());
+        GLOG(gFileLogInfo, "***************************************************************");
+        GLOG(gFileLogInfo, "***********************************************************");
+        GLOG(gFileLogInfo, "First incomming ChannelServer IP =" << _pPCK->server_ip);
+        GLOG(gFileLogInfo, "***********************************************************");
     }
     else
     {
@@ -640,55 +599,27 @@ DWORD ChannelServiceApp::ChannelService::onCS_NOTICE_CHANNEL_SERVER(LPPACKET_HEA
             ChannelServerNumber = ChannelServerNumber + 1;
         }
         CServers[i].uTCP = u;
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***************************************************************" << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "INDEX=" << i << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "TCP USER=" << (int)CServers[i].uTCP << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "TCP SOCK=" << (int)CServers[i].uTCP->getSocket() << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***************************************************************" << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***********************************************************" << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "ChannelServer IP =" << _pPCK->server_ip << endl;
-        gFileLogInfo.Unlock();
-        gFileLogInfo.Lock();
-        gFileLogInfo << "***********************************************************" << endl;
-        gFileLogInfo.Unlock();
+        GLOG(gFileLogInfo, "***************************************************************");
+        GLOG(gFileLogInfo, "INDEX=" << i);
+        GLOG(gFileLogInfo, "TCP USER=" << (int)CServers[i].uTCP);
+        GLOG(gFileLogInfo, "TCP SOCK=" << (int)CServers[i].uTCP->getSocket());
+        GLOG(gFileLogInfo, "***************************************************************");
+        GLOG(gFileLogInfo, "***********************************************************");
+        GLOG(gFileLogInfo, "ChannelServer IP =" << _pPCK->server_ip);
+        GLOG(gFileLogInfo, "***********************************************************");
         CServers[i].id = _pPCK->id;
         CServers[i].port = _pPCK->port;
         strcpy(CServers[i].IP, _pPCK->server_ip);
         CServers[i].tic = time(NULL);
     }
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onCS_NOTICE_CHANNEL_SERVER" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+CHANNEL_HANDLER_END()
 
-DWORD ChannelServiceApp::ChannelService::onCS_CHECK_SCRIPT_VERSION(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_CHECK_SCRIPT_VERSION" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
     tagCS_CHECK_SCRIPT_VERSION* _pPCK = (tagCS_CHECK_SCRIPT_VERSION*)pPCK;
     tagSC_CHECK_SCRIPT_VERSION pck;
-    gFileLogInfo.Lock();
-    gFileLogInfo << "                                                    " << endl;
-    gFileLogInfo.Unlock();
-    gFileLogInfo.Lock();
-    gFileLogInfo << "script version =" << _pPCK->channel_script_version
-                 << ", cur version =" << G_ScriptData()->channel_script_version << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "                                                    ");
+    GLOG(gFileLogInfo, "script version =" << _pPCK->channel_script_version
+        << ", cur version =" << G_ScriptData()->channel_script_version);
     TMsgCell<128> buffer;
     CMsgCell* pMsg = &buffer;
     size_t nLen = strlen(G_ScriptData()->channel_script_version);
@@ -700,17 +631,9 @@ DWORD ChannelServiceApp::ChannelService::onCS_CHECK_SCRIPT_VERSION(LPPACKET_HEAD
     *pMsg << &pck;
     pMsg->PAD();
     u->onWrite2Buffer(pMsg);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onCS_CHECK_SCRIPT_VERSION" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+CHANNEL_HANDLER_END()
 
-DWORD ChannelServiceApp::ChannelService::onCS_GET_SCRIPT(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_GET_SCRIPT" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_GET_SCRIPT)
     tagSC_GET_SCRIPT pck;
     char* script = getScriptFromFile();
     script[getScriptFileSize()] = '\0';
@@ -720,32 +643,22 @@ DWORD ChannelServiceApp::ChannelService::onCS_GET_SCRIPT(LPPACKET_HEADER pPCK, T
     pMsg->AttachStream(script, getScriptFileSize());
     pMsg->PAD();
     int ret = u->onWrite2Buffer(pMsg);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "SendScript Fail?=" << ret << endl;
-    gFileLogInfo.Unlock();
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onCS_GET_SCRIPT" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+    GLOG(gFileLogInfo, "SendScript Fail?=" << ret);
+CHANNEL_HANDLER_END()
 
-DWORD ChannelServiceApp::ChannelService::onCS_GET_GC_INFO(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_GET_GC_INFO" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_GET_GC_INFO)
     tagSC_GET_GC_INFO pck;
+    int count = 0;
     TMsgCell<4096> buffer;
     CMsgCell* pMsg = &buffer;
-    int count = 0;
-    for (std::map<char*, int>::iterator iter = gc_map.begin(); iter != gc_map.end(); iter++)
+    count = 0;
+    for (std::map<char*, int>::iterator iter = gc_map.begin(); iter != gc_map.end(); )
     {
+        iter++;
         count = count + 1;
     }
     pck.count = count;
-    gFileLogInfo.Lock();
-    gFileLogInfo << "COUNT : " << pck.count << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "COUNT : " << pck.count);
     *pMsg << &pck;
     for (std::map<char*, int>::iterator iter = gc_map.begin(); iter != gc_map.end(); iter++)
     {
@@ -753,18 +666,12 @@ DWORD ChannelServiceApp::ChannelService::onCS_GET_GC_INFO(LPPACKET_HEADER pPCK, 
         TSerializer<tServerGcInfo> GcInfo(ServerGcInfo);
         strncpy(ServerGcInfo.server_group_name, iter->first, 0x14);
         ServerGcInfo.gc_no = iter->second;
-        gFileLogInfo.Lock();
-        gFileLogInfo << ServerGcInfo.server_group_name << ", " << ServerGcInfo.gc_no << endl;
-        gFileLogInfo.Unlock();
+        GLOG(gFileLogInfo, ServerGcInfo.server_group_name << ", " << ServerGcInfo.gc_no);
         *pMsg << GcInfo;
     }
     pMsg->PAD();
     u->onWrite2Buffer(pMsg);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onCS_GET_GC_INFO" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+CHANNEL_HANDLER_END()
 
 void tagPacketHeader::setPacketID(int n)
 {
@@ -797,23 +704,17 @@ tagPacketHeader::tagPacketHeader()
 
 tagSC_GET_SCRIPT::tagSC_GET_SCRIPT()
 {
-    setCategory(0x7c);
-    setPacketID(10);
-    setSize(0xb);
+    PACKET_HEADER_SET(0x7c, 10, 0xb);  // PACKETS::SC_GET_SCRIPT
 }
 
 tagSC_GET_GC_INFO::tagSC_GET_GC_INFO()
 {
-    setCategory(0x7c);
-    setPacketID(0xe);
-    setSize(0xf);
+    PACKET_HEADER_SET(0x7c, 0xe, 0xf);  // PACKETS::SC_GET_GC_INFO
 }
 
 tagSC_CHECK_SCRIPT_VERSION::tagSC_CHECK_SCRIPT_VERSION()
 {
-    setCategory(0x7c);
-    setPacketID(6);
-    setSize(0x1f);
+    PACKET_HEADER_SET(0x7c, 6, 0x1f);  // PACKETS::SC_CHECK_SCRIPT_VERSION
 }
 
 CMsgCell::CMsgCell()
@@ -830,26 +731,10 @@ CMsgCell::~CMsgCell()
 BOOL CMsgCell::PAD()
 {
     LPPACKET_HEADER pPCK = (LPPACKET_HEADER)m_bBuf;
-    int nSize;
-    if (pPCK->isVariableLength() != 0)
-    {
-        nSize = m_wPos;
-    }
-    else
-    {
-        nSize = pPCK->getSize();
-    }
-    pPCK->setSize(nSize);
-    if (pPCK->isVariableLength() != 0)
-    {
-        m_wSize = m_wPos;
-    }
-    else
-    {
-        m_wSize = pPCK->getSize();
-    }
-    nSize = pPCK->getSize();
-    return m_nBufLen < nSize;
+    // ORIG：三元形态（if/else 会 setne 物化）+ 无命名 nSize 局部。
+    pPCK->setSize(pPCK->isVariableLength() ? m_wPos : pPCK->getSize());
+    m_wSize = pPCK->isVariableLength() ? m_wPos : pPCK->getSize();
+    return m_nBufLen < pPCK->getSize();
 }
 
 CMsgCell& CMsgCell::operator<<(LPPACKET_HEADER pPacket)

@@ -10,6 +10,6 @@
 class Packet_Party_Result_Statistic : public PacketHeader {
 public:
     Packet_Party_Result_Statistic() : PacketHeader(0xfa6, 0xe){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_PARTY_RESULT_STATISTIC_H

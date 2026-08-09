@@ -20,23 +20,22 @@ void StringData::incRef()
 
 void StringData::decRef()
 {
-    if (refCount_ <= 0)
+    // ORIG: jg-over-assert on refCount_ > 0 (not setle materialize)
+    (refCount_ > 0)
+        ? (void)0
+        : __assert_fail("refCount_ > 0", "../../Include/Core/Strings.cpp", 0x23,
+                        "void StringData::decRef()");
+    // lock xadd -1; ORIG uses xadd with neg'd 1 then add back
+    if (__sync_sub_and_fetch(&refCount_, 1) <= 0)
     {
-        __assert_fail("refCount_ > 0", "../../Include/Core/Strings.cpp", 0x23,
-                      "void StringData::decRef()");
-    }
-    if (__sync_add_and_fetch(&refCount_, -1) <= 0)
-    {
-        if (size_ < 1)
-        {
-            __assert_fail("size_ > 0", "../../Include/Core/Strings.cpp", 0x27,
-                          "void StringData::decRef()");
-        }
-        if (getBuffer()[size_ - 1] != 0)
-        {
-            __assert_fail("getBuffer()[size_-1] == 0", "../../Include/Core/Strings.cpp", 0x28,
-                          "void StringData::decRef()");
-        }
+        (size_ > 0)
+            ? (void)0
+            : __assert_fail("size_ > 0", "../../Include/Core/Strings.cpp", 0x27,
+                            "void StringData::decRef()");
+        (getBuffer()[size_ - 1] == 0)
+            ? (void)0
+            : __assert_fail("getBuffer()[size_-1] == 0", "../../Include/Core/Strings.cpp", 0x28,
+                            "void StringData::decRef()");
         ::free(this);
     }
 }
@@ -63,11 +62,10 @@ unsigned char* StringData::getBuffer()
 
 StringData* StringData::create(int32 size)
 {
-    if (size < 1)
-    {
-        __assert_fail("size > 0", "../../Include/Core/Strings.cpp", 0x44,
-                      "static StringData* StringData::create(int32)");
-    }
+    (size > 0)
+        ? (void)0
+        : __assert_fail("size > 0", "../../Include/Core/Strings.cpp", 0x44,
+                        "static StringData* StringData::create(int32)");
     StringData* data = (StringData*)malloc(size + 8);
     if (data == NULL)
     {
@@ -90,12 +88,13 @@ char* CharStringData::getBuffer()
 
 CharStringData* CharStringData::create(int32 length)
 {
-    if (length <= 0)
-    {
-        __assert_fail("length > 0", "../../Include/Core/Strings.cpp", 0x5e,
-                      "static CharStringData* CharStringData::create(int32)");
-    }
-    StringData* data = StringData::create(length + 1);
+    (length > 0)
+        ? (void)0
+        : __assert_fail("length > 0", "../../Include/Core/Strings.cpp", 0x5e,
+                        "static CharStringData* CharStringData::create(int32)");
+    // ORIG stores length+1 to a local before create call
+    int32 size = length + 1;
+    StringData* data = StringData::create(size);
     if (data == NULL)
     {
         return NULL;
@@ -112,7 +111,8 @@ CharStringData* CharStringData::createTerminated(int32 length)
 
 int32 WideStringData::getLength() const
 {
-    return size_ / 4 - 1;
+    // ORIG: shr $2 (unsigned) then sub $1
+    return (int32)((uint32)size_ >> 2) - 1;
 }
 
 wchar* WideStringData::getBuffer()
@@ -122,12 +122,13 @@ wchar* WideStringData::getBuffer()
 
 WideStringData* WideStringData::create(int32 length)
 {
-    if (length <= 0)
-    {
-        __assert_fail("length > 0", "../../Include/Core/Strings.cpp", 0x54d,
-                      "static WideStringData* WideStringData::create(int32)");
-    }
-    StringData* data = StringData::create((length + 1) * 4);
+    (length > 0)
+        ? (void)0
+        : __assert_fail("length > 0", "../../Include/Core/Strings.cpp", 0x54d,
+                        "static WideStringData* WideStringData::create(int32)");
+    // ORIG: add $1; shl $2
+    int32 size = (length + 1) << 2;
+    StringData* data = StringData::create(size);
     if (data == NULL)
     {
         return NULL;
@@ -149,7 +150,8 @@ CharString::CharString()
 
 CharString::CharString(const CharString& src)
 {
-    attachData(src.getData());
+    CharStringData* data = src.getData();
+    attachData(data);
 }
 
 CharString::CharString(const char* src)
@@ -254,82 +256,63 @@ uint32 CharString::getHash() const
 
 char CharString::getAt(int32 idx) const
 {
-    if (idx >= 0)
-    {
-        if (idx <= length())
-        {
-            return buffer_[idx];
-        }
-    }
-    __assert_fail("(idx >= 0) && (idx <= length())", "../../Include/Core/Strings.cpp", 0xe2,
-                  "char CharString::getAt(int32) const");
+    // Ternary form matches ORIG js/jg fall-through assert (not bool materialize)
+    ((idx >= 0) && (idx <= length()))
+        ? (void)0
+        : __assert_fail("(idx >= 0) && (idx <= length())", "../../Include/Core/Strings.cpp", 0xe2,
+                        "char CharString::getAt(int32) const");
+    return buffer_[idx];
 }
 
 CharString CharString::setAt(int32 idx, char ch)
 {
-    if (idx >= 0 && idx < length())
+    ((idx >= 0) && (idx < length()))
+        ? (void)0
+        : __assert_fail("(idx >= 0) && (idx < length())", "../../Include/Core/Strings.cpp", 0xe8,
+                        "CharString CharString::setAt(int32, char)");
+    (ch != '\0')
+        ? (void)0
+        : __assert_fail("ch != 0", "../../Include/Core/Strings.cpp", 0xe9,
+                        "CharString CharString::setAt(int32, char)");
+    if (buffer_[idx] == ch)
     {
-        if (ch == '\0')
-        {
-            __assert_fail("ch != 0", "../../Include/Core/Strings.cpp", 0xe9,
-                          "CharString CharString::setAt(int32, char)");
-        }
-        if (buffer_[idx] == ch)
-        {
-            return CharString(*this);
-        }
-        CharStringData* thisData = getData();
-        CharStringData* newData = CharStringData::create(thisData->getLength());
-        memcpy(newData->getBuffer(), thisData->getBuffer(), thisData->getLength() + 1);
-        newData->getBuffer()[idx] = ch;
-        return CharString(newData);
+        return CharString(*this);
     }
-    __assert_fail("(idx >= 0) && (idx < length())", "../../Include/Core/Strings.cpp", 0xe8,
-                  "CharString CharString::setAt(int32, char)");
+    CharStringData* thisData = getData();
+    CharStringData* newData = CharStringData::create(thisData->getLength());
+    memcpy(newData->getBuffer(), thisData->getBuffer(), thisData->getLength() + 1);
+    newData->getBuffer()[idx] = ch;
+    return CharString(newData);
 }
 
 bool CharString::startsWith(const char* pat, bool isIgnoreCase) const
 {
-    size_t patLength = strlen(pat);
-    bool bVar4;
-    if (length() < (int32)patLength)
+    // ORIG DWARF：patLength 为 int32（非 size_t）；int 型才产生
+    // cmp mem,%eax 直比 + ebx 预载跨调用（size_t 会走 edx 重载）。
+    int32 patLength = strlen(pat);
+    if (length() < patLength)
     {
-        bVar4 = false;
+        return false;
     }
-    else if (isIgnoreCase)
+    if (isIgnoreCase)
     {
-        const char* pcVar2 = c_str();
-        bVar4 = strncasecmp(pcVar2, pat, patLength) == 0;
+        return strncasecmp(c_str(), pat, patLength) == 0;
     }
-    else
-    {
-        const char* pcVar2 = c_str();
-        bVar4 = strncmp(pcVar2, pat, patLength) == 0;
-    }
-    return bVar4;
+    return strncmp(c_str(), pat, patLength) == 0;
 }
 
 bool CharString::endsWith(const char* pat, bool isIgnoreCase) const
 {
-    size_t patLength = strlen(pat);
-    bool bVar4;
-    if (length() < (int32)patLength)
+    int32 patLength = strlen(pat);
+    if (length() < patLength)
     {
-        bVar4 = false;
+        return false;
     }
-    else if (isIgnoreCase)
+    if (isIgnoreCase)
     {
-        const char* pcVar2 = c_str();
-        int32 iVar1 = length();
-        bVar4 = strncasecmp(pcVar2 + (iVar1 - patLength), pat, patLength) == 0;
+        return strncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
     }
-    else
-    {
-        const char* pcVar2 = c_str();
-        int32 iVar1 = length();
-        bVar4 = strncmp(pcVar2 + (iVar1 - patLength), pat, patLength) == 0;
-    }
-    return bVar4;
+    return strncmp(c_str() + (length() - patLength), pat, patLength) == 0;
 }
 
 char CharString::front() const
@@ -354,16 +337,18 @@ const char* CharString::end() const
 
 void CharString::assign(const CharString& src)
 {
-    if (getData() != src.getData())
+    // ORIG：sete+test+jne SKIP; body; jmp EPI; SKIP: nop; EPI（早退形态，
+    // 若用 if/else 空体则 layout 少 jmp+nop，差 2 条）。
+    if (getData() == src.getData())
     {
-        replaceData(src.getData());
+        return;
     }
+    replaceData(src.getData());
 }
 
 void CharString::assign(const char* src)
 {
-    size_t srcLength = strlen(src);
-    assign(src, (int32)srcLength);
+    assign(src, strlen(src));
 }
 
 void CharString::assign(const char* src, int32 srcLength)
@@ -522,7 +507,9 @@ int32 CharString::find(int32 pos, char pat) const
     int32 endPos = length() - 1;
     for (int32 thisPos = pos; thisPos <= endPos; ++thisPos)
     {
-        if (strBuf[thisPos] == pat)
+        // ORIG：循环内检查固定用 pos（strBuf[pos]），返回 thisPos——
+        // 照抄 ORIG 的怪癖（只匹配 pos 处，其余迭代重复检查同一位置）。
+        if (strBuf[pos] == pat)
         {
             return thisPos;
         }
@@ -611,7 +598,8 @@ WideString::WideString()
 
 WideString::WideString(const WideString& src)
 {
-    attachData(src.getData());
+    WideStringData* data = src.getData();
+    attachData(data);
 }
 
 WideString::WideString(const wchar* src)
@@ -736,82 +724,60 @@ uint32 WideString::getHash() const
 
 wchar WideString::getAt(int32 idx) const
 {
-    if (idx >= 0)
-    {
-        if (idx <= length())
-        {
-            return buffer_[idx];
-        }
-    }
-    __assert_fail("(idx >= 0) && (idx <= length())", "../../Include/Core/Strings.cpp", 0x5d1,
-                  "wchar WideString::getAt(int32) const");
+    ((idx >= 0) && (idx <= length()))
+        ? (void)0
+        : __assert_fail("(idx >= 0) && (idx <= length())", "../../Include/Core/Strings.cpp", 0x5d1,
+                        "wchar WideString::getAt(int32) const");
+    return buffer_[idx];
 }
 
 WideString WideString::setAt(int32 idx, wchar ch)
 {
-    if (idx >= 0 && idx < length())
+    ((idx >= 0) && (idx < length()))
+        ? (void)0
+        : __assert_fail("(idx >= 0) && (idx < length())", "../../Include/Core/Strings.cpp", 0x5d7,
+                        "WideString WideString::setAt(int32, wchar)");
+    (ch != 0)
+        ? (void)0
+        : __assert_fail("ch != 0", "../../Include/Core/Strings.cpp", 0x5d8,
+                        "WideString WideString::setAt(int32, wchar)");
+    if (buffer_[idx] == ch)
     {
-        if (ch == 0)
-        {
-            __assert_fail("ch != 0", "../../Include/Core/Strings.cpp", 0x5d8,
-                          "WideString WideString::setAt(int32, wchar)");
-        }
-        if (buffer_[idx] == ch)
-        {
-            return WideString(*this);
-        }
-        WideStringData* thisData = getData();
-        WideStringData* newData = WideStringData::create(thisData->getLength());
-        memcpy(newData->getBuffer(), thisData->getBuffer(), (thisData->getLength() + 1) * 4);
-        newData->getBuffer()[idx] = ch;
-        return WideString(newData);
+        return WideString(*this);
     }
-    __assert_fail("(idx >= 0) && (idx < length())", "../../Include/Core/Strings.cpp", 0x5d7,
-                  "WideString WideString::setAt(int32, wchar)");
+    WideStringData* thisData = getData();
+    WideStringData* newData = WideStringData::create(thisData->getLength());
+    memcpy(newData->getBuffer(), thisData->getBuffer(), (thisData->getLength() + 1) * 4);
+    newData->getBuffer()[idx] = ch;
+    return WideString(newData);
 }
 
 bool WideString::startsWith(const wchar* pat, bool isIgnoreCase) const
 {
-    size_t patLength = wcslen(pat);
-    bool bVar4;
-    if (length() < (int32)patLength)
+    int32 patLength = wcslen(pat);
+    if (length() < patLength)
     {
-        bVar4 = false;
+        return false;
     }
-    else if (isIgnoreCase)
+    if (isIgnoreCase)
     {
-        const wchar* pwVar2 = c_str();
-        bVar4 = wcsncasecmp(pwVar2, pat, patLength) == 0;
+        return wcsncasecmp(c_str(), pat, patLength) == 0;
     }
-    else
-    {
-        const wchar* pwVar2 = c_str();
-        bVar4 = wcsncmp(pwVar2, pat, patLength) == 0;
-    }
-    return bVar4;
+    return wcsncmp(c_str(), pat, patLength) == 0;
 }
 
 bool WideString::endsWith(const wchar* pat, bool isIgnoreCase) const
 {
-    size_t patLength = wcslen(pat);
-    bool bVar4;
-    if (length() < (int32)patLength)
+    int32 patLength = wcslen(pat);
+    if (length() < patLength)
     {
-        bVar4 = false;
+        return false;
     }
-    else if (isIgnoreCase)
+    if (isIgnoreCase)
     {
-        const wchar* pwVar2 = c_str();
-        int32 iVar1 = length();
-        bVar4 = wcsncasecmp(pwVar2 + (iVar1 - patLength), pat, patLength) == 0;
+        return wcsncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
     }
-    else
-    {
-        const wchar* pwVar2 = c_str();
-        int32 iVar1 = length();
-        bVar4 = wcsncmp(pwVar2 + (iVar1 - patLength), pat, patLength) == 0;
-    }
-    return bVar4;
+    return wcsncmp(c_str() + (length() - patLength), pat, patLength) == 0;
 }
 
 void WideString::attachData(WideStringData* newData)
@@ -835,8 +801,7 @@ WideStringData* WideString::getData() const
 
 void WideString::assign(const wchar* src)
 {
-    int32 srcLength = (int32)wcslen(src);
-    assign(src, srcLength);
+    assign(src, wcslen(src));
 }
 
 void WideString::assign(const wchar* src, int32 srcLength)
@@ -855,10 +820,12 @@ void WideString::assign(const wchar* src, int32 srcLength)
 
 void WideString::assign(const WideString& src)
 {
-    if (getData() != src.getData())
+    // ORIG：同 CharString::assign(ERKS_)，早退形态含尾部 jmp+nop。
+    if (getData() == src.getData())
     {
-        replaceData(src.getData());
+        return;
     }
+    replaceData(src.getData());
 }
 
 void WideString::assign(wchar src)
@@ -1102,25 +1069,21 @@ CharString CharString::concat(const char* src1, int32 src1Len, const char* src2,
     {
         return CharString();
     }
+    // ORIG: esi holds memcpy sizes; getBuffer() inline (no long-lived buf local)
     CharStringData* newData = CharStringData::createTerminated(src1Len + src2Len);
-    char* newDataBuf = newData->getBuffer();
-    memcpy(newDataBuf, src1, src1Len);
-    newDataBuf = newData->getBuffer();
-    memcpy(newDataBuf + src1Len, src2, src2Len);
+    memcpy(newData->getBuffer(), src1, src1Len);
+    memcpy(newData->getBuffer() + src1Len, src2, src2Len);
     return CharString(newData);
 }
 
 CharString CharString::concat(const char* src1, const char* src2)
 {
-    size_t len2 = strlen(src2);
-    size_t len1 = strlen(src1);
-    return concat(src1, (int32)len1, src2, (int32)len2);
+    return concat(src1, strlen(src1), src2, strlen(src2));
 }
 
 CharString CharString::concat(const CharString& src1, const char* src2)
 {
-    size_t len2 = strlen(src2);
-    return concat(src1, src2, (int32)len2);
+    return concat(src1, src2, strlen(src2));
 }
 
 CharString CharString::concat(const CharString& src1, const char* src2, int32 src2Len)
@@ -1141,8 +1104,7 @@ CharString CharString::concat(const CharString& src1, const char* src2, int32 sr
 
 CharString CharString::concat(const char* src1, const CharString& src2)
 {
-    size_t len1 = strlen(src1);
-    return concat(src1, (int32)len1, src2);
+    return concat(src1, strlen(src1), src2);
 }
 
 CharString CharString::concat(const char* src1, int32 src1Len, const CharString& src2)
@@ -1221,7 +1183,8 @@ CharString CharString::concat(char ch, const CharString& src1)
 
 CharString CharString::pattern(const char* pattern, int32 count)
 {
-    size_t patternLen = strlen(pattern);
+    // ORIG DWARF：patternLen 为 int32（size_t 会让 patternLen*count 的 imul 形态偏出）。
+    int32 patternLen = strlen(pattern);
     if (patternLen == 0 || count < 1)
     {
         return CharString();
@@ -1283,26 +1246,38 @@ int32 CharString::tokenize(const CharString& str, std::vector<CharString>* token
     {
         char c = strBuf[i];
         const char* d0 = dropDelimiters;
-        while (true)
+        // ORIG -O0: while (*d0 != 0 && *d0 != c) → mov $1/$0 flag loop
+        while (*d0 != 0 && *d0 != c)
         {
-            if (*d0 == '\0' || *d0 == c)
-            {
-                break;
-            }
             d0 = d0 + 1;
         }
-        if (*d0 == '\0')
+        // ORIG layout: drop branch first (if *d0 != 0), return-delim else
+        if (*d0 != 0)
+        {
+            int32 newLen = i - nextTokenStartIdx;
+            if (newLen == 0)
+            {
+                if (isKeepEmptyToken)
+                {
+                    tokenVector->push_back(CharString());
+                    tokenCount = tokenCount + 1;
+                }
+            }
+            else
+            {
+                tokenVector->push_back(mid(str, nextTokenStartIdx, newLen));
+                tokenCount = tokenCount + 1;
+            }
+            nextTokenStartIdx = i + 1;
+        }
+        else
         {
             const char* d1 = returnDelimiters;
-            while (true)
+            while (*d1 != 0 && *d1 != c)
             {
-                if (*d1 == '\0' || *d1 == c)
-                {
-                    break;
-                }
                 d1 = d1 + 1;
             }
-            if (*d1 != '\0')
+            if (*d1 != 0)
             {
                 int32 newLen = i - nextTokenStartIdx;
                 if (newLen == 0)
@@ -1322,24 +1297,6 @@ int32 CharString::tokenize(const CharString& str, std::vector<CharString>* token
                 tokenCount = tokenCount + 1;
                 nextTokenStartIdx = i + 1;
             }
-        }
-        else
-        {
-            int32 newLen = i - nextTokenStartIdx;
-            if (newLen == 0)
-            {
-                if (isKeepEmptyToken)
-                {
-                    tokenVector->push_back(CharString());
-                    tokenCount = tokenCount + 1;
-                }
-            }
-            else
-            {
-                tokenVector->push_back(mid(str, nextTokenStartIdx, newLen));
-                tokenCount = tokenCount + 1;
-            }
-            nextTokenStartIdx = i + 1;
         }
     }
     if (nextTokenStartIdx != strLen)
@@ -1377,18 +1334,19 @@ int32 CharString::tokenizeNewLine(const CharString& str, std::vector<CharString>
             lastNewLineIdx = i;
         }
     }
-    if (nextStartIdx == strLen)
+    // ORIG layout: trailing mid first (if nextStartIdx != strLen), empty after
+    if (nextStartIdx != strLen)
+    {
+        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
+        tokenCount = tokenCount + 1;
+    }
+    else
     {
         if (strLen - 1 == lastNewLineIdx)
         {
             tokenVector->push_back(CharString());
             tokenCount = tokenCount + 1;
         }
-    }
-    else
-    {
-        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
-        tokenCount = tokenCount + 1;
     }
     return tokenCount;
 }
@@ -1403,18 +1361,28 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
 
     const char* separatorStrSrc = separatorStr.c_str();
     int32 separatorStrLen = separatorStr.length();
-    int32 totalLength = (tokenVector.size() - 1) * separatorStrLen;
+    // ORIG: size(); sub $1; imul seplen  (cast forces sub not lea)
+    int32 totalLength = ((int32)tokenVector.size() - 1) * separatorStrLen;
 
+    // ORIG: separate runOnce flags; if (flag){} else {for...} → cmpb/jne;
+    // for (it=begin(), end=end(); ...) caches end(); sepLen checked before it!=begin()
     bool token_runOnce = false;
-    for (std::vector<CharString>::const_iterator token_iterator = tokenVector.begin();
-         token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
-         token_iterator++)
+    if (token_runOnce)
     {
-        const CharString& token = *token_iterator;
-        while (token_runOnce)
+    }
+    else
+    {
+        for (std::vector<CharString>::const_iterator token_iterator = tokenVector.begin(),
+                                                    token_end = tokenVector.end();
+             token_iterator != token_end && (token_runOnce = !token_runOnce);
+             token_iterator++)
         {
-            totalLength = totalLength + token.length();
-            token_runOnce = false;
+            const CharString& token = *token_iterator;
+            while (token_runOnce)
+            {
+                totalLength = totalLength + token.length();
+                token_runOnce = false;
+            }
         }
     }
 
@@ -1426,23 +1394,30 @@ CharString CharString::join(const std::vector<CharString>& tokenVector,
     CharStringData* newData = CharStringData::createTerminated(totalLength);
     char* newDataBuf = newData->getBuffer();
 
-    token_runOnce = false;
-    for (std::vector<CharString>::const_iterator token_iterator = tokenVector.begin();
-         token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
-         token_iterator++)
+    bool token_runOnce2 = false;
+    if (token_runOnce2)
     {
-        const CharString& token = *token_iterator;
-        while (token_runOnce)
+    }
+    else
+    {
+        for (std::vector<CharString>::const_iterator token_iterator = tokenVector.begin(),
+                                                    token_end = tokenVector.end();
+             token_iterator != token_end && (token_runOnce2 = !token_runOnce2);
+             token_iterator++)
         {
-            if (token_iterator != tokenVector.begin() && separatorStrLen >= 1)
+            const CharString& token = *token_iterator;
+            while (token_runOnce2)
             {
-                memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
-                newDataBuf = newDataBuf + separatorStrLen;
+                if (separatorStrLen >= 1 && token_iterator != tokenVector.begin())
+                {
+                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen);
+                    newDataBuf = newDataBuf + separatorStrLen;
+                }
+                int32 tokenLength = token.length();
+                memcpy(newDataBuf, token.c_str(), tokenLength);
+                newDataBuf = newDataBuf + tokenLength;
+                token_runOnce2 = false;
             }
-            int32 tokenLength = token.length();
-            memcpy(newDataBuf, token.c_str(), tokenLength);
-            newDataBuf = newDataBuf + tokenLength;
-            token_runOnce = false;
         }
     }
 
@@ -1456,24 +1431,19 @@ WideString WideString::concat(const wchar* src1, int32 src1Len, const wchar* src
         return WideString();
     }
     WideStringData* newData = WideStringData::createTerminated(src1Len + src2Len);
-    wchar* newDataBuf = newData->getBuffer();
-    memcpy(newDataBuf, src1, src1Len * 4);
-    newDataBuf = newData->getBuffer();
-    memcpy(newDataBuf + src1Len, src2, src2Len * 4);
+    memcpy(newData->getBuffer(), src1, src1Len * 4);
+    memcpy(newData->getBuffer() + src1Len, src2, src2Len * 4);
     return WideString(newData);
 }
 
 WideString WideString::concat(const wchar* src1, const wchar* src2)
 {
-    size_t len2 = wcslen(src2);
-    size_t len1 = wcslen(src1);
-    return concat(src1, (int32)len1, src2, (int32)len2);
+    return concat(src1, wcslen(src1), src2, wcslen(src2));
 }
 
 WideString WideString::concat(const WideString& src1, const wchar* src2)
 {
-    size_t len2 = wcslen(src2);
-    return concat(src1, src2, (int32)len2);
+    return concat(src1, src2, wcslen(src2));
 }
 
 WideString WideString::concat(const WideString& src1, const wchar* src2, int32 src2Len)
@@ -1494,8 +1464,7 @@ WideString WideString::concat(const WideString& src1, const wchar* src2, int32 s
 
 WideString WideString::concat(const wchar* src1, const WideString& src2)
 {
-    size_t len1 = wcslen(src1);
-    return concat(src1, (int32)len1, src2);
+    return concat(src1, wcslen(src1), src2);
 }
 
 WideString WideString::concat(const wchar* src1, int32 src1Len, const WideString& src2)
@@ -1579,7 +1548,8 @@ WideString WideString::concat(wchar ch, const WideString& src1)
 
 WideString WideString::pattern(const wchar* pattern, int32 count)
 {
-    size_t patternLen = wcslen(pattern);
+    // ORIG DWARF：patternLen 为 int32（同 CharString::pattern）。
+    int32 patternLen = wcslen(pattern);
     if (patternLen == 0 || count < 1)
     {
         return WideString();
@@ -1671,23 +1641,33 @@ int32 WideString::tokenize(const WideString& str, std::vector<WideString>* token
     {
         wchar c = strBuf[i];
         const wchar* d0 = dropDelimiters;
-        while (true)
+        while (*d0 != 0 && *d0 != c)
         {
-            if (*d0 == 0 || *d0 == c)
-            {
-                break;
-            }
             d0 = d0 + 1;
         }
-        if (*d0 == 0)
+        if (*d0 != 0)
+        {
+            int32 newLen = i - nextTokenStartIdx;
+            if (newLen == 0)
+            {
+                if (isKeepEmptyToken)
+                {
+                    tokenVector->push_back(WideString());
+                    tokenCount = tokenCount + 1;
+                }
+            }
+            else
+            {
+                tokenVector->push_back(mid(str, nextTokenStartIdx, newLen));
+                tokenCount = tokenCount + 1;
+            }
+            nextTokenStartIdx = i + 1;
+        }
+        else
         {
             const wchar* d1 = returnDelimiters;
-            while (true)
+            while (*d1 != 0 && *d1 != c)
             {
-                if (*d1 == 0 || *d1 == c)
-                {
-                    break;
-                }
                 d1 = d1 + 1;
             }
             if (*d1 != 0)
@@ -1710,24 +1690,6 @@ int32 WideString::tokenize(const WideString& str, std::vector<WideString>* token
                 tokenCount = tokenCount + 1;
                 nextTokenStartIdx = i + 1;
             }
-        }
-        else
-        {
-            int32 newLen = i - nextTokenStartIdx;
-            if (newLen == 0)
-            {
-                if (isKeepEmptyToken)
-                {
-                    tokenVector->push_back(WideString());
-                    tokenCount = tokenCount + 1;
-                }
-            }
-            else
-            {
-                tokenVector->push_back(mid(str, nextTokenStartIdx, newLen));
-                tokenCount = tokenCount + 1;
-            }
-            nextTokenStartIdx = i + 1;
         }
     }
     if (nextTokenStartIdx != strLen)
@@ -1765,18 +1727,18 @@ int32 WideString::tokenizeNewLine(const WideString& str, std::vector<WideString>
             lastNewLineIdx = i;
         }
     }
-    if (nextStartIdx == strLen)
+    if (nextStartIdx != strLen)
+    {
+        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
+        tokenCount = tokenCount + 1;
+    }
+    else
     {
         if (strLen - 1 == lastNewLineIdx)
         {
             tokenVector->push_back(WideString());
             tokenCount = tokenCount + 1;
         }
-    }
-    else
-    {
-        tokenVector->push_back(mid(str, nextStartIdx, strLen - nextStartIdx));
-        tokenCount = tokenCount + 1;
     }
     return tokenCount;
 }
@@ -1791,18 +1753,25 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
 
     const wchar* separatorStrSrc = separatorStr.c_str();
     int32 separatorStrLen = separatorStr.length();
-    int32 totalLength = (tokenVector.size() - 1) * separatorStrLen;
+    int32 totalLength = ((int32)tokenVector.size() - 1) * separatorStrLen;
 
     bool token_runOnce = false;
-    for (std::vector<WideString>::const_iterator token_iterator = tokenVector.begin();
-         token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
-         token_iterator++)
+    if (token_runOnce)
     {
-        const WideString& token = *token_iterator;
-        while (token_runOnce)
+    }
+    else
+    {
+        for (std::vector<WideString>::const_iterator token_iterator = tokenVector.begin(),
+                                                    token_end = tokenVector.end();
+             token_iterator != token_end && (token_runOnce = !token_runOnce);
+             token_iterator++)
         {
-            totalLength = totalLength + token.length();
-            token_runOnce = false;
+            const WideString& token = *token_iterator;
+            while (token_runOnce)
+            {
+                totalLength = totalLength + token.length();
+                token_runOnce = false;
+            }
         }
     }
 
@@ -1814,23 +1783,31 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
     WideStringData* newData = WideStringData::createTerminated(totalLength);
     wchar* newDataBuf = newData->getBuffer();
 
-    token_runOnce = false;
-    for (std::vector<WideString>::const_iterator token_iterator = tokenVector.begin();
-         token_iterator != tokenVector.end() && (token_runOnce = !token_runOnce);
-         token_iterator++)
+    bool token_runOnce2 = false;
+    if (token_runOnce2)
     {
-        const WideString& token = *token_iterator;
-        while (token_runOnce)
+    }
+    else
+    {
+        for (std::vector<WideString>::const_iterator token_iterator = tokenVector.begin(),
+                                                    token_end = tokenVector.end();
+             token_iterator != token_end && (token_runOnce2 = !token_runOnce2);
+             token_iterator++)
         {
-            if (token_iterator != tokenVector.begin() && separatorStrLen >= 1)
+            const WideString& token = *token_iterator;
+            while (token_runOnce2)
             {
-                memcpy(newDataBuf, separatorStrSrc, separatorStrLen * 4);
-                newDataBuf = newDataBuf + separatorStrLen;
+                if (separatorStrLen >= 1 && token_iterator != tokenVector.begin())
+                {
+                    memcpy(newDataBuf, separatorStrSrc, separatorStrLen * 4);
+                    newDataBuf = newDataBuf + separatorStrLen;
+                }
+                int32 tokenLength = token.length();
+                // ORIG: lea (,%eax,4),%esi for token byte size — needs (size_t) cast
+                memcpy(newDataBuf, token.c_str(), (size_t)tokenLength * 4);
+                newDataBuf = newDataBuf + tokenLength;
+                token_runOnce2 = false;
             }
-            int32 tokenLength = token.length();
-            memcpy(newDataBuf, token.c_str(), tokenLength * 4);
-            newDataBuf = newDataBuf + tokenLength;
-            token_runOnce = false;
         }
     }
 
@@ -1839,7 +1816,6 @@ WideString WideString::join(const std::vector<WideString>& tokenVector,
 
 bool WideString::isuspace(wchar ch)
 {
-    bool bVar1;
     if ((((((ch == 9) || (ch == 10)) || (ch == 0xb)) ||
           (((ch == 0xc || (ch == 0xd)) || ((ch == 0x20 || ((ch == 0xa0 || (ch == 0x2000)))))))) ||
          ((ch == 0x2001 ||
@@ -1849,19 +1825,14 @@ bool WideString::isuspace(wchar ch)
         ((((ch == 0x200b || (ch == 0x202f)) || (ch == 0x205f)) || ((ch == 0x3000 || (ch == 0xfeff)))))
         )
     {
-        bVar1 = true;
+        return true;
     }
-    else
-    {
-        bVar1 = false;
-    }
-    return bVar1;
+    return false;
 }
 
 bool WideString::isupunct(wchar ch)
 {
-    bool bVar1;
-    if ((((ch < 0x21 || 0x23 < ch) && (ch < 0x25 || 0x2a < ch)) &&
+    if (!((((ch < 0x21 || 0x23 < ch) && (ch < 0x25 || 0x2a < ch)) &&
          ((ch < 0x2c || 0x2f < ch) && ch != 0x3a && ch != 0x3b && ch != 0x3f && ch != 0x40) &&
          ((ch < 0x5b || 0x5d < ch) && ch != 0x5f && ch != 0x7b && ch != 0x7d && ch != 0xa1) &&
          ch != 0xab && ch != 0xad && ch != 0xb7 && ch != 0xbb && ch != 0xbf &&
@@ -1901,15 +1872,11 @@ bool WideString::isupunct(wchar ch)
          (ch < 0xff01 || 0xff03 < ch) && (ch < 0xff05 || 0xff0a < ch) &&
          (ch < 0xff0c || 0xff0f < ch) && ch != 0xff1a && ch != 0xff1b && ch != 0xff1f &&
          ch != 0xff20 && (ch < 0xff3b || 0xff3d < ch) && ch != 0xff3f &&
-         ch != 0xff5b && ch != 0xff5d && (ch < 0xff5f || 0xff65 < ch)))
+         ch != 0xff5b && ch != 0xff5d && (ch < 0xff5f || 0xff65 < ch))))
     {
-        bVar1 = false;
+        return true;
     }
-    else
-    {
-        bVar1 = true;
-    }
-    return bVar1;
+    return false;
 }
 
 CharString left(const CharString& str, int32 length)
@@ -1919,11 +1886,12 @@ CharString left(const CharString& str, int32 length)
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x2c4,
                       "CharString left(const CharString&, int32)");
     }
-    if (length < str.length())
+    // ORIG: setle on (str.length() <= length) then copy-ctor branch first
+    if (str.length() <= length)
     {
-        return CharString(str.c_str(), length);
+        return CharString(str);
     }
-    return CharString(str);
+    return CharString(str.c_str(), length);
 }
 
 CharString mid(const CharString& str, int32 start)
@@ -1937,11 +1905,12 @@ CharString mid(const CharString& str, int32 start)
     {
         return CharString(str);
     }
-    if (start < str.length())
+    // ORIG: setle on (str.length() <= start) then empty ctor first
+    if (str.length() <= start)
     {
-        return CharString(str.c_str() + start, str.length() - start);
+        return CharString();
     }
-    return CharString();
+    return CharString(str.c_str() + start, str.length() - start);
 }
 
 CharString mid(const CharString& str, int32 start, int32 length)
@@ -1956,29 +1925,31 @@ CharString mid(const CharString& str, int32 start, int32 length)
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x2da,
                       "CharString mid(const CharString&, int32, int32)");
     }
-    if (start < str.length())
+    // ORIG: setle empty-first; clamp uses length += str.length()-(start+length)
+    if (str.length() <= start)
     {
-        if (str.length() < start + length)
-        {
-            length = str.length() - start;
-        }
-        return CharString(str.c_str() + start, length);
+        return CharString();
     }
-    return CharString();
+    if (start + length > str.length())
+    {
+        length = length + (str.length() - (start + length));
+    }
+    return CharString(str.c_str() + start, length);
 }
 
 CharString right(const CharString& str, int32 length)
 {
     if (length < 0)
     {
-        __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x2ed,
+        __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x2e7,
                       "CharString right(const CharString&, int32)");
     }
-    if (length < str.length())
+    if (str.length() <= length)
     {
-        return CharString(str.c_str() + (str.length() - length), length);
+        return CharString(str);
     }
-    return CharString(str);
+    // ORIG: c_str + length - length (left-assoc) for mov/sub register dance
+    return CharString(str.c_str() + str.length() - length, length);
 }
 
 CharString lower(const CharString& str)
@@ -2037,7 +2008,9 @@ CharString trimLeft(const CharString& str)
         return CharString();
     }
     const char* strBuf = str.c_str();
-    for (int32 pos = 0; pos < (int32)str.length(); pos = pos + 1)
+    // ORIG caches length-1 and uses setle (pos <= last) loop
+    int32 last = str.length() - 1;
+    for (int32 pos = 0; pos <= last; pos = pos + 1)
     {
         if (isspace((int)strBuf[pos]) == 0)
         {
@@ -2060,12 +2033,13 @@ CharString trimRight(const CharString& str)
         return CharString();
     }
     const char* strBuf = str.c_str();
-    int32 strLength = str.length();
-    for (int32 pos = strLength - 1; pos > -1; pos = pos - 1)
+    // ORIG: last = length()-1 stored once; pos starts at last; cmp pos==last for no-trim
+    int32 last = str.length() - 1;
+    for (int32 pos = last; pos > -1; pos = pos - 1)
     {
         if (isspace((int)strBuf[pos]) == 0)
         {
-            if (pos == strLength - 1)
+            if (pos == last)
             {
                 return CharString(str);
             }
@@ -2084,33 +2058,30 @@ CharString trim(const CharString& str)
 
 CharString insert(const CharString& str, int32 pos, const char* src)
 {
-    size_t srcLength = strlen(src);
-    return insert(str, pos, src, (int32)srcLength);
+    return insert(str, pos, src, strlen(src));
 }
 
 CharString insert(const CharString& str, int32 pos, const char* src, int32 srcLength)
 {
-    if (pos < 0 || pos > str.length())
-    {
-        __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x244,
-                      "CharString insert(const CharString&, int32, const char*, int32)");
-    }
+    // Ternary: ORIG js/jge fall-through assert, line 0x220
+    ((pos >= 0) && (pos <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x220,
+                        "CharString insert(const CharString&, int32, const char*, int32)");
     if (str.length() == 0)
     {
         return CharString(src, srcLength);
     }
-    else if (srcLength == 0)
+    if (srcLength == 0)
     {
         return CharString(str);
     }
-    else
-    {
-        CharStringData* newData = CharStringData::createTerminated(str.length() + srcLength);
-        memcpy(newData->getBuffer(), str.c_str(), pos);
-        memcpy(newData->getBuffer() + pos, src, srcLength);
-        memcpy(newData->getBuffer() + pos + srcLength, str.c_str() + pos, str.length() - pos);
-        return CharString(newData);
-    }
+    CharStringData* newData = CharStringData::createTerminated(str.length() + srcLength);
+    memcpy(newData->getBuffer(), str.c_str(), pos);
+    memcpy(newData->getBuffer() + pos, src, srcLength);
+    // ORIG：dst 地址按 srcLength 先装载（pos 后）。
+    memcpy(newData->getBuffer() + srcLength + pos, str.c_str() + pos, str.length() - pos);
+    return CharString(newData);
 }
 
 CharString insert(const CharString& str, int32 pos, const CharString& src)
@@ -2131,58 +2102,49 @@ CharString insert(const CharString& str, int32 pos, const CharString& src)
 
 CharString insert(const CharString& str, int32 pos, char src)
 {
-    if (pos < 0 || pos > str.length())
-    {
-        __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x23f,
-                      "CharString insert(const CharString&, int32, char)");
-    }
+    ((pos >= 0) && (pos <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x23f,
+                        "CharString insert(const CharString&, int32, char)");
     if (str.length() == 0)
     {
         return CharString(src);
     }
-    else if (src == '\0')
+    if (src == '\0')
     {
         return CharString(str);
     }
-    else
-    {
-        CharStringData* newData = CharStringData::createTerminated(str.length() + 1);
-        memcpy(newData->getBuffer(), str.c_str(), pos);
-        newData->getBuffer()[pos] = src;
-        memcpy(newData->getBuffer() + pos + 1, str.c_str() + pos, str.length() - pos);
-        return CharString(newData);
-    }
+    CharStringData* newData = CharStringData::createTerminated(str.length() + 1);
+    memcpy(newData->getBuffer(), str.c_str(), pos);
+    newData->getBuffer()[pos] = src;
+    memcpy(newData->getBuffer() + pos + 1, str.c_str() + pos, str.length() - pos);
+    return CharString(newData);
 }
 
 CharString remove(const CharString& str, int32 pos, int32 removeLength)
 {
-    if (pos < 0 || pos > str.length())
-    {
-        __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x253,
-                      "CharString remove(const CharString&, int32, int32)");
-    }
-    if (removeLength < 0 || pos + removeLength > str.length())
-    {
-        __assert_fail("0 <= removeLength && pos + removeLength <= str.length()",
-                      "../../Include/Core/Strings.cpp", 0x254,
-                      "CharString remove(const CharString&, int32, int32)");
-    }
+    ((pos >= 0) && (pos <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x253,
+                        "CharString remove(const CharString&, int32, int32)");
+    ((removeLength >= 0) && (pos + removeLength <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= removeLength && pos + removeLength <= str.length()",
+                        "../../Include/Core/Strings.cpp", 0x254,
+                        "CharString remove(const CharString&, int32, int32)");
     if (removeLength == 0)
     {
         return CharString(str);
     }
-    else if (str.length() == removeLength)
+    if (str.length() == removeLength)
     {
         return CharString();
     }
-    else
-    {
-        CharStringData* newData = CharStringData::createTerminated(str.length() - removeLength);
-        memcpy(newData->getBuffer(), str.c_str(), pos);
-        memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
-               (str.length() - pos) - removeLength);
-        return CharString(newData);
-    }
+    CharStringData* newData = CharStringData::createTerminated(str.length() - removeLength);
+    memcpy(newData->getBuffer(), str.c_str(), pos);
+    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
+           (str.length() - pos) - removeLength);
+    return CharString(newData);
 }
 
 CharString replace(const CharString& str, char oldChar, char newChar)
@@ -2221,9 +2183,7 @@ CharString replace(const CharString& str, char oldChar, char newChar)
 
 CharString replace(const CharString& str, const char* oldChars, const char* newChars)
 {
-    size_t newCharsLength = strlen(newChars);
-    size_t oldCharsLength = strlen(oldChars);
-    return replace(str, oldChars, (int32)oldCharsLength, newChars, (int32)newCharsLength);
+    return replace(str, oldChars, strlen(oldChars), newChars, strlen(newChars));
 }
 
 CharString replace(const CharString& str, const char* oldChars, int32 oldCharsLength,
@@ -2253,41 +2213,46 @@ CharString replace(const CharString& str, const char* oldChars, int32 oldCharsLe
     {
         return CharString(str);
     }
-    int32 newLength = (newCharsLength - oldCharsLength) * replaceCount + strLength;
-    if (newLength != 0)
+    // ORIG: store delta, reload strLen to second temp, then imul+add
+    int32 delta = newCharsLength - oldCharsLength;
+    int32 baseLen = strLength;
+    int32 newLength = delta * replaceCount + baseLen;
+    if (newLength == 0)
     {
-        CharStringData* newData = CharStringData::createTerminated(newLength);
-        char* newBuffer = newData->getBuffer();
-        int32 ni = 0;
-        i = 0;
-        while (i < strLength)
-        {
-            if (strLength - oldCharsLength < i ||
-                memcmp(strBuffer + i, oldChars, oldCharsLength) != 0)
-            {
-                newBuffer[ni] = strBuffer[i];
-                ni = ni + 1;
-                i = i + 1;
-            }
-            else
-            {
-                memcpy(newBuffer + ni, newChars, newCharsLength);
-                i = i + oldCharsLength;
-                ni = ni + newCharsLength;
-            }
-        }
-        return CharString(newData);
+        return CharString();
     }
-    return CharString();
+    CharStringData* newData = CharStringData::createTerminated(newLength);
+    char* newBuffer = newData->getBuffer();
+    int32 ni = 0;
+    i = 0;
+    while (i < strLength)
+    {
+        // ORIG: if (strLen-old < i) goto copy; if (memcmp!=0) goto copy; else replace
+        if (strLength - oldCharsLength < i)
+        {
+            newBuffer[ni] = strBuffer[i];
+            ni = ni + 1;
+            i = i + 1;
+        }
+        else if (memcmp(strBuffer + i, oldChars, oldCharsLength) != 0)
+        {
+            newBuffer[ni] = strBuffer[i];
+            ni = ni + 1;
+            i = i + 1;
+        }
+        else
+        {
+            memcpy(newBuffer + ni, newChars, newCharsLength);
+            i = i + oldCharsLength;
+            ni = ni + newCharsLength;
+        }
+    }
+    return CharString(newData);
 }
 
 CharString replace(const CharString& str, const CharString& oldChars, const CharString& newChars)
 {
-    int32 newCharsLength = newChars.length();
-    const char* newCharsSrc = newChars.c_str();
-    int32 oldCharsLength = oldChars.length();
-    const char* oldCharsSrc = oldChars.c_str();
-    return replace(str, oldCharsSrc, oldCharsLength, newCharsSrc, newCharsLength);
+    return replace(str, oldChars.c_str(), oldChars.length(), newChars.c_str(), newChars.length());
 }
 
 CharString operator+(const CharString& src1, const char* src2)
@@ -2317,29 +2282,34 @@ CharString operator+(char src1, const CharString& src2)
 
 bool operator==(const CharString& src1, const char* src2)
 {
-    if (src1[0] == *src2)
+    // ORIG: setne early-out (first-char unequal => false)
+    if (src1[0] != *src2)
     {
-        return src1.compare(src1, src2) == 0;
+        return false;
     }
-    return false;
+    return src1.compare(src1, src2) == 0;
 }
 
 bool operator==(const CharString& src1, const CharString& src2)
 {
-    if (src1.length() == src2.length() && src1[0] == src2[0])
+    if (src1.length() != src2.length())
     {
-        return src1.compare(src1, src2) == 0;
+        return false;
     }
-    return false;
+    if (src1[0] != src2[0])
+    {
+        return false;
+    }
+    return src1.compare(src1, src2) == 0;
 }
 
 bool operator==(const char* src1, const CharString& src2)
 {
-    if (*src1 == src2[0])
+    if (*src1 != src2[0])
     {
-        return src2.compare(src1, src2) == 0;
+        return false;
     }
-    return false;
+    return src2.compare(src1, src2) == 0;
 }
 
 bool operator!=(const CharString& src1, const char* src2)
@@ -2424,11 +2394,11 @@ WideString left(const WideString& str, int32 length)
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x7b3,
                       "WideString left(const WideString&, int32)");
     }
-    if (length < str.length())
+    if (str.length() <= length)
     {
-        return WideString(str.c_str(), length);
+        return WideString(str);
     }
-    return WideString(str);
+    return WideString(str.c_str(), length);
 }
 
 WideString mid(const WideString& str, int32 start)
@@ -2442,11 +2412,11 @@ WideString mid(const WideString& str, int32 start)
     {
         return WideString(str);
     }
-    if (start < str.length())
+    if (str.length() <= start)
     {
-        return WideString(str.c_str() + start, str.length() - start);
+        return WideString();
     }
-    return WideString();
+    return WideString(str.c_str() + start, str.length() - start);
 }
 
 WideString mid(const WideString& str, int32 start, int32 length)
@@ -2461,15 +2431,15 @@ WideString mid(const WideString& str, int32 start, int32 length)
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x7c9,
                       "WideString mid(const WideString&, int32, int32)");
     }
-    if (start < str.length())
+    if (str.length() <= start)
     {
-        if (str.length() < start + length)
-        {
-            length = str.length() - start;
-        }
-        return WideString(str.c_str() + start, length);
+        return WideString();
     }
-    return WideString();
+    if (start + length > str.length())
+    {
+        length = length + (str.length() - (start + length));
+    }
+    return WideString(str.c_str() + start, length);
 }
 
 WideString right(const WideString& str, int32 length)
@@ -2479,11 +2449,11 @@ WideString right(const WideString& str, int32 length)
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x7d6,
                       "WideString right(const WideString&, int32)");
     }
-    if (length < str.length())
+    if (str.length() <= length)
     {
-        return WideString(str.c_str() + (str.length() - length), length);
+        return WideString(str);
     }
-    return WideString(str);
+    return WideString(str.c_str() + str.length() - length, length);
 }
 
 WideString lower(const WideString& str)
@@ -2542,7 +2512,8 @@ WideString trimLeft(const WideString& str)
         return WideString();
     }
     const wchar* strBuf = str.c_str();
-    for (int32 pos = 0; pos <= str.length() - 1; pos = pos + 1)
+    int32 last = str.length() - 1;
+    for (int32 pos = 0; pos <= last; pos = pos + 1)
     {
         if (!WideString::isuspace(strBuf[pos]))
         {
@@ -2565,12 +2536,12 @@ WideString trimRight(const WideString& str)
         return WideString();
     }
     const wchar* strBuf = str.c_str();
-    int32 len = str.length();
-    for (int32 pos = len - 1; pos > -1; pos = pos - 1)
+    int32 last = str.length() - 1;
+    for (int32 pos = last; pos > -1; pos = pos - 1)
     {
         if (!WideString::isuspace(strBuf[pos]))
         {
-            if (pos == len - 1)
+            if (pos == last)
             {
                 return WideString(str);
             }
@@ -2584,40 +2555,34 @@ WideString trimRight(const WideString& str)
 
 WideString trim(const WideString& str)
 {
-    WideString tmp = trimRight(str);
-    return trimLeft(tmp);
+    return trimLeft(trimRight(str));
 }
 
 WideString insert(const WideString& str, int32 pos, const wchar* src)
 {
-    int32 srcLength = (int32)wcslen(src);
-    return insert(str, pos, src, srcLength);
+    return insert(str, pos, src, wcslen(src));
 }
 
 WideString insert(const WideString& str, int32 pos, const wchar* src, int32 srcLength)
 {
-    if (pos >= 0 && pos <= str.length())
+    ((pos >= 0) && (pos <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x70f,
+                        "WideString insert(const WideString&, int32, const wchar*, int32)");
+    if (str.length() == 0)
     {
-        if (str.length() == 0)
-        {
-            return WideString(src, srcLength);
-        }
-        else if (srcLength == 0)
-        {
-            return WideString(str);
-        }
-        else
-        {
-            WideStringData* newData = WideStringData::createTerminated(str.length() + srcLength);
-            memcpy(newData->getBuffer(), str.c_str(), pos * 4);
-            memcpy(newData->getBuffer() + pos, src, srcLength * 4);
-            memcpy(newData->getBuffer() + pos + srcLength, str.c_str() + pos,
-                   (str.length() - pos) * 4);
-            return WideString(newData);
-        }
+        return WideString(src, srcLength);
     }
-    __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x70f,
-                  "WideString insert(const WideString&, int32, const wchar*, int32)");
+    if (srcLength == 0)
+    {
+        return WideString(str);
+    }
+    WideStringData* newData = WideStringData::createTerminated(str.length() + srcLength);
+    memcpy(newData->getBuffer(), str.c_str(), pos * 4);
+    memcpy(newData->getBuffer() + pos, src, srcLength * 4);
+    memcpy(newData->getBuffer() + pos + srcLength, str.c_str() + pos,
+           (str.length() - pos) * 4);
+    return WideString(newData);
 }
 
 WideString insert(const WideString& str, int32 pos, const WideString& src)
@@ -2635,59 +2600,50 @@ WideString insert(const WideString& str, int32 pos, const WideString& src)
 
 WideString insert(const WideString& str, int32 pos, wchar src)
 {
-    if (pos >= 0 && pos <= str.length())
+    ((pos >= 0) && (pos <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x72e,
+                        "WideString insert(const WideString&, int32, wchar)");
+    if (str.length() == 0)
     {
-        if (str.length() == 0)
-        {
-            return WideString(src);
-        }
-        else if (src == 0)
-        {
-            return WideString(str);
-        }
-        else
-        {
-            WideStringData* newData = WideStringData::createTerminated(str.length() + 1);
-            memcpy(newData->getBuffer(), str.c_str(), pos * 4);
-            newData->getBuffer()[pos] = src;
-            memcpy(newData->getBuffer() + pos + 1, str.c_str() + pos,
-                   (str.length() - pos) * 4);
-            return WideString(newData);
-        }
+        return WideString(src);
     }
-    __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x72e,
-                  "WideString insert(const WideString&, int32, wchar)");
+    if (src == 0)
+    {
+        return WideString(str);
+    }
+    WideStringData* newData = WideStringData::createTerminated(str.length() + 1);
+    memcpy(newData->getBuffer(), str.c_str(), pos * 4);
+    newData->getBuffer()[pos] = src;
+    memcpy(newData->getBuffer() + pos + 1, str.c_str() + pos,
+           (str.length() - pos) * 4);
+    return WideString(newData);
 }
 
 WideString remove(const WideString& str, int32 pos, int32 removeLength)
 {
-    if (pos >= 0 && pos <= str.length())
+    ((pos >= 0) && (pos <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x742,
+                        "WideString remove(const WideString&, int32, int32)");
+    ((removeLength >= 0) && (pos + removeLength <= str.length()))
+        ? (void)0
+        : __assert_fail("0 <= removeLength && pos + removeLength <= str.length()",
+                        "../../Include/Core/Strings.cpp", 0x743,
+                        "WideString remove(const WideString&, int32, int32)");
+    if (removeLength == 0)
     {
-        if (removeLength >= 0)
-        {
-            if (pos + removeLength <= str.length())
-            {
-                if (removeLength == 0)
-                {
-                    return WideString(str);
-                }
-                if (str.length() == removeLength)
-                {
-                    return WideString();
-                }
-                WideStringData* newData = WideStringData::createTerminated(str.length() - removeLength);
-                memcpy(newData->getBuffer(), str.c_str(), pos * 4);
-                memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
-                       (str.length() - pos - removeLength) * 4);
-                return WideString(newData);
-            }
-        }
-        __assert_fail("0 <= removeLength && pos + removeLength <= str.length()",
-                      "../../Include/Core/Strings.cpp", 0x743,
-                      "WideString remove(const WideString&, int32, int32)");
+        return WideString(str);
     }
-    __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x742,
-                  "WideString remove(const WideString&, int32, int32)");
+    if (str.length() == removeLength)
+    {
+        return WideString();
+    }
+    WideStringData* newData = WideStringData::createTerminated(str.length() - removeLength);
+    memcpy(newData->getBuffer(), str.c_str(), pos * 4);
+    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
+           (str.length() - pos - removeLength) * 4);
+    return WideString(newData);
 }
 
 WideString replace(const WideString& str, wchar pat, wchar target)
@@ -2726,9 +2682,7 @@ WideString replace(const WideString& str, wchar pat, wchar target)
 
 WideString replace(const WideString& str, const wchar* pat, const wchar* target)
 {
-    size_t targetLength = wcslen(target);
-    size_t patLength = wcslen(pat);
-    return replace(str, pat, (int32)patLength, target, (int32)targetLength);
+    return replace(str, pat, wcslen(pat), target, wcslen(target));
 }
 
 WideString replace(const WideString& str, const wchar* pat, int32 patLength,
@@ -2744,7 +2698,7 @@ WideString replace(const WideString& str, const wchar* pat, int32 patLength,
     int32 i = 0;
     while (i <= strLength - patLength)
     {
-        if (memcmp(strBuffer + i, pat, patLength * 4) == 0)
+        if (memcmp(strBuffer + i, pat, (size_t)patLength * 4) == 0)
         {
             replaceCount = replaceCount + 1;
             i = i + patLength;
@@ -2758,41 +2712,44 @@ WideString replace(const WideString& str, const wchar* pat, int32 patLength,
     {
         return WideString(str);
     }
-    int32 newLength = (targetLength - patLength) * replaceCount + strLength;
-    if (newLength != 0)
+    int32 delta = targetLength - patLength;
+    int32 baseLen = strLength;
+    int32 newLength = delta * replaceCount + baseLen;
+    if (newLength == 0)
     {
-        WideStringData* newData = WideStringData::createTerminated(newLength);
-        wchar* newBuffer = newData->getBuffer();
-        int32 ni = 0;
-        i = 0;
-        while (i < strLength)
-        {
-            if (strLength - patLength < i ||
-                memcmp(strBuffer + i, pat, patLength * 4) != 0)
-            {
-                newBuffer[ni] = strBuffer[i];
-                ni = ni + 1;
-                i = i + 1;
-            }
-            else
-            {
-                memcpy(newBuffer + ni, target, targetLength * 4);
-                i = i + patLength;
-                ni = ni + targetLength;
-            }
-        }
-        return WideString(newData);
+        return WideString();
     }
-    return WideString();
+    WideStringData* newData = WideStringData::createTerminated(newLength);
+    wchar* newBuffer = newData->getBuffer();
+    int32 ni = 0;
+    i = 0;
+    while (i < strLength)
+    {
+        if (strLength - patLength < i)
+        {
+            newBuffer[ni] = strBuffer[i];
+            ni = ni + 1;
+            i = i + 1;
+        }
+        else if (memcmp(strBuffer + i, pat, (size_t)patLength * 4) != 0)
+        {
+            newBuffer[ni] = strBuffer[i];
+            ni = ni + 1;
+            i = i + 1;
+        }
+        else
+        {
+            memcpy(newBuffer + ni, target, (size_t)targetLength * 4);
+            i = i + patLength;
+            ni = ni + targetLength;
+        }
+    }
+    return WideString(newData);
 }
 
 WideString replace(const WideString& str, const WideString& pat, const WideString& target)
 {
-    int32 targetLength = target.length();
-    const wchar* targetSrc = target.c_str();
-    int32 patLength = pat.length();
-    const wchar* patSrc = pat.c_str();
-    return replace(str, patSrc, patLength, targetSrc, targetLength);
+    return replace(str, pat.c_str(), pat.length(), target.c_str(), target.length());
 }
 
 WideString operator+(const WideString& src1, const wchar* src2)
@@ -2822,29 +2779,33 @@ WideString operator+(wchar src1, const WideString& src2)
 
 bool operator==(const WideString& src1, const wchar* src2)
 {
-    if (src1[0] == *src2)
+    if (src1[0] != *src2)
     {
-        return src1.compare(src1, src2) == 0;
+        return false;
     }
-    return false;
+    return src1.compare(src1, src2) == 0;
 }
 
 bool operator==(const WideString& src1, const WideString& src2)
 {
-    if (src1.length() == src2.length() && src1[0] == src2[0])
+    if (src1.length() != src2.length())
     {
-        return src1.compare(src1, src2) == 0;
+        return false;
     }
-    return false;
+    if (src1[0] != src2[0])
+    {
+        return false;
+    }
+    return src1.compare(src1, src2) == 0;
 }
 
 bool operator==(const wchar* src1, const WideString& src2)
 {
-    if (*src1 == src2[0])
+    if (*src1 != src2[0])
     {
-        return src2.compare(src1, src2) == 0;
+        return false;
     }
-    return false;
+    return src2.compare(src1, src2) == 0;
 }
 
 bool operator!=(const WideString& src1, const wchar* src2)

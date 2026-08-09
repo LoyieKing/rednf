@@ -92,19 +92,16 @@ void WorkThread::PushTransaction(IMessageStruct* pMessage)
 IMessageStruct* WorkThread::PopTransaction()
 {
     pthread_mutex_lock(&workerLock);
-    while (true)
+    while (orderQueue.size() == 0)
     {
-        if (orderQueue.size() != 0)
-        {
-            break;
-        }
         pthread_cond_wait(&isEmpty, &workerLock);
     }
     Message* msg = (Message*)orderQueue.front();
     orderQueue.pop();
-    if (2 < (int)msg->mMsgType - 1U)
+    // ORIG: jbe skip; Dec; jmp join; nop; join: mQueueSize--
+    if ((unsigned int)((int)msg->mMsgType - 1) > 2)
     {
-    msg->getUserFromMessage()->DecPendingWorkNum();
+        msg->getUserFromMessage()->DecPendingWorkNum();
     }
     mQueueSize = mQueueSize - 1;
     pthread_mutex_unlock(&workerLock);
@@ -134,77 +131,98 @@ void WorkThread::InitTransactionCntPerSec()
 void WorkThread::loop(void* temp)
 {
     G_TraceLog()->sysLog(8, "Start up WorkThread");
-    tlsThreadId = GetThreadId();
+    // proxyLoop passes Thread* as temp (== this); ORIG loads arg@0xc for GetThreadId
+    tlsThreadId = ((WorkThread*)temp)->GetThreadId();
     TCPDispatcher* handlerTCP = pApp->super_Dispatchers.getTCPDispatcher();
     InterDispatcher* pInterHandler = pApp->super_Dispatchers.GetInterDispatcher();
     TimerThread* timerThread = pApp->super_Threads.getTimerThread();
+    int CompressLen = 0x3c00;
     TMsgCell<524288> tmpBuffer;
     CMsgCell* encMsg = GetMessageBuffer(0x80000);
     CMsgCell* zipMsg = GetMessageBuffer(0x80000);
     do
     {
-        IMessageStruct* recvMessage;
-        do
+        IMessageStruct* recvMessage = PopTransaction();
+        // ORIG: cmpl/jne process; nop; jmp re-pop  (null => continue without increment)
+        if (recvMessage == NULL)
         {
-            recvMessage = PopTransaction();
-        } while (recvMessage == NULL);
-        char msgType = recvMessage->mMsgType;
-        if (msgType == 2)
+            continue;
+        }
+
+        int return_code = 0;
+        switch (recvMessage->mMsgType)
         {
-            ITimeEntity* teMsg = (ITimeEntity*)recvMessage;
-            if (teMsg->isTerminated())
+        case 1:
+        {
+            Message* pMsg = (Message*)recvMessage;
+            INTERNALMSG_HEADER* pInterMsg = pMsg->getCellFromMessage()->GetInternalMsg();
+            if (!pInterMsg->bWillDelete)
             {
-                CommonDataPool* pool = pApp->super_DataPools.getCommonDataPool(tlsThreadId);
-                pool->destroyTimeEntity(recvMessage);
+                pInterHandler->dispatch(pMsg);
+                pInterMsg->bWillDelete = true;
+                pApp->super_Threads.getWorkThread(pInterMsg->mOwnerWorkId)
+                    ->PushTransaction(recvMessage);
             }
             else
             {
-                int err = teMsg->operator()();
-                if (err != 0)
+                pInterMsg->bWillDelete = false;
+                pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyMessage(pMsg);
+            }
+            break;
+        }
+        case 2:
+        {
+            ITimeEntity* teMsg = (ITimeEntity*)recvMessage;
+            if (!teMsg->isTerminated())
+            {
+                return_code = teMsg->operator()();
+                if (return_code != 0)
                 {
-                    G_TraceLog()->sysLog(7, "Fail: TIME : failed to handle '%d', error_code('%d').", ((Message*)recvMessage)->mOwnerWorkId, err);
+                    G_TraceLog()->sysLog(7, "Fail: TIME : failed to handle '%d', error_code('%d').",
+                                         teMsg->proc_id, return_code);
                 }
                 Message* pkMsg = (Message*)recvMessage;
-                if (pkMsg->acUser != NULL && pkMsg->mBufferType != BUFFER_TYPE_NOT_SETTED)
+                if (pkMsg->acUser != NULL)
                 {
-                    pkMsg->acUser = pkMsg->acUser - 1;
-                    if (pkMsg->acUser == NULL)
+                    if (pkMsg->mBufferType != BUFFER_TYPE_NOT_SETTED)
                     {
-                        *(char*)&pkMsg->mpSendBuffer = 0;
-                        timerThread->PushTimeReqEvent(teMsg);
+                        // acUser is a refcount stored in a pointer-sized field (integer -1, not element ptr arith)
+                        pkMsg->acUser = (TCPUser*)((char*)pkMsg->acUser - 1);
+                        if (pkMsg->acUser == NULL)
+                        {
+                            *(char*)&pkMsg->mpSendBuffer = 0;
+                            timerThread->PushTimeReqEvent(teMsg);
+                        }
                     }
                 }
             }
-        }
-        else if (msgType == 3)
-        {
-        }
-        else if (msgType == 1)
-        {
-            CMsgCell* cell = ((Message*)recvMessage)->getCellFromMessage();
-            INTERNALMSG_HEADER* pInterMsg = cell->GetInternalMsg();
-            if (pInterMsg->bWillDelete == true)
-            {
-                pInterMsg->bWillDelete = false;
-                CommonDataPool* pool = pApp->super_DataPools.getCommonDataPool(tlsThreadId);
-                pool->destroyMessage((Message*)recvMessage);
-            }
             else
             {
-                pInterHandler->dispatch((Message*)recvMessage);
-                pInterMsg->bWillDelete = true;
-                WorkThread* pWorkThread = pApp->super_Threads.getWorkThread(pInterMsg->mOwnerWorkId);
-                pWorkThread->PushTransaction(recvMessage);
+                // virtual destroyTimeEntity — leave as direct call for vtable *%reg form
+                pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyTimeEntity(recvMessage);
             }
+            break;
         }
-        else
+        case 3:
+            break;
+        default:
         {
             Message* pMsg = (Message*)recvMessage;
             TCPUser* pUser = pMsg->getUserFromMessage();
-            if (!(pUser->isAboutToDisconnect() || pUser->isDisconnected()))
+            if (pUser->isAboutToDisconnect() || pUser->isDisconnected())
+            {
+                pUser->SetWorking(false);
+                G_TraceLog()->sysLog(7, "\xb2\xf7\xb1\xe4 \xc0\xaf\xc0\xfa\xb0\xa1 worker\xb7\xce \xb5\xe9\xbe\xee\xbf\xd4\xb4\xd9. msg-%d", (int)Message::ident, (int)(Message::ident >> 32));
+                pMsg->setUse(false);
+                pUser->setActiveSyncByWorker(true);
+                G_ActiveNetClose()->pushActiveClose(pUser);
+                // ORIG: disconnect path skips mTransactionCntPerSec++ and re-pops
+                continue;
+            }
+            else
             {
                 CMsgCell* recvMsg = pMsg->getCellFromMessage();
-                TCPUser::ENUM_DATA_TYPE dataType = pUser->getRecvDataType();
+                TCPUser::ENUM_DATA_TYPE DataType = pUser->getRecvDataType();
                 PACKET_HEADER* pHeader = recvMsg->GetPacket();
                 G_TraceLog()->sysLog(4, "RECV PCK ct    =%d", pHeader->getCategory());
                 pHeader = recvMsg->GetPacket();
@@ -212,7 +230,7 @@ void WorkThread::loop(void* temp)
                 pHeader = recvMsg->GetPacket();
                 G_TraceLog()->sysLog(4, "RECV PCK seq   =%u", pHeader->sequence);
                 recvMsg->GetPacket();
-                if (dataType == TCPUser::RECV_DATA_NORMAL)
+                if (DataType == TCPUser::RECV_DATA_NORMAL)
                 {
                     handlerTCP->dispatch(pUser, pMsg);
                     pMsg->setUse(false);
@@ -223,16 +241,11 @@ void WorkThread::loop(void* temp)
                 }
                 zipMsg->Clear();
                 encMsg->Clear();
+                CompressLen = 0x3c00;
                 G_TraceLog()->sysLog(8, "work ended id=%d", (int)Message::ident, (int)(Message::ident >> 32));
             }
-            else
-            {
-                pUser->SetWorking(false);
-                G_TraceLog()->sysLog(7, "\xB0\xED\xB9\xD6\xBD\xBA \xC6\xC7%B4\xE2 \xB5\xB5\xC3\xDF\xBD\xBA \xC5\xB8\xC0\xCE\xC6\xC4\xC6\xC4", (int)Message::ident, (int)(Message::ident >> 32));
-                pMsg->setUse(false);
-                pUser->setActiveSyncByWorker(true);
-                G_ActiveNetClose()->pushActiveClose(pUser);
-            }
+            break;
+        }
         }
         mTransactionCntPerSec = mTransactionCntPerSec + 1;
     } while (true);

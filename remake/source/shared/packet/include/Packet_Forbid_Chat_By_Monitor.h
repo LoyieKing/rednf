@@ -10,6 +10,6 @@
 class Packet_Forbid_Chat_By_Monitor : public PacketHeader {
 public:
     Packet_Forbid_Chat_By_Monitor() : PacketHeader(0x9dd, 0x30){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_FORBID_CHAT_BY_MONITOR_H

@@ -10,6 +10,6 @@
 class Packet_TOD_DoRandomSelect : public PacketHeader {
 public:
     Packet_TOD_DoRandomSelect() : PacketHeader(0x2712, 0xa){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_TOD_DORANDOMSELECT_H

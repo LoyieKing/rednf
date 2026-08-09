@@ -50,6 +50,7 @@ void bracketTrim(char* data, char type, char changeType)
 
 bool Parse_Table(char* in_pcReadData, int iLineCount, AvatarColorInfo* avatarColorInfo)
 {
+    int AVATAR_COLOR_SCRIPT = 5;
     char* pcColumn_Arg[5];
 
     if ((*in_pcReadData == '#') || (*in_pcReadData == '/') || (*in_pcReadData == '['))
@@ -82,7 +83,7 @@ bool importAvatarColorVariation(AvatarColorInfo* avatarColorInfo)
     int iParseCount = 0;
     char cReadData[1024];
     FILE* pFile = fopen("AvatarColorVariation.etc", "rb");
-    if (pFile == (FILE*)0)
+    if (pFile == 0)
     {
         return false;
     }

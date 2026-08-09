@@ -10,7 +10,7 @@
 class Packet_Dungeon_Statistic_Party_Job : public PacketHeader {
 public:
     Packet_Dungeon_Statistic_Party_Job(): PacketHeader(0xc37,0x1f) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_DUNGEON_STATISTIC_PARTY_JOB_H

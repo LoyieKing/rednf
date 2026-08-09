@@ -13,7 +13,7 @@ class Packet_Guild_Change_Power_War_Point : public PacketHeader {
 public:
     Packet_Guild_Change_Power_War_Point(): PacketHeader(0x6a4,0x2d) {};
     void GetUserList(std::vector<unsigned int>& list);
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GUILD_CHANGE_POWER_WAR_POINT_H

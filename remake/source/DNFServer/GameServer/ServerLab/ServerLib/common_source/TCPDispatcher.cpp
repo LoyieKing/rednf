@@ -47,19 +47,11 @@ bool TCPDispatcher::dispatch(TCPUser* u, Message* msg)
         INetWorkHandler* netWorkHandler = pApp->super_IHandlers.getNetWorkHandler(nCategory);
         if (netWorkHandler == NULL)
         {
-            unsigned char* adrs;
-            unsigned char b0, b1, b2, b3;
-            adrs = u->pSock_->getPeerAdrs();
-            b3 = adrs[3];
-            adrs = u->pSock_->getPeerAdrs();
-            b2 = adrs[2];
-            adrs = u->pSock_->getPeerAdrs();
-            b1 = adrs[1];
-            adrs = u->pSock_->getPeerAdrs();
-            b0 = adrs[0];
             G_TraceLog()->sysLog(7,
                 "TCP : '%d' <- protocol category \xb0\xa1 \xb9\xfc\xc0\xa7\xb8\xa6 \xb9\xfe\xbe\xee\xb3\xb5\xbd\xc0\xb4\xcf\xb4\xd9, ip:%d.%d.%d.%d",
-                nCategory, (int)b0, (int)b1, (int)b2, (int)b3);
+                nCategory, (int)u->pSock_->getPeerAdrs()[0],
+                (int)u->pSock_->getPeerAdrs()[1], (int)u->pSock_->getPeerAdrs()[2],
+                (int)u->pSock_->getPeerAdrs()[3]);
             return true;
         }
         else

@@ -30,23 +30,16 @@ Message* CommonDataPool::getSendMessage(TCPUser* u)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(mSendPoolLock);
     Message* msg = mSendMessagePool->construct();
-    if (msg == NULL)
-    {
-        assert(msg && "mSendMessagePool");
-    }
+    assert(msg && "mSendMessagePool");
     msg->setWorkId(tlsThreadId);
     msg->setUserToMessage(u);
-    TCPUser::ENUM_DATA_TYPE bit = u->getSendDataType();
-    msg->setOnDataTypeMask(bit);
+    msg->setOnDataTypeMask(u->getSendDataType());
     SendBuffer* pSendBuffer = mBufferSend->malloc();
     if (pSendBuffer == NULL)
     {
         puts("wtf");
     }
-    if (pSendBuffer == NULL)
-    {
-        assert(pSendBuffer && "getSendMessage");
-    }
+    assert(pSendBuffer && "getSendMessage");
     msg->setStringToMessage(pSendBuffer);
     pool_send_msg = pool_send_msg + 1;
     pool_send_buf = pool_send_buf + 1;
@@ -56,8 +49,7 @@ Message* CommonDataPool::getSendMessage(TCPUser* u)
 void CommonDataPool::destroySendMessage(Message* msg)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(mSendPoolLock);
-    SendBuffer* p = msg->getSendBufferFromMessage();
-    mBufferSend->free(p);
+    mBufferSend->free(msg->getSendBufferFromMessage());
     mSendMessagePool->free(msg);
     pool_send_msg = pool_send_msg - 1;
     pool_send_buf = pool_send_buf - 1;
@@ -69,10 +61,7 @@ Message* CommonDataPool::createMessage(int msgType)
     Message* r = mMessagePool->construct();
     r->mMsgType = (char)msgType;
     DbBuffer* pBuf = mBufPool->malloc();
-    if (pBuf == NULL)
-    {
-        assert(pBuf && "mBufPool");
-    }
+    assert(pBuf && "mBufPool");
     r->setStringToMessage(pBuf);
     return r;
 }
@@ -80,8 +69,7 @@ Message* CommonDataPool::createMessage(int msgType)
 void CommonDataPool::destroyMessage(Message* pMessage)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(mMsgPoolLock);
-    DbBuffer* p = pMessage->getDbBufferFromMessage();
-    mBufPool->free(p);
+    mBufPool->free(pMessage->getDbBufferFromMessage());
     mMessagePool->free(pMessage);
 }
 

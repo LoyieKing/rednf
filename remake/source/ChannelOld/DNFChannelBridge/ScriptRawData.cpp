@@ -59,12 +59,9 @@ ScriptRawData* ScriptRawData::find(char* parent_key, char* child_key)
     ScriptRawData* p = find(parent_key);
     if (p == NULL)
     {
-        p = NULL;
+        return NULL;
     }
-    else
-    {
-        p = p->find(child_key);
-    }
+    p = p->find(child_key);
     return p;
 }
 

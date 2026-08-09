@@ -21,7 +21,7 @@ public:
         user_charac_no = 0;
         buddy_server_id = 0;
         buddy_charac_no = 0;
-    };
+} __attribute__((packed));
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Delete_PvP_Buddy, 0x14);

@@ -49,17 +49,18 @@ void CTEA::Initialize(const char* keydata, int keydatalength, const char* chain,
         pos = (pos + 1) % keydatalength;
     }
 
-    bool bSameChain = false;
-    bool bSameKey = false;
+    // ORIG 声明序：bSameKey 先于 bSameChain（槽位 -0x1a/-0x19）。
+    char bSameKey = 0;
+    char bSameChain = 0;
     if (m_bInit)
     {
         if (memcmp(m_apchain0, chain, m_blockSize) == 0)
         {
-            bSameChain = true;
+            bSameChain = 1;
         }
         if (memcmp(m_apKey, key, m_keylength) == 0)
         {
-            bSameKey = true;
+            bSameKey = 1;
         }
     }
     if (bSameChain)
@@ -71,7 +72,7 @@ void CTEA::Initialize(const char* keydata, int keydatalength, const char* chain,
         memcpy(m_apchain0, chain, m_blockSize);
         memcpy(m_apchain, chain, m_blockSize);
     }
-    if (!bSameKey)
+    if (bSameKey == 0)
     {
         memcpy(m_apKey, key, m_keylength);
         BytesToWord((const unsigned char*)key, m_auiKey[0]);
@@ -80,6 +81,7 @@ void CTEA::Initialize(const char* keydata, int keydatalength, const char* chain,
         BytesToWord((const unsigned char*)key + 12, m_auiKey[3]);
         m_bInit = true;
     }
+    return;
 }
 
 void CTEA::ResetChain()
@@ -105,12 +107,13 @@ void CTEA::Signature(char* pcSig)
 
 void CTEA::EncryptBlock(const unsigned char* pucIn, unsigned char* pucOut)
 {
-    unsigned int w;
-    unsigned int v;
-    BytesToWord(pucIn, v);
-    BytesToWord(pucIn + 4, w);
-    register unsigned int y = v;
-    register unsigned int z = w;
+    // ORIG DWARF：v(98) 与 w(99) 两个数组——v 存输入字，w 存输出字。
+    unsigned int v[2];
+    unsigned int w[2];
+    BytesToWord(pucIn, v[0]);
+    BytesToWord(pucIn + 4, v[1]);
+    register unsigned int y = v[0];
+    register unsigned int z = v[1];
     register unsigned int sum = 0;
     register unsigned int delta = 0x9e3779b9;
     register unsigned int n = 0x20;
@@ -120,18 +123,20 @@ void CTEA::EncryptBlock(const unsigned char* pucIn, unsigned char* pucOut)
         sum += delta;
         z += (((y << 4) ^ (y >> 5)) + y) ^ (sum + m_auiKey[(sum >> 0xb) & 3]);
     }
-    WordToBytes(y, pucOut);
-    WordToBytes(z, pucOut + 4);
+    w[0] = y;
+    w[1] = z;
+    WordToBytes(w[0], pucOut);
+    WordToBytes(w[1], pucOut + 4);
 }
 
 void CTEA::DecryptBlock(const unsigned char* pucIn, unsigned char* pucOut)
 {
-    unsigned int w;
-    unsigned int v;
-    BytesToWord(pucIn, v);
-    BytesToWord(pucIn + 4, w);
-    register unsigned int y = v;
-    register unsigned int z = w;
+    unsigned int v[2];
+    unsigned int w[2];
+    BytesToWord(pucIn, v[0]);
+    BytesToWord(pucIn + 4, v[1]);
+    register unsigned int y = v[0];
+    register unsigned int z = v[1];
     register unsigned int sum = 0xc6ef3720;
     register unsigned int delta = 0x9e3779b9;
     register unsigned int n = 0x20;
@@ -141,8 +146,10 @@ void CTEA::DecryptBlock(const unsigned char* pucIn, unsigned char* pucOut)
         sum -= delta;
         y -= (((z << 4) ^ (z >> 5)) + z) ^ (sum + m_auiKey[sum & 3]);
     }
-    WordToBytes(y, pucOut);
-    WordToBytes(z, pucOut + 4);
+    w[0] = y;
+    w[1] = z;
+    WordToBytes(w[0], pucOut);
+    WordToBytes(w[1], pucOut + 4);
 }
 
 int CTEA::Encrypt(const char* in, char* result, size_t n)
@@ -156,12 +163,16 @@ int CTEA::Encrypt(const char* in, char* result, size_t n)
         return -1;
     }
 
+    unsigned int i;
+    const char* pin;
+    char* presult;
+
     if (m_iMode == 1)
     {
-        int i = 0;
-        const char* pin = in;
-        char* presult = result;
-        for (; i < n / m_blockSize; i++)
+        i = 0;
+        pin = in;
+        presult = result;
+        for (; n / m_blockSize > i; i++)
         {
             Xor(m_apchain, pin);
             EncryptBlock((const unsigned char*)m_apchain, (unsigned char*)presult);
@@ -172,10 +183,10 @@ int CTEA::Encrypt(const char* in, char* result, size_t n)
     }
     else if (m_iMode == 2)
     {
-        int i = 0;
-        const char* pin = in;
-        char* presult = result;
-        for (; i < n / m_blockSize; i++)
+        i = 0;
+        pin = in;
+        presult = result;
+        for (; n / m_blockSize > i; i++)
         {
             EncryptBlock((const unsigned char*)m_apchain, (unsigned char*)presult);
             Xor(presult, pin);
@@ -186,10 +197,10 @@ int CTEA::Encrypt(const char* in, char* result, size_t n)
     }
     else
     {
-        int i = 0;
-        const char* pin = in;
-        char* presult = result;
-        for (; i < n / m_blockSize; i++)
+        i = 0;
+        pin = in;
+        presult = result;
+        for (; n / m_blockSize > i; i++)
         {
             EncryptBlock((const unsigned char*)pin, (unsigned char*)presult);
             pin = pin + m_blockSize;
@@ -210,12 +221,16 @@ int CTEA::Decrypt(const char* in, char* result, size_t n)
         return -1;
     }
 
+    unsigned int i;
+    const char* pin;
+    char* presult;
+
     if (m_iMode == 1)
     {
-        int i = 0;
-        const char* pin = in;
-        char* presult = result;
-        for (; i < n / m_blockSize; i++)
+        i = 0;
+        pin = in;
+        presult = result;
+        for (; n / m_blockSize > i; i++)
         {
             DecryptBlock((const unsigned char*)pin, (unsigned char*)presult);
             Xor(presult, m_apchain);
@@ -226,10 +241,10 @@ int CTEA::Decrypt(const char* in, char* result, size_t n)
     }
     else if (m_iMode == 2)
     {
-        int i = 0;
-        const char* pin = in;
-        char* presult = result;
-        for (; i < n / m_blockSize; i++)
+        i = 0;
+        pin = in;
+        presult = result;
+        for (; n / m_blockSize > i; i++)
         {
             EncryptBlock((const unsigned char*)m_apchain, (unsigned char*)presult);
             Xor(presult, pin);
@@ -240,10 +255,10 @@ int CTEA::Decrypt(const char* in, char* result, size_t n)
     }
     else
     {
-        int i = 0;
-        const char* pin = in;
-        char* presult = result;
-        for (; i < n / m_blockSize; i++)
+        i = 0;
+        pin = in;
+        presult = result;
+        for (; n / m_blockSize > i; i++)
         {
             DecryptBlock((const unsigned char*)pin, (unsigned char*)presult);
             pin = pin + m_blockSize;

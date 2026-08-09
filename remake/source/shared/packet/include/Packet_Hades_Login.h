@@ -10,6 +10,6 @@
 class Packet_Hades_Login : public PacketHeader {
 public:
     Packet_Hades_Login() : PacketHeader(0xfd2, 0x64){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_HADES_LOGIN_H

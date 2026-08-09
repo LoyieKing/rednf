@@ -10,6 +10,6 @@
 class Packet_Monitor_Member_Pay_Tax : public PacketHeader {
 public:
     Packet_Monitor_Member_Pay_Tax() : PacketHeader(0x4c0, 0x16){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_MEMBER_PAY_TAX_H

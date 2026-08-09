@@ -10,6 +10,6 @@
 class Packet_Monitor_Member_Chat : public PacketHeader {
 public:
     Packet_Monitor_Member_Chat() : PacketHeader(0x4bf, 0x10f){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_MEMBER_CHAT_H

@@ -1,0 +1,181 @@
+'\" t
+.\"     Title: \fBmake_win_src_distribution\fR
+.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 01/24/2011
+.\"    Manual: MySQL Database System
+.\"    Source: MySQL 5.0
+.\"  Language: English
+.\"
+.TH "\FBMAKE_WIN_SRC_DIST" "1" "01/24/2011" "MySQL 5\&.0" "MySQL Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" make_win_src_distribution
+.SH "NAME"
+make_win_src_distribution \- create source distribution for Windows
+.SH "SYNOPSIS"
+.HP \w'\fBmake_win_src_distribution\ [\fR\fB\fIoptions\fR\fR\fB]\fR\ 'u
+\fBmake_win_src_distribution [\fR\fB\fIoptions\fR\fR\fB]\fR
+.SH "DESCRIPTION"
+.PP
+\fBmake_win_src_distribution\fR
+creates a Windows source package to be used on Windows systems\&. It is used after you configure and build the source distribution on a Unix or Unix\-like system so that you have a server binary to work with\&. (See the instructions at
+Section\ \&2.10.8.5, \(lqCreating a Windows Source Package from the Bazaar Repository\(rq\&.)
+.PP
+Invoke
+\fBmake_win_src_distribution\fR
+like this from the top\-level directory of a MySQL source distribution:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmake_win_src_distribution [\fR\fB\fIoptions\fR\fR\fB]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fBmake_win_src_distribution\fR
+understands the following options:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" make_win_src_distribution: help option
+.\" help option: make_win_src_distribution
+\fB\-\-help\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" make_win_src_distribution: debug option
+.\" debug option: make_win_src_distribution
+\fB\-\-debug\fR
+.sp
+Print information about script operations; do not create a package\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" make_win_src_distribution: dirname option
+.\" dirname option: make_win_src_distribution
+\fB\-\-dirname\fR
+.sp
+Directory name to copy files (intermediate)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" make_win_src_distribution: silent option
+.\" silent option: make_win_src_distribution
+\fB\-\-silent\fR
+.sp
+Do not print verbose list of files processed\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" make_win_src_distribution: suffix option
+.\" suffix option: make_win_src_distribution
+\fB\-\-suffix\fR
+.sp
+The suffix name for the package\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" make_win_src_distribution: tar option
+.\" tar option: make_win_src_distribution
+\fB\-\-tar\fR
+.sp
+Create a
+\&.tar\&.gz
+package instead of a
+\&.zip
+package\&.
+.sp
+By default,
+\fBmake_win_src_distribution\fR
+creates a Zip\-format archive with the name
+mysql\-\fIVERSION\fR\-win\-src\&.zip, where
+\fIVERSION\fR
+represents the version of your MySQL source tree\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" make_win_src_distribution: tmp option
+.\" tmp option: make_win_src_distribution
+\fB\-\-tmp\fR
+.sp
+Specify the temporary location\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright \(co 1997, 2011, Oracle and/or its affiliates. All rights reserved.
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MySQL Reference Manual,
+which may already be installed locally and which is also available
+online at http://dev.mysql.com/doc/.
+.SH AUTHOR
+Oracle Corporation (http://dev.mysql.com/).

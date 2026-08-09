@@ -14,6 +14,35 @@
 #include <queue>
 #include <deque>
 
+#define PACKET_CTOR_BODY(cat, pid, sz) \
+    memset(this, 0, sz); \
+    setCategory(cat); \
+    setPacketID(pid); \
+    setSize(sz)
+
+#define PACKET_HEADER_SET(cat, pid, sz) \
+    setCategory(cat); \
+    setPacketID(pid); \
+    setSize(sz)
+
+#define GLOG(stream, ...) \
+    (stream).Lock(); \
+    (stream) << __VA_ARGS__ << endl; \
+    (stream).Unlock()
+
+#define DNF_LOG_IN() GLOG(gFileLogInfo, "In  " << __FUNCTION__)
+#define DNF_LOG_OUT() GLOG(gFileLogInfo, "Out " << __FUNCTION__)
+
+#define CHANNEL_HANDLER_BEGIN(name) \
+    DWORD ChannelServiceApp::ChannelService::on##name(LPPACKET_HEADER pPCK, TCPUser* u) \
+    { \
+        DNF_LOG_IN();
+
+#define CHANNEL_HANDLER_END() \
+        DNF_LOG_OUT(); \
+        return 1; \
+    }
+
 #pragma pack(push, 1)
 
 class CMsgCell;
@@ -413,7 +442,7 @@ namespace ChannelServiceApp
 
         int nTCPPort_;
         int nUDPPort_;
-        std::vector<int> vPorts_;
+        std::vector<int> arrayUDPPorts_;
     };
 
     class Handlers
@@ -445,9 +474,9 @@ namespace ChannelServiceApp
 
         TCPAcceptThread* threadTCPAccept_;
         TCPThread* threadTCP_;
-        CheckThread* threadCheck_;
         UDPThread* threadUDP_;
-        std::vector<UDPThread*> vUDPThreads;
+        CheckThread* threadCheck_;
+        std::vector<UDPThread*> arrayUDPThreads_;
     };
 
     class TCPHandler
@@ -482,16 +511,30 @@ namespace ChannelServiceApp
     class TCPUserStates
     {
     public:
+        enum Status
+        {
+            NONE = 0,
+            CREATED = 1,
+            CONNECTED = 2,
+            SENT_AUTHENTICATE = 3,
+            AUTHENTICATED = 4,
+            DOING = 5,
+            DISCONNECTED = 6
+        };
+
         TCPUserStates();
 
     private:
-        char m_state;
+        Status Status_;
     };
 
     class UDPUserStates
     {
     public:
         UDPUserStates();
+
+    private:
+        TCPUserStates::Status Status_;
     };
 
     class UDPUser : public UDPUserStates
@@ -635,7 +678,7 @@ namespace ChannelServiceApp
         int ServerGroupIndex;
         int ServerGroupCount;
         bool isReadyToStart;
-        std::map<char*, int> m_ServerNameMap;
+        std::map<char*, int> gc_map;
         TThreadLock<ThreadLock_linux> LockChannel;
     };
 
@@ -646,7 +689,8 @@ namespace ChannelServiceApp
         ~ChannelScript();
         void ReloadScript();
         char* getScriptFromFile();
-        int getScriptFileSize();
+        // ORIG DWARF：返回 unsigned int。
+        unsigned int getScriptFileSize();
 
         FILE* fp;
         long lSize;
@@ -721,8 +765,8 @@ namespace ChannelServiceApp
         TCPUser* createTCPUser(char* file, int line);
         void destroyTCPUser(TCPUser* pTCPUser, char* file, int line);
 
-        TMemoryPoolStatic<TCPSocket, 1000, std::queue<TCPSocket*, std::deque<TCPSocket*> > > m_poolTCPSocket;
-        TMemoryPoolStatic<TCPUser, 1000, std::queue<TCPUser*, std::deque<TCPUser*> > > m_poolTCPUser;
+        TMemoryPoolStatic<TCPSocket, 1000, std::queue<TCPSocket*, std::deque<TCPSocket*> > > poolTCPSockets_;
+        TMemoryPoolStatic<TCPUser, 1000, std::queue<TCPUser*, std::deque<TCPUser*> > > poolTCPUsers_;
         TThreadLock<ThreadLock_linux> LockTCPUser;
         TThreadLock<ThreadLock_linux> LockTCPSocket;
     };
@@ -770,11 +814,11 @@ namespace ChannelServiceApp
         char* getServiceName();
 
         Mode Mode_;
-        __int64 m_llTick;
+        __int64 tick_;
         __int64 lastTickForIdleSession;
         char serviceName[0x14];
-        FPMessageHandler m_Handlers[0x200];
-        FPMessageHandlerExtra m_HandlersExtra[0x200];
+        FPMessageHandler m_pfnMsg[0x200];
+        FPMessageHandlerExtra m_pfnMsgExtra[0x200];
     };
 
 }

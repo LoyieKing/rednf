@@ -10,7 +10,7 @@
 class Packet_Loading_Time_Report_Statistics : public PacketHeader {
 public:
     Packet_Loading_Time_Report_Statistics(): PacketHeader(0xfb0,0x806) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_LOADING_TIME_REPORT_STATISTICS_H

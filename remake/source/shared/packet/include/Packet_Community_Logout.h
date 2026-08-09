@@ -15,7 +15,7 @@ public:
 
     Packet_Community_Logout()
         : PacketHeader(0x1b59, 0x12){};
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Community_Logout, 0x12);

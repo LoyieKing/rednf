@@ -30,7 +30,7 @@ public:
         memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
         memset(chatContent, 0, sizeof(chatContent));
     }
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Monitor_Other_Channel_Chat_ToUser, 0x137);

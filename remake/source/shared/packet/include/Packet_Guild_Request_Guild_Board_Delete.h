@@ -10,7 +10,7 @@
 class Packet_Guild_Request_Guild_Board_Delete : public PacketHeader {
 public:
     Packet_Guild_Request_Guild_Board_Delete(): PacketHeader(0x2331,0x16) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GUILD_REQUEST_GUILD_BOARD_DELETE_H

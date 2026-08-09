@@ -10,6 +10,6 @@
 class Packet_Hades_StdUpdate : public PacketHeader {
 public:
     Packet_Hades_StdUpdate() : PacketHeader(0xfd9, 0x12){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_HADES_STDUPDATE_H

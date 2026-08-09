@@ -10,7 +10,7 @@
 class Packet_GTM_OntimeEvent_RequestReward : public PacketHeader {
 public:
     Packet_GTM_OntimeEvent_RequestReward(): PacketHeader(0x17c3,0x16) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GTM_ONTIMEEVENT_REQUESTREWARD_H

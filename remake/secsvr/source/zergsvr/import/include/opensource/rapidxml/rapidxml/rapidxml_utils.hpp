@@ -1,0 +1,6 @@
+// Auto-generated empty header stub from DWARF line info
+// Original path: import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp
+#ifndef SECSVR_IMPORT_INCLUDE_OPENSOURCE_RAPIDXML_RAPIDXML_RAPIDXML_UTILS_HPP_H_
+#define SECSVR_IMPORT_INCLUDE_OPENSOURCE_RAPIDXML_RAPIDXML_RAPIDXML_UTILS_HPP_H_
+
+#endif // SECSVR_IMPORT_INCLUDE_OPENSOURCE_RAPIDXML_RAPIDXML_RAPIDXML_UTILS_HPP_H_

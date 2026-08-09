@@ -10,6 +10,6 @@
 class Packet_Monitor_UDP_Logout : public PacketHeader {
 public:
     Packet_Monitor_UDP_Logout() : PacketHeader(0x3e9, 0x3b){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_UDP_LOGOUT_H

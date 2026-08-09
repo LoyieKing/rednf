@@ -10,6 +10,6 @@
 class Packet_Assert_Manager_Info : public PacketHeader {
 public:
     Packet_Assert_Manager_Info() : PacketHeader(0xc41, 0x214){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_ASSERT_MANAGER_INFO_H

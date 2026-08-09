@@ -1,0 +1,6 @@
+// Auto-generated empty header stub from DWARF line info
+// Original path: output/protocol/formmog/release/include/formmog_proto_tss_sdk_client.h
+#ifndef SECSVR_OUTPUT_PROTOCOL_FORMMOG_RELEASE_INCLUDE_FORMMOG_PROTO_TSS_SDK_CLIENT_H_H_
+#define SECSVR_OUTPUT_PROTOCOL_FORMMOG_RELEASE_INCLUDE_FORMMOG_PROTO_TSS_SDK_CLIENT_H_H_
+
+#endif // SECSVR_OUTPUT_PROTOCOL_FORMMOG_RELEASE_INCLUDE_FORMMOG_PROTO_TSS_SDK_CLIENT_H_H_

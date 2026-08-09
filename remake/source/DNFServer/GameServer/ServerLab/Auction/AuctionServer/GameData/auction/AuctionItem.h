@@ -65,14 +65,7 @@ struct RandomOption
 
     bool change_option(ENUM_RANDOM_OPTION_NUMBER optionNumber)
     {
-        if (modify_option_.empty() || ((modify_seed_.seed_ & 3) != optionNumber))
-        {
-            return false;
-        }
-        else
-        {
-            return true;
-        }
+        return (modify_option_.empty() == false) && ((modify_seed_.seed_ & 3) == optionNumber);
     }
 
     unsigned char get_option_index(ENUM_RANDOM_OPTION_NUMBER optionNumber)
@@ -185,7 +178,8 @@ struct ROI_Category
             short _high_category_value[3];
             short _reserved;
         } _hcv;
-        __int64 _qw;
+        // ORIG DWARF：成员名 _high_category_key，类型 signed long long
+        long long _high_category_key;
     } field_0;
 
     union
@@ -199,21 +193,17 @@ struct ROI_Category
 
     ROI_Category()
     {
-        *(__int64*)&field_0 = 0;
+        field_0._high_category_key = 0;
         field_1._low_category_key = 0;
     }
 
     bool isEmpty() const
     {
-        if ((*(int*)&field_0 == 0 && *(int*)((int)&field_0 + 4) == 0) &&
-            (field_1._low_category_key == 0))
+        if ((field_0._high_category_key == 0) && (field_1._low_category_key == 0))
         {
             return true;
         }
-        else
-        {
-            return false;
-        }
+        return false;
     }
 
     bool isMatching(const ROI_Category& _cmp) const
@@ -226,18 +216,18 @@ struct ROI_Category
         {
             return false;
         }
-        unsigned long long cmp = _cmp.field_0._qw;
-        unsigned long long ori = field_0._qw;
+        ROI_Category cmp = _cmp;
+        ROI_Category ori = *this;
         for (int i = 0; i < 3; i = i + 1)
         {
-            if (*((short*)&cmp + i) != -1)
+            if (cmp.field_0._hcv._high_category_value[i] != -1)
             {
                 for (int j = 0; j < 3; j = j + 1)
                 {
-                    if (*((short*)&ori + j) == *((short*)&cmp + i))
+                    if (ori.field_0._hcv._high_category_value[j] == cmp.field_0._hcv._high_category_value[i])
                     {
-                        *((short*)&cmp + i) = 0;
-                        *((short*)&ori + j) = 0;
+                        cmp.field_0._hcv._high_category_value[i] = 0;
+                        ori.field_0._hcv._high_category_value[j] = 0;
                         break;
                     }
                 }
@@ -245,7 +235,7 @@ struct ROI_Category
         }
         for (int k = 0; k < 3; k = k + 1)
         {
-            if (*((short*)&cmp + k) > 0)
+            if (cmp.field_0._hcv._high_category_value[k] > 0)
             {
                 return false;
             }
@@ -255,52 +245,46 @@ struct ROI_Category
 
     bool operator<(const ROI_Category& _rhp) const
     {
-        if (*(int*)&_rhp.field_0 == *(int*)&field_0 &&
-            *(int*)((int)&field_0 + 4) == *(int*)((int)&_rhp.field_0 + 4))
+        // ORIG：64 位 == 合并比较（xor/or/test）+ 64 位有符号 <
+        if (field_0._high_category_key == _rhp.field_0._high_category_key)
         {
             return field_1._low_category_key < _rhp.field_1._low_category_key;
         }
         else
         {
-            int iVar1 = *(int*)((int)&field_0 + 4);
-            int iVar2 = *(int*)((int)&_rhp.field_0 + 4);
-            bool bVar3 = true;
-            if ((iVar2 <= iVar1) &&
-                ((iVar2 < iVar1 ||
-                  *(unsigned int*)&_rhp.field_0 <= *(unsigned int*)&field_0)))
-            {
-                bVar3 = false;
-            }
-            return bVar3;
+            return field_0._high_category_key < _rhp.field_0._high_category_key;
         }
     }
 
     void _sort()
     {
-        if (field_0._hcv._high_category_value[1] < field_0._hcv._high_category_value[0])
+        // ORIG DWARF：_temp_high(2585)/_temp_low(2586) 函数级声明一次。
+        short _temp_high;
+        char _temp_low;
+        if (field_0._hcv._high_category_value[0] > field_0._hcv._high_category_value[1])
         {
-            short _temp_high = field_0._hcv._high_category_value[0];
+            _temp_high = field_0._hcv._high_category_value[0];
             field_0._hcv._high_category_value[0] = field_0._hcv._high_category_value[1];
             field_0._hcv._high_category_value[1] = _temp_high;
-            char _temp_low = field_1._lcv._low_category_value[0];
+            _temp_low = field_1._lcv._low_category_value[0];
             field_1._lcv._low_category_value[0] = field_1._lcv._low_category_value[1];
             field_1._lcv._low_category_value[1] = _temp_low;
         }
-        if (field_0._hcv._high_category_value[2] < field_0._hcv._high_category_value[1])
+        if (field_0._hcv._high_category_value[1] > field_0._hcv._high_category_value[2])
         {
-            short _temp_high = field_0._hcv._high_category_value[1];
+            _temp_high = field_0._hcv._high_category_value[1];
             field_0._hcv._high_category_value[1] = field_0._hcv._high_category_value[2];
             field_0._hcv._high_category_value[2] = _temp_high;
-            char _temp_low = field_1._lcv._low_category_value[1];
+            _temp_low = field_1._lcv._low_category_value[1];
             field_1._lcv._low_category_value[1] = field_1._lcv._low_category_value[2];
             field_1._lcv._low_category_value[2] = _temp_low;
         }
-        if (field_0._hcv._high_category_value[1] < field_0._hcv._high_category_value[0])
+        if (field_0._hcv._high_category_value[0] > field_0._hcv._high_category_value[1])
         {
-            short _temp_high = field_0._hcv._high_category_value[0];
+            _temp_high = field_0._hcv._high_category_value[0];
             field_0._hcv._high_category_value[0] = field_0._hcv._high_category_value[1];
             field_0._hcv._high_category_value[1] = _temp_high;
-            char _temp_low = field_1._lcv._low_category_value[0];
+            _temp_low = field_1._lcv._low_category_value[0];
             field_1._lcv._low_category_value[0] = field_1._lcv._low_category_value[1];
             field_1._lcv._low_category_value[1] = _temp_low;
         }
@@ -359,38 +343,34 @@ struct DnfItemInfo
 
     unsigned char getAbilityType() const
     {
-        if (hasAbility())
-        {
-            if (isIdentified())
-            {
-                return abilityType_;
-            }
-            else
-            {
-                return 0x80;
-            }
-        }
-        else
+        // ORIG：!hasAbility/!isIdentified 各自 xor $1 物化 + 早退块（jmp EPI）。
+        if (!hasAbility())
         {
             return '\0';
         }
+        if (!isIdentified())
+        {
+            return 0x80;
+        }
+        return abilityType_;
     }
 
     unsigned short getAbilityValue() const
     {
-        if (hasAbility())
+        // ORIG：!(hasAbility() && isIdentified()) 单 bool 寄存器物化 +
+        // 再次 test 后分支（与 getAbilityType 的双 if 形态不同，照抄）。
+        if (!(hasAbility() && isIdentified()))
         {
-            if (isIdentified())
-            {
-                return abilityValue_;
-            }
+            return 0;
         }
-        return 0;
+        return abilityValue_;
     }
 
     bool isIdentified() const
     {
-        return (bool)((unsigned char)~abilityType_ >> 7);
+        // ORIG：not %eax; shr $0x7,%al（8 位逻辑移位直返）。
+        // 不加 & 1 会被提升为 int 后 sar + test/setne（多 3 条）。
+        return (bool)((unsigned char)~abilityType_ >> 7 & 1);
     }
 
     bool hasAbility() const

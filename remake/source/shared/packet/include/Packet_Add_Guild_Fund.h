@@ -10,6 +10,6 @@
 class Packet_Add_Guild_Fund : public PacketHeader {
 public:
     Packet_Add_Guild_Fund() : PacketHeader(0x1bbc, 0x17){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_ADD_GUILD_FUND_H

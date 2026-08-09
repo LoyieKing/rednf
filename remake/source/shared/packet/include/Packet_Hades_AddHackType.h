@@ -10,6 +10,6 @@
 class Packet_Hades_AddHackType : public PacketHeader {
 public:
     Packet_Hades_AddHackType() : PacketHeader(0xfd7, 0x1a){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_HADES_ADDHACKTYPE_H

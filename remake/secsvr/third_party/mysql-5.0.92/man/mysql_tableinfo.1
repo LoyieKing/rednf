@@ -1,0 +1,337 @@
+'\" t
+.\"     Title: \fBmysql_tableinfo\fR
+.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 01/24/2011
+.\"    Manual: MySQL Database System
+.\"    Source: MySQL 5.0
+.\"  Language: English
+.\"
+.TH "\FBMYSQL_TABLEINFO\F" "1" "01/24/2011" "MySQL 5\&.0" "MySQL Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" mysql_tableinfo
+.SH "NAME"
+mysql_tableinfo \- generate database metadata
+.SH "SYNOPSIS"
+.HP \w'\fBmysql_tableinfo\ [\fR\fB\fIoptions\fR\fR\fB]\ \fR\fB\fIdb_name\fR\fR\fB\ [\fR\fB\fIdb_like\fR\fR\fB\ [\fR\fB\fItbl_like\fR\fR\fB]]\fR\ 'u
+\fBmysql_tableinfo [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fIdb_like\fR\fR\fB [\fR\fB\fItbl_like\fR\fR\fB]]\fR
+.SH "DESCRIPTION"
+.PP
+\fBmysql_tableinfo\fR
+creates tables and populates them with database metadata\&. It uses
+SHOW DATABASES,
+SHOW TABLES,
+SHOW TABLE STATUS,
+SHOW COLUMNS, and
+SHOW INDEX
+to obtain the metadata\&.
+.PP
+In MySQL 5\&.0 and up, the
+INFORMATION_SCHEMA
+database contains the same kind of information in the
+SCHEMATA,
+TABLES,
+COLUMNS, and
+STATISTICS
+tables\&. See
+Chapter\ \&19, INFORMATION_SCHEMA Tables\&.
+.PP
+Invoke
+\fBmysql_tableinfo\fR
+like this:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBmysql_tableinfo [\fR\fB\fIoptions\fR\fR\fB] \fR\fB\fIdb_name\fR\fR\fB [\fR\fB\fIdb_like\fR\fR\fB [\fR\fB\fItbl_like\fR\fR\fB]]\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The
+\fIdb_name\fR
+argument indicates which database
+\fBmysql_tableinfo\fR
+should use as the location for the metadata tables\&. The database will be created if it does not exist\&. The tables will be named
+db,
+tbl
+(or
+tbl_status),
+col, and
+idx\&.
+.PP
+If the
+\fIdb_like\fR
+or
+\fItbl_like\fR
+arguments are given, they are used as patterns and metadata is generated only for databases or tables that match the patterns\&. These arguments default to
+%
+if not given\&.
+.PP
+Examples:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+mysql_tableinfo info
+mysql_tableinfo info world
+mysql_tableinfo info mydb tmp%
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Each of the commands stores information into tables in the
+info
+database\&. The first stores information for all databases and tables\&. The second stores information for all tables in the
+world
+database\&. The third stores information for tables in the
+mydb
+database that have names matching the pattern
+tmp%\&.
+.PP
+\fBmysql_tableinfo\fR
+supports the following options:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: help option
+.\" help option: mysql_tableinfo
+\fB\-\-help\fR
+.sp
+Display a help message and exit\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: clear option
+.\" clear option: mysql_tableinfo
+\fB\-\-clear\fR
+.sp
+Before populating each metadata table, drop it if it exists\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: clear-only option
+.\" clear-only option: mysql_tableinfo
+\fB\-\-clear\-only\fR
+.sp
+Similar to
+\fB\-\-clear\fR, but exits after dropping the metadata tables to be populated\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: col option
+.\" col option: mysql_tableinfo
+\fB\-\-col\fR
+.sp
+Generate column metadata into the
+col
+table\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: host option
+.\" host option: mysql_tableinfo
+\fB\-\-host=\fR\fB\fIhost_name\fR\fR,
+\fB\-h \fR\fB\fIhost_name\fR\fR
+.sp
+Connect to the MySQL server on the given host\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: idx option
+.\" idx option: mysql_tableinfo
+\fB\-\-idx\fR
+.sp
+Generate index metadata into the
+idx
+table\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: password option
+.\" password option: mysql_tableinfo
+\fB\-\-password=\fR\fB\fIpassword\fR\fR,
+\fB\-p\fR\fB\fIpassword\fR\fR
+.sp
+The password to use when connecting to the server\&. Note that the password value is not optional for this option, unlike for other MySQL programs\&. You can use an option file to avoid giving the password on the command line\&.
+.sp
+Specifying a password on the command line should be considered insecure\&. See
+Section\ \&5.3.2.2, \(lqEnd-User Guidelines for Password Security\(rq\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: port option
+.\" port option: mysql_tableinfo
+\fB\-\-port=\fR\fB\fIport_num\fR\fR,
+\fB\-P \fR\fB\fIport_num\fR\fR
+.sp
+The TCP/IP port number to use for the connection\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: prefix option
+.\" prefix option: mysql_tableinfo
+\fB\-\-prefix=\fR\fB\fIprefix_str\fR\fR
+.sp
+Add
+\fIprefix_str\fR
+at the beginning of each metadata table name\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: quiet option
+.\" quiet option: mysql_tableinfo
+\fB\-\-quiet\fR,
+\fB\-q\fR
+.sp
+Be silent except for errors\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: socket option
+.\" socket option: mysql_tableinfo
+\fB\-\-socket=\fR\fB\fIpath\fR\fR,
+\fB\-S \fR\fB\fIpath\fR\fR
+.sp
+The Unix socket file to use for the connection\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: tbl-status option
+.\" tbl-status option: mysql_tableinfo
+\fB\-\-tbl\-status\fR
+.sp
+Use
+SHOW TABLE STATUS
+instead of
+SHOW TABLES\&. This provides more complete information, but is slower\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" mysql_tableinfo: user option
+.\" user option: mysql_tableinfo
+\fB\-\-user=\fR\fB\fIuser_name\fR\fR,
+\fB\-u \fR\fB\fIuser_name\fR\fR
+.sp
+The MySQL user name to use when connecting to the server\&.
+.RE
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright \(co 1997, 2011, Oracle and/or its affiliates. All rights reserved.
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MySQL Reference Manual,
+which may already be installed locally and which is also available
+online at http://dev.mysql.com/doc/.
+.SH AUTHOR
+Oracle Corporation (http://dev.mysql.com/).

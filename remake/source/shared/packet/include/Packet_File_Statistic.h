@@ -10,6 +10,6 @@
 class Packet_File_Statistic : public PacketHeader {
 public:
     Packet_File_Statistic() : PacketHeader(0x27f3, 0x90a){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_FILE_STATISTIC_H

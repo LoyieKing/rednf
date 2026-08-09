@@ -10,6 +10,6 @@
 class Packet_Monitor_Guild_Chat : public PacketHeader {
 public:
     Packet_Monitor_Guild_Chat() : PacketHeader(0x400, 0x113){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_GUILD_CHAT_H

@@ -19,7 +19,7 @@ public:
 
     Packet_Community_Login()
         : PacketHeader(0x1b58, 0x5a2){};
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Community_Login, 0x5a2);

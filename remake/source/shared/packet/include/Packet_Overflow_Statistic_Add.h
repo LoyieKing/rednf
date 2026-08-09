@@ -10,6 +10,6 @@
 class Packet_Overflow_Statistic_Add : public PacketHeader {
 public:
     Packet_Overflow_Statistic_Add() : PacketHeader(0xc43, 0xd){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_OVERFLOW_STATISTIC_ADD_H

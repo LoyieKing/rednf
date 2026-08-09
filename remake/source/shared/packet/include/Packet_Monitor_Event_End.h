@@ -10,6 +10,6 @@
 class Packet_Monitor_Event_End : public PacketHeader {
 public:
     Packet_Monitor_Event_End() : PacketHeader(0x450, 0xe){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_EVENT_END_H

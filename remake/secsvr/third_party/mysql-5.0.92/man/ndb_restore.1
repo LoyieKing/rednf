@@ -1,0 +1,646 @@
+'\" t
+.\"     Title: \fBndb_restore\fR
+.\"    Author: [FIXME: author] [see http://docbook.sf.net/el/author]
+.\" Generator: DocBook XSL Stylesheets v1.75.2 <http://docbook.sf.net/>
+.\"      Date: 01/24/2011
+.\"    Manual: MySQL Database System
+.\"    Source: MySQL 5.0
+.\"  Language: English
+.\"
+.TH "\FBNDB_RESTORE\FR" "1" "01/24/2011" "MySQL 5\&.0" "MySQL Database System"
+.\" -----------------------------------------------------------------
+.\" * set default formatting
+.\" -----------------------------------------------------------------
+.\" disable hyphenation
+.nh
+.\" disable justification (adjust text to left margin only)
+.ad l
+.\" -----------------------------------------------------------------
+.\" * MAIN CONTENT STARTS HERE *
+.\" -----------------------------------------------------------------
+.\" MySQL Cluster: backups
+.\" backups: in MySQL Cluster
+.\" MySQL Cluster: restoring backups
+.\" restoring backups: in MySQL Cluster
+.\" ndb_restore
+.SH "NAME"
+ndb_restore \- restore a MySQL Cluster backup
+.SH "SYNOPSIS"
+.HP \w'\fBndb_restore\ \fR\fB\fIoptions\fR\fR\ 'u
+\fBndb_restore \fR\fB\fIoptions\fR\fR
+.SH "DESCRIPTION"
+.PP
+The cluster restoration program is implemented as a separate command\-line utility
+\fBndb_restore\fR, which can normally be found in the MySQL
+bin
+directory\&. This program reads the files created as a result of the backup and inserts the stored information into the database\&.
+.PP
+\fBndb_restore\fR
+must be executed once for each of the backup files that were created by the
+START BACKUP
+command used to create the backup (see
+Section\ \&17.5.3.2, \(lqUsing The MySQL Cluster Management Client to Create a Backup\(rq)\&. This is equal to the number of data nodes in the cluster at the time that the backup was created\&.
+.\" single user mode (MySQL Cluster): and ndb_restore
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+Before using
+\fBndb_restore\fR, it is recommended that the cluster be running in single user mode, unless you are restoring multiple data nodes in parallel\&. See
+Section\ \&17.5.6, \(lqMySQL Cluster Single User Mode\(rq, for more information about single user mode\&.
+.sp .5v
+.RE
+.PP
+The following table includes options that are specific to the MySQL Cluster native backup restoration program
+\fBndb_restore\fR\&. Additional descriptions follow the table\&. For options common to all MySQL Cluster programs, see
+Section\ \&17.4.2, \(lqOptions Common to MySQL Cluster Programs\(rq\&.
+.PP
+Typical options for this utility are shown here:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+ndb_restore [\-c \fIconnectstring\fR] \-n \fInode_id\fR [\-m] \-b \fIbackup_id\fR \e
+    \-r \-\-backup_path=\fI/path/to/backup/files\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+The
+\fB\-c\fR
+option is used to specify a connectstring which tells
+ndb_restore
+where to locate the cluster management server\&. (See
+Section\ \&17.3.2.2, \(lqThe MySQL Cluster Connectstring\(rq, for information on connectstrings\&.) If this option is not used, then
+\fBndb_restore\fR
+attempts to connect to a management server on
+localhost:1186\&. This utility acts as a cluster API node, and so requires a free connection
+\(lqslot\(rq
+to connect to the cluster management server\&. This means that there must be at least one
+[api]
+or
+[mysqld]
+section that can be used by it in the cluster
+config\&.ini
+file\&. It is a good idea to keep at least one empty
+[api]
+or
+[mysqld]
+section in
+config\&.ini
+that is not being used for a MySQL server or other application for this reason (see
+Section\ \&17.3.2.6, \(lqDefining SQL and Other API Nodes in a MySQL Cluster\(rq)\&.
+.PP
+You can verify that
+\fBndb_restore\fR
+is connected to the cluster by using the
+\fBSHOW\fR
+command in the
+\fBndb_mgm\fR
+management client\&. You can also accomplish this from a system shell, as shown here:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+shell> \fBndb_mgm \-e "SHOW"\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+\fB\-n\fR
+is used to specify the node ID of the data node on which the backups were taken\&.
+.PP
+The first time you run the
+\fBndb_restore\fR
+restoration program, you also need to restore the metadata\&. In other words, you must re\-create the database tables\(emthis can be done by running it with the
+\fB\-m\fR
+option\&. Note that the cluster should have an empty database when starting to restore a backup\&. (In other words, you should start
+\fBndbd\fR
+with
+\fB\-\-initial\fR
+prior to performing the restore\&.)
+.PP
+The
+\fB\-b\fR
+option is used to specify the ID or sequence number of the backup, and is the same number shown by the management client in the
+Backup \fIbackup_id\fR completed
+message displayed upon completion of a backup\&. (See
+Section\ \&17.5.3.2, \(lqUsing The MySQL Cluster Management Client to Create a Backup\(rq\&.)
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBImportant\fR
+.ps -1
+.br
+.PP
+When restoring cluster backups, you must be sure to restore all data nodes from backups having the same backup ID\&. Using files from different backups will at best result in restoring the cluster to an inconsistent state, and may fail altogether\&.
+.sp .5v
+.RE
+.PP
+The path to the backup directory is required; this is supplied to
+\fBndb_restore\fR
+using the
+\fB\-\-backup_path\fR
+option, and must include the subdirectory corresponding to the ID backup of the backup to be restored\&. For example, if the data node\'s
+DataDir
+is
+/var/lib/mysql\-cluster, then the backup directory is
+/var/lib/mysql\-cluster/BACKUP, and the backup files for the backup with the ID 3 can be found in
+/var/lib/mysql\-cluster/BACKUP/BACKUP\-3\&. The path may be absolute or relative to the directory in which the
+\fBndb_restore\fR
+executable is located, and may be optionally prefixed with
+\fBbackup_path=\fR\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+Previous to MySQL 5\&.0\&.38, the path to the backup directory was specified as shown here, with
+\fBbackup_path=\fR
+being optional:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+[backup_path=]\fI/path/to/backup/files\fR
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+Beginning with MySQL 5\&.0\&.38, this syntax changed to
+\fB\-\-backup_path=\fR\fB\fI/path/to/backup/files\fR\fR, to conform more closely with options used by other MySQL programs;
+\fB\-\-backup_id\fR
+is required, and there is no short form for this option\&.
+.sp .5v
+.RE
+.PP
+It is possible to restore a backup to a database with a different configuration than it was created from\&. For example, suppose that a backup with backup ID
+12, created in a cluster with two database nodes having the node IDs
+2
+and
+3, is to be restored to a cluster with four nodes\&. Then
+\fBndb_restore\fR
+must be run twice\(emonce for each database node in the cluster where the backup was taken\&. However,
+\fBndb_restore\fR
+cannot always restore backups made from a cluster running one version of MySQL to a cluster running a different MySQL version\&. See
+Section\ \&17.2.6.2, \(lqMySQL Cluster 5.0 Upgrade and Downgrade Compatibility\(rq, for more information\&.
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBImportant\fR
+.ps -1
+.br
+.PP
+It is not possible to restore a backup made from a newer version of MySQL Cluster using an older version of
+\fBndb_restore\fR\&. You can restore a backup made from a newer version of MySQL to an older cluster, but you must use a copy of
+\fBndb_restore\fR
+from the newer MySQL Cluster version to do so\&.
+.PP
+For example, to restore a cluster backup taken from a cluster running MySQL 5\&.0\&.45 to a cluster running MySQL Cluster 5\&.0\&.41, you must use a copy of
+\fBndb_restore\fR
+from the 5\&.0\&.45 distribution\&.
+.sp .5v
+.RE
+.PP
+For more rapid restoration, the data may be restored in parallel, provided that there is a sufficient number of cluster connections available\&. That is, when restoring to multiple nodes in parallel, you must have an
+[api]
+or
+[mysqld]
+section in the cluster
+config\&.ini
+file available for each concurrent
+\fBndb_restore\fR
+process\&. However, the data files must always be applied before the logs\&.
+.PP
+.\" --print_data option (ndb_restore)
+.\" ndb_restore: --print_data option
+The
+\fB\-\-print_data\fR
+option causes
+\fBndb_restore\fR
+to direct its output to
+stdout\&.
+.PP
+TEXT
+and
+BLOB
+column values are always truncated to the first 256 bytes in the output; this cannot currrently be overridden when using
+\fB\-\-print_data\fR\&.
+.PP
+Beginning with MySQL 5\&.0\&.40, several additional options are available for use with the
+\fB\-\-print_data\fR
+option in generating data dumps, either to
+stdout, or to a file\&. These are similar to some of the options used with
+\fBmysqldump\fR, and are shown in the following list:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" ndb_restore: --tab option
+.\" --tab option (ndb_restore)
+\fB\-\-tab\fR,
+\fB\-T\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.40
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-tab=path
+T}
+T{
+T}:T{
+\-T
+T}
+.TE
+.sp 1
+This option causes
+\fB\-\-print_data\fR
+to create dump files, one per table, each named
+\fItbl_name\fR\&.txt\&. It requires as its argument the path to the directory where the files should be saved; use
+\&.
+for the current directory\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" ndb_restore: --fields-enclosed-by option
+.\" --fields-enclosed-by option (ndb_restore)
+\fB\-\-fields\-enclosed\-by=\fR\fB\fIstring\fR\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.40
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-fields\-enclosed\-by=char
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+string
+T}
+:T{
+\fBDefault\fR
+T}:T{
+T}
+.TE
+.sp 1
+Each column values are enclosed by the string passed to this option (regardless of data type; see next item)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" ndb_restore: --fields-optionally-enclosed-by option
+.\" --fields-optionally-enclosed-by option (ndb_restore)
+\fB\-\-fields\-optionally\-enclosed\-by=\fR\fB\fIstring\fR\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.40
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-fields\-optionally\-enclosed\-by
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+string
+T}
+:T{
+\fBDefault\fR
+T}:T{
+T}
+.TE
+.sp 1
+The string passed to this option is used to enclose column values containing character data (such as
+CHAR,
+VARCHAR,
+BINARY,
+TEXT, or
+ENUM)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" ndb_restore: --fields-terminated-by option
+.\" --fields-terminated-by option (ndb_restore)
+\fB\-\-fields\-terminated\-by=\fR\fB\fIstring\fR\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.40
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-fields\-terminated\-by=char
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+string
+T}
+:T{
+\fBDefault\fR
+T}:T{
+\et (tab)
+T}
+.TE
+.sp 1
+The string passed to this option is used to separate column values\&. The default value is a tab character (\et)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" ndb_restore: --hex option
+.\" --hex option (ndb_restore)
+\fB\-\-hex\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.40
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-hex
+T}
+.TE
+.sp 1
+If this option is used, all binary values are output in hexadecimal format\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" ndb_restore: --fields-terminated-by option
+.\" --fields-terminated-by option (ndb_restore)
+\fB\-\-fields\-terminated\-by=\fR\fB\fIstring\fR\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s
+l l s s
+^ l l s
+^ l l s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.40
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-fields\-terminated\-by=char
+T}
+T{
+\ \&
+T}:T{
+\fBPermitted Values \fR
+T}
+:T{
+\fBType\fR
+T}:T{
+string
+T}
+:T{
+\fBDefault\fR
+T}:T{
+\et (tab)
+T}
+.TE
+.sp 1
+This option specifies the string used to end each line of output\&. The default is a linefeed character (\en)\&.
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+.\" ndb_restore: --append option
+.\" --append option (ndb_restore)
+\fB\-\-append\fR
+.TS
+allbox tab(:);
+l l s s
+l l s s.
+T{
+\fBVersion Introduced\fR
+T}:T{
+5\&.0\&.40
+T}
+T{
+\fBCommand\-Line Format\fR
+T}:T{
+\-\-append
+T}
+.TE
+.sp 1
+When used with the
+\fB\-\-tab\fR
+and
+\fB\-\-print_data\fR
+options, this causes the data to be appended to any existing files having the same names\&.
+.RE
+.if n \{\
+.sp
+.\}
+.RS 4
+.it 1 an-trap
+.nr an-no-space-flag 1
+.nr an-break-flag 1
+.br
+.ps +1
+\fBNote\fR
+.ps -1
+.br
+.PP
+If a table has no explicit primary key, then the output generated when using the
+\fB\-\-print_data\fR
+option includes the table\'s hidden primary key\&.
+.sp .5v
+.RE
+.PP
+Beginning with MySQL 5\&.0\&.40, it is possible to restore selected databases, or to restore selected tables from a given database using the syntax shown here:
+.sp
+.if n \{\
+.RS 4
+.\}
+.nf
+ndb_restore \fIother_options\fR \fIdb_name\fR,[\fIdb_name\fR[,\&.\&.\&.] | \fItbl_name\fR[,\fItbl_name\fR][,\&.\&.\&.]]
+.fi
+.if n \{\
+.RE
+.\}
+.PP
+In other words, you can specify either of the following to be restored:
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+All tables from one or more databases
+.RE
+.sp
+.RS 4
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
+One or more tables from a single database
+.RE
+.PP
+\fBError reporting\fR. .\" ndb_restore: errors
+\fBndb_restore\fR
+reports both temporary and permanent errors\&. In the case of temporary errors, it may able to recover from them\&. Beginning with MySQL 5\&.0\&.29, it reports
+Restore successful, but encountered temporary error, please look at configuration
+in such cases\&.
+.SH "COPYRIGHT"
+.br
+.PP
+Copyright \(co 1997, 2011, Oracle and/or its affiliates. All rights reserved.
+.PP
+This documentation is free software; you can redistribute it and/or modify it only under the terms of the GNU General Public License as published by the Free Software Foundation; version 2 of the License.
+.PP
+This documentation is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
+.PP
+You should have received a copy of the GNU General Public License along with the program; if not, write to the Free Software Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA or see http://www.gnu.org/licenses/.
+.sp
+.SH "SEE ALSO"
+For more information, please refer to the MySQL Reference Manual,
+which may already be installed locally and which is also available
+online at http://dev.mysql.com/doc/.
+.SH AUTHOR
+Oracle Corporation (http://dev.mysql.com/).

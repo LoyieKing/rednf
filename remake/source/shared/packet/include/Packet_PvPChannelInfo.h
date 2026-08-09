@@ -10,6 +10,6 @@
 class Packet_PvPChannelInfo : public PacketHeader {
 public:
     Packet_PvPChannelInfo() : PacketHeader(0xfa2, 0x17f8){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_PVPCHANNELINFO_H

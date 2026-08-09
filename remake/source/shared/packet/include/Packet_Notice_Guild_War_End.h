@@ -10,6 +10,6 @@
 class Packet_Notice_Guild_War_End : public PacketHeader {
 public:
     Packet_Notice_Guild_War_End() : PacketHeader(0x412, 0xb){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_NOTICE_GUILD_WAR_END_H

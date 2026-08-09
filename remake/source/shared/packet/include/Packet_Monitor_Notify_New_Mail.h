@@ -10,6 +10,6 @@
 class Packet_Monitor_Notify_New_Mail : public PacketHeader {
 public:
     Packet_Monitor_Notify_New_Mail() : PacketHeader(0x514, 0x12){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_NOTIFY_NEW_MAIL_H

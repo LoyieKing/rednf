@@ -10,6 +10,6 @@
 class Packet_Refresh_Guild_Info : public PacketHeader {
 public:
     Packet_Refresh_Guild_Info() : PacketHeader(0x1bbe, 0x12){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_REFRESH_GUILD_INFO_H

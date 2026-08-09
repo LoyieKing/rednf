@@ -10,6 +10,6 @@
 class Packet_P2P_Statistics : public PacketHeader {
 public:
     Packet_P2P_Statistics() : PacketHeader(0x27e1, 0x3f){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_P2P_STATISTICS_H

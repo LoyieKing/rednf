@@ -10,7 +10,7 @@
 class Packet_Monitor_Char_Changable_Info : public PacketHeader {
 public:
     Packet_Monitor_Char_Changable_Info(): PacketHeader(0x3f5,0x12) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_CHAR_CHANGABLE_INFO_H

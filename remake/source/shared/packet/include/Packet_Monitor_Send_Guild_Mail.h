@@ -10,6 +10,6 @@
 class Packet_Monitor_Send_Guild_Mail : public PacketHeader {
 public:
     Packet_Monitor_Send_Guild_Mail() : PacketHeader(0x432, 0x112){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_SEND_GUILD_MAIL_H

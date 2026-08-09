@@ -10,7 +10,7 @@
 class Packet_CutOff_UDP_Reply_UserInfo : public PacketHeader {
 public:
     Packet_CutOff_UDP_Reply_UserInfo(): PacketHeader(0x3f9,0xafe) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_CUTOFF_UDP_REPLY_USERINFO_H

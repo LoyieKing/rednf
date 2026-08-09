@@ -36,28 +36,32 @@ public:
                              unsigned char itemRefineValue);
     bool isValidUpgradeValue(unsigned char itemUpgradeValue)
     {
-        if (itemUpgradeValue < 0x20)
+        // false-first (cmp/jbe true) to match auction binary
+        if (itemUpgradeValue > 0x1f)
         {
-            return true;
+            return false;
         }
         else
         {
-            return false;
+            return true;
         }
     }
     bool isValidRefineValue(unsigned char itemRefineValue)
     {
+        // POINT_SERVER may change refine max (0x07 vs 0x7f) — preserve macros.
+        // Same false-first shape as isValidUpgradeValue. Note: auction's 0x7f
+        // bound is folded by gcc4.4 to movzbl/test/jns (semantic == cmpb $0x7f).
 #ifdef POINT_SERVER
-        if (itemRefineValue <= 0x07)
+        if (itemRefineValue > 0x07)
 #else
-        if (itemRefineValue <= 0x7f)
+        if (itemRefineValue > 0x7f)
 #endif
         {
-            return true;
+            return false;
         }
         else
         {
-            return false;
+            return true;
         }
     }
     bool aver_Set_ROI_Constraint(const ROI_Average_Constraint& _constraint);

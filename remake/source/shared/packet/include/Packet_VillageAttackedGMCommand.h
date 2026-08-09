@@ -10,7 +10,7 @@
 class Packet_VillageAttackedGMCommand : public PacketHeader {
 public:
     Packet_VillageAttackedGMCommand(): PacketHeader(0x1779,0x1a) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_VILLAGEATTACKEDGMCOMMAND_H

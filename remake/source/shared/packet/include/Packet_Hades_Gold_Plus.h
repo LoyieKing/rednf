@@ -10,6 +10,6 @@
 class Packet_Hades_Gold_Plus : public PacketHeader {
 public:
     Packet_Hades_Gold_Plus() : PacketHeader(0xfda, 0x14){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_HADES_GOLD_PLUS_H

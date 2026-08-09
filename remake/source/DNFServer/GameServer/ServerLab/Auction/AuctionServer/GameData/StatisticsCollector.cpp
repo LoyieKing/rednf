@@ -16,6 +16,8 @@
 
 using namespace nsl;
 
+const int StatisticsCollector::MAX_STATISTICS_LOG_FILE_SIZE;
+
 extern "C" int __xstat(int ver, const char* path, struct stat* buf);
 
 extern "C" __attribute__((weak)) int stat(const char* __path, struct stat* __statbuf)
@@ -32,17 +34,17 @@ StatisticsCollector::StatisticsCollector()
     strncpy(mpStOldLogDir, "statistics/old_statistics", 0x400);
     for (unsigned int i = 0; i < 3; i++)
     {
-        if (i == 1)
+        switch (i)
         {
-            strncpy(mpStatisticsTags[1], "REGIST_CANCEL", 0x200);
-        }
-        else if (i == 0)
-        {
-            strncpy(mpStatisticsTags[0], "REGIST_ITEM  ", 0x200);
-        }
-        else if (i == 2)
-        {
-            strncpy(mpStatisticsTags[2], "BIDDING      ", 0x200);
+        case 0:
+            strncpy(mpStatisticsTags[i], "REGIST_ITEM  ", 0x200);
+            break;
+        case 1:
+            strncpy(mpStatisticsTags[i], "REGIST_CANCEL", 0x200);
+            break;
+        case 2:
+            strncpy(mpStatisticsTags[i], "BIDDING      ", 0x200);
+            break;
         }
     }
     strncpy(LINE_STR,
@@ -77,8 +79,9 @@ void StatisticsCollector::StData::toString(char* buf, int len)
     sprintf(buf, "%8d Try, %8d Fail", tryCnt, failCnt);
     if (failCnt != 0)
     {
-        size_t n = strlen(buf);
-        memcpy(buf + n, ",\n", 2);
+        // 原版：memcpy(buf+strlen(buf), "\n", 2)（含 NUL；rodata 紧挨 format 串）
+        // __builtin_strcat 在 4.4 -O0 降为该 memcpy 形态（先铺 n/src 再 strlen）
+        __builtin_strcat(buf, "\n");
         char tmp[256];
         for (unsigned int i = 0; i < 0x37; i++)
         {
@@ -131,27 +134,27 @@ bool StatisticsCollector::SetLogFileName(const char* logDir, int serviceId)
     mServiceId = serviceId;
     sprintf(mpDayFileName, "%s/%s/DaySt_%d.log", logDir, mpStLogDir, serviceId);
     sprintf(mpSecFileName, "%s/%s/SecSt_%d.log", logDir, mpStLogDir, serviceId);
-    bool bRet = makeLogDir();
-    return bRet;
+    return makeLogDir();
 }
 
-bool StatisticsCollector::DataInitialization(bool dayDateInit)
+void StatisticsCollector::DataInitialization(bool dayDateInit)
 {
     if (dayDateInit)
     {
-        for (int i = 0; i < 3; i++)
+        for (unsigned int i = 0; i < 3; i++)
         {
             mStDataPerDay[i].reset();
         }
     }
     else
     {
-        for (int i = 0; i < 3; i++)
+        for (unsigned int i = 0; i < 3; i++)
         {
             mStDataPerSec[i].reset();
         }
+        // 原版 else 路径落在 leave 前有 1 字节 nop（day 路径 jmp 直接到 leave）
+        __asm__ __volatile__("nop");
     }
-    return true;
 }
 
 void StatisticsCollector::SetTimeToNow()
@@ -164,11 +167,10 @@ bool StatisticsCollector::makeLogDir()
 {
     char logdname[1024];
     struct stat st;
-    char* logdir = G_Script()->findCharValue(0, 1);
-    sprintf(logdname, "%s/%s", logdir, mpStLogDir);
+    sprintf(logdname, "%s/%s", G_Script()->findCharValue(0, 1), mpStLogDir);
     if (stat(logdname, &st) < 0)
     {
-        if (errno != 2)
+        if (errno != ENOENT)
         {
             G_TraceLog()->sysLog(7, "StatisticsCollector::makeLogDir() stat() errmsg[%s(%d)] %s", strerror(errno), errno, logdname);
             return false;
@@ -182,7 +184,7 @@ bool StatisticsCollector::makeLogDir()
     sprintf(logdname, "%s/%s", G_Script()->findCharValue(0, 1), mpStOldLogDir);
     if (stat(logdname, &st) < 0)
     {
-        if (errno != 2)
+        if (errno != ENOENT)
         {
             G_TraceLog()->sysLog(7, "StatisticsCollector::makeLogDir() stat() errmsg[%s(%d)] %s", strerror(errno), errno, logdname);
             return false;
@@ -200,13 +202,14 @@ bool StatisticsCollector::backupLogFile(bool isDayLog)
 {
     if (makeLogDir())
     {
-        char renfname[1036];
+        char renfname[1024];
         if (isDayLog)
         {
             sprintf(renfname, "%s/%s/DaySt_%d#%02d%02d%02d.log", G_Script()->findCharValue(0, 1), mpStOldLogDir, mServiceId, GetYear(), GetMonth(), GetDay());
             if (rename(mpDayFileName, renfname) < 0)
             {
                 G_TraceLog()->sysLog(7, "backupLogFile rename() errmsg[%s(%d)] %s", strerror(errno), errno, renfname);
+                return false;
             }
         }
         else
@@ -215,6 +218,7 @@ bool StatisticsCollector::backupLogFile(bool isDayLog)
             if (rename(mpSecFileName, renfname) < 0)
             {
                 G_TraceLog()->sysLog(7, "backupLogFile2 rename() errmsg[%s(%d)] %s", strerror(errno), errno, renfname);
+                return false;
             }
         }
     }
@@ -233,25 +237,25 @@ void StatisticsCollector::LoggingPerSec()
         struct stat st;
         if (stat(mpSecFileName, &st) < 0)
         {
-            if (errno != 2)
+            if (errno != ENOENT)
             {
                 G_TraceLog()->sysLog(7, "StatisticsCollector::LoggingPerSec(), stat() errmsg[%s(%d)] [%s]", strerror(errno), errno, mpSecFileName);
                 return;
             }
         }
-        else if (0x1388000 < (unsigned int)st.st_size)
+        else if (MAX_STATISTICS_LOG_FILE_SIZE < (unsigned int)st.st_size)
         {
             backupLogFile(false);
         }
         if (stat(mpDayFileName, &st) < 0)
         {
-            if (errno != 2)
+            if (errno != ENOENT)
             {
                 G_TraceLog()->sysLog(7, "StatisticsCollector::LoggingPerSec(), stat() errmsg[%s(%d)] [%s]", strerror(errno), errno, mpDayFileName);
                 return;
             }
         }
-        else if (0x1388000 < (unsigned int)st.st_size)
+        else if (MAX_STATISTICS_LOG_FILE_SIZE < (unsigned int)st.st_size)
         {
             backupLogFile(true);
         }
@@ -262,20 +266,17 @@ void StatisticsCollector::LoggingPerSec()
         }
         else
         {
-            NSLDBThread* pDBThread = pApp->super_Threads.getDBThread(0);
-            int dbQueueSize = pDBThread->mQueueSize;
-            size_t dbTr = pApp->super_Threads.getDBThread(0)->GetTransactionCntPerSec();
-            WorkThread* pWorkThread = pApp->super_Threads.getWorkThread(0);
-            size_t workQueueSize = pWorkThread->GetQueueSizeNoLock();
-            size_t workTr =
-                pApp->super_Threads.getWorkThread(0)->GetTransactionCntPerSec();
             static char szLog[0x1000];
             static char data_str[0x1000];
             static size_t szLogLen;
             static size_t write_len;
+            // 全部作为 sprintf 实参（RTL 右到左），避免命名局部量打乱栈槽/寄存器
             sprintf(szLog, "[%02d%02d%02d_%02d:%02d:%02d] net_tr[%4d,%4d] db_tr[%4d,%4d]\n",
                     GetYear(), GetMonth(), GetDay(), GetHour(), GetMin(), GetSec(),
-                    (int)workTr, (int)workQueueSize, (int)dbTr, dbQueueSize);
+                    pApp->super_Threads.getWorkThread(0)->GetTransactionCntPerSec(),
+                    pApp->super_Threads.getWorkThread(0)->GetQueueSizeNoLock(),
+                    pApp->super_Threads.getDBThread(0)->GetTransactionCntPerSec(),
+                    pApp->super_Threads.getDBThread(0)->mQueueSize);
             szLogLen = strlen(szLog);
             write_len = fwrite(szLog, 1, szLogLen, mpLogFile);
             if (write_len < szLogLen)
@@ -317,11 +318,9 @@ void StatisticsCollector::LoggingPerSec()
                     {
                         for (unsigned int i = 0; i < 3; i++)
                         {
-                            mStDataPerDay[i].toString(data_str, 0x1000);
-                            int iVar2 = GetDay();
-                            int iVar11 = GetMonth();
-                            int iVar12 = GetYear();
-                            sprintf(szLog, "[%02d%02d%02d] [%s] %s\n", iVar12, iVar11, iVar2,
+                            // 原版 day 循环 toString 使用 mStDataPerSec（偏移 0x2b0），reset 用 mStDataPerDay
+                            mStDataPerSec[i].toString(data_str, 0x1000);
+                            sprintf(szLog, "[%02d%02d%02d] [%s] %s\n", GetYear(), GetMonth(), GetDay(),
                                     mpStatisticsTags[i], data_str);
                             szLogLen = strlen(szLog);
                             mStDataPerDay[i].reset();
@@ -342,6 +341,11 @@ void StatisticsCollector::LoggingPerSec()
                         mLastLoggingDay = GetDay();
                         DataInitialization(true);
                     }
+                }
+                else
+                {
+                    // 原版：day 未变化时 je 落到 leave 前的 nop（body 结束 jmp 跳过该 nop）
+                    __asm__ __volatile__("nop");
                 }
             }
         }

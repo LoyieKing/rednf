@@ -41,16 +41,19 @@ static std::string gDatabaseEncoding;
 // ---- 自由函数 ----
 
 // 原始为 TLS 缓冲区 gNumberToStringBuffer（符号 0x200 字节，GS-0x208 + index*0x40，8 槽）
-static __thread char gNumberToStringBuffer[0x200];
+// DWARF 类型为 char[8][0x40]（两个 subrange：7/63），必须按二维数组形态书写，
+// 才能让 &gNumberToStringBuffer[index] 的 PLUS 以「基址寄存器为目的地」展开（lea），
+// 与 ORIG 一致；写成 char[0x200] + index*0x40 会产生 add 形态（§39 伪影）。
+static __thread char gNumberToStringBuffer[8][0x40];
 
 char* NumberToString(unsigned int value, int index) {
-    sprintf(&gNumberToStringBuffer[index * 0x40], "%u", value);
-    return &gNumberToStringBuffer[index * 0x40];
+    sprintf(gNumberToStringBuffer[index], "%u", value);
+    return gNumberToStringBuffer[index];
 }
 
 char* NumberToString(unsigned long long value, int index) {
-    sprintf(&gNumberToStringBuffer[index * 0x40], "%qu", value);
-    return &gNumberToStringBuffer[index * 0x40];
+    sprintf(gNumberToStringBuffer[index], "%qu", value);
+    return gNumberToStringBuffer[index];
 }
 
 void PrintBackTrace() {
@@ -93,25 +96,26 @@ char checkTimeToday(long t, int hour) {
 }
 
 void GetCurrentResetBaseTime(long t, int hour) {
-    long yesterday = t - 86400;
+    long yester_time = t - 86400;
     tm now;
     tm yday;
-    tm* nowP = localtime_r(&t, &now);
-    tm* ydayP = localtime_r(&yesterday, &yday);
-    // 原始：int localHour = 0 后再赋 hour（mov [ebp-X],0 + mov [ebp-X],hour）
-    int localHour = 0;
-    localHour = hour;
-    // 原始：条件为 nowP->tm_hour >= 0 && nowP->tm_hour < localHour 时改 ydayP，否则改 nowP
-    if (nowP->tm_hour >= 0 && nowP->tm_hour < localHour) {
-        ydayP->tm_hour = localHour;
-        ydayP->tm_min = 0;
-        ydayP->tm_sec = 0;
-        mktime(ydayP);
+    tm* tm_ptr = localtime_r(&t, &now);
+    tm* tm_ptr_yester = localtime_r(&yester_time, &yday);
+    // ORIG：localtime_r 调用后声明 reset_time（置 0）与 day（赋 hour）。
+    long reset_time = 0;
+    int day;
+    day = hour;
+    // 原始：条件为 tm_ptr->tm_hour >= 0 && tm_ptr->tm_hour < day 时改 ydayP，否则改 nowP
+    if (tm_ptr->tm_hour >= 0 && tm_ptr->tm_hour < day) {
+        tm_ptr_yester->tm_hour = day;
+        tm_ptr_yester->tm_min = 0;
+        tm_ptr_yester->tm_sec = 0;
+        mktime(tm_ptr_yester);
     } else {
-        nowP->tm_hour = localHour;
-        nowP->tm_min = 0;
-        nowP->tm_sec = 0;
-        mktime(nowP);
+        tm_ptr->tm_hour = day;
+        tm_ptr->tm_min = 0;
+        tm_ptr->tm_sec = 0;
+        mktime(tm_ptr);
     }
 }
 
@@ -167,14 +171,20 @@ unsigned int SDC_Rand(unsigned int* seed) {
 // ---- DNFFLib ----
 
 void DNFFLib::Binary2Hex(unsigned char const* data, int len, char* out) {
-    // 原始：data 本地指针副本（mov [ebp-X],eax + 循环内 *p 递进）
-    unsigned char const* p = data;
+    // ORIG DWARF：局部 i(67)/szHex(68)/pucBinStr1(69)，声明不初始化，
+    // 体中按 pucBinStr1→out[0]→i 序赋值（同 wrapper 版形态）。
+    int i;
+    char szHex[3];
+    unsigned char const* pucBinStr1;
+    pucBinStr1 = data;
     out[0] = '\0';
-    for (int i = 0; i < len; i++) {
-        char tmp[3];
-        Char2Hex(*p, tmp);
-        strcat(out, tmp);
-        p++;
+    i = 0;
+    while (i < len) {
+        Char2Hex(*pucBinStr1, szHex);
+        strcat(out, szHex);
+        // ORIG：i 先自增、指针后自增。
+        i++;
+        pucBinStr1++;
     }
 }
 
@@ -186,11 +196,11 @@ int DNFFLib::Hex2Binary(char const* hex, unsigned char* out, int maxLen) {
             // 原始：Hex2Char 失败即返回 0
             return 0;
         }
-        // 原始：*out++ 指针递进（mov [eax],dl + add out,1）
+        // 原始：*out = value 后按 count→hex→out 序自增。
         *out = value;
-        out++;
         count++;
         hex += 2;
+        out++;
     }
     return 1;
 }
@@ -228,30 +238,34 @@ unsigned int DNFFLib::get_rand_int(int range) {
 }
 
 int DNFFLib::ExplodeString(char* str, char* delims, char** out, int maxCount) {
-    int count = 0;
+    // ORIG DWARF 局部：iTokenCnt(158)/pToken(159)/pLast(160)/pTail(160)。
+    int iTokenCnt = 0;
     if (maxCount < 1 || str == NULL) {
         out[0] = str;
         return 0;
     }
     // 原始：直接存尾指针 end = str + strlen(str)（mov [ebp-0x10],eax）
-    char* end = str + strlen(str);
-    char* token = strtok(str, delims);
-    while (token != NULL) {
-        out[count] = token;
-        count++;
-        if (count >= maxCount) {
+    // ORIG 声明序：pToken(159) 先于 pLast(160)，但体中先赋 pLast 再 pToken。
+    char* pToken;
+    char* pLast;
+    pLast = str + strlen(str);
+    pToken = strtok(str, delims);
+    while (pToken != NULL) {
+        out[iTokenCnt] = pToken;
+        iTokenCnt++;
+        if (iTokenCnt >= maxCount) {
             // 原始：token + strlen(token) 存为临时指针（mov [ebp-0xc],eax）
-            char* tEnd = token + strlen(token);
-            if (tEnd == end) {
-                out[count] = NULL;
+            char* pTail = pToken + strlen(pToken);
+            if (pTail == pLast) {
+                out[iTokenCnt] = NULL;
             } else {
-                out[count] = tEnd + 1;
+                out[iTokenCnt] = pTail + 1;
             }
             break;
         }
-        token = strtok(NULL, delims);
+        pToken = strtok(NULL, delims);
     }
-    return count;
+    return iTokenCnt;
 }
 
 void DNFFLib::PrintTextFile(char* file, char* text) {
@@ -274,6 +288,8 @@ void DNFFLib::fPrintTextFile(char* file, char* fmt, ...) {
 
 #ifndef DF_NO_CODEPAGE
 bool DNFFLib::CharacSetSwitch(char const* from, char const* to, char* src, char* dst) {
+    // ORIG DWARF 局部：SrcPtr/DstPtr/size1/size2/string_size/cc/it（槽位映射待推敲，
+    // 见 identical_pitfalls 记录；保持现有可编译形态）。
     char* in = NULL;
     char* out = NULL;
     size_t inLen = 0;

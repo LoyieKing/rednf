@@ -36,25 +36,12 @@ void ConInterface::setInfo(int con_id, const char* remote_ip, int remote_port,
 
 void ActiveConManager::CheckTheConnection(ConInterface* conInfo)
 {
-    while (true)
+    // ORIG: while (getTCPUser()->isDisconnected() || getTCPUser()->isAboutToDisconnect())
+    // dual getTCPUser, condition-at-top (jmp to check), no local bool
+    while (conInfo->getTCPUser()->isDisconnected() ||
+           conInfo->getTCPUser()->isAboutToDisconnect())
     {
-        TCPUser* pUser = conInfo->getTCPUser();
-        bool bDoReconnect;
-        if (pUser->isDisconnected())
-        {
-            bDoReconnect = true;
-        }
-        else
-        {
-            pUser = conInfo->getTCPUser();
-            bDoReconnect = pUser->isAboutToDisconnect();
-        }
-        if (!bDoReconnect)
-        {
-            return;
-        }
-        pUser = RequestConnect(conInfo);
-        conInfo->setTCPUser(pUser);
+        conInfo->setTCPUser(RequestConnect(conInfo));
     }
 }
 
@@ -119,77 +106,81 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
 
 bool ActiveConManager::PopRequestConnect(TCPUser*& outConnectedUser)
 {
-    ConInterface* conInfo = NULL;
-    bool bExist = false;
+    ConInterface* conInfo;
+    int bExist;
     {
         TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockInCon);
-        if (!queueRequestConnect.empty())
+        // ORIG: if (empty()) { bRequestInQueue=false; esi=0 } else { pop; esi=1 }
+        if (queueRequestConnect.empty())
         {
-            conInfo = queueRequestConnect.front();
-            queueRequestConnect.pop();
-            bExist = true;
+            bRequestInQueue = false;
+            bExist = 0;
         }
         else
         {
-            bRequestInQueue = false;
+            conInfo = queueRequestConnect.front();
+            queueRequestConnect.pop();
+            bExist = 1;
         }
     }
-    if (bExist)
+    if (bExist == 0)
     {
-        TCPSocket* sTCP = pApp->super_DataPools.getDataPool()->createTCPSocket();
-        if (!sTCP->open())
-        {
-            puts("failed to open UDP socket port");
-            pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
-            return false;
-        }
-        printf("try to connect-%s, %d\n", conInfo->getIp(), conInfo->getPort());
-        timeval tv;
-        tv.tv_sec = 3;
-        tv.tv_usec = 0;
-        if (sTCP->connect_nonb(conInfo->getIp(), (unsigned short)conInfo->getPort(), tv))
-        {
-            conInfo->SetConnected(true);
-            printf("connection success!!-%s, %d\n", conInfo->getIp(), conInfo->getPort());
-            TCPUser* acUser = pApp->super_DataPools.getDataPool()->createTCPUser();
-            if (acUser == NULL)
-            {
-                sTCP->close();
-                pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
-                puts("cannot create TCP USER");
-                return false;
-            }
-            acUser->initialize();
-            acUser->startupAfterSetSocket();
-            acUser->setSocket(sTCP);
-            acUser->setLastAccessTime();
-            acUser->setNeedReconnect(conInfo->getNeedRecon());
-            acUser->setSendDataType(conInfo->getSendType());
-            acUser->setRecvDataType(conInfo->getRecvType());
-            G_TraceLog()->sysLog(8, "Active Connected TCPUser id=[%d]", acUser->mUserId);
-            TCPReactor* r = pApp->super_Reactor.getReactor();
-            if (r->registHandle(acUser, 5))
-            {
-                conInfo->setTCPUser(acUser);
-                {
-                    TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockOutCon);
-                    mapConnectedUser_[conInfo->getId()] = conInfo;
-                    bConnectedInQueue = true;
-                    printf("con map size-%d\n", (int)mapConnectedUser_.size());
-                }
-                outConnectedUser = acUser;
-                return true;
-            }
-            puts("register handle fail");
-            return false;
-        }
+        return false;
+    }
+
+    TCPSocket* sTCP = pApp->super_DataPools.getDataPool()->createTCPSocket();
+    if (sTCP->open() == false)
+    {
+        puts("failed to open UDP socket port");
+        pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
+        return false;
+    }
+    printf("try to connect-%s, %d\n", conInfo->getIp(), conInfo->getPort());
+    timeval tv;
+    tv.tv_sec = 3;
+    tv.tv_usec = 0;
+    // ORIG: fail branch first via xor $1 on connect result
+    if (sTCP->connect_nonb(conInfo->getIp(), (unsigned short)conInfo->getPort(), tv) == false)
+    {
         G_TraceLog()->sysLog(7, "failed to connect remote server-ip=%s, port=%d", conInfo->getIp(), conInfo->getPort());
         sTCP->close();
         pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
         conInfo->mIsRejected = true;
         return false;
     }
-    return false;
+    conInfo->SetConnected(true);
+    printf("connection success!!-%s, %d\n", conInfo->getIp(), conInfo->getPort());
+    TCPUser* acUser = pApp->super_DataPools.getDataPool()->createTCPUser();
+    if (acUser == NULL)
+    {
+        sTCP->close();
+        pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
+        puts("cannot create TCP USER");
+        return false;
+    }
+    acUser->initialize();
+    acUser->startupAfterSetSocket();
+    acUser->setSocket(sTCP);
+    acUser->setLastAccessTime();
+    acUser->setNeedReconnect(conInfo->getNeedRecon());
+    acUser->setSendDataType(conInfo->getSendType());
+    acUser->setRecvDataType(conInfo->getRecvType());
+    G_TraceLog()->sysLog(8, "Active Connected TCPUser id=[%d]", acUser->mUserId);
+    TCPReactor* r = pApp->super_Reactor.getReactor();
+    if (r->registHandle(acUser, 5) == false)
+    {
+        puts("register handle fail");
+        return false;
+    }
+    conInfo->setTCPUser(acUser);
+    {
+        TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockOutCon);
+        mapConnectedUser_[conInfo->getId()] = conInfo;
+        bConnectedInQueue = true;
+        printf("con map size-%d\n", (int)mapConnectedUser_.size());
+    }
+    outConnectedUser = acUser;
+    return true;
 }
 
 } // namespace nsl

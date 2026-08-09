@@ -61,7 +61,7 @@ TDebugTrace<T>& TDebugTrace<T>::operator<<(TDebugTrace& (*in_Pfn)(TDebugTrace&))
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(char* s)
 {
-    size_t sVar2 = strlen(s);
+    int sVar2 = strlen(s);
     if ((int)(mPos + sVar2) > 0x19000)
     {
         return this;
@@ -73,7 +73,7 @@ TDebugTrace<T>* TDebugTrace<T>::putText(char* s)
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(const char* s)
 {
-    size_t sVar2 = strlen(s);
+    int sVar2 = strlen(s);
     if ((int)(mPos + sVar2) > 0x19000)
     {
         return this;
@@ -89,8 +89,8 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(int n)
     {
         return this;
     }
+    char tmp[12];
     char fmt[12];
-    char tmp[16];
     memset(fmt, 0, 0xc);
     sprintf(fmt, "%d", n);
     if (hexadecimal_)
@@ -101,7 +101,7 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(int n)
     {
         sprintf(tmp, "%%-%dd", strlen(fmt));
     }
-    mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
+    mPos = mPos + snprintf(m_FormatBuf + mPos, 0xd, tmp, n);
     return this;
 }
 
@@ -112,8 +112,8 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(unsigned int n)
     {
         return this;
     }
+    char tmp[12];
     char fmt[12];
-    char tmp[16];
     memset(fmt, 0, 0xc);
     sprintf(fmt, "%d", n);
     if (hexadecimal_)
@@ -124,7 +124,7 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(unsigned int n)
     {
         sprintf(tmp, "%%-%dd", strlen(fmt));
     }
-    mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
+    mPos = mPos + snprintf(m_FormatBuf + mPos, 0xd, tmp, n);
     return this;
 }
 
@@ -159,11 +159,12 @@ TDebugTrace<T>& endl(TDebugTrace<T>& in_Str)
         FILE* log = fopen("error.txt", "a+");
         if (log != NULL)
         {
-            fprintf(log, "DebugTrace error %d\n", in_Str.mPos);
+            int ret = fprintf(log, "DebugTrace error %d\n", in_Str.mPos);
             fclose(log);
         }
         in_Str.mPos = 0;
         memset(in_Str.m_FormatBuf, 0, 0x19000);
+        return in_Str;
     }
     else
     {
@@ -194,9 +195,7 @@ void ChannelServiceApp::ServerGroup::decreseServerCount()
 
 tagCS_UPDATE_CHANNEL_INFO::tagCS_UPDATE_CHANNEL_INFO()
 {
-    setCategory(0x7b);
-    setPacketID(2);
-    setSize(0x33);
+    PACKET_HEADER_SET(0x7b, 2, 0x33);  // PACKETS::CS_UPDATE_CHANNEL_INFO
 }
 
 void ChannelServiceApp::CheckThread::loop(void* temp)
@@ -267,15 +266,9 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                     gFileLogCri.Lock();
                     gFileLogCri << "End" << endl;
                     gFileLogCri.Unlock();
-                    gFileLogInfo.Lock();
-                    gFileLogInfo << "ABCD *************************************************************" << endl;
-                    gFileLogInfo.Unlock();
-                    gFileLogInfo.Lock();
-                    gFileLogInfo << "ABCD * " << i << "\xbc\xad\xb9\xf6\xb1\xba, \xbc\xad\xb9\xf6 \xb0\xb3\xbc\xf6 = " << (count + 1) << endl;
-                    gFileLogInfo.Unlock();
-                    gFileLogInfo.Lock();
-                    gFileLogInfo << "ABCD *************************************************************" << endl;
-                    gFileLogInfo.Unlock();
+                    GLOG(gFileLogInfo, "ABCD *************************************************************");
+                    GLOG(gFileLogInfo, "ABCD * " << i << "\xbc\xad\xb9\xf6\xb1\xba, \xbc\xad\xb9\xf6 \xb0\xb3\xbc\xf6 = " << (count + 1));
+                    GLOG(gFileLogInfo, "ABCD *************************************************************");
                 }
             }
         }
@@ -315,40 +308,24 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                         pck.port = it->second->port;
                         *pMsg << (LPPACKET_HEADER)&pck;
                         pMsg->PAD();
-                        gFileLogInfo.Lock();
-                        gFileLogInfo << "------------------------------------------------------" << endl;
-                        gFileLogInfo.Unlock();
-                        gFileLogInfo.Lock();
-                        gFileLogInfo << "INDEX=" << k << endl;
-                        gFileLogInfo.Unlock();
-                        gFileLogInfo.Lock();
-                        gFileLogInfo << "TCP USER=" << (int)pApp->CServers[k].uTCP << endl;
-                        gFileLogInfo.Unlock();
-                        gFileLogInfo.Lock();
-                        gFileLogInfo << "TCP SOCK=" << (int)pApp->CServers[k].uTCP->getSocket() << endl;
-                        gFileLogInfo.Unlock();
-                        gFileLogInfo.Lock();
-                        gFileLogInfo << "------------------------------------------------------" << endl;
-                        gFileLogInfo.Unlock();
+                        GLOG(gFileLogInfo, "------------------------------------------------------");
+                        GLOG(gFileLogInfo, "INDEX=" << k);
+                        GLOG(gFileLogInfo, "TCP USER=" << (int)pApp->CServers[k].uTCP);
+                        GLOG(gFileLogInfo, "TCP SOCK=" << (int)pApp->CServers[k].uTCP->getSocket());
+                        GLOG(gFileLogInfo, "------------------------------------------------------");
                         int ret = pApp->CServers[k].uTCP->onWrite2Buffer(pMsg);
                         if (ret < 0)
                         {
-                            gFileLogInfo.Lock();
-                            gFileLogInfo << "Update Send Fail=" << ret << ", error=" << strerror(errno) << endl;
-                            gFileLogInfo.Unlock();
+                            GLOG(gFileLogInfo, "Update Send Fail=" << ret << ", error=" << strerror(errno));
                             printf("Update Send Fail");
                         }
                         if (ret == 0)
                         {
-                            gFileLogInfo.Lock();
-                            gFileLogInfo << "ret = 0" << endl;
-                            gFileLogInfo.Unlock();
+                            GLOG(gFileLogInfo, "ret = 0");
                         }
-                        gFileLogInfo.Lock();
-                        gFileLogInfo << "\xc3\xa4\xb3\xce \xbc\xad\xb9\xf6\xbf\xa1 \xbe\xcb\xb8\xb0\xb4\xd9. "
-                                     << "gc_no=" << pck.gc_no << ", IP=" << pApp->CServers[k].IP
-                                     << ", PORT=" << pApp->CServers[k].port << endl;
-                        gFileLogInfo.Unlock();
+                        GLOG(gFileLogInfo, "\xc3\xa4\xb3\xce \xbc\xad\xb9\xf6\xbf\xa1 \xbe\xcb\xb8\xb0\xb4\xd9. "
+                            << "gc_no=" << pck.gc_no << ", IP=" << pApp->CServers[k].IP
+                            << ", PORT=" << pApp->CServers[k].port);
                         it++;
                     }
                 }

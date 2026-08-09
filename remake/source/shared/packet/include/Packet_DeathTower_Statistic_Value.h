@@ -10,7 +10,7 @@
 class Packet_DeathTower_Statistic_Value : public PacketHeader {
 public:
     Packet_DeathTower_Statistic_Value(): PacketHeader(0xc3b,0x15) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_DEATHTOWER_STATISTIC_VALUE_H

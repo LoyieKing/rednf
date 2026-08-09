@@ -10,7 +10,7 @@
 class Packet_Item_Limit_Edition_Buyable_Query : public PacketHeader {
 public:
     Packet_Item_Limit_Edition_Buyable_Query(): PacketHeader(0x1009,0x1dc) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_ITEM_LIMIT_EDITION_BUYABLE_QUERY_H

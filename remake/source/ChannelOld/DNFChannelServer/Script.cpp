@@ -30,11 +30,15 @@ bool Script::load(char* filename)
     }
     char buf[0x401];
     bool ret;
-    do
+    for (;;)
     {
         ret = fgetln(fp, buf);
         parse(buf);
-    } while (ret == true);
+        if (!ret)
+        {
+            break;
+        }
+    }
     fclose(fp);
     return true;
 }
@@ -49,17 +53,13 @@ bool Script::parse(char* line)
 bool Script::fgetln(FILE* fp, char* buf)
 {
     int i = 0;
-    while (true)
+    while (i <= 0x3ff)
     {
-        if (0x3ff < i)
-        {
-            return true;
-        }
         int code = fgetc(fp);
-        int eof = feof(fp);
-        if (eof != 0)
+        if (feof(fp) != 0)
         {
-            break;
+            buf[i] = '\0';
+            return false;
         }
         buf[i] = (char)code;
         if (buf[i] == '\n')
@@ -74,19 +74,14 @@ bool Script::fgetln(FILE* fp, char* buf)
         }
         i = i + 1;
     }
-    buf[i] = '\0';
-    return false;
+    return true;
 }
 
 bool Script::remove_comment(char* line)
 {
     int i = 0;
-    while (true)
+    while (i <= 0x3fd)
     {
-        if (0x3fd < i)
-        {
-            return false;
-        }
         int n = 0;
         for (int j = 0; j < 2; j = j + 1)
         {
@@ -97,33 +92,28 @@ bool Script::remove_comment(char* line)
         }
         if (n == 2)
         {
-            break;
+            memset(line + i, 0, 0x400 - i);
+            return true;
         }
         i = i + 1;
     }
-    memset(line + i, 0, 0x400 - i);
-    return true;
+    return false;
 }
 
 bool Script::get_key_val(char* line)
 {
-    size_t size = strlen(line);
-    tok.get_token(line, size);
+    tok.get_token(line, strlen(line));
     int n_tok = tok.get_n_token();
-    if (n_tok == 1)
+    switch (n_tok)
     {
-        char* key = tok.get_context(0);
-        on_parent_tag(key);
-    }
-    else
-    {
-        if (n_tok != 2)
-        {
-            return false;
-        }
-        char* val = tok.get_context(1);
-        char* key = tok.get_context(0);
-        on_keyval_tag(key, val);
+    case 1:
+        on_parent_tag(tok.get_context(0));
+        break;
+    case 2:
+        on_keyval_tag(tok.get_context(0), tok.get_context(1));
+        break;
+    default:
+        return false;
     }
     return true;
 }
@@ -131,90 +121,107 @@ bool Script::get_key_val(char* line)
 bool Script::on_parent_tag(char* key)
 {
     ScriptRawData* s = new ScriptRawData(key, NULL, 0);
-    if (s != NULL)
-    {
-        data->push_child(s);
-        memset(parent_tag, 0, 0x100);
-        strncpy(parent_tag, key, 0xff);
-    }
-    return s != NULL;
-}
-
-bool Script::on_keyval_tag(char* key, char* val)
-{
-    size_t val_size = strlen(val);
-    ScriptRawData* s = new ScriptRawData(key, val, val_size);
     if (s == NULL)
     {
         return false;
     }
-    if (parent_tag[0] == '\0')
+    data->push_child(s);
+    memset(parent_tag, 0, 0x100);
+    strncpy(parent_tag, key, 0xff);
+    return true;
+}
+
+bool Script::on_keyval_tag(char* key, char* val)
+{
+    ScriptRawData* s = new ScriptRawData(key, val, strlen(val));
+    if (s == NULL)
     {
-        assert(strlen(parent_tag));
+        return false;
     }
+    assert(strlen(parent_tag));
     data->push_child(parent_tag, s);
     return true;
 }
 
 bool Script::get_server_section()
 {
-    char* val = data->get_data("[server]", "max_client");
-    if (val == NULL)
+    char* val = NULL;
+    val = data->get_data("[server]", "max_client");
+    if (val != NULL)
+    {
+        G_ScriptData()->max_client = atoi(val);
+    }
+    else
     {
         return false;
     }
-    G_ScriptData()->max_client = atoi(val);
     val = data->get_data("[server]", "this_ip");
-    if (val == NULL)
+    if (val != NULL)
+    {
+        strncpy(G_ScriptData()->ip, val, 0x11);
+    }
+    else
     {
         return false;
     }
-    strncpy(G_ScriptData()->ip, val, 0x11);
     val = data->get_data("[server]", "this_tcp_port");
-    if (val == NULL)
+    if (val != NULL)
+    {
+        G_ScriptData()->tcp_port = (unsigned short)atoi(val);
+    }
+    else
     {
         return false;
     }
-    G_ScriptData()->tcp_port = (unsigned short)atoi(val);
     val = data->get_data("[server]", "this_udp_port");
-    if (val == NULL)
+    if (val != NULL)
+    {
+        G_ScriptData()->udp_port = (unsigned short)atoi(val);
+    }
+    else
     {
         return false;
     }
-    G_ScriptData()->udp_port = (unsigned short)atoi(val);
     val = data->get_data("[server]", "bridge_ip");
-    if (val == NULL)
+    if (val != NULL)
+    {
+        strncpy(G_ScriptData()->bridge_ip, val, 0x11);
+    }
+    else
     {
         return false;
     }
-    strncpy(G_ScriptData()->bridge_ip, val, 0x11);
     val = data->get_data("[server]", "bridge_port");
-    if (val == NULL)
+    if (val != NULL)
+    {
+        G_ScriptData()->bridge_port = atoi(val);
+    }
+    else
     {
         return false;
     }
-    G_ScriptData()->bridge_port = atoi(val);
     val = data->get_data("[server]", "id");
-    if (val == NULL)
+    if (val != NULL)
+    {
+        G_ScriptData()->id = atoi(val);
+    }
+    else
     {
         return false;
     }
-    G_ScriptData()->id = atoi(val);
     return true;
 }
 
 bool Script::parse_channel_script()
 {
     bool ret = get_server_section();
-    if (ret)
-    {
-        destroy_raw_script();
-    }
-    else
+    if (!ret)
     {
         puts("Script interpret error in Channel-[Server]");
+        return false;
     }
-    return ret;
+    destroy_raw_script();
+    return true;
 }
 
 void Script::destroy_raw_script()

@@ -44,14 +44,21 @@ bool DNFFLibWrapper::Hex2Char(const char* szHex, unsigned char& rch)
 
 void DNFFLibWrapper::Binary2Hex(const unsigned char* pucBinStr, int iBinSize, char* pszHexStr)
 {
-    const unsigned char* p = pucBinStr;
+    // ORIG DWARF：局部 i(38)/szHex(39)/pucBinStr1(40)；声明不初始化，
+    // 体中按 pucBinStr1→pszHexStr[0]→i 序赋值（槽位 -0xc/-0x13/-0x10）。
+    int i;
+    char szHex[3];
+    const unsigned char* pucBinStr1;
+    pucBinStr1 = pucBinStr;
     pszHexStr[0] = '\0';
-    for (int i = 0; i < iBinSize; i = i + 1)
+    i = 0;
+    while (i < iBinSize)
     {
-        char tmp[3];
-        Char2Hex(*p, tmp);
-        strcat(pszHexStr, tmp);
-        p = p + 1;
+        Char2Hex(*pucBinStr1, szHex);
+        strcat(pszHexStr, szHex);
+        // ORIG：i 先自增、指针后自增。
+        i = i + 1;
+        pucBinStr1 = pucBinStr1 + 1;
     }
 }
 
@@ -66,9 +73,10 @@ bool DNFFLibWrapper::Hex2Binary(const char* pszHexStr, unsigned char* pucBinStr,
             return false;
         }
         *pucBinStr = value;
-        pucBinStr = pucBinStr + 1;
+        // ORIG：count→pszHexStr→pucBinStr 的自增顺序。
         count = count + 1;
         pszHexStr = pszHexStr + 2;
+        pucBinStr = pucBinStr + 1;
     }
     return true;
 }

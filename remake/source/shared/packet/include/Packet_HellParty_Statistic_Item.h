@@ -10,6 +10,6 @@
 class Packet_HellParty_Statistic_Item : public PacketHeader {
 public:
     Packet_HellParty_Statistic_Item() : PacketHeader(0xc31, 0x2a){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_HELLPARTY_STATISTIC_ITEM_H

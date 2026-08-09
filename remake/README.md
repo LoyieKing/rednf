@@ -65,12 +65,13 @@ dnf_workspace/                      # git 仓库根
 |---|---:|---|---|---|---|
 | community | `df_community_r` | 968 KB | 否（Ghidra 反编译） | 真实实现（37 文件） | 是 |
 | channel | `df_channel_r` | 1.3 MB | 是 | 真实实现（25 TU，含 DWARF 布局对齐） | 是 |
-| auction | `df_auction_r` | 12.2 MB | 是 | DWARF 桩（116 文件，含 TODO） | 否（缺 `main`） |
-| point | `df_point_r` | 12.2 MB | 是 | DWARF 桩（与 auction 同源） | 否（缺 `main`） |
+| auction | `df_auction_r` | 12.2 MB | 是 | 真实实现（66 TU，MISSING=0） | 是（`source/build-auction/`） |
+| point | `df_point_r` | 12.2 MB | 是 | 真实实现（同源，`-DPOINT_SERVER` 切 3 处常量） | 是（`source/build-point/`） |
 | bridge | `df_bridge_r` | 3.4 MB | 是 | 真实实现（31 TU，复用 channel 框架 + Ghidra 重建） | 是（`source/build-bridge/`，91.4% 助记符级精确） |
 | stun | `df_stun_r` | 131 KB | 是 | 真实实现（8 文件，见 `docs/df_stun_r_restoration_report.md`） | 是（`source/build-stun/`，64 位） |
 | dbmw | `df_dbmw_r` | — | — | 仅工具函数（Library/Core） | 否（缺 `main`） |
-| coserver / guild / manager / monitor / relay / statics | 未启用 | 0.4–3.5 MB | 否 | `placeholder/` 占位 main | 未参与构建 |
+| relay / coserver / statics / guild / monitor | 独立脚本构建（build-*.sh） | 0.4–2.5 MB | 否 | 真实实现（monitor：`source/monitor/`，MISSING=0，见 `docs/df_monitor_r_progress.md`） | 是 |
+| manager | 独立脚本构建（build-manager.sh） | 3.2 MB | 否 | 主体完成（`source/manager/`；MISSING=0，助记符重叠 88.96%，见 `docs/df_manager_r_validation.md`） | 是 |
 
 **构建验证结论（2026-08-07 实测）**：`df_community_r`、`df_channel_r`（`source/toolchain/build-channel.sh`，GCC 4.4.6）、`df_stun_r` 与 `df_bridge_r`（`source/toolchain/build-bridge.sh`，同 4.4.6 工具链）均已完整链接并生成可运行 ELF；其余目标失败原因统一为 `undefined reference to main` —— 桩代码尚未包含入口函数，属预期状态而非编译配置问题。
 
@@ -106,7 +107,9 @@ dnf_workspace/                      # git 仓库根
 
 低命中（多数为编译器版本差异，语义一致）：`PacketHeader.cpp`（42.9%）、`STGameUserInfo.cpp`/`STPvPBuddyDBInfo.cpp`（50.0%）、`Thread.cpp`（59.2%）、`main.cpp`（63.3%）、`SessionManager.cpp`（68.8%）。
 
-> 2026-08-07 最终（决定性）：从原始 ELF 的 C++0x 特征符号（`decay_and_strip` make_pair、变参 construct、右值 push_back）确认**原始用 gnu++0x 编译**，CMakeLists 默认标准改为 gnu++0x。项目函数符号名精确匹配 **490/490（100%）**、MISSING/EXTRA 项目函数均为 0、精确符号匹配 3399/3741（90.9%）、字符串交集 4018、文件大小 877,264（原始 967,844）。此前还复刻了原始定制版 **boost::object_pool**（`source/shared/BoostPool.h`）。剩余差异全部为原始「多编译器版本混合链接」（.comment: 4.1.2/4.4.4/4.4.6/4.4.7）与 libstdc++ 静态库内部实现差异，非项目源码可修。详见 `docs/df_community_r_function_divergences.md` 与 `docs/function_review/report_review_full_20260807.md`。
+> 2026-08-07 最终（决定性）：从原始 ELF 的 C++0x 特征符号（`decay_and_strip` make_pair、变参 construct、右值 push_back）确认**原始用 gnu++0x 编译**，CMakeLists 默认标准改为 gnu++0x。项目函数符号名精确匹配 **490/490（100%）**、MISSING/EXTRA 项目函数均为 0、精确符号匹配 3399/3741（90.9%）、字符串交集 4018、文件大小 877,264（原始 967,844）。剩余差异全部为原始「多编译器版本混合链接」（.comment: 4.1.2/4.4.4/4.4.6/4.4.7）与 libstdc++ 静态库内部实现差异，非项目源码可修。详见 `docs/df_community_r_function_divergences.md` 与 `docs/function_review/report_review_full_20260807.md`。
+
+> 2026-08-09 三方库真实版本替换（见 `docs/tinyxml_boost_version_verify.md`）：经原始 ELF 常量/符号/DWARF 行号三重证据，确认 **TinyXML = 2.6.2、Boost = 1.48.0**。原始 tinyxml 是独立对象，由 GCC 4.4.6-3（guild 为 4.4.4-13）以 **-O3 + gnu++98 + 4.4.6 libstdc++ 头 + TIXML_USE_STL** 编译。已用纯净上游 2.6.2 四文件替换手写重建（`tinyxml.h/.cpp` + `tinyxmlerror.cpp` + `tinyxmlparser.cpp`），Boost 1.48.0 官方头 vendor 至 `source/Library3rd/Boost/Include`，删除手写 `BoostPool.h`。校验：auction/point tinyxml **149/150**、boost **120/121**（归一化 identical，仅剩 DNF 手工展开的 GetEntity 与编译器内联微差）；community（4.1.2 混合链）boost **46/46**、符号集 50/50。
 
 ## df_channel_r 重建与验证（2026-08-07）
 
@@ -175,37 +178,44 @@ cmake --build build --target df_community_r -j$(nproc)
 
 ## 反编译还原顺序（从易到难）
 
-排序依据（2026-08-06 实测）：文件规模、DWARF 完整度（编译单元数/覆盖源文件）、命名函数数量（不含 `.L` 局部标签）、字符串量、符号可读性，以及现有重建进度。`df_community_r` 已完成主体重建，作为对照基准，不再列入队列。
+排序依据（2026-08-06 实测，08-08 补充 game/secsvr/dbmw）：文件规模、DWARF 完整度（编译单元数/覆盖源文件）、命名函数数量（不含 `.L` 局部标签）、字符串量、符号可读性，以及现有重建进度。`df_community_r`、`stun`、`channel`、`bridge`、`auction/point` 已完成主体重建，作为对照基准，不再列入队列。
 
 **关键事实**
 
-- 全 DWARF：`stun`、`channel`、`bridge`、`auction`、`point`（GCC 4.4.6，stun 为 GCC 4.1.2）。
+- 全 DWARF：`stun`、`channel`、`bridge`、`auction`、`point`（GCC 4.4.6，stun 为 GCC 4.1.2）、secsvr 三件套（91/101/153 CU，GCC 4.1.0 SUSE，共享 commlib 框架）。
+- 部分 DWARF：`game`（21 CU 仅覆盖 `../../Include/` 共享库与静态 FreeType，GameServer 核心无调试信息）。
 - 无 DWARF：`relay`、`coserver`、`statics`、`guild`、`monitor`、`manager`、`dbmw`（`dbmw` 仅有 2 个编译单元，仅覆盖 StackBuffer/StringFormat 两个工具文件，对服务主体基本无效）。
 - `auction` 与 `point` 符号集合完全一致（11089 个符号 100% 重叠），同源不同配置，还原一个即得两个。
 - `dbmw_guild / dbmw_mnt / dbmw_stat` 三个二进制 md5 相同，只需还原一次。
 - `stun` 是唯一 64 位 ELF，重建时需单独评估位宽基线；其余均为 32 位。
-- `game`、`secsvr` 不在 Ghidra 工程与重建范围内。
+- `df_game_r`、`gunnersvr`、`zergsvr`、`secagent` 已加入 Ghidra 工程 `dnf_project`（原 13 + 4 = 17 个程序）；基本信息与还原计划见 `docs/df_game_secsvr_dbmw_basic_info.md`。
+- **`game` 优先级固定为最低**（队列末尾）：体量最大、GameServer 核心无 DWARF，任何时候不提前。
 
 ### 排序表
 
 | 顺序 | 二进制 | 规模 | 命名函数 | 字符串 | DWARF | 现有进度 | 说明 |
 |---|---:|---:|---:|---|---|---|
 | ~~1~~ | ~~`stun`~~ | 131 KB | 27 | 3.2k | 完整（4 CU） | ✅ 已完成 | 26 个唯一函数全部语义等价（详见 `docs/df_stun_r_restoration_report.md`） |
-| 2 | `channel` | 1.3 MB | 1,451 | 11.2k | 完整（32 CU） | 桩已生成 | 有 DWARF 的最小 32 位服务 |
-| 3 | `bridge` | 3.4 MB | 3,812 | 30.2k | 完整（31 CU） | 桩已生成 | 逻辑面较 channel 广 |
-| 4 | `auction`/`point`（一组） | 12.2 MB | 8,205 ×2 | 84.7k | 完整（66 CU） | 桩已生成 | 体量大但元数据最全；还原一个得两个 |
-| 5 | `relay` | 418 KB | 1,921 | 3.1k | 无 | 占位 | 无 DWARF 中最小的入门目标 |
-| 6 | `coserver` | 1.1 MB | 2,987 | 6.1k | 无 | 占位 | 功能单一（阻止重复连线） |
-| 7 | `statics` | 1.7 MB | 6,059 | 9.7k | 无 | 占位 | 统计服务 |
-| 8 | `guild` | 2.3 MB | 7,024 | 12.3k | 无 | 占位 | 公会操作 |
-| 9 | `monitor` | 2.5 MB | 7,899 | 13.3k | 无 | 占位 | 无 DWARF 中函数最多 |
-| 10 | `manager` | 3.2 MB | 5,948 | 25.8k | 无 | 占位 | 字符串量最大，消息/管理面广 |
-| 11 | `dbmw` | 4.0 MB | 7,816 | 32.1k | 几乎无效（2 CU） | 占位 | 无 DWARF 中体量最大，DB 中间件 |
+| ~~2~~ | ~~`channel`~~ | 1.3 MB | 1,451 | 11.2k | 完整（32 CU） | ✅ 已完成 | 25 TU 编译链接通过，主体逐字节一致 |
+| ~~3~~ | ~~`bridge`~~ | 3.4 MB | 3,812 | 30.2k | 完整（31 CU） | ✅ 已完成 | 918 个项目函数全部翻译、语义等价 |
+| 4 | `auction`/`point`（一组） | 12.2 MB | 8,205 ×2 | 84.7k | 完整（66 CU） | ✅ 已完成 | 4736 项目函数全部还原；还原一个得两个 |
+| 5 | `gunnersvr`（secsvr） | 13.5 MB | 1,883 | 307.1k | 完整（91 CU） | 已导入 | secsvr 三件套中最小；共享 commlib 框架 |
+| 6 | `zergsvr`（secsvr） | 15.5 MB | 2,059 | 358.3k | 完整（101 CU） | 已导入 | 与 gunnersvr 共享 commlib |
+| 7 | `secagent`（secsvr） | 18.7 MB | 4,035 | 388.2k | 完整（153 CU） | 已导入 | 反外挂 agent + 加密库 |
+| 8 | `relay` | 418 KB | 1,921 | 3.1k | 无 | 主体实现（应用级 MISSING=0） | 无 DWARF 中最小的入门目标 |
+| 9 | `coserver` | 1.1 MB | 2,987 | 6.1k | 无 | 应用层主体完成 | 功能单一（阻止重复连线） |
+| 10 | `statics` | 1.7 MB | 6,059 | 9.7k | 无 | 主体实现（符号命中 99.6%） | 统计服务 |
+| 11 | `guild` | 2.3 MB | 7,024 | 12.3k | 无 | 主体实现中（缺失 69） | 公会操作 |
+| 12 | `monitor` | 2.5 MB | 7,899 | 13.3k | 无 | 占位 | 无 DWARF 中函数最多 |
+| 13 | `manager` | 3.2 MB | 5,948 | 25.8k | 无 | 占位 | 字符串量最大，消息/管理面广 |
+| 14 | `dbmw` | 4.0 MB | 7,816 | 32.1k | 几乎无效（2 CU） | 占位 | 无 DWARF 中体量最大；三副本 md5 相同只需还原一次 |
+| 15 | `game` | 36.4 MB | 116,059（含静态库） | 212.0k | 部分（21 CU，核心无） | 已导入 | `../../Include/` 走 DWARF 补桩、GameServer 核心走 Ghidra、FreeType 黑盒；**优先级最低（固定队尾）** |
 
 ### 还原策略
 
-- **第 1–4 位（有完整 DWARF）**：沿用现有自动生成桩，按文件逐函数补全（签名、类布局、源文件路径均来自 DWARF），每补完一个服务即可纳入 CMake 构建。
-- **第 5–11 位（无有效 DWARF）**：走 Ghidra Headless 导出伪 C → 逐函数人工比对的社区流程；先做符号可读性最好的小目标（`relay`）积累经验，再按体量递增。
+- **有完整 DWARF 组**：沿用现有自动生成桩，按文件逐函数补全（签名、类布局、源文件路径均来自 DWARF）；secsvr 三件套共享 commlib 框架可交叉复用；注意 secsvr 为 GCC 4.1.0 SUSE 工具链。
+- **`game`（部分 DWARF）**：`../../Include/` 按 DWARF 补桩，GameServer 核心按 Ghidra 路线，FreeType 等静态库黑盒处理。
+- **无有效 DWARF 组**：走 Ghidra Headless 导出伪 C → 逐函数人工比对的社区流程；先做符号可读性最好的小目标（`relay`）积累经验，再按体量递增。
 - 每完成一个服务，用 `compare_df_community_functions.py` 同款方法（符号/字符串/助记符重叠）产出一份验证报告，再进入下一个。
 
 > 完整排序依据、指标与策略见 `docs/decompile_order.md`。

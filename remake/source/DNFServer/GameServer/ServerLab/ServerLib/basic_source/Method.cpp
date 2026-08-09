@@ -30,7 +30,7 @@ void IMethod::Xor(char* buff, const char* chain)
     }
     for (int i = 0; i < m_blockSize; i++)
     {
-        buff[0] = chain[0] ^ buff[0];
+        *buff = *buff ^ *chain;
         buff = buff + 1;
         chain = chain + 1;
     }
@@ -112,23 +112,27 @@ int IMethod::Pad(char* in, int iLength)
         switch (m_iPadding)
         {
         case 0:
-            for (int i = 0; i < iPadded; i++)
+            // ORIG：while 形，体内 i++ 先于 pin++。
+            for (int i = 0; i < iPadded; )
             {
                 *pin = '\0';
+                i++;
                 pin = pin + 1;
             }
             break;
         case 1:
-            for (int i = 0; i < iPadded; i++)
+            for (int i = 0; i < iPadded; )
             {
                 *pin = ' ';
+                i++;
                 pin = pin + 1;
             }
             break;
         case 2:
-            for (int i = 0; i < iPadded; i++)
+            for (int i = 0; i < iPadded; )
             {
                 *pin = (char)iPadded;
+                i++;
                 pin = pin + 1;
             }
             break;

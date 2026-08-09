@@ -38,8 +38,7 @@ void CSHA::AddData(const char* pcData, int iDataLength)
 
     uint uiT = m_auiBits[0];
     m_auiBits[0] = iDataLength * 8 + uiT;
-    bool bCarry = m_auiBits[0] < uiT;
-    if (bCarry)
+    if (m_auiBits[0] < uiT)
     {
         m_auiBits[1] = m_auiBits[1] + 1;
     }
@@ -48,11 +47,12 @@ void CSHA::AddData(const char* pcData, int iDataLength)
     uiT = (uiT >> 3) & 0x3f;
     if (uiT != 0)
     {
-        size_t __n = 0x40 - uiT;
-        memcpy(m_aucIn + uiT, pcData, __n);
+        unsigned char* pDest = m_aucIn + uiT;
+        uiT = 0x40 - uiT;
+        memcpy(pDest, pcData, uiT);
         Transform();
-        pcData = pcData + __n;
-        iDataLength = iDataLength - __n;
+        pcData = pcData + uiT;
+        iDataLength = iDataLength - uiT;
     }
     for (; iDataLength > 0x3f; iDataLength = iDataLength - 0x40)
     {
@@ -89,9 +89,11 @@ void CSHA::FinalDigest(char* pcDigest)
     Word2Bytes(m_auiBits[1], m_aucIn + 0x38);
     Word2Bytes(m_auiBits[0], m_aucIn + 0x3c);
     Transform();
-    for (int i = 0; i < 8; i++)
+    // ORIG：while 形（体内 i++ 先于 pcDigest += 4）。
+    for (int i = 0; i < 8; )
     {
         Word2Bytes(m_auiBuf[i], (unsigned char*)pcDigest);
+        i++;
         pcDigest = pcDigest + 4;
     }
     Reset();

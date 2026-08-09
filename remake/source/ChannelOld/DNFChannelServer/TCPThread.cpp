@@ -70,9 +70,7 @@ bool ChannelServiceApp::TCPThread::DoPreWorkToStart()
     }
     if (!sTCP->connect(G_ScriptData()->bridge_ip, (unsigned short)G_ScriptData()->bridge_port))
     {
-        gFileLogInfo.Lock();
-        gFileLogInfo << "failed to connect channel bridge server" << endl;
-        gFileLogInfo.Unlock();
+        GLOG(ChannelServiceApp::gFileLogInfo, "failed to connect channel bridge server");
         sTCP->close();
         pApp->UserPools::destroyTCPSocket(sTCP);
         return false;
@@ -103,35 +101,23 @@ bool ChannelServiceApp::TCPThread::DoPreWorkToStart()
 void ChannelServiceApp::TCPThread::loop(void* temp)
 {
     puts("Start up TCPThread");
-    ChannelService* pApp = TManager<ChannelService>::getManager();
-    TReactor<EpollReactor<TCPUser>, TCPUser>* r = pApp->getReactor();
+    TReactor<EpollReactor<TCPUser>, TCPUser>* r = TManager<ChannelService>::getManager()->getReactor();
     r->init(5000);
     r->startup();
-    int turn_of_idle_checkcount = 99999;
+    register int turn_of_idle_checkcount = 99999;
     bool retry_connection_success = true;
     mthreadId = pthread_self();
     bool bLoop = true;
     do
     {
-        if (!bLoop)
-        {
-            r->shutdown();
-            gFileLogInfo.Lock();
-            gFileLogInfo << "shut down!!!" << endl;
-            gFileLogInfo.Unlock();
-            setTerminated();
-            return;
-        }
         gFileLogError.Lock();
         gFileLogError << "TCP Loop Start" << endl;
         gFileLogError.Unlock();
-        pApp = TManager<ChannelService>::getManager();
-        pApp->setTick();
+        TManager<ChannelService>::getManager()->setTick();
         bool bInnerLoop = true;
         while (bInnerLoop)
         {
-            pApp = TManager<ChannelService>::getManager();
-            TCPAcceptThread* pAccept = pApp->getTCPAcceptThread();
+            TCPAcceptThread* pAccept = TManager<ChannelService>::getManager()->getTCPAcceptThread();
             TCPUser* pUser = pAccept->lockPopAcceptedUser();
             if (pUser == NULL)
             {
@@ -144,33 +130,26 @@ void ChannelServiceApp::TCPThread::loop(void* temp)
             gFileLogError.Unlock();
             if (!r->registHandle(pUser, 7))
             {
-                pApp = TManager<ChannelService>::getManager();
-                TScopedLock<TThreadLock<ThreadLock_linux> > slock(pApp->LockTCPUser);
+                TScopedLock<TThreadLock<ThreadLock_linux> > slock(TManager<ChannelService>::getManager()->LockTCPUser);
                 TCPSocket* s = pUser->getSocket();
                 if (s != NULL)
                 {
                     s->close();
-                    pApp = TManager<ChannelService>::getManager();
-                    pApp->UserPools::destroyTCPSocket(s);
+                    TManager<ChannelService>::getManager()->UserPools::destroyTCPSocket(s);
                     gFileLogError.Lock();
                     gFileLogError << "Detroy Socket!!!!!!!!!" << endl;
                     gFileLogError.Unlock();
                 }
                 pUser->setSocket(NULL);
-                pApp = TManager<ChannelService>::getManager();
-                pApp->m_poolTCPUser.free(pUser);
+                TManager<ChannelService>::getManager()->poolTCPUsers_.free(pUser);
                 gFileLogError.Lock();
                 gFileLogError << "In TCPThread : regist to Reactor was Failed" << endl;
                 gFileLogError.Unlock();
             }
         }
-        bool bVar1 = (turn_of_idle_checkcount < 0x65);
+        register bool bVar1 = (turn_of_idle_checkcount > 0x64);
         turn_of_idle_checkcount = turn_of_idle_checkcount + 1;
         if (bVar1)
-        {
-            r->handleEvents(0, false);
-        }
-        else
         {
             r->handleEvents(0, true);
             turn_of_idle_checkcount = 0;
@@ -180,25 +159,31 @@ void ChannelServiceApp::TCPThread::loop(void* temp)
                 retry_connection_success = DoPreWorkToStart();
             }
         }
+        else
+        {
+            r->handleEvents(0, false);
+        }
         usleep(400000);
         gFileLogError.Lock();
         gFileLogError << "TCP Loop End" << endl;
         gFileLogError.Unlock();
-    } while (true);
+    } while (bLoop);
+    r->shutdown();
+    GLOG(ChannelServiceApp::gFileLogInfo, "shut down!!!");
+    setTerminated();
+    return;
 }
 
 template <class TSession>
 bool EpollReactor<TSession>::handleEvents(unsigned int milisec, bool turn_of_idle)
 {
     static int last_n_event = 0;
-    int n_event = epoll_wait(epoll_fd_, events_, max_client_, (int)milisec);
+    register int n_event = epoll_wait(epoll_fd_, events_, max_client_, (int)milisec);
     if ((((0 < n_event) && (last_n_event * 2 < n_event)) && (100 < n_event))
         || (((0 < n_event) && (n_event < last_n_event / 2)) && (100 < n_event)))
     {
         last_n_event = n_event;
-        ChannelServiceApp::gFileLogInfo.Lock();
-        ChannelServiceApp::gFileLogInfo << "last_n_event: " << last_n_event << endl;
-        ChannelServiceApp::gFileLogInfo.Unlock();
+        GLOG(ChannelServiceApp::gFileLogInfo, "last_n_event: " << last_n_event);
     }
     if (n_event < 0)
     {
@@ -207,60 +192,51 @@ bool EpollReactor<TSession>::handleEvents(unsigned int milisec, bool turn_of_idl
         ChannelServiceApp::gFileLogError.Unlock();
         return false;
     }
-    for (int i = 0; i < n_event; i++)
+    for (register int i = 0; i < n_event; i++)
     {
-        TSession* s = (TSession*)events_[i].data.ptr;
+        register TSession* s = (TSession*)events_[i].data.ptr;
         if (s == NULL)
         {
-            ChannelServiceApp::gFileLogInfo.Lock();
-            ChannelServiceApp::gFileLogInfo << "************************TSession is NULL" << endl;
-            ChannelServiceApp::gFileLogInfo.Unlock();
+            GLOG(ChannelServiceApp::gFileLogInfo, "************************TSession is NULL");
         }
-        if ((events_[i].events & 8) == 0)
+        if ((events_[i].events & 8) != 0)
         {
-            if ((events_[i].events & 0x10) == 0)
-            {
-                if ((events_[i].events & 1) != 0)
-                {
-                    s->onRead("Reactor.inl", 0xcc);
-                    if (s->isDisconnected())
-                    {
-                        continue;
-                    }
-                }
-                if (((events_[i].events & 4) == 0) || !s->isToWrite())
-                {
-                }
-                else
-                {
-                    s->onWrite("Reactor.inl", 0xd7);
-                    if (s->isDisconnected())
-                    {
-                        continue;
-                    }
-                }
-                if (s->isAboutToDisconnect())
-                {
-                    ChannelServiceApp::gFileLogError.Lock();
-                    ChannelServiceApp::gFileLogError << "isAboutToDisconnect \xb7\xce \xb2\xf7\xbe\xee\xc1\xf8\xb4\xd9" << endl;
-                    ChannelServiceApp::gFileLogError.Unlock();
-                    s->onClose("Reactor.inl", 0xe6);
-                }
-            }
-            else
-            {
-                s->onClose("Reactor.inl", 0xc6);
-            }
+            s->onClose("Reactor.inl", 0xc0);
+        }
+        else if ((events_[i].events & 0x10) != 0)
+        {
+            s->onClose("Reactor.inl", 0xc6);
         }
         else
         {
-            s->onClose("Reactor.inl", 0xc0);
+            if ((events_[i].events & 1) != 0)
+            {
+                s->onRead("Reactor.inl", 0xcc);
+                if (s->isDisconnected())
+                {
+                    continue;
+                }
+            }
+            if (((events_[i].events & 4) != 0) && s->isToWrite())
+            {
+                s->onWrite("Reactor.inl", 0xd7);
+                if (s->isDisconnected())
+                {
+                    continue;
+                }
+            }
+            if (s->isAboutToDisconnect())
+            {
+                ChannelServiceApp::gFileLogError.Lock();
+                ChannelServiceApp::gFileLogError << "isAboutToDisconnect \xb7\xce \xb2\xf7\xbe\xee\xc1\xf8\xb4\xd9" << endl;
+                ChannelServiceApp::gFileLogError.Unlock();
+                s->onClose("Reactor.inl", 0xe6);
+            }
         }
     }
     if (turn_of_idle)
     {
-        typename std::map<TSession*, unsigned int>::iterator iter;
-        iter = map_.begin();
+        typename std::map<TSession*, unsigned int>::iterator iter = map_.begin();
         while (iter != map_.end())
         {
             if (iter->first == NULL)
@@ -269,14 +245,12 @@ bool EpollReactor<TSession>::handleEvents(unsigned int milisec, bool turn_of_idl
             }
             if (iter->first->isIdle())
             {
-                break;
+                GLOG(ChannelServiceApp::gFileLogInfo, "onClose!");
+                iter->first->onClose("Reactor.inl", 0xf3);
+                goto done;
             }
             iter++;
         }
-        ChannelServiceApp::gFileLogInfo.Lock();
-        ChannelServiceApp::gFileLogInfo << "onClose!" << endl;
-        ChannelServiceApp::gFileLogInfo.Unlock();
-        iter->first->onClose("Reactor.inl", 0xf3);
     done:;
     }
     return true;

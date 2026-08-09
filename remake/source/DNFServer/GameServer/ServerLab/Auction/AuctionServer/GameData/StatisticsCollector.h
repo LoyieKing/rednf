@@ -17,19 +17,27 @@ public:
         ENUM_STATISTICS_END_ = 3
     };
 
+    static const int MAX_STATISTICS_LOG_FILE_SIZE = 0x1388000;
+
     struct StData
     {
         unsigned int tryCnt;
         unsigned int failCnt;
+        // ORIG 二进制存在双版本头：多数 TU（ctor/getter/LoggingPerSec/DataInitialization
+        // 等）用 becauseCnt[55]（228B），仅 IncTryCnt/IncFailCnt 所在 TU 用 [57]（236B）。
+        // 本实现跟随多数 + 运行时分配 0x19a4（228B + 尾部 48B 填充）。
+        // 注意：isValidErrorNo 允许 error_no=55，[55] 时数组下标 55 越界——
+        // 这是原版 228B-TU 自身的潜在缺陷，为保持与原版一致而保留。
         unsigned int becauseCnt[55];
 
         static bool isValidErrorNo(int err_no)
         {
-            if ((err_no < 0) || (0x37 < err_no))
+            // ORIG：正区间 then（js/jg 直跳尾部 false 块），勿用 De Morgan 反写
+            if ((err_no >= 0) && (err_no <= 0x37))
             {
-                return false;
+                return true;
             }
-            return true;
+            return false;
         }
         void reset();
         void toString(char* buf, int len);
@@ -41,7 +49,7 @@ public:
     void IncFailCnt(int kind, int error_no);
     void LoggingPerSec();
     bool SetLogFileName(const char* logDir, int serviceId);
-    bool DataInitialization(bool dayDateInit);
+    void DataInitialization(bool dayDateInit);
     void SetTimeToNow();
     int GetSec()
     {
@@ -65,7 +73,8 @@ public:
     }
     int GetYear()
     {
-        return mpNowTm->tm_year + 1900;
+        // 原版：两位数年（tm_year % 100），配合 %02d 格式
+        return mpNowTm->tm_year % 100;
     }
     bool makeLogDir();
     bool backupLogFile(bool isDayLog);
@@ -84,8 +93,7 @@ public:
     time_t mNowTimeT;
     tm* mpNowTm;
     int mLastLoggingDay;
-    char unused_tail[48];  // 原版 sizeof == 0x19a4（DWARF 只列到 mLastLoggingDay@6512，
-                           // 尾部 48 字节无任何代码访问，仅为对齐原版分配大小）
+    char unused_tail[48];  // 228B-StData 布局 + 48B 尾部 = 0x19a4（运行时分配大小）
 };
 
 inline StatisticsCollector* G_StatisticsCollector()

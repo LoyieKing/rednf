@@ -10,6 +10,6 @@
 class Packet_Monitor_Call_Member_List : public PacketHeader {
 public:
     Packet_Monitor_Call_Member_List() : PacketHeader(0x4be, 0x12){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_CALL_MEMBER_LIST_H

@@ -10,7 +10,7 @@
 class Packet_Monitor_Guild_Chat_Hyper_Link : public PacketHeader {
 public:
     Packet_Monitor_Guild_Chat_Hyper_Link(): PacketHeader(0x2718,0x24c) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_MONITOR_GUILD_CHAT_HYPER_LINK_H

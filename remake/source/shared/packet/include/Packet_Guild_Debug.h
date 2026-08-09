@@ -10,6 +10,6 @@
 class Packet_Guild_Debug : public PacketHeader {
 public:
     Packet_Guild_Debug() : PacketHeader(0x1bc9, 0x1e){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GUILD_DEBUG_H

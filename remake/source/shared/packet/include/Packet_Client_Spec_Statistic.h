@@ -10,6 +10,6 @@
 class Packet_Client_Spec_Statistic : public PacketHeader {
 public:
     Packet_Client_Spec_Statistic() : PacketHeader(0x9ce, 0xc06){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_CLIENT_SPEC_STATISTIC_H

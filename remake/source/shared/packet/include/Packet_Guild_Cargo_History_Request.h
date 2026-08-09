@@ -10,7 +10,7 @@
 class Packet_Guild_Cargo_History_Request : public PacketHeader {
 public:
     Packet_Guild_Cargo_History_Request(): PacketHeader(0x70b,0x12) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GUILD_CARGO_HISTORY_REQUEST_H

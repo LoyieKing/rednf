@@ -17,7 +17,7 @@ public:
 
     Packet_Request_Add_PvP_Buddy()
         : PacketHeader(0x1b5c, 0x31){};
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Request_Add_PvP_Buddy, 0x31);

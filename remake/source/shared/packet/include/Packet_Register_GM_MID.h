@@ -10,6 +10,6 @@
 class Packet_Register_GM_MID : public PacketHeader {
 public:
     Packet_Register_GM_MID() : PacketHeader(0x1f44, 0xe){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_REGISTER_GM_MID_H

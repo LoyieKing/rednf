@@ -10,7 +10,7 @@
 class Packet_Game_Monitor_GM_Village_Attacked : public PacketHeader {
 public:
     Packet_Game_Monitor_GM_Village_Attacked(): PacketHeader(0x234a,0x17) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_GAME_MONITOR_GM_VILLAGE_ATTACKED_H

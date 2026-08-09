@@ -27,7 +27,7 @@ public:
         server_id = 0;
         memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
     }
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Notice_PvP_Buddy_In_Out, 0x33);

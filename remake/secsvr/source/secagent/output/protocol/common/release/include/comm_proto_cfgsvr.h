@@ -1,0 +1,6 @@
+// Auto-generated empty header stub from DWARF line info
+// Original path: output/protocol/common/release/include/comm_proto_cfgsvr.h
+#ifndef SECSVR_OUTPUT_PROTOCOL_COMMON_RELEASE_INCLUDE_COMM_PROTO_CFGSVR_H_H_
+#define SECSVR_OUTPUT_PROTOCOL_COMMON_RELEASE_INCLUDE_COMM_PROTO_CFGSVR_H_H_
+
+#endif // SECSVR_OUTPUT_PROTOCOL_COMMON_RELEASE_INCLUDE_COMM_PROTO_CFGSVR_H_H_

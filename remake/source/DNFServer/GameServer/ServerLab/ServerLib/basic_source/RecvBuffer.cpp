@@ -103,8 +103,9 @@ bool RecvBuffer::Parse(TCPUser* pUser)
     }
     while (mRearIdx > mParseIdx)
     {
-        unsigned int parsableLength = mRearIdx - mParseIdx;
-        if (parsableLength < 0x12)
+        // ORIG：单一 lenCheck（@-0x24），无 parsableLength 双局部
+        unsigned int lenCheck = mRearIdx - mParseIdx;
+        if (lenCheck < 0x12)
         {
             mParseStatus = 0;
             break;
@@ -117,16 +118,21 @@ bool RecvBuffer::Parse(TCPUser* pUser)
             G_TraceLog()->sysLog(7, "ERR: msgsize < 0 ");
             return false;
         }
-        if (pUser->GetMaxPacketSize() < msgSize || (mQueueSize + mMaxPacketSize < mParseIdx + msgSize))
+        // ORIG：单表达式初始化（bool 在 eax 物化，非栈槽）
+        // ORIG：register bool（物化结果留在 al，不落栈槽）
+        register bool bOversize = (pUser->GetMaxPacketSize() < msgSize
+                                   || (mQueueSize + mMaxPacketSize < mParseIdx + msgSize));
+        if (bOversize)
         {
             return false;
         }
-        if ((int)parsableLength < msgSize)
+        if ((int)lenCheck < msgSize)
         {
             break;
         }
-        Message* pMessage = pUser->pmWorkThread->createOrderPool();
-        if (pMessage == NULL)
+        // ORIG：if ((pMessage = createOrderPool()) == NULL) —— 赋值在条件内物化 sete
+        Message* pMessage;
+        if ((pMessage = pUser->pmWorkThread->createOrderPool()) == NULL)
         {
             G_TraceLog()->sysLog(7, "FAIL: Message allocation");
             pUser->postDisconnected(3);
@@ -166,7 +172,6 @@ bool RecvBuffer::Parse(TCPUser* pUser)
             }
         }
     }
-LAB_DONE:
     ClearUsedMsgs();
     return ret;
 }
@@ -176,34 +181,34 @@ bool RecvBuffer::ClearUsedMsgs()
     while (!mRecvMsgs.empty())
     {
         Message* pRawMsg = mRecvMsgs.front();
-        if (pRawMsg->getUse())
+        if (!pRawMsg->getUse())
+        {
+            if (pRawMsg->getUse())
+            {
+                TCPUser* pTcpUserTmp = pRawMsg->getUserFromMessage();
+                unsigned int b3 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[3];
+                unsigned int b2 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[2];
+                unsigned int b1 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[1];
+                unsigned int b0 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[0];
+                // ORIG：idLo/idHi/sz 常驻 ebx/esi/edi（register 局部）
+                register unsigned int idLo = *(unsigned int*)&Message::ident;
+                register unsigned int idHi = *((unsigned int*)&Message::ident + 1);
+                register unsigned int sz = (unsigned int)mRecvMsgs.size();
+                G_TraceLog()->sysLog(5, "force delete activeclose size(%d) ident(%d) ip(%d.%d.%d.%d)",
+                                     sz, idLo, idHi, b0, b1, b2, b3);
+            }
+            int msgSize = pRawMsg->mSize;
+            mRecvMsgs.pop_front();
+            pRawMsg->getUserFromMessage()->pmWorkThread->destroyOrderPool(pRawMsg);
+            mFrontIdx = mFrontIdx + msgSize;
+            if (mPartialQueueSize <= mFrontIdx)
+            {
+                mFrontIdx = 0;
+            }
+        }
+        else
         {
             break;
-        }
-        if (pRawMsg->getUse())
-        {
-            TCPUser* pTcpUserTmp = pRawMsg->getUserFromMessage();
-            unsigned char* adrs;
-            unsigned char b0, b1, b2, b3;
-            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
-            b3 = adrs[3];
-            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
-            b2 = adrs[2];
-            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
-            b1 = adrs[1];
-            adrs = pTcpUserTmp->pSock_->getPeerAdrs();
-            b0 = adrs[0];
-            G_TraceLog()->sysLog(5, "force delete activeclose size(%d) ident(%d) ip(%d.%d.%d.%d)",
-                                 (int)mRecvMsgs.size(), (int)Message::ident,
-                                 (int)(Message::ident >> 32), (int)b0, (int)b1, (int)b2, (int)b3);
-        }
-        int msgSize = pRawMsg->mSize;
-        mRecvMsgs.pop_front();
-        pRawMsg->getUserFromMessage()->pmWorkThread->destroyOrderPool(pRawMsg);
-        mFrontIdx = mFrontIdx + msgSize;
-        if (mPartialQueueSize <= mFrontIdx)
-        {
-            mFrontIdx = 0;
         }
     }
     return mRecvMsgs.empty();

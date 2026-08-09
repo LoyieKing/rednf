@@ -44,14 +44,15 @@ public:
     }
     void shutdown()
     {
-        if (epoll_fd_ != -1)
+        if (epoll_fd_ == -1)
         {
-            close(epoll_fd_);
-            epoll_fd_ = -1;
-            if (events_ != NULL)
-            {
-                ::operator delete[](events_);
-            }
+            return;
+        }
+        close(epoll_fd_);
+        epoll_fd_ = -1;
+        if (events_ != NULL)
+        {
+            ::operator delete[](events_);
         }
     }
     bool registHandle(TSession* s, unsigned int event_filter);

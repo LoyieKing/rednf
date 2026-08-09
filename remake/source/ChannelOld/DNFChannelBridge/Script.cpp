@@ -31,11 +31,15 @@ bool Script::load(char* filename)
     }
     char buf[0x401];
     bool ret;
-    do
+    for (;;)
     {
         ret = fgetln(fp, buf);
         parse(buf);
-    } while (ret == true);
+        if (!ret)
+        {
+            break;
+        }
+    }
     fclose(fp);
     return true;
 }
@@ -101,23 +105,18 @@ bool Script::remove_comment(char* line)
 
 bool Script::get_key_val(char* line)
 {
-    size_t size = strlen(line);
-    tok.get_token(line, size);
+    tok.get_token(line, strlen(line));
     int n_tok = tok.get_n_token();
-    if (n_tok == 1)
+    switch (n_tok)
     {
-        char* key = tok.get_context(0);
-        on_parent_tag(key);
-    }
-    else
-    {
-        if (n_tok != 2)
-        {
-            return false;
-        }
-        char* val = tok.get_context(1);
-        char* key = tok.get_context(0);
-        on_keyval_tag(key, val);
+    case 1:
+        on_parent_tag(tok.get_context(0));
+        break;
+    case 2:
+        on_keyval_tag(tok.get_context(0), tok.get_context(1));
+        break;
+    default:
+        return false;
     }
     return true;
 }
@@ -125,13 +124,14 @@ bool Script::get_key_val(char* line)
 bool Script::on_parent_tag(char* key)
 {
     ScriptRawData* s = new ScriptRawData(key, NULL, 0);
-    if (s != NULL)
+    if (s == NULL)
     {
-        data->push_child(s);
-        memset(parent_tag, 0, 0x100);
-        strncpy(parent_tag, key, 0xff);
+        return false;
     }
-    return s != NULL;
+    data->push_child(s);
+    memset(parent_tag, 0, 0x100);
+    strncpy(parent_tag, key, 0xff);
+    return true;
 }
 
 bool Script::on_keyval_tag(char* key, char* val)
@@ -141,10 +141,7 @@ bool Script::on_keyval_tag(char* key, char* val)
     {
         return false;
     }
-    if (parent_tag[0] == '\0')
-    {
-        assert(strlen(parent_tag));
-    }
+    assert(strlen(parent_tag));
     data->push_child(parent_tag, s);
     return true;
 }
@@ -153,78 +150,84 @@ bool Script::get_server_section()
 {
     char* val = NULL;
     val = data->get_data("[server]", "max_client");
-    if (val == 0)
-    {
-        return false;
-    }
-    G_ScriptData()->max_client = atoi(val);
-    val = data->get_data("[server]", "this_ip");
     if (val != 0)
     {
-        strncpy(G_ScriptData()->ip, val, 0x11);
-        val = data->get_data("[server]", "this_tcp_port");
-        if (val != 0)
-        {
-            G_ScriptData()->tcp_port = (unsigned short)atoi(val);
-            val = data->get_data("[server]", "this_udp_port");
-            if (val != 0)
-            {
-                G_ScriptData()->udp_port = (unsigned short)atoi(val);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
+        G_ScriptData()->max_client = atoi(val);
     }
     else
     {
         return false;
     }
+    val = data->get_data("[server]", "this_ip");
+    if (val != 0)
+    {
+        strncpy(G_ScriptData()->ip, val, 0x11);
+    }
+    else
+    {
+        return false;
+    }
+    val = data->get_data("[server]", "this_tcp_port");
+    if (val != 0)
+    {
+        G_ScriptData()->tcp_port = (unsigned short)atoi(val);
+    }
+    else
+    {
+        return false;
+    }
+    val = data->get_data("[server]", "this_udp_port");
+    if (val != 0)
+    {
+        G_ScriptData()->udp_port = (unsigned short)atoi(val);
+    }
+    else
+    {
+        return false;
+    }
+    return true;
 }
 
 bool Script::get_db_section()
 {
     char* val = NULL;
     val = data->get_data("[DB]", "db_ip");
-    if (val == 0)
-    {
-        return false;
-    }
-    strncpy(G_ScriptData()->db_ip, val, 0xf);
-    val = data->get_data("[DB]", "db_name");
     if (val != 0)
     {
-        strncpy(G_ScriptData()->db_name, val, 0x31);
-        val = data->get_data("[DB]", "db_id");
-        if (val != 0)
-        {
-            strncpy(G_ScriptData()->db_id, val, 0x13);
-            val = data->get_data("[DB]", "db_pwd");
-            if (val != 0)
-            {
-                strncpy(G_ScriptData()->db_pwd, val, 0x3f);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
+        strncpy(G_ScriptData()->db_ip, val, 0xf);
     }
     else
     {
         return false;
     }
+    val = data->get_data("[DB]", "db_name");
+    if (val != 0)
+    {
+        strncpy(G_ScriptData()->db_name, val, 0x31);
+    }
+    else
+    {
+        return false;
+    }
+    val = data->get_data("[DB]", "db_id");
+    if (val != 0)
+    {
+        strncpy(G_ScriptData()->db_id, val, 0x13);
+    }
+    else
+    {
+        return false;
+    }
+    val = data->get_data("[DB]", "db_pwd");
+    if (val != 0)
+    {
+        strncpy(G_ScriptData()->db_pwd, val, 0x3f);
+    }
+    else
+    {
+        return false;
+    }
+    return true;
 }
 
 bool Script::parse_channel_script()

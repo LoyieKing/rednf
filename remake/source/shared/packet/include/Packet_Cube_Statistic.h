@@ -10,6 +10,6 @@
 class Packet_Cube_Statistic : public PacketHeader {
 public:
     Packet_Cube_Statistic() : PacketHeader(0xc33, 0x17){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_CUBE_STATISTIC_H

@@ -10,6 +10,6 @@
 class Packet_CollectItems : public PacketHeader {
 public:
     Packet_CollectItems() : PacketHeader(0x27e6, 0x39){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_COLLECTITEMS_H

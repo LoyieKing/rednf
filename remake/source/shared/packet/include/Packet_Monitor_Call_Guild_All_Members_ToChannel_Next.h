@@ -21,6 +21,6 @@ public:
             new ((char*)this + 0x17 + i * 0x3f) ST_Guild_Mem_Info;
         }
     }
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_CALL_GUILD_ALL_MEMBERS_TO_CHANNEL_NEXT_H

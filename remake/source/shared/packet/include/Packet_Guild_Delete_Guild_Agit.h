@@ -10,6 +10,6 @@
 class Packet_Guild_Delete_Guild_Agit : public PacketHeader {
 public:
     Packet_Guild_Delete_Guild_Agit() : PacketHeader(0x6de, 0x12){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_GUILD_DELETE_GUILD_AGIT_H

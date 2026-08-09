@@ -10,6 +10,6 @@
 class Packet_Monitor_Char_Info : public PacketHeader {
 public:
     Packet_Monitor_Char_Info() : PacketHeader(0x3ef, 0x3f){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_CHAR_INFO_H

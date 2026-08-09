@@ -10,6 +10,6 @@
 class Packet_Hades_GoldTracking : public PacketHeader {
 public:
     Packet_Hades_GoldTracking() : PacketHeader(0xfdc, 0x29){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_HADES_GOLDTRACKING_H

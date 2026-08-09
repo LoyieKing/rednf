@@ -188,11 +188,19 @@ bool TCPUser::isDisconnected() const
 
 bool TCPUser::IsSending() const
 {
+    if (mPendingSend)
+    {
+        return true;
+    }
     return mbSending;
 }
 
 bool TCPUser::IsWorking() const
 {
+    if (mPendingWork)
+    {
+        return true;
+    }
     return mbWorking;
 }
 
@@ -219,33 +227,23 @@ void TCPUser::setActiveSyncByWorker(bool value)
 bool TCPUser::onPassiveClose(char* file, int line)
 {
     G_TraceLog()->sysLog(3, "call onPassiveClose : '%s', '%d'\tTotal Con = %d", file, line, pApp->super_DataPools.getDataPool()->GetTcpUserCount());
-    bool bAbout = bAboutToDisconnect_;
-    bool bDisc = bDisconnected_;
-    G_TraceLog()->sysLog(3, "bAboutToDisconnect_=%d, bDisconnected_=%d, getSession=%x, isSyncByWorker=%d, isBindedSession=%d", bAbout, bDisc, this, isPassiveCloseSyncByWorker(), isBindedSession());
+    G_TraceLog()->sysLog(3,
+        "bAboutToDisconnect_=%d, bDisconnected_=%d, getSession=%x, isSyncByWorker=%d, isBindedSession=%d",
+        (unsigned int)bAboutToDisconnect_, (unsigned int)bDisconnected_, this,
+        isPassiveCloseSyncByWorker(), isBindedSession());
     if (bAboutToDisconnect_ != true)
     {
         bAboutToDisconnect_ = true;
     }
-    if (bDisconnected_ == false)
+    if (bDisconnected_ != false)
     {
-        bool bRet = false;
-        if (IsSending() || IsWorking())
-        {
-            bRet = false;
-        }
-        else
-        {
-            bRet = true;
-        }
-        if (!bRet)
-        {
-            G_TraceLog()->sysLog(0, "onPassiveClose(): mPendingSendNum not 0");
-        }
-        else
+        if (!IsSending() && !IsWorking())
         {
             pApp->super_DataPools.getDataPool()->destroyTCPUser(this);
+            return true;
         }
-        return bRet;
+        G_TraceLog()->sysLog(0, "onPassiveClose(): mPendingSendNum not 0");
+        return false;
     }
     return true;
 }
@@ -253,12 +251,17 @@ bool TCPUser::onPassiveClose(char* file, int line)
 bool TCPUser::onActiveClose(unsigned int key)
 {
     G_TraceLog()->sysLog(0, "call onActiveClose");
-    G_TraceLog()->sysLog(5, "bAboutToDisconnect_=%d, bDisconnected_=%d, getSession=%x, isSyncByWorker=%d, isBindedSession=%d, pending send num=%d, pending work num=%d", bAboutToDisconnect_, bDisconnected_, getSession(), isActiveCloseSyncByWorker(), isBindedSession(), GetPendingSendNum(), GetPendingWorkNum());
-    if (ddebug < 0x14)
+    G_TraceLog()->sysLog(5,
+        "bAboutToDisconnect_=%d, bDisconnected_=%d, getSession=%x, isSyncByWorker=%d, isBindedSession=%d, pending send num=%d, pending work num=%d",
+        (unsigned int)bAboutToDisconnect_, (unsigned int)bDisconnected_, getSession(),
+        isActiveCloseSyncByWorker(), isBindedSession(), GetPendingSendNum(),
+        GetPendingWorkNum());
+    if (ddebug++ <= 0x13)
     {
-        ddebug = ddebug + 1;
         puts("call onActiveClose");
-        printf("bAboutToDisconnect_=%d, bDisconnected_=%d, getSession=%p, isSyncByWorker=%d, isBindedSession=%d\n", bAboutToDisconnect_, bDisconnected_, getSession(), isActiveCloseSyncByWorker(), isBindedSession());
+        printf("bAboutToDisconnect_=%d, bDisconnected_=%d, getSession=%p, isSyncByWorker=%d, isBindedSession=%d\n",
+               (unsigned int)bAboutToDisconnect_, (unsigned int)bDisconnected_,
+               getSession(), isActiveCloseSyncByWorker(), isBindedSession());
     }
     if (mUserId == key)
     {
@@ -266,7 +269,8 @@ bool TCPUser::onActiveClose(unsigned int key)
         {
             bAboutToDisconnect_ = true;
         }
-        if (bDisconnected_ == false)
+        // ORIG：正条件直 test+je（== false 会物化 xor+test+je，差 1 条）。
+        if (!bDisconnected_)
         {
             pApp->super_DataPools.getDataPool()->destroyTCPUser(this);
         }
@@ -286,22 +290,21 @@ int TCPUser::onRead()
     int size = mRecvBuffer.AvailableSize();
     if (0 < size)
     {
-        char* buf = mRecvBuffer.GetRear();
-        nRead = pSock_->recv(buf, size);
-        if (nRead < 1)
-        {
-            if (nRead == -1)
-            {
-                postDisconnected(0);
-            }
-        }
-        else
+        nRead = pSock_->recv(mRecvBuffer.GetRear(), size);
+        if (0 < nRead)
         {
             G_TraceLog()->sysLog(4, "available size : %d, nRead %d\n", size, nRead);
             mRecvBuffer.AdjustRear(nRead);
             if (!mRecvBuffer.Parse(this))
             {
                 postDisconnected(1);
+            }
+        }
+        else
+        {
+            if (nRead == -1)
+            {
+                postDisconnected(0);
             }
         }
     }
@@ -315,74 +318,75 @@ int TCPUser::onWriteByCMsg(CMsgCell* cell)
         G_TraceLog()->sysLog(7, "onWrite_ : Error(1)");
         return -1;
     }
-    int s = pSock_->getHandle();
-    if (s >= 0)
+    if (pSock_->getHandle() < 0)
     {
-        if (isAboutToDisconnect() || isDisconnected())
+        G_TraceLog()->sysLog(7, "onWrite_ : Error(2)");
+        return -2;
+    }
+    if (isAboutToDisconnect() || isDisconnected())
+    {
+        G_TraceLog()->sysLog(7, "onWrite_ : Error(3)");
+        return -3;
+    }
+    if (cell->GetSize() == 0)
+    {
+        G_TraceLog()->sysLog(7, "onWrite_ : Error(4)");
+        return -4;
+    }
+    int totalSize = cell->GetSize();
+    while (m_PosByWouldBlock != cell->GetSize())
+    {
+        int nSent = pSock_->send(cell->GetBuf() + m_PosByWouldBlock, cell->GetSize() - m_PosByWouldBlock);
+        if (nSent > 0)
         {
-            G_TraceLog()->sysLog(7, "onWrite_ : Error(3)");
-            return -3;
-        }
-        if (cell->GetSize() == 0)
-        {
-            G_TraceLog()->sysLog(7, "onWrite_ : Error(4)");
-            return -4;
-        }
-        int totalSize = cell->GetSize();
-        while (m_PosByWouldBlock != cell->GetSize())
-        {
-            int nSent = pSock_->send(cell->GetBuf() + m_PosByWouldBlock, cell->GetSize() - m_PosByWouldBlock);
-            if (nSent < 1)
-            {
-                if (nSent == 0)
-                {
-                    G_TraceLog()->sysLog(3, "WOULD \xBA\xB8\xB3\xBD\xB7\xAE=%d, \xB3\xB2\xC0\xBA\xB7\xAE=%d, \xC3\xD1=%d", m_PosByWouldBlock, totalSize, cell->GetSize());
-                    return 0;
-                }
-                G_TraceLog()->sysLog(3, "Fail OnWriteByCMsg");
-                postDisconnected(0x1e);
-                if (nSent == -100)
-                {
-                    getSession()->onDoClose();
-                }
-                return -5;
-            }
             m_PosByWouldBlock = m_PosByWouldBlock + nSent;
             totalSize = totalSize - nSent;
             G_TraceLog()->sysLog(3, "SENT  \xBA\xB8\xB3\xBD\xB7\xAE=%d, \xB3\xB2\xC0\xBA\xB7\xAE=%d, \xC3\xD1=%d", m_PosByWouldBlock, totalSize, cell->GetSize());
             G_TraceLog()->sysLog(3, "+++SENT  \xBA\xB8\xB3\xBD\xB7\xAE=%d, \xB3\xB2\xC0\xBA\xB7\xAE=%d, \xC3\xD1=%d", m_PosByWouldBlock, totalSize, cell->GetSize());
         }
-        G_TraceLog()->sysLog(3, "SEND  \xBA\xB8\xB3\xBD\xB7\xAE=%d, \xB3\xB2\xC0\xBA\xB7\xAE=%d, \xC3\xD1=%d", m_PosByWouldBlock, totalSize, cell->GetSize());
-        m_PosByWouldBlock = 0;
-        return 1;
+        else
+        {
+            if (nSent == 0)
+            {
+                G_TraceLog()->sysLog(3, "WOULD \xBA\xB8\xB3\xBD\xB7\xAE=%d, \xB3\xB2\xC0\xBA\xB7\xAE=%d, \xC3\xD1=%d", m_PosByWouldBlock, totalSize, cell->GetSize());
+                return 0;
+            }
+            G_TraceLog()->sysLog(3, "Fail OnWriteByCMsg");
+            postDisconnected(0x1e);
+            if (nSent == -100)
+            {
+                getSession()->onDoClose();
+            }
+            return -5;
+        }
     }
-    G_TraceLog()->sysLog(7, "onWrite_ : Error(2)");
-    return -2;
+    G_TraceLog()->sysLog(3, "SEND  \xBA\xB8\xB3\xBD\xB7\xAE=%d, \xB3\xB2\xC0\xBA\xB7\xAE=%d, \xC3\xD1=%d", m_PosByWouldBlock, totalSize, cell->GetSize());
+    m_PosByWouldBlock = 0;
+    totalSize = 0;
+    return 1;
 }
 
 Message* TCPUser::PopSendMessage()
 {
     Message* pMessage;
-    if (wouldBlockQueue.empty())
-    {
-        pMessage = mSendMessageQueue.front();
-        mSendMessageQueue.pop_front();
-    }
-    else
+    if (!wouldBlockQueue.empty())
     {
         pMessage = wouldBlockQueue.front();
         wouldBlockQueue.pop_front();
+    }
+    else
+    {
+        pMessage = mSendMessageQueue.front();
+        mSendMessageQueue.pop_front();
     }
     return pMessage;
 }
 
 void TCPUser::ClearRecvMsgs()
 {
-    bool bCleared;
-    do
+    while (!mRecvBuffer.ClearUsedMsgs())
     {
-        bCleared = mRecvBuffer.ClearUsedMsgs();
-    } while (!bCleared);
+    }
 }
 
 void TCPUser::onError()

@@ -10,6 +10,6 @@
 class Packet_Monitor_Buy_Guild_Skill : public PacketHeader {
 public:
     Packet_Monitor_Buy_Guild_Skill() : PacketHeader(0x429, 0x20){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MONITOR_BUY_GUILD_SKILL_H

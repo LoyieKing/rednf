@@ -10,6 +10,6 @@
 class Packet_Request_Join_Power : public PacketHeader {
 public:
     Packet_Request_Join_Power() : PacketHeader(0x6a8, 0x13){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_REQUEST_JOIN_POWER_H

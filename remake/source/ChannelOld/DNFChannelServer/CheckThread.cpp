@@ -66,7 +66,7 @@ TDebugTrace<T>& TDebugTrace<T>::operator<<(TDebugTrace& (*in_Pfn)(TDebugTrace&))
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(char* s)
 {
-    size_t sVar2 = strlen(s);
+    int sVar2 = strlen(s);
     if ((int)(mPos + sVar2) > 0x18fff)
     {
         return this;
@@ -78,7 +78,7 @@ TDebugTrace<T>* TDebugTrace<T>::putText(char* s)
 template <class T>
 TDebugTrace<T>* TDebugTrace<T>::putText(const char* s)
 {
-    size_t sVar2 = strlen(s);
+    int sVar2 = strlen(s);
     if ((int)(mPos + sVar2) > 0x18fff)
     {
         return this;
@@ -94,8 +94,8 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(int n)
     {
         return this;
     }
+    char tmp[12];
     char fmt[12];
-    char tmp[16];
     memset(fmt, 0, 0xc);
     sprintf(fmt, "%d", n);
     if (hexadecimal_ != false)
@@ -106,7 +106,7 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(int n)
     {
         sprintf(tmp, "%%-%dd", strlen(fmt));
     }
-    mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
+    mPos = mPos + snprintf(m_FormatBuf + mPos, 0xd, tmp, n);
     return this;
 }
 
@@ -117,8 +117,8 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(unsigned int n)
     {
         return this;
     }
+    char tmp[12];
     char fmt[12];
-    char tmp[16];
     memset(fmt, 0, 0xc);
     sprintf(fmt, "%d", n);
     if (hexadecimal_ != false)
@@ -129,7 +129,7 @@ TDebugTrace<T>* TDebugTrace<T>::putValue(unsigned int n)
     {
         sprintf(tmp, "%%-%dd", strlen(fmt));
     }
-    mPos = mPos + snprintf(&m_FormatBuf[mPos], 0xd, tmp, n);
+    mPos = mPos + snprintf(m_FormatBuf + mPos, 0xd, tmp, n);
     return this;
 }
 
@@ -168,14 +168,15 @@ TDebugTrace<T>& endl(TDebugTrace<T>& in_Str)
             fclose(log);
         }
         in_Str.mPos = 0;
-        memset(&in_Str, 0, 0x19000);
+        memset(in_Str.m_FormatBuf, 0, 0x19000);
+        return in_Str;
     }
     else
     {
         in_Str.pDevice_->serialize((char*)&in_Str);
         in_Str.flush();
         in_Str.mPos = 0;
-        memset(&in_Str, 0, 0x19000);
+        memset(in_Str.m_FormatBuf, 0, 0x19000);
     }
     return in_Str;
 }
@@ -240,26 +241,17 @@ int TMemoryPoolStatic<T, Size, Q>::getRemain()
 
 tagCS_GET_GC_INFO::tagCS_GET_GC_INFO()
 {
-    memset(this, 0, 0xb);
-    setCategory(0x7b);
-    setPacketID(0xd);
-    setSize(0xb);
+    PACKET_CTOR_BODY(0x7b, 0xd, 0xb);  // PACKETS::CS_GET_GC_INFO
 }
 
 tagCS_CHECK_SCRIPT_VERSION::tagCS_CHECK_SCRIPT_VERSION()
 {
-    memset(this, 0, 0x1b);
-    setCategory(0x7b);
-    setPacketID(5);
-    setSize(0x1b);
+    PACKET_CTOR_BODY(0x7b, 5, 0x1b);  // PACKETS::CS_CHECK_SCRIPT_VERSION
 }
 
 tagCS_NOTICE_CHANNEL_SERVER::tagCS_NOTICE_CHANNEL_SERVER()
 {
-    memset(this, 0, 0x23);
-    setCategory(0x7b);
-    setPacketID(4);
-    setSize(0x23);
+    PACKET_CTOR_BODY(0x7b, 4, 0x23);  // PACKETS::CS_NOTICE_CHANNEL_SERVER
 }
 
 void ChannelServiceApp::CheckThread::loop(void* temp)
@@ -267,16 +259,22 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
     puts("Start up CheckThread");
     ChannelService* pApp = TManager<ChannelService>::getManager();
     char timeofday[9];
-    pApp->getTCPThread()->lockPushRequestConnect(1, "CheckThread.cpp", 0x1d);
+    int nRet = 0;
     TCPUser* acUser = NULL;
+    pApp->getTCPThread()->lockPushRequestConnect(1, "CheckThread.cpp", 0x1d);
+    bool bFlag = true;
     do
     {
         acUser = pApp->getTCPThread()->lockPopConnectedUser();
-        if (acUser == NULL)
+        if (acUser != NULL)
+        {
+            bFlag = false;
+        }
+        else
         {
             TSystem<LinuxSystem>::sleep(1);
         }
-    } while (acUser == NULL);
+    } while (bFlag);
 
     // version check block
     {
@@ -360,17 +358,17 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
         strncpy(pCCheck.channel_script_version, G_ScriptData()->channel_script_version, 0x10);
         buffer << &pCCheck;
         buffer.PAD();
-        int ret = acUser->onWrite2Buffer(&buffer);
-        if (ret < 0)
+        nRet = acUser->onWrite2Buffer(&buffer);
+        if (nRet < 0)
         {
-            if ((ret == -5) || !acUser->isDisconnected())
+            if ((nRet == -5) || !acUser->isDisconnected())
             {
                 pApp->getTCPThread()->lockPushRequestConnect(1, "CheckThread.cpp", 0xa2);
                 TCPUser* nUser = NULL;
                 bool bInnerLoop = true;
                 while (bInnerLoop)
                 {
-                    gFileLogError << "ReTry connect to the Bridge Server ret=" << ret << endl;
+                    gFileLogError << "ReTry connect to the Bridge Server ret=" << nRet << endl;
                     nUser = pApp->getTCPThread()->lockPopConnectedUser();
                     if (nUser != NULL)
                     {
@@ -463,16 +461,16 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
         pck.port = (int)G_ScriptData()->udp_port;
         buffer2 << &pck;
         buffer2.PAD();
-        ret = acUser->onWrite2Buffer(&buffer2);
+        nRet = acUser->onWrite2Buffer(&buffer2);
         gFileLogInfo << "notice channel info send" << endl;
-        if (ret < 0)
+        if (nRet < 0)
         {
-            gFileLogInfo << "Notice Send Fail=" << ret << endl;
+            gFileLogInfo << "Notice Send Fail=" << nRet << endl;
         }
-        gFileLogInfo << "ret=" << ret << ", NOTICE id=" << pck.id << ", server_ip=" << pck.server_ip << ", port=" << pck.port << endl;
+        gFileLogInfo << "ret=" << nRet << ", NOTICE id=" << pck.id << ", server_ip=" << pck.server_ip << ", port=" << pck.port << endl;
         usleep(20000000);
-        gFileLogInfo << "Current Remain TCP Sockets =" << pApp->m_poolTCPSocket.getRemain() << endl;
-        gFileLogInfo << "Current Remain TCP Users =" << pApp->m_poolTCPUser.getRemain() << endl;
+        gFileLogInfo << "Current Remain TCP Sockets =" << pApp->poolTCPSockets_.getRemain() << endl;
+        gFileLogInfo << "Current Remain TCP Users =" << pApp->poolTCPUsers_.getRemain() << endl;
         gFileLogWarn << "Check Thread end" << endl;
     }
 }
@@ -502,31 +500,6 @@ CMsgCell& CMsgCell::operator<<(tagPacketHeader* pPacket)
         m_wPos = m_wPos + pPacket->getSize();
     }
     return *this;
-}
-
-BOOL CMsgCell::PAD()
-{
-    tagPacketHeader* pPCK = (tagPacketHeader*)m_bBuf;
-    int nSize;
-    if (pPCK->isVariableLength() == 0)
-    {
-        nSize = pPCK->getSize();
-    }
-    else
-    {
-        nSize = m_wPos;
-    }
-    pPCK->setSize(nSize);
-    if (pPCK->isVariableLength() == 0)
-    {
-        m_wSize = pPCK->getSize();
-    }
-    else
-    {
-        m_wSize = m_wPos;
-    }
-    nSize = pPCK->getSize();
-    return (unsigned int)(m_nBufLen < nSize);
 }
 
 template class TMsgCell<128>;

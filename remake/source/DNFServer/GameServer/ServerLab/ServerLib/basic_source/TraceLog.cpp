@@ -21,8 +21,8 @@ namespace nsl {
 bool bChangedDataForLog = false;
 
 TraceLog::TraceLog()
+    : logmask(0)
 {
-    logmask = 0;
     write_to_logserver = false;
     bNeedToLeaveErrorLogForOverSize = true;
 }
@@ -77,19 +77,29 @@ void TraceLog::sysNSL_LOG_date_ch()
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(lockLog);
     struct stat st;
     int rst = stat(logfname, &st);
+    // 原始：rst 存局部后 shr $0x1f; test al; je（直接 if (rst < 0)，无 bool 栈变量）
     if (rst < 0)
     {
         errorLog("sysNSL_LOG_date_ch stat() errmsg[%s(%d)] [%s]", strerror(errno), errno, logfname);
         exit(1);
     }
-    char* orifname = NULL;
-    if (access(logfname, 0) == 0)
+    // 原始：access 失败分支在成功分支之前（callset 顺序）
+    if (access(logfname, 0) != 0)
+    {
+        if (bNeedToLeaveErrorLogForOverSize != false)
+        {
+            errorLog("sysNSL_LOG_date_ch access fail : errmsg[%s(%d)] : logfilename[%s]", strerror(errno), errno, logfname);
+            bNeedToLeaveErrorLogForOverSize = false;
+        }
+    }
+    else
     {
         if (0x1388000 < st.st_size)
         {
             bChangedDataForLog = true;
         }
-        if (bChangedDataForLog == true)
+        // 原始：if (!bChangedDataForLog) 跳过；否则旋转日志
+        if (bChangedDataForLog != false)
         {
             bChangedDataForLog = false;
             char logdname[4096];
@@ -98,7 +108,7 @@ void TraceLog::sysNSL_LOG_date_ch()
             rst = stat(logdname, &st);
             if (rst < 0)
             {
-                if (errno != 2)
+                if (errno != ENOENT)
                 {
                     errorLog("sysNSL_LOG_date_ch stat() errmsg[%s(%d)]", strerror(errno), errno);
                     return;
@@ -109,18 +119,23 @@ void TraceLog::sysNSL_LOG_date_ch()
                     return;
                 }
             }
-            if (close(logfd) != 0)
+            // 原始：close 结果存局部再与 0 比较
+            int close_rst = close(logfd);
+            if (close_rst != 0)
             {
                 printf("file close error ('%s'), fd=%d\n", strerror(errno), logfd);
             }
-            if (close(errfd) != 0)
+            close_rst = close(errfd);
+            if (close_rst != 0)
             {
                 printf("file close error ('%s'), fd=%d\n", strerror(errno), errfd);
             }
-            if (close(statfd) != 0)
+            close_rst = close(statfd);
+            if (close_rst != 0)
             {
                 printf("file close error ('%s'), fd=%d\n", strerror(errno), statfd);
             }
+            char* orifname = NULL;
             for (int i = 0; i < 3; i = i + 1)
             {
                 time_t now = time(NULL);
@@ -149,12 +164,8 @@ void TraceLog::sysNSL_LOG_date_ch()
             set_fd(0x14e);
         }
     }
-    else if (bNeedToLeaveErrorLogForOverSize != false)
-    {
-        errorLog("sysNSL_LOG_date_ch access fail : errmsg[%s(%d)] : logfilename[%s]", strerror(errno), errno, logfname);
-        bNeedToLeaveErrorLogForOverSize = false;
-    }
 }
+
 
 void TraceLog::sysLog(int flag, const char* msg, ...)
 {
@@ -170,26 +181,37 @@ void TraceLog::sysLog(int flag, const char* msg, ...)
     va_list ap;
     va_start(ap, msg);
     char tmpbuf[2048];
-    int len = VsnPrintf(tmpbuf + 1, 0x800, msg, ap);
+    // 原始：VsnPrintf 写到 tmpbuf 基址（非 tmpbuf+1）
+    int len = VsnPrintf(tmpbuf, 0x800, msg, ap);
     va_end(ap);
     get_time(cur_date, cur_time);
-    while (tmpbuf[len] == '\n')
+    // 原始：while (tmpbuf[len-1] == '\n') { tmpbuf[len-1]=0; len--; }
+    while (tmpbuf[len - 1] == '\n')
     {
-        tmpbuf[len] = '\0';
+        tmpbuf[len - 1] = '\0';
         len = len - 1;
     }
     char buf[2088];
-    len = SnPrintf(buf, 0x2028, "%s %s : %s\n", cur_date, cur_time, tmpbuf + 1);
+    len = SnPrintf(buf, 0x2028, (char*)"%s %s : %s\n", cur_date, cur_time, tmpbuf);
     if (len >= 0)
     {
-        if (write_to_logserver == false)
+        // 原始：if (write_to_logserver) SendLogMsg 在前，else 本地写
+        if (write_to_logserver != false)
+        {
+            logSendThread_->SendLogMsg(buf, len);
+        }
+        else
         {
             sysNSL_LOG_date_ch();
             if (logfd < 1)
             {
                 puts("syslog fd error");
             }
-            else if (other_file_log == false)
+            else if (other_file_log != false)
+            {
+                write(statfd, buf, len);
+            }
+            else
             {
                 if (flag == 7)
                 {
@@ -197,14 +219,6 @@ void TraceLog::sysLog(int flag, const char* msg, ...)
                 }
                 write(logfd, buf, len);
             }
-            else
-            {
-                write(statfd, buf, len);
-            }
-        }
-        else
-        {
-            logSendThread_->SendLogMsg(buf, len);
         }
     }
 }
@@ -214,57 +228,65 @@ void TraceLog::errorLog(const char* msg, ...)
     va_list ap;
     va_start(ap, msg);
     char tmpbuf[2048];
-    int len = VsnPrintf(tmpbuf + 1, 0x800, msg, ap);
+    // 原始：同 sysLog，VsnPrintf(tmpbuf, ...) + while (tmpbuf[len-1]=='\n')
+    int len = VsnPrintf(tmpbuf, 0x800, msg, ap);
     va_end(ap);
     get_time(cur_date, cur_time);
-    while (tmpbuf[len] == '\n')
+    while (tmpbuf[len - 1] == '\n')
     {
-        tmpbuf[len] = '\0';
+        tmpbuf[len - 1] = '\0';
         len = len - 1;
     }
     char buf[2088];
-    len = SnPrintf(buf, 0x2028, "%s %s : %s\n", cur_date, cur_time, tmpbuf + 1);
+    len = SnPrintf(buf, 0x2028, (char*)"%s %s : %s\n", cur_date, cur_time, tmpbuf);
     write(errfd, buf, len);
 }
 
 int TraceLog::get_mask(int bit)
 {
-    return (0 < (1 << ((unsigned char)bit & 0x1f) & logmask));
+    // ORIG：logmask 先载 edx，1<<bit 走 ebx/esi（callee-saved）——
+    // 操作数顺序 logmask & (1<<bit) 才能复现（反过来是 edx/ecx 直算，16 条）。
+    if ((logmask & (1 << bit)) > 0)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 void TraceLog::set_mask(int bit, const char* yesno)
 {
-    if (yesno != NULL)
+    // ORIG：外层早退（if NULL return）→ else-if 链尾有 jmp EPI + nop。
+    if (yesno == NULL)
     {
-        if (strcmp(yesno, "yes") == 0)
-        {
-            logmask = logmask | (1 << ((unsigned char)bit & 0x1f));
-        }
-        else if (strcmp(yesno, "no") == 0)
-        {
-            logmask = logmask & ~(1 << ((unsigned char)bit & 0x1f));
-        }
+        return;
+    }
+    if (strcmp(yesno, "yes") == 0)
+    {
+        logmask = logmask | (1 << bit);
+    }
+    else if (strcmp(yesno, "no") == 0)
+    {
+        logmask = logmask & ~(1 << bit);
     }
 }
 
 int TraceLog::set_fd(int line)
 {
-    FILE* fptr = fopen(logfname, "w+");
-    if (fptr == NULL)
+    FILE* fptr;
+    // 原始：fopen 赋值在条件内 → cmpl/sete/test/je
+    if ((fptr = fopen(logfname, "w+")) == NULL)
     {
         fprintf(stderr, "CAN'T OPEN OR CREATE THE FILE %s-%s\n", logfname, strerror(errno));
         return -1;
     }
     logfd = fileno(fptr);
-    fptr = fopen(errfname, "w+");
-    if (fptr == NULL)
+    if ((fptr = fopen(errfname, "w+")) == NULL)
     {
         fprintf(stderr, "CAN'T OPEN OR CREATE THE FILE %s-%s\n", errfname, strerror(errno));
         return -1;
     }
     errfd = fileno(fptr);
-    fptr = fopen(statfname, "w+");
-    if (fptr == NULL)
+    if ((fptr = fopen(statfname, "w+")) == NULL)
     {
         fprintf(stderr, "CAN'T OPEN OR CREATE THE FILE %s-%s\n", statfname, strerror(errno));
         return -1;
@@ -275,7 +297,9 @@ int TraceLog::set_fd(int line)
 
 void TraceLog::get_time(char* todaystr, char* timestr)
 {
-    time_t tval = time(NULL);
+    // 原始：time(&tval) 非 tval=time(NULL)
+    time_t tval;
+    time(&tval);
     tm* t = localtime(&tval);
     if (todaystr != NULL)
     {

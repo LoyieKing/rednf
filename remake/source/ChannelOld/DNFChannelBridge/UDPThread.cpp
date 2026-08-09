@@ -23,38 +23,30 @@ void ChannelServiceApp::UDPThread::loop(void* temp)
 {
     puts("Start up UDPThread");
     UDPSocket sUDP;
-    if (sUDP.open() == false)
+    if (!sUDP.open())
     {
         puts("failed to open UDP socket port");
+        return;
     }
-    else
+    if (!sUDP.bind((unsigned short)nPort_, true))
     {
-        if (sUDP.bind((unsigned short)nPort_, true) == false)
+        printf("failed to bind UDP socket port #%d\n", nPort_);
+        return;
+    }
+    printf("succeeded in binding UDP socket port! #%d\n", nPort_);
+    while (!isTerminating())
+    {
+        TSystem<LinuxSystem>::usleep(10);
+        char recv_buf[0x1000];
+        int nRead = sUDP.recv(recv_buf, 0x1000);
+        if (nRead < 0)
         {
-            printf("failed to bind UDP socket port #%d\n");
+            printf("[ERROR] UDP Thread Recv Error(%s)", strerror(errno));
         }
-        else
+        else if (nRead != 0)
         {
-            printf("succeeded in binding UDP socket port! #%d\n");
-            while (true)
-            {
-                if (isTerminating())
-                {
-                    break;
-                }
-                TSystem<LinuxSystem>::usleep(10);
-                char recv_buf[0x1000];
-                int nRead = sUDP.recv(recv_buf, 0x1000);
-                if (nRead < 0)
-                {
-                    printf("[ERROR] UDP Thread Recv Error(%s)", strerror(errno));
-                }
-                else if (nRead != 0)
-                {
-                    pHandler_->dispatch(recv_buf, nRead, 0);
-                }
-            }
-            setTerminated();
+            pHandler_->dispatch(recv_buf, nRead, 0);
         }
     }
+    setTerminated();
 }

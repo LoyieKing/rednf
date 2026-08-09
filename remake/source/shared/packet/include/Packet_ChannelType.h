@@ -10,6 +10,6 @@
 class Packet_ChannelType : public PacketHeader {
 public:
     Packet_ChannelType() : PacketHeader(0xfa4, 0x12){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_CHANNELTYPE_H

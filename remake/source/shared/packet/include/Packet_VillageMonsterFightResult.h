@@ -10,7 +10,7 @@
 class Packet_VillageMonsterFightResult : public PacketHeader {
 public:
     Packet_VillageMonsterFightResult(): PacketHeader(0x1772,0x2b) {};
-};
+} __attribute__((packed));
 
 
 #endif //PACKET_VILLAGEMONSTERFIGHTRESULT_H

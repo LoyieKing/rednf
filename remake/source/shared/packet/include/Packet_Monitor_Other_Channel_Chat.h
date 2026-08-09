@@ -22,7 +22,7 @@ public:
 
     Packet_Monitor_Other_Channel_Chat()
         : PacketHeader(0x3f3, 0x13b){};
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Monitor_Other_Channel_Chat, 0x13b);

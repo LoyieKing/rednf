@@ -1,6 +1,7 @@
 // Rebuilt from df_auction_r (DWARF + Ghidra decompile), 2026-08-08
 #include "DBConnection.h"
 
+#include <errmsg.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -82,17 +83,14 @@ bool DBConnection::open(char* ip, char* dbname, char* id, char* pass, unsigned i
     if (mysql_real_connect(h_db, ip, id, pass, dbname, port, 0, 0) == 0)
     {
         unsigned int err = mysql_errno(h_db);
-        G_TraceLog()->errorLog("%s %u %s %s %s error=\'%d\' FAILED", ip, port, dbname, id, pass,
-                               err);
-        err = mysql_errno(h_db);
-        printf("%s %u %s %s %s error=\'%d\' FAILED\n", ip, port, dbname, id, pass, err);
+        TraceLog* pLog = G_TraceLog();
+        pLog->errorLog("%s %u %s %s %s error=\'%d\' FAILED", ip, port, dbname, id, pass, err);
+        printf("%s %u %s %s %s error=\'%d\' FAILED\n", ip, port, dbname, id, pass,
+               mysql_errno(h_db));
         return false;
     }
-    else
-    {
-        printf("%s %s SUCCESS\n", ip, dbname);
-        return true;
-    }
+    printf("%s %s SUCCESS\n", ip, dbname);
+    return true;
 }
 
 bool DBConnection::set_query(const char* format, ...)
@@ -102,12 +100,12 @@ bool DBConnection::set_query(const char* format, ...)
     vsprintf(m_query, format, vl);
     va_end(vl);
     int len = (int)strlen(m_query);
-    if (len <= 0x5fff)
+    if (0x5fff < len)
     {
-        m_query_len = len;
-        return true;
+        return false;
     }
-    return false;
+    m_query_len = len;
+    return true;
 }
 
 int DBConnection::exec(bool bLog)
@@ -169,12 +167,12 @@ bool DBConnection::fetch()
         return false;
     }
     m_row = (MYSQL_ROW)mysql_fetch_row(m_res);
-    if (m_row == (MYSQL_ROW)0)
+    if (m_row != (MYSQL_ROW)0)
     {
-        return false;
+        m_len = (ulong*)mysql_fetch_lengths(m_res);
+        return true;
     }
-    m_len = (ulong*)mysql_fetch_lengths(m_res);
-    return true;
+    return false;
 }
 
 void DBConnection::ping()
@@ -228,12 +226,13 @@ char* DBConnection::blob_to_str(int idx, void* blob, int size)
     {
         G_TraceLog()->errorLog("set SESSION wait_timeout Error");
     }
-    char* p = temp_buf[idx];
-    p[0] = '\0';
+    temp_buf[idx][0] = '\0';
     if (0 < size)
     {
-        int ret = (int)mysql_real_escape_string(h_db, p, (const char*)blob, size);
-        p[ret] = '\0';
+        char* p = temp_buf[idx];
+        p = p + (int)mysql_real_escape_string(h_db, p, (const char*)blob, size);
+        *p = '\0';
+        p = p + 1;
     }
     return temp_buf[idx];
 }
@@ -251,19 +250,20 @@ int DBConnection::exec_query()
     {
         m_db_err = (int)mysql_errno(h_db);
         int iVar2 = m_db_err;
-        G_TraceLog()->sysLog(7, "Fail: mysql_real_query(), %d", iVar2);
+        TraceLog* pLog = G_TraceLog();
+        pLog->sysLog(7, "Fail: mysql_real_query(), %d", iVar2);
         if ((m_db_err == 0x7d5) || (m_db_err == 0x7dd) || (m_db_err == 0x7d3) ||
             (m_db_err == 0x7d6))
         {
-            G_TraceLog()->sysLog(7, "Fail: DB connection lost, reconnecting...", iVar2);
-            if (mysql_ping(h_db) != 0)
+            G_TraceLog()->sysLog(7, "Fail: DB connection lost, reconnecting...");
+            int ping_ret = mysql_ping(h_db);
+            if (ping_ret != 0)
             {
-                int err = (int)mysql_errno(h_db);
-                if (err == 0x7d6)
+                bool bGone = (mysql_errno(h_db) == CR_SERVER_GONE_ERROR);
+                if (bGone)
                 {
-                    int connect_ret = (int)mysql_real_connect(h_db, dbIp_, dbAcc_, dbPwd_, dbName_,
-                                                              dbPort_, 0, 0);
-                    if (connect_ret == 0)
+                    if (mysql_real_connect(h_db, dbIp_, dbAcc_, dbPwd_, dbName_, dbPort_, 0, 0) ==
+                        0)
                     {
                         unsigned int errno2 = mysql_errno(h_db);
                         G_TraceLog()->sysLog(7, "DB reconnection fail. err_no(%d)", errno2);
@@ -275,31 +275,24 @@ int DBConnection::exec_query()
                     G_TraceLog()->sysLog(
                         7,
                         "DB reconnection fail. %d, %d (dbname : %s, ip : %s, port : %d, id : %s, pwd : %s)",
-                        iVar2, mysql_errno(h_db), dbName_, dbIp_, dbPort_, dbAcc_, dbPwd_);
+                        ping_ret, mysql_errno(h_db), dbName_, dbIp_, dbPort_, dbAcc_, dbPwd_);
                 }
                 else
                 {
                     int err2 = (int)mysql_errno(h_db);
-                    G_TraceLog()->sysLog(7, "DB reconnection fail. %d, %d", iVar2, err2);
+                    G_TraceLog()->sysLog(7, "DB reconnection fail. %d, %d", ping_ret, err2);
                 }
             }
-            db_ret = 2;
+            return 2;
         }
-        else
+        if (m_db_err != 0x426)
         {
-            if (m_db_err != 0x426)
-            {
-                G_TraceLog()->sysLog(7, "DB error occured (%d) Query(\'%s\')",
-                                     mysql_errno(h_db), m_query);
-            }
-            db_ret = 1;
+            G_TraceLog()->sysLog(7, "DB error occured (%d) Query(\'%s\')", mysql_errno(h_db),
+                                 m_query);
         }
+        return 1;
     }
-    else
-    {
-        db_ret = 0;
-    }
-    return db_ret;
+    return 0;
 }
 
 

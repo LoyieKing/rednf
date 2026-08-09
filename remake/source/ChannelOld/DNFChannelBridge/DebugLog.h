@@ -126,7 +126,7 @@ public:
             }
             catch (...)
             {
-                printf("cannot allocate memory in TGlobalInstance.! cannot continue\n");
+                printf("cannot allocate memory in TGlobalInstance.! cannot continue");
                 exit(-1);
             }
         }

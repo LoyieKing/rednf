@@ -15,7 +15,7 @@ ChannelServiceApp::ChannelService::FPMessageHandlerExtra ChannelServiceApp::Chan
     {
         return NULL;
     }
-    return m_HandlersExtra[n];
+    return m_pfnMsgExtra[n];
 }
 
 ChannelServiceApp::UDPHandlerRelay::UDPHandlerRelay()

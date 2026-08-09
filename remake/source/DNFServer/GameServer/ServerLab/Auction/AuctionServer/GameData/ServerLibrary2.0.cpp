@@ -56,25 +56,22 @@ bool App::load_script(char* service_identify)
     printf("[!] Server environment(%s) script loading : %s\n",
            m_szConfigFileName, nsl::configpath);
     bool bVar1 = nsl::G_Script()->load(nsl::configpath);
-    if (bVar1)
-    {
-        bVar1 = nsl::G_Script()->get_sections();
-        if (!bVar1)
-        {
-            exit(1);
-        }
-        bVar1 = initAuctionString(nsl::G_Script()->findCharValue(1, 0xe));
-        if (!bVar1)
-        {
-            puts("init auction string fail");
-            exit(1);
-        }
-        bVar1 = true;
-    }
-    else
+    // fail-first: movzbl/xor/test/je success (match ORIG App::load_script)
+    if (!bVar1)
     {
         printf("script load fail : %s\n", m_szConfigFileName);
         return false;
+    }
+    bVar1 = nsl::G_Script()->get_sections();
+    if (!bVar1)
+    {
+        exit(1);
+    }
+    // direct ! on return value (no store to local before xor)
+    if (!initAuctionString(nsl::G_Script()->findCharValue(1, 0xe)))
+    {
+        puts("init auction string fail");
+        exit(1);
     }
     return true;
 }
@@ -100,27 +97,30 @@ void App::prepareRun(char* Service_identify)
         SetAuctionServiceErrorStr();
         nsl::pApp = new nsl::ServiceFactory(
             Service_identify, m_szConfigFileName);
-    handlerFor_GA_ = new HandlerFor_GA_;
-    handlerFor_GP_ = new HandlerFor_GP_;
-    handlerFor_TE_ = new HandlerFor_TE_;
-    handlerFor_DB_ = new HandlerFor_DB_;
-    nsl::pApp->super_IHandlers.setNetWorkHandler(
-        0, handlerFor_GA_);
-    nsl::pApp->super_IHandlers.setNetWorkHandler(
-        0x12, handlerFor_GP_);
-    nsl::pApp->super_IHandlers.setTimeHandler(
-        0, handlerFor_TE_);
-    nsl::pApp->super_IHandlers.setTimeHandleNum(1);
-    if (!G_StatisticsCollector()->SetLogFileName(
-            nsl::G_Script()->findCharValue(0, 1),
-            nsl::G_Script()->findIntValue(0, 4)))
-    {
-        nsl::G_TraceLog()->sysLog(
-            7, "G_StatisticsCollector()->SetLogFileName(%s, %d)",
-            nsl::G_Script()->findCharValue(0, 1),
-            nsl::G_Script()->findIntValue(0, 4));
-        exit(1);
-    }
+        handlerFor_GA_ = new HandlerFor_GA_;
+        handlerFor_GP_ = new HandlerFor_GP_;
+        handlerFor_TE_ = new HandlerFor_TE_;
+        handlerFor_DB_ = new HandlerFor_DB_;
+        nsl::pApp->super_IHandlers.setNetWorkHandler(
+            0, handlerFor_GA_);
+        nsl::pApp->super_IHandlers.setNetWorkHandler(
+            0x12, handlerFor_GP_);
+        nsl::pApp->super_IHandlers.setTimeHandler(
+            0, handlerFor_TE_);
+        nsl::pApp->super_IHandlers.setTimeHandleNum(1);
+        // Evaluate findIntValue before findCharValue (arg order / ORIG esi/ebx)
+        int iVar3 = nsl::G_Script()->findIntValue(0, 4);
+        char* pcVar4 = nsl::G_Script()->findCharValue(0, 1);
+        if (!G_StatisticsCollector()->SetLogFileName(pcVar4, iVar3))
+        {
+            iVar3 = nsl::G_Script()->findIntValue(0, 4);
+            pcVar4 = nsl::G_Script()->findCharValue(0, 1);
+            nsl::G_TraceLog()->sysLog(
+                7, "G_StatisticsCollector()->SetLogFileName(%s, %d)",
+                pcVar4, iVar3);
+            exit(1);
+        }
+        // ORIG: local_24 = limit(1), i at separate local
         int local_24 = 1;
         for (int i = 0; i < local_24; i = i + 1)
         {
@@ -128,19 +128,19 @@ void App::prepareRun(char* Service_identify)
             nsl::pApp->super_DataPools.setCommonDataPool(
                 i, gameDataPool_[i]);
         }
-    pGameDbConnection = new nsl::DBConnection;
-    pAuctionDbConnection = new nsl::DBConnection;
-    pGameDbConnection->init();
-    pAuctionDbConnection->init();
-    nsl::pApp->super_DBConnections.setDBConnection(0, pGameDbConnection);
-    nsl::pApp->super_DBConnections.setDBConnection(1, pAuctionDbConnection);
-    nsl::pApp->super_IHandlers.setDBHandler(
-        0, handlerFor_DB_);
-    nsl::pApp->super_IHandlers.setDBHandler(
-        1, handlerFor_DB_);
-    interHandler = new InterHandler;
-    nsl::pApp->super_IHandlers.setInterHandler(
-        0, interHandler);
+        pGameDbConnection = new nsl::DBConnection;
+        pAuctionDbConnection = new nsl::DBConnection;
+        pGameDbConnection->init();
+        pAuctionDbConnection->init();
+        nsl::pApp->super_DBConnections.setDBConnection(0, pGameDbConnection);
+        nsl::pApp->super_DBConnections.setDBConnection(1, pAuctionDbConnection);
+        nsl::pApp->super_IHandlers.setDBHandler(
+            0, handlerFor_DB_);
+        nsl::pApp->super_IHandlers.setDBHandler(
+            1, handlerFor_DB_);
+        interHandler = new InterHandler;
+        nsl::pApp->super_IHandlers.setInterHandler(
+            0, interHandler);
         nsl::pApp->super_IHandlers.setInterHandler(
             1, interHandler);
     }
@@ -172,9 +172,11 @@ void App::run()
     {
         nsl::pApp->super_Dispatchers.getTCPDispatcher()->SetMaxCategory(0x19);
         nsl::IArea* pArea = G_Zone()->mArea[0];
+        (void)pArea;
         while (isTerminated_ != true)
         {
-            if ((IsStopReceived()) && (onlyOnce))
+            // ORIG expands (IsStopReceived() && onlyOnce) to 0/1 then tests
+            if ((IsStopReceived()) && (onlyOnce != false))
             {
                 onlyOnce = false;
                 INTERNALMSG_SERVICE_UNAVAILABLE internalMsgServiceUnavailable;
@@ -185,10 +187,12 @@ void App::run()
                         ->createMessage(1);
                 nsl::CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
                 *pNewCell << &internalMsgServiceUnavailable;
-                nsl::WorkThread* pWorkThread = nsl::pApp->super_Threads
+                // ORIG: mov pNewMsg->%ebx then getCell/GetInternalMsg/getWorkThread;
+                // PushTransaction(pNewMsg) uses %ebx (no separate pMessage local)
+                nsl::pApp->super_Threads
                     .getWorkThread(pNewMsg->getCellFromMessage()
-                                       ->GetInternalMsg()->workIndex);
-                pWorkThread->PushTransaction(pNewMsg);
+                                       ->GetInternalMsg()->workIndex)
+                    ->PushTransaction(pNewMsg);
             }
             nsl::TSystem<nsl::LinuxSystem>::sleep(1000);
         }
@@ -209,12 +213,8 @@ void App::stop()
     {
         nsl::pApp->shutdown();
     }
-    nsl::ServiceFactory* pSVar1 = nsl::pApp;
-    if (pSVar1 != NULL)
-    {
-        pSVar1->~ServiceFactory();
-        operator delete(pSVar1);
-    }
+    // ORIG：delete pApp（含空检查 + dtor + operator delete，pApp 一次载入 %ebx）
+    delete nsl::pApp;
 }
 
 void App::onStop()
@@ -240,15 +240,17 @@ int main(int argc, char** argv)
     try
     {
         std::string gService_name(argv[3]);
-        gService_name = std::string(
-            gService_name.begin(),
-            std::remove_if(gService_name.begin(), gService_name.end(),
-                           std::bind2nd(std::equal_to<char>(), ' ')));
+        // split remove_if from string range-ctor so SaIc is AFTER remove_if
+        // (ORIG call order: bind2nd, end, begin, remove_if, Sa, begin, string ctor)
+        std::string::iterator new_end = std::remove_if(
+            gService_name.begin(), gService_name.end(),
+            std::bind2nd(std::equal_to<char>(), ' '));
+        gService_name = std::string(gService_name.begin(), new_end);
+        // single App* local (ORIG -0x20 only; no separate LinuxService* copy)
         App* pApp = new App;
-        nsl::LinuxService* pService = pApp;
-        pService->processCommandLine(
+        pApp->processCommandLine(
             argc, argv, (char*)gService_name.c_str(), true);
-        pService->main((char*)gService_name.c_str());
+        pApp->main((char*)gService_name.c_str());
     }
     catch (nsl::Exception& e)
     {

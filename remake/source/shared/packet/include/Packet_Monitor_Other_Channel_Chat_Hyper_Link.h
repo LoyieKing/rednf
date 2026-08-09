@@ -24,7 +24,7 @@ public:
 
     Packet_Monitor_Other_Channel_Chat_Hyper_Link()
         : PacketHeader(0x2719, 0x274){};
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Monitor_Other_Channel_Chat_Hyper_Link, 0x274);

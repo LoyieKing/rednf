@@ -6,6 +6,23 @@
 #include "GlobalInstance.h"
 #include <time.h>
 
+BOOL CMsgCell::PAD()
+{
+    int nSize;
+    tagPacketHeader* pPCK = (tagPacketHeader*)m_bBuf;
+    pPCK->setSize(pPCK->isVariableLength() ? m_wPos : pPCK->getSize());
+    switch (pPCK->isVariableLength())
+    {
+    default:
+        m_wSize = m_wPos;
+        break;
+    case 0:
+        m_wSize = pPCK->getSize();
+        break;
+    }
+    return (unsigned int)(pPCK->getSize() > m_nBufLen);
+}
+
 bool ChannelServiceApp::bReadyToChangeScript = false;
 
 void ITextOutputDevice::get_time(char* todaystr, char* timestr)
@@ -58,8 +75,8 @@ ChannelServiceApp::Threads::Threads()
 {
     threadTCPAccept_ = NULL;
     threadTCP_ = NULL;
-    threadCheck_ = NULL;
     threadUDP_ = NULL;
+    threadCheck_ = NULL;
 }
 
 ChannelServiceApp::Threads::~Threads()
@@ -99,10 +116,10 @@ void TMemoryPoolStatic<T, Size, Q>::startup()
         throw Exception("memory alloc failed");
     }
     printf("%d th allocated Success\n", Size);
-    for (int i = 0; i < Size; i++)
+    int i;
+    for (i = 0; i < Size; i++)
     {
-        T* t = repository_ + i;
-        freeq_.push(t);
+        freeq_.push(repository_ + i);
     }
 }
 
@@ -143,12 +160,12 @@ ChannelServiceApp::UserPools::~UserPools()
 TCPSocket* ChannelServiceApp::UserPools::createTCPSocket(char* file, int line)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPSocket);
-    TCPSocket* r = m_poolTCPSocket.alloc();
+    TCPSocket* r = poolTCPSockets_.alloc();
     if (r == NULL)
     {
         gFileLogCri.Lock();
     }
-    gFileLogCri << "poolTCPSockets_ is empty : " << m_poolTCPSocket.getRemain() << " " << file << ", " << line << endl;
+    gFileLogCri << "poolTCPSockets_ is empty : " << poolTCPSockets_.getRemain() << " " << file << ", " << line << endl;
     gFileLogCri.Unlock();
     return r;
 }
@@ -156,22 +173,20 @@ TCPSocket* ChannelServiceApp::UserPools::createTCPSocket(char* file, int line)
 void ChannelServiceApp::UserPools::destroyTCPSocket(TCPSocket* pTCPSocket)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPSocket);
-    m_poolTCPSocket.free(pTCPSocket);
+    poolTCPSockets_.free(pTCPSocket);
 }
 
 ChannelServiceApp::TCPUser* ChannelServiceApp::UserPools::createTCPUser(char* file, int line)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPUser);
-    TCPUser* r = m_poolTCPUser.alloc();
+    TCPUser* r = poolTCPUsers_.alloc();
     return r;
 }
 
 void ChannelServiceApp::UserPools::destroyTCPUser(TCPUser* pTCPUser, char* file, int line)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockTCPUser);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "call destroyTCPUser from " << file << ", " << line << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "call destroyTCPUser from " << file << ", " << line);
     TCPSocket* s = pTCPUser->getSocket();
     if (s != NULL)
     {
@@ -181,7 +196,7 @@ void ChannelServiceApp::UserPools::destroyTCPUser(TCPUser* pTCPUser, char* file,
         destroyTCPSocket(s);
     }
     pTCPUser->setSocket(NULL);
-    m_poolTCPUser.free(pTCPUser);
+    poolTCPUsers_.free(pTCPUser);
 }
 
 ChannelServiceApp::ServerGroup::ServerGroup()
@@ -247,7 +262,8 @@ void ChannelServiceApp::ChannelScript::ReloadScript()
     }
 }
 
-int ChannelServiceApp::ChannelScript::getScriptFileSize()
+// ORIG DWARF：返回 unsigned int。
+unsigned int ChannelServiceApp::ChannelScript::getScriptFileSize()
 {
     return lSize;
 }
@@ -350,7 +366,7 @@ void TGlobalInstance<TextOutputDevice_stdout>::create()
     {
         try
         {
-            void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
+            register void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
             memset(pvMem, 0, sizeof(TextOutputDevice_stdout));
             new (pvMem) TextOutputDevice_stdout();
             m_p = (TextOutputDevice_stdout*)pvMem;
@@ -386,26 +402,26 @@ DWORD ChannelServiceApp::ChannelService::registerProtocols()
 {
     for (int i = 0; i < 0x200; i = i + 1)
     {
-        m_Handlers[i] = NULL;
+        m_pfnMsg[i] = NULL;
     }
     WORD wIndex = 3;
-    m_Handlers[wIndex] = &ChannelService::onSC_ASK_CHANNEL_INFO;
+    m_pfnMsg[wIndex] = &ChannelService::onSC_ASK_CHANNEL_INFO;
     wIndex = 1;
-    m_Handlers[wIndex] = &ChannelService::onCS_ASK_CHANNEL_INFO;
+    m_pfnMsg[wIndex] = &ChannelService::onCS_ASK_CHANNEL_INFO;
     wIndex = 5;
-    m_Handlers[wIndex] = &ChannelService::onCS_CHECK_SCRIPT_VERSION;
+    m_pfnMsg[wIndex] = &ChannelService::onCS_CHECK_SCRIPT_VERSION;
     wIndex = 9;
-    m_Handlers[wIndex] = &ChannelService::onCS_GET_SCRIPT;
+    m_pfnMsg[wIndex] = &ChannelService::onCS_GET_SCRIPT;
     wIndex = 0xb;
-    m_Handlers[wIndex] = &ChannelService::onCS_CONNECT;
+    m_pfnMsg[wIndex] = &ChannelService::onCS_CONNECT;
     wIndex = 0xe;
-    m_Handlers[wIndex] = &ChannelService::onSC_GET_GC_INFO;
+    m_pfnMsg[wIndex] = &ChannelService::onSC_GET_GC_INFO;
     wIndex = 6;
-    m_Handlers[wIndex] = &ChannelService::onSC_CHECK_SCRIPT_VERSION;
+    m_pfnMsg[wIndex] = &ChannelService::onSC_CHECK_SCRIPT_VERSION;
     wIndex = 10;
-    m_Handlers[wIndex] = &ChannelService::onSC_GET_SCRIPT;
+    m_pfnMsg[wIndex] = &ChannelService::onSC_GET_SCRIPT;
     wIndex = 2;
-    m_Handlers[wIndex] = &ChannelService::onCS_UPDATE_CHANNEL_INFO;
+    m_pfnMsg[wIndex] = &ChannelService::onCS_UPDATE_CHANNEL_INFO;
     return 0;
 }
 
@@ -413,7 +429,7 @@ DWORD ChannelServiceApp::ChannelService::registerProtocolsExtra()
 {
     for (int i = 0; i < 0x200; i = i + 1)
     {
-        m_HandlersExtra[i] = NULL;
+        m_pfnMsgExtra[i] = NULL;
     }
     return 0;
 }
@@ -423,38 +439,24 @@ DWORD ChannelServiceApp::ChannelService::onSC_ASK_CHANNEL_INFO(LPPACKET_HEADER p
     return 1;
 }
 
-DWORD ChannelServiceApp::ChannelService::onSC_GET_SCRIPT(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onSC_GET_SCRIPT" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(SC_GET_SCRIPT)
     LPPACKET_HEADER pSGet = pPCK;
     if (bReadyToChangeScript != false)
     {
         FILE* pFile = fopen("channel_info/channel_info.etc", "w+");
         if (pFile == NULL)
         {
-            gFileLogInfo.Lock();
-            gFileLogInfo << "[ERROR] : cannt open channel_script_version file" << endl;
-            gFileLogInfo.Unlock();
+            GLOG(gFileLogInfo, "[ERROR] : cannt open channel_script_version file");
         }
-        fwrite(pSGet + 1, 1, pSGet->getSize() - 0xb, pFile);
+        int ret = fwrite(pSGet + 1, 1, pSGet->getSize() - 0xb, pFile);
         fflush(pFile);
         fclose(pFile);
         ReloadScript();
         bReadyToChangeScript = false;
     }
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onSC_GET_SCRIPT" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+CHANNEL_HANDLER_END()
 
-DWORD ChannelServiceApp::ChannelService::onSC_CHECK_SCRIPT_VERSION(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onSC_CHECK_SCRIPT_VERSION" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(SC_CHECK_SCRIPT_VERSION)
     tagSC_CHECK_SCRIPT_VERSION* pSCheck = (tagSC_CHECK_SCRIPT_VERSION*)pPCK;
     if (pSCheck->is_valid_version == 0)
     {
@@ -465,9 +467,7 @@ DWORD ChannelServiceApp::ChannelService::onSC_CHECK_SCRIPT_VERSION(LPPACKET_HEAD
         FILE* pFile = fopen("channel_info/version", "wb+");
         if (pFile == NULL)
         {
-            gFileLogInfo.Lock();
-            gFileLogInfo << "[ERROR] : cannt open channel_script_version file" << endl;
-            gFileLogInfo.Unlock();
+            GLOG(gFileLogInfo, "[ERROR] : cannt open channel_script_version file");
         }
         fputs(tmpversion, pFile);
         fclose(pFile);
@@ -479,17 +479,9 @@ DWORD ChannelServiceApp::ChannelService::onSC_CHECK_SCRIPT_VERSION(LPPACKET_HEAD
         bReadyToChangeScript = true;
         u->onWrite2Buffer(pMsg);
     }
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onSC_CHECK_SCRIPT_VERSION" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+CHANNEL_HANDLER_END()
 
-DWORD ChannelServiceApp::ChannelService::onCS_CONNECT(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_CONNECT" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_CONNECT)
     LPPACKET_HEADER _pPCK = pPCK;
     tagSC_CONNECT pck;
     CMsgCell* pMsg = GetMessageBuffer(0x2f);
@@ -497,9 +489,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_CONNECT(LPPACKET_HEADER pPCK, TCPU
     memcpy(test, "dnf_game", 9);
     char decryptresult[32];
     memset(decryptresult, 0, 0x20);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Key " << getEncKey() << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "Key " << getEncKey());
     getEncInc()->Decrypt((const char*)(_pPCK + 1), decryptresult, (size_t)(_pPCK->getSize() - 0xb));
     if (strncmp(test, decryptresult, strlen(test)) != 0)
     {
@@ -518,11 +508,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_CONNECT(LPPACKET_HEADER pPCK, TCPU
     return 1;
 }
 
-DWORD ChannelServiceApp::ChannelService::onCS_GET_SCRIPT(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_GET_SCRIPT" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_GET_SCRIPT)
     tagSC_GET_SCRIPT pck;
     char* script = getScriptFromFile();
     script[getScriptFileSize()] = '\0';
@@ -537,24 +523,20 @@ DWORD ChannelServiceApp::ChannelService::onCS_GET_SCRIPT(LPPACKET_HEADER pPCK, T
     *pMsg << &pck;
     *encMsg << &pck;
     *zipMsg << &pck;
-    size_t nLen = strlen(script);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Script File Size = " << getScriptFileSize() << endl;
-    gFileLogInfo.Unlock();
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Script File len = " << nLen << endl;
-    gFileLogInfo.Unlock();
-    if (getScriptFileSize() != (int)nLen)
+    int len = strlen(script);
+    GLOG(gFileLogInfo, "Script File Size = " << getScriptFileSize());
+    GLOG(gFileLogInfo, "Script File len = " << len);
+    if ((int)getScriptFileSize() != len)
     {
-        if ((int)nLen < getScriptFileSize())
+        if ((int)getScriptFileSize() > len)
         {
-            int remain = getScriptFileSize() - (int)nLen;
+            int remain = (int)getScriptFileSize() - len;
             for (int i = 0; i < remain; i = i + 1)
             {
-                script[nLen + i + 1] = ' ';
-                if (nLen + i + 1U == (unsigned int)getScriptFileSize())
+                script[len + i + 1] = ' ';
+                if (len + i + 1U == (unsigned int)getScriptFileSize())
                 {
-                    script[nLen + i + 1] = '\0';
+                    script[len + i + 1] = '\0';
                 }
             }
         }
@@ -564,16 +546,12 @@ DWORD ChannelServiceApp::ChannelService::onCS_GET_SCRIPT(LPPACKET_HEADER pPCK, T
     int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xb, (char*)&tmpbuffer);
     encMsg->AttachStream((char*)&tmpbuffer, enc_len);
     encMsg->PAD();
-    int nCompLen = enc_len + 0xd;
-    compress2((unsigned char*)&tmpbuffer, (unsigned long*)&nCompLen, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, -1);
-    zipMsg->AttachStream((char*)&tmpbuffer, nCompLen);
+    unsigned int CompressLen = enc_len + 0xd;
+    compress2((unsigned char*)&tmpbuffer, (unsigned long*)&CompressLen, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, -1);
+    zipMsg->AttachStream((char*)&tmpbuffer, CompressLen);
     zipMsg->PAD();
     u->onWrite2Buffer(zipMsg);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onCS_GET_SCRIPT" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+CHANNEL_HANDLER_END()
 
 DWORD ChannelServiceApp::ChannelService::onSC_GET_GC_INFO(LPPACKET_HEADER pPCK, TCPUser* u)
 {
@@ -586,18 +564,14 @@ DWORD ChannelServiceApp::ChannelService::onSC_GET_GC_INFO(LPPACKET_HEADER pPCK, 
     {
         tServerGcInfo* pGcInfo = (tServerGcInfo*)malloc(0x18);
         memcpy(pGcInfo, (char*)pSGCInfo + offs, blocklen);
-        m_ServerNameMap[(char*)pGcInfo] = pGcInfo->gc_no;
+        gc_map[(char*)pGcInfo] = pGcInfo->gc_no;
         offs = offs + blocklen;
     }
     isReadyToStart = true;
     return 1;
 }
 
-DWORD ChannelServiceApp::ChannelService::onCS_ASK_CHANNEL_INFO(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_ASK_CHANNEL_INFO" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_ASK_CHANNEL_INFO)
     tagSC_ASK_CHANNEL_INFO pck;
     pck.setAckOk();
     TMsgCell<131072> buffer;
@@ -611,12 +585,8 @@ DWORD ChannelServiceApp::ChannelService::onCS_ASK_CHANNEL_INFO(LPPACKET_HEADER p
     *pMsg << &pck;
     int CurrentConnectedUserForGroup = 0;
     int TotalConnectedUser = 0;
-    gFileLogInfo.Lock();
-    gFileLogInfo << "*****************************************************************************************" << endl;
-    gFileLogInfo.Unlock();
-    gFileLogInfo.Lock();
-    gFileLogInfo << pck.server_group_count << "\xb0\xb3 ServerGroupNum" << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "*****************************************************************************************");
+    GLOG(gFileLogInfo, pck.server_group_count << "\xb0\xb3 ServerGroupNum");
     for (int i = 0; i < 0x80; i = i + 1)
     {
         CurrentConnectedUserForGroup = 0;
@@ -625,20 +595,12 @@ DWORD ChannelServiceApp::ChannelService::onCS_ASK_CHANNEL_INFO(LPPACKET_HEADER p
         Ginfo.server_count = Servers[i].getServerCount();
         if (Ginfo.server_count != 0)
         {
-            gFileLogInfo.Lock();
-            gFileLogInfo << "*****************************************************************************************" << endl;
-            gFileLogInfo.Unlock();
-            gFileLogInfo.Lock();
-            gFileLogInfo << i << "th SG" << endl;
-            gFileLogInfo.Unlock();
-            gFileLogInfo.Lock();
-            gFileLogInfo << "channel count=" << Ginfo.server_count << endl;
-            gFileLogInfo.Unlock();
+            GLOG(gFileLogInfo, "*****************************************************************************************");
+            GLOG(gFileLogInfo, i << "th SG");
+            GLOG(gFileLogInfo, "channel count=" << Ginfo.server_count);
             strncpy(Ginfo.server_group_name, Servers[i].ServerName, 0x14);
             *pMsg << Ginfo_ser;
-            gFileLogInfo.Lock();
-            gFileLogInfo << Ginfo.server_group_name << endl;
-            gFileLogInfo.Unlock();
+            GLOG(gFileLogInfo, Ginfo.server_group_name);
             for (std::map<int, tServerInfo*>::iterator it = Servers[i].listServerInfo_.begin(); it != Servers[i].listServerInfo_.end(); it++)
             {
                 tpServerInfo info;
@@ -648,58 +610,34 @@ DWORD ChannelServiceApp::ChannelService::onCS_ASK_CHANNEL_INFO(LPPACKET_HEADER p
                 info.cur_user_num = it->second->nCurrentUserCount_;
                 strcpy(info.server_ip, it->second->IP);
                 info.port = it->second->port;
-                gFileLogInfo.Lock();
-                gFileLogInfo << info.channel_name << endl;
-                gFileLogInfo.Unlock();
-                gFileLogInfo.Lock();
-                gFileLogInfo << "IP    " << it->second->IP << endl;
-                gFileLogInfo.Unlock();
-                gFileLogInfo.Lock();
-                gFileLogInfo << "POPT  " << it->second->port << endl;
-                gFileLogInfo.Unlock();
-                gFileLogInfo.Lock();
-                gFileLogInfo << "MAX  " << it->second->nMaxUserCount_ << endl;
-                gFileLogInfo.Unlock();
-                gFileLogInfo.Lock();
-                gFileLogInfo << "CUR  " << it->second->nCurrentUserCount_ << endl;
-                gFileLogInfo.Unlock();
+                GLOG(gFileLogInfo, info.channel_name);
+                GLOG(gFileLogInfo, "IP    " << it->second->IP);
+                GLOG(gFileLogInfo, "POPT  " << it->second->port);
+                GLOG(gFileLogInfo, "MAX  " << it->second->nMaxUserCount_);
+                GLOG(gFileLogInfo, "CUR  " << it->second->nCurrentUserCount_);
                 CurrentConnectedUserForGroup = CurrentConnectedUserForGroup + it->second->nCurrentUserCount_;
                 *pMsg << Sinfo;
             }
-            gFileLogInfo.Lock();
-            gFileLogInfo << " CurrentConnectedUserForGroup = " << CurrentConnectedUserForGroup << endl;
-            gFileLogInfo.Unlock();
+            GLOG(gFileLogInfo, " CurrentConnectedUserForGroup = " << CurrentConnectedUserForGroup);
             TotalConnectedUser = TotalConnectedUser + CurrentConnectedUserForGroup;
         }
     }
-    gFileLogInfo.Lock();
-    gFileLogInfo << " TotalConnectedUser = " << TotalConnectedUser << endl;
-    gFileLogInfo.Unlock();
-    gFileLogInfo.Lock();
-    gFileLogInfo << "*****************************************************************************************" << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, " TotalConnectedUser = " << TotalConnectedUser);
+    GLOG(gFileLogInfo, "*****************************************************************************************");
     pMsg->PAD();
     int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xb, (char*)&tmpbuffer);
     encMsg->AttachStream(pMsg->GetBuf(), 0xb);
     encMsg->AttachStream((char*)&tmpbuffer, enc_len);
     encMsg->PAD();
     zipMsg->AttachStream(pMsg->GetBuf(), 0xb);
-    int nCompLen = enc_len + 0xd;
-    compress2((unsigned char*)&tmpbuffer, (unsigned long*)&nCompLen, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, 1);
-    zipMsg->AttachStream((char*)&tmpbuffer, nCompLen);
+    unsigned int CompressLen = enc_len + 0xd;
+    compress2((unsigned char*)&tmpbuffer, (unsigned long*)&CompressLen, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, 1);
+    zipMsg->AttachStream((char*)&tmpbuffer, CompressLen);
     zipMsg->PAD();
     u->onWrite2Buffer(zipMsg);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out " << "onCS_ASK_CHANNEL_INFO" << endl;
-    gFileLogInfo.Unlock();
-    return 1;
-}
+CHANNEL_HANDLER_END()
 
-DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_UPDATE_CHANNEL_INFO" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_UPDATE_CHANNEL_INFO)
     int ServerGroupIndex = -1;
     int count = 0;
     LPPACKET_HEADER _pPCK = pPCK;
@@ -719,7 +657,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
             return 0;
         }
         std::map<char*, int>::iterator iter;
-        for (iter = m_ServerNameMap.begin(); iter != m_ServerNameMap.end(); iter++)
+        for (iter = gc_map.begin(); iter != gc_map.end(); iter++)
         {
             bool bMatch = false;
             if ((iter->second == gc_no || iter->second - gc_no < 0) || 999 < iter->second - gc_no)
@@ -761,9 +699,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
         for (k = 0; (k < 0x1000) && (Servers[ServerGroupIndex].ServerInfo[k].gc_no != gc_no); k = k + 1)
         {
         }
-        gFileLogInfo.Lock();
-        gFileLogInfo << "update ?" << k << endl;
-        gFileLogInfo.Unlock();
+        GLOG(gFileLogInfo, "update ?" << k);
         gFileLogInfo.Lock();
         unsigned int uCnt = gc_no;
         int iSgc = ServerGroupCount;
@@ -813,19 +749,13 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
             Servers[ServerGroupIndex].listServerInfo_[gc_no] = &Servers[ServerGroupIndex].ServerInfo[k];
             Servers[ServerGroupIndex].ServerInfo[k].use = true;
         }
-        gFileLogInfo.Lock();
-        gFileLogInfo << "Out " << "onCS_UPDATE_CHANNEL_INFO" << endl;
-        gFileLogInfo.Unlock();
+        DNF_LOG_OUT();
         return 1;
     }
     return 0;
 }
 
-DWORD ChannelServiceApp::ChannelService::onCS_CHECK_SCRIPT_VERSION(LPPACKET_HEADER pPCK, TCPUser* u)
-{
-    gFileLogInfo.Lock();
-    gFileLogInfo << "In  " << "onCS_CHECK_SCRIPT_VERSION" << endl;
-    gFileLogInfo.Unlock();
+CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
     LPPACKET_HEADER _pEPCK = pPCK;
     tagCS_CHECK_SCRIPT_VERSION _DPCK;
     tagSC_CHECK_SCRIPT_VERSION pck;
@@ -837,15 +767,16 @@ DWORD ChannelServiceApp::ChannelService::onCS_CHECK_SCRIPT_VERSION(LPPACKET_HEAD
     TMsgCell<128> buffer;
     CMsgCell* encMsg = &encbuffer;
     int nCmp = strcmp(G_ScriptData()->channel_script_version, _DPCK.channel_script_version);
-    if (nCmp != 0)
+    if (nCmp == 0)
     {
         pck.setAckOk();
+        pck.is_valid_version = 1;
     }
     else
     {
         pck.setAckOk();
+        pck.is_valid_version = 0;
     }
-    pck.is_valid_version = (int)(nCmp == 0);
     size_t nVerLen = strlen(G_ScriptData()->channel_script_version);
     strncpy(pck.channel_script_version, G_ScriptData()->channel_script_version, nVerLen);
     nVerLen = strlen(G_ScriptData()->channel_script_version);
@@ -860,9 +791,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_CHECK_SCRIPT_VERSION(LPPACKET_HEAD
     encMsg->AttachStream((char*)&buffer, enc_len);
     encMsg->PAD();
     u->onWrite2Buffer(encMsg);
-    gFileLogInfo.Lock();
-    gFileLogInfo << "Out  " << "onCS_CHECK_SCRIPT_VERSION" << endl;
-    gFileLogInfo.Unlock();
+    GLOG(gFileLogInfo, "Out  " << "onCS_CHECK_SCRIPT_VERSION");
     return 1;
 }
 
@@ -900,8 +829,8 @@ void ChannelServiceApp::ChannelService::startup()
     sprintf(nameoflog, "./log/Cri_%s.log", getServiceName());
     getFileLogCri()->open(nameoflog);
     puts("Loading Session Pool");
-    m_poolTCPSocket.startup();
-    m_poolTCPUser.startup();
+    poolTCPSockets_.startup();
+    poolTCPUsers_.startup();
     puts("End Loading Session Pool");
     threadTCPAccept_ = new TCPAcceptThread;
     threadTCPAccept_->TManager<ChannelService>::setManager(this);
@@ -1020,12 +949,12 @@ TextOutputDevice_stdout* ChannelServiceApp::getLogError()
 
 __int64 ChannelServiceApp::ChannelService::getTick() const
 {
-    return m_llTick;
+    return tick_;
 }
 
 void ChannelServiceApp::ChannelService::setTick()
 {
-    m_llTick = get_ms_tick();
+    tick_ = get_ms_tick();
 }
 
 void ChannelServiceApp::ChannelService::setLastTickForIdleSession()
@@ -1035,13 +964,11 @@ void ChannelServiceApp::ChannelService::setLastTickForIdleSession()
 
 bool ChannelServiceApp::ChannelService::isIdleCheckTime() const
 {
-    __int64 now = get_ms_tick();
-    __int64 last = getLastTickForIdleSession();
-    if (now - last < 0x2bf21)
+    if (get_ms_tick() - getLastTickForIdleSession() > 0x2bf20)
     {
-        return false;
+        return true;
     }
-    return true;
+    return false;
 }
 
 char* ChannelServiceApp::ChannelService::getServiceName()
@@ -1223,42 +1150,27 @@ template class GlobalInstance<ScriptData>;
 
 tagSC_CONNECT::tagSC_CONNECT()
 {
-    memset(this, 0, 0x2f);
-    setCategory(0x7c);
-    setPacketID(0xc);
-    setSize(0x2f);
+    PACKET_CTOR_BODY(0x7c, 0xc, 0x2f);  // PACKETS::SC_CONNECT
 }
 
 tagCS_GET_SCRIPT::tagCS_GET_SCRIPT()
 {
-    memset(this, 0, 0xb);
-    setCategory(0x7c);
-    setPacketID(9);
-    setSize(0xb);
+    PACKET_CTOR_BODY(0x7c, 9, 0xb);  // PACKETS::CS_GET_SCRIPT
 }
 
 tagSC_GET_SCRIPT::tagSC_GET_SCRIPT()
 {
-    memset(this, 0, 0xb);
-    setCategory(0x7c);
-    setPacketID(10);
-    setSize(0xb);
+    PACKET_CTOR_BODY(0x7c, 10, 0xb);  // PACKETS::SC_GET_SCRIPT
 }
 
 tagSC_CHECK_SCRIPT_VERSION::tagSC_CHECK_SCRIPT_VERSION()
 {
-    memset(this, 0, 0x1f);
-    setCategory(0x7c);
-    setPacketID(6);
-    setSize(0x1f);
+    PACKET_CTOR_BODY(0x7c, 6, 0x1f);  // PACKETS::SC_CHECK_SCRIPT_VERSION
 }
 
 tagSC_ASK_CHANNEL_INFO::tagSC_ASK_CHANNEL_INFO()
 {
-    memset(this, 0, 0xf);
-    setCategory(0x7c);
-    setPacketID(3);
-    setSize(0xf);
+    PACKET_CTOR_BODY(0x7c, 3, 0xf);  // PACKETS::SC_ASK_CHANNEL_INFO
 }
 
 void CMsgCell::AttachStream(char* pBuf, int wSize)

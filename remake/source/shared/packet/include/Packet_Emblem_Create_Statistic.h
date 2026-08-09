@@ -10,6 +10,6 @@
 class Packet_Emblem_Create_Statistic : public PacketHeader {
 public:
     Packet_Emblem_Create_Statistic() : PacketHeader(0x17a4, 0x36){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_EMBLEM_CREATE_STATISTIC_H

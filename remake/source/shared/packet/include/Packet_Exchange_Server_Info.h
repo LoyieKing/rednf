@@ -10,6 +10,6 @@
 class Packet_Exchange_Server_Info : public PacketHeader {
 public:
     Packet_Exchange_Server_Info() : PacketHeader(0x9de, 0x14){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_EXCHANGE_SERVER_INFO_H

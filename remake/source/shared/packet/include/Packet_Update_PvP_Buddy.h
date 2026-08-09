@@ -23,7 +23,7 @@ public:
         variable_what1 = 0;
         variable_what2 = 0;
     }
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Update_PvP_Buddy, 0x11);

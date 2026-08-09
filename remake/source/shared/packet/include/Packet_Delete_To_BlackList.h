@@ -10,6 +10,6 @@
 class Packet_Delete_To_BlackList : public PacketHeader {
 public:
     Packet_Delete_To_BlackList() : PacketHeader(0x5dd, 0x2c){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_DELETE_TO_BLACKLIST_H

@@ -16,7 +16,7 @@ public:
     char buddy_n_user_id_what[30];
 
     Packet_Request_Remove_PvP_Buddy() : PacketHeader(0x1b60, 0x31){};
-};
+} __attribute__((packed));
 #pragma pack(pop)
 
 TEST_CLASS_SIZE(Packet_Request_Remove_PvP_Buddy, 0x31);

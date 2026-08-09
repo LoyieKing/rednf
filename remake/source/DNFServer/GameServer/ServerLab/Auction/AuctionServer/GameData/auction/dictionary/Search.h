@@ -26,7 +26,8 @@ public:
         }
         bool operator<(const AuctionId& _rhs) const
         {
-            return auctionId < _rhs.auctionId;
+            // ORIG: signed cmp of instantPrice@+8 only (setl). Orders multiset by price.
+            return instantPrice < _rhs.instantPrice;
         }
     };
 

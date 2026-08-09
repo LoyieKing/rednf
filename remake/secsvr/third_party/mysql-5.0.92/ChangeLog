@@ -1,0 +1,668 @@
+------------------------------------------------------------
+revno: 2896 [merge]
+tags: clone-5.0.92-build
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-security
+timestamp: Fri 2011-01-07 15:28:36 +0200
+message:
+  automerge
+    ------------------------------------------------------------
+    revno: 2877.2.5 [merge]
+    committer: Alexander Nozdrin <alexander.nozdrin@oracle.com>
+    branch nick: mysql-5.0
+    timestamp: Wed 2010-12-29 14:30:37 +0300
+    message:
+      Auto-merge from mysql-5.0-bugteam.
+        ------------------------------------------------------------
+        revno: 2877.3.1
+        committer: Kent Boortz <kent.boortz@sun.com>
+        branch nick: mysql-5.0-bugteam
+        timestamp: Tue 2010-12-28 19:57:23 +0100
+        message:
+          - Added/updated copyright headers
+          - Removed files specific to compiling on OS/2
+          - Removed files specific to SCO Unix packaging
+          - Removed "libmysqld/copyright", text is included in documentation
+          - Removed LaTeX headers for NDB Doxygen documentation
+          - Removed obsolete NDB files
+          - Removed "mkisofs" binaries
+          - Removed the "cvs2cl.pl" script
+          - Changed a few GPL texts to use "program" instead of "library"
+------------------------------------------------------------
+revno: 2895 [merge]
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-security
+timestamp: Fri 2010-12-17 15:02:10 +0200
+message:
+  merge
+    ------------------------------------------------------------
+    revno: 2877.2.4
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Fri 2010-12-17 14:42:30 +0200
+    message:
+      tree details update to main
+    ------------------------------------------------------------
+    revno: 2877.2.3
+    committer: Gleb Shchepa <gleb.shchepa@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Tue 2010-12-14 23:52:53 +0300
+    message:
+      backport of bug #54476 fix from 5.1-bugteam to 5.0-bugteam.
+      
+      Original revid: alexey.kopytov@sun.com-20100723115254-jjwmhq97b9wl932l
+      
+       > Bug #54476: crash when group_concat and 'with rollup' in
+       >                      prepared statements
+       >
+       > Using GROUP_CONCAT() together with the WITH ROLLUP modifier
+       > could crash the server.
+       >
+       > The reason was a combination of several facts:
+       >
+       > 1. The Item_func_group_concat class stores pointers to ORDER
+       > objects representing the columns in the ORDER BY clause of
+       > GROUP_CONCAT().
+       >
+       > 2. find_order_in_list() called from
+       > Item_func_group_concat::setup() modifies the ORDER objects so
+       > that their 'item' member points to the arguments list
+       > allocated in the Item_func_group_concat constructor.
+       >
+       > 3. In some cases (e.g. in JOIN::rollup_make_fields) a copy of
+       > the original Item_func_group_concat object could be created by
+       > using the Item_func_group_concat::Item_func_group_concat(THD
+       > *thd, Item_func_group_concat *item) copy constructor. The
+       > latter essentially creates a shallow copy of the source
+       > object. Memory for the arguments array is allocated on
+       > thd->mem_root, but the pointers for arguments and ORDER are
+       > copied verbatim.
+       >
+       > What happens in the test case is that when executing the query
+       > for the first time, after a copy of the original
+       > Item_func_group_concat object has been created by
+       > JOIN::rollup_make_fields(), find_order_in_list() is called for
+       > this new object. It then resolves ORDER BY by modifying the
+       > ORDER objects so that they point to elements of the arguments
+       > array which is local to the cloned object. When thd->mem_root
+       > is freed upon completing the execution, pointers in the ORDER
+       > objects become invalid. Those ORDER objects, however, are also
+       > shared with the original Item_func_group_concat object which is
+       > preserved between executions of a prepared statement. So the
+       > first call to find_order_in_list() for the original object on
+       > the second execution tries to dereference an invalid pointer.
+       >
+       > The solution is to create copies of the ORDER objects when
+       > copying Item_func_group_concat to not leave any stale pointers
+       > in other instances with different lifecycles.
+    ------------------------------------------------------------
+    revno: 2877.2.2 [merge]
+    committer: Christopher Powers <chris.powers@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Mon 2010-11-29 21:10:05 -0600
+    message:
+      merge
+        ------------------------------------------------------------
+        revno: 2877.1.15
+        committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+        branch nick: mysql-5.0-bugteam
+        timestamp: Mon 2010-11-29 17:33:24 +0200
+        message:
+          Fixed bteam issue #37235: 5.0 trees now will work correctly in pb2 and 
+          will not display "indicated result file not found" due to wrongly named
+          var directory.
+        ------------------------------------------------------------
+        revno: 2877.1.14
+        committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+        branch nick: mysql-5.0-bugteam
+        timestamp: Mon 2010-11-29 17:30:07 +0200
+        message:
+          Fixed a pb2 issue with not finding the test dirs.
+    ------------------------------------------------------------
+    revno: 2877.2.1
+    committer: Christopher Powers <chris.powers@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Mon 2010-11-29 18:51:46 -0600
+    message:
+      Bug#35333, "If Federated table can't connect to remote host, can't retrieve metadata"
+      
+      Improved error handling such that queries against Information_Schema.Tables won't
+      fail if a Federated table is unable to connect to remote host.
+------------------------------------------------------------
+revno: 2894 [merge]
+committer: Martin Hansson <martin.hansson@oracle.com>
+branch nick: 5.0s
+timestamp: Thu 2010-12-16 10:37:05 +0100
+message:
+  Merge.
+    ------------------------------------------------------------
+    revno: 2892.1.1
+    committer: Alexander Nozdrin <alexander.nozdrin@oracle.com>
+    branch nick: mysql-5.0-security-bug57952
+    timestamp: Wed 2010-12-15 19:00:01 +0300
+    message:
+      Patch for Bug#57952 (privilege change is not taken into account by EXECUTE).
+      
+      The user-visible problem was that changes to column-level privileges,
+      happened in between of PREPARE and EXECUTE of a prepared statement, were
+      neglected. I.e. a prepared statement could be executed with the
+      column-level privileges as of PREPARE-time. The problem existed for
+      column-level privileges only.
+      
+      A similar problem existed for stored programs: the changes between
+      executions didn't have an effect.
+      
+      Technically the thing is that table references are cached in
+      Prepared_statement::prepare() call. In subsequent
+      Prepared_statement::execute() calls those cached values are used.
+      There are two functions to get a field by name: find_field_in_table() and
+      find_field_in_table_ref(). On prepare-phase find_field_in_table_ref() is
+      called, on execute-phase -- find_field_in_table() because the table is
+      cached. find_field_in_table() does not check column-level privileges and
+      expects the caller to do that. The problem was that this check was
+      forgotten.
+      
+      The fix is to check them there as it happens in find_field_in_table_ref().
+------------------------------------------------------------
+revno: 2893
+committer: Martin Hansson <martin.hansson@oracle.com>
+branch nick: 5.0s
+timestamp: Thu 2010-12-16 10:07:48 +0100
+message:
+  Bug#54568: create view cause Assertion failed: 0, 
+  file .\item_subselect.cc, line 836
+       
+  IN quantified predicates are never executed directly. They are rather wrapped
+  inside nodes called IN Optimizers (Item_in_optimizer) which take care of the
+  execution. However, this is not done during query preparation. Unfortunately
+  the LIKE predicate pre-evaluates constant right-hand side arguments even
+  during name resolution. Likely this is meant as an optimization.
+        
+  Fixed by not pre-evaluating LIKE arguments in view prepare mode.
+  
+  Back-ported to 5.0s
+------------------------------------------------------------
+revno: 2892
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: B55826-5.0-security
+timestamp: Wed 2010-12-08 16:05:26 +0200
+message:
+  Backport of the 5.1 fix for bug #55826 to 5.0
+------------------------------------------------------------
+revno: 2891
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: B55564-5.0-security
+timestamp: Fri 2010-12-03 16:56:36 +0200
+message:
+  Backport of bug #55564 to 5.0-security
+------------------------------------------------------------
+revno: 2890
+committer: Gleb Shchepa <gleb.shchepa@oracle.com>
+branch nick: mysql-5.0-security
+timestamp: Wed 2010-11-24 23:03:16 +0300
+message:
+  backport of bug #54461 from 5.1-security to 5.0-security
+  
+   > revision-id: gshchepa@mysql.com-20100801181236-uyuq6ewaq43rw780
+   > parent: alexey.kopytov@sun.com-20100723115254-jjwmhq97b9wl932l
+   > committer: Gleb Shchepa <gshchepa@mysql.com>
+   > branch nick: mysql-5.1-security
+   > timestamp: Sun 2010-08-01 22:12:36 +0400
+   > Bug #54461: crash with longblob and union or update with subquery
+   >
+   > Queries may crash, if
+   >   1) the GREATEST or the LEAST function has a mixed list of
+   >      numeric and LONGBLOB arguments and
+   >   2) the result of such a function goes through an intermediate
+   >      temporary table.
+   >
+   > An Item that references a LONGBLOB field has max_length of
+   > UINT_MAX32 == (2^32 - 1).
+   >
+   > The current implementation of GREATEST/LEAST returns REAL
+   > result for a mixed list of numeric and string arguments (that
+   > contradicts with the current documentation, this contradiction
+   > was discussed and it was decided to update the documentation).
+   >
+   > The max_length of such a function call was calculated as a
+   > maximum of argument max_length values (i.e. UINT_MAX32).
+   >
+   > That max_length value of UINT_MAX32 was used as a length for
+   > the intermediate temporary table Field_double to hold
+   > GREATEST/LEAST function result.
+   >
+   > The Field_double::val_str() method call on that field
+   > allocates a String value.
+   >
+   > Since an allocation of String reserves an additional byte
+   > for a zero-termination, the size of String buffer was
+   > set to (UINT_MAX32 + 1), that caused an integer overflow:
+   > actually, an empty buffer of size 0 was allocated.
+   >
+   > An initialization of the "first" byte of that zero-size
+   > buffer with '\0' caused a crash.
+   >
+   > The Item_func_min_max::fix_length_and_dec() has been
+   > modified to calculate max_length for the REAL result like
+   > we do it for arithmetical operators.
+------------------------------------------------------------
+revno: 2889
+committer: Alexander Nozdrin <alexander.nozdrin@oracle.com>
+branch nick: mysql-5.0-security
+timestamp: Wed 2010-11-24 16:12:23 +0300
+message:
+  A follow-up for Bug#58339 (Replace Server GPL README file).
+  Fix formatting issues in README file.
+------------------------------------------------------------
+revno: 2888 [merge]
+committer: Alexander Nozdrin <alexander.nozdrin@oracle.com>
+branch nick: mysql-5.0-security
+timestamp: Wed 2010-11-24 13:40:32 +0300
+message:
+  Merge from mysql-5.0-bugteam.
+    ------------------------------------------------------------
+    revno: 2877.1.13
+    committer: Alexander Nozdrin <alexander.nozdrin@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Wed 2010-11-24 12:53:39 +0300
+    message:
+      A follow-up for Bug#58340 (Remove Server GPL EXCEPTIONS-CLIENT file) -- remove all
+      EXCEPTIONS-CLIENT from all the places.
+------------------------------------------------------------
+revno: 2887 [merge]
+committer: Ramil Kalimullin <ramil@mysql.com>
+branch nick: mysql-5.0-security
+timestamp: Tue 2010-11-23 15:26:07 +0300
+message:
+  Auto-merge with mysql-5.0-bugteam.
+    ------------------------------------------------------------
+    revno: 2877.1.12
+    committer: Alexander Nozdrin <alexander.nozdrin@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Mon 2010-11-22 16:27:49 +0300
+    message:
+      Patch for Bug#58340 (Remove Server GPL EXCEPTIONS-CLIENT file).
+    ------------------------------------------------------------
+    revno: 2877.1.11
+    committer: Alexander Nozdrin <alexander.nozdrin@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Mon 2010-11-22 16:25:50 +0300
+    message:
+      Patch for Bug#58339 (Replace Server GPL README file).
+------------------------------------------------------------
+revno: 2886
+committer: Gleb Shchepa <gleb.shchepa@oracle.com>
+branch nick: mysql-5.0-security
+timestamp: Tue 2010-11-23 00:29:47 +0300
+message:
+  backport: Bug #55568 from 5.1-security to 5.0-security
+  
+  > revision-id: alexey.kopytov@sun.com-20100824103548-ikm79qlfrvggyj9h
+  > parent: sunny.bains@oracle.com-20100816001222-xqc447tr6jwh8c53
+  > committer: Alexey Kopytov <Alexey.Kopytov@Sun.com>
+  > branch nick: 5.1-security
+  > timestamp: Tue 2010-08-24 14:35:48 +0400
+  > message:
+  >   Bug #55568: user variable assignments crash server when used
+  >               within query
+  >   
+  >   The server could crash after materializing a derived table
+  >   which requires a temporary table for grouping.
+  >   
+  >   When destroying the temporary table used to execute a query for
+  >   a derived table, JOIN::destroy() did not clean up Item_fields
+  >   pointing to fields in the temporary table. This led to
+  >   dereferencing a dangling pointer when printing out the items
+  >   tree later in the outer SELECT.
+  >   
+  >   The solution is an addendum to the patch for bug37362: in
+  >   addition to cleaning up items in tmp_all_fields3, do the same
+  >   for items in tmp_all_fields1, since now we have an example
+  >   where this is necessary.
+------------------------------------------------------------
+revno: 2885
+committer: Sergey Glukhov <sergey.glukhov@oracle.com>
+branch nick: mysql-5.0-security
+timestamp: Mon 2010-11-08 13:51:39 +0300
+message:
+  Bug#52711 Segfault when doing EXPLAIN SELECT with union...order by (select... where...)
+  backport from 5.1
+------------------------------------------------------------
+revno: 2884
+committer: Sergey Glukhov <sergey.glukhov@oracle.com>
+branch nick: mysql-5.0-security
+timestamp: Mon 2010-11-08 13:34:27 +0300
+message:
+  Fix for bug #54575: crash when joining tables with unique set column(backport from 5.1)
+  
+  Problem: a flaw (derefencing a NULL pointer) in the LIKE optimization
+  code may lead to a server crash in some rare cases.
+  
+  Fix: check the pointer before its dereferencing.
+------------------------------------------------------------
+revno: 2883 [merge]
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-security
+timestamp: Fri 2010-10-29 13:05:24 +0300
+message:
+  merge to 5.0-security
+    ------------------------------------------------------------
+    revno: 2877.1.10
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Tue 2010-10-05 17:05:37 +0300
+    message:
+      Bug #56428: Replace copyright notice removed from SHA1 code (.h)
+    ------------------------------------------------------------
+    revno: 2877.1.9
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Tue 2010-10-05 17:03:04 +0300
+    message:
+      Bug #56427 : Replace copyright notice removed from SHA1 code
+    ------------------------------------------------------------
+    revno: 2877.1.8
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Tue 2010-10-05 11:03:14 +0300
+    message:
+      Disable NDB tests to run by default.
+    ------------------------------------------------------------
+    revno: 2877.1.7 [merge]
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Tue 2010-10-05 10:25:19 +0300
+    message:
+      merge
+------------------------------------------------------------
+revno: 2882 [merge]
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-security
+timestamp: Fri 2010-08-20 14:45:08 +0300
+message:
+  merge
+    ------------------------------------------------------------
+    revno: 2877.1.6 [merge]
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Fri 2010-08-20 12:05:31 +0300
+    message:
+      merge
+        ------------------------------------------------------------
+        revno: 2881.1.1
+        committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+        branch nick: merge-5.0-security
+        timestamp: Mon 2010-08-02 10:48:24 +0300
+        message:
+          tree name update
+    ------------------------------------------------------------
+    revno: 2877.1.5
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: B55809-5.0-bugteam
+    timestamp: Tue 2010-08-10 16:32:45 +0300
+    message:
+      Bug #55809: Server README not current
+      
+      Updated the README file.
+------------------------------------------------------------
+revno: 2881 [merge]
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-security
+timestamp: Mon 2010-08-02 10:45:43 +0300
+message:
+  merge
+    ------------------------------------------------------------
+    revno: 2877.1.4
+    committer: Davi Arnaut <davi.arnaut@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Fri 2010-07-30 09:34:40 -0300
+    message:
+      Bug#54041: MySQL 5.0.92 fails when tests from Connector/C suite run
+      
+      Fix a regression (due to a typo) which caused spurious incorrect
+      argument errors for long data stream parameters if all forms of
+      logging were disabled (binary, general and slow logs).
+------------------------------------------------------------
+revno: 2880 [merge]
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-security
+timestamp: Wed 2010-07-21 18:49:24 +0300
+message:
+  merge
+    ------------------------------------------------------------
+    revno: 2877.1.3 [merge]
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Wed 2010-07-21 18:31:28 +0300
+    message:
+      merge
+    ------------------------------------------------------------
+    revno: 2877.1.2
+    committer: Alexey Kopytov <Alexey.Kopytov@sun.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Thu 2010-07-15 10:10:16 +0400
+    message:
+      Backport of the fix for bug#25421 to 5.0.
+      
+      Calculating the estimated number of records for a range scan
+      may take a significant time, and it was impossible for a user
+      to interrupt that process by killing the connection or the
+      query.
+      
+      Fixed by checking the thread's 'killed' status in
+      check_quick_keys() and interrupting the calculation process if
+      it is set to a non-zero value.
+    ------------------------------------------------------------
+    revno: 2877.1.1
+    committer: Vasil Dimov <vasil.dimov@oracle.com>
+    branch nick: mysql-5.0-bugteam
+    timestamp: Wed 2010-07-07 20:13:53 +0300
+    message:
+      Merge the fix for Bug#49238 from SVN
+      (without the unrelated whitespace changes):
+      
+        ------------------------------------------------------------------------
+        r7009 | jyang | 2010-04-29 20:44:56 +0300 (Thu, 29 Apr 2010) | 6 lines
+        
+        branches/5.0: Port fix for bug #49238 (Creating/Dropping a temporary
+        table while at 1023 transactions will cause assert) from 5.1 to
+        branches/5.1. Separate action for return value DB_TOO_MANY_CONCURRENT_TRXS
+        from that of DB_MUST_GET_MORE_FILE_SPACE in row_drop_table_for_mysql().
+        
+        
+        ------------------------------------------------------------------------
+------------------------------------------------------------
+revno: 2879
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-bugteam
+timestamp: Fri 2010-07-02 14:33:17 +0300
+message:
+  merge
+------------------------------------------------------------
+revno: 2878 [merge]
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-bugteam
+timestamp: Fri 2010-07-02 14:29:19 +0300
+message:
+  merge
+    ------------------------------------------------------------
+    revno: 2875.1.2
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: mysql-5.0-security
+    timestamp: Mon 2010-06-21 14:09:23 +0300
+    message:
+      tree name change
+    ------------------------------------------------------------
+    revno: 2875.1.1
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: mysql-5.0-security
+    timestamp: Mon 2010-06-21 14:06:14 +0300
+    message:
+      Switched the mailing lists
+------------------------------------------------------------
+revno: 2877 [merge]
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: merge-5.0-bugteam
+timestamp: Fri 2010-07-02 14:21:48 +0300
+message:
+  merge
+    ------------------------------------------------------------
+    revno: 2866.1.1
+    committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+    branch nick: merge-5.0-bugteam
+    timestamp: Wed 2010-06-02 11:42:37 +0300
+    message:
+      changed the tree name
+------------------------------------------------------------
+revno: 2876
+committer: Davi Arnaut <Davi.Arnaut@Sun.COM>
+branch nick: 54041-5.0
+timestamp: Mon 2010-06-28 12:21:28 -0300
+message:
+  Bug#54041: MySQL 5.0.92 fails when tests from Connector/C suite run
+  
+  The problem was that a user could supply supply data in chunks
+  via the COM_STMT_SEND_LONG_DATA command to prepared statement
+  parameter other than of type TEXT or BLOB. This posed a problem
+  since other parameter types aren't setup to handle long data,
+  which would lead to a crash when attempting to use the supplied
+  data.
+  
+  Given that long data can be supplied at any stage of a prepared
+  statement, coupled with the fact that the type of a parameter
+  marker might change between consecutive executions, the solution
+  is to validate at execution time each parameter marker for which
+  a data stream was provided. If the parameter type is not TEXT or
+  BLOB (that is, if the type is not able to handle a data stream),
+  a error is returned.
+------------------------------------------------------------
+revno: 2875
+committer: Joerg Bruehe <joerg@mysql.com>
+branch nick: bug54590-5.0
+timestamp: Thu 2010-06-17 19:47:38 +0200
+message:
+  Bug#54590  "make_binary_distribution" fails because a command
+             line exceeds the limit
+  
+  The number and/or names of our files for the main test suite
+  (contents of "mysql-test/t/") now exceeds the command line
+  length limit on AIX.
+  Solve the problem by using separate "cp" commands for the
+  various file name extensions.
+------------------------------------------------------------
+revno: 2874
+committer: Bjorn Munch <Bjorn.Munch@sun.com>
+branch nick: interr-50
+timestamp: Tue 2010-06-15 11:00:02 +0200
+message:
+  Bug #53424 Certain combination of flags give internal error
+  Reorder code breaks when finding tests skipped due to --skip-rpl etc.
+  Add simple test that master_opt is non-empty
+------------------------------------------------------------
+revno: 2873
+committer: Bjorn Munch <Bjorn.Munch@sun.com>
+branch nick: stray-50
+timestamp: Mon 2010-06-14 11:26:42 +0200
+message:
+  Bug #46882 Suite timeout doesn't kill stray processes
+  Kill mysqltest and call mtr_kill_leftovers() before terminating
+------------------------------------------------------------
+revno: 2872
+committer: Davi Arnaut <Davi.Arnaut@Sun.COM>
+branch nick: 34236-5.0
+timestamp: Wed 2010-06-09 21:30:41 -0300
+message:
+  Bug#34236: Various possibly related SSL crashes
+  
+  Addendum: Work around a compilation failure on Windows due to
+            windows.h not being added to the global namespace.
+------------------------------------------------------------
+revno: 2871
+committer: Davi Arnaut <Davi.Arnaut@Sun.COM>
+branch nick: 34236-5.0
+timestamp: Tue 2010-06-08 16:20:54 -0300
+message:
+  Bug#53906: Stray semicolon in my_sys.h corrupts macro function definition of MY_INIT
+------------------------------------------------------------
+revno: 2870
+committer: Davi Arnaut <Davi.Arnaut@Sun.COM>
+branch nick: 34236-5.0
+timestamp: Tue 2010-06-08 10:36:47 -0300
+message:
+  Bug#34236: Various possibly related SSL crashes
+  
+  The problem was that the bundled yaSSL library was being built
+  without thread safety support regardless of the thread safeness
+  of the compoments linked with it.
+  
+  The solution is to enable yaSSL thread safety support if any
+  component (server or client) is to be built with thread support.
+  
+  Also, generate new certificates for yaSSL's test suite.
+------------------------------------------------------------
+revno: 2869
+committer: Sergey Glukhov <Sergey.Glukhov@sun.com>
+branch nick: mysql-5.0-bugteam
+timestamp: Tue 2010-06-08 10:22:40 +0400
+message:
+  Bug#53933 crash when using uncacheable subquery in the having clause of outer query
+  The problem is in the Item_func_isnull::update_used_tables() function,
+  bracket is at the wrong place. Because of that isnull item erroneously
+  is treated as const item. The fix is to set brackets in the right place.
+------------------------------------------------------------
+revno: 2868
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: fix-5.0-bugteam
+timestamp: Mon 2010-06-07 12:49:52 +0300
+message:
+  Addendum to the fix for bug #52315: need to set a proper shutdown type
+  when an out-of-supported-range date is detected.
+------------------------------------------------------------
+revno: 2867
+committer: Georgi Kodinov <Georgi.Kodinov@Oracle.com>
+branch nick: B52315-5.0-bugteam
+timestamp: Fri 2010-06-04 16:21:19 +0300
+message:
+  Bug #52315: utc_date() crashes when system time > year 2037
+              
+  Some of the server implementations don't support dates later
+  than 2038 due to the internal time type being 32 bit.
+  Added checks so that the server will refuse dates that cannot
+  be handled by either throwing an error when setting date at 
+  runtime or by refusing to start or shutting down the server if 
+  the system date cannot be stored in my_time_t.
+------------------------------------------------------------
+revno: 2866 [merge]
+committer: Georgi Kodinov <joro@sun.com>
+branch nick: merge-5.0-bugteam
+timestamp: Tue 2010-06-01 14:28:58 +0300
+message:
+  merged mysql-5.0 to mysql-5.0-bugteam
+    ------------------------------------------------------------
+    revno: 2861.1.3 [merge]
+    author: joerg.bruehe@sun.com
+    committer: MySQL Build Team<build@mysql.com>
+    branch nick: mysql-5.0
+    timestamp: Wed 2010-05-19 20:02:53 +0200
+    message:
+      Merge from mysql-5.0.91-release
+        ------------------------------------------------------------
+        revno: 2860.2.1
+        tags: mysql-5.0.91
+        committer: Sunanda Menon <sunanda.menon@sun.com
+        branch nick: mysql-5.0.91-release
+        timestamp: Wed 2010-05-05 15:33:46 +0200
+        message:
+          ------------------------------------------------------------
+          revno: 2861
+          committer: Georgi Kodinov <joro@sun.com>
+          branch nick: B53371-5.0-bugteam
+          timestamp: Mon 2010-05-03 18:16:51 +0300
+          message:
+            Bug #53371: COM_FIELD_LIST can be abused to bypass table level grants.
+            
+            The server was not checking the supplied to COM_FIELD_LIST table name
+            for validity and compliance to acceptable table names standards.
+            Fixed by checking the table name for compliance similar to how it's 
+            normally checked by the parser and returning an error message if 
+            it's not compliant.

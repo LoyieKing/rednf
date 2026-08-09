@@ -10,6 +10,6 @@
 class Packet_MiniCraneSeed : public PacketHeader {
 public:
     Packet_MiniCraneSeed() : PacketHeader(0x27f8, 0xe){};
-};
+} __attribute__((packed));
 
 #endif  // PACKET_MINICRANESEED_H
