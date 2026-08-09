@@ -1,6 +1,6 @@
-// Auto-generated header stub from DWARF info
-// Original path: inc/blowfish.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// CBlowFish -- 标准 Blowfish（CBC/ECB）
+// 布局：m_oChain0(0)/m_oChain(8)/m_pdwAuiP[18](0x10)/m_pdwAuiS[4][256](0x58)
+// m_pSys(0x1058)/m_pLocal(0x105c)，sizeof 0x1060。
 #ifndef SECSVR_INC_BLOWFISH_H_H_
 #define SECSVR_INC_BLOWFISH_H_H_
 
@@ -11,17 +11,21 @@ struct CBlowFish { // line 7
     public:
     unsigned int m_uil;
     unsigned int m_uir;
-    SBlock(unsigned int arg0, unsigned int arg1); // line 12
-    SBlock(const CBlowFish::SBlock &arg0); // line 13
-    CBlowFish::SBlock & operator^=(CBlowFish::SBlock &arg0); // line 14
+    SBlock(unsigned int arg0, unsigned int arg1) : m_uil(arg0), m_uir(arg1) {} // line 12
+    SBlock(const CBlowFish::SBlock &arg0) : m_uil(arg0.m_uil), m_uir(arg0.m_uir) {} // line 13
+    CBlowFish::SBlock & operator^=(CBlowFish::SBlock &arg0) {
+        m_uil ^= arg0.m_uil;
+        m_uir ^= arg0.m_uir;
+        return *this;
+    } // line 14
     };
 private:
 static const unsigned int FUCKING_M_PDWINITP[];
-static const unsigned int FUCKING_M_PDWINITS[][];
+static const unsigned int FUCKING_M_PDWINITS[4][256];
 CBlowFish::SBlock m_oChain0;
 CBlowFish::SBlock m_oChain;
-unsigned int m_pdwAuiP[];
-unsigned int m_pdwAuiS[][];
+unsigned int m_pdwAuiP[18];
+unsigned int m_pdwAuiS[4][256];
 void *m_pSys;
 void *m_pLocal;
 public:
@@ -45,17 +49,6 @@ void BytesToBlock(unsigned char *arg0, CBlowFish::SBlock &arg1); // line 72
 void BlockToBytes(CBlowFish::SBlock &arg0, unsigned char *arg1); // line 73
 };
 extern const unsigned int FUCKING_M_PDWINITP[]; // line 58
-extern const unsigned int FUCKING_M_PDWINITS[][]; // line 60
-namespace CBlowFish {
-    // sizeof = 8
-    struct SBlock { // line 11
-    public:
-    unsigned int m_uil;
-    unsigned int m_uir;
-    SBlock(unsigned int arg0, unsigned int arg1); // line 12
-    SBlock(const CBlowFish::SBlock &arg0); // line 13
-    CBlowFish::SBlock & operator^=(CBlowFish::SBlock &arg0); // line 14
-    };
-} // namespace CBlowFish
+extern const unsigned int FUCKING_M_PDWINITS[4][256]; // line 60
 
 #endif // SECSVR_INC_BLOWFISH_H_H_
