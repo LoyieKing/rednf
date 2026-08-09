@@ -19,7 +19,7 @@ dnf_secsvr/
 │   └── df_game_secsvr_dbmw_basic_info.md  # game/secsvr/dbmw 基本信息（副本，含三件套指标）
 ├── build_recon/               # 重建的原始构建树骨架（目录 + 节点说明，无源码副本）
 ├── third_party/               # 三方库：rapidxml 1.13 / mysql 5.0.92（开源）+ tsf4g/tencrypt 复刻
-├── tencrypt_new/              # 闭源加密库复刻（哈希族 11/11 + 对称族 24 个已逐字节验证）
+├── tencrypt_new/              # 闭源加密库复刻（哈希族 11/11 + 对称族 25 个已逐字节验证）
 ├── source/                    # DWARF 桩源码（文件镜像 + 类型信息 + 参数/变量名，函数体为空）
 │   ├── gunnersvr/
 │   ├── zergsvr/
