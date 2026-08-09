@@ -80,6 +80,7 @@
 | desmo.cpp | CDesMo | Baldwin 式单函数 DES：pc1m/pcrn 置换 + 8 轮 nibble 旋转 + 最终散布 | mo_crypt 加解密与二进制逐字节一致 |
 | fastdes.cpp | CFastDes | Eric Young 老版 libdes “fast” DES：fsetkey PC1 查表+28 位轮转+7 组 hKS/lKS PC2；fencrypt IP/16 轮 D_ENCRYPT/FP | fsetkey/fencrypt 与二进制逐字节一致 |
 | desdea.cpp | DesDea / des_sched / des_dea3 | **3DES-EDE2（16 字节密钥）**：des_sched=dea_pc1 查表 OR 出两个 32 位状态 → 28 位右旋（dea_ls 1/1/2/2/.../1）→ 每轮 8 字节查 dea_pc2 合成 8 字节轮子钥（小端写）；des_dea3=48 轮展开（E_K1→swap→D_K2→swap→E_K1，解密镜像），IP 用 dea_ip、SP 用 s_and_p（idx0=(R<<1)&0x3e，R bit31 置位时 |1）、FP 用 ip_inv（输入 R LE++L LE）；**坑：段边界 L/R 交换（swap），非单链直续**；DesDea 包装 des_sched(key)+des_sched(key+8) → 8 字节块循环 des_dea3 → TsLocal 余数 | des_sched/des_dea3/DesDea 与二进制逐字节一致（C++ 交叉 100 组 x2）；往返闭环 |
+| amoeba.cpp | CAmoeba | 自定义 64 位位级密码：Init 惰性分配 amobbit（多比特掩码 {0x81,0x40,0x22,...}）/amobb/amoIP 三表；amoKey=按 amoIP 位号从 key 提 64 位（key[amoIP[i]>>3] & amobbit[amoIP[i]&7]）；amoEnCrypt/amoDeCrypt=IP 位提取 → 8 轮（加密密钥 1..8、位 6..0 再 7；解密镜像 8..1、位 0..6 再 7），每轮按密钥位选 SET/CLEAR 块（字节旋转 + NOT 扩散 + 交叉），bit7 另有特殊/普通块；**坑：SET/CLEAR 字节起始=8*b、交叉目标=CLEAR 时 B+7、解密扩散循环含 eax=0**；Amoeba 包装 amoKey 生成 Add → 8 字节块循环（Add 作块密钥）→ TsLocal 余数 | amoKey/amoEnCrypt/amoDeCrypt/Amoeba 与二进制逐字节一致（C++ 交叉 100 组 x2）；往返闭环 |
 
 ### DES 还原要点（Applied Cryptography 附录 B）
 
