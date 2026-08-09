@@ -334,3 +334,11 @@ CNsea::CNsea() {
 CNsea::~CNsea() {
     UnInit();
 }
+
+// mangled: _Z7TenNseaPhbS_j
+void TenNsea(unsigned char *key, bool benc, unsigned char *buf,
+             unsigned int buflen) {
+    CNsea nsea;
+
+    nsea.Nsea(key, benc, buf, buflen);
+}

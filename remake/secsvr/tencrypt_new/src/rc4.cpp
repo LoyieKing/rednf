@@ -87,3 +87,11 @@ CRc4::CRc4() {
 CRc4::~CRc4() {
     UnInit();
 }
+
+// mangled: _Z6TenRc4PhbS_j
+void TenRc4(unsigned char *key, bool benc, unsigned char *buf,
+            unsigned int buflen) {
+    CRc4 rc4;
+
+    rc4.Rc4(key, benc, buf, buflen);
+}

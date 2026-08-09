@@ -141,3 +141,11 @@ CGost::CGost() {
 CGost::~CGost() {
     UnInit();
 }
+
+// mangled: _Z7TenGostPhbS_j
+void TenGost(unsigned char *key, bool benc, unsigned char *buf,
+             unsigned int buflen) {
+    CGost gost;
+
+    gost.Gost(key, benc, buf, buflen);
+}

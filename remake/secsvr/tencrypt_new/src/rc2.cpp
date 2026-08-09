@@ -192,3 +192,11 @@ CRc2::CRc2() {
 CRc2::~CRc2() {
     UnInit();
 }
+
+// mangled: _Z6TenRc2PhbS_j
+void TenRc2(unsigned char *key, bool benc, unsigned char *buf,
+            unsigned int buflen) {
+    CRc2 rc2;
+
+    rc2.Rc2(key, benc, buf, buflen);
+}

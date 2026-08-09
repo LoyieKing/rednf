@@ -170,3 +170,11 @@ CRc6::CRc6() {
 CRc6::~CRc6() {
     UnInit();
 }
+
+// mangled: _Z6TenRc6PhbS_j
+void TenRc6(unsigned char *key, bool benc, unsigned char *buf,
+            unsigned int buflen) {
+    CRc6 rc6;
+
+    rc6.Rc6(key, benc, buf, buflen);
+}

@@ -299,3 +299,11 @@ CSafer::CSafer() {
 CSafer::~CSafer() {
     UnInit();
 }
+
+// mangled: _Z8TenSaferPhbS_j
+void TenSafer(unsigned char *key, bool benc, unsigned char *buf,
+              unsigned int buflen) {
+    CSafer safer;
+
+    safer.Safer(key, benc, buf, buflen);
+}

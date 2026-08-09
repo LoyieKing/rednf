@@ -193,3 +193,11 @@ CMmb::CMmb() {
 CMmb::~CMmb() {
     UnInit();
 }
+
+// mangled: _Z6TenMmbPhbS_j
+void TenMmb(unsigned char *key, bool benc, unsigned char *buf,
+            unsigned int buflen) {
+    CMmb mmb;
+
+    mmb.Mmb(key, benc, buf, buflen);
+}

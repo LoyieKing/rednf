@@ -253,3 +253,11 @@ CFeal8::CFeal8() {
 CFeal8::~CFeal8() {
     UnInit();
 }
+
+// mangled: _Z8TenFeal8PhbS_j
+void TenFeal8(unsigned char *key, bool benc, unsigned char *buf,
+              unsigned int buflen) {
+    CFeal8 feal8;
+
+    feal8.Feal8(key, benc, buf, buflen);
+}

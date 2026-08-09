@@ -323,3 +323,11 @@ CDES::CDES() {
 CDES::~CDES() {
     UnInit();
 }
+
+// mangled: _Z6TenDesPhbS_j
+void TenDes(unsigned char *key, bool benc, unsigned char *buf,
+            unsigned int buflen) {
+    CDES des;
+
+    des.Des(key, benc, buf, buflen);
+}

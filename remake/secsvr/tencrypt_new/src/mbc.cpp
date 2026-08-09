@@ -288,3 +288,11 @@ CMbc::CMbc() {
 CMbc::~CMbc() {
     UnInit();
 }
+
+// mangled: _Z6TenMbcPhbS_j
+void TenMbc(unsigned char *key, bool benc, unsigned char *buf,
+            unsigned int buflen) {
+    CMbc mbc;
+
+    mbc.Mbc(key, benc, buf, buflen);
+}

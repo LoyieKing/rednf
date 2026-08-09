@@ -271,3 +271,11 @@ CIdea::CIdea() {
 CIdea::~CIdea() {
     UnInit();
 }
+
+// mangled: _Z7TenIdeaPhbS_j
+void TenIdea(unsigned char *key, bool benc, unsigned char *buf,
+             unsigned int buflen) {
+    CIdea idea;
+
+    idea.Idea(key, benc, buf, buflen);
+}

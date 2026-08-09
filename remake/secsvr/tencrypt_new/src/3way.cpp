@@ -94,7 +94,7 @@ void CThreeWay::rndcon_gen(unsigned int strt, unsigned int *rtab) {
 }
 
 // mangled: _ZN9CThreeWay7EncryptEPjS0_
-void CThreeWay::Encrypt(unsigned int *a, unsigned int *k) {
+void CThreeWay::Encrypt(unsigned int *k, unsigned int *a) {
     int i;
     unsigned int rcon[NMBR + 1];
 
@@ -112,7 +112,7 @@ void CThreeWay::Encrypt(unsigned int *a, unsigned int *k) {
 }
 
 // mangled: _ZN9CThreeWay7DecryptEPjS0_
-void CThreeWay::Decrypt(unsigned int *a, unsigned int *k) {
+void CThreeWay::Decrypt(unsigned int *k, unsigned int *a) {
     int i;
     unsigned int ki[3];
     unsigned int rcon[NMBR + 1];
@@ -174,4 +174,12 @@ CThreeWay::CThreeWay() {
 // mangled: _ZN9CThreeWayD1Ev / _ZN9CThreeWayD2Ev
 CThreeWay::~CThreeWay() {
     UnInit();
+}
+
+// mangled: _Z11TenThreeWayPhbS_j
+void TenThreeWay(unsigned char *key, bool benc, unsigned char *buf,
+                 unsigned int buflen) {
+    CThreeWay threeway;
+
+    threeway.ThreeWay(key, benc, buf, buflen);
 }

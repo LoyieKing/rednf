@@ -257,3 +257,11 @@ CLoki91::CLoki91() {
 CLoki91::~CLoki91() {
     UnInit();
 }
+
+// mangled: _Z9TenLoki91PhbS_j
+void TenLoki91(unsigned char *key, bool benc, unsigned char *buf,
+               unsigned int buflen) {
+    CLoki91 loki91;
+
+    loki91.Loki91(key, benc, buf, buflen);
+}

@@ -243,3 +243,11 @@ CCast::CCast() {
 CCast::~CCast() {
     UnInit();
 }
+
+// mangled: _Z7TenCastPhbS_j
+void TenCast(unsigned char *key, bool benc, unsigned char *buf,
+             unsigned int buflen) {
+    CCast cast;
+
+    cast.Cast(key, benc, buf, buflen);
+}

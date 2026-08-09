@@ -70,3 +70,11 @@ CTean::CTean() {
 CTean::~CTean() {
     UnInit();
 }
+
+// mangled: _Z7TenTeanPhbS_j
+void TenTean(unsigned char *key, bool benc, unsigned char *buf,
+             unsigned int buflen) {
+    CTean tean;
+
+    tean.Tean(key, benc, buf, buflen);
+}

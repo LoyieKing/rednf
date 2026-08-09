@@ -119,3 +119,11 @@ CRc5::CRc5() {
 CRc5::~CRc5() {
     UnInit();
 }
+
+// mangled: _Z6TenRc5PhbS_j
+void TenRc5(unsigned char *key, bool benc, unsigned char *buf,
+            unsigned int buflen) {
+    CRc5 rc5;
+
+    rc5.Rc5(key, benc, buf, buflen);
+}
