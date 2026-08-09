@@ -71,15 +71,16 @@ void CTsLocalImp::ProcessLastBytes(unsigned char *key, bool benc,
                                    unsigned int buflen, unsigned int block,
                                    unsigned char *buf) {
     unsigned int rem = buflen & 7;
+    unsigned char *p = buf + (buflen & ~7U);
 
     switch (rem) {
-    case 1: BOX3D1(key, buflen, benc, buf); break;
-    case 2: BOX3D2(key, buflen, benc, buf); break;
-    case 3: BOX3D3(key, buflen, benc, buf); break;
-    case 4: BOX3D4(key, buflen, benc, buf); break;
-    case 5: BOX3D5(key, buflen, benc, buf); break;
-    case 6: BOX3D6(key, buflen, benc, buf); break;
-    case 7: BOX3D7(key, buflen, benc, buf); break;
+    case 1: BOX3D1(key, block, benc, p); break;
+    case 2: BOX3D2(key, block, benc, p); break;
+    case 3: BOX3D3(key, block, benc, p); break;
+    case 4: BOX3D4(key, block, benc, p); break;
+    case 5: BOX3D5(key, block, benc, p); break;
+    case 6: BOX3D6(key, block, benc, p); break;
+    case 7: BOX3D7(key, block, benc, p); break;
     }
 }
 
