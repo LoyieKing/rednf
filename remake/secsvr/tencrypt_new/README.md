@@ -72,6 +72,7 @@
 | gramary.cpp | Gramary | 自定义块密码：gra_round 按 16 模式把 8 参数放入槽位后 s0|s1<<1|...|s7<<6|s6<<7（oracle 提取排列表）；gra_crypt 结构与 shiftCrypt 同构，主循环两次 gra_round（mode=key 低/高半字节，dec 反序） | gra_round 全 16 模式与 gra_crypt 逐字节一致 |
 | desnew.cpp | DesNew | 自定义 8 字节块密码：NF 256 字节 S 盒；encrypt 9 轮（密钥索引 +7 mod 15），out4..out0 密钥索引 r/(r+1)/.../(r+6) mod 15，si 初始 0 并依次切到 key[7]/key[8]/key[9]，r+4==15 退出；decrypt 镜像（r-7 mod 15，si=key[9]→key[8]→key[7]→0） | encrypt/decrypt 与加解密闭环逐字节一致（8 组随机向量） |
 | blowfish.cpp | Blowfish | 标准 Blowfish（P/S 初始表从二进制提取，与公版一致）；BlowFish8/16/24/32/56 为 8/16/24/32/56 字节密钥 + 8 字节块 ECB + TsLocal 余数；Encrypt/Decrypt flag0=ECB flag1=CBC(m_oChain) | BlowFish/块/包装层逐字节一致（6 组随机向量） |
+| d3des.cpp | D3DES 族 | 自实现三密钥 3DES 变体（非 libdes）：deskey=PC1→totrot→PC2+bigbyte[0..23]→cookey 掩码公式；desfunc=经验提取 IP/FP 置换 + 8 轮 R^=F(ror4(L),k0,k1) 交错；des3key 解密模式密钥顺序 (key+8,EN0)→(key,DE1)→(key+16,DE1)；D3des161/162=24 字节密钥 + 8/16 字节块 ECB + TsLocal 余数，D3des24=72 字节密钥 + 24 字节块；TenD3desN 包装 key 在前 | D3des 加解密 + TenD3des161/162/24 与二进制逐字节一致 |
 
 ### DES 还原要点（Applied Cryptography 附录 B）
 
