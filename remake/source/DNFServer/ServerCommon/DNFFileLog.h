@@ -108,6 +108,50 @@ public:
         DNF_LOG_SCOPE_LINE(line_all, logfile, msg "\n"); \
     }
 
+// 单 catch 变体：ORIG 部分 handler 只有 CDNFException 分支且文案无换行。
+#define DNF_CATCH_LOG_CDNF(logfile, msg, line_e) \
+    catch (CDNFException& e) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_e, logfile, msg " : %s", e.what()); \
+    }
+
+// 双日志文件 + 双消息变体：catch1 无换行、catch2 有换行，路径各自不同。
+#define DNF_CATCH_LOG2_NN(logfile_e, logfile_all, msg1, msg2, line_e, line_all) \
+    catch (CDNFException& e) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_e, logfile_e, msg1 " : %s", e.what()); \
+    } \
+    catch (...) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_all, logfile_all, msg2 "\n"); \
+    }
+
+// catch 带 return 0 变体（如 OnRequestIPCounterList 的 char 返回值路径）。
+#define DNF_CATCH_LOG_RET0(logfile, msg, line_e, line_all) \
+    catch (CDNFException& e) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_e, logfile, msg " : %s\n", e.what()); \
+        return 0; \
+    } \
+    catch (...) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_all, logfile, msg "\n"); \
+        return 0; \
+    }
+
+// rethrow 变体：CDNFException 先 printf 再 throw，catch-all 仅 puts 后 throw。
+#define DNF_CATCH_LOG_THROW(msg) \
+    catch (CDNFException& e) \
+    { \
+        printf(msg " : %s\n", e.what()); \
+        throw; \
+    } \
+    catch (...) \
+    { \
+        puts(msg "\n"); \
+        throw; \
+    }
+
 // 通用 try/catch 冗余：printf + 原样重抛家族。
 #define DNF_CATCH_RETHROW(msg) \
     catch (CDNFException& e) \
