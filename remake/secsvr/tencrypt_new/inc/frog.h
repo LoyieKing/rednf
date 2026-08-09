@@ -1,29 +1,27 @@
-// Auto-generated header stub from DWARF info
-// Original path: inc/frog.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// CFrog -- FROG 块密码（Michael Paul Johnson 公版）
+// 布局按 DWARF：seed* / ik_len / sim_key(key_str) / lkp* / m_pSys / m_pLocal
+// MakeKey 的形参 mangled 为 CFrog::key_str（PNS_7key_strE），内部 f_key 为匿名结构。
 #ifndef SECSVR_INC_FROG_H_H_
 #define SECSVR_INC_FROG_H_H_
 
 // sizeof = 4372
 struct CFrog { // line 7
     // sizeof = 288
-    struct ._31 {
-    public:
-    unsigned char k_xbu[];
-    unsigned char k_spu[];
-    unsigned char k_bpu[];
-    };
-    // sizeof = 4352
-    struct ._32 {
-    public:
-    CFrog::._31 f_key[];
-    unsigned char i_key[][];
+    struct key_str {
+        // f_key 元素（匿名结构，DWARF 名 CFrog::._31）
+        struct {
+        public:
+        unsigned char k_xbu[16];
+        unsigned char k_spu[256];
+        unsigned char k_bpu[16];
+        } f_key[8];
+        unsigned char i_key[8][256];
     };
 private:
 unsigned char *seed;
 unsigned int ik_len;
-CFrog::._32 sim_key;
-CFrog::._32 *lkp;
+key_str sim_key;
+key_str *lkp;
 void *m_pSys;
 void *m_pLocal;
 public:
@@ -37,29 +35,7 @@ void Decrypt(unsigned int *arg0, unsigned int *arg1); // line 32
 void Encrypt(unsigned int *arg0, unsigned int *arg1); // line 33
 void SetKey(unsigned int *arg0, unsigned int arg1); // line 35
 void MakePerm(unsigned char *arg0, unsigned int arg1); // line 37
-void MakeKey(CFrog::._32 *arg0); // line 38
+void MakeKey(key_str *arg0); // line 38
 };
-namespace CFrog {
-    // sizeof = 288
-    struct ._31 { // line 19
-    public:
-    unsigned char k_xbu[];
-    unsigned char k_spu[];
-    unsigned char k_bpu[];
-    };
-    // sizeof = 4352
-    struct ._32 { // line 26
-    public:
-    CFrog::._31 f_key[];
-    unsigned char i_key[][];
-    };
-    // sizeof = 288
-    struct ._30 { // line 19
-    public:
-    unsigned char k_xbu[];
-    unsigned char k_spu[];
-    unsigned char k_bpu[];
-    };
-} // namespace CFrog
 
 #endif // SECSVR_INC_FROG_H_H_

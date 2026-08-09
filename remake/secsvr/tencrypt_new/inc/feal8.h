@@ -7,8 +7,8 @@
 // sizeof = 88
 struct CFeal8 { // line 7
 private:
-static const unsigned char FUCKING_ROT2VAL[];
-unsigned int K[];
+static const unsigned char FUCKING_ROT2VAL[256];
+unsigned int K[16];
 unsigned int K89;
 unsigned int K1011;
 unsigned int K1213;
@@ -31,9 +31,8 @@ void DissQ1(unsigned int arg0, unsigned char *arg1); // line 22
 unsigned int FK(unsigned int arg0, unsigned int arg1); // line 23
 unsigned int f(unsigned int arg0, unsigned int arg1); // line 24
 unsigned char Rot2(unsigned char arg0); // line 25
-void InitRot2Value(); // line 26
 unsigned int MakeH1(unsigned char *arg0); // line 27
 };
-extern const unsigned char FUCKING_ROT2VAL[]; // line 30
+extern const unsigned char FUCKING_ROT2VAL[256]; // line 30
 
 #endif // SECSVR_INC_FEAL8_H_H_

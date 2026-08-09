@@ -13,8 +13,8 @@ static const unsigned int FUCKING_IM2[];
 static const unsigned int FUCKING_IM7[];
 static const unsigned int FUCKING_I4M[];
 static const unsigned int FUCKING_B_TAB[];
-unsigned int ll_key[];
-unsigned int t_key[];
+unsigned int ll_key[40];
+unsigned int t_key[15];
 void *m_pSys;
 void *m_pLocal;
 public:

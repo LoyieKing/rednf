@@ -1,14 +1,13 @@
-// Auto-generated header stub from DWARF info
-// Original path: inc/hpc.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// CHpc -- Hasty Pudding Cipher（AC 源码集 HPC/hpc.c）
+// 成员均为 Init 分配的堆指针（l_key=286*2 dword、spice=8*2、p119/e19/r220=2）。
 #ifndef SECSVR_INC_HPC_H_H_
 #define SECSVR_INC_HPC_H_H_
 
 // sizeof = 28
 struct CHpc { // line 7
 private:
-unsigned int *l_key[];
-unsigned int *spice[];
+unsigned int *l_key;
+unsigned int *spice;
 unsigned int *p119;
 unsigned int *e19;
 unsigned int *r220;

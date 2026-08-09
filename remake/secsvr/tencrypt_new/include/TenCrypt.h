@@ -48,6 +48,7 @@ extern void TenFeal8(unsigned char *key, bool benc, unsigned char *buf, unsigned
 extern void TenFrog(unsigned char *key, bool benc, unsigned char *buf, unsigned int buflen);
 extern void TenGene(unsigned char *key, bool benc, unsigned char *buf, unsigned int buflen);
 extern void TenGeneNew(unsigned char *key, bool benc, unsigned char *buf, unsigned int buflen);
+extern void GeneNew(unsigned char *key, bool benc, unsigned char *buf, unsigned int buflen);
 extern void TenGost(unsigned char *key, bool benc, unsigned char *buf, unsigned int buflen);
 extern void TenGramary(unsigned char *key, bool benc, unsigned char *buf, unsigned int buflen);
 extern void TenHpc(unsigned char *key, bool benc, unsigned char *buf, unsigned int buflen);
