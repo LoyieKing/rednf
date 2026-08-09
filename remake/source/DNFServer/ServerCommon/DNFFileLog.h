@@ -72,6 +72,42 @@ public:
         DNF_LOG_SCOPE_LINE(line_all, logfile, msg "\n"); \
     }
 
+// 无换行变体：原版部分 handler 的 Exception Break 文案不带 \n。
+#define DNF_CATCH_LOG_NN(logfile, msg, line_e, line_all) \
+    catch (CDNFException& e) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_e, logfile, msg " : %s", e.what()); \
+    } \
+    catch (...) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_all, logfile, msg); \
+    }
+
+// 双消息变体：原版部分 handler 的 CDNFException 消息缺 "()"（如
+// "OnQueryFirstLoadSpecDb Exception Break"），catch-all 却带 "()"。
+#define DNF_CATCH_LOG2(logfile, msg1, msg2, line_e, line_all) \
+    catch (CDNFException& e) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_e, logfile, msg1 " : %s\n", e.what()); \
+    } \
+    catch (...) \
+    { \
+        DNF_LOG_SCOPE_LINE(line_all, logfile, msg2 "\n"); \
+    }
+
+// printf + log 双写家族：CDNFException 先 printf 再写 Except 日志。
+#define DNF_CATCH_LOG_PRINTF(logfile, msg, line_e, line_all) \
+    catch (CDNFException& e) \
+    { \
+        printf(msg " : %s\n", e.what()); \
+        DNF_LOG_SCOPE_LINE(line_e, logfile, msg " : %s\n", e.what()); \
+    } \
+    catch (...) \
+    { \
+        puts(msg); \
+        DNF_LOG_SCOPE_LINE(line_all, logfile, msg "\n"); \
+    }
+
 // 通用 try/catch 冗余：printf + 原样重抛家族。
 #define DNF_CATCH_RETHROW(msg) \
     catch (CDNFException& e) \
