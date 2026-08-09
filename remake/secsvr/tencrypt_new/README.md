@@ -74,6 +74,12 @@
 | blowfish.cpp | Blowfish | 标准 Blowfish（P/S 初始表从二进制提取，与公版一致）；BlowFish8/16/24/32/56 为 8/16/24/32/56 字节密钥 + 8 字节块 ECB + TsLocal 余数；Encrypt/Decrypt flag0=ECB flag1=CBC(m_oChain) | BlowFish/块/包装层逐字节一致（6 组随机向量） |
 | d3des.cpp | D3DES 族 | 自实现三密钥 3DES 变体（非 libdes）：deskey=PC1→totrot→PC2+bigbyte[0..23]→cookey 掩码公式；desfunc=经验提取 IP/FP 置换 + 8 轮 R^=F(ror4(L),k0,k1) 交错；des3key 解密模式密钥顺序 (key+8,EN0)→(key,DE1)→(key+16,DE1)；D3des161/162=24 字节密钥 + 8/16 字节块 ECB + TsLocal 余数，D3des24=72 字节密钥 + 24 字节块；TenD3desN 包装 key 在前 | D3des 加解密 + TenD3des161/162/24 与二进制逐字节一致 |
 | desbig.cpp | CDesBig | 自定义大表 DES：des_ky=密钥逐位反转（nibble/字节/16 位三段交换）→28 位半密钥按 KS_TAB 右移 1/2 →8 个 6 位索引查 P2_TAB[8][64] 交叉拼 64 位轮子钥；F 轮 = ror4(x)^sk_hi / x^sk_lo 分 8 字节查 SX_TAB[8][256]（偶数组取 a 字节、奇数组取 t 字节）OR 合并；des_ec/des_dc=自定义 IP（非标准 DES，奇数位→X、偶数位→Y）→16 轮（dc 子钥逆序 sk15..sk0）→自定义 FP（先 ror2(B)）；des_ecm=无置换核心；X_{r+1}=F(X_r,sk_r)^X_{r-1}，输出 (X15,X16)；TenDesBig 包装 | des_ky/ec/dc/ecm 160 向量逐字节一致；往返闭环；TenDesBig 对齐块 24/24 |
+| des2p.cpp | CDes2p | libdes 位操作版（des_set_key/des_ecb_encrypt/des_set_odd_parity/des_func）：pkbit/unbit 64 位比特数组，E 展开 + PC2 子钥查表 | 与二进制逐字节一致 |
+| despc.cpp | CDesPC | Phil Karn DES：pc_perminit 由 1 基位号表（IP/FP）构建 perm 查表；**PC_NIBB 掩码坑（PC2 半字节组）** | 与二进制逐字节一致 |
+| destoo.cpp | CDesToo | 4.3BSD des.c：fsf=E 展开（ror(r,1) 分 6 位段 ⊕ 子钥字节）→ 静态 FUCKING_TOO_SP[8][64]；**静态表，成员表为死代码** | 与二进制逐字节一致 |
+| desmo.cpp | CDesMo | Baldwin 式单函数 DES：pc1m/pcrn 置换 + 8 轮 nibble 旋转 + 最终散布 | mo_crypt 加解密与二进制逐字节一致 |
+| fastdes.cpp | CFastDes | Eric Young 老版 libdes “fast” DES：fsetkey PC1 查表+28 位轮转+7 组 hKS/lKS PC2；fencrypt IP/16 轮 D_ENCRYPT/FP | fsetkey/fencrypt 与二进制逐字节一致 |
+| desdea.cpp | DesDea / des_sched / des_dea3 | **3DES-EDE2（16 字节密钥）**：des_sched=dea_pc1 查表 OR 出两个 32 位状态 → 28 位右旋（dea_ls 1/1/2/2/.../1）→ 每轮 8 字节查 dea_pc2 合成 8 字节轮子钥（小端写）；des_dea3=48 轮展开（E_K1→swap→D_K2→swap→E_K1，解密镜像），IP 用 dea_ip、SP 用 s_and_p（idx0=(R<<1)&0x3e，R bit31 置位时 |1）、FP 用 ip_inv（输入 R LE++L LE）；**坑：段边界 L/R 交换（swap），非单链直续**；DesDea 包装 des_sched(key)+des_sched(key+8) → 8 字节块循环 des_dea3 → TsLocal 余数 | des_sched/des_dea3/DesDea 与二进制逐字节一致（C++ 交叉 100 组 x2）；往返闭环 |
 
 ### DES 还原要点（Applied Cryptography 附录 B）
 
