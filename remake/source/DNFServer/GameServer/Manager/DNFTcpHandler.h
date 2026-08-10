@@ -1,0 +1,61 @@
+#ifndef DNF_TCP_HANDLER_H_
+#define DNF_TCP_HANDLER_H_
+
+#include "Thread.h"
+
+// ---- CProtocol / EpollHandler / CTcpHandler ----
+class CProtocol
+{
+public:
+    CProtocol() {}
+    virtual ~CProtocol() {}
+    virtual int Init() = 0;
+    virtual int SetEpoll(void* peer, int fd, bool flag) = 0;
+    virtual int ResetEpoll(int fd) = 0;
+    virtual void Destroy() = 0;
+    virtual int WaitForEvent() = 0;
+    virtual bool IsSetErrEvent(int idx) = 0;
+    virtual bool IsSetOutEvent(int idx) = 0;
+    virtual bool IsSetInEvent(int idx) = 0;
+};
+
+class EpollHandler : public CProtocol
+{
+public:
+    EpollHandler();
+    virtual ~EpollHandler();
+    virtual int Init();
+    virtual int SetEpoll(void* peer, int fd, bool flag);
+    virtual int ResetEpoll(int fd);
+    virtual void Destroy();
+    virtual int WaitForEvent();
+    virtual bool IsSetErrEvent(int idx);
+    virtual bool IsSetOutEvent(int idx);
+    virtual bool IsSetInEvent(int idx);
+    virtual void* GetEventPtr(int idx);
+    int GetEpollFD();
+    void* GetEpollEvents();
+    int m_eventType;  // +4
+    void* m_peer;     // +8
+    char m_dataC[4];  // +0xc
+    void* m_events;   // +0x10
+    int m_epollFd;    // +0x14
+    CMutex m_mutex;   // +0x18
+};
+
+class CTcpHandler
+{
+public:
+    CTcpHandler();
+    ~CTcpHandler();
+    int WaitForEvent();
+    int ResetEpoll(int flag);
+    int SetPeer(void* peer, int fd, bool flag);
+    void* GetEventPtr(int idx);
+    bool IsSetInEvent(int idx);
+    bool IsSetOutEvent(int idx);
+    bool IsSetErrEvent(int idx);
+    EpollHandler* m_epoll;  // +0
+};
+
+#endif  // DNF_TCP_HANDLER_H_

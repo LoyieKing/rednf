@@ -1,0 +1,62 @@
+#ifndef SYSTEM_TIME_HANDLER_H_
+#define SYSTEM_TIME_HANDLER_H_
+
+#include <sys/time.h>
+
+// ---- CSystemTime：0x14 ----
+class CSystemTime
+{
+public:
+    CSystemTime();
+    ~CSystemTime() {}
+    int m_field0;       // +0（ORIG 布局：+0 未初始化 int，m_tv 在 +8）
+    int m_field4;       // +4
+    struct timeval m_tv;  // +8
+    int m_field10;      // +0x10
+};
+
+class CSystemTimeHandler : public CSystemTime
+{
+public:
+    CSystemTimeHandler() {}
+    ~CSystemTimeHandler() {}
+};
+
+CSystemTimeHandler* CSystemTimeHandlerInstance();
+
+// ---- CDnFTimer：vtable@0（SetLastTime / GetTimeInterval 两个虚函数）----
+class CDnFTimer
+{
+public:
+    CDnFTimer();
+    ~CDnFTimer() {}
+    virtual void SetLastTime() {}
+    virtual double GetTimeInterval() { return 0.0; }
+};
+
+// ---- CUnixTimer：+4 double ----
+class CUnixTimer : public CDnFTimer
+{
+public:
+    CUnixTimer();
+    ~CUnixTimer() {}
+    virtual void SetLastTime();
+    virtual double GetTimeInterval();
+    double GetNowTime();  // 非虚（原版无虚表槽）
+    double m_lastTime;  // +4
+};
+
+// ---- CommonTime ----
+class CommonTime
+{
+public:
+    void SetCurTime();
+    char m_year;   // +0
+    char m_mon;    // +1
+    char m_mday;   // +2
+    char m_hour;   // +3
+    char m_min;    // +4
+    char m_sec;    // +5
+};
+
+#endif  // SYSTEM_TIME_HANDLER_H_

@@ -1,0 +1,591 @@
+#ifndef GM_ACCOUNTS_H_
+#define GM_ACCOUNTS_H_
+
+#include <list>
+#include <algorithm>
+#include <string.h>
+
+#include "PacketHeader.h"
+
+// ==================== 统计数据键/值结构（ORIG GMAccounts.cpp 数据区）====================
+
+// ---- STCubeStatisticKey：0xd ----
+struct STCubeStatisticKey
+{
+    STCubeStatisticKey();
+    STCubeStatisticKey(const STCubeStatisticKey& other);
+    ~STCubeStatisticKey();
+    bool operator<(STCubeStatisticKey other) const;
+    unsigned int m_field0;  // +0
+    unsigned int m_field4;  // +4
+    unsigned int m_field8;  // +8
+    unsigned char m_fieldc; // +0xc
+};
+
+// ---- STPartyStatisticKey：0xe ----
+struct STPartyStatisticKey
+{
+    STPartyStatisticKey();
+    ~STPartyStatisticKey();
+    bool operator<(const STPartyStatisticKey& other) const;
+    unsigned short m_field0;  // +0
+    unsigned int m_field4;    // +4
+    char m_field8;            // +8
+    unsigned char m_field9;   // +9
+    unsigned char m_fielda;   // +0xa
+    unsigned char m_fieldb;   // +0xb
+    unsigned char m_fieldc;   // +0xc
+    char m_fieldd;            // +0xd
+};
+
+// ---- PartyStatistic：0x30 ----
+struct PartyStatistic
+{
+    PartyStatistic();
+    ~PartyStatistic();
+    void Reset();
+    PartyStatistic& operator+=(const PartyStatistic& other);
+    int m_data[12];
+};
+
+// ---- STPartyJobStatisticKey：0x15 ----
+struct STPartyJobStatisticKey
+{
+    STPartyJobStatisticKey();
+    ~STPartyJobStatisticKey();
+    bool operator<(const STPartyJobStatisticKey& other) const;
+    unsigned short m_field0;  // +0
+    unsigned int m_field4;    // +4
+    char m_field8;            // +8
+    unsigned char m_field9;   // +9
+    unsigned char m_fielda;   // +0xa
+    unsigned char m_fieldb;   // +0xb
+    unsigned char m_fieldc;   // +0xc
+    char m_fieldd;            // +0xd
+    unsigned int m_field10;   // +0x10
+    char m_field14;           // +0x14
+};
+
+// ---- PartyJobStatistic：0x8 ----
+struct PartyJobStatistic
+{
+    PartyJobStatistic();
+    ~PartyJobStatistic();
+    void reset();
+    PartyJobStatistic& operator+=(const PartyJobStatistic& other);
+    int m_data[2];
+};
+
+// ---- STPartyCharacKey：0x12 ----
+struct STPartyCharacKey
+{
+    STPartyCharacKey();
+    ~STPartyCharacKey();
+    bool operator<(const STPartyCharacKey& other) const;
+    unsigned short m_field0;  // +0
+    unsigned int m_field4;    // +4
+    char m_field8;            // +8
+    unsigned char m_field9;   // +9
+    unsigned char m_fielda;   // +0xa
+    unsigned int m_fieldc;    // +0xc
+    char m_field10;           // +0x10
+    char m_field11;           // +0x11
+};
+
+// ---- PartyCharacStatistic：0x34 ----
+struct PartyCharacStatistic
+{
+    PartyCharacStatistic();
+    ~PartyCharacStatistic();
+    void Reset();
+    PartyCharacStatistic& operator+=(const PartyCharacStatistic& other);
+    int m_data[13];
+};
+
+// ---- STDeathTowerValueStatisticKey：0x8 ----
+struct STDeathTowerValueStatisticKey
+{
+    STDeathTowerValueStatisticKey();
+    ~STDeathTowerValueStatisticKey();
+    bool operator<(const STDeathTowerValueStatisticKey& other) const;
+    char m_field0;            // +0
+    unsigned short m_field2;  // +2
+    unsigned int m_field4;    // +4
+};
+
+// ---- ValueStatistic：0x8 ----
+struct ValueStatistic
+{
+    ValueStatistic();
+    ~ValueStatistic();
+    void Reset();
+    ValueStatistic& operator+=(const ValueStatistic& other);
+    int m_data[2];
+};
+
+// ---- STDeathTowerPlayDataJobStatisticKey：0x9 ----
+struct STDeathTowerPlayDataJobStatisticKey
+{
+    STDeathTowerPlayDataJobStatisticKey();
+    ~STDeathTowerPlayDataJobStatisticKey();
+    bool operator<(const STDeathTowerPlayDataJobStatisticKey& other) const;
+    char m_field0;            // +0
+    unsigned short m_field2;  // +2
+    unsigned int m_field4;    // +4
+    char m_field8;            // +8
+};
+
+// ---- PlayDataJobStatistic：0x8 ----
+struct PlayDataJobStatistic
+{
+    PlayDataJobStatistic();
+    ~PlayDataJobStatistic();
+    void Reset();
+    PlayDataJobStatistic& operator+=(const PlayDataJobStatistic& other);
+    int m_data[2];
+};
+
+// ---- STDeathTowerPlayDataPartyStatisticKey：0x2 ----
+struct STDeathTowerPlayDataPartyStatisticKey
+{
+    STDeathTowerPlayDataPartyStatisticKey();
+    ~STDeathTowerPlayDataPartyStatisticKey();
+    bool operator<(const STDeathTowerPlayDataPartyStatisticKey& other) const;
+    char m_field0;  // +0
+    char m_field1;  // +1
+};
+
+// ---- PlayDataPartyStatistic：0x8 ----
+struct PlayDataPartyStatistic
+{
+    PlayDataPartyStatistic();
+    ~PlayDataPartyStatistic();
+    void Reset();
+    PlayDataPartyStatistic& operator+=(const PlayDataPartyStatistic& other);
+    int m_data[2];
+};
+
+// ---- STPacketOverflowKey：0x4 ----
+struct STPacketOverflowKey
+{
+    STPacketOverflowKey();
+    ~STPacketOverflowKey();
+    void Reset();
+    bool operator<(const STPacketOverflowKey& other) const;
+    unsigned char m_field0;  // +0
+    unsigned short m_field2; // +2
+};
+
+// ---- STAssertManagerKey：0x202 ----
+struct STAssertManagerKey
+{
+    STAssertManagerKey();
+    ~STAssertManagerKey();
+    void Reset();
+    bool operator<(const STAssertManagerKey& other) const;
+    char m_str0[0x100];     // +0
+    unsigned short m_field100;  // +0x100
+    char m_str2[0x100];     // +0x102
+};
+
+// ---- STUserTingTimeCheckKey：0x4 ----
+struct STUserTingTimeCheckKey
+{
+    STUserTingTimeCheckKey();
+    ~STUserTingTimeCheckKey();
+    void Reset();
+    bool operator<(const STUserTingTimeCheckKey& other) const;
+    unsigned int m_field0;  // +0
+};
+
+// ---- STHellPartyStatisticItemKey：0xb ----
+struct STHellPartyStatisticItemKey
+{
+    STHellPartyStatisticItemKey();
+    ~STHellPartyStatisticItemKey();
+    bool operator<(const STHellPartyStatisticItemKey& other) const;
+    unsigned char m_field0;  // +0
+    unsigned int m_field4;   // +4
+    char m_field8;           // +8
+    char m_field9;           // +9
+    char m_fielda;           // +0xa
+};
+
+// ---- HellPartyItenmData：0x1c ----
+struct HellPartyItenmData
+{
+    HellPartyItenmData();
+    ~HellPartyItenmData();
+    void Reset();
+    HellPartyItenmData& operator+=(const HellPartyItenmData& other);
+    int m_count;       // +0（1）
+    int m_data[6];     // +4
+};
+
+// ---- LoadingTimeReport：0x48 ----
+struct LoadingTimeReport
+{
+    LoadingTimeReport();
+    ~LoadingTimeReport();
+    void Reset();
+    int m_data[18];
+};
+
+// ---- STPowerwarFightLoadingKey：0x6 ----
+struct STPowerwarFightLoadingKey
+{
+    STPowerwarFightLoadingKey();
+    ~STPowerwarFightLoadingKey();
+    void Reset();
+    bool operator<(const STPowerwarFightLoadingKey& other) const;
+    unsigned int m_field0;    // +0
+    unsigned short m_field4;  // +4
+};
+
+// ---- STPowerwarFightLoadingData：0x8 ----
+struct STPowerwarFightLoadingData
+{
+    STPowerwarFightLoadingData();
+    ~STPowerwarFightLoadingData();
+    void Reset();
+    char m_field0;            // +0
+    unsigned short m_field2;  // +2
+    unsigned short m_field4;  // +4
+    unsigned short m_field6;  // +6
+};
+
+// ---- STPowerwarFightLagKey：0x6 ----
+struct STPowerwarFightLagKey
+{
+    STPowerwarFightLagKey();
+    ~STPowerwarFightLagKey();
+    void Reset();
+    bool operator<(const STPowerwarFightLagKey& other) const;
+    unsigned int m_field0;    // +0
+    unsigned short m_field4;  // +4
+};
+
+// ---- STPowerwarFightLagData：0xc ----
+struct STPowerwarFightLagData
+{
+    STPowerwarFightLagData();
+    ~STPowerwarFightLagData();
+    void Reset();
+    unsigned char m_field0; // +0
+    unsigned int m_field4;  // +4
+    unsigned int m_field8;  // +8
+};
+
+// ---- STFatigueBattery：0x8 ----
+struct STFatigueBattery
+{
+    STFatigueBattery();
+    int m_field0;  // +0
+    int m_field4;  // +4
+};
+
+// ---- STModuleLagStatistics：0x10 ----
+struct STModuleLagStatistics
+{
+    STModuleLagStatistics();
+    ~STModuleLagStatistics();
+    void Reset();
+    int m_data[4];
+};
+
+// ---- STDungeonLagStatistics：0x20 ----
+struct STDungeonLagStatistics
+{
+    STDungeonLagStatistics();
+    ~STDungeonLagStatistics();
+    void Reset();
+    int m_data[8];
+};
+
+// ---- ValueStatisticData：0x78 ----
+struct ValueStatisticData
+{
+    ValueStatisticData();
+    int m_data[0x1e];
+};
+
+// ---- CirculationStatisticData：0xc0 ----
+struct CirculationStatisticData
+{
+    CirculationStatisticData();
+    int m_data[0x30];
+};
+
+// ---- stP2PStatistics：0x48 ----
+struct stP2PStatistics
+{
+    stP2PStatistics();
+    void Init();
+    char m_data[0x48];
+};
+
+// ---- stDisjointAvatarInfoTotal：0x144 ----
+struct stDisjointAvatarInfoTotal
+{
+    stDisjointAvatarInfoTotal();
+    void clear();
+    int checkCondition(int a, int b, int c);
+    void incCount(int a, int b, int c, int d);
+    char m_data[0x144];
+};
+
+// ---- stCreateEmblemStatistic：0x1c ----
+struct stCreateEmblemStatistic
+{
+    void increaseCount(int idx);
+    void clear();
+    int m_data[7];
+};
+
+// ---- SECRET_SHOP_STATISTIC_DATA：0x14 ----
+struct SECRET_SHOP_STATISTIC_DATA
+{
+    SECRET_SHOP_STATISTIC_DATA();
+    int m_data[5];
+};
+
+// ---- GoldCardEventStatistic：0x9 ----
+#pragma pack(push, 1)
+struct GoldCardEventStatistic
+{
+    GoldCardEventStatistic();
+    char m_field0;   // +0
+    unsigned int m_field1;  // +1
+    unsigned int m_field5;  // +5
+};
+#pragma pack(pop)
+
+// ---- TowerOfDespairStatistic_Value：0x8 ----
+struct TowerOfDespairStatistic_Value
+{
+    TowerOfDespairStatistic_Value();
+    unsigned int m_field0;  // +0
+    unsigned int m_field4;  // +4
+};
+
+// ---- STReasonCrashDownKey / STBloodDungeonStatistic ----
+struct STReasonCrashDownKey
+{
+    bool operator<(const STReasonCrashDownKey& other) const
+    {
+        return memcmp(this, &other, sizeof(*this)) < 0;
+    }
+    char m_data[0x10];
+};
+
+struct STBloodDungeonStatistic
+{
+    unsigned int m_field0;  // +0
+    unsigned int m_field4;  // +4
+    char m_data[8];         // +8
+};
+
+// ==================== DB 统计上报包（ORIG GMAccounts.cpp 发射）====================
+#pragma pack(push, 1)
+
+class Packet_Goldcard_Event_Statistic_STD : public PacketHeader
+{
+public:
+    Packet_Goldcard_Event_Statistic_STD();
+    GoldCardEventStatistic m_items[99];  // +0xa（99 * 0x9）
+} __attribute__((packed));
+
+class Packet_TowerOfDespair_Statistic_STD : public PacketHeader
+{
+public:
+    Packet_TowerOfDespair_Statistic_STD();
+    int m_countA;                                   // +0xa
+    int m_countB;                                   // +0xe
+    TowerOfDespairStatistic_Value m_items[101];     // +0x12（101 * 0x8）
+} __attribute__((packed));
+
+class Packet_DBMW_Reason_Crash_Down_Query : public PacketHeader
+{
+public:
+    Packet_DBMW_Reason_Crash_Down_Query();
+    char m_data[0x100];
+} __attribute__((packed));
+
+class Packet_DBMW_Dungeon_Statistic_Party : public PacketHeader
+{
+public:
+    Packet_DBMW_Dungeon_Statistic_Party();
+    char m_data[0x1774];
+} __attribute__((packed));
+
+class Packet_DBMW_Dungeon_Statistic_Party_Job : public PacketHeader
+{
+public:
+    Packet_DBMW_Dungeon_Statistic_Party_Job();
+    char m_data[0x17bf];
+} __attribute__((packed));
+
+class Packet_DBMW_Dungeon_Statistic_Party_Charac : public PacketHeader
+{
+public:
+    Packet_DBMW_Dungeon_Statistic_Party_Charac();
+    char m_data[0x174f];
+} __attribute__((packed));
+
+class Packet_DBMW_Packet_Overflow_Statistic : public PacketHeader
+{
+public:
+    Packet_DBMW_Packet_Overflow_Statistic();
+    char m_data[0x7];
+} __attribute__((packed));
+
+class Packet_Avater_Disjoint_Statistic_DB : public PacketHeader
+{
+public:
+    Packet_Avater_Disjoint_Statistic_DB();
+    stDisjointAvatarInfoTotal m_info;  // +0xa（0x144）
+} __attribute__((packed));
+
+class Packet_Emblem_Create_Statistic_DB : public PacketHeader
+{
+public:
+    Packet_Emblem_Create_Statistic_DB();
+    char m_data[0x1c];
+} __attribute__((packed));
+
+class Packet_Randombox_statistic_DB : public PacketHeader
+{
+public:
+    Packet_Randombox_statistic_DB();
+    char m_data[0x28];
+} __attribute__((packed));
+
+class Packet_Server_Match_data_DBMW : public PacketHeader
+{
+public:
+    Packet_Server_Match_data_DBMW();
+    char m_fieldA;   // +0xa
+    int m_fieldB;    // +0xb
+    int m_fieldC;    // +0xf
+} __attribute__((packed));
+
+class Packet_DBMW_DeathTower_Statistic_Value : public PacketHeader
+{
+public:
+    Packet_DBMW_DeathTower_Statistic_Value();
+    char m_data[0x17dd];
+} __attribute__((packed));
+
+class Packet_DBMW_Query_String : public PacketHeader
+{
+public:
+    Packet_DBMW_Query_String();
+    char m_data[0x1005];
+} __attribute__((packed));
+
+class Packet_DBMW_Fatigue_Battery_Money_Statistic : public PacketHeader
+{
+public:
+    Packet_DBMW_Fatigue_Battery_Money_Statistic();
+    char m_data[0x328];
+} __attribute__((packed));
+
+class Packet_DBMW_User_Ting_TimeCheck_Write_Query : public PacketHeader
+{
+public:
+    Packet_DBMW_User_Ting_TimeCheck_Write_Query();
+    char m_data[0x17f4];
+} __attribute__((packed));
+
+class Packet_DBMW_DeathTower_Statistic_Playdata_Job : public PacketHeader
+{
+public:
+    Packet_DBMW_DeathTower_Statistic_Playdata_Job();
+    char m_data[0x17e4];
+} __attribute__((packed));
+
+class Packet_DBMW_DeathTower_Statistic_Playdata_Party : public PacketHeader
+{
+public:
+    Packet_DBMW_DeathTower_Statistic_Playdata_Party();
+    char m_data[0x17ec];
+} __attribute__((packed));
+
+class Packet_Secret_Shop_Statistic : public PacketHeader
+{
+public:
+    Packet_Secret_Shop_Statistic();
+    int m_count;                              // +0xa
+    int m_shopIdx;                            // +0xe
+    SECRET_SHOP_STATISTIC_DATA m_items[200];  // +0x12（200 * 0x14）
+} __attribute__((packed));
+
+class Packet_DBMW_Loading_Time_Report : public PacketHeader
+{
+public:
+    Packet_DBMW_Loading_Time_Report();
+    char m_data[0x2d];
+} __attribute__((packed));
+
+class Packet_DBMW_Assert_Manager_Info_Write_Query : public PacketHeader
+{
+public:
+    Packet_DBMW_Assert_Manager_Info_Write_Query();
+    char m_data[0x123a];
+} __attribute__((packed));
+
+class Packet_DBMW_Ting_User_TimeCheck_Write_Query : public PacketHeader
+{
+public:
+    Packet_DBMW_Ting_User_TimeCheck_Write_Query();
+    char m_data[0x17f4];
+} __attribute__((packed));
+
+class Packet_DBMW_Powerwar_Loading_Time_Report : public PacketHeader
+{
+public:
+    Packet_DBMW_Powerwar_Loading_Time_Report();
+    char m_data[0x1704];
+} __attribute__((packed));
+
+class Packet_DBMW_Powerwar_Lag_Report : public PacketHeader
+{
+public:
+    Packet_DBMW_Powerwar_Lag_Report();
+    char m_data[0x1704];
+} __attribute__((packed));
+
+class Packet_DBMW_TechnicalReport_Common_Query : public PacketHeader
+{
+public:
+    Packet_DBMW_TechnicalReport_Common_Query();
+    char m_data[0x400];
+} __attribute__((packed));
+
+#pragma pack(pop)
+
+// ---- WongWork::CGMAccounts ----
+namespace WongWork
+{
+class CGMAccounts
+{
+public:
+    struct stGMInfo_t
+    {
+        bool operator==(const stGMInfo_t& other) const;
+        unsigned int m_field0;
+        int m_field1;
+    };
+    void LoadGmList(unsigned int group, int index);
+    void clearGmList();
+    void AppendGM_Sys(unsigned int id, char flag);
+    void loadGMAccounts(const char* path);
+    int isGM(unsigned int id);
+    void appendGM(unsigned int id, unsigned int value);
+    void removeGM(unsigned int id, unsigned int value);
+    stGMInfo_t getGMInfo(unsigned int id) const;
+    std::list<stGMInfo_t> m_list;
+};
+}
+
+#endif // GM_ACCOUNTS_H_

@@ -1,0 +1,108 @@
+// df_monitor_r — LoginLogoutStatistics（从 MonitorTypes/App/Table 拆分）
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cerrno>
+#include <signal.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <sys/stat.h>
+#include <sys/times.h>
+#include <algorithm>
+
+#include "LoginLogoutStatistics.h"
+#include "DNFFileLog.h"
+#include "DNFFunctionLib.h"
+#include "Packet_Monitor_Member_Secede.h"
+#include "Packet_GM_Request_Mid.h"
+#include "Packet_PvPChannelInfo.h"
+#include "Packet_PvPChannelUserCount.h"
+#include "Packet_Item_Limit_Edition_Sell_Start.h"
+#include "Packet_DBMW_Change_Char_Name.h"
+#include "Packet_Monitor_Reply_Charac_Info.h"
+#include "DNFServerHandler.h"
+#include "DNFApplication.h"
+#include "DNFPacketTranslater.h"
+
+CLoginLogoutStatistics::CLoginLogoutStatistics(CApplication& app)
+{
+    m_app = &app;
+    for (int i = 0; i < 7; i++)
+    {
+        new (&m_maps[i]) std::map<unsigned char, stLoginLogout>();
+    }
+    m_fieldac = 0;
+    m_fieldb0 = 0;
+}
+
+CLoginLogoutStatistics::~CLoginLogoutStatistics()
+{
+    for (int i = 0; i < 7; i++)
+    {
+        m_maps[i].~map();
+    }
+}
+
+void CLoginLogoutStatistics::ProcessByMinute()
+{
+    Packet_DBMW_Statistic_Login_Logout pkt;
+    *(unsigned int*)((char*)&pkt + 0x608) = m_fieldac;
+    *(unsigned int*)((char*)&pkt + 0x60c) = m_fieldb0;
+    *(unsigned int*)((char*)&pkt + 0x610) = m_fieldb4;
+    *(unsigned int*)((char*)&pkt + 0x614) = m_fieldb8;
+    m_fieldb4 = 0;
+    m_fieldb8 = 0;
+    m_app->Get_ServerHandler()->GetDBServer()->SendToServer((char*)&pkt, 0x618);
+}
+
+void CLoginLogoutStatistics::LoginLogout(ENUM_LOGIN_LOGOUT type, unsigned char channel)
+{
+    std::map<unsigned char, stLoginLogout>::iterator it = m_maps[(int)type].find(channel);
+    if (it == m_maps[(int)type].end())
+    {
+        for (int i = 0; i < 7; i++)
+        {
+            stLoginLogout st;
+            st.m_field0 = 0;
+            st.m_count = 0;
+            st.m_field8 = 0;
+            m_maps[i].insert(std::pair<const unsigned char, stLoginLogout>(channel, st));
+        }
+        LoginLogout(type, channel);
+    }
+    else
+    {
+        it->second.m_count = it->second.m_count + 1;
+    }
+}
+
+void CLoginLogoutStatistics::CountNumOfLoginout(ENUM_LOGIN_LOGOUT type)
+{
+    if ((int)type == 0)
+    {
+        m_fieldb4 = m_fieldb4 + 1;
+    }
+    else if ((int)type == 6)
+    {
+        m_fieldb8 = m_fieldb8 + 1;
+    }
+}
+
+void CLoginLogoutStatistics::CountNumOfOccupations(ENUM_LOGIN_LOGOUT type, int value)
+{
+    if ((int)type == 0)
+    {
+        m_fieldac = (unsigned int)value;
+    }
+    else if ((int)type == 4)
+    {
+        m_fieldb0 = (unsigned int)value;
+    }
+}
+
+stLoginLogout::stLoginLogout() { m_field0 = 0; }

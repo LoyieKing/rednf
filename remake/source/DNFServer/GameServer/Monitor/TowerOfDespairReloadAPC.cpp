@@ -1,0 +1,86 @@
+// df_monitor_r — TowerOfDespairReloadAPC（从 MonitorTypes/App/Table 拆分）
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cerrno>
+#include <signal.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <sys/stat.h>
+#include <sys/times.h>
+#include <algorithm>
+
+#include "TowerOfDespairReloadAPC.h"
+#include "DNFFileLog.h"
+#include "DNFFunctionLib.h"
+#include "Packet_Monitor_Member_Secede.h"
+#include "Packet_GM_Request_Mid.h"
+#include "Packet_PvPChannelInfo.h"
+#include "Packet_PvPChannelUserCount.h"
+#include "Packet_Item_Limit_Edition_Sell_Start.h"
+#include "Packet_DBMW_Change_Char_Name.h"
+#include "Packet_Monitor_Reply_Charac_Info.h"
+#include "DNFApplication.h"
+#include "DNFPacketTranslater.h"
+#include "DNFServerHandler.h"
+
+bool TowerOfDespairReloadAPC_Task::returnUpdateMessageFromGameServer_flag = false;
+
+TowerOfDespairReloadAPC_Task::TowerOfDespairReloadAPC_Task(unsigned int a, unsigned int b) {}
+
+TowerOfDespairReloadAPC_Task::~TowerOfDespairReloadAPC_Task() {}
+
+bool TowerOfDespairReloadAPC_Task::isReturnedMessage()
+{
+    return returnUpdateMessageFromGameServer_flag;
+}
+
+void TowerOfDespairReloadAPC_Task::returnUpdateMessageFromGameServer()
+{
+    returnUpdateMessageFromGameServer_flag = true;
+}
+
+void TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC()
+{
+    DNF_LOG_SCOPE_LINE(0x37, "./log/GameServer", "TOD : order to RandomSelect main GameServer\n");
+    if (!isReturnedMessage())
+    {
+        Packet_TOD_DoRandomSelect pkt;
+        CApplication* app = (CApplication*)CApplicationInstance();
+        CServerHandler* handler = app->Get_ServerHandler();
+        unsigned int first = handler->getfirstLinkedServer();
+        CMyFileLog log2("SendRequest_DoRandomSelectUserAPC", 0x40);
+        log2("./log/GameServer", "TOD : main GameServerChannel %u\n", first);
+        handler->SendToGameServer((unsigned char)first, &pkt);
+    }
+}
+
+TowerOfDespairWaitGameServerResponse_Task::TowerOfDespairWaitGameServerResponse_Task(
+    unsigned int a, unsigned int b)
+{
+}
+
+TowerOfDespairWaitGameServerResponse_Task::~TowerOfDespairWaitGameServerResponse_Task() {}
+
+void TowerOfDespairWaitGameServerResponse_Task::_DoExecute()
+{
+    DNF_LOG_SCOPE_LINE(0x46, "./log/GameServer", "TOD : Waiting main GameServer Response...");
+    if (TowerOfDespairReloadAPC_Task::isReturnedMessage() != 1)
+    {
+        TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC();
+        unsigned int t = (unsigned int)time(0);
+        TowerOfDespairWaitGameServerResponse_Task* task =
+            new TowerOfDespairWaitGameServerResponse_Task(t + 0x3c, 0);
+        ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
+    }
+}
+
+void TowerOfDespairReloadAPC_Task::_DoExecute()
+{
+    char buf[0x40];
+}

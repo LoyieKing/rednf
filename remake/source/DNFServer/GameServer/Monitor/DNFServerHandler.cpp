@@ -1,0 +1,524 @@
+// df_monitor_r — DNFServerHandler（从 MonitorTypes/App/Table 拆分）
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <fcntl.h>
+#include <cerrno>
+#include <signal.h>
+#include <sys/time.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/epoll.h>
+#include <sys/stat.h>
+#include <sys/times.h>
+#include <algorithm>
+
+#include "DNFServerHandler.h"
+#include "DNFFileLog.h"
+#include "DNFFunctionLib.h"
+#include "Packet_Monitor_Member_Secede.h"
+#include "Packet_GM_Request_Mid.h"
+#include "Packet_PvPChannelInfo.h"
+#include "Packet_PvPChannelUserCount.h"
+#include "Packet_Item_Limit_Edition_Sell_Start.h"
+#include "Packet_DBMW_Change_Char_Name.h"
+#include "Packet_Monitor_Reply_Charac_Info.h"
+#include "DNFAppConfig.h"
+#include "DNFApplication.h"
+#include "DNFGameServer.h"
+#include "DNFPacketTranslater.h"
+#include "DNFServerInterface.h"
+#include "DNFTableBase.h"
+#include "TcpNetSystem.h"
+
+CServerHandler::CServerHandler() {}
+
+CServerHandler::~CServerHandler()
+{
+    if (m_dbServer != 0)
+    {
+        m_dbServer->Destroy();
+        delete m_dbServer;
+        m_dbServer = 0;
+    }
+    if (m_managerServer != 0)
+    {
+        m_managerServer->Destroy();
+        delete m_managerServer;
+        m_managerServer = 0;
+    }
+}
+
+void CServerHandler::Attach(CApplication* app) {}
+
+unsigned char CServerHandler::GetServerGroupNo()
+{
+    return m_app->Get_ServerGroup();
+}
+
+void CServerHandler::Process()
+{
+    int tick = m_field24++;
+    if (m_managerServer != 0 && tick > 3)
+    {
+        unsigned char group = GetServerGroupNo();
+        m_managerServer->SendHeartBeat(group & 0xff);
+        m_field24 = 0;
+    }
+    for (std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.begin();
+         it != m_gameServers.end(); it++)
+    {
+        CServerInterface* gs = it->second;
+        if (gs->IsValidServer() && gs->IsConnected() && gs->IsHeartBeatTimeOver())
+        {
+            unsigned char channel = gs->GetChannelNo();
+            if (channel < 0xbe)
+            {
+                m_app->OnGameServerDown((CGameServer*)gs);
+            }
+            gs->OnDisconnect();
+        }
+    }
+    if (m_dbServer == 0 || !m_dbServer->IsValidServer())
+    {
+    }
+    else
+    {
+        if (m_dbServer->IsConnected() && m_dbServer->IsHeartBeatTimeOver())
+        {
+            m_dbServer->OnDisconnect();
+            DNF_LOG_SCOPE_LINE(0xdc, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+        }
+        if (m_tcpManagerServer.IsValidServer() != 1)
+        {
+            const char* ip = m_tcpManagerServer.GetIP();
+            if (*ip == '\0' || m_tcpManagerServer.GetPort() == 0)
+            {
+            }
+            else
+            {
+                CTcpNetSystem* net = m_app->Get_TcpNetSystem();
+                net->OpenTcpService(*m_tcpManagerServer.GetSockRef(), ip,
+                                    m_tcpManagerServer.GetPort());
+                DNF_LOG_SCOPE_LINE(0x124,"./log/TcpServer", "try connect to DBMW(%s, %d)",
+                    m_tcpManagerServer.GetIP(), m_tcpManagerServer.GetPort());
+            }
+        }
+        if (9 < m_field64++)
+        {
+            m_tcpManagerServer.SendHeartbeat(GetServerGroupNo());
+            m_field64 = 0;
+        }
+        if (m_tcpDbServer.IsValidServer() != 1)
+        {
+            const char* ip = m_tcpDbServer.GetIP();
+            if (*ip == '\0' || m_tcpDbServer.GetPort() == 0)
+            {
+            }
+            else
+            {
+                CTcpNetSystem* net = m_app->Get_TcpNetSystem();
+                net->OpenTcpService(*m_tcpDbServer.GetSockRef(), ip, m_tcpDbServer.GetPort());
+                DNF_LOG_SCOPE_LINE(0x13d,"./log/TcpServer", "try connect to DBMW(%s, %d)",
+                    m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
+            }
+        }
+        if (9 < m_field50++)
+        {
+            m_tcpDbServer.SendHeartbeat();
+            m_field50 = 0;
+        }
+    }
+}
+
+void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
+{
+    for (std::multimap<unsigned int, stServerInfo*>::iterator it = map->begin();
+         it != map->end(); it++)
+    {
+        stServerInfo* si = it->second;
+        if (si->m_field2 == 1)
+        {
+            if (si->m_field1 == 0xff)
+            {
+                throw CDNFException("CServerHandler::Load() Server Table Exception Break!");
+            }
+            RegistGameServer(si);
+        }
+        else if (si->m_field2 == 2)
+        {
+            if (si->m_field1 == 0xff || si->m_field1 != 0xc8)
+            {
+                throw CDNFException("CServerHandler::Load() DB Server Table Exception Break!");
+            }
+            if (m_dbServer != 0)
+            {
+                UnregistDBServer();
+                DNF_LOG_SCOPE_LINE(0x5d, "./log/Config", "DB Config Reload.\n");
+            }
+            CDBServer* db = new CDBServer(si);
+            db->Initialize();
+            RegistDBServer(db);
+        }
+        else if (si->m_field2 == 4)
+        {
+            if (si->m_field1 == 0xff || si->m_field1 != 0xca)
+            {
+                throw CDNFException("CServerHandler::Load() Manager Server Table Exception Break!");
+            }
+            if (m_managerServer != 0)
+            {
+                UnregistManagerServer();
+                DNF_LOG_SCOPE_LINE(0x6f, "./log/Config", "Manager Config Reload.\n");
+            }
+            CManagerServer* mgr = new CManagerServer(si);
+            mgr->Initialize();
+            RegistManagerServer(mgr);
+        }
+    }
+}
+
+bool CServerHandler::RegistGameServer(stServerInfo* info)
+{
+    unsigned int group = (unsigned int)info->m_field1;
+    std::map<unsigned int, CGameServer*>::iterator found = m_gameServers.find(group);
+    if (found == m_gameServers.end())
+    {
+        CGameServer* gs = new CGameServer(info);
+        gs->Initialize();
+        m_gameServers.insert(std::pair<const unsigned int, CGameServer*>(info->m_field1, gs));
+    }
+    return found == m_gameServers.end();
+}
+
+CGameServer* CServerHandler::GetGameServer(unsigned int id)
+{
+    std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.find(id);
+    if (it != m_gameServers.end())
+    {
+        return it->second;
+    }
+    return 0;
+}
+
+void* CServerHandler::GetTcpGameServer(unsigned int id)
+{
+    std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.find(id);
+    if (it != m_tcpGameServers.end())
+    {
+        return it->second;
+    }
+    return 0;
+}
+
+CTcpGameServer* CServerHandler::GetTcpGameServerByCh(unsigned char channel)
+{
+    for (std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.begin();
+         it != m_tcpGameServers.end(); ++it)
+    {
+        CTcpGameServer* tcp = it->second;
+        if (tcp != 0 && tcp->GetChannelNo() == channel)
+        {
+            return tcp;
+        }
+    }
+    return 0;
+}
+
+void CServerHandler::queryReloadTowerRank(unsigned int channel)
+{
+    for (int i = 0; i <= 4; i++)
+    {
+        Packet_Request_Load_Tower_Full_Rank pkt;
+        *(int*)((char*)&pkt + 0xa) = i;
+        *(unsigned int*)((char*)&pkt + 0xe) = channel;
+        SendToDB(&pkt);
+    }
+}
+
+int CServerHandler::SendToManager(PacketHeader* pkt)
+{
+    if (m_managerServer == 0)
+    {
+        return 0;
+    }
+    return m_managerServer->SendToServer((char*)pkt,
+                                         (unsigned int)*(unsigned short*)((char*)pkt + 2));
+}
+
+void CServerHandler::SendDBMWRequestIPCounter(unsigned char flag, unsigned char b)
+{
+    Packet_Request_IPCounterList pkt;
+    *(char*)((char*)&pkt + 0xa) = (char)flag;
+    *(char*)((char*)&pkt + 0xb) = (char)b;
+    SendToDB(&pkt);
+}
+
+unsigned int CServerHandler::getfirstLinkedServer()
+{
+    if (m_gameServers.empty())
+    {
+        return 0;
+    }
+    return m_gameServers.begin()->first;
+}
+
+void CServerHandler::RegistDBServer(CDBServer* db) { m_dbServer = db; }
+
+void CServerHandler::UnregistDBServer()
+{
+    if (m_dbServer != 0)
+    {
+        delete m_dbServer;
+        m_dbServer = 0;
+    }
+}
+
+void CServerHandler::RegistManagerServer(CManagerServer* mgr) { m_managerServer = mgr; }
+
+CTcpGameServer* CServerHandler::CreateTcpGameServer(unsigned int id)
+{
+    CTcpGameServer* tcp = new CTcpGameServer;
+    tcp->Init(id, m_app->Get_TcpNetSystem());
+    std::pair<std::map<unsigned int, CTcpGameServer*>::iterator, bool> r =
+        m_tcpGameServers.insert(std::make_pair(id, tcp));
+    if (!r.second)
+    {
+        delete tcp;
+        tcp = 0;
+    }
+    return tcp;
+}
+
+int CServerHandler::DeleteTcpGameServer(unsigned int id)
+{
+    std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.find(id);
+    if (it == m_tcpGameServers.end())
+    {
+        return 0;
+    }
+    CTcpGameServer* tcp = it->second;
+    if (tcp != 0)
+    {
+        delete tcp;
+    }
+    m_tcpGameServers.erase(it);
+    DNF_LOG_SCOPE_LINE(0x35f, "./log/Tcp", "TcpGameServer Delete !");
+    return 1;
+}
+
+int CServerHandler::UnregistGameServer(unsigned int channel)
+{
+    std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.find(channel);
+    if (it == m_gameServers.end())
+    {
+        return 0;
+    }
+    CGameServer* gs = it->second;
+    if (gs != 0)
+    {
+        delete gs;
+    }
+    m_gameServers.erase(it);
+    DNF_LOG_SCOPE_LINE(0x412, "./log/GameServer", "Game server unregist. Channel: %d", channel);
+    return 1;
+}
+
+void CServerHandler::UnregistManagerServer()
+{
+    if (m_managerServer != 0)
+    {
+        delete m_managerServer;
+        m_managerServer = 0;
+    }
+}
+
+void CServerHandler::SendAllTcpGameServer(PacketHeader* pkt)
+{
+    for (std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.begin();
+         it != m_tcpGameServers.end(); ++it)
+    {
+        CTcpGameServer* tcp = it->second;
+        if (tcp->IsValidServer())
+        {
+            char* buf = tcp->makePacketHeader(*(unsigned short*)pkt,
+                                              *(unsigned short*)((char*)pkt + 2));
+            memcpy(buf + 10, (char*)pkt + 10, *(unsigned short*)((char*)pkt + 2) - 10);
+            tcp->SendToGameServer(buf);
+        }
+    }
+}
+
+int CServerHandler::SendAllTcpGameServer(PacketHeader* pkt, int channel)
+{
+    int count = 0;
+    for (std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.begin();
+         it != m_tcpGameServers.end(); ++it)
+    {
+        CTcpGameServer* tcp = it->second;
+        if (tcp->IsValidServer() && tcp->GetChannelType() == channel)
+        {
+            char* buf = tcp->makePacketHeader(*(unsigned short*)pkt,
+                                              *(unsigned short*)((char*)pkt + 2));
+            memcpy(buf + 10, (char*)pkt + 10, *(unsigned short*)((char*)pkt + 2) - 10);
+            tcp->SendToGameServer(buf);
+            count++;
+        }
+    }
+    return count;
+}
+
+void CServerHandler::SendAllToGameServer(char* buf, int len)
+{
+    for (std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.begin();
+         it != m_gameServers.end(); it++)
+    {
+        if (it->second->IsValidServer())
+        {
+            it->second->SendToServer(buf, len);
+        }
+    }
+}
+
+void CServerHandler::SendToGameServer(unsigned char channel, PacketHeader* pkt)
+{
+    CGameServer* gs = GetGameServer((unsigned int)channel);
+    if (gs != 0)
+    {
+        ((CServerInterface*)gs)->SendToServer((char*)pkt,
+                                              *(unsigned short*)((char*)pkt + 2));
+    }
+}
+
+void CServerHandler::SetManagerConnectFlag(bool flag)
+{
+    if (m_managerServer != 0)
+    {
+        ((CServerInterface*)m_managerServer)->SetConnFlag(flag);
+    }
+}
+
+void CServerHandler::SetDBConnectFlag(bool flag)
+{
+    if (m_dbServer != 0)
+    {
+        ((CServerInterface*)m_dbServer)->SetConnFlag(flag);
+    }
+}
+
+void CServerHandler::ResetDBHeartBeat()
+{
+    if (m_dbServer != 0)
+    {
+        ((CServerInterface*)m_dbServer)->ResetHeartBeat();
+    }
+}
+
+char CServerHandler::IsConnectedDBServer()
+{
+    if (m_dbServer == 0)
+    {
+        return 0;
+    }
+    return ((CServerInterface*)m_dbServer)->IsConnected();
+}
+
+void CServerHandler::SendDBMWConnectionCheck()
+{
+    Packet_DBMW_Connection_Check pkt;
+    pkt.m_channel = 0xc9;
+    SendToDB(&pkt);
+}
+
+void CServerHandler::ResetHeartBeat(unsigned char channel)
+{
+    std::map<unsigned int, CGameServer*>::iterator it =
+        m_gameServers.find((unsigned int)channel);
+    if (it != m_gameServers.end() && it->second != 0 &&
+        ((CServerInterface*)it->second)->IsValidServer() != 0)
+    {
+        ((CServerInterface*)it->second)->ResetHeartBeat();
+    }
+}
+
+char CServerHandler::IsConnectedGameServer(unsigned char channel)
+{
+    std::map<unsigned int, CGameServer*>::iterator it =
+        m_gameServers.find((unsigned int)channel);
+    if (it == m_gameServers.end())
+    {
+        return 0;
+    }
+    return ((CServerInterface*)it->second)->IsConnected();
+}
+
+void CServerHandler::SetConnectFlag(unsigned char channel, bool flag)
+{
+    std::map<unsigned int, CGameServer*>::iterator it =
+        m_gameServers.find((unsigned int)channel);
+    if (it != m_gameServers.end())
+    {
+        ((CServerInterface*)it->second)->SetConnFlag(flag);
+    }
+    else
+    {
+        CMyFileLog log("SetConnectFlag", 0x1f8);
+        log("./log/GameServer",
+            "CServerHandler::SetConnectFlag\tGame Server Index Over Index : %d!\n",
+            channel);
+    }
+}
+
+void CServerHandler::SendDBMWRequestARSInfo(unsigned char flag)
+{
+    Packet_Web_Request_ARS_Info pkt;
+    pkt.m_flag = flag;
+    SendToDB(&pkt);
+}
+
+CTcpManagerServer* CServerHandler::GetTcpManagerServer() { return &m_tcpManagerServer; }
+
+CTcpDBServer* CServerHandler::GetTcpDBServer() { return &m_tcpDbServer; }
+
+void CServerHandler::SendToDB(PacketHeader* pkt)
+{
+    if (m_dbServer)
+    {
+        m_dbServer->SendToServer((char*)pkt, pkt->packetSize);
+    }
+}
+
+CDBServer* CServerHandler::GetDBServer() { return m_dbServer; }
+
+CManagerServer* CServerHandler::GetManagerServer() { return m_managerServer; }
+
+void CServerHandler::SetGameServerIpPort(unsigned char a, unsigned int b, unsigned short c)
+{
+    char x = (char)a;
+    unsigned short y = (unsigned short)c;
+}
+
+void CServerHandler::QueryMember(unsigned int key)
+{
+    Packet_DB_Query_Member pkt;
+    pkt.m_fieldA = key;
+    SendToDB(&pkt);
+}
+
+void CServerHandler::QueryMemberMember(unsigned int key)
+{
+    Packet_DB_Query_Member_Member pkt;
+    pkt.m_fieldA = key;
+    SendToDB(&pkt);
+}
+
+void CServerHandler::SendDBMWRequest_D_IPCounter(unsigned char flag)
+{
+    unsigned char x = flag;
+    Packet_Request_IPCounterList pkt;
+    pkt.m_fieldA = x;
+    SendToDB(&pkt);
+}
+

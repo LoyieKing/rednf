@@ -1,0 +1,403 @@
+// df_relay_r — TCPUser（GCC 4.1.2, 无 DWARF — Ghidra 反汇编还原）
+#include <string.h>
+
+#include "TCPUser.h"
+#include "RelayService.h"
+#include "Helper.h"
+
+namespace RelayServiceApp
+{
+// ---- TCPUser ----
+
+TCPUser::TCPUser()
+    : m_accId(0), m_kind(4), m_isDisconnected(false),
+      m_isAboutToDisconnect(false), m_lastAccessTime(0), m_sock(0)
+{
+}
+
+TCPUser::~TCPUser()
+{
+}
+
+void TCPUser::setACCID(unsigned int acc_id)
+{
+    m_accId = acc_id;
+}
+
+int TCPUser::getHandle()
+{
+    if (m_sock == 0)
+    {
+        return 0;
+    }
+    return m_sock->getHandle();
+}
+
+TCPSocket* TCPUser::getSocket()
+{
+    return m_sock;
+}
+
+void TCPUser::setSocket(TCPSocket* sock)
+{
+    m_sock = sock;
+}
+
+bool TCPUser::isAboutToDisconnect() const
+{
+    return m_isAboutToDisconnect;
+}
+
+bool TCPUser::isDisconnected() const
+{
+    return m_isDisconnected;
+}
+
+bool TCPUser::isIdle() const
+{
+    long long now = get_ms_tick();
+    long long diff = now - m_lastAccessTime;
+    if (m_lastAccessTime != 0)
+    {
+        if (30000 < diff)
+        {
+            return true;
+        }
+        if ((m_accId == 0) && (5000 < diff))
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TCPUser::isToWrite() const
+{
+    return 0 < m_sendQueue.getPushedLength();
+}
+
+void TCPUser::setLastAccessTime()
+{
+    m_lastAccessTime = get_ms_tick();
+}
+
+void TCPUser::postDisconnected(int flag)
+{
+    m_isAboutToDisconnect = true;
+    m_kind = flag;
+}
+
+void TCPUser::notifyCannotLoginByMaxUserCount()
+{
+}
+
+void TCPUser::onRead()
+{
+    if (m_sock == 0 || m_sock->getHandle() < 0)
+    {
+        postDisconnected(1);
+        return;
+    }
+    if (!isAboutToDisconnect() && !isDisconnected())
+    {
+        onRead_();
+    }
+}
+
+void TCPUser::onRead_()
+{
+    int avail = m_recvQueue.getAvailableSpace();
+    char* p = m_recvQueue.peekPush();
+    int r = m_sock->recv(p, avail);
+    if (r < 1)
+    {
+        if (r < 0)
+        {
+            postDisconnected(1);
+            return;
+        }
+    }
+    else
+    {
+        if (m_recvQueue.pushIndex(r) < 0)
+        {
+            postDisconnected(1);
+            return;
+        }
+    }
+    onPacketParse();
+}
+
+void TCPUser::onWrite()
+{
+    if (m_sock != 0 && m_sock->getHandle() > -1)
+    {
+        if (!isAboutToDisconnect() && !isDisconnected())
+        {
+            while (!m_sendQueue.isEmpty())
+            {
+                if (!m_sendQueue.isPushGreaterThanPop())
+                {
+                    int len = m_sendQueue.getPopLengthToEnd();
+                    if (0 < len)
+                    {
+                        char* p = m_sendQueue.peekPop();
+                        int r = m_sock->send(p, len);
+                        if (r < 1)
+                        {
+                            if (-1 < r)
+                            {
+                                return;
+                            }
+                            postDisconnected(0);
+                            return;
+                        }
+                        m_sendQueue.pop(r);
+                    }
+                }
+                else
+                {
+                    int len = m_sendQueue.getPushedLength();
+                    if (0 < len)
+                    {
+                        char* p = m_sendQueue.peekPop();
+                        int r = m_sock->send(p, len);
+                        if (r < 1)
+                        {
+                            if (-1 < r)
+                            {
+                                return;
+                            }
+                            postDisconnected(0);
+                            return;
+                        }
+                        m_sendQueue.pop(r);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void TCPUser::onError()
+{
+    onClose();
+}
+
+void TCPUser::onClose()
+{
+    if (!m_isDisconnected)
+    {
+        getManager()->disconnectEvent2TCPUser(this);
+        if (m_sock != 0)
+        {
+            m_sock->close();
+        }
+        m_isDisconnected = true;
+    }
+}
+
+void TCPUser::onAccept()
+{
+    m_recvQueue.clear();
+    m_sendQueue.clear();
+}
+
+void TCPUser::shutdown()
+{
+    m_accId = 0;
+    m_isDisconnected = false;
+    m_isAboutToDisconnect = false;
+    m_sock = 0;
+}
+
+void TCPUser::startupAfterSetSocket()
+{
+    m_accId = 0;
+    m_isDisconnected = false;
+    m_isAboutToDisconnect = false;
+}
+
+int TCPUser::postSendPacket(char* buf)
+{
+    return 0;
+}
+
+int TCPUser::send(PacketHeader* buf)
+{
+    if (m_sock == 0)
+    {
+        return -1;
+    }
+    if (m_sock->getHandle() < 0)
+    {
+        return -1;
+    }
+    if (isAboutToDisconnect() || isDisconnected())
+    {
+        return -2;
+    }
+    if (*(unsigned short*)((char*)buf + 2) == 0)
+    {
+        return -3;
+    }
+    if (m_sendQueue.getPushedLength() < 1)
+    {
+        int r = m_sock->send((char*)buf, *(unsigned short*)((char*)buf + 2));
+        if (*(unsigned short*)((char*)buf + 2) != (unsigned int)r)
+        {
+            if (0xc7ff < (int)(m_sendQueue.getPushedLength() +
+                               (*(unsigned short*)((char*)buf + 2) - r)))
+            {
+                return -4;
+            }
+            if (m_sendQueue.push((char*)buf + r, *(unsigned short*)((char*)buf + 2) - r) < 0)
+            {
+                return -5;
+            }
+        }
+        return 0;
+    }
+    if ((int)(m_sendQueue.getPushedLength() + *(unsigned short*)((char*)buf + 2)) < 0xc800)
+    {
+        if (m_sendQueue.push((char*)buf, *(unsigned short*)((char*)buf + 2)) < 0)
+        {
+            return -5;
+        }
+        return 0;
+    }
+    return -4;
+}
+
+void TCPUser::onPacketParse()
+{
+    do
+    {
+        if (!m_recvQueue.isPopStraight(0xc))
+        {
+            if (m_recvQueue.getPushedLength() < 0xc)
+            {
+                return;
+            }
+            char header[0xc];
+            if (!m_recvQueue.peekCopy(0xc, header))
+            {
+                postDisconnected(1);
+                return;
+            }
+            unsigned short size = *(unsigned short*)(header + 2);
+            if ((*(short*)header != 0) && (*(short*)header != 1))
+            {
+                postDisconnected(1);
+                return;
+            }
+            if (size == 0)
+            {
+                postDisconnected(1);
+                return;
+            }
+            if (m_recvQueue.getPushedLength() < size)
+            {
+                return;
+            }
+            char* buf = (char*)calloc(size, 1);
+            if (buf == 0)
+            {
+                return;
+            }
+            if (!m_recvQueue.popCopy(size, buf))
+            {
+                free(buf);
+                postDisconnected(1);
+                return;
+            }
+            long long t1 = get_ms_tick();
+            getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, buf, 0, size);
+            if (*(short*)header == 0)
+            {
+                if (getACCID() == 0)
+                {
+                    free(buf);
+                    postDisconnected(1);
+                    return;
+                }
+            }
+            long long t2 = get_ms_tick();
+            getManager()->m_users.setDispatchTime((int)(t2 - t1));
+            free(buf);
+        }
+        else
+        {
+            char* p = m_recvQueue.peekPop();
+            unsigned short size = *(unsigned short*)(p + 2);
+            if ((*(short*)p != 0) && (*(short*)p != 1))
+            {
+                postDisconnected(1);
+                return;
+            }
+            if (size == 0)
+            {
+                postDisconnected(1);
+                return;
+            }
+            if (!m_recvQueue.isPopStraight(size))
+            {
+                if (m_recvQueue.getPushedLength() < size)
+                {
+                    return;
+                }
+                char* buf = (char*)calloc(size, 1);
+                if (buf == 0)
+                {
+                    return;
+                }
+                if (!m_recvQueue.popCopy(size, buf))
+                {
+                    free(buf);
+                    return;
+                }
+                long long t1 = get_ms_tick();
+                getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, buf, 0, size);
+                if (*(short*)p == 0)
+                {
+                    if (getACCID() == 0)
+                    {
+                        free(buf);
+                        postDisconnected(1);
+                        return;
+                    }
+                }
+                long long t2 = get_ms_tick();
+                getManager()->m_users.setDispatchTime((int)(t2 - t1));
+                free(buf);
+            }
+            else
+            {
+                long long t1 = get_ms_tick();
+                getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, p, 0, size);
+                if (*(short*)p == 0)
+                {
+                    if (getACCID() == 0)
+                    {
+                        postDisconnected(1);
+                        return;
+                    }
+                }
+                m_recvQueue.pop(size);
+                long long t2 = get_ms_tick();
+                getManager()->m_users.setDispatchTime((int)(t2 - t1));
+            }
+        }
+        if (isAboutToDisconnect())
+        {
+            return;
+        }
+        if (m_recvQueue.isEmpty())
+        {
+            return;
+        }
+    } while (true);
+}
+
+
+} // namespace RelayServiceApp

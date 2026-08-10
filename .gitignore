@@ -35,3 +35,4 @@ dnf_secsvr/tencrypt_new/test_hash
 *.rep/
 *.gzf
 .ghidra/
+dnf_decompile/toolchains/
