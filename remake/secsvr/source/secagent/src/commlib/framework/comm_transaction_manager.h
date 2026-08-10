@@ -106,7 +106,7 @@ protected:
     unsigned int cycle_gentrans_counter_;  // 0x74
 public:
     Transaction_Manager(); // line 51
-    ~Transaction_Manager(); // line 79
+    virtual ~Transaction_Manager(); // line 79（二进制：vptr@0，vtable 含 D1/D0）
     void initialize(size_t szregtrans, size_t sztransmap, SERVICES_ID selfsvr,
                    ZEN_Timer_Queue *timer_queue, Zerg_MMAP_BusPipe *zerg_mmap_pipe,
                    unsigned int max_frame_len, bool init_inner_queue,

@@ -58,9 +58,9 @@ dnf_secsvr/
 - ✅ **服务代码**：gunnersvr 9 / zergsvr 15 / secagent 16 文件全部实现。
 - ✅ **全量链接**：三个二进制已用 32 位 GCC 4.1.2 对象 + 宿主 32 位运行库成功链接为
   ELF32 可执行文件（/tmp/gunnersvr_rebuilt、/tmp/zergsvr_rebuilt、/tmp/secagent_rebuilt）；
-  与原二进制逐符号对照：**全部函数符号命中**，仅剩编译器版本差异
+  与原二进制逐符号对照：**全部函数符号命中（缺失 0）**，仅剩编译器版本产物
   （GCC 4.1.0 vs 4.1.2 的静态局部表命名 C.* / __PRETTY_FUNCTION__、libstdc++ 内联决策、
-  闭源密码实现数据表命名）与少量内部 inline 复制符号。
+  闭源密码实现数据表命名）——此类数据表的值已逐字节对拍，仅符号名/作用域不同。
 - 行为验收：construct/pack/unpack/visualize_ex/fromXml/toXml、TdrParse 168 向量、
   TdrBufUtil 42 项、TdrDate 14 组日期矩阵、zergsvrd.xml 真实解析等全部与二进制对拍一致。
 

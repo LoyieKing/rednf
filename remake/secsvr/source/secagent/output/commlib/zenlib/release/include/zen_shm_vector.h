@@ -16,10 +16,11 @@ struct _shm_vector_head { // sizeof = 12
 };
 
 template <typename T>
-struct shm_vector { // sizeof = 12
-    void *smem_base_;            // 0x00
-    _shm_vector_head *vector_head_; // 0x04
-    T *data_base_;               // 0x08
+struct shm_vector { // sizeof = 16（多态：vptr@0；二进制 new 分配 0x10、data_base_@0xc）
+    virtual ~shm_vector() {}     // vptr @0x00
+    void *smem_base_;            // 0x04
+    _shm_vector_head *vector_head_; // 0x08
+    T *data_base_;               // 0x0c
 };
 
 } // namespace ZEN_LIB
