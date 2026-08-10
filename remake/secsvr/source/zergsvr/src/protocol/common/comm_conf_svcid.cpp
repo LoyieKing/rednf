@@ -1,245 +1,473 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/protocol/common/comm_conf_svcid.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Restored from DWARF + disassembly (gunnersvr oracle), semantics verified.
 
 #include "src/protocol/common/comm_conf_svcid.h"
-#include "src/protocol/common/TdrBuf.h"
-#include "src/protocol/common/TdrPal.h"
-#include "src/protocol/common/TdrError.h"
-#include "src/protocol/common/TdrBufUtil.h"
-#include "src/protocol/common/TdrTypeUtil.h"
-#include "src/protocol/common/TdrTime.h"
-#include "src/protocol/common/TdrXml.h"
-#include "src/protocol/common/TdrIO.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
 #include "src/protocol/common/TdrParse.h"
-#include "src/protocol/common/<built-in>"
-#include <_G_config.h>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/byteswap.h>
-#include <bits/confname.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/in.h>
-#include <bits/local_lim.h>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/pthreadtypes.h>
-#include <bits/select.h>
-#include <bits/sigset.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <endian.h>
-#include <exception>
-#include <features.h>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <inttypes.h>
-#include <libio.h>
-#include <limits.h>
-#include <linux/limits.h>
-#include <netinet/in.h>
-#include <new>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <xlocale.h>
 
-tsf4g_tdr::TdrError::ErrorType textize(const char *format) {
-    // local: va_list ap;
+namespace conf_svcid {
+
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::construct() {
+    svr_type_ = 0;
+    svr_id_ = 0;
+    memset(svr_ip_, 0, sizeof(svr_ip_));
+    strcpy(svr_ip_, "0.0.0.0");
+    svr_port_ = 0;
+    svr_idc_ = 0;
+    svr_info_[0] = 0;
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-tsf4g_tdr::TdrError::ErrorType textize(const char *format) {
-    // local: va_list ap;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::fromXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (file != 0) {
+        tsf4g_tdr::TdrXmlFile xmlFile;
+        ret = xmlFile.load(file);
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = fromXmlString(xmlFile.content(), format, cutVer);
+        }
+    }
+    return ret;
 }
 
-// line 159
-tsf4g_tdr::TdrError::ErrorType entryFromXml(/*anon struct*/ int &reader, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const char *value4svr_type_;
-    // local: const char *value4svr_id_;
-    // local: const char *value4svr_ip_;
-    // local: const char *value4svr_port_;
-    // local: const char *value4svr_idc_;
-    // local: const char *value4svr_info_;
-    // local: const size_t length4svr_ip_;
-    // local: const size_t length4svr_info_;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::fromXmlBuffer(const char *buffer, unsigned int size, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (buffer != 0) {
+        tsf4g_tdr::TdrXmlReader reader(buffer, size, format);
+        ret = reader.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = fromXml(reader, cutVer);
+        }
+    }
+    return ret;
 }
 
-// line 911
-tsf4g_tdr::TdrError::ErrorType entryFromXml(/*anon struct*/ int &reader, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const char *value4service_num_;
-    // local: uint32_t service_info__i;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::fromXmlString(char *string, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (string != 0) {
+        tsf4g_tdr::TdrXmlReader reader(string, format);
+        ret = reader.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = fromXml(reader, cutVer);
+        }
+    }
+    return ret;
 }
 
-// line 888
-tsf4g_tdr::TdrError::ErrorType fromXml(/*anon struct*/ int &reader, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::fromXml(tsf4g_tdr::TdrXmlReader &reader, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_INVALID_ROOT_NODE;
+    if (reader.stepIn("ServiceInfo") == tsf4g_tdr::TdrXmlReader::WS_NORMAL) {
+        ret = entryFromXml(reader, cutVer);
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            reader.stepOut("ServiceInfo");
+        }
+    }
+    return ret;
 }
 
-// line 136
-tsf4g_tdr::TdrError::ErrorType fromXml(/*anon struct*/ int &reader, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::entryFromXml(tsf4g_tdr::TdrXmlReader &reader, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    const char *value4svr_type_ = reader.getEntryValue("svr_type_");
+    if (value4svr_type_ != 0) {
+        ret = tsf4g_tdr::TdrParse::parseUInt16(svr_type_, value4svr_type_, 0, 0, 0, 0);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    } else {
+        svr_type_ = 0;
+    }
+    const char *value4svr_id_ = reader.getEntryValue("svr_id_");
+    if (value4svr_id_ != 0) {
+        ret = tsf4g_tdr::TdrParse::parseUInt32(svr_id_, value4svr_id_, 0, 0, 0, 0);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    } else {
+        svr_id_ = 0;
+    }
+    const char *value4svr_ip_ = reader.getEntryValue("svr_ip_");
+    if (value4svr_ip_ != 0) {
+        if (strlen(value4svr_ip_) > 15) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_TOO_BIG;
+        strncpy(svr_ip_, value4svr_ip_, 16);
+    } else {
+        memset(svr_ip_, 0, sizeof(svr_ip_));
+        strcpy(svr_ip_, "0.0.0.0");
+    }
+    const char *value4svr_port_ = reader.getEntryValue("svr_port_");
+    if (value4svr_port_ != 0) {
+        ret = tsf4g_tdr::TdrParse::parseUInt16(svr_port_, value4svr_port_, 0, 0, 0, 0);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    } else {
+        svr_port_ = 0;
+    }
+    const char *value4svr_idc_ = reader.getEntryValue("svr_idc_");
+    if (value4svr_idc_ != 0) {
+        ret = tsf4g_tdr::TdrParse::parseUInt32(svr_idc_, value4svr_idc_, 0, 0, 0, 0);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    } else {
+        svr_idc_ = 0;
+    }
+    const char *value4svr_info_ = reader.getEntryValue("svr_info_");
+    if (value4svr_info_ != 0) {
+        if (strlen(value4svr_info_) > 31) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_TOO_BIG;
+        strncpy(svr_info_, value4svr_info_, 32);
+    } else {
+        svr_info_[0] = 0;
+    }
+    return ret;
 }
 
-// line 29
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::toXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (file != 0) {
+        FILE *fp = fopen(file, "wb");
+        if (fp != 0) {
+            ret = toXmlFile(fp, format, cutVer);
+            fclose(fp);
+        }
+    }
+    return ret;
 }
 
-// line 781
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t service_info__i;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::toXmlFile(FILE *fp, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (fp != 0) {
+        tsf4g_tdr::TdrXmlWriter writer(fp, format);
+        ret = writer.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = writer._out.textize("<?xml version=\"1.0\" encoding=\"%s\" standalone=\"yes\" ?>\n", "GBK");
+            if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+                ret = toXml(writer, format, cutVer);
+            }
+        }
+    }
+    return ret;
 }
 
-// line 609
-tsf4g_tdr::TdrError::ErrorType entryToAttrXml(/*anon struct*/ int &writer, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::toXmlBuffer(char *buffer, unsigned int size, unsigned int *usedSize, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (buffer != 0) {
+        tsf4g_tdr::TdrXmlWriter writer(buffer, size, format);
+        ret = writer.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = writer._out.textize("<?xml version=\"1.0\" encoding=\"%s\" standalone=\"yes\" ?>\n", "GBK");
+            if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+                ret = toXml(writer, format, cutVer);
+                if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR && usedSize != 0) *usedSize = writer.getUsedSize();
+            }
+        }
+    }
+    return ret;
 }
 
-// line 1201
-tsf4g_tdr::TdrError::ErrorType entryToAttrXml(/*anon struct*/ int &writer, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t service_info__i;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::toXml(tsf4g_tdr::TdrXmlWriter &writer, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = writer.openSimple("ServiceInfo");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    if (format == tsf4g_tdr::ATTR_ENTRY) {
+        ret = entryToAttrXml(writer, cutVer);
+    } else {
+        ret = entryToListXml(writer, cutVer);
+    }
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer.closeSimple("ServiceInfo");
+    return ret;
 }
 
-// line 438
-tsf4g_tdr::TdrError::ErrorType entryToListXml(/*anon struct*/ int &writer, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::entryToListXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    if (writer._indentPending) {
+        ret = writer._out.textize(">\n%s<%s> ", writer._indentStr, "svr_type_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+        writer._indentPending = false;
+    } else {
+        ret = writer._out.textize("%s<%s> ", writer._indentStr, "svr_type_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    }
+    ret = writer.textize("%d ", svr_type_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("</%s>\n", "svr_type_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    if (writer._indentPending) {
+        ret = writer._out.textize(">\n%s<%s> ", writer._indentStr, "svr_id_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+        writer._indentPending = false;
+    } else {
+        ret = writer._out.textize("%s<%s> ", writer._indentStr, "svr_id_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    }
+    ret = writer.textize("%u ", svr_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("</%s>\n", "svr_id_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    if (writer._indentPending) {
+        ret = writer._out.textize(">\n%s<%s> ", writer._indentStr, "svr_ip_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+        writer._indentPending = false;
+    } else {
+        ret = writer._out.textize("%s<%s> ", writer._indentStr, "svr_ip_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    }
+    ret = writer.textizeStr(svr_ip_, true);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("</%s>\n", "svr_ip_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    if (writer._indentPending) {
+        ret = writer._out.textize(">\n%s<%s> ", writer._indentStr, "svr_port_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+        writer._indentPending = false;
+    } else {
+        ret = writer._out.textize("%s<%s> ", writer._indentStr, "svr_port_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    }
+    ret = writer.textize("%d ", svr_port_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("</%s>\n", "svr_port_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    if (writer._indentPending) {
+        ret = writer._out.textize(">\n%s<%s> ", writer._indentStr, "svr_idc_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+        writer._indentPending = false;
+    } else {
+        ret = writer._out.textize("%s<%s> ", writer._indentStr, "svr_idc_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    }
+    ret = writer.textize("%u ", svr_idc_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("</%s>\n", "svr_idc_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    if (writer._indentPending) {
+        ret = writer._out.textize(">\n%s<%s> ", writer._indentStr, "svr_info_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+        writer._indentPending = false;
+    } else {
+        ret = writer._out.textize("%s<%s> ", writer._indentStr, "svr_info_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    }
+    ret = writer.textizeStr(svr_info_, true);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("</%s>\n", "svr_info_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    return ret;
 }
 
-// line 1122
-tsf4g_tdr::TdrError::ErrorType entryToListXml(/*anon struct*/ int &writer, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t service_info__i;
+tsf4g_tdr::TdrError::ErrorType ServiceInfo::entryToAttrXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    ret = writer._out.textize(" %s=\"", "svr_type_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer.textize("%d", svr_type_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("\"");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer._out.textize(" %s=\"", "svr_id_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer.textize("%u", svr_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("\"");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer._out.textize(" %s=\"", "svr_ip_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer.textizeStr(svr_ip_, false);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("\"");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer._out.textize(" %s=\"", "svr_port_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer.textize("%d", svr_port_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("\"");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer._out.textize(" %s=\"", "svr_idc_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer.textize("%u", svr_idc_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("\"");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer._out.textize(" %s=\"", "svr_info_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer.textizeStr(svr_info_, false);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("\"");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    return ret;
 }
 
-// line 1086
-tsf4g_tdr::TdrError::ErrorType toXml(/*anon struct*/ int &writer, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType svcid_config::construct() {
+    service_num_ = 0;
+    for (uint32_t i = 0; i < 2048; ++i) {
+        tsf4g_tdr::TdrError::ErrorType ret = service_info_[i].construct();
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    }
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 1045
-tsf4g_tdr::TdrError::ErrorType toXmlBuffer(char *buffer, size_t size, size_t *usedSize, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int writer;
+tsf4g_tdr::TdrError::ErrorType svcid_config::fromXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (file != 0) {
+        tsf4g_tdr::TdrXmlFile xmlFile;
+        ret = xmlFile.load(file);
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = fromXmlString(xmlFile.content(), format, cutVer);
+        }
+    }
+    return ret;
 }
 
-// line 1009
-tsf4g_tdr::TdrError::ErrorType toXmlFile(FILE *fp, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int writer;
+tsf4g_tdr::TdrError::ErrorType svcid_config::fromXmlBuffer(const char *buffer, unsigned int size, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (buffer != 0) {
+        tsf4g_tdr::TdrXmlReader reader(buffer, size, format);
+        ret = reader.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = fromXml(reader, cutVer);
+        }
+    }
+    return ret;
 }
 
-// line 980
-tsf4g_tdr::TdrError::ErrorType toXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: FILE *fp;
+tsf4g_tdr::TdrError::ErrorType svcid_config::fromXmlString(char *string, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (string != 0) {
+        tsf4g_tdr::TdrXmlReader reader(string, format);
+        ret = reader.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = fromXml(reader, cutVer);
+        }
+    }
+    return ret;
 }
 
-// line 402
-tsf4g_tdr::TdrError::ErrorType toXml(/*anon struct*/ int &writer, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType svcid_config::fromXml(tsf4g_tdr::TdrXmlReader &reader, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_INVALID_ROOT_NODE;
+    if (reader.stepIn("svcid_config") == tsf4g_tdr::TdrXmlReader::WS_NORMAL) {
+        ret = entryFromXml(reader, cutVer);
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            reader.stepOut("svcid_config");
+        }
+    }
+    return ret;
 }
 
-// line 361
-tsf4g_tdr::TdrError::ErrorType toXmlBuffer(char *buffer, size_t size, size_t *usedSize, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int writer;
+tsf4g_tdr::TdrError::ErrorType svcid_config::entryFromXml(tsf4g_tdr::TdrXmlReader &reader, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    const char *value4service_num_ = reader.getEntryValue("service_num_");
+    if (value4service_num_ != 0) {
+        ret = tsf4g_tdr::TdrParse::parseUInt32(service_num_, value4service_num_, 0, 0, 0, 0);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+        if (service_num_ > 2048) return tsf4g_tdr::TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+        if (service_num_ == 0) return tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    } else {
+        service_num_ = 2048;
+    }
+    for (uint32_t i = 0; i < service_num_; ++i) {
+        if (reader.stepIn("service_info_") != tsf4g_tdr::TdrXmlReader::WS_NORMAL) {
+            service_num_ = i;
+            return tsf4g_tdr::TdrError::TDR_NO_ERROR;
+        }
+        ret = service_info_[i].entryFromXml(reader, 1);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+        reader.stepOut("service_info_");
+    }
+    return ret;
 }
 
-// line 325
-tsf4g_tdr::TdrError::ErrorType toXmlFile(FILE *fp, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int writer;
+tsf4g_tdr::TdrError::ErrorType svcid_config::toXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (file != 0) {
+        FILE *fp = fopen(file, "wb");
+        if (fp != 0) {
+            ret = toXmlFile(fp, format, cutVer);
+            fclose(fp);
+        }
+    }
+    return ret;
 }
 
-// line 296
-tsf4g_tdr::TdrError::ErrorType toXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: FILE *fp;
+tsf4g_tdr::TdrError::ErrorType svcid_config::toXmlFile(FILE *fp, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (fp != 0) {
+        tsf4g_tdr::TdrXmlWriter writer(fp, format);
+        ret = writer.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = writer._out.textize("<?xml version=\"1.0\" encoding=\"%s\" standalone=\"yes\" ?>\n", "GBK");
+            if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+                ret = toXml(writer, format, cutVer);
+            }
+        }
+    }
+    return ret;
 }
 
-// line 78
-tsf4g_tdr::TdrError::ErrorType fromXmlBuffer(const char *buffer, size_t size, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int reader;
+tsf4g_tdr::TdrError::ErrorType svcid_config::toXmlBuffer(char *buffer, unsigned int size, unsigned int *usedSize, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    if (buffer != 0) {
+        tsf4g_tdr::TdrXmlWriter writer(buffer, size, format);
+        ret = writer.state();
+        if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            ret = writer._out.textize("<?xml version=\"1.0\" encoding=\"%s\" standalone=\"yes\" ?>\n", "GBK");
+            if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+                ret = toXml(writer, format, cutVer);
+                if (ret == tsf4g_tdr::TdrError::TDR_NO_ERROR && usedSize != 0) *usedSize = writer.getUsedSize();
+            }
+        }
+    }
+    return ret;
 }
 
-// line 859
-tsf4g_tdr::TdrError::ErrorType fromXmlString(char *string, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int reader;
+tsf4g_tdr::TdrError::ErrorType svcid_config::toXml(tsf4g_tdr::TdrXmlWriter &writer, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = writer.openComplex("svcid_config");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    if (format == tsf4g_tdr::ATTR_ENTRY) {
+        ret = entryToAttrXml(writer, cutVer);
+    } else {
+        ret = entryToListXml(writer, cutVer);
+    }
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer.closeComplex("svcid_config");
+    return ret;
 }
 
-// line 801
-tsf4g_tdr::TdrError::ErrorType fromXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int xmlFile;
+tsf4g_tdr::TdrError::ErrorType svcid_config::entryToListXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    if (writer._isPartial) {
+        ret = writer._out.textize(">\n%s<%s> ", writer._indentStr, "service_num_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+        writer._isPartial = false;
+    } else {
+        ret = writer._out.textize("%s<%s> ", writer._indentStr, "service_num_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    }
+    ret = writer.textize("%u ", service_num_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("</%s>\n", "service_num_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    if (service_num_ > 2048) return tsf4g_tdr::TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (service_num_ == 0) return tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    for (uint32_t i = 0; i < service_num_; ++i) {
+        ret = writer.openComplex("service_info_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+        ret = service_info_[i].entryToListXml(writer, 1);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+        ret = writer.closeComplex("service_info_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    }
+    return ret;
 }
 
-// line 830
-tsf4g_tdr::TdrError::ErrorType fromXmlBuffer(const char *buffer, size_t size, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int reader;
+tsf4g_tdr::TdrError::ErrorType svcid_config::entryToAttrXml(tsf4g_tdr::TdrXmlWriter &writer, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret = tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    ret = writer._out.textize(" %s=\"", "service_num_");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    ret = writer.textize("%u", service_num_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    ret = writer._out.textize("\"");
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) { writer._state = ret; return ret; }
+    if (service_num_ > 2048) return tsf4g_tdr::TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (service_num_ == 0) return tsf4g_tdr::TdrError::TDR_NO_ERROR;
+    for (uint32_t i = 0; i < service_num_; ++i) {
+        ret = writer.openComplex("service_info_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+        ret = service_info_[i].entryToAttrXml(writer, 1);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+        ret = writer.closeComplex("service_info_");
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    }
+    return ret;
 }
 
-// line 107
-tsf4g_tdr::TdrError::ErrorType fromXmlString(char *string, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int reader;
-}
-
-// line 49
-tsf4g_tdr::TdrError::ErrorType fromXmlFile(const char *file, tsf4g_tdr::TdrXmlFormat format, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: /*anon struct*/ int xmlFile;
-}
-
+} // namespace conf_svcid

@@ -131,6 +131,6 @@ namespace SecAgentUserInfo {
 } // namespace SecAgentUserInfo
 
 
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
+// inferred
 
 #endif // SECSVR_OUTPUT_FORMMOG_SECAGENT_RELEASE_INCLUDE_SECAGENT_USER_MGR_H_H_

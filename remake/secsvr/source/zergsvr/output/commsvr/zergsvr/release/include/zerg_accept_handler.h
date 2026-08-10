@@ -1,12 +1,14 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commsvr/zergsvr/release/include/zerg_accept_handler.h
+// Original path: src/commsvr/zergsvr/zerg_accept_handler.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMSVR_ZERGSVR_RELEASE_INCLUDE_ZERG_ACCEPT_HANDLER_H_H_
-#define SECSVR_OUTPUT_COMMSVR_ZERGSVR_RELEASE_INCLUDE_ZERG_ACCEPT_HANDLER_H_H_
+#ifndef SECSVR_SRC_COMMSVR_ZERGSVR_ZERG_ACCEPT_HANDLER_H_H_
+#define SECSVR_SRC_COMMSVR_ZERGSVR_ZERG_ACCEPT_HANDLER_H_H_
 
 #include "output/commlib/framework/release/include/comm_service_info.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_socket_acceptor.h"
+
+struct Zerg_IPRestrict_Mgr;
 
 // sizeof = 60
 struct TCP_Accept_Handler : public ZEN_Event_Handler { // line 13
@@ -28,4 +30,4 @@ virtual int handle_close(); // line 156
 virtual ZEN_SOCKET get_handle() const; // line 148
 };
 
-#endif // SECSVR_OUTPUT_COMMSVR_ZERGSVR_RELEASE_INCLUDE_ZERG_ACCEPT_HANDLER_H_H_
+#endif // SECSVR_SRC_COMMSVR_ZERGSVR_ZERG_ACCEPT_HANDLER_H_H_

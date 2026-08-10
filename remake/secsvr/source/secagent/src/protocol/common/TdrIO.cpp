@@ -1,101 +1,79 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/protocol/common/TdrIO.cpp
+// Reconstructed from gunnersvr disassembly
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/protocol/common/TdrIO.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/protocol/common/TdrIO.h"
 #include "src/protocol/common/TdrPal.h"
 #include "src/protocol/common/TdrBuf.h"
 #include "src/protocol/common/TdrError.h"
-#include "src/protocol/common/<built-in>"
-#include <_G_config.h>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/byteswap.h>
-#include <bits/confname.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/in.h>
-#include <bits/local_lim.h>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/pthreadtypes.h>
-#include <bits/select.h>
-#include <bits/sigset.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <endian.h>
-#include <exception>
-#include <features.h>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <inttypes.h>
-#include <libio.h>
-#include <limits.h>
-#include <linux/limits.h>
-#include <netinet/in.h>
 #include <new>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/cdefs.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <xlocale.h>
 
-// line 80
-tsf4g_tdr::TdrError::ErrorType output(const char *src, size_t length) {
-    // local: size_t ret;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrOutStream::output(const char *src, size_t length) {
+    if (fp_ != NULL) {
+        size_t written = fwrite(src, 1, length, fp_);
+        if (written < length) {
+            error_ = TdrError::TDR_ERR_WRITE_FILE_FAILED;
+        }
+        return error_;
+    }
+    if (src == NULL) {
+        error_ = TdrError::TDR_ERR_ARG_POINTER_IS_NULL;
+        return error_;
+    }
+    if (length > limit_ - pos_) {
+        error_ = TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+        return error_;
+    }
+    memmove(data_ + pos_, src, length);
+    pos_ += length;
+    error_ = TdrError::TDR_NO_ERROR;
+    return error_;
 }
 
-// line 52
-tsf4g_tdr::TdrError::ErrorType vtextize(const char *format, va_list ap) {
-    // local: int ret;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrOutStream::vtextize(const char *format, va_list ap) {
+    if (fp_ != NULL) {
+        int n = vfprintf(fp_, format, ap);
+        if (n < 0) {
+            error_ = TdrError::TDR_ERR_WRITE_FILE_FAILED;
+        }
+        return error_;
+    }
+    int n = vsnprintf(data_ + pos_, limit_ - pos_, format, ap);
+    if (n < 0 || (size_t)n >= limit_ - pos_) {
+        error_ = TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+        return error_;
+    }
+    pos_ += n;
+    error_ = TdrError::TDR_NO_ERROR;
+    return error_;
 }
 
-// line 17
-tsf4g_tdr::TdrError::ErrorType load(const char *file) {
-    // local: FILE *fp;
-    // local: const size_t length;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrOutStream::textize(const char *format, ...) {
+    va_list ap;
+    va_start(ap, format);
+    TdrError::ErrorType ret = vtextize(format, ap);
+    va_end(ap);
+    return ret;
 }
 
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrXmlFile::load(const char *file) {
+    FILE *fp = fopen(file, "rb");
+    if (fp == NULL) {
+        return TdrError::TDR_ERR_OPEN_FILE_READ_FAILED;
+    }
+    fseek(fp, 0, SEEK_END);
+    long length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    buf_ = new (std::nothrow) char[length + 1];
+    if (buf_ == NULL) {
+        fclose(fp);
+        return TdrError::TDR_ERR_ALLOC_MEMORY_FAILED;
+    }
+    if (fread(buf_, 1, length, fp) != (size_t)length) {
+        fclose(fp);
+        return TdrError::TDR_ERR_READ_FILE_FAILED;
+    }
+    buf_[length] = 0;
+    fclose(fp);
+    return TdrError::TDR_NO_ERROR;
+}

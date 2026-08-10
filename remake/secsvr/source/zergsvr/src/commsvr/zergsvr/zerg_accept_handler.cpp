@@ -1,7 +1,6 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from zergsvr binary (DWARF 布局 + 反汇编逐函数还原)
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commsvr/zergsvr/zerg_accept_handler.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/commsvr/zergsvr/zerg_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
@@ -154,124 +153,12 @@
 #include "src/commsvr/zergsvr/zerg_auto_connect.h"
 #include "src/commsvr/zergsvr/zerg_service_info_set.h"
 #include "src/commsvr/zergsvr/zerg_ip_restrict.h"
-#include "src/commsvr/zergsvr/<built-in>"
-#include <_G_config.h>
 #include <algorithm>
 #include <alloca.h>
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
 #include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
 #include <cassert>
 #include <cctype>
 #include <climits>
@@ -305,22 +192,7 @@
 #include <functional>
 #include <gconv.h>
 #include <getopt.h>
-#include <gnu/stubs-32.h>
 #include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
 #include <iconv.h>
 #include <inttypes.h>
 #include <iomanip>
@@ -334,10 +206,6 @@
 #include <libio.h>
 #include <limits.h>
 #include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
 #include <list>
 #include <locale.h>
 #include <locale>
@@ -384,7 +252,6 @@
 #include <sys/types.h>
 #include <sys/ucontext.h>
 #include <sys/uio.h>
-#include <syslimits.h>
 #include <time.h>
 #include <typeinfo>
 #include <unistd.h>
@@ -392,31 +259,116 @@
 #include <vector>
 #include <wchar.h>
 #include <wctype.h>
-#include <xlocale.h>
 
-ZEN_SOCKET TCP_Accept_Handler::get_handle() {
+// line 9
+TCP_Accept_Handler::TCP_Accept_Handler(const SERVICES_ID &my_svc_info,
+                                       const ZEN_Sockaddr_In &accept_bind_addr,
+                                       bool sessionkey_verify)
+    : ZEN_Event_Handler(ZEN_Reactor::instance()),
+      my_svc_info_(my_svc_info),
+      accept_bind_addr_(accept_bind_addr),
+      sessionkey_verify_(sessionkey_verify),
+      ip_restrict_(Zerg_IPRestrict_Mgr::instance()) {
 }
 
-int TCP_Accept_Handler::handle_close() {
+// line 18
+TCP_Accept_Handler::~TCP_Accept_Handler() {
 }
 
-int TCP_Accept_Handler::handle_input() {
-    // local: ZEN_Socket_Stream sockstream;
-    // local: ZEN_Sockaddr_In remote_address;
-    // local: int ret;
-    // local: TCP_Svc_Handler *phandler;
-    // local: const size_t TMP_ADDR_LEN;
-    // local: char str_local_addr[];
-    // local: char str_remote_addr[];
-    // local: int accept_error;
-}
-
+// line 23
 int TCP_Accept_Handler::create_listen() {
-    // local: const socklen_t opval;
-    // local: socklen_t opvallen;
-    // local: socklen_t sndbuflen;
-    // local: socklen_t rcvbuflen;
-    // local: int ret;
-    // local: int NODELAY;
+    const socklen_t opval = 0x50000;
+    socklen_t opvallen = 4;
+    socklen_t sndbuflen = 0;
+    socklen_t rcvbuflen = 0;
+    int ret = 0;
+    int NODELAY = 1;
+
+    ret = peer_acceptor_.open(&accept_bind_addr_, true, 0, 0xc, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zergsvr] Bind Listen IP|Port :[%s|%u] Fail.Error: %d|%s.",
+            accept_bind_addr_.get_host_addr(),
+            accept_bind_addr_.get_port_number(),
+            errno, strerror(errno));
+        return 0x114933ab;
+    }
+
+    peer_acceptor_.sock_enable(O_NONBLOCK);
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[zergsvr] Bind Listen IP|Port : [%s|%u] Success.errno =%d .",
+        accept_bind_addr_.get_host_addr(),
+        accept_bind_addr_.get_port_number(),
+        errno);
+
+    peer_acceptor_.getsockopt(SOL_SOCKET, SO_RCVBUF, &rcvbuflen, &opvallen);
+    peer_acceptor_.getsockopt(SOL_SOCKET, SO_SNDBUF, &sndbuflen, &opvallen);
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] Get Listen Peer SO_RCVBUF:%u SO_SNDBUF %u.",
+                                   rcvbuflen, sndbuflen);
+
+    peer_acceptor_.setsockopt(SOL_SOCKET, SO_RCVBUF, &opval, opvallen);
+    peer_acceptor_.setsockopt(SOL_SOCKET, SO_SNDBUF, &opval, opvallen);
+
+    peer_acceptor_.getsockopt(SOL_SOCKET, SO_RCVBUF, &rcvbuflen, &opvallen);
+    peer_acceptor_.getsockopt(SOL_SOCKET, SO_SNDBUF, &sndbuflen, &opvallen);
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] Set Listen Peer SO_RCVBUF:%u SO_SNDBUF %u.",
+                                   rcvbuflen, sndbuflen);
+
+    peer_acceptor_.setsockopt(IPPROTO_TCP, TCP_NODELAY, &NODELAY, sizeof(NODELAY));
+
+    reactor()->register_handler(this, ZEN_EVENT_PERSIST);
+    return 0;
 }
 
+// line 87
+int TCP_Accept_Handler::handle_input() {
+    ZEN_Socket_Stream sockstream;
+    ZEN_Sockaddr_In remote_address;
+    int ret = 0;
+    TCP_Svc_Handler *phandler = NULL;
+    const size_t TMP_ADDR_LEN = 64;
+    char str_local_addr[TMP_ADDR_LEN];
+    char str_remote_addr[TMP_ADDR_LEN];
+    int accept_error = 0;
+
+    ret = peer_acceptor_.accept(sockstream, &remote_address);
+    if (ret != 0) {
+        accept_error = errno;
+        accept_bind_addr_.get_host_addr(str_local_addr, TMP_ADDR_LEN);
+        remote_address.get_host_addr(str_remote_addr, TMP_ADDR_LEN);
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zergsvr] Local peer[%s|%u] Accept remote [%s|%u] handler fail! "
+            "peer_acceptor_.accept ret =%d  errno=%d|%m ",
+            str_local_addr, accept_bind_addr_.get_port_number(),
+            str_remote_addr, remote_address.get_port_number(),
+            ret, accept_error);
+        sockstream.close();
+        return 0;
+    }
+
+    if (ip_restrict_->check_iprestrict(remote_address) != 0) {
+        sockstream.close();
+        return 0;
+    }
+
+    phandler = TCP_Svc_Handler::AllocSvcHandlerFromPool(TCP_Svc_Handler::HANDLER_MODE_ACCEPTED);
+    if (phandler != NULL) {
+        phandler->init_tcpsvr_handler(my_svc_info_, sockstream, remote_address, sessionkey_verify_);
+    }
+    return 0;
+}
+
+// line 148
+ZEN_SOCKET TCP_Accept_Handler::get_handle() const {
+    return peer_acceptor_.get_handle();
+}
+
+// line 156
+int TCP_Accept_Handler::handle_close() {
+    if (peer_acceptor_.get_handle() != -1) {
+        reactor()->remove_handler(this, false);
+        peer_acceptor_.close();
+    }
+    delete this;
+    return 0;
+}

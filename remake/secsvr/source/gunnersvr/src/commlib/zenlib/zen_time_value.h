@@ -4,9 +4,9 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TIME_VALUE_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TIME_VALUE_H_H_
 
-#include <bits/time.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/time.h>
 #include <time.h>
 
 // sizeof = 8
@@ -36,10 +36,10 @@ void total_msec(uint64_t arg0); // line 73
 uint64_t total_usec() const; // line 76
 void total_usec(uint64_t arg0); // line 78
 const char * timestamp(char *arg0, size_t arg1, int arg2) const; // line 83
-timespec operator timespec() const; // line 86
-timeval operator timeval() const; // line 89
-const timeval * operator const timeval*() const; // line 91
-timeval * operator timeval*(); // line 93
+operator timespec() const; // line 86
+operator timeval() const; // line 89
+operator const timeval*() const; // line 91
+operator timeval*(); // line 93
 void gettimeofday(); // line 97
 ZEN_Time_Value & operator+=(const ZEN_Time_Value &arg0); // line 100
 ZEN_Time_Value & operator=(const ZEN_Time_Value &arg0); // line 102
@@ -51,7 +51,5 @@ bool operator>=(const ZEN_Time_Value &arg0); // line 116
 bool operator==(const ZEN_Time_Value &arg0); // line 119
 bool operator!=(const ZEN_Time_Value &arg0); // line 122
 };
-extern const ZEN_Time_Value ZERO_TIME_VALUE; // line 142
-extern const ZEN_Time_Value MAX_TIME_VALUE; // line 144
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TIME_VALUE_H_H_

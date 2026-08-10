@@ -1,7 +1,6 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from zergsvr binary (DWARF 布局 + 反汇编逐函数还原)
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commsvr/zergsvr/zerg_app_handler.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/commsvr/zergsvr/zerg_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
@@ -157,124 +156,12 @@
 #include "src/commsvr/zergsvr/zerg_configure.h"
 #include "src/commsvr/zergsvr/zerg_stat_define.h"
 #include "src/commsvr/zergsvr/zerg_application.h"
-#include "src/commsvr/zergsvr/<built-in>"
-#include <_G_config.h>
 #include <algorithm>
 #include <alloca.h>
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
 #include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
 #include <cassert>
 #include <cctype>
 #include <climits>
@@ -308,22 +195,7 @@
 #include <functional>
 #include <gconv.h>
 #include <getopt.h>
-#include <gnu/stubs-32.h>
 #include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
 #include <iconv.h>
 #include <inttypes.h>
 #include <iomanip>
@@ -337,10 +209,6 @@
 #include <libio.h>
 #include <limits.h>
 #include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
 #include <list>
 #include <locale.h>
 #include <locale>
@@ -387,7 +255,6 @@
 #include <sys/types.h>
 #include <sys/ucontext.h>
 #include <sys/uio.h>
-#include <syslimits.h>
 #include <time.h>
 #include <typeinfo>
 #include <unistd.h>
@@ -395,12 +262,45 @@
 #include <vector>
 #include <wchar.h>
 #include <wctype.h>
-#include <xlocale.h>
 
-int Zerg_App_Timer_Handler::timer_close() {
+// line 11：静态成员定义（标量常量在头文件内带类内初始化，与二进制无符号一致）
+ZEN_Time_Value Zerg_App_Timer_Handler::now_time_;
+
+// line 16（数组不能在类内初始化，定义在 .cpp；值 {1,2} 取自 .rodata）
+const int Zerg_App_Timer_Handler::ZERGAPP_TIME_ID[] = {1, 2};
+
+// line 25
+Zerg_App_Timer_Handler::Zerg_App_Timer_Handler(ZEN_Timer_Queue *set_timer_queue)
+    : ZEN_Timer_Handler(set_timer_queue), heartbeat_counter_(1) {
+    ZEN_Time_Value interval_time(ZEN_OS::make_timeval(1, 0));
+    timer_queue()->schedule_timer(this, ZERGAPP_TIME_ID,
+                                  ZEN_Time_Value::ZERO_TIME_VALUE, interval_time);
 }
 
+// line 38
+Zerg_App_Timer_Handler::~Zerg_App_Timer_Handler() {
+}
+
+// line 44
 int Zerg_App_Timer_Handler::handle_timeout(const ZEN_Time_Value &time_now, const void *arg) {
-    // local: const int timeid;
+    const int timeid = *(const int *)arg;
+    now_time_ = time_now;
+    if (timeid != ZERGAPP_TIME_ID[0]) {
+        return 0;
+    }
+    heartbeat_counter_++;
+    if (heartbeat_counter_ % AUTOCONNECT_RETRY_INTERVAL == 0) {
+        TCP_Svc_Handler::auto_connect_allserver();
+    }
+    if (heartbeat_counter_ % SEND_FRAME_CHECK_INTERVAL == 0) {
+        Zerg_Comm_Manager::instance()->check_freamcount(now_time_.sec());
+    }
+    return 0;
 }
 
+// line 72
+int Zerg_App_Timer_Handler::timer_close() {
+    timer_queue()->cancel_timer(this);
+    delete this;
+    return 0;
+}

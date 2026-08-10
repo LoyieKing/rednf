@@ -1,15 +1,18 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_trace_log_basic.h
+// Original path: src/commlib/zenlib/zen_trace_log_basic.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_TRACE_LOG_BASIC_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_TRACE_LOG_BASIC_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TRACE_LOG_BASIC_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TRACE_LOG_BASIC_H_H_
 
 #include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include <bits/stringfwd.h>
-#include <iosfwd>
+#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
+#include <fstream>
 #include <stddef.h>
+#include <string>
+#include <sys/time.h>
 #include <time.h>
+
+using std::string;
 
 enum ZEN_LOG_PRIORITY {
     RS_TRACE = 1,
@@ -34,9 +37,9 @@ enum ZEN_LOGFILE_DEVIDE {
 };
 // sizeof = 364
 struct ZEN_LogTrace_Basic : public ZEN_NON_Copyable { // line 94
-    typedef basic_ofstream<char,std::char_traits<char> > ofstream;
+    typedef std::basic_ofstream<char,std::char_traits<char> > ofstream;
 public:
-int (***_vptr.ZEN_LogTrace_Basic)(...);
+// (vptr 由编译器自动生成，DWARF 原始成员名 _vptr.ZEN_LogTrace_Basic 无法作为 C++ 标识符)
 protected:
 static const size_t LOG_TMP_BUFFER_SIZE;
 static const size_t DEFAULT_RESERVE_FILENUM;
@@ -69,35 +72,35 @@ int init_time_log(ZEN_LOGFILE_DEVIDE div_log_file, const char *log_file_prefix, 
 int init_size_log(const char *log_file_prefix, bool if_thread_synchro, bool auto_new_line, size_t max_size_log_file, unsigned int reserve_file_num, unsigned int output_way, unsigned int head_record); // line 105
 int init_stdout(bool if_thread_synchro, bool use_err_out, bool auto_new_line, unsigned int head_record); // line 130
 int initialize(ZEN_LOGFILE_DEVIDE div_log_file, const char *log_file_prefix, bool if_thread_synchro, bool auto_new_line, size_t max_size_log_file, size_t reserve_file_num, unsigned int output_way, unsigned int head_record); // line 161
-void finalize(); // line 202
-void enable_output_logmsg(); // line 303
-void disable_output_logmsg(); // line 308
-ZEN_LOG_PRIORITY set_log_priority(ZEN_LOG_PRIORITY outlevel); // line 316
-ZEN_LOG_PRIORITY get_log_priority(); // line 323
-unsigned int set_log_head(unsigned int recdinfo); // line 329
-unsigned int get_log_head(); // line 336
-unsigned int set_output_way(unsigned int output_way); // line 355
-unsigned int get_output_way(); // line 365
-void set_thread_synchro(bool if_thread_synchro); // line 372
-bool get_thread_synchro(); // line 377
-void set_reserve_file_num(unsigned int file_num); // line 911
-unsigned int get_reserve_file_num() const; // line 918
-void output_log_info(const timeval &now_time, char *log_tmp_buffer, size_t sz_use_len); // line 814
+void finalize(); // line 201
+void enable_output_logmsg(); // line 302
+void disable_output_logmsg(); // line 307
+ZEN_LOG_PRIORITY set_log_priority(ZEN_LOG_PRIORITY outlevel); // line 315
+ZEN_LOG_PRIORITY get_log_priority(); // line 322
+unsigned int set_log_head(unsigned int recdinfo); // line 328
+unsigned int get_log_head(); // line 335
+unsigned int set_output_way(unsigned int output_way); // line 354
+unsigned int get_output_way(); // line 364
+void set_thread_synchro(bool if_thread_synchro); // line 371
+bool get_thread_synchro(); // line 376
+void set_reserve_file_num(unsigned int file_num); // line 910
+unsigned int get_reserve_file_num() const; // line 917
+void output_log_info(const timeval &now_time, char *log_tmp_buffer, size_t sz_use_len); // line 813
 protected:
-void create_id_logname(size_t logfileid, string &idlogfilename); // line 717
-void create_time_logname(time_t tmt, string &logfilename); // line 662
-void del_old_logfile(time_t cur_time, bool init); // line 923
-void del_old_time_logfile(time_t cur_time, bool init); // line 515
-void del_old_id_logfile(); // line 637
-void stringbuf_loghead(ZEN_LOG_PRIORITY outlevel, const timeval &now_time, char *log_tmp_buffer, size_t sz_buf_len, size_t &sz_use_len); // line 742
-void make_configure(); // line 222
-void make_new_logfile(time_t cur_time, bool init); // line 395
+void create_id_logname(size_t logfileid, string &idlogfilename); // line 716
+void create_time_logname(time_t tmt, string &logfilename); // line 661
+void del_old_logfile(time_t cur_time, bool init); // line 922
+void del_old_time_logfile(time_t cur_time, bool init); // line 514
+void del_old_id_logfile(); // line 636
+void stringbuf_loghead(ZEN_LOG_PRIORITY outlevel, const timeval &now_time, char *log_tmp_buffer, size_t sz_buf_len, size_t &sz_use_len); // line 741
+void make_configure(); // line 221
+void make_new_logfile(time_t cur_time, bool init); // line 394
 public:
-static ZEN_LOG_PRIORITY log_priorities(const char *str_priority); // line 876
+static ZEN_LOG_PRIORITY log_priorities(const char *str_priority); // line 875
 };
 extern const size_t DEFAULT_RESERVE_FILENUM; // line 104
 extern const size_t DEFAULT_LOG_SIZE; // line 111
 extern const size_t LEN_LOG_POSTFIX; // line 114
 extern const char STR_LOG_POSTFIX[]; // line 116
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_TRACE_LOG_BASIC_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TRACE_LOG_BASIC_H_H_

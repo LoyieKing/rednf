@@ -1,15 +1,18 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_trace_log_basic.h
+// Original path: src/commlib/zenlib/zen_trace_log_basic.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_TRACE_LOG_BASIC_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_TRACE_LOG_BASIC_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TRACE_LOG_BASIC_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TRACE_LOG_BASIC_H_H_
 
 #include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include <bits/stringfwd.h>
-#include <iosfwd>
+#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
+#include <fstream>
 #include <stddef.h>
+#include <string>
+#include <sys/time.h>
 #include <time.h>
+
+using std::string;
 
 enum ZEN_LOG_PRIORITY {
     RS_TRACE = 1,
@@ -19,11 +22,24 @@ enum ZEN_LOG_PRIORITY {
     RS_ALERT = 5,
     RS_FATAL = 6,
 };
+enum ZEN_LOGFILE_DEVIDE {
+    LOGDEVIDE_NONE = 1,
+    LOGDEVIDE_BY_SIZE = 101,
+    LOGDEVIDE_BY_TIMEBEGIN = 200,
+    LOGDEVIDE_BY_FIVEMINUTE = 201,
+    LOGDEVIDE_BY_QUARTER = 202,
+    LOGDEVIDE_BY_HOUR = 203,
+    LOGDEVIDE_BY_SIXHOUR = 204,
+    LOGDEVIDE_BY_DATE = 205,
+    LOGDEVIDE_BY_MONTH = 206,
+    LOGDEVIDE_BY_YEAR = 207,
+    LOGDEVIDE_BY_TIMEEND = 208,
+};
 // sizeof = 364
 struct ZEN_LogTrace_Basic : public ZEN_NON_Copyable { // line 94
-    typedef basic_ofstream<char,std::char_traits<char> > ofstream;
+    typedef std::basic_ofstream<char,std::char_traits<char> > ofstream;
 public:
-int (***_vptr.ZEN_LogTrace_Basic)(...);
+// (vptr 由编译器自动生成，DWARF 原始成员名 _vptr.ZEN_LogTrace_Basic 无法作为 C++ 标识符)
 protected:
 static const size_t LOG_TMP_BUFFER_SIZE;
 static const size_t DEFAULT_RESERVE_FILENUM;
@@ -87,4 +103,4 @@ extern const size_t DEFAULT_LOG_SIZE; // line 111
 extern const size_t LEN_LOG_POSTFIX; // line 114
 extern const char STR_LOG_POSTFIX[]; // line 116
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_TRACE_LOG_BASIC_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_TRACE_LOG_BASIC_H_H_

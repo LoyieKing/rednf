@@ -37,6 +37,11 @@ struct RandomOptionSeed
 {
     union
     {
+        struct
+        {
+            unsigned char option_give_type_ : 2;
+            unsigned char seed_value_ : 6;
+        };
         unsigned char seed_;
     };
 

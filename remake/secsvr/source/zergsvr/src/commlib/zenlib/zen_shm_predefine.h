@@ -4,10 +4,10 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHM_PREDEFINE_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHM_PREDEFINE_H_H_
 
-extern const size_t _INVALID_POINT; // line 402
+extern const size_t _INVALID_POINT; // line 408
 namespace ZEN_LIB {
-    extern const size_t NUM_HASH_SAFE_PRIMES_LIST; // line 84
-    extern const size_t NUM_PRIMES_LIST_ELEMENT; // line 92
+    extern const size_t NUM_HASH_SAFE_PRIMES_LIST; // line 90
+    extern const size_t NUM_PRIMES_LIST_ELEMENT; // line 98
 } // namespace ZEN_LIB
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHM_PREDEFINE_H_H_

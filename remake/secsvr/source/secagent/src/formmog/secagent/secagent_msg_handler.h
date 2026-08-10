@@ -1,48 +1,58 @@
-// Auto-generated header stub from DWARF info
+// Reconstructed from secagent disassembly + DWARF (2026-08-10)
 // Original path: src/formmog/secagent/secagent_msg_handler.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// sizeof = 52: antibot_msg_handler_@0(16) antibot_crypter_@16(4)
+// login_restrict_@20(28) send_frame_@48(4)
 #ifndef SECSVR_SRC_FORMMOG_SECAGENT_SECAGENT_MSG_HANDLER_H_H_
 #define SECSVR_SRC_FORMMOG_SECAGENT_SECAGENT_MSG_HANDLER_H_H_
 
-#include "output/protocol/formmog/release/include/formmog_conf_secagent.h"
-#include "src/formmog/secagent/secagent_antibot_msg_crypter.h"
 #include "src/formmog/secagent/secagent_antibot_msg_handler.h"
+#include "src/formmog/secagent/secagent_antibot_msg_crypter.h"
 #include "src/formmog/secagent/secagent_restrict.h"
+#include "src/formmog/secagent/secagent_user_mgr.h"
+#include "src/protocol/formmog/formmog_proto_public_secsvr.h"
+#include "src/protocol/formmog/formmog_proto_public_tsssdk.h"
+#include "src/commlib/framework/comm_app_frame.h"
 
-// sizeof = 52
-struct SecAgentMsgHandler { // line 28
+struct SecAgentMsgHandler {
 public:
-static const unsigned int MAX_FRAME_LEN;
-static const unsigned int MAX_RPCODE_KEY_INFO_LEN;
+    static const unsigned int MAX_FRAME_LEN = 0x10000;
+    static const unsigned int MAX_RPCODE_KEY_INFO_LEN = 128;
+
 private:
-SecagentAntibotMsgHandler antibot_msg_handler_;
-AntibotCrypter antibot_crypter_;
-SecagentRestrict login_restrict_;
-Comm_App_Frame *send_frame_;
+    SecagentAntibotMsgHandler antibot_msg_handler_; // 0
+    AntibotCrypter antibot_crypter_;                // 16
+    SecagentRestrict login_restrict_;               // 20
+    Comm_App_Frame *send_frame_;                    // 48
+
 public:
-SecAgentMsgHandler(); // line 33
-~SecAgentMsgHandler(); // line 34
-int init(SecAgentDPsdkInfoMgr::LPCONFIG conf); // line 37
-int reload(SecAgentDPsdkInfoMgr::LPCONFIG conf); // line 40
-int proc_client_msg(Comm_App_Frame *recv_frame); // line 43
-int proc_sever_msg(Comm_App_Frame *recv_frame); // line 46
-static int heart_beat_to_secsvr(); // line 49
+    SecAgentMsgHandler();
+    ~SecAgentMsgHandler();
+    int init(SecAgentDPsdkInfoMgr::LPCONFIG conf);
+    int reload(SecAgentDPsdkInfoMgr::LPCONFIG conf);
+    int proc_client_msg(Comm_App_Frame *recv_frame);
+    int proc_sever_msg(Comm_App_Frame *recv_frame);
+    static int heart_beat_to_secsvr();
+
 private:
-int proc_add_user(unsigned int uin, unsigned int game_id, short unsigned int channel_id); // line 53
-int proc_del_user(unsigned int uin, unsigned int game_id); // line 55
-int proc_cs_sdk_pkg(Comm_App_Frame *recv_frame); // line 58
-int proc_sc_sdk_pkg(Comm_App_Frame *recv_frame); // line 60
-int proc_cs_sdk_antibot_pkg(Comm_App_Frame *recv_frame, /*anon struct*/ int *sdk_pkg); // line 63
-int proc_sc_sdk_antibot_pkg(Comm_App_Frame *recv_frame, /*anon struct*/ int *sdk_pkg); // line 65
-int punish_user(unsigned int uin, unsigned int game_id, short unsigned int channel_id, int punish_mode); // line 68
-int proc_rpcode_info_pkg(Comm_App_Frame *recv_frame); // line 71
-int proc_notify_is_change_svr(const Comm_App_Frame *recv_frame); // line 74
-int create_rpcode_key_pkg(const SecAgentUserInfo *arg0, unsigned int arg1, short unsigned int arg2); // line 77
-int send_pkg_to_secsvr<sec_proto::ConfirmRpcodeInfo>(unsigned int cmd, const SecAgentUserInfo *user_info, const /*anon struct*/ int &pkg); // line 100
+    int proc_add_user(unsigned int uin, unsigned int game_id,
+                      unsigned short channel_id);
+    int proc_del_user(unsigned int uin, unsigned int game_id);
+    int proc_cs_sdk_pkg(Comm_App_Frame *recv_frame);
+    int proc_sc_sdk_pkg(Comm_App_Frame *recv_frame);
+    int proc_cs_sdk_antibot_pkg(Comm_App_Frame *recv_frame,
+                                sec_proto::RecvDataFromSDKReq *sdk_pkg);
+    int proc_sc_sdk_antibot_pkg(Comm_App_Frame *recv_frame,
+                                sec_proto::SendToSDK *sdk_pkg);
+    int punish_user(unsigned int uin, unsigned int game_id,
+                    unsigned short channel_id, int punish_mode);
+    int proc_rpcode_info_pkg(Comm_App_Frame *recv_frame);
+    int proc_notify_is_change_svr(const Comm_App_Frame *recv_frame);
+    int create_rpcode_key_pkg(const SecAgentUserInfo *user_info,
+                              unsigned int dib_id, unsigned short channel_id);
+
+    template<typename T>
+    int send_pkg_to_secsvr(unsigned int cmd, const SecAgentUserInfo *user_info,
+                           const T &pkg);
 };
-extern const unsigned int MAX_FRAME_LEN; // line 30
-
-
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
 
 #endif // SECSVR_SRC_FORMMOG_SECAGENT_SECAGENT_MSG_HANDLER_H_H_

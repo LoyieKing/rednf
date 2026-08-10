@@ -2,6 +2,23 @@
 #include "Socket.h"
 #include <errno.h>
 
+BOOL CMsgCell::PAD()
+{
+    LPPACKET_HEADER pPCK = (LPPACKET_HEADER)m_bBuf;
+    // ORIG：三元形态（if/else 会 setne 物化）+ 无命名 nSize 局部。
+    pPCK->setSize(pPCK->isVariableLength() ? m_wPos : pPCK->getSize());
+    switch (pPCK->isVariableLength())
+    {
+    default:
+        m_wSize = m_wPos;
+        break;
+    case 0:
+        m_wSize = pPCK->getSize();
+        break;
+    }
+    return pPCK->getSize() > m_nBufLen;
+}
+
 ChannelServiceApp::TCPUserStates::TCPUserStates()
 {
 }
@@ -142,15 +159,13 @@ void ChannelServiceApp::TCPUser::onRead_()
                 {
                     if (bufferRecv_.getPushedLength() >= nMessageSize)
                     {
-                        char* szBuf = (char*)malloc(nMessageSize);
+                        char szBuf[nMessageSize];
                         if (bufferRecv_.popCopy(nMessageSize, szBuf))
                         {
                             TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, szBuf, nMessageSize, 0);
-                            free(szBuf);
                         }
                         else
                         {
-                            free(szBuf);
                             GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                             postDisconnected(4);
                             return;
@@ -190,15 +205,13 @@ void ChannelServiceApp::TCPUser::onRead_()
                 {
                     if (bufferRecv_.getPushedLength() >= nMessageSize)
                     {
-                        char* szBuf = (char*)malloc(nMessageSize);
+                        char szBuf[nMessageSize];
                         if (bufferRecv_.popCopy(nMessageSize, szBuf))
                         {
                             TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, szBuf, nMessageSize, 0);
-                            free(szBuf);
                         }
                         else
                         {
-                            free(szBuf);
                             GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                             postDisconnected(7);
                             return;

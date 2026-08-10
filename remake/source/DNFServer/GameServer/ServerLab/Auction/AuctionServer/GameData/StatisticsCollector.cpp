@@ -18,6 +18,33 @@ using namespace nsl;
 
 const int StatisticsCollector::MAX_STATISTICS_LOG_FILE_SIZE;
 
+// GlobalInstance<StatisticsCollector>::create() 显式特化（强符号）：
+// ORIG 中该函数是弱符号，链接期胜出的是非 STATISTICS_STDATA_57 TU 的实例
+// （分配 0x19a4 = [55] 布局 sizeof）。我们的链接顺序让 HandlerFor_GA_/GP_JPN.o
+// （[57] 布局，分配 0x19d4）胜出，导致与 ORIG 差 0x30 字节。
+// 在本 TU（无宏，sizeof=0x19a4）提供强符号特化，覆盖各 TU 的弱实例，
+// 使最终二进制按 ORIG 的 0x19a4 分配。函数体与 GlobalInstance.h 内联定义一致，
+// 代码生成与 ORIG 逐条一致（仅尾随对齐 nop 属 §3.3 伪影）。
+namespace nsl {
+
+template <>
+void GlobalInstance<StatisticsCollector>::create()
+{
+    if (m_p == NULL)
+    {
+        if (m_p == NULL)
+        {
+            m_p = new StatisticsCollector;
+        }
+    }
+    else
+    {
+        return;
+    }
+}
+
+} // namespace nsl
+
 extern "C" int __xstat(int ver, const char* path, struct stat* buf);
 
 extern "C" __attribute__((weak)) int stat(const char* __path, struct stat* __statbuf)

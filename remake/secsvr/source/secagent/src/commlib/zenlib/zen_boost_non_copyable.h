@@ -5,13 +5,13 @@
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_BOOST_NON_COPYABLE_H_H_
 
 // sizeof = 1
-struct ZEN_NON_Copyable { // line 29
+struct ZEN_NON_Copyable { // line 34
 protected:
-ZEN_NON_Copyable(); // line 32
-~ZEN_NON_Copyable(); // line 36
+ZEN_NON_Copyable() {} // line 37（原版 inline：二进制无独立符号）
+~ZEN_NON_Copyable() {} // line 41
 private:
-ZEN_NON_Copyable(const ZEN_NON_Copyable &arg0); // line 43
-const ZEN_NON_Copyable & operator=(const ZEN_NON_Copyable &arg0); // line 45
+ZEN_NON_Copyable(const ZEN_NON_Copyable &arg0); // line 48
+const ZEN_NON_Copyable & operator=(const ZEN_NON_Copyable &arg0); // line 50
 };
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_BOOST_NON_COPYABLE_H_H_

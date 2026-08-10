@@ -1,322 +1,117 @@
-// Auto-generated stub from DWARF info
+// Restored from gunnersvr binary (DWARF + disassembly), GCC 4.1.0 SUSE, -O2.
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_os_adapt_file.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Thin syscall wrappers over the 64-bit-offset file API (stat64/open64/
+// mkstemp64/lseek64/ftruncate64/truncate64). Original quirks preserved:
+// read_file_data does not close the fd on a read error, and 0660 is used as
+// the default permission for O_RDONLY opens.
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_shm_predefine.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_time_value.h"
+#define _GNU_SOURCE 1
+#define _FILE_OFFSET_BITS 64
+
 #include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_os_adapt_error.h"
-#include "src/commlib/zenlib/zen_os_adapt_file.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
+
 #include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
 #include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
 #include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
 #include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-int ZEN_OS::access(const char *pathname, int mode) {
+// Real symbol is debug_errorex(char const*, ...) with a trailing variadic
+// marker in the mangled name; bind directly so the emitted symbol matches.
+extern void zen_debug_errorex(const char *str_format, ...)
+    __asm__("_ZN16ZEN_Trace_LogMsg13debug_errorexEPKcz");
+
+namespace ZEN_OS {
+
+int access(const char *pathname, int mode) {
+    return ::access(pathname, mode);
 }
 
-mode_t ZEN_OS::umask(mode_t cmask) {
+mode_t umask(mode_t cmask) {
+    return ::umask(cmask);
 }
 
-int ZEN_OS::unlink(const char *filename) {
+int unlink(const char *filename) {
+    return ::unlink(filename);
 }
 
-int ZEN_OS::filesize(ZEN_HANDLE file_handle, size_t *file_size) {
-    // local: stat sb;
-    // local: int ret;
+int filesize(ZEN_HANDLE file_handle, size_t *file_size) {
+    struct stat sb;
+    int ret = ::fstat(file_handle, &sb);
+    if (ret == 0) {
+        *file_size = sb.st_size;
+    }
+    return ret;
 }
 
-int ZEN_OS::stat(const char *path, zen_os_stat *file_stat) {
+int stat(const char *path, zen_os_stat *file_stat) {
+    return ::stat(path, file_stat);
 }
 
-ZEN_HANDLE ZEN_OS::mkstemp(char *template_name) {
+ZEN_HANDLE mkstemp(char *template_name) {
+    return ::mkstemp(template_name);
 }
 
-int ZEN_OS::close(ZEN_HANDLE handle) {
+int close(ZEN_HANDLE handle) {
+    return ::close(handle);
 }
 
-ZEN_HANDLE ZEN_OS::open(const char *filename, int open_mode, mode_t perms) {
+ZEN_HANDLE open(const char *filename, int open_mode, mode_t perms) {
+    return ::open(filename, open_mode, perms);
 }
 
-int ZEN_OS::filesize(const char *filename, size_t *file_size) {
-    // local: int ret;
-    // local: ZEN_HANDLE file_handle;
+int filesize(const char *filename, size_t *file_size) {
+    ZEN_HANDLE file_handle = ZEN_OS::open(filename, 0, 0660);
+    if (file_handle == -1) {
+        return -1;
+    }
+    int ret = ZEN_OS::filesize(file_handle, file_size);
+    ZEN_OS::close(file_handle);
+    return ret;
 }
 
-ssize_t ZEN_OS::lseek(ZEN_HANDLE file_handle, ssize_t offset, int whence) {
+ssize_t lseek(ZEN_HANDLE file_handle, ssize_t offset, int whence) {
+    return ::lseek(file_handle, offset, whence);
 }
 
-int ZEN_OS::ftruncate(ZEN_HANDLE file_handle, size_t offset) {
+int ftruncate(ZEN_HANDLE file_handle, size_t offset) {
+    return ::ftruncate(file_handle, offset);
 }
 
-int ZEN_OS::truncate(const char *filename, size_t offset) {
+int truncate(const char *filename, size_t offset) {
+    return ::truncate(filename, offset);
 }
 
-ssize_t ZEN_OS::write(ZEN_HANDLE file_handle, const void *buf, size_t count) {
+ssize_t write(ZEN_HANDLE file_handle, const void *buf, size_t count) {
+    return ::write(file_handle, buf, count);
 }
 
-ssize_t ZEN_OS::read(ZEN_HANDLE file_handle, void *buf, size_t count) {
+ssize_t read(ZEN_HANDLE file_handle, void *buf, size_t count) {
+    return ::read(file_handle, buf, count);
 }
 
-int ZEN_OS::fstat(ZEN_HANDLE file_handle, zen_os_stat *file_stat) {
+int fstat(ZEN_HANDLE file_handle, zen_os_stat *file_stat) {
+    return ::fstat(file_handle, file_stat);
 }
 
-int ZEN_OS::read_file_data(const char *filename, char *buffer, size_t buf_len, size_t *read_len) {
-    // local: ZEN_HANDLE fd;
-    // local: int len;
+int read_file_data(const char *filename, char *buffer, size_t buf_len,
+                   size_t *read_len) {
+    ZEN_HANDLE fd = ZEN_OS::open(filename, 0, 0660);
+    if (fd == -1) {
+        zen_debug_errorex("open file [%s]  fail ,error =%d", filename, errno);
+        return -1;
+    }
+    int len = ZEN_OS::read(fd, buffer, buf_len - 1);
+    if (len < 0) {
+        // Original quirk: the fd is left open on the read-error path.
+        zen_debug_errorex("read file [%s] fail ,error =%d", filename, errno);
+        return -1;
+    }
+    ZEN_OS::close(fd);
+    buffer[len] = 0;
+    *read_len = len;
+    return 0;
 }
 
+} // namespace ZEN_OS

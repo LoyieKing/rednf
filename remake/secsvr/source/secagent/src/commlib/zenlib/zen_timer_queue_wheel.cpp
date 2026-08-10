@@ -1,383 +1,240 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/zenlib/zen_timer_queue_wheel.cpp
+// Restored from gunnersvr oracle binary (DWARF + disassembly).
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_timer_queue_wheel.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+//
+// 语义要点（与 0x0809c240..0x0809cdb0 反汇编一致）：
+//  - initiate：timer_length_mesc_ 下限钳制为 3600000ms（1 小时）；轮盘槽数 =
+//    timer_length_mesc_ / timer_precision_mesc_ + 1；槽数组 resize 后全填 INVALID_TIMER_ID。
+//  - bind：槽位 = ((next_trigger_point_ - prev_trigger_msec_) / timer_precision_mesc_
+//    + proc_wheel_start_) % num_wheel_point_（商先截断为 32 位，与 __udivdi3 用法一致）；
+//    插入链表头部。
+//  - unbind：按 wheel_point_id_ 找到槽，若为头则摘头，否则双向链表摘除，再复位三个链表字段。
+//  - get_frist_nodeid 原版怪癖：扫描到非空槽后既不入参也不返回值（first_node_id
+//    始终保持 -1，返回值恒为 -1），予以保留。
+//  - dispatch：now < prev 或 elapsed > timer_length_mesc_ 时报错/告警并只前移 prev；
+//    否则逐槽逐节点回调 handle_timeout（虚 [vptr+8]），回调后若节点 timer_handle_
+//    仍非空则虚调用 reschedule_timer（[vptr+0x28]），再重读槽头继续。
+//  - extend_node：在基类扩容后把 wheel_node_list_ 同步到 num_timer_node_ 大小
+//    （多了 insert 补齐、少了 erase 截断），新节点三字段均为 -1。
+//  - 构造函数失败时打印 "[zenlib] ZEN_Timer_Wheel::initiate fail."。
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_timer_handler_base.h"
+#include <iostream> // 保留：原 TU 包含 <iostream>，产生同款 ios_base::Init 静态初始化
+
+#include <stddef.h>
+#include <stdint.h>
+#include <algorithm>
+#include <vector>
+
 #include "src/commlib/zenlib/zen_timer_queue_wheel.h"
 #include "src/commlib/zenlib/zen_timer_queue_base.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+#include "src/commlib/zenlib/zen_timer_handler_base.h"
+#include "src/commlib/zenlib/zen_time_value.h"
 
-void std::fill<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, int>(/*anon struct*/ int __first, /*anon struct*/ int __last, const int &__value) {
-    // local: const bool __scalar;
+// TU-local declaration; real class lives in zen_trace_log_msg.{h,cpp}
+// (its generated stub header is being restored in the same round).
+struct ZEN_Trace_LogMsg {
+    static void debug_errorex(const char *str_format, ...);
+    static void debug_alertex(const char *str_format, ...);
+};
+
+const unsigned int ZEN_Timer_Wheel::DEFAULT_TIMER_LENGTH_MESC = 259200000;
+
+ZEN_Timer_Wheel::ZEN_Timer_Wheel() {
+    timer_length_mesc_ = 0;
+    num_wheel_point_ = 0;
+    proc_wheel_start_ = 0;
 }
 
-void std::fill<__gnu_cxx::__normal_iterator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*, std::vector<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, std::allocator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE> > >, ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE>(/*anon struct*/ int __first, /*anon struct*/ int __last, const ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE &__value) {
-    // local: const bool __scalar;
+ZEN_Timer_Wheel::ZEN_Timer_Wheel(size_t num_timer_node, unsigned int timer_length_mesc,
+                                 unsigned int timer_precision_mesc,
+                                 ZEN_Timer_Queue::TRIGGER_MODE trigger_mode,
+                                 bool dynamic_expand_node) {
+    timer_length_mesc_ = 0;
+    num_wheel_point_ = 0;
+    proc_wheel_start_ = 0;
+    if (initiate(num_timer_node, timer_length_mesc, timer_precision_mesc,
+                 trigger_mode, dynamic_expand_node) != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[zenlib] ZEN_Timer_Wheel::initiate fail.");
+    }
 }
 
-__normal_iterator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*,std::vector<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, std::allocator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE> > > erase(__normal_iterator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*,std::vector<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, std::allocator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE> > > __first, __normal_iterator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*,std::vector<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, std::allocator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE> > > __last) {
-    // local: /*anon struct*/ int __i;
+ZEN_Timer_Wheel::~ZEN_Timer_Wheel() {
 }
 
-void std::__uninitialized_fill_n_aux<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*, unsigned int, ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE>(ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE *__first, unsigned int __n, const ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE &__x, __false_type arg3) {
-    // local: ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE *__cur;
-}
+int ZEN_Timer_Wheel::initiate(size_t num_timer_node, unsigned int timer_length_mesc,
+                              unsigned int timer_precision_mesc,
+                              ZEN_Timer_Queue::TRIGGER_MODE trigger_mode,
+                              bool dynamic_expand_node) {
+    // 原版最小轮盘时长：1 小时（3600000ms），小于则钳制。
+    if (timer_length_mesc < 3600000) {
+        timer_length_mesc = 3600000;
+    }
+    timer_length_mesc_ = timer_length_mesc;
 
-void std::__uninitialized_fill_n_a<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*, unsigned int, ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE>(ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE *__first, unsigned int __n, const ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE &__x, /*anon struct*/ int arg3) {
-}
+    int ret = ZEN_Timer_Queue::initialize(num_timer_node, timer_precision_mesc,
+                                          trigger_mode, dynamic_expand_node);
+    if (ret != 0) {
+        return ret;
+    }
 
-void std::__uninitialized_fill_n_aux<__gnu_cxx::__normal_iterator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*, std::vector<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, std::allocator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE> > >, unsigned int, ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE>(/*anon struct*/ int __first, unsigned int __n, const ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE &__x, __false_type arg3) {
-    // local: /*anon struct*/ int __cur;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*, std::vector<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, std::allocator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE> > >, unsigned int, ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE>(/*anon struct*/ int __first, unsigned int __n, const ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE &__x, /*anon struct*/ int arg3) {
-}
-
-int * std::fill_n<int*, unsigned int, int>(int *__first, unsigned int __n, const int &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<int*, unsigned int, int, int>(int *__first, unsigned int __n, const int &__x, /*anon struct*/ int arg3) {
-}
-
-/*anon struct*/ int std::fill_n<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, unsigned int, int>(/*anon struct*/ int __first, unsigned int __n, const int &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<int*, std::vector<int, std::allocator<int> > >, unsigned int, int, int>(/*anon struct*/ int __first, unsigned int __n, const int &__x, /*anon struct*/ int arg3) {
-}
-
-int ZEN_Timer_Wheel::get_frist_nodeid(int &first_node_id) {
-    // local: int timer_node_id;
-    // local: size_t i;
-    // local: size_t wheel_node_id;
-    // local: int timer_node_id;
-}
-
-void ZEN_Timer_Wheel::unbind_wheel_listnode(int time_node_id) {
-    // local: int wheel_point_id;
-    // local: int prev;
-    // local: int next;
-}
-
-int ZEN_Timer_Wheel::cancel_timer(int timer_id) {
-    // local: int ret;
+    num_wheel_point_ = timer_length_mesc_ / timer_precision_mesc + 1;
+    timer_wheel_point_.resize(num_wheel_point_);
+    std::fill(timer_wheel_point_.begin(), timer_wheel_point_.end(),
+              ZEN_Timer_Queue::INVALID_TIMER_ID);
+    proc_wheel_start_ = 0;
+    return ret;
 }
 
 void ZEN_Timer_Wheel::bind_wheel_listnode(int time_node_id) {
-    // local: size_t front_num;
-    // local: size_t wheel_point_id;
-    // local: int old_node_id;
+    ZEN_TIMER_NODE *time_node = &time_node_ary_[time_node_id];
+    // 商先按 32 位截断（二进制 __udivdi3 后仅用低 32 位再加 proc_wheel_start_）。
+    uint32_t wheel_offset = (uint32_t)((time_node->next_trigger_point_
+                                        - prev_trigger_msec_) / timer_precision_mesc_);
+    int wheel_point_id = (int)((wheel_offset + proc_wheel_start_)
+                               % num_wheel_point_);
+
+    int old_head = timer_wheel_point_[wheel_point_id];
+    timer_wheel_point_[wheel_point_id] = time_node_id;
+    wheel_node_list_[time_node_id].wheel_point_id_ = wheel_point_id;
+    if (old_head != ZEN_Timer_Queue::INVALID_TIMER_ID) {
+        wheel_node_list_[old_head].list_prev_ = time_node_id;
+        wheel_node_list_[time_node_id].list_next_ = old_head;
+    }
+}
+
+void ZEN_Timer_Wheel::unbind_wheel_listnode(int time_node_id) {
+    int wheel_point_id = wheel_node_list_[time_node_id].wheel_point_id_;
+    int *head_node = &timer_wheel_point_[wheel_point_id];
+    if (*head_node == time_node_id) {
+        *head_node = wheel_node_list_[time_node_id].list_next_;
+    } else {
+        int prev_node = wheel_node_list_[time_node_id].list_prev_;
+        int next_node = wheel_node_list_[time_node_id].list_next_;
+        if (prev_node != ZEN_Timer_Queue::INVALID_TIMER_ID) {
+            wheel_node_list_[prev_node].list_next_ = next_node;
+        }
+        if (next_node != ZEN_Timer_Queue::INVALID_TIMER_ID) {
+            wheel_node_list_[next_node].list_prev_ = prev_node;
+        }
+    }
+    wheel_node_list_[time_node_id].list_prev_ =
+        ZEN_Timer_Queue::INVALID_TIMER_ID;
+    wheel_node_list_[time_node_id].list_next_ =
+        ZEN_Timer_Queue::INVALID_TIMER_ID;
+    wheel_node_list_[time_node_id].wheel_point_id_ =
+        ZEN_Timer_Queue::INVALID_TIMER_ID;
+}
+
+int ZEN_Timer_Wheel::cancel_timer(int timer_id) {
+    unbind_wheel_listnode(timer_id);
+    return ZEN_Timer_Queue::cancel_timer(timer_id);
 }
 
 int ZEN_Timer_Wheel::reschedule_timer(int timer_id, uint64_t now_trigger_msec) {
-    // local: bool contiue_trigger;
+    bool continue_trigger = false;
+    calc_next_trigger(timer_id, now_trigger_msec, continue_trigger);
+    if (continue_trigger == false) {
+        return cancel_timer(timer_id);
+    }
+    unbind_wheel_listnode(timer_id);
+    bind_wheel_listnode(timer_id);
+    return 0;
 }
 
-int ZEN_Timer_Wheel::schedule_timer(ZEN_Timer_Handler *timer_hdl, const void *action, const ZEN_Time_Value &delay_time, const ZEN_Time_Value &interval_time) {
-    // local: int ret;
-    // local: int time_node_id;
-    // local: ZEN_Timer_Queue::ZEN_TIMER_NODE *alloc_time_node;
+int ZEN_Timer_Wheel::schedule_timer(ZEN_Timer_Handler *timer_hdl,
+                                    const void *action,
+                                    const ZEN_Time_Value &delay_time,
+                                    const ZEN_Time_Value &interval_time) {
+    int time_node_id = ZEN_Timer_Queue::INVALID_TIMER_ID;
+    ZEN_TIMER_NODE *alloc_time_node = NULL;
+
+    int ret = alloc_timernode(timer_hdl, action, delay_time, interval_time,
+                              time_node_id, alloc_time_node);
+    if (ret != 0) {
+        return ZEN_Timer_Queue::INVALID_TIMER_ID;
+    }
+    bind_wheel_listnode(time_node_id);
+    return time_node_id;
 }
 
-size_t ZEN_Timer_Wheel::dispatch_timer(const ZEN_Time_Value &now_time, uint64_t now_trigger_msec) {
-    // local: size_t num_dispatch;
-    // local: uint64_t elapsed_msec;
-    // local: size_t passing_wheel_node;
-    // local: size_t i;
-    // local: size_t wheel_node_id;
-    // local: int timer_node_id;
-}
+size_t ZEN_Timer_Wheel::dispatch_timer(const ZEN_Time_Value &now_time,
+                                       uint64_t now_trigger_msec) {
+    size_t dispatch_num = 0;
 
-__normal_iterator<int*,std::vector<int, std::allocator<int> > > erase(__normal_iterator<int*,std::vector<int, std::allocator<int> > > __first, __normal_iterator<int*,std::vector<int, std::allocator<int> > > __last) {
-    // local: /*anon struct*/ int __i;
-}
+    if (now_trigger_msec < prev_trigger_msec_) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] ZEN_Timer_Wheel error. now_trigger_msec[%llu] < prev_trigger_msec_[%llu],may be you adjust systime time to past time.",
+            now_trigger_msec, prev_trigger_msec_);
+        prev_trigger_msec_ = now_trigger_msec;
+        return 0;
+    }
 
-void _M_fill_insert(__normal_iterator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE*,std::vector<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE, std::allocator<ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE> > > __position, unsigned int __n, const ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE &__x) {
-    // local: ZEN_Timer_Wheel::ZEN_WHEEL_TIMER_NODE __x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
+    uint64_t elapsed_msec = now_trigger_msec - prev_trigger_msec_;
+    if (elapsed_msec > timer_length_mesc_) {
+        ZEN_Trace_LogMsg::debug_alertex(
+            "[zenlib] ZEN_Timer_Wheel alert. now_trigger_msec[%llu], prev_trigger_msec_[%llu],elapsed_msec[%llu],timer_length_mesc_[%llu],may be you adjust systime time to future time or you ,or wheel is too little ,or dispatch_timer or expire invoke too little.",
+            now_trigger_msec, prev_trigger_msec_, elapsed_msec,
+            (uint64_t)timer_length_mesc_);
+        prev_trigger_msec_ = now_trigger_msec;
+        return 0;
+    }
+
+    size_t dispatch_slot_num =
+        (size_t)(elapsed_msec / timer_precision_mesc_);
+    for (size_t i = 0; i < dispatch_slot_num; ++i) {
+        int wheel_point_id =
+            (int)((proc_wheel_start_ + i) % num_wheel_point_);
+        int time_node_id = timer_wheel_point_[wheel_point_id];
+        while (time_node_id != ZEN_Timer_Queue::INVALID_TIMER_ID) {
+            ZEN_TIMER_NODE *time_node = &time_node_ary_[time_node_id];
+            time_node->timer_handle_->handle_timeout(now_time,
+                                                     time_node->action_);
+            ++dispatch_num;
+            if (time_node_ary_[time_node_id].timer_handle_ != 0) {
+                reschedule_timer(time_node_id, now_trigger_msec);
+            }
+            time_node_id = timer_wheel_point_[wheel_point_id];
+        }
+    }
+
+    if (dispatch_slot_num != 0) {
+        prev_trigger_msec_ +=
+            (uint64_t)dispatch_slot_num * timer_precision_mesc_;
+        proc_wheel_start_ =
+            (proc_wheel_start_ + dispatch_slot_num) % num_wheel_point_;
+    }
+    return dispatch_num;
 }
 
 int ZEN_Timer_Wheel::extend_node(size_t num_timer_node, size_t &old_num_node) {
-    // local: int ret;
+    int ret = ZEN_Timer_Queue::extend_node(num_timer_node, old_num_node);
+    if (ret != 0) {
+        return ret;
+    }
+
+    ZEN_WHEEL_TIMER_NODE init_node;
+    if (num_timer_node_ >= wheel_node_list_.size()) {
+        wheel_node_list_.insert(wheel_node_list_.end(),
+                                num_timer_node_ - wheel_node_list_.size(),
+                                init_node);
+    } else {
+        wheel_node_list_.erase(wheel_node_list_.begin() + num_timer_node_,
+                               wheel_node_list_.end());
+    }
+    return ret;
 }
 
-void _M_fill_insert(__normal_iterator<int*,std::vector<int, std::allocator<int> > > __position, unsigned int __n, const int &__x) {
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-    // local: int __x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
+int ZEN_Timer_Wheel::get_frist_nodeid(int &first_node_id) {
+    // 原版怪癖：扫描到第一个非空槽后既不回填 first_node_id 也不返回该 id，
+    // 本函数恒返回 INVALID_TIMER_ID（first_node_id 恒为 -1）。
+    first_node_id = ZEN_Timer_Queue::INVALID_TIMER_ID;
+    if (num_timer_node_ != 0 && num_wheel_point_ != 0) {
+        for (size_t i = 0; i < num_wheel_point_; ++i) {
+            if (timer_wheel_point_[(proc_wheel_start_ + i) % num_wheel_point_]
+                != ZEN_Timer_Queue::INVALID_TIMER_ID) {
+                break;
+            }
+        }
+    }
+    return ZEN_Timer_Queue::INVALID_TIMER_ID;
 }
-
-int ZEN_Timer_Wheel::initiate(size_t num_timer_node, unsigned int timer_length_mesc, unsigned int timer_precision_mesc, ZEN_Timer_Queue::TRIGGER_MODE trigger_mode, bool dynamic_expand_node) {
-    // local: int ret;
-    // local: size_t i;
-}
-

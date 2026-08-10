@@ -1,802 +1,719 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from secagent binary (DWARF + 反汇编, 2026-08-10)
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/framework/comm_transaction_manager.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// 语义与 secagent 二进制逐一对照（符号/偏移/字符串/返回码一致）。
 
 #include "src/commlib/framework/comm_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "output/commlib/zenlib/release/include/zen_id_to_string.h"
 #include "output/commlib/zenlib/release/include/zen_time_value.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_command.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_result.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_field.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
-#include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
-#include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
-#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_file.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
-#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
-#include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
-#include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_sema.h"
-#include "output/commlib/zenlib/release/include/zen_lock_synch_traits.h"
-#include "output/commlib/zenlib/release/include/zen_lock_process_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_rw_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_semaphore.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_condi.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_condi.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_nonlock.h"
 #include "output/commlib/zenlib/release/include/zen_timer_handler_base.h"
 #include "output/commlib/zenlib/release/include/zen_timer_queue_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_wheel.h"
-#include "output/commlib/zenlib/release/include/zen_bus_two_way.h"
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
-#include "output/commlib/zenlib/release/include/zen_thread_task.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_stream.h"
-#include "output/commlib/zenlib/release/include/zen_socket_datagram.h"
-#include "output/commlib/zenlib/release/include/zen_socket_connector.h"
-#include "output/commlib/zenlib/release/include/zen_event_handle_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_select.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
-#include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
-#include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
-#include "output/commlib/zenlib/release/include/zen_server_status.h"
-#include "output/commlib/zenlib/release/include/zen_shm_vector.h"
-#include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
-#include "output/protocol/common/release/include/comm_proto_cfgsvr.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "output/protocol/common/release/include/comm_proto_public_head.h"
-#include "output/protocol/common/release/include/comm_proto_public_cmd.h"
-#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
-#include "output/protocol/common/release/include/comm_proto_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_conf_framework.h"
-#include "output/protocol/common/release/include/TdrXml.h"
-#include "output/protocol/common/release/include/TdrIO.h"
-#include "output/protocol/common/release/include/comm_conf_svcid.h"
-#include "output/protocol/common/release/include/comm_conf_zerg.h"
-#include "output/protocol/common/release/include/comm_conf_cfgsdk.h"
-#include "import/include/tencore/tencrypt/TenHash.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_external.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_types.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_define.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_ctypes_info.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_error.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_init.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLtags.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLMetaLib.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_to_hpp.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_io.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_operate_data.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_sort.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_net.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_manage.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_sql.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_meta_entries_index.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_macros.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_error.h"
+#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
+#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
 #include "src/commlib/framework/comm_app_frame.h"
 #include "src/commlib/framework/comm_enum_define.h"
 #include "src/commlib/framework/comm_service_info.h"
 #include "src/commlib/framework/comm_frame_command.h"
 #include "src/commlib/framework/comm_error_code.h"
+#include "src/commlib/framework/comm_security_check.h"
+#include "src/commlib/framework/comm_stat_monitor.h"
+#include "src/commlib/framework/comm_stat_define.h"
+#include "src/commlib/framework/comm_svrd_config.h"
 #include "src/commlib/framework/comm_transaction_base.h"
 #include "src/commlib/framework/comm_transaction_manager.h"
 #include "src/commlib/framework/comm_frame_malloc.h"
 #include "src/commlib/framework/comm_zerg_mmappipe.h"
-#include "src/commlib/framework/comm_stat_monitor.h"
-#include "src/commlib/framework/comm_stat_define.h"
-#include "src/commlib/framework/comm_svrd_config.h"
-#include "src/commlib/framework/comm_security_check.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
 #include <ext/hash_map>
 #include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
 #include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-void Transaction_Manager::enable_trans_statistics(const ZEN_Time_Value *stat_clock) {
+CREATE_TRANS_RECORD::CREATE_TRANS_RECORD(unsigned int arg0)
+    : trans_command_(arg0),
+      crttrs_cmd_pool_(),
+      if_auto_trans_lock_(false),
+      trans_lock_cmd_(0),
+      create_trans_num_(0),
+      destroy_right_num_(0),
+      destroy_timeout_num_(0),
+      destroy_exception_num_(0),
+      trans_consume_time_(0) {
 }
 
-void Transaction_Manager::get_manager_load_foctor2(unsigned int &load_max, unsigned int &load_cur) {
-    // local: const unsigned int ONE_CYCLE_GENERATE_TRANS;
+CREATE_TRANS_RECORD::~CREATE_TRANS_RECORD() {
 }
 
-void Transaction_Manager::clean_instance() {
+TRANS_LOCK_RECORD::TRANS_LOCK_RECORD(unsigned int arg0, unsigned int arg1)
+    : lock_qq_uin_(arg0), lock_trans_cmd_(arg1) {
 }
 
-void Transaction_Manager::instance(Transaction_Manager *pinstatnce) {
+TRANS_LOCK_RECORD::TRANS_LOCK_RECORD()
+    : lock_qq_uin_(0), lock_trans_cmd_(0) {
 }
 
-const long unsigned int * std::lower_bound<const long unsigned int*, long unsigned int>(const long unsigned int *__first, const long unsigned int *__last, const long unsigned int &__val) {
-    // local: ptrdiff_t __len;
-    // local: ptrdiff_t __half;
-    // local: const long unsigned int *__middle;
+TRANS_LOCK_RECORD::~TRANS_LOCK_RECORD() {
 }
 
-void std::fill<__gnu_cxx::__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*, std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > >, ZEN_LIB::lordrings<Comm_App_Frame*> >(/*anon struct*/ int __first, /*anon struct*/ int __last, const lordrings<Comm_App_Frame*> &__value) {
-    // local: const bool __scalar;
+Transaction_Manager::Transaction_Manager()
+    : transc_map_(100),
+      regtrans_pool_map_(100),
+      trans_lock_pool_((size_t)-5),
+      max_trans_(0),
+      trans_id_builder_(0),
+      self_services_id_(0, 0),
+      timer_queue_(0),
+      zerg_mmap_pipe_(0),
+      statistics_clock_(0),
+      trans_send_buffer_(0),
+      trans_recv_buffer_(0),
+      inner_frame_malloc_(0),
+      inner_message_queue_(0),
+      gen_trans_counter_(0),
+      cycle_gentrans_counter_(0) {
 }
 
-void std::fill<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*> > >, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*>(/*anon struct*/ int __first, /*anon struct*/ int __last, _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *const &__value) {
-    // local: const bool __scalar;
+Transaction_Manager::~Transaction_Manager() {
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] Transaction_Manager::~Transaction_Manager start.");
+    size_t transc_num = transc_map_.size();
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] close all transaction, transc_map_ size =%u", transc_num);
+    for (size_t i = 0; i < transc_num; ++i) {
+        Transaction_Base *txbase = 0;
+        if (transc_map_.begin() != transc_map_.end()) {
+            txbase = transc_map_.begin()->second;
+        }
+        txbase->output_trans_info("[Application exit]:");
+        txbase->handle_close();
+    }
+    for (regtrans_pool_map_type::iterator it = regtrans_pool_map_.begin();
+         it != regtrans_pool_map_.end(); ++it) {
+        CREATE_TRANS_RECORD &reg_ctr_trans = it->second;
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] Register command:%u size of pool:%u capacity of pool:%u.",
+            reg_ctr_trans.trans_command_, reg_ctr_trans.crttrs_cmd_pool_.size(),
+            reg_ctr_trans.crttrs_cmd_pool_.capacity());
+        if (reg_ctr_trans.crttrs_cmd_pool_.size()
+            != reg_ctr_trans.crttrs_cmd_pool_.capacity()) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] Plase notice!! size[%u] != capacity[%u] may be exist memory leak.",
+                reg_ctr_trans.crttrs_cmd_pool_.size(),
+                reg_ctr_trans.crttrs_cmd_pool_.capacity());
+        }
+        while (reg_ctr_trans.crttrs_cmd_pool_.size() != 0) {
+            Transaction_Base *recycle_txbase = 0;
+            reg_ctr_trans.crttrs_cmd_pool_.pop_front(recycle_txbase);
+            if (recycle_txbase != 0) {
+                delete recycle_txbase;
+            }
+        }
+    }
+    if (inner_frame_malloc_ != 0) {
+        delete inner_frame_malloc_;
+        inner_frame_malloc_ = 0;
+    }
+    if (inner_message_queue_ != 0) {
+        delete inner_message_queue_;
+        inner_message_queue_ = 0;
+    }
 }
 
-void std::fill<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*> > >, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*>(/*anon struct*/ int __first, /*anon struct*/ int __last, _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *const &__value) {
-    // local: const bool __scalar;
+void Transaction_Manager::initialize(size_t szregtrans, size_t sztransmap,
+                                     SERVICES_ID selfsvr,
+                                     ZEN_Timer_Queue *timer_queue,
+                                     Zerg_MMAP_BusPipe *zerg_mmap_pipe,
+                                     unsigned int max_frame_len,
+                                     bool init_inner_queue,
+                                     bool init_lock_pool) {
+    regtrans_pool_map_.resize(szregtrans + 0x80);
+    transc_map_.resize(sztransmap + 0x400);
+    max_trans_ = sztransmap;
+    self_services_id_.services_id_ = selfsvr.services_id_;
+    self_services_id_.services_type_ = selfsvr.services_type_;
+    timer_queue_ = timer_queue;
+    zerg_mmap_pipe_ = zerg_mmap_pipe;
+    trans_send_buffer_ = new (max_frame_len + 0x20)
+        Comm_App_Frame(0, max_frame_len + 0x20, 0x1000000);
+    trans_recv_buffer_ = new (max_frame_len + 0x20)
+        Comm_App_Frame(0, max_frame_len + 0x20, 0x1000000);
+    if (init_inner_queue) {
+        inner_frame_malloc_ = new AppFrame_Mallocor_Mgr<ZEN_Null_Mutex>();
+        inner_frame_malloc_->initialize(INIT_FRAME_MALLOC_NUMBER, 0x10000);
+        inner_message_queue_ =
+            new ZEN_Message_Queue_Deque<ZEN_NULL_SYNCH, Comm_App_Frame *>(
+                INNER_QUEUE_WATER_MARK);
+    }
+    if (init_lock_pool) {
+        trans_lock_pool_.resize(sztransmap >> 1);
+    }
 }
 
-void std::fill<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>**, std::vector<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*, std::allocator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*> > >, __gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*>(/*anon struct*/ int __first, /*anon struct*/ int __last, _Hashtable_node<TRANS_LOCK_RECORD> *const &__value) {
-    // local: const bool __scalar;
+int Transaction_Manager::register_trans_cmd(unsigned int cmd,
+                                            Transaction_Base *ptxbase,
+                                            bool if_auto_lock_trans,
+                                            unsigned int lock_trans_cmd) {
+    CREATE_TRANS_RECORD ctr_trans_rec(cmd);
+    ctr_trans_rec.if_auto_trans_lock_ = if_auto_lock_trans;
+    ctr_trans_rec.trans_lock_cmd_ = lock_trans_cmd;
+    CREATE_TRANS_RECORD &reg_ctr_trans =
+        hash_map_find_or_insert(regtrans_pool_map_, cmd, ctr_trans_rec).second;
+    // 初始化命令池：容量 POOL_EXTEND_TRANSACTION_NUM，填入模型克隆
+    if (reg_ctr_trans.crttrs_cmd_pool_.value_ptr_ != 0) {
+        delete[] reg_ctr_trans.crttrs_cmd_pool_.value_ptr_;
+        reg_ctr_trans.crttrs_cmd_pool_.value_ptr_ = 0;
+    }
+    reg_ctr_trans.crttrs_cmd_pool_.cycdeque_start_ = 0;
+    reg_ctr_trans.crttrs_cmd_pool_.cycdeque_size_ = 0;
+    reg_ctr_trans.crttrs_cmd_pool_.cycdeque_capacity_ =
+        POOL_EXTEND_TRANSACTION_NUM;
+    reg_ctr_trans.crttrs_cmd_pool_.value_ptr_ =
+        new Transaction_Base *[POOL_EXTEND_TRANSACTION_NUM];
+    for (size_t i = 0; i < POOL_EXTEND_TRANSACTION_NUM; ++i) {
+        Transaction_Base *cloned_txbase =
+            ptxbase->create_self(timer_queue_, this);
+        reg_ctr_trans.crttrs_cmd_pool_.push_back(cloned_txbase);
+    }
+    delete ptxbase;
+    return 0;
 }
 
-_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > ** std::fill_n<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*>(_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > **__first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *const &__value) {
-    // local: const bool __scalar;
+int Transaction_Manager::regiester_trans_id(unsigned int transid,
+                                            unsigned int trans_cmd,
+                                            Transaction_Base *ptxbase) {
+    if (statistics_clock_ != 0) {
+        ptxbase->trans_create_time_ = statistics_clock_->sec();
+        CREATE_TRANS_RECORD ctr_trans_rec(0);
+        CREATE_TRANS_RECORD &reg_ctr_trans =
+            hash_map_find_or_insert(regtrans_pool_map_, trans_cmd,
+                                    ctr_trans_rec).second;
+        reg_ctr_trans.create_trans_num_++;
+    }
+    hash_map_find_or_insert(transc_map_, transid, (Transaction_Base *)0)
+        .second = ptxbase;
+    return 0;
 }
 
-void std::__uninitialized_fill_n_a<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*>(_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > **__first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *const &__x, /*anon struct*/ int arg3) {
+int Transaction_Manager::unregiester_trans_id(unsigned int transid,
+                                              unsigned int trans_cmd,
+                                              int run_state,
+                                              time_t trans_start) {
+    Transaction_Base *rt_tsbase = 0;
+    transc_map_type::iterator mapiter = transc_map_.find(transid);
+    if (mapiter == transc_map_.end()) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] unregiester_trans_id,Can't Find Transaction ID:%u From MAP.",
+            transid);
+        return 0x139e;
+    }
+    rt_tsbase = mapiter->second;
+    if (statistics_clock_ != 0) {
+        CREATE_TRANS_RECORD ctr_trans_rec(0);
+        CREATE_TRANS_RECORD &reg_ctr_trans =
+            hash_map_find_or_insert(regtrans_pool_map_, trans_cmd,
+                                    ctr_trans_rec).second;
+        if (run_state >= 1 && run_state <= 2) {
+            reg_ctr_trans.destroy_right_num_++;
+        } else if (run_state == 3) {
+            reg_ctr_trans.destroy_timeout_num_++;
+        } else {
+            reg_ctr_trans.destroy_exception_num_++;
+        }
+        reg_ctr_trans.trans_consume_time_ +=
+            statistics_clock_->sec() - trans_start;
+    }
+    transc_map_.erase(transid);
+    return_clone_to_pool(trans_cmd, rt_tsbase);
+    return 0;
 }
 
-_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > ** std::fill_n<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*>(_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > **__first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*>(_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > **__first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *const &__x, /*anon struct*/ int arg3) {
-}
-
-void std::__uninitialized_fill_n_aux<ZEN_LIB::lordrings<Comm_App_Frame*>*, unsigned int, ZEN_LIB::lordrings<Comm_App_Frame*> >(lordrings<Comm_App_Frame*> *__first, unsigned int __n, const lordrings<Comm_App_Frame*> &__x, __false_type arg3) {
-    // local: lordrings<Comm_App_Frame*> *__cur;
-}
-
-void std::__uninitialized_fill_n_a<ZEN_LIB::lordrings<Comm_App_Frame*>*, unsigned int, ZEN_LIB::lordrings<Comm_App_Frame*>, ZEN_LIB::lordrings<Comm_App_Frame*> >(lordrings<Comm_App_Frame*> *__first, unsigned int __n, const lordrings<Comm_App_Frame*> &__x, /*anon struct*/ int arg3) {
-}
-
-void std::__uninitialized_fill_n_aux<__gnu_cxx::__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*, std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > >, unsigned int, ZEN_LIB::lordrings<Comm_App_Frame*> >(/*anon struct*/ int __first, unsigned int __n, const lordrings<Comm_App_Frame*> &__x, __false_type arg3) {
-    // local: /*anon struct*/ int __cur;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*, std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > >, unsigned int, ZEN_LIB::lordrings<Comm_App_Frame*>, ZEN_LIB::lordrings<Comm_App_Frame*> >(/*anon struct*/ int __first, unsigned int __n, const lordrings<Comm_App_Frame*> &__x, /*anon struct*/ int arg3) {
-}
-
-_Hashtable_node<TRANS_LOCK_RECORD> ** std::fill_n<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>**, unsigned int, __gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*>(_Hashtable_node<TRANS_LOCK_RECORD> **__first, unsigned int __n, _Hashtable_node<TRANS_LOCK_RECORD> *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>**, unsigned int, __gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*, __gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*>(_Hashtable_node<TRANS_LOCK_RECORD> **__first, unsigned int __n, _Hashtable_node<TRANS_LOCK_RECORD> *const &__x, /*anon struct*/ int arg3) {
-}
-
-/*anon struct*/ int std::fill_n<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *const &__x, /*anon struct*/ int arg3) {
-}
-
-/*anon struct*/ int std::fill_n<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*, __gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *const &__x, /*anon struct*/ int arg3) {
-}
-
-/*anon struct*/ int std::fill_n<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>**, std::vector<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*, std::allocator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*> > >, unsigned int, __gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<TRANS_LOCK_RECORD> *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>**, std::vector<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*, std::allocator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*> > >, unsigned int, __gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*, __gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<TRANS_LOCK_RECORD> *const &__x, /*anon struct*/ int arg3) {
-}
-
-int Transaction_Manager::mgr_sendbuf_to_service(unsigned int cmd, unsigned int qquin, unsigned int trans_id, unsigned int backfill_trans_id, const SERVICES_ID &rcvsvc, const SERVICES_ID &proxysvc, const SERVICES_ID &sndsvc, const unsigned char *buf, size_t buf_len, unsigned int app_id, unsigned int option) {
-}
-
-void _M_destroy_nodes(Comm_App_Frame ***__nstart, Comm_App_Frame ***__nfinish) {
-    // local: Comm_App_Frame ***__n;
-}
-
-void AppFrame_Mallocor_Mgr<ZEN_Null_Mutex>::ExtendFrameListCapacity(unsigned int list_no, unsigned int extend_num) {
-    // local: size_t old_capacity;
-    // local: size_t j;
-    // local: Comm_App_Frame *proc_frame;
-}
-
-void Transaction_Manager::get_manager_load_foctor(unsigned int &load_max, unsigned int &load_cur) {
+int Transaction_Manager::process_pipe_frame(size_t &proc_frame,
+                                            size_t &create_trans) {
+    create_trans = 0;
+    proc_frame = 0;
+    Comm_App_Frame *recv_frame = trans_recv_buffer_;
+    while (!zerg_mmap_pipe_->bus_pipe_pointer_[0]->empty()
+           && proc_frame <= MAX_ONCE_PROCESS_FRAME - 1) {
+        if (zerg_mmap_pipe_->bus_pipe_pointer_[0]->empty()) {
+            break;
+        }
+        zerg_mmap_pipe_->bus_pipe_pointer_[0]->pop_front(
+            (ZEN_LIB::dequechunk_node *)recv_frame);
+        Comm_App_Frame *tmp_frame = recv_frame;
+        zerg_mmap_pipe_->monitor_->increase_by_statid(
+            0x238d, tmp_frame->app_id_, tmp_frame->frame_command_, 1);
+        zerg_mmap_pipe_->monitor_->increase_by_statid(
+            0x239b, tmp_frame->app_id_, tmp_frame->frame_command_,
+            tmp_frame->frame_length_);
+        if (zerg_mmap_pipe_->config_->is_monitor_uin(tmp_frame->frame_uin_)) {
+            tmp_frame->frame_option_ |= 0x10000;
+        }
+        if (tmp_frame->frame_option_ & 0x10000) {
+            Comm_App_Frame::dumpoutput_frameInfo(
+                tmp_frame, "[TRACK MONITOR][Recv]", RS_ERROR);
+        }
+        bool bcrtcx = false;
+        int ret = process_appframe(tmp_frame, bcrtcx);
+        if (ret == 0 && bcrtcx) {
+            create_trans++;
+        }
+        proc_frame++;
+    }
+    return 0;
 }
 
 int Transaction_Manager::push_back_sendpipe(Comm_App_Frame *proc_frame) {
+    if (proc_frame->frame_length_ - Comm_App_Frame::LEN_OF_APPFRAME_HEAD > 0xffce) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Frame Len is error ,frame length :%u ,Please check your code.",
+            proc_frame->frame_length_);
+        return 0x13b1;
+    }
+    if (zerg_mmap_pipe_->config_->is_monitor_uin(proc_frame->frame_uin_)) {
+        proc_frame->frame_option_ |= 0x10000;
+    }
+    if (proc_frame->frame_option_ & 0x10000) {
+        Comm_App_Frame::dumpoutput_frameInfo(proc_frame,
+                                             "[TRACK MONITOR][Send]",
+                                             RS_ERROR);
+    }
+    if (!zerg_mmap_pipe_->bus_pipe_pointer_[1]->push_end(
+            (const ZEN_LIB::dequechunk_node *)proc_frame)) {
+        ZEN_Trace_LogMsg::debug_alertex(
+            "[zenlib] %u Pipe is full or data small?,Some data can't put to pipe. Please increase and check. nodesize=%u, freesize=%u",
+            1, proc_frame->frame_length_,
+            zerg_mmap_pipe_->bus_pipe_pointer_[1]->freesize());
+        zerg_mmap_pipe_->monitor_->increase_by_statid(
+            0x238f, proc_frame->app_id_, proc_frame->frame_command_, 1);
+        return 0x1396;
+    }
+    zerg_mmap_pipe_->monitor_->increase_by_statid(
+        0x238e, proc_frame->app_id_, proc_frame->frame_command_, 1);
+    zerg_mmap_pipe_->monitor_->increase_by_statid(
+        0x239c, proc_frame->app_id_, proc_frame->frame_command_,
+        proc_frame->frame_length_);
+    return 0;
 }
 
-int Transaction_Manager::mgr_sendmsghead_to_service(unsigned int cmd, unsigned int qquin, const SERVICES_ID &rcvsvc, const SERVICES_ID &proxysvc, unsigned int backfill_trans_id, unsigned int app_id, unsigned int option) {
-    // local: Comm_App_Frame *rsp_msg;
+int Transaction_Manager::get_clone_from_pool(unsigned int frame_cmd,
+                                             unsigned int qq_uin,
+                                             Transaction_Base *&crt_trans) {
+    int ret;
+    regtrans_pool_map_type::iterator mapiter = regtrans_pool_map_.find(frame_cmd);
+    if (mapiter == regtrans_pool_map_.end()) {
+        return 0x13dd;
+    }
+    CREATE_TRANS_RECORD ctr_trans_rec(0);
+    CREATE_TRANS_RECORD &reg_ctr_trans =
+        hash_map_find_or_insert(regtrans_pool_map_, frame_cmd,
+                                ctr_trans_rec).second;
+    if (reg_ctr_trans.if_auto_trans_lock_) {
+        ret = lock_qquin_trnas_cmd(qq_uin, reg_ctr_trans.trans_lock_cmd_,
+                                   frame_cmd);
+        if (ret != 0) {
+            return ret;
+        }
+    }
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "Get clone frame command [%u],QQUin[%u],Pool size=[%u].", frame_cmd,
+        qq_uin, reg_ctr_trans.crttrs_cmd_pool_.size());
+    if (reg_ctr_trans.crttrs_cmd_pool_.size() == 1) {
+        ZEN_Trace_LogMsg::debug_infoex("[framework] Before extend trans.");
+        Transaction_Base *model_trans = 0;
+        if (reg_ctr_trans.crttrs_cmd_pool_.size() != 0) {
+            reg_ctr_trans.crttrs_cmd_pool_.pop_front(model_trans);
+        }
+        size_t pool_capacity = reg_ctr_trans.crttrs_cmd_pool_.capacity();
+        size_t new_capacity =
+            pool_capacity + POOL_EXTEND_TRANSACTION_NUM;
+        if (new_capacity >= reg_ctr_trans.crttrs_cmd_pool_.size()) {
+            ZEN_Trace_LogMsg::debug_infoex(
+                "[framework] Pool Size=%u,  command %u, capacity = %u , resize =%u .",
+                reg_ctr_trans.crttrs_cmd_pool_.size(), frame_cmd,
+                pool_capacity, new_capacity);
+            Transaction_Base **new_data =
+                new Transaction_Base *[new_capacity];
+            size_t old_size = reg_ctr_trans.crttrs_cmd_pool_.size();
+            if (old_size != 0) {
+                for (size_t i = 0; i < old_size; ++i) {
+                    new_data[i] = reg_ctr_trans.crttrs_cmd_pool_[
+                        (unsigned int)i];
+                }
+            }
+            if (reg_ctr_trans.crttrs_cmd_pool_.value_ptr_ != 0) {
+                delete[] reg_ctr_trans.crttrs_cmd_pool_.value_ptr_;
+                reg_ctr_trans.crttrs_cmd_pool_.value_ptr_ = 0;
+            }
+            reg_ctr_trans.crttrs_cmd_pool_.cycdeque_start_ = 0;
+            reg_ctr_trans.crttrs_cmd_pool_.cycdeque_capacity_ = new_capacity;
+            reg_ctr_trans.crttrs_cmd_pool_.value_ptr_ = new_data;
+        }
+        for (size_t i = 0; i < POOL_EXTEND_TRANSACTION_NUM; ++i) {
+            Transaction_Base *cloned_txbase =
+                model_trans->create_self(timer_queue_, this);
+            reg_ctr_trans.crttrs_cmd_pool_.push_back(cloned_txbase);
+        }
+        reg_ctr_trans.crttrs_cmd_pool_.push_back(model_trans);
+        ZEN_Trace_LogMsg::debug_infoex("[framework] After Extend trans.");
+    }
+    if (reg_ctr_trans.crttrs_cmd_pool_.size() != 0) {
+        reg_ctr_trans.crttrs_cmd_pool_.pop_front(crt_trans);
+    }
+    crt_trans->re_init();
+    return 0;
 }
 
-void _M_reallocate_map(unsigned int __nodes_to_add, bool __add_at_front) {
-    // local: const size_t __old_num_nodes;
-    // local: const size_t __new_num_nodes;
-    // local: Comm_App_Frame ***__new_nstart;
-    // local: size_t __new_map_size;
-    // local: Comm_App_Frame ***__new_map;
-}
-
-void _M_push_back_aux(Comm_App_Frame *const &__t) {
-    // local: Comm_App_Frame *__t_copy;
-}
-
-pair<__gnu_cxx::_Hashtable_iterator<TRANS_LOCK_RECORD, TRANS_LOCK_RECORD, HASH_OF_TRANS_LOCK, std::_Identity<TRANS_LOCK_RECORD>, EQUAL_OF_TRANS_LOCK, std::allocator<TRANS_LOCK_RECORD> >,bool> insert_unique_noresize(const TRANS_LOCK_RECORD &__obj) {
-    // local: const size_t __n;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__first;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__tmp;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__cur;
-}
-
-void _M_pop_front_aux() {
-}
-
-Comm_App_Frame * AppFrame_Mallocor_Mgr<ZEN_Null_Mutex>::alloc_appframe(unsigned int frame_len) {
-    // local: ZEN_Lock_Guard<ZEN_Null_Mutex> tmp_guard;
-    // local: size_t hk;
-    // local: Comm_App_Frame *new_frame;
-}
-
-void AppFrame_Mallocor_Mgr<ZEN_Null_Mutex>::clone_appframe(const Comm_App_Frame *model_freame, Comm_App_Frame *&cloned_frame) {
-    // local: size_t frame_len;
-}
-
-void _M_create_nodes(Comm_App_Frame ***__nstart, Comm_App_Frame ***__nfinish) {
-    // local: Comm_App_Frame ***__cur;
-}
-
-void _M_initialize_map(unsigned int __num_elements) {
-    // local: const size_t __num_nodes;
-    // local: Comm_App_Frame ***__nstart;
-    // local: Comm_App_Frame ***__nfinish;
-}
-
-void clear() {
-    // local: size_t __i;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__cur;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__next;
-}
-
-void reserve(unsigned int __n) {
-    // local: const size_t __old_size;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> **__tmp;
-}
-
-void _M_fill_insert(__normal_iterator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>**,std::vector<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*, std::allocator<__gnu_cxx::_Hashtable_node<TRANS_LOCK_RECORD>*> > > __position, unsigned int __n, _Hashtable_node<TRANS_LOCK_RECORD> *const &__x) {
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
-}
-
-void _M_fill_insert(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > __position, unsigned int __n, const lordrings<Comm_App_Frame*> &__x) {
-    // local: /*anon struct*/ int __x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-}
-
-void AppFrame_Mallocor_Mgr<ZEN_Null_Mutex>::free_appframe(Comm_App_Frame *proc_frame) {
-    // local: ZEN_Lock_Guard<ZEN_Null_Mutex> tmp_guard;
-    // local: size_t hk;
-}
-
-int Transaction_Manager::mgr_postframe_to_msgqueue(Comm_App_Frame *post_frame) {
-    // local: int ret;
-    // local: Comm_App_Frame *tmp_frame;
-}
-
-void _M_fill_insert(__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >**,std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, Transaction_Base*> >*> > > __position, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *const &__x) {
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
-}
-
-void reserve(unsigned int __n) {
-    // local: const size_t __old_size;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > **__tmp;
-}
-
-int Transaction_Manager::get_handler_by_transid(unsigned int transid, unsigned int trans_cmd, Transaction_Base *&ptxbase) {
-    // local: /*anon struct*/ int mapiter;
-}
-
-void clear() {
-    // local: size_t __i;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__cur;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__next;
-}
-
-__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > erase(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > __first, __normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > __last) {
-    // local: /*anon struct*/ int __i;
-}
-
-void AppFrame_Mallocor_Mgr<ZEN_Null_Mutex>::initialize(unsigned int init_num, unsigned int max_frame_len) {
-    // local: size_t sz_frame;
-    // local: size_t i;
-    // local: size_t i;
-}
-
-void _M_fill_insert(__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >**,std::vector<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> >*> > > __position, unsigned int __n, _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *const &__x) {
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
-}
-
-void reserve(unsigned int __n) {
-    // local: const size_t __old_size;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > **__tmp;
-}
-
-void clear() {
-    // local: size_t __i;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__cur;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__next;
-}
-
-size_t erase(const TRANS_LOCK_RECORD &__key) {
-    // local: const size_t __n;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__first;
-    // local: size_t __erased;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__cur;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__next;
-}
-
-void Transaction_Manager::unlock_qquin_trans_cmd(unsigned int qq_uin, unsigned int lock_trnas_id) {
-    // local: TRANS_LOCK_RECORD lock_rec;
-}
-
-size_t erase(const unsigned int &__key) {
-    // local: const size_t __n;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__first;
-    // local: size_t __erased;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__cur;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__next;
-}
-
-/*anon struct*/ int & operator++() {
-    // local: const _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__old;
-    // local: size_t __bucket;
-}
-
-void Transaction_Manager::dump_all_trans_info() {
-    // local: /*anon struct*/ int iter_tmp;
-    // local: /*anon struct*/ int iter_end;
-    // local: unsigned int i;
-    // local: Transaction_Base *pbase;
-}
-
-/*anon struct*/ int & operator++() {
-    // local: const _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__old;
-    // local: size_t __bucket;
-}
-
-void Transaction_Manager::dump_statistics_info() {
-    // local: /*anon struct*/ int iter_tmp;
-    // local: /*anon struct*/ int iter_end;
-    // local: unsigned int i;
-}
-
-void Transaction_Manager::dump_trans_pool_info() {
-    // local: /*anon struct*/ int iter_tmp;
-    // local: /*anon struct*/ int iter_end;
-    // local: unsigned int i;
-    // local: unsigned int frame_command;
-    // local: const POOL_OF_REGISTERTRANS &const pool_regtrans;
-}
-
-void Transaction_Manager::dump_all_debug_info() {
-}
-
-/*anon struct*/ int & operator++() {
-    // local: const _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__old;
-    // local: size_t __bucket;
+int Transaction_Manager::return_clone_to_pool(unsigned int frame_cmd,
+                                              Transaction_Base *&rt_txbase) {
+    CREATE_TRANS_RECORD ctr_trans_rec(0);
+    CREATE_TRANS_RECORD &reg_ctr_trans =
+        hash_map_find_or_insert(regtrans_pool_map_, frame_cmd,
+                                ctr_trans_rec).second;
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "[framework] Return clone frame command %u,Pool size=%u .",
+        frame_cmd, reg_ctr_trans.crttrs_cmd_pool_.size());
+    if (reg_ctr_trans.if_auto_trans_lock_) {
+        unlock_qquin_trans_cmd(rt_txbase->req_qq_uin_,
+                               reg_ctr_trans.trans_lock_cmd_);
+    }
+    rt_txbase->finish();
+    reg_ctr_trans.crttrs_cmd_pool_.push_back(rt_txbase);
+    return 0;
 }
 
 void Transaction_Manager::recycle_clone_from_pool() {
-    // local: /*anon struct*/ int iter_tmp;
-    // local: /*anon struct*/ int iter_end;
-    // local: unsigned int i;
-    // local: unsigned int frame_command;
-    // local: POOL_OF_REGISTERTRANS &const pool_regtrans;
-    // local: const size_t USE_TRANS_THRESHOLD;
-    // local: const size_t RECYCLE_TRANS_NUM;
-    // local: size_t pool_capacity;
-    // local: size_t i;
-    // local: Transaction_Base *recycle_txbase;
+    size_t i = 1;
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] Recycle trans,transaction manager are processing pool number [%d] . ",
+        regtrans_pool_map_.size());
+    for (regtrans_pool_map_type::iterator iter_tmp =
+             regtrans_pool_map_.begin();
+         iter_tmp != regtrans_pool_map_.end(); ++iter_tmp) {
+        CREATE_TRANS_RECORD &pool_regtrans = iter_tmp->second;
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] %u.Pool porcess command:%u,capacity:%u,size:%u,use:%u.",
+            i++, pool_regtrans.trans_command_,
+            pool_regtrans.crttrs_cmd_pool_.capacity(),
+            pool_regtrans.crttrs_cmd_pool_.size(),
+            pool_regtrans.crttrs_cmd_pool_.capacity()
+                - pool_regtrans.crttrs_cmd_pool_.size());
+        size_t pool_capacity = pool_regtrans.crttrs_cmd_pool_.capacity();
+        if (pool_capacity - pool_regtrans.crttrs_cmd_pool_.size() > 0xff
+            || pool_regtrans.crttrs_cmd_pool_.size()
+                   <= RECYCLE_POOL_THRESHOLD_VALUE) {
+            continue;
+        }
+        for (size_t j = 0; j < POOL_EXTEND_TRANSACTION_NUM; ++j) {
+            Transaction_Base *recycle_txbase = 0;
+            if (pool_regtrans.crttrs_cmd_pool_.size() != 0) {
+                pool_regtrans.crttrs_cmd_pool_.pop_front(recycle_txbase);
+                if (recycle_txbase != 0) {
+                    delete recycle_txbase;
+                }
+            }
+        }
+        size_t new_capacity =
+            pool_capacity - POOL_EXTEND_TRANSACTION_NUM;
+        if (new_capacity >= pool_regtrans.crttrs_cmd_pool_.size()) {
+            Transaction_Base **new_data =
+                new Transaction_Base *[new_capacity];
+            size_t old_size = pool_regtrans.crttrs_cmd_pool_.size();
+            if (old_size != 0) {
+                for (size_t k = 0; k < old_size; ++k) {
+                    new_data[k] =
+                        pool_regtrans.crttrs_cmd_pool_[(unsigned int)k];
+                }
+            }
+            if (pool_regtrans.crttrs_cmd_pool_.value_ptr_ != 0) {
+                delete[] pool_regtrans.crttrs_cmd_pool_.value_ptr_;
+                pool_regtrans.crttrs_cmd_pool_.value_ptr_ = 0;
+            }
+            pool_regtrans.crttrs_cmd_pool_.cycdeque_start_ = 0;
+            pool_regtrans.crttrs_cmd_pool_.cycdeque_capacity_ = new_capacity;
+            pool_regtrans.crttrs_cmd_pool_.value_ptr_ = new_data;
+        }
+    }
 }
 
-void resize(unsigned int __num_elements_hint) {
-    // local: const size_t __old_n;
-    // local: const size_t __n;
-    // local: /*anon struct*/ int __tmp;
-    // local: size_t __bucket;
-    // local: _Hashtable_node<TRANS_LOCK_RECORD> *__first;
-    // local: size_t __new_bucket;
+int Transaction_Manager::lock_qquin_trnas_cmd(unsigned int qq_uin,
+                                              unsigned int trnas_lock_id,
+                                              unsigned int frame_cmd) {
+    TRANS_LOCK_RECORD lock_rec(qq_uin, trnas_lock_id);
+    trans_lock_pool_.resize(trans_lock_pool_.size() + 1);
+    std::pair<__gnu_cxx::hash_set<
+                  TRANS_LOCK_RECORD, HASH_OF_TRANS_LOCK,
+                  EQUAL_OF_TRANS_LOCK>::iterator, bool> iter_tmp =
+        trans_lock_pool_.insert(lock_rec);
+    if (iter_tmp.second) {
+        return 0;
+    }
+    ZEN_Trace_LogMsg::debug_errorex(
+        "[framework] [LOCK]Oh!Transaction lock fail.QQUin[%u] trans lock id[%u] trans cmd[%u].",
+        qq_uin, trnas_lock_id, frame_cmd);
+    return -1;
 }
 
-int Transaction_Manager::lock_qquin_trnas_cmd(unsigned int qq_uin, unsigned int trnas_lock_id, unsigned int frame_cmd) {
-    // local: TRANS_LOCK_RECORD lock_rec;
-    // local: /*anon struct*/ int iter_tmp;
+int Transaction_Manager::unlock_qquin_trans_cmd(unsigned int qq_uin,
+                                                unsigned int lock_cmd) {
+    TRANS_LOCK_RECORD lock_rec(qq_uin, lock_cmd);
+    return trans_lock_pool_.erase(lock_rec);
 }
 
-void resize(unsigned int __num_elements_hint) {
-    // local: const size_t __old_n;
-    // local: const size_t __n;
-    // local: /*anon struct*/ int __tmp;
-    // local: size_t __bucket;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__first;
-    // local: size_t __new_bucket;
+int Transaction_Manager::process_appframe(Comm_App_Frame *ppetappframe,
+                                          bool &bcrttx) {
+    int ret;
+    Transaction_Base *crt_trans = 0;
+    Transaction_Base *run_tans = 0;
+    bcrttx = false;
+    if (ppetappframe->frame_option_ & 0x10000) {
+        Comm_App_Frame::dumpoutput_framehead(
+            ppetappframe, "[TRACK MONITOR][TRANS PROCESS]", RS_INFO);
+    }
+    ret = get_clone_from_pool(ppetappframe->frame_command_,
+                              ppetappframe->frame_uin_, crt_trans);
+    if (ret != 0) {
+        ret = get_handler_by_transid(ppetappframe->backfill_trans_id_,
+                                     ppetappframe->frame_command_, run_tans);
+        if (ret != 0) {
+            return ret;
+        }
+        ZEN_Trace_LogMsg::debug_debugEx(
+            "Find raw Transaction ID: %u. ",
+            ppetappframe->backfill_trans_id_);
+        ret = run_tans->check_receive_frame(ppetappframe);
+        if (ret != 0) {
+            return ret;
+        }
+        ret = run_tans->receive_trans_msg(ppetappframe);
+        if (ret != 0) {
+            run_tans->handle_close();
+        }
+        return ret;
+    }
+    trans_id_builder_++;
+    if (trans_id_builder_ == 0) {
+        trans_id_builder_ = 1;
+    }
+    ret = regiester_trans_id(trans_id_builder_,
+                             ppetappframe->frame_command_, crt_trans);
+    if (ret != 0) {
+        return_clone_to_pool(ppetappframe->frame_command_, crt_trans);
+        return ret;
+    }
+    ret = crt_trans->initialize_trans(ppetappframe, trans_id_builder_);
+    if (ret != 0) {
+        crt_trans->handle_close();
+        return ret;
+    }
+    bcrttx = true;
+    gen_trans_counter_++;
+    cycle_gentrans_counter_++;
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "Create Trascation ,Command:%u Transaction ID:%u .",
+        ppetappframe->frame_command_, trans_id_builder_);
+    return 0;
 }
 
-/*anon struct*/ int & find_or_insert(const /*anon struct*/ int &__obj) {
-    // local: size_t __n;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__first;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__tmp;
-    // local: _Hashtable_node<std::pair<const unsigned int, Transaction_Base*> > *__cur;
+int Transaction_Manager::get_handler_by_transid(unsigned int transid,
+                                                unsigned int trans_cmd,
+                                                Transaction_Base *&ptxbase) {
+    transc_map_type::iterator mapiter = transc_map_.find(transid);
+    if (mapiter == transc_map_.end()) {
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] get_handler_by_transid,Can't Find Transaction ID:%u,Command:%u From MAP.",
+            trans_cmd, transid);
+        return 0x139e;
+    }
+    ptxbase = mapiter->second;
+    return 0;
 }
 
-void resize(unsigned int __num_elements_hint) {
-    // local: const size_t __old_n;
-    // local: const size_t __n;
-    // local: /*anon struct*/ int __tmp;
-    // local: size_t __bucket;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__first;
-    // local: size_t __new_bucket;
+void Transaction_Manager::dump_all_trans_info() const {
+    size_t i = 1;
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] Transaction Manager are processing [%d] transactions. ",
+        transc_map_.size());
+    for (transc_map_const_iterator iter_tmp = transc_map_.begin();
+         iter_tmp != transc_map_.end(); ++iter_tmp) {
+        Transaction_Base *txbase = iter_tmp->second;
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] %u.Transaction ID:%u,Request UIN:%u,Command:%u,State:%u.",
+            i++, txbase->req_qq_uin_, txbase->req_qq_uin_,
+            txbase->trans_command_, txbase->trans_phase_,
+            txbase->transaction_id_);
+    }
 }
 
-/*anon struct*/ int & find_or_insert(const /*anon struct*/ int &__obj) {
-    // local: size_t __n;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__first;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__tmp;
-    // local: _Hashtable_node<std::pair<const unsigned int, CREATE_TRANS_RECORD> > *__cur;
+void Transaction_Manager::dump_trans_pool_info() const {
+    size_t i = 1;
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] Transaction Manager are processing pool number [%d] . ",
+        regtrans_pool_map_.size());
+    for (regtrans_pool_map_const_iterator iter_tmp =
+             regtrans_pool_map_.begin();
+         iter_tmp != regtrans_pool_map_.end(); ++iter_tmp) {
+        const CREATE_TRANS_RECORD &reg_ctr_trans = iter_tmp->second;
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] %u.Pool porcess command:%u,capacity:%u,size:%u.",
+            i++, reg_ctr_trans.trans_command_,
+            reg_ctr_trans.crttrs_cmd_pool_.capacity(),
+            reg_ctr_trans.crttrs_cmd_pool_.size());
+    }
 }
 
-void Transaction_Manager::initialize(size_t szregtrans, size_t sztransmap, SERVICES_ID selfsvr, ZEN_Timer_Queue *timer_queue, Zerg_MMAP_BusPipe *zerg_mmap_pipe, unsigned int max_frame_len, bool init_inner_queue, bool init_lock_pool) {
+void Transaction_Manager::dump_statistics_info() const {
+    size_t i = 1;
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] [TRANS INFO] All generate transaction counter [%llu] ,previous cycle generate transaction number[%llu].",
+        gen_trans_counter_, cycle_gentrans_counter_);
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] Transaction Manager are processing [%d] transactions. ",
+        transc_map_.size());
+    for (regtrans_pool_map_const_iterator iter_tmp =
+             regtrans_pool_map_.begin();
+         iter_tmp != regtrans_pool_map_.end(); ++iter_tmp) {
+        const CREATE_TRANS_RECORD &reg_ctr_trans = iter_tmp->second;
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] [TRANS INFO]%u.Transaction command ID [%u],create [%llu], destroy right[%llu], destroy timeout[%llu],destroy exception[%llu],consume seconds[%llu]",
+            i++, reg_ctr_trans.trans_command_,
+            reg_ctr_trans.create_trans_num_,
+            reg_ctr_trans.destroy_right_num_,
+            reg_ctr_trans.destroy_timeout_num_,
+            reg_ctr_trans.destroy_exception_num_,
+            reg_ctr_trans.trans_consume_time_);
+    }
 }
 
-Transaction_Manager * Transaction_Manager::instance() {
+void Transaction_Manager::dump_all_debug_info() const {
+    dump_trans_pool_info();
+    dump_statistics_info();
+    dump_all_trans_info();
 }
 
-int Transaction_Manager::return_clone_to_pool(unsigned int frame_cmd, Transaction_Base *&rt_txbase) {
-    // local: CREATE_TRANS_RECORD &const reg_ctr_trans;
+int Transaction_Manager::mgr_sendmsghead_to_service(
+    unsigned int cmd, unsigned int qquin, const SERVICES_ID &rcvsvc,
+    const SERVICES_ID &proxysvc, unsigned int backfill_trans_id,
+    unsigned int app_id, unsigned int option) {
+    Comm_App_Frame *rsp_msg = trans_send_buffer_;
+    rsp_msg->init_framehead(0, 0, 0x10000);
+    rsp_msg->frame_length_ = Comm_App_Frame::LEN_OF_APPFRAME_HEAD;
+    rsp_msg->frame_command_ = cmd;
+    rsp_msg->transaction_id_ = 0;
+    rsp_msg->frame_uin_ = qquin;
+    rsp_msg->recv_service_ = rcvsvc;
+    rsp_msg->proxy_service_ = proxysvc;
+    rsp_msg->send_service_ = self_services_id_;
+    rsp_msg->frame_option_ = option;
+    rsp_msg->backfill_trans_id_ = backfill_trans_id;
+    rsp_msg->app_id_ = app_id;
+    return push_back_sendpipe(rsp_msg);
 }
 
-int Transaction_Manager::get_clone_from_pool(unsigned int frame_cmd, unsigned int qq_uin, Transaction_Base *&crt_trans) {
-    // local: int ret;
-    // local: /*anon struct*/ int mapiter;
-    // local: CREATE_TRANS_RECORD &const reg_ctr_trans;
-    // local: Transaction_Base *model_trans;
-    // local: size_t capacity_of_pool;
-    // local: size_t i;
-    // local: Transaction_Base *cloned_txbase;
+void Transaction_Manager::enable_trans_statistics(
+    const ZEN_Time_Value *stat_clock) {
+    statistics_clock_ = stat_clock;
 }
 
-int Transaction_Manager::unregiester_trans_id(unsigned int transid, unsigned int trans_cmd, int run_state, time_t trans_start) {
-    // local: /*anon struct*/ int mapiter;
-    // local: Transaction_Base *rt_tsbase;
+int Transaction_Manager::mgr_postframe_to_msgqueue(Comm_App_Frame *post_frame) {
+    int ret;
+    Comm_App_Frame *tmp_frame = 0;
+    inner_frame_malloc_->clone_appframe(post_frame, tmp_frame);
+    ret = inner_message_queue_->enqueue(tmp_frame);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_debugEx(
+            "Post message to send queue fail.ret =%dSend queue message_count:%u message_bytes:%u. ",
+            -1, inner_message_queue_->size(),
+            inner_message_queue_->size() * 4);
+        inner_frame_malloc_->free_appframe(tmp_frame);
+        return 0x13e1;
+    }
+    return 0;
 }
 
-int Transaction_Manager::regiester_trans_id(unsigned int transid, unsigned int trans_cmd, Transaction_Base *ptxbase) {
+int Transaction_Manager::process_queue_frame(size_t &proc_frame,
+                                             size_t &create_trans) {
+    proc_frame = 0;
+    create_trans = 0;
+    if (inner_message_queue_ == 0) {
+        return 0;
+    }
+    for (size_t i = 0;
+         i < MAX_ONCE_PROCESS_FRAME && inner_message_queue_->size() > 0;
+         ++i) {
+        Comm_App_Frame *tmp_frame = 0;
+        int ret = inner_message_queue_->dequeue(tmp_frame);
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] Recv queue dequeue fail ,ret=%u,", ret);
+            break;
+        }
+        bool bcrtcx = false;
+        ret = process_appframe(tmp_frame, bcrtcx);
+        inner_frame_malloc_->free_appframe(tmp_frame);
+        if (ret == 0 && bcrtcx) {
+            create_trans++;
+        }
+        proc_frame++;
+    }
+    return 0;
 }
 
-int Transaction_Manager::process_appframe(Comm_App_Frame *ppetappframe, bool &bcrttx) {
-    // local: int ret;
-    // local: Transaction_Base *crt_trans;
-    // local: Transaction_Base *run_tans;
+void Transaction_Manager::get_manager_load_foctor(unsigned int &load_max,
+                                                  unsigned int &load_cur) {
+    load_max = max_trans_;
+    load_cur = transc_map_.size();
+    if (load_cur == 0) {
+        load_cur = 1;
+    }
 }
 
-int Transaction_Manager::process_queue_frame(size_t &proc_frame, size_t &create_trans) {
-    // local: int ret;
-    // local: Comm_App_Frame *tmp_frame;
-    // local: bool bcrtcx;
+void Transaction_Manager::get_manager_load_foctor2(unsigned int &load_max,
+                                                   unsigned int &load_cur) {
+    const unsigned int ONE_CYCLE_GENERATE_TRANS = 0x7530;
+    load_max = ONE_CYCLE_GENERATE_TRANS;
+    if (cycle_gentrans_counter_ > ONE_CYCLE_GENERATE_TRANS) {
+        load_cur = ONE_CYCLE_GENERATE_TRANS;
+    } else {
+        load_cur = cycle_gentrans_counter_;
+    }
+    cycle_gentrans_counter_ = 0;
+    if (load_cur == 0) {
+        load_cur = 1;
+    }
 }
 
-int Transaction_Manager::process_pipe_frame(size_t &proc_frame, size_t &create_trans) {
-    // local: int ret;
-    // local: Comm_App_Frame *tmp_frame;
-    // local: bool bcrtcx;
+Transaction_Manager *Transaction_Manager::instance() {
+    if (instance_ == 0) {
+        instance_ = new Transaction_Manager();
+    }
+    return instance_;
 }
 
-int Transaction_Manager::register_trans_cmd(unsigned int cmd, Transaction_Base *ptxbase, bool if_auto_lock_trans, unsigned int lock_trans_cmd) {
-    // local: CREATE_TRANS_RECORD ctr_trans_rec;
-    // local: size_t i;
-    // local: Transaction_Base *tmp_txbase;
+void Transaction_Manager::instance(Transaction_Manager *pinstatnce) {
+    clean_instance();
+    instance_ = pinstatnce;
 }
 
+void Transaction_Manager::clean_instance() {
+    if (instance_ != 0) {
+        delete instance_;
+        instance_ = 0;
+    }
+}
+
+int Transaction_Manager::mgr_sendbuf_to_service(
+    unsigned int cmd, unsigned int qquin, unsigned int transaction_id,
+    unsigned int backfill_trans_id, const SERVICES_ID &rcvsvc,
+    const SERVICES_ID &proxysvc, const SERVICES_ID &sndsvc,
+    const unsigned char *buf, size_t buf_len, unsigned int app_id,
+    unsigned int option) {
+    return zerg_mmap_pipe_->pipe_sendbuf_to_service(
+        cmd, qquin, transaction_id, backfill_trans_id, rcvsvc, proxysvc,
+        sndsvc, buf, buf_len, app_id, option);
+}
+
+Transaction_Manager *Transaction_Manager::instance_ = 0;
+
+// 显式实例化（原二进制弱符号：AppFrame_Mallocor_Mgr<ZEN_Null_Mutex> 模板）
+template class AppFrame_Mallocor_Mgr<ZEN_Null_Mutex>;

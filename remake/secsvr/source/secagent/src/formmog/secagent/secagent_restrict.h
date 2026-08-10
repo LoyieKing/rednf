@@ -19,7 +19,4 @@ int reload(const char *arg0); // line 30
 bool is_allow_login(unsigned int arg0); // line 33
 };
 
-
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
-
 #endif // SECSVR_SRC_FORMMOG_SECAGENT_SECAGENT_RESTRICT_H_H_

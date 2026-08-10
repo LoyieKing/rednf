@@ -30,7 +30,7 @@ dnf_workspace/                      # git 仓库根
         └── toolchain/              # 可复现构建/逐 TU 对比脚本（build-channel.sh 等）
 ```
 
-> 说明：`build-verify-community/` 是 df_community_r 的验证构建目录，其下两个验证报告为生成物，已被 `.gitignore` 忽略，未纳入版本管理。
+> 说明：`build/community/` 是 df_community_r 的验证构建目录；全部构建产物统一收在 `dnf_decompile/build/` 下（按服务分子目录），已被 `.gitignore` 忽略，未纳入版本管理。
 > `dnf_project.gpr` / `dnf_project.rep/` 为 Ghidra 工程文件（已忽略），非重建产物。
 
 ## 服务端组件架构
@@ -65,10 +65,10 @@ dnf_workspace/                      # git 仓库根
 |---|---:|---|---|---|---|
 | community | `df_community_r` | 968 KB | 否（Ghidra 反编译） | 真实实现（37 文件） | 是 |
 | channel | `df_channel_r` | 1.3 MB | 是 | 真实实现（25 TU，含 DWARF 布局对齐） | 是 |
-| auction | `df_auction_r` | 12.2 MB | 是 | 真实实现（66 TU，MISSING=0） | 是（`source/build-auction/`） |
-| point | `df_point_r` | 12.2 MB | 是 | 真实实现（同源，`-DPOINT_SERVER` 切 3 处常量） | 是（`source/build-point/`） |
-| bridge | `df_bridge_r` | 3.4 MB | 是 | 真实实现（31 TU，复用 channel 框架 + Ghidra 重建） | 是（`source/build-bridge/`，91.4% 助记符级精确） |
-| stun | `df_stun_r` | 131 KB | 是 | 真实实现（8 文件，见 `docs/df_stun_r_restoration_report.md`） | 是（`source/build-stun/`，64 位） |
+| auction | `df_auction_r` | 12.2 MB | 是 | 真实实现（66 TU，MISSING=0） | 是（`build/auction/`） |
+| point | `df_point_r` | 12.2 MB | 是 | 真实实现（同源，`-DPOINT_SERVER` 切 3 处常量） | 是（`build/point/`） |
+| bridge | `df_bridge_r` | 3.4 MB | 是 | 真实实现（31 TU，复用 channel 框架 + Ghidra 重建） | 是（`build/bridge/`，91.4% 助记符级精确） |
+| stun | `df_stun_r` | 131 KB | 是 | 真实实现（8 文件，见 `docs/df_stun_r_restoration_report.md`） | 是（`build/stun/`，64 位） |
 | dbmw | `df_dbmw_r` | — | — | 仅工具函数（Library/Core） | 否（缺 `main`） |
 | relay / coserver / statics / guild / monitor | 独立脚本构建（build-*.sh） | 0.4–2.5 MB | 否 | 真实实现（monitor：`source/monitor/`，MISSING=0，见 `docs/df_monitor_r_progress.md`） | 是 |
 | manager | 独立脚本构建（build-manager.sh） | 3.2 MB | 否 | 主体完成（`source/manager/`；MISSING=0，助记符重叠 88.96%，见 `docs/df_manager_r_validation.md`） | 是 |
@@ -91,7 +91,7 @@ dnf_workspace/                      # git 仓库根
 2. 对比重建二进制中出现的字符串是否存在于原始 ELF；
 3. 对可匹配符号提取指令助记符序列，计算逐函数重叠率。
 
-### 关键结果（生成于 `source/build-verify-community/` 报告）
+### 关键结果（生成于 `build/community/` 报告）
 
 | 指标 | 值 |
 |---|---:|

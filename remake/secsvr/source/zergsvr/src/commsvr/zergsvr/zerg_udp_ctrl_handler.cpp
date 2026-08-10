@@ -1,450 +1,261 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commsvr/zergsvr/zerg_udp_ctrl_handler.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Reconstructed from zergsvr DWARF + disassembly (2026-08-10, svc_udp).
+// Original path: src/commsvr/zergsvr/zerg_udp_ctrl_handler.cpp
+// UDP_Svc_Handler：UDP 控制连接处理器，类布局见 zerg_udp_ctrl_handler.h（sizeof=60）。
+//
+// 还原要点（函数级地址见 file_symbols.py）：
+//  - 构造：ZEN_Event_Handler(ZEN_Reactor::instance())，拷贝 bind_addr/svr_info，
+//    sessionkey_verify_=arg，dgram_databuf_=0，ip_restrict_=instance()，最后
+//    ary_udpsvc_handler_.push_back(this)。
+//  - init_all_static_data 只赋 3 个静态：server_status_/zerg_comm_mgr_/game_id_。
+//  - get_udpctrl_conf 只做 if_proxy_ = (config->comm_cfg.is_proxy == 1)。
+//  - zerg_comm_manager.h 是坏桩（monitor_cmd_[] 柔性数组使后置成员偏移错误），
+//    本文件不 include；handle_input 中对 Zerg_Comm_Manager 的成员按二进制构造器
+//    (0x0807ddf0) 核对过的偏移直接访问：monitor_size_@0x1c、monitor_cmd_@0x20、
+//    zerg_mmap_pipe_@0x60、server_status_@0x68。
+//  - comm_zerg_mmappipe.h 当前编译不过，禁止 include；Zerg_MMAP_BusPipe 仅前向声明，
+//    收包队列 chunk 指针位于 mmap_pipe+0x200c（按 handle_input 反汇编）。
+//  - read_data_from_udp 里 frame_option_ 低 16 位置 0x80 用 memcpy 保字写入
+//    （二进制为 movw $0x80,4(%edi)，高 16 位保留线上值）。
 
-#include "src/commsvr/zergsvr/zerg_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "output/commlib/zenlib/release/include/zen_id_to_string.h"
-#include "output/commlib/zenlib/release/include/zen_time_value.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_command.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_result.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_field.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
-#include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_spin.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
-#include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
-#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_file.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
-#include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
-#include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_sema.h"
-#include "output/commlib/zenlib/release/include/zen_lock_synch_traits.h"
-#include "output/commlib/zenlib/release/include/zen_lock_process_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_rw_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_semaphore.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_condi.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_condi.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_nonlock.h"
-#include "output/commlib/zenlib/release/include/zen_timer_handler_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_wheel.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_base.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
-#include "output/commlib/zenlib/release/include/zen_bus_two_way.h"
-#include "output/commlib/zenlib/release/include/zen_thread_task.h"
-#include "output/commlib/zenlib/release/include/zen_event_handle_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_base.h"
-#include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_acceptor.h"
-#include "output/commlib/zenlib/release/include/zen_socket_connector.h"
-#include "output/commlib/zenlib/release/include/zen_socket_stream.h"
-#include "output/commlib/framework/release/include/comm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
-#include "output/commlib/zenlib/release/include/zen_socket_datagram.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_select.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
-#include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
-#include "output/commlib/zenlib/release/include/zen_server_status.h"
-#include "output/commlib/zenlib/release/include/zen_shm_vector.h"
-#include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
-#include "output/protocol/common/release/include/comm_proto_cfgsvr.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "output/protocol/common/release/include/comm_proto_public_head.h"
-#include "output/protocol/common/release/include/comm_proto_public_cmd.h"
-#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
-#include "output/protocol/common/release/include/comm_proto_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_conf_framework.h"
-#include "output/protocol/common/release/include/TdrXml.h"
-#include "output/protocol/common/release/include/TdrIO.h"
-#include "output/protocol/common/release/include/comm_conf_svcid.h"
-#include "output/protocol/common/release/include/comm_conf_zerg.h"
-#include "output/protocol/common/release/include/comm_conf_cfgsdk.h"
-#include "import/include/tencore/tencrypt/TenHash.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_external.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_types.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_define.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_ctypes_info.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_error.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_init.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLtags.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLMetaLib.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_to_hpp.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_io.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_operate_data.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_sort.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_net.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_manage.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_sql.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_meta_entries_index.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_macros.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_error.h"
-#include "output/commlib/framework/release/include/comm_error_code.h"
-#include "output/commlib/framework/release/include/comm_random_number.h"
-#include "output/commlib/framework/release/include/comm_service_config.h"
-#include "output/commlib/framework/release/include/comm_service_info.h"
-#include "output/commlib/framework/release/include/comm_enum_define.h"
-#include "output/commlib/framework/release/include/comm_app_frame.h"
-#include "output/commlib/framework/release/include/comm_frame_command.h"
-#include "output/commlib/framework/release/include/comm_zerg_mmappipe.h"
-#include "output/commlib/framework/release/include/comm_stat_monitor.h"
-#include "output/commlib/framework/release/include/comm_stat_define.h"
-#include "output/commlib/framework/release/include/comm_svrd_config.h"
-#include "output/commlib/framework/release/include/comm_mml_command.h"
-#include "output/commlib/framework/release/include/comm_mml_console_handler.h"
-#include "output/commlib/framework/release/include/comm_cfgsvr_sdk.h"
-#include "output/commlib/framework/release/include/comm_encrypt_arithmetic.h"
-#include "output/commlib/framework/release/include/comm_cmd_statistic.h"
-#include "output/commlib/framework/release/include/comm_svrd_application.h"
-#include "output/commlib/framework/release/include/comm_svrd_app_main.h"
-#include "output/commlib/framework/release/include/comm_bill_record.h"
-#include "output/commlib/framework/release/include/comm_time_provider.h"
-#include "output/commlib/framework/release/include/comm_xml_config.h"
 #include "src/commsvr/zergsvr/zerg_udp_ctrl_handler.h"
 #include "src/commsvr/zergsvr/zerg_buf_storage.h"
-#include "src/commsvr/zergsvr/zerg_application.h"
-#include "src/commsvr/zergsvr/zerg_tcp_ctrl_handler.h"
-#include "src/commsvr/zergsvr/zerg_auto_connect.h"
-#include "src/commsvr/zergsvr/zerg_service_info_set.h"
-#include "src/commsvr/zergsvr/zerg_app_handler.h"
 #include "src/commsvr/zergsvr/zerg_ip_restrict.h"
+#include "src/commlib/framework/comm_app_frame.h"
+#include "src/commlib/framework/comm_cfgsvr_sdk.h"
+#include "src/commlib/framework/comm_stat_monitor.h"
+#include "src/commlib/zenlib/zen_event_reactor_base.h"
+#include "src/commlib/zenlib/zen_os_adapt_error.h"
+#include "src/commlib/zenlib/zen_shm_lockfree_deque.h"
+#include "src/commlib/zenlib/zen_trace_log_msg.h"
 #include "src/commsvr/zergsvr/zerg_comm_manager.h"
-#include "src/commsvr/zergsvr/zerg_configure.h"
-#include "src/commsvr/zergsvr/zerg_stat_define.h"
-#include "src/commsvr/zergsvr/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
+#include "src/protocol/common/comm_conf_zerg.h"
 #include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
 #include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-int UDP_Svc_Handler::get_udpctrl_conf(const Zerg_MMAP_BusPipe::ZERG_CONFIG *config) {
+const size_t UDP_Svc_Handler::ONCE_MAX_READ_UDP_NUMBER = 0x100;
+std::vector<UDP_Svc_Handler *> UDP_Svc_Handler::ary_udpsvc_handler_;
+UDPSessionKeyMgr *UDP_Svc_Handler::udp_session_mgr_;
+Comm_Stat_Monitor *UDP_Svc_Handler::server_status_;
+Zerg_Comm_Manager *UDP_Svc_Handler::zerg_comm_mgr_;
+bool UDP_Svc_Handler::if_proxy_;
+unsigned int UDP_Svc_Handler::game_id_;
+
+UDP_Svc_Handler::UDP_Svc_Handler(const SERVICES_ID &svr_info,
+                                 const ZEN_Sockaddr_In &bind_addr,
+                                 bool sessionkey_verify)
+    : ZEN_Event_Handler(ZEN_Reactor::instance()),
+      udp_bind_addr_(bind_addr),
+      my_svc_info_(svr_info),
+      sessionkey_verify_(sessionkey_verify),
+      dgram_databuf_(0),
+      ip_restrict_(Zerg_IPRestrict_Mgr::instance()) {
+    ary_udpsvc_handler_.push_back(this);
 }
 
-int UDP_Svc_Handler::init_all_static_data() {
-}
-
-ZEN_SOCKET UDP_Svc_Handler::get_handle() {
-}
-
-int UDP_Svc_Handler::handle_close() {
-}
-
-void _M_insert_aux(__normal_iterator<UDP_Svc_Handler**,std::vector<UDP_Svc_Handler*, std::allocator<UDP_Svc_Handler*> > > __position, UDP_Svc_Handler *const &__x) {
-    // local: UDP_Svc_Handler *__x_copy;
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
+UDP_Svc_Handler::~UDP_Svc_Handler() {
+    if (dgram_databuf_ != 0) {
+        ZBuffer_Storage::instance()->free_byte_buffer(dgram_databuf_);
+    }
 }
 
 int UDP_Svc_Handler::init_udp_services() {
-    // local: int ret;
-    // local: const socklen_t opval;
-    // local: socklen_t opvallen;
+    int ret;
+    const socklen_t opval = 0x50000;
+    socklen_t opvallen = sizeof(opval);
+
+    dgram_databuf_ = ZBuffer_Storage::instance()->allocate_buffer();
+    ret = dgram_peer_.open(&udp_bind_addr_, AF_INET, 0, false);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zergsvr] init_udp_services ,UDP bind ip address [%s|%u] fail.",
+            udp_bind_addr_.get_host_addr(), udp_bind_addr_.get_port_number());
+        handle_close();
+        return 0x114933af;
+    }
+
+    dgram_peer_.sock_enable(O_NONBLOCK);
+    dgram_peer_.setsockopt(SOL_SOCKET, SO_RCVBUF, &opval, opvallen);
+    dgram_peer_.setsockopt(SOL_SOCKET, SO_SNDBUF, &opval, opvallen);
+    ret = this->reactor()->register_handler(this, ZEN_EVENT_READ);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zergsvr] init_udp_services ,UDP bind ip address [%s|%u] fail.",
+            udp_bind_addr_.get_host_addr(), udp_bind_addr_.get_port_number());
+        return 0x114933af;
+    }
+
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[zergsvr] init_udp_services ,UDP bind ip address [%s|%u] success.",
+        udp_bind_addr_.get_host_addr(), udp_bind_addr_.get_port_number());
+    return 0;
+}
+
+ZEN_SOCKET UDP_Svc_Handler::get_handle() const {
+    return dgram_peer_.get_handle();
+}
+
+int UDP_Svc_Handler::handle_close() {
+    if (dgram_peer_.get_handle() != (ZEN_SOCKET)-1) {
+        ZEN_Event_Handler::handle_close();
+        dgram_peer_.close();
+    }
+    delete this;
+    return 0;
 }
 
 int UDP_Svc_Handler::write_data_to_udp(Comm_App_Frame *send_frame) {
-    // local: ssize_t szsend;
-    // local: ZEN_Sockaddr_In remote_addr;
-    // local: size_t send_len;
+    ssize_t szsend;
+    ZEN_Sockaddr_In remote_addr(send_frame->recv_service_.services_id_,
+                                send_frame->recv_service_.services_type_);
+    size_t send_len = send_frame->frame_length_;
+
+    send_frame->framehead_encode();
+    szsend = dgram_peer_.sendto(send_frame, send_len, 0, &remote_addr);
+    if (szsend > 0) {
+        ZEN_Trace_LogMsg::debug_debugEx(
+            "[zergsvr] UDP send data success. peer IP [%s|%u] handle:%u send len :%u.",
+            remote_addr.get_host_addr(), remote_addr.get_port_number(),
+            dgram_peer_.get_handle(), send_len);
+        server_status_->increase_by_statid(0x2339, game_id_, 0, 1);
+        server_status_->increase_by_statid(0x233b, game_id_, 0, szsend);
+        return 0;
+    }
+
+    const char *error_str = strerror(errno);
+    ZEN_Trace_LogMsg::debug_errorex(
+        "[zergsvr] UDP send data error. peer IP [%s|%u] handle:%u ZEN_OS::last_error()=%d|%s.",
+        remote_addr.get_host_addr(), remote_addr.get_port_number(),
+        dgram_peer_.get_handle(), errno, error_str);
+    return 0x11493391;
 }
 
 int UDP_Svc_Handler::send_all_to_udp(Comm_App_Frame *send_frame) {
-    // local: size_t i;
+    for (size_t i = 0; i < ary_udpsvc_handler_.size(); i++) {
+        if (ary_udpsvc_handler_[i]->my_svc_info_ == send_frame->send_service_) {
+            return ary_udpsvc_handler_[i]->write_data_to_udp(send_frame);
+        }
+    }
+    ZEN_Trace_LogMsg::debug_errorex("[zergsvr] Error UDP Send Svc Info %u|%u.",
+                                    send_frame->send_service_.services_type_,
+                                    send_frame->send_service_.services_id_);
+    return 0x114933a6;
 }
 
 int UDP_Svc_Handler::read_data_from_udp(size_t &size_revc) {
-    // local: int ret;
-    // local: ssize_t recvret;
-    // local: ZEN_Sockaddr_In remote_addr;
-    // local: Comm_App_Frame *proc_frame;
+    int ret;
+    ssize_t recvret;
+    ZEN_Sockaddr_In remote_addr;
+
+    size_revc = 0;
+    recvret = dgram_peer_.recvfrom(dgram_databuf_->buffer_data_,
+                                   Comm_App_Frame::MAX_LEN_OF_APPFRAME_DATA,
+                                   0, &remote_addr);
+    if (recvret < 0) {
+        if (errno == EAGAIN || errno == EINVAL) {
+            return 0;
+        }
+        const char *error_str = strerror(errno);
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zergsvr] UDP receive data error IP[%s|%u] peer:%u ZEN_OS::last_error()=%d|%s.",
+            remote_addr.get_host_addr(), remote_addr.get_port_number(),
+            dgram_peer_.get_handle(), errno, error_str);
+        return 0x11493391;
+    }
+
+    ret = ip_restrict_->check_iprestrict(remote_addr);
+    if (ret != 0) {
+        return ret;
+    }
+    if (recvret == 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zergsvr] UDP Peer IP [%s|%u] recv return 0, I don't know how to process.?",
+            remote_addr.get_host_addr(), remote_addr.get_port_number());
+        return 0;
+    }
+
+    server_status_->increase_by_statid(0x2338, game_id_, 0, 1);
+    server_status_->increase_by_statid(0x233a, game_id_, 0, recvret);
+
+    Comm_App_Frame *proc_frame = (Comm_App_Frame *)dgram_databuf_->buffer_data_;
+    proc_frame->framehead_decode();
+    if (proc_frame->frame_length_ != (unsigned int)recvret) {
+        return 0x114933a6;
+    }
+
+    proc_frame->send_ip_address_ = remote_addr.get_ip_address();
+    proc_frame->send_service_.services_type_ = remote_addr.get_port_number();
+    proc_frame->send_service_.services_id_ = remote_addr.get_ip_address();
+    proc_frame->recv_service_ = my_svc_info_;
+    // 二进制为 movw $0x80,4(%edi)：仅写低 16 位，高 16 位保留线上值。
+    const unsigned short recv_frame_option = 0x80;
+    memcpy(&proc_frame->frame_option_, &recv_frame_option, sizeof(recv_frame_option));
+    size_revc = proc_frame->frame_length_;
+
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "[zergsvr] UDP recviese data success. peer IP [%s|%u] handle:%u .recv len :%u.",
+        remote_addr.get_host_addr(), remote_addr.get_port_number(),
+        dgram_peer_.get_handle(), size_revc);
+    return 0;
 }
 
 int UDP_Svc_Handler::handle_input() {
-    // local: int ret;
-    // local: size_t i;
-    // local: size_t szrevc;
+    int ret;
+    size_t i;
+    size_t szrevc;
+
+    for (i = 0; i < ONCE_MAX_READ_UDP_NUMBER; i++) {
+        szrevc = 0;
+        ret = read_data_from_udp(szrevc);
+        if (ret != 0) {
+            break;
+        }
+        if (szrevc == 0) {
+            continue;
+        }
+
+        Comm_App_Frame *proc_frame = (Comm_App_Frame *)dgram_databuf_->buffer_data_;
+        Zerg_Comm_Manager *zerg_mgr = zerg_comm_mgr_;
+        if (proc_frame->frame_command_ - 0x11490c80 <= 0x270f) {
+            continue;
+        }
+        if ((proc_frame->frame_option_ & 0x10000) == 0) {
+            for (size_t j = 0; j < zerg_mgr->monitor_size_; j++) {
+                if (zerg_mgr->monitor_cmd_[j] == proc_frame->frame_command_) {
+                    proc_frame->frame_option_ |= 0x10000;
+                    Comm_App_Frame::dumpoutput_framehead(proc_frame,
+                                                         "[TRACK MONITOR][RECV]",
+                                                         RS_INFO);
+                }
+            }
+        }
+
+        ZEN_LIB::shm_dequechunk *recv_chunk =
+            zerg_mgr->zerg_mmap_pipe_->bus_pipe_pointer_[1];
+        Comm_Stat_Monitor *status = zerg_mgr->server_status_;
+        if (recv_chunk->push_end((const ZEN_LIB::dequechunk_node *)proc_frame)) {
+            status->increase_by_statid(0x232f, proc_frame->app_id_, 0, 1);
+        } else {
+            size_t free_size = recv_chunk->freesize();
+            ZEN_Trace_LogMsg::debug_alertex(
+                "[zenlib] %u Pipe is full or data small?,Some data can't put to pipe. "
+                "Please increase and check. nodesize=%u, freesize=%u",
+                0, proc_frame->frame_length_, free_size);
+            status->increase_by_statid(0x233e, proc_frame->app_id_, 0, 1);
+        }
+    }
+    return 0;
 }
 
+int UDP_Svc_Handler::init_all_static_data() {
+    server_status_ = Comm_Stat_Monitor::instance();
+    zerg_comm_mgr_ = Zerg_Comm_Manager::instance();
+    game_id_ = CfgSvrSdk::instance()->get_game_id();
+    return 0;
+}
+
+int UDP_Svc_Handler::get_udpctrl_conf(const conf_zerg::zerg_config *config) {
+    if_proxy_ = (config->comm_cfg.is_proxy == 1);
+    return 0;
+}

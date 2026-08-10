@@ -4,10 +4,12 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_PREDEFINE_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_PREDEFINE_H_H_
 
-#include <bits/pthreadtypes.h>
+#include <pthread.h>
+#include <sys/stat.h>
 
 typedef pthread_t ZEN_THREAD_ID;
 typedef int ZEN_HANDLE;
 typedef int ZEN_SOCKET;
+typedef struct stat zen_os_stat;
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_PREDEFINE_H_H_

@@ -1,8 +1,8 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/framework/release/include/comm_enum_define.h
+// Original path: src/commlib/framework/comm_enum_define.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_ENUM_DEFINE_H_H_
-#define SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_ENUM_DEFINE_H_H_
+#ifndef SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_ENUM_DEFINE_H_H_
+#define SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_ENUM_DEFINE_H_H_
 
 extern const unsigned int MIN_QQ_NUMBER; // line 24
 extern const unsigned int ADMIN_QQ_NUMBER; // line 26
@@ -41,4 +41,4 @@ extern const unsigned int ONE_WEEK_SECONDS; // line 118
 extern const unsigned int SIGNATURE_ALLOW_MISTAKE; // line 125
 extern const unsigned int SESSION_USEFUL_LIFE; // line 127
 
-#endif // SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_ENUM_DEFINE_H_H_
+#endif // SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_ENUM_DEFINE_H_H_

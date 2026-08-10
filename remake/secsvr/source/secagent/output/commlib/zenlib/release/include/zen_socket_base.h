@@ -1,10 +1,11 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_socket_base.h
+// Original path: src/commlib/zenlib/zen_socket_base.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_BASE_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_BASE_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
+#include "zen_os_adapt_predefine.h"
+#include "zen_socket_addr_base.h"
 #include <stddef.h>
 #include <unistd.h>
 
@@ -33,4 +34,4 @@ ssize_t recv(void *arg0, size_t arg1, int arg2) const; // line 85
 ssize_t send(const void *arg0, size_t arg1, int arg2) const; // line 90
 };
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_BASE_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_

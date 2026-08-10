@@ -29,10 +29,10 @@ void UnInit(); // line 19
 void Square(unsigned char *arg0, bool arg1, unsigned char *arg2, unsigned int arg3); // line 21
 private:
 void SquareTransform(unsigned int *arg0); // line 24
-void GenerateRoundKeys(unsigned char *arg0, unsigned int *arg1[], unsigned int *arg2[]); // line 25
-void ExpandKey(unsigned char *arg0, unsigned int *arg1[]); // line 26
-void Encrypt(unsigned int *arg0, unsigned int *arg1[]); // line 28
-void Decrypt(unsigned int *arg0, unsigned int *arg1[]); // line 29
+void GenerateRoundKeys(unsigned char *arg0, unsigned int (*arg1)[4], unsigned int (*arg2)[4]); // line 25
+void ExpandKey(unsigned char *arg0, unsigned int (*arg1)[4]); // line 26
+void Encrypt(unsigned int *arg0, unsigned int (*arg1)[4]); // line 28
+void Decrypt(unsigned int *arg0, unsigned int (*arg1)[4]); // line 29
 };
 
 #endif // SECSVR_INC_SQUARE_H_H_

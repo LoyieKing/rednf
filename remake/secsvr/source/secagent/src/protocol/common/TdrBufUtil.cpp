@@ -1,7 +1,6 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/protocol/common/TdrBufUtil.cpp
+// Reconstructed from gunnersvr disassembly
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/protocol/common/TdrBufUtil.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/protocol/common/TdrPal.h"
 #include "src/protocol/common/TdrBufUtil.h"
@@ -9,181 +8,441 @@
 #include "src/protocol/common/TdrError.h"
 #include "src/protocol/common/TdrTypeUtil.h"
 #include "src/protocol/common/TdrTime.h"
-#include "src/protocol/common/<built-in>"
-#include <_G_config.h>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/byteswap.h>
-#include <bits/confname.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/in.h>
-#include <bits/local_lim.h>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/pthreadtypes.h>
-#include <bits/select.h>
-#include <bits/sigset.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <endian.h>
-#include <exception>
-#include <features.h>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <inttypes.h>
-#include <libio.h>
-#include <limits.h>
-#include <linux/limits.h>
-#include <netinet/in.h>
-#include <new>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
+
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <xlocale.h>
+
+namespace tsf4g_tdr {
 
 // line 22
-tsf4g_tdr::TdrError::ErrorType printMultiStr(/*anon struct*/ int &buf, const char *str, int times) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: int i;
-}
-
-tsf4g_tdr::TdrError::ErrorType textize(const char *format) {
-    // local: va_list ap;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 330
-tsf4g_tdr::TdrError::ErrorType printTdrIP(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, tdr_ip_t tdrIp) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 302
-tsf4g_tdr::TdrError::ErrorType printTdrIP(/*anon struct*/ int &buf, int indent, char sep, const char *variable, tdr_ip_t tdrIp) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 266
-tsf4g_tdr::TdrError::ErrorType printWString(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, const tdr_wchar_t *str) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: size_t strLen;
-    // local: size_t i;
-}
-
-// line 230
-tsf4g_tdr::TdrError::ErrorType printWString(/*anon struct*/ int &buf, int indent, char sep, const char *variable, const tdr_wchar_t *str) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: size_t strLen;
-    // local: size_t i;
-}
-
-// line 202
-tsf4g_tdr::TdrError::ErrorType printString(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, const char *str) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 174
-tsf4g_tdr::TdrError::ErrorType printString(/*anon struct*/ int &buf, int indent, char sep, const char *variable, const char *str) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 156
-tsf4g_tdr::TdrError::ErrorType printArray(/*anon struct*/ int &buf, int indent, char sep, const char *variable, int64_t count) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 90
-tsf4g_tdr::TdrError::ErrorType printVariable(/*anon struct*/ int &buf, int indent, char sep, const char *variable, const char *format) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: va_list va;
-}
-
-// line 66
-tsf4g_tdr::TdrError::ErrorType printVariable(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, bool withSep) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+TdrError::ErrorType TdrBufUtil::printMultiStr(TdrWriteBuf &buf, const char *str, int times) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    for (int i = 0; i < times; ++i) {
+        size_t len = strlen(str);
+        if (str == NULL) {
+            return TdrError::TDR_ERR_ARG_POINTER_IS_NULL;
+        }
+        if (buf.limit_ - buf.pos_ <= len) {
+            return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+        }
+        memmove(buf.data_ + buf.pos_, str, len);
+        buf.pos_ += len;
+    }
+    return ret;
 }
 
 // line 42
-tsf4g_tdr::TdrError::ErrorType printVariable(/*anon struct*/ int &buf, int indent, char sep, const char *variable, bool withSep) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+TdrError::ErrorType TdrBufUtil::printVariable(TdrWriteBuf &buf, int indent, char sep,
+                                              const char *variable, bool withSep) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (withSep) {
+        ret = buf.textize("%s%c", variable, sep);
+    } else {
+        ret = buf.textize("%s: ", variable);
+    }
+    return ret;
 }
 
-// line 414
-tsf4g_tdr::TdrError::ErrorType printTdrDate(/*anon struct*/ int &buf, int indent, char sep, const char *variable, tdr_date_t tdrDate) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+// line 66
+TdrError::ErrorType TdrBufUtil::printVariable(TdrWriteBuf &buf, int indent, char sep,
+                                              const char *variable, unsigned int arrIdx, bool withSep) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (withSep) {
+        ret = buf.textize("%s[%u]%c", variable, arrIdx, sep);
+    } else {
+        ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    }
+    return ret;
 }
 
-// line 358
-tsf4g_tdr::TdrError::ErrorType printTdrTime(/*anon struct*/ int &buf, int indent, char sep, const char *variable, tdr_time_t tdrTime) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 470
-tsf4g_tdr::TdrError::ErrorType printTdrDateTime(/*anon struct*/ int &buf, int indent, char sep, const char *variable, tdr_datetime_t tdrDateTime) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 386
-tsf4g_tdr::TdrError::ErrorType printTdrTime(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, tdr_time_t tdrTime) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 442
-tsf4g_tdr::TdrError::ErrorType printTdrDate(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, tdr_date_t tdrDate) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 498
-tsf4g_tdr::TdrError::ErrorType printTdrDateTime(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, tdr_datetime_t tdrDateTime) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+// line 90
+TdrError::ErrorType TdrBufUtil::printVariable(TdrWriteBuf &buf, int indent, char sep,
+                                              const char *variable, const char *format, ...) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s: ", variable);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    va_list va;
+    va_start(va, format);
+    int n = vsnprintf(buf.data_ + buf.pos_, buf.limit_ - buf.pos_, format, va);
+    va_end(va);
+    if (n < 0 || (size_t)n >= buf.limit_ - buf.pos_) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.pos_ += n;
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
 }
 
 // line 123
-tsf4g_tdr::TdrError::ErrorType printVariable(/*anon struct*/ int &buf, int indent, char sep, const char *variable, unsigned int arrIdx, const char *format) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: va_list va;
+TdrError::ErrorType TdrBufUtil::printVariable(TdrWriteBuf &buf, int indent, char sep,
+                                              const char *variable, unsigned int arrIdx,
+                                              const char *format, ...) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    va_list va;
+    va_start(va, format);
+    int n = vsnprintf(buf.data_ + buf.pos_, buf.limit_ - buf.pos_, format, va);
+    va_end(va);
+    if (n < 0 || (size_t)n >= buf.limit_ - buf.pos_) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.pos_ += n;
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
 }
 
+// line 156
+TdrError::ErrorType TdrBufUtil::printArray(TdrWriteBuf &buf, int indent, char sep,
+                                           const char *variable, int64_t count) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[0 : %lld]:", variable, (long long)(count - 1));
+    return ret;
+}
+
+// line 174
+TdrError::ErrorType TdrBufUtil::printString(TdrWriteBuf &buf, int indent, char sep,
+                                            const char *variable, const char *str) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s: ", variable);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s", str);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 202
+TdrError::ErrorType TdrBufUtil::printString(TdrWriteBuf &buf, int indent, char sep,
+                                            const char *variable, unsigned int arrIdx, const char *str) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s", str);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 230
+TdrError::ErrorType TdrBufUtil::printWString(TdrWriteBuf &buf, int indent, char sep,
+                                             const char *variable, const tdr_wchar_t *str) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s: ", variable);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    size_t strLen = TdrTypeUtil::wstrlen(str);
+    size_t i = 0;
+    do {
+        ret = buf.textize(" 0x%04x", str[i]);
+        if (ret != TdrError::TDR_NO_ERROR) {
+            return ret;
+        }
+        ++i;
+    } while (i != strLen + 1);
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 266
+TdrError::ErrorType TdrBufUtil::printWString(TdrWriteBuf &buf, int indent, char sep,
+                                             const char *variable, unsigned int arrIdx,
+                                             const tdr_wchar_t *str) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    size_t strLen = TdrTypeUtil::wstrlen(str);
+    size_t i = 0;
+    do {
+        ret = buf.textize(" 0x%04x", str[i]);
+        if (ret != TdrError::TDR_NO_ERROR) {
+            return ret;
+        }
+        ++i;
+    } while (i != strLen + 1);
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 302
+TdrError::ErrorType TdrBufUtil::printTdrIP(TdrWriteBuf &buf, int indent, char sep,
+                                           const char *variable, tdr_ip_t tdrIp) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s: ", variable);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = TdrTypeUtil::tdrIp2Str(buf, tdrIp);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 330
+TdrError::ErrorType TdrBufUtil::printTdrIP(TdrWriteBuf &buf, int indent, char sep,
+                                           const char *variable, unsigned int arrIdx, tdr_ip_t tdrIp) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = TdrTypeUtil::tdrIp2Str(buf, tdrIp);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 358
+TdrError::ErrorType TdrBufUtil::printTdrTime(TdrWriteBuf &buf, int indent, char sep,
+                                             const char *variable, tdr_time_t tdrTime) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s: ", variable);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    TdrTime t;
+    memcpy(&t, &tdrTime, sizeof(t));
+    ret = buf.textize("%02d:%02d:%02d", (int)(int16_t)t.hour, t.minute, t.second);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 386
+TdrError::ErrorType TdrBufUtil::printTdrTime(TdrWriteBuf &buf, int indent, char sep,
+                                             const char *variable, unsigned int arrIdx,
+                                             tdr_time_t tdrTime) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    TdrTime t;
+    memcpy(&t, &tdrTime, sizeof(t));
+    ret = buf.textize("%02d:%02d:%02d", (int)(int16_t)t.hour, t.minute, t.second);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 414
+TdrError::ErrorType TdrBufUtil::printTdrDate(TdrWriteBuf &buf, int indent, char sep,
+                                             const char *variable, tdr_date_t tdrDate) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s: ", variable);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    TdrDate d;
+    memcpy(&d, &tdrDate, sizeof(d));
+    ret = buf.textize("%4d-%02d-%02d", (int)(int16_t)d.year, d.month, d.day);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 442
+TdrError::ErrorType TdrBufUtil::printTdrDate(TdrWriteBuf &buf, int indent, char sep,
+                                             const char *variable, unsigned int arrIdx,
+                                             tdr_date_t tdrDate) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    TdrDate d;
+    memcpy(&d, &tdrDate, sizeof(d));
+    ret = buf.textize("%4d-%02d-%02d", (int)(int16_t)d.year, d.month, d.day);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 470
+TdrError::ErrorType TdrBufUtil::printTdrDateTime(TdrWriteBuf &buf, int indent, char sep,
+                                                 const char *variable, tdr_datetime_t tdrDateTime) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s: ", variable);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    TdrDateTime dt;
+    memcpy(&dt, &tdrDateTime, sizeof(dt));
+    ret = buf.textize("%4d-%02d-%02d", (int)(int16_t)dt.year, dt.month, dt.day);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 0) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = ' ';
+    ret = buf.textize("%02d:%02d:%02d", (int)(int16_t)dt.hour, dt.minute, dt.second);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+// line 498
+TdrError::ErrorType TdrBufUtil::printTdrDateTime(TdrWriteBuf &buf, int indent, char sep,
+                                                 const char *variable, unsigned int arrIdx,
+                                                 tdr_datetime_t tdrDateTime) {
+    TdrError::ErrorType ret = printMultiStr(buf, "    ", indent);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    ret = buf.textize("%s[%u]: ", variable, arrIdx);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    TdrDateTime dt;
+    memcpy(&dt, &tdrDateTime, sizeof(dt));
+    ret = buf.textize("%4d-%02d-%02d", (int)(int16_t)dt.year, dt.month, dt.day);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 0) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = ' ';
+    ret = buf.textize("%02d:%02d:%02d", (int)(int16_t)dt.hour, dt.minute, dt.second);
+    if (ret != TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (buf.limit_ - buf.pos_ <= 1) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    buf.data_[buf.pos_++] = sep;
+    buf.data_[buf.pos_] = '\0';
+    return TdrError::TDR_NO_ERROR;
+}
+
+} // namespace tsf4g_tdr

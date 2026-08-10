@@ -1,4 +1,4 @@
-/* gene.cpp -- Gene / GeneNew 自定义流式密码（由二进制反汇编还原）
+/* gene.cpp -- Gene / GeneNew / SetKey 自定义流式密码（由二进制反汇编还原）
    SetGeneKey(key, benc, buf, table)：
    - buf[0..7] = key[0..7] ^ {0x8a,0xe6,0x9b,0xf3,0xc1,0x7d,0x40,0x25}
    - table[i] = i（单位置换），以 buf 前 8 字节组成 32 位种子（高 4 字节
@@ -7,7 +7,11 @@
    - benc==0 时用 table 构建逆置换（table[table[i]] = i）
    Gene：逐字节 buf[i]：enc 先 ^i；^kbuf[i&7]；查表；^kbuf[i&7]；dec 再 ^i
    GeneNew：逐字节 buf[i] = buf[i] ^ i ^ key[i&7]（加解密同式）
-   验证：uni_call 调二进制 SetGeneKey/Gene/GeneNew 逐字节一致。 */
+   SetKey（自由函数，genenew.cpp 桩）：newKey[0..7] = key ^ 固定表；
+   以 newKey 前 8 字节组成种子，LCG 迭代 16 次洗牌 buffer[16]（初始 buffer[i]=i，
+   idx=(seed>>16)&0xf），再把 buffer 中命中 bit 掩码（0x81/0x40/.../0x01）的位
+   OR 回 newKey[i>>1] 的 (i&7) 位。
+   验证：uni_call 调二进制 SetGeneKey/Gene/GeneNew/SetKey 逐字节一致。 */
 
 #include "inc/gene.h"
 #include "include/TenCrypt.h"
@@ -74,6 +78,46 @@ void CGene::Gene(unsigned char *key, bool benc, unsigned char *buf,
         buf[i] = (unsigned char)(buf[i] ^ kbuf[i & 7]);
         if (!benc)
             buf[i] ^= (unsigned char)i;
+    }
+}
+
+// mangled: _Z6SetKeyPhS_
+void SetKey(unsigned char *key, unsigned char *newKey) {
+    static const unsigned char xork[8] = {
+        0x8a, 0xe6, 0x9b, 0xf3, 0xc1, 0x7d, 0x40, 0x25
+    };
+    static const unsigned char bitm[8] = {
+        0x81, 0x40, 0x22, 0x10, 0x0a, 0x04, 0x02, 0x01
+    };
+    unsigned char buffer[16];
+    unsigned int seed;
+    unsigned int i;
+    unsigned int idx;
+
+    for (i = 0; i < 8; i++)
+        newKey[i] = (unsigned char)(key[i] ^ xork[i]);
+
+    for (i = 0; i < 16; i++)
+        buffer[i] = (unsigned char)i;
+
+    seed = (((unsigned int)newKey[0] << 24) | ((unsigned int)newKey[1] << 16) |
+            ((unsigned int)newKey[2] << 8) | newKey[3]) ^
+           (((unsigned int)newKey[4] << 24) | ((unsigned int)newKey[5] << 16) |
+            ((unsigned int)newKey[6] << 8) | newKey[7]);
+
+    for (i = 0; i < 16; i++) {
+        unsigned char temp;
+
+        seed = seed * 0x343fd + 0x269ec3;
+        idx = (seed >> 16) & 0xf;
+        temp = buffer[i];
+        buffer[i] = buffer[idx];
+        buffer[idx] = temp;
+    }
+
+    for (i = 0; i < 16; i++) {
+        if (buffer[i] & bitm[i & 7])
+            newKey[i >> 1] |= (unsigned char)(1 << (i & 7));
     }
 }
 

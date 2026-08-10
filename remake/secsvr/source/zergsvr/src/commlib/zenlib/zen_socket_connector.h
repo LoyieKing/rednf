@@ -4,6 +4,10 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_CONNECTOR_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_CONNECTOR_H_H_
 
+#include "zen_socket_stream.h"
+#include "zen_socket_addr_base.h"
+#include "zen_time_value.h"
+
 // sizeof = 1
 struct ZEN_Socket_Connector { // line 18
 public:

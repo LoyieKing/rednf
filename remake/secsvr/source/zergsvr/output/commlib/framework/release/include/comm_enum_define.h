@@ -1,13 +1,29 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/framework/release/include/comm_enum_define.h
+// Original path: src/commlib/framework/comm_enum_define.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_ENUM_DEFINE_H_H_
-#define SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_ENUM_DEFINE_H_H_
+#ifndef SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_ENUM_DEFINE_H_H_
+#define SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_ENUM_DEFINE_H_H_
 
+#include <stddef.h>
+
+struct SERVICES_IP_INFO;
+
+// line 3（zerg_configure.h 使用，DWARF 枚举值）
 enum GET_SVC_IP_WAY {
     FROM_SERVICES_INFO_FILE = 0,
     FROM_SVC_CONFIG_CENTER = 1,
 };
+
+// line 106（operator() 内联体见 comm_service_info.h，SERVICES_IP_INFO 完整定义之后）
+struct HashofSvrIPInfo {
+    size_t operator()(const SERVICES_IP_INFO &svr_ip_info) const;
+};
+
+// line 115
+struct EqualSvrIPInfo {
+    bool operator()(const SERVICES_IP_INFO &svr1, const SERVICES_IP_INFO &svr2) const;
+};
+
 extern const unsigned int MIN_QQ_NUMBER; // line 24
 extern const unsigned int ADMIN_QQ_NUMBER; // line 26
 extern const short unsigned int PET_LIMIT_GRADE; // line 30
@@ -45,4 +61,4 @@ extern const unsigned int ONE_WEEK_SECONDS; // line 118
 extern const unsigned int SIGNATURE_ALLOW_MISTAKE; // line 125
 extern const unsigned int SESSION_USEFUL_LIFE; // line 127
 
-#endif // SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_ENUM_DEFINE_H_H_
+#endif // SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_ENUM_DEFINE_H_H_

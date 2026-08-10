@@ -1,329 +1,222 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_lock_thread_mutex.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
-
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_os_adapt_mutex.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_os_adapt_rwlock.h"
-#include "src/commlib/zenlib/zen_os_adapt_condi.h"
-#include "src/commlib/zenlib/zen_os_adapt_semaphore.h"
-#include "src/commlib/zenlib/zen_os_adapt_error.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_shm_predefine.h"
+// 还原自 gunnersvr 二进制（zen_lock_thread_mutex.cpp，GCC 4.1.0 SUSE -O2，2026-08-10）
+// ZEN_Thread_Mutex（递归型）/ ZEN_Thread_NONR_Mutex（普通型）/ ZEN_Thread_Recursive_Mutex（递归型）
+// 构造：pthread_mutexattr_initex(pshared=0, type=0/1, 忽略位, name) + pthread_mutex_init。
+// 失败时按原版记录 "[FAIL RETRUN]Fail in file [%s|%d],function:%s,fail info:%s,return %d,last error %d."
+// （__FILE__ 为原始 CI 绝对路径、行号为原文件行号）。
+// NONR::systime_lock 超时（ZEN_OS 包装把 errno 110 归一化为 62）静默返回 false；
+// Recursive::systime_lock 超时也记日志后返回 false。
 #include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
+
 #include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
 #include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-._13 * ZEN_Thread_Mutex::get_lock() {
-}
+// ZEN_Trace_LogMsg::debug_output 的最小本地声明（trace 头尚未还原，
+// 符号与真实类一致：_ZN16ZEN_Trace_LogMsg12debug_outputE16ZEN_LOG_PRIORITYPKcz）
+enum ZEN_LOG_PRIORITY {
+    RS_ERROR = 4,
+};
+struct ZEN_Trace_LogMsg {
+    static void debug_output(ZEN_LOG_PRIORITY dbglevel, const char *str_format, ...);
+};
 
-._13 * ZEN_Thread_Recursive_Mutex::get_lock() {
-}
+namespace ZEN_OS {
+int pthread_mutexattr_initex(pthread_mutexattr_t *mutexattr, bool is_pshared,
+                             bool is_recursive, bool, const char *);
+int pthread_mutex_init(pthread_mutex_t *mutex, const pthread_mutexattr_t *mutexattr);
+int pthread_mutex_destroy(pthread_mutex_t *mutex);
+int pthread_mutexattr_destroy(pthread_mutexattr_t *mutexattr);
+int pthread_mutex_lock(pthread_mutex_t *mutex);
+int pthread_mutex_unlock(pthread_mutex_t *mutex);
+int pthread_mutex_trylock(pthread_mutex_t *mutex);
+int pthread_mutex_timedlock(pthread_mutex_t *mutex, const timeval *abs_time);
+timeval timeval_add(const timeval &tv1, const timeval &tv2);
+} // namespace ZEN_OS
+
+#define ZEN_LOCK_TRACE_ERROR(fail_info, ret, err, line) \
+    ZEN_Trace_LogMsg::debug_output(RS_ERROR, \
+        "[FAIL RETRUN]Fail in file [%s|%d],function:%s,fail info:%s,return %d,last error %d.", \
+        "/data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_lock_thread_mutex.cpp", \
+        line, __PRETTY_FUNCTION__, fail_info, ret, err)
+
+pthread_mutex_t * ZEN_Thread_Mutex::get_lock() { return &lock_; }
+pthread_mutex_t * ZEN_Thread_Recursive_Mutex::get_lock() { return &lock_; }
 
 bool ZEN_Thread_NONR_Mutex::try_lock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_trylock(&lock_);
+    return ret == 0;
 }
 
 bool ZEN_Thread_Recursive_Mutex::try_lock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_trylock(&lock_);
+    return ret == 0;
 }
 
 bool ZEN_Thread_Mutex::try_lock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_trylock(&lock_);
+    return ret == 0;
 }
 
 bool ZEN_Thread_Recursive_Mutex::duration_lock(const ZEN_Time_Value &relative_time) {
-    // local: timeval abs_time;
+    timeval now;
+    ::gettimeofday(&now, 0);
+    timeval rel_time = (timeval)relative_time;
+    timeval abs_time = ZEN_OS::timeval_add(now, rel_time);
+    return systime_lock(ZEN_Time_Value(abs_time));
 }
 
 bool ZEN_Thread_NONR_Mutex::systime_lock(const ZEN_Time_Value &abs_time) {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_timedlock(&lock_, static_cast<const timeval *>(abs_time));
+    if (ret == 0) {
+        return true;
+    }
+    int err = errno;
+    if (err == 62) { // ZEN_OS::pthread_mutex_timedlock 将 ETIMEDOUT(110) 归一化为 62
+        return false;
+    }
+    ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_timedlock", ret, err, 348);
+    return false;
 }
 
 void ZEN_Thread_NONR_Mutex::unlock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_unlock(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_unlock", ret, err, 332);
+    }
 }
 
 void ZEN_Thread_NONR_Mutex::lock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_lock(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_lock", ret, err, 305);
+    }
+}
+
+ZEN_Thread_NONR_Mutex::~ZEN_Thread_NONR_Mutex() {
+    int ret = ZEN_OS::pthread_mutex_destroy(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_destroy", ret, err, 290);
+    }
+}
+
+ZEN_Thread_NONR_Mutex::ZEN_Thread_NONR_Mutex(const char *mutex_name)
+    : ZEN_Lock_Base(0) {
+    pthread_mutexattr_t mutexattr;
+    int ret = ZEN_OS::pthread_mutexattr_initex(&mutexattr, false, false, true, mutex_name);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutexattr_initex", ret, err, 263);
+        return;
+    }
+    ret = ZEN_OS::pthread_mutex_init(&lock_, &mutexattr);
+    ZEN_OS::pthread_mutexattr_destroy(&mutexattr);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_init", ret, err, 275);
+        return;
+    }
 }
 
 bool ZEN_Thread_Recursive_Mutex::systime_lock(const ZEN_Time_Value &abs_time) {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_timedlock(&lock_, static_cast<const timeval *>(abs_time));
+    if (ret == 0) {
+        return true;
+    }
+    int err = errno;
+    ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_timedlock", ret, err, 221);
+    return false;
 }
 
 void ZEN_Thread_Recursive_Mutex::unlock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_unlock(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_unlock", ret, err, 208);
+    }
 }
 
 void ZEN_Thread_Recursive_Mutex::lock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_lock(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_lock", ret, err, 181);
+    }
+}
+
+ZEN_Thread_Recursive_Mutex::~ZEN_Thread_Recursive_Mutex() {
+    int ret = ZEN_OS::pthread_mutex_destroy(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_destroy", ret, err, 168);
+    }
+}
+
+ZEN_Thread_Recursive_Mutex::ZEN_Thread_Recursive_Mutex(const char *mutex_name)
+    : ZEN_Lock_Base(0) {
+    pthread_mutexattr_t mutexattr;
+    int ret = ZEN_OS::pthread_mutexattr_initex(&mutexattr, false, true, true, mutex_name);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutexattr_initex", ret, err, 143);
+        return;
+    }
+    ret = ZEN_OS::pthread_mutex_init(&lock_, &mutexattr);
+    ZEN_OS::pthread_mutexattr_destroy(&mutexattr);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_init", ret, err, 155);
+        return;
+    }
 }
 
 void ZEN_Thread_Mutex::unlock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_unlock(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_unlock", ret, err, 113);
+    }
 }
 
 void ZEN_Thread_Mutex::lock() {
-    // local: int ret;
+    int ret = ZEN_OS::pthread_mutex_lock(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_lock", ret, err, 86);
+    }
+}
+
+ZEN_Thread_Mutex::~ZEN_Thread_Mutex() {
+    int ret = ZEN_OS::pthread_mutex_destroy(&lock_);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_destroy", ret, err, 73);
+    }
+}
+
+ZEN_Thread_Mutex::ZEN_Thread_Mutex(const char *mutex_name)
+    : ZEN_Lock_Base(0) {
+    pthread_mutexattr_t mutexattr;
+    int ret = ZEN_OS::pthread_mutexattr_initex(&mutexattr, false, true, false, mutex_name);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutexattr_initex", ret, err, 47);
+        return;
+    }
+    ret = ZEN_OS::pthread_mutex_init(&lock_, &mutexattr);
+    ZEN_OS::pthread_mutexattr_destroy(&mutexattr);
+    if (ret != 0) {
+        int err = errno;
+        ZEN_LOCK_TRACE_ERROR("ZEN_OS::pthread_mutex_init", ret, err, 56);
+        return;
+    }
 }
 
 bool ZEN_Thread_NONR_Mutex::duration_lock(const ZEN_Time_Value &relative_time) {
-    // local: ZEN_Time_Value abs_time;
+    timeval now;
+    ::gettimeofday(&now, 0);
+    ZEN_Time_Value abs_time(now);
+    abs_time += relative_time;
+    return systime_lock(abs_time);
 }
-

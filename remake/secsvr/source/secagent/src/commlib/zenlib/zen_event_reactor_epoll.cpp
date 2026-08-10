@@ -1,308 +1,234 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/zenlib/zen_event_reactor_epoll.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Restored from gunnersvr oracle binary (DWARF + disassembly), GCC 4.1.0 SUSE.
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_event_reactor_epoll.cpp
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_os_adapt_error.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_event_handle_base.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
 #include "src/commlib/zenlib/zen_event_reactor_epoll.h"
 #include "src/commlib/zenlib/zen_event_reactor_base.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
+#include "src/commlib/zenlib/zen_event_handle_base.h"
+#include "src/commlib/zenlib/zen_time_value.h"
+#include "src/commlib/zenlib/zen_os_adapt_error.h"
+
 #include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
 #include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
 #include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+
+// TU-local declaration; real class lives in zen_trace_log_msg.{h,cpp}
+// (its stub header is still being restored by another task).
+struct ZEN_Trace_LogMsg {
+    static void debug_errorex(const char *str_format, ...);
+    static void debug_infoex(const char *str_format, ...);
+};
+
+ZEN_Epoll_Reactor::ZEN_Epoll_Reactor()
+    : ZEN_Reactor(1024) {
+    epoll_fd_ = -1;
+    edge_triggered_ = false;
+    once_max_events_ = DEFAULT_ONCE_TRIGGER_MAX_EVENT;
+    once_events_ary_ = 0;
+}
+
+ZEN_Epoll_Reactor::ZEN_Epoll_Reactor(size_t max_event_number, bool edge_triggered, int once_max_events)
+    : ZEN_Reactor(max_event_number) {
+    edge_triggered_ = edge_triggered;
+    once_max_events_ = once_max_events;
+    once_events_ary_ = 0;
+    initialize(max_event_number, edge_triggered, once_max_events);
+}
+
+ZEN_Epoll_Reactor::~ZEN_Epoll_Reactor() {
+    ::close(epoll_fd_);
+    if (once_events_ary_ != 0) {
+        delete[] once_events_ary_;
+    }
+}
 
 int ZEN_Epoll_Reactor::initialize(size_t max_event_number, bool edge_triggered, int once_max_events) {
-    // local: int ret;
-}
+    int ret = 0;
 
-int ZEN_Epoll_Reactor::cancel_wakeup(ZEN_Event_Handler *event_handler, int event_mask) {
-    // local: int ret;
-    // local: epoll_event ep_event;
-}
-
-int ZEN_Epoll_Reactor::remove_handler(ZEN_Event_Handler *event_handler, bool call_handle_close) {
-    // local: int ret;
-    // local: epoll_event event;
-}
-
-void ZEN_Epoll_Reactor::process_ready_event(epoll_event *ep_event) {
-    // local: int ret;
-    // local: ZEN_Event_Handler *event_hdl;
-    // local: bool event_in_happen;
-    // local: bool event_out_happen;
-    // local: int hdl_ret;
-}
-
-int ZEN_Epoll_Reactor::handle_events(ZEN_Time_Value *time_out, size_t *size_io_event) {
-    // local: int msec_timeout;
-    // local: int event_happen;
-    // local: time_t useconds;
-    // local: int i;
+    ret = ZEN_Reactor::initialize(max_event_number);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] Epoll reactor ZEN_Reactor::initialize fail.please check code. ret = %u.", ret);
+        return ret;
+    }
+    edge_triggered_ = edge_triggered;
+    epoll_fd_ = epoll_create(max_event_number_ + 64);
+    if (epoll_fd_ < 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] Epoll reactor ::epoll_create fail.please check code. error = [%u|%u]",
+            errno, strerror(errno));
+        return -1;
+    }
+    once_max_events_ = once_max_events;
+    once_events_ary_ = new epoll_event[once_max_events];
+    return 0;
 }
 
 int ZEN_Epoll_Reactor::register_handler(ZEN_Event_Handler *event_handler, int event_mask) {
-    // local: int ret;
-    // local: epoll_event ep_event;
+    int ret = 0;
+    epoll_event ep_event;
+
+    ret = ZEN_Reactor::register_handler(event_handler, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] ZEN_Reactor::register_handler fail. please check you code .ret =%d", ret);
+        return -1;
+    }
+    event_handler->set_mask(event_mask);
+    make_epoll_event(&ep_event, event_handler);
+    ret = epoll_ctl(epoll_fd_, EPOLL_CTL_ADD, event_handler->get_handle(), &ep_event);
+    if (ret == 0) {
+        return 0;
+    }
+    ret = ZEN_Reactor::remove_handler(event_handler, false);
+    ZEN_Trace_LogMsg::debug_errorex(
+        "[zenlib] [%s] Epoll reactor ::epoll_ctl fail.please check code. ret =%d error = [%u|%s]",
+        __PRETTY_FUNCTION__, ret, errno, strerror(errno));
+    return -1;
+}
+
+int ZEN_Epoll_Reactor::remove_handler(ZEN_Event_Handler *event_handler, bool call_handle_close) {
+    int ret = 0;
+    epoll_event event;
+
+    event.events = 0;
+    ret = epoll_ctl(epoll_fd_, EPOLL_CTL_DEL, event_handler->get_handle(), &event);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] [%s] epoll reactor ::epoll_ctl fail.please check code. ret =%d error = [%u|%s]",
+            __PRETTY_FUNCTION__, ret, errno, strerror(errno));
+    }
+    event_handler->set_mask(0);
+    ret = ZEN_Reactor::remove_handler(event_handler, call_handle_close);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] ZEN_Reactor::remove_handler fail. please check you code .ret =%u", ret);
+        return -1;
+    }
+    return 0;
+}
+
+int ZEN_Epoll_Reactor::cancel_wakeup(ZEN_Event_Handler *event_handler, int event_mask) {
+    int ret = 0;
+    epoll_event ep_event;
+
+    ret = ZEN_Reactor::cancel_wakeup(event_handler, event_mask);
+    if (ret != 0) {
+        return -1;
+    }
+    make_epoll_event(&ep_event, event_handler);
+    ret = epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, event_handler->get_handle(), &ep_event);
+    if (ret == 0) {
+        return 0;
+    }
+    ZEN_Reactor::schedule_wakeup(event_handler, event_mask);
+    ZEN_Trace_LogMsg::debug_errorex(
+        "[zenlib] [%s] epoll reactor ::epoll_ctl fail.please check code. ret =%d error = [%u|%s]",
+        __PRETTY_FUNCTION__, ret, errno, strerror(errno));
+    return -1;
 }
 
 int ZEN_Epoll_Reactor::schedule_wakeup(ZEN_Event_Handler *event_handler, int event_mask) {
-    // local: int ret;
-    // local: epoll_event ep_event;
+    int ret = 0;
+    epoll_event ep_event;
+
+    ret = ZEN_Reactor::schedule_wakeup(event_handler, event_mask);
+    if (ret != 0) {
+        return -1;
+    }
+    make_epoll_event(&ep_event, event_handler);
+    ret = epoll_ctl(epoll_fd_, EPOLL_CTL_MOD, event_handler->get_handle(), &ep_event);
+    if (ret == 0) {
+        return 0;
+    }
+    ZEN_Reactor::cancel_wakeup(event_handler, event_mask);
+    ZEN_Trace_LogMsg::debug_errorex(
+        "[zenlib] [%s] epoll reactor ::epoll_ctl fail.please check code. ret =%d error = [%u|%s].",
+        __PRETTY_FUNCTION__, ret, errno, strerror(errno));
+    return -1;
 }
 
+int ZEN_Epoll_Reactor::handle_events(ZEN_Time_Value *time_out, size_t *size_io_event) {
+    int msec_timeout = -1;
+    int event_happen = 0;
+    time_t useconds = 0;
+    int i = 0;
+
+    if (time_out != 0) {
+        useconds = time_out->usec();
+        if (useconds != 0 && useconds < 1000) {
+            msec_timeout = 1;
+        } else {
+            msec_timeout = time_out->total_msec();
+        }
+    }
+    event_happen = epoll_wait(epoll_fd_, once_events_ary_, once_max_events_, msec_timeout);
+    if (event_happen > 0) {
+        *size_io_event = event_happen;
+        for (i = 0; i < event_happen; ++i) {
+            process_ready_event(&once_events_ary_[i]);
+        }
+        event_happen = 0;
+    }
+    return event_happen;
+}
+
+void ZEN_Epoll_Reactor::process_ready_event(epoll_event *ep_event) {
+    int ret = 0;
+    ZEN_Event_Handler *event_hdl = 0;
+    bool event_in_happen = false;
+    bool event_out_happen = false;
+    int hdl_ret = 0;
+
+    if (find_event_handler(ep_event->data.fd, event_hdl) != 0) {
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[zenlib] process_ready_event find_event_handler fail,maybe one handle is close previous.");
+        return;
+    }
+    if ((ep_event->events & EPOLLIN) != 0) {
+        hdl_ret = event_hdl->handle_input();
+        event_in_happen = true;
+        if (hdl_ret == -1) {
+            event_hdl->handle_close();
+            event_in_happen = true;
+        }
+    }
+    if ((ep_event->events & EPOLLOUT) != 0) {
+        if (!event_in_happen) {
+            hdl_ret = event_hdl->handle_output();
+            event_out_happen = true;
+            if (hdl_ret == -1) {
+                event_hdl->handle_close();
+            }
+        } else {
+            if (find_event_handler(ep_event->data.fd, event_hdl) != 0) {
+                ZEN_Trace_LogMsg::debug_infoex(
+                    "[zenlib] process_ready_event find_event_handler fail,maybe one handle is close previous.");
+                return;
+            }
+            hdl_ret = event_hdl->handle_output();
+            event_out_happen = true;
+            if (hdl_ret == -1) {
+                event_hdl->handle_close();
+            }
+        }
+    }
+    if ((ep_event->events & EPOLLERR) != 0) {
+        if (!event_in_happen && !event_out_happen) {
+            hdl_ret = event_hdl->handle_exception();
+            if (hdl_ret == -1) {
+                event_hdl->handle_close();
+            }
+        } else {
+            if (find_event_handler(ep_event->data.fd, event_hdl) != 0) {
+                ZEN_Trace_LogMsg::debug_infoex(
+                    "[zenlib] process_ready_event find_event_handler fail,maybe one handle is close previous.");
+                return;
+            }
+            hdl_ret = event_hdl->handle_exception();
+            if (hdl_ret == -1) {
+                event_hdl->handle_close();
+            }
+        }
+    }
+}

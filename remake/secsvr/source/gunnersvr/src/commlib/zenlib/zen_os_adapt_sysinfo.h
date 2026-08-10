@@ -5,7 +5,21 @@
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_SYSINFO_H_H_
 
 #include <bits/time.h>
+#include <stdint.h>
 #include <sys/types.h>
+
+// sizeof = 56
+struct ZEN_SYSTEM_INFO { // line 35
+public:
+int nprocs_conf_;
+int nprocs_av_;
+int64_t totalram_size_;
+int64_t freeram_size_;
+int64_t shared_size_;
+int64_t bufferram_size_;
+int64_t totalswap_size_;
+int64_t freeswap_size_;
+};
 
 // sizeof = 160
 struct ZEN_SYSTEM_PERFORMANCE { // line 61
@@ -26,7 +40,7 @@ timeval idle_time_;
 timeval iowait_time_;
 timeval hardirq_time_;
 timeval softirq_time_;
-double sys_loads_[];
+double sys_loads_[3];
 int processes_num_;
 int running_num_;
 };

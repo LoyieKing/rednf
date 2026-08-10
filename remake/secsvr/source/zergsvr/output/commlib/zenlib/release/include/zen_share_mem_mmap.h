@@ -1,8 +1,8 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_share_mem_mmap.h
+// Original path: src/commlib/zenlib/zen_share_mem_mmap.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHARE_MEM_MMAP_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHARE_MEM_MMAP_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHARE_MEM_MMAP_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHARE_MEM_MMAP_H_H_
 
 #include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
@@ -27,4 +27,4 @@ int flush(); // line 53
 void * addr(); // line 56
 };
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHARE_MEM_MMAP_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHARE_MEM_MMAP_H_H_

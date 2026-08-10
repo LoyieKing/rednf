@@ -1,311 +1,144 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/zenlib/zen_socket_addr_in.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// 还原自 gunnersvr 二进制（DWARF 行号与 zen_socket_addr_in.cpp 对应）
+// ZEN_Sockaddr_In：IPv4 sockaddr_in 封装。
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_os_adapt_socket.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_os_adapt_error.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/zen_socket_addr_base.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_socket_addr_in.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
+#include "zen_socket_addr_in.h"
+
 #include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
 #include <netdb.h>
 #include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
 #include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
+namespace ZEN_OS {
+    // 声明见 zen_os_adapt_socket.h（该头文件尚为未修复的 DWARF 桩，故本地声明）
+    int getaddrinfo_inary(const char *hostname, uint16_t service_port,
+                          unsigned int *only_one_addr, sockaddr_in *addr);
+    int getnameinfo(const sockaddr *addr, size_t addr_len,
+                    char *host, size_t host_len, char *serv, size_t serv_len, int flags);
+    bool is_internal(const sockaddr_in *addr);
+}
+
+// line 131：原文件中定义的缓冲区长度常量（二进制中未被引用，值不可观测）
+const size_t BUF_LEN = 128;
+
+// line 10
+ZEN_Sockaddr_In::ZEN_Sockaddr_In()
+    : ZEN_Sockaddr((sockaddr *)&in4_addr_, sizeof(sockaddr_in)) {
+}
+
+// line 17
+ZEN_Sockaddr_In::ZEN_Sockaddr_In(const sockaddr_in *arg0)
+    : ZEN_Sockaddr((sockaddr *)&in4_addr_, sizeof(sockaddr_in)) {
+    in4_addr_ = *arg0;
+}
+
+// line 25
+ZEN_Sockaddr_In::ZEN_Sockaddr_In(const char *ip_addr_str, uint16_t port_number)
+    : ZEN_Sockaddr((sockaddr *)&in4_addr_, sizeof(sockaddr_in)) {
+    in4_addr_.sin_family = AF_INET;
+    in4_addr_.sin_port = htons(port_number);
+    in4_addr_.sin_addr.s_addr = inet_addr(ip_addr_str);
+}
+
+// line 38
+ZEN_Sockaddr_In::ZEN_Sockaddr_In(uint32_t ip_addr, uint16_t port_number)
+    : ZEN_Sockaddr((sockaddr *)&in4_addr_, sizeof(sockaddr_in)) {
+    in4_addr_.sin_family = AF_INET;
+    in4_addr_.sin_port = htons(port_number);
+    in4_addr_.sin_addr.s_addr = htonl(ip_addr);
+}
+
+// line 50
+ZEN_Sockaddr_In::ZEN_Sockaddr_In(const ZEN_Sockaddr_In &arg0)
+    : ZEN_Sockaddr((sockaddr *)&in4_addr_, sizeof(sockaddr_in)) {
+    in4_addr_ = arg0.in4_addr_;
+}
+
+// line 56
+ZEN_Sockaddr_In::~ZEN_Sockaddr_In() {
+}
+
+// line 76
 void ZEN_Sockaddr_In::set_sockaddr(sockaddr *addr, socklen_t len) {
+    memcpy(&in4_addr_, addr, sizeof(sockaddr_in));
+    sockaddr_size_ = len;
 }
 
-bool ZEN_Sockaddr_In::operator==(const ZEN_Sockaddr_In &others) {
-}
-
-bool ZEN_Sockaddr_In::operator!=(const ZEN_Sockaddr_In &others) {
-}
-
-bool ZEN_Sockaddr_In::is_ip_equal(const ZEN_Sockaddr_In &others) {
-}
-
-sockaddr_in ZEN_Sockaddr_In::operator sockaddr_in() {
-}
-
-const sockaddr_in * ZEN_Sockaddr_In::operator const sockaddr_in*() {
-}
-
-sockaddr_in * ZEN_Sockaddr_In::operator sockaddr_in*() {
-}
-
-int ZEN_Sockaddr_In::get_addr_info(const char *hostname, uint16_t service_port) {
-    // local: size_t only_one_addr;
-}
-
-int ZEN_Sockaddr_In::get_name_info(char *host_name, size_t name_len) {
-}
-
-bool ZEN_Sockaddr_In::is_internet() {
-}
-
-bool ZEN_Sockaddr_In::is_internal() {
-}
-
-int ZEN_Sockaddr_In::set(uint32_t ip_addr, uint16_t port_number) {
-    // local: int ret;
-}
-
+// line 84
 int ZEN_Sockaddr_In::set(const char *ip_addr_str, uint16_t port_number) {
-    // local: int ret;
+    in4_addr_.sin_family = AF_INET;
+    in4_addr_.sin_port = htons(port_number);
+    in4_addr_.sin_addr.s_addr = inet_addr(ip_addr_str);
+    if (in4_addr_.sin_addr.s_addr == INADDR_NONE) {
+        return -1;
+    }
+    return 0;
 }
 
+// line 98
+int ZEN_Sockaddr_In::set(uint32_t ip_addr, uint16_t port_number) {
+    in4_addr_.sin_family = AF_INET;
+    in4_addr_.sin_port = htons(port_number);
+    in4_addr_.sin_addr.s_addr = htonl(ip_addr);
+    return 0;
+}
+
+// line 102
+// （get_ip_address / set_port_number / get_port_number / get_host_addr /
+//   get_host_addr_port 为头文件内联实现，见 zen_socket_addr_in.h）
+
+// line 114
+bool ZEN_Sockaddr_In::operator==(const ZEN_Sockaddr_In &others) const {
+    return in4_addr_.sin_family == others.in4_addr_.sin_family
+        && in4_addr_.sin_addr.s_addr == others.in4_addr_.sin_addr.s_addr
+        && in4_addr_.sin_port == others.in4_addr_.sin_port;
+}
+
+// line 130
+bool ZEN_Sockaddr_In::operator!=(const ZEN_Sockaddr_In &others) const {
+    return !(*this == others);
+}
+
+// line 136
+bool ZEN_Sockaddr_In::is_ip_equal(const ZEN_Sockaddr_In &others) const {
+    return in4_addr_.sin_family == others.in4_addr_.sin_family
+        && in4_addr_.sin_addr.s_addr == others.in4_addr_.sin_addr.s_addr;
+}
+
+// line 150
+int ZEN_Sockaddr_In::get_name_info(char *host_name, size_t name_len) const {
+    return ZEN_OS::getnameinfo((const sockaddr *)&in4_addr_, sizeof(sockaddr_in),
+                               host_name, name_len, 0, 0, NI_NAMEREQD);
+}
+
+// line 162
+int ZEN_Sockaddr_In::get_addr_info(const char *hostname, uint16_t service_port) {
+    unsigned int only_one_addr = 1;
+    return ZEN_OS::getaddrinfo_inary(hostname, service_port, &only_one_addr, &in4_addr_);
+}
+
+// line 172
+ZEN_Sockaddr_In::operator sockaddr_in() const {
+    return in4_addr_;
+}
+
+// line 178
+ZEN_Sockaddr_In::operator const sockaddr_in*() const {
+    return &in4_addr_;
+}
+
+// line 184
+ZEN_Sockaddr_In::operator sockaddr_in*() {
+    return &in4_addr_;
+}
+
+// line 63
+bool ZEN_Sockaddr_In::is_internal() {
+    return ZEN_OS::is_internal(&in4_addr_);
+}
+
+// line 69
+bool ZEN_Sockaddr_In::is_internet() {
+    return !ZEN_OS::is_internal(&in4_addr_);
+}

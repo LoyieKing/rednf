@@ -166,7 +166,12 @@ private:
 class CMsgCell
 {
 public:
-    CMsgCell();
+    CMsgCell()
+    {
+        m_wSize = 0;
+        m_wPos = 0;
+        m_nRefCount = 0;
+    }
     virtual ~CMsgCell();
     BOOL PAD();
     void AttachStream(char* szBuf, int nSize);
@@ -209,8 +214,8 @@ class TCircularQueueBuffer
 public:
     TCircularQueueBuffer()
     {
-        m_nPopIndex = 0;
         m_nPushIndex = 0;
+        m_nPopIndex = 0;
         memset(&m_buffer[0], 0, sizeof(m_buffer));
     }
     void clear()
@@ -713,7 +718,7 @@ namespace ChannelServiceApp
         TThreadLock<ThreadLock_linux> LockTCPSocket;
     };
 
-    class ChannelService : public PortInfo, public Handlers, public Protocols, public Threads, public UserPools, public Reactor, public Channel, public ChannelServer, public ChannelScript
+    class ChannelService : public PortInfo, public Handlers, public Protocols, public Threads, public UserPools, public Channel, public ChannelServer, public Reactor, public ChannelScript
     {
     public:
         typedef DWORD (ChannelService::*FPMessageHandler)(LPPACKET_HEADER, TCPUser*);
@@ -748,8 +753,8 @@ namespace ChannelServiceApp
         Mode Mode_;
         __int64 tick_;
         char serviceName[0x14];
-        FPMessageHandlerExtra m_pfnMsgExtra[0x400];
-        FPMessageHandler m_pfnMsg[0x400];
+        FPMessageHandlerExtra m_pfnMsgExtra[0x200];
+        FPMessageHandler m_pfnMsg[0x200];
     };
 
 }

@@ -1,316 +1,237 @@
-// Auto-generated stub from DWARF info
+// ZEN_Server_Toolkit 还原实现（语义对照 gunnersvr oracle，2026-08-10）。
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_server_toolkit.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// 说明：
+//  - /proc 采集由 ZEN_OS::get_self_perf / get_system_perf（zen_os_adapt_*.cpp 其他 TU）完成，
+//    本文件仅做差值、比例与内存水位计算，公式与 oracle 逐条指令一致。
+//  - mem_use_ratio_ 口径（oracle 0x08096898..0x08096986）：
+//    used = cachedram+freeram+bufferram；ratio = (totalram - used) * 1000 / totalram（无符号 64 位）。
+//  - fmt3 中展示的 cpu 比值为 10.0f / ratio（原版如此，保留）。
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_os_adapt_file.h"
-#include "src/commlib/zenlib/zen_os_adapt_flock.h"
-#include "src/commlib/zenlib/zen_os_adapt_process.h"
-#include "src/commlib/zenlib/zen_os_adapt_socket.h"
-#include "src/commlib/zenlib/zen_os_adapt_error.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_shm_predefine.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_server_toolkit.h"
-#include "src/commlib/zenlib/zen_os_adapt_sysinfo.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
 #include <stddef.h>
-#include <stdexcept>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
 #include <sys/time.h>
 #include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
 #include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-// line 322
-uint32_t ZEN_Server_Toolkit::get_sys_cpu_ratio() {
+#include <string>
+
+#include "src/commlib/zenlib/zen_os_adapt_process.h"
+#include "src/commlib/zenlib/zen_os_adapt_sysinfo.h"
+#include "src/commlib/zenlib/zen_server_toolkit.h"
+#include "src/commlib/zenlib/zen_trace_log_msg.h"
+
+namespace ZEN_OS {
+pid_t getpid();
+int socket_init(int version_high, int version_low);
+ZEN_HANDLE open(const char *filename, int open_mode, mode_t perms);
+int close(ZEN_HANDLE handle);
+int flock(ZEN_HANDLE file_hadle, int operation);
+int ftruncate(ZEN_HANDLE file_handle, size_t offset);
+ssize_t write(ZEN_HANDLE file_handle, const void *buf, size_t count);
+int get_self_perf(ZEN_PROCESS_PERFORM *prc_perf_info);
+int get_system_perf(ZEN_SYSTEM_PERFORMANCE *zen_system_perf);
+uint64_t total_milliseconds(const timeval &tv);
+const timeval timeval_add(const timeval &left, const timeval &right);
+const timeval timeval_sub(const timeval &left, const timeval &right, bool safe);
 }
 
-// line 327
-uint32_t ZEN_Server_Toolkit::get_app_cpu_ratio() {
+ZEN_Server_Toolkit::ZEN_Server_Toolkit() {
+    pid_handle_ = -1;
+    self_pid_ = 0;
+    check_leak_times_ = 0;
+    mem_checkpoint_size_ = 0;
+    cur_mem_usesize_ = 0;
+    process_cpu_ratio_ = 0;
+    system_cpu_ratio_ = 0;
+    mem_use_ratio_ = 0;
+    memset(&last_process_perf_, 0, sizeof(ZEN_PROCESS_PERFORM));
+    memset(&now_process_perf_, 0, sizeof(ZEN_PROCESS_PERFORM));
+    memset(&last_system_perf_, 0, sizeof(ZEN_SYSTEM_PERFORMANCE));
+    memset(&now_system_perf_, 0, sizeof(ZEN_SYSTEM_PERFORMANCE));
 }
 
-// line 332
-uint32_t ZEN_Server_Toolkit::get_sys_mem_ratio() {
+ZEN_Server_Toolkit::~ZEN_Server_Toolkit() {
+    if (pid_handle_ != -1) {
+        ZEN_OS::flock(pid_handle_, 8);
+        ZEN_OS::close(pid_handle_);
+    }
 }
 
-// line 337
-uint64_t ZEN_Server_Toolkit::get_can_use_mem_size() {
-}
-
-// line 133
-int ZEN_Server_Toolkit::watch_dog_status(bool first_record) {
-    // local: int ret;
-    // local: size_t vary_mem_size;
-    // local: timeval last_to_now;
-    // local: timeval proc_utime;
-    // local: timeval proc_stime;
-    // local: timeval proc_cpu_time;
-    // local: timeval sys_idletime;
-    // local: timeval sys_cputime;
-}
-
-// line 44
 int ZEN_Server_Toolkit::socket_init() {
-    // local: int ret;
+    return ZEN_OS::socket_init(2, 2);
 }
 
-// line 72
 int ZEN_Server_Toolkit::out_pid_file(const char *pragramname, bool lock_pid) {
-    // local: int ret;
-    // local: string filename;
-    // local: int fileperms;
-    // local: const size_t BUFFER_LEN;
-    // local: char tmpbuff[];
-    // local: int len;
+    int ret;
+    std::string filename = pragramname;
+    const size_t BUFFER_LEN = 128;
+    char tmpbuff[BUFFER_LEN];
+    int len;
+
+    filename.append(".pid", 4);
+    pid_handle_ = ZEN_OS::open(filename.c_str(), 0x42, 0x1a4);
+    if (pid_handle_ == -1) {
+        return -1;
+    }
+    self_pid_ = ZEN_OS::getpid();
+    len = snprintf(tmpbuff, BUFFER_LEN, "%u", self_pid_);
+    ZEN_OS::ftruncate(pid_handle_, len);
+    if (lock_pid) {
+        ret = ZEN_OS::flock(pid_handle_, 6);
+        if (ret != 0) {
+            return ret;
+        }
+    }
+    ZEN_OS::write(pid_handle_, tmpbuff, len);
+    return 0;
 }
 
+uint32_t ZEN_Server_Toolkit::get_sys_cpu_ratio() const {
+    return system_cpu_ratio_;
+}
+
+uint32_t ZEN_Server_Toolkit::get_app_cpu_ratio() const {
+    return process_cpu_ratio_;
+}
+
+uint32_t ZEN_Server_Toolkit::get_sys_mem_ratio() const {
+    return mem_use_ratio_;
+}
+
+uint64_t ZEN_Server_Toolkit::get_can_use_mem_size() const {
+    return can_use_size_;
+}
+
+int ZEN_Server_Toolkit::watch_dog_status(bool first_record) {
+    int ret;
+    size_t vary_mem_size;
+    timeval last_to_now;
+    timeval proc_utime;
+    timeval proc_stime;
+    timeval proc_cpu_time;
+    timeval sys_idletime;
+    timeval sys_cputime;
+
+    if (!first_record) {
+        memcpy(&last_process_perf_, &now_process_perf_, sizeof(ZEN_PROCESS_PERFORM));
+        memcpy(&last_system_perf_, &now_system_perf_, sizeof(ZEN_SYSTEM_PERFORMANCE));
+    }
+    ret = ZEN_OS::get_self_perf(&now_process_perf_);
+    if (ret != 0) {
+        return ret;
+    }
+    ret = ZEN_OS::get_system_perf(&now_system_perf_);
+    if (ret != 0) {
+        return ret;
+    }
+
+    cur_mem_usesize_ = now_process_perf_.vm_size_;
+    if (first_record) {
+        mem_checkpoint_size_ = cur_mem_usesize_;
+        return ret;
+    }
+
+    if (cur_mem_usesize_ < mem_checkpoint_size_) {
+        mem_checkpoint_size_ = cur_mem_usesize_;
+        vary_mem_size = 0;
+    } else {
+        vary_mem_size = cur_mem_usesize_ - mem_checkpoint_size_;
+        if (vary_mem_size > MEMORY_LEAK_THRESHOLD) {
+            ++check_leak_times_;
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[zenlib] [WATCHDOG][PID:%u] Monitor could memory leak,mem_checkpoint_size_ =[%u],run_mem_size_=[%u].",
+                self_pid_, mem_checkpoint_size_, cur_mem_usesize_);
+            if (check_leak_times_ > MAX_RECORD_MEMORY_NUMBER) {
+                check_leak_times_ = 0;
+                mem_checkpoint_size_ = cur_mem_usesize_;
+            }
+        }
+    }
+
+    last_to_now = ZEN_OS::timeval_sub(now_system_perf_.up_time_,
+                                      last_system_perf_.up_time_, true);
+    proc_utime = ZEN_OS::timeval_sub(now_process_perf_.run_utime_,
+                                     last_process_perf_.run_utime_, true);
+    proc_stime = ZEN_OS::timeval_sub(now_process_perf_.run_stime_,
+                                     last_process_perf_.run_stime_, true);
+    proc_cpu_time = ZEN_OS::timeval_add(proc_utime, proc_stime);
+
+    if (ZEN_OS::total_milliseconds(last_to_now) != 0) {
+        process_cpu_ratio_ = (uint32_t)(ZEN_OS::total_milliseconds(proc_cpu_time)
+                                        * 1000 / ZEN_OS::total_milliseconds(last_to_now));
+    } else {
+        process_cpu_ratio_ = 0;
+    }
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[zenlib] [WATCHDOG][PID:%u] cpu ratio[%u] totoal process user/sys[%lld/%lld] milliseconds leave last point all/usr/sys[%lld/%lld/%lld] milliseconds memory use//add [%ld/%ld].",
+        self_pid_, process_cpu_ratio_,
+        ZEN_OS::total_milliseconds(now_process_perf_.run_utime_),
+        ZEN_OS::total_milliseconds(now_process_perf_.run_stime_),
+        ZEN_OS::total_milliseconds(last_to_now),
+        ZEN_OS::total_milliseconds(proc_utime),
+        ZEN_OS::total_milliseconds(proc_stime),
+        cur_mem_usesize_, vary_mem_size);
+
+    sys_idletime = ZEN_OS::timeval_sub(now_system_perf_.idle_time_,
+                                       last_system_perf_.idle_time_, true);
+    sys_cputime = ZEN_OS::timeval_sub(last_to_now, sys_idletime, true);
+    if (ZEN_OS::total_milliseconds(last_to_now) != 0) {
+        system_cpu_ratio_ = (uint32_t)(ZEN_OS::total_milliseconds(sys_cputime)
+                                       * 1000 / ZEN_OS::total_milliseconds(last_to_now));
+    } else {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "system_uptime = %llu, process_start_time = %llu",
+            ZEN_OS::total_milliseconds(now_system_perf_.up_time_),
+            ZEN_OS::total_milliseconds(now_process_perf_.start_time_));
+        system_cpu_ratio_ = 0;
+    }
+
+    if (process_cpu_ratio_ > PROCESS_CPU_RATIO_THRESHOLD
+        || system_cpu_ratio_ > SYSTEM_CPU_RATIO_THRESHOLD) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] [WATCHDOG][PID:%u] point[%u] vm_size[%u] process cpu ratio [%f] threshold [%f], system cpu ratio[%f] threshold[%f] totoal process user/sys[%lld/%lld] milliseconds leave last point all/usr/sys[%lld/%lld/%lld] milliseconds.",
+            self_pid_, mem_checkpoint_size_, cur_mem_usesize_,
+            10.0f / process_cpu_ratio_, 60.0,
+            10.0f / system_cpu_ratio_, 75.0,
+            ZEN_OS::total_milliseconds(proc_utime),
+            ZEN_OS::total_milliseconds(proc_stime),
+            ZEN_OS::total_milliseconds(last_to_now),
+            ZEN_OS::total_milliseconds(now_process_perf_.run_utime_),
+            ZEN_OS::total_milliseconds(now_process_perf_.run_stime_));
+    }
+
+    int64_t temp_total_size =
+        (int64_t)(now_system_perf_.cachedram_size_ + now_system_perf_.freeram_size_
+                  + now_system_perf_.bufferram_size_);
+    can_use_size_ = (uint64_t)temp_total_size;
+    if ((int64_t)now_system_perf_.totalram_size_ <= 0) {
+        mem_use_ratio_ = 0;
+    } else {
+        mem_use_ratio_ =
+            (uint32_t)(((uint64_t)((int64_t)now_system_perf_.totalram_size_
+                                   - temp_total_size) * 1000)
+                       / (uint64_t)now_system_perf_.totalram_size_);
+    }
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[zenlib] [WATCHDOG][SYSTEM] cpu radio [%u] totoal usr/nice/sys/idle/iowait/hardirq/softirq [%lld/%lld/%lld/%lld/%lld/%lld/%lld] millisecondsleave last point all/use/idle[%lld/%lld/%lld] milliseconds mem ratio[%u] [totoal/can use/free/buffer/cache] [%lld/%lld/%lld/%lld/%lld] bytes",
+        system_cpu_ratio_,
+        ZEN_OS::total_milliseconds(now_system_perf_.user_time_),
+        ZEN_OS::total_milliseconds(now_system_perf_.nice_time_),
+        ZEN_OS::total_milliseconds(now_system_perf_.system_time_),
+        ZEN_OS::total_milliseconds(now_system_perf_.idle_time_),
+        ZEN_OS::total_milliseconds(now_system_perf_.iowait_time_),
+        ZEN_OS::total_milliseconds(now_system_perf_.hardirq_time_),
+        ZEN_OS::total_milliseconds(now_system_perf_.softirq_time_),
+        ZEN_OS::total_milliseconds(last_to_now),
+        ZEN_OS::total_milliseconds(sys_cputime),
+        ZEN_OS::total_milliseconds(sys_idletime),
+        mem_use_ratio_,
+        now_system_perf_.totalram_size_,
+        can_use_size_,
+        now_system_perf_.freeram_size_,
+        now_system_perf_.bufferram_size_,
+        now_system_perf_.cachedram_size_);
+    return ret;
+}

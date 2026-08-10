@@ -470,7 +470,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
             {
                 snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
-                         LETTER_TEXT[2], 0xff,
+                         LETTER_TEXT[2],
                          mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
                              ->sName_.c_str(),
                          mpAuction->IsAvatarCategory(item_category)
@@ -481,7 +481,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             else
             {
                 snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
-                         LETTER_TEXT[2], 0xff,
+                         LETTER_TEXT[2],
                          pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
@@ -523,7 +523,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             {
                 // Original evaluates color/name pairs interleaved (color, name, color, name).
                 snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                         LETTER_TEXT[8], 0xff,
+                         LETTER_TEXT[8],
                          (char*)mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
                              ->sName_.c_str(),
                          mpAuction->IsAvatarCategory(item_category)
@@ -541,7 +541,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             else
             {
                 snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                         LETTER_TEXT[1], 0xff,
+                         LETTER_TEXT[1],
                          pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
@@ -624,7 +624,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
             {
                 snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                         LETTER_TEXT[3], 0xff,
+                         LETTER_TEXT[3],
                          mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
                              ->sName_.c_str(),
                          mpAuction->IsAvatarCategory(item_category)
@@ -635,7 +635,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             else
             {
                 snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                         LETTER_TEXT[3], 0xff,
+                         LETTER_TEXT[3],
                          pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
@@ -791,13 +791,18 @@ int AuctionDictionary::ProcessMostRecentExpireItem(bool& one_processing, int auc
         {
             std::map<unsigned long long, AuctionDictionaryData*>::iterator iter =
                 mAuctionDicTable.find(au_id);
-            if (iter == mAuctionDicTable.end())
+            // ORIG：ne() 调用 + else 置尾（call ne; je L_ret24）
+            if (iter != mAuctionDicTable.end())
+            {
+                AuctionDictionaryData* ptr_addata = iter->second;
+                int charge_point = 0;
+                error_code = makeSuccessfulBid(au_id, ptr_addata, false, charge_point);
+            }
+            else
             {
                 return 0x24;
             }
-            AuctionDictionaryData* ptr_addata = iter->second;
-            int charge_point = 0;
-            error_code = makeSuccessfulBid(au_id, ptr_addata, false, charge_point);
+            // ORIG：log+return 延迟置尾（jne L_log; jmp L_ret0）
             if (error_code != 0)
             {
                 G_TraceLog()->sysLog(7, "makeSuccessfulBid() failed. %s",
@@ -1110,30 +1115,33 @@ int AuctionDictionary::GetBiddingInfo(int buyerId, int* pInOutItemNum,
                     break;
                 }
                 auc_dic_iter = mAuctionDicTable.find(*id_list_iter);
-                if (auc_dic_iter == mAuctionDicTable.end())
+                if (auc_dic_iter != mAuctionDicTable.end())
+                {
+                    ptr_auc_data = auc_dic_iter->second;
+                    pOutMyBiddingItemInfoArray[index_cnt].auction_id = *id_list_iter;
+                    pOutMyBiddingItemInfoArray[index_cnt].price = ptr_auc_data->price;
+                    pOutMyBiddingItemInfoArray[index_cnt].instant_price =
+                        ptr_auc_data->instant_price;
+                    strncpy(pOutMyBiddingItemInfoArray[index_cnt].owner_name,
+                            getCharacterName(ptr_auc_data->owner_id), 0xc);
+                    pOutMyBiddingItemInfoArray[index_cnt].owner_reliability = 1.0;
+                    pOutMyBiddingItemInfoArray[index_cnt].expire_time =
+                        getExpiringTime(ptr_auc_data->expire_time, 0);
+                    pOutMyBiddingItemInfoArray[index_cnt].item_info = ptr_auc_data->item_info;
+                    unsigned int category = mpAuction->GetItemInfo(
+                        pOutMyBiddingItemInfoArray[index_cnt].item_info.item_id)->category_;
+                    (void)category;
+                    pOutMyBiddingItemInfoArray[index_cnt].item_info.abilityType_ =
+                        ptr_auc_data->item_info.getAbilityType();
+                    pOutMyBiddingItemInfoArray[index_cnt].item_info.abilityValue_ =
+                        ptr_auc_data->item_info.getAbilityValue();
+                    index_cnt = index_cnt + 1;
+                }
+                else
                 {
                     error_code = 0x24;
                     break;
                 }
-                ptr_auc_data = auc_dic_iter->second;
-                pOutMyBiddingItemInfoArray[index_cnt].auction_id = *id_list_iter;
-                pOutMyBiddingItemInfoArray[index_cnt].price = ptr_auc_data->price;
-                pOutMyBiddingItemInfoArray[index_cnt].instant_price =
-                    ptr_auc_data->instant_price;
-                strncpy(pOutMyBiddingItemInfoArray[index_cnt].owner_name,
-                        getCharacterName(ptr_auc_data->owner_id), 0xc);
-                pOutMyBiddingItemInfoArray[index_cnt].owner_reliability = 1.0;
-                pOutMyBiddingItemInfoArray[index_cnt].expire_time =
-                    getExpiringTime(ptr_auc_data->expire_time, 0);
-                pOutMyBiddingItemInfoArray[index_cnt].item_info = ptr_auc_data->item_info;
-                unsigned int category = mpAuction->GetItemInfo(
-                    pOutMyBiddingItemInfoArray[index_cnt].item_info.item_id)->category_;
-                (void)category;
-                pOutMyBiddingItemInfoArray[index_cnt].item_info.abilityType_ =
-                    ptr_auc_data->item_info.getAbilityType();
-                pOutMyBiddingItemInfoArray[index_cnt].item_info.abilityValue_ =
-                    ptr_auc_data->item_info.getAbilityValue();
-                index_cnt = index_cnt + 1;
             }
             *pInOutItemNum = index_cnt;
         }

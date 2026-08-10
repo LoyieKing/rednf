@@ -36,6 +36,6 @@ extern const int SECAGENT_NUMBER_OF_COUNTER; // line 183
 extern ZEN_STATUS_ITEM_WITHNAME STR_SECAGENT_STAT[]; // line 184
 
 
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
+// inferred
 
 #endif // SECSVR_OUTPUT_FORMMOG_SECAGENT_RELEASE_INCLUDE_SECAGENT_BILL_H_H_

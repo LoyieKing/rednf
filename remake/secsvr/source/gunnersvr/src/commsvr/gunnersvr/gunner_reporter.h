@@ -9,6 +9,7 @@
 #include "src/commsvr/gunnersvr/gunner_file_scanner.h"
 #include "src/commsvr/gunnersvr/gunner_statinfo_fetcher.h"
 #include <time.h>
+#include <vector>
 
 // sizeof = 7836
 struct GunnerInfoReporter { // line 28
@@ -28,7 +29,7 @@ void clean_instance(); // line 43
 private:
 GunnerInfoReporter(); // line 45
 ~GunnerInfoReporter(); // line 47
-int pack_by_appid(const GunnerStatInfo &stat_info, unsigned int appid_num, const unsigned int *appid, vector<sec_proto::MonitorSvrReport,std::allocator<sec_proto::MonitorSvrReport> > &report_pkgs); // line 52
+int pack_by_appid(const GunnerStatInfo &stat_info, unsigned int appid_num, const unsigned int *appid, std::vector<sec_proto::MonitorSvrReport> &report_pkgs); // line 52
 };
 
 #endif // SECSVR_SRC_COMMSVR_GUNNERSVR_GUNNER_REPORTER_H_H_

@@ -1,7 +1,5 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from gunnersvr disassembly (DWARF offsets + behavior check).
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/protocol/common/comm_proto_public_monitorsvr.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/protocol/common/comm_proto_public_monitorsvr.h"
 #include "src/protocol/common/TdrBuf.h"
@@ -10,185 +8,390 @@
 #include "src/protocol/common/TdrBufUtil.h"
 #include "src/protocol/common/TdrTypeUtil.h"
 #include "src/protocol/common/TdrTime.h"
-#include "src/protocol/common/<built-in>"
-#include <_G_config.h>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/byteswap.h>
-#include <bits/confname.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/in.h>
-#include <bits/local_lim.h>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/pthreadtypes.h>
-#include <bits/select.h>
-#include <bits/sigset.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <endian.h>
-#include <exception>
-#include <features.h>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <inttypes.h>
-#include <libio.h>
-#include <limits.h>
-#include <linux/limits.h>
-#include <netinet/in.h>
-#include <new>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <xlocale.h>
 
-// line 214
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+namespace sec_proto {
+
+tsf4g_tdr::TdrError::ErrorType MonitorItem::construct() {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    feature_id_ = 0;
+    app_id_ = 0;
+    classify_id_ = 0;
+    feature_value_ = 0;
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 588
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t item__i;
+tsf4g_tdr::TdrError::ErrorType MonitorItem::pack(tsf4g_tdr::TdrWriteBuf &destBuf, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    //feature_id_
+    ret = destBuf.writeUInt32(feature_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //app_id_
+    ret = destBuf.writeUInt32(app_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //classify_id_
+    ret = destBuf.writeUInt32(classify_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //feature_value_
+    ret = destBuf.writeUInt64(feature_value_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 25
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType MonitorItem::pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) {
+        return tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    }
+    tsf4g_tdr::TdrWriteBuf destBuf(buffer, size);
+    tsf4g_tdr::TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) {
+        *usedSize = destBuf.size();
+    }
+    return ret;
 }
 
-// line 303
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t item__i;
+tsf4g_tdr::TdrError::ErrorType MonitorItem::unpack(tsf4g_tdr::TdrReadBuf &srcBuf, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    //feature_id_
+    ret = srcBuf.readUInt32(feature_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //app_id_
+    ret = srcBuf.readUInt32(app_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //classify_id_
+    ret = srcBuf.readUInt32(classify_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //feature_value_
+    ret = srcBuf.readUInt64(feature_value_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 281
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
+tsf4g_tdr::TdrError::ErrorType MonitorItem::unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
+    if (buffer == NULL) {
+        return tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    }
+    tsf4g_tdr::TdrReadBuf srcBuf(buffer, size);
+    tsf4g_tdr::TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) {
+        *usedSize = srcBuf.size();
+    }
+    return ret;
 }
 
-// line 701
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
+tsf4g_tdr::TdrError::ErrorType MonitorItem::visualize(tsf4g_tdr::TdrWriteBuf &destBuf, int indent, char separator) const {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    //feature_id_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[feature_id_]", "%u", feature_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //app_id_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[app_id_]", "%u", app_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //classify_id_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[classify_id_]", "%u", classify_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //feature_value_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[feature_value_]", "%llu", feature_value_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 54
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType MonitorItem::visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) const {
+    if (buffer == NULL) {
+        return tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    }
+    tsf4g_tdr::TdrWriteBuf destBuf(buffer, size);
+    tsf4g_tdr::TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) {
+        *usedSize = destBuf.size();
+    }
+    return ret;
 }
 
-// line 35
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+const char * MonitorItem::visualize_ex(tsf4g_tdr::TdrWriteBuf &destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) {
+        return "";
+    }
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos >= totalSize) {
+        targetPos = totalSize - 1;
+    }
+    const_cast<char *>(destBuf.data())[targetPos] = '\0';
+    return destBuf.data();
 }
 
-// line 352
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t item__i;
+const char * MonitorItem::visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) {
+        return "";
+    }
+    tsf4g_tdr::TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos >= totalSize) {
+        targetPos = totalSize - 1;
+    }
+    const_cast<char *>(destBuf.data())[targetPos] = '\0';
+    if (usedSize != NULL) {
+        *usedSize = destBuf.size();
+    }
+    return destBuf.data();
 }
 
-// line 333
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType MonitorSvrReport::construct() {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    uint16_t item__i;
+    version_ = 1;
+    report_time_ = 0;
+    service_type_ = 0;
+    service_id_ = 0;
+    send_ip_ = 0;
+    count_ = 0;
+    for (item__i = 0; item__i < 2048; ++item__i) {
+        ret = item_[item__i].construct();
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            return ret;
+        }
+    }
+    return ret;
 }
 
-// line 254
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
+tsf4g_tdr::TdrError::ErrorType MonitorSvrReport::pack(tsf4g_tdr::TdrWriteBuf &destBuf, unsigned int cutVer) const {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    uint16_t item__i;
+    //version_
+    ret = destBuf.writeUInt16(version_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //report_time_
+    ret = destBuf.writeUInt32(report_time_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //service_type_
+    ret = destBuf.writeUInt32(service_type_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //service_id_
+    ret = destBuf.writeUInt32(service_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //send_ip_
+    ret = destBuf.writeUInt32(send_ip_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //count_
+    ret = destBuf.writeUInt16(count_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (count_ > 2048) {
+        return tsf4g_tdr::TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    }
+    for (item__i = 0; item__i < count_; ++item__i) {
+        ret = item_[item__i].pack(destBuf, 1);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            return ret;
+        }
+    }
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 195
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType MonitorSvrReport::pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) {
+        return tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    }
+    tsf4g_tdr::TdrWriteBuf destBuf(buffer, size);
+    tsf4g_tdr::TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) {
+        *usedSize = destBuf.size();
+    }
+    return ret;
 }
 
-// line 674
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
+tsf4g_tdr::TdrError::ErrorType MonitorSvrReport::unpack(tsf4g_tdr::TdrReadBuf &srcBuf, unsigned int cutVer) {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    uint16_t item__i;
+    //version_
+    ret = srcBuf.readUInt16(version_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //report_time_
+    ret = srcBuf.readUInt32(report_time_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //service_type_
+    ret = srcBuf.readUInt32(service_type_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //service_id_
+    ret = srcBuf.readUInt32(service_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //send_ip_
+    ret = srcBuf.readUInt32(send_ip_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //count_
+    ret = srcBuf.readUInt16(count_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (count_ > 2048) {
+        return tsf4g_tdr::TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    }
+    for (item__i = 0; item__i < count_; ++item__i) {
+        ret = item_[item__i].unpack(srcBuf, 1);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            return ret;
+        }
+    }
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 569
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType MonitorSvrReport::unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
+    if (buffer == NULL) {
+        return tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    }
+    tsf4g_tdr::TdrReadBuf srcBuf(buffer, size);
+    tsf4g_tdr::TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) {
+        *usedSize = srcBuf.size();
+    }
+    return ret;
 }
 
-// line 134
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType MonitorSvrReport::visualize(tsf4g_tdr::TdrWriteBuf &destBuf, int indent, char separator) const {
+    tsf4g_tdr::TdrError::ErrorType ret;
+    uint16_t item__i;
+    //version_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[version_]", "%d", version_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //report_time_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[report_time_]", "%u", report_time_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //service_type_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[service_type_]", "%u", service_type_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //service_id_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[service_id_]", "%u", service_id_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //send_ip_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[send_ip_]", "%u", send_ip_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    //count_
+    ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[count_]", "%d", count_);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+        return ret;
+    }
+    if (count_ > 2048) {
+        return tsf4g_tdr::TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    }
+    for (item__i = 0; item__i < count_; ++item__i) {
+        ret = tsf4g_tdr::TdrBufUtil::printVariable(destBuf, indent, separator, "[item_]", item__i, true);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            return ret;
+        }
+        if (indent >= 0) {
+            ret = item_[item__i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = item_[item__i].visualize(destBuf, indent, separator);
+        }
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) {
+            return ret;
+        }
+    }
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
 }
 
-// line 470
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t item__i;
+tsf4g_tdr::TdrError::ErrorType MonitorSvrReport::visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) const {
+    if (buffer == NULL) {
+        return tsf4g_tdr::TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    }
+    tsf4g_tdr::TdrWriteBuf destBuf(buffer, size);
+    tsf4g_tdr::TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) {
+        *usedSize = destBuf.size();
+    }
+    return ret;
 }
 
-// line 451
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+const char * MonitorSvrReport::visualize_ex(tsf4g_tdr::TdrWriteBuf &destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) {
+        return "";
+    }
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos >= totalSize) {
+        targetPos = totalSize - 1;
+    }
+    const_cast<char *>(destBuf.data())[targetPos] = '\0';
+    return destBuf.data();
 }
 
-// line 115
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+const char * MonitorSvrReport::visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) {
+        return "";
+    }
+    tsf4g_tdr::TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos >= totalSize) {
+        targetPos = totalSize - 1;
+    }
+    const_cast<char *>(destBuf.data())[targetPos] = '\0';
+    if (usedSize != NULL) {
+        *usedSize = destBuf.size();
+    }
+    return destBuf.data();
 }
 
+} // namespace sec_proto

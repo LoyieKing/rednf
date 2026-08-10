@@ -108,7 +108,7 @@ void ChannelServiceApp::TCPThread::loop(void* temp)
     bool retry_connection_success = true;
     mthreadId = pthread_self();
     bool bLoop = true;
-    do
+    while (bLoop)
     {
         gFileLogError.Lock();
         gFileLogError << "TCP Loop Start" << endl;
@@ -117,39 +117,39 @@ void ChannelServiceApp::TCPThread::loop(void* temp)
         bool bInnerLoop = true;
         while (bInnerLoop)
         {
-            TCPAcceptThread* pAccept = TManager<ChannelService>::getManager()->getTCPAcceptThread();
-            TCPUser* pUser = pAccept->lockPopAcceptedUser();
-            if (pUser == NULL)
+            TCPUser* pUser = TManager<ChannelService>::getManager()->getTCPAcceptThread()->lockPopAcceptedUser();
+            if (pUser != NULL)
+            {
+                pUser->onAccept();
+                gFileLogError.Lock();
+                gFileLogError << "On Accept()" << endl;
+                gFileLogError.Unlock();
+                if (!r->registHandle(pUser, 7))
+                {
+                    TScopedLock<TThreadLock<ThreadLock_linux> > slock(TManager<ChannelService>::getManager()->LockTCPUser);
+                    TCPSocket* s = pUser->getSocket();
+                    if (s != NULL)
+                    {
+                        s->close();
+                        TManager<ChannelService>::getManager()->UserPools::destroyTCPSocket(s);
+                        gFileLogError.Lock();
+                        gFileLogError << "Detroy Socket!!!!!!!!!" << endl;
+                        gFileLogError.Unlock();
+                    }
+                    pUser->setSocket(NULL);
+                    TManager<ChannelService>::getManager()->poolTCPUsers_.free(pUser);
+                    gFileLogError.Lock();
+                    gFileLogError << "In TCPThread : regist to Reactor was Failed" << endl;
+                    gFileLogError.Unlock();
+                }
+            }
+            else
             {
                 bInnerLoop = false;
                 break;
             }
-            pUser->onAccept();
-            gFileLogError.Lock();
-            gFileLogError << "On Accept()" << endl;
-            gFileLogError.Unlock();
-            if (!r->registHandle(pUser, 7))
-            {
-                TScopedLock<TThreadLock<ThreadLock_linux> > slock(TManager<ChannelService>::getManager()->LockTCPUser);
-                TCPSocket* s = pUser->getSocket();
-                if (s != NULL)
-                {
-                    s->close();
-                    TManager<ChannelService>::getManager()->UserPools::destroyTCPSocket(s);
-                    gFileLogError.Lock();
-                    gFileLogError << "Detroy Socket!!!!!!!!!" << endl;
-                    gFileLogError.Unlock();
-                }
-                pUser->setSocket(NULL);
-                TManager<ChannelService>::getManager()->poolTCPUsers_.free(pUser);
-                gFileLogError.Lock();
-                gFileLogError << "In TCPThread : regist to Reactor was Failed" << endl;
-                gFileLogError.Unlock();
-            }
         }
-        register bool bVar1 = (turn_of_idle_checkcount > 0x64);
-        turn_of_idle_checkcount = turn_of_idle_checkcount + 1;
-        if (bVar1)
+        if (turn_of_idle_checkcount++ > 0x64)
         {
             r->handleEvents(0, true);
             turn_of_idle_checkcount = 0;
@@ -167,7 +167,7 @@ void ChannelServiceApp::TCPThread::loop(void* temp)
         gFileLogError.Lock();
         gFileLogError << "TCP Loop End" << endl;
         gFileLogError.Unlock();
-    } while (bLoop);
+    }
     r->shutdown();
     GLOG(ChannelServiceApp::gFileLogInfo, "shut down!!!");
     setTerminated();

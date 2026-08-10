@@ -1,303 +1,156 @@
-// Auto-generated stub from DWARF info
+// Restored from gunnersvr DWARF + disassembly.
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_share_mem_posix.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+//
+// NOTE: the original header tree defines a global typedef `string` (= std::string,
+// DWARF: typedef string at zen_os_adapt_predefine.h:60).  The DWARF stub headers no
+// longer carry it, so it is re-declared here before including the class header.
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_shm_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_shm.h"
-#include "src/commlib/zenlib/zen_os_adapt_file.h"
-#include "src/commlib/zenlib/zen_os_adapt_dirent.h"
-#include "src/commlib/zenlib/zen_os_adapt_error.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_share_mem_posix.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
 #include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
+
+typedef std::string string;
+
+#include "src/commlib/zenlib/zen_share_mem_posix.h"
+
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <iostream>
 #include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-// line 229
-void * ZEN_ShareMem_Posix::addr() {
+// Declarations of the ZEN_OS adaptation layer (restored in separate TUs) and the
+// trace-log entry used on the error paths.  Signatures follow the mangled names
+// present in the gunnersvr binary.
+namespace ZEN_OS {
+int shm_open(const char *name, int oflag, unsigned int mode);
+int shm_unlink(const char *name);
+int close(int fd);
+int filesize(int fd, unsigned int *file_size);
+int ftruncate(int fd, unsigned int length);
+void *mmap(void *address, unsigned int length, int prot, int flags, int fd,
+           unsigned int offset);
+int munmap(void *address, unsigned int length);
+int msync(void *address, unsigned int length, int flags);
+} // namespace ZEN_OS
+
+class ZEN_Trace_LogMsg {
+public:
+    static void debug_errorex(const char *str_format, ...);
+};
+
+ZEN_ShareMem_Posix::ZEN_ShareMem_Posix() {
+    mmap_addr_ = NULL;
+    mmap_handle_ = -1;
+    shm_size_ = 0;
 }
 
-// line 223
-int ZEN_ShareMem_Posix::flush() {
+ZEN_ShareMem_Posix::~ZEN_ShareMem_Posix() {
+    if (mmap_addr_ != NULL) {
+        close();
+    }
 }
 
-// line 217
-int ZEN_ShareMem_Posix::remove() {
+// line 45
+int ZEN_ShareMem_Posix::open(const char *shm_name, size_t shm_size,
+                             int file_open_mode, int file_perms_mode,
+                             const void *want_address, int mmap_prot,
+                             int mmap_flags, size_t offset) {
+    int ret;
+    void *nonconst_addr;
+    size_t filelen;
+
+    mmap_handle_ = ZEN_OS::shm_open(shm_name, file_open_mode, file_perms_mode);
+    if (mmap_handle_ == -1) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zenlib] Posix memory open fail ,ZEN_OS::shm_open fail. last error =%d",
+            errno);
+        return -1;
+    }
+
+    shm_name_.assign(shm_name, strlen(shm_name));
+
+    if ((file_open_mode & O_TRUNC) != 0) {
+        ret = ZEN_OS::ftruncate(mmap_handle_, shm_size + offset);
+    } else {
+        filelen = 0;
+        ret = ZEN_OS::filesize(mmap_handle_, &filelen);
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[zenlib] Posix memory open fail ,ZEN_OS::filesize ret =%ld last error=%d",
+                filelen, errno);
+            ZEN_OS::close(mmap_handle_);
+            mmap_handle_ = -1;
+            return -1;
+        }
+        if (filelen == 0) {
+            ret = ZEN_OS::ftruncate(mmap_handle_, shm_size + offset);
+        } else if (filelen < shm_size + offset) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[zenlib] Posix memory open fail ,old file size(%lu) < request file size(%lu). ",
+                filelen, shm_size + offset);
+            ZEN_OS::close(mmap_handle_);
+            mmap_handle_ = -1;
+            return -1;
+        }
+    }
+
+    nonconst_addr = (void *)want_address;
+    mmap_addr_ = ZEN_OS::mmap(nonconst_addr, shm_size, mmap_prot, mmap_flags,
+                              mmap_handle_, offset);
+    if (mmap_addr_ == NULL) {
+        ZEN_OS::close(mmap_handle_);
+        mmap_handle_ = -1;
+        return -1;
+    }
+
+    shm_size_ = shm_size;
+    return 0;
+}
+
+// line 138
+int ZEN_ShareMem_Posix::open(const char *shm_name, size_t shm_size,
+                             bool if_restore, bool read_only, bool share_file,
+                             const void *want_address, size_t offset) {
+    int file_open_mode;
+    int mmap_prot;
+    int mmap_flags;
+    int file_perms_mode;
+
+    file_perms_mode = share_file ? 0666 : 0600;
+    mmap_flags = share_file ? MAP_SHARED : MAP_PRIVATE;
+    file_open_mode =
+        (if_restore ? O_CREAT : O_CREAT | O_TRUNC) | (read_only ? 0 : O_RDWR);
+    mmap_prot = read_only ? PROT_READ : PROT_READ | PROT_WRITE;
+    if (want_address != NULL) {
+        mmap_flags |= MAP_FIXED;
+    }
+    return open(shm_name, shm_size, file_open_mode, file_perms_mode,
+                want_address, mmap_prot, mmap_flags, offset);
 }
 
 // line 194
 int ZEN_ShareMem_Posix::close() {
-    // local: int ret;
+    int ret;
+
+    ret = ZEN_OS::munmap(mmap_addr_, shm_size_);
+    mmap_addr_ = NULL;
+    shm_size_ = 0;
+    ZEN_OS::close(mmap_handle_);
+    mmap_handle_ = -1;
+    return (ret == 0) ? 0 : -1;
 }
 
-// line 45
-int ZEN_ShareMem_Posix::open(const char *shm_name, size_t shm_size, int file_open_mode, int file_perms_mode, const void *want_address, int mmap_prot, int mmap_flags, size_t offset) {
-    // local: int ret;
-    // local: void *nonconst_addr;
-    // local: size_t filelen;
+// line 217
+int ZEN_ShareMem_Posix::remove() {
+    return ZEN_OS::shm_unlink(shm_name_.c_str());
 }
 
-// line 138
-int ZEN_ShareMem_Posix::open(const char *shm_name, size_t shm_size, bool if_restore, bool read_only, bool share_file, const void *want_address, size_t offset) {
-    // local: int file_open_mode;
-    // local: int mmap_prot;
-    // local: int mmap_flags;
-    // local: int file_perms_mode;
+// line 223
+int ZEN_ShareMem_Posix::flush() {
+    return ZEN_OS::msync(mmap_addr_, shm_size_, MS_SYNC);
 }
 
+// line 229
+void *ZEN_ShareMem_Posix::addr() {
+    return mmap_addr_;
+}

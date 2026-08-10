@@ -31,24 +31,24 @@ void InterHandler::initInterEvent()
 
     G_TraceLog()->sysLog(6, "=================\xC6\xF2\xB1\xD5\xB0\xAA DB\xB8\xA6 \xC0\xD0\xBE\xEE\xBF\xC9\xB4\xCF\xB4\xD9=================");
     tagAUCTION_DB_GET_AVERAGE_PRICE dbtr_get_average_price;
-    nsl::Message* pMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
-    nsl::CMsgCell* pNewCell = pMsg->getCellFromMessage();
-    *pNewCell << &dbtr_get_average_price;
-    pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
+    nsl::Message* pMsg1 = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
+    nsl::CMsgCell* pNewCell1 = pMsg1->getCellFromMessage();
+    *pNewCell1 << &dbtr_get_average_price;
+    pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg1);
 
     G_TraceLog()->sysLog(6, "=============\xB7\xA3\xB4\xFD \xBF\xC9\xBC\xC7 \xC6\xF2\xB1\xD5\xB0\xAA DB\xB8\xA6 \xC0\xD0\xBE\xEE\xBF\xC9\xB4\xCF\xB4\xD9=============");
     tagAUCTION_DB_GET_ROI_AVERAGE_PRICE_INFO dbtr_get_roi_average_price;
-    pMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
-    pNewCell = pMsg->getCellFromMessage();
-    *pNewCell << &dbtr_get_roi_average_price;
-    pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
+    nsl::Message* pMsg2 = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
+    nsl::CMsgCell* pNewCell2 = pMsg2->getCellFromMessage();
+    *pNewCell2 << &dbtr_get_roi_average_price;
+    pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg2);
 
     G_TraceLog()->sysLog(6, "=================Auction DB\xB8\xA6 \xC0\xD0\xBE\xEE\xBF\xC9\xB4\xCF\xB4\xD9=================");
     tagAUCTION_DB_GET_REGISTED_ITEM dbtr_get_auction_main;
-    pMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
-    pNewCell = pMsg->getCellFromMessage();
-    *pNewCell << &dbtr_get_auction_main;
-    pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
+    nsl::Message* pMsg3 = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
+    nsl::CMsgCell* pNewCell3 = pMsg3->getCellFromMessage();
+    *pNewCell3 << &dbtr_get_auction_main;
+    pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg3);
 
     G_TraceLog()->sysLog(5, "Out initInterEvent");
 }

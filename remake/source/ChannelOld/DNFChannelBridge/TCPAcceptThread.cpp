@@ -17,14 +17,11 @@ ChannelServiceApp::TCPUser* ChannelServiceApp::TCPAcceptThread::lockPopAcceptedU
     TCPUser* ret;
     if (queueAcceptedUser_.empty())
     {
-        ret = NULL;
+        return NULL;
     }
-    else
-    {
-        ret = queueAcceptedUser_.front();
-        queueAcceptedUser_.pop();
-        GLOG(gFileLogInfo, "lockPopAcceptedUser ++");
-    }
+    ret = queueAcceptedUser_.front();
+    queueAcceptedUser_.pop();
+    GLOG(gFileLogInfo, "lockPopAcceptedUser ++");
     return ret;
 }
 

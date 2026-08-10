@@ -4,8 +4,8 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_MYSQL_PREDEFINE_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_MYSQL_PREDEFINE_H_H_
 
-extern const char STR_BOUND_OVER_FLOW[]; // line 32
-extern const char STR_DATA_CONVERT_ERROR[]; // line 33
-extern const char STR_FIELD_TYPE_ERROR[]; // line 34
+extern const char STR_BOUND_OVER_FLOW[]; // line 30
+extern const char STR_DATA_CONVERT_ERROR[]; // line 31
+extern const char STR_FIELD_TYPE_ERROR[]; // line 32
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_MYSQL_PREDEFINE_H_H_

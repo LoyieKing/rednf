@@ -1,552 +1,298 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/framework/comm_app_frame.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
-
+// Reconstructed from gunnersvr binary disassembly (2026-08-10, fw_frame)
+// 语义与二进制一致：帧头 50 字节 pack(1)，htonl/ntohs 序列、clone/fill 行为逐字节核对。
 #include "src/commlib/framework/comm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "output/commlib/zenlib/release/include/zen_id_to_string.h"
-#include "output/commlib/zenlib/release/include/zen_time_value.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_command.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_result.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_field.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
-#include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_spin.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
-#include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
-#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_file.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
-#include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
-#include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_sema.h"
-#include "output/commlib/zenlib/release/include/zen_lock_synch_traits.h"
-#include "output/commlib/zenlib/release/include/zen_lock_process_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_rw_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_semaphore.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_condi.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_condi.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_nonlock.h"
-#include "output/commlib/zenlib/release/include/zen_timer_handler_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_wheel.h"
-#include "output/commlib/zenlib/release/include/zen_bus_two_way.h"
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
-#include "output/commlib/zenlib/release/include/zen_thread_task.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_stream.h"
-#include "output/commlib/zenlib/release/include/zen_socket_datagram.h"
-#include "output/commlib/zenlib/release/include/zen_socket_connector.h"
-#include "output/commlib/zenlib/release/include/zen_event_handle_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_select.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
-#include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
-#include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
-#include "output/commlib/zenlib/release/include/zen_server_status.h"
-#include "output/commlib/zenlib/release/include/zen_shm_vector.h"
-#include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
-#include "output/protocol/common/release/include/comm_proto_cfgsvr.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "output/protocol/common/release/include/comm_proto_public_head.h"
-#include "output/protocol/common/release/include/comm_proto_public_cmd.h"
-#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
-#include "output/protocol/common/release/include/comm_proto_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_conf_framework.h"
-#include "output/protocol/common/release/include/TdrXml.h"
-#include "output/protocol/common/release/include/TdrIO.h"
-#include "output/protocol/common/release/include/comm_conf_svcid.h"
-#include "output/protocol/common/release/include/comm_conf_zerg.h"
-#include "output/protocol/common/release/include/comm_conf_cfgsdk.h"
-#include "import/include/tencore/tencrypt/TenHash.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_external.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_types.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_define.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_ctypes_info.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_error.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_init.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLtags.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLMetaLib.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_to_hpp.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_io.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_operate_data.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_sort.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_net.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_manage.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_sql.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_meta_entries_index.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_macros.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_error.h"
-#include "src/commlib/framework/comm_error_code.h"
 #include "src/commlib/framework/comm_app_frame.h"
-#include "src/commlib/framework/comm_enum_define.h"
 #include "src/commlib/framework/comm_service_info.h"
-#include "src/commlib/framework/comm_frame_command.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
+#include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
 #include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-ios_base & std::uppercase(ios_base &__base) {
+// ---- 简单的 svcid 设置 ----
+void Comm_App_Frame::set_send_svcid(unsigned short svrtype, unsigned int svrid) {
+    send_service_.services_type_ = svrtype;
+    send_service_.services_id_ = svrid;
 }
 
-ios_base & std::hex(ios_base &__base) {
+void Comm_App_Frame::set_recv_svcid(unsigned short svrtype, unsigned int svrid) {
+    recv_service_.services_type_ = svrtype;
+    recv_service_.services_id_ = svrid;
 }
 
-// line 299
-void Comm_App_Frame::set_send_svcid(short unsigned int svrtype, unsigned int svrid) {
+void Comm_App_Frame::set_proxy_svcid(unsigned short svrtype, unsigned int svrid) {
+    proxy_service_.services_type_ = svrtype;
+    proxy_service_.services_id_ = svrid;
 }
 
-// line 305
-void Comm_App_Frame::set_recv_svcid(short unsigned int svrtype, unsigned int svrid) {
+void Comm_App_Frame::set_all_svcid(const SERVICES_ID &rcvinfo, const SERVICES_ID &sndinfo,
+                                   const SERVICES_ID &proxyinfo) {
+    recv_service_ = rcvinfo;
+    send_service_ = sndinfo;
+    proxy_service_ = proxyinfo;
 }
 
-// line 311
-void Comm_App_Frame::set_proxy_svcid(short unsigned int svrtype, unsigned int svrid) {
-}
-
-// line 318
-void Comm_App_Frame::set_all_svcid(const SERVICES_ID &rcvinfo, const SERVICES_ID &sndinfo, const SERVICES_ID &proxyinfo) {
-}
-
-// line 346
+// ---- 帧头交换/回填 ----
 void Comm_App_Frame::exchange_rcvsnd_svcid(Comm_App_Frame &exframe) {
+    recv_service_ = exframe.send_service_;
+    send_service_ = exframe.recv_service_;
+    proxy_service_ = exframe.proxy_service_;
+    transaction_id_ = exframe.transaction_id_;
+    backfill_trans_id_ = exframe.backfill_trans_id_;
+    app_id_ = exframe.app_id_;
+    frame_uin_ = exframe.frame_uin_;
 }
 
-// line 357
-void Comm_App_Frame::fillback_appframe_head(Comm_App_Frame &exframe) {
-}
-
-// line 512
-void Comm_App_Frame::CloneFrameHead(Comm_App_Frame *clone_frame) {
-}
-
-// line 505
-void Comm_App_Frame::CloneAppFrame(Comm_App_Frame *clone_frame) {
-}
-
-// line 190
-int Comm_App_Frame::fill_appdata(size_t szdata, const char *vardata) {
-}
-
-// line 102
-Comm_App_Frame & Comm_App_Frame::operator=(const Comm_App_Frame &other) {
-}
-
-char * _S_construct<char*>(char *__beg, char *__end, const /*anon struct*/ int &__a, /*anon struct*/ int arg3) {
-    // local: const size_t __dnew;
-    // local: _Rep *__r;
-}
-
-// line 447
-void Comm_App_Frame::dump_appframe_head(ostringstream &strstream) {
-}
-
-// line 338
 void Comm_App_Frame::exchange_rcvsnd_svcid() {
-    // local: SERVICES_ID tmpsvrinfo;
+    SERVICES_ID tmpsvrinfo = recv_service_;
+    recv_service_ = send_service_;
+    send_service_ = tmpsvrinfo;
 }
 
-// line 280
+void Comm_App_Frame::fillback_appframe_head(Comm_App_Frame &exframe) {
+    recv_service_ = exframe.send_service_;
+    send_service_ = exframe.recv_service_;
+    proxy_service_ = exframe.proxy_service_;
+    transaction_id_ = exframe.backfill_trans_id_;
+    backfill_trans_id_ = exframe.transaction_id_;
+    app_id_ = exframe.app_id_;
+    frame_uin_ = exframe.frame_uin_;
+}
+
+// ---- clone ----
+void Comm_App_Frame::CloneFrameHead(Comm_App_Frame *clone_frame) const {
+    memcpy(clone_frame, this, LEN_OF_APPFRAME_HEAD);
+}
+
+void Comm_App_Frame::CloneAppFrame(Comm_App_Frame *clone_frame) const {
+    memcpy(clone_frame, this, frame_length_);
+}
+
+Comm_App_Frame *Comm_App_Frame::CloneAppFrame() const {
+    Comm_App_Frame *proc_frame =
+        new (frame_length_) Comm_App_Frame(0, LEN_OF_APPFRAME_HEAD, (TSS_APPFRAME_V1 << 24));
+    memcpy(proc_frame, this, frame_length_);
+    return proc_frame;
+}
+
+// ---- 赋值 / 数据填充 ----
+Comm_App_Frame &Comm_App_Frame::operator=(const Comm_App_Frame &other) {
+    if (this != &other) {
+        memcpy(this, &other, other.frame_length_);
+    }
+    return *this;
+}
+
+int Comm_App_Frame::fill_appdata(size_t szdata, const char *vardata) {
+    if (szdata > MAX_LEN_OF_APPFRAME_DATA) {
+        return 0x139F; // 二进制返回该常量（= MAX_LEN_OF_TEA_APPDATA，语义待最终核对）
+    }
+    memcpy(frame_appdata_, vardata, szdata);
+    frame_length_ = szdata + LEN_OF_APPFRAME_HEAD;
+    return 0;
+}
+
+// ---- 帧头初始化 / 编解码 ----
 void Comm_App_Frame::init_framehead(unsigned int lenframe, unsigned int option, unsigned int cmd) {
+    frame_length_ = lenframe;
+    frame_option_ = option;
+    frame_command_ = cmd;
+    frame_uin_ = 0;
+    inner_option_.frame_version_ = TSS_APPFRAME_V1;
+    send_service_.set_serviceid(0, 0);
+    recv_service_.set_serviceid(0, 0);
+    proxy_service_.set_serviceid(0, 0);
+    transaction_id_ = 0;
+    backfill_trans_id_ = 0;
+    app_id_ = 0;
+    send_serial_number_ = 0;
 }
 
-// line 255
 void Comm_App_Frame::framehead_decode() {
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
+    frame_length_ = ntohl(frame_length_);
+    frame_option_ = ntohl(frame_option_);
+    frame_command_ = ntohl(frame_command_);
+    frame_uin_ = ntohl(frame_uin_);
+    recv_service_.services_type_ = ntohs(recv_service_.services_type_);
+    recv_service_.services_id_ = ntohl(recv_service_.services_id_);
+    send_service_.services_type_ = ntohs(send_service_.services_type_);
+    send_service_.services_id_ = ntohl(send_service_.services_id_);
+    proxy_service_.services_type_ = ntohs(proxy_service_.services_type_);
+    proxy_service_.services_id_ = ntohl(proxy_service_.services_id_);
+    transaction_id_ = ntohl(transaction_id_);
+    backfill_trans_id_ = ntohl(backfill_trans_id_);
+    app_id_ = ntohl(app_id_);
+    send_serial_number_ = ntohl(send_serial_number_);
 }
 
-// line 216
 void Comm_App_Frame::framehead_encode() {
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
+    frame_length_ = htonl(frame_length_);
+    frame_option_ = htonl(frame_option_);
+    frame_command_ = htonl(frame_command_);
+    frame_uin_ = htonl(frame_uin_);
+    recv_service_.services_type_ = htons(recv_service_.services_type_);
+    recv_service_.services_id_ = htonl(recv_service_.services_id_);
+    send_service_.services_type_ = htons(send_service_.services_type_);
+    send_service_.services_id_ = htonl(send_service_.services_id_);
+    proxy_service_.services_type_ = htons(proxy_service_.services_type_);
+    proxy_service_.services_id_ = htonl(proxy_service_.services_id_);
+    transaction_id_ = htonl(transaction_id_);
+    backfill_trans_id_ = htonl(backfill_trans_id_);
+    app_id_ = htonl(app_id_);
+    send_serial_number_ = htonl(send_serial_number_);
 }
 
-// line 160
+// ---- 构造 / 析构 / new / delete ----
+Comm_App_Frame::Comm_App_Frame(unsigned int cmd, unsigned int lenframe, unsigned int option)
+    : frame_length_(lenframe),
+      frame_option_(option),
+      frame_command_(cmd),
+      frame_uin_(0),
+      send_service_(0, 0),
+      recv_service_(0, 0),
+      proxy_service_(0, 0),
+      transaction_id_(0),
+      backfill_trans_id_(0),
+      send_serial_number_(0) {
+}
+
+Comm_App_Frame::Comm_App_Frame(unsigned int cmd, unsigned int lenframe, unsigned int uin,
+                               unsigned short sndtype, unsigned short rectype,
+                               unsigned int option)
+    : frame_length_(lenframe),
+      frame_option_(option),
+      frame_command_(cmd),
+      frame_uin_(uin),
+      send_service_(sndtype, uin),
+      recv_service_(rectype, 0),
+      proxy_service_(0, 0),
+      transaction_id_(0),
+      backfill_trans_id_(0),
+      app_id_(0),
+      send_serial_number_(0) {
+}
+
+Comm_App_Frame::Comm_App_Frame(unsigned int cmd, unsigned int lenframe, unsigned int uin,
+                               SERVICES_ID sndinfo, SERVICES_ID rcvsinfo, unsigned int option)
+    : frame_length_(lenframe),
+      frame_option_(option),
+      frame_command_(cmd),
+      frame_uin_(uin),
+      send_service_(sndinfo),
+      recv_service_(rcvsinfo),
+      proxy_service_(0, 0),
+      transaction_id_(0),
+      backfill_trans_id_(0),
+      app_id_(0),
+      send_serial_number_(0) {
+}
+
+Comm_App_Frame::Comm_App_Frame(unsigned int cmd, unsigned int lenframe, unsigned int uin,
+                               const SERVICES_ID &sndinfo, const SERVICES_ID &proxyinfo,
+                               unsigned short rectype, unsigned int option)
+    : frame_length_(lenframe),
+      frame_option_(option),
+      frame_command_(cmd),
+      frame_uin_(uin),
+      send_service_(sndinfo),
+      recv_service_(rectype, 0),
+      proxy_service_(proxyinfo),
+      transaction_id_(0),
+      backfill_trans_id_(0),
+      app_id_(0),
+      send_serial_number_(0) {
+}
+
+Comm_App_Frame::~Comm_App_Frame() {
+}
+
+void *Comm_App_Frame::operator new(size_t size, size_t lenframe) {
+    void *ptr = new char[(lenframe > LEN_OF_APPFRAME_HEAD) ? lenframe : LEN_OF_APPFRAME_HEAD];
+    return ptr;
+}
+
 void Comm_App_Frame::operator delete(void *ptrframe, size_t arg1) {
-    // local: char *ptr;
+    if (ptrframe) {
+        char *ptr = (char *)ptrframe;
+        delete[] ptr;
+    }
 }
 
-// line 126
-void * Comm_App_Frame::operator new(size_t arg0, size_t lenframe) {
-    // local: void *ptr;
+Comm_App_Frame *Comm_App_Frame::FillDatainAppFrame(size_t szdata, const char *vardata) {
+    Comm_App_Frame *ptr = new (szdata + LEN_OF_APPFRAME_HEAD)
+        Comm_App_Frame(0, LEN_OF_APPFRAME_HEAD, (TSS_APPFRAME_V1 << 24));
+    memcpy(ptr->frame_appdata_, vardata, szdata);
+    return ptr;
 }
 
-// line 497
-Comm_App_Frame * Comm_App_Frame::CloneAppFrame() {
-    // local: Comm_App_Frame *proc_frame;
+// ---- dump 系列 ----
+void Comm_App_Frame::dump_appframe_head(std::ostringstream &strstream) const {
+    strstream << "Len:" << frame_length_ << " Framedesc:0x " << frame_option_
+              << " Command:" << frame_command_ << " Uin:" << frame_uin_
+              << " TransactionID:" << transaction_id_
+              << " BackfillTransID:" << backfill_trans_id_
+              << " ProcessHandler:" << app_id_
+              << " Sendip:" << send_serial_number_
+              << "Rcvsvr:" << recv_service_.services_type_
+              << "|" << recv_service_.services_id_
+              << " Sndsvr:" << send_service_.services_type_
+              << "|" << send_service_.services_id_
+              << " Proxysvr:" << proxy_service_.services_type_
+              << "|" << proxy_service_.services_id_;
 }
 
-// line 182
-Comm_App_Frame * Comm_App_Frame::FillDatainAppFrame(size_t szdata, const char *vardata) {
-    // local: Comm_App_Frame *ptr;
+void Comm_App_Frame::dump_appframe_data(std::ostringstream &strstream) const {
+    const unsigned int LINE_OUT_NUM = 40;
+    unsigned int datalen = frame_length_ - LEN_OF_APPFRAME_HEAD;
+    std::string strascii;
+    strascii.reserve(0x100);
+    strstream << std::hex;
+    for (unsigned int i = 0; i < datalen; ++i) {
+        if (i % LINE_OUT_NUM == 0 && i != 0) {
+            strstream << " " << strascii << "  " << std::endl;
+            strascii.clear();
+        }
+        unsigned char bytmp = (unsigned char)frame_appdata_[i];
+        strstream << std::hex << std::setw(2) << std::setfill('0')
+                  << std::uppercase << (unsigned short)bytmp << " ";
+        if (bytmp >= 0x21 && bytmp <= 0xF9) {
+            strascii.push_back((char)bytmp);
+        } else {
+            strascii.push_back('.');
+        }
+    }
+    if (datalen % LINE_OUT_NUM != 0) {
+        unsigned int remain = LINE_OUT_NUM - (datalen % LINE_OUT_NUM);
+        for (unsigned int j = 0; j < remain; ++j) {
+            strstream << "   ";
+        }
+        strstream << " " << strascii << std::endl << std::ends;
+    }
 }
 
-// line 390
-void Comm_App_Frame::dump_appframe_data(ostringstream &strstream) {
-    // local: unsigned int datalen;
-    // local: string strascii;
-    // local: const unsigned int LINE_OUT_NUM;
-    // local: unsigned int i;
-    // local: unsigned char bytmp;
-    // local: unsigned int j;
+void Comm_App_Frame::dump_appframe_info(std::ostringstream &strstream) const {
+    dump_appframe_head(strstream);
+    dump_appframe_data(strstream);
 }
 
-// line 381
-void Comm_App_Frame::dump_appframe_info(ostringstream &strstream) {
+void Comm_App_Frame::dumpoutput_framehead(const char *outstr, ZEN_LOG_PRIORITY log_priority) const {
+    std::ostringstream strstream;
+    dump_appframe_head(strstream);
+    std::string str = strstream.str();
+    ZEN_Trace_LogMsg::debug_output(log_priority, "[framework] [%s]%s", outstr, str.c_str());
 }
 
-// line 468
-void Comm_App_Frame::dumpoutput_framehead(const char *outstr, ZEN_LOG_PRIORITY log_priority) {
-    // local: ostringstream strstream;
+void Comm_App_Frame::dumpoutput_frameInfo(const char *outstr, ZEN_LOG_PRIORITY log_priority) const {
+    std::ostringstream strstream;
+    dump_appframe_info(strstream);
+    std::string str = strstream.str();
+    ZEN_Trace_LogMsg::debug_output(log_priority, "[framework] [%s]%s", outstr, str.c_str());
 }
 
-// line 484
-void Comm_App_Frame::dumpoutput_framehead(const Comm_App_Frame *proc_frame, const char *outstr, ZEN_LOG_PRIORITY log_priority) {
+void Comm_App_Frame::dumpoutput_framehead(const Comm_App_Frame *proc_frame, const char *outstr,
+                                          ZEN_LOG_PRIORITY log_priority) {
+    proc_frame->dumpoutput_framehead(outstr, log_priority);
 }
 
-// line 475
-void Comm_App_Frame::dumpoutput_frameInfo(const char *outstr, ZEN_LOG_PRIORITY log_priority) {
-    // local: ostringstream strstream;
+void Comm_App_Frame::dumpoutput_frameInfo(const Comm_App_Frame *proc_frame, const char *outstr,
+                                          ZEN_LOG_PRIORITY log_priority) {
+    proc_frame->dumpoutput_frameInfo(outstr, log_priority);
 }
-
-// line 489
-void Comm_App_Frame::dumpoutput_frameInfo(const Comm_App_Frame *proc_frame, const char *outstr, ZEN_LOG_PRIORITY log_priority) {
-}
-

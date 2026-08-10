@@ -1,8 +1,8 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_lock_ptr_guard.h
+// Original path: src/commlib/zenlib/zen_lock_ptr_guard.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_LOCK_PTR_GUARD_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_LOCK_PTR_GUARD_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_LOCK_PTR_GUARD_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_LOCK_PTR_GUARD_H_H_
 
 #include "src/commlib/zenlib/zen_boost_non_copyable.h"
 
@@ -19,4 +19,4 @@ bool try_lock(); // line 54
 void unlock(); // line 60
 };
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_LOCK_PTR_GUARD_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_LOCK_PTR_GUARD_H_H_

@@ -134,290 +134,202 @@
 #include "src/commlib/framework/comm_stat_monitor.h"
 #include "src/commlib/framework/comm_stat_define.h"
 #include "src/commlib/framework/comm_svrd_config.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+
+Zerg_MMAP_BusPipe::Zerg_MMAP_BusPipe()
+    : zerg_svr_info_(0, 0),
+      monitor_(0) {
+}
+
+Zerg_MMAP_BusPipe::~Zerg_MMAP_BusPipe() {
+    zerg_svr_info_.~SERVICES_ID();
+}
 
 // line 159
 void Zerg_MMAP_BusPipe::get_mmapfile_name(char *mmapfile, size_t buflen) {
+    snprintf(mmapfile, buflen, "./ZERGPIPE.%u.%u.MMAP",
+             zerg_svr_info_.services_type_, zerg_svr_info_.services_id_);
 }
 
 // line 85
 int Zerg_MMAP_BusPipe::getpara_from_zergcfg(const Zerg_MMAP_BusPipe::ZERG_CONFIG &zerg_config) {
-    // local: int ret;
-    // local: short unsigned int svrtype;
-    // local: unsigned int svrid;
+    int ret = 0;
+    unsigned short svrtype = 0;
+    unsigned int svrid = 0;
+
+    bus_head_.size_of_pipe_[0] = zerg_config.comm_cfg.recv_pipe_len;
+    if (bus_head_.size_of_pipe_[0] <= 0x200000
+            || bus_head_.size_of_pipe_[0] > 0x31ffffff) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "COMMCFG|RECVPIPELEN key error.");
+        return 0x1398;
+    }
+    bus_head_.size_of_pipe_[1] = zerg_config.comm_cfg.send_pipe_len;
+    if (bus_head_.size_of_pipe_[1] <= 0x200000
+            || bus_head_.size_of_pipe_[1] > 0x31ffffff) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "COMMCFG|SENDPIPELEN key error.");
+        return 0x1398;
+    }
+    svrtype = zerg_config.self_cfg.self_svr_info.svr_type;
+    if (svrtype == 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "SELFCFG|SELFSVRTYPE key error.");
+        return 0x1398;
+    }
+    svrid = zerg_config.self_cfg.self_svr_info.svr_id;
+    if (svrid == 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "SELFCFG|SELFSVRID key error.");
+        return 0x1398;
+    }
+    zerg_svr_info_.set_serviceid(svrtype, svrid);
+    if_check_pthrad_ = (zerg_config.comm_cfg.check_pthread != 0);
+    return 0;
 }
 
 // line 66
 int Zerg_MMAP_BusPipe::initialize(SERVICES_ID &svrinfo, size_t size_recv_pipe, size_t size_send_pipe, size_t max_frame_len, bool if_restore, bool if_check_pthread) {
-    // local: char bus_mmap_name[];
+    char bus_mmap_name[0x200] = { 0 };
+    monitor_ = Comm_Stat_Monitor::instance();
+    config_ = Comm_Svrd_Config::instance();
+    zerg_svr_info_ = svrinfo;
+    get_mmapfile_name(bus_mmap_name, sizeof(bus_mmap_name));
+    return ZEN_BusPipe_TwoWay::initialize(bus_mmap_name, size_recv_pipe, size_send_pipe,
+                                          max_frame_len, if_restore, if_check_pthread, 1);
 }
 
 // line 147
 int Zerg_MMAP_BusPipe::init_after_getcfg(size_t max_frame_len, bool if_restore) {
+    return initialize(zerg_svr_info_, bus_head_.size_of_pipe_[0],
+                      bus_head_.size_of_pipe_[1], max_frame_len, if_restore,
+                      if_check_pthrad_);
 }
 
 // line 185
 void Zerg_MMAP_BusPipe::clean_instance() {
+    if (zerg_bus_instance_) {
+        delete zerg_bus_instance_;
+        zerg_bus_instance_ = 0;
+    }
 }
 
 // line 177
 void Zerg_MMAP_BusPipe::instance(Zerg_MMAP_BusPipe *pinstatnce) {
+    clean_instance();
+    zerg_bus_instance_ = pinstatnce;
 }
 
 // line 166
 Zerg_MMAP_BusPipe * Zerg_MMAP_BusPipe::instance() {
+    if (!zerg_bus_instance_) {
+        zerg_bus_instance_ = new Zerg_MMAP_BusPipe;
+    }
+    return zerg_bus_instance_;
 }
 
 // line 207
 int Zerg_MMAP_BusPipe::pipe_sendbuf_to_service(unsigned int cmd, unsigned int qquin, unsigned int transaction_id, unsigned int backfill_trans_id, const SERVICES_ID &rcvsvc, const SERVICES_ID &proxysvc, const SERVICES_ID &sendsvc, const unsigned char *buf, size_t buf_len, unsigned int app_id, unsigned int option) {
-    // local: Comm_App_Frame *send_frame;
-    // local: int ret;
+    Comm_App_Frame *send_frame = (Comm_App_Frame *)send_buffer_;
+    int ret = 0;
+
+    send_frame->init_framehead(0x10000, option, cmd);
+    send_frame->frame_uin_ = qquin;
+    send_frame->app_id_ = app_id;
+    send_frame->send_service_ = sendsvc;
+    send_frame->proxy_service_ = proxysvc;
+    send_frame->recv_service_ = rcvsvc;
+    send_frame->transaction_id_ = transaction_id;
+    send_frame->backfill_trans_id_ = backfill_trans_id;
+    ret = send_frame->fill_appdata(buf_len, (const char *)buf);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] [%s]TDR encode fail.ret =%d,Please check your code and buffer len.",
+            "int Zerg_MMAP_BusPipe::pipe_sendbuf_to_service(unsigned int, unsigned int, unsigned int, unsigned int, const SERVICES_ID",
+            ret);
+        return ret;
+    }
+    if (send_frame->frame_length_ - 0x32 > 0xffce) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Frame Len is error ,frame length :%u ,Please check your code.",
+            send_frame->frame_length_);
+        return 0x13b1;
+    }
+    if (config_->is_monitor_uin(send_frame->frame_uin_)) {
+        send_frame->frame_option_ |= 0x10000;
+    }
+    if (send_frame->frame_option_ & 0x10000) {
+        Comm_App_Frame::dumpoutput_frameInfo(send_frame, "[TRACK MONITOR][Send]",
+                                             RS_ERROR);
+    }
+    if (!bus_pipe_pointer_[1]->push_end((const ZEN_LIB::dequechunk_node *)send_frame)) {
+        ZEN_Trace_LogMsg::debug_alertex(
+            "[zenlib] %u Pipe is full or data small?,Some data can't put to pipe. Please increase and check. nodesize=%u, freesize=%u",
+            1, send_frame->frame_length_, bus_pipe_pointer_[1]->freesize());
+        monitor_->increase_by_statid(0x238f, send_frame->app_id_,
+                                     send_frame->frame_command_, 1);
+        return 0x1396;
+    }
+    monitor_->increase_by_statid(0x238e, send_frame->app_id_,
+                                 send_frame->frame_command_, 1);
+    monitor_->increase_by_statid(0x239c, send_frame->app_id_,
+                                 send_frame->frame_command_,
+                                 send_frame->frame_length_);
+    return 0;
 }
 
 // line 111
 int Zerg_MMAP_BusPipe::getpara_from_zergcfg(const Zen_INI_PropertyTree &zerglingcfg) {
-    // local: int ret;
-    // local: uint32_t tmp_value;
-    // local: uint32_t tmpuint;
-    // local: short unsigned int svrtype;
-    // local: unsigned int svrid;
+    int ret = 0;
+    uint32_t tmp_value = 0;
+    uint32_t tmpuint = 0;
+    unsigned short svrtype = 0;
+    unsigned int svrid = 0;
+
+    ret = zerglingcfg.get_uint32_value(std::string("COMMCFG"),
+                                       std::string("RECVPIPELEN"), tmp_value);
+    bus_head_.size_of_pipe_[0] = tmp_value;
+    if (ret != 0 || bus_head_.size_of_pipe_[0] <= 0x200000
+            || bus_head_.size_of_pipe_[0] > 0x31ffffff) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "COMMCFG|RECVPIPELEN key error.");
+        return 0x1398;
+    }
+    ret = zerglingcfg.get_uint32_value(std::string("COMMCFG"),
+                                       std::string("SENDPIPELEN"), tmp_value);
+    bus_head_.size_of_pipe_[1] = tmp_value;
+    if (ret != 0 || bus_head_.size_of_pipe_[1] <= 0x200000
+            || bus_head_.size_of_pipe_[1] > 0x31ffffff) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "COMMCFG|SENDPIPELEN key error.");
+        return 0x1398;
+    }
+    ret = zerglingcfg.get_uint32_value(std::string("SELFCFG"),
+                                       std::string("SELFSVRTYPE"), tmpuint);
+    svrtype = (unsigned short)tmpuint;
+    if (ret != 0 || svrtype == 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "SELFCFG|SELFSVRTYPE key error.");
+        return 0x1398;
+    }
+    ret = zerglingcfg.get_uint32_value(std::string("SELFCFG"),
+                                       std::string("SELFSVRID"), tmpuint);
+    svrid = tmpuint;
+    if (ret != 0 || svrid == 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Get configure file error. %s.",
+            "SELFCFG|SELFSVRID key error.");
+        return 0x1398;
+    }
+    zerg_svr_info_.set_serviceid(svrtype, svrid);
+    return 0;
 }
 
+char Zerg_MMAP_BusPipe::send_buffer_[0x10000];
+Zerg_MMAP_BusPipe *Zerg_MMAP_BusPipe::zerg_bus_instance_ = NULL;

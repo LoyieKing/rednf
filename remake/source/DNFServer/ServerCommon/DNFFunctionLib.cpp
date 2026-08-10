@@ -24,7 +24,9 @@
 
 
 void Char2Hex(unsigned char c, char* out) {
-    static const char saucHex[] = "0123456789abcdef";
+    // ORIG DWARF: saucHex = unsigned char[] (non-const, .data); const 会改变
+    // GCC 4.4 -O0 的寄存器分配（edx 直接装载 vs eax->edx 拷贝），须保持非 const。
+    static unsigned char saucHex[] = "0123456789abcdef";
     out[0] = saucHex[c >> 4];
     out[1] = saucHex[c & 0xf];
     out[2] = '\0';
@@ -58,17 +60,25 @@ char* NumberToString(unsigned long long value, int index) {
 
 void PrintBackTrace() {
     void* frames[100];
-    int count = backtrace(frames, 100);
-    char** symbols = backtrace_symbols(frames, count);
-    if (symbols != NULL) {
-        for (int i = 0; i < count; i++) {
-            // 原始：先取 symbols[i] 到局部变量（触发 ebx 保存，ctor 调用前取值）
-            register char* s = symbols[i];
-            CMyFileLog log("PrintBackTrace", 0x1d1);
-            log("./log/BackTrace", s);
-        }
-        free(symbols);
+    // ORIG DWARF（line 455-457）：buffer、stack_strings、nptrs 声明序为
+    // stack_strings 在前、nptrs 在后（§40 栈槽反序分配 → nptrs@-0x10、
+    // stack_strings@-0x14）。写成 count 在前会产生槽位互换 DIFF。
+    char** symbols;
+    int count;
+    count = backtrace(frames, 100);
+    symbols = backtrace_symbols(frames, count);
+    // 原始：if (== NULL) return; 早退形态（§3.3 共享出口 jmp+nop），
+    // 循环变量名 index（ORIG DWARF decl_line 464）。
+    if (symbols == NULL) {
+        return;
     }
+    for (int index = 0; index < count; index++) {
+        // 原始：先取 symbols[index] 到局部变量（触发 ebx 保存，ctor 调用前取值）
+        register char* s = symbols[index];
+        CMyFileLog log("PrintBackTrace", 0x1d1);
+        log("./log/BackTrace", s);
+    }
+    free(symbols);
 }
 
 unsigned long StringToNumber(char const* str) {
@@ -205,34 +215,41 @@ int DNFFLib::Hex2Binary(char const* hex, unsigned char* out, int maxLen) {
     return 1;
 }
 
-unsigned int DNFFLib::get_rand_int(int range) {
-    if (range < 0) {
+// ORIG 证据（全部 9 个服务）：r / 65536 用非 cmov 的
+// mov edx,eax; sar 31,edx; shr 16,edx; lea; sar 16 形态（i586 除法定型），
+// 与 -march=i586 产物逐指令一致；§89 允许函数级 target 覆盖。
+// divide==0 分支为 switch 形态（mov divide,%eax; test; jne），不能写成 if。
+__attribute__((target("arch=i586")))
+unsigned int DNFFLib::get_rand_int(int divide) {
+    if (divide < 0) {
         return 0;
     }
-    if (range == 0) {
+    switch (divide) {
+    case 0:
         return rand();
+    default:
+        break;
     }
     int r = rand();
     // 原始：r > range 时直接返回 rand() % range
-    if (r > range) {
-        return rand() % range;
+    if (r > divide) {
+        return rand() % divide;
     }
     // 原始：单累加器逐步 LCG（imul → 存栈 → add [ebp]；result 逐步 shl/xor）
     r *= 0x41c64e6d;
     r += 0x3039;
-    // 原始：可移植算术右移惯用法（sar edx,31; shr edx,16; lea; sar）
-    unsigned int result = ((int)(((unsigned int)(r >> 0x1f) >> 0x10) + r) >> 0x10) & 0x7ff;
+    unsigned int result = (r / 65536) & 0x7ff;
     r *= 0x41c64e6d;
     r += 0x3039;
     result <<= 10;
-    result ^= ((int)(((unsigned int)(r >> 0x1f) >> 0x10) + r) >> 0x10) & 0x3ff;
+    result ^= (r / 65536) & 0x3ff;
     r *= 0x41c64e6d;
     r += 0x3039;
     result <<= 10;
-    result ^= ((int)(((unsigned int)(r >> 0x1f) >> 0x10) + r) >> 0x10) & 0x3ff;
+    result ^= (r / 65536) & 0x3ff;
     // 原始：result > range（无符号）才取模
-    if (result > (unsigned int)range) {
-        return result % range;
+    if (result > (unsigned int)divide) {
+        return result % divide;
     }
     return result;
 }

@@ -1,5824 +1,13524 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/protocol/formmog/formmog_proto_antibot_client.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Reconstructed from secagent disassembly (TDR-generated protocol classes)
 
 #include "src/protocol/formmog/formmog_proto_antibot_client.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "src/protocol/formmog/<built-in>"
-#include <_G_config.h>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/byteswap.h>
-#include <bits/confname.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/in.h>
-#include <bits/local_lim.h>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/pthreadtypes.h>
-#include <bits/select.h>
-#include <bits/sigset.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <endian.h>
-#include <exception>
-#include <features.h>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <inttypes.h>
-#include <libio.h>
-#include <limits.h>
-#include <linux/limits.h>
-#include <netinet/in.h>
-#include <new>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "src/protocol/common/TdrBuf.h"
+#include "src/protocol/common/TdrPal.h"
+#include "src/protocol/common/TdrError.h"
+#include "src/protocol/common/TdrBufUtil.h"
+#include "src/protocol/common/TdrTypeUtil.h"
+#include "src/protocol/common/TdrTime.h"
+
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <xlocale.h>
+#include <stdint.h>
+
+namespace {
+
+// 读取带长度前缀的字符串（长度字段含结尾 NUL），单个元素最大 maxLen 字节。
+tsf4g_tdr::TdrError::ErrorType readBoundedString(tsf4g_tdr::TdrReadBuf& destBuf, char* dest, size_t maxLen) {
+    uint32_t size;
+    tsf4g_tdr::TdrError::ErrorType ret = destBuf.readUInt32(size);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < size) return tsf4g_tdr::TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    if (size > maxLen) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_TOO_BIG;
+    if (size == 0) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_TOO_SMALL;
+    if (dest == NULL) return tsf4g_tdr::TdrError::TDR_ERR_ARG_POINTER_IS_NULL;
+    for (uint32_t i = 0; i < size; ++i) {
+        char c;
+        ret = destBuf.readChar(c);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+        dest[i] = c;
+    }
+    if (dest[size - 1] != '\0') return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_CONFLICT;
+    if (strlen(dest) + 1 != size) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_CONFLICT;
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
+}
+
+} // anonymous namespace
+
+namespace sec_proto {
+
+using namespace tsf4g_tdr;
+
+
+TdrError::ErrorType AB_CS_REPORT_ERROR::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AB_CS_REPORT_ERROR::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(error_func_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(error_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(error_index_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(error_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(eip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(error_env_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt32(reserved1_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(reserved2_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AB_CS_REPORT_ERROR::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AB_CS_REPORT_ERROR::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(error_func_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(error_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(error_index_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(error_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(eip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        error_env_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt32(reserved1_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(reserved2_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AB_CS_REPORT_ERROR::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
 
-// line 33216
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31814
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30512
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30274
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29402
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28912
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22866
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22130
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21200
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17693
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18215
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17471
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15666
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15308
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15046
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14276
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13446
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12861
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4473
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2597
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 214
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33067
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32804
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32544
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32107
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31665
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31402
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31142
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30822
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30585
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31887
-tsf4g_tdr::TdrError::ErrorType construct(int64_t selector) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30363
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30085
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29805
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29467
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29273
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28993
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28743
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28463
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28211
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27931
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27664
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27042
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26779
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26499
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26247
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25982
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25730
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25435
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25155
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24875
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24595
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24259
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23951
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23693
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23441
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23204
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22939
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22717
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22508
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22243
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21881
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21644
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21265
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21071
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20666
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20414
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20162
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19699
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18066
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17544
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17322
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17766
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t func_call_infos__i;
-}
-
-// line 16928
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16388
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16095
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15787
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15397
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15119
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14897
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14617
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14365
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14087
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27294
-tsf4g_tdr::TdrError::ErrorType construct(int64_t selector) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13551
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13217
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12950
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12672
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12173
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11937
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18302
-tsf4g_tdr::TdrError::ErrorType construct(int64_t selector) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19422
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4data_;
-}
-
-// line 11685
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11362
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11110
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10774
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10466
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10143
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9850
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9570
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9262
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8997
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8704
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8452
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8129
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7877
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7617
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7380
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7113
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6652
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6912
-tsf4g_tdr::TdrError::ErrorType construct(int64_t selector) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6387
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5957
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5677
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5283
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5023
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4814
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4562
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4284
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3522
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2678
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2428
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2148
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1769
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1446
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1125
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 761
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 303
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33289
-tsf4g_tdr::TdrError::ErrorType construct(int64_t selector) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 36809
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4body_;
-}
-
-// line 25
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17963
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t func_call_infos__i;
-}
-
-tsf4g_tdr::TdrError::ErrorType textize(const char *format) {
-    // local: va_list ap;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13966
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13152
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 281
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 33267
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31865
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 30563
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 30341
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 29445
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28971
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22917
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22221
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 21243
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 18280
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 18044
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 17744
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 17522
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15765
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15375
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15097
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 14343
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 14065
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 13529
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 13195
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 12928
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 4540
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2656
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1645
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t fms_result_data__i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 1747
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1334
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t pad_data__i;
-}
-
-// line 1424
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2327
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t rpfmc_scan_result_data__i;
-}
-
-// line 2406
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2008
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t aucLaResultData_i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 2126
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 990
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int signature__i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 1103
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 598
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t thread_verify_infos__i;
-    // local: uint8_t pad_buf__i;
-}
-
-// line 739
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 5846
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int virus_name__i;
-    // local: unsigned int module_name__i;
-}
-
-// line 5935
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 5512
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int mem_sign_ver__i;
-    // local: unsigned int file_sign_ver__i;
-    // local: unsigned int scan_engine_ver__i;
-    // local: unsigned int clean_engine_ver__i;
-}
-
-// line 5655
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 4943
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int msg__i;
-}
-
-// line 5188
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t tp_info_msg__i;
-}
-
-// line 5261
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 5001
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 4721
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t client_info_msg__i;
-}
-
-// line 4792
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 3971
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int stamp__i;
-    // local: unsigned int module__i;
-    // local: unsigned int out_proc__i;
-    // local: unsigned int trojan__i;
-    // local: uint8_t err_msg__i;
-    // local: uint8_t send_data__i;
-    // local: unsigned int rand__i;
-    // local: unsigned int rc_check__i;
-}
-
-// line 4262
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 3207
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int rccp_ver__i;
-    // local: unsigned int st_ver__i;
-    // local: unsigned int sf_ver__i;
-    // local: unsigned int user_id__i;
-    // local: uint8_t rp_data_info__i;
-    // local: uint8_t send_data__i;
-}
-
-// line 3500
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 30734
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t module_name__i;
-}
-
-// line 32051
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, /*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32388
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4name_or_ordinal_;
-    // local: uint32_t mem__i;
-}
-
-// line 32709
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t mem_item__i;
-}
-
-// line 32980
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33045
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 32782
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 32522
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31031
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31307
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t file_hash_item__i;
-}
-
-// line 31578
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31643
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31380
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31120
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 30800
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 29984
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t fms_scn_cmd_data__i;
-}
-
-// line 30063
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 29676
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t la_cmd_data__i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 29783
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 29172
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t rpfmc_scan_cmd_data__i;
-}
-
-// line 29251
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28642
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t key_data__i;
-}
-
-// line 28721
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28370
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t key_info__i;
-}
-
-// line 28441
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28110
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t rpcode_data__i;
-}
-
-// line 28189
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 27201
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t data__i;
-}
-
-// line 27272
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26678
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t cmd_data__i;
-}
-
-// line 26955
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27539
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, /*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27835
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4data_;
-}
-
-// line 27909
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 27020
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26757
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26406
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t slx_data__i;
-}
-
-// line 26477
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26151
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int tv_info_key__i;
-}
-
-// line 26225
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25889
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t sus_addr_data__i;
-}
-
-// line 25960
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25614
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int encrypt_key__i;
-    // local: uint16_t rpcs_data__i;
-}
-
-// line 25708
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25334
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t pad_data__i;
-}
-
-// line 25413
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25054
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t pkg_data__i;
-}
-
-// line 25133
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 24774
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t content__i;
-}
-
-// line 24853
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 24478
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t pad_data__i;
-}
-
-// line 24573
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 24150
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t dib_data__i;
-}
-
-// line 24237
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23858
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t cmd__i;
-}
-
-// line 23929
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23600
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t tenpary_data__i;
-}
-
-// line 23671
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23353
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int rand_data__i;
-}
-
-// line 23419
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23108
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t send_data__i;
-}
-
-// line 23182
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22637
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int stop_rand__i;
-}
-
-// line 22695
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22412
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int hash__i;
-}
-
-// line 22486
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 21793
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int rand_data__i;
-}
-
-// line 21859
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 21504
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int send_ver__i;
-    // local: uint16_t send_data__i;
-}
-
-// line 21622
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 20935
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int error_env__i;
-}
-
-// line 21049
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 20573
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t send_data__i;
-}
-
-// line 20644
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 20321
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t send_data__i;
-}
-
-// line 20392
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 19998
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t rpcode_result_data__i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 20140
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 17177
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t content__i;
-    // local: uint32_t content2__i;
-}
-
-// line 17300
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 16733
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t pad__i;
-    // local: uint8_t hash__i;
-    // local: uint8_t garbage__i;
-}
-
-// line 16906
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 16284
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int except_code_array__i;
-}
-
-// line 16366
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15986
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t sig_data__i;
-}
-
-// line 16073
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 14796
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t send_data__i;
-}
-
-// line 14875
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 14524
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t send_data__i;
-}
-
-// line 14595
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 12531
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t int_values__i;
-}
-
-// line 12650
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 11834
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int guid__i;
-    // local: unsigned int reserve__i;
-}
-
-// line 12086
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18952
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, /*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19603
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4data_;
-}
-
-// line 19677
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 12151
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 11915
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 11561
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t sus_mod_info_data__i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 11663
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 11269
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t rpcs_result__i;
-}
-
-// line 11340
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10983
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t pad__i;
-    // local: uint8_t iat_info__i;
-}
-
-// line 11088
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10655
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t system_log__i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 10752
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10342
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t system_error_data__i;
-    // local: uint8_t pad_data__i;
-}
-
-// line 10444
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10039
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t err_info__i;
-}
-
-// line 10121
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 9749
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t pkg_data__i;
-}
-
-// line 9828
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 9461
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t buf__i;
-}
-
-// line 9548
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 9166
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t content__i;
-}
-
-// line 9240
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8893
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t err_msg__i;
-}
-
-// line 8975
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8611
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t num_info_msg__i;
-}
-
-// line 8682
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8328
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t local_check_data__i;
-    // local: uint8_t num_msg__i;
-}
-
-// line 8430
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8036
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t ext_info__i;
-}
-
-// line 8107
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 7529
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int file_hash__i;
-}
-
-// line 7782
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t file_hash_data__i;
-}
-
-// line 7855
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 7595
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6556
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int path_name__i;
-}
-
-// line 6817
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t trojans__i;
-}
-
-// line 7071
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, /*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7284
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4trojan_;
-}
-
-// line 7358
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6890
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6630
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6232
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t virus_info__i;
-    // local: uint16_t data_temp__i;
-}
-
-// line 35235
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, /*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 36973
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4body_;
-}
-
-// line 37053
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6365
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23722
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t cmd__i;
-}
-
-// line 22746
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23790
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t cmd__i;
-}
-
-// line 23771
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22806
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22787
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4393
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4374
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30392
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33096
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2457
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 54
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13246
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17573
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18095
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17351
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17807
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t func_call_infos__i;
-}
-
-// line 15426
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15148
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14926
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14116
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31694
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30114
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29302
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28772
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21910
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21100
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12701
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4313
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30452
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30433
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6338
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6213
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5908
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 5827
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5628
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 5493
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5234
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 5169
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4974
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 4924
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4765
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 4702
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4513
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 4454
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4294
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4235
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 3952
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3473
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 3188
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2629
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2578
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2438
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2379
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2308
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2099
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1989
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1720
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1626
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29383
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29283
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29224
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 29153
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28944
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28893
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28753
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28694
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28623
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28414
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28351
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28162
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 28091
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27882
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 27816
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27520
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27245
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 27182
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26993
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26936
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26730
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26659
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26450
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26387
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26198
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 26132
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25933
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25870
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25681
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25595
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25386
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25315
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25106
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 25035
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24826
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 24755
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24546
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 24459
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24210
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 24131
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23902
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23839
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23703
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23644
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23581
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23392
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23334
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23155
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 23089
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22890
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22847
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22727
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22668
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22618
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22459
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22393
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22194
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 22111
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21891
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21832
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 21774
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21595
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 21485
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21216
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 21181
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21081
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21022
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 20916
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20617
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 20554
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20365
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 20302
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20113
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 19979
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19650
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 19584
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18933
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18253
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 18196
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18076
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18017
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 17944
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17788
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17717
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 17674
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17554
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17495
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 17452
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17332
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17273
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 17158
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16879
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 16714
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16339
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 16265
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16046
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15967
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15738
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15647
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15407
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15348
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15289
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15129
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15070
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 15027
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14907
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14848
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 14777
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14568
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 14505
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14316
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 14257
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14097
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14038
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 13947
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 37026
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 35
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 254
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 195
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 36954
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 35216
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33240
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 33197
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33077
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33018
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 32961
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32755
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 32690
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32495
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 32369
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32032
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31838
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31795
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31675
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31616
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31559
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31353
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31288
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31093
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 31012
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30773
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 30715
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30536
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 30493
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30373
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30314
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 30255
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30095
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30036
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 29965
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29756
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 29657
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29418
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1397
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1315
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1076
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 971
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 712
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 579
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13502
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 13427
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13227
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13168
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 13133
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12901
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 12842
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12682
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12623
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 12512
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12124
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 12067
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11888
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 11815
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11636
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 11542
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11313
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 11250
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11061
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10964
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10725
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10636
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10417
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10323
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10094
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 10020
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9801
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 9730
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9521
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 9442
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9213
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 9147
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8948
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8874
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8655
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8592
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8403
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8309
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8080
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 8017
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7828
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 7763
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7568
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 7510
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7331
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 7265
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7052
-tsf4g_tdr::TdrError::ErrorType visualize(int64_t selector, char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6863
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6798
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6603
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 6537
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31754
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31735
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30194
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30175
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29352
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29333
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28842
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28823
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22020
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22001
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21150
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21131
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17633
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18155
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18136
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17614
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17411
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17885
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t func_call_infos__i;
-}
-
-// line 17866
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17392
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33156
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33137
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15546
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15527
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15228
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15209
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14986
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14967
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14196
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14177
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13346
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13327
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2527
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2508
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 134
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 115
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12781
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12762
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29496
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29477
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29022
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29003
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28492
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28473
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28240
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28221
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27960
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27941
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27071
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27052
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26528
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26808
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const size_t savedBeginPos;
-    // local: const size_t sizePos4se_scan_data_item_;
-    // local: const size_t beginPos4se_scan_data_item_;
-    // local: const size_t size4se_scan_data_item_;
-}
-
-// line 27367
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, /*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27693
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4data_;
-}
-
-// line 27674
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27348
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26789
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26509
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26276
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26257
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26011
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25992
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25759
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25740
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25464
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25445
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25184
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25165
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24904
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24885
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24624
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24605
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24288
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24269
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23980
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23961
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23470
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23451
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23233
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23214
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22968
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22949
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22537
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22518
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22272
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22253
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21673
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21654
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21294
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21275
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20695
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20676
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20443
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20424
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20191
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20172
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19728
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19709
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16957
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16938
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16417
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t hash__i;
-}
-
-// line 16398
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16124
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16105
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15816
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15797
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14646
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14627
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14394
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14375
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13580
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const size_t sizePos4virus_name_;
-    // local: const size_t beginPos4virus_name_;
-    // local: size_t realSize4virus_name_;
-    // local: const size_t size4virus_name_;
-    // local: const size_t sizePos4scan_module_;
-    // local: const size_t beginPos4scan_module_;
-    // local: size_t realSize4scan_module_;
-    // local: const size_t size4scan_module_;
-}
-
-// line 13561
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12979
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const size_t sizePos4info_;
-    // local: const size_t beginPos4info_;
-    // local: size_t realSize4info_;
-    // local: const size_t size4info_;
-}
-
-// line 12960
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12202
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t int_values__i;
-    // local: const size_t sizePos4comment_;
-    // local: const size_t beginPos4comment_;
-    // local: size_t realSize4comment_;
-    // local: const size_t size4comment_;
-}
-
-// line 12183
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11714
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11966
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18510
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, /*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19461
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4data_;
-}
-
-// line 19442
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18491
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11947
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11695
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11391
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11372
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11139
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11120
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10803
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10784
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10495
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10476
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10172
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10153
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9879
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9860
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9599
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9580
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9291
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9272
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9026
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9007
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8733
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8714
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8481
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8462
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8158
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8139
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7906
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7887
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7409
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7646
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t file_hash_data__i;
-}
-
-// line 7627
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7390
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6416
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6681
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t trojans__i;
-}
-
-// line 6953
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, /*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7142
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4trojan_;
-}
-
-// line 7123
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6934
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6662
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6397
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5706
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5986
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t virus_info__i;
-}
-
-// line 5967
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5687
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5312
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5293
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 465
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t thread_verify_infos__i;
-}
-
-// line 446
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 332
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t thread_verify_infos__i;
-}
-
-// line 313
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30614
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31933
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, /*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32136
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4name_or_ordinal_;
-}
-
-// line 32573
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t mem_item__i;
-}
-
-// line 32833
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const size_t savedBeginPos;
-    // local: const size_t sizePos4mem_info_;
-    // local: const size_t beginPos4mem_info_;
-    // local: const size_t size4mem_info_;
-}
-
-// line 32814
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32554
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32117
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31914
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30851
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31171
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t file_hash_item__i;
-}
-
-// line 31431
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const size_t savedBeginPos;
-    // local: const size_t sizePos4file_hash_;
-    // local: const size_t beginPos4file_hash_;
-    // local: const size_t size4file_hash_;
-}
-
-// line 31412
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31152
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30832
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30595
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29834
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29815
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 890
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 871
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2177
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2158
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1798
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1779
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1475
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1456
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1154
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1135
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 790
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 771
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4843
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5052
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t tp_info_msg__i;
-}
-
-// line 5033
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4824
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4591
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4572
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3551
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3532
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2707
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33929
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, /*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 36851
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4body_;
-}
-
-// line 36832
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 33910
-tsf4g_tdr::TdrError::ErrorType pack(int64_t selector, char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2688
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22342
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22323
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21733
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21714
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21399
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 21380
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20815
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20796
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20508
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20489
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20256
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 20237
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19863
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19844
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17067
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 17048
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16575
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t hash__i;
-}
-
-// line 16556
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16204
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 16185
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15901
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 15882
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14721
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14702
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14459
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 14440
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13758
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t size4virus_name_;
-    // local: size_t realSize4virus_name_;
-    // local: uint32_t size4scan_module_;
-    // local: size_t realSize4scan_module_;
-}
-
-// line 13739
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 13058
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t size4info_;
-    // local: size_t realSize4info_;
-}
-
-// line 13039
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12359
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t int_values__i;
-    // local: uint32_t size4comment_;
-    // local: size_t realSize4comment_;
-}
-
-// line 12340
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11774
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12026
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18731
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, /*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 19532
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4data_;
-}
-
-// line 19513
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 18712
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 12007
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11755
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11476
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11457
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11204
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 11185
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10893
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10874
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10575
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10556
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10257
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 10238
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27136
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27117
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26603
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26885
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const unsigned int size4se_scan_data_item_;
-}
-
-// line 27453
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, /*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27764
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4data_;
-}
-
-// line 27745
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 27434
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26866
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26584
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26341
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26322
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26081
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 26062
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25824
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25805
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25539
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25520
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25259
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25240
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24979
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24960
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24699
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24680
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24383
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24364
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24065
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 24046
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23535
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23516
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23293
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23274
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23038
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 23019
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22587
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 22568
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30674
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31992
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, /*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32262
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4name_or_ordinal_;
-}
-
-// line 32641
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t mem_item__i;
-}
-
-// line 32910
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const unsigned int size4mem_info_;
-}
-
-// line 32891
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32622
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 32243
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31973
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30941
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31239
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t file_hash_item__i;
-}
-
-// line 31508
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const unsigned int size4file_hash_;
-}
-
-// line 31489
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 31220
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30922
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 30655
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29909
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29890
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29586
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29567
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29097
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 29078
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28567
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28548
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28305
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28286
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28035
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 28016
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2252
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2233
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1903
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1884
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1560
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1541
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1244
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1225
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9959
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9940
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9674
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9655
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9376
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9357
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9096
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 9077
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8813
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8794
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8546
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8527
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8243
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 8224
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7971
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7952
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7469
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7714
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint8_t file_hash_data__i;
-}
-
-// line 7695
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7450
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6486
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6749
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t trojans__i;
-}
-
-// line 7012
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, /*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 7213
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4trojan_;
-}
-
-// line 7194
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6993
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6730
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6467
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5776
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 6109
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t virus_info__i;
-}
-
-// line 6090
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5757
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5412
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5393
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4893
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 5120
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t tp_info_msg__i;
-}
-
-// line 5101
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4874
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4656
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 4637
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3761
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3742
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2957
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 34582
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, /*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 36912
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: const int64_t selector4body_;
-}
-
-// line 36893
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 34563
-tsf4g_tdr::TdrError::ErrorType unpack(int64_t selector, const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2938
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
+TdrError::ErrorType AB_CS_REPORT_ERROR::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_func_id_]", "%d", error_func_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_type_]", "0x%02x", error_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_index_]", "%u", error_index_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_code_]", "%u", error_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[eip_]", "%u", eip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[error_env_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", error_env_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[reserved1_]", "%u", reserved1_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[reserved2_]", "%u", reserved2_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AB_CS_REPORT_ERROR::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* AB_CS_REPORT_ERROR::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* AB_CS_REPORT_ERROR::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType APCReportInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType APCReportInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ((char*)info_)[sizeof(info_) / sizeof(info_[0]) - 1] = '\0';
+    ret = destBuf.writeString(info_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType APCReportInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType APCReportInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = readBoundedString(srcBuf, info_, sizeof(info_));
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType APCReportInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType APCReportInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printString(destBuf, indent, separator, "[info_]", info_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType APCReportInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* APCReportInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* APCReportInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_DETESTPKG::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DETESTPKG::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < content_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < content_size_; ++i) {
+        ret = destBuf.writeUInt8(content_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DETESTPKG::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DETESTPKG::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < content_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < content_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        content_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DETESTPKG::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DETESTPKG::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[test_pkg_crc_]", "%u", test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[content_size_]", "0x%02x", content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[content_]", content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ != 0) {
+        for (uint32_t i = 0; i < content_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", content_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DETESTPKG::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_DETESTPKG::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_DETESTPKG::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_TVCHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TVCHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(tv_gap_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(tv_info_key_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(tv_check_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TVCHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_TVCHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(tv_gap_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        tv_info_key_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(tv_check_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TVCHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_TVCHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tv_gap_]", "%u", tv_gap_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[tv_info_key_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", tv_info_key_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tv_check_flag_]", "0x%02x", tv_check_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TVCHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_TVCHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_TVCHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_ANTICLTKEY::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTICLTKEY::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(ip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(signature_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTICLTKEY::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ANTICLTKEY::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(ip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        signature_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTICLTKEY::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ANTICLTKEY::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[flag_]", "%d", flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[uin_]", "%u", uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ip_]", "%u", ip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[signature_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", signature_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTICLTKEY::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_ANTICLTKEY::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_ANTICLTKEY::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_CHANNEL_SERVER_ID::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CHANNEL_SERVER_ID::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(world_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(service_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CHANNEL_SERVER_ID::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_CHANNEL_SERVER_ID::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(world_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(service_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CHANNEL_SERVER_ID::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_CHANNEL_SERVER_ID::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[world_id_]", "%d", world_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[service_id_]", "%u", service_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CHANNEL_SERVER_ID::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_CHANNEL_SERVER_ID::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_CHANNEL_SERVER_ID::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_STOPLCHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_STOPLCHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(stop_rand_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_STOPLCHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_STOPLCHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        stop_rand_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_STOPLCHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_STOPLCHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[stop_rand_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", stop_rand_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_STOPLCHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_STOPLCHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_STOPLCHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_CFGDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CFGDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < len_; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CFGDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_CFGDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CFGDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_CFGDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[type_]", "0x%02x", type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[len_]", "0x%02x", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ != 0) {
+        for (uint32_t i = 0; i < len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", send_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CFGDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_CFGDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_CFGDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHAREQ::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHAREQ::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHAREQ::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHAREQ::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHAREQ::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHAREQ::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ != 0) {
+        for (uint32_t i = 0; i < send_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", send_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHAREQ::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_CAPTCHAREQ::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_CAPTCHAREQ::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_FMSCMD::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FMSCMD::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(dumb_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(fms_scn_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_scn_cmd_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < fms_scn_cmd_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < fms_scn_cmd_len_; ++i) {
+        ret = destBuf.writeUInt8(fms_scn_cmd_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FMSCMD::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_FMSCMD::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(dumb_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(fms_scn_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_scn_cmd_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < fms_scn_cmd_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < fms_scn_cmd_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        fms_scn_cmd_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FMSCMD::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_FMSCMD::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[dumb_]", "%d", dumb_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[fms_scn_cmd_len_]", "%d", fms_scn_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_scn_cmd_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[fms_scn_cmd_data_]", fms_scn_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_scn_cmd_len_ != 0) {
+        for (uint32_t i = 0; i < fms_scn_cmd_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", fms_scn_cmd_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FMSCMD::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_FMSCMD::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_FMSCMD::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_DELAY_CHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DELAY_CHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt64(secsvr_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt64(sdk_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DELAY_CHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DELAY_CHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt64(secsvr_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt64(sdk_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DELAY_CHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DELAY_CHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[secsvr_down_time_]", "%llu", secsvr_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sdk_down_time_]", "%llu", sdk_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DELAY_CHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_DELAY_CHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_DELAY_CHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_INITINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_INITINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(is_init_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(sig_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(rccp_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt32(module_handle_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(lib_base_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(os_ver_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(st_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt32(proc_address_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(sf_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt16(rc_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(client_ver_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(user_id_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(admin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(dib_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(key_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(key_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(rp_data_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rp_data_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < rp_data_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < rp_data_info_size_; ++i) {
+        ret = destBuf.writeUInt8(rp_data_info_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(cs_data_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < len_; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_INITINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_INITINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(is_init_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(sig_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rccp_ver_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt32(module_handle_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(lib_base_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(os_ver_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        st_ver_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt32(proc_address_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        sf_ver_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt16(rc_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(client_ver_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        user_id_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(admin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(dib_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(key_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(key_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(rp_data_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rp_data_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < rp_data_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < rp_data_info_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rp_data_info_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(cs_data_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_INITINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_INITINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[is_init_]", "0x%02x", is_init_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sig_flag_]", "0x%02x", sig_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rccp_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", rccp_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[module_handle_]", "%u", module_handle_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[lib_base_]", "%u", lib_base_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[os_ver_]", "0x%02x", os_ver_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[st_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", st_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[proc_address_]", "%u", proc_address_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[sf_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", sf_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rc_id_]", "%d", rc_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[client_ver_]", "%u", client_ver_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[user_id_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", user_id_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[admin_]", "0x%02x", admin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[dib_id_]", "0x%02x", dib_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_offset_]", "%u", key_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_len_]", "0x%02x", key_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rp_data_info_size_]", "0x%02x", rp_data_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rp_data_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rp_data_info_]", rp_data_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rp_data_info_size_ != 0) {
+        for (uint32_t i = 0; i < rp_data_info_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", rp_data_info_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_data_]", "0x%02x", cs_data_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[len_]", "0x%02x", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (len_ != 0) {
+        for (uint32_t i = 0; i < len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", send_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_INITINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_INITINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_INITINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_CSCHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(rpcs_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < rpcs_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < rpcs_result_len_; ++i) {
+        ret = destBuf.writeUInt8(rpcs_result_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CSCHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(rpcs_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < rpcs_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < rpcs_result_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rpcs_result_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CSCHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcs_result_len_]", "%d", rpcs_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rpcs_result_]", rpcs_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_result_len_ != 0) {
+        for (uint32_t i = 0; i < rpcs_result_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", rpcs_result_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_CSCHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_CSCHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TQD_CS_INITDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_INITDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(mem_sign_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(file_sign_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(scan_engine_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(clean_engine_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_INITDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_CS_INITDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        mem_sign_ver_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        file_sign_ver_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        scan_engine_ver_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        clean_engine_ver_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_INITDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_CS_INITDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[crc_]", "%u", crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_]", "%d", data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[mem_sign_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", mem_sign_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[file_sign_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", file_sign_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[scan_engine_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", scan_engine_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[clean_engine_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", clean_engine_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_INITDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TQD_CS_INITDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TQD_CS_INITDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SClientGUIDInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SClientGUIDInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(guid_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(reserve_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SClientGUIDInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SClientGUIDInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        guid_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        reserve_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SClientGUIDInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SClientGUIDInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[guid_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", guid_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[reserve_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", reserve_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SClientGUIDInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SClientGUIDInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SClientGUIDInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_CSCFGDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CSCFGDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(encrypt_key_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt16(rpcs_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < rpcs_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < rpcs_data_len_; ++i) {
+        ret = destBuf.writeUInt8(rpcs_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CSCFGDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_CSCFGDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        encrypt_key_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt16(rpcs_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < rpcs_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < rpcs_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rpcs_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CSCFGDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_CSCFGDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[encrypt_key_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", encrypt_key_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcs_data_len_]", "%d", rpcs_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rpcs_data_]", rpcs_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcs_data_len_ != 0) {
+        for (uint32_t i = 0; i < rpcs_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", rpcs_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_CSCFGDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_CSCFGDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_CSCFGDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEMLOG::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEMLOG::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(system_log_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_log_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < system_log_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < system_log_size_; ++i) {
+        ret = destBuf.writeUInt8(system_log_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEMLOG::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEMLOG::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(system_log_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_log_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < system_log_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < system_log_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        system_log_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEMLOG::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEMLOG::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[system_log_size_]", "0x%02x", system_log_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_log_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[system_log_]", system_log_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_log_size_ != 0) {
+        for (uint32_t i = 0; i < system_log_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", system_log_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEMLOG::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_SYSMEMLOG::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_SYSMEMLOG::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_DE_CMDID_LIST::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DE_CMDID_LIST::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(cmd_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_count_ > 100) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < cmd_count_; ++i) {
+        ret = destBuf.writeUInt16(cmd_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DE_CMDID_LIST::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DE_CMDID_LIST::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(cmd_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_count_ > 100) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < cmd_count_; ++i) {
+        ret = srcBuf.readUInt16(cmd_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DE_CMDID_LIST::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DE_CMDID_LIST::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cmd_count_]", "0x%02x", cmd_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_count_ > 100) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[cmd_]", cmd_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_count_ != 0) {
+        for (uint32_t i = 0; i < cmd_count_; ++i) {
+            ret = destBuf.textize(" %d", cmd_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DE_CMDID_LIST::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_DE_CMDID_LIST::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_DE_CMDID_LIST::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_SUSMODINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SUSMODINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(sus_mod_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_mod_info_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < sus_mod_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < sus_mod_info_len_; ++i) {
+        ret = destBuf.writeUInt8(sus_mod_info_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SUSMODINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SUSMODINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(sus_mod_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_mod_info_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < sus_mod_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < sus_mod_info_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        sus_mod_info_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SUSMODINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SUSMODINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sus_mod_info_len_]", "%d", sus_mod_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_mod_info_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[sus_mod_info_data_]", sus_mod_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_mod_info_len_ != 0) {
+        for (uint32_t i = 0; i < sus_mod_info_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", sus_mod_info_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SUSMODINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_SUSMODINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_SUSMODINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(rp_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(rpcode_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_data_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < rpcode_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < rpcode_data_size_; ++i) {
+        ret = destBuf.writeUInt8(rpcode_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(rp_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(rpcode_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_data_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < rpcode_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < rpcode_data_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rpcode_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rp_id_]", "%d", rp_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcode_data_size_]", "%d", rpcode_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_data_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rpcode_data_]", rpcode_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_data_size_ != 0) {
+        for (uint32_t i = 0; i < rpcode_data_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", rpcode_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_PKGCODE::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_PKGCODE::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_TENPRTYDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TENPRTYDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(tenpary_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (tenpary_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < tenpary_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < tenpary_data_len_; ++i) {
+        ret = destBuf.writeUInt8(tenpary_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TENPRTYDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_TENPRTYDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(tenpary_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (tenpary_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < tenpary_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < tenpary_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        tenpary_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TENPRTYDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_TENPRTYDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tenpary_data_len_]", "%d", tenpary_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (tenpary_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[tenpary_data_]", tenpary_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (tenpary_data_len_ != 0) {
+        for (uint32_t i = 0; i < tenpary_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", tenpary_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TENPRTYDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_TENPRTYDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_TENPRTYDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_VERIFYRESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_VERIFYRESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(ext_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(stamp_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(module_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(out_proc_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(trojan_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(game_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(bot_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < err_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < err_msg_size_; ++i) {
+        ret = destBuf.writeUInt8(err_msg_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(client_passitive_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(client_rand_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 2) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 2; ++i) {
+        ret = destBuf.writeUInt8(rand_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(local_check_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 8) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 8; ++i) {
+        ret = destBuf.writeUInt8(rc_check_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_VERIFYRESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_VERIFYRESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(ext_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        stamp_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        module_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        out_proc_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        trojan_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(game_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(bot_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < err_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < err_msg_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        err_msg_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(client_passitive_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(client_rand_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 2) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 2; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rand_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(local_check_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 8) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 8; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rc_check_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_VERIFYRESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_VERIFYRESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ext_size_]", "%d", ext_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[uin_]", "%u", uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[stamp_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", stamp_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[module_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", module_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[out_proc_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", out_proc_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[trojan_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", trojan_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[game_id_]", "0x%02x", game_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[bot_id_]", "0x%02x", bot_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[err_msg_size_]", "0x%02x", err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[err_msg_]", err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ != 0) {
+        for (uint32_t i = 0; i < err_msg_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", err_msg_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[client_passitive_]", "0x%02x", client_passitive_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[client_rand_value_]", "%u", client_rand_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "0x%02x", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ != 0) {
+        for (uint32_t i = 0; i < send_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", send_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rand_]", 2);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 2; ++i) {
+        ret = destBuf.textize(" 0x%02x", rand_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[local_check_flag_]", "0x%02x", local_check_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rc_check_]", 8);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 8; ++i) {
+        ret = destBuf.textize(" 0x%02x", rc_check_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_VERIFYRESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_VERIFYRESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_VERIFYRESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_CSCHANNEL_RESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHANNEL_RESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(error_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHANNEL_RESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CSCHANNEL_RESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(error_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHANNEL_RESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CSCHANNEL_RESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_code_]", "%u", error_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CSCHANNEL_RESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_CSCHANNEL_RESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_CSCHANNEL_RESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_REQCLIRESENDDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_REQCLIRESENDDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(rand_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_REQCLIRESENDDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_REQCLIRESENDDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rand_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_REQCLIRESENDDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_REQCLIRESENDDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rand_data_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", rand_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[type_]", "0x%02x", type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_REQCLIRESENDDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_REQCLIRESENDDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_REQCLIRESENDDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_DEREADY::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DEREADY::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < err_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < err_msg_size_; ++i) {
+        ret = destBuf.writeUInt8(err_msg_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DEREADY::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DEREADY::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < err_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < err_msg_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        err_msg_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DEREADY::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DEREADY::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[id_]", "0x%02x", id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_crc_]", "%u", key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[err_msg_size_]", "0x%02x", err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[err_msg_]", err_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_msg_size_ != 0) {
+        for (uint32_t i = 0; i < err_msg_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", err_msg_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DEREADY::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_DEREADY::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_DEREADY::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_DELOG::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELOG::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(error_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(error_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_size_; ++i) {
+        ret = destBuf.writeUInt8(buf_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELOG::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DELOG::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(error_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(error_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        buf_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELOG::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DELOG::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_id_]", "0x%02x", error_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_]", "%u", error_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_size_]", "0x%02x", pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[buf_]", pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ != 0) {
+        for (uint32_t i = 0; i < pad_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", buf_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELOG::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_DELOG::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_DELOG::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TMODULE_NAME::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMODULE_NAME::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(name_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (name_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < name_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < name_len_; ++i) {
+        ret = destBuf.writeUInt8(module_name_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMODULE_NAME::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TMODULE_NAME::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(name_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (name_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < name_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < name_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        module_name_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMODULE_NAME::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TMODULE_NAME::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[name_len_]", "0x%02x", name_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (name_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[module_name_]", name_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (name_len_ != 0) {
+        for (uint32_t i = 0; i < name_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", module_name_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMODULE_NAME::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TMODULE_NAME::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TMODULE_NAME::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO_ITEM::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO_ITEM::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = file_name_.pack(destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(file_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO_ITEM::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO_ITEM::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = file_name_.unpack(srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(file_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO_ITEM::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO_ITEM::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[id_]", "0x%02x", id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[file_name_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = file_name_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = file_name_.visualize(destBuf, indent, separator);
+    }
+    return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[file_type_]", "0x%02x", file_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[offset_]", "%u", offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[len_]", "%u", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO_ITEM::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TFILE_HASH_INFO_ITEM::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TFILE_HASH_INFO_ITEM::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = file_hash_item_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = file_hash_item_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[count_]", "%d", count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return ret;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[file_hash_item_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = file_hash_item_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = file_hash_item_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TFILE_HASH_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TFILE_HASH_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TFILE_HASH_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_FILE_HASH::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FILE_HASH::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(buf_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = file_hash_.pack(destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FILE_HASH::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_FILE_HASH::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(buf_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = file_hash_.unpack(srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FILE_HASH::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_FILE_HASH::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[buf_len_]", "%d", buf_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[file_hash_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = file_hash_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = file_hash_.visualize(destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_FILE_HASH::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_FILE_HASH::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_FILE_HASH::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TROJANINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TROJANINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(virus_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(mod_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 512) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 512; ++i) {
+        ret = destBuf.writeUInt8(path_name_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TROJANINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TROJANINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(virus_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(mod_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 512) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 512; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        path_name_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TROJANINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TROJANINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[virus_id_]", "%u", virus_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[mod_size_]", "%u", mod_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[path_name_]", 512);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 512; ++i) {
+        ret = destBuf.textize(" 0x%02x", path_name_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TROJANINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TROJANINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TROJANINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SLX_TROJAN_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLX_TROJAN_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(trojan_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (trojan_count_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < trojan_count_; ++i) {
+        ret = trojans_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLX_TROJAN_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SLX_TROJAN_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(trojan_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (trojan_count_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < trojan_count_; ++i) {
+        ret = trojans_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLX_TROJAN_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SLX_TROJAN_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[trojan_count_]", "%u", trojan_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (trojan_count_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (trojan_count_ == 0) return ret;
+    for (uint32_t i = 0; i < trojan_count_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[trojans_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = trojans_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = trojans_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLX_TROJAN_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SLX_TROJAN_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SLX_TROJAN_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TROJAN_REPORT::construct(int64_t union_selector) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = trojans_.construct();
+    break;
+    case 1:
+    trojan_count_ = 0;
+    ret = TdrError::TDR_NO_ERROR;
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TROJAN_REPORT::pack(int64_t union_selector, TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = trojans_.pack(destBuf, 1);
+    break;
+    case 1:
+    ret = destBuf.writeUInt32(trojan_count_);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TROJAN_REPORT::pack(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(union_selector, destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TROJAN_REPORT::unpack(int64_t union_selector, TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = trojans_.unpack(srcBuf, 1);
+    break;
+    case 1:
+    ret = srcBuf.readUInt32(trojan_count_);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TROJAN_REPORT::unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(union_selector, srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TROJAN_REPORT::visualize(int64_t union_selector, TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[trojans_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = trojans_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = trojans_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 1:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[trojan_count_]", "%u", trojan_count_);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TROJAN_REPORT::visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(union_selector, destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TSANLIX_CS_REPORT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TSANLIX_CS_REPORT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = trojan_.pack((int64_t)type_, destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TSANLIX_CS_REPORT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TSANLIX_CS_REPORT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = trojan_.unpack((int64_t)type_, srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TSANLIX_CS_REPORT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TSANLIX_CS_REPORT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[type_]", "0x%02x", type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[len_]", "%d", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[trojan_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = trojan_.visualize((int64_t)type_, destBuf, indent + 1, separator);
+    } else {
+        ret = trojan_.visualize((int64_t)type_, destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TSANLIX_CS_REPORT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TSANLIX_CS_REPORT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TSANLIX_CS_REPORT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_RPFMCSCANRESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPFMCSCANRESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(rpfmc_scan_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < rpfmc_scan_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < rpfmc_scan_result_len_; ++i) {
+        ret = destBuf.writeUInt8(rpfmc_scan_result_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPFMCSCANRESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_RPFMCSCANRESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(rpfmc_scan_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < rpfmc_scan_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < rpfmc_scan_result_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rpfmc_scan_result_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPFMCSCANRESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_RPFMCSCANRESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[hash_]", "%u", hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpfmc_scan_result_len_]", "%d", rpfmc_scan_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rpfmc_scan_result_data_]", rpfmc_scan_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_result_len_ != 0) {
+        for (uint32_t i = 0; i < rpfmc_scan_result_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", rpfmc_scan_result_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPFMCSCANRESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_RPFMCSCANRESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_RPFMCSCANRESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_LAPKGCMD::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_LAPKGCMD::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(la_cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_cmd_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < la_cmd_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < la_cmd_size_; ++i) {
+        ret = destBuf.writeUInt8(la_cmd_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_data_size_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_LAPKGCMD::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_LAPKGCMD::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(la_cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_cmd_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < la_cmd_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < la_cmd_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        la_cmd_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_data_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_LAPKGCMD::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_LAPKGCMD::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[la_cmd_size_]", "%d", la_cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_cmd_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[la_cmd_data_]", la_cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_cmd_size_ != 0) {
+        for (uint32_t i = 0; i < la_cmd_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", la_cmd_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_data_size_]", "0x%02x", pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ != 0) {
+        for (uint32_t i = 0; i < pad_data_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_LAPKGCMD::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_LAPKGCMD::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_LAPKGCMD::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_RESENDDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RESENDDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(data_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(re_send_reason_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(resend_data_info_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RESENDDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_RESENDDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(data_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(re_send_reason_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(resend_data_info_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RESENDDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_RESENDDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_flag_]", "0x%02x", data_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[re_send_reason_]", "0x%02x", re_send_reason_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[resend_data_info_]", "%u", resend_data_info_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RESENDDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_RESENDDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_RESENDDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_CLIENTINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLIENTINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(client_info_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (client_info_msg_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < client_info_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < client_info_msg_size_; ++i) {
+        ret = destBuf.writeUInt8(client_info_msg_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLIENTINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CLIENTINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(client_info_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (client_info_msg_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < client_info_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < client_info_msg_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        client_info_msg_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLIENTINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CLIENTINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[client_info_msg_size_]", "%d", client_info_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (client_info_msg_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[client_info_msg_]", client_info_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (client_info_msg_size_ != 0) {
+        for (uint32_t i = 0; i < client_info_msg_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", client_info_msg_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLIENTINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_CLIENTINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_CLIENTINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_DEKEY::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEKEY::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_data_size_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt32(key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(key_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(key_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEKEY::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DEKEY::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_data_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt32(key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(key_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(key_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEKEY::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DEKEY::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_data_size_]", "0x%02x", pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ != 0) {
+        for (uint32_t i = 0; i < pad_data_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_crc_]", "%u", key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_len_]", "0x%02x", key_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_offset_]", "%u", key_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEKEY::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_DEKEY::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_DEKEY::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_ENCRYPT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ENCRYPT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(pkg_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pkg_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pkg_len_; ++i) {
+        ret = destBuf.writeUInt8(pkg_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ENCRYPT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ENCRYPT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(pkg_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pkg_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pkg_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pkg_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ENCRYPT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ENCRYPT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[test_pkg_crc_]", "%u", test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pkg_len_]", "%d", pkg_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pkg_data_]", pkg_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_len_ != 0) {
+        for (uint32_t i = 0; i < pkg_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pkg_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ENCRYPT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_ENCRYPT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_ENCRYPT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_FMCRESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_FMCRESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(fms_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < fms_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < fms_result_len_; ++i) {
+        ret = destBuf.writeUInt8(fms_result_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_FMCRESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_FMCRESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(fms_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < fms_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < fms_result_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        fms_result_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_FMCRESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_FMCRESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[fms_result_len_]", "%d", fms_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[fms_result_data_]", fms_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (fms_result_len_ != 0) {
+        for (uint32_t i = 0; i < fms_result_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", fms_result_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_FMCRESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_FMCRESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_FMCRESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHARESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHARESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHARESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHARESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHARESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHARESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ != 0) {
+        for (uint32_t i = 0; i < send_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", send_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CAPTCHARESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_CAPTCHARESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_CAPTCHARESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE_KEY::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE_KEY::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < key_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < key_info_len_; ++i) {
+        ret = destBuf.writeUInt8(key_info_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE_KEY::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE_KEY::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < key_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < key_info_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        key_info_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE_KEY::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE_KEY::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_info_len_]", "0x%02x", key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[key_info_]", key_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_info_len_ != 0) {
+        for (uint32_t i = 0; i < key_info_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", key_info_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_PKGCODE_KEY::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_PKGCODE_KEY::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_PKGCODE_KEY::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_DEDIBDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEDIBDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(dib_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(dib_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (dib_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < dib_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < dib_data_len_; ++i) {
+        ret = destBuf.writeUInt8(dib_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEDIBDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DEDIBDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(dib_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(dib_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (dib_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < dib_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < dib_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        dib_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEDIBDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_DEDIBDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[id_]", "0x%02x", id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[dib_]", "0x%02x", dib_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[dib_data_len_]", "%d", dib_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (dib_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[dib_data_]", dib_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (dib_data_len_ != 0) {
+        for (uint32_t i = 0; i < dib_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", dib_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_DEDIBDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_DEDIBDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_DEDIBDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType FILE_HASH_VAL::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType FILE_HASH_VAL::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(file_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(file_hash_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType FILE_HASH_VAL::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType FILE_HASH_VAL::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(file_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        file_hash_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType FILE_HASH_VAL::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType FILE_HASH_VAL::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[file_id_]", "0x%02x", file_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[file_hash_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", file_hash_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType FILE_HASH_VAL::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* FILE_HASH_VAL::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* FILE_HASH_VAL::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_CLINETINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLINETINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(file_num_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (file_num_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < file_num_; ++i) {
+        ret = file_hash_data_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLINETINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CLINETINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(file_num_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (file_num_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < file_num_; ++i) {
+        ret = file_hash_data_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLINETINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_CLINETINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[file_num_]", "0x%02x", file_num_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (file_num_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (file_num_ == 0) return ret;
+    for (uint32_t i = 0; i < file_num_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[file_hash_data_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = file_hash_data_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = file_hash_data_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_CLINETINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_CLINETINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_CLINETINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_IATCHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_IATCHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(iat_check_result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(iat_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (iat_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < iat_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < iat_info_size_; ++i) {
+        ret = destBuf.writeUInt8(iat_info_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_IATCHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_IATCHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(iat_check_result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(iat_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (iat_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < iat_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < iat_info_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        iat_info_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_IATCHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_IATCHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[iat_check_result_]", "0x%02x", iat_check_result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[iat_info_size_]", "0x%02x", iat_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (iat_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[iat_info_]", iat_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (iat_info_size_ != 0) {
+        for (uint32_t i = 0; i < iat_info_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", iat_info_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_IATCHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_IATCHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_IATCHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_RPFMCSCANCMD::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RPFMCSCANCMD::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(clr_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(rpfmc_scan_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_cmd_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < rpfmc_scan_cmd_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < rpfmc_scan_cmd_len_; ++i) {
+        ret = destBuf.writeUInt8(rpfmc_scan_cmd_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RPFMCSCANCMD::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RPFMCSCANCMD::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(clr_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(rpfmc_scan_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_cmd_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < rpfmc_scan_cmd_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < rpfmc_scan_cmd_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rpfmc_scan_cmd_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RPFMCSCANCMD::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RPFMCSCANCMD::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[clr_flag_]", "0x%02x", clr_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpfmc_scan_cmd_len_]", "%d", rpfmc_scan_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_cmd_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rpfmc_scan_cmd_data_]", rpfmc_scan_cmd_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpfmc_scan_cmd_len_ != 0) {
+        for (uint32_t i = 0; i < rpfmc_scan_cmd_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", rpfmc_scan_cmd_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RPFMCSCANCMD::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_RPFMCSCANCMD::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_RPFMCSCANCMD::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TQD_SC_CMDDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CMDDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(hash_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CMDDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_SC_CMDDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        hash_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CMDDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_SC_CMDDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[crc_]", "%u", crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[len_]", "%d", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[hash_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", hash_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CMDDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TQD_SC_CMDDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TQD_SC_CMDDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_SENDANTIBOT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SENDANTIBOT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(init_crc_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(send_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(data_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(rcid_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 32727) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 32727; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SENDANTIBOT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SENDANTIBOT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(init_crc_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_ver_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(data_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(rcid_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 32727) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 32727; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SENDANTIBOT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SENDANTIBOT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[init_crc_value_]", "%u", init_crc_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_ver_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", send_ver_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_flag_]", "0x%02x", data_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rcid_]", "%d", rcid_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", 32727);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 32727; ++i) {
+        ret = destBuf.textize(" 0x%02x", send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SENDANTIBOT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_SENDANTIBOT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_SENDANTIBOT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_ENCRYPT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ENCRYPT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(pkg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pkg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pkg_size_; ++i) {
+        ret = destBuf.writeUInt8(pkg_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ENCRYPT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_ENCRYPT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(pkg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pkg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pkg_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pkg_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ENCRYPT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_ENCRYPT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[test_pkg_crc_]", "%u", test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pkg_size_]", "%d", pkg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pkg_data_]", pkg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pkg_size_ != 0) {
+        for (uint32_t i = 0; i < pkg_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pkg_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ENCRYPT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_ENCRYPT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_ENCRYPT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType ThreadVerifyInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ThreadVerifyInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(thread_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(tp_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(ts_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ThreadVerifyInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType ThreadVerifyInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(thread_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(tp_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(ts_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ThreadVerifyInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType ThreadVerifyInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[thread_id_]", "%d", thread_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[status_]", "%d", status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_time_]", "%u", tp_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ts_time_]", "%u", ts_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ThreadVerifyInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* ThreadVerifyInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* ThreadVerifyInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_TVINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TVINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(main_code_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(main_code_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(tv_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(thread_num_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (thread_num_ > 20) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < thread_num_; ++i) {
+        ret = thread_verify_infos_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_size_; ++i) {
+        ret = destBuf.writeUInt8(pad_buf_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TVINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_TVINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(main_code_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(main_code_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(tv_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(thread_num_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (thread_num_ > 20) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < thread_num_; ++i) {
+        ret = thread_verify_infos_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = srcBuf.readUInt8(pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_buf_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TVINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_TVINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_crc_]", "%u", key_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[main_code_offset_]", "%u", main_code_offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[main_code_size_]", "%u", main_code_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tv_flag_]", "0x%02x", tv_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[thread_num_]", "%u", thread_num_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (thread_num_ > 20) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (thread_num_ == 0) return ret;
+    for (uint32_t i = 0; i < thread_num_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[thread_verify_infos_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = thread_verify_infos_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = thread_verify_infos_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_size_]", "0x%02x", pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_buf_]", pad_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_size_ != 0) {
+        for (uint32_t i = 0; i < pad_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_buf_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TVINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_TVINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_TVINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_LAPKGRESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LAPKGRESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(la_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < la_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < la_result_len_; ++i) {
+        ret = destBuf.writeUInt8(aucLaResultData[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt32(serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LAPKGRESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_LAPKGRESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(la_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < la_result_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < la_result_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        aucLaResultData[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt32(serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LAPKGRESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_LAPKGRESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[hash_]", "%u", hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[la_result_len_]", "%d", la_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_result_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[aucLaResultData]", la_result_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (la_result_len_ != 0) {
+        for (uint32_t i = 0; i < la_result_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", aucLaResultData[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[serial_]", "%u", serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LAPKGRESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_LAPKGRESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_LAPKGRESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TQD_CS_VIRUSINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_VIRUSINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(process_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 64) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 64; ++i) {
+        ret = destBuf.writeUInt8(virus_name_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 512) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 512; ++i) {
+        ret = destBuf.writeUInt8(module_name_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_VIRUSINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_CS_VIRUSINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(process_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 64) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 64; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        virus_name_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 512) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 512; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        module_name_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_VIRUSINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_CS_VIRUSINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[process_type_]", "%u", process_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[virus_name_]", 64);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 64; ++i) {
+        ret = destBuf.textize(" 0x%02x", virus_name_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[module_name_]", 512);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 512; ++i) {
+        ret = destBuf.textize(" 0x%02x", module_name_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_VIRUSINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TQD_CS_VIRUSINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TQD_CS_VIRUSINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TQD_CS_SCANRESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_SCANRESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(data_len_temp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (data_len_temp_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < data_len_temp_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < data_len_temp_; ++i) {
+        ret = destBuf.writeUInt8(data_temp_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(virus_cnt_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (virus_cnt_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < virus_cnt_; ++i) {
+        ret = virus_info_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_SCANRESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_CS_SCANRESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(data_len_temp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (data_len_temp_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < data_len_temp_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < data_len_temp_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        data_temp_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(virus_cnt_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (virus_cnt_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < virus_cnt_; ++i) {
+        ret = virus_info_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_SCANRESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_CS_SCANRESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[crc_]", "%u", crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_]", "%d", data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_temp_]", "%d", data_len_temp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (data_len_temp_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[data_temp_]", data_len_temp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (data_len_temp_ != 0) {
+        for (uint32_t i = 0; i < data_len_temp_; ++i) {
+            ret = destBuf.textize(" 0x%02x", data_temp_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[uin_]", "%u", uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[virus_cnt_]", "%d", virus_cnt_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (virus_cnt_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (virus_cnt_ == 0) return ret;
+    for (uint32_t i = 0; i < virus_cnt_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[virus_info_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = virus_info_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = virus_info_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_CS_SCANRESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TQD_CS_SCANRESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TQD_CS_SCANRESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_RESTRICTUIN::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESTRICTUIN::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(ban_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_data_size_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESTRICTUIN::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RESTRICTUIN::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(ban_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_data_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESTRICTUIN::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RESTRICTUIN::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ban_time_]", "%u", ban_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_data_size_]", "0x%02x", pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_size_ != 0) {
+        for (uint32_t i = 0; i < pad_data_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESTRICTUIN::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_RESTRICTUIN::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_RESTRICTUIN::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_RPPKGRESULT::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPPKGRESULT::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(rpcode_data_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(rpcode_result_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_result_data_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < rpcode_result_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < rpcode_result_data_size_; ++i) {
+        ret = destBuf.writeUInt8(rpcode_result_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(rpcode_func_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(hash_idx_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPPKGRESULT::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_RPPKGRESULT::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(rpcode_data_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(rpcode_result_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_result_data_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < rpcode_result_data_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < rpcode_result_data_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rpcode_result_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(rpcode_func_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(hash_idx_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPPKGRESULT::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_RPPKGRESULT::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcode_data_hash_]", "%u", rpcode_data_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcode_result_data_size_]", "%d", rpcode_result_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_result_data_size_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rpcode_result_data_]", rpcode_result_data_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (rpcode_result_data_size_ != 0) {
+        for (uint32_t i = 0; i < rpcode_result_data_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", rpcode_result_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rpcode_func_id_]", "0x%02x", rpcode_func_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[serial_]", "%u", serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[hash_idx_]", "%d", hash_idx_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[hash_]", "%u", hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_RPPKGRESULT::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_RPPKGRESULT::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_RPPKGRESULT::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_ANTITIME::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTITIME::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(seq_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTITIME::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ANTITIME::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(seq_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTITIME::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ANTITIME::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[uin_]", "%u", uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[time_stamp_]", "%u", time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[seq_]", "%u", seq_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ANTITIME::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_ANTITIME::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_ANTITIME::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SAB_MAC_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_MAC_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(ipcs_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(read_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(read_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(qq_login_mac_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(game_mac_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(qq_login_uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(game_uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_MAC_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SAB_MAC_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(ipcs_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(read_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(read_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(qq_login_mac_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(game_mac_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(qq_login_uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(game_uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_MAC_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SAB_MAC_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ipcs_status_]", "0x%02x", ipcs_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[read_flag_]", "0x%02x", read_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[read_status_]", "%u", read_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[qq_login_mac_crc_]", "%u", qq_login_mac_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[game_mac_crc_]", "%u", game_mac_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[qq_login_uin_]", "%u", qq_login_uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[game_uin_]", "%u", game_uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_MAC_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SAB_MAC_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SAB_MAC_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SRP_RPCODE_HASH::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_RPCODE_HASH::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(fun_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(pad_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_data_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(hash_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (hash_count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < hash_count_; ++i) {
+        ret = destBuf.writeUInt32(hash_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt32(times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(send_func_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(no_die_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(garbage_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (garbage_data_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < garbage_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < garbage_data_len_; ++i) {
+        ret = destBuf.writeUInt8(garbage_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_RPCODE_HASH::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SRP_RPCODE_HASH::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(fun_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(pad_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(hash_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (hash_count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < hash_count_; ++i) {
+        ret = srcBuf.readUInt32(hash_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = srcBuf.readUInt32(times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(send_func_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(no_die_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(garbage_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (garbage_data_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < garbage_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < garbage_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        garbage_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_RPCODE_HASH::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SRP_RPCODE_HASH::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[fun_id_]", "0x%02x", fun_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_data_len_]", "0x%02x", pad_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_]", pad_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_data_len_ != 0) {
+        for (uint32_t i = 0; i < pad_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[hash_count_]", "0x%02x", hash_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (hash_count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[hash_]", hash_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (hash_count_ != 0) {
+        for (uint32_t i = 0; i < hash_count_; ++i) {
+            ret = destBuf.textize(" %u", hash_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[times_]", "%u", times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_func_addr_]", "%u", send_func_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[no_die_value_]", "%u", no_die_value_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[garbage_data_len_]", "0x%02x", garbage_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (garbage_data_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[garbage_]", garbage_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (garbage_data_len_ != 0) {
+        for (uint32_t i = 0; i < garbage_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", garbage_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_RPCODE_HASH::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SRP_RPCODE_HASH::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SRP_RPCODE_HASH::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SanlixScanResult::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanResult::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32((uint32_t)scan_result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(sanlix_dat_version_low_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(sanlix_dat_version_high_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(sanlix_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ((char*)virus_name_)[sizeof(virus_name_) / sizeof(virus_name_[0]) - 1] = '\0';
+    ret = destBuf.writeString(virus_name_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ((char*)scan_module_)[sizeof(scan_module_) / sizeof(scan_module_[0]) - 1] = '\0';
+    ret = destBuf.writeString(scan_module_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanResult::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SanlixScanResult::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    uint32_t tmp4scan_result_;
+    ret = srcBuf.readUInt32(tmp4scan_result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    scan_result_ = (int32_t)tmp4scan_result_;
+    ret = srcBuf.readUInt32(sanlix_dat_version_low_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(sanlix_dat_version_high_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(sanlix_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = readBoundedString(srcBuf, virus_name_, sizeof(virus_name_));
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = readBoundedString(srcBuf, scan_module_, sizeof(scan_module_));
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanResult::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SanlixScanResult::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_]", "%d", data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scan_result_]", "%d", scan_result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sanlix_dat_version_low_]", "%u", sanlix_dat_version_low_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sanlix_dat_version_high_]", "%u", sanlix_dat_version_high_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sanlix_id_]", "%u", sanlix_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[flag_]", "0x%02x", flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printString(destBuf, indent, separator, "[virus_name_]", virus_name_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printString(destBuf, indent, separator, "[scan_module_]", scan_module_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanResult::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SanlixScanResult::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SanlixScanResult::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TVMPFuncHashInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncHashInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncHashInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TVMPFuncHashInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncHashInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TVMPFuncHashInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[addr_]", "%u", addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[hash_]", "%u", hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncHashInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TVMPFuncHashInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TVMPFuncHashInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType STVMP_REPORT_HASH_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_HASH_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = func_hash_info_.pack(destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_HASH_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STVMP_REPORT_HASH_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = func_hash_info_.unpack(srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_HASH_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STVMP_REPORT_HASH_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[func_hash_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = func_hash_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = func_hash_info_.visualize(destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_HASH_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* STVMP_REPORT_HASH_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* STVMP_REPORT_HASH_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SSchemeClientGUIDInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSchemeClientGUIDInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = guid_.pack(destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSchemeClientGUIDInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSchemeClientGUIDInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = guid_.unpack(srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSchemeClientGUIDInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSchemeClientGUIDInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[guid_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = guid_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = guid_.visualize(destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSchemeClientGUIDInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SSchemeClientGUIDInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SSchemeClientGUIDInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType ShellModuleVerify::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ShellModuleVerify::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(verify_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(verify_start_ptr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(verify_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(load_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(verify_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ShellModuleVerify::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType ShellModuleVerify::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(verify_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(verify_start_ptr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(verify_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(load_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(verify_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ShellModuleVerify::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType ShellModuleVerify::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_]", "%d", data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[verify_type_]", "%u", verify_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[verify_start_ptr_]", "%u", verify_start_ptr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[verify_len_]", "%u", verify_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[load_hash_]", "%u", load_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[verify_hash_]", "%u", verify_hash_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType ShellModuleVerify::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* ShellModuleVerify::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* ShellModuleVerify::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType STPKRReportInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STPKRReportInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(major_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(minor_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32((uint32_t)status_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STPKRReportInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STPKRReportInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(major_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(minor_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    uint32_t tmp4status_code_;
+    ret = srcBuf.readUInt32(tmp4status_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    status_code_ = (int32_t)tmp4status_code_;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STPKRReportInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STPKRReportInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[major_code_]", "%u", major_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[minor_code_]", "%u", minor_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[status_code_]", "%d", status_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STPKRReportInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* STPKRReportInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* STPKRReportInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TVMPFuncCallInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncCallInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(call_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(ret_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncCallInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TVMPFuncCallInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(call_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(ret_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncCallInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TVMPFuncCallInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[call_addr_]", "%u", call_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ret_addr_]", "%u", ret_addr_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TVMPFuncCallInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TVMPFuncCallInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TVMPFuncCallInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType STVMP_REPORT_CALL_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_CALL_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(func_call_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (func_call_info_size_ > 20) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < func_call_info_size_; ++i) {
+        ret = func_call_infos_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_CALL_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STVMP_REPORT_CALL_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(func_call_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (func_call_info_size_ > 20) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < func_call_info_size_; ++i) {
+        ret = func_call_infos_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_CALL_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STVMP_REPORT_CALL_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[func_call_info_size_]", "%u", func_call_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (func_call_info_size_ > 20) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (func_call_info_size_ == 0) return ret;
+    for (uint32_t i = 0; i < func_call_info_size_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[func_call_infos_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = func_call_infos_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = func_call_infos_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STVMP_REPORT_CALL_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* STVMP_REPORT_CALL_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* STVMP_REPORT_CALL_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SCS_SLN_DATA_BUF::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SLN_DATA_BUF::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SLN_DATA_BUF::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SCS_SLN_DATA_BUF::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SLN_DATA_BUF::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SCS_SLN_DATA_BUF::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ != 0) {
+        for (uint32_t i = 0; i < send_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", send_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SLN_DATA_BUF::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SCS_SLN_DATA_BUF::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SCS_SLN_DATA_BUF::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SAB_SIGN_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_SIGN_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(mac_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(sig_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sig_size_ > 10240) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < sig_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < sig_size_; ++i) {
+        ret = destBuf.writeUInt8(sig_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_SIGN_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SAB_SIGN_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(mac_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(sig_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sig_size_ > 10240) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < sig_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < sig_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        sig_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_SIGN_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SAB_SIGN_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[mac_id_]", "%u", mac_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sig_size_]", "%u", sig_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sig_size_ > 10240) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[sig_data_]", sig_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sig_size_ != 0) {
+        for (uint32_t i = 0; i < sig_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", sig_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SAB_SIGN_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SAB_SIGN_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SAB_SIGN_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SLogReport::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLogReport::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32((uint32_t)data_source_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32((uint32_t)game_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(log_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(int_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (int_count_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < int_count_; ++i) {
+        ret = destBuf.writeUInt32(int_values_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ((char*)comment_)[sizeof(comment_) / sizeof(comment_[0]) - 1] = '\0';
+    ret = destBuf.writeString(comment_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLogReport::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SLogReport::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    uint32_t tmp4data_source_;
+    ret = srcBuf.readUInt32(tmp4data_source_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    data_source_ = (int32_t)tmp4data_source_;
+    uint32_t tmp4game_id_;
+    ret = srcBuf.readUInt32(tmp4game_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    game_id_ = (int32_t)tmp4game_id_;
+    ret = srcBuf.readUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(log_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(int_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (int_count_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < int_count_; ++i) {
+        uint32_t tmp4int_values_;
+        ret = srcBuf.readUInt32(tmp4int_values_);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        int_values_[i] = (int32_t)tmp4int_values_;
+    }
+    ret = readBoundedString(srcBuf, comment_, sizeof(comment_));
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLogReport::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SLogReport::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_source_]", "%d", data_source_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[game_id_]", "%d", game_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[uin_]", "%u", uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[log_type_]", "%u", log_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[int_count_]", "0x%02x", int_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (int_count_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[int_values_]", int_count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (int_count_ != 0) {
+        for (uint32_t i = 0; i < int_count_; ++i) {
+            ret = destBuf.textize(" %d", int_values_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printString(destBuf, indent, separator, "[comment_]", comment_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SLogReport::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SLogReport::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SLogReport::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType STP_ERROR_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_ERROR_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(number_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(reserved_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_ERROR_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STP_ERROR_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(number_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(reserved_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_ERROR_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STP_ERROR_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[type_]", "%u", type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[number_]", "%u", number_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[reserved_]", "%u", reserved_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_ERROR_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* STP_ERROR_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* STP_ERROR_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SSE_ERROR_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSE_ERROR_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(error_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSE_ERROR_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSE_ERROR_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(error_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSE_ERROR_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSE_ERROR_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[error_]", "%u", error_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSE_ERROR_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SSE_ERROR_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SSE_ERROR_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SRP_THREAD_EXP::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_THREAD_EXP::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(eip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(exception_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 32) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 32; ++i) {
+        ret = destBuf.writeUInt8(except_code_array_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_THREAD_EXP::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SRP_THREAD_EXP::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(eip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(exception_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 32) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 32; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        except_code_array_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_THREAD_EXP::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SRP_THREAD_EXP::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[eip_]", "%u", eip_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[exception_code_]", "%u", exception_code_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[except_code_array_]", 32);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 32; ++i) {
+        ret = destBuf.textize(" 0x%02x", except_code_array_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SRP_THREAD_EXP::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SRP_THREAD_EXP::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SRP_THREAD_EXP::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType STP_CUSTOM_STRING::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_CUSTOM_STRING::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(total_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        ret = destBuf.writeUInt8(send_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_CUSTOM_STRING::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STP_CUSTOM_STRING::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(total_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < send_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < send_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        send_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_CUSTOM_STRING::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType STP_CUSTOM_STRING::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[total_len_]", "%d", total_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[send_data_]", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (send_data_len_ != 0) {
+        for (uint32_t i = 0; i < send_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", send_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType STP_CUSTOM_STRING::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* STP_CUSTOM_STRING::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* STP_CUSTOM_STRING::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SAB_CS_SLN_DATA::construct(int64_t union_selector) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    ret = se_data_.construct();
+    break;
+    case 1:
+    ret = se_error_info_.construct();
+    break;
+    case 19:
+    ret = shell_module_verify_.construct();
+    break;
+    case 20:
+    ret = sanlix_scan_result_.construct();
+    break;
+    case 100:
+    ret = tp_error_info_.construct();
+    break;
+    case 101:
+    ret = tp_custom_string_.construct();
+    break;
+    case 106:
+    ret = tp_bin_log_report_.construct();
+    break;
+    case 107:
+    ret = client_guid_info_.construct();
+    break;
+    case 108:
+    ret = tp_kr_report_info_.construct();
+    break;
+    case 109:
+    ret = tp_apc_report_info_.construct();
+    break;
+    case 201:
+    ret = ab_auth_code_.construct();
+    break;
+    case 202:
+    ret = ab_mac_info_.construct();
+    break;
+    case 203:
+    ret = ab_sign_info_.construct();
+    break;
+    case 204:
+    ret = ab_exp_data_.construct();
+    break;
+    case 302:
+    ret = rp_msg_result_.construct();
+    break;
+    case 304:
+    ret = rp_thread_exp_.construct();
+    break;
+    case 305:
+    ret = rp_func_exp_.construct();
+    break;
+    case 306:
+    ret = rp_rpcode_hash_.construct();
+    break;
+    case 601:
+    ret = tvmp_report_call_info_.construct();
+    break;
+    case 602:
+    ret = tvmp_report_hash_info_.construct();
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SAB_CS_SLN_DATA::pack(int64_t union_selector, TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    ret = se_data_.pack(destBuf, 1);
+    break;
+    case 1:
+    ret = se_error_info_.pack(destBuf, 1);
+    break;
+    case 19:
+    ret = shell_module_verify_.pack(destBuf, 1);
+    break;
+    case 20:
+    ret = sanlix_scan_result_.pack(destBuf, 1);
+    break;
+    case 100:
+    ret = tp_error_info_.pack(destBuf, 1);
+    break;
+    case 101:
+    ret = tp_custom_string_.pack(destBuf, 1);
+    break;
+    case 106:
+    ret = tp_bin_log_report_.pack(destBuf, 1);
+    break;
+    case 107:
+    ret = client_guid_info_.pack(destBuf, 1);
+    break;
+    case 108:
+    ret = tp_kr_report_info_.pack(destBuf, 1);
+    break;
+    case 109:
+    ret = tp_apc_report_info_.pack(destBuf, 1);
+    break;
+    case 201:
+    ret = ab_auth_code_.pack(destBuf, 1);
+    break;
+    case 202:
+    ret = ab_mac_info_.pack(destBuf, 1);
+    break;
+    case 203:
+    ret = ab_sign_info_.pack(destBuf, 1);
+    break;
+    case 204:
+    ret = ab_exp_data_.pack(destBuf, 1);
+    break;
+    case 302:
+    ret = rp_msg_result_.pack(destBuf, 1);
+    break;
+    case 304:
+    ret = rp_thread_exp_.pack(destBuf, 1);
+    break;
+    case 305:
+    ret = rp_func_exp_.pack(destBuf, 1);
+    break;
+    case 306:
+    ret = rp_rpcode_hash_.pack(destBuf, 1);
+    break;
+    case 601:
+    ret = tvmp_report_call_info_.pack(destBuf, 1);
+    break;
+    case 602:
+    ret = tvmp_report_hash_info_.pack(destBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SAB_CS_SLN_DATA::pack(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(union_selector, destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SAB_CS_SLN_DATA::unpack(int64_t union_selector, TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    ret = se_data_.unpack(srcBuf, 1);
+    break;
+    case 1:
+    ret = se_error_info_.unpack(srcBuf, 1);
+    break;
+    case 19:
+    ret = shell_module_verify_.unpack(srcBuf, 1);
+    break;
+    case 20:
+    ret = sanlix_scan_result_.unpack(srcBuf, 1);
+    break;
+    case 100:
+    ret = tp_error_info_.unpack(srcBuf, 1);
+    break;
+    case 101:
+    ret = tp_custom_string_.unpack(srcBuf, 1);
+    break;
+    case 106:
+    ret = tp_bin_log_report_.unpack(srcBuf, 1);
+    break;
+    case 107:
+    ret = client_guid_info_.unpack(srcBuf, 1);
+    break;
+    case 108:
+    ret = tp_kr_report_info_.unpack(srcBuf, 1);
+    break;
+    case 109:
+    ret = tp_apc_report_info_.unpack(srcBuf, 1);
+    break;
+    case 201:
+    ret = ab_auth_code_.unpack(srcBuf, 1);
+    break;
+    case 202:
+    ret = ab_mac_info_.unpack(srcBuf, 1);
+    break;
+    case 203:
+    ret = ab_sign_info_.unpack(srcBuf, 1);
+    break;
+    case 204:
+    ret = ab_exp_data_.unpack(srcBuf, 1);
+    break;
+    case 302:
+    ret = rp_msg_result_.unpack(srcBuf, 1);
+    break;
+    case 304:
+    ret = rp_thread_exp_.unpack(srcBuf, 1);
+    break;
+    case 305:
+    ret = rp_func_exp_.unpack(srcBuf, 1);
+    break;
+    case 306:
+    ret = rp_rpcode_hash_.unpack(srcBuf, 1);
+    break;
+    case 601:
+    ret = tvmp_report_call_info_.unpack(srcBuf, 1);
+    break;
+    case 602:
+    ret = tvmp_report_hash_info_.unpack(srcBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SAB_CS_SLN_DATA::unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(union_selector, srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SAB_CS_SLN_DATA::visualize(int64_t union_selector, TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 2:
+    case 3:
+    case 4:
+    case 5:
+    case 6:
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+    case 11:
+    case 12:
+    case 13:
+    case 14:
+    case 15:
+    case 16:
+    case 17:
+    case 18:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[se_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = se_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = se_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 1:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[se_error_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = se_error_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = se_error_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 19:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[shell_module_verify_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = shell_module_verify_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = shell_module_verify_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 20:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sanlix_scan_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sanlix_scan_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sanlix_scan_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 100:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_error_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tp_error_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tp_error_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 101:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_custom_string_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tp_custom_string_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tp_custom_string_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 106:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_bin_log_report_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tp_bin_log_report_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tp_bin_log_report_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 107:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[client_guid_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = client_guid_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = client_guid_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 108:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_kr_report_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tp_kr_report_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tp_kr_report_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 109:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_apc_report_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tp_apc_report_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tp_apc_report_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 201:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ab_auth_code_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = ab_auth_code_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = ab_auth_code_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 202:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ab_mac_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = ab_mac_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = ab_mac_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 203:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ab_sign_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = ab_sign_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = ab_sign_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 204:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ab_exp_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = ab_exp_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = ab_exp_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 302:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rp_msg_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = rp_msg_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = rp_msg_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 304:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rp_thread_exp_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = rp_thread_exp_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = rp_thread_exp_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 305:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rp_func_exp_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = rp_func_exp_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = rp_func_exp_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 306:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rp_rpcode_hash_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = rp_rpcode_hash_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = rp_rpcode_hash_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 601:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tvmp_report_call_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tvmp_report_call_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tvmp_report_call_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 602:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tvmp_report_hash_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tvmp_report_hash_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tvmp_report_hash_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SAB_CS_SLN_DATA::visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(union_selector, destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SCHEMEDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SCHEMEDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(scheme_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(sub_protocol_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = data_.pack((int64_t)sub_protocol_id_, destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SCHEMEDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SCHEMEDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(scheme_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(sub_protocol_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = data_.unpack((int64_t)sub_protocol_id_, srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SCHEMEDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SCHEMEDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scheme_id_]", "%d", scheme_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sub_protocol_id_]", "%d", sub_protocol_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = data_.visualize((int64_t)sub_protocol_id_, destBuf, indent + 1, separator);
+    } else {
+        ret = data_.visualize((int64_t)sub_protocol_id_, destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SCHEMEDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_SCHEMEDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_SCHEMEDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TORDINAL::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TORDINAL::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(ordinal_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TORDINAL::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(ordinal_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TORDINAL::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[count_]", "0x%02x", count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ordinal_]", "%u", ordinal_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TORDINAL::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TORDINAL::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TORDINAL::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TORDINAL_OR_NAME::construct(int64_t union_selector) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = name_.construct();
+    break;
+    case 1:
+    ret = ordinal_.construct();
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL_OR_NAME::pack(int64_t union_selector, TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = name_.pack(destBuf, 1);
+    break;
+    case 1:
+    ret = ordinal_.pack(destBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL_OR_NAME::pack(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(union_selector, destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL_OR_NAME::unpack(int64_t union_selector, TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = name_.unpack(srcBuf, 1);
+    break;
+    case 1:
+    ret = ordinal_.unpack(srcBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL_OR_NAME::unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(union_selector, srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL_OR_NAME::visualize(int64_t union_selector, TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 0:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[name_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = name_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = name_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 1:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ordinal_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = ordinal_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = ordinal_.visualize(destBuf, indent, separator);
+    }
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType TORDINAL_OR_NAME::visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(union_selector, destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TMEM_RECOVER_ITEM::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER_ITEM::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = name_or_ordinal_.pack((int64_t)id_, destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(mem_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(cur_times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(total_times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 100) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 100; ++i) {
+        ret = destBuf.writeUInt8(mem_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER_ITEM::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TMEM_RECOVER_ITEM::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = name_or_ordinal_.unpack((int64_t)id_, srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(mem_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(cur_times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(total_times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 100) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 100; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        mem_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER_ITEM::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TMEM_RECOVER_ITEM::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[id_]", "0x%02x", id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[name_or_ordinal_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = name_or_ordinal_.visualize((int64_t)id_, destBuf, indent + 1, separator);
+    } else {
+        ret = name_or_ordinal_.visualize((int64_t)id_, destBuf, indent, separator);
+    }
+    return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[mem_type_]", "0x%02x", mem_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cur_times_]", "%u", cur_times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[total_times_]", "%u", total_times_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[offset_]", "%u", offset_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[len_]", "%u", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[mem_]", 100);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 100; ++i) {
+        ret = destBuf.textize(" 0x%02x", mem_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER_ITEM::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TMEM_RECOVER_ITEM::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TMEM_RECOVER_ITEM::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TMEM_RECOVER::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = mem_item_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TMEM_RECOVER::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = mem_item_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TMEM_RECOVER::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[count_]", "%d", count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 10) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return ret;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[mem_item_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = mem_item_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = mem_item_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TMEM_RECOVER::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TMEM_RECOVER::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TMEM_RECOVER::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_MEM_RECOVER::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_MEM_RECOVER::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(buf_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = mem_info_.pack(destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_MEM_RECOVER::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_MEM_RECOVER::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(buf_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = mem_info_.unpack(srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_MEM_RECOVER::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_MEM_RECOVER::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[buf_len_]", "%d", buf_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[mem_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = mem_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = mem_info_.visualize(destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_MEM_RECOVER::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_MEM_RECOVER::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_MEM_RECOVER::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_TESTPKG::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TESTPKG::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < content_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < content_size_; ++i) {
+        ret = destBuf.writeUInt8(content_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TESTPKG::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_TESTPKG::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < content_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < content_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        content_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TESTPKG::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_TESTPKG::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[test_pkg_crc_]", "%u", test_pkg_crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[content_size_]", "0x%02x", content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[content_]", content_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (content_size_ != 0) {
+        for (uint32_t i = 0; i < content_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", content_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_TESTPKG::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_TESTPKG::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_TESTPKG::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_RANDCHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RANDCHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (destBuf.capacity() - destBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.writeUInt8(rand_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RANDCHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RANDCHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (srcBuf.capacity() - srcBuf.size() < 16) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 16; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        rand_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RANDCHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RANDCHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[rand_data_]", 16);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 16; ++i) {
+        ret = destBuf.textize(" 0x%02x", rand_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[type_]", "0x%02x", type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RANDCHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_RANDCHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_RANDCHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_NUMINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_NUMINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(num_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < num_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < num_info_size_; ++i) {
+        ret = destBuf.writeUInt8(num_info_msg_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_NUMINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_NUMINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(num_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < num_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < num_info_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        num_info_msg_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_NUMINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_NUMINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[num_info_size_]", "%d", num_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[num_info_msg_]", num_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_info_size_ != 0) {
+        for (uint32_t i = 0; i < num_info_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", num_info_msg_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_NUMINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_NUMINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_NUMINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_P2PSTATINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_P2PSTATINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32((uint32_t)crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(end_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_P2PSTATINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_P2PSTATINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    uint32_t tmp4crc_;
+    ret = srcBuf.readUInt32(tmp4crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    crc_ = (int32_t)tmp4crc_;
+    ret = srcBuf.readUInt16(serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(end_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_P2PSTATINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_P2PSTATINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[crc_]", "%d", crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[serial_]", "%d", serial_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[end_flag_]", "0x%02x", end_flag_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[size_]", "%d", size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_P2PSTATINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_P2PSTATINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_P2PSTATINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_TP_INFO_MSG::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TP_INFO_MSG::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (destBuf.capacity() - destBuf.size() < 260) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 260; ++i) {
+        ret = destBuf.writeUInt8(msg_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TP_INFO_MSG::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_TP_INFO_MSG::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    if (srcBuf.capacity() - srcBuf.size() < 260) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 260; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        msg_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TP_INFO_MSG::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_TP_INFO_MSG::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[msg_]", 260);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 260; ++i) {
+        ret = destBuf.textize(" 0x%02x", msg_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TP_INFO_MSG::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_TP_INFO_MSG::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_TP_INFO_MSG::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_TPINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TPINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(tp_info_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (tp_info_msg_size_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < tp_info_msg_size_; ++i) {
+        ret = tp_info_msg_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TPINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_TPINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(tp_info_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (tp_info_msg_size_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    for (uint32_t i = 0; i < tp_info_msg_size_; ++i) {
+        ret = tp_info_msg_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TPINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_TPINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_info_msg_size_]", "%d", tp_info_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (tp_info_msg_size_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (tp_info_msg_size_ == 0) return ret;
+    for (uint32_t i = 0; i < tp_info_msg_size_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_info_msg_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = tp_info_msg_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = tp_info_msg_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_TPINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_TPINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_TPINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA_ITEM::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA_ITEM::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(cfg_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < cmd_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < cmd_size_; ++i) {
+        ret = destBuf.writeUInt8(cmd_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA_ITEM::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA_ITEM::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(cfg_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < cmd_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < cmd_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        cmd_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA_ITEM::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA_ITEM::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cfg_id_]", "0x%02x", cfg_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cmd_size_]", "0x%02x", cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_size_ > 128) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[cmd_data_]", cmd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (cmd_size_ != 0) {
+        for (uint32_t i = 0; i < cmd_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", cmd_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA_ITEM::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SSC_SE_SCAN_DATA_ITEM::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SSC_SE_SCAN_DATA_ITEM::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(temp_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = se_scan_data_item_.pack(destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(temp_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = se_scan_data_item_.unpack(srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[temp_data_len_]", "%d", temp_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[se_scan_data_item_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = se_scan_data_item_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = se_scan_data_item_.visualize(destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SE_SCAN_DATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SSC_SE_SCAN_DATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SSC_SE_SCAN_DATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SanlixScanJudgeResult::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanJudgeResult::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(sanlix_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(duration_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanJudgeResult::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SanlixScanJudgeResult::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(sanlix_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(duration_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanJudgeResult::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SanlixScanJudgeResult::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_]", "%d", data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sanlix_id_]", "%u", sanlix_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[result_]", "%u", result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[duration_]", "%u", duration_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SanlixScanJudgeResult::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SanlixScanJudgeResult::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SanlixScanJudgeResult::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SSC_SLN_DATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SLN_DATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 32727) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 32727; ++i) {
+        ret = destBuf.writeUInt8(data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SLN_DATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSC_SLN_DATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 32727) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 32727; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SLN_DATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SSC_SLN_DATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_]", "%d", data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[data_]", 32727);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 32727; ++i) {
+        ret = destBuf.textize(" 0x%02x", data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SSC_SLN_DATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SSC_SLN_DATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SSC_SLN_DATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SC_SCHEMEDATA::construct(int64_t union_selector) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 3:
+    ret = se_scan_data_.construct();
+    break;
+    case 21:
+    ret = sx_judge_result_.construct();
+    break;
+    case 105:
+    ret = tp_svr_config_.construct();
+    break;
+    case 308:
+    ret = rp_cp_data_.construct();
+    break;
+    case 402:
+    ret = sx_cfg_info_.construct();
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SC_SCHEMEDATA::pack(int64_t union_selector, TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 3:
+    ret = se_scan_data_.pack(destBuf, 1);
+    break;
+    case 21:
+    ret = sx_judge_result_.pack(destBuf, 1);
+    break;
+    case 105:
+    ret = tp_svr_config_.pack(destBuf, 1);
+    break;
+    case 308:
+    ret = rp_cp_data_.pack(destBuf, 1);
+    break;
+    case 402:
+    ret = sx_cfg_info_.pack(destBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SC_SCHEMEDATA::pack(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(union_selector, destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SC_SCHEMEDATA::unpack(int64_t union_selector, TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 3:
+    ret = se_scan_data_.unpack(srcBuf, 1);
+    break;
+    case 21:
+    ret = sx_judge_result_.unpack(srcBuf, 1);
+    break;
+    case 105:
+    ret = tp_svr_config_.unpack(srcBuf, 1);
+    break;
+    case 308:
+    ret = rp_cp_data_.unpack(srcBuf, 1);
+    break;
+    case 402:
+    ret = sx_cfg_info_.unpack(srcBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SC_SCHEMEDATA::unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(union_selector, srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SC_SCHEMEDATA::visualize(int64_t union_selector, TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 3:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[se_scan_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = se_scan_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = se_scan_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 21:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sx_judge_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sx_judge_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sx_judge_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 105:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[tp_svr_config_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = tp_svr_config_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = tp_svr_config_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 308:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[rp_cp_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = rp_cp_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = rp_cp_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 402:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sx_cfg_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sx_cfg_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sx_cfg_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType SC_SCHEMEDATA::visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(union_selector, destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SCHEMEDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SCHEMEDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(scheme_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(scheme_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = scheme_data_.pack((int64_t)scheme_data_len_, destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SCHEMEDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SCHEMEDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(scheme_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(scheme_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = scheme_data_.unpack((int64_t)scheme_data_len_, srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SCHEMEDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SCHEMEDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scheme_id_]", "%d", scheme_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scheme_data_len_]", "%d", scheme_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = scheme_data_.visualize((int64_t)scheme_data_len_, destBuf, indent + 1, separator);
+    } else {
+        ret = scheme_data_.visualize((int64_t)scheme_data_len_, destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SCHEMEDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_SCHEMEDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_SCHEMEDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_ERRPACKET::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ERRPACKET::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(snd_proto_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(snd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(err_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < err_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < err_info_size_; ++i) {
+        ret = destBuf.writeUInt8(err_info_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ERRPACKET::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ERRPACKET::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(snd_proto_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(snd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(err_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < err_info_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < err_info_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        err_info_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ERRPACKET::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_ERRPACKET::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[snd_proto_id_]", "%d", snd_proto_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[snd_size_]", "%u", snd_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[err_info_size_]", "0x%02x", err_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_info_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[err_info_]", err_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (err_info_size_ != 0) {
+        for (uint32_t i = 0; i < err_info_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", err_info_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_ERRPACKET::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_ERRPACKET::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_ERRPACKET::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_SLXSHAREINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SLXSHAREINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(slx_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (slx_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < slx_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < slx_data_len_; ++i) {
+        ret = destBuf.writeUInt8(slx_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SLXSHAREINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SLXSHAREINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(slx_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (slx_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < slx_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < slx_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        slx_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SLXSHAREINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SLXSHAREINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[slx_data_len_]", "%d", slx_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (slx_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[slx_data_]", slx_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (slx_data_len_ != 0) {
+        for (uint32_t i = 0; i < slx_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", slx_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SLXSHAREINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_SLXSHAREINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_SLXSHAREINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_RESENDDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESENDDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(data_proto_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(data_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESENDDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RESENDDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(data_proto_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(data_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESENDDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_RESENDDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_proto_id_]", "%d", data_proto_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_type_]", "0x%02x", data_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_RESENDDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_RESENDDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_RESENDDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_DELAY_CHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELAY_CHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt64(secsvr_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt64(sdk_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt64(sdk_up_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(client_up_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELAY_CHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DELAY_CHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt64(secsvr_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt64(sdk_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt64(sdk_up_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(client_up_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELAY_CHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_DELAY_CHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[secsvr_down_time_]", "%llu", secsvr_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sdk_down_time_]", "%llu", sdk_down_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sdk_up_time_]", "%llu", sdk_up_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[client_up_time_]", "%u", client_up_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_DELAY_CHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_DELAY_CHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_DELAY_CHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEM::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEM::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(system_error_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_error_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < system_error_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < system_error_len_; ++i) {
+        ret = destBuf.writeUInt8(system_error_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        ret = destBuf.writeUInt8(pad_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEM::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEM::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(system_error_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_error_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < system_error_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < system_error_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        system_error_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < pad_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < pad_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        pad_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEM::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEM::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[system_error_len_]", "%d", system_error_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_error_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[system_error_data_]", system_error_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (system_error_len_ != 0) {
+        for (uint32_t i = 0; i < system_error_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", system_error_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[pad_len_]", "0x%02x", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[pad_data_]", pad_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (pad_len_ != 0) {
+        for (uint32_t i = 0; i < pad_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", pad_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_SYSMEM::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_SYSMEM::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_SYSMEM::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TQD_SC_CFGDATA::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CFGDATA::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(scan_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(prompt_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(action_on_memory_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(action_on_file_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(scan_sub_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CFGDATA::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_SC_CFGDATA::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(scan_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(prompt_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(action_on_memory_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(action_on_file_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(scan_sub_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CFGDATA::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TQD_SC_CFGDATA::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[crc_]", "%u", crc_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[len_]", "%d", len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scan_type_]", "0x%02x", scan_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[prompt_]", "0x%02x", prompt_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[action_on_memory_]", "0x%02x", action_on_memory_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[action_on_file_]", "0x%02x", action_on_file_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[scan_sub_]", "0x%02x", scan_sub_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TQD_SC_CFGDATA::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TQD_SC_CFGDATA::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TQD_SC_CFGDATA::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_ANTICFGINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ANTICFGINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(anti_scan_gap_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ANTICFGINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_ANTICFGINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(anti_scan_gap_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ANTICFGINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_ANTICFGINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[anti_scan_gap_]", "%u", anti_scan_gap_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_ANTICFGINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_ANTICFGINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_ANTICFGINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_LOCALCHECK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LOCALCHECK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(local_check_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (local_check_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < local_check_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < local_check_data_len_; ++i) {
+        ret = destBuf.writeUInt8(local_check_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt8(num_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < num_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < num_msg_size_; ++i) {
+        ret = destBuf.writeUInt8(num_msg_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LOCALCHECK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_LOCALCHECK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(local_check_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (local_check_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < local_check_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < local_check_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        local_check_data_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt8(num_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < num_msg_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < num_msg_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        num_msg_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LOCALCHECK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_LOCALCHECK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[local_check_data_len_]", "%d", local_check_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (local_check_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[local_check_data_]", local_check_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (local_check_data_len_ != 0) {
+        for (uint32_t i = 0; i < local_check_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", local_check_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[num_msg_size_]", "0x%02x", num_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_msg_size_ > 256) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[num_msg_]", num_msg_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (num_msg_size_ != 0) {
+        for (uint32_t i = 0; i < num_msg_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", num_msg_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_LOCALCHECK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_LOCALCHECK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_LOCALCHECK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_CS_EXTINFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_EXTINFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(ext_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (ext_info_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < ext_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < ext_info_len_; ++i) {
+        ret = destBuf.writeUInt8(ext_info_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_EXTINFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_EXTINFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(ext_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (ext_info_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < ext_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < ext_info_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        ext_info_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_EXTINFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_CS_EXTINFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ext_info_len_]", "%d", ext_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (ext_info_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[ext_info_]", ext_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (ext_info_len_ != 0) {
+        for (uint32_t i = 0; i < ext_info_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", ext_info_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_CS_EXTINFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_CS_EXTINFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_CS_EXTINFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType TAB_SC_SUSMODQUEST::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SUSMODQUEST::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(sus_addr_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_addr_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < sus_addr_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < sus_addr_data_len_; ++i) {
+        ret = destBuf.writeUInt8(sus_addr_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SUSMODQUEST::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SUSMODQUEST::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(sus_addr_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_addr_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < sus_addr_data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < sus_addr_data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        sus_addr_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SUSMODQUEST::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType TAB_SC_SUSMODQUEST::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sus_addr_data_len_]", "%d", sus_addr_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_addr_data_len_ > 32727) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[sus_addr_data_]", sus_addr_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (sus_addr_data_len_ != 0) {
+        for (uint32_t i = 0; i < sus_addr_data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", sus_addr_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType TAB_SC_SUSMODQUEST::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* TAB_SC_SUSMODQUEST::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* TAB_SC_SUSMODQUEST::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType AntibotPkgBody::construct(int64_t union_selector) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 1:
+    ret = sc_send_antibot_.construct();
+    break;
+    case 2:
+    ret = sc_rand_check_.construct();
+    break;
+    case 3:
+    ret = cs_init_info_.construct();
+    break;
+    case 4:
+    ret = cs_verify_result_.construct();
+    break;
+    case 5:
+    ret = sc_stop_l_check_.construct();
+    break;
+    case 6:
+    ret = cs_resend_data_.construct();
+    break;
+    case 8:
+    ret = sc_resend_data_.construct();
+    break;
+    case 10:
+    ret = cs_p2p_stat_info_.construct();
+    break;
+    case 11:
+    ret = sc_cfg_data_.construct();
+    break;
+    case 12:
+    ret = sc_req_cli_resend_data_.construct();
+    break;
+    case 13:
+    ret = cs_client_info_.construct();
+    break;
+    case 15:
+    ret = cs_tp_info_.construct();
+    break;
+    case 16:
+    ret = sc_qd_cfg_data_.construct();
+    break;
+    case 17:
+    ret = sc_qd_cmd_data_.construct();
+    break;
+    case 18:
+    ret = cs_qd_scan_result_.construct();
+    break;
+    case 19:
+    ret = cs_qd_init_data_.construct();
+    break;
+    case 20:
+    ret = cs_sanlix_report_.construct();
+    break;
+    case 21:
+    ret = sc_tenparty_data_.construct();
+    break;
+    case 22:
+    ret = sc_file_hash_.construct();
+    break;
+    case 23:
+    ret = cs_cli_net_info_.construct();
+    break;
+    case 24:
+    ret = sc_mem_recover_.construct();
+    break;
+    case 25:
+    ret = cs_ext_info_.construct();
+    break;
+    case 26:
+    ret = cs_local_check_.construct();
+    break;
+    case 27:
+    ret = cs_num_info_.construct();
+    break;
+    case 28:
+    ret = sc_de_cmd_id_list_.construct();
+    break;
+    case 29:
+    ret = sc_de_dib_data_.construct();
+    break;
+    case 30:
+    ret = sc_de_key_.construct();
+    break;
+    case 31:
+    ret = cs_de_ready_.construct();
+    break;
+    case 32:
+    ret = cs_de_test_pkg_.construct();
+    break;
+    case 33:
+    ret = sc_test_pkg_.construct();
+    break;
+    case 34:
+    ret = cs_de_log_.construct();
+    break;
+    case 37:
+    ret = sc_encrypt_.construct();
+    break;
+    case 38:
+    ret = cs_encrypt_.construct();
+    break;
+    case 39:
+    ret = cs_err_packet_.construct();
+    break;
+    case 40:
+    ret = cs_sys_mem_.construct();
+    break;
+    case 41:
+    ret = cs_sys_mem_log_.construct();
+    break;
+    case 42:
+    ret = sc_restrict_uin_.construct();
+    break;
+    case 43:
+    ret = cs_iat_check_.construct();
+    break;
+    case 44:
+    ret = sc_cs_cfg_data_.construct();
+    break;
+    case 45:
+    ret = cs_cs_check_.construct();
+    break;
+    case 46:
+    ret = sc_susmod_quest_.construct();
+    break;
+    case 47:
+    ret = cs_sus_mod_info_.construct();
+    break;
+    case 48:
+    ret = cs_tv_info_.construct();
+    break;
+    case 49:
+    ret = sc_tv_check_.construct();
+    break;
+    case 50:
+    ret = sc_slx_share_info_.construct();
+    break;
+    case 51:
+    ret = sc_scheme_data_.construct();
+    break;
+    case 52:
+    ret = cs_scheme_data_.construct();
+    break;
+    case 53:
+    ret = sc_slx_te_share_info_.construct();
+    break;
+    case 54:
+    ret = sc_rpfmc_scan_cmd_.construct();
+    break;
+    case 55:
+    ret = cs_rp_fmc_scan_result_.construct();
+    break;
+    case 56:
+    ret = sc_la_pkg_cmd_.construct();
+    break;
+    case 57:
+    ret = cs_la_pkg_result_.construct();
+    break;
+    case 58:
+    ret = sc_fms_cmd_.construct();
+    break;
+    case 59:
+    ret = cs_fmc_result_.construct();
+    break;
+    case 60:
+    ret = sc_anti_cfg_info_.construct();
+    break;
+    case 61:
+    ret = cs_anti_time_.construct();
+    break;
+    case 62:
+    ret = cs_anti_clt_key_.construct();
+    break;
+    case 64:
+    ret = cs_captcha_result_.construct();
+    break;
+    case 65:
+    ret = cs_captcha_req_.construct();
+    break;
+    case 66:
+    ret = cs_report_client_guid_.construct();
+    break;
+    case 70:
+    ret = cs_report_error_.construct();
+    break;
+    case 100:
+    ret = sc_pkg_code_.construct();
+    break;
+    case 101:
+    ret = cs_rp_pkg_result_.construct();
+    break;
+    case 102:
+    ret = sc_pkg_code_key_.construct();
+    break;
+    case 104:
+    ret = sc_channel_server_id_.construct();
+    break;
+    case 105:
+    ret = cs_cschannel_result_.construct();
+    break;
+    case 120:
+    ret = sc_channel_delay_check_.construct();
+    break;
+    case 121:
+    ret = cs_channel_delay_check_.construct();
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgBody::pack(int64_t union_selector, TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 1:
+    ret = sc_send_antibot_.pack(destBuf, 1);
+    break;
+    case 2:
+    ret = sc_rand_check_.pack(destBuf, 1);
+    break;
+    case 3:
+    ret = cs_init_info_.pack(destBuf, 1);
+    break;
+    case 4:
+    ret = cs_verify_result_.pack(destBuf, 1);
+    break;
+    case 5:
+    ret = sc_stop_l_check_.pack(destBuf, 1);
+    break;
+    case 6:
+    ret = cs_resend_data_.pack(destBuf, 1);
+    break;
+    case 8:
+    ret = sc_resend_data_.pack(destBuf, 1);
+    break;
+    case 10:
+    ret = cs_p2p_stat_info_.pack(destBuf, 1);
+    break;
+    case 11:
+    ret = sc_cfg_data_.pack(destBuf, 1);
+    break;
+    case 12:
+    ret = sc_req_cli_resend_data_.pack(destBuf, 1);
+    break;
+    case 13:
+    ret = cs_client_info_.pack(destBuf, 1);
+    break;
+    case 15:
+    ret = cs_tp_info_.pack(destBuf, 1);
+    break;
+    case 16:
+    ret = sc_qd_cfg_data_.pack(destBuf, 1);
+    break;
+    case 17:
+    ret = sc_qd_cmd_data_.pack(destBuf, 1);
+    break;
+    case 18:
+    ret = cs_qd_scan_result_.pack(destBuf, 1);
+    break;
+    case 19:
+    ret = cs_qd_init_data_.pack(destBuf, 1);
+    break;
+    case 20:
+    ret = cs_sanlix_report_.pack(destBuf, 1);
+    break;
+    case 21:
+    ret = sc_tenparty_data_.pack(destBuf, 1);
+    break;
+    case 22:
+    ret = sc_file_hash_.pack(destBuf, 1);
+    break;
+    case 23:
+    ret = cs_cli_net_info_.pack(destBuf, 1);
+    break;
+    case 24:
+    ret = sc_mem_recover_.pack(destBuf, 1);
+    break;
+    case 25:
+    ret = cs_ext_info_.pack(destBuf, 1);
+    break;
+    case 26:
+    ret = cs_local_check_.pack(destBuf, 1);
+    break;
+    case 27:
+    ret = cs_num_info_.pack(destBuf, 1);
+    break;
+    case 28:
+    ret = sc_de_cmd_id_list_.pack(destBuf, 1);
+    break;
+    case 29:
+    ret = sc_de_dib_data_.pack(destBuf, 1);
+    break;
+    case 30:
+    ret = sc_de_key_.pack(destBuf, 1);
+    break;
+    case 31:
+    ret = cs_de_ready_.pack(destBuf, 1);
+    break;
+    case 32:
+    ret = cs_de_test_pkg_.pack(destBuf, 1);
+    break;
+    case 33:
+    ret = sc_test_pkg_.pack(destBuf, 1);
+    break;
+    case 34:
+    ret = cs_de_log_.pack(destBuf, 1);
+    break;
+    case 37:
+    ret = sc_encrypt_.pack(destBuf, 1);
+    break;
+    case 38:
+    ret = cs_encrypt_.pack(destBuf, 1);
+    break;
+    case 39:
+    ret = cs_err_packet_.pack(destBuf, 1);
+    break;
+    case 40:
+    ret = cs_sys_mem_.pack(destBuf, 1);
+    break;
+    case 41:
+    ret = cs_sys_mem_log_.pack(destBuf, 1);
+    break;
+    case 42:
+    ret = sc_restrict_uin_.pack(destBuf, 1);
+    break;
+    case 43:
+    ret = cs_iat_check_.pack(destBuf, 1);
+    break;
+    case 44:
+    ret = sc_cs_cfg_data_.pack(destBuf, 1);
+    break;
+    case 45:
+    ret = cs_cs_check_.pack(destBuf, 1);
+    break;
+    case 46:
+    ret = sc_susmod_quest_.pack(destBuf, 1);
+    break;
+    case 47:
+    ret = cs_sus_mod_info_.pack(destBuf, 1);
+    break;
+    case 48:
+    ret = cs_tv_info_.pack(destBuf, 1);
+    break;
+    case 49:
+    ret = sc_tv_check_.pack(destBuf, 1);
+    break;
+    case 50:
+    ret = sc_slx_share_info_.pack(destBuf, 1);
+    break;
+    case 51:
+    ret = sc_scheme_data_.pack(destBuf, 1);
+    break;
+    case 52:
+    ret = cs_scheme_data_.pack(destBuf, 1);
+    break;
+    case 53:
+    ret = sc_slx_te_share_info_.pack(destBuf, 1);
+    break;
+    case 54:
+    ret = sc_rpfmc_scan_cmd_.pack(destBuf, 1);
+    break;
+    case 55:
+    ret = cs_rp_fmc_scan_result_.pack(destBuf, 1);
+    break;
+    case 56:
+    ret = sc_la_pkg_cmd_.pack(destBuf, 1);
+    break;
+    case 57:
+    ret = cs_la_pkg_result_.pack(destBuf, 1);
+    break;
+    case 58:
+    ret = sc_fms_cmd_.pack(destBuf, 1);
+    break;
+    case 59:
+    ret = cs_fmc_result_.pack(destBuf, 1);
+    break;
+    case 60:
+    ret = sc_anti_cfg_info_.pack(destBuf, 1);
+    break;
+    case 61:
+    ret = cs_anti_time_.pack(destBuf, 1);
+    break;
+    case 62:
+    ret = cs_anti_clt_key_.pack(destBuf, 1);
+    break;
+    case 64:
+    ret = cs_captcha_result_.pack(destBuf, 1);
+    break;
+    case 65:
+    ret = cs_captcha_req_.pack(destBuf, 1);
+    break;
+    case 66:
+    ret = cs_report_client_guid_.pack(destBuf, 1);
+    break;
+    case 70:
+    ret = cs_report_error_.pack(destBuf, 1);
+    break;
+    case 100:
+    ret = sc_pkg_code_.pack(destBuf, 1);
+    break;
+    case 101:
+    ret = cs_rp_pkg_result_.pack(destBuf, 1);
+    break;
+    case 102:
+    ret = sc_pkg_code_key_.pack(destBuf, 1);
+    break;
+    case 104:
+    ret = sc_channel_server_id_.pack(destBuf, 1);
+    break;
+    case 105:
+    ret = cs_cschannel_result_.pack(destBuf, 1);
+    break;
+    case 120:
+    ret = sc_channel_delay_check_.pack(destBuf, 1);
+    break;
+    case 121:
+    ret = cs_channel_delay_check_.pack(destBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgBody::pack(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(union_selector, destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgBody::unpack(int64_t union_selector, TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 1:
+    ret = sc_send_antibot_.unpack(srcBuf, 1);
+    break;
+    case 2:
+    ret = sc_rand_check_.unpack(srcBuf, 1);
+    break;
+    case 3:
+    ret = cs_init_info_.unpack(srcBuf, 1);
+    break;
+    case 4:
+    ret = cs_verify_result_.unpack(srcBuf, 1);
+    break;
+    case 5:
+    ret = sc_stop_l_check_.unpack(srcBuf, 1);
+    break;
+    case 6:
+    ret = cs_resend_data_.unpack(srcBuf, 1);
+    break;
+    case 8:
+    ret = sc_resend_data_.unpack(srcBuf, 1);
+    break;
+    case 10:
+    ret = cs_p2p_stat_info_.unpack(srcBuf, 1);
+    break;
+    case 11:
+    ret = sc_cfg_data_.unpack(srcBuf, 1);
+    break;
+    case 12:
+    ret = sc_req_cli_resend_data_.unpack(srcBuf, 1);
+    break;
+    case 13:
+    ret = cs_client_info_.unpack(srcBuf, 1);
+    break;
+    case 15:
+    ret = cs_tp_info_.unpack(srcBuf, 1);
+    break;
+    case 16:
+    ret = sc_qd_cfg_data_.unpack(srcBuf, 1);
+    break;
+    case 17:
+    ret = sc_qd_cmd_data_.unpack(srcBuf, 1);
+    break;
+    case 18:
+    ret = cs_qd_scan_result_.unpack(srcBuf, 1);
+    break;
+    case 19:
+    ret = cs_qd_init_data_.unpack(srcBuf, 1);
+    break;
+    case 20:
+    ret = cs_sanlix_report_.unpack(srcBuf, 1);
+    break;
+    case 21:
+    ret = sc_tenparty_data_.unpack(srcBuf, 1);
+    break;
+    case 22:
+    ret = sc_file_hash_.unpack(srcBuf, 1);
+    break;
+    case 23:
+    ret = cs_cli_net_info_.unpack(srcBuf, 1);
+    break;
+    case 24:
+    ret = sc_mem_recover_.unpack(srcBuf, 1);
+    break;
+    case 25:
+    ret = cs_ext_info_.unpack(srcBuf, 1);
+    break;
+    case 26:
+    ret = cs_local_check_.unpack(srcBuf, 1);
+    break;
+    case 27:
+    ret = cs_num_info_.unpack(srcBuf, 1);
+    break;
+    case 28:
+    ret = sc_de_cmd_id_list_.unpack(srcBuf, 1);
+    break;
+    case 29:
+    ret = sc_de_dib_data_.unpack(srcBuf, 1);
+    break;
+    case 30:
+    ret = sc_de_key_.unpack(srcBuf, 1);
+    break;
+    case 31:
+    ret = cs_de_ready_.unpack(srcBuf, 1);
+    break;
+    case 32:
+    ret = cs_de_test_pkg_.unpack(srcBuf, 1);
+    break;
+    case 33:
+    ret = sc_test_pkg_.unpack(srcBuf, 1);
+    break;
+    case 34:
+    ret = cs_de_log_.unpack(srcBuf, 1);
+    break;
+    case 37:
+    ret = sc_encrypt_.unpack(srcBuf, 1);
+    break;
+    case 38:
+    ret = cs_encrypt_.unpack(srcBuf, 1);
+    break;
+    case 39:
+    ret = cs_err_packet_.unpack(srcBuf, 1);
+    break;
+    case 40:
+    ret = cs_sys_mem_.unpack(srcBuf, 1);
+    break;
+    case 41:
+    ret = cs_sys_mem_log_.unpack(srcBuf, 1);
+    break;
+    case 42:
+    ret = sc_restrict_uin_.unpack(srcBuf, 1);
+    break;
+    case 43:
+    ret = cs_iat_check_.unpack(srcBuf, 1);
+    break;
+    case 44:
+    ret = sc_cs_cfg_data_.unpack(srcBuf, 1);
+    break;
+    case 45:
+    ret = cs_cs_check_.unpack(srcBuf, 1);
+    break;
+    case 46:
+    ret = sc_susmod_quest_.unpack(srcBuf, 1);
+    break;
+    case 47:
+    ret = cs_sus_mod_info_.unpack(srcBuf, 1);
+    break;
+    case 48:
+    ret = cs_tv_info_.unpack(srcBuf, 1);
+    break;
+    case 49:
+    ret = sc_tv_check_.unpack(srcBuf, 1);
+    break;
+    case 50:
+    ret = sc_slx_share_info_.unpack(srcBuf, 1);
+    break;
+    case 51:
+    ret = sc_scheme_data_.unpack(srcBuf, 1);
+    break;
+    case 52:
+    ret = cs_scheme_data_.unpack(srcBuf, 1);
+    break;
+    case 53:
+    ret = sc_slx_te_share_info_.unpack(srcBuf, 1);
+    break;
+    case 54:
+    ret = sc_rpfmc_scan_cmd_.unpack(srcBuf, 1);
+    break;
+    case 55:
+    ret = cs_rp_fmc_scan_result_.unpack(srcBuf, 1);
+    break;
+    case 56:
+    ret = sc_la_pkg_cmd_.unpack(srcBuf, 1);
+    break;
+    case 57:
+    ret = cs_la_pkg_result_.unpack(srcBuf, 1);
+    break;
+    case 58:
+    ret = sc_fms_cmd_.unpack(srcBuf, 1);
+    break;
+    case 59:
+    ret = cs_fmc_result_.unpack(srcBuf, 1);
+    break;
+    case 60:
+    ret = sc_anti_cfg_info_.unpack(srcBuf, 1);
+    break;
+    case 61:
+    ret = cs_anti_time_.unpack(srcBuf, 1);
+    break;
+    case 62:
+    ret = cs_anti_clt_key_.unpack(srcBuf, 1);
+    break;
+    case 64:
+    ret = cs_captcha_result_.unpack(srcBuf, 1);
+    break;
+    case 65:
+    ret = cs_captcha_req_.unpack(srcBuf, 1);
+    break;
+    case 66:
+    ret = cs_report_client_guid_.unpack(srcBuf, 1);
+    break;
+    case 70:
+    ret = cs_report_error_.unpack(srcBuf, 1);
+    break;
+    case 100:
+    ret = sc_pkg_code_.unpack(srcBuf, 1);
+    break;
+    case 101:
+    ret = cs_rp_pkg_result_.unpack(srcBuf, 1);
+    break;
+    case 102:
+    ret = sc_pkg_code_key_.unpack(srcBuf, 1);
+    break;
+    case 104:
+    ret = sc_channel_server_id_.unpack(srcBuf, 1);
+    break;
+    case 105:
+    ret = cs_cschannel_result_.unpack(srcBuf, 1);
+    break;
+    case 120:
+    ret = sc_channel_delay_check_.unpack(srcBuf, 1);
+    break;
+    case 121:
+    ret = cs_channel_delay_check_.unpack(srcBuf, 1);
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgBody::unpack(int64_t union_selector, const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(union_selector, srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgBody::visualize(int64_t union_selector, TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+switch (union_selector) {
+    case 1:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_send_antibot_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_send_antibot_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_send_antibot_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 2:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_rand_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_rand_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_rand_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 3:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_init_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_init_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_init_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 4:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_verify_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_verify_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_verify_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 5:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_stop_l_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_stop_l_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_stop_l_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 6:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_resend_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_resend_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_resend_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 8:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_resend_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_resend_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_resend_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 10:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_p2p_stat_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_p2p_stat_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_p2p_stat_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 11:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_cfg_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_cfg_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_cfg_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 12:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_req_cli_resend_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_req_cli_resend_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_req_cli_resend_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 13:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_client_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_client_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_client_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 15:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_tp_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_tp_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_tp_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 16:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_qd_cfg_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_qd_cfg_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_qd_cfg_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 17:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_qd_cmd_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_qd_cmd_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_qd_cmd_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 18:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_qd_scan_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_qd_scan_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_qd_scan_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 19:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_qd_init_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_qd_init_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_qd_init_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 20:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_sanlix_report_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_sanlix_report_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_sanlix_report_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 21:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_tenparty_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_tenparty_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_tenparty_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 22:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_file_hash_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_file_hash_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_file_hash_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 23:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_cli_net_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_cli_net_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_cli_net_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 24:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_mem_recover_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_mem_recover_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_mem_recover_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 25:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_ext_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_ext_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_ext_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 26:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_local_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_local_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_local_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 27:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_num_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_num_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_num_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 28:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_de_cmd_id_list_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_de_cmd_id_list_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_de_cmd_id_list_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 29:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_de_dib_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_de_dib_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_de_dib_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 30:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_de_key_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_de_key_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_de_key_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 31:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_de_ready_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_de_ready_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_de_ready_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 32:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_de_test_pkg_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_de_test_pkg_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_de_test_pkg_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 33:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_test_pkg_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_test_pkg_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_test_pkg_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 34:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_de_log_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_de_log_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_de_log_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 37:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_encrypt_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_encrypt_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_encrypt_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 38:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_encrypt_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_encrypt_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_encrypt_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 39:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_err_packet_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_err_packet_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_err_packet_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 40:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_sys_mem_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_sys_mem_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_sys_mem_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 41:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_sys_mem_log_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_sys_mem_log_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_sys_mem_log_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 42:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_restrict_uin_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_restrict_uin_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_restrict_uin_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 43:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_iat_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_iat_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_iat_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 44:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_cs_cfg_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_cs_cfg_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_cs_cfg_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 45:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_cs_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_cs_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_cs_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 46:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_susmod_quest_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_susmod_quest_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_susmod_quest_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 47:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_sus_mod_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_sus_mod_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_sus_mod_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 48:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_tv_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_tv_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_tv_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 49:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_tv_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_tv_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_tv_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 50:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_slx_share_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_slx_share_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_slx_share_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 51:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_scheme_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_scheme_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_scheme_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 52:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_scheme_data_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_scheme_data_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_scheme_data_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 53:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_slx_te_share_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_slx_te_share_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_slx_te_share_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 54:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_rpfmc_scan_cmd_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_rpfmc_scan_cmd_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_rpfmc_scan_cmd_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 55:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_rp_fmc_scan_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_rp_fmc_scan_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_rp_fmc_scan_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 56:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_la_pkg_cmd_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_la_pkg_cmd_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_la_pkg_cmd_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 57:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_la_pkg_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_la_pkg_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_la_pkg_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 58:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_fms_cmd_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_fms_cmd_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_fms_cmd_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 59:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_fmc_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_fmc_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_fmc_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 60:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_anti_cfg_info_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_anti_cfg_info_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_anti_cfg_info_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 61:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_anti_time_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_anti_time_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_anti_time_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 62:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_anti_clt_key_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_anti_clt_key_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_anti_clt_key_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 64:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_captcha_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_captcha_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_captcha_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 65:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_captcha_req_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_captcha_req_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_captcha_req_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 66:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_report_client_guid_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_report_client_guid_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_report_client_guid_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 70:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_report_error_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_report_error_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_report_error_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 100:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_pkg_code_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_pkg_code_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_pkg_code_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 101:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_rp_pkg_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_rp_pkg_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_rp_pkg_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 102:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_pkg_code_key_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_pkg_code_key_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_pkg_code_key_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 104:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_channel_server_id_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_channel_server_id_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_channel_server_id_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 105:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_cschannel_result_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_cschannel_result_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_cschannel_result_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 120:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[sc_channel_delay_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = sc_channel_delay_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = sc_channel_delay_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    case 121:
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cs_channel_delay_check_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = cs_channel_delay_check_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = cs_channel_delay_check_.visualize(destBuf, indent, separator);
+    }
+    break;
+    default:
+        ret = TdrError::TDR_NO_ERROR;
+    }
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgBody::visualize(int64_t union_selector, char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(union_selector, destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgHead::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotPkgHead::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(cmd_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(seq_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotPkgHead::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgHead::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(cmd_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(seq_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotPkgHead::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AntibotPkgHead::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cmd_id_]", "%d", cmd_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[seq_]", "%u", seq_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotPkgHead::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* AntibotPkgHead::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* AntibotPkgHead::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType AntibotClientPkg::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotClientPkg::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = head_.pack(destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = body_.pack((int64_t)head_.cmd_id_, destBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotClientPkg::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AntibotClientPkg::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = head_.unpack(srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = body_.unpack((int64_t)head_.cmd_id_, srcBuf, 1);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotClientPkg::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType AntibotClientPkg::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[head_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = head_.visualize(destBuf, indent + 1, separator);
+    } else {
+        ret = head_.visualize(destBuf, indent, separator);
+    }
+    return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[body_]", true);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (indent >= 0) {
+        ret = body_.visualize((int64_t)head_.cmd_id_, destBuf, indent + 1, separator);
+    } else {
+        ret = body_.visualize((int64_t)head_.cmd_id_, destBuf, indent, separator);
+    }
+    return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType AntibotClientPkg::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* AntibotClientPkg::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* AntibotClientPkg::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType PKGCODE_KEY_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PKGCODE_KEY_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt8(dib_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(key_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_size_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < key_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint32_t i = 0; i < key_size_; ++i) {
+        ret = destBuf.writeUInt8(key_data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PKGCODE_KEY_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType PKGCODE_KEY_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt8(dib_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(key_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_size_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < key_size_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint32_t i = 0; i < key_size_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        key_data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PKGCODE_KEY_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType PKGCODE_KEY_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[dib_id_]", "0x%02x", dib_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[key_size_]", "0x%02x", key_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_size_ > 64) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[key_data_]", key_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (key_size_ != 0) {
+        for (uint32_t i = 0; i < key_size_; ++i) {
+            ret = destBuf.textize(" 0x%02x", key_data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PKGCODE_KEY_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* PKGCODE_KEY_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* PKGCODE_KEY_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SCS_SX_KEY_INFO::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SX_KEY_INFO::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(version_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(content_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(num_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 256) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 256; ++i) {
+        ret = destBuf.writeUInt8(content_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (destBuf.capacity() - destBuf.size() < 256) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 256; ++i) {
+        ret = destBuf.writeUInt8(content2_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SX_KEY_INFO::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SCS_SX_KEY_INFO::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(version_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(content_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(num_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 256) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 256; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        content_[i] = (uint8_t)c;
+    }
+    if (srcBuf.capacity() - srcBuf.size() < 256) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 256; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        content2_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SX_KEY_INFO::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SCS_SX_KEY_INFO::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[send_data_len_]", "%d", send_data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[version_]", "%u", version_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[content_info_size_]", "%u", content_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[num_info_size_]", "%u", num_info_size_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[content_]", 256);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 256; ++i) {
+        ret = destBuf.textize(" 0x%02x", content_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[content2_]", 256);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 256; ++i) {
+        ret = destBuf.textize(" 0x%02x", content2_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SCS_SX_KEY_INFO::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SCS_SX_KEY_INFO::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SCS_SX_KEY_INFO::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+} // namespace sec_proto

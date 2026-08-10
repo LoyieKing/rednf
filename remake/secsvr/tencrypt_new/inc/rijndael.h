@@ -1,65 +1,68 @@
-// Auto-generated header stub from DWARF info
-// Original path: inc/rijndael.h
-// 内容为类型信息与声明（函数体暂未还原）。
+/* rijndael.h -- Rijndael/AES 块密码（tencrypt 复刻）
+   类型布局按 DWARF/二进制：CRijndael sizeof 528 =
+   m_Context(488) + dtbl/itbl/sbox/isbox/Logtable/Alogtable(6 指针)
+   + idx/iidx(2 指针) + m_pSys/m_pLocal。 */
 #ifndef SECSVR_INC_RIJNDAEL_H_H_
 #define SECSVR_INC_RIJNDAEL_H_H_
 
-// sizeof = 528
-struct CRijndael { // line 22
-    // sizeof = 488
-    struct tagRIJNDAELContext {
-    public:
-    unsigned int keys[];
-    unsigned int ikeys[];
-    int nrounds;
-    int mode;
+struct CRijndael {
+    struct tagRIJNDAELContext {     // sizeof = 488
+        unsigned int keys[60];      // +0x000
+        unsigned int ikeys[60];     // +0x0f0
+        int nrounds;                // +0x1e0
+        int mode;                   // +0x1e4
     };
 private:
-CRijndael::tagRIJNDAELContext m_Context;
-unsigned int *dtbl;
-unsigned int *itbl;
-unsigned char *sbox;
-unsigned char *isbox;
-unsigned char *Logtable;
-unsigned char *Alogtable;
-unsigned int *idx[];
-unsigned int *iidx[];
-void *m_pSys;
-void *m_pLocal;
+    tagRIJNDAELContext m_Context;   // +0x000
+    unsigned int *dtbl;             // +0x1e8
+    unsigned int *itbl;             // +0x1ec
+    unsigned char *sbox;            // +0x1f0
+    unsigned char *isbox;           // +0x1f4
+    unsigned char *Logtable;        // +0x1f8
+    unsigned char *Alogtable;       // +0x1fc
+    unsigned int *idx;              // +0x200
+    unsigned int *iidx;             // +0x204
+    void *m_pSys;                   // +0x208
+    void *m_pLocal;                 // +0x20c
 public:
-CRijndael(); // line 25
-~CRijndael(); // line 26
-void Init(void *arg0, void *arg1); // line 27
-void UnInit(); // line 28
-void RijnDael(unsigned char *arg0, bool arg1, unsigned char *arg2, unsigned int arg3); // line 29
+    CRijndael();                    // line 25
+    ~CRijndael();                   // line 26
+    void Init(void *pSys, void *pLocal);    // line 27
+    void UnInit();                  // line 28
+    void RijnDael(unsigned char *key, bool benc, unsigned char *buf,
+                  unsigned int buflen);    // line 29
 private:
-void rijndael_setup(CRijndael::tagRIJNDAELContext *arg0, unsigned int arg1, const unsigned char *arg2); // line 42
-void rijndael_encrypt(CRijndael::tagRIJNDAELContext *arg0, const unsigned char *arg1, unsigned char *arg2); // line 44
-void rijndael_decrypt(CRijndael::tagRIJNDAELContext *arg0, const unsigned char *arg1, unsigned char *arg2); // line 46
-void block_encrypt(CRijndael::tagRIJNDAELContext *arg0, unsigned char *arg1, int arg2, unsigned char *arg3, unsigned char *arg4); // line 48
-void block_decrypt(CRijndael::tagRIJNDAELContext *arg0, unsigned char *arg1, int arg2, unsigned char *arg3, unsigned char *arg4); // line 50
-void SetKey(unsigned int arg0, const unsigned char *arg1); // line 52
-void Encrypt(const unsigned char *arg0, unsigned char *arg1); // line 56
-void Decrypt(const unsigned char *arg0, unsigned char *arg1); // line 60
-void BlockEncrypt(unsigned char *arg0, int arg1, unsigned char *arg2, unsigned char *arg3); // line 65
-void BlockDecrypt(unsigned char *arg0, int arg1, unsigned char *arg2, unsigned char *arg3); // line 69
-void Initialize(int arg0, int arg1); // line 74
-unsigned char xtime(unsigned char arg0); // line 76
-unsigned char mul(unsigned char arg0, unsigned char arg1); // line 78
-void inv_mix_column(unsigned int *arg0, unsigned int *arg1); // line 80
-void key_addition_8to32(const unsigned char *arg0, unsigned int *arg1, unsigned int *arg2); // line 82
-void key_addition32(const unsigned int *arg0, unsigned int *arg1, unsigned int *arg2); // line 84
-void key_addition32to8(const unsigned int *arg0, unsigned int *arg1, unsigned char *arg2); // line 86
+    void rijndael_setup(tagRIJNDAELContext *ctx, unsigned int keysize,
+                        const unsigned char *key);      // line 42
+    void rijndael_encrypt(tagRIJNDAELContext *ctx,
+                          const unsigned char *plaintext,
+                          unsigned char *ciphertext);   // line 44
+    void rijndael_decrypt(tagRIJNDAELContext *ctx,
+                          const unsigned char *ciphertext,
+                          unsigned char *plaintext);    // line 46
+    void block_encrypt(tagRIJNDAELContext *ctx, unsigned char *input,
+                       int inputlen, unsigned char *output,
+                       unsigned char *iv);              // line 48
+    void block_decrypt(tagRIJNDAELContext *ctx, unsigned char *input,
+                       int inputlen, unsigned char *output,
+                       unsigned char *iv);              // line 50
+    void SetKey(unsigned int keysize, const unsigned char *key); // line 52
+    void Encrypt(const unsigned char *in, unsigned char *out);   // line 56
+    void Decrypt(const unsigned char *in, unsigned char *out);   // line 60
+    void BlockEncrypt(unsigned char *in, int inputlen,
+                      unsigned char *out, unsigned char *iv);    // line 65
+    void BlockDecrypt(unsigned char *in, int inputlen,
+                      unsigned char *out, unsigned char *iv);    // line 69
+    void Initialize(int nrounds, int mode);             // line 74
+    unsigned char xtime(unsigned char a);               // line 76
+    unsigned char mul(unsigned char a, unsigned char b); // line 78
+    void inv_mix_column(unsigned int *a, unsigned int *b); // line 80
+    void key_addition_8to32(const unsigned char *txt,
+                            unsigned int *keys, unsigned int *out); // line 82
+    void key_addition32(const unsigned int *txt,
+                        unsigned int *keys, unsigned int *out); // line 84
+    void key_addition32to8(const unsigned int *txt,
+                           unsigned int *keys, unsigned char *out); // line 86
 };
-namespace CRijndael {
-    // sizeof = 488
-    struct tagRIJNDAELContext { // line 33
-    public:
-    unsigned int keys[];
-    unsigned int ikeys[];
-    int nrounds;
-    int mode;
-    };
-} // namespace CRijndael
 
 #endif // SECSVR_INC_RIJNDAEL_H_H_

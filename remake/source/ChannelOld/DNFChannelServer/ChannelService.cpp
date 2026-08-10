@@ -109,13 +109,13 @@ void TMemoryPoolStatic<T, Size, Q>::startup()
     try
     {
         repository_ = new T[Size];
+        printf("%d th allocated Success\n", Size);
     }
     catch (...)
     {
         puts("momory alloc failed");
         throw Exception("memory alloc failed");
     }
-    printf("%d th allocated Success\n", Size);
     int i;
     for (i = 0; i < Size; i++)
     {
@@ -373,7 +373,7 @@ void TGlobalInstance<TextOutputDevice_stdout>::create()
         }
         catch (...)
         {
-            printf("cannot allocate memory in TGlobalInstance.! cannot continue\n");
+            printf("cannot allocate memory in TGlobalInstance.! cannot continue");
             exit(-1);
         }
     }
@@ -572,16 +572,23 @@ DWORD ChannelServiceApp::ChannelService::onSC_GET_GC_INFO(LPPACKET_HEADER pPCK, 
 }
 
 CHANNEL_HANDLER_BEGIN(CS_ASK_CHANNEL_INFO)
+    // ORIG 声明顺序：ServerGroupNum/CompressLen 在顶部（DWARF 488/489），pck 491
+    int ServerGroupNum;
+    unsigned int CompressLen;
     tagSC_ASK_CHANNEL_INFO pck;
     pck.setAckOk();
+    CMsgCell* pMsg;
     TMsgCell<131072> buffer;
+    CMsgCell* encMsg;
     TMsgCell<131072> encbuffer;
     TMsgCell<131072> tmpbuffer;
+    CMsgCell* zipMsg;
     TMsgCell<131072> zipbuffer;
-    CMsgCell* pMsg = &buffer;
-    CMsgCell* encMsg = &encbuffer;
-    CMsgCell* zipMsg = &zipbuffer;
-    pck.server_group_count = ServerGroupCount;
+    pMsg = &buffer;
+    encMsg = &encbuffer;
+    zipMsg = &zipbuffer;
+    ServerGroupNum = ServerGroupCount;
+    pck.server_group_count = ServerGroupNum;
     *pMsg << &pck;
     int CurrentConnectedUserForGroup = 0;
     int TotalConnectedUser = 0;
@@ -590,32 +597,32 @@ CHANNEL_HANDLER_BEGIN(CS_ASK_CHANNEL_INFO)
     for (int i = 0; i < 0x80; i = i + 1)
     {
         CurrentConnectedUserForGroup = 0;
-        tServerGroupInfo Ginfo;
-        TSerializer<tServerGroupInfo> Ginfo_ser(Ginfo);
-        Ginfo.server_count = Servers[i].getServerCount();
-        if (Ginfo.server_count != 0)
+        tServerGroupInfo ServerGroupInfo;
+        TSerializer<tServerGroupInfo> Ginfo(ServerGroupInfo);
+        ServerGroupInfo.server_count = Servers[i].getServerCount();
+        if (ServerGroupInfo.server_count != 0)
         {
             GLOG(gFileLogInfo, "*****************************************************************************************");
             GLOG(gFileLogInfo, i << "th SG");
-            GLOG(gFileLogInfo, "channel count=" << Ginfo.server_count);
-            strncpy(Ginfo.server_group_name, Servers[i].ServerName, 0x14);
-            *pMsg << Ginfo_ser;
-            GLOG(gFileLogInfo, Ginfo.server_group_name);
+            GLOG(gFileLogInfo, "channel count=" << ServerGroupInfo.server_count);
+            strncpy(ServerGroupInfo.server_group_name, Servers[i].ServerName, 0x14);
+            *pMsg << Ginfo;
+            GLOG(gFileLogInfo, ServerGroupInfo.server_group_name);
             for (std::map<int, tServerInfo*>::iterator it = Servers[i].listServerInfo_.begin(); it != Servers[i].listServerInfo_.end(); it++)
             {
-                tpServerInfo info;
-                TSerializer<tpServerInfo> Sinfo(info);
-                strcpy(info.channel_name, it->second->ChannelName);
-                info.max_user_num = it->second->nMaxUserCount_;
-                info.cur_user_num = it->second->nCurrentUserCount_;
-                strcpy(info.server_ip, it->second->IP);
-                info.port = it->second->port;
-                GLOG(gFileLogInfo, info.channel_name);
-                GLOG(gFileLogInfo, "IP    " << it->second->IP);
-                GLOG(gFileLogInfo, "POPT  " << it->second->port);
-                GLOG(gFileLogInfo, "MAX  " << it->second->nMaxUserCount_);
-                GLOG(gFileLogInfo, "CUR  " << it->second->nCurrentUserCount_);
-                CurrentConnectedUserForGroup = CurrentConnectedUserForGroup + it->second->nCurrentUserCount_;
+                tpServerInfo _ServerInfo;
+                TSerializer<tpServerInfo> Sinfo(_ServerInfo);
+                strcpy(_ServerInfo.channel_name, (*it).second->ChannelName);
+                _ServerInfo.max_user_num = (*it).second->nMaxUserCount_;
+                _ServerInfo.cur_user_num = (*it).second->nCurrentUserCount_;
+                strcpy(_ServerInfo.server_ip, (*it).second->IP);
+                _ServerInfo.port = (*it).second->port;
+                GLOG(gFileLogInfo, _ServerInfo.channel_name);
+                GLOG(gFileLogInfo, "IP    " << (*it).second->IP);
+                GLOG(gFileLogInfo, "POPT  " << (*it).second->port);
+                GLOG(gFileLogInfo, "MAX  " << (*it).second->nMaxUserCount_);
+                GLOG(gFileLogInfo, "CUR  " << (*it).second->nCurrentUserCount_);
+                CurrentConnectedUserForGroup = CurrentConnectedUserForGroup + (*it).second->nCurrentUserCount_;
                 *pMsg << Sinfo;
             }
             GLOG(gFileLogInfo, " CurrentConnectedUserForGroup = " << CurrentConnectedUserForGroup);
@@ -630,9 +637,10 @@ CHANNEL_HANDLER_BEGIN(CS_ASK_CHANNEL_INFO)
     encMsg->AttachStream((char*)&tmpbuffer, enc_len);
     encMsg->PAD();
     zipMsg->AttachStream(pMsg->GetBuf(), 0xb);
-    unsigned int CompressLen = enc_len + 0xd;
-    compress2((unsigned char*)&tmpbuffer, (unsigned long*)&CompressLen, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, 1);
-    zipMsg->AttachStream((char*)&tmpbuffer, CompressLen);
+    // ORIG：ttt 为压缩长度临时（DWARF decl 613）
+    unsigned int ttt = enc_len + 0xd;
+    int ret = compress2((unsigned char*)&tmpbuffer, (unsigned long*)&ttt, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, 1);
+    zipMsg->AttachStream((char*)&tmpbuffer, ttt);
     zipMsg->PAD();
     u->onWrite2Buffer(zipMsg);
 CHANNEL_HANDLER_END()
@@ -643,116 +651,117 @@ CHANNEL_HANDLER_BEGIN(CS_UPDATE_CHANNEL_INFO)
     LPPACKET_HEADER _pPCK = pPCK;
     int gc_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->gc_no;
     gFileLogInfo.Lock();
-    unsigned int uVar3 = gc_no;
-    gFileLogInfo << "ABCD update gc_no=" << uVar3 << endl;
+    gFileLogInfo << "ABCD update gc_no=" << gc_no << endl;
     gFileLogInfo.Unlock();
-    if (isReadyToStart != false)
+    if (isReadyToStart != true)
     {
-        if (gc_no < 1)
+        return 0;
+    }
+    if (gc_no < 1)
+    {
+        gFileLogError.Lock();
+        gFileLogError << "Incomming invalid gc_no=" << gc_no << endl;
+        gFileLogError.Unlock();
+        return 0;
+    }
+    // ORIG：声明时初始化（无默认构造调用）
+    std::map<char*, int>::iterator iter = gc_map.begin();
+    for (; iter != gc_map.end(); iter++)
+    {
+        // ORIG：无 bMatch 局部（DWARF 核对），条件直接 if
+        if ((iter->second - gc_no > 0) &&
+            (iter->second - gc_no <= 999))
         {
-            gFileLogError.Lock();
-            unsigned int uErr = gc_no;
-            gFileLogError << "Incomming invalid gc_no=" << uErr << endl;
-            gFileLogError.Unlock();
-            return 0;
+            ServerGroupIndex = count;
+            strncpy(Servers[ServerGroupIndex].ServerName, iter->first, 0x14);
+            break;
         }
-        std::map<char*, int>::iterator iter;
-        for (iter = gc_map.begin(); iter != gc_map.end(); iter++)
+        count = count + 1;
+    }
+    if (ServerGroupIndex == -1)
+    {
+        gFileLogError.Lock();
+        gFileLogError << "Invalid ServerGroupIndex" << endl;
+        gFileLogError.Unlock();
+        return 0;
+    }
+    if (Servers[ServerGroupIndex].use != true)
+    {
+        Servers[ServerGroupIndex].use = true;
+    }
+    ServerGroupCount = 0;
+    for (int j = 0; j < 0x80; j = j + 1)
+    {
+        if (Servers[j].use != false)
         {
-            bool bMatch = false;
-            if ((iter->second == gc_no || iter->second - gc_no < 0) || 999 < iter->second - gc_no)
+            ServerGroupCount = ServerGroupCount + 1;
+        }
+    }
+    int k;
+    for (k = 0; k < 0x1000; k = k + 1)
+    {
+        if (Servers[ServerGroupIndex].ServerInfo[k].gc_no == gc_no)
+        {
+            break;
+        }
+    }
+    GLOG(gFileLogInfo, "update ?" << k);
+    gFileLogInfo.Lock();
+    gFileLogInfo << "ServerGroupCount=" << ServerGroupCount
+                 << ", ServerGroupIndex=" << ServerGroupIndex
+                 << ", gc_no=" << gc_no << endl;
+    gFileLogInfo.Unlock();
+    if (k == 0x1000)
+    {
+        for (k = 0; k < 0x1000; k = k + 1)
+        {
+            if (Servers[ServerGroupIndex].ServerInfo[k].use == false)
             {
-                bMatch = false;
-            }
-            else
-            {
-                bMatch = true;
-            }
-            if (bMatch)
-            {
-                ServerGroupIndex = count;
-                strncpy(Servers[ServerGroupIndex].ServerName, iter->first, 0x14);
                 break;
             }
-            count = count + 1;
         }
-        if (ServerGroupIndex == -1)
-        {
-            gFileLogError.Lock();
-            gFileLogError << "Invalid ServerGroupIndex" << endl;
-            gFileLogError.Unlock();
-            return 0;
-        }
-        if (Servers[ServerGroupIndex].use != true)
-        {
-            Servers[ServerGroupIndex].use = true;
-        }
-        ServerGroupCount = 0;
-        for (int j = 0; j < 0x80; j = j + 1)
-        {
-            if (Servers[j].use != false)
-            {
-                ServerGroupCount = ServerGroupCount + 1;
-            }
-        }
-        int k;
-        for (k = 0; (k < 0x1000) && (Servers[ServerGroupIndex].ServerInfo[k].gc_no != gc_no); k = k + 1)
-        {
-        }
-        GLOG(gFileLogInfo, "update ?" << k);
+        TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockChannel);
+        Servers[ServerGroupIndex].ServerInfo[k].nMaxUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->max_user_num;
+        Servers[ServerGroupIndex].ServerInfo[k].nCurrentUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->cur_user_num;
+        Servers[ServerGroupIndex].ServerInfo[k].port = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port;
+        Servers[ServerGroupIndex].ServerInfo[k].gc_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->gc_no;
+        strcpy(Servers[ServerGroupIndex].ServerInfo[k].IP, ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip);
+        Servers[ServerGroupIndex].ServerInfo[k].channel_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no;
+        sprintf(Servers[ServerGroupIndex].ServerInfo[k].ChannelName, "#ch.%d", ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no);
+        Servers[ServerGroupIndex].ServerInfo[k].tic = time(NULL);
         gFileLogInfo.Lock();
-        unsigned int uCnt = gc_no;
-        int iSgc = ServerGroupCount;
-        gFileLogInfo << "ServerGroupCount=" << iSgc << ", ServerGroupIndex=" << ServerGroupIndex << ", gc_no=" << uCnt << endl;
+        gFileLogInfo << "Add SGI=" << ServerGroupIndex
+                     << ", IP= " << ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip
+                     << ", PORT= " << ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port
+                     << ", gc_no=" << gc_no << endl;
         gFileLogInfo.Unlock();
-        if (k == 0x1000)
-        {
-            for (k = 0; (k < 0x1000) && (Servers[ServerGroupIndex].ServerInfo[k].use == true); k = k + 1)
-            {
-            }
-            TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockChannel);
-            Servers[ServerGroupIndex].ServerInfo[k].nMaxUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->max_user_num;
-            Servers[ServerGroupIndex].ServerInfo[k].nCurrentUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->cur_user_num;
-            Servers[ServerGroupIndex].ServerInfo[k].port = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port;
-            Servers[ServerGroupIndex].ServerInfo[k].gc_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->gc_no;
-            strcpy(Servers[ServerGroupIndex].ServerInfo[k].IP, ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip);
-            Servers[ServerGroupIndex].ServerInfo[k].channel_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no;
-            sprintf(Servers[ServerGroupIndex].ServerInfo[k].ChannelName, "#ch.%d", ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no);
-            Servers[ServerGroupIndex].ServerInfo[k].tic = time(NULL);
-            gFileLogInfo.Lock();
-            unsigned int uAdd = gc_no;
-            int iPort = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port;
-            char* pIp = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip;
-            gFileLogInfo << "Add SGI=" << ServerGroupIndex << ", IP= " << pIp << ", PORT= " << iPort << ", gc_no=" << uAdd << endl;
-            gFileLogInfo.Unlock();
-            Servers[ServerGroupIndex].ServerInfo[k].use = true;
-            Servers[ServerGroupIndex].listServerInfo_[gc_no] = &Servers[ServerGroupIndex].ServerInfo[k];
-            Servers[ServerGroupIndex].increseServerCount();
-        }
-        else
-        {
-            TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockChannel);
-            Servers[ServerGroupIndex].ServerInfo[k].nMaxUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->max_user_num;
-            Servers[ServerGroupIndex].ServerInfo[k].nCurrentUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->cur_user_num;
-            Servers[ServerGroupIndex].ServerInfo[k].port = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port;
-            Servers[ServerGroupIndex].ServerInfo[k].gc_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->gc_no;
-            strcpy(Servers[ServerGroupIndex].ServerInfo[k].IP, ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip);
-            Servers[ServerGroupIndex].ServerInfo[k].channel_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no;
-            sprintf(Servers[ServerGroupIndex].ServerInfo[k].ChannelName, "#ch.%d", ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no);
-            Servers[ServerGroupIndex].ServerInfo[k].tic = time(NULL);
-            gFileLogInfo.Lock();
-            unsigned int uAdd = gc_no;
-            int iPort = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port;
-            char* pIp = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip;
-            gFileLogInfo << "Add SGI=" << ServerGroupIndex << ", IP= " << pIp << ", PORT= " << iPort << ", gc_no=" << uAdd << endl;
-            gFileLogInfo.Unlock();
-            Servers[ServerGroupIndex].listServerInfo_[gc_no] = &Servers[ServerGroupIndex].ServerInfo[k];
-            Servers[ServerGroupIndex].ServerInfo[k].use = true;
-        }
-        DNF_LOG_OUT();
-        return 1;
+        Servers[ServerGroupIndex].ServerInfo[k].use = true;
+        Servers[ServerGroupIndex].listServerInfo_[gc_no] =
+            &Servers[ServerGroupIndex].ServerInfo[k];
+        Servers[ServerGroupIndex].increseServerCount();
     }
-    return 0;
+    else
+    {
+        TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockChannel);
+        Servers[ServerGroupIndex].ServerInfo[k].nMaxUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->max_user_num;
+        Servers[ServerGroupIndex].ServerInfo[k].nCurrentUserCount_ = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->cur_user_num;
+        Servers[ServerGroupIndex].ServerInfo[k].port = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port;
+        Servers[ServerGroupIndex].ServerInfo[k].gc_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->gc_no;
+        strcpy(Servers[ServerGroupIndex].ServerInfo[k].IP, ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip);
+        Servers[ServerGroupIndex].ServerInfo[k].channel_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no;
+        sprintf(Servers[ServerGroupIndex].ServerInfo[k].ChannelName, "#ch.%d", ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->channel_no);
+        Servers[ServerGroupIndex].ServerInfo[k].tic = time(NULL);
+        gFileLogInfo.Lock();
+        gFileLogInfo << "Add SGI=" << ServerGroupIndex
+                     << ", IP= " << ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->server_ip
+                     << ", PORT= " << ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port
+                     << ", gc_no=" << gc_no << endl;
+        gFileLogInfo.Unlock();
+        Servers[ServerGroupIndex].listServerInfo_[gc_no] = &Servers[ServerGroupIndex].ServerInfo[k];
+        Servers[ServerGroupIndex].ServerInfo[k].use = true;
+    }
+    DNF_LOG_OUT();
+    return 1;
 }
 
 CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
@@ -766,8 +775,7 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
     TMsgCell<128> encbuffer;
     TMsgCell<128> buffer;
     CMsgCell* encMsg = &encbuffer;
-    int nCmp = strcmp(G_ScriptData()->channel_script_version, _DPCK.channel_script_version);
-    if (nCmp == 0)
+    if (strcmp(G_ScriptData()->channel_script_version, _DPCK.channel_script_version) == 0)
     {
         pck.setAckOk();
         pck.is_valid_version = 1;
@@ -777,17 +785,13 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
         pck.setAckOk();
         pck.is_valid_version = 0;
     }
-    size_t nVerLen = strlen(G_ScriptData()->channel_script_version);
+    register size_t nVerLen = strlen(G_ScriptData()->channel_script_version);
     strncpy(pck.channel_script_version, G_ScriptData()->channel_script_version, nVerLen);
-    nVerLen = strlen(G_ScriptData()->channel_script_version);
-    pck.channel_script_version[nVerLen] = '\0';
+    pck.channel_script_version[strlen(G_ScriptData()->channel_script_version)] = '\0';
     *pMsg << &pck;
     pMsg->PAD();
-    int nPckSize = pMsg->GetSize();
-    char* pPckBuf = pMsg->GetBuf();
-    int enc_len = wrapEncrypt(pPckBuf + 0xb, nPckSize - 0xb, (char*)&buffer);
-    pPckBuf = pMsg->GetBuf();
-    encMsg->AttachStream(pPckBuf, 0xb);
+    int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xb, (char*)&buffer);
+    encMsg->AttachStream(pMsg->GetBuf(), 0xb);
     encMsg->AttachStream((char*)&buffer, enc_len);
     encMsg->PAD();
     u->onWrite2Buffer(encMsg);

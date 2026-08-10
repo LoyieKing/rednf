@@ -3,7 +3,7 @@
 
 #include "inc/crc32.h"
 
-static const unsigned int crc32_table[256] = {
+unsigned int arrdwCrc32Table[256] = {
     0x00000000, 0x77073096, 0xee0e612c, 0x990951ba,
     0x076dc419, 0x706af48f, 0xe963a535, 0x9e6495a3,
     0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
@@ -71,7 +71,7 @@ static const unsigned int crc32_table[256] = {
 };
 
 void CCrc32::CalcCrc32(unsigned char byte, unsigned int &dwCrc32) {
-    dwCrc32 = crc32_table[(dwCrc32 ^ byte) & 0xFF] ^ (dwCrc32 >> 8);
+    dwCrc32 = arrdwCrc32Table[(dwCrc32 ^ byte) & 0xFF] ^ (dwCrc32 >> 8);
 }
 
 unsigned int CCrc32::Crc32(unsigned char *buf, unsigned int nsize) {

@@ -69,7 +69,9 @@ void DBMgr::Mysql_error()
     {
         Mysql_logoff();
         Mysql_logon();
+        return;
     }
+    return;
 }
 
 MYSQL_RES* DBMgr::Mysql_query(char* query)
@@ -79,8 +81,8 @@ MYSQL_RES* DBMgr::Mysql_query(char* query)
         Mysql_error();
         return NULL;
     }
-    MYSQL_RES* res = mysql_store_result(h_db);
-    if (res == NULL)
+    MYSQL_RES* res;
+    if ((res = mysql_store_result(h_db)) == 0)
     {
         Mysql_error();
         return NULL;

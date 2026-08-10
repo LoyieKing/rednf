@@ -1,333 +1,309 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/zenlib/zen_shm_lockfree_deque.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Reconstructed from gunnersvr binary (DWARF + objdump), semantic parity with:
+// /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_shm_lockfree_deque.cpp
+// Compiler: GNU C++ 4.1.0 (SUSE Linux), 32-bit, -O2.
+//
+// Function order follows the original source line numbers (operator new is the
+// first function in the TU so the _GLOBAL__I_ key matches the binary).
+//
+// Ring-buffer layout (mmap):
+//   [0] size_of_mmap_   = getallocsize(size_of_deque) = size_of_deque + 28
+//   [4] size_of_deque_  = size_of_deque + 8  (ring capacity)
+//   [8] max_len_node_
+//   [12] deque_begin_   (volatile index)
+//   [16] deque_end_     (volatile index)
+//   [20] ring data (size_of_deque_ bytes)
+// 8 bytes of the ring are reserved (JUDGE_FULL_INTERVAL) so begin==end can
+// never occur in a non-empty deque; freesize() reports raw_free - 8.
+// A node is size_of_node_ bytes: 4-byte header (size_of_node_) + chunkdata.
+// No CAS is used; "lock-free" refers to volatile index reads (snap_getpoint).
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
 #include "src/commlib/zenlib/zen_shm_lockfree_deque.h"
 #include "src/commlib/zenlib/zen_shm_predefine.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
 #include "src/commlib/zenlib/zen_os_adapt_predefine.h"
 #include "src/commlib/zenlib/zen_os_adapt_thread.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
+#include "src/commlib/zenlib/zen_os_adapt_spin.h"
+#include "src/commlib/zenlib/zen_predefine.h"
+
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
 #include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+#include <iostream>
 
-size_t getallocsize(size_t szdeque) {
+// zen_os_adapt_thread.h is still a stub in this workspace; declare the one
+// ZEN_OS function this TU needs. An identical redeclaration from the restored
+// header later is legal, so this fallback can stay.
+#ifndef ZEN_OS_ADAPT_THREAD_H_PTHREAD_SELF_DECLARED_
+#define ZEN_OS_ADAPT_THREAD_H_PTHREAD_SELF_DECLARED_
+namespace ZEN_OS {
+ZEN_THREAD_ID pthread_self();
+}
+#endif
+
+// line 44
+void* ZEN_LIB::dequechunk_node::operator new(size_t arg0, size_t nodelen) {
+    void* ptr;
+    if (nodelen < 4) {
+        nodelen = 4;
+    }
+    ptr = new char[nodelen];
+    *(size_t*)ptr = nodelen;
+    return ptr;
 }
 
-void snap_getpoint(size_t &pstart, size_t &pend) {
+// line 82
+ZEN_LIB::shm_dequechunk::shm_dequechunk()
+    : _shm_memory_base(), dequechunk_head_(0), dequechunk_database_(0),
+      line_wrap_nodeptr_(0) {}
+
+// line 89
+ZEN_LIB::shm_dequechunk::~shm_dequechunk() {
+    if (line_wrap_nodeptr_) {
+        delete line_wrap_nodeptr_;
+        line_wrap_nodeptr_ = 0;
+    }
 }
 
-size_t freesize() {
-    // local: size_t pstart;
-    // local: size_t pend;
-    // local: size_t szfree;
+// line 99
+size_t ZEN_LIB::shm_dequechunk::getallocsize(size_t szdeque) {
+    return szdeque + sizeof(_shm_dequechunk_head) +
+           2 * dequechunk_node::DEQUECHUNK_NODE_HEAD_LEN;
 }
 
-bool empty() {
+// line 123
+ZEN_LIB::shm_dequechunk* ZEN_LIB::shm_dequechunk::initialize(
+        size_t size_of_deque, size_t max_len_node, char* pmmap,
+        bool if_restore, bool if_check_pthread) {
+    if (size_of_deque <= sizeof(_shm_dequechunk_head)) {
+        return 0;
+    }
+    _shm_dequechunk_head* dequechunk_head = (_shm_dequechunk_head*)pmmap;
+    if (if_restore) {
+        if (dequechunk_head->size_of_mmap_ != getallocsize(size_of_deque) ||
+            dequechunk_head->size_of_deque_ !=
+                size_of_deque + 2 * dequechunk_node::DEQUECHUNK_NODE_HEAD_LEN ||
+            dequechunk_head->max_len_node_ != max_len_node) {
+            return 0;
+        }
+    }
+    dequechunk_head->size_of_mmap_ = getallocsize(size_of_deque);
+    dequechunk_head->size_of_deque_ =
+        size_of_deque + 2 * dequechunk_node::DEQUECHUNK_NODE_HEAD_LEN;
+    dequechunk_head->max_len_node_ = max_len_node;
+
+    shm_dequechunk* dequechunk = new shm_dequechunk();
+    dequechunk->smem_base_ = pmmap;
+    dequechunk->dequechunk_head_ = dequechunk_head;
+    dequechunk->dequechunk_database_ = pmmap + sizeof(_shm_dequechunk_head);
+    if (!if_restore) {
+        dequechunk->clear();
+    }
+    dequechunk->if_check_pthread_ = if_check_pthread;
+    if (if_check_pthread) {
+        dequechunk->pthread_id_ = ZEN_OS::pthread_self();
+    }
+    return dequechunk;
 }
 
-bool full() {
+// line 176
+void ZEN_LIB::shm_dequechunk::clear() {
+    dequechunk_head_->deque_begin_ = 0;
+    dequechunk_head_->deque_end_ = 0;
+    memset(dequechunk_database_, 0, dequechunk_head_->size_of_deque_);
 }
 
-bool push_end(const /*anon struct*/ int *node) {
-    // local: char *pend;
-    // local: size_t first;
-    // local: size_t second;
+// line 198
+void ZEN_LIB::shm_dequechunk::snap_getpoint(size_t& pstart, size_t& pend) {
+    pstart = dequechunk_head_->deque_begin_;
+    pend = dequechunk_head_->deque_end_;
 }
 
-void clear() {
+// line 199 (declared in header at line 183; fully inlined, no emitted symbol)
+inline size_t ZEN_LIB::shm_dequechunk::get_front_len() {
+    char* tmp1 = dequechunk_database_;
+    size_t tmplen;
+    char* tmp2 = dequechunk_database_ + dequechunk_head_->size_of_deque_;
+    if (tmp1 + dequechunk_head_->deque_begin_ + 4 <= tmp2) {
+        tmplen = *(size_t*)(tmp1 + dequechunk_head_->deque_begin_);
+    } else {
+        char* p = tmp1 + dequechunk_head_->deque_begin_;
+        for (size_t i = 0; i < dequechunk_node::DEQUECHUNK_NODE_HEAD_LEN;
+             ++i) {
+            if (p >= tmp2) {
+                p = tmp1;
+            }
+            ((char*)&tmplen)[i] = *p++;
+        }
+    }
+    return tmplen;
 }
 
-// line 20
-void * operator new(size_t arg0, size_t nodelen) {
-    // local: void *ptr;
+// line 219
+bool ZEN_LIB::shm_dequechunk::push_end(const dequechunk_node* node) {
+    if (if_check_pthread_) {
+        if (pthread_id_ != ZEN_OS::pthread_self()) {
+            abort();
+        }
+    }
+    size_t nodelen = node->size_of_node_;
+    if (nodelen <= dequechunk_node::DEQUECHUNK_NODE_HEAD_LEN ||
+        nodelen > dequechunk_head_->max_len_node_) {
+        return false;
+    }
+    if (freesize() < nodelen) {
+        return false;
+    }
+    char* pend = dequechunk_database_ + dequechunk_head_->deque_end_;
+    size_t first = dequechunk_head_->size_of_deque_ -
+                   dequechunk_head_->deque_end_;
+    if (pend + nodelen <
+        dequechunk_database_ + dequechunk_head_->size_of_deque_) {
+        memcpy(pend, node, nodelen);
+        dequechunk_head_->deque_end_ += nodelen;
+        return true;
+    }
+    size_t second = nodelen - first;
+    memcpy(pend, node, first);
+    memcpy(dequechunk_database_, (char*)node + first, second);
+    dequechunk_head_->deque_end_ = second;
+    return true;
 }
 
-/*anon struct*/ int * initialize(size_t size_of_deque, size_t max_len_node, char *pmmap, bool if_restore, bool if_check_pthread) {
-    // local: /*anon struct*/ int *dequechunk_head;
-    // local: /*anon struct*/ int *dequechunk;
+// line 279
+bool ZEN_LIB::shm_dequechunk::pop_front(dequechunk_node* node) {
+    if (if_check_pthread_) {
+        if (pthread_id_ != ZEN_OS::pthread_self()) {
+            abort();
+        }
+    }
+    if (empty()) {
+        return false;
+    }
+    char* pbegin = dequechunk_database_ + dequechunk_head_->deque_begin_;
+    size_t tmplen = get_front_len();
+    if (pbegin + tmplen <=
+        dequechunk_database_ + dequechunk_head_->size_of_deque_) {
+        memcpy(node, pbegin, tmplen);
+        dequechunk_head_->deque_begin_ += node->size_of_node_;
+        return true;
+    }
+    size_t first = dequechunk_head_->size_of_deque_ -
+                   dequechunk_head_->deque_begin_;
+    size_t second = tmplen - first;
+    memcpy(node, pbegin, first);
+    memcpy(dequechunk_database_, (char*)node + first, second);
+    dequechunk_head_->deque_begin_ = second;
+    return true;
 }
 
-bool read_front(/*anon struct*/ int *node) {
-    // local: char *pbegin;
-    // local: size_t tmplen;
-    // local: size_t first;
-    // local: size_t second;
+// line 341
+bool ZEN_LIB::shm_dequechunk::pop_front_new(dequechunk_node*& new_node) {
+    if (empty()) {
+        return false;
+    }
+    size_t tmplen = get_front_len();
+    new_node = (dequechunk_node*)dequechunk_node::operator new(4, tmplen);
+    return pop_front(new_node);
 }
 
-bool read_front_new(/*anon struct*/ int *&new_node) {
-    // local: size_t tmplen;
+// line 373
+bool ZEN_LIB::shm_dequechunk::read_front(dequechunk_node* node) {
+    if (empty()) {
+        return false;
+    }
+    char* pbegin = dequechunk_database_ + dequechunk_head_->deque_begin_;
+    size_t tmplen = get_front_len();
+    if (pbegin + tmplen <=
+        dequechunk_database_ + dequechunk_head_->size_of_deque_) {
+        memcpy(node, pbegin, tmplen);
+        return true;
+    }
+    size_t first = dequechunk_head_->size_of_deque_ -
+                   dequechunk_head_->deque_begin_;
+    size_t second = tmplen - first;
+    memcpy(node, pbegin, first);
+    memcpy((char*)node + first, dequechunk_database_, second);
+    return true;
 }
 
-bool pop_front(/*anon struct*/ int *node) {
-    // local: char *pbegin;
-    // local: size_t tmplen;
-    // local: size_t first;
-    // local: size_t second;
+// line 405
+bool ZEN_LIB::shm_dequechunk::read_front_new(dequechunk_node*& new_node) {
+    if (empty()) {
+        return false;
+    }
+    size_t tmplen = get_front_len();
+    new_node = (dequechunk_node*)dequechunk_node::operator new(4, tmplen);
+    return read_front(new_node);
 }
 
-bool pop_front_new(/*anon struct*/ int *&new_node) {
-    // local: size_t tmplen;
+// line 422
+bool ZEN_LIB::shm_dequechunk::read_front_ptr(
+        const dequechunk_node*& node_ptr) {
+    if (empty()) {
+        return false;
+    }
+    char* pbegin = dequechunk_database_ + dequechunk_head_->deque_begin_;
+    size_t tmplen = get_front_len();
+    if (pbegin + tmplen <=
+        dequechunk_database_ + dequechunk_head_->size_of_deque_) {
+        node_ptr = (const dequechunk_node*)pbegin;
+        return true;
+    }
+    size_t first = dequechunk_head_->size_of_deque_ -
+                   dequechunk_head_->deque_begin_;
+    if (!line_wrap_nodeptr_) {
+        line_wrap_nodeptr_ =
+            (dequechunk_node*)dequechunk_node::operator new(
+                4, dequechunk_head_->max_len_node_);
+    }
+    memcpy(line_wrap_nodeptr_, pbegin, first);
+    memcpy((char*)line_wrap_nodeptr_ + first, dequechunk_database_,
+           tmplen - first);
+    node_ptr = line_wrap_nodeptr_;
+    return true;
 }
 
-bool discard_frond() {
-    // local: char *pbegin;
-    // local: size_t tmplen;
-    // local: size_t first;
-    // local: size_t second;
+// line 461
+bool ZEN_LIB::shm_dequechunk::discard_frond() {
+    if (empty()) {
+        return false;
+    }
+    char* pbegin = dequechunk_database_ + dequechunk_head_->deque_begin_;
+    size_t tmplen = get_front_len();
+    if (pbegin + tmplen <=
+        dequechunk_database_ + dequechunk_head_->size_of_deque_) {
+        dequechunk_head_->deque_begin_ += tmplen;
+        return true;
+    }
+    size_t first = dequechunk_head_->size_of_deque_ -
+                   dequechunk_head_->deque_begin_;
+    size_t second = tmplen - first;
+    dequechunk_head_->deque_begin_ = second;
+    return true;
 }
 
-bool read_front_ptr(const /*anon struct*/ int *&node_ptr) {
-    // local: char *pbegin;
-    // local: size_t tmplen;
-    // local: size_t first;
-    // local: size_t second;
+// line 503
+size_t ZEN_LIB::shm_dequechunk::freesize() {
+    size_t pstart;
+    size_t pend;
+    snap_getpoint(pstart, pend);
+    size_t szfree;
+    if (pstart == pend) {
+        szfree = dequechunk_head_->size_of_deque_;
+    } else if (pstart < pend) {
+        szfree = dequechunk_head_->size_of_deque_ - (pend - pstart);
+    } else {
+        szfree = pstart - pend;
+    }
+    return szfree - JUDGE_FULL_INTERVAL;
 }
 
+// line 532
+bool ZEN_LIB::shm_dequechunk::empty() {
+    return freesize() ==
+           dequechunk_head_->size_of_deque_ - JUDGE_FULL_INTERVAL;
+}
+
+// line 538
+bool ZEN_LIB::shm_dequechunk::full() {
+    return freesize() == 0;
+}

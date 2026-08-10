@@ -4,6 +4,8 @@
 #ifndef SECSVR_SRC_COMMSVR_ZERGSVR_ZERG_CONSOLE_HANDLER_H_H_
 #define SECSVR_SRC_COMMSVR_ZERGSVR_ZERG_CONSOLE_HANDLER_H_H_
 
+#include "output/commlib/framework/release/include/comm_mml_console_handler.h"
+
 // sizeof = 136
 struct Zerg_Console_Handler : public MML_Console_Handler { // line 9
 public:

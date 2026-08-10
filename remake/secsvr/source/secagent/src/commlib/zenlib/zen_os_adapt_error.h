@@ -5,7 +5,7 @@
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_ERROR_H_H_
 
 namespace ZEN_OS {
-    extern int last_error(); // line 442
+    extern int last_error(); // line 438
 } // namespace ZEN_OS
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_ERROR_H_H_

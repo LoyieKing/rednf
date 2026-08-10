@@ -1,156 +1,291 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from gunnersvr disassembly
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/protocol/common/TdrTypeUtil.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/protocol/common/TdrTypeUtil.h"
 #include "src/protocol/common/TdrPal.h"
 #include "src/protocol/common/TdrBuf.h"
 #include "src/protocol/common/TdrError.h"
 #include "src/protocol/common/TdrTime.h"
-#include "src/protocol/common/<built-in>"
-#include <_G_config.h>
-#include <alloca.h>
+
 #include <arpa/inet.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/byteswap.h>
-#include <bits/confname.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/in.h>
-#include <bits/local_lim.h>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/pthreadtypes.h>
-#include <bits/select.h>
-#include <bits/sigset.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <endian.h>
-#include <exception>
-#include <features.h>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <inttypes.h>
-#include <libio.h>
-#include <limits.h>
-#include <linux/limits.h>
 #include <netinet/in.h>
-#include <new>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <syslimits.h>
 #include <time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <xlocale.h>
 
-// line 249
-size_t wstrlen(const tdr_wchar_t *wstr) {
-    // local: size_t len;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::tdrIp2Str(char *dest, unsigned int size, tdr_ip_t src) {
+    struct in_addr addr;
+    addr.s_addr = src;
+    if (inet_ntop(AF_INET, &addr, dest, size) == NULL) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    dest[size - 1] = '\0';
+    return TdrError::TDR_NO_ERROR;
 }
 
-// line 137
-tsf4g_tdr::TdrError::ErrorType str2TdrDate(tdr_date_t &dest, const char *pszDate) {
-    // local: tm stTm;
-    // local: /*anon struct*/ int tdrDate;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::tdrIp2Str(TdrWriteBuf &buf, tdr_ip_t src) {
+    struct in_addr addr;
+    char dotIP[32];
+    addr.s_addr = src;
+    if (inet_ntop(AF_INET, &addr, dotIP, sizeof(dotIP)) == NULL) {
+        return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    }
+    dotIP[sizeof(dotIP) - 1] = '\0';
+    return buf.textize("%s", dotIP);
 }
 
-// line 114
-tsf4g_tdr::TdrError::ErrorType str2TdrTime(tdr_time_t &dest, const char *pszTime) {
-    // local: tm stTm;
-    // local: /*anon struct*/ int tdrTime;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::UTC2TdrDateTime(tdr_datetime_t &dest, time_t utcTime) {
+    struct tm stTm;
+    memset(&stTm, 0, sizeof(stTm));
+    struct tm *pstTm = localtime_r(&utcTime, &stTm);
+    if (pstTm == NULL) {
+        return TdrError::TDR_ERR_FUNC_LOCALTIME_FAILED;
+    }
+
+    TdrDateTime tdrDateTime;
+    tdrDateTime.year = pstTm->tm_year + 1900;
+    tdrDateTime.month = pstTm->tm_mon + 1;
+    tdrDateTime.day = pstTm->tm_mday;
+    tdrDateTime.hour = pstTm->tm_hour;
+    tdrDateTime.minute = pstTm->tm_min;
+    tdrDateTime.second = pstTm->tm_sec;
+    TdrDate datePart;
+    datePart.year = tdrDateTime.year;
+    datePart.month = tdrDateTime.month;
+    datePart.day = tdrDateTime.day;
+    if (!datePart.isValid()) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+    if (tdrDateTime.hour + 999 > 1998 || tdrDateTime.minute > 59 || tdrDateTime.second > 59) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+
+    TdrDateTime tmp;
+    tmp.year = tdrDateTime.year;
+    tmp.month = tdrDateTime.month;
+    tmp.day = tdrDateTime.day;
+    tmp.hour = tdrDateTime.hour;
+    tmp.minute = tdrDateTime.minute;
+    tmp.second = tdrDateTime.second;
+    dest = *reinterpret_cast<tdr_datetime_t *>(&tmp);
+    return TdrError::TDR_NO_ERROR;
 }
 
-// line 89
-tsf4g_tdr::TdrError::ErrorType str2TdrIP(tdr_ip_t &dest, const char *pszIP) {
-    // local: in_addr addr;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::str2TdrIP(tdr_ip_t &dest, const char *pszIP) {
+    struct in_addr addr;
+    if (inet_aton(pszIP, &addr) == 0) {
+        return TdrError::TDR_ERR_INVALID_TDRIP_VALUE;
+    }
+    dest = addr.s_addr;
+    return TdrError::TDR_NO_ERROR;
 }
 
-// line 60
-tsf4g_tdr::TdrError::ErrorType UTC2TdrDateTime(tdr_datetime_t &dest, time_t utcTime) {
-    // local: tm *pstTm;
-    // local: tm stTm;
-    // local: /*anon struct*/ int tdrDateTime;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::str2TdrTime(tdr_time_t &dest, const char *pszTime) {
+    struct tm stTm;
+    memset(&stTm, 0, sizeof(stTm));
+    if (strptime(pszTime, "%H:%M:%S", &stTm) == NULL) {
+        return TdrError::TDR_ERR_INVALID_TDRTIME_VALUE;
+    }
+
+    TdrTime tdrTime;
+    tdrTime.hour = stTm.tm_hour;
+    tdrTime.minute = stTm.tm_min;
+    tdrTime.second = stTm.tm_sec;
+    if (tdrTime.hour + 999 > 1998 || tdrTime.minute > 59 || tdrTime.second > 59) {
+        return TdrError::TDR_ERR_INVALID_TDRTIME_VALUE;
+    }
+
+    TdrTime tmp;
+    tmp.hour = tdrTime.hour;
+    tmp.minute = tdrTime.minute;
+    tmp.second = tdrTime.second;
+    dest = *reinterpret_cast<tdr_time_t *>(&tmp);
+    return TdrError::TDR_NO_ERROR;
 }
 
-// line 18
-tsf4g_tdr::TdrError::ErrorType tdrIp2Str(char *dest, size_t size, tdr_ip_t src) {
-    // local: in_addr addr;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::str2TdrDate(tdr_date_t &dest, const char *pszDate) {
+    struct tm stTm;
+    memset(&stTm, 0, sizeof(stTm));
+    if (strptime(pszDate, "%Y-%m-%d", &stTm) == NULL) {
+        return TdrError::TDR_ERR_INVALID_TDRDATE_VALUE;
+    }
+
+    TdrDate tdrDate;
+    tdrDate.year = stTm.tm_year + 1900;
+    tdrDate.month = stTm.tm_mon + 1;
+    tdrDate.day = stTm.tm_mday;
+    if (!tdrDate.isValid()) {
+        return TdrError::TDR_ERR_INVALID_TDRDATE_VALUE;
+    }
+
+    TdrDate tmp;
+    tmp.year = tdrDate.year;
+    tmp.month = tdrDate.month;
+    tmp.day = tdrDate.day;
+    dest = *reinterpret_cast<tdr_date_t *>(&tmp);
+    return TdrError::TDR_NO_ERROR;
 }
 
-tsf4g_tdr::TdrError::ErrorType textize(const char *format) {
-    // local: va_list ap;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::str2TdrDateTime(tdr_datetime_t &dest, const char *pszDateTime) {
+    struct tm stTm;
+    memset(&stTm, 0, sizeof(stTm));
+    if (strptime(pszDateTime, "%Y-%m-%d %H:%M:%S", &stTm) == NULL) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+
+    TdrDateTime tdrDateTime;
+    tdrDateTime.year = stTm.tm_year + 1900;
+    tdrDateTime.month = stTm.tm_mon + 1;
+    tdrDateTime.day = stTm.tm_mday;
+    tdrDateTime.hour = stTm.tm_hour;
+    tdrDateTime.minute = stTm.tm_min;
+    tdrDateTime.second = stTm.tm_sec;
+    TdrDate datePart;
+    datePart.year = tdrDateTime.year;
+    datePart.month = tdrDateTime.month;
+    datePart.day = tdrDateTime.day;
+    if (!datePart.isValid()) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+    if (tdrDateTime.hour + 999 > 1998 || tdrDateTime.minute > 59 || tdrDateTime.second > 59) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+
+    TdrDateTime tmp;
+    tmp.year = tdrDateTime.year;
+    tmp.month = tdrDateTime.month;
+    tmp.day = tdrDateTime.day;
+    tmp.hour = tdrDateTime.hour;
+    tmp.minute = tdrDateTime.minute;
+    tmp.second = tdrDateTime.second;
+    dest = *reinterpret_cast<tdr_datetime_t *>(&tmp);
+    return TdrError::TDR_NO_ERROR;
 }
 
-// line 39
-tsf4g_tdr::TdrError::ErrorType tdrIp2Str(/*anon struct*/ int &dest, tdr_ip_t src) {
-    // local: in_addr addr;
-    // local: char dotIP[];
+tsf4g_tdr::TdrError::ErrorType tsf4g_tdr::TdrTypeUtil::tdrDateTime2UTC(time_t &dest, tdr_datetime_t src) {
+    struct tm stTm;
+    memset(&stTm, 0, sizeof(stTm));
+
+    TdrDateTime tdrDateTime = *reinterpret_cast<TdrDateTime *>(&src);
+    TdrDate datePart;
+    datePart.year = tdrDateTime.year;
+    datePart.month = tdrDateTime.month;
+    datePart.day = tdrDateTime.day;
+    if (!datePart.isValid()) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+    if (tdrDateTime.hour + 999 > 1998 || tdrDateTime.minute > 59 || tdrDateTime.second > 59) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+
+    stTm.tm_year = tdrDateTime.year - 1900;
+    stTm.tm_mon = tdrDateTime.month - 1;
+    stTm.tm_mday = tdrDateTime.day;
+    stTm.tm_hour = tdrDateTime.hour;
+    stTm.tm_min = tdrDateTime.minute;
+    stTm.tm_sec = tdrDateTime.second;
+    time_t utcTime = mktime(&stTm);
+    if (utcTime == (time_t)-1) {
+        return TdrError::TDR_ERR_INVALID_TDRDATETIME_VALUE;
+    }
+    dest = utcTime;
+    return TdrError::TDR_NO_ERROR;
 }
 
-// line 221
-int compareTdrDate(tdr_date_t left, tdr_date_t right) {
+int tsf4g_tdr::TdrTypeUtil::compareTdrTime(tdr_time_t left, tdr_time_t right) {
+    TdrTime l = *reinterpret_cast<TdrTime *>(&left);
+    TdrTime r = *reinterpret_cast<TdrTime *>(&right);
+    if (l.hour < r.hour) {
+        return -1;
+    }
+    if (l.hour > r.hour) {
+        return 1;
+    }
+    if (l.minute < r.minute) {
+        return -1;
+    }
+    if (l.minute > r.minute) {
+        return 1;
+    }
+    if (l.second < r.second) {
+        return -1;
+    }
+    if (l.second > r.second) {
+        return 1;
+    }
+    return 0;
 }
 
-// line 207
-int compareTdrTime(tdr_time_t left, tdr_time_t right) {
+int tsf4g_tdr::TdrTypeUtil::compareTdrDate(tdr_date_t left, tdr_date_t right) {
+    TdrDate l = *reinterpret_cast<TdrDate *>(&left);
+    TdrDate r = *reinterpret_cast<TdrDate *>(&right);
+    if (l.year < r.year) {
+        return -1;
+    }
+    if (l.year > r.year) {
+        return 1;
+    }
+    if (l.month < r.month) {
+        return -1;
+    }
+    if (l.month > r.month) {
+        return 1;
+    }
+    if (l.day < r.day) {
+        return -1;
+    }
+    if (l.day > r.day) {
+        return 1;
+    }
+    return 0;
 }
 
-// line 183
-tsf4g_tdr::TdrError::ErrorType tdrDateTime2UTC(time_t &dest, tdr_datetime_t src) {
-    // local: tm stTm;
-    // local: /*anon struct*/ int tdrDateTime;
-    // local: time_t utcTime;
+int tsf4g_tdr::TdrTypeUtil::compareTdrDateTime(tdr_datetime_t left, tdr_datetime_t right) {
+    TdrDateTime l = *reinterpret_cast<TdrDateTime *>(&left);
+    TdrDateTime r = *reinterpret_cast<TdrDateTime *>(&right);
+    if (l.year < r.year) {
+        return -1;
+    }
+    if (l.year > r.year) {
+        return 1;
+    }
+    if (l.month < r.month) {
+        return -1;
+    }
+    if (l.month > r.month) {
+        return 1;
+    }
+    if (l.day < r.day) {
+        return -1;
+    }
+    if (l.day > r.day) {
+        return 1;
+    }
+    if (l.hour < r.hour) {
+        return -1;
+    }
+    if (l.hour > r.hour) {
+        return 1;
+    }
+    if (l.minute < r.minute) {
+        return -1;
+    }
+    if (l.minute > r.minute) {
+        return 1;
+    }
+    if (l.second < r.second) {
+        return -1;
+    }
+    if (l.second > r.second) {
+        return 1;
+    }
+    return 0;
 }
 
-// line 160
-tsf4g_tdr::TdrError::ErrorType str2TdrDateTime(tdr_datetime_t &dest, const char *pszDateTime) {
-    // local: tm stTm;
-    // local: /*anon struct*/ int tdrDateTime;
+unsigned int tsf4g_tdr::TdrTypeUtil::wstrlen(const tdr_wchar_t *wstr) {
+    unsigned int len = 0;
+    while (wstr[len] != 0) {
+        ++len;
+    }
+    return len;
 }
-
-// line 235
-int compareTdrDateTime(tdr_datetime_t left, tdr_datetime_t right) {
-}
-

@@ -7,8 +7,8 @@
 // sizeof = 1
 struct ZEN_NON_Copyable { // line 34
 protected:
-ZEN_NON_Copyable(); // line 37
-~ZEN_NON_Copyable(); // line 41
+ZEN_NON_Copyable() {} // line 37（原版 inline：二进制无独立符号）
+~ZEN_NON_Copyable() {} // line 41
 private:
 ZEN_NON_Copyable(const ZEN_NON_Copyable &arg0); // line 48
 const ZEN_NON_Copyable & operator=(const ZEN_NON_Copyable &arg0); // line 50

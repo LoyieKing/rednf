@@ -8,6 +8,8 @@
 #include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_socket_acceptor.h"
 
+struct Zerg_IPRestrict_Mgr;
+
 // sizeof = 60
 struct TCP_Accept_Handler : public ZEN_Event_Handler { // line 13
 protected:

@@ -4,7 +4,8 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_STREAM_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_STREAM_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
+#include "zen_socket_base.h"
+#include "zen_time_value.h"
 #include <stddef.h>
 #include <unistd.h>
 

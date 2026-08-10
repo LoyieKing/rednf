@@ -1,17 +1,21 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_socket_base.h
+// Original path: src/commlib/zenlib/zen_socket_base.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_BASE_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_BASE_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
+#include "zen_os_adapt_predefine.h"
+#include "zen_socket_addr_base.h"
 #include <stddef.h>
 #include <unistd.h>
 
 // sizeof = 4
 struct ZEN_Socket_Base { // line 10
-protected:
+// socket_handle_ 置为 public：MML_Console_Handler::handle_input 在 oracle 中
+// 直接读取成员偏移（mov 0x30(%edi),%eax），未走 get_handle() 外联调用。
+public:
 ZEN_SOCKET socket_handle_;
+protected:
 ZEN_Socket_Base(); // line 20
 ZEN_Socket_Base(const ZEN_SOCKET &arg0); // line 21
 ~ZEN_Socket_Base(); // line 22
@@ -33,4 +37,4 @@ ssize_t recv(void *arg0, size_t arg1, int arg2) const; // line 85
 ssize_t send(const void *arg0, size_t arg1, int arg2) const; // line 90
 };
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_BASE_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_

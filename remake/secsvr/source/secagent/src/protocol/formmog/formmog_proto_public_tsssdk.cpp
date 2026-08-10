@@ -1,614 +1,1125 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/protocol/formmog/formmog_proto_public_tsssdk.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Reconstructed from secagent disassembly
 
 #include "src/protocol/formmog/formmog_proto_public_tsssdk.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "src/protocol/formmog/formmog_proto_public_cmd.h"
-#include "src/protocol/formmog/<built-in>"
-#include <_G_config.h>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/byteswap.h>
-#include <bits/confname.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/in.h>
-#include <bits/local_lim.h>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/pthreadtypes.h>
-#include <bits/select.h>
-#include <bits/sigset.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <endian.h>
-#include <exception>
-#include <features.h>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <inttypes.h>
-#include <libio.h>
-#include <limits.h>
-#include <linux/limits.h>
-#include <netinet/in.h>
-#include <new>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include "src/protocol/common/TdrBuf.h"
+#include "src/protocol/common/TdrPal.h"
+#include "src/protocol/common/TdrError.h"
+#include "src/protocol/common/TdrBufUtil.h"
+#include "src/protocol/common/TdrTypeUtil.h"
+#include "src/protocol/common/TdrTime.h"
+
 #include <string.h>
-#include <sys/cdefs.h>
-#include <sys/select.h>
-#include <sys/socket.h>
-#include <sys/sysmacros.h>
-#include <sys/types.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <unistd.h>
-#include <wchar.h>
-#include <xlocale.h>
-
-// line 2823
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1880
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1322
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1084
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3101
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t cmd_lists__i;
-}
-
-// line 1600
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t modes__i;
-}
-
-// line 2896
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2674
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2338
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1961
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1711
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1395
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1173
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 895
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 417
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 25
-tsf4g_tdr::TdrError::ErrorType construct() {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-tsf4g_tdr::TdrError::ErrorType textize(const char *format) {
-    // local: va_list ap;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2210
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: unsigned int reserve__i;
-}
-
-// line 1373
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1151
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 3190
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2874
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2316
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1939
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1689
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1740
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 726
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t punish_info__i;
-    // local: uint16_t punish_reason__i;
-}
-
-// line 873
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 284
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t data__i;
-}
-
-// line 395
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2557
-tsf4g_tdr::TdrError::ErrorType visualize(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint16_t unlock_url__i;
-}
-
-// line 2652
-const char * visualize_ex(/*anon struct*/ int &destBuf, int indent, char separator) {
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1810
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1791
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2703
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2925
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t cmd_lists__i;
-}
-
-// line 1202
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1424
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t modes__i;
-}
-
-// line 1183
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 924
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2367
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1990
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 446
-tsf4g_tdr::TdrError::ErrorType pack(/*anon struct*/ int &destBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2100
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2081
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3163
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 3082
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1124
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1065
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 905
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 846
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 707
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 427
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 368
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 265
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 35
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2906
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2847
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2804
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2684
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2625
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2538
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2348
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2289
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 2191
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1971
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1912
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1861
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1721
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1662
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1581
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1405
-tsf4g_tdr::TdrError::ErrorType pack(char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1346
-const char * visualize_ex(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: size_t targetPos;
-    // local: const size_t totalSize;
-}
-
-// line 1303
-tsf4g_tdr::TdrError::ErrorType visualize(char *buffer, size_t size, size_t *usedSize, int indent, char separator) {
-    // local: /*anon struct*/ int destBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2763
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 3013
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t cmd_lists__i;
-}
-
-// line 2994
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2744
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1262
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1512
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-    // local: uint32_t modes__i;
-}
-
-// line 1493
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1243
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 1004
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 985
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 586
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 567
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 169
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 150
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2462
-tsf4g_tdr::TdrError::ErrorType unpack(/*anon struct*/ int &srcBuf, unsigned int cutVer) {
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
-// line 2443
-tsf4g_tdr::TdrError::ErrorType unpack(const char *buffer, size_t size, size_t *usedSize, unsigned int cutVer) {
-    // local: /*anon struct*/ int srcBuf;
-    // local: tsf4g_tdr::TdrError::ErrorType ret;
-}
-
+#include <stdint.h>
+
+namespace {
+
+// 读取带长度前缀的字符串（长度字段含结尾 NUL），单个元素最大 maxLen 字节。
+tsf4g_tdr::TdrError::ErrorType readBoundedString(tsf4g_tdr::TdrReadBuf& destBuf, char* dest, size_t maxLen) {
+    uint32_t size;
+    tsf4g_tdr::TdrError::ErrorType ret = destBuf.readUInt32(size);
+    if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < size) return tsf4g_tdr::TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    if (size > maxLen) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_TOO_BIG;
+    if (size == 0) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_TOO_SMALL;
+    if (dest == NULL) return tsf4g_tdr::TdrError::TDR_ERR_ARG_POINTER_IS_NULL;
+    for (uint32_t i = 0; i < size; ++i) {
+        ret = destBuf.readChar(dest[i]);
+        if (ret != tsf4g_tdr::TdrError::TDR_NO_ERROR) return ret;
+    }
+    if (dest[size - 1] != '\0') return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_CONFLICT;
+    if (strlen(dest) + 1 != size) return tsf4g_tdr::TdrError::TDR_ERR_STR_LEN_CONFLICT;
+    return tsf4g_tdr::TdrError::TDR_NO_ERROR;
+}
+
+} // anonymous namespace
+
+namespace sec_proto {
+
+using namespace tsf4g_tdr;
+
+
+TdrError::ErrorType SendToSDK::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SendToSDK::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(to_busi_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(from_busi_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (data_len_ > 32767) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint16_t i = 0; i < data_len_; ++i) {
+        ret = destBuf.writeUInt8(data_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SendToSDK::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SendToSDK::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(to_busi_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(from_busi_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (data_len_ > 32767) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < data_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint16_t i = 0; i < data_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        data_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SendToSDK::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SendToSDK::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[room_id_]", "%d", room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[time_stamp_]", "%u", time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[to_busi_id_]", "%d", to_busi_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[from_busi_id_]", "%d", from_busi_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[data_len_]", "%u", data_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[data_]", 0);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (data_len_ != 0) {
+        for (uint16_t i = 0; i < data_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", data_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SendToSDK::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SendToSDK::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SendToSDK::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType PunishClientReq::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientReq::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(punish_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(punish_duration_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(punish_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (punish_info_len_ > 1024) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < punish_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint16_t i = 0; i < punish_info_len_; ++i) {
+        ret = destBuf.writeUInt8(punish_info_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    ret = destBuf.writeUInt16(punish_reason_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (punish_reason_len_ > 1024) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < punish_reason_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint16_t i = 0; i < punish_reason_len_; ++i) {
+        ret = destBuf.writeUInt8(punish_reason_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientReq::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType PunishClientReq::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(punish_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(punish_duration_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(punish_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (punish_info_len_ > 1024) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < punish_info_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint16_t i = 0; i < punish_info_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        punish_info_[i] = (uint8_t)c;
+    }
+    ret = srcBuf.readUInt16(punish_reason_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (punish_reason_len_ > 1024) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < punish_reason_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint16_t i = 0; i < punish_reason_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        punish_reason_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientReq::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType PunishClientReq::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[room_id_]", "%d", room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[time_stamp_]", "%u", time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[punish_type_]", "%u", punish_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[punish_duration_]", "%u", punish_duration_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[punish_info_len_]", "%u", punish_info_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[punish_info_]", 0);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (punish_info_len_ != 0) {
+        for (uint16_t i = 0; i < punish_info_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", punish_info_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[punish_reason_len_]", "%u", punish_reason_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[punish_reason_]", 0);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (punish_reason_len_ != 0) {
+        for (uint16_t i = 0; i < punish_reason_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", punish_reason_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientReq::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* PunishClientReq::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* PunishClientReq::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType PunishClientRsp::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientRsp::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientRsp::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType PunishClientRsp::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientRsp::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType PunishClientRsp::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[room_id_]", "%d", room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[time_stamp_]", "%u", time_stamp_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[result_]", "%d", result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType PunishClientRsp::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* PunishClientRsp::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* PunishClientRsp::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType DpBanModeDetail::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeDetail::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(mode_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(keep_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeDetail::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpBanModeDetail::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(mode_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(keep_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeDetail::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpBanModeDetail::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[mode_id_]", "%u", mode_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[keep_time_]", "%u", keep_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeDetail::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* DpBanModeDetail::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* DpBanModeDetail::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType DpBanModeReq::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeReq::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return TdrError::TDR_NO_ERROR;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = modes_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeReq::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpBanModeReq::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return TdrError::TDR_NO_ERROR;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = modes_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeReq::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpBanModeReq::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[room_id_]", "%d", room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[count_]", "%u", count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 32) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return ret;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[modes_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = modes_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = modes_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpBanModeReq::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* DpBanModeReq::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* DpBanModeReq::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType DpDropCmdlistInfo::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistInfo::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32(cmdlist_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(keep_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistInfo::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpDropCmdlistInfo::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt32(cmdlist_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(keep_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistInfo::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpDropCmdlistInfo::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cmdlist_id_]", "%u", cmdlist_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[keep_time_]", "%u", keep_time_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistInfo::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* DpDropCmdlistInfo::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* DpDropCmdlistInfo::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType DpDropCmdlistReq::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistReq::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 100) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return TdrError::TDR_NO_ERROR;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = cmd_lists_[i].pack(destBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistReq::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpDropCmdlistReq::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt32(count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 100) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return TdrError::TDR_NO_ERROR;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = cmd_lists_[i].unpack(srcBuf, 1);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistReq::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DpDropCmdlistReq::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[room_id_]", "%d", room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[count_]", "%u", count_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (count_ > 100) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (count_ == 0) return ret;
+    for (uint32_t i = 0; i < count_; ++i) {
+        ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[cmd_lists_]", i, true);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        if (indent >= 0) {
+            ret = cmd_lists_[i].visualize(destBuf, indent + 1, separator);
+        } else {
+            ret = cmd_lists_[i].visualize(destBuf, indent, separator);
+        }
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DpDropCmdlistReq::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* DpDropCmdlistReq::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* DpDropCmdlistReq::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SafemodeStatusRsp::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeStatusRsp::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(ipc_days_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(stat_level_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(has_verify_mb_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(event_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (destBuf.capacity() - destBuf.size() < 32) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (unsigned int i = 0; i < 32; ++i) {
+        ret = destBuf.writeUInt8(reserve_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeStatusRsp::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SafemodeStatusRsp::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(ipc_days_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(stat_level_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(has_verify_mb_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(event_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (srcBuf.capacity() - srcBuf.size() < 32) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (unsigned int i = 0; i < 32; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        reserve_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeStatusRsp::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SafemodeStatusRsp::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[room_id_]", "%d", room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ipc_days_]", "%d", ipc_days_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[stat_level_]", "0x%02x", stat_level_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[has_verify_mb_]", "0x%02x", has_verify_mb_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[event_type_]", "%d", event_type_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[reserve_]", 32);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    for (unsigned int i = 0; i < 32; ++i) {
+        ret = destBuf.textize(" 0x%02x", reserve_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeStatusRsp::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SafemodeStatusRsp::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SafemodeStatusRsp::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType SafemodeLimitStatusRsp::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeLimitStatusRsp::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt32((uint32_t)ret_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt32((uint32_t)limit_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(unlock_url_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (unlock_url_len_ > 1024) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (destBuf.capacity() - destBuf.size() < unlock_url_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_WRITE;
+    for (uint16_t i = 0; i < unlock_url_len_; ++i) {
+        ret = destBuf.writeUInt8(unlock_url_[i]);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeLimitStatusRsp::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SafemodeLimitStatusRsp::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    uint32_t tmp4ret_;
+    ret = srcBuf.readUInt32(tmp4ret_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret_ = (int32_t)tmp4ret_;
+    ret = srcBuf.readUInt32(uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    uint32_t tmp4limit_status_;
+    ret = srcBuf.readUInt32(tmp4limit_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    limit_status_ = (int32_t)tmp4limit_status_;
+    ret = srcBuf.readUInt16(unlock_url_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (unlock_url_len_ > 1024) return TdrError::TDR_ERR_REFER_SURPASS_COUNT;
+    if (srcBuf.capacity() - srcBuf.size() < unlock_url_len_) return TdrError::TDR_ERR_SHORT_BUF_FOR_READ;
+    for (uint16_t i = 0; i < unlock_url_len_; ++i) {
+        char c;
+        ret = srcBuf.readChar(c);
+        if (ret != TdrError::TDR_NO_ERROR) return ret;
+        unlock_url_[i] = (uint8_t)c;
+    }
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeLimitStatusRsp::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType SafemodeLimitStatusRsp::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[ret_]", "%d", ret_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[uin_]", "%u", uin_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[limit_status_]", "%d", limit_status_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[unlock_url_len_]", "%u", unlock_url_len_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printArray(destBuf, indent, separator, "[unlock_url_]", 0);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    if (unlock_url_len_ != 0) {
+        for (uint16_t i = 0; i < unlock_url_len_; ++i) {
+            ret = destBuf.textize(" 0x%02x", unlock_url_[i]);
+            if (ret != TdrError::TDR_NO_ERROR) return ret;
+        }
+    }
+    ret = destBuf.writeChar(separator);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeChar('\0');
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType SafemodeLimitStatusRsp::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* SafemodeLimitStatusRsp::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* SafemodeLimitStatusRsp::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+TdrError::ErrorType DPCaptchaResultRsp::construct() {
+    memset(this, 0, sizeof(*this));
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DPCaptchaResultRsp::pack(TdrWriteBuf& destBuf, unsigned int cutVer) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = destBuf.writeUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = destBuf.writeUInt8(result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DPCaptchaResultRsp::pack(char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = pack(destBuf, cutVer);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DPCaptchaResultRsp::unpack(TdrReadBuf& srcBuf, unsigned int cutVer) {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = srcBuf.readUInt16(channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt16(room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = srcBuf.readUInt8(result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DPCaptchaResultRsp::unpack(const char* buffer, unsigned int size, unsigned int* usedSize, unsigned int cutVer) {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrReadBuf srcBuf(buffer, size);
+    TdrError::ErrorType ret = unpack(srcBuf, cutVer);
+    if (usedSize != NULL) *usedSize = srcBuf.size();
+    return ret;
+}
+
+TdrError::ErrorType DPCaptchaResultRsp::visualize(TdrWriteBuf& destBuf, int indent, char separator) const {
+    TdrError::ErrorType ret = TdrError::TDR_NO_ERROR;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[channel_id_]", "%d", channel_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[room_id_]", "%d", room_id_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    ret = TdrBufUtil::printVariable(destBuf, indent, separator, "[result_]", "0x%02x", result_);
+    if (ret != TdrError::TDR_NO_ERROR) return ret;
+    return TdrError::TDR_NO_ERROR;
+}
+
+TdrError::ErrorType DPCaptchaResultRsp::visualize(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL) return TdrError::TDR_ERR_NULL_POINTER_PARAMETER;
+    TdrWriteBuf destBuf(buffer, size);
+    TdrError::ErrorType ret = visualize(destBuf, indent, separator);
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return ret;
+}
+
+const char* DPCaptchaResultRsp::visualize_ex(TdrWriteBuf& destBuf, int indent, char separator) const {
+    if (destBuf.data() == NULL || destBuf.capacity() == 0) return "";
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = destBuf.capacity();
+    if (targetPos != totalSize) {
+        ((char*)destBuf.data())[targetPos] = '\0';
+    }
+    return destBuf.data();
+}
+
+const char* DPCaptchaResultRsp::visualize_ex(char* buffer, unsigned int size, unsigned int* usedSize, int indent, char separator) const {
+    if (buffer == NULL || size == 0) return "";
+    TdrWriteBuf destBuf(buffer, size);
+    visualize(destBuf, indent, separator);
+    size_t targetPos = destBuf.size();
+    const size_t totalSize = size;
+    if (targetPos >= totalSize) targetPos = totalSize - 1;
+    buffer[targetPos] = '\0';
+    if (usedSize != NULL) *usedSize = destBuf.size();
+    return buffer;
+}
+
+} // namespace sec_proto

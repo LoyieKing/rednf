@@ -1,18 +1,20 @@
-// Auto-generated header stub from DWARF info
-// Original path: src/commsvr/gunnersvr/gunner_file_scanner.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// Reconstructed from gunnersvr DWARF + disassembly.
+// sizeof = 1：无成员。
 #ifndef SECSVR_SRC_COMMSVR_GUNNERSVR_GUNNER_FILE_SCANNER_H_H_
 #define SECSVR_SRC_COMMSVR_GUNNERSVR_GUNNER_FILE_SCANNER_H_H_
+
+#include <dirent.h>
+#include <string>
+#include <vector>
 
 // sizeof = 1
 struct GunnerFileScanner { // line 22
 public:
-GunnerFileScanner(); // line 24
-~GunnerFileScanner(); // line 26
-int scan_stat_file(const char *dir, /*anon struct*/ int &all_files); // line 30
+    GunnerFileScanner(); // line 24
+    ~GunnerFileScanner(); // line 26
+    int scan_stat_file(const char *dir, std::vector<std::string> &all_files); // line 30
 };
 
-
-extern int check_for_stat_file(const dirent *file); // line 31 (inferred)
+extern int check_for_stat_file(const struct dirent *file); // line 31
 
 #endif // SECSVR_SRC_COMMSVR_GUNNERSVR_GUNNER_FILE_SCANNER_H_H_

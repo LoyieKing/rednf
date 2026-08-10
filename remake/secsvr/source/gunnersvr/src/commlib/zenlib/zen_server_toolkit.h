@@ -1,12 +1,11 @@
-// Auto-generated header stub from DWARF info
-// Original path: src/commlib/zenlib/zen_server_toolkit.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// ZEN_Server_Toolkit 还原头文件（基于 gunnersvr DWARF + 二进制反汇编，2026-08-10）
+// 布局保持 DWARF 原样（sizeof = 488）；静态阈值在二进制中为编译期常量（无符号）。
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SERVER_TOOLKIT_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SERVER_TOOLKIT_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
+#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
+#include "src/commlib/zenlib/zen_os_adapt_process.h"
+#include "src/commlib/zenlib/zen_os_adapt_sysinfo.h"
 #include <stddef.h>
 #include <stdint.h>
 #include <unistd.h>
@@ -14,10 +13,10 @@
 // sizeof = 488
 struct ZEN_Server_Toolkit { // line 31
 protected:
-static const int MAX_RECORD_MEMORY_NUMBER;
-static const size_t MEMORY_LEAK_THRESHOLD;
-static const size_t PROCESS_CPU_RATIO_THRESHOLD;
-static const size_t SYSTEM_CPU_RATIO_THRESHOLD;
+static const int MAX_RECORD_MEMORY_NUMBER = 5;
+static const size_t MEMORY_LEAK_THRESHOLD = 0x12bfffff;
+static const size_t PROCESS_CPU_RATIO_THRESHOLD = 600;
+static const size_t SYSTEM_CPU_RATIO_THRESHOLD = 750;
 ZEN_HANDLE pid_handle_;
 pid_t self_pid_;
 int check_leak_times_;

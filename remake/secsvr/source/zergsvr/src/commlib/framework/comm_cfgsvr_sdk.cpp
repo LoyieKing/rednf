@@ -1,703 +1,822 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commlib/framework/comm_cfgsvr_sdk.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Reconstructed from gunnersvr DWARF + disassembly (2026-08-10).
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/framework/comm_cfgsvr_sdk.cpp
+// 37 个 CfgSvrSdk 符号全部按二进制语义还原（串/命令字/返回码与反汇编一致）。
 
 #include "src/commlib/framework/comm_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "output/commlib/zenlib/release/include/zen_id_to_string.h"
-#include "output/commlib/zenlib/release/include/zen_time_value.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_command.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_result.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_field.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
-#include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_spin.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
-#include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
-#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_file.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
-#include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
-#include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_sema.h"
-#include "output/commlib/zenlib/release/include/zen_lock_synch_traits.h"
-#include "output/commlib/zenlib/release/include/zen_lock_process_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_rw_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_semaphore.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_condi.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_condi.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_nonlock.h"
-#include "output/commlib/zenlib/release/include/zen_timer_handler_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_wheel.h"
-#include "output/commlib/zenlib/release/include/zen_bus_two_way.h"
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
+#include "output/commlib/zenlib/release/include/zen_time_value.h"
 #include "output/commlib/zenlib/release/include/zen_thread_task.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_base.h"
 #include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_stream.h"
-#include "output/commlib/zenlib/release/include/zen_socket_datagram.h"
-#include "output/commlib/zenlib/release/include/zen_socket_connector.h"
-#include "output/commlib/zenlib/release/include/zen_event_handle_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_select.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
-#include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
-#include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
-#include "output/commlib/zenlib/release/include/zen_server_status.h"
-#include "output/commlib/zenlib/release/include/zen_shm_vector.h"
-#include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
-#include "output/protocol/common/release/include/comm_proto_cfgsvr.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "output/protocol/common/release/include/comm_proto_public_head.h"
-#include "output/protocol/common/release/include/comm_proto_public_cmd.h"
-#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
-#include "output/protocol/common/release/include/comm_proto_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_conf_framework.h"
-#include "output/protocol/common/release/include/TdrXml.h"
-#include "output/protocol/common/release/include/TdrIO.h"
-#include "output/protocol/common/release/include/comm_conf_svcid.h"
-#include "output/protocol/common/release/include/comm_conf_zerg.h"
 #include "output/protocol/common/release/include/comm_conf_cfgsdk.h"
+#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
+#include "output/protocol/common/release/include/TdrXml.h"
 #include "import/include/tencore/tencrypt/TenHash.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_external.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_types.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_define.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_ctypes_info.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_error.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_init.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLtags.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLMetaLib.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_to_hpp.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_io.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_operate_data.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_sort.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_net.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_manage.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_sql.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_meta_entries_index.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_macros.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_error.h"
-#include "src/commlib/framework/comm_error_code.h"
-#include "src/commlib/framework/comm_app_frame.h"
-#include "src/commlib/framework/comm_enum_define.h"
 #include "src/commlib/framework/comm_service_info.h"
-#include "src/commlib/framework/comm_frame_command.h"
-#include "src/commlib/framework/comm_sndrcv_zulu.h"
-#include "src/commlib/framework/comm_sndrcv_base.h"
-#include "src/commlib/framework/comm_cfgsvr_sdk.h"
 #include "src/commlib/framework/comm_svrd_config.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
+#include "src/commlib/framework/comm_sndrcv_zulu.h"
+#include "src/commlib/framework/comm_cfgsvr_sdk.h"
 #include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
 #include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+#include <arpa/inet.h>
 
-void CfgSvrSdk::clean_instance() {
+namespace ZEN_OS {
+ZEN_HANDLE open(const char *filename, int open_mode, mode_t perms);
+int close(ZEN_HANDLE handle);
+int read(ZEN_HANDLE handle, void *buffer, unsigned int buf_len);
+int write(ZEN_HANDLE handle, const void *buffer, unsigned int buf_len);
+ZEN_THREAD_ID pthread_self();
 }
 
-void CfgSvrSdk::set_service_type(short unsigned int svc_type) {
+// line 22：与二进制 .data.rel.ro 中 DEFAULT_MASTER_CFGSVR_IP 指向的字符串一致。
+const char * const DEFAULT_MASTER_CFGSVR_IP __attribute__((used)) = "";
+
+// cfgsvr 交互命令字（来自二进制反汇编，comm_proto_public_cmd.h 为坏桩未含常量）。
+namespace {
+const unsigned int CFGSVR_QQUIN = 0x2710;
+const unsigned int CMD_SVC_IP_INFO_REQ = 0x2713;
+const unsigned int CMD_SVC_IP_INFO_RSP = 0x2714;
+const unsigned int CMD_SVC_ID_REQ = 0x2715;
+const unsigned int CMD_SVC_ID_RSP = 0x2716;
+const unsigned int CMD_CFG_FILE_REQ = 0x2717;
+const unsigned int CMD_CFG_FILE_RSP = 0x2718;
+const unsigned int CMD_CHECK_CFG_FILE_UPDATE_REQ = 0x2729;
+const unsigned int CMD_CHECK_CFG_FILE_UPDATE_RSP = 0x272a;
+const unsigned int CMD_CFGSVR_INFO_REQ = 0x272b;
+const unsigned int CMD_CFGSVR_INFO_RSP = 0x272c;
+const unsigned int CMD_DEPLOY_INFO_REQ = 0x272d;
+const unsigned int CMD_DEPLOY_INFO_RSP = 0x272e;
 }
 
-unsigned int CfgSvrSdk::get_game_id() {
+// 错误码（框架/通信约定，见二进制返回常量）。
+enum {
+    RET_GET_SVC_FAILED = 0x1428,   // 取 svc id / deploy info 失败
+    RET_GET_IP_FAILED = 0x1429,    // 取 svc ip 失败
+    RET_CFG_FILE_ERROR = 0x142a,   // 配置文件处理通用错误
+    RET_CFGSVR_INFO_FAILED = 0x142b,
+    RET_NO_SERVICE_TYPE = 0x142d,  // 取不到 service type
+};
+
+CfgSvrSdk::CfgSvrSdk()
+    : Zen_Thread_Task(),
+      self_info_(0, 0),
+      master_cfgsvr_info_(0, 0),
+      slave_cfgsvr_info_(0, 0),
+      master_cfgsvr_ip_(),
+      slave_cfgsvr_ip_(),
+      cfg_name_list_(),
+      config_update_list_(),
+      file_buf_(0),
+      curr_cfg_name_(),
+      cfg_md5_map_(),
+      is_pthread_start_(false),
+      is_updade_config_(false) {
+    cfgsdk_config_.construct();
+    master_cfgsvr_ip_.set(DEFAULT_MASTER_CFGSVR_IP, MASTER_CFGSVR_PORT);
+    svc_index_ = 0;
 }
 
-int CfgSvrSdk::get_idc_no() {
-}
-
-short unsigned int CfgSvrSdk::get_world_id() {
-}
-
-bool CfgSvrSdk::is_need_update_file() {
-}
-
-void CfgSvrSdk::clear_file_update_flags() {
-}
-
-int CfgSvrSdk::start_task() {
-    // local: const size_t ACTIVATE_TASK_GROUP;
-    // local: const size_t THREAD_STACK_SIZE;
-    // local: ZEN_THREAD_ID threadid;
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_encode<sec_proto::CheckCfgFileUpdateReq>(unsigned int szframe_appdata, const /*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::send_svc_package<sec_proto::CheckCfgFileUpdateReq>(unsigned int qq_uin, unsigned int cmd, const /*anon struct*/ int &info, ZEN_Time_Value *time_wait, unsigned int app_id, unsigned int backfill_trans_id) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_decode<sec_proto::CheckCfgFileUpdateRsp>(/*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::receive_svc_package<sec_proto::CheckCfgFileUpdateRsp>(unsigned int cmd, /*anon struct*/ int &info, bool error_continue, ZEN_Time_Value *time_wait) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_decode<sec_proto::CfgFileRsp>(/*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::receive_svc_package<sec_proto::CfgFileRsp>(unsigned int cmd, /*anon struct*/ int &info, bool error_continue, ZEN_Time_Value *time_wait) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_encode<sec_proto::CfgFileReq>(unsigned int szframe_appdata, const /*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::send_svc_package<sec_proto::CfgFileReq>(unsigned int qq_uin, unsigned int cmd, const /*anon struct*/ int &info, ZEN_Time_Value *time_wait, unsigned int app_id, unsigned int backfill_trans_id) {
-    // local: int ret;
-}
-
-bool CfgSvrSdk::check_config_md5() {
-    // local: unsigned char md5[];
-    // local: int i;
-}
-
-int Comm_App_Frame::appdata_encode<sec_proto::SvcIpInfoReq>(unsigned int szframe_appdata, const /*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::send_svc_package<sec_proto::SvcIpInfoReq>(unsigned int qq_uin, unsigned int cmd, const /*anon struct*/ int &info, ZEN_Time_Value *time_wait, unsigned int app_id, unsigned int backfill_trans_id) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_decode<sec_proto::SvcIpInfoRsp>(/*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::receive_svc_package<sec_proto::SvcIpInfoRsp>(unsigned int cmd, /*anon struct*/ int &info, bool error_continue, ZEN_Time_Value *time_wait) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_encode<sec_proto::DeployInfoReq>(unsigned int szframe_appdata, const /*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::send_svc_package<sec_proto::DeployInfoReq>(unsigned int qq_uin, unsigned int cmd, const /*anon struct*/ int &info, ZEN_Time_Value *time_wait, unsigned int app_id, unsigned int backfill_trans_id) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_decode<sec_proto::DeployInfoRsp>(/*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::receive_svc_package<sec_proto::DeployInfoRsp>(unsigned int cmd, /*anon struct*/ int &info, bool error_continue, ZEN_Time_Value *time_wait) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_encode<sec_proto::SvcIdReq>(unsigned int szframe_appdata, const /*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::send_svc_package<sec_proto::SvcIdReq>(unsigned int qq_uin, unsigned int cmd, const /*anon struct*/ int &info, ZEN_Time_Value *time_wait, unsigned int app_id, unsigned int backfill_trans_id) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_decode<sec_proto::SvcIdRsp>(/*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::receive_svc_package<sec_proto::SvcIdRsp>(unsigned int cmd, /*anon struct*/ int &info, bool error_continue, ZEN_Time_Value *time_wait) {
-    // local: int ret;
-}
-
-int Comm_App_Frame::appdata_decode<sec_proto::CfgsvrInfoRsp>(/*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
-}
-
-int Zulu_SendRecv_Package::receive_svc_package<sec_proto::CfgsvrInfoRsp>(unsigned int cmd, /*anon struct*/ int &info, bool error_continue, ZEN_Time_Value *time_wait) {
-    // local: int ret;
-}
-
-int CfgSvrSdk::recv_config_file_rsp(Zulu_SendRecv_Package &zulu_ex, CfgSvrSdk::GET_CONFIG_RESULT &get_config_result) {
-    // local: /*anon struct*/ int cfg_file_rsp;
-    // local: int ret;
-}
-
-int CfgSvrSdk::send_config_file_req(Zulu_SendRecv_Package &zulu_ex) {
-    // local: /*anon struct*/ int cfg_file_req;
-    // local: int ret;
-}
-
-void _M_insert_aux(__normal_iterator<short unsigned int*,std::vector<short unsigned int, std::allocator<short unsigned int> > > __position, const short unsigned int &__x) {
-    // local: short unsigned int __x_copy;
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-}
-
-void CfgSvrSdk::get_deploy_world_list(/*anon struct*/ int &world_list) {
-    // local: unsigned int i;
-}
-
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > find(const /*anon struct*/ int &__k) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__x;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__y;
-    // local: /*anon struct*/ int __j;
-}
-
-void CfgSvrSdk::get_config_md5(const string &cfg_name, CfgSvrSdk::CFG_MD5 &cfg_md5) {
-    // local: /*anon struct*/ int iter;
-}
-
-int CfgSvrSdk::init_zulu_ex(Zulu_SendRecv_Package &zulu_ex, const ZEN_Sockaddr_In &ip_info, const SERVICES_ID &recv_info) {
-    // local: int ret;
-    // local: SERVICES_ID send_info;
-    // local: SERVICES_ID proxy_info;
-    // local: ZEN_Time_Value over_time;
-}
-
-int CfgSvrSdk::get_svc_deploy_info() {
-    // local: int ret;
-    // local: Zulu_SendRecv_Package zulu_ex;
-    // local: /*anon struct*/ int deploy_info_req;
-    // local: /*anon struct*/ int deploy_info_rsp;
-}
-
-int CfgSvrSdk::get_svc_id() {
-    // local: int ret;
-    // local: Zulu_SendRecv_Package zulu_ex;
-    // local: /*anon struct*/ int svc_id_req;
-    // local: /*anon struct*/ int svc_id_rsp;
-}
-
-int CfgSvrSdk::get_ip_info(const SERVICES_ID &req_info, ZEN_Sockaddr_In &svr_inetadd, unsigned int &svr_idc_no) {
-    // local: int ret;
-    // local: Zulu_SendRecv_Package zulu_ex;
-    // local: /*anon struct*/ int svc_ip_info_req;
-    // local: /*anon struct*/ int svc_ip_info_rsp;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-}
-
-int CfgSvrSdk::get_slave_cfgsvr_info() {
-    // local: int ret;
-    // local: Zulu_SendRecv_Package zulu_ex;
-    // local: /*anon struct*/ int cfgsvr_info_req;
-    // local: /*anon struct*/ int cfgsvr_info_rsp;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: unsigned int __v;
-    // local: unsigned int __x;
-}
-
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > upper_bound(const /*anon struct*/ int &__k) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__x;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__y;
-}
-
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > lower_bound(const /*anon struct*/ int &__k) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__x;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__y;
-}
-
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > _M_insert(/*anon struct*/ int *__x, /*anon struct*/ int *__p, const pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >,CfgSvrSdk::CFG_MD5> &__v) {
-    // local: bool __insert_left;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__z;
-}
-
-pair<std::_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> >,bool> insert_unique(const pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >,CfgSvrSdk::CFG_MD5> &__v) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__x;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__y;
-    // local: bool __comp;
-    // local: /*anon struct*/ int __j;
-}
-
-int CfgSvrSdk::uncompress_file(const char *cfg_name) {
-    // local: string cmd;
-    // local: int ret;
-}
-
-int CfgSvrSdk::write_local_file() {
-    // local: string cfg_path;
-    // local: ZEN_HANDLE fd;
-    // local: int ret;
-}
-
-void _M_erase(_Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__x) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > *__y;
-}
-
-int CfgSvrSdk::read_local_file(int &length) {
-    // local: string cfg_path;
-    // local: ZEN_HANDLE fd;
-    // local: int len;
-}
-
-void CfgSvrSdk::caculate_config_md5() {
-    // local: int length;
-    // local: int ret;
-}
-
-void _M_insert_aux(__normal_iterator<std::basic_string<char, std::char_traits<char>, std::allocator<char> >*,std::vector<std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > > __position, const /*anon struct*/ int &__x) {
-    // local: /*anon struct*/ int __x_copy;
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-}
-
-void CfgSvrSdk::add_config(const char *cfg_name) {
-}
-
-int CfgSvrSdk::get_config_update_list(Zulu_SendRecv_Package &zulu_ex) {
-    // local: /*anon struct*/ int check_update_req;
-    // local: CfgSvrSdk::CFG_MD5 cfg_md5;
-    // local: unsigned int cfg_num;
-    // local: /*anon struct*/ int iter;
-    // local: int ret;
-    // local: /*anon struct*/ int check_update_rsp;
-    // local: ZEN_Time_Value time_out;
-    // local: unsigned int i;
-}
-
-void erase(_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > __first, _Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, CfgSvrSdk::CFG_MD5> > __last) {
-}
-
-size_t erase(const /*anon struct*/ int &__x) {
-    // local: /*anon struct*/ int __p;
-    // local: size_t __n;
-}
-
-void CfgSvrSdk::insert_config_md5(const string &cfg_name, const CfgSvrSdk::CFG_MD5 &cfg_md5) {
-}
-
-int CfgSvrSdk::get_config_file(Zulu_SendRecv_Package &zulu_ex, const char *cfg_name) {
-    // local: int ret;
-    // local: CfgSvrSdk::GET_CONFIG_RESULT get_config_result;
-    // local: bool is_md5_ok;
-    // local: size_t name_len;
-}
-
-int CfgSvrSdk::update_config_file(Zulu_SendRecv_Package &zulu_ex) {
-    // local: int ret;
-    // local: /*anon struct*/ int iter;
-}
-
-int CfgSvrSdk::get_config_file() {
-    // local: int ret;
-    // local: Zulu_SendRecv_Package zulu_ex;
-    // local: /*anon struct*/ int iter;
-}
-
-int CfgSvrSdk::init() {
-    // local: int ret;
-    // local: int ret;
-}
-
-int CfgSvrSdk::svc() {
-    // local: Zulu_SendRecv_Package zulu_ex;
-    // local: int ret;
-    // local: bool is_need_reconnect;
-    // local: bool is_over;
-}
-
-void CfgSvrSdk::update_config_name_list() {
-    // local: /*anon struct*/ int update_iter;
-    // local: bool is_exist;
-    // local: /*anon struct*/ int iter;
+CfgSvrSdk::~CfgSvrSdk() {
+    delete file_buf_;
+    file_buf_ = 0;
 }
 
 CfgSvrSdk * CfgSvrSdk::instance() {
+    if (instance_ == 0) {
+        instance_ = new CfgSvrSdk();
+    }
+    return instance_;
 }
 
+void CfgSvrSdk::clean_instance() {
+    if (instance_) {
+        delete instance_;
+        instance_ = 0;
+    }
+}
+
+int CfgSvrSdk::init() {
+    if (self_info_.services_type_ == SERVICES_ID::INVALID_SERVICES_TYPE) {
+        if (Comm_Svrd_Config::instance()->self_svr_id_.services_type_ ==
+            SERVICES_ID::INVALID_SERVICES_TYPE) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] can't get service type. use -t to set service type");
+            return RET_NO_SERVICE_TYPE;
+        }
+        set_service_type(Comm_Svrd_Config::instance()->self_svr_id_.services_type_);
+    }
+    svc_index_ = Comm_Svrd_Config::instance()->instance_id_;
+    master_cfgsvr_ip_.set(Comm_Svrd_Config::instance()->master_cfgsvr_ip_.c_str(),
+                          MASTER_CFGSVR_PORT);
+    int ret = 0;
+    if (Comm_Svrd_Config::instance()->is_use_cfgsvr_) {
+        master_cfgsvr_info_.set_serviceid(1, MASTER_CFGSVR_ID);
+        ZEN_Trace_LogMsg::debug_infoex("[framework] try to get config from %s",
+            master_cfgsvr_ip_.get_host_addr());
+        ret = get_slave_cfgsvr_info();
+        ZEN_Trace_LogMsg::debug_infoex("[framework] get slave cfgsvr info, ret=%d", ret);
+        if (ret != 0) {
+            ret = cfgsdk_config_.fromXmlFile("cfg/cfgsdk_config.xml",
+                                             tsf4g_tdr::LIST_ENTRY, 0);
+            if (ret != 0) {
+                ZEN_Trace_LogMsg::debug_errorex(
+                    "[framework] Get slave cfgsvr info error and load cfgsdk config error");
+                return ret;
+            }
+            ZEN_Trace_LogMsg::debug_infoex(
+                "[framework] Get slave cfgsvr info from cfgsdk_config.xml");
+            slave_cfgsvr_info_.set_serviceid(cfgsdk_config_.slave_cfgsvr_type_,
+                                             cfgsdk_config_.slave_cfgsvr_id_);
+            slave_cfgsvr_ip_.set(cfgsdk_config_.slave_cfgsvr_ip_,
+                                 cfgsdk_config_.slave_cfgsvr_port_);
+        }
+        ret = get_svc_id();
+        if (ret != 0) {
+            return ret;
+        }
+        ret = get_svc_deploy_info();
+        if (ret != 0) {
+            return ret;
+        }
+        if (cfgsdk_config_.toXmlFile("cfg/cfgsdk_config.xml",
+                                     tsf4g_tdr::LIST_ENTRY, 0) != 0) {
+            ZEN_Trace_LogMsg::debug_errorex("[framework] Write cfgsdk_config.xml error");
+        }
+        file_buf_ = new unsigned char[MAX_FILE_LENGTH];
+        ret = get_config_file();
+        return ret;
+    }
+    ret = cfgsdk_config_.fromXmlFile("cfg/cfgsdk_config.xml",
+                                     tsf4g_tdr::LIST_ENTRY, 0);
+    if (ret == 0) {
+        return 0;
+    }
+    ZEN_Trace_LogMsg::debug_infoex("[framework]Not find cfgsdk_config.xml");
+    return ret;
+}
+
+int CfgSvrSdk::start_task() {
+    int ret = 0;
+    if (Comm_Svrd_Config::instance()->is_use_cfgsvr_) {
+        const size_t ACTIVATE_TASK_GROUP = 0x1eb4a2;
+        const size_t THREAD_STACK_SIZE = 0x7800000;
+        ZEN_THREAD_ID threadid = 0;
+        ret = Zen_Thread_Task::activate(ACTIVATE_TASK_GROUP, &threadid,
+                                        0, THREAD_STACK_SIZE, 0);
+    }
+    return ret;
+}
+
+bool CfgSvrSdk::is_need_update_file() {
+    return is_updade_config_;
+}
+
+void CfgSvrSdk::clear_file_update_flags() {
+    is_updade_config_ = false;
+}
+
+unsigned int CfgSvrSdk::get_game_id() {
+    return cfgsdk_config_.game_id_;
+}
+
+int CfgSvrSdk::get_idc_no() {
+    return cfgsdk_config_.idc_no_;
+}
+
+unsigned short CfgSvrSdk::get_world_id() {
+    return cfgsdk_config_.world_;
+}
+
+void CfgSvrSdk::set_service_type(unsigned short svc_type) {
+    self_info_.services_type_ = svc_type;
+}
+
+void CfgSvrSdk::get_deploy_world_list(std::vector<unsigned short> &world_list) {
+    world_list.clear();
+    for (unsigned int i = 0; i < cfgsdk_config_.deploy_info_num_; ++i) {
+        world_list.push_back(cfgsdk_config_.deploy_info_[i].world_);
+    }
+}
+
+void CfgSvrSdk::get_config_md5(const string &cfg_name, CFG_MD5 &cfg_md5) {
+    memset(&cfg_md5, 0, sizeof(cfg_md5));
+    std::map<string, CFG_MD5>::const_iterator iter = cfg_md5_map_.find(cfg_name);
+    if (iter != cfg_md5_map_.end()) {
+        cfg_md5 = iter->second;
+    }
+}
+
+int CfgSvrSdk::init_zulu_ex(Zulu_SendRecv_Package &zulu_ex,
+                            const ZEN_Sockaddr_In &ip_info,
+                            const SERVICES_ID &recv_info) {
+    SERVICES_ID send_info(0, 0);
+    // 6 = 配置服务器服务类型（见 get_slave_cfgsvr_info 的 set_serviceid(1, 1) 同族）
+    send_info.set_serviceid(6, SERVICES_ID::DYNAMIC_ALLOC_SERVICES_ID);
+    SERVICES_ID proxy_info(0, 0);
+    int ret = zulu_ex.set_zulu_svcinfo(ip_info.get_host_addr(),
+                                       ip_info.get_port_number(),
+                                       recv_info, send_info, proxy_info, 0x10000);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::init_zulu_ex, set zulu svcinfo error, ret=%d", ret);
+        return ret;
+    }
+    ZEN_Time_Value over_time(10, 0);
+    ret = zulu_ex.connect_zulu_server(&over_time);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::init_zulu_ex, connect error, |%s|%d|, error:%s",
+            ip_info.get_host_addr(), ip_info.get_port_number(), strerror(errno));
+        return ret;
+    }
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "[framework] CfgSvrSdk::init_zulu_ex, connect succ, |%s|%d|",
+        ip_info.get_host_addr(), ip_info.get_port_number());
+    return 0;
+}
+
+int CfgSvrSdk::get_svc_deploy_info() {
+    Zulu_SendRecv_Package zulu_ex;
+    int ret = init_zulu_ex(zulu_ex, slave_cfgsvr_ip_, slave_cfgsvr_info_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_deploy_info, init zulu error, ret=%d", ret);
+        return ret;
+    }
+    sec_proto::DeployInfoReq deploy_info_req;
+    deploy_info_req.svc_type_ = self_info_.services_type_;
+    deploy_info_req.svc_id_ = self_info_.services_id_;
+    ret = zulu_ex.send_svc_package<sec_proto::DeployInfoReq>(
+        CFGSVR_QQUIN, CMD_DEPLOY_INFO_REQ, deploy_info_req, 0, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_deploy_info, send_svc_package failed, |%u|%u|, error:%s",
+            self_info_.services_type_, self_info_.services_id_, strerror(errno));
+        return ret;
+    }
+    sec_proto::DeployInfoRsp deploy_info_rsp;
+    ret = zulu_ex.receive_svc_package<sec_proto::DeployInfoRsp>(
+        CMD_DEPLOY_INFO_RSP, deploy_info_rsp, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_deploy_info, receive_svc_package failed, |%u|%u|, error:%s",
+            self_info_.services_type_, self_info_.services_id_, strerror(errno));
+        return ret;
+    }
+    if (deploy_info_rsp.result_ != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_deploy_info, get failed, |%u|%u|, result=%d",
+            self_info_.services_type_, self_info_.services_id_, deploy_info_rsp.result_);
+        return RET_GET_SVC_FAILED;
+    }
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "[framework] CfgSvrSdk::get_svc_deploy_info, deploy_info_num=%u",
+        deploy_info_rsp.deploy_info_num_);
+    cfgsdk_config_.deploy_info_num_ = deploy_info_rsp.deploy_info_num_;
+    memcpy(cfgsdk_config_.deploy_info_, deploy_info_rsp.deploy_info_,
+           deploy_info_rsp.deploy_info_num_ * sizeof(conf_cfgsdk::DeployInfo));
+    zulu_ex.close();
+    return 0;
+}
+
+int CfgSvrSdk::get_svc_id() {
+    Zulu_SendRecv_Package zulu_ex;
+    int ret = init_zulu_ex(zulu_ex, slave_cfgsvr_ip_, slave_cfgsvr_info_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_id, init zulu error, ret=%d", ret);
+        return ret;
+    }
+    sec_proto::SvcIdReq svc_id_req;
+    svc_id_req.svc_type_ = self_info_.services_type_;
+    svc_id_req.svc_index_ = svc_index_;
+    ret = zulu_ex.send_svc_package<sec_proto::SvcIdReq>(
+        CFGSVR_QQUIN, CMD_SVC_ID_REQ, svc_id_req, 0, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_id, send_svc_package failed, |%u|%u|, error:%s",
+            self_info_.services_type_, svc_index_, strerror(errno));
+        return ret;
+    }
+    sec_proto::SvcIdRsp svc_id_rsp;
+    ret = zulu_ex.receive_svc_package<sec_proto::SvcIdRsp>(
+        CMD_SVC_ID_RSP, svc_id_rsp, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_id, receive_svc_package failed, |%u|%u|, error:%s",
+            self_info_.services_type_, svc_index_, strerror(errno));
+        return ret;
+    }
+    if (svc_id_rsp.result_ != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svc_id, get svcid failed, |%u|%u|, result=%d",
+            self_info_.services_type_, svc_index_, svc_id_rsp.result_);
+        return RET_GET_SVC_FAILED;
+    }
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] CfgSvrSdk::get_svc_id, get svcid succ, svc_id=%u, game_id=%u, idc_no=%u, world=%u",
+        svc_id_rsp.svc_id_, svc_id_rsp.game_id_, svc_id_rsp.idc_no_, svc_id_rsp.world_id_);
+    self_info_.services_id_ = svc_id_rsp.svc_id_;
+    cfgsdk_config_.game_id_ = svc_id_rsp.game_id_;
+    cfgsdk_config_.idc_no_ = svc_id_rsp.idc_no_;
+    cfgsdk_config_.world_ = svc_id_rsp.world_id_;
+    zulu_ex.close();
+    return 0;
+}
+
+int CfgSvrSdk::get_ip_info(const SERVICES_ID &req_info, ZEN_Sockaddr_In &svr_inetadd,
+                           unsigned int &svr_idc_no) {
+    Zulu_SendRecv_Package zulu_ex;
+    int ret = init_zulu_ex(zulu_ex, slave_cfgsvr_ip_, slave_cfgsvr_info_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_ip_info, init zulu error, ret=%d", ret);
+        return ret;
+    }
+    sec_proto::SvcIpInfoReq svc_ip_info_req;
+    svc_ip_info_req.svc_type_ = req_info.services_type_;
+    svc_ip_info_req.svc_id_ = req_info.services_id_;
+    ret = zulu_ex.send_svc_package<sec_proto::SvcIpInfoReq>(
+        CFGSVR_QQUIN, CMD_SVC_IP_INFO_REQ, svc_ip_info_req, 0, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_ip_info, send_svc_package failed, error:%s",
+            strerror(errno));
+        return ret;
+    }
+    sec_proto::SvcIpInfoRsp svc_ip_info_rsp;
+    ret = zulu_ex.receive_svc_package<sec_proto::SvcIpInfoRsp>(
+        CMD_SVC_IP_INFO_RSP, svc_ip_info_rsp, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_ip_info, receive_svc_package failed, error:%s",
+            strerror(errno));
+        return ret;
+    }
+    if (svc_ip_info_rsp.result_ != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_ip_info, get ip failed, result=%d",
+            svc_ip_info_rsp.result_);
+        return RET_GET_IP_FAILED;
+    }
+    svr_inetadd.set(ntohl(svc_ip_info_rsp.bind_ip_), ntohs(svc_ip_info_rsp.bind_port_));
+    svr_idc_no = svc_ip_info_rsp.idc_no_;
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "[framework] CfgSvrSdk::get_ip_info, get ip succ, |%s|%u|%u|%u|",
+        svr_inetadd.get_host_addr(), svr_inetadd.get_port_number(),
+        req_info.services_type_, req_info.services_id_);
+    zulu_ex.close();
+    return 0;
+}
+
+int CfgSvrSdk::get_slave_cfgsvr_info() {
+    ZEN_Trace_LogMsg::debug_infoex("try to get slave cfgsvr info from %s:%d",
+        master_cfgsvr_ip_.get_host_addr(), master_cfgsvr_ip_.get_port_number());
+    Zulu_SendRecv_Package zulu_ex;
+    int ret = init_zulu_ex(zulu_ex, master_cfgsvr_ip_, master_cfgsvr_info_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_cfgsvr_info, init zulu error, ret=%d", ret);
+        return ret;
+    }
+    sec_proto::SvcIdReq cfgsvr_info_req;
+    cfgsvr_info_req.svc_type_ = self_info_.services_type_;
+    cfgsvr_info_req.svc_index_ = svc_index_;
+    ret = zulu_ex.send_svc_package<sec_proto::SvcIdReq>(
+        CFGSVR_QQUIN, CMD_CFGSVR_INFO_REQ, cfgsvr_info_req, 0, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_cfgsvr_info, send_svc_package failed, type=%u, index=%u, error:%s",
+            self_info_.services_type_, svc_index_, strerror(errno));
+        return ret;
+    }
+    sec_proto::CfgsvrInfoRsp cfgsvr_info_rsp;
+    ret = zulu_ex.receive_svc_package<sec_proto::CfgsvrInfoRsp>(
+        CMD_CFGSVR_INFO_RSP, cfgsvr_info_rsp, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_cfgsvr_info, receive_svc_package failed, type=%u, index=%u, error:%s",
+            self_info_.services_type_, svc_index_, strerror(errno));
+        return ret;
+    }
+    if (cfgsvr_info_rsp.result_ != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_cfgsvr_info, get failed, type=%u, index=%u, result=%d",
+            self_info_.services_type_, svc_index_, cfgsvr_info_rsp.result_);
+        return RET_CFGSVR_INFO_FAILED;
+    }
+    slave_cfgsvr_ip_.set(ntohl(cfgsvr_info_rsp.bind_ip_),
+                         ntohs(cfgsvr_info_rsp.bind_port_));
+    slave_cfgsvr_info_.set_serviceid(cfgsvr_info_rsp.svc_type_, cfgsvr_info_rsp.svc_id_);
+    cfgsdk_config_.slave_cfgsvr_type_ = slave_cfgsvr_info_.services_type_;
+    cfgsdk_config_.slave_cfgsvr_id_ = slave_cfgsvr_info_.services_id_;
+    snprintf(cfgsdk_config_.slave_cfgsvr_ip_,
+             sizeof(cfgsdk_config_.slave_cfgsvr_ip_) - 1,
+             "%s", slave_cfgsvr_ip_.get_host_addr());
+    cfgsdk_config_.slave_cfgsvr_ip_[sizeof(cfgsdk_config_.slave_cfgsvr_ip_) - 1] = 0;
+    cfgsdk_config_.slave_cfgsvr_port_ = slave_cfgsvr_ip_.get_port_number();
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] CfgSvrSdk::get_cfgsvr_info, get succ, |%u|%u|%s|%u|",
+        slave_cfgsvr_info_.services_type_, slave_cfgsvr_info_.services_id_,
+        slave_cfgsvr_ip_.get_host_addr(), slave_cfgsvr_ip_.get_port_number());
+    zulu_ex.close();
+    return 0;
+}
+
+int CfgSvrSdk::uncompress_file(const char *cfg_name) {
+    string cmd = "unzip -o cfg/";
+    cmd.append(cfg_name, strlen(cfg_name));
+    cmd.append(" -d cfg/ > log/uncompress.txt 2>&1", 0x22);
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "[framework] CfgSvrSdk::uncompress_file, cmd=%s", cmd.c_str());
+    int ret = system(cmd.c_str());
+    if (ret != 0) {
+        if (ret == -1 && errno == ECHILD) {
+            ret = 0;
+        } else {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::uncompress_file, ret=%d, error=[%s] cmd=%s",
+                ret, strerror(errno), cmd.c_str());
+            ret = RET_CFG_FILE_ERROR;
+        }
+    }
+    return ret;
+}
+
+int CfgSvrSdk::write_local_file() {
+    string cfg_path = "cfg/";
+    cfg_path.append(curr_cfg_name_);
+    ZEN_HANDLE fd = ZEN_OS::open(cfg_path.c_str(), 0x242, 0x1b6);
+    if (fd == -1) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::write_config_file, open error, %s, error:%s",
+            cfg_path.c_str(), strerror(errno));
+        return RET_CFG_FILE_ERROR;
+    }
+    int ret = ZEN_OS::write(fd, file_buf_, recv_len_);
+    if (ret < 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::write_config_file, write error, %s, error:%s",
+            cfg_path.c_str(), strerror(errno));
+        return RET_CFG_FILE_ERROR;
+    }
+    ZEN_OS::close(fd);
+    return 0;
+}
+
+int CfgSvrSdk::read_local_file(int &length) {
+    string cfg_path = "cfg/";
+    cfg_path.append(curr_cfg_name_);
+    ZEN_HANDLE fd = ZEN_OS::open(cfg_path.c_str(), 0, 0x1b0);
+    if (fd == -1) {
+        return RET_CFG_FILE_ERROR;
+    }
+    int len = ZEN_OS::read(fd, file_buf_, MAX_FILE_LENGTH);
+    if (len < 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::read_local_file, read error, %s, error:%s",
+            cfg_path.c_str(), strerror(errno));
+        return RET_CFG_FILE_ERROR;
+    }
+    ZEN_OS::close(fd);
+    length = len;
+    return 0;
+}
+
+void CfgSvrSdk::caculate_config_md5() {
+    int length = 0;
+    int ret = read_local_file(length);
+    if (ret == 0) {
+        TenMd5(file_buf_, length, local_cfg_md5_.md5_value_);
+    }
+}
+
+void CfgSvrSdk::add_config(const char *cfg_name) {
+    cfg_name_list_.push_back(string(cfg_name));
+}
+
+int CfgSvrSdk::get_config_update_list(Zulu_SendRecv_Package &zulu_ex) {
+    config_update_list_.clear();
+    sec_proto::CheckCfgFileUpdateReq check_update_req;
+    check_update_req.svc_type_ = self_info_.services_type_;
+    check_update_req.svc_id_ = self_info_.services_id_;
+    check_update_req.cfg_num_ = 0;
+    unsigned int cfg_num = 0;
+    for (std::vector<string>::iterator iter = cfg_name_list_.begin();
+         iter != cfg_name_list_.end(); ++iter) {
+        CFG_MD5 cfg_md5;
+        get_config_md5(*iter, cfg_md5);
+        strncpy(check_update_req.cfg_md5_info_[cfg_num].cfg_name_,
+                iter->c_str(), 0x80);
+        memcpy(check_update_req.cfg_md5_info_[cfg_num].cfg_md5_,
+               cfg_md5.md5_value_, 16);
+        ++cfg_num;
+    }
+    check_update_req.cfg_num_ = cfg_num;
+    int ret = zulu_ex.send_svc_package<sec_proto::CheckCfgFileUpdateReq>(
+        CFGSVR_QQUIN, CMD_CHECK_CFG_FILE_UPDATE_REQ, check_update_req, 0, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "CfgSvrSdk::get_config_update_list, send pkg error, error:%s",
+            strerror(errno));
+        return ret;
+    }
+    sec_proto::CheckCfgFileUpdateRsp check_update_rsp;
+    ZEN_Time_Value time_out(10, 0);
+    ret = zulu_ex.receive_svc_package<sec_proto::CheckCfgFileUpdateRsp>(
+        CMD_CHECK_CFG_FILE_UPDATE_RSP, check_update_rsp, 0, &time_out);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "CfgSvrSdk::get_config_update_list, receive_svc_package failed, |%u|%u|, error:%s",
+            self_info_.services_type_, self_info_.services_id_, strerror(errno));
+        return ret;
+    }
+    for (unsigned int i = 0; i < check_update_rsp.cfg_num_; ++i) {
+        string cfg_name(check_update_rsp.cfg_name_ + i * 128);
+        config_update_list_.push_back(cfg_name);
+    }
+    return 0;
+}
+
+void CfgSvrSdk::insert_config_md5(const string &cfg_name, const CFG_MD5 &cfg_md5) {
+    cfg_md5_map_.erase(cfg_name);
+    cfg_md5_map_.insert(std::make_pair(cfg_name, cfg_md5));
+}
+
+int CfgSvrSdk::get_config_file(Zulu_SendRecv_Package &zulu_ex, const char *cfg_name) {
+    recv_len_ = 0;
+    curr_cfg_name_.assign(cfg_name, strlen(cfg_name));
+    memset(&local_cfg_md5_, 0, sizeof(local_cfg_md5_));
+    memset(&recv_cfg_md5_, 0, sizeof(recv_cfg_md5_));
+    caculate_config_md5();
+    int ret = 0;
+    for (;;) {
+        ret = send_config_file_req(zulu_ex);
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::get_config_file, send pkg error,  error:%s",
+                strerror(errno));
+            return ret;
+        }
+        GET_CONFIG_RESULT get_config_result = CONFIG_IS_NEWEST;
+        ret = recv_config_file_rsp(zulu_ex, get_config_result);
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::get_config_file, recv pkg error, error:%s",
+                strerror(errno));
+            return ret;
+        }
+        if (get_config_result == CONFIG_IS_NEWEST) {
+            insert_config_md5(curr_cfg_name_, local_cfg_md5_);
+            return ret;
+        }
+        if (get_config_result == CONFIG_NEED_GET_MORE) {
+            continue;
+        }
+        if (!check_config_md5()) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::get_config_file, md5 check error");
+            return RET_CFG_FILE_ERROR;
+        }
+        insert_config_md5(curr_cfg_name_, recv_cfg_md5_);
+        ret = write_local_file();
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::get_config_file, write file error, %s", cfg_name);
+            return ret;
+        }
+        if (strcmp(cfg_name + strlen(cfg_name) - 4, ".zip") == 0) {
+            ret = uncompress_file(cfg_name);
+            if (ret != 0) {
+                ZEN_Trace_LogMsg::debug_errorex(
+                    "[framework] CfgSvrSdk::get_config_file, uncompress file error, %s",
+                    cfg_name);
+                return ret;
+            }
+        }
+        return ret;
+    }
+}
+
+int CfgSvrSdk::update_config_file(Zulu_SendRecv_Package &zulu_ex) {
+    int ret = 0;
+    for (std::vector<string>::iterator iter = config_update_list_.begin();
+         iter != config_update_list_.end(); ++iter) {
+        ret = get_config_file(zulu_ex, iter->c_str());
+        if (ret != 0) {
+            return ret;
+        }
+    }
+    return 0;
+}
+
+int CfgSvrSdk::get_config_file() {
+    Zulu_SendRecv_Package zulu_ex;
+    int ret = init_zulu_ex(zulu_ex, slave_cfgsvr_ip_, slave_cfgsvr_info_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_config_file, init zulu error, ret=%d", ret);
+        return ret;
+    }
+    for (std::vector<string>::iterator iter = cfg_name_list_.begin();
+         iter != cfg_name_list_.end(); ++iter) {
+        ret = get_config_file(zulu_ex, iter->c_str());
+        if (ret != 0) {
+            return ret;
+        }
+    }
+    zulu_ex.close();
+    return 0;
+}
+
+int CfgSvrSdk::svc() {
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] [CfgSvrSdk] task start run, thread id=%u",
+        ZEN_OS::pthread_self());
+    is_pthread_start_ = true;
+    Zulu_SendRecv_Package zulu_ex;
+    int ret = init_zulu_ex(zulu_ex, slave_cfgsvr_ip_, slave_cfgsvr_info_);
+    bool is_need_reconnect = false;
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::svc, init zulu error, ret=%d", ret);
+        return ret;
+    }
+    for (;;) {
+        ret = ZEN_OS::sleep(CHECK_UPDATE_TIME);
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "CfgSvrSdk::svc, set timer error, ret=%d, errno=%d", ret, errno);
+            return ret;
+        }
+        if (is_need_reconnect) {
+            ret = init_zulu_ex(zulu_ex, slave_cfgsvr_ip_, slave_cfgsvr_info_);
+            if (ret != 0) {
+                ZEN_Trace_LogMsg::debug_errorex(
+                    "CfgSvrSdk::svc, init zulu error, ret=%d", ret);
+                continue;
+            }
+            is_need_reconnect = false;
+        }
+        if (is_updade_config_) {
+            continue;
+        }
+        ret = get_config_update_list(zulu_ex);
+        if (ret != 0) {
+            if (ret == 0x13e5 || ret == 0x13e6 || ret == 0x1422) {
+                is_need_reconnect = true;
+            } else {
+                ZEN_Trace_LogMsg::debug_errorex(
+                    "CfgSvrSdk::svc, get update list error, ret=%d", ret);
+            }
+            continue;
+        }
+        if (config_update_list_.size() == 0) {
+            continue;
+        }
+        ret = update_config_file(zulu_ex);
+        if (ret != 0) {
+            if (ret == 0x13e5 || ret == 0x13e6 || ret == 0x1422) {
+                is_need_reconnect = true;
+            } else {
+                ZEN_Trace_LogMsg::debug_errorex(
+                    "CfgSvrSdk::svc, update file error, ret=%d", ret);
+            }
+            continue;
+        }
+        config_update_list_.clear();
+        is_updade_config_ = true;
+    }
+}
+
+void CfgSvrSdk::update_config_name_list() {
+    for (std::vector<string>::iterator update_iter = config_update_list_.begin();
+         update_iter != config_update_list_.end(); ++update_iter) {
+        bool is_exist = false;
+        for (std::vector<string>::iterator iter = cfg_name_list_.begin();
+             iter != cfg_name_list_.end(); ++iter) {
+            if (*update_iter == *iter) {
+                is_exist = true;
+                break;
+            }
+        }
+        if (!is_exist) {
+            cfg_name_list_.push_back(*update_iter);
+        }
+    }
+    config_update_list_.clear();
+}
+
+int CfgSvrSdk::send_config_file_req(Zulu_SendRecv_Package &zulu_ex) {
+    sec_proto::CfgFileReq cfg_file_req;
+    cfg_file_req.cfg_base_info_.svc_type_ = self_info_.services_type_;
+    cfg_file_req.cfg_base_info_.svc_id_ = self_info_.services_id_;
+    cfg_file_req.recv_len_ = recv_len_;
+    snprintf(cfg_file_req.cfg_base_info_.cfg_name_,
+             sizeof(cfg_file_req.cfg_base_info_.cfg_name_) - 1,
+             "%s", curr_cfg_name_.c_str());
+    memcpy(cfg_file_req.cfg_md5_, local_cfg_md5_.md5_value_, 16);
+    int ret = zulu_ex.send_svc_package<sec_proto::CfgFileReq>(
+        CFGSVR_QQUIN, CMD_CFG_FILE_REQ, cfg_file_req, 0, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_config_file, send pkg error, error:%s",
+            strerror(errno));
+    }
+    return ret;
+}
+
+int CfgSvrSdk::recv_config_file_rsp(Zulu_SendRecv_Package &zulu_ex,
+                                    GET_CONFIG_RESULT &get_config_result) {
+    sec_proto::CfgFileRsp cfg_file_rsp;
+    int ret = zulu_ex.receive_svc_package<sec_proto::CfgFileRsp>(
+        CMD_CFG_FILE_RSP, cfg_file_rsp, 0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_svr_config_file, recv pkg error, error:%s",
+            strerror(errno));
+        return ret;
+    }
+    if (cfg_file_rsp.result_ != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] CfgSvrSdk::get_config_file, get config error, %s, result=%d",
+            curr_cfg_name_.c_str(), cfg_file_rsp.result_);
+        return RET_CFG_FILE_ERROR;
+    }
+    if (cfg_file_rsp.cfg_len_ != 0) {
+        if (cfg_file_rsp.cfg_base_info_.svc_type_ != self_info_.services_type_ ||
+            cfg_file_rsp.cfg_base_info_.svc_id_ != self_info_.services_id_ ||
+            strcmp(cfg_file_rsp.cfg_base_info_.cfg_name_, curr_cfg_name_.c_str()) != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::get_config_file, recv error file, file_name %s, recv_name %s",
+                curr_cfg_name_.c_str(), cfg_file_rsp.cfg_base_info_.cfg_name_);
+            return RET_CFG_FILE_ERROR;
+        }
+        if (recv_len_ + cfg_file_rsp.data_len_ > MAX_FILE_LENGTH) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::get_config_file, recv file too large, recv_len=%u, data_len_=%u",
+                recv_len_, cfg_file_rsp.data_len_);
+            return RET_CFG_FILE_ERROR;
+        }
+        memcpy(file_buf_ + recv_len_, cfg_file_rsp.data_buf_, cfg_file_rsp.data_len_);
+        recv_len_ += cfg_file_rsp.data_len_;
+        if (recv_len_ == cfg_file_rsp.cfg_len_) {
+            memcpy(&recv_cfg_md5_, cfg_file_rsp.cfg_md5_, sizeof(recv_cfg_md5_));
+            ZEN_Trace_LogMsg::debug_infoex(
+                "[framework] CfgSvrSdk::get_config_file, get config file, |%s|%d|",
+                curr_cfg_name_.c_str(), cfg_file_rsp.cfg_len_);
+            get_config_result = CONFIG_IS_GET_OVER;
+            return 0;
+        }
+        if (recv_len_ > cfg_file_rsp.cfg_len_) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] CfgSvrSdk::get_config_file, failed, recv_len=%u, cfg_len=%d",
+                recv_len_, cfg_file_rsp.cfg_len_);
+            return RET_CFG_FILE_ERROR;
+        }
+        get_config_result = CONFIG_NEED_GET_MORE;
+        return 0;
+    }
+    get_config_result = CONFIG_IS_NEWEST;
+    return 0;
+}
+
+bool CfgSvrSdk::check_config_md5() {
+    unsigned char md5[16];
+    TenMd5(file_buf_, recv_len_, md5);
+    for (int i = 0; i < 16; ++i) {
+        if (md5[i] != recv_cfg_md5_.md5_value_[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+CfgSvrSdk *CfgSvrSdk::instance_ = NULL;
+
+// 显式实例化（原二进制弱符号：Zulu_SendRecv_Package 模板由本 TU 发出）
+#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
+#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
+
+template int Zulu_SendRecv_Package::send_svc_package<sec_proto::CfgFileReq>(unsigned int, unsigned int, const sec_proto::CfgFileReq&, ZEN_Time_Value*, unsigned int, unsigned int);
+template int Zulu_SendRecv_Package::send_svc_package<sec_proto::CheckCfgFileUpdateReq>(unsigned int, unsigned int, const sec_proto::CheckCfgFileUpdateReq&, ZEN_Time_Value*, unsigned int, unsigned int);
+template int Zulu_SendRecv_Package::send_svc_package<sec_proto::DeployInfoReq>(unsigned int, unsigned int, const sec_proto::DeployInfoReq&, ZEN_Time_Value*, unsigned int, unsigned int);
+template int Zulu_SendRecv_Package::send_svc_package<sec_proto::SvcIdReq>(unsigned int, unsigned int, const sec_proto::SvcIdReq&, ZEN_Time_Value*, unsigned int, unsigned int);
+template int Zulu_SendRecv_Package::send_svc_package<sec_proto::SvcIpInfoReq>(unsigned int, unsigned int, const sec_proto::SvcIpInfoReq&, ZEN_Time_Value*, unsigned int, unsigned int);
+template int Zulu_SendRecv_Package::receive_svc_package<sec_proto::CfgFileRsp>(unsigned int, sec_proto::CfgFileRsp&, bool, ZEN_Time_Value*);
+template int Zulu_SendRecv_Package::receive_svc_package<sec_proto::CfgsvrInfoRsp>(unsigned int, sec_proto::CfgsvrInfoRsp&, bool, ZEN_Time_Value*);
+template int Zulu_SendRecv_Package::receive_svc_package<sec_proto::CheckCfgFileUpdateRsp>(unsigned int, sec_proto::CheckCfgFileUpdateRsp&, bool, ZEN_Time_Value*);
+template int Zulu_SendRecv_Package::receive_svc_package<sec_proto::DeployInfoRsp>(unsigned int, sec_proto::DeployInfoRsp&, bool, ZEN_Time_Value*);
+template int Zulu_SendRecv_Package::receive_svc_package<sec_proto::SvcIdRsp>(unsigned int, sec_proto::SvcIdRsp&, bool, ZEN_Time_Value*);
+template int Zulu_SendRecv_Package::receive_svc_package<sec_proto::SvcIpInfoRsp>(unsigned int, sec_proto::SvcIpInfoRsp&, bool, ZEN_Time_Value*);

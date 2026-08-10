@@ -145,6 +145,15 @@ public:
     char unused_tail[48];  // 228B-StData 布局 + 48B 尾部 = 0x19a4（运行时分配大小）
 };
 
+// GlobalInstance<StatisticsCollector>::create() 显式特化声明（定义见
+// StatisticsCollector.cpp）：ORIG 中 create() 是弱符号，链接期胜出的是
+// 非 STATISTICS_STDATA_57 TU 的实例（new 分配 0x19a4）。我们构建的链接顺序
+// 会让 HandlerFor_GA_/GP_JPN.o（[57] 布局，0x19d4）的弱实例胜出；
+// 此声明使所有 TU 改用本强符号特化，分配尺寸与 ORIG 一致。
+namespace nsl {
+template <> void GlobalInstance<StatisticsCollector>::create();
+}
+
 inline StatisticsCollector* G_StatisticsCollector()
 {
     return nsl::GlobalInstance<StatisticsCollector>::inst_ptr();

@@ -5,6 +5,6 @@
 
 
 extern int load_bin_file(const char *file_path, unsigned char *data, unsigned int *data_len); // line 13 (inferred)
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
+// inferred
 
 #endif // SECSVR_SRC_FORMMOG_SECAGENT_SECAGENT_FILE_LOAD_H_H_

@@ -1,103 +1,76 @@
-// Auto-generated header stub from DWARF info
-// Original path: inc/loki97.h
-// 内容为类型信息与声明（函数体暂未还原）。
+/* loki97.h -- LOKI97 块密码（tencrypt 复刻）
+   类型布局按 DWARF：keyInstance sizeof 460、cipherInstance sizeof 40、
+   CLoki97 sizeof 32（S1/S2/DELTA/P/init_done/m_pSys/m_pLocal）。 */
 #ifndef SECSVR_INC_LOKI97_H_H_
 #define SECSVR_INC_LOKI97_H_H_
 
-// sizeof = 88
-struct ._33 { // line 9
-public:
-unsigned int state[];
-unsigned int count[];
-unsigned char buffer[];
-};
-// sizeof = 32
-struct CLoki97 { // line 31
-    // sizeof = 460
-    struct ._34 {
-    public:
-    unsigned char direction;
-    int keyLen;
-    unsigned char keyMaterial[];
-    ._33 SK[];
+typedef struct { unsigned int l, r; } loki_B64;
+
+struct CLoki97 {
+    struct keyInstance {            // sizeof = 460
+        unsigned char direction;    // +0x00
+        int keyLen;                 // +0x04
+        unsigned char keyMaterial[65]; // +0x08
+        loki_B64 SK[48];            // +0x4c
     };
-    // sizeof = 40
-    struct ._35 {
-    public:
-    unsigned char mode;
-    unsigned char IV[];
-    ._33 IVL;
-    ._33 IVR;
-    int blockSize;
+    struct cipherInstance {         // sizeof = 40
+        unsigned char mode;         // +0x00
+        unsigned char IV[16];       // +0x01
+        loki_B64 IVL;               // +0x14
+        loki_B64 IVR;               // +0x1c
+        int blockSize;              // +0x24
     };
 private:
-unsigned char *S1;
-unsigned char *S2;
-._33 DELTA;
-._33 *P;
-int init_done;
-void *m_pSys;
-void *m_pLocal;
+    unsigned char *S1;
+    unsigned char *S2;
+    loki_B64 DELTA;
+    loki_B64 *P;
+    int init_done;
+    void *m_pSys;
+    void *m_pLocal;
 public:
-CLoki97(); // line 33
-~CLoki97(); // line 34
-void Init(void *arg0, void *arg1); // line 36
-void UnInit(); // line 37
-void Loki97(unsigned char *arg0, bool arg1, unsigned char *arg2, unsigned int arg3); // line 39
+    CLoki97();                       // line 33
+    ~CLoki97();                      // line 34
+    void Init(void *pSys, void *pLocal);  // line 36
+    void UnInit();                   // line 37
+    void Loki97(unsigned char *key, bool benc, unsigned char *buf,
+                unsigned int buflen);     // line 39
 private:
-unsigned char * ULONG64ToBYTE(unsigned char *arg0, ._33 arg1); // line 65
-._33 byteToULONG64(unsigned char *arg0); // line 66
-._33 sub64(._33 arg0, ._33 arg1); // line 67
-._33 add64(._33 arg0, ._33 arg1); // line 68
-._33 f(._33 arg0, ._33 arg1); // line 69
-int deCFB1(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 71
-int deCBC(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 73
-int deECB(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 75
-int blockDecrypt(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 77
-int enCFB1(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 79
-int enCBC(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 81
-int enECB(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 83
-int blockEncrypt(CLoki97::._35 *arg0, CLoki97::._34 *arg1, unsigned char *arg2, int arg3, unsigned char *arg4); // line 85
-int makeKey(CLoki97::._34 *arg0, unsigned char arg1, int arg2, unsigned char *arg3); // line 86
-int mult(int arg0, int arg1, int arg2, int arg3); // line 87
-int exp3(int arg0, int arg1, int arg2); // line 88
-int cipherInit(CLoki97::._35 *arg0, unsigned char arg1, unsigned char *arg2); // line 89
+    unsigned char *ULONG64ToBYTE(unsigned char *buf, loki_B64 I);  // line 65
+    loki_B64 byteToULONG64(unsigned char *inp);                    // line 66
+    loki_B64 sub64(loki_B64 a, loki_B64 b);                        // line 67
+    loki_B64 add64(loki_B64 a, loki_B64 b);                        // line 68
+    loki_B64 f(loki_B64 A, loki_B64 B);                            // line 69
+    int deCFB1(cipherInstance *cipher, keyInstance *key,
+               unsigned char *input, int inputLen,
+               unsigned char *outBuffer);                          // line 71
+    int deCBC(cipherInstance *cipher, keyInstance *key,
+              unsigned char *input, int inputLen,
+              unsigned char *outBuffer);                           // line 73
+    int deECB(cipherInstance *cipher, keyInstance *key,
+              unsigned char *input, int inputLen,
+              unsigned char *outBuffer);                           // line 75
+    int blockDecrypt(cipherInstance *cipher, keyInstance *key,
+                     unsigned char *input, int inputLen,
+                     unsigned char *outBuffer);                    // line 77
+    int enCFB1(cipherInstance *cipher, keyInstance *key,
+               unsigned char *input, int inputLen,
+               unsigned char *outBuffer);                          // line 79
+    int enCBC(cipherInstance *cipher, keyInstance *key,
+              unsigned char *input, int inputLen,
+              unsigned char *outBuffer);                           // line 81
+    int enECB(cipherInstance *cipher, keyInstance *key,
+              unsigned char *input, int inputLen,
+              unsigned char *outBuffer);                           // line 83
+    int blockEncrypt(cipherInstance *cipher, keyInstance *key,
+                     unsigned char *input, int inputLen,
+                     unsigned char *outBuffer);                    // line 85
+    int makeKey(keyInstance *key, unsigned char direction,
+                int keyLen, unsigned char *keyMaterial);           // line 86
+    int mult(int a, int b, int g, int n);                          // line 87
+    int exp3(int b, int g, int n);                                 // line 88
+    int cipherInit(cipherInstance *cipher, unsigned char mode,
+                   unsigned char *IV);                             // line 89
 };
-namespace CLoki97 {
-    // sizeof = 460
-    struct ._34 { // line 44
-    public:
-    unsigned char direction;
-    int keyLen;
-    unsigned char keyMaterial[];
-    ._33 SK[];
-    };
-    // sizeof = 40
-    struct ._35 { // line 54
-    public:
-    unsigned char mode;
-    unsigned char IV[];
-    ._33 IVL;
-    ._33 IVR;
-    int blockSize;
-    };
-    // sizeof = 460
-    struct ._31 { // line 44
-    public:
-    unsigned char direction;
-    int keyLen;
-    unsigned char keyMaterial[];
-    ._30 SK[];
-    };
-    // sizeof = 40
-    struct ._32 { // line 54
-    public:
-    unsigned char mode;
-    unsigned char IV[];
-    ._30 IVL;
-    ._30 IVR;
-    int blockSize;
-    };
-} // namespace CLoki97
 
 #endif // SECSVR_INC_LOKI97_H_H_

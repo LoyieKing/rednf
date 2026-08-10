@@ -4,24 +4,24 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_STRING_UTIL_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_STRING_UTIL_H_H_
 
-#include <bits/stl_iterator.h>
+#include <string>
 
-// sizeof = 1
-struct zen_char_traits<char> { // line 14
+// Reconstructed for compilation: the DWARF stub only recorded the explicit
+// specialization; the primary template is restored here.
+template <typename T> struct zen_char_traits;
+
+template <> struct zen_char_traits<char> { // line 14
 public:
-static int tisspace(int arg0); // line 26
 static const char * tstrend(const char *arg0); // line 35
 };
-extern int str_to_hex(const char *str, unsigned char *buff, unsigned int *buf_len); // line 412
-extern int replace_all(char *s, const char *old_chars, const char new_char); // line 602
-extern int replace_all<char, std::char_traits<char>, std::allocator<char> >(/*anon struct*/ int &const s, const char *old_str, const char *new_str); // line 576
-extern short int idx; // line 422
-extern short unsigned int i; // line 423
-extern char temp_char; // line 424
-extern int temp; // line 425
-extern short unsigned int str_len; // line 426
-extern char *p; // line 610
-extern /*anon struct*/ int pos; // line 529
-extern /*anon struct*/ int write_it; // line 538
+
+// Template declaration matching the weak symbol in the binary:
+//   replace_all<char, std::char_traits<char>, std::allocator<char>,
+//               char const*, char const*, std::equal_to<char> >
+template <typename T, typename Traits, typename Alloc,
+          typename HeadT, typename TailT, typename CompT>
+int replace_all(std::basic_string<T, Traits, Alloc> &s,
+                const T *old_str, const T *new_str,
+                const HeadT &head, const TailT &tail, const CompT &comp);
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_STRING_UTIL_H_H_

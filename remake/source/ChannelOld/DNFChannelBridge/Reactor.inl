@@ -25,7 +25,8 @@ bool EpollReactor<TSession>::registHandle(TSession* s, unsigned int event_filter
         ChannelServiceApp::gFileLogError.Unlock();
         return false;
     }
-    if (map_.find(s) != map_.end())
+    typename std::map<TSession*, unsigned int>::iterator iter = map_.find(s);
+    if (iter != map_.end())
     {
         return false;
     }

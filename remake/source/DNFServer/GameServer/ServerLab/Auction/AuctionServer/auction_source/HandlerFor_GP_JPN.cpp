@@ -49,17 +49,15 @@ unsigned int HandlerFor_GP_::onAUCTION_REGIST_GP(nsl::CMsgCell* pCell, nsl::TCPU
     }
     else
     {
-        unsigned int characKey = pArea->GetSpareKey();
-        pCharacter->setCharacKey(characKey);
+        pCharacter->setCharacKey(pArea->GetSpareKey());
         pCharacter->setArea(0);
         ackPck.ack = 0x36;
     }
-    CommonDataPool* pSendPool = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId);
-    Message* msg = pSendPool->getSendMessage(u);
-    CMsgCell* cell = msg->getCellFromMessage();
-    *cell << &ackPck;
-    cell->PAD();
-    sendTCP_->PushSendMsg(msg);
+    Message* pNewMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
+    CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
+    *pNewCell << &ackPck;
+    pNewCell->PAD();
+    sendTCP_->PushSendMsg(pNewMsg);
     u->setBindedSession(true);
     G_TraceLog()->sysLog(5, "Out  onAUCTION_REGIST_GP");
     return 0;
@@ -245,7 +243,10 @@ unsigned int HandlerFor_GP_::onAUCTION_SEARCH_BY_ITEMKEY_GP(nsl::CMsgCell* pCell
                                          pPck->item_id_array,
                                          &packet.total_item_num, &packet.item_num,
                                          packet.item_info);
-    if (result == 0)
+    if (result != 0)
+    {
+        return result;
+    }
     {
         packet.char_idx = pPck->char_idx;
         packet.character_id = pPck->character_id;
@@ -256,7 +257,7 @@ unsigned int HandlerFor_GP_::onAUCTION_SEARCH_BY_ITEMKEY_GP(nsl::CMsgCell* pCell
                 G_Auction()->GetItemInfo(packet.item_info[i].item_info.item_id);
             if (pItemInfo != NULL)
             {
-                unsigned int item_category = (unsigned int)pItemInfo->category_;
+                int item_category = (int)pItemInfo->category_;
                 if (G_Auction()->IsAvatarCategory(item_category))
                 {
                     G_Auction()->GetAvatarEmblemInfo(
@@ -296,7 +297,10 @@ unsigned int HandlerFor_GP_::onAUCTION_SEARCH_BY_NOITEMKEY_GP(nsl::CMsgCell* pCe
     result = G_Auction()->SearchByCategory(&pPck->tSearchByCategory,
                                            &packet.total_item_num, &packet.item_num,
                                            packet.item_info);
-    if (result == 0)
+    if (result != 0)
+    {
+        return result;
+    }
     {
         packet.char_idx = pPck->char_idx;
         packet.character_id = pPck->character_id;
@@ -307,7 +311,7 @@ unsigned int HandlerFor_GP_::onAUCTION_SEARCH_BY_NOITEMKEY_GP(nsl::CMsgCell* pCe
                 G_Auction()->GetItemInfo(packet.item_info[i].item_info.item_id);
             if (pItemInfo != NULL)
             {
-                unsigned int item_category = (unsigned int)pItemInfo->category_;
+                int item_category = (int)pItemInfo->category_;
                 if (G_Auction()->IsAvatarCategory(item_category))
                 {
                     G_Auction()->GetAvatarEmblemInfo(
@@ -363,11 +367,11 @@ unsigned int HandlerFor_GP_::onAUCTION_MY_REGISTED_ITEM_INFO_GP(nsl::CMsgCell* p
         CNRDItemInfoList::STItemInfo* pItemInfo =
             G_Auction()->GetItemInfo(
                 packet.my_registed_item_info[i].item_info.item_id);
-        if (pItemInfo != NULL)
-        {
-            unsigned int item_category = (unsigned int)pItemInfo->category_;
-            if (G_Auction()->IsAvatarCategory(item_category))
+            if (pItemInfo != NULL)
             {
+                int item_category = (int)pItemInfo->category_;
+                if (G_Auction()->IsAvatarCategory(item_category))
+                {
                 G_Auction()->GetAvatarEmblemInfo(
                     packet.my_registed_item_info[i].item_info.add_info,
                     &packet.my_registed_item_info[i].emblem_info);
@@ -420,11 +424,11 @@ unsigned int HandlerFor_GP_::onAUCTION_MY_BIDDING_INFO_GP(nsl::CMsgCell* pCell,
         CNRDItemInfoList::STItemInfo* pItemInfo =
             G_Auction()->GetItemInfo(
                 packet.my_bidding_item_info[i].item_info.item_id);
-        if (pItemInfo != NULL)
-        {
-            unsigned int item_category = (unsigned int)pItemInfo->category_;
-            if (G_Auction()->IsAvatarCategory(item_category))
+            if (pItemInfo != NULL)
             {
+                int item_category = (int)pItemInfo->category_;
+                if (G_Auction()->IsAvatarCategory(item_category))
+                {
                 G_Auction()->GetAvatarEmblemInfo(
                     packet.my_bidding_item_info[i].item_info.add_info,
                     &packet.my_bidding_item_info[i].emblem_info);
@@ -432,10 +436,8 @@ unsigned int HandlerFor_GP_::onAUCTION_MY_BIDDING_INFO_GP(nsl::CMsgCell* pCell,
             }
         }
     }
-    // ORIG：0x1d69 - (0x3c - n) * 0x7d（imul 正 0x7d 后 sub，常量不折叠）
-    // 中间局部防止 gcc 前端把 0x1d69 - 0x3c*0x7d 折叠成 0x1d
-    int size_arg = 0x3c - packet_array_size;
-    packet.setSize(0x1d69 - size_arg * 0x7d);
+    // ORIG：0x1d69 - (0x3c - n) * 0x7d（§66：减号分发不可复现，保持内联）
+    packet.setSize(0x1d69 - (0x3c - packet_array_size) * 0x7d);
     // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
@@ -662,7 +664,7 @@ unsigned int HandlerFor_GP_::onAUCTION_REGIST_ITEM_GP(nsl::CMsgCell* pCell, nsl:
             G_Auction()->GetItemInfo(pPck->item_info.item_id);
         if (pItemInfo != NULL)
         {
-            unsigned int item_category = (unsigned int)pItemInfo->category_;
+            int item_category = (int)pItemInfo->category_;
             if (G_Auction()->IsAvatarCategory(item_category))
             {
                 G_Auction()->AddAvatarEmblemInfo(pPck->item_info.add_info,
@@ -671,22 +673,26 @@ unsigned int HandlerFor_GP_::onAUCTION_REGIST_ITEM_GP(nsl::CMsgCell* pCell, nsl:
         }
     }
     // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
-    Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
-    CMsgCell* cell = msg->getCellFromMessage();
-    *cell << &log_packet;
-    cell->PAD();
-    sendTCP_->PushSendMsg(msg);
-    msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
-    cell = msg->getCellFromMessage();
-    *cell << &result_packet;
-    cell->PAD();
-    sendTCP_->PushSendMsg(msg);
+    {
+        Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
+        CMsgCell* cell = msg->getCellFromMessage();
+        *cell << &log_packet;
+        cell->PAD();
+        sendTCP_->PushSendMsg(msg);
+    }
+    {
+        Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
+        CMsgCell* cell = msg->getCellFromMessage();
+        *cell << &result_packet;
+        cell->PAD();
+        sendTCP_->PushSendMsg(msg);
+    }
     if (return_code != 0)
     {
         if (return_code == 9)
         {
             G_TraceLog()->sysLog(7, "Out onAUCTION_REGIST_ITEM_GP , auction_id : %llu, %s",
-                                 log_packet.auction_id, GetErrorStr(9));
+                                 log_packet.auction_id, GetErrorStr(return_code));
             return return_code;
         }
         G_TraceLog()->sysLog(5, "Out onAUCTION_REGIST_ITEM_GP , auction_id : %llu, %s",

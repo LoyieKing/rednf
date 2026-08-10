@@ -191,11 +191,8 @@ WORD Search::FindNextSameLevelCategory(WORD category)
     int next_same_level_category;
     std::map<unsigned short, unsigned short>::iterator iter;
     iter = mCategoryNextContainer.find(category);
-    if (iter == mCategoryNextContainer.end())
-    {
-        return category;
-    }
-    next_same_level_category = iter->second;
+    next_same_level_category =
+        (iter == mCategoryNextContainer.end()) ? category : iter->second;
     return next_same_level_category;
 }
 
@@ -1074,17 +1071,9 @@ int Search::FindByCategory(TSearchByCategory_* pSearchByCategory,
         return 0x1b;
     }
 #ifdef POINT_SERVER
-    if (pSearchByCategory->lvStart > 0x46)
+    if (pSearchByCategory->lvStart > 0x46 || pSearchByCategory->lvEnd > 0x46)
 #else
-    if (pSearchByCategory->lvStart > 0x55)
-#endif
-    {
-        return 0x1b;
-    }
-#ifdef POINT_SERVER
-    if (pSearchByCategory->lvEnd > 0x46)
-#else
-    if (pSearchByCategory->lvEnd > 0x55)
+    if (pSearchByCategory->lvStart > 0x55 || pSearchByCategory->lvEnd > 0x55)
 #endif
     {
         return 0x1b;
@@ -1111,35 +1100,23 @@ int Search::FindByCategory(TSearchByCategory_* pSearchByCategory,
     }
     if (IsSpecificRarity(p_parameter->rarity))
     {
-        if (IsSpecificLv(p_parameter))
-        {
-            result = SearchByCategoryRarityUpgradeLv(p_parameter,
-                                                     &mCategoryRarityUpgradeLvContainer);
-        }
-        else
-        {
-            result = SearchByCategoryRarityUpgrade(p_parameter,
-                                                   &mCategoryRarityUpgradeContainer);
-        }
+        result = IsSpecificLv(p_parameter)
+            ? SearchByCategoryRarityUpgradeLv(p_parameter, &mCategoryRarityUpgradeLvContainer)
+            : SearchByCategoryRarityUpgrade(p_parameter, &mCategoryRarityUpgradeContainer);
     }
     else
     {
-        if (IsSpecificLv(p_parameter))
-        {
-            result = SearchByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
-        }
-        else
-        {
-            result = SearchByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
-        }
+        result = IsSpecificLv(p_parameter)
+            ? SearchByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer)
+            : SearchByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
     }
-    if (result == 0)
+    if (result != 0)
     {
-        *pNumberOfFound = p_parameter->searchResult.numberOfFound;
-        *pTotalNumberOfFound = p_parameter->searchResult.totalNumberOfFound;
-        result = 0;
+        return result;
     }
-    return result;
+    *pNumberOfFound = p_parameter->searchResult.numberOfFound;
+    *pTotalNumberOfFound = p_parameter->searchResult.totalNumberOfFound;
+    return 0;
 }
 
 int Search::SearchByRefineWrapper(BYTE refineFrom, BYTE refineTo, TSearchResult* pSearchResult,

@@ -68,7 +68,9 @@ char* HandlerFor_DB_::GetYYYYMM()
 void HandlerFor_DB_::init()
 {
     char p_db_password[21];
-    char ret = 0;
+    // ORIG：ret/b_result 是 bool（movzbl+xor+test+je 物化形态）；ret=0 在
+    // config 打印之后才赋，不要在声明处初始化（否则入口多一条 movb）。
+    bool ret;
 
     nsl::IHandler::init();
     for (int i = 0; i < 0x7e; i = i + 1)
@@ -93,10 +95,10 @@ void HandlerFor_DB_::init()
     ret = 0;
     DecryptPassword(G_Script()->findCharValue(1, 6), p_db_password);
     pApp->super_DBConnections.getDBConnection(0)->set_charset_name_option();
-    unsigned int port = (unsigned int)atoi(G_Script()->findCharValue(1, 4));
     ret = pApp->super_DBConnections.getDBConnection(0)->open(
         G_Script()->findCharValue(1, 3), G_Script()->findCharValue(1, 7),
-        G_Script()->findCharValue(1, 5), p_db_password, port);
+        G_Script()->findCharValue(1, 5), p_db_password,
+        (unsigned int)atoi(G_Script()->findCharValue(1, 4)));
     if (!ret)
     {
         G_TraceLog()->sysLog(7, "Fail to open GameDB. process exits.");
@@ -106,10 +108,10 @@ void HandlerFor_DB_::init()
 
     DecryptPassword(G_Script()->findCharValue(1, 0xb), p_db_password);
     pApp->super_DBConnections.getDBConnection(1)->set_charset_name_option();
-    port = (unsigned int)atoi(G_Script()->findCharValue(1, 9));
     ret = pApp->super_DBConnections.getDBConnection(1)->open(
         G_Script()->findCharValue(1, 8), G_Script()->findCharValue(1, 0xc),
-        G_Script()->findCharValue(1, 10), p_db_password, port);
+        G_Script()->findCharValue(1, 10), p_db_password,
+        (unsigned int)atoi(G_Script()->findCharValue(1, 9)));
     if (!ret)
     {
         G_TraceLog()->sysLog(7, "Fail to open AuctionDB. process exits.");
@@ -119,7 +121,7 @@ void HandlerFor_DB_::init()
 
     for (int i = 0; i < 2; i = i + 1)
     {
-        char b_result = pApp->super_DBConnections.getDBConnection(i)->set_reconnect_option();
+        bool b_result = pApp->super_DBConnections.getDBConnection(i)->set_reconnect_option();
         if (!b_result)
         {
             G_TraceLog()->errorLog("DB Category no.%d : set MYSQL_OPT_RECONNECT Error", i);
@@ -184,12 +186,12 @@ bool HandlerFor_DB_::GetAuctionMainFetchResult(nsl::DBConnection* db,
     if (!bRet) return false;
     bRet = db->get_str(i++, pContext->owner_name, 0xc);
     if (!bRet) return false;
-    *(char*)&pContext->buyer_id = 0;
+    pContext->owner_name[13] = 0;
     bRet = db->get_int(i++, pContext->buyer_id);
     if (!bRet) return false;
     bRet = db->get_str(i++, pContext->buyer_name, 0xc);
     if (!bRet) return false;
-    *(char*)&pContext->price = 0;
+    pContext->buyer_name[13] = 0;
     bRet = db->get_int(i++, pContext->price);
     if (!bRet) return false;
     bRet = db->get_int(i++, pContext->instant_price);
@@ -1173,7 +1175,10 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_AVERAGE_PRICE(nsl::CMsgCell* pCell
 unsigned int HandlerFor_DB_::onAUCTION_DB_GET_ROI_AVERAGE_PRICE(nsl::CMsgCell* pCell)
 {
     DBConnection* db;
-    LPDBTR_HEADER pContext;
+    // ORIG：pContext 是 LPDBTR_AUCTION_DB_GET_AVERAGE_PRICE（item_id@0x15、
+    // upgrade@0x19、average_price@0x1a），直接成员访问才会出 lea/mov 单条
+    // 偏移寻址；用 LPDBTR_HEADER + pContext[1].dbId cast 会 add+mov 拆分。
+    LPDBTR_AUCTION_DB_GET_AVERAGE_PRICE pContext;
     int ret;
     // ORIG：bool bRet@-0x21（fetch 用，xor 物化）；int ret@-0x28（get_* 结果，
     // `ret == 0` 走 cmpl+sete+test+jne 物化——勿写 if(!ret)，那会直 je）
@@ -1182,7 +1187,7 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_ROI_AVERAGE_PRICE(nsl::CMsgCell* p
 
     G_TraceLog()->sysLog(6, "In  onAUCTION_DB_GET_ROI_AVERAGE_PRICE");
     db = pApp->super_DBConnections.getDBConnection(1);
-    pContext = pCell->GetDBTr();
+    pContext = (LPDBTR_AUCTION_DB_GET_AVERAGE_PRICE)pCell->GetDBTr();
     db->set_query(
         "seLect db_inf_max_price,db_inf_min_price,db_inf_prob,db_inf_limit_count,db_inf_base_mul_min_a,db_inf_base_mul_max_b from auction_roi_constraint");
     ret = db->exec(true);
@@ -1250,11 +1255,11 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_ROI_AVERAGE_PRICE(nsl::CMsgCell* p
         it = 0;
         // ORIG：if ((ret = (unsigned int)get_*()) == 0) —— 赋值在条件内，
         // 才会物化 cmpl+sete+test+jne；先赋值再 if(ret==0) 是直 je
-        if ((ret = (unsigned int)db->get_ulong(it++, *(ulong*)&pContext[1].dbId)) == 0)
+        if ((ret = (unsigned int)db->get_ulong(it++, pContext->item_id)) == 0)
         {
             break;
         }
-        if ((ret = (unsigned int)db->get_ubyte(it++, *(unsigned char*)&pContext[1].dbtrId)) == 0)
+        if ((ret = (unsigned int)db->get_ubyte(it++, pContext->upgrade)) == 0)
         {
             break;
         }
@@ -1283,8 +1288,7 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_ROI_AVERAGE_PRICE(nsl::CMsgCell* p
         {
             break;
         }
-        if ((ret = (unsigned int)db->get_int(it++,
-                *(int*)((char*)&pContext[1].dbtrId + 1))) == 0)
+        if ((ret = (unsigned int)db->get_int(it++, pContext->average_price)) == 0)
         {
             break;
         }
@@ -1297,9 +1301,9 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_ROI_AVERAGE_PRICE(nsl::CMsgCell* p
         {
             break;
         }
-        _temp_roi_average_key.baseItem_index = pContext[1].dbId;
-        G_Auction()->AddItemAveragePrice(pContext[1].dbId, (unsigned char)pContext[1].dbtrId,
-                                         *(int*)((char*)&pContext[1].dbtrId + 1), _purchase_cnt,
+        _temp_roi_average_key.baseItem_index = pContext->item_id;
+        G_Auction()->AddItemAveragePrice(pContext->item_id, pContext->upgrade,
+                                         pContext->average_price, _purchase_cnt,
                                          _temp_roi_average_key, refine, true);
     }
     if (!bRet)

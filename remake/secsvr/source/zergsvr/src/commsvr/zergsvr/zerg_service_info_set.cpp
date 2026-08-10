@@ -1,519 +1,136 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from zergsvr DWARF + disassembly.
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commsvr/zergsvr/zerg_service_info_set.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
-#include "src/commsvr/zergsvr/zerg_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "output/commlib/zenlib/release/include/zen_id_to_string.h"
-#include "output/commlib/zenlib/release/include/zen_time_value.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_command.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_result.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_field.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
-#include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_spin.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
-#include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
-#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_file.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
-#include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
-#include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_sema.h"
-#include "output/commlib/zenlib/release/include/zen_lock_synch_traits.h"
-#include "output/commlib/zenlib/release/include/zen_lock_process_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_rw_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_semaphore.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_condi.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_condi.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_nonlock.h"
-#include "output/commlib/zenlib/release/include/zen_timer_handler_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_wheel.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_base.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
-#include "output/commlib/zenlib/release/include/zen_bus_two_way.h"
-#include "output/commlib/zenlib/release/include/zen_thread_task.h"
-#include "output/commlib/zenlib/release/include/zen_event_handle_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_base.h"
-#include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_acceptor.h"
-#include "output/commlib/zenlib/release/include/zen_socket_connector.h"
-#include "output/commlib/zenlib/release/include/zen_socket_stream.h"
-#include "output/commlib/framework/release/include/comm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
-#include "output/commlib/zenlib/release/include/zen_socket_datagram.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_select.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
-#include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
-#include "output/commlib/zenlib/release/include/zen_server_status.h"
-#include "output/commlib/zenlib/release/include/zen_shm_vector.h"
-#include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
-#include "output/protocol/common/release/include/comm_proto_cfgsvr.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "output/protocol/common/release/include/comm_proto_public_head.h"
-#include "output/protocol/common/release/include/comm_proto_public_cmd.h"
-#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
-#include "output/protocol/common/release/include/comm_proto_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_conf_framework.h"
-#include "output/protocol/common/release/include/TdrXml.h"
-#include "output/protocol/common/release/include/TdrIO.h"
-#include "output/protocol/common/release/include/comm_conf_svcid.h"
-#include "output/protocol/common/release/include/comm_conf_zerg.h"
-#include "output/protocol/common/release/include/comm_conf_cfgsdk.h"
-#include "import/include/tencore/tencrypt/TenHash.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_external.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_types.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_define.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_ctypes_info.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_error.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_init.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLtags.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLMetaLib.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_to_hpp.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_io.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_operate_data.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_sort.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_net.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_manage.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_sql.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_meta_entries_index.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_macros.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_error.h"
-#include "output/commlib/framework/release/include/comm_error_code.h"
-#include "output/commlib/framework/release/include/comm_random_number.h"
-#include "output/commlib/framework/release/include/comm_service_config.h"
-#include "output/commlib/framework/release/include/comm_service_info.h"
-#include "output/commlib/framework/release/include/comm_enum_define.h"
-#include "output/commlib/framework/release/include/comm_app_frame.h"
-#include "output/commlib/framework/release/include/comm_frame_command.h"
-#include "output/commlib/framework/release/include/comm_zerg_mmappipe.h"
-#include "output/commlib/framework/release/include/comm_stat_monitor.h"
-#include "output/commlib/framework/release/include/comm_stat_define.h"
-#include "output/commlib/framework/release/include/comm_svrd_config.h"
-#include "output/commlib/framework/release/include/comm_mml_command.h"
-#include "output/commlib/framework/release/include/comm_mml_console_handler.h"
-#include "output/commlib/framework/release/include/comm_cfgsvr_sdk.h"
-#include "output/commlib/framework/release/include/comm_encrypt_arithmetic.h"
-#include "output/commlib/framework/release/include/comm_cmd_statistic.h"
-#include "output/commlib/framework/release/include/comm_svrd_application.h"
-#include "output/commlib/framework/release/include/comm_svrd_app_main.h"
-#include "output/commlib/framework/release/include/comm_bill_record.h"
-#include "output/commlib/framework/release/include/comm_time_provider.h"
-#include "output/commlib/framework/release/include/comm_xml_config.h"
+#include <cstring>
+#include <sstream>
+#include <string>
+
+#include "src/commlib/zenlib/zen_trace_log_msg.h"
 #include "src/commsvr/zergsvr/zerg_service_info_set.h"
 #include "src/commsvr/zergsvr/zerg_tcp_ctrl_handler.h"
-#include "src/commsvr/zergsvr/zerg_buf_storage.h"
-#include "src/commsvr/zergsvr/zerg_auto_connect.h"
-#include "src/commsvr/zergsvr/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-// line 172
-size_t Service_Info_Set::get_services_peersize() {
+namespace {
+typedef __gnu_cxx::hash_map<SERVICES_ID, TCP_Svc_Handler *, HashofSvrInfo,
+                            std::equal_to<SERVICES_ID>,
+                            std::allocator<TCP_Svc_Handler *> > Service_Info_Map;
 }
 
-const long unsigned int * std::lower_bound<const long unsigned int*, long unsigned int>(const long unsigned int *__first, const long unsigned int *__last, const long unsigned int &__val) {
-    // local: ptrdiff_t __len;
-    // local: ptrdiff_t __half;
-    // local: const long unsigned int *__middle;
+// line 13
+Service_Info_Set::Service_Info_Set() {
 }
 
-void std::fill<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*> > >, __gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*>(/*anon struct*/ int __first, /*anon struct*/ int __last, _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *const &__value) {
-    // local: const bool __scalar;
+// line 17
+Service_Info_Set::~Service_Info_Set() {
 }
 
-_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > ** std::fill_n<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*>(_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > **__first, unsigned int __n, _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *const &__value) {
-    // local: const bool __scalar;
+// line 22
+void Service_Info_Set::init_services_peerinfo(unsigned int szpeer) {
+    svr_info_set_.resize(szpeer);
 }
 
-void std::__uninitialized_fill_n_a<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*, __gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*>(_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > **__first, unsigned int __n, _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *const &__x, /*anon struct*/ int arg3) {
-}
-
-/*anon struct*/ int std::fill_n<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*, __gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *const &__x, /*anon struct*/ int arg3) {
-}
-
-// line 224
-void Service_Info_Set::clear_and_closeall() {
-    // local: const size_t SHOWINFO_NUMBER;
-    // local: /*anon struct*/ int iter;
-    // local: TCP_Svc_Handler *svrhandle;
-}
-
-void _M_fill_insert(__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >**,std::vector<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> >*> > > __position, unsigned int __n, _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *const &__x) {
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
-}
-
-void reserve(unsigned int __n) {
-    // local: const size_t __old_size;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > **__tmp;
-}
-
+// line 28
 int Service_Info_Set::find_services_peerinfo(const SERVICES_ID &svrinfo, TCP_Svc_Handler *&svrhandle) {
-    // local: /*anon struct*/ int iter;
-}
-
-/*anon struct*/ int & operator++() {
-    // local: const _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__old;
-    // local: size_t __bucket;
-}
-
-// line 193
-void Service_Info_Set::dump_svr_peerinfo(ostringstream &ostr_stream, size_t startno, size_t numquery) {
-    // local: /*anon struct*/ int iter_tmp;
-    // local: /*anon struct*/ int iter_end;
-    // local: size_t i;
-    // local: SERVICES_ID svr_info;
-    // local: TCP_Svc_Handler *svrhandle;
-}
-
-void clear() {
-    // local: size_t __i;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__cur;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__next;
-}
-
-size_t erase(const SERVICES_ID &__key) {
-    // local: const size_t __n;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__first;
-    // local: size_t __erased;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__cur;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__next;
-}
-
-// line 151
-size_t Service_Info_Set::del_services_peerInfo(const SERVICES_ID &svrinfo) {
-    // local: /*anon struct*/ int iter;
-    // local: size_t szdel;
-}
-
-void resize(unsigned int __num_elements_hint) {
-    // local: const size_t __old_n;
-    // local: const size_t __n;
-    // local: /*anon struct*/ int __tmp;
-    // local: size_t __bucket;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__first;
-    // local: size_t __new_bucket;
-}
-
-/*anon struct*/ int & find_or_insert(const /*anon struct*/ int &__obj) {
-    // local: size_t __n;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__first;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__tmp;
-    // local: _Hashtable_node<std::pair<const SERVICES_ID, TCP_Svc_Handler*> > *__cur;
+    Service_Info_Map::iterator iter = svr_info_set_.find(svrinfo);
+    if (iter != svr_info_set_.end()) {
+        svrhandle = iter->second;
+        return 0;
+    }
+    ZEN_Trace_LogMsg::debug_errorex(
+        "[zergsvr] Can't find svchanle info. Svrinfo Type|ID:[%u|%u] .",
+        svrinfo.services_type_, svrinfo.services_id_);
+    return 0x1149339b;
 }
 
 // line 62
-int Service_Info_Set::replace_services_peerInfo(const SERVICES_ID &svrinfo, TCP_Svc_Handler *new_svchdl, TCP_Svc_Handler *&old_svchdl) {
-    // local: /*anon struct*/ int iter;
-    // local: const size_t TMP_ADDR_LEN;
-    // local: char new_addr[];
-    // local: char old_addr[];
+int Service_Info_Set::replace_services_peerInfo(const SERVICES_ID &svrinfo, TCP_Svc_Handler *new_svchdl,
+                                                TCP_Svc_Handler *&old_svchdl) {
+    const size_t TMP_ADDR_LEN = 32;
+    char new_addr[TMP_ADDR_LEN];
+    char old_addr[TMP_ADDR_LEN];
+    old_svchdl = NULL;
+    Service_Info_Map::iterator iter = svr_info_set_.find(svrinfo);
+    if (iter != svr_info_set_.end()) {
+        old_svchdl = iter->second;
+        strncpy(new_addr, new_svchdl->get_peer_address(), TMP_ADDR_LEN);
+        strncpy(old_addr, old_svchdl->get_peer_address(), TMP_ADDR_LEN);
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[zergsvr] replace_services_peerInfo:%u|%u ,Find Old IP|Port:[%s|%u],New IP Port[%s|%u],Replace old.",
+            svrinfo.services_type_, svrinfo.services_id_, old_addr, old_svchdl->get_peer_port(),
+            new_addr, new_svchdl->get_peer_port());
+    }
+    svr_info_set_[svrinfo] = new_svchdl;
+    return 0;
 }
 
 // line 107
 int Service_Info_Set::add_services_peerinfo(const SERVICES_ID &svrinfo, TCP_Svc_Handler *new_svchdl) {
-    // local: /*anon struct*/ int iter;
-    // local: TCP_Svc_Handler *old_svchdl;
-    // local: const size_t TMP_ADDR_LEN;
-    // local: char new_addr[];
-    // local: char old_addr[];
+    const size_t TMP_ADDR_LEN = 32;
+    char new_addr[TMP_ADDR_LEN];
+    char old_addr[TMP_ADDR_LEN];
+    TCP_Svc_Handler *old_svchdl;
+    Service_Info_Map::iterator iter = svr_info_set_.find(svrinfo);
+    if (iter != svr_info_set_.end()) {
+        old_svchdl = iter->second;
+        strncpy(new_addr, new_svchdl->get_peer_address(), TMP_ADDR_LEN);
+        strncpy(old_addr, old_svchdl->get_peer_address(), TMP_ADDR_LEN);
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[zergsvr] add_services_peerinfo:%u|%u Fail,Find Old IP|Port:[%s|%u],New IP Port[%s|%u],Replace old.",
+            svrinfo.services_type_, svrinfo.services_id_, old_addr, old_svchdl->get_peer_port(),
+            new_addr, new_svchdl->get_peer_port());
+        return 0x11493396;
+    }
+    svr_info_set_[svrinfo] = new_svchdl;
+    return 0;
 }
 
-// line 22
-void Service_Info_Set::init_services_peerinfo(size_t szpeer) {
+// line 151
+size_t Service_Info_Set::del_services_peerInfo(const SERVICES_ID &svrinfo) {
+    size_t szdel = svr_info_set_.erase(svrinfo);
+    if (szdel == 0) {
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[zergsvr] Can't Service_Info_Set::del_services_peerInfo Size svr_info_set_ %u: szdel:%u svrinfo:%u|%u .",
+            svr_info_set_.size(), 0, svrinfo.services_type_, svrinfo.services_id_);
+    }
+    return szdel;
 }
 
+// line 172
+size_t Service_Info_Set::get_services_peersize() {
+    return svr_info_set_.size();
+}
+
+// line 193
+void Service_Info_Set::dump_svr_peerinfo(std::ostringstream &ostr_stream, unsigned int startno, unsigned int numquery) {
+    Service_Info_Map::iterator iter_tmp = svr_info_set_.begin();
+    Service_Info_Map::iterator iter_end = svr_info_set_.end();
+    size_t i = 0;
+    for (; iter_tmp != iter_end; ++iter_tmp, ++i) {
+        if (i < startno) {
+            continue;
+        }
+        if (numquery != 0 && startno + numquery < i) {
+            break;
+        }
+        SERVICES_ID svr_info = iter_tmp->first;
+        TCP_Svc_Handler *svrhandle = iter_tmp->second;
+        svrhandle->dump_status_info(ostr_stream);
+    }
+}
+
+// line 224
+void Service_Info_Set::clear_and_closeall() {
+    const size_t SHOWINFO_NUMBER = 500;
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[zergsvr] Has %u peer want to close. Please wait. ACE that is accursed.",
+        svr_info_set_.size());
+    while (svr_info_set_.size() > 0) {
+        if (svr_info_set_.size() % SHOWINFO_NUMBER == 0) {
+            ZEN_Trace_LogMsg::debug_infoex(
+                "[zergsvr] Now remain %u peer want to close. Please wait. ACE that is accursed.",
+                svr_info_set_.size());
+        }
+        TCP_Svc_Handler *svrhandle = svr_info_set_.begin()->second;
+        svrhandle->handle_close();
+    }
+}

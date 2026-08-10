@@ -1,18 +1,18 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_share_mem_posix.h
+// Original path: src/commlib/zenlib/zen_share_mem_posix.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHARE_MEM_POSIX_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHARE_MEM_POSIX_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHARE_MEM_POSIX_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHARE_MEM_POSIX_H_H_
 
 #include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include <bits/stringfwd.h>
+#include <string>
 #include <stddef.h>
 
 // sizeof = 16
 struct ZEN_ShareMem_Posix : public ZEN_NON_Copyable { // line 13
 protected:
-string shm_name_;
+std::string shm_name_;
 void *mmap_addr_;
 ZEN_HANDLE mmap_handle_;
 size_t shm_size_;
@@ -27,4 +27,4 @@ int flush(); // line 52
 void * addr(); // line 55
 };
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHARE_MEM_POSIX_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHARE_MEM_POSIX_H_H_

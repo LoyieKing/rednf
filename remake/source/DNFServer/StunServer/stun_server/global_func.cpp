@@ -70,16 +70,18 @@ int daemon_init()
 
 bool save_pid()
 {
-    int fd = open("./pid/udp_server.pid", 0x42, 0x1a4);
+    char buf[512];
+    ssize_t write_byte;
+    int fd;
+    fd = open("./pid/udp_server.pid", 0x42, 0x1a4);
     if (fd < 0)
     {
         return false;
     }
 
-    char buf[512];
     memset(buf, 0, 512);
     sprintf(buf, "%ld\n", (long)getpid());
-    ssize_t write_byte = write(fd, buf, strlen(buf));
+    write_byte = write(fd, buf, strlen(buf));
     if (write_byte < 0)
     {
         close(fd);
@@ -90,14 +92,16 @@ bool save_pid()
 
 void send_term_signal()
 {
-    FILE* fp = fopen("./pid/udp_server.pid", "r");
+    int ret;
+    pid_t pid;
+    FILE* fp;
+    fp = fopen("./pid/udp_server.pid", "r");
     if (fp == NULL)
     {
         puts("process id file open fail");
     }
     else
     {
-        pid_t pid;
         fscanf(fp, "%d", &pid);
         if (pid < 1)
         {
@@ -106,7 +110,7 @@ void send_term_signal()
         }
         else
         {
-            int ret = kill(pid, 15);
+            ret = kill(pid, 15);
             if (ret < 0)
             {
                 fclose(fp);

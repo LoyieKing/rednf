@@ -4,8 +4,8 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_PROCESS_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_PROCESS_H_H_
 
-#include <bits/time.h>
 #include <stddef.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 // sizeof = 64

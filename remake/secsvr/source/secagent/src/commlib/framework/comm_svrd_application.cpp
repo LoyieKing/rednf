@@ -1,5 +1,5 @@
 // Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/framework/comm_svrd_application.cpp
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/framework/comm_svrd_application.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
 // 函数体暂为空；仅保留签名、参数名与局部变量名。
 
@@ -21,27 +21,22 @@
 #include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
 #include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
 #include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
 #include "output/commlib/zenlib/release/include/zen_mysql_command.h"
 #include "output/commlib/zenlib/release/include/zen_mysql_result.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
 #include "output/commlib/zenlib/release/include/zen_mysql_field.h"
 #include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
+#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
 #include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
+#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
 #include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
+#include "output/commlib/zenlib/release/include/zen_os_adapt_spin.h"
+#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
 #include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
 #include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
 #include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
 #include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
@@ -49,6 +44,12 @@
 #include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
 #include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
 #include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
+#include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
+#include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
+#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
+#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
+#include "output/commlib/zenlib/release/include/zen_lock_base.h"
+#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
 #include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
 #include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
 #include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
@@ -138,245 +139,43 @@
 #include "src/commlib/framework/comm_timer_handler.h"
 #include "src/commlib/framework/comm_bill_record.h"
 #include "src/commlib/framework/comm_time_provider.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
 #include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
 #include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
+#include <stdlib.h>
 #include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+
+namespace ZEN_OS {
+pid_t fork();
+pid_t setsid();
+mode_t umask(mode_t cmask);
+sighandler_t signal(int signum, sighandler_t func);
+int chdir(const char *dirname);
+const char *basename(const char *path_name, char *file_name, size_t buf_len);
+}
+
+static const char * const FRAMEWORK_LOG_SEPARATOR =
+    "------------------------------------------------------------------------------------------";
+
+Comm_Svrd_Appliction::Comm_Svrd_Appliction()
+    : app_run_(true),
+      app_pause_(false),
+      self_services_id_(0, 0),
+      run_as_win_serivces_(false),
+      max_msg_num_(0x400),
+      zerg_mmap_pipe_(0),
+      argc_(0),
+      argv_(0),
+      timer_handler_(0) {
+    app_author_.assign("TSS Platform Server Dev Team.", 29);
+}
+
+Comm_Svrd_Appliction::~Comm_Svrd_Appliction() {
+    if (timer_handler_) {
+        delete timer_handler_;
+        timer_handler_ = 0;
+    }
+}
 
 int Comm_Svrd_Appliction::load_app_conf() {
 }
@@ -385,86 +184,334 @@ void Comm_Svrd_Appliction::exit() {
 }
 
 void Comm_Svrd_Appliction::set_pause_sign(bool app_pause) {
+    app_pause_ = app_pause;
 }
 
 void Comm_Svrd_Appliction::set_run_sign(bool app_run) {
+    app_run_ = app_run;
 }
 
 void Comm_Svrd_Appliction::exit_signal(int arg0) {
+    base_instance_->set_run_sign(false);
 }
 
 void Comm_Svrd_Appliction::reload_config_signal(int arg0) {
+    base_instance_->reload_instance();
+    base_instance_->reload();
 }
 
 Comm_Svrd_Appliction * Comm_Svrd_Appliction::instance() {
+    return base_instance_;
 }
 
 int Comm_Svrd_Appliction::reload_config() {
-    // local: int ret;
+    int ret = reload_instance();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "framework reload config error:ret=%d", ret);
+        return ret;
+    }
+    ret = load_app_conf();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "load app config error, ret=%d", ret);
+        return ret;
+    }
+    ret = reload();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "app reload config error, ret=%d", ret);
+        return ret;
+    }
+    return 0;
 }
 
 int Comm_Svrd_Appliction::do_run() {
-    // local: int ret;
+    int ret = init_instance();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "application: init_instance fail. ret=%d", ret);
+        return ret;
+    }
+    ret = init();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "application: init_app fail. ret=%d", ret);
+        return ret;
+    }
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework]application: init succ. start run");
+    ret = run_instance();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "application: run_instance fail. ret=%d", ret);
+    }
+    exit();
+    exit_instance();
+    ZEN_Trace_LogMsg::debug_infoex("[framework] application exit.");
+    return ret;
 }
 
 int Comm_Svrd_Appliction::register_comm_timer() {
-    // local: ZEN_Timer_Queue *timer_queue;
-    // local: ZEN_Time_Value delay;
-    // local: ZEN_Time_Value interval;
+    ZEN_Timer_Queue *timer_queue = ZEN_Timer_Queue::instance();
+    timer_handler_ = new Comm_Timer_Handler(timer_queue);
+    timer_handler_->init();
+    ZEN_Time_Value delay;
+    ZEN_Time_Value interval;
+    delay.set(0, 0);
+    interval.set(0, 0x186a0);
+    timer_queue->schedule_timer(timer_handler_, 0, delay, interval);
+    return 0;
 }
 
 ZEN_LOG_PRIORITY Comm_Svrd_Appliction::get_log_priority() {
+    return ZEN_Trace_LogMsg::instance()->get_log_priority();
 }
 
 void Comm_Svrd_Appliction::set_log_priority(ZEN_LOG_PRIORITY log_prio) {
+    ZEN_Trace_LogMsg::instance()->set_log_priority(log_prio);
 }
 
 int Comm_Svrd_Appliction::daemon_init() {
-    // local: pid_t pid;
+    pid_t pid = ZEN_OS::fork();
+    if (pid < 0) {
+        return 0x13b4;
+    }
+    if (pid > 0) {
+        ::exit(0);
+    }
+    ZEN_OS::setsid();
+    ZEN_OS::umask(0);
+    return 0;
 }
 
 int Comm_Svrd_Appliction::process_signal() {
+    ZEN_OS::signal(SIGHUP, (sighandler_t)1);
+    ZEN_OS::signal(SIGPIPE, (sighandler_t)1);
+    ZEN_OS::signal(SIGCHLD, (sighandler_t)1);
+    ZEN_OS::signal(SIGINT, exit_signal);
+    ZEN_OS::signal(SIGQUIT, exit_signal);
+    ZEN_OS::signal(SIGTERM, exit_signal);
+    ZEN_OS::signal(SIGUSR1, reload_config_signal);
+    return 0;
 }
 
 int Comm_Svrd_Appliction::reload_instance() {
+    return Comm_Svrd_Config::instance()->reload();
 }
 
 int Comm_Svrd_Appliction::init_log() {
-    // local: Comm_Svrd_Config *config;
-    // local: int ret;
+    Comm_Svrd_Config *config = Comm_Svrd_Config::instance();
+    int ret = 0;
+    ret = g_bill.init("bill",
+                      config->framework_config_.log_info_.max_bill_file_num_,
+                      (ZEN_LOGFILE_DEVIDE)config->framework_config_.log_info_.bill_div_type_,
+                      3, 0, 1);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[framework] init bill fail. ret=%d", ret);
+        return ret;
+    }
+    ret = g_stat.init("stat",
+                      config->framework_config_.log_info_.max_bill_file_num_,
+                      (ZEN_LOGFILE_DEVIDE)0xcd, 3, 0, 1);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[framework] init stat fail. ret=%d", ret);
+        return ret;
+    }
+    g_bill.set_logway(config->framework_config_.log_info_.bill_output_);
+    g_stat.set_logway(config->framework_config_.log_info_.bill_output_);
+    ZEN_Trace_LogMsg::debug_debugEx("log instance finalize .");
+    ZEN_Trace_LogMsg::instance()->finalize();
+    ret = ZEN_Trace_LogMsg::instance()->initialize(
+        (ZEN_LOGFILE_DEVIDE)config->framework_config_.log_info_.log_div_type_,
+        config->log_file_prefix_.c_str(), false, true,
+        config->framework_config_.log_info_.max_log_file_size_,
+        config->framework_config_.log_info_.max_log_file_num_,
+        config->framework_config_.log_info_.log_output_, 3);
+    ZEN_Trace_LogMsg::debug_debugEx("log instance reinit .");
+    return 0;
 }
 
 const char * Comm_Svrd_Appliction::get_app_basename() {
+    return app_base_name_.c_str();
 }
 
 const char * Comm_Svrd_Appliction::get_app_runname() {
+    return app_run_name_.c_str();
 }
 
 int Comm_Svrd_Appliction::exit_instance() {
+    Zen_Thread_Wait_Manager::instance()->wait_all();
+    Zen_Thread_Wait_Manager::clean_instance();
+    ZEN_Reactor::instance()->close();
+    Zerg_MMAP_BusPipe::clean_instance();
+    Comm_Svrd_Config::clean_instance();
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] %s exit_instance Succ.Have Fun.!!!", get_app_runname());
+    ZEN_Trace_LogMsg::debug_infoex(FRAMEWORK_LOG_SEPARATOR);
+    ZEN_Trace_LogMsg::debug_infoex(FRAMEWORK_LOG_SEPARATOR);
+    ZEN_Trace_LogMsg::debug_infoex(FRAMEWORK_LOG_SEPARATOR);
+    return 0;
 }
 
 void Comm_Svrd_Appliction::set_service_info(const char *svc_name, const char *svc_desc) {
+    if (svc_name) {
+        service_name_.assign(svc_name, strlen(svc_name));
+    }
+    if (svc_desc) {
+        service_desc_.assign(svc_desc, strlen(svc_desc));
+    }
 }
 
 int Comm_Svrd_Appliction::create_app_name(const char *argv_0) {
-    // local: char str_base_name[];
+    char str_base_name[0x1000];
+    app_run_name_.assign(argv_0, strlen(argv_0));
+    str_base_name[0] = 0;
+    ZEN_OS::basename(argv_0, str_base_name, sizeof(str_base_name));
+    app_base_name_.assign(str_base_name, strlen(str_base_name));
+    return 0;
 }
 
 int Comm_Svrd_Appliction::proc_start_args(int argc, const char **argv) {
-    // local: int ret;
-    // local: Comm_Svrd_Config *svd_config;
+    int ret = 0;
+    argc_ = argc;
+    argv_ = argv;
+    base_instance_ = this;
+    ret = create_app_name(argv[0]);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "svr create_app_base_name init fail. ret=%d", ret);
+        return ret;
+    }
+    ret = Comm_Svrd_Config::instance()->proc_start_arg(argc, argv);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "load config error:ret=%d", ret);
+        return ret;
+    }
+    return 0;
 }
 
 int Comm_Svrd_Appliction::run(int argc, const char **argv) {
-    // local: int ret;
-    // local: Comm_Svrd_Config *config;
+    int ret = proc_start_args(argc, argv);
+    if (ret != 0) {
+        return ret;
+    }
+    if (Comm_Svrd_Config::instance()->app_run_daemon_) {
+        daemon_init();
+    }
+    return do_run();
 }
 
 int Comm_Svrd_Appliction::init_instance() {
-    // local: string log_file_prefix;
-    // local: int ret;
-    // local: string app_path;
-    // local: CfgSvrSdk *cfgsvr_sdk;
-    // local: Comm_Svrd_Config *svd_config;
+    std::string log_file_prefix;
+    std::string app_path;
+    int ret = 0;
+    CfgSvrSdk *cfgsvr_sdk = NULL;
+    Comm_Svrd_Config *svd_config = NULL;
+
+    process_signal();
+    log_file_prefix = Comm_Svrd_Config::instance()->app_run_dir_;
+    log_file_prefix.append("/log/", 5);
+    log_file_prefix.append(app_base_name_);
+    log_file_prefix.append("_init", 5);
+    ZEN_Trace_LogMsg::instance()->init_size_log(
+        log_file_prefix.c_str(), false, true, 0xa00000, 2, 5, 3);
+    ZEN_Trace_LogMsg::debug_infoex(FRAMEWORK_LOG_SEPARATOR);
+    ZEN_Trace_LogMsg::debug_infoex(FRAMEWORK_LOG_SEPARATOR);
+    ZEN_Trace_LogMsg::debug_infoex(FRAMEWORK_LOG_SEPARATOR);
+    ZEN_Trace_LogMsg::debug_infoex("[framework] %s start init", get_app_basename());
+    ret = ZEN_Server_Toolkit::socket_init();
+    if (ret != 0) {
+        return ret;
+    }
+    ret = ZEN_OS::chdir(Comm_Svrd_Config::instance()->app_run_dir_.c_str());
+    if (ret != 0) {
+        int last_error = errno;
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] change run directory to %s fail. err=%d",
+            Comm_Svrd_Config::instance()->app_run_dir_.c_str(), last_error);
+        return ret;
+    }
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] change work dir to %s",
+        Comm_Svrd_Config::instance()->app_run_dir_.c_str());
+    app_path = Comm_Svrd_Config::instance()->app_run_dir_;
+    app_path.append("/", 1);
+    app_path.append(get_app_basename(), strlen(get_app_basename()));
+    ret = ZEN_Server_Toolkit::out_pid_file(app_path.c_str(), true);
+    if (ret != 0) {
+        int last_error = errno;
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] Create Pid file :%s.pid fail .last error =[%u|%s].",
+            app_path.c_str(), last_error, strerror(last_error));
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] If last error == 16, could has a same process alread run in this directory.Please check ");
+        return 0x13b7;
+    }
+    cfgsvr_sdk = CfgSvrSdk::instance();
+    ret = cfgsvr_sdk->init();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[framework] cfgsvrsdk init fail. ret=%d", ret);
+        return ret;
+    }
+    cfgsvr_sdk->start_task();
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] cfgsdk init succ. start task succ");
+    svd_config = Comm_Svrd_Config::instance();
+    ret = svd_config->init(argc_, argv_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] framwork config init fail. ret=%d", ret);
+        return ret;
+    }
+    self_services_id_ = svd_config->self_svr_id_;
+    ret = load_app_conf();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] %s load app config fail. ret=%d",
+            "virtual int Comm_Svrd_Appliction::init_instance()", ret);
+        return ret;
+    }
+    ZEN_Timer_Wheel *timer_wheel = new ZEN_Timer_Wheel(
+        svd_config->framework_config_.trans_info_.trans_num_ + 0x400,
+        0xf731400, 0x64,
+        ZEN_Timer_Queue::TRIGGER_MODE_SYSTEM_CLOCK, true);
+    ZEN_Timer_Queue::instance(timer_wheel);
+    Comm_Stat_Monitor::instance()->add_status_item(
+        COMM_STAT_FRATURE_NUM, COMM_STAT_ITEM_WITH_NAME);
+    ZEN_Epoll_Reactor *reactor = new ZEN_Epoll_Reactor(0x400, false, 0x400);
+    ZEN_Reactor::instance(reactor);
+    ZEN_Trace_LogMsg::debug_debugEx(
+        "[framework] ZEN_Reactor and ZEN_Epoll_Reactor initialized.");
+    ret = Zerg_MMAP_BusPipe::instance()->getpara_from_zergcfg(
+        svd_config->zerg_config_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] Zerg_MMAP_BusPipe::instance()->getpara_from_zergcfg fail,ret = %d.",
+            ret);
+        return ret;
+    }
+    ret = Zerg_MMAP_BusPipe::instance()->init_after_getcfg(
+        0x10000, svd_config->if_restore_pipe_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] Zerg_MMAP_BusPipe::instance()->init_by_cfg fail,ret = %d.",
+            ret);
+        return ret;
+    }
+    zerg_mmap_pipe_ = Zerg_MMAP_BusPipe::instance();
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] MMAP Pipe init success,gogogo.The more you have,the more you want. ");
+    register_comm_timer();
+    ret = init_log();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[framework] init log fail. ret=%d", ret);
+        return ret;
+    }
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] Comm_Svrd_Appliction::init_instance Success.");
+    return 0;
 }
 
+Comm_Svrd_Appliction *Comm_Svrd_Appliction::base_instance_ = NULL;

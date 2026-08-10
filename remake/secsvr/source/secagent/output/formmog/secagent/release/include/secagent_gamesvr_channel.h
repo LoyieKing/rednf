@@ -43,6 +43,6 @@ extern const unsigned int GAMEBUSSIZE; // line 40
 extern const unsigned int MAX_CHANNEL_ID; // line 53
 
 
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
+// inferred
 
 #endif // SECSVR_OUTPUT_FORMMOG_SECAGENT_RELEASE_INCLUDE_SECAGENT_GAMESVR_CHANNEL_H_H_

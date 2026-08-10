@@ -20,6 +20,6 @@ const unsigned int get_version() const; // line 21
 extern const unsigned int MAX_EXEDATA_LEN; // line 27
 
 
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
+// inferred
 
 #endif // SECSVR_OUTPUT_FORMMOG_SECAGENT_RELEASE_INCLUDE_SECAGENT_GAME_EXE_H_H_

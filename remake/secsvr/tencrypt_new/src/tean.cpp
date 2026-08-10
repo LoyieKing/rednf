@@ -27,9 +27,12 @@ void CTean::tean(unsigned int *k, unsigned int *v, int N) {
     } else {
         sum = (unsigned int)(N * (int)0x61c88647u);
         while (sum != 0) {
-            z -= ((z << 4) ^ (z >> 5)) + (z ^ sum) + k[(sum >> 11) & 3];
-            sum += DELTA;
-            y -= ((y << 4) ^ (y >> 5)) + (y ^ sum) + k[sum & 3];
+            // 镜像加密：先撤 z（用 y 与 k[(sum>>11)&3]），sum 递减，再撤 y
+            // （二进制 0x080e838a 确认：z -= f(y,sum,k[(sum>>11)&3]);
+            //  sum -= DELTA; y -= f(z,sum,k[sum&3])）
+            z -= ((y << 4) ^ (y >> 5)) + (y ^ sum) + k[(sum >> 11) & 3];
+            sum -= DELTA;
+            y -= ((z << 4) ^ (z >> 5)) + (z ^ sum) + k[sum & 3];
         }
     }
     v[0] = y;

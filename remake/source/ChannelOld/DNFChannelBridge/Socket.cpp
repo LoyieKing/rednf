@@ -235,8 +235,10 @@ bool TCPSocket::setOptResizeSendBuf(int size)
     {
         return false;
     }
-    int sndbuf = 0;
-    socklen_t optlen = 4;
+    socklen_t optlen;
+    int sndbuf;
+    sndbuf = 0;
+    optlen = 4;
     int nRet = setsockopt(sock_, 1, 7, &size, 4);
     if (nRet < 0)
     {
@@ -251,8 +253,10 @@ bool TCPSocket::setOptResizeRecvBuf(int size)
     {
         return false;
     }
-    int sndbuf = 0;
-    socklen_t optlen = 4;
+    socklen_t optlen;
+    int sndbuf;
+    sndbuf = 0;
+    optlen = 4;
     getsockopt(sock_, 1, 8, &sndbuf, &optlen);
     int nRet = setsockopt(sock_, 1, 8, &size, 4);
     if (nRet < 0)

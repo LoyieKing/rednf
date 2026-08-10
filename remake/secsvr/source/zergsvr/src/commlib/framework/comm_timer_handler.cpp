@@ -1,5 +1,5 @@
 // Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commlib/framework/comm_timer_handler.cpp
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/framework/comm_timer_handler.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
 // 函数体暂为空；仅保留签名、参数名与局部变量名。
 
@@ -135,267 +135,106 @@
 #include "src/commlib/framework/comm_svrd_application.h"
 #include "src/commlib/framework/comm_error_code.h"
 #include "src/commlib/framework/comm_cfgsvr_sdk.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-uint32_t Comm_Timer_Handler::get_svr_classify_id() {
+Comm_Timer_Handler::Comm_Timer_Handler(ZEN_Timer_Queue *arg0)
+    : ZEN_Timer_Handler(arg0),
+      time_provider_(0),
+      stat_monitor_(0),
+      svrd_app_(0),
+      is_first_record_(true) {
+}
+
+Comm_Timer_Handler::~Comm_Timer_Handler() {
+    time_provider_ = 0;
+    stat_monitor_ = 0;
+    svrd_app_ = 0;
 }
 
 int Comm_Timer_Handler::init() {
+    time_provider_ = Comm_Time_Provider::instance();
+    stat_monitor_ = Comm_Stat_Monitor::instance();
+    svrd_app_ = Comm_Svrd_Appliction::instance();
+    last_check_ = time(0);           // 0x14: check_monitor 用
+    last_check_status_ = time(0);    // 0x18: check_status 用
+    game_id_ = CfgSvrSdk::instance()->get_game_id();
+    classify_id_ = get_svr_classify_id();
+    return 0;
 }
 
+// mangled: _ZNK18Comm_Timer_Handler19get_svr_classify_idEv
+// line 148 (zergsvr: 用 strncmp 比 8 字节，非 strncasecmp)
+uint32_t Comm_Timer_Handler::get_svr_classify_id() const {
+    if (strncmp(svrd_app_->get_app_basename(), "zergsvr", 8) >= 1) {
+        return 2;
+    }
+    return 1;
+}
+
+// mangled: _ZN18Comm_Timer_Handler12check_statusERK14ZEN_Time_Value
+// line 80 (zergsvr 专属: 替代 gunnersvr 的 report_status)
 void Comm_Timer_Handler::check_status(const ZEN_Time_Value &now_time) {
-    // local: time_t now_sec;
-    // local: int ret;
+    time_t now_sec = now_time.sec();
+    if (now_sec / 60 == last_check_status_ / 60) {
+        return;
+    }
+    int ret = svrd_app_->watch_dog_status(is_first_record_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "watch dog get sys/app status failed, ret = %d", ret);
+    } else {
+        stat_monitor_->set_by_statid(0x2397, game_id_, classify_id_,
+                                     svrd_app_->get_sys_cpu_ratio());
+        stat_monitor_->set_by_statid(0x2398, game_id_, classify_id_,
+                                     svrd_app_->get_app_cpu_ratio());
+        stat_monitor_->set_by_statid(0x2399, game_id_, classify_id_,
+                                     svrd_app_->get_sys_mem_ratio());
+        stat_monitor_->set_by_statid(0x239a, game_id_, classify_id_,
+                                     svrd_app_->get_can_use_mem_size());
+        stat_monitor_->check_overtime(now_sec);
+        is_first_record_ = false;
+    }
+    if (now_sec - last_check_status_ > 60) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "check server status more than five minutes:real_second=%d %d",
+            now_sec - last_check_status_, now_sec % 60);
+    }
+    last_check_status_ = now_sec - now_sec % 60;
 }
 
+// mangled: _ZN18Comm_Timer_Handler13check_monitorERK14ZEN_Time_Value
+// line 59 (zergsvr: 300 秒门控 + increase_by_statid，不用 report_status)
 void Comm_Timer_Handler::check_monitor(const ZEN_Time_Value &now_time) {
-    // local: time_t now_sec;
+    time_t now_sec = now_time.sec();
+    if (now_sec / 300 == last_check_ / 300) {
+        return;
+    }
+    stat_monitor_->increase_by_statid(0x2395, game_id_, 0, 1);
+    stat_monitor_->check_overtime(now_sec);
+    if (now_sec - last_check_ > 300) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "check monitor more than five minutes:real_second=%d %d",
+            now_sec - last_check_, now_sec % 300);
+    }
+    last_check_ = now_sec - now_sec % 300;
 }
 
 void Comm_Timer_Handler::update_time(const ZEN_Time_Value &now_time) {
+    time_provider_->update(now_time);
 }
 
 void Comm_Timer_Handler::notify_reload() {
+    if (CfgSvrSdk::instance()->is_need_update_file()) {
+        ZEN_Trace_LogMsg::debug_infoex(
+            "Comm_Timer_Handler::handle_timeout, config update");
+        Comm_Svrd_Appliction::instance()->reload_config();
+        CfgSvrSdk::instance()->clear_file_update_flags();
+    }
 }
 
 int Comm_Timer_Handler::handle_timeout(const ZEN_Time_Value &now_time, const void *act) {
+    update_time(now_time);
+    notify_reload();
+    check_monitor(now_time);
+    check_status(now_time);
+    return 0;
 }
-

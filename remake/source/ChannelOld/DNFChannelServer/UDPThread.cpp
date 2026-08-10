@@ -40,13 +40,10 @@ void ChannelServiceApp::UDPThread::loop(void* temp)
         {
             printf("[ERROR] UDP Thread Recv Error(%s)", strerror(*__errno_location()));
         }
-        else
+        else if (nRead != 0)
         {
-            if (nRead != 0)
-            {
-                GLOG(gFileLogWarn, "UDP read=" << nRead);
-                pHandler_->dispatch(recv_buf, nRead, 0);
-            }
+            GLOG(gFileLogWarn, "UDP read=" << nRead);
+            pHandler_->dispatch(recv_buf, nRead, 0);
         }
     }
     setTerminated();

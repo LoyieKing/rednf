@@ -1,390 +1,187 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/zenlib/zen_config_property_tree.cpp
+// Restored from gunnersvr binary (reverse-engineered, behavior matched).
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_config_property_tree.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
 #include "src/commlib/zenlib/zen_config_property_tree.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+#include <strings.h>
 
-_Rb_tree_const_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > find(const /*anon struct*/ int &__k) {
-    // local: const _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__x;
-    // local: const _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__y;
-    // local: /*anon struct*/ int __j;
+Zen_Conf_PropertyTree::Zen_Conf_PropertyTree()
+{
 }
 
-_Rb_tree_const_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > find(const /*anon struct*/ int &__k) {
-    // local: const _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__x;
-    // local: const _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__y;
-    // local: /*anon struct*/ int __j;
+Zen_Conf_PropertyTree::~Zen_Conf_PropertyTree()
+{
 }
 
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > find(const /*anon struct*/ int &__k) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__x;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__y;
-    // local: /*anon struct*/ int __j;
+int Zen_Conf_PropertyTree::get_child(const std::string &path_str, PROPERTY_TREE_NODE *&child_data)
+{
+    child_data = NULL;
+    if (path_str.empty()) {
+        child_data = this;
+        return 0;
+    }
+
+    size_t str_pos = path_str.find("|", 0, 1);
+    std::string start_str(path_str, 0, str_pos);
+
+    std::multimap<std::string, Zen_Conf_PropertyTree>::iterator iter_tmp =
+        child_node_map_.find(start_str);
+    if (iter_tmp == child_node_map_.end())
+        return -1;
+
+    PROPERTY_TREE_NODE *child_tree = &(iter_tmp->second);
+    if (str_pos == std::string::npos) {
+        child_data = child_tree;
+        return 0;
+    }
+
+    std::string remain_str(path_str, str_pos + 1, std::string::npos);
+    return child_tree->get_child(remain_str, child_data);
 }
 
-// line 60
-int Zen_Conf_PropertyTree::get_child(const string &path_str, PROPERTY_TREE_NODE *&child_data) {
-    // local: size_t str_pos;
-    // local: string start_str;
-    // local: /*anon struct*/ int iter_tmp;
-    // local: PROPERTY_TREE_NODE *child_tree;
-    // local: string remain_str;
+int Zen_Conf_PropertyTree::get_child(const std::string &path_str, const PROPERTY_TREE_NODE *&const_child_data) const
+{
+    const_child_data = NULL;
+    if (path_str.empty()) {
+        const_child_data = this;
+        return 0;
+    }
+
+    size_t str_pos = path_str.find("|", 0, 1);
+    std::string start_str(path_str, 0, str_pos);
+
+    std::multimap<std::string, Zen_Conf_PropertyTree>::const_iterator iter_tmp =
+        child_node_map_.find(start_str);
+    if (iter_tmp == child_node_map_.end())
+        return -1;
+
+    const PROPERTY_TREE_NODE *child_tree = &(iter_tmp->second);
+    if (str_pos == std::string::npos) {
+        const_child_data = child_tree;
+        return 0;
+    }
+
+    std::string remain_str(path_str, str_pos + 1, std::string::npos);
+    return child_tree->get_child(remain_str, const_child_data);
 }
 
-// line 16
-int Zen_Conf_PropertyTree::get_child(const string &path_str, const PROPERTY_TREE_NODE *&const_child_data) {
-    // local: size_t str_pos;
-    // local: string start_str;
-    // local: /*anon struct*/ int iter_tmp;
-    // local: const PROPERTY_TREE_NODE *child_tree;
-    // local: string remain_str;
+int Zen_Conf_PropertyTree::get_leaf_str(const std::string &path_str, const std::string &key_data, std::string &value_data) const
+{
+    const PROPERTY_TREE_NODE *child_note = NULL;
+    int ret = get_child(path_str, child_note);
+    if (ret != 0)
+        return ret;
+
+    std::multimap<std::string, std::string>::const_iterator iter =
+        child_note->leaf_node_map_.find(key_data);
+    if (iter == child_note->leaf_node_map_.end())
+        return -1;
+
+    value_data.assign(iter->second);
+    return 0;
 }
 
-// line 137
-int Zen_Conf_PropertyTree::get_leaf_str(const string &path_str, const string &key_data, string &value_data) {
-    // local: const PROPERTY_TREE_NODE *child_note;
-    // local: int ret;
-    // local: /*anon struct*/ int iter;
+int Zen_Conf_PropertyTree::get_leaf_str(const std::string &path_str, const std::string &key_data, char *&str_data, size_t max_str_len) const
+{
+    std::string value_data;
+    int ret = get_leaf_str(path_str, key_data, value_data);
+    if (ret != 0)
+        return ret;
+
+    strncpy(str_data, value_data.c_str(), max_str_len);
+    return 0;
 }
 
-// line 221
-int Zen_Conf_PropertyTree::get_leaf_bool(const string &path_str, const string &key_data, bool &value_bool) {
-    // local: string value_data;
-    // local: int ret;
+int Zen_Conf_PropertyTree::get_leaf_int(const std::string &path_str, const std::string &key_data, int32_t &value_int) const
+{
+    std::string value_data;
+    int ret = get_leaf_str(path_str, key_data, value_data);
+    if (ret != 0)
+        return ret;
+
+    sscanf(value_data.c_str(), "%d", &value_int);
+    return 0;
 }
 
-// line 203
-int Zen_Conf_PropertyTree::get_leaf_uint(const string &path_str, const string &key_data, uint32_t &value_uint) {
-    // local: string value_data;
-    // local: int ret;
+int Zen_Conf_PropertyTree::get_leaf_uint(const std::string &path_str, const std::string &key_data, uint32_t &value_uint) const
+{
+    std::string value_data;
+    int ret = get_leaf_str(path_str, key_data, value_data);
+    if (ret != 0)
+        return ret;
+
+    sscanf(value_data.c_str(), "%u", &value_uint);
+    return 0;
 }
 
-// line 186
-int Zen_Conf_PropertyTree::get_leaf_int(const string &path_str, const string &key_data, int32_t &value_int) {
-    // local: string value_data;
-    // local: int ret;
+int Zen_Conf_PropertyTree::get_leaf_bool(const std::string &path_str, const std::string &key_data, bool &value_bool) const
+{
+    value_bool = false;
+    std::string value_data;
+    int ret = get_leaf_str(path_str, key_data, value_data);
+    if (ret != 0)
+        return ret;
+
+    if (strcasecmp(value_data.c_str(), "TRUE") == 0) {
+        value_bool = true;
+        return 0;
+    }
+    if (strtol(value_data.c_str(), NULL, 10) == 1) {
+        value_bool = true;
+        return 0;
+    }
+    return 0;
 }
 
-// line 167
-int Zen_Conf_PropertyTree::get_leaf_str(const string &path_str, const string &key_data, char *&str_data, size_t max_str_len) {
-    // local: string value_data;
-    // local: int ret;
+int Zen_Conf_PropertyTree::put_child(const std::string &path_str, const std::string &new_child_name, const PROPERTY_TREE_NODE &new_child_note)
+{
+    PROPERTY_TREE_NODE *child_note = NULL;
+    int ret = get_child(path_str, child_note);
+    if (ret != 0)
+        return ret;
+
+    Zen_Conf_PropertyTree new_note(new_child_note);
+    std::multimap<std::string, Zen_Conf_PropertyTree>::iterator iter =
+        child_note->child_node_map_.insert(
+            std::make_pair(new_child_name, new_note));
+    return (iter != child_note->child_node_map_.end()) ? 0 : ret;
 }
 
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > _M_insert(/*anon struct*/ int *__x, /*anon struct*/ int *__p, const pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >,std::basic_string<char, std::char_traits<char>, std::allocator<char> > > &__v) {
-    // local: bool __insert_left;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__z;
+int Zen_Conf_PropertyTree::new_child(const std::string &path_str, const std::string &new_child_name)
+{
+    PROPERTY_TREE_NODE null_node;
+    return put_child(path_str, new_child_name, null_node);
 }
 
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > insert_equal(const pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >,std::basic_string<char, std::char_traits<char>, std::allocator<char> > > &__v) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__x;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__y;
+int Zen_Conf_PropertyTree::put_leaf_str(const std::string &path_str, const std::string &key_data, const std::string &value_data)
+{
+    PROPERTY_TREE_NODE *child_note = NULL;
+    int ret = get_child(path_str, child_note);
+    if (ret != 0)
+        return ret;
+
+    std::multimap<std::string, std::string>::iterator iter =
+        child_note->leaf_node_map_.insert(std::make_pair(key_data, value_data));
+    return (iter != child_note->leaf_node_map_.end()) ? 0 : ret;
 }
 
-void _M_erase(_Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__x) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__y;
+int Zen_Conf_PropertyTree::put_leaf_int(const std::string &path_str, const std::string &key_data, int value_int)
+{
+    const size_t BUF_LEN = 24;
+    char str_int[BUF_LEN];
+    snprintf(str_int, BUF_LEN, "%d", value_int);
+    std::string value_data(str_int);
+    return put_leaf_str(path_str, key_data, value_data);
 }
 
-_Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > * _M_copy(const _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__x, _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__p) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__top;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::basic_string<char, std::char_traits<char>, std::allocator<char> > > > *__y;
+int Zen_Conf_PropertyTree::put_leaf_bool(const std::string &path_str, const std::string &key_data, bool value_bool)
+{
+    if (value_bool)
+        return put_leaf_str(path_str, key_data, std::string("TRUE"));
+    else
+        return put_leaf_str(path_str, key_data, std::string("FALSE"));
 }
-
-void _M_erase(_Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__x) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__y;
-}
-
-_Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > * _M_copy(const _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__x, _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__p) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__top;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__y;
-}
-
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > _M_insert(/*anon struct*/ int *__x, /*anon struct*/ int *__p, const pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >,Zen_Conf_PropertyTree> &__v) {
-    // local: bool __insert_left;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__z;
-}
-
-_Rb_tree_iterator<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > insert_equal(const pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >,Zen_Conf_PropertyTree> &__v) {
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__x;
-    // local: _Rb_tree_node<std::pair<const std::basic_string<char, std::char_traits<char>, std::allocator<char> >, Zen_Conf_PropertyTree> > *__y;
-}
-
-// line 103
-int Zen_Conf_PropertyTree::put_child(const string &path_str, const string &new_child_name, const PROPERTY_TREE_NODE &new_child_note) {
-    // local: PROPERTY_TREE_NODE *child_note;
-    // local: int ret;
-    // local: /*anon struct*/ int iter;
-}
-
-// line 127
-int Zen_Conf_PropertyTree::new_child(const string &path_str, const string &new_child_name) {
-    // local: PROPERTY_TREE_NODE null_node;
-}
-
-// line 249
-int Zen_Conf_PropertyTree::put_leaf_str(const string &path_str, const string &key_data, const string &value_data) {
-    // local: PROPERTY_TREE_NODE *child_note;
-    // local: int ret;
-    // local: /*anon struct*/ int iter;
-}
-
-// line 286
-int Zen_Conf_PropertyTree::put_leaf_bool(const string &path_str, const string &key_data, bool value_bool) {
-}
-
-// line 274
-int Zen_Conf_PropertyTree::put_leaf_int(const string &path_str, const string &key_data, int value_int) {
-    // local: const size_t BUF_LEN;
-    // local: char str_int[];
-}
-

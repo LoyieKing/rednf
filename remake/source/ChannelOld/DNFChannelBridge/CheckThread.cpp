@@ -18,7 +18,7 @@ ChannelServiceApp::CheckThread::~CheckThread()
 template <class T>
 TDebugTrace<T>& TDebugTrace<T>::operator<<(const char* in_Str)
 {
-    return *putText((char*)in_Str);
+    return *putText(in_Str);
 }
 
 template <class T>
@@ -240,18 +240,18 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                     while (it != pApp->Servers[i].listServerInfo_.end())
                     {
                         gFileLogCri.Lock();
-                        gFileLogCri << "gc_no=" << it->second->gc_no << ", Cur=" << (int)cur_time
-                                    << ", tic=" << (int)it->second->tic << ", result=" << (int)(cur_time - it->second->tic) << endl;
+                        gFileLogCri << "gc_no=" << (*it).second->gc_no << ", Cur=" << (int)cur_time
+                                    << ", tic=" << (int)(*it).second->tic << ", result=" << (int)(cur_time - (*it).second->tic) << endl;
                         gFileLogCri.Unlock();
-                        if ((it->second->use != false) && (0x14 < cur_time - it->second->tic))
+                        if (((*it).second->use != false) && (0x14 < cur_time - (*it).second->tic))
                         {
                             gFileLogCri.Lock();
-                            gFileLogCri << "delete gc_no=" << it->second->gc_no << ", tic="
-                                        << (int)(cur_time - it->second->tic) << endl;
+                            gFileLogCri << "delete gc_no=" << (*it).second->gc_no << ", tic="
+                                        << (int)(cur_time - (*it).second->tic) << endl;
                             gFileLogCri.Unlock();
                             for (int k = 0; k < 0x1000; k++)
                             {
-                                if (pApp->Servers[i].ServerInfo[k].gc_no == it->second->gc_no)
+                                if (pApp->Servers[i].ServerInfo[k].gc_no == (*it).second->gc_no)
                                 {
                                     pApp->Servers[i].ServerInfo[k].use = false;
                                     pApp->Servers[i].ServerInfo[k].gc_no = -1;
@@ -299,13 +299,13 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                         tagCS_UPDATE_CHANNEL_INFO pck;
                         TMsgCell<64> buffer;
                         CMsgCell* pMsg = &buffer;
-                        pck.gc_no = it->second->gc_no;
+                        pck.gc_no = (*it).second->gc_no;
                         pck.group = 0;
-                        pck.channel_no = it->second->channel_no;
-                        pck.max_user_num = it->second->nMaxUserCount_;
-                        pck.cur_user_num = it->second->nCurrentUserCount_;
-                        strcpy(pck.server_ip, it->second->IP);
-                        pck.port = it->second->port;
+                        pck.channel_no = (*it).second->channel_no;
+                        pck.max_user_num = (*it).second->nMaxUserCount_;
+                        pck.cur_user_num = (*it).second->nCurrentUserCount_;
+                        strcpy(pck.server_ip, (*it).second->IP);
+                        pck.port = (*it).second->port;
                         *pMsg << (LPPACKET_HEADER)&pck;
                         pMsg->PAD();
                         GLOG(gFileLogInfo, "------------------------------------------------------");

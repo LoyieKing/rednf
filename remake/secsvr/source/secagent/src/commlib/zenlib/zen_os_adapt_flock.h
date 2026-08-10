@@ -5,19 +5,16 @@
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_FLOCK_H_H_
 
 #include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include <bits/fcntl.h>
+#include <fcntl.h>
 
 // sizeof = 32
-struct zen_flock_t { // line 36
+struct zen_flock_t { // line 28
 public:
 flock lock_;
 ZEN_HANDLE handle_;
 bool open_by_self_;
-zen_flock_t(); // line 38
-~zen_flock_t(); // line 43
+zen_flock_t(); // line 30
+~zen_flock_t(); // line 35
 };
-
-
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_OS_ADAPT_FLOCK_H_H_

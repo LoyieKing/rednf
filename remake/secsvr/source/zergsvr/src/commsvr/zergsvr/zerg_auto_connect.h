@@ -4,9 +4,18 @@
 #ifndef SECSVR_SRC_COMMSVR_ZERGSVR_ZERG_AUTO_CONNECT_H_H_
 #define SECSVR_SRC_COMMSVR_ZERGSVR_ZERG_AUTO_CONNECT_H_H_
 
+#include <map>
+#include <vector>
+
 #include "output/commlib/framework/release/include/comm_service_info.h"
 #include "output/commlib/zenlib/release/include/zen_socket_connector.h"
+#include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
 #include <stddef.h>
+
+struct Zerg_MMAP_BusPipe;
+namespace conf_zerg {
+    struct zerg_config;
+}
 
 // sizeof = 72
 struct SERVICES_ROUTE_INFO { // line 14
@@ -18,13 +27,14 @@ SERVICES_ID back_route_info_;
 ZEN_Sockaddr_In back_route_ip_;
 SERVICES_ROUTE_INFO(); // line 17
 ~SERVICES_ROUTE_INFO(); // line 18
-SERVICES_ROUTE_INFO & operator=(const SERVICES_ROUTE_INFO &arg0);
-SERVICES_ROUTE_INFO(const SERVICES_ROUTE_INFO &arg0);
 };
-typedef vector<SERVICES_ROUTE_INFO,std::allocator<SERVICES_ROUTE_INFO> > ArrayOfSvcInfoIPAddr;
-typedef map<short unsigned int,unsigned int,std::less<short unsigned int>,std::allocator<std::pair<const short unsigned int, unsigned int> > > RouteType2Index;
-typedef vector<std::vector<unsigned int, std::allocator<unsigned int> >,std::allocator<std::vector<unsigned int, std::allocator<unsigned int> > > > ListOfMainRouteId;
-typedef vector<std::vector<unsigned int, std::allocator<unsigned int> >,std::allocator<std::vector<unsigned int, std::allocator<unsigned int> > > > ListOfBackRouteId;
+typedef std::vector<SERVICES_ROUTE_INFO, std::allocator<SERVICES_ROUTE_INFO> > ArrayOfSvcInfoIPAddr;
+typedef std::map<short unsigned int, unsigned int, std::less<short unsigned int>,
+                 std::allocator<std::pair<const short unsigned int, unsigned int> > > RouteType2Index;
+typedef std::vector<std::vector<unsigned int, std::allocator<unsigned int> >,
+                    std::allocator<std::vector<unsigned int, std::allocator<unsigned int> > > > ListOfMainRouteId;
+typedef std::vector<std::vector<unsigned int, std::allocator<unsigned int> >,
+                    std::allocator<std::vector<unsigned int, std::allocator<unsigned int> > > > ListOfBackRouteId;
 // sizeof = 68
 struct Zerg_Auto_Connector { // line 57
 protected:
@@ -38,8 +48,8 @@ RouteType2Index want_connect_type_2_index_;
 public:
 Zerg_Auto_Connector(); // line 82
 ~Zerg_Auto_Connector(); // line 83
-int get_autoconnect_cfg(const Zerg_MMAP_BusPipe::ZERG_CONFIG *config); // line 86
-int reload_cfg(const Zerg_MMAP_BusPipe::ZERG_CONFIG *config); // line 89
+int get_autoconnect_cfg(const conf_zerg::zerg_config *config); // line 86
+int reload_cfg(const conf_zerg::zerg_config *config); // line 89
 void reconnect_allserver(size_t &szvalid, size_t &szsucc, size_t &szfail); // line 92
 size_t numsvr_connect(); // line 96
 int get_backupsvcinfo(const SERVICES_ID &main_svrinfo, bool &backroute_valid, SERVICES_ID &backroute_svrinfo); // line 101

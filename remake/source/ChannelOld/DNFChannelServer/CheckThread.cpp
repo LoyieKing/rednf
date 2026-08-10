@@ -22,7 +22,7 @@ ScriptData* G_ScriptData()
 template <class T>
 TDebugTrace<T>& TDebugTrace<T>::operator<<(const char* in_Str)
 {
-    return *putText((char*)in_Str);
+    return *putText(in_Str);
 }
 
 template <class T>
@@ -258,117 +258,111 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
 {
     puts("Start up CheckThread");
     ChannelService* pApp = TManager<ChannelService>::getManager();
-    char timeofday[9];
-    int nRet = 0;
+    int count, ret = 0;
     TCPUser* acUser = NULL;
     pApp->getTCPThread()->lockPushRequestConnect(1, "CheckThread.cpp", 0x1d);
-    bool bFlag = true;
-    do
+    bool bLoop = true;
+    while (bLoop)
     {
         acUser = pApp->getTCPThread()->lockPopConnectedUser();
         if (acUser != NULL)
         {
-            bFlag = false;
+            bLoop = false;
+            break;
         }
         else
         {
             TSystem<LinuxSystem>::sleep(1);
         }
-    } while (bFlag);
+    }
 
-    // version check block
+    // version check
+    time_t tval;
+    tm t;
+    time(&tval);
+    localtime_r(&tval, &t);
+    char timeofday[9];
+    snprintf(timeofday, 9, "%04d%02d%02d", t.tm_year + 0x76c, t.tm_mon + 1, t.tm_mday);
+    timeofday[9] = 0;  // ORIG 原样：越界写清 tval 低字节
+    struct stat st;
+    char logdname[20];
+    memset(logdname, 0, 0x14);
+    strncpy(logdname, "channel_info", 0x14);
+    if (stat(logdname, &st) < 0)
     {
-        time_t tval;
-        tm t;
-        time(&tval);
-        localtime_r(&tval, &t);
-        snprintf(timeofday, 9, "%04d%02d%02d", t.tm_year + 0x76c, t.tm_mon + 1, t.tm_mday);
-        tval = 0;
-        char logdname[20];
-        memset(logdname, 0, 0x14);
-        strncpy(logdname, "channel_info", 0x14);
-        struct stat st;
-        int iRet = stat(logdname, &st);
-        if (iRet < 0)
+        if (*__errno_location() != 2)
         {
-            if (*__errno_location() != 2)
-            {
-                gFileLogError << "[ERROR] cant execute stat func" << endl;
-                exit(1);
-            }
-            iRet = mkdir(logdname, 0x1c0);
-            if (iRet < 0)
-            {
-                gFileLogError << "[ERROR] cant execute mkdir func" << endl;
-                exit(1);
-            }
-        }
-        FILE* pFile = fopen("channel_info/version", "rb+");
-        if (pFile == NULL)
-        {
-            gFileLogError << "[ERROR] cannt open channel_script_versioin file" << endl;
+            GLOG(gFileLogError, "[ERROR] cant execute stat func");
             exit(1);
         }
-        char buf[1024];
-        memset(buf, 0, 0x400);
+        if (mkdir(logdname, 0x1c0) < 0)
+        {
+            GLOG(gFileLogError, "[ERROR] cant execute mkdir func");
+            exit(1);
+        }
+    }
+    FILE* pFile = fopen("channel_info/version", "rb+");
+    if (pFile == NULL)
+    {
+        GLOG(gFileLogError, "[ERROR] cannt open channel_script_versioin file");
+        exit(1);
+    }
+    char buf[1024];
+    memset(buf, 0, 0x400);
+    {
         int index = 0;
-        char* pcVar10;
-        while ((pcVar10 = fgets(buf, 0x400, pFile)) != NULL)
+        while (fgets(buf, 0x400, pFile) != NULL)
         {
             char* str = buf;
             char* start = str;
-            char c;
             do
             {
-                while (true)
+                while ((*str == ' ') || (*str == '\t'))
                 {
-                    if ((*str == ' ') || (*str == '\t'))
-                    {
-                        str = str + 1;
-                        continue;
-                    }
-                    break;
+                    str = str + 1;
                 }
                 *start = *str;
                 start = start + 1;
-                c = *str;
-                str = str + 1;
-            } while (c != '\0');
+            } while (*(str++) != '\0');
             if ((buf[index] == '\n') || (buf[index] == '#'))
             {
                 index = 0;
             }
         }
-        fclose(pFile);
-        printf("[[[[script version=\'%s\']]]]\n", buf);
-        strncpy(G_ScriptData()->channel_script_version, buf, 0x13);
-        tagCS_GET_GC_INFO pGCInfo;
-        TMsgCell<128> buffer;
-        buffer << &pGCInfo;
-        buffer.PAD();
-        acUser->onWrite2Buffer(&buffer);
     }
-
-    while (true)
+    fclose(pFile);
+    printf("[[[[script version=\'%s\']]]]\n", buf);
+    strncpy(G_ScriptData()->channel_script_version, buf, 0x13);
+    tagCS_GET_GC_INFO pGCInfo;
+    CMsgCell* pMsg;
+    TMsgCell<128> buffer;
+    pMsg = &buffer;
+    *pMsg << &pGCInfo;
+    pMsg->PAD();
+    acUser->onWrite2Buffer(pMsg);
+    bLoop = true;
+    while (bLoop)
     {
-        gFileLogWarn << "Check Thread Start" << endl;
-        gFileLogInfo << "start check script version ~~" << endl;
+        GLOG(gFileLogWarn, "Check Thread Start");
+        GLOG(gFileLogInfo, "start check script version ~~");
         tagCS_CHECK_SCRIPT_VERSION pCCheck;
+        CMsgCell* pMsg;
         TMsgCell<128> buffer;
+        pMsg = &buffer;
         strncpy(pCCheck.channel_script_version, G_ScriptData()->channel_script_version, 0x10);
-        buffer << &pCCheck;
-        buffer.PAD();
-        nRet = acUser->onWrite2Buffer(&buffer);
-        if (nRet < 0)
+        *pMsg << &pCCheck;
+        pMsg->PAD();
+        ret = acUser->onWrite2Buffer(pMsg);
+        if (ret < 0)
         {
-            if ((nRet == -5) || !acUser->isDisconnected())
+            if ((ret != -5) && acUser->isDisconnected())
             {
                 pApp->getTCPThread()->lockPushRequestConnect(1, "CheckThread.cpp", 0xa2);
                 TCPUser* nUser = NULL;
                 bool bInnerLoop = true;
                 while (bInnerLoop)
                 {
-                    gFileLogError << "ReTry connect to the Bridge Server ret=" << nRet << endl;
+                    GLOG(gFileLogError, "ReTry connect to the Bridge Server ret=" << ret);
                     nUser = pApp->getTCPThread()->lockPopConnectedUser();
                     if (nUser != NULL)
                     {
@@ -378,45 +372,47 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                     TSystem<LinuxSystem>::sleep(1);
                 }
                 acUser = nUser;
-                gFileLogError << "ReTry Success" << endl;
+                GLOG(gFileLogError, "ReTry Success");
             }
         }
         time_t cur_time = time(NULL);
-        gFileLogCri << "Come" << endl;
+        GLOG(gFileLogCri, "Come");
         {
             TScopedLock<TThreadLock<ThreadLock_linux> > slock(pApp->LockChannel);
             for (int i = 0; i < 0x80; i = i + 1)
             {
-                gFileLogCri << "AAAAA=" << i << ", " << pApp->Servers[i].use << endl;
-                if (pApp->Servers[i].use == true)
+                count = 0;
+                GLOG(gFileLogCri, "AAAAA=" << i << ", " << pApp->Servers[i].use);
+                if (pApp->Servers[i].use != true) continue;
+                GLOG(gFileLogCri, "BBBBB=" << pApp->Servers[i].listServerInfo_.size());
+                if (pApp->Servers[i].listServerInfo_.size() == 0)
                 {
-                    gFileLogCri << "BBBBB=" << pApp->Servers[i].listServerInfo_.size() << endl;
-                    if (pApp->Servers[i].listServerInfo_.size() == 0)
+                    pApp->Servers[i].use = false;
+                    pApp->ServerGroupCount = 0;
+                    for (int j = 0; j < 0x80; j = j + 1)
                     {
-                        pApp->Servers[i].use = false;
-                        pApp->ServerGroupCount = 0;
-                        for (int j = 0; j < 0x80; j = j + 1)
+                        if (pApp->Servers[j].use != false)
                         {
-                            if (pApp->Servers[j].use != false)
-                            {
-                                pApp->ServerGroupCount = pApp->ServerGroupCount + 1;
-                            }
+                            pApp->ServerGroupCount = pApp->ServerGroupCount + 1;
                         }
                     }
-                    gFileLogCri << "Start=" << pApp->Servers[i].listServerInfo_.size() << endl;
+                }
+                GLOG(gFileLogCri, "Start=" << pApp->Servers[i].listServerInfo_.size());
+                std::map<int, ChannelServiceApp::tServerInfo*>::iterator it;
+                if (pApp->Servers[i].listServerInfo_.size() == 0) continue;
+                it = pApp->Servers[i].listServerInfo_.begin();
+                while (it != pApp->Servers[i].listServerInfo_.end())
+                {
+                    GLOG(gFileLogCri, "gc_no=" << (*it).second->gc_no << ", Cur=" << (unsigned int)cur_time
+                         << ", tic=" << (unsigned int)(*it).second->tic
+                         << ", result=" << (unsigned int)(cur_time - (*it).second->tic));
                     bool deleted = false;
-                    std::map<int, ChannelServiceApp::tServerInfo*>::iterator it;
-                    it = pApp->Servers[i].listServerInfo_.begin();
-                    while (it != pApp->Servers[i].listServerInfo_.end())
+                    if ((*it).second->use != false)
                     {
-                        gFileLogCri << "gc_no=" << (*it).second->gc_no << ", Cur=" << (unsigned int)cur_time
-                                    << ", tic=" << (unsigned int)(*it).second->tic
-                                    << ", result=" << (unsigned int)(cur_time - (*it).second->tic) << endl;
-                        deleted = false;
-                        if (((*it).second->use != false) && (0x28 < (int)(cur_time - (*it).second->tic)))
+                        if (0x28 < (int)(cur_time - (*it).second->tic))
                         {
-                            gFileLogCri << "delete gc_no=" << (*it).second->gc_no << ", tic=" << (unsigned int)(cur_time - (*it).second->tic)
-                                        << ", cur=" << (unsigned int)cur_time << ", sav=" << (unsigned int)(*it).second->tic << endl;
+                            GLOG(gFileLogCri, "delete gc_no=" << (*it).second->gc_no << ", tic=" << (unsigned int)(cur_time - (*it).second->tic)
+                                 << ", cur=" << (unsigned int)cur_time << ", sav=" << (unsigned int)(*it).second->tic);
                             for (int k = 0; k < 0x1000; k = k + 1)
                             {
                                 if (pApp->Servers[i].ServerInfo[k].gc_no == (*it).second->gc_no)
@@ -430,20 +426,19 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                             it = pApp->Servers[i].listServerInfo_.begin();
                             deleted = true;
                         }
-                        if (deleted != true)
-                        {
-                            it++;
-                        }
                     }
-                    gFileLogCri << "End" << endl;
-                    gFileLogCri << "ABCD *************************************************************\n"
-                                << "ABCD * " << i << " * " << pApp->Servers[i].listServerInfo_.size() << "\n"
-                                << "ABCD *************************************************************" << endl;
+                    if (deleted != true)
+                    {
+                        it++;
+                    }
+                    count++;
                 }
+                GLOG(gFileLogCri, "End");
+                GLOG(gFileLogCri, "ABCD *************************************************************\n"
+                     << "ABCD * " << i << "\xbc\xad\xb9\xf6\xb1\xba, \xbc\xad\xb9\xf6 \xb0\xb3\xbc\xf6=" << count + 1 << "\n"
+                     << "ABCD *************************************************************");
             }
         }
-        time_t tval;
-        tm t;
         time(&tval);
         localtime_r(&tval, &t);
         char timeofcurday[9];
@@ -454,24 +449,28 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
             pApp->createEncKey();
             strcpy(timeofday, timeofcurday);
         }
-        tagCS_NOTICE_CHANNEL_SERVER pck;
-        TMsgCell<128> buffer2;
-        pck.id = G_ScriptData()->id;
-        strcpy(pck.server_ip, G_ScriptData()->ip);
-        pck.port = (int)G_ScriptData()->udp_port;
-        buffer2 << &pck;
-        buffer2.PAD();
-        nRet = acUser->onWrite2Buffer(&buffer2);
-        gFileLogInfo << "notice channel info send" << endl;
-        if (nRet < 0)
         {
-            gFileLogInfo << "Notice Send Fail=" << nRet << endl;
+            tagCS_NOTICE_CHANNEL_SERVER pck;
+            CMsgCell* pMsg;
+            TMsgCell<128> buffer;
+            pMsg = &buffer;
+            pck.id = G_ScriptData()->id;
+            strcpy(pck.server_ip, G_ScriptData()->ip);
+            pck.port = (int)G_ScriptData()->udp_port;
+            *pMsg << &pck;
+            pMsg->PAD();
+            ret = acUser->onWrite2Buffer(pMsg);
+            GLOG(gFileLogInfo, "notice channel info send");
+            if (ret < 0)
+            {
+                GLOG(gFileLogInfo, "Notice Send Fail=" << ret);
+            }
+            GLOG(gFileLogInfo, "ret=" << ret << ", NOTICE id=" << pck.id << ", server_ip=" << pck.server_ip << ", port=" << pck.port);
         }
-        gFileLogInfo << "ret=" << nRet << ", NOTICE id=" << pck.id << ", server_ip=" << pck.server_ip << ", port=" << pck.port << endl;
         usleep(20000000);
-        gFileLogInfo << "Current Remain TCP Sockets =" << pApp->poolTCPSockets_.getRemain() << endl;
-        gFileLogInfo << "Current Remain TCP Users =" << pApp->poolTCPUsers_.getRemain() << endl;
-        gFileLogWarn << "Check Thread end" << endl;
+        GLOG(gFileLogInfo, "Current Remain TCP Sockets =" << pApp->poolTCPSockets_.getRemain());
+        GLOG(gFileLogInfo, "Current Remain TCP Users =" << pApp->poolTCPUsers_.getRemain());
+        GLOG(gFileLogWarn, "Check Thread end");
     }
 }
 

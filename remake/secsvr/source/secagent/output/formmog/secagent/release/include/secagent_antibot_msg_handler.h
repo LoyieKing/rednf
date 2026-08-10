@@ -53,7 +53,7 @@ unsigned int rpcode_hash(const unsigned char *arg0, unsigned int arg1); // line 
 };
 
 
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
+// inferred
 extern void get_quickly_func(unsigned int *idx, const DibData *cdib_data); // line 1106 (inferred)
 
 #endif // SECSVR_OUTPUT_FORMMOG_SECAGENT_RELEASE_INCLUDE_SECAGENT_ANTIBOT_MSG_HANDLER_H_H_

@@ -4,14 +4,18 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
+#include "zen_os_adapt_predefine.h"
+#include "zen_socket_addr_base.h"
 #include <stddef.h>
 #include <unistd.h>
 
 // sizeof = 4
 struct ZEN_Socket_Base { // line 10
-protected:
+// socket_handle_ 置为 public：MML_Console_Handler::handle_input 在 oracle 中
+// 直接读取成员偏移（mov 0x30(%edi),%eax），未走 get_handle() 外联调用。
+public:
 ZEN_SOCKET socket_handle_;
+protected:
 ZEN_Socket_Base(); // line 20
 ZEN_Socket_Base(const ZEN_SOCKET &arg0); // line 21
 ~ZEN_Socket_Base(); // line 22

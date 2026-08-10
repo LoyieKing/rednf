@@ -1,5 +1,5 @@
 // Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commlib/framework/comm_bill_record.cpp
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/framework/comm_bill_record.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
 // 函数体暂为空；仅保留签名、参数名与局部变量名。
 
@@ -139,328 +139,249 @@
 #include "src/commlib/framework/comm_zerg_mmappipe.h"
 #include "src/commlib/framework/comm_stat_monitor.h"
 #include "src/commlib/framework/comm_stat_define.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+
+CommBillRecord::CommBillRecord()
+    : data_source_need_reset_(true),
+      game_id_need_reset_(true),
+      file_log_(0),
+      time_provider_(0),
+      zerg_mmap_buspipe_(0),
+      if_thread_sync_(false),
+      self_svr_(0, 0),
+      use_app_framework_(false),
+      monitor_(0) {
+    log_comment_[LEN_OF_LOGGER_COMMENT_INFO - 1] = 0;
+    reset();
+}
+
+CommBillRecord::~CommBillRecord() {
+    if (file_log_) {
+        delete file_log_;
+        file_log_ = 0;
+    }
+}
 
 void CommBillRecord::reset() {
+    if (data_source_need_reset_) {
+        data_source_ = 0;
+    }
+    user_id_ = 0;
+    log_type_ = 0;
+    if (game_id_need_reset_) {
+        game_id_ = 0;
+    }
+    client_ip_ = 0;
+    server_ip_ = 0;
+    log_comment_[0] = 0;
+    num_of_char_data_ = 0;
+    num_of_int64_data_ = 0;
 }
 
 CommBillRecord & CommBillRecord::operator<<(const ConstDataSource &data_source) {
+    data_source_need_reset_ = false;
+    data_source_ = data_source.data_source_;
+    return *this;
 }
 
 CommBillRecord & CommBillRecord::operator<<(const UserID &user_id) {
+    user_id_ = user_id.uin_;
+    return *this;
 }
 
 CommBillRecord & CommBillRecord::operator<<(const LogType &log_type) {
+    log_type_ = log_type.log_type_;
+    return *this;
 }
 
 CommBillRecord & CommBillRecord::operator<<(const GameID &game_id) {
+    game_id_need_reset_ = true;
+    game_id_ = game_id.game_id_;
+    return *this;
 }
 
 CommBillRecord & CommBillRecord::operator<<(const ConstGameID &game_id) {
+    game_id_need_reset_ = false;
+    game_id_ = game_id.game_id_;
+    return *this;
 }
 
 CommBillRecord & CommBillRecord::operator<<(const ClientIP &client_ip) {
+    client_ip_ = client_ip.client_ip_;
+    return *this;
 }
 
 CommBillRecord & CommBillRecord::operator<<(int64_t i) {
+    int64_data_array_[num_of_int64_data_] = i;
+    ++num_of_int64_data_;
+    return *this;
 }
 
-CommBillRecord & CommBillRecord::operator<<(CommBillRecord & (**op)(CommBillRecord &arg0)) {
+CommBillRecord & CommBillRecord::operator<<(CommBillRecord & (*op)(CommBillRecord &)) {
+    return (*op)(*this);
 }
 
 void CommBillRecord::set_logway(int log_way) {
+    log_way_ = log_way;
 }
 
 void CommBillRecord::set_bill_num(unsigned int bill_num) {
-}
-
-int Comm_App_Frame::appdata_encode<sec_proto::LogSvrCommBillRecord>(unsigned int szframe_appdata, const /*anon struct*/ int &info, unsigned int data_start, size_t *sz_code) {
-    // local: size_t use_len;
-    // local: int ret;
+    if (file_log_) {
+        file_log_->set_reserve_file_num(bill_num);
+    }
 }
 
 CommBillRecord & CommBillRecord::operator<<(const char *s) {
+    if (num_of_char_data_ <= 3) {
+        strncpy(char_data_array_[num_of_char_data_++], s, 0x40);
+    }
+    return *this;
 }
 
 CommBillRecord & CommBillRecord::operator<<(const LogComment &log_comment) {
+    strncpy(log_comment_, log_comment.comment_, 0x400);
+    return *this;
 }
 
-int Zerg_MMAP_BusPipe::pipe_sendmsg_to_service<sec_proto::LogSvrCommBillRecord>(unsigned int cmd, unsigned int qquin, unsigned int transaction_id, unsigned int backfill_trans_id, const SERVICES_ID &rcvsvc, const SERVICES_ID &proxysvc, const SERVICES_ID &sendsvc, const /*anon struct*/ int &info, unsigned int app_id, unsigned int option) {
-    // local: int ret;
-    // local: Comm_App_Frame *send_frame;
-}
-
-int CommBillRecord::write_to_logsvr(const /*anon struct*/ int &pkg) {
-    // local: SERVICES_ID proxysvc;
-    // local: SERVICES_ID rcvsvc;
+int CommBillRecord::write_to_logsvr(const sec_proto::LogSvrCommBillRecord &pkg) {
+    static SERVICES_ID rcvsvc(2, 0);
+    static SERVICES_ID proxysvc(0, 0);
+    return zerg_mmap_buspipe_->pipe_sendmsg_to_service<sec_proto::LogSvrCommBillRecord>(
+        0x4e21, user_id_, 0, 0, rcvsvc, proxysvc, self_svr_, pkg, game_id_, 0);
 }
 
 const char * CommBillRecord::make_string() {
-    // local: char str_time[];
-    // local: size_t buf_size;
-    // local: size_t out_len;
-    // local: int len;
-    // local: const unsigned int char_fill_len;
-    // local: char char_fill_string[];
-    // local: const unsigned int int64_fill_len;
-    // local: char int64_fill_string[];
-    // local: uint32_t i;
-    // local: uint32_t i;
+    time_t cur_time = use_app_framework_ ? time_provider_->time() : time(0);
+    struct tm *tm_info = localtime(&cur_time);
+    char str_time[0x31];
+    size_t out_len = 0;
+    unsigned int i = 0;
+    strftime(str_time, 0x1f, "%Y-%m-%d %H:%M:%S", tm_info);
+    log_buffer_[0] = 0;
+    out_len = snprintf(log_buffer_, 0x1000, "%u|%s|%u|%u|%u|%u|%u|%s",
+                       data_source_, str_time, user_id_, log_type_, game_id_,
+                       client_ip_, server_ip_, log_comment_);
+    for (i = 0; i < num_of_char_data_; ++i) {
+        out_len += snprintf(log_buffer_ + out_len, 0x1000 - out_len, "|%s",
+                            char_data_array_[i]);
+    }
+    {
+        const unsigned int char_fill_len = 4 - num_of_char_data_;
+        char char_fill_string[0x7d];
+        memset(char_fill_string, 0x7c, char_fill_len);
+        char_fill_string[char_fill_len] = 0;
+        out_len += snprintf(log_buffer_ + out_len, 0x1000 - out_len, "%s",
+                            char_fill_string);
+    }
+    for (i = 0; i < num_of_int64_data_; ++i) {
+        out_len += snprintf(log_buffer_ + out_len, 0x1000 - out_len, "|%lld",
+                            int64_data_array_[i]);
+    }
+    {
+        const unsigned int int64_fill_len = 0x40 - num_of_int64_data_;
+        char int64_fill_string[0x7d];
+        memset(int64_fill_string, 0x7c, int64_fill_len);
+        int64_fill_string[int64_fill_len] = 0;
+        out_len += snprintf(log_buffer_ + out_len, 0x1000 - out_len, "%s\n",
+                            int64_fill_string);
+    }
+    log_buffer_[out_len] = 0;
+    log_used_buffer_len_ = out_len;
+    return log_buffer_;
 }
 
 CommBillRecord & CommBillRecord::output() {
-    // local: timeval tv;
-    // local: /*anon struct*/ int pkg;
-    // local: int ret;
+    timeval tv;
+    sec_proto::LogSvrCommBillRecord pkg;
+    int ret = 0;
+    if (log_way_ == 0) {
+        reset();
+        return *this;
+    }
+    make_string();
+    if (monitor_) {
+        monitor_->increase_by_statid(0x2396, game_id_, log_type_, 1);
+    }
+    if (log_way_ & 2) {
+        tv.tv_sec = use_app_framework_ ? time_provider_->time() : time(0);
+        file_log_->output_log_info(tv, log_buffer_, log_used_buffer_len_);
+    }
+    if (log_way_ & 1) {
+        if (log_used_buffer_len_ > 0x7ff) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "bill output fail: log is too long, log_len=%u",
+                log_used_buffer_len_ + 1);
+        } else {
+            memcpy(&pkg, log_buffer_, log_used_buffer_len_ + 1);
+        }
+        ret = write_to_logsvr(pkg);
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex(
+                "bill output net fail: send to logsvr fail. ret=%d", ret);
+        }
+    }
+    reset();
+    return *this;
 }
 
 // mangled: _Z4endlR14CommBillRecord
-// line 422
-CommBillRecord & endl(CommBillRecord &const os) {
+// line 423
+CommBillRecord & endl(CommBillRecord &os) {
+    return os.output();
 }
 
+// mangled: _ZN14CommBillRecord13init_log_fileEv
+// line 371 (zergsvr: 无参版本)
 void CommBillRecord::init_log_file() {
-    // local: string bill_prefix;
+    std::string bill_prefix;
+    if (!(log_way_ & 2)) {
+        return;
+    }
+    if (strchr(bill_name_.c_str(), '/') != NULL
+            || strchr(bill_name_.c_str(), '\\') != NULL) {
+        bill_prefix = bill_name_;
+    } else {
+        if (use_app_framework_) {
+            bill_prefix = Comm_Svrd_Config::instance()->app_run_dir_;
+            bill_prefix.append("/log/", 5);
+            bill_prefix.append(Comm_Svrd_Appliction::instance()->get_app_basename(),
+                               strlen(Comm_Svrd_Appliction::instance()->get_app_basename()));
+            bill_prefix.append("_", 1);
+        }
+        bill_prefix.append(bill_name_);
+        if (bill_prefix.empty()) {
+            log_way_ &= ~2;
+        }
+    }
+    if (log_way_ & 2) {
+        if (file_log_) {
+            delete file_log_;
+            file_log_ = 0;
+        }
+        file_log_ = new ZEN_LogTrace_Basic;
+        file_log_->init_time_log(LOGDEVIDE_BY_DATE, bill_prefix.c_str(),
+                                 if_thread_sync_, true, 1, 10, 3);
+    }
 }
 
-int CommBillRecord::init(const char *bill_name, int log_way, bool if_thread_sync, bool arg3) {
+// mangled: _ZN14CommBillRecord4initEPKcibb
+// line 73 (zergsvr: 4 参，无 ZEN_LOGFILE_DEVIDE)
+int CommBillRecord::init(const char *bill_name, int log_way, bool if_thread_sync, bool arg4) {
+    if (!bill_name) {
+        return 0;
+    }
+    bill_name_.assign(bill_name, strlen(bill_name));
+    log_way_ = log_way;
+    if_thread_sync_ = if_thread_sync;
+    use_app_framework_ = (Comm_Svrd_Appliction::instance() != NULL);
+    init_log_file();
+    if (use_app_framework_) {
+        time_provider_ = Comm_Time_Provider::instance();
+        zerg_mmap_buspipe_ = Zerg_MMAP_BusPipe::instance();
+        monitor_ = Comm_Stat_Monitor::instance();
+    }
+    self_svr_ = Comm_Svrd_Config::instance()->self_svr_id_;
+    return 0;
 }
 
+CommBillRecord g_bill;
+CommBillRecord g_stat;

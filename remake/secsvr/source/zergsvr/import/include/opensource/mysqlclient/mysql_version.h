@@ -1,6 +1,31 @@
-// Auto-generated empty header stub from DWARF line info
-// Original path: import/include/opensource/mysqlclient/mysql_version.h
-#ifndef SECSVR_IMPORT_INCLUDE_OPENSOURCE_MYSQLCLIENT_MYSQL_VERSION_H_H_
-#define SECSVR_IMPORT_INCLUDE_OPENSOURCE_MYSQLCLIENT_MYSQL_VERSION_H_H_
+/* Generated for dnf_secsvr from mysql-5.0.92/include/mysql_version.h.in
+   with the package's default configure values (MYSQL_VERSION_ID=50092).
+   This file is public domain and comes with NO WARRANTY of any kind */
 
-#endif // SECSVR_IMPORT_INCLUDE_OPENSOURCE_MYSQLCLIENT_MYSQL_VERSION_H_H_
+/* Version numbers for protocol & mysqld */
+
+#ifndef _mysql_version_h
+#define _mysql_version_h
+#ifdef _CUSTOMCONFIG_
+#include <custom_conf.h>
+#else
+#define PROTOCOL_VERSION		10
+#define MYSQL_SERVER_VERSION		"5.0.92"
+#define MYSQL_BASE_VERSION		"mysqld-5.0"
+#define MYSQL_SERVER_SUFFIX_DEF		""
+#define FRM_VER				6
+#define MYSQL_VERSION_ID		50092
+#define MYSQL_PORT			3306
+#define MYSQL_PORT_DEFAULT		3306
+#define MYSQL_UNIX_ADDR			"/tmp/mysql.sock"
+#define MYSQL_CONFIG_NAME		"my"
+#define MYSQL_COMPILATION_COMMENT	"MySQL Community Edition (GPL)"
+
+/* mysqld compile time options */
+#endif /* _CUSTOMCONFIG_ */
+
+#ifndef LICENSE
+#define LICENSE				GPL
+#endif /* LICENSE */
+
+#endif /* _mysql_version_h */

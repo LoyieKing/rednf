@@ -1,504 +1,357 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from secagent binary DWARF + disassembly (2026-08-10).
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/formmog/secagent/secagent_app.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/formmog/secagent/secagent_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_expire.h"
-#include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_crc32.h"
-#include "output/commlib/zenlib/release/include/zen_digit_list.h"
-#include "output/commlib/zenlib/release/include/zen_key_value_config.h"
-#include "output/commlib/zenlib/release/include/zen_data_with_version.h"
-#include "output/commlib/zenlib/release/include/zen_code_engine.h"
-#include "output/commlib/framework/release/include/comm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_id_to_string.h"
-#include "output/commlib/zenlib/release/include/zen_time_value.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_command.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_result.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
-#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_field.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
-#include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
-#include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
-#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_file.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
-#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
-#include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
-#include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_sema.h"
-#include "output/commlib/zenlib/release/include/zen_lock_synch_traits.h"
-#include "output/commlib/zenlib/release/include/zen_lock_process_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_rw_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_semaphore.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_condi.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_condi.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_nonlock.h"
-#include "output/commlib/zenlib/release/include/zen_timer_handler_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_wheel.h"
-#include "output/commlib/zenlib/release/include/zen_bus_two_way.h"
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
-#include "output/commlib/zenlib/release/include/zen_thread_task.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_stream.h"
-#include "output/commlib/zenlib/release/include/zen_socket_datagram.h"
-#include "output/commlib/zenlib/release/include/zen_socket_connector.h"
-#include "output/commlib/zenlib/release/include/zen_event_handle_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_select.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
-#include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
-#include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
-#include "output/commlib/zenlib/release/include/zen_server_status.h"
-#include "output/commlib/zenlib/release/include/zen_shm_vector.h"
-#include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
-#include "output/protocol/common/release/include/comm_proto_cfgsvr.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "output/protocol/common/release/include/comm_proto_public_head.h"
-#include "output/protocol/common/release/include/comm_proto_public_cmd.h"
-#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
-#include "output/protocol/common/release/include/comm_proto_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_monitorsvr.h"
+#include "src/commlib/zenlib/zen_predefine.h"
+#include "src/commlib/zenlib/zen_trace_log_msg.h"
+#include "src/commlib/zenlib/zen_trace_log_basic.h"
+#include "src/commlib/zenlib/zen_time_value.h"
+#include "src/commlib/zenlib/zen_shm_lockfree_deque.h"
+#include "src/commlib/zenlib/zen_timer_queue_base.h"
+#include "src/commlib/zenlib/zen_server_status.h"
+#include "src/commlib/framework/comm_predefine.h"
+#include "src/commlib/framework/comm_svrd_app_non_ctrl.h"
+#include "src/commlib/framework/comm_app_frame.h"
+#include "src/commlib/framework/comm_transaction_manager.h"
+#include "src/commlib/framework/comm_stat_monitor.h"
+#include "src/commlib/framework/comm_zerg_mmappipe.h"
+#include "src/commlib/framework/comm_svrd_config.h"
 #include "output/protocol/common/release/include/comm_conf_framework.h"
-#include "output/protocol/common/release/include/TdrXml.h"
-#include "output/protocol/common/release/include/TdrIO.h"
-#include "output/protocol/common/release/include/comm_conf_svcid.h"
-#include "output/protocol/common/release/include/comm_conf_zerg.h"
-#include "output/protocol/common/release/include/comm_conf_cfgsdk.h"
-#include "import/include/tencore/tencrypt/TenHash.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_external.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_types.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_define.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_ctypes_info.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_error.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_init.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLtags.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLMetaLib.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_to_hpp.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_io.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_operate_data.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_sort.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_net.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_manage.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_sql.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_meta_entries_index.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_macros.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_error.h"
-#include "output/commlib/framework/release/include/comm_svrd_app_non_ctrl.h"
-#include "output/commlib/framework/release/include/comm_svrd_application.h"
-#include "output/commlib/framework/release/include/comm_service_info.h"
-#include "output/commlib/framework/release/include/comm_enum_define.h"
-#include "output/commlib/framework/release/include/comm_error_code.h"
-#include "output/commlib/framework/release/include/comm_transaction_manager.h"
-#include "output/commlib/framework/release/include/comm_frame_malloc.h"
-#include "output/commlib/framework/release/include/comm_app_frame.h"
-#include "output/commlib/framework/release/include/comm_frame_command.h"
-#include "output/commlib/framework/release/include/comm_zerg_mmappipe.h"
-#include "output/commlib/framework/release/include/comm_stat_monitor.h"
-#include "output/commlib/framework/release/include/comm_stat_define.h"
-#include "output/commlib/framework/release/include/comm_svrd_config.h"
-#include "output/commlib/framework/release/include/comm_bill_record.h"
-#include "output/commlib/framework/release/include/comm_time_provider.h"
-#include "output/commlib/framework/release/include/comm_cfgsvr_sdk.h"
-#include "output/formmog/appcomm/release/include/app_punish_mode.h"
-#include "output/formmog/appcomm/release/include/app_svr_type.h"
-#include "output/formmog/appcomm/release/include/app_error_code.h"
-#include "output/formmog/appcomm/release/include/app_anti_err_code.h"
-#include "import/include/tencore/tencrypt/TenCrypt.h"
-#include "output/protocol/formmog/release/include/formmog_proto_antibot_client.h"
-#include "output/protocol/formmog/release/include/formmog_proto_public_secsvr.h"
-#include "output/protocol/formmog/release/include/formmog_proto_public_cmd.h"
-#include "output/protocol/formmog/release/include/formmog_proto_public_tsssdk.h"
-#include "output/protocol/formmog/release/include/formmog_proto_tss_sdk_client.h"
-#include "output/protocol/formmog/release/include/formmog_conf_secagent.h"
+#include "src/protocol/common/TdrXml.h"
+#include "src/protocol/formmog/formmog_conf_secagent.h"
 #include "src/formmog/secagent/secagent_app.h"
-#include "src/formmog/secagent/secagent_gamesvr_channel.h"
-#include "src/formmog/secagent/secagent_dpsdk_info_mgr.h"
-#include "src/formmog/secagent/secagent_msg_handler.h"
-#include "src/formmog/secagent/secagent_antibot_msg_crypter.h"
-#include "src/formmog/secagent/secagent_restrict.h"
-#include "src/formmog/secagent/secagent_antibot_msg_handler.h"
-#include "src/formmog/secagent/secagent_antibot_crypt_data.h"
-#include "src/formmog/secagent/secagent_static_config_dec.h"
-#include "src/formmog/secagent/secagent_user_mgr.h"
-#include "src/formmog/secagent/secagent_user_info.h"
-#include "src/formmog/secagent/secagent_bill.h"
-#include "src/formmog/secagent/secagent_antibot_sanlixdata.h"
-#include "src/formmog/secagent/secagent_game_exe.h"
 #include "src/formmog/secagent/secagent_timer_handler.h"
-#include "src/formmog/secagent/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
+#include "src/formmog/secagent/secagent_user_mgr.h"
 #include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
 #include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
 #include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
+// 文件内静态状态项数组（与二进制静态构造顺序一致：先框架项，后 secagent 项）。
+static ZEN_STATUS_ITEM_WITHNAME g_comm_stat_item[] = {
+    ZEN_STATUS_ITEM_WITHNAME(0x238d, STATICS_PER_FIVE_MINTUES, "COMM_STAT_RECV_PKG_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x238e, STATICS_PER_FIVE_MINTUES, "COMM_STAT_SEND_PKG_SUCC"),
+    ZEN_STATUS_ITEM_WITHNAME(0x238f, STATICS_PER_FIVE_MINTUES, "COMM_STAT_SEND_PKG_FAIL"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2390, STATICS_PER_FIVE_MINTUES, "COMM_STAT_TRANS_PROC_SUCC"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2391, STATICS_PER_FIVE_MINTUES, "COMM_STAT_TRANS_PROC_FAIL"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2392, STATICS_PER_FIVE_MINTUES, "COMM_STAT_TRANS_PROC_TIMEOUT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2393, STATICS_PER_FIVE_MINTUES, "COMM_STAT_TRANS_PROC_ERRNO"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2394, STATICS_PER_FIVE_MINTUES, "COMM_STAT_TRANS_USE_TIME"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2395, STATICS_PER_FIVE_MINTUES, "COMM_STAT_APP_ALIVE"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2396, STATICS_PER_FIVE_MINTUES, "COMM_STAT_BILL_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2397, STATICS_PER_FIVE_MINTUES, "COMM_STAT_SYS_CPU_RATIO"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2398, STATICS_PER_FIVE_MINTUES, "COMM_STAT_PROCESS_CPU_RATIO"),
+    ZEN_STATUS_ITEM_WITHNAME(0x2399, STATICS_PER_FIVE_MINTUES, "COMM_STAT_SYS_MEM_USE_RATIO"),
+    ZEN_STATUS_ITEM_WITHNAME(0x239a, STATICS_PER_FIVE_MINTUES, "COMM_STAT_AVAILABLE_MEM_SIZE"),
+    ZEN_STATUS_ITEM_WITHNAME(0x239b, STATICS_PER_FIVE_MINTUES, "COMM_STAT_RECV_PKG_BYTES"),
+    ZEN_STATUS_ITEM_WITHNAME(0x239c, STATICS_PER_FIVE_MINTUES, "COMM_STAT_SEND_PKG_BYTES"),
+};
+
+static ZEN_STATUS_ITEM_WITHNAME g_secagent_stat_item[] = {
+    ZEN_STATUS_ITEM_WITHNAME(0x493e1, STATICS_PER_FIVE_MINTUES, "RECV_SDK_ADD_USER_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e2, STATICS_PER_FIVE_MINTUES, "ADD_USER_SUCC_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e3, STATICS_PER_FIVE_MINTUES, "ADD_USER_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e4, STATICS_PER_FIVE_MINTUES, "RECV_SDK_DEL_USER_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e5, STATICS_PER_FIVE_MINTUES, "DEL_USER_SUCC_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e6, STATICS_PER_FIVE_MINTUES, "DEL_USER_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e7, STATICS_PER_FIVE_MINTUES, "EXPIRE_USER_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e8, STATICS_PER_FIVE_MINTUES, "SDK_REQ_RECV_DATA_NOT_ANTIBOT_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493e9, STATICS_PER_FIVE_MINTUES, "SDK_REQ_RECV_DATA_ANTIBOT_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493ea, STATICS_PER_FIVE_MINTUES, "RECV_ANTIBOT_OTHER_NO_PROC_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493eb, STATICS_PER_FIVE_MINTUES, "RECV_ANTIBOT_INIT_PKG_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493ec, STATICS_PER_FIVE_MINTUES, "UPDATE_DIB_FROM_INIT_PKG_SUCC_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493ed, STATICS_PER_FIVE_MINTUES, "UPDATE_KEY_FROM_INIT_PKG_SUCC_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493ee, STATICS_PER_FIVE_MINTUES, "RECV_ANTIBOT_ENCRYPT_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493ef, STATICS_PER_FIVE_MINTUES, "ANTIBOT_DECRYPT_SUCC_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f0, STATICS_PER_FIVE_MINTUES, "ANTIBOT_DECRYPT_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f1, STATICS_PER_FIVE_MINTUES, "RECV_ANTIBOT_READY_PKG_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f2, STATICS_PER_FIVE_MINTUES, "RECV_ANTIBOT_TEST_PKG_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f3, STATICS_PER_FIVE_MINTUES, "RECV_ANTIBOT_CLIENT_ERROR_LOG_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f4, STATICS_PER_FIVE_MINTUES, "RECV_ANTIBOT_RPCODE_PKG_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f5, STATICS_PER_FIVE_MINTUES, "SECSVR_FORWARD_NOT_ANTIBOT_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f6, STATICS_PER_FIVE_MINTUES, "SECSVR_FORWARD_ANTIBOT_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f7, STATICS_PER_FIVE_MINTUES, "ANTIBOT_NEED_ENCRYPT_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f8, STATICS_PER_FIVE_MINTUES, "ANTIBOT_ENCRYPT_SUCC_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493f9, STATICS_PER_FIVE_MINTUES, "ANTIBOT_ENCRYPT_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493fa, STATICS_PER_FIVE_MINTUES, "SEND_SECSVR_CHECK_ENCRYPT_INFO_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493fb, STATICS_PER_FIVE_MINTUES, "SEND_SECSVR_CHECK_DECRYPT_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493fc, STATICS_PER_FIVE_MINTUES, "SEND_SECSVR_UNENCRYPT_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493fd, STATICS_PER_FIVE_MINTUES, "SEND_SECSVR_DECRYPT_TEST_PKG_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493fe, STATICS_PER_FIVE_MINTUES, "SEND_SECSVR_CHECK_DELOG_FAIL_NUM"),
+    ZEN_STATUS_ITEM_WITHNAME(0x493ff, STATICS_PER_FIVE_MINTUES, "ONLINE_USER_NUM_FEATURE_ID"),
+    ZEN_STATUS_ITEM_WITHNAME(0x49400, STATICS_PER_FIVE_MINTUES, "RPCODE_DECRYPT_FAIL_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x49401, STATICS_PER_FIVE_MINTUES, "RPCODE_KEY_NOT_READY_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x49402, STATICS_PER_FIVE_MINTUES, "RESTRICT_PUNISH_USER_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x49403, STATICS_PER_FIVE_MINTUES, "GET_GAME_EXE_FAIL_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x49404, STATICS_PER_FIVE_MINTUES, "SEND_SECSVR_ERROR_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x49405, STATICS_PER_FIVE_MINTUES, "PROC_CLIENT_PKG_FAIL_COUNT"),
+    ZEN_STATUS_ITEM_WITHNAME(0x49406, STATICS_PER_FIVE_MINTUES, "PROC_SERVER_PKG_FAIL_COUNT"),
+};
+
+SecAgentApp * SecAgentApp::instance_ = NULL;
+
+// line 10
+SecAgentApp * SecAgentApp::instance() {
+    if (instance_ == NULL) {
+        instance_ = new SecAgentApp();
+    }
+    return instance_;
+}
+
+// line 20
+void SecAgentApp::clean_instance() {
+    Comm_Stat_Monitor::instance();
+    Comm_Stat_Monitor::clean_instance();
+    if (instance_ != NULL) {
+        delete instance_;
+    }
+    instance_ = NULL;
+}
+
+// line 28
+SecAgentApp::SecAgentApp()
+    : gamesvr_channel_(), dpsdk_channel_(), msg_handler_(), svr_start_time_(),
+      dib_data_(), sanlix_data_(), game_exe_mgr_(8) {
+    conf_ = new secagent_config::config();
+    nonctrl_recv_buffer_ = new (0x10000) Comm_App_Frame(0, 0x32, 0x1000000);
+}
+
+// line 34
+SecAgentApp::~SecAgentApp() {
+    delete conf_;
+    conf_ = NULL;
+}
+
+// line 41
+int SecAgentApp::init() {
+    svr_start_time_.gettimeofday();
+    register_timer();
+    int ret = gamesvr_channel_.open();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[%s], gamesvr channel open error, ret=%d", "virtual int SecAgentApp::init()", ret);
+        return 0x493e2;
+    }
+    ZEN_Trace_LogMsg::debug_infoex("init gamesvr channel succ");
+    ret = dpsdk_channel_.init(conf_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[%s], init dpsdk config info error, ret=%d", "virtual int SecAgentApp::init()", ret);
+        return 0x493e3;
+    }
+    ZEN_Trace_LogMsg::debug_infoex("init dpsdk config info succ");
+    ret = SecAgentUserInfoMgr::instance()->init(conf_->table_node_num_, conf_->if_restore_user_info_ != 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[%s], user mngr init error, ret=%d", "virtual int SecAgentApp::init()", ret);
+        return 0x493e4;
+    }
+    ZEN_Trace_LogMsg::debug_infoex("init user info mngr succ");
+    Transaction_Manager *p_trans_mgr_ = new Transaction_Manager();
+    p_trans_mgr_->initialize(Comm_Svrd_Config::instance()->framework_config_.trans_info_.trans_cmd_num_,
+                             Comm_Svrd_Config::instance()->framework_config_.trans_info_.trans_num_,
+                             self_services_id_,
+                             ZEN_Timer_Queue::instance(),
+                             Zerg_MMAP_BusPipe::instance(),
+                             0x10000, false, false);
+    Transaction_Manager::instance(p_trans_mgr_);
+    ret = Comm_Stat_Monitor::instance()->initialize(false,
+                                                    Comm_Svrd_Config::instance()->self_svr_id_,
+                                                    0x26, g_secagent_stat_item, false);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[%s], Comm_Stat_Monitor init fail. ret=%d", "virtual int SecAgentApp::init()", ret);
+        return 0x493e6;
+    }
+    ZEN_Trace_LogMsg::debug_infoex("init stat monitor st succ");
+    msg_handler_.init(conf_);
+    return load_conf();
+}
+
+// line 109
+void SecAgentApp::register_timer() {
+    ZEN_Timer_Queue *timer_queue = ZEN_Timer_Queue::instance();
+    ZEN_Time_Value delay;
+    ZEN_Time_Value interval;
+    delay.set(0, 0);
+    interval.set(1, 0);
+    const unsigned int TIME_WHEEL_INTERVAL = 1;
+    SecAgentTimerHandler *timer_handler = new SecAgentTimerHandler(timer_queue);
+    timer_queue->schedule_timer(timer_handler, NULL, delay, interval);
+}
+
+// line 126
 void SecAgentApp::exit() {
 }
 
-const SecagentGameExe * ZenDataWithVersion<unsigned int,SecagentGameExe,std::equal_to<unsigned int> >::get_data(const unsigned int &key) {
-    // local: /*anon struct*/ int iter;
-}
-
-const SecagentGameExe * SecAgentApp::get_game_exe(unsigned int version) {
-}
-
-const SecagentGameExe * ZenDataWithVersion<unsigned int,SecagentGameExe,std::equal_to<unsigned int> >::get_newest_data() {
-}
-
-const SecagentGameExe * SecAgentApp::get_game_exe_newest() {
-}
-
-void SecAgentApp::update_sdk_time(unsigned int now_time) {
-}
-
-int SecAgentApp::load_app_conf() {
-    // local: int ret;
-}
-
-int SecAgentApp::load_dibdata() {
-    // local: int ret;
-}
-
-void _M_clear() {
-    // local: _List_node<ZenDataWithVersion<unsigned int, SecagentGameExe, std::equal_to<unsigned int> >::CNode> *__cur;
-    // local: _List_node<ZenDataWithVersion<unsigned int, SecagentGameExe, std::equal_to<unsigned int> >::CNode> *__tmp;
-}
-
-bool ZenDataWithVersion<unsigned int,SecagentGameExe,std::equal_to<unsigned int> >::add_new_data(const unsigned int &key, auto_ptr<SecagentGameExe> &obj) {
-    // local: /*anon struct*/ int node;
-}
-
-int SecAgentApp::proc(size_t &proc_data_num) {
-    // local: size_t recv_buf_size;
-    // local: int ret;
-    // local: unsigned int min_channel_id;
-    // local: unsigned int max_channel_id;
-    // local: unsigned int i;
-    // local: unsigned int recv_num;
-}
-
-int SecAgentApp::process_recv_appframe(Comm_App_Frame *recv_frame) {
-    // local: int ret;
-    // local: short unsigned int channel_id;
-    // local: short unsigned int room_id;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-    // local: short unsigned int __v;
-    // local: short unsigned int __x;
-}
-
-void SecAgentApp::register_timer() {
-    // local: ZEN_Timer_Queue *timer_queue;
-    // local: ZEN_Time_Value delay;
-    // local: ZEN_Time_Value interval;
-    // local: const unsigned int TIME_WHEEL_INTERVAL;
-}
-
-void SecAgentApp::clean_instance() {
-}
-
-int SecAgentApp::load_game_exe() {
-    // local: int ret;
-    // local: const char *file_path;
-    // local: /*anon struct*/ int game_exe;
-    // local: bool succ;
-}
-
-int SecAgentApp::load_conf() {
-    // local: int ret;
-    // local: int ret;
-}
-
+// line 131
 int SecAgentApp::reload() {
-    // local: int ret;
+    ZEN_Trace_LogMsg::debug_infoex("reload start");
+    msg_handler_.reload(conf_);
+    int ret = load_conf();
+    ZEN_Trace_LogMsg::debug_infoex("reload ret=%d", ret);
+    return ret;
 }
 
-int SecAgentApp::init() {
-    // local: int ret;
-    // local: Transaction_Manager *p_trans_mgr_;
+// line 141
+int SecAgentApp::process_recv_appframe(Comm_App_Frame *recv_frame) {
+    if (recv_frame->frame_length_ == Comm_App_Frame::LEN_OF_APPFRAME_HEAD) {
+        ZEN_Trace_LogMsg::debug_debugEx("ack pkg, no need proc");
+        return 0;
+    }
+    int ret = msg_handler_.proc_sever_msg(recv_frame);
+    if (ret == 0x493fd) {
+        ZEN_Trace_LogMsg::debug_infoex("msg handler proc sever msg, no need send to sdk, ret=%u", 0x493fd);
+        return 0;
+    }
+    unsigned short channel_id = ntohs(*(unsigned short *)recv_frame->frame_appdata_);
+    unsigned short room_id = ntohs(*(unsigned short *)(recv_frame->frame_appdata_ + 2));
+    ret = gamesvr_channel_.send(channel_id, recv_frame, recv_frame->frame_length_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[%s], send to gamesvr channel fail,ret=%d, channel_id=%d",
+                                        "virtual int SecAgentApp::process_recv_appframe(Comm_App_Frame*)", ret, channel_id);
+    } else {
+        ZEN_Trace_LogMsg::debug_infoex("SecAgentApp::process_recv_appframe, send over, channel_id=%u, room_id=%u",
+                                       channel_id, room_id);
+    }
+    return ret;
 }
 
-SecAgentApp * SecAgentApp::instance() {
+// line 183
+int SecAgentApp::proc(size_t &proc_data_num) {
+    unsigned int recv_buf_size = 0;
+    int ret;
+    unsigned int min_channel_id = gamesvr_channel_.getMinChannelID();
+    unsigned int max_channel_id = gamesvr_channel_.getMaxChannelID();
+    for (unsigned int i = min_channel_id; i < max_channel_id; ++i) {
+        unsigned int recv_num = 0;
+        while (recv_num < conf_->channel_recv_times_) {
+            ret = gamesvr_channel_.recv(i, (void **)&recv_buf_, &recv_buf_size);
+            if (ret != 0) {
+                break;
+            }
+            if (recv_buf_size == 0) {
+                continue;
+            }
+            ++recv_num;
+            ZEN_Trace_LogMsg::debug_debugEx("channel_id[%d] recv data, num=%d", i, recv_num);
+            ret = msg_handler_.proc_client_msg((Comm_App_Frame *)recv_buf_);
+            if (ret != 0) {
+                ZEN_Trace_LogMsg::debug_errorex("[%s], proc sdk msg error, ret = %d", "virtual int SecAgentApp::proc(size_t&)", ret);
+            }
+            ++proc_data_num;
+        }
+    }
+    return proc_data_num;
 }
 
+// line 222
+int SecAgentApp::load_game_exe() {
+    std::auto_ptr<SecagentGameExe> game_exe(new SecagentGameExe());
+    int ret = game_exe->load_version(conf_->crypt_checker_conf_.exe_version_path_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("load gamedata fail. load version fail. ret=%d", ret);
+        return ret;
+    }
+    unsigned int game_exe_version = game_exe->get_version();
+    if (game_exe_mgr_.get_data(game_exe_version) != NULL) {
+        ZEN_Trace_LogMsg::debug_debugEx("muti_version_test, game exe, the new data existed, version=%u", game_exe_version);
+        return 0;
+    }
+    ZEN_Trace_LogMsg::debug_debugEx(" game exe, the new data not existed, will load, version=%u", game_exe_version);
+    ret = game_exe->load(conf_->crypt_checker_conf_.exe_path_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("load game exe fail. ret=%d", ret);
+        return ret;
+    }
+    ZEN_Trace_LogMsg::debug_debugEx("game exe, the new data load succ, version=%u", game_exe_version);
+    game_exe_mgr_.add_new_data(game_exe_version, game_exe);
+    return 0;
+}
+
+// line 264
+int SecAgentApp::load_dibdata() {
+    if (conf_->crypt_checker_conf_.is_use_ == 0) {
+        ZEN_Trace_LogMsg::debug_infoex("dibdata is not use");
+        return 0;
+    }
+    int ret = dib_data_.load(conf_->crypt_checker_conf_.dib_base_path_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("dibdata load config fail|ret=%d", ret);
+    }
+    return ret;
+}
+
+// line 282
+int SecAgentApp::load_app_conf() {
+    int ret = 0;
+    ret = conf_->fromXmlFile(Comm_Svrd_Config::instance()->app_cfg_file_.c_str(),
+                             (tsf4g_tdr::TdrXmlFormat)0, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[%s], secagent app load config fail, ret=%d",
+                                        "virtual int SecAgentApp::load_app_conf()", ret);
+    }
+    return ret;
+}
+
+// line 296
+int SecAgentApp::load_conf() {
+    if (conf_->is_for_mmog_ != 0) {
+        int ret = load_game_exe();
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex("[%s], read game exe fail, ret=%d", "int SecAgentApp::load_conf()", ret);
+            return 0x493e5;
+        }
+        ret = load_dibdata();
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex("[%s], load dibdata fail, ret=%d", "int SecAgentApp::load_conf()", ret);
+            return 0x493ff;
+        }
+    }
+    int ret = dpsdk_channel_.update_config(conf_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[%s], update dpsdk config info error, ret=%d", "int SecAgentApp::load_conf()", ret);
+        return 0x493e3;
+    }
+    ZEN_Trace_LogMsg::debug_infoex("update dpsdk config info succ");
+    set_log_priority((ZEN_LOG_PRIORITY)conf_->log_priority_);
+    if (conf_->sanlix_checker_conf_.is_use_ != 0) {
+        int ret2 = sanlix_data_.load();
+        ZEN_Trace_LogMsg::debug_infoex("load sanlix data , ret=%d", ret2);
+        return ret2;
+    }
+    return 0;
+}
+
+// line 342
+const SecagentGameExe * SecAgentApp::get_game_exe(unsigned int version) const {
+    return game_exe_mgr_.get_data(version);
+}
+
+// line 348
+const SecagentGameExe * SecAgentApp::get_game_exe_newest() const {
+    return game_exe_mgr_.get_newest_data();
+}
+
+// line 354
+void SecAgentApp::update_sdk_time(unsigned int now_time) {
+    dpsdk_channel_.update_time(now_time);
+}
+
+// 显式实例化（原二进制弱符号：Comm_App_Frame 模板由服务 TU 发出）
+#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
+#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
+#include "output/protocol/formmog/release/include/formmog_proto_public_secsvr.h"
+
+template int Comm_App_Frame::appdata_encode<sec_proto::CfgFileReq>(unsigned int, const sec_proto::CfgFileReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::ReportErrReq>(unsigned int, const sec_proto::ReportErrReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::SvcIpInfoReq>(unsigned int, const sec_proto::SvcIpInfoReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::DeployInfoReq>(unsigned int, const sec_proto::DeployInfoReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::RecvDataFromSDKReq>(unsigned int, const sec_proto::RecvDataFromSDKReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::LogSvrCommBillRecord>(unsigned int, const sec_proto::LogSvrCommBillRecord&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::CheckCfgFileUpdateReq>(unsigned int, const sec_proto::CheckCfgFileUpdateReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::SvcIdReq>(unsigned int, const sec_proto::SvcIdReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::SendToSDK>(unsigned int, const sec_proto::SendToSDK&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_decode<sec_proto::CfgFileRsp>(sec_proto::CfgFileRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::SvcIpInfoRsp>(sec_proto::SvcIpInfoRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::CfgsvrInfoRsp>(sec_proto::CfgsvrInfoRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::DeployInfoRsp>(sec_proto::DeployInfoRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::CheckCfgFileUpdateRsp>(sec_proto::CheckCfgFileUpdateRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::SvcIdRsp>(sec_proto::SvcIdRsp&, unsigned int, size_t*) const;

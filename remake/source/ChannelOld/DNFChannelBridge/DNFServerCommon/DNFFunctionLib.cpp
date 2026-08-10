@@ -49,14 +49,14 @@ bool Hex2Char(const char* szHex, unsigned char& rch)
 
 void DNFFLib::Binary2Hex(const unsigned char* pucBinStr, int iBinSize, char* pszHexStr)
 {
+    int i;
     const unsigned char* p = pucBinStr;
     *pszHexStr = '\0';
-    for (int i = 0; i < iBinSize; i++)
+    for (i = 0; i < iBinSize; i++, p = p + 1)
     {
         char szHex[3];
         Char2Hex(*p, szHex);
         strcat(pszHexStr, szHex);
-        p = p + 1;
     }
 }
 
@@ -157,7 +157,7 @@ int DNFFLib::get_rand_int(int divide)
     {
         return 0;
     }
-    if (divide == 0)
+    if (0 == divide)
     {
         return rand();
     }
@@ -180,7 +180,7 @@ int DNFFLib::get_rand_int(int divide)
     result = result ^ (int)(((unsigned int)(seed >> 0x1f) >> 0x10) + seed) >> 0x10 & 0x3ff;
     if ((unsigned int)divide < result)
     {
-        result = result % (unsigned int)divide;
+        return result % (unsigned int)divide;
     }
     return result;
 }

@@ -4,7 +4,8 @@
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_BASE_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
+#include "zen_os_adapt_predefine.h"
+#include "zen_socket_addr_base.h"
 #include <stddef.h>
 #include <unistd.h>
 

@@ -1,32 +1,55 @@
-// Auto-generated header stub from DWARF info
-// Original path: src/commlib/zenlib/zen_bus_two_way.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// Restored from gunnersvr DWARF (original: src/commlib/zenlib/zen_bus_two_way.h)
+// 布局与 gunnersvr 二进制一致：sizeof = 10292。
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_BUS_TWO_WAY_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_BUS_TWO_WAY_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
+#include "src/commlib/zenlib/zen_bus_mmap_pipe.h"
 #include <stddef.h>
 #include <stdint.h>
 
 // sizeof = 10292
 struct ZEN_BusPipe_TwoWay : public ZEN_Bus_MMAPPipe { // line 14
 protected:
-static const char BUS_PIPE_NAME[][];
-static ZEN_BusPipe_TwoWay *two_way_instance_;
+    static const char BUS_PIPE_NAME[2][16]; // line 29
+    static ZEN_BusPipe_TwoWay *two_way_instance_; // line 35
 public:
-ZEN_BusPipe_TwoWay(); // line 40
-~ZEN_BusPipe_TwoWay(); // line 42
-int initialize(const char *arg0, size_t arg1, size_t arg2, size_t arg3, bool arg4, bool arg5, uint8_t arg6); // line 53
-int pop_front_recvpipe(/*anon struct*/ int *arg0); // line 58
-int pop_front_sendpipe(/*anon struct*/ int *arg0); // line 60
-int push_back_sendpipe(const /*anon struct*/ int *arg0); // line 62
-int push_back_recvpipe(const /*anon struct*/ int *arg0); // line 64
-int get_frontsize_recvpipe(size_t &arg0); // line 68
-int get_frontsize_sendpipe(size_t &arg0); // line 70
-static void instance(ZEN_BusPipe_TwoWay *arg0); // line 77
-static ZEN_BusPipe_TwoWay * instance(); // line 79
-static void clean_instance(); // line 81
+    ZEN_BusPipe_TwoWay(); // line 40
+    ~ZEN_BusPipe_TwoWay(); // line 42
+    int initialize(const char *bus_mmap_name, size_t size_recv_pipe, size_t size_send_pipe, size_t max_frame_len, bool if_restore, bool if_check_pthread, uint8_t mem_type); // line 53
+    int pop_front_recvpipe(ZEN_LIB::dequechunk_node *node); // line 58
+    int pop_front_sendpipe(ZEN_LIB::dequechunk_node *node); // line 60
+    int push_back_sendpipe(const ZEN_LIB::dequechunk_node *node); // line 62
+    int push_back_recvpipe(const ZEN_LIB::dequechunk_node *node); // line 64
+    int get_frontsize_recvpipe(size_t &frontsize); // line 68
+    int get_frontsize_sendpipe(size_t &frontsize); // line 70
+    static void instance(ZEN_BusPipe_TwoWay *pinstatnce); // line 77
+    static ZEN_BusPipe_TwoWay * instance(); // line 79
+    static void clean_instance(); // line 81
 };
-extern const char BUS_PIPE_NAME[][]; // line 29
+
+// 以下薄封装原为头文件内联（二进制无 out-of-line 符号）
+inline int ZEN_BusPipe_TwoWay::pop_front_recvpipe(ZEN_LIB::dequechunk_node *node) {
+    return pop_front_bus(0, node);
+}
+
+inline int ZEN_BusPipe_TwoWay::pop_front_sendpipe(ZEN_LIB::dequechunk_node *node) {
+    return pop_front_bus(1, node);
+}
+
+inline int ZEN_BusPipe_TwoWay::push_back_sendpipe(const ZEN_LIB::dequechunk_node *node) {
+    return push_back_bus(1, node);
+}
+
+inline int ZEN_BusPipe_TwoWay::push_back_recvpipe(const ZEN_LIB::dequechunk_node *node) {
+    return push_back_bus(0, node);
+}
+
+inline int ZEN_BusPipe_TwoWay::get_frontsize_recvpipe(size_t &frontsize) {
+    return get_front_nodesize(0, frontsize);
+}
+
+inline int ZEN_BusPipe_TwoWay::get_frontsize_sendpipe(size_t &frontsize) {
+    return get_front_nodesize(1, frontsize);
+}
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_BUS_TWO_WAY_H_H_

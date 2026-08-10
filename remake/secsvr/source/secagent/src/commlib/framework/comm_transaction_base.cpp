@@ -1,129 +1,15 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from secagent binary (DWARF + 反汇编, 2026-08-10)
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/framework/comm_transaction_base.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// 语义与 secagent 二进制逐一对照（符号/偏移/字符串/返回码一致）。
 
 #include "src/commlib/framework/comm_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "output/commlib/zenlib/release/include/zen_id_to_string.h"
 #include "output/commlib/zenlib/release/include/zen_time_value.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_time.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_connect.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_boost_non_copyable.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_command.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_result.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_string.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_debug.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_msg.h"
 #include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_base.h"
-#include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_field.h"
-#include "output/commlib/zenlib/release/include/zen_mysql_process.h"
-#include "output/commlib/zenlib/release/include/zen_shm_cache_chunk.h"
-#include "output/commlib/zenlib/release/include/zen_shm_predefine.h"
-#include "output/commlib/zenlib/release/include/zen_shm_lockfree_deque.h"
-#include "output/commlib/zenlib/release/include/zen_server_toolkit.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_process.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_sysinfo.h"
-#include "output/commlib/zenlib/release/include/zen_shm_hash_table.h"
-#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_thread.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_socket.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_error.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_file.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_dirent.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_mmap.h"
-#include "output/commlib/zenlib/release/include/zen_share_mem_posix.h"
-#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
-#include "output/commlib/zenlib/release/include/zen_config_property_tree.h"
-#include "output/commlib/zenlib/release/include/zen_config_ini_implement.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_sema.h"
-#include "output/commlib/zenlib/release/include/zen_lock_synch_traits.h"
-#include "output/commlib/zenlib/release/include/zen_lock_process_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_rw_mutex.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_semaphore.h"
-#include "output/commlib/zenlib/release/include/zen_lock_thread_condi.h"
-#include "output/commlib/zenlib/release/include/zen_os_adapt_condi.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_template.h"
-#include "output/commlib/zenlib/release/include/zen_thread_msgque_nonlock.h"
 #include "output/commlib/zenlib/release/include/zen_timer_handler_base.h"
 #include "output/commlib/zenlib/release/include/zen_timer_queue_base.h"
-#include "output/commlib/zenlib/release/include/zen_timer_queue_wheel.h"
-#include "output/commlib/zenlib/release/include/zen_bus_two_way.h"
-#include "output/commlib/zenlib/release/include/zen_bus_mmap_pipe.h"
-#include "output/commlib/zenlib/release/include/zen_thread_task.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_addr_in.h"
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
-#include "output/commlib/zenlib/release/include/zen_socket_stream.h"
-#include "output/commlib/zenlib/release/include/zen_socket_datagram.h"
-#include "output/commlib/zenlib/release/include/zen_socket_connector.h"
-#include "output/commlib/zenlib/release/include/zen_event_handle_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_base.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_select.h"
-#include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
-#include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
-#include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
-#include "output/commlib/zenlib/release/include/zen_server_status.h"
-#include "output/commlib/zenlib/release/include/zen_shm_vector.h"
-#include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
-#include "output/protocol/common/release/include/comm_proto_cfgsvr.h"
-#include "output/protocol/common/release/include/TdrBuf.h"
-#include "output/protocol/common/release/include/TdrPal.h"
-#include "output/protocol/common/release/include/TdrError.h"
-#include "output/protocol/common/release/include/TdrBufUtil.h"
-#include "output/protocol/common/release/include/TdrTypeUtil.h"
-#include "output/protocol/common/release/include/TdrTime.h"
-#include "output/protocol/common/release/include/comm_proto_public_head.h"
-#include "output/protocol/common/release/include/comm_proto_public_cmd.h"
-#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
-#include "output/protocol/common/release/include/comm_proto_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
-#include "output/protocol/common/release/include/comm_proto_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_proto_public_monitorsvr.h"
-#include "output/protocol/common/release/include/comm_conf_framework.h"
-#include "output/protocol/common/release/include/TdrXml.h"
-#include "output/protocol/common/release/include/TdrIO.h"
-#include "output/protocol/common/release/include/comm_conf_svcid.h"
-#include "output/protocol/common/release/include/comm_conf_zerg.h"
-#include "output/protocol/common/release/include/comm_conf_cfgsdk.h"
-#include "import/include/tencore/tencrypt/TenHash.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_external.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_types.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_define.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_ctypes_info.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_error.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_init.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLtags.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_XMLMetaLib.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_to_hpp.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_io.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_operate_data.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_data_sort.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_net.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_metalib_manage.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_sql.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tdr/tdr_meta_entries_index.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_macros.h"
-#include "import/include/tencore/tsf4g/tsf4g_base/tbus/tbus_error.h"
 #include "src/commlib/framework/comm_app_frame.h"
 #include "src/commlib/framework/comm_enum_define.h"
 #include "src/commlib/framework/comm_service_info.h"
@@ -137,342 +23,376 @@
 #include "src/commlib/framework/comm_transaction_manager.h"
 #include "src/commlib/framework/comm_frame_malloc.h"
 #include "src/commlib/framework/comm_zerg_mmappipe.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
 #include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
 #include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
 #include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-ios_base & std::left(ios_base &__base) {
+const int Transaction_Base::INVALID_PHASE_ID = -1;
+const int Transaction_Base::TRANSACTION_TIME_ID[] = {1, 2};
+
+Transaction_Base::Transaction_Base(ZEN_Timer_Queue *arg0,
+                                   Transaction_Manager *arg1, bool arg2)
+    : ZEN_Timer_Handler(arg0),
+      trans_manager_(arg1),
+      transaction_id_(0),
+      trans_locker_(arg2),
+      req_qq_uin_(0),
+      trans_command_(0),
+      trans_run_state_(INIT_RUN_STATE),
+      trans_phase_(0),
+      req_snd_service_(0, 0),
+      req_rcv_service_(0, 0),
+      req_proxy_service_(0, 0),
+      req_trans_id_(0),
+      req_session_id_(0),
+      req_game_app_id_(0),
+      req_ip_address_(0),
+      req_frame_option_(0),
+      tmp_recv_frame_(0),
+      trans_timeout_id_(-1),
+      trans_touchtimer_id_(-1),
+      wait_cmd_(0),
+      trans_create_time_(0),
+      trace_log_pri_(RS_DEBUG),
+      process_errno_(0) {
+}
+
+Transaction_Base::~Transaction_Base() {
+}
+
+void Transaction_Base::re_init() {
+    transaction_id_ = 0;
+    req_qq_uin_ = 0;
+    trans_command_ = 0;
+    trans_run_state_ = INIT_RUN_STATE;
+    trans_phase_ = 0;
+    req_snd_service_.set_serviceid(0, 0);
+    req_rcv_service_.set_serviceid(0, 0);
+    req_proxy_service_.set_serviceid(0, 0);
+    req_trans_id_ = 0;
+    req_session_id_ = 0;
+    req_game_app_id_ = 0;
+    req_ip_address_ = 0;
+    req_frame_option_ = 0;
+    tmp_recv_frame_ = 0;
+    trans_timeout_id_ = -1;
+    trans_touchtimer_id_ = -1;
+    wait_cmd_ = 0;
+    trans_create_time_ = 0;
+    trace_log_pri_ = RS_DEBUG;
+    process_errno_ = 0;
 }
 
 void Transaction_Base::finish() {
 }
 
 Transaction_Base::TRANSACTION_PROCESS Transaction_Base::on_timeout() {
+    return EXIT_PROCESS_SUCC;
 }
 
 Transaction_Base::TRANSACTION_PROCESS Transaction_Base::on_exception() {
+    return EXIT_PROCESS_SUCC;
 }
 
 int Transaction_Base::on_exit() {
+    return 0;
 }
 
-int Transaction_Base::sendbuf_to_service(unsigned int cmd, unsigned int qquin, unsigned int transaction_id, unsigned int backfill_trans_id, const SERVICES_ID &rcv_svc, const SERVICES_ID &proxy_svc, const SERVICES_ID &snd_svc, const unsigned char *buf, size_t buf_len, unsigned int app_id, unsigned int option) {
+int Transaction_Base::sendbuf_to_service(unsigned int cmd, unsigned int qquin,
+                                         unsigned int transaction_id,
+                                         unsigned int backfill_trans_id,
+                                         const SERVICES_ID &rcv_svc,
+                                         const SERVICES_ID &proxy_svc,
+                                         const SERVICES_ID &snd_svc,
+                                         const unsigned char *buf,
+                                         size_t buf_len, unsigned int app_id,
+                                         unsigned int option) {
+    if (req_frame_option_ & 0x10000) {
+        option |= 0x10000;
+    }
+    return trans_manager_->mgr_sendbuf_to_service(
+        cmd, qquin, transaction_id, backfill_trans_id, rcv_svc, proxy_svc,
+        snd_svc, buf, buf_len, app_id, option);
 }
 
-int Transaction_Base::response_buf_sendback(unsigned int cmd, unsigned int uin, const unsigned char *buf, unsigned int buf_len, unsigned int option) {
+int Transaction_Base::response_buf_sendback(unsigned int cmd, unsigned int uin,
+                                            const unsigned char *buf,
+                                            unsigned int buf_len,
+                                            unsigned int option) {
+    if (req_frame_option_ & 0x80) {
+        option |= 0x80;
+    }
+    return sendbuf_to_service(cmd, uin, transaction_id_, req_trans_id_,
+                              req_snd_service_, req_rcv_service_,
+                              req_proxy_service_, buf, buf_len,
+                              req_game_app_id_, option);
 }
 
-int Transaction_Base::request_send_buf_to_peer(unsigned int cmd, unsigned int qquin, const SERVICES_ID &rcv_svc, const unsigned char *buf, unsigned int buf_len, unsigned int app_id, unsigned int option) {
-    // local: SERVICES_ID proxy_svc;
+int Transaction_Base::request_send_buf_to_peer(unsigned int cmd,
+                                               unsigned int qquin,
+                                               const SERVICES_ID &rcv_svc,
+                                               const unsigned char *buf,
+                                               unsigned int buf_len,
+                                               unsigned int app_id,
+                                               unsigned int option) {
+    SERVICES_ID proxy_svc(0, 0);
+    return sendbuf_to_service(cmd, qquin, transaction_id_, 0, rcv_svc,
+                              proxy_svc, trans_manager_->self_services_id_,
+                              buf, buf_len, app_id, option);
 }
 
-char * _S_construct<char*>(char *__beg, char *__end, const /*anon struct*/ int &__a, /*anon struct*/ int arg3) {
-    // local: const size_t __dnew;
-    // local: _Rep *__r;
+int Transaction_Base::request_send_buf_to_proxy(
+    unsigned int cmd, unsigned int qquin, const SERVICES_ID &proxy_svc,
+    const SERVICES_ID &recv_svc, const unsigned char *buf,
+    unsigned int buf_len, unsigned int app_id, unsigned int option) {
+    return sendbuf_to_service(cmd, qquin, transaction_id_, 0, recv_svc,
+                              proxy_svc, trans_manager_->self_services_id_,
+                              buf, buf_len, app_id, option);
 }
 
 void Transaction_Base::unlock_qquin_cmd() {
+    trans_manager_->unlock_qquin_trans_cmd(req_qq_uin_, trans_command_);
 }
 
 void Transaction_Base::unlock_qquin_key(unsigned int one_key) {
+    trans_manager_->unlock_qquin_trans_cmd(req_qq_uin_, one_key);
 }
 
 int Transaction_Base::lock_qquin_cmd() {
+    return trans_manager_->lock_qquin_trnas_cmd(req_qq_uin_, trans_command_,
+                                                trans_command_);
 }
 
 int Transaction_Base::lock_qquin_key(unsigned int one_key) {
+    return trans_manager_->lock_qquin_trnas_cmd(req_qq_uin_, one_key,
+                                                trans_command_);
 }
 
 int Transaction_Base::check_receive_frame(const Comm_App_Frame *recv_frame) {
+    if (wait_cmd_ != 0 && wait_cmd_ != recv_frame->frame_command_) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "[framework] check_receive_frame error,Transaction need Cmd error!Wait command[%u],Recieve command[%u] Transaction ID:[%u].",
+            wait_cmd_, recv_frame->frame_command_,
+            recv_frame->transaction_id_);
+        return 0x13ea;
+    }
+    wait_cmd_ = 0;
+    return 0;
 }
 
 void Transaction_Base::cancel_timeout_timer() {
+    if (trans_timeout_id_ != -1) {
+        timer_queue()->cancel_timer(trans_timeout_id_);
+        trans_timeout_id_ = -1;
+    }
 }
 
 void Transaction_Base::cancel_touch_timer() {
+    if (trans_touchtimer_id_ != -1) {
+        timer_queue()->cancel_timer(trans_touchtimer_id_);
+        trans_touchtimer_id_ = -1;
+    }
 }
 
-int Transaction_Base::close_request_service() {
+int Transaction_Base::close_request_service() const {
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[framework] close_request_service() at trans_command_=%u,trans_phase_=%d,qq_uin_=%u.",
+        trans_command_, trans_phase_, req_qq_uin_);
+    return trans_manager_->mgr_sendmsghead_to_service(
+        6, req_qq_uin_, req_rcv_service_, req_proxy_service_, 0, 0, 0);
 }
 
 int Transaction_Base::set_timetouch_timer(int sec, int usec) {
-    // local: ZEN_Time_Value delay;
+    if (trans_touchtimer_id_ != -1) {
+        timer_queue()->cancel_timer(trans_touchtimer_id_);
+        trans_touchtimer_id_ = -1;
+    }
+    ZEN_Time_Value delay(sec, usec);
+    trans_touchtimer_id_ = timer_queue()->schedule_timer(
+        this, TRANSACTION_TIME_ID + 1, delay, ZEN_Time_Value::ZERO_TIME_VALUE);
+    return 0;
 }
 
 int Transaction_Base::set_timeout_timer(int sec, int usec) {
-    // local: ZEN_Time_Value delay;
+    if (trans_timeout_id_ != -1) {
+        timer_queue()->cancel_timer(trans_timeout_id_);
+        trans_timeout_id_ = -1;
+    }
+    ZEN_Time_Value delay(sec, usec);
+    trans_timeout_id_ = timer_queue()->schedule_timer(
+        this, TRANSACTION_TIME_ID + 1, delay, ZEN_Time_Value::ZERO_TIME_VALUE);
+    return 0;
 }
 
 int Transaction_Base::handle_close() {
-}
-
-void Transaction_Base::re_init() {
-}
-
-int Transaction_Base::request_send_buf_to_proxy(unsigned int cmd, unsigned int qquin, const SERVICES_ID &proxy_svc, const SERVICES_ID &recv_svc, const unsigned char *buf, unsigned int buf_len, unsigned int app_id, unsigned int option) {
-}
-
-ios_base & std::dec(ios_base &__base) {
+    if (trans_timeout_id_ != -1) {
+        timer_queue()->cancel_timer(trans_timeout_id_);
+        trans_timeout_id_ = -1;
+    }
+    if (trans_touchtimer_id_ != -1) {
+        timer_queue()->cancel_timer(trans_touchtimer_id_);
+        trans_touchtimer_id_ = -1;
+    }
+    return trans_manager_->unregiester_trans_id(
+        transaction_id_, trans_command_, trans_run_state_, trans_create_time_);
 }
 
 int Transaction_Base::process_trans_event() {
-    // local: int ret;
-    // local: Transaction_Base::TRANSACTION_PROCESS txprocess;
+    int ret;
+    Transaction_Base::TRANSACTION_PROCESS txprocess;
+    do {
+        if (trans_timeout_id_ != -1) {
+            timer_queue()->cancel_timer(trans_timeout_id_);
+            trans_timeout_id_ = -1;
+        }
+        switch (trans_run_state_) {
+        case INIT_RUN_STATE:
+            ZEN_Trace_LogMsg::debug_debugEx(
+                "[framework] %s::on_init start ,requst trans id:%u .",
+                typeid(*this).name(), req_trans_id_);
+            txprocess = on_init();
+            ZEN_Trace_LogMsg::debug_debugEx(
+                "[framework] %s::on_init end,new transaction id:%u,requst trans id:%u,trans process:%u,new trans phase:%d.",
+                typeid(*this).name(), transaction_id_, req_trans_id_,
+                txprocess, trans_phase_);
+            if (txprocess != EXIT_PROCESS_SUCC
+                && txprocess != EXIT_PROCESS_FAIL) {
+                trans_run_state_ = RIGHT_RUN_STATE;
+            }
+            break;
+        case RIGHT_RUN_STATE:
+            ZEN_Trace_LogMsg::debug_debugEx(
+                "[framework] %s::on_active start,transaction id:%u,requst trans id:%u,trans phase:%d.",
+                typeid(*this).name(), transaction_id_, req_trans_id_,
+                trans_phase_);
+            txprocess = on_active();
+            ZEN_Trace_LogMsg::debug_debugEx(
+                "[framework] %s::on_active end,transaction id:%u,requst trans id:%u,trans process:%u,new trans phase:%d,.",
+                typeid(*this).name(), transaction_id_, req_trans_id_,
+                txprocess, trans_phase_);
+            break;
+        case TIMEOUT_RUN_STATE:
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] %s::on_timeout start,transaction id:%u,requst trans id:%u,trans phase:%d.",
+                typeid(*this).name(), transaction_id_, req_trans_id_,
+                trans_phase_);
+            txprocess = on_timeout();
+            ZEN_Trace_LogMsg::debug_debugEx(
+                "[framework] %s::on_timeout end,transaction id:%u,requst trans id:%u,trans process:%u,new trans phase:%d.",
+                typeid(*this).name(), transaction_id_, req_trans_id_,
+                txprocess, trans_phase_);
+            Comm_Stat_Monitor::instance()->increase_by_statid(
+                0x2392, req_game_app_id_, trans_command_, 1);
+            break;
+        case EXCEPTION_RUN_STATE:
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] %s::on_exception start,transaction id:%u,requst trans id:%u,trans phase:%d.",
+                typeid(*this).name(), transaction_id_, req_trans_id_,
+                trans_phase_);
+            txprocess = on_exception();
+            ZEN_Trace_LogMsg::debug_errorex(
+                "[framework] %s::on_exception end,transaction id:%u,requst trans id:%u,trans process:%u,new trans phase:%d.",
+                typeid(*this).name(), transaction_id_, req_trans_id_,
+                txprocess, trans_phase_);
+            break;
+        default:
+            Comm_Stat_Monitor::instance()->increase_by_statid(
+                0x2390, req_game_app_id_, trans_command_, 1);
+            return 0x13de;
+        }
+        switch (txprocess) {
+        case WAIT_PROCESS:
+            return 0;
+        case NEXT_PROCESS:
+            continue;
+        case EXIT_PROCESS_SUCC:
+            Comm_Stat_Monitor::instance()->increase_by_statid(
+                0x2390, req_game_app_id_, trans_command_, 1);
+            return 0x13de;
+        case EXIT_PROCESS_FAIL:
+            Comm_Stat_Monitor::instance()->increase_by_statid(
+                0x2391, req_game_app_id_, trans_command_, 1);
+            Comm_Stat_Monitor::instance()->increase_by_statid(
+                0x2393, req_game_app_id_, process_errno_, 1);
+            return 0x13de;
+        default:
+            return 0x13de;
+        }
+    } while (true);
 }
 
-int Transaction_Base::handle_timeout(const ZEN_Time_Value &arg0, const void *arg) {
-    // local: int ret;
-    // local: const int timeid;
+int Transaction_Base::handle_timeout(const ZEN_Time_Value &arg0,
+                                     const void *arg) {
+    int ret;
+    const int timeid = *(const int *)arg;
+    if (timeid == TRANSACTION_TIME_ID[0]) {
+        trans_timeout_id_ = -1;
+        trans_run_state_ = TIMEOUT_RUN_STATE;
+    } else if (timeid == TRANSACTION_TIME_ID[1]) {
+        trans_touchtimer_id_ = -1;
+    }
+    ret = process_trans_event();
+    if (ret != 0) {
+        handle_close();
+    }
+    return 0;
 }
 
 int Transaction_Base::receive_trans_msg(Comm_App_Frame *proc_frame) {
-    // local: int ret;
+    tmp_recv_frame_ = proc_frame;
+    int ret = process_trans_event();
+    if (ret == 0) {
+        tmp_recv_frame_ = 0;
+    }
+    return ret;
 }
 
-int Transaction_Base::initialize_trans(Comm_App_Frame *proc_frame, unsigned int transid) {
-    // local: int ret;
+int Transaction_Base::initialize_trans(Comm_App_Frame *proc_frame,
+                                       unsigned int transid) {
+    transaction_id_ = transid;
+    trans_command_ = proc_frame->frame_command_;
+    req_snd_service_.services_id_ = proc_frame->send_service_.services_id_;
+    req_snd_service_.services_type_ = proc_frame->send_service_.services_type_;
+    req_rcv_service_.services_id_ = proc_frame->recv_service_.services_id_;
+    req_rcv_service_.services_type_ = proc_frame->recv_service_.services_type_;
+    req_proxy_service_.services_id_ = proc_frame->proxy_service_.services_id_;
+    req_proxy_service_.services_type_ = proc_frame->proxy_service_.services_type_;
+    req_trans_id_ = proc_frame->transaction_id_;
+    req_session_id_ = proc_frame->backfill_trans_id_;
+    req_game_app_id_ = proc_frame->app_id_;
+    req_qq_uin_ = proc_frame->frame_uin_;
+    req_ip_address_ = proc_frame->send_ip_address_;
+    req_frame_option_ = proc_frame->frame_option_;
+    tmp_recv_frame_ = proc_frame;
+    if (proc_frame->frame_option_ & 0x10000) {
+        trace_log_pri_ = RS_INFO;
+    }
+    int ret = process_trans_event();
+    if (ret == 0) {
+        tmp_recv_frame_ = 0;
+    }
+    return ret;
 }
 
-void Transaction_Base::dump_transa_info(ostringstream &strstream) {
+void Transaction_Base::dump_transa_info(std::ostringstream &strstream) const {
+    strstream << "ID:" << transaction_id_ << " Uin:" << req_qq_uin_
+              << " Cmd:" << trans_command_ << " State:" << std::left
+              << trans_run_state_ << " Phase:" << std::dec << trans_phase_
+              << " "
+              << "ReqSndSvr:" << req_snd_service_.services_type_ << " "
+              << req_snd_service_.services_id_
+              << " ReqRcvSvr:" << req_rcv_service_.services_type_ << " "
+              << req_rcv_service_.services_id_
+              << " Reqproxy:" << req_proxy_service_.services_type_ << " "
+              << req_proxy_service_.services_id_ << " "
+              << "ReqtransID:" << req_trans_id_
+              << " TimeoutID:" << trans_timeout_id_
+              << " TouchID:" << trans_touchtimer_id_ << " ";
 }
 
-void Transaction_Base::output_trans_info(const char *outstr) {
-    // local: ostringstream strstream;
+void Transaction_Base::output_trans_info(const char *outstr) const {
+    std::ostringstream strstream;
+    dump_transa_info(strstream);
+    ZEN_Trace_LogMsg::debug_infoex("[framework] %s:%s", outstr,
+                                   strstream.str().c_str());
 }
-

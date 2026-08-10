@@ -1,10 +1,11 @@
 // Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_socket_stream.h
+// Original path: src/commlib/zenlib/zen_socket_stream.h
 // 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_STREAM_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_STREAM_H_H_
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_STREAM_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_STREAM_H_H_
 
-#include "output/commlib/zenlib/release/include/zen_socket_base.h"
+#include "zen_socket_base.h"
+#include "zen_time_value.h"
 #include <stddef.h>
 #include <unistd.h>
 
@@ -23,4 +24,4 @@ ssize_t recvn_timeout(void *arg0, size_t arg1, ZEN_Time_Value &arg2, int arg3) c
 ssize_t sendn_timeout(void *arg0, size_t arg1, ZEN_Time_Value &arg2, int arg3); // line 63
 };
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SOCKET_STREAM_H_H_
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SOCKET_STREAM_H_H_

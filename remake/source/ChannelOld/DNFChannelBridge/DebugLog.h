@@ -49,7 +49,9 @@ private:
 class TextOutputDevice_stdout : public ITextOutputDevice
 {
 public:
-    TextOutputDevice_stdout();
+    TextOutputDevice_stdout()
+    {
+    }
     virtual void serialize(char* s);
     virtual void flush();
 };
@@ -60,7 +62,7 @@ class TDebugTrace
 public:
     TDebugTrace()
     {
-        memset(&m_FormatBuf[0], 0, sizeof(m_FormatBuf));
+        memset(&m_FormatBuf[0], 0x20, sizeof(m_FormatBuf));
         hexadecimal_ = false;
         pDevice_ = NULL;
         mPos = 0;

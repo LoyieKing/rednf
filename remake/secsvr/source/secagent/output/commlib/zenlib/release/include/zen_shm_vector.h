@@ -1,13 +1,27 @@
-// Auto-generated header stub from DWARF info
-// Original path: output/commlib/zenlib/release/include/zen_shm_vector.h
-// 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHM_VECTOR_H_H_
-#define SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHM_VECTOR_H_H_
+// ZEN_LIB::shm_vector 还原声明（布局来自 gunnersvr DWARF，2026-08-10）
+// shm_vector<T>：smem_base_(void*) / vector_head_(head*) / data_base_(T*)，sizeof = 12。
+// 头结构 _shm_vector_head：head_magic_ / max_ / size_，sizeof = 12。
+#ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHM_VECTOR_H_H_
+#define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHM_VECTOR_H_H_
 
+#include <stdint.h>
 #include <stddef.h>
 
-extern size_t i; // line 192
-extern shm_vector<ZEN_STATUS_ITEM> *instance; // line 130
-extern /*anon struct*/ int *vectorhead; // line 113
+namespace ZEN_LIB {
 
-#endif // SECSVR_OUTPUT_COMMLIB_ZENLIB_RELEASE_INCLUDE_ZEN_SHM_VECTOR_H_H_
+struct _shm_vector_head { // sizeof = 12
+    uint32_t head_magic_; // 沙箱/镜像区头标识（0x18000c）
+    uint32_t max_;        // 元素上限（0x10000）
+    uint32_t size_;       // 当前元素个数
+};
+
+template <typename T>
+struct shm_vector { // sizeof = 12
+    void *smem_base_;            // 0x00
+    _shm_vector_head *vector_head_; // 0x04
+    T *data_base_;               // 0x08
+};
+
+} // namespace ZEN_LIB
+
+#endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_SHM_VECTOR_H_H_

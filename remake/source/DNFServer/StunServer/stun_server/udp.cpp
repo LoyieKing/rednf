@@ -25,7 +25,8 @@ Socket openPort(unsigned short port, unsigned int interfaceIp)
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     addr.sin_port = htons(port);
-    if (interfaceIp != 0 && interfaceIp != INADDR_LOOPBACK)
+    // ORIG 对回环的判断常量是网络字节序 0x0100007f（原始工程 INADDR_LOOPBACK 值）
+    if (interfaceIp != 0 && interfaceIp != 0x0100007f)
     {
         addr.sin_addr.s_addr = htonl(interfaceIp);
     }
@@ -56,8 +57,8 @@ Socket openPort(unsigned short port, unsigned int interfaceIp)
     if (fd == INVALID_SOCKET)
     {
         write_log("openPort() Fail, fd = INVALID_SOCKET", fd);
+        assert(fd != INVALID_SOCKET);
     }
-    assert(fd != INVALID_SOCKET);
 
     std::clog << "Opened port " << port << " with fd " << fd << std::endl;
     return fd;
@@ -68,8 +69,8 @@ bool getMessage(Socket fd, char* buf, int* len, unsigned int* srcIp, unsigned sh
     if (fd == INVALID_SOCKET)
     {
         write_log("getMessage() Fail, fd = INVALID_SOCKET", fd);
+        assert(fd != INVALID_SOCKET);
     }
-    assert(fd != INVALID_SOCKET);
 
     sockaddr_in from;
     int fromLen = 16;
@@ -113,9 +114,10 @@ bool sendMessage(Socket fd, char* buf, int l, unsigned int dstIp, unsigned short
     if (fd == INVALID_SOCKET)
     {
         write_log("sendMessage() Fail, fd = INVALID_SOCKET", fd);
+        assert(fd != INVALID_SOCKET);
     }
-    assert(fd != INVALID_SOCKET);
 
+    int s;
     if (dstPort == 0)
     {
         return false;
@@ -126,15 +128,17 @@ bool sendMessage(Socket fd, char* buf, int l, unsigned int dstIp, unsigned short
     }
     else
     {
-        int toLen = 16;
         sockaddr_in to;
+        int toLen;
+
+        toLen = 16;
         memset(&to, 0, toLen);
         to.sin_family = AF_INET;
         to.sin_port = htons(dstPort);
         to.sin_addr.s_addr = htonl(dstIp);
 
-        int sent = sendto(fd, buf, l, 0, (sockaddr*)&to, toLen);
-        if (sent == -1)
+        s = sendto(fd, buf, l, 0, (sockaddr*)&to, toLen);
+        if (s == -1)
         {
             int e = getErrno();
             switch (e)
@@ -152,16 +156,16 @@ bool sendMessage(Socket fd, char* buf, int l, unsigned int dstIp, unsigned short
             }
             return false;
         }
-        else if (sent == 0)
+        else if (s == 0)
         {
             std::cerr << "no data sent in send" << std::endl;
             return false;
         }
         else
         {
-            if (sent != l)
+            if (s != l)
             {
-                std::cerr << "only " << sent << " out of " << l << " bytes sent" << std::endl;
+                std::cerr << "only " << s << " out of " << l << " bytes sent" << std::endl;
                 return false;
             }
             return true;

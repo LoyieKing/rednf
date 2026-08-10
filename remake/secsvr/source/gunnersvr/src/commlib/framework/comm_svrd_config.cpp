@@ -1,7 +1,5 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from gunnersvr disassembly + DWARF (GCC 4.1.0 SUSE, -O2).
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/framework/comm_svrd_config.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/commlib/framework/comm_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
@@ -80,7 +78,6 @@
 #include "output/commlib/zenlib/release/include/zen_event_reactor_epoll.h"
 #include "output/commlib/zenlib/release/include/zen_thread_wait_mgr.h"
 #include "output/commlib/zenlib/release/include/zen_config_getopt.h"
-#include "output/commlib/zenlib/release/include/zen_string_util.h"
 #include "output/commlib/zenlib/release/include/zen_server_status.h"
 #include "output/commlib/zenlib/release/include/zen_shm_vector.h"
 #include "output/commlib/zenlib/release/include/zen_thread_bus_pipe.h"
@@ -129,307 +126,253 @@
 #include "src/commlib/framework/comm_service_info.h"
 #include "src/commlib/framework/comm_enum_define.h"
 #include "src/commlib/framework/comm_server_ver_define.h"
-#include "src/commlib/framework/comm_svrd_application.h"
 #include "src/commlib/framework/comm_svrd_config.h"
 #include "src/commlib/framework/comm_bill_record.h"
 #include "src/commlib/framework/comm_time_provider.h"
 #include "src/commlib/framework/comm_xml_config.h"
-#include "src/commlib/framework/<built-in>"
-#include <_G_config.h>
+
 #include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstdarg>
-#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
 #include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
-#include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
+#include <strings.h>
 
-void Comm_Svrd_Config::clean_instance() {
+// comm_svrd_application.h is still a broken stub (owned by another agent);
+// declare only the interface used here. Semantics taken from the binary
+// (_ZN20Comm_Svrd_Appliction8instanceEv / 16get_app_basenameEv).
+struct Comm_Svrd_Appliction {
+    static Comm_Svrd_Appliction *instance();
+    const char *get_app_basename();
+};
+
+// Replaces every occurrence of range [fo, lo) in s with range [fn, ln).
+// Matches the binary symbol:
+//   replace_all<char, char_traits<char>, allocator<char>, const char*, const char*, equal_to<char>>
+template <typename Ch, typename Tr, typename A, typename I1, typename I2, typename Pred>
+int replace_all(std::basic_string<Ch, Tr, A> &s, I1 fo, I1 lo, I2 fn, I2 ln, Pred pr)
+{
+    if (fo == lo) {
+        return 0;
+    }
+    typedef typename std::basic_string<Ch, Tr, A>::iterator iterator_type;
+    iterator_type p = std::search(s.begin(), s.end(), fo, lo, pr);
+    if (p == s.end()) {
+        return 0;
+    }
+    std::basic_string<Ch, Tr, A> tmp;
+    tmp.reserve(s.size());
+    iterator_type old_pos = s.begin();
+    int count = 0;
+    while (p != s.end()) {
+        tmp.append(old_pos, p);
+        tmp.append(fn, ln);
+        ++count;
+        old_pos = p + (lo - fo);
+        p = std::search(old_pos, s.end(), fo, lo, pr);
+    }
+    tmp.append(old_pos, s.end());
+    s.swap(tmp);
+    return count;
 }
 
-_Rb_tree_iterator<unsigned int> find(const unsigned int &__k) {
-    // local: _Rb_tree_node<unsigned int> *__x;
-    // local: _Rb_tree_node<unsigned int> *__y;
-    // local: /*anon struct*/ int __j;
+Comm_Svrd_Config *Comm_Svrd_Config::instance_ = NULL;
+
+void Comm_Svrd_Config::clean_instance() {
+    if (instance_ != NULL) {
+        delete instance_;
+        instance_ = NULL;
+    }
 }
 
 bool Comm_Svrd_Config::is_monitor_uin(unsigned int uin) {
-}
-
-/*anon struct*/ int std::search<__gnu_cxx::__normal_iterator<char*, std::basic_string<char, std::char_traits<char>, std::allocator<char> > >, const char*, std::equal_to<char> >(/*anon struct*/ int __first1, /*anon struct*/ int __last1, const char *__first2, const char *__last2, /*anon struct*/ int __predicate) {
-    // local: const char *__tmp;
-    // local: const char *__p1;
-    // local: const char *__p;
-    // local: /*anon struct*/ int __current;
-}
-
-void _M_erase(_Rb_tree_node<unsigned int> *__x) {
-    // local: _Rb_tree_node<unsigned int> *__y;
-}
-
-_Rb_tree_iterator<unsigned int> _M_insert(/*anon struct*/ int *__x, /*anon struct*/ int *__p, const unsigned int &__v) {
-    // local: bool __insert_left;
-    // local: _Rb_tree_node<unsigned int> *__z;
-}
-
-pair<std::_Rb_tree_iterator<unsigned int>,bool> insert_unique(const unsigned int &__v) {
-    // local: _Rb_tree_node<unsigned int> *__x;
-    // local: _Rb_tree_node<unsigned int> *__y;
-    // local: bool __comp;
-    // local: /*anon struct*/ int __j;
+    return monitor_uin_set_.find(uin) != monitor_uin_set_.end();
 }
 
 int Comm_Svrd_Config::usage(const char *program_name) {
+    std::cout << "usage: " << program_name << std::endl;
+    std::cout << "   -z [zergling cfg path]" << std::endl;
+    std::cout << "   -c [services cfg file]" << std::endl;
+    std::cout << "   -d run as daemon" << std::endl;
+    std::cout << "   -n reset channel mmp" << std::endl;
+    std::cout << "   -v show version" << std::endl;
+    std::cout << "   -t service type" << std::endl;
+    std::cout << "   -i service index" << std::endl;
+    std::cout << "   -p pull config from cfgsvr" << std::endl;
+    std::cout << "   -m install app as windows servcie" << std::endl;
+    std::cout << "   -u uninstall app as windows servcie" << std::endl;
+    std::cout << "   -h show help info." << std::endl;
+    std::cout << "Server Version :1.0.387  .\n"
+                 "Tss is compiled by release version, NDEBUG is defined.\n"
+                 "Compilation Timestamp :Jan 15 2013 18:40:12 .\n"
+                 "Copyright :(C) 2008-2012 . Tencent TSS platform Team (We are best!). All rights reserved. \n"
+                 "Author :charliedeng chweiling djiang errayzhao fieldsxie gagacui jiangchen junhuanie kelvinpang"
+                 "Author :kliu liangfeng longma sailzeng sasukeliu senlyzhang sriverxiao stefzhou wilsonliu.\n"
+                 "Author :pascalshen yunfeiyang derrickhu\n\n"
+                 "Have fun. My brother.  You Can't Write Perfect Software !  Free as in Freedom .\n"
+              << std::endl;
+    return 0;
 }
 
-Comm_Svrd_Config * Comm_Svrd_Config::instance() {
+Comm_Svrd_Config::Comm_Svrd_Config()
+    : self_svr_id_(0, 0),
+      app_run_dir_(),
+      if_restore_pipe_(true),
+      app_run_daemon_(false),
+      app_install_service_(false),
+      app_uninstall_service_(false),
+      log_file_prefix_(),
+      zerg_cfg_file_(),
+      app_cfg_file_(),
+      framework_cfg_file_(),
+      svcid_cfg_file_(),
+      master_cfgsvr_ip_(),
+      instance_id_(1),
+      is_use_cfgsvr_(false)
+{
 }
 
-int Comm_Svrd_Config::load_config() {
-    // local: int ret;
-    // local: unsigned int i;
+Comm_Svrd_Config::~Comm_Svrd_Config() {
 }
 
-int Comm_Svrd_Config::reload() {
-}
-
-int Comm_Svrd_Config::proc_start_arg(int argc, const char **argv) {
-    // local: char cur_dir[];
-    // local: ZEN_Get_Option get_opt;
-    // local: int c;
+Comm_Svrd_Config *Comm_Svrd_Config::instance() {
+    if (instance_ == NULL) {
+        instance_ = new Comm_Svrd_Config();
+    }
+    return instance_;
 }
 
 int Comm_Svrd_Config::init(int argc, const char **argv) {
-    // local: int ret;
+    int ret = proc_start_arg(argc, argv);
+    if (ret != 0) {
+        return ret;
+    }
+    return load_config();
 }
 
+int Comm_Svrd_Config::proc_start_arg(int argc, const char **argv) {
+    char cur_dir[4096];
+    ZEN_OS::getcwd(cur_dir, 0x1000);
+    app_run_dir_.assign(cur_dir, strlen(cur_dir));
+
+    ZEN_Get_Option get_opt(argc, (char **)argv, "umvndhpi:t:r:a:", 1, 0, 3, 0);
+    int c;
+    while ((c = get_opt()) != -1) {
+        switch (c) {
+        case 'u':
+            app_uninstall_service_ = true;
+            break;
+        case 'm':
+            app_install_service_ = true;
+            break;
+        case 'v':
+            puts("Server Version :1.0.387  .\n"
+                 "Tss is compiled by release version, NDEBUG is defined.\n"
+                 "Compilation Timestamp :Jan 15 2013 18:40:12 .\n"
+                 "Copyright :(C) 2008-2012 . Tencent TSS platform Team (We are best!). All rights reserved. \n"
+                 "Author :charliedeng chweiling djiang errayzhao fieldsxie gagacui jiangchen junhuanie kelvinpang"
+                 "Author :kliu liangfeng longma sailzeng sasukeliu senlyzhang sriverxiao stefzhou wilsonliu.\n"
+                 "Author :pascalshen yunfeiyang derrickhu\n\n"
+                 "Have fun. My brother.  You Can't Write Perfect Software !  Free as in Freedom .\n");
+            exit(0);
+            break;
+        case 'n':
+            if_restore_pipe_ = true;
+            break;
+        case 'd':
+            app_run_daemon_ = true;
+            break;
+        case 'h':
+            usage(argv[0]);
+            exit(0);
+            break;
+        case 'p':
+            is_use_cfgsvr_ = true;
+            break;
+        case 'i':
+            instance_id_ = (unsigned short)strtol(get_opt.opt_arg(), NULL, 10);
+            break;
+        case 't':
+            self_svr_id_.services_type_ = (unsigned short)strtol(get_opt.opt_arg(), NULL, 10);
+            break;
+        case 'r':
+            ZEN_Trace_LogMsg::debug_infoex("app run dir = %s", app_run_dir_.c_str());
+            app_run_dir_.assign(get_opt.opt_arg(), strlen(get_opt.opt_arg()));
+            replace_all(app_run_dir_, "\\", "\\" + 1, "/", "/" + 1, std::equal_to<char>());
+            break;
+        case 'a':
+            is_use_cfgsvr_ = true;
+            master_cfgsvr_ip_.assign(get_opt.opt_arg(), strlen(get_opt.opt_arg()));
+            break;
+        default:
+            printf("unknow argu %c\n", c);
+            usage(argv[0]);
+            return 0x114933a2;
+        }
+    }
+
+    std::string tmp_str = app_run_dir_ + "/log/";
+    log_file_prefix_ = tmp_str;
+    if (tmp_str.empty()) {
+        log_file_prefix_ += Comm_Svrd_Appliction::instance()->get_app_basename();
+        log_file_prefix_ += "_init";
+    }
+
+    tmp_str = app_run_dir_ + "/cfg/";
+    app_cfg_file_ = tmp_str;
+    if (tmp_str.empty()) {
+        app_cfg_file_ += Comm_Svrd_Appliction::instance()->get_app_basename();
+        app_cfg_file_ += "_config.xml";
+    }
+
+    zerg_cfg_file_ = app_run_dir_ + "/cfg/zergsvrd.xml";
+    svcid_cfg_file_ = app_run_dir_ + "/cfg/svcid.xml";
+    framework_cfg_file_ = app_run_dir_ + "/cfg/framework.xml";
+    return 0;
+}
+
+int Comm_Svrd_Config::load_config() {
+    int ret = zerg_config_.fromXmlFile(zerg_cfg_file_.c_str(), tsf4g_tdr::LIST_ENTRY, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("Comm_Svrd_Config: load zerg config fail. ret=%d, path=%s",
+                                        ret, zerg_cfg_file_.c_str());
+        return 0x1423;
+    }
+
+    self_svr_id_.services_type_ = zerg_config_.self_cfg.self_svr_info.svr_type;
+    self_svr_id_.services_id_ = zerg_config_.self_cfg.self_svr_info.svr_id;
+
+    ret = framework_config_.fromXmlFile(framework_cfg_file_.c_str(), tsf4g_tdr::LIST_ENTRY, 0);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("Comm_Svrd_Config: load framework config fail.ret=%d", ret);
+        return 0x1424;
+    }
+
+    monitor_uin_set_.clear();
+    unsigned int monitor_uin_count = framework_config_.log_info_.monitor_uin_count_;
+    for (unsigned int i = 0; i < monitor_uin_count; ++i) {
+        monitor_uin_set_.insert(framework_config_.log_info_.monitor_uin_list_[i]);
+    }
+
+    if (strcasecmp(zerg_config_.comm_cfg.get_svr_info_type, "cfgfile") == 0) {
+        ret = svcid_config_.fromXmlFile(svcid_cfg_file_.c_str(), tsf4g_tdr::LIST_ENTRY, 0);
+        if (ret != 0) {
+            ZEN_Trace_LogMsg::debug_errorex("Comm_Svrd_Config: load svcid config fail. ret=%d", ret);
+            return 0x1425;
+        }
+    }
+
+    std::string tmp_str = app_run_dir_ + "/log/";
+    log_file_prefix_ = tmp_str;
+    if (tmp_str.empty()) {
+        log_file_prefix_ += Comm_Svrd_Appliction::instance()->get_app_basename();
+    }
+
+    ZEN_Trace_LogMsg::debug_infoex("Comm_Svrd_Config: load framework config succ.");
+    return 0;
+}
+
+int Comm_Svrd_Config::reload() {
+    ZEN_Trace_LogMsg::debug_infoex("app start reload");
+    return load_config();
+}

@@ -1,7 +1,6 @@
-// Auto-generated stub from DWARF info
+// Reconstructed from zergsvr binary (DWARF 布局 + 反汇编逐函数还原)
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commsvr/zergsvr/zerg_application.cpp
 // Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
 
 #include "src/commsvr/zergsvr/zerg_predefine.h"
 #include "output/commlib/zenlib/release/include/zen_predefine.h"
@@ -160,124 +159,12 @@
 #include "src/commsvr/zergsvr/zerg_comm_manager.h"
 #include "src/commsvr/zergsvr/zerg_configure.h"
 #include "src/commsvr/zergsvr/zerg_stat_define.h"
-#include "src/commsvr/zergsvr/<built-in>"
-#include <_G_config.h>
 #include <algorithm>
 #include <alloca.h>
 #include <arpa/inet.h>
 #include <asm-generic/errno-base.h>
 #include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
 #include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
 #include <cassert>
 #include <cctype>
 #include <climits>
@@ -311,22 +198,7 @@
 #include <functional>
 #include <gconv.h>
 #include <getopt.h>
-#include <gnu/stubs-32.h>
 #include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
 #include <iconv.h>
 #include <inttypes.h>
 #include <iomanip>
@@ -340,10 +212,6 @@
 #include <libio.h>
 #include <limits.h>
 #include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
 #include <list>
 #include <locale.h>
 #include <locale>
@@ -390,7 +258,6 @@
 #include <sys/types.h>
 #include <sys/ucontext.h>
 #include <sys/uio.h>
-#include <syslimits.h>
 #include <time.h>
 #include <typeinfo>
 #include <unistd.h>
@@ -398,45 +265,226 @@
 #include <vector>
 #include <wchar.h>
 #include <wctype.h>
-#include <xlocale.h>
 
-int Zerg_Service_App::load_app_conf() {
+// line 34
+Zerg_Service_App *Zerg_Service_App::instance_ = NULL;
+
+// line 37
+Zerg_Service_App::Zerg_Service_App()
+    : timer_queue_(NULL), zerg_comm_mgr_(NULL), conf_timestamp_(0), config_(NULL) {
+    config_ = new Zerg_MMAP_BusPipe::ZERG_CONFIG();
 }
 
-int Zerg_Service_App::init() {
+// line 45
+Zerg_Service_App::~Zerg_Service_App() {
+    if (config_ != NULL) {
+        delete config_;
+        config_ = NULL;
+    }
+    if (zerg_comm_mgr_ != NULL) {
+        delete zerg_comm_mgr_;
+        zerg_comm_mgr_ = NULL;
+    }
 }
 
-void Zerg_Service_App::exit() {
-}
-
-void Zerg_Service_App::clean_instance() {
-}
-
-int Zerg_Service_App::run_instance() {
-    // local: size_t num_io_event;
-    // local: size_t num_send_frame;
-    // local: size_t want_send_frame;
-    // local: ZEN_Reactor *preactor;
-    // local: ZEN_Timer_Queue *p_timer_queue;
-    // local: ZEN_Time_Value run_interval;
-    // local: size_t i;
-}
-
-int Zerg_Service_App::exit_instance() {
-}
-
-int Zerg_Service_App::reload() {
-    // local: int ret;
-}
-
+// line 78
 int Zerg_Service_App::init_instance() {
-    // local: int ret;
-    // local: size_t max_accept;
-    // local: size_t max_connect;
-    // local: size_t max_peer;
-    // local: unsigned int i;
+    int ret = 0;
+    size_t max_accept = 0;
+    size_t max_connect = 0;
+    size_t max_peer = 0;
+    unsigned int i = 0;
+
+    ret = Comm_Svrd_Appliction::init_instance();
+    if (ret != 0) {
+        return ret;
+    }
+
+    ret = Comm_Stat_Monitor::instance()->initialize(
+        true, Comm_Svrd_Config::instance()->self_svr_id_,
+        sizeof(ZERGLING_STAT_ITEM_WITH_NAME) / sizeof(ZERGLING_STAT_ITEM_WITH_NAME[0]),
+        ZERGLING_STAT_ITEM_WITH_NAME, false);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[zergsvr] Zen_Server_Status init fail. ret=%d", ret);
+        return ret;
+    }
+
+    config_ = &Comm_Svrd_Config::instance()->zerg_config_;
+    ret = Zerg_Server_Config::instance()->init(config_);
+    if (ret != 0) {
+        return ret;
+    }
+
+    TCP_Svc_Handler::get_max_peer_num(max_accept, max_connect);
+    max_peer = max_accept + 0x10 + max_connect;
+    ZEN_Reactor::instance(new ZEN_Epoll_Reactor(max_peer, false, 1024));
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] ZEN_Reactor and ZEN_Epoll_Reactor initialized.");
+
+    new Zerg_App_Timer_Handler(ZEN_Timer_Queue::instance());
+    ZBuffer_Storage::instance()->init_buflist_by_hdlnum(max_peer);
+    Zerg_IPRestrict_Mgr::instance();
+    zerg_comm_mgr_ = Zerg_Comm_Manager::instance();
+    MML_Console_Handler::instance(new Zerg_Console_Handler(ZEN_Reactor::instance()));
+
+    ret = reload();
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_infoex("[zergsvr] ReloadDynamicConfig fail,ret = %d.", ret);
+        return ret;
+    }
+    ZEN_Trace_LogMsg::debug_infoex(
+        "[zergsvr] ReloadDynamicConfig Succ.Ooooo!Some people believe that God created the world,but.");
+
+    ret = TCP_Svc_Handler::init_all_static_data();
+    if (ret != 0) {
+        return ret;
+    }
+    ret = UDP_Svc_Handler::init_all_static_data();
+    if (ret != 0) {
+        return ret;
+    }
+
+    ret = zerg_comm_mgr_->init_socketpeer(Zerg_Server_Config::self_svc_info_);
+    if (ret != 0) {
+        return ret;
+    }
+    for (i = 0; i < config_->self_cfg.slave_svr_count; i++) {
+        ret = zerg_comm_mgr_->init_socketpeer(Zerg_Server_Config::slave_svc_ary_[i]);
+        if (ret != 0) {
+            return ret;
+        }
+    }
+
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] init_instance Succ.Have Fun.!!!");
+    return ret;
 }
 
+// line 199
+int Zerg_Service_App::reload() {
+    int ret = 0;
+
+    ret = Zerg_IPRestrict_Mgr::instance()->get_iprestrict_conf(*config_);
+    if (ret != 0) {
+        return ret;
+    }
+    ret = zerg_comm_mgr_->get_config(*config_);
+    if (ret != 0) {
+        return ret;
+    }
+
+    ret = MML_Console_Handler::instance()->initialize(*config_);
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] Console close .ret = %u", ret);
+    if (ret != 0) {
+        if (ret == 0x13ad) {
+            ZEN_Trace_LogMsg::debug_infoex("[zergsvr] Console close .ret = %u", 0x13ad);
+        } else {
+            ZEN_Trace_LogMsg::debug_errorex("[zergsvr] Console initialize fail.ret = %u", ret);
+        }
+    }
+
+    set_log_priority(ZEN_LogTrace_Basic::log_priorities(config_->log_cfg.log_level));
+    ret = Zerg_Server_Config::instance()->init(config_);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex("[zergsvr] zerg reload config fail. ret=%d", ret);
+        return ret;
+    }
+    return ret;
+}
+
+// line 266
+int Zerg_Service_App::exit_instance() {
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] exit_instance Succ.Have Fun.!!!");
+    TCP_Svc_Handler::uninit_all_staticdata();
+    Zerg_Comm_Manager::clean_instance();
+    Zerg_IPRestrict_Mgr::clean_instance();
+    MML_Console_Handler::clean_instance();
+    Comm_Stat_Monitor::clean_instance();
+    if (ZEN_Reactor::instance() != NULL) {
+        ZEN_Reactor::instance()->close();
+    }
+    if (ZEN_Timer_Queue::instance() != NULL) {
+        ZEN_Timer_Queue::instance()->close();
+    }
+    ZBuffer_Storage::instance()->uninit_buffer_list();
+    return 0;
+}
+
+// line 314
+int Zerg_Service_App::run_instance() {
+    size_t num_io_event = 0;
+    size_t num_send_frame = 0;
+    size_t want_send_frame = 0;
+    size_t i = 0;
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] Zerg_Service_App::run_instance start.");
+    ZEN_Reactor *preactor = ZEN_Reactor::instance();
+    ZEN_Timer_Queue *p_timer_queue = ZEN_Timer_Queue::instance();
+    ZEN_Time_Value run_interval(0, IDLE_REACTOR_WAIT_USEC);
+
+    while (app_run_) {
+        size_t max_send_frame = NORMAL_MAX_ONCE_SEND_FRAME;
+        if (want_send_frame > SEND_BUSY_JUDGE_STANDARD) {
+            if (num_send_frame == 0) {
+                run_interval.usec(SEND_BUSY_REACTOR_WAIT_USEC);
+            } else {
+                run_interval.usec(BUSY_REACTOR_WAIT_USEC);
+            }
+            max_send_frame = SENDBUSY_MAX_ONCE_SEND_FRAME;
+        } else if (want_send_frame > SEND_IDLE_JUDGE_STANDARD) {
+            run_interval.usec(BUSY_REACTOR_WAIT_USEC);
+        } else {
+            if (num_send_frame == 0) {
+                run_interval.usec(IDLE_REACTOR_WAIT_USEC);
+            } else {
+                run_interval.usec(NORMAL_REACTOR_WAIT_USEC);
+            }
+        }
+
+        preactor->handle_events(&run_interval, &num_send_frame);
+        zerg_comm_mgr_->popall_sendpipe_write(max_send_frame, want_send_frame);
+        if (want_send_frame > SEND_BUSY_JUDGE_STANDARD && num_send_frame == 0) {
+            zerg_comm_mgr_->popall_sendpipe_write(SENDBUSY_MAX_ONCE_SEND_FRAME, want_send_frame);
+        } else if (want_send_frame >= NORMAL_MAX_ONCE_SEND_FRAME) {
+            zerg_comm_mgr_->popall_sendpipe_write(SENDBUSY_MAX_ONCE_SEND_FRAME, want_send_frame);
+        }
+
+        if (i % DEFAULT_IO_FIRST_RATIO == 0) {
+            p_timer_queue->expire();
+        }
+        i++;
+    }
+
+    ZEN_Trace_LogMsg::debug_infoex("[zergsvr] Zerg_Service_App::run_instance end.");
+    return 0;
+}
+
+// line 390
 Zerg_Service_App * Zerg_Service_App::instance() {
+    if (instance_ == NULL) {
+        instance_ = new Zerg_Service_App;
+    }
+    return instance_;
 }
 
+// line 402
+void Zerg_Service_App::clean_instance() {
+    if (instance_ != NULL) {
+        delete instance_;
+        instance_ = NULL;
+    }
+}
+
+// 显式实例化（原二进制弱符号：Comm_App_Frame 模板由服务 TU 发出）
+#include "output/protocol/common/release/include/comm_proto_public_cfgsvr.h"
+#include "output/protocol/common/release/include/comm_proto_public_logsvr.h"
+
+template int Comm_App_Frame::appdata_encode<sec_proto::CfgFileReq>(unsigned int, const sec_proto::CfgFileReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::CheckCfgFileUpdateReq>(unsigned int, const sec_proto::CheckCfgFileUpdateReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::DeployInfoReq>(unsigned int, const sec_proto::DeployInfoReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::LogSvrCommBillRecord>(unsigned int, const sec_proto::LogSvrCommBillRecord&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::SvcIdReq>(unsigned int, const sec_proto::SvcIdReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_encode<sec_proto::SvcIpInfoReq>(unsigned int, const sec_proto::SvcIpInfoReq&, unsigned int, size_t*);
+template int Comm_App_Frame::appdata_decode<sec_proto::CfgFileRsp>(sec_proto::CfgFileRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::CfgsvrInfoRsp>(sec_proto::CfgsvrInfoRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::CheckCfgFileUpdateRsp>(sec_proto::CheckCfgFileUpdateRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::DeployInfoRsp>(sec_proto::DeployInfoRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::SvcIdRsp>(sec_proto::SvcIdRsp&, unsigned int, size_t*) const;
+template int Comm_App_Frame::appdata_decode<sec_proto::SvcIpInfoRsp>(sec_proto::SvcIpInfoRsp&, unsigned int, size_t*) const;

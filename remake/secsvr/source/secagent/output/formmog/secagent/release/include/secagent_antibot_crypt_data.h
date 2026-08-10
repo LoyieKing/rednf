@@ -34,6 +34,6 @@ int load(const char *cfg_dir); // line 42
 };
 
 
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
+// inferred
 
 #endif // SECSVR_OUTPUT_FORMMOG_SECAGENT_RELEASE_INCLUDE_SECAGENT_ANTIBOT_CRYPT_DATA_H_H_

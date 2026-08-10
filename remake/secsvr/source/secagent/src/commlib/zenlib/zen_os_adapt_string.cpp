@@ -1,318 +1,198 @@
-// Auto-generated stub from DWARF info
+// Restored from secagent binary (DWARF + disassembly), GCC 4.1.0 SUSE, -O2.
 // Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/zenlib/zen_os_adapt_string.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Original quirks preserved (verified against the oracle at 0x08169df0-0x0816a4e9):
+//  - tm_from_str/time_from_str dispatch on TIME_STRING_FORMAT (TSF_*).
+//  - tm_from_str zeroes *usec first, and only computes it for TSF_YYYY_MM_DD_HH_MM_SS_UUUUUU.
+//  - strlwr converts chars starting at index 1; str[0] is never changed.
+//  - skip_separator is byte-identical to the removed 2-arg skip_token.
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_os_adapt_process.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
 #include "src/commlib/zenlib/zen_os_adapt_string.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
+
 #include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-void ZEN_OS::tm_from_str(ZEN_OS::TIME_STRING_FORMAT fmt, const char *strtm, tm *ptr_tm, time_t *usec) {
+namespace ZEN_OS {
+
+// getpid is a thin wrapper defined in zen_os_adapt_process.cpp.
+extern int getpid();
+
+// File-static counter used by prefix_unique_name (BSS in the oracle).
+static unsigned int uniqueid_builder = 0;
+
+void tm_from_str(TIME_STRING_FORMAT fmt, const char *strtm, tm *ptr_tm,
+                 time_t *usec) {
+    if (usec != NULL) {
+        *usec = 0;
+    }
+    if (fmt <= TSF_YYYYMMDDHHMMSS) {
+        // Compact digits, no separators: YYYYMMDD[HHMMSS].
+        ptr_tm->tm_isdst = 0;
+        ptr_tm->tm_year = (strtm[0] - '0') * 1000 + (strtm[1] - '0') * 100 +
+                          (strtm[2] - '0') * 10 + (strtm[3] - '0') - 1900;
+        ptr_tm->tm_mon = (strtm[4] - '0') * 10 + (strtm[5] - '0') - 1;
+        ptr_tm->tm_mday = (strtm[6] - '0') * 10 + (strtm[7] - '0');
+        if (fmt == TSF_YYYYMMDD) {
+            ptr_tm->tm_hour = 0;
+            ptr_tm->tm_min = 0;
+            ptr_tm->tm_sec = 0;
+        } else {
+            ptr_tm->tm_hour = (strtm[8] - '0') * 10 + (strtm[9] - '0');
+            ptr_tm->tm_min = (strtm[10] - '0') * 10 + (strtm[11] - '0');
+            ptr_tm->tm_sec = (strtm[12] - '0') * 10 + (strtm[13] - '0');
+        }
+        return;
+    }
+    if (fmt <= TSF_YYYY_MM_DD_HH_MM_SS_UUUUUU) {
+        // ISO style, separators skipped at fixed positions:
+        // YYYY-MM-DD[ HH:MM:SS[.UUUUUU]].
+        ptr_tm->tm_isdst = 0;
+        ptr_tm->tm_year = (strtm[0] - '0') * 1000 + (strtm[1] - '0') * 100 +
+                          (strtm[2] - '0') * 10 + (strtm[3] - '0') - 1900;
+        ptr_tm->tm_mon = (strtm[5] - '0') * 10 + (strtm[6] - '0') - 1;
+        ptr_tm->tm_mday = (strtm[8] - '0') * 10 + (strtm[9] - '0');
+        if (fmt == TSF_YYYY_MM_DD) {
+            ptr_tm->tm_hour = 0;
+            ptr_tm->tm_min = 0;
+            ptr_tm->tm_sec = 0;
+        } else {
+            ptr_tm->tm_hour = (strtm[11] - '0') * 10 + (strtm[12] - '0');
+            ptr_tm->tm_min = (strtm[14] - '0') * 10 + (strtm[15] - '0');
+            ptr_tm->tm_sec = (strtm[17] - '0') * 10 + (strtm[18] - '0');
+        }
+    }
+    if (usec != NULL && fmt == TSF_YYYY_MM_DD_HH_MM_SS_UUUUUU) {
+        // Microseconds from strtm[20..25] (fraction after the '.' at [19]).
+        *usec = (strtm[20] - '0') * 100000 + (strtm[21] - '0') * 10000 +
+                (strtm[22] - '0') * 1000 + (strtm[23] - '0') * 100 +
+                (strtm[24] - '0') * 10 + (strtm[25] - '0');
+    }
 }
 
-const char * ZEN_OS::skip_line(const char *str) {
+const char *skip_line(const char *str) {
+    while (*str && *str != '\n') {
+        ++str;
+    }
+    if (*str == '\n') {
+        ++str;
+    }
+    return str;
 }
 
-const char * ZEN_OS::skip_separator(const char *str, char separator_char) {
+const char *skip_separator(const char *str, char separator_char) {
+    // Oracle quirk: identical to the removed 2-arg skip_token (stops after
+    // one separator).
+    while (*str && *str != separator_char) {
+        ++str;
+    }
+    if (*str == separator_char) {
+        ++str;
+    }
+    return str;
 }
 
-const char * ZEN_OS::skip_token(const char *str) {
+const char *skip_token(const char *str) {
+    while (isspace((unsigned char)*str)) {
+        ++str;
+    }
+    if (*str == '\0') {
+        return str;
+    }
+    while (*str && !isspace((unsigned char)*str)) {
+        ++str;
+    }
+    return str;
 }
 
-const char * ZEN_OS::skip_whitespace(const char *str) {
+const char *skip_whitespace(const char *str) {
+    while (isspace((unsigned char)*str)) {
+        ++str;
+    }
+    return str;
 }
 
-char * ZEN_OS::strtrimright(char *str) {
-    // local: char *lstr;
+char *strtrimright(char *str) {
+    char *lstr = str + strlen(str) - 1;
+    char *str_end = lstr;
+    if (str > lstr) {
+        return str;
+    }
+    while (isspace((unsigned char)*lstr)) {
+        --lstr;
+        if (lstr < str) {
+            break;
+        }
+    }
+    if (lstr != str_end) {
+        lstr[1] = '\0';
+    }
+    return str;
 }
 
-char * ZEN_OS::strtrimleft(char *str) {
-    // local: char *lstr;
+char *strtrimleft(char *str) {
+    char *lstr = str;
+    while (*lstr && isspace((unsigned char)*lstr)) {
+        ++lstr;
+    }
+    if (lstr == str) {
+        return str;
+    }
+    memmove(str, lstr, strlen(lstr) + 1);
+    return str;
 }
 
-char * ZEN_OS::strtrim(char *str) {
+char *strtrim(char *str) {
+    strtrimleft(str);
+    strtrimright(str);
+    return str;
 }
 
-int ZEN_OS::strncasecmp(const char *string1, const char *string2, size_t maxlen) {
+int strncasecmp(const char *string1, const char *string2, size_t maxlen) {
+    return ::strncasecmp(string1, string2, maxlen);
 }
 
-int ZEN_OS::strcasecmp(const char *string1, const char *string2) {
+int strcasecmp(const char *string1, const char *string2) {
+    return ::strcasecmp(string1, string2);
 }
 
-char * ZEN_OS::strlwr(char *str) {
-    // local: char *lstr;
+char *strlwr(char *str) {
+    char *lstr = str;
+    if (*str == '\0') {
+        return str;
+    }
+    // Oracle quirk: converts str[1] onward; str[0] is left unchanged.
+    do {
+        lstr[1] = tolower(lstr[1]);
+        ++lstr;
+    } while (*lstr != '\0');
+    return str;
 }
 
-char * ZEN_OS::strupr(char *str) {
-    // local: char *lstr;
+char *strupr(char *str) {
+    char *lstr = str;
+    while (*lstr) {
+        *lstr = toupper(*lstr);
+        ++lstr;
+    }
+    return str;
 }
 
-char * ZEN_OS::prefix_unique_name(const char *prefix_name, char *name, size_t length) {
-    // local: unsigned int uniqueid_builder;
+char *prefix_unique_name(const char *prefix_name, char *name, size_t length) {
+    ++uniqueid_builder;
+    snprintf(name, length, "%s.%u.%x", prefix_name, ZEN_OS::getpid(),
+             uniqueid_builder);
+    return name;
 }
 
-char * ZEN_OS::object_unique_name(const void *object_ptr, char *name, size_t length) {
+char *object_unique_name(const void *object_ptr, char *name, size_t length) {
+    snprintf(name, length, "%u.%p", ZEN_OS::getpid(), object_ptr);
+    return name;
 }
 
-time_t ZEN_OS::time_from_str(ZEN_OS::TIME_STRING_FORMAT fmt, const char *strtm) {
-    // local: tm tm_value;
+time_t time_from_str(TIME_STRING_FORMAT fmt, const char *strtm) {
+    tm tm_value;
+    tm_from_str(fmt, strtm, &tm_value, NULL);
+    return mktime(&tm_value);
 }
 
+} // namespace ZEN_OS

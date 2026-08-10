@@ -1,367 +1,276 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag296/src/commlib/zenlib/zen_os_adapt_time.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// Restored from gunnersvr binary (DWARF + disassembly), GCC 4.1.0 SUSE, -O2.
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_os_adapt_time.cpp
+// Original quirks preserved (verified against the oracle at 0x08092e10-0x080937c7):
+//  - timeval_clear only clears tv_sec (tv_usec untouched).
+//  - timeval_add only carries when usec > 1000000 (== 1000000 does NOT carry).
+//  - total_milliseconds(timespec) divides tv_nsec by 1000000000 (not 1000000).
+//  - timestamp_ex returns NULL (and sets errno=EINVAL) for unknown format bits;
+//    required buffer sizes are checked with "> len" against the format length.
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_mutex.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_shm_predefine.h"
-#include "src/commlib/zenlib/zen_time_value.h"
 #include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_os_adapt_error.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
+
 #include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
-#include <stddef.h>
-#include <stdexcept>
-#include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
+#include <stdint.h>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
-#include <time.h>
-#include <typeinfo>
 #include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-const timeval ZEN_OS::timeval_zero() {
-    // local: const timeval zero_time;
-    // local: timeval zero_time;
+// ZEN_Trace_LogMsg is restored in a later TU; the static vararg entry used by
+// get_uptime is forward-declared here so this TU stays self-contained.
+struct ZEN_Trace_LogMsg {
+    static void debug_errorex(const char *str_format, ...);
+};
+
+namespace ZEN_OS {
+
+const timeval timeval_zero() {
+    timeval zero_time;
+    zero_time.tv_sec = 0;
+    zero_time.tv_usec = 0;
+    return zero_time;
 }
 
-void ZEN_OS::timeval_clear(timeval &tv) {
+void timeval_clear(timeval &tv) {
+    // Original quirk: only tv_sec is cleared.
+    tv.tv_sec = 0;
 }
 
-uint64_t ZEN_OS::total_milliseconds(const timeval &tv) {
+uint64_t total_milliseconds(const timeval &tv) {
+    // tv_usec / 1000 is an unsigned 32-bit division in the oracle.
+    return (uint64_t)tv.tv_sec * 1000 + (uint32_t)tv.tv_usec / 1000;
 }
 
-uint64_t ZEN_OS::total_microseconds(const timeval &tv) {
+uint64_t total_microseconds(const timeval &tv) {
+    // 64-bit signed: tv_sec * 1000 + tv_usec (tv_usec sign-extended).
+    return (uint64_t)((int64_t)tv.tv_sec * 1000 + tv.tv_usec);
 }
 
-int ZEN_OS::timeval_compare(const timeval &left, const timeval &right) {
+int timeval_compare(const timeval &left, const timeval &right) {
+    if (left.tv_sec == right.tv_sec) {
+        return left.tv_usec - right.tv_usec;
+    }
+    return left.tv_sec - right.tv_sec;
 }
 
-const timeval ZEN_OS::timeval_add(const timeval &left, const timeval &right) {
-    // local: const timeval plus_time_val;
-    // local: const int32_t SEC_PER_USEC;
-    // local: timeval plus_time_val;
+const timeval timeval_add(const timeval &left, const timeval &right) {
+    const uint32_t SEC_PER_USEC = 1000000;
+    timeval plus_time_val;
+    plus_time_val.tv_sec = left.tv_sec + right.tv_sec;
+    plus_time_val.tv_usec = left.tv_usec + right.tv_usec;
+    if (plus_time_val.tv_usec > SEC_PER_USEC) {
+        plus_time_val.tv_sec += plus_time_val.tv_usec / SEC_PER_USEC;
+        plus_time_val.tv_usec %= SEC_PER_USEC;
+    }
+    return plus_time_val;
 }
 
-const timeval ZEN_OS::timeval_sub(const timeval &left, const timeval &right, bool safe) {
-    // local: const timeval minus_time_val;
-    // local: const uint32_t SEC_PER_USEC;
-    // local: int64_t left_usec_val;
-    // local: int64_t right_usec_val;
-    // local: int64_t minus_usec_val;
-    // local: timeval minus_time_val;
+const timeval timeval_sub(const timeval &left, const timeval &right, bool safe) {
+    const uint32_t SEC_PER_USEC = 1000000;
+    int64_t left_usec_val = left.tv_sec * SEC_PER_USEC + left.tv_usec;
+    int64_t right_usec_val = right.tv_sec * SEC_PER_USEC + right.tv_usec;
+    int64_t minus_usec_val = left_usec_val - right_usec_val;
+    timeval minus_time_val;
+    if (minus_usec_val < 0 && safe) {
+        minus_time_val.tv_sec = 0;
+        minus_time_val.tv_usec = 0;
+        return minus_time_val;
+    }
+    minus_time_val.tv_sec = minus_usec_val / SEC_PER_USEC;
+    minus_time_val.tv_usec = minus_usec_val % SEC_PER_USEC;
+    return minus_time_val;
 }
 
-void ZEN_OS::timeval_adjust(timeval &tv) {
-    // local: const uint32_t SEC_PER_USEC;
-    // local: int64_t tv_usec_val;
+void timeval_adjust(timeval &tv) {
+    const uint32_t SEC_PER_USEC = 1000000;
+    int64_t tv_usec_val = tv.tv_sec * SEC_PER_USEC + tv.tv_usec;
+    tv.tv_sec = tv_usec_val / SEC_PER_USEC;
+    tv.tv_usec = tv_usec_val % SEC_PER_USEC;
 }
 
-bool ZEN_OS::timeval_havetime(const timeval &tv) {
+bool timeval_havetime(const timeval &tv) {
+    return (uint32_t)(tv.tv_sec * 1000000 + tv.tv_usec) != 0;
 }
 
-const timeval ZEN_OS::make_timeval(time_t sec, time_t usec) {
-    // local: const timeval to_timeval;
-    // local: timeval to_timeval;
+const timeval make_timeval(time_t sec, time_t usec) {
+    timeval to_timeval;
+    to_timeval.tv_sec = sec;
+    to_timeval.tv_usec = usec;
+    return to_timeval;
 }
 
-const timeval ZEN_OS::make_timeval(clock_t clock_value) {
-    // local: const timeval to_timeval;
-    // local: const uint32_t SEC_PER_USEC;
-    // local: timeval to_timeval;
-    // local: clock_t remain_val;
+const timeval make_timeval(clock_t clock_value) {
+    const uint32_t SEC_PER_USEC = 1000000;
+    timeval to_timeval;
+    clock_t remain_val = clock_value % SEC_PER_USEC;
+    to_timeval.tv_sec = clock_value / SEC_PER_USEC;
+    to_timeval.tv_usec = (uint32_t)(remain_val * SEC_PER_USEC) / SEC_PER_USEC;
+    return to_timeval;
 }
 
-const timeval ZEN_OS::make_timeval(const timespec *timespec_val) {
-    // local: const timeval to_timeval;
-    // local: const uint32_t USEC_PER_NSEC;
-    // local: timeval to_timeval;
+const timeval make_timeval(const timespec *timespec_val) {
+    const uint32_t USEC_PER_NSEC = 1000;
+    timeval to_timeval;
+    to_timeval.tv_sec = timespec_val->tv_sec;
+    to_timeval.tv_usec = (uint32_t)timespec_val->tv_nsec / USEC_PER_NSEC;
+    return to_timeval;
 }
 
-const timespec ZEN_OS::make_timespec(const timeval &timeval_val) {
-    // local: const timespec to_timespec;
-    // local: const uint32_t USEC_PER_NSEC;
-    // local: timespec to_timespec;
+const timespec make_timespec(const timeval &timeval_val) {
+    const uint32_t USEC_PER_NSEC = 1000;
+    timespec to_timespec;
+    to_timespec.tv_sec = timeval_val.tv_sec;
+    to_timespec.tv_nsec = timeval_val.tv_usec * USEC_PER_NSEC;
+    return to_timespec;
 }
 
-uint64_t ZEN_OS::total_milliseconds(const timespec &tv) {
+uint64_t total_milliseconds(const timespec &tv) {
+    // Original quirk: divides tv_nsec by 1000000000 instead of 1000000.
+    return (uint64_t)tv.tv_sec * 1000 + (uint32_t)tv.tv_nsec / 1000000000;
 }
 
-void ZEN_OS::usleep(long unsigned int usec) {
+void usleep(unsigned long usec) {
+    ::usleep(usec);
 }
 
-int ZEN_OS::sleep(const timeval &tv) {
-    // local: const int ONE_SECOND_IN_USECS;
+int sleep(const timeval &tv) {
+    const int ONE_SECOND_IN_USECS = 1000000;
+    return ::usleep(tv.tv_sec * ONE_SECOND_IN_USECS + tv.tv_usec);
 }
 
-int ZEN_OS::sleep(uint32_t seconds) {
+int sleep(uint32_t seconds) {
+    return ::sleep(seconds);
 }
 
-const char * ZEN_OS::timestamp(const timeval *timeval, char *str_date_time, size_t datetime_strlen) {
-    // local: time_t now_time;
-    // local: tm tm_data;
+const char *timestamp(const timeval *timeval, char *str_date_time,
+                      size_t datetime_strlen) {
+    time_t now_time = timeval->tv_sec;
+    tm tm_data;
+    localtime_r(&now_time, &tm_data);
+    snprintf(str_date_time, datetime_strlen, "%4d-%02d-%02d %02d:%02d:%02d.%06ld",
+             tm_data.tm_year + 1900, tm_data.tm_mon + 1, tm_data.tm_mday,
+             tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec, timeval->tv_usec);
+    return str_date_time;
 }
 
-const char * ZEN_OS::timestamp(char *str_date_time, size_t datetime_strlen) {
-    // local: timeval now_time_val;
+const char *timestamp(char *str_date_time, size_t datetime_strlen) {
+    timeval now_time_val;
+    ::gettimeofday(&now_time_val, NULL);
+    return ZEN_OS::timestamp(&now_time_val, str_date_time, datetime_strlen);
 }
 
-const timeval ZEN_OS::get_uptime() {
-    // local: timespec sp;
-    // local: timeval up_time;
-    // local: int ret;
+const timeval get_uptime() {
+    timespec sp;
+    timeval up_time;
+    int ret = clock_gettime(CLOCK_MONOTONIC, &sp);
+    if (ret != 0) {
+        ZEN_Trace_LogMsg::debug_errorex(
+            "::clock_gettime(CLOCK_MONOTONIC, &sp) ret != 0,fail.ret = %d lasterror = %d",
+            ret, errno);
+        up_time = timeval_zero();
+    } else {
+        up_time = make_timeval(&sp);
+    }
+    return up_time;
 }
 
-const char * ZEN_OS::timestamp_ex(const timeval *timeval, char *str_date_time, size_t datetime_strlen, int fromat_type) {
-    // local: time_t now_time;
-    // local: tm tm_data;
-    // local: const const char *MONTH_NAME[];
-    // local: const const char *DAY_OF_WEEK_NAME[];
+const char *timestamp_ex(const timeval *timeval, char *str_date_time,
+                         size_t datetime_strlen, int fromat_type) {
+    static const char *const MONTH_NAME[] = {
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+        "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    };
+    static const char *const DAY_OF_WEEK_NAME[] = {
+        "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"
+    };
+
+    time_t now_time = timeval->tv_sec;
+    tm tm_data;
+    if (fromat_type & 0x1) {
+        localtime_r(&now_time, &tm_data);
+    } else if (fromat_type & 0x2) {
+        gmtime_r(&now_time, &tm_data);
+    } else {
+        errno = EINVAL;
+        return NULL;
+    }
+
+    if (fromat_type & 0x10) {
+        if (fromat_type & 0x400) {
+            // oracle: len <= 26 -> NULL
+            if (datetime_strlen <= 26) {
+                return NULL;
+            }
+            snprintf(str_date_time, datetime_strlen, "%4d-%02d-%02d %02d:%02d:%02d.%06ld",
+                     tm_data.tm_year + 1900, tm_data.tm_mon + 1, tm_data.tm_mday,
+                     tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec,
+                     timeval->tv_usec);
+            return str_date_time;
+        }
+        if (fromat_type & 0x200) {
+            // oracle: len <= 19 -> NULL
+            if (datetime_strlen <= 19) {
+                return NULL;
+            }
+            snprintf(str_date_time, datetime_strlen, "%4d-%02d-%02d %02d:%02d:%02d",
+                     tm_data.tm_year + 1900, tm_data.tm_mon + 1, tm_data.tm_mday,
+                     tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
+            return str_date_time;
+        }
+        if (!(fromat_type & 0x100)) {
+            errno = EINVAL;
+            return NULL;
+        }
+        // oracle: len <= 10 -> NULL
+        if (datetime_strlen <= 10) {
+            return NULL;
+        }
+        snprintf(str_date_time, datetime_strlen, "%4d-%02d-%02d",
+                 tm_data.tm_year + 1900, tm_data.tm_mon + 1, tm_data.tm_mday);
+        return str_date_time;
+    }
+
+    if (!(fromat_type & 0x20)) {
+        errno = EINVAL;
+        return NULL;
+    }
+    if (fromat_type & 0x400) {
+        // oracle: len <= 31 -> NULL
+        if (datetime_strlen <= 31) {
+            return NULL;
+        }
+        snprintf(str_date_time, datetime_strlen,
+                 "%3s %3s %2d %04d %02d:%02d:%02d.%06d",
+                 DAY_OF_WEEK_NAME[tm_data.tm_wday], MONTH_NAME[tm_data.tm_mon],
+                 tm_data.tm_mday, tm_data.tm_year + 1900,
+                 tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec,
+                 timeval->tv_usec);
+        return str_date_time;
+    }
+    if (fromat_type & 0x200) {
+        // oracle: len <= 24 -> NULL
+        if (datetime_strlen <= 24) {
+            return NULL;
+        }
+        snprintf(str_date_time, datetime_strlen,
+                 "%3s %3s %2d %04d %02d:%02d:%02d",
+                 DAY_OF_WEEK_NAME[tm_data.tm_wday], MONTH_NAME[tm_data.tm_mon],
+                 tm_data.tm_mday, tm_data.tm_year + 1900,
+                 tm_data.tm_hour, tm_data.tm_min, tm_data.tm_sec);
+        return str_date_time;
+    }
+    if (!(fromat_type & 0x100)) {
+        errno = EINVAL;
+        return NULL;
+    }
+    // Oracle quirk: the US day format also requires len > 24 (same as the
+    // US second format), not the 15 bytes the format itself needs.
+    if (datetime_strlen <= 24) {
+        return NULL;
+    }
+    snprintf(str_date_time, datetime_strlen, "%3s %3s %2d %04d",
+             DAY_OF_WEEK_NAME[tm_data.tm_wday], MONTH_NAME[tm_data.tm_mon],
+             tm_data.tm_mday, tm_data.tm_year + 1900);
+    return str_date_time;
 }
 
+} // namespace ZEN_OS

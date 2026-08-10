@@ -1,91 +1,205 @@
-// Auto-generated header stub from DWARF info
-// Original path: output/commlib/framework/release/include/comm_frame_malloc.h
-// 内容为类型信息与声明（函数体暂未还原）。
-#ifndef SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_FRAME_MALLOC_H_H_
-#define SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_FRAME_MALLOC_H_H_
+// Reconstructed from secagent binary (DWARF + 反汇编, 2026-08-10)
+// AppFrame_Mallocor_Mgr<MUTEX>：sizeof=60
+//   size_appframe_[10]@0（递减帧长档位，initialize 从 [9]=max 逐档减半）
+//   frame_pool_@40（vector<lordrings<Comm_App_Frame*>>，10 个环形池）
+//   zen_lock_@52
+#ifndef SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_FRAME_MALLOC_H_H_
+#define SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_FRAME_MALLOC_H_H_
 
+#include "output/commlib/zenlib/release/include/zen_boost_lord_rings.h"
 #include "output/commlib/zenlib/release/include/zen_lock_guard.h"
-#include <bits/stl_vector.h>
+#include "output/commlib/zenlib/release/include/zen_lock_null_lock.h"
+#include "output/commlib/zenlib/release/include/zen_trace_log_basic.h"
+#include "src/commlib/framework/comm_app_frame.h"
 #include <stddef.h>
+#include <string.h>
+#include <vector>
 
 // sizeof = 60
-struct AppFrame_Mallocor_Mgr<ZEN_Null_Mutex> { // line 27
-protected:
-static const size_t NUM_OF_FRAMELIST;
-static const size_t NUM_OF_ONCE_INIT_FRAME;
-static const size_t NUM_OF_ALLOW_LIST_IDLE_FRAME;
-size_t size_appframe_[];
-// anonymous struct, sizeof = 12
-struct {
-    public:
-    void vector(const /*anon struct*/ int &arg0); // line 202
-    void vector(unsigned int arg0, const lordrings<Comm_App_Frame*> &arg1, const /*anon struct*/ int &arg2); // line 215
-    void vector(const /*anon struct*/ int &arg0); // line 232
-    void ~vector(); // line 271
-    /*anon struct*/ int & operator=(const /*anon struct*/ int &arg0); // line 133
-    void assign(unsigned int arg0, const lordrings<Comm_App_Frame*> &arg1); // line 298
-    __normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > begin(); // line 332
-    __normal_iterator<const ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > begin() const; // line 341
-    __normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > end(); // line 350
-    __normal_iterator<const ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > end() const; // line 359
-    reverse_iterator<__gnu_cxx::__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*, std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > > rbegin(); // line 368
-    reverse_iterator<__gnu_cxx::__normal_iterator<const ZEN_LIB::lordrings<Comm_App_Frame*>*, std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > > rbegin() const; // line 377
-    reverse_iterator<__gnu_cxx::__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*, std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > > rend(); // line 386
-    reverse_iterator<__gnu_cxx::__normal_iterator<const ZEN_LIB::lordrings<Comm_App_Frame*>*, std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > > rend() const; // line 395
-    size_t size() const; // line 401
-    size_t max_size() const; // line 406
-    void resize(unsigned int arg0, lordrings<Comm_App_Frame*> arg1); // line 421
-    size_t capacity() const; // line 434
-    bool empty() const; // line 443
-    void reserve(unsigned int arg0); // line 69
-    lordrings<Comm_App_Frame*> & operator[](unsigned int arg0); // line 479
-    const lordrings<Comm_App_Frame*> & operator[](unsigned int arg0) const; // line 494
-    protected:
-    void _M_range_check(unsigned int arg0) const; // line 500
-    public:
-    lordrings<Comm_App_Frame*> & at(unsigned int arg0); // line 519
-    const lordrings<Comm_App_Frame*> & at(unsigned int arg0) const; // line 537
-    lordrings<Comm_App_Frame*> & front(); // line 548
-    const lordrings<Comm_App_Frame*> & front() const; // line 556
-    lordrings<Comm_App_Frame*> & back(); // line 564
-    const lordrings<Comm_App_Frame*> & back() const; // line 572
-    lordrings<Comm_App_Frame*> * data(); // line 583
-    const lordrings<Comm_App_Frame*> * data() const; // line 587
-    void push_back(const lordrings<Comm_App_Frame*> &arg0); // line 602
-    void pop_back(); // line 623
-    __normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > insert(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > arg0, const lordrings<Comm_App_Frame*> &arg1); // line 93
-    void insert(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > arg0, unsigned int arg1, const lordrings<Comm_App_Frame*> &arg2); // line 657
-    __normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > erase(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > arg0); // line 110
-    __normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > erase(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > __first, __normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > __last); // line 122
-    void swap(/*anon struct*/ int &arg0); // line 733
-    void clear(); // line 748
-    protected:
-    void _M_fill_assign(unsigned int arg0, const lordrings<Comm_App_Frame*> &arg1); // line 171
-    void _M_fill_insert(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > __position, unsigned int __n, const lordrings<Comm_App_Frame*> &__x); // line 311
-    void _M_insert_aux(__normal_iterator<ZEN_LIB::lordrings<Comm_App_Frame*>*,std::vector<ZEN_LIB::lordrings<Comm_App_Frame*>, std::allocator<ZEN_LIB::lordrings<Comm_App_Frame*> > > > arg0, const lordrings<Comm_App_Frame*> &arg1); // line 249
-} frame_pool_;
-ZEN_Null_Mutex zen_lock_;
-static AppFrame_Mallocor_Mgr<ZEN_Null_Mutex> *instance_;
+template<typename MUTEX>
+class AppFrame_Mallocor_Mgr {
 public:
-void AppFrame_Mallocor_Mgr(); // line 198
-void ~AppFrame_Mallocor_Mgr(); // line 216
-void initialize(unsigned int init_num, unsigned int max_frame_len); // line 121
-Comm_App_Frame * alloc_appframe(unsigned int frame_len); // line 273
-void free_appframe(Comm_App_Frame *proc_frame); // line 329
-void clone_appframe(const Comm_App_Frame *model_freame, Comm_App_Frame *&cloned_frame); // line 308
-size_t GetMaxFrameLength(); // line 149
-void AdjustPoolListCapacity(); // line 350
-static AppFrame_Mallocor_Mgr<ZEN_Null_Mutex> * instance(); // line 400
-static void clean_instance(); // line 412
+    static const unsigned int NUM_OF_FRAMELIST = 10;            // line 30
+    static const unsigned int NUM_OF_ONCE_INIT_FRAME = 0x200;   // line 33
+    static const unsigned int NUM_OF_ALLOW_LIST_IDLE_FRAME = 8; // line 36
 protected:
-void ExtendFrameListCapacity(unsigned int list_no, unsigned int extend_num); // line 385
-size_t GetRoundUp(unsigned int arg0); // line 167
-};
-extern size_t i; // line 171
-extern size_t old_capacity; // line 387
-extern ZEN_Lock_Guard<ZEN_Null_Mutex> tmp_guard; // line 275
-extern const size_t NUM_OF_FRAMELIST; // line 30
-extern const size_t NUM_OF_ONCE_INIT_FRAME; // line 33
-extern const size_t NUM_OF_ALLOW_LIST_IDLE_FRAME; // line 36
+    size_t size_appframe_[NUM_OF_FRAMELIST];                         // 0x00
+    std::vector<ZEN_LIB::lordrings<Comm_App_Frame*> > frame_pool_;   // 0x28
+    MUTEX zen_lock_;                                                 // 0x34
+    static AppFrame_Mallocor_Mgr *instance_; // line 59
+public:
+    AppFrame_Mallocor_Mgr() : zen_lock_(0) { // line 198
+        memset(size_appframe_, 0, sizeof(size_appframe_));
+    }
 
-#endif // SECSVR_OUTPUT_COMMLIB_FRAMEWORK_RELEASE_INCLUDE_COMM_FRAME_MALLOC_H_H_
+    ~AppFrame_Mallocor_Mgr() { // line 216
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] AppFrame_Mallocor_Mgr::~AppFrame_Mallocor_Mgr.");
+        for (unsigned int i = 0; i < NUM_OF_FRAMELIST; ++i) {
+            ZEN_LIB::lordrings<Comm_App_Frame*> &pool = frame_pool_[i];
+            if (pool.capacity() == pool.size()) {
+                ZEN_Trace_LogMsg::debug_infoex(
+                    "[framework] List %u(frame size:%u):,free node:%u,capacity node:%u,list node:%u.Ok.",
+                    i, size_appframe_[i], 0, pool.capacity(), pool.size());
+            } else {
+                ZEN_Trace_LogMsg::debug_infoex(
+                    "[framework] List %u(frame size:%u):,free node:%u,capacity node:%u,list node:%u.Have memory leak.Please check your code.",
+                    i, size_appframe_[i], 0, pool.capacity(), pool.size());
+            }
+            while (pool.size() != 0) {
+                Comm_App_Frame *proc_frame = 0;
+                pool.pop_front(proc_frame);
+                if (proc_frame != 0) {
+                    proc_frame->~Comm_App_Frame();
+                    Comm_App_Frame::operator delete(proc_frame,
+                                                    LEN_OF_APPFRAME_HEAD);
+                }
+            }
+        }
+        zen_lock_.~MUTEX();
+        for (size_t i = 0; i < frame_pool_.size(); ++i) {
+            if (frame_pool_[i].value_ptr_ != 0) {
+                delete[] frame_pool_[i].value_ptr_;
+                frame_pool_[i].value_ptr_ = 0;
+            }
+        }
+    }
+
+    void initialize(unsigned int init_num, unsigned int max_frame_len) { // line 121
+        ZEN_Trace_LogMsg::debug_infoex(
+            "[framework] AppFrame_Mallocor_Mgr::AppFrame_Mallocor_Mgr init num=%u,max_frame_len=%u.",
+            init_num, max_frame_len);
+        size_t sz_frame = max_frame_len;
+        for (int i = (int)NUM_OF_FRAMELIST - 1; i >= 0; --i) {
+            size_appframe_[i] = sz_frame;
+            sz_frame >>= 1;
+        }
+        if (frame_pool_.size() > NUM_OF_FRAMELIST) {
+            frame_pool_.erase(frame_pool_.begin() + NUM_OF_FRAMELIST,
+                              frame_pool_.end());
+        } else if (frame_pool_.size() < NUM_OF_FRAMELIST) {
+            frame_pool_.insert(frame_pool_.end(),
+                               NUM_OF_FRAMELIST - frame_pool_.size(),
+                               ZEN_LIB::lordrings<Comm_App_Frame *>());
+        }
+        for (unsigned int i = 0; i < NUM_OF_FRAMELIST; ++i) {
+            ExtendFrameListCapacity(i, init_num);
+        }
+    }
+
+    size_t GetMaxFrameLength(unsigned int list_no) { // line 149
+        return size_appframe_[list_no];
+    }
+
+    unsigned int GetRoundUp(unsigned int size) { // line 167
+        unsigned int round = 1;
+        while (round < size) {
+            round <<= 1;
+        }
+        return round;
+    }
+
+    void AdjustPoolListCapacity(unsigned int list_no, unsigned int extend_num) { // line 350
+        ExtendFrameListCapacity(list_no, extend_num);
+    }
+
+    Comm_App_Frame *alloc_appframe(unsigned int frame_len) { // line 273
+        ZEN_Lock_Guard<MUTEX> tmp_guard(zen_lock_);
+        size_t hk = 0;
+        if (frame_len > size_appframe_[0]) {
+            for (hk = 1; hk < NUM_OF_FRAMELIST; ++hk) {
+                if (frame_len <= size_appframe_[hk]) {
+                    break;
+                }
+            }
+            if (hk == NUM_OF_FRAMELIST) {
+                // 二进制：超出最大档位时按 -1 号池处理（与反汇编一致）
+                hk = (size_t)-1;
+            }
+        }
+        if (frame_pool_[hk].size() == 0) {
+            ExtendFrameListCapacity((unsigned int)hk, NUM_OF_ONCE_INIT_FRAME);
+        }
+        Comm_App_Frame *new_frame = 0;
+        if (frame_pool_[hk].size() != 0) {
+            frame_pool_[hk].pop_front(new_frame);
+        }
+        new_frame->init_framehead(frame_len, 0, 0);
+        return new_frame;
+    }
+
+    void clone_appframe(const Comm_App_Frame *model_freame,
+                        Comm_App_Frame *&cloned_frame) { // line 308
+        size_t frame_len = model_freame->frame_length_;
+        cloned_frame = alloc_appframe((unsigned int)frame_len);
+        memcpy(cloned_frame, model_freame, frame_len);
+    }
+
+    void free_appframe(Comm_App_Frame *proc_frame) { // line 329
+        ZEN_Lock_Guard<MUTEX> tmp_guard(zen_lock_);
+        size_t hk = 0;
+        for (; hk < NUM_OF_FRAMELIST; ++hk) {
+            if (proc_frame->frame_length_ <= size_appframe_[hk]) {
+                break;
+            }
+        }
+        if (hk == NUM_OF_FRAMELIST) {
+            hk = (size_t)-1; // 二进制行为：越界池（与原版一致）
+        }
+        frame_pool_[hk].push_back(proc_frame);
+    }
+
+    void ExtendFrameListCapacity(unsigned int list_no, unsigned int extend_num) { // line 385
+        size_t old_capacity;
+        size_t j;
+        Comm_App_Frame *proc_frame;
+        ZEN_LIB::lordrings<Comm_App_Frame *> &pool = frame_pool_[list_no];
+        old_capacity = pool.capacity();
+        size_t new_capacity = old_capacity + extend_num;
+        if (new_capacity >= pool.size()) {
+            Comm_App_Frame **new_data = new Comm_App_Frame *[new_capacity];
+            size_t old_size = pool.size();
+            if (old_size != 0) {
+                for (size_t i = 0; i < old_size; ++i) {
+                    new_data[i] = pool[(unsigned int)i];
+                }
+            }
+            if (pool.value_ptr_ != 0) {
+                delete[] pool.value_ptr_;
+                pool.value_ptr_ = 0;
+            }
+            pool.cycdeque_start_ = 0;
+            pool.cycdeque_capacity_ = new_capacity;
+            pool.value_ptr_ = new_data;
+        }
+        for (j = 0; j < extend_num; ++j) {
+            proc_frame = new (size_appframe_[list_no] + 1)
+                Comm_App_Frame(0, LEN_OF_APPFRAME_HEAD, 0x1000000);
+            pool.push_back(proc_frame);
+        }
+    }
+
+    static AppFrame_Mallocor_Mgr * instance() { // line 400
+        if (instance_ == 0) {
+            instance_ = new AppFrame_Mallocor_Mgr();
+        }
+        return instance_;
+    }
+
+    static void instance(AppFrame_Mallocor_Mgr *pinstatnce) { // line 408
+        clean_instance();
+        instance_ = pinstatnce;
+    }
+
+    static void clean_instance() { // line 412
+        if (instance_ != 0) {
+            delete instance_;
+            instance_ = 0;
+        }
+    }
+};
+
+template<typename MUTEX>
+AppFrame_Mallocor_Mgr<MUTEX> *AppFrame_Mallocor_Mgr<MUTEX>::instance_ = 0;
+
+#endif // SECSVR_SRC_COMMLIB_FRAMEWORK_COMM_FRAME_MALLOC_H_H_

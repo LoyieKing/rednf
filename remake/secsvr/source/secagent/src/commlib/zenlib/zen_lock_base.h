@@ -1,53 +1,50 @@
-// Auto-generated header stub from DWARF info
-// Original path: src/commlib/zenlib/zen_lock_base.h
-// 内容为类型信息与声明（函数体暂未还原）。
+// 还原头文件（基于 gunnersvr DWARF + 二进制 vtable 验证，2026-08-10）
 #ifndef SECSVR_SRC_COMMLIB_ZENLIB_ZEN_LOCK_BASE_H_H_
 #define SECSVR_SRC_COMMLIB_ZENLIB_ZEN_LOCK_BASE_H_H_
 
 #include "src/commlib/zenlib/zen_boost_non_copyable.h"
+#include "src/commlib/zenlib/zen_time_value.h"
+
+struct ZEN_Lock_Base;
 
 // sizeof = 4
-struct ZEN_Condition_Base : public ZEN_NON_Copyable { // line 99
+struct ZEN_Condition_Base : public ZEN_NON_Copyable { // line 96
 public:
-int (***_vptr.ZEN_Condition_Base)(...);
-ZEN_Condition_Base(const ZEN_Condition_Base &arg0);
+    ZEN_Condition_Base(const ZEN_Condition_Base &arg0);
 protected:
-ZEN_Condition_Base(); // line 100
+    ZEN_Condition_Base(); // line 100
 public:
-virtual ~ZEN_Condition_Base(); // line 104
+    virtual ~ZEN_Condition_Base(); // line 104
 private:
-virtual void wait(ZEN_Lock_Base *arg0); // line 110
-virtual bool systime_wait(ZEN_Lock_Base *arg0, const ZEN_Time_Value &arg1); // line 116
-virtual bool duration_wait(ZEN_Lock_Base *arg0, const ZEN_Time_Value &arg1); // line 122
-virtual void signal(); // line 129
-virtual void broadcast(); // line 135
+    virtual void wait(ZEN_Lock_Base *arg0); // line 110
+    virtual bool systime_wait(ZEN_Lock_Base *arg0, const ZEN_Time_Value &arg1); // line 116
+    virtual bool duration_wait(ZEN_Lock_Base *arg0, const ZEN_Time_Value &arg1); // line 122
+    virtual void signal(); // line 129
+    virtual void broadcast(); // line 135
 };
 // sizeof = 4
-struct ZEN_Lock_Base : public ZEN_NON_Copyable { // line 36
+struct ZEN_Lock_Base : public ZEN_NON_Copyable { // line 35
+    friend class ZEN_Server_Status;
 public:
-int (***_vptr.ZEN_Lock_Base)(...);
-ZEN_Lock_Base(const ZEN_Lock_Base &arg0);
+    ZEN_Lock_Base(const ZEN_Lock_Base &arg0);
 protected:
-ZEN_Lock_Base(const char *arg0); // line 10
+    ZEN_Lock_Base(const char *arg0); // line 10
 public:
-virtual ~ZEN_Lock_Base(); // line 14
+    virtual ~ZEN_Lock_Base(); // line 14
 private:
-virtual void lock(); // line 19
-virtual bool try_lock(); // line 25
-virtual void unlock(); // line 31
-virtual bool systime_lock(const ZEN_Time_Value &arg0); // line 37
-virtual bool duration_lock(const ZEN_Time_Value &arg0); // line 43
-virtual void lock_read(); // line 50
-virtual bool try_lock_read(); // line 56
-virtual bool timed_lock_read(const ZEN_Time_Value &arg0); // line 62
-virtual bool duration_lock_read(const ZEN_Time_Value &arg0); // line 68
-virtual void lock_write(); // line 74
-virtual bool try_lock_write(); // line 80
-virtual bool timed_lock_write(const ZEN_Time_Value &arg0); // line 86
-virtual bool duration_lock_write(const ZEN_Time_Value &arg0); // line 92
+    virtual void lock(); // line 19
+    virtual bool try_lock(); // line 25
+    virtual void unlock(); // line 31
+    virtual bool systime_lock(const ZEN_Time_Value &arg0); // line 37
+    virtual bool duration_lock(const ZEN_Time_Value &arg0); // line 43
+    virtual void lock_read(); // line 50
+    virtual bool try_lock_read(); // line 56
+    virtual bool timed_lock_read(const ZEN_Time_Value &arg0); // line 62
+    virtual bool duration_lock_read(const ZEN_Time_Value &arg0); // line 68
+    virtual void lock_write(); // line 74
+    virtual bool try_lock_write(); // line 80
+    virtual bool timed_lock_write(const ZEN_Time_Value &arg0); // line 86
+    virtual bool duration_lock_write(const ZEN_Time_Value &arg0); // line 92
 };
-
-
-extern void __static_initialization_and_destruction_0(int __initialize_p, int __priority); // inferred
 
 #endif // SECSVR_SRC_COMMLIB_ZENLIB_ZEN_LOCK_BASE_H_H_

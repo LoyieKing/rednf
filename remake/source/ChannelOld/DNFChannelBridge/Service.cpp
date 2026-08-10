@@ -13,7 +13,7 @@ static void _evlog(const char* sz);
 
 LinuxService* LinuxService::theInstance = NULL;
 
-ServiceInfo::ServiceInfo()
+inline ServiceInfo::ServiceInfo()
 {
 }
 
@@ -86,7 +86,7 @@ const char* ServiceInfo::getChannelName() const
     return m_szChannelName;
 }
 
-IService::IService()
+inline IService::IService()
 {
 }
 
@@ -419,16 +419,18 @@ void Neof_setCoreLimit()
 bool Neof_sendTerminateSignal()
 {
     puts("called Neof_sendTerminateSignal");
+    int ret;
+    int pid;
+    FILE* fp;
     char file_path[30];
     memset(file_path, 0, 0x1e);
     sprintf(file_path, "pid/%s.pid", LinuxService::getInstance()->getPIDFileName());
-    FILE* fp = fopen(file_path, "r");
+    fp = fopen(file_path, "r");
     if (fp == NULL)
     {
         printf("process id file open fail : %s\n", file_path);
         return false;
     }
-    int pid;
     fscanf(fp, "%d", &pid);
     if (pid < 1)
     {
@@ -436,7 +438,7 @@ bool Neof_sendTerminateSignal()
         printf("wrong process id (%d)\n", pid);
         return false;
     }
-    int ret = kill(pid, 0xf);
+    ret = kill(pid, 0xf);
     printf("kill pid=\'%d\' error=\'%s\'\n", pid, strerror(*__errno_location()));
     if (ret < 0)
     {
@@ -450,17 +452,19 @@ bool Neof_sendTerminateSignal()
 
 void Neof_sendSuspendSignal()
 {
+    int ret;
+    int pid;
+    FILE* fp;
     char file_path[30];
     memset(file_path, 0, 0x1e);
     sprintf(file_path, "pid/%s", LinuxService::getInstance()->getPIDFileName());
-    FILE* fp = fopen(file_path, "r");
+    fp = fopen(file_path, "r");
     if (fp == NULL)
     {
         printf("process id file open fail : %s\n", file_path);
     }
     else
     {
-        int pid;
         fscanf(fp, "%d", &pid);
         if (pid < 1)
         {
@@ -469,7 +473,7 @@ void Neof_sendSuspendSignal()
         }
         else
         {
-            int ret = kill(pid, 10);
+            ret = kill(pid, 10);
             if (ret < 0)
             {
                 fclose(fp);
@@ -487,17 +491,19 @@ void Neof_sendSuspendSignal()
 bool save_pid()
 {
     char file_path[30];
+    char buf[512];
+    ssize_t write_byte;
+    int fd;
     memset(file_path, 0, 0x1e);
     sprintf(file_path, "./pid/%s.pid", LinuxService::getInstance()->getPIDFileName());
-    int fd = open(file_path, 0x42, 0x1a4);
+    fd = open(file_path, 0x42, 0x1a4);
     if (fd < 0)
     {
         return false;
     }
-    char buf[512];
     memset(buf, 0, 0x200);
     sprintf(buf, "%ld\n", getpid());
-    ssize_t write_byte = write(fd, buf, strlen(buf));
+    write_byte = write(fd, buf, strlen(buf));
     if (write_byte < 0)
     {
         close(fd);

@@ -1,495 +1,484 @@
-// Auto-generated stub from DWARF info
-// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32_bugfix_tag435/src/commlib/zenlib/zen_server_status.cpp
-// Compiler: GNU C++ 4.1.0 (SUSE Linux)
-// 函数体暂为空；仅保留签名、参数名与局部变量名。
+// ZEN_Server_Status 还原实现（语义对照 gunnersvr oracle，2026-08-10）。
+// Original source: /data/secci/ci/jenkins/workspace/g3_release_suse32/src/commlib/zenlib/zen_server_status.cpp
+// 说明：
+//  - 状态计数通过共享内存（0x300028 字节）维护两块 ZEN_STATUS_ITEM 区：
+//    sandy（在线）@+0x10、mandy（镜像）@+0x18001c，头部均为 12 字节
+//    _shm_vector_head（magic=0x18000c / max=0x10000 / size），数据区偏移 +0x0c。
+//  - statid_to_index_ 为 __gnu_cxx::hash_map<ZEN_STATUS_ITEM_ID,uint,HASH_...>，
+//    哈希 = statics_id_ + classify_id_ + (app_id_ << 8)（oracle 内联计算）。
+//  - 原版怪癖保留：initialize() 成功路径才会建锁；dump_status_info(bool) 只与
+//    sandy/mandy 第 0 项比对；ostringstream 版头部打印 0；setw(64) 打印 name。
 
-#include "src/commlib/zenlib/zen_predefine.h"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_utils.hpp"
-#include "import/include/opensource/rapidxml/rapidxml/rapidxml_print.hpp"
-#include "import/include/opensource/mysqlclient/mysql.h"
-#include "import/include/opensource/mysqlclient/mysql_version.h"
-#include "import/include/opensource/mysqlclient/mysql_com.h"
-#include "import/include/opensource/mysqlclient/mysql_time.h"
-#include "import/include/opensource/mysqlclient/typelib.h"
-#include "import/include/opensource/mysqlclient/my_alloc.h"
-#include "import/include/opensource/mysqlclient/my_list.h"
-#include "src/commlib/zenlib/zen_trace_log_debug.h"
-#include "src/commlib/zenlib/zen_trace_log_msg.h"
-#include "src/commlib/zenlib/zen_trace_log_basic.h"
-#include "src/commlib/zenlib/zen_boost_non_copyable.h"
-#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
-#include "src/commlib/zenlib/zen_lock_base.h"
-#include "src/commlib/zenlib/zen_lock_guard.h"
-#include "src/commlib/zenlib/zen_time_value.h"
-#include "src/commlib/zenlib/zen_os_adapt_predefine.h"
-#include "src/commlib/zenlib/zen_os_adapt_time.h"
-#include "src/commlib/zenlib/zen_server_status.h"
-#include "src/commlib/zenlib/zen_share_mem_posix.h"
-#include "src/commlib/zenlib/zen_shm_vector.h"
-#include "src/commlib/zenlib/zen_shm_predefine.h"
-#include "src/commlib/zenlib/zen_lock_null_lock.h"
-#include "src/commlib/zenlib/zen_lock_ptr_guard.h"
-#include "src/commlib/zenlib/<built-in>"
-#include <_G_config.h>
-#include <algorithm>
-#include <alloca.h>
-#include <arpa/inet.h>
-#include <asm-generic/errno-base.h>
-#include <asm-generic/errno.h>
-#include <asm/errno.h>
-#include <asm/sigcontext.h>
-#include <asm/socket.h>
-#include <asm/sockios.h>
-#include <assert.h>
-#include <bits/allocator.h>
-#include <bits/atomicity.h>
-#include <bits/basic_ios.h>
-#include <bits/basic_ios.tcc>
-#include <bits/basic_string.h>
-#include <bits/basic_string.tcc>
-#include <bits/byteswap.h>
-#include <bits/char_traits.h>
-#include <bits/codecvt.h>
-#include <bits/concept_check.h>
-#include <bits/confname.h>
-#include <bits/cpp_type_traits.h>
-#include <bits/deque.tcc>
-#include <bits/dirent.h>
-#include <bits/dlfcn.h>
-#include <bits/endian.h>
-#include <bits/environments.h>
-#include <bits/errno.h>
-#include <bits/fcntl.h>
-#include <bits/fstream.tcc>
-#include <bits/functexcept.h>
-#include <bits/huge_val.h>
-#include <bits/huge_valf.h>
-#include <bits/huge_vall.h>
-#include <bits/in.h>
-#include <bits/inf.h>
-#include <bits/ios_base.h>
-#include <bits/ipc.h>
-#include <bits/ipctypes.h>
-#include <bits/istream.tcc>
-#include <bits/list.tcc>
-#include <bits/local_lim.h>
-#include <bits/locale.h>
-#include <bits/locale_classes.h>
-#include <bits/locale_facets.h>
-#include <bits/locale_facets.tcc>
-#include <bits/localefwd.h>
-#include <bits/mathcalls.h>
-#include <bits/mathdef.h>
-#include <bits/mathinline.h>
-#include <bits/mman.h>
-#include <bits/nan.h>
-#include <bits/netdb.h>
-#include <bits/ostream.tcc>
-#include <bits/posix1_lim.h>
-#include <bits/posix2_lim.h>
-#include <bits/posix_opt.h>
-#include <bits/postypes.h>
-#include <bits/pthreadtypes.h>
-#include <bits/resource.h>
-#include <bits/sched.h>
-#include <bits/select.h>
-#include <bits/semaphore.h>
-#include <bits/setjmp.h>
-#include <bits/shm.h>
-#include <bits/sigaction.h>
-#include <bits/sigcontext.h>
-#include <bits/siginfo.h>
-#include <bits/signum.h>
-#include <bits/sigset.h>
-#include <bits/sigstack.h>
-#include <bits/sigthread.h>
-#include <bits/sockaddr.h>
-#include <bits/socket.h>
-#include <bits/sstream.tcc>
-#include <bits/stat.h>
-#include <bits/stdio.h>
-#include <bits/stdio_lim.h>
-#include <bits/stl_algo.h>
-#include <bits/stl_algobase.h>
-#include <bits/stl_bvector.h>
-#include <bits/stl_construct.h>
-#include <bits/stl_deque.h>
-#include <bits/stl_function.h>
-#include <bits/stl_heap.h>
-#include <bits/stl_iterator.h>
-#include <bits/stl_iterator_base_funcs.h>
-#include <bits/stl_iterator_base_types.h>
-#include <bits/stl_list.h>
-#include <bits/stl_map.h>
-#include <bits/stl_multimap.h>
-#include <bits/stl_multiset.h>
-#include <bits/stl_pair.h>
-#include <bits/stl_queue.h>
-#include <bits/stl_raw_storage_iter.h>
-#include <bits/stl_relops.h>
-#include <bits/stl_set.h>
-#include <bits/stl_tempbuf.h>
-#include <bits/stl_tree.h>
-#include <bits/stl_uninitialized.h>
-#include <bits/stl_vector.h>
-#include <bits/stream_iterator.h>
-#include <bits/streambuf.tcc>
-#include <bits/streambuf_iterator.h>
-#include <bits/stringfwd.h>
-#include <bits/sys_errlist.h>
-#include <bits/time.h>
-#include <bits/types.h>
-#include <bits/typesizes.h>
-#include <bits/uio.h>
-#include <bits/vector.tcc>
-#include <bits/waitflags.h>
-#include <bits/waitstatus.h>
-#include <bits/wchar.h>
-#include <bits/wordsize.h>
-#include <bits/xopen_lim.h>
-#include <cassert>
-#include <cctype>
-#include <climits>
-#include <clocale>
-#include <cstddef>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <ctime>
-#include <ctype.h>
-#include <cwchar>
-#include <cwctype>
-#include <debug/debug.h>
-#include <deque>
-#include <dirent.h>
-#include <dlfcn.h>
-#include <endian.h>
-#include <errno.h>
-#include <exception>
-#include <exception_defines.h>
-#include <execinfo.h>
-#include <ext/hash_fun.h>
-#include <ext/hash_map>
-#include <ext/hash_set>
-#include <ext/hashtable.h>
-#include <ext/new_allocator.h>
-#include <fcntl.h>
-#include <features.h>
-#include <fstream>
-#include <functional>
-#include <gconv.h>
-#include <getopt.h>
-#include <gnu/stubs-32.h>
-#include <gnu/stubs.h>
-#include <i586-suse-linux/bits/atomic_word.h>
-#include <i586-suse-linux/bits/basic_file.h>
-#include <i586-suse-linux/bits/c++allocator.h>
-#include <i586-suse-linux/bits/c++config.h>
-#include <i586-suse-linux/bits/c++io.h>
-#include <i586-suse-linux/bits/c++locale.h>
-#include <i586-suse-linux/bits/cpu_defines.h>
-#include <i586-suse-linux/bits/ctype_base.h>
-#include <i586-suse-linux/bits/ctype_inline.h>
-#include <i586-suse-linux/bits/gthr-default.h>
-#include <i586-suse-linux/bits/gthr.h>
-#include <i586-suse-linux/bits/messages_members.h>
-#include <i586-suse-linux/bits/os_defines.h>
-#include <i586-suse-linux/bits/time_members.h>
-#include <iconv.h>
-#include <inttypes.h>
-#include <iomanip>
-#include <ios>
-#include <iosfwd>
-#include <iostream>
-#include <istream>
-#include <iterator>
-#include <langinfo.h>
-#include <libintl.h>
-#include <libio.h>
-#include <limits.h>
-#include <limits>
-#include <linux/compiler.h>
-#include <linux/errno.h>
-#include <linux/kernel.h>
-#include <linux/limits.h>
-#include <list>
-#include <locale.h>
-#include <locale>
-#include <map>
-#include <math.h>
-#include <memory>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <new>
-#include <nl_types.h>
-#include <ostream>
-#include <pthread.h>
-#include <queue>
-#include <rpc/netdb.h>
-#include <sched.h>
-#include <semaphore.h>
-#include <set>
-#include <signal.h>
-#include <sstream>
-#include <stdarg.h>
 #include <stddef.h>
-#include <stdexcept>
 #include <stdint.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <streambuf>
 #include <string.h>
-#include <string>
-#include <sys/cdefs.h>
-#include <sys/epoll.h>
-#include <sys/file.h>
-#include <sys/io.h>
-#include <sys/ipc.h>
-#include <sys/mman.h>
-#include <sys/resource.h>
-#include <sys/select.h>
-#include <sys/shm.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/sysmacros.h>
-#include <sys/time.h>
-#include <sys/types.h>
-#include <sys/ucontext.h>
-#include <sys/uio.h>
-#include <syslimits.h>
 #include <time.h>
-#include <typeinfo>
-#include <unistd.h>
-#include <utility>
-#include <vector>
-#include <wchar.h>
-#include <wctype.h>
-#include <xlocale.h>
 
-// line 35
-bool ZEN_STATUS_ITEM_ID::operator==(const ZEN_STATUS_ITEM_ID &others) {
+#include <iomanip>
+#include <new>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <ext/hash_map>
+
+#include "src/commlib/zenlib/zen_boost_non_copyable.h"
+#include "src/commlib/zenlib/zen_lock_base.h"
+#include "src/commlib/zenlib/zen_lock_null_lock.h"
+#include "src/commlib/zenlib/zen_lock_thread_mutex.h"
+#include "src/commlib/zenlib/zen_share_mem_posix.h"
+#include "src/commlib/zenlib/zen_shm_vector.h"
+#include "src/commlib/zenlib/zen_server_status.h"
+#include "src/commlib/zenlib/zen_trace_log_msg.h"
+
+// ---------- ZEN_STATUS_ITEM_ID ----------
+
+ZEN_STATUS_ITEM_ID::ZEN_STATUS_ITEM_ID(unsigned int arg0, unsigned int arg1,
+                                       unsigned int arg2) {
+    statics_id_ = arg0;
+    app_id_ = arg1;
+    classify_id_ = arg2;
 }
 
+ZEN_STATUS_ITEM_ID::ZEN_STATUS_ITEM_ID() {
+    statics_id_ = 0;
+    app_id_ = 0;
+    classify_id_ = 0;
+}
+
+ZEN_STATUS_ITEM_ID::~ZEN_STATUS_ITEM_ID() {
+}
+
+bool ZEN_STATUS_ITEM_ID::operator==(const ZEN_STATUS_ITEM_ID &others) const {
+    return statics_id_ == others.statics_id_ && app_id_ == others.app_id_
+           && classify_id_ == others.classify_id_;
+}
+
+// ---------- ZEN_STATUS_ITEM ----------
+
+ZEN_STATUS_ITEM::ZEN_STATUS_ITEM() {
+    item_id_.statics_id_ = 0;
+    item_id_.app_id_ = 0;
+    item_id_.classify_id_ = 0;
+    statics_type_ = STATICS_PER_FIVE_MINTUES;
+    counter_ = 0;
+}
+
+ZEN_STATUS_ITEM::ZEN_STATUS_ITEM(unsigned int arg0, ZEN_STATUS_STATICS_TYPE arg1) {
+    item_id_.statics_id_ = arg0;
+    item_id_.app_id_ = 0;
+    item_id_.classify_id_ = 0;
+    statics_type_ = arg1;
+}
+
+ZEN_STATUS_ITEM::~ZEN_STATUS_ITEM() {
+}
+
+// ---------- ZEN_STATUS_ITEM_WITHNAME ----------
+
+ZEN_STATUS_ITEM_WITHNAME::ZEN_STATUS_ITEM_WITHNAME() {
+    item_name_end_ = 0;
+}
+
+ZEN_STATUS_ITEM_WITHNAME::ZEN_STATUS_ITEM_WITHNAME(unsigned int arg0,
+                                                   ZEN_STATUS_STATICS_TYPE arg1,
+                                                   const char *arg2)
+    : statics_item_(arg0, arg1) {
+    strncpy(item_name_, arg2, MAX_COUNTER_NAME_LEN);
+    item_name_end_ = 0;
+}
+
+ZEN_STATUS_ITEM_WITHNAME::~ZEN_STATUS_ITEM_WITHNAME() {
+}
+
+// ---------- ZEN_Server_Status 基础访问 ----------
+
 uint32_t ZEN_Server_Status::get_copy_time() {
+    return stat_file_head_->copy_time_;
 }
 
 void ZEN_Server_Status::get_stat_head(ZEN_STATUS_HEAD *stat_head) {
+    *stat_head = *stat_file_head_;
 }
 
 void ZEN_Server_Status::report_monitor_time(uint32_t report_time) {
+    stat_file_head_->report_monitor_time_ = report_time;
 }
 
 void ZEN_Server_Status::clean_instance() {
+    if (instance_) {
+        delete instance_;
+    }
+    instance_ = NULL;
 }
 
 void ZEN_Server_Status::instance(ZEN_Server_Status *pinstatnce) {
-}
-
-const long unsigned int * std::lower_bound<const long unsigned int*, long unsigned int>(const long unsigned int *__first, const long unsigned int *__last, const long unsigned int &__val) {
-    // local: ptrdiff_t __len;
-    // local: ptrdiff_t __half;
-    // local: const long unsigned int *__middle;
-}
-
-void std::fill<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*> > >, __gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*>(/*anon struct*/ int __first, /*anon struct*/ int __last, _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_aux<ZEN_STATUS_ITEM_WITHNAME*, unsigned int, ZEN_STATUS_ITEM_WITHNAME>(ZEN_STATUS_ITEM_WITHNAME *__first, unsigned int __n, const ZEN_STATUS_ITEM_WITHNAME &__x, __false_type arg3) {
-    // local: ZEN_STATUS_ITEM_WITHNAME *__cur;
-}
-
-void std::__uninitialized_fill_n_a<ZEN_STATUS_ITEM_WITHNAME*, unsigned int, ZEN_STATUS_ITEM_WITHNAME, ZEN_STATUS_ITEM_WITHNAME>(ZEN_STATUS_ITEM_WITHNAME *__first, unsigned int __n, const ZEN_STATUS_ITEM_WITHNAME &__x, /*anon struct*/ int arg3) {
-}
-
-void std::__uninitialized_fill_n_aux<__gnu_cxx::__normal_iterator<ZEN_STATUS_ITEM_WITHNAME*, std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > >, unsigned int, ZEN_STATUS_ITEM_WITHNAME>(/*anon struct*/ int __first, unsigned int __n, const ZEN_STATUS_ITEM_WITHNAME &__x, __false_type arg3) {
-    // local: /*anon struct*/ int __cur;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<ZEN_STATUS_ITEM_WITHNAME*, std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > >, unsigned int, ZEN_STATUS_ITEM_WITHNAME, ZEN_STATUS_ITEM_WITHNAME>(/*anon struct*/ int __first, unsigned int __n, const ZEN_STATUS_ITEM_WITHNAME &__x, /*anon struct*/ int arg3) {
-}
-
-_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > ** std::fill_n<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*>(_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > **__first, unsigned int __n, _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >**, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*, __gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*>(_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > **__first, unsigned int __n, _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *const &__x, /*anon struct*/ int arg3) {
-}
-
-/*anon struct*/ int std::fill_n<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *const &__value) {
-    // local: const bool __scalar;
-}
-
-void std::__uninitialized_fill_n_a<__gnu_cxx::__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >**, std::vector<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*> > >, unsigned int, __gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*, __gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*>(/*anon struct*/ int __first, unsigned int __n, _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *const &__x, /*anon struct*/ int arg3) {
-}
-
-void std::fill<__gnu_cxx::__normal_iterator<ZEN_STATUS_ITEM_WITHNAME*, std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > >, ZEN_STATUS_ITEM_WITHNAME>(/*anon struct*/ int __first, /*anon struct*/ int __last, const ZEN_STATUS_ITEM_WITHNAME &__value) {
-    // local: const bool __scalar;
+    clean_instance();
+    instance_ = pinstatnce;
 }
 
 void ZEN_Server_Status::modify_multi_thread_guard(bool multi_thread) {
+    if (stat_lock_) {
+        delete stat_lock_;
+        stat_lock_ = NULL;
+    }
+    multi_thread_guard_ = multi_thread;
+    if (multi_thread) {
+        // secagent (tag435) 的 ZEN_Thread_Mutex 无 const char* 构造器，
+        // 二进制 initialize 内联确认用默认构造（gunnersvr 版带 NULL 参数）。
+        stat_lock_ = new ZEN_Thread_Mutex();
+    } else {
+        stat_lock_ = new ZEN_Null_Mutex(NULL);
+    }
 }
 
 void ZEN_Server_Status::copy_stat_counter() {
-    // local: size_t num_of_counter;
-    // local: ZEN_STATUS_ITEM *stat_sandy_begin;
-    // local: ZEN_STATUS_ITEM *stat_mandy_begin;
+    size_t stat_sandy_begin = status_stat_sandy_->vector_head_->size_;
+    size_t stat_mandy_begin = status_copy_mandy_->vector_head_->size_;
+    if (stat_sandy_begin > stat_mandy_begin) {
+        size_t add_num = stat_sandy_begin - stat_mandy_begin;
+        for (size_t i = 0; i < add_num; ++i) {
+            new (status_copy_mandy_->data_base_ + stat_mandy_begin + i)
+                ZEN_STATUS_ITEM();
+        }
+    }
+    status_copy_mandy_->vector_head_->size_ = stat_sandy_begin;
+    memcpy(status_copy_mandy_->data_base_, status_stat_sandy_->data_base_,
+           stat_sandy_begin * sizeof(ZEN_STATUS_ITEM));
+    stat_file_head_->copy_time_ = time(NULL);
 }
 
 size_t ZEN_Server_Status::num_of_counter() {
+    return status_stat_sandy_->vector_head_->size_;
 }
 
-__normal_iterator<ZEN_STATUS_ITEM_WITHNAME*,std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > > erase(__normal_iterator<ZEN_STATUS_ITEM_WITHNAME*,std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > > __first, __normal_iterator<ZEN_STATUS_ITEM_WITHNAME*,std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > > __last) {
-    // local: /*anon struct*/ int __i;
-}
+// ---------- 初始化 ----------
 
-void reserve(unsigned int __n) {
-    // local: const size_t __old_size;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > **__tmp;
-}
+int ZEN_Server_Status::initialize(const char *stat_filename, bool restore_mmap,
+                                  bool multi_thread) {
+    int ret = stat_file_.open(stat_filename, 0x300028, 0x42, 0x1b6, NULL, 3, 1, 0);
+    if (ret != 0) {
+        return ret;
+    }
+    stat_file_head_ = (ZEN_STATUS_HEAD *)stat_file_.addr();
+    char *shm_addr = (char *)stat_file_.addr();
 
-void clear() {
-    // local: size_t __i;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *__cur;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *__next;
-}
-
-int ZEN_Server_Status::initialize(const char *stat_filename, bool restore_mmap, bool multi_thread) {
-    // local: int ret;
-    // local: size_t size_alloc;
-    // local: int open_mode;
-    // local: char *stat_ptr;
-    // local: char *copy_ptr;
+    if (restore_mmap) {
+        if (*(uint32_t *)(shm_addr + 0x10) == 0x18000c
+            && *(uint32_t *)(shm_addr + 0x14) == 0x10000) {
+            *(uint32_t *)(shm_addr + 0x14) = 0x10000;
+            *(uint32_t *)(shm_addr + 0x10) = 0x18000c;
+            status_stat_sandy_ = new ZEN_LIB::shm_vector<ZEN_STATUS_ITEM>();
+            status_stat_sandy_->smem_base_ = shm_addr + 0x10;
+            status_stat_sandy_->vector_head_ =
+                (ZEN_LIB::_shm_vector_head *)(shm_addr + 0x10);
+            status_stat_sandy_->data_base_ = (ZEN_STATUS_ITEM *)(shm_addr + 0x1c);
+            if (*(uint32_t *)(shm_addr + 0x18001c) == 0x18000c
+                && *(uint32_t *)(shm_addr + 0x180020) == 0x10000) {
+                *(uint32_t *)(shm_addr + 0x180020) = 0x10000;
+                *(uint32_t *)(shm_addr + 0x18001c) = 0x18000c;
+                status_copy_mandy_ = new ZEN_LIB::shm_vector<ZEN_STATUS_ITEM>();
+                status_copy_mandy_->smem_base_ = shm_addr + 0x18001c;
+                status_copy_mandy_->vector_head_ =
+                    (ZEN_LIB::_shm_vector_head *)(shm_addr + 0x18001c);
+                status_copy_mandy_->data_base_ =
+                    (ZEN_STATUS_ITEM *)(shm_addr + 0x180028);
+                modify_multi_thread_guard(multi_thread);
+            } else {
+                status_copy_mandy_ = NULL;
+                ret = -1;
+            }
+        } else {
+            status_stat_sandy_ = NULL;
+            ret = -1;
+        }
+    } else {
+        *(uint32_t *)(shm_addr + 0x14) = 0x10000;
+        *(uint32_t *)(shm_addr + 0x10) = 0x18000c;
+        status_stat_sandy_ = new ZEN_LIB::shm_vector<ZEN_STATUS_ITEM>();
+        status_stat_sandy_->smem_base_ = shm_addr + 0x10;
+        status_stat_sandy_->vector_head_ =
+            (ZEN_LIB::_shm_vector_head *)(shm_addr + 0x10);
+        status_stat_sandy_->data_base_ = (ZEN_STATUS_ITEM *)(shm_addr + 0x1c);
+        status_stat_sandy_->vector_head_->size_ = 0;
+        *(uint32_t *)(shm_addr + 0x18001c) = 0x18000c;
+        *(uint32_t *)(shm_addr + 0x180020) = 0x10000;
+        status_copy_mandy_ = new ZEN_LIB::shm_vector<ZEN_STATUS_ITEM>();
+        status_copy_mandy_->smem_base_ = shm_addr + 0x18001c;
+        status_copy_mandy_->vector_head_ =
+            (ZEN_LIB::_shm_vector_head *)(shm_addr + 0x18001c);
+        status_copy_mandy_->data_base_ =
+            (ZEN_STATUS_ITEM *)(shm_addr + 0x180028);
+        status_copy_mandy_->vector_head_->size_ = 0;
+        modify_multi_thread_guard(multi_thread);
+    }
+    return ret;
 }
 
 int ZEN_Server_Status::initialize(const char *stat_filename) {
-    // local: int ret;
+    return initialize(stat_filename, true, false);
 }
 
-void _M_fill_insert(__normal_iterator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >**,std::vector<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*, std::allocator<__gnu_cxx::_Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> >*> > > __position, unsigned int __n, _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *const &__x) {
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *__x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
+int ZEN_Server_Status::initialize(const char *stat_filename, size_t num_stat_item,
+                                  const ZEN_STATUS_ITEM_WITHNAME *item_ary,
+                                  bool multi_thread) {
+    int ret = initialize(stat_filename, false, multi_thread);
+    if (ret != 0) {
+        return ret;
+    }
+    add_status_item(num_stat_item, item_ary);
+    statid_to_index_.resize(0x18000);
+    stat_file_head_->monitor_start_time_ = time(NULL);
+    stat_file_head_->copy_time_ = time(NULL);
+    clear_time_ = time(NULL);
+    initialized_ = true;
+    return ret;
 }
 
-void _M_fill_insert(__normal_iterator<ZEN_STATUS_ITEM_WITHNAME*,std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > > __position, unsigned int __n, const ZEN_STATUS_ITEM_WITHNAME &__x) {
-    // local: ZEN_STATUS_ITEM_WITHNAME __x_copy;
-    // local: const size_t __elems_after;
-    // local: /*anon struct*/ int __old_finish;
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
+// ---------- 状态项增删查改 ----------
+
+void ZEN_Server_Status::add_status_item(size_t num_add_stat_item,
+                                        const ZEN_STATUS_ITEM_WITHNAME *item_ary) {
+    conf_stat_ary_.reserve(conf_stat_ary_.size() + num_add_stat_item);
+    for (size_t i = 0; i < num_add_stat_item; ++i) {
+        conf_stat_ary_.push_back(item_ary[i]);
+    }
 }
 
-void _M_insert_aux(__normal_iterator<ZEN_STATUS_ITEM_WITHNAME*,std::vector<ZEN_STATUS_ITEM_WITHNAME, std::allocator<ZEN_STATUS_ITEM_WITHNAME> > > __position, const ZEN_STATUS_ITEM_WITHNAME &__x) {
-    // local: ZEN_STATUS_ITEM_WITHNAME __x_copy;
-    // local: const size_t __old_size;
-    // local: size_t __len;
-    // local: /*anon struct*/ int __new_start;
-    // local: /*anon struct*/ int __new_finish;
+int ZEN_Server_Status::find_insert_idx(unsigned int statics_id, unsigned int app_id,
+                                       unsigned int classify_id, size_t *sandy_idx) {
+    *sandy_idx = (size_t)-1;
+    ZEN_STATUS_ITEM_ID stat_item_id(statics_id, app_id, classify_id);
+    __gnu_cxx::hash_map<ZEN_STATUS_ITEM_ID, unsigned int,
+                        HASH_ZEN_STATUS_ITEM_ID>::iterator it
+        = statid_to_index_.find(stat_item_id);
+    if (it != statid_to_index_.end()) {
+        *sandy_idx = it->second;
+        return 0;
+    }
+
+    size_t i = 0;
+    for (; i < conf_stat_ary_.size(); ++i) {
+        if (conf_stat_ary_[i].statics_item_.item_id_.statics_id_ == statics_id) {
+            break;
+        }
+    }
+    if (i == conf_stat_ary_.size()) {
+        return -1;
+    }
+
+    size_t sandy_size = status_stat_sandy_->vector_head_->size_;
+    if (sandy_size == status_stat_sandy_->vector_head_->max_) {
+        return -1;
+    }
+    if (sandy_size < status_stat_sandy_->vector_head_->max_) {
+        ZEN_STATUS_ITEM status_item;
+        status_item.item_id_ = stat_item_id;
+        status_item.counter_ = 0;
+        status_stat_sandy_->data_base_[sandy_size] = status_item;
+        ++status_stat_sandy_->vector_head_->size_;
+    }
+    // 二进制 0x8094b4b 直接调用 hashtable::find_or_insert；
+    // hash_map::operator[] 即其封装（GCC 4.1 内部 _M_ht.find_or_insert）。
+    statid_to_index_[stat_item_id] = (unsigned int)sandy_size;
+    *sandy_idx = sandy_size;
+    return 0;
 }
 
-void reserve(unsigned int __n) {
-    // local: const size_t __old_size;
-    // local: ZEN_STATUS_ITEM_WITHNAME *__tmp;
+int ZEN_Server_Status::set_by_statid(unsigned int statics_id, unsigned int app_id,
+                                     unsigned int classify_id, uint64_t set_value) {
+    if (!initialized_) {
+        return -1;
+    }
+    size_t sandy_idx = (size_t)-1;
+    stat_lock_->lock();
+    int ret = find_insert_idx(statics_id, app_id, classify_id, &sandy_idx);
+    if (ret == 0) {
+        status_stat_sandy_->data_base_[sandy_idx].counter_ = set_value;
+    }
+    stat_lock_->unlock();
+    return ret;
 }
 
-void ZEN_Server_Status::add_status_item(size_t num_add_stat_item, const ZEN_STATUS_ITEM_WITHNAME *item_ary) {
-    // local: size_t num_old_stat_item;
-    // local: size_t i;
+int ZEN_Server_Status::increase_by_statid(unsigned int statics_id, unsigned int app_id,
+                                          unsigned int classify_id,
+                                          int64_t incre_value) {
+    if (!initialized_) {
+        return -1;
+    }
+    size_t sandy_idx = (size_t)-1;
+    stat_lock_->lock();
+    int ret = find_insert_idx(statics_id, app_id, classify_id, &sandy_idx);
+    if (ret == 0) {
+        status_stat_sandy_->data_base_[sandy_idx].counter_ += incre_value;
+    }
+    stat_lock_->unlock();
+    return ret;
 }
 
-void ZEN_Server_Status::dump_status_info(ostringstream &strstream, bool dump_copy) {
-    // local: size_t num_of_counter;
-    // local: size_t cfg_size;
-    // local: ZEN_STATUS_ITEM *stat_process_iter;
-    // local: char statics_item_name[];
-    // local: ZEN_Lock_Ptr_Guard guard;
-    // local: size_t i;
-    // local: size_t j;
+uint64_t ZEN_Server_Status::get_counter(unsigned int statics_id, unsigned int app_id,
+                                        unsigned int classify_id) {
+    ZEN_STATUS_ITEM_ID stat_item_id(statics_id, app_id, classify_id);
+    __gnu_cxx::hash_map<ZEN_STATUS_ITEM_ID, unsigned int,
+                        HASH_ZEN_STATUS_ITEM_ID>::iterator it
+        = statid_to_index_.find(stat_item_id);
+    if (it != statid_to_index_.end()) {
+        stat_lock_->lock();
+        uint64_t counter = status_stat_sandy_->data_base_[it->second].counter_;
+        stat_lock_->unlock();
+        return counter;
+    }
+    return 0;
 }
 
-void ZEN_Server_Status::dump_all(/*anon struct*/ int &array_status, bool dump_copy) {
-    // local: ZEN_Lock_Ptr_Guard guard;
-    // local: size_t cfg_size;
-    // local: size_t num_of_counter;
-    // local: size_t i;
-    // local: size_t j;
+// ---------- 周期切换与镜像 ----------
+
+void ZEN_Server_Status::check_overtime(time_t now_time) {
+    if (now_time / ONE_DAY_SECONDS == clear_time_ / ONE_DAY_SECONDS) {
+        return;
+    }
+    int statics_type = STATICS_PER_HOUR;
+    if (now_time / ONE_HOURS_SECONDS != clear_time_ / ONE_HOURS_SECONDS) {
+        statics_type = STATICS_PER_FIVE_MINTUES;
+        if (now_time / FIVE_MINTUE_SECONDS != clear_time_ / FIVE_MINTUE_SECONDS) {
+            statics_type = STATICS_PER_DAYS;
+        }
+    }
+    size_t sandy_size = status_stat_sandy_->vector_head_->size_;
+    copy_stat_counter();
+    stat_lock_->lock();
+    for (size_t i = 0; i < sandy_size; ++i) {
+        if (statics_type >= status_stat_sandy_->data_base_[i].statics_type_) {
+            status_stat_sandy_->data_base_[i].counter_ = 0;
+        }
+    }
+    clear_time_ = now_time;
+    stat_lock_->unlock();
+}
+
+// ---------- 导出 ----------
+
+void ZEN_Server_Status::dump_all(std::vector<ZEN_STATUS_ITEM_WITHNAME> &array_status,
+                                 bool dump_copy) {
+    stat_lock_->lock();
+    size_t stat_num = conf_stat_ary_.size();
+    size_t process_num = (dump_copy ? status_stat_sandy_ : status_copy_mandy_)
+                             ->vector_head_->size_;
+    array_status.erase(array_status.begin(), array_status.begin() + process_num);
+    ZEN_STATUS_ITEM_WITHNAME tmp_item;
+    ZEN_STATUS_ITEM *stat_process_iter =
+        (dump_copy ? status_stat_sandy_ : status_copy_mandy_)->data_base_;
+    for (size_t i = 0; i < process_num; ++i) {
+        array_status[i].statics_item_.item_id_ = stat_process_iter[i].item_id_;
+        array_status[i].statics_item_.statics_type_ =
+            stat_process_iter[i].statics_type_;
+        array_status[i].statics_item_.counter_ = stat_process_iter[i].counter_;
+        for (size_t j = 0; j < stat_num; ++j) {
+            if (conf_stat_ary_[j].statics_item_.item_id_.statics_id_
+                == array_status[i].statics_item_.item_id_.statics_id_) {
+                strncpy(array_status[i].item_name_, conf_stat_ary_[j].item_name_,
+                        MAX_COUNTER_NAME_LEN);
+                break;
+            }
+        }
+    }
+    stat_lock_->unlock();
+}
+
+void ZEN_Server_Status::dump_status_info(std::ostringstream &strstream,
+                                         bool dump_copy) {
+    strstream << "Statistics Number:" << (unsigned int)0 << std::endl;
+    size_t stat_num = conf_stat_ary_.size();
+    size_t process_num = (dump_copy ? status_stat_sandy_ : status_copy_mandy_)
+                             ->vector_head_->size_;
+    ZEN_STATUS_ITEM *stat_process_iter =
+        (dump_copy ? status_stat_sandy_ : status_copy_mandy_)->data_base_;
+    stat_lock_->lock();
+    char item_name[MAX_COUNTER_NAME_LEN];
+    size_t row = 0;
+    for (size_t i = 0; i < stat_num; ++i) {
+        if (conf_stat_ary_[i].statics_item_.item_id_.statics_id_
+            == stat_process_iter->item_id_.statics_id_) {
+            strncpy(item_name, conf_stat_ary_[i].item_name_, MAX_COUNTER_NAME_LEN);
+            strstream << std::setw(6) << (unsigned int)row << "." << "statics id<"
+                      << std::setw(10) << stat_process_iter->item_id_.statics_id_
+                      << ">" << "game app id<" << std::setw(10)
+                      << stat_process_iter->item_id_.app_id_ << ">" << "classify id<"
+                      << std::setw(10) << stat_process_iter->item_id_.classify_id_
+                      << ">" << std::setw(64) << item_name << ":"
+                      << stat_process_iter->counter_ << std::endl;
+            ++row;
+            ++stat_process_iter;
+        }
+    }
+    stat_lock_->unlock();
 }
 
 void ZEN_Server_Status::dump_status_info(bool dump_copy) {
-    // local: size_t num_of_counter;
-    // local: ZEN_STATUS_ITEM *stat_process_iter;
-    // local: size_t cfg_size;
-    // local: char statics_item_name[];
-    // local: ZEN_Lock_Ptr_Guard guard;
-    // local: size_t i;
-    // local: size_t j;
+    size_t stat_num = conf_stat_ary_.size();
+    size_t process_num = (dump_copy ? status_stat_sandy_ : status_copy_mandy_)
+                             ->vector_head_->size_;
+    ZEN_STATUS_ITEM *stat_process_iter =
+        (dump_copy ? status_stat_sandy_ : status_copy_mandy_)->data_base_;
+    ZEN_Trace_LogMsg::debug_infoex("Statistics Number: %u", (unsigned int)stat_num);
+    ZEN_Trace_LogMsg::debug_infoex(
+        "index.<statics id,classify id> name                            :number");
+    stat_lock_->lock();
+    char item_name[MAX_COUNTER_NAME_LEN];
+    size_t row = 0;
+    for (size_t i = 0; i < stat_num; ++i) {
+        if (conf_stat_ary_[i].statics_item_.item_id_.statics_id_
+            == stat_process_iter->item_id_.statics_id_) {
+            strncpy(item_name, conf_stat_ary_[i].item_name_, MAX_COUNTER_NAME_LEN);
+            ZEN_Trace_LogMsg::debug_infoex(
+                "%5u.<%10u, %10u, %10u> %32s : %llu ", (unsigned int)row,
+                stat_process_iter->item_id_.statics_id_,
+                stat_process_iter->item_id_.app_id_,
+                stat_process_iter->item_id_.classify_id_, item_name,
+                stat_process_iter->counter_);
+            ++row;
+        }
+    }
+    stat_lock_->unlock();
 }
 
-void ZEN_Server_Status::check_overtime(time_t now_time) {
-    // local: int clear_type;
-    // local: size_t num_of_counter;
-    // local: ZEN_Lock_Ptr_Guard guard;
-    // local: size_t i;
-    // local: ZEN_STATUS_ITEM *cur_item;
-}
+// ---------- 单例 ----------
 
-uint64_t ZEN_Server_Status::get_counter(unsigned int statics_id, unsigned int app_id, unsigned int classify_id) {
-    // local: ZEN_STATUS_ITEM_ID stat_item_id;
-    // local: /*anon struct*/ int iter_tmp;
-    // local: ZEN_Lock_Ptr_Guard guard;
-    // local: size_t index;
-}
-
-void resize(unsigned int __num_elements_hint) {
-    // local: const size_t __old_n;
-    // local: const size_t __n;
-    // local: /*anon struct*/ int __tmp;
-    // local: size_t __bucket;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *__first;
-    // local: size_t __new_bucket;
-}
-
-/*anon struct*/ int & find_or_insert(const /*anon struct*/ int &__obj) {
-    // local: size_t __n;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *__first;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *__tmp;
-    // local: _Hashtable_node<std::pair<const ZEN_STATUS_ITEM_ID, unsigned int> > *__cur;
-}
-
-int ZEN_Server_Status::find_insert_idx(unsigned int statics_id, unsigned int app_id, unsigned int classify_id, size_t *sandy_idx) {
-    // local: ZEN_STATUS_ITEM_ID stat_item_id;
-    // local: /*anon struct*/ int iter_tmp;
-    // local: size_t v;
-    // local: size_t idx;
-    // local: ZEN_STATUS_ITEM status_item;
-}
-
-int ZEN_Server_Status::set_by_statid(unsigned int statics_id, unsigned int app_id, unsigned int classify_id, uint64_t set_value) {
-    // local: int ret;
-    // local: size_t sandy_idx;
-    // local: ZEN_Lock_Ptr_Guard guard;
-}
-
-int ZEN_Server_Status::increase_by_statid(unsigned int statics_id, unsigned int app_id, unsigned int classify_id, int64_t incre_value) {
-    // local: int ret;
-    // local: size_t sandy_idx;
-    // local: ZEN_Lock_Ptr_Guard guard;
-}
-
-int ZEN_Server_Status::initialize(const char *stat_filename, size_t num_stat_item, const ZEN_STATUS_ITEM_WITHNAME *item_ary, bool multi_thread) {
-    // local: int ret;
-}
+ZEN_Server_Status * ZEN_Server_Status::instance_ = NULL;
 
 ZEN_Server_Status * ZEN_Server_Status::instance() {
+    if (!instance_) {
+        instance_ = new ZEN_Server_Status();
+    }
+    return instance_;
 }
 
+// ---------- 构造 / 析构 ----------
+
+ZEN_Server_Status::ZEN_Server_Status()
+    : stat_lock_(NULL),
+      clear_time_(0),
+      stat_file_(),
+      stat_file_head_(NULL),
+      status_stat_sandy_(NULL),
+      status_copy_mandy_(NULL),
+      conf_stat_ary_(),
+      statid_to_index_(),
+      multi_thread_guard_(false),
+      initialized_(false) {
+}
+
+ZEN_Server_Status::~ZEN_Server_Status() {
+    if (stat_lock_) {
+        delete stat_lock_;
+        stat_lock_ = NULL;
+    }
+    if (status_stat_sandy_) {
+        delete status_stat_sandy_;
+        status_stat_sandy_ = NULL;
+    }
+    if (status_copy_mandy_) {
+        delete status_copy_mandy_;
+        status_copy_mandy_ = NULL;
+    }
+}

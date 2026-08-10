@@ -313,10 +313,18 @@ void TGlobalInstance<TextOutputDevice_stdout>::create()
 {
     if (m_p == 0 && m_p == 0)
     {
-        void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
-        memset(pvMem, 0, sizeof(TextOutputDevice_stdout));
-        new (pvMem) TextOutputDevice_stdout();
-        m_p = (TextOutputDevice_stdout*)pvMem;
+        try
+        {
+            register void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
+            memset(pvMem, 0, sizeof(TextOutputDevice_stdout));
+            new (pvMem) TextOutputDevice_stdout();
+            m_p = (TextOutputDevice_stdout*)pvMem;
+        }
+        catch (...)
+        {
+            printf("cannot allocate memory in TGlobalInstance.! cannot continue");
+            exit(-1);
+        }
     }
 }
 
@@ -325,7 +333,15 @@ void TGlobalInstance<TextOutputDevice_FILE>::create()
 {
     if (m_p == 0 && m_p == 0)
     {
-        m_p = new TextOutputDevice_FILE;
+        try
+        {
+            m_p = new TextOutputDevice_FILE;
+        }
+        catch (...)
+        {
+            printf("cannot allocate memory in TGlobalInstance.! cannot continue");
+            exit(-1);
+        }
     }
 }
 
@@ -479,10 +495,13 @@ void ChannelServiceApp::ChannelService::startup()
 
 DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADER pPCK)
 {
+    int gc_no;
     int ServerGroupIndex = -1;
+    int i;
     int count = 0;
-    tagCS_UPDATE_CHANNEL_INFO* _pPCK = (tagCS_UPDATE_CHANNEL_INFO*)pPCK;
-    int gc_no = _pPCK->gc_no;
+    tagCS_UPDATE_CHANNEL_INFO* _pPCK;
+    _pPCK = (tagCS_UPDATE_CHANNEL_INFO*)pPCK;
+    gc_no = _pPCK->gc_no;
     if (gc_no < 1)
     {
         return 0;
@@ -509,22 +528,35 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
         Servers[ServerGroupIndex].use = true;
     }
     ServerGroupCount = 0;
-    for (int j = 0; j < 0x100; j = j + 1)
+    int j = 0;
+    while (j <= 0xff)
     {
         if (Servers[j].use != false)
         {
             ServerGroupCount = ServerGroupCount + 1;
         }
+        j = j + 1;
     }
-    int i;
-    for (i = 0; (i < 0x1000) && (Servers[ServerGroupIndex].ServerInfo[i].gc_no != gc_no); i = i + 1)
+    i = 0;
+    while (i <= 0xfff)
     {
+        if (Servers[ServerGroupIndex].ServerInfo[i].gc_no == gc_no)
+        {
+            break;
+        }
+        i = i + 1;
     }
     GLOG(gFileLogInfo, "update ?" << i);
     if (i == 0x1000)
     {
-        for (i = 0; (i < 0x1000) && (Servers[ServerGroupIndex].ServerInfo[i].use == true); i = i + 1)
+        i = 0;
+        while (i <= 0xfff)
         {
+            if (Servers[ServerGroupIndex].ServerInfo[i].use != true)
+            {
+                break;
+            }
+            i = i + 1;
         }
         TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockChannel);
         Servers[ServerGroupIndex].ServerInfo[i].nMaxUserCount_ = _pPCK->max_user_num;
@@ -536,7 +568,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
         sprintf(Servers[ServerGroupIndex].ServerInfo[i].ChannelName, "#ch.%d", _pPCK->channel_no);
         Servers[ServerGroupIndex].ServerInfo[i].tic = time(NULL);
         Servers[ServerGroupIndex].ServerInfo[i].use = true;
-        Servers[ServerGroupIndex].listServerInfo_[gc_no] = &Servers[ServerGroupIndex].ServerInfo[i];
+        Servers[ServerGroupIndex].listServerInfo_[gc_no] = Servers[ServerGroupIndex].ServerInfo + i;
         Servers[ServerGroupIndex].increseServerCount();
     }
     else
@@ -555,6 +587,7 @@ DWORD ChannelServiceApp::ChannelService::onCS_UPDATE_CHANNEL_INFO(LPPACKET_HEADE
 }
 
 CHANNEL_HANDLER_BEGIN(CS_NOTICE_CHANNEL_SERVER)
+    int i;
     tagCS_NOTICE_CHANNEL_SERVER* _pPCK = (tagCS_NOTICE_CHANNEL_SERVER*)pPCK;
     GLOG(gFileLogInfo, "==> ChannelServerID=" << _pPCK->id << ", IP=" << _pPCK->server_ip << ", PORT=" << _pPCK->port);
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockChannel);
@@ -578,7 +611,6 @@ CHANNEL_HANDLER_BEGIN(CS_NOTICE_CHANNEL_SERVER)
     else
     {
         bool isFound = false;
-        int i;
         for (i = 0; i < ChannelServerNumber; i = i + 1)
         {
             if (_pPCK->id == CServers[i].id)
@@ -622,8 +654,15 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
         << ", cur version =" << G_ScriptData()->channel_script_version);
     TMsgCell<128> buffer;
     CMsgCell* pMsg = &buffer;
-    size_t nLen = strlen(G_ScriptData()->channel_script_version);
-    pck.is_valid_version = (strncmp(G_ScriptData()->channel_script_version, _pPCK->channel_script_version, nLen) == 0);
+    register size_t nLen = strlen(G_ScriptData()->channel_script_version);
+    if (strncmp(G_ScriptData()->channel_script_version, _pPCK->channel_script_version, nLen) == 0)
+    {
+        pck.is_valid_version = true;
+    }
+    else
+    {
+        pck.is_valid_version = false;
+    }
     nLen = strlen(G_ScriptData()->channel_script_version);
     strncpy(pck.channel_script_version, G_ScriptData()->channel_script_version, nLen);
     nLen = strlen(G_ScriptData()->channel_script_version);
@@ -698,7 +737,7 @@ BOOL tagPacketHeader::isVariableLength()
     return 1;
 }
 
-tagPacketHeader::tagPacketHeader()
+inline tagPacketHeader::tagPacketHeader()
 {
 }
 
@@ -717,24 +756,8 @@ tagSC_CHECK_SCRIPT_VERSION::tagSC_CHECK_SCRIPT_VERSION()
     PACKET_HEADER_SET(0x7c, 6, 0x1f);  // PACKETS::SC_CHECK_SCRIPT_VERSION
 }
 
-CMsgCell::CMsgCell()
-{
-    m_wSize = 0;
-    m_wPos = 0;
-    m_nRefCount = 0;
-}
-
 CMsgCell::~CMsgCell()
 {
-}
-
-BOOL CMsgCell::PAD()
-{
-    LPPACKET_HEADER pPCK = (LPPACKET_HEADER)m_bBuf;
-    // ORIG：三元形态（if/else 会 setne 物化）+ 无命名 nSize 局部。
-    pPCK->setSize(pPCK->isVariableLength() ? m_wPos : pPCK->getSize());
-    m_wSize = pPCK->isVariableLength() ? m_wPos : pPCK->getSize();
-    return m_nBufLen < pPCK->getSize();
 }
 
 CMsgCell& CMsgCell::operator<<(LPPACKET_HEADER pPacket)
@@ -846,10 +869,6 @@ ITextOutputDevice::ITextOutputDevice()
 TextOutputDevice_FILE::TextOutputDevice_FILE()
 {
     fp_ = NULL;
-}
-
-TextOutputDevice_stdout::TextOutputDevice_stdout()
-{
 }
 
 bool TextOutputDevice_FILE::open(const TCHAR* s)
