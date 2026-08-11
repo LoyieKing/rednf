@@ -25,7 +25,8 @@ public:
 class CDnFTimer
 {
 public:
-    CDnFTimer();
+    CDnFTimer() {}  // ORIG inline（弱符号，QueryCounter.cpp 使用处发出，sub $0x18 帧）
+    ~CDnFTimer() {}
     virtual void SetLastTime() {}
     virtual double GetTimeInterval() { return 0.0; }
 };
@@ -33,7 +34,7 @@ public:
 class CUnixTimer : public CDnFTimer
 {
 public:
-    CUnixTimer();
+    CUnixTimer() throw() {}  // ORIG inline + 空异常规格：CQueryCounterC1 的 new 不产生 EH 清理块
     virtual void SetLastTime();
     virtual double GetTimeInterval();
     double GetNowTime();  // 非虚（原版无虚表槽）

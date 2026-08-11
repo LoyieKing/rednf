@@ -10,7 +10,8 @@ public:
     CSystemTime();
     ~CSystemTime() {}
     int m_field0;       // +0（ORIG 布局：+0 未初始化 int，m_tv 在 +8）
-    int m_field4;       // +4
+    unsigned int m_field4;  // +4（ORIG 为无符号：除 1000 后隐式转换产生 eax 物化形态，
+                            //    与 coserver 修复一致，SystemTimeHandler.cpp 已核对）
     struct timeval m_tv;  // +8
     int m_field10;      // +0x10
 };
@@ -28,7 +29,7 @@ CSystemTimeHandler* CSystemTimeHandlerInstance();
 class CDnFTimer
 {
 public:
-    CDnFTimer();
+    CDnFTimer() {}  // ORIG inline（弱符号，QueryCounter.cpp 使用处发出，sub $0x18 帧）
     ~CDnFTimer() {}
     virtual void SetLastTime() {}
     virtual double GetTimeInterval() { return 0.0; }
@@ -38,7 +39,7 @@ public:
 class CUnixTimer : public CDnFTimer
 {
 public:
-    CUnixTimer() throw();  // ORIG 空异常规格：CQueryCounterC1 的 new 不产生 EH 清理块
+    CUnixTimer() throw() {}  // ORIG inline + 空异常规格：CQueryCounterC1 的 new 不产生 EH 清理块
     ~CUnixTimer() {}
     virtual void SetLastTime();
     virtual double GetTimeInterval();

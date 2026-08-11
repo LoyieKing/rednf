@@ -18,6 +18,58 @@
 #include "Packet_Web_Prohibit_User_Connect.h"
 #include "ProhibitUser.h"
 
+// R10: ORIG 以该布局结构体成员直读包偏移（mov disp(%reg) 形态，非 add+mov）
+#pragma pack(push, 1)
+struct WebEventPacket
+{
+    unsigned short m_wPacketId;
+    unsigned short m_wPacketSize;
+    unsigned short m_wReversed1;
+    unsigned int   m_dwReversed2;
+    int            m_nEventCode;    // 0xa
+    unsigned short m_wEventParam1;  // 0xe
+    unsigned short m_wEventParam2;  // 0x10
+};
+
+// R10: TcpServer 登录/登出/心跳包：0x6(uint) 与 0xa(uchar) 以成员直读复现
+// ORIG 的 mov disp(%reg) 形态
+struct TcpServerPacket
+{
+    unsigned short m_wPacketId;
+    unsigned short m_wPacketSize;
+    unsigned short m_wReversed1;
+    unsigned int   m_dwReversed2;   // 0x6
+    unsigned char  m_byType;        // 0xa
+};
+
+// R10: Web Notice Broadcast 包：0xa(uchar)/0xb(char[0xff])/0x10a(uchar)/0x10b(char[0xff])
+struct WebNoticeBroadcastPacket
+{
+    unsigned short m_wPacketId;
+    unsigned short m_wPacketSize;
+    unsigned short m_wReversed1;
+    unsigned int   m_dwReversed2;
+    unsigned char  m_byType;        // 0xa
+    char           m_szMsg[0xff];   // 0xb
+    unsigned char  m_byLen;         // 0x10a
+    char           m_szMsg2[0xff];  // 0x10b
+};
+
+// R10: Prohibit User Connect 包布局（short@0xf 复现 ORIG movswl 形态）
+struct ProhibitUserPacket
+{
+    unsigned short m_wPacketId;
+    unsigned short m_wPacketSize;
+    unsigned short m_wReversed1;    // 0x4
+    unsigned int   m_dwReversed2;   // 0x6
+    int            m_nFieldA;       // 0xa
+    char           m_chFieldE;      // 0xe
+    short          m_sFieldF;       // 0xf
+    char           m_chField11;     // 0x11
+    char           m_chField12;     // 0x12
+};
+#pragma pack(pop)
+
 CApplication* CPacketTranslater::m_pclApp;
 
 void CPacketTranslater::attach(CApplication* app)
@@ -29,37 +81,45 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* header)
 {
     try
     {
+        PacketHeader* hdr = header;
         if (!m_pclApp)
             return;
         CServerHandler* handler = m_pclApp->m_serverHandler;
         if (!handler)
             return;
-        unsigned char idx = ((char*)header)[0xa];
-        if (idx > 0x64)
+        // R10: ORIG 布局为 if(idx<=0x64){body}else{throw}（ja 跳 throw 置尾，
+        // throw 临时槽在 body log 之后分配）
+        unsigned char idx = ((TcpServerPacket*)hdr)->m_byType;
+        if (idx <= 0x64)
+        {
+            handler->ResetHeartBeat(idx);
+            if (!handler->IsConnectedMonitorServer(idx))
+            {
+                handler->SetConnectFlag(idx, 1);
+                Packet_Monitor_Manager_Connect_OK pkt;
+                handler->SendToTcpServer(&pkt, idx);
+                printf("First Heart Beat Arrived From %d Group Monitor!\n", idx);
+                DNF_LOG_SCOPE_LINE(0x43, "./log/Monitor",
+                    "First Heart Beat Arrived From %d Group Monitor!", idx);
+            }
+        }
+        else
+        {
             throw CDNFException(
                 "CPacketTranslater::OnHeartBeat() \xc3\xa4\xb3\xce \xc0\xce\xb5\xa6\xbd\xba \xbf\xc0\xb7\xf9\n");
-        handler->ResetHeartBeat(idx);
-        if (!handler->IsConnectedMonitorServer(idx))
-        {
-            handler->SetConnectFlag(idx, 1);
-            Packet_Monitor_Manager_Connect_OK pkt;
-            handler->SendToTcpServer(&pkt, idx);
-            printf("First Heart Beat Arrived From %d Group Monitor!\n", idx);
-            CMyFileLog log(__FUNCTION__, 0x43);
-            log("./log/Monitor", "First Heart Beat Arrived From %d Group Monitor!", idx);
         }
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
-        CMyFileLog log(__FUNCTION__, 0x52);
-        log("./log/Except", "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x52, "./log/Except",
+            "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnHeartBeat() Exception Break");
-        CMyFileLog log(__FUNCTION__, 0x58);
-        log("./log/Except", "CPacketTranslater::OnHeartBeat() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x58, "./log/Except",
+            "CPacketTranslater::OnHeartBeat() Exception Break\n");
     }
 }
 
@@ -70,26 +130,25 @@ void CPacketTranslater::OnEventStart(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnEventStart : 0 == m_pclApp");
         m_pclApp->m_serverHandler->SendAllTcpServer(header);
-        CMyFileLog log(__FUNCTION__, 0x70);
-        log("./log/Web",
+        // R10: ORIG 为临时对象调用形态，实参在 ctor 前求值入 callee-saved 寄存器
+        PacketHeader* hdr = header;  // R10: ORIG local_24@-0x20，兼对齐 throw 槽位
+        DNF_LOG_SCOPE_LINE(0x70, "./log/Web",
             "CPacketTranslater::OnEventStart() eventCode(%d), eventParam1(%d), eventParam2(%d)\n",
-            *(int*)((char*)header + 0xa),
-            *(unsigned short*)((char*)header + 0xe),
-            *(unsigned short*)((char*)header + 0x10));
+            ((WebEventPacket*)hdr)->m_nEventCode,
+            ((WebEventPacket*)hdr)->m_wEventParam1,
+            ((WebEventPacket*)hdr)->m_wEventParam2);
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n", e.what());
-        CMyFileLog log(__FUNCTION__, 0x75);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x75, "./log/Except",
             "CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n",
             e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd");
-        CMyFileLog log(__FUNCTION__, 0x7b);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x7b, "./log/Except",
             "CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd\n");
     }
 }
@@ -101,23 +160,22 @@ void CPacketTranslater::OnEventEnd(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnEventEnd : 0 == m_pclApp");
         m_pclApp->m_serverHandler->SendAllTcpServer(header);
-        CMyFileLog log(__FUNCTION__, 0x92);
-        log("./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n",
-            *(int*)((char*)header + 0xa));
+        // R10: 临时对象调用形态（ORIG 实测）
+        PacketHeader* hdr = header;  // R10: ORIG local_24@-0x20，兼对齐 throw 槽位
+        DNF_LOG_SCOPE_LINE(0x92, "./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n",
+            ((WebEventPacket*)hdr)->m_nEventCode);
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n", e.what());
-        CMyFileLog log(__FUNCTION__, 0x97);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x97, "./log/Except",
             "CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n",
             e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd");
-        CMyFileLog log(__FUNCTION__, 0x9d);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x9d, "./log/Except",
             "CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd\n");
     }
 }
@@ -129,22 +187,21 @@ void CPacketTranslater::OnCommonPacket(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnCommonPacket : 0 == m_pclApp");
         m_pclApp->m_serverHandler->SendAllTcpServer(header);
-        CMyFileLog log(__FUNCTION__, 0xb5);
-        log("./log/Web", "CPacketTranslater::OnCommonPacket() packet_id(%d)\n", header->packetId);
+        // R10: 临时对象调用形态（ORIG 实测）
+        DNF_LOG_SCOPE_LINE(0xb5, "./log/Web",
+            "CPacketTranslater::OnCommonPacket() packet_id(%d)\n", header->packetId);
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnCommonPacket() Exception Break : %s\n", e.what());
-        CMyFileLog log(__FUNCTION__, 0xbb);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0xbb, "./log/Except",
             "CPacketTranslater::OnEventEnd() Exception Break : %s\n",
             e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnCommonPacket() Exception Break");
-        CMyFileLog log(__FUNCTION__, 0xc1);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0xc1, "./log/Except",
             "CPacketTranslater::OnEventEnd() Exception Break\n");
     }
 }
@@ -155,23 +212,23 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* header)
     {
         if (!m_pclApp)
         {
-            CMyFileLog log(__FUNCTION__, 0x1f0);
-            log("./log/Except", "CPacketTranslater::OnInnerPacketLogin : 0 == m_pclApp");
+            DNF_LOG_SCOPE_LINE(0x1f0, "./log/Except",
+                "CPacketTranslater::OnInnerPacketLogin : 0 == m_pclApp");
             return;
         }
-        CMyFileLog log(__FUNCTION__, 0x1f6);
-        log("./log/TcpServer", "CPacketTranslater::OnInnerPacketLogin (sock:%d)",
-            *(int*)((char*)header + 6));
+        PacketHeader* hdr = header;
+        DNF_LOG_SCOPE_LINE(0x1f6, "./log/TcpServer",
+            "CPacketTranslater::OnInnerPacketLogin (sock:%d)", hdr->reversed2);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x1fa);
-        log("./log/Except", "CPacketTranslater::OnInnerPacketLogin Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1fa, "./log/Except",
+            "CPacketTranslater::OnInnerPacketLogin Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x1ff);
-        log("./log/Except", "CPacketTranslater::OnInnerPacketLogin Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x1ff, "./log/Except",
+            "CPacketTranslater::OnInnerPacketLogin Exception Break\n");
     }
 }
 
@@ -181,43 +238,42 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
     {
         if (!m_pclApp)
         {
-            CMyFileLog log(__FUNCTION__, 0x20a);
-            log("./log/Except", "CPacketTranslater::OnInnerPacketLogout : 0 == m_pclApp");
+            DNF_LOG_SCOPE_LINE(0x20a, "./log/Except",
+                "CPacketTranslater::OnInnerPacketLogout : 0 == m_pclApp");
             return;
         }
-        int port = *(int*)((char*)header + 6);
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        CTcpServer* server = handler->GetTcpServer((unsigned int)port);
+        // R10: ORIG local_1c@-0x18 + 链式调用 + 成员直读 + 临时日志形态
+        PacketHeader* hdr = header;
+        CTcpServer* server = m_pclApp->Get_ServerHandler()
+            ->GetTcpServer(((TcpServerPacket*)hdr)->m_dwReversed2);
         if (!server)
         {
-            CMyFileLog log(__FUNCTION__, 0x215);
-            log("./log/TcpServer", "CPacketTranslater::OnInnerPacketLogout Invalid Server Instance(sock:%d)",
-                port);
+            DNF_LOG_SCOPE_LINE(0x215, "./log/TcpServer",
+                "CPacketTranslater::OnInnerPacketLogout Invalid Server Instance(sock:%d)",
+                ((TcpServerPacket*)hdr)->m_dwReversed2);
             return;
         }
         unsigned char idx = server->GetServerIndex();
-        handler = m_pclApp->Get_ServerHandler();
-        if (!handler->DeleteTcpServer(idx))
+        if (!m_pclApp->Get_ServerHandler()->DeleteTcpServer(idx))
         {
-            CMyFileLog log(__FUNCTION__, 0x21d);
-            log("./log/TcpServer", "CPacketTranslater::OnInnerPacketLogout DeleteTcpServer fail(sock:%d)",
-                port);
+            DNF_LOG_SCOPE_LINE(0x21d, "./log/TcpServer",
+                "CPacketTranslater::OnInnerPacketLogout DeleteTcpServer fail(sock:%d)",
+                ((TcpServerPacket*)hdr)->m_dwReversed2);
             return;
         }
-        CMyFileLog log(__FUNCTION__, 0x221);
-        log("./log/TcpServer",
+        DNF_LOG_SCOPE_LINE(0x221, "./log/TcpServer",
             "CPacketTranslater::OnInnerPacketLogout DeleteTcpServer Success(TYPE:%d, sock:%d)",
-            idx, port);
+            idx, ((TcpServerPacket*)hdr)->m_dwReversed2);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x225);
-        log("./log/Except", "CPacketTranslater::OnInnerPacketLogout Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x225, "./log/Except",
+            "CPacketTranslater::OnInnerPacketLogout Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x22a);
-        log("./log/Except", "CPacketTranslater::OnInnerPacketLogout Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x22a, "./log/Except",
+            "CPacketTranslater::OnInnerPacketLogout Exception Break\n");
     }
 }
 
@@ -227,39 +283,45 @@ void CPacketTranslater::OnTcpServerLogin(PacketHeader* header)
     {
         if (!m_pclApp)
             return;
-        int port = *(int*)((char*)header + 6);
-        unsigned char idx = ((char*)header)[0xa];
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        if (handler->GetTcpServer(idx))
+        // R10: ORIG local_18@-0x14 + 链式调用 + 成员直读 + 临时日志形态
+        PacketHeader* hdr = header;
+        if (m_pclApp->Get_ServerHandler()
+                ->GetTcpServer(((TcpServerPacket*)hdr)->m_byType))
         {
-            CMyFileLog log(__FUNCTION__, 0x239);
-            log("./log/TcpServer",
+            DNF_LOG_SCOPE_LINE(0x239, "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogin Duplicate Server Instance(TYPE:%d, sock:%d)",
-                idx, port);
+                ((TcpServerPacket*)hdr)->m_byType,
+                ((TcpServerPacket*)hdr)->m_dwReversed2);
             return;
         }
-        handler = m_pclApp->Get_ServerHandler();
-        if (!handler->CreateTcpServer(idx, port))
+        int created = m_pclApp->Get_ServerHandler()->CreateTcpServer(
+            ((TcpServerPacket*)hdr)->m_byType,
+            ((TcpServerPacket*)hdr)->m_dwReversed2);
+        if (created == 0)
         {
-            CMyFileLog log(__FUNCTION__, 0x242);
-            log("./log/TcpServer",
+            DNF_LOG_SCOPE_LINE(0x242, "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogin CreateTcpServer fail(TYPE:%d, sock:%d)\n",
-                idx, port);
+                ((TcpServerPacket*)hdr)->m_byType,
+                ((TcpServerPacket*)hdr)->m_dwReversed2);
             return;
         }
-        printf("CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)\n", idx, port);
-        CMyFileLog log(__FUNCTION__, 0x250);
-        log("./log/TcpServer", "CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)\n", idx, port);
+        printf("CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)\n",
+            ((TcpServerPacket*)hdr)->m_byType,
+            ((TcpServerPacket*)hdr)->m_dwReversed2);
+        DNF_LOG_SCOPE_LINE(0x250, "./log/TcpServer",
+            "CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)",
+            ((TcpServerPacket*)hdr)->m_byType,
+            ((TcpServerPacket*)hdr)->m_dwReversed2);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x254);
-        log("./log/Except", "CPacketTranslater::OnTcpServerLogin Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x254, "./log/Except",
+            "CPacketTranslater::OnTcpServerLogin Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x259);
-        log("./log/Except", "CPacketTranslater::OnTcpServerLogin Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x259, "./log/Except",
+            "CPacketTranslater::OnTcpServerLogin Exception Break\n");
     }
 }
 
@@ -269,38 +331,43 @@ void CPacketTranslater::OnTcpServerLogout(PacketHeader* header)
     {
         if (!m_pclApp)
             return;
-        unsigned char idx = ((char*)header)[0xa];
-        int port = *(int*)((char*)header + 6);
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        if (!handler->GetTcpServer(idx))
+        // R10: ORIG local_14@-0x10 + 链式调用 + 成员直读 + 临时日志形态
+        PacketHeader* hdr = header;
+        if (!m_pclApp->Get_ServerHandler()
+                ->GetTcpServer(((TcpServerPacket*)hdr)->m_byType))
         {
-            CMyFileLog log(__FUNCTION__, 0x269);
-            log("./log/TcpServer",
+            DNF_LOG_SCOPE_LINE(0x269, "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogout Invalid Server Instance(TYPE:%d, sock:%d)",
-                idx, port);
+                ((TcpServerPacket*)hdr)->m_byType,
+                ((TcpServerPacket*)hdr)->m_dwReversed2);
             return;
         }
-        if (!handler->DeleteTcpServer(idx))
+        if (!m_pclApp->Get_ServerHandler()
+                ->DeleteTcpServer(((TcpServerPacket*)hdr)->m_byType))
         {
-            CMyFileLog log(__FUNCTION__, 0x26f);
-            log("./log/TcpServer",
+            DNF_LOG_SCOPE_LINE(0x26f, "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogout DeleteTcpServer fail(TYPE:%d, sock:%d)",
-                idx, port);
+                ((TcpServerPacket*)hdr)->m_byType,
+                ((TcpServerPacket*)hdr)->m_dwReversed2);
             return;
         }
-        printf("CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", idx, port);
-        CMyFileLog log(__FUNCTION__, 0x273);
-        log("./log/TcpServer", "CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", idx, port);
+        printf("CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)",
+            ((TcpServerPacket*)hdr)->m_byType,
+            ((TcpServerPacket*)hdr)->m_dwReversed2);
+        DNF_LOG_SCOPE_LINE(0x273, "./log/TcpServer",
+            "CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)",
+            ((TcpServerPacket*)hdr)->m_byType,
+            ((TcpServerPacket*)hdr)->m_dwReversed2);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x277);
-        log("./log/Except", "CPacketTranslater::OnTcpServerLogout Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x277, "./log/Except",
+            "CPacketTranslater::OnTcpServerLogout Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x27c);
-        log("./log/Except", "CPacketTranslater::OnTcpServerLogout Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x27c, "./log/Except",
+            "CPacketTranslater::OnTcpServerLogout Exception Break\n");
     }
 }
 
@@ -310,28 +377,29 @@ void CPacketTranslater::OnTcpServerHeartbeat(PacketHeader* header)
     {
         if (!m_pclApp)
             return;
-        unsigned char idx = ((char*)header)[0xa];
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        CTcpServer* server = handler->GetTcpServer(idx);
+        // R10: ORIG local_18@-0x14 + 链式调用 + 成员直读 + 临时日志形态
+        PacketHeader* hdr = header;
+        CTcpServer* server = m_pclApp->Get_ServerHandler()
+            ->GetTcpServer(((TcpServerPacket*)hdr)->m_byType);
         if (!server)
         {
-            CMyFileLog log(__FUNCTION__, 0x28d);
-            log("./log/TcpServer",
+            DNF_LOG_SCOPE_LINE(0x28d, "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerHeartbeat Invalid Server Instance(TYPE:%d, sock:%d)",
-                idx, *(int*)((char*)header + 6));
+                ((TcpServerPacket*)hdr)->m_byType,
+                ((TcpServerPacket*)hdr)->m_dwReversed2);
             return;
         }
         server->NotifyHeartbeat();
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x299);
-        log("./log/Except", "CPacketTranslater::OnTcpServerHeartbeat Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x299, "./log/Except",
+            "CPacketTranslater::OnTcpServerHeartbeat Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x29e);
-        log("./log/Except", "CPacketTranslater::OnTcpServerHeartbeat Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x29e, "./log/Except",
+            "CPacketTranslater::OnTcpServerHeartbeat Exception Break\n");
     }
 }
 
@@ -343,18 +411,19 @@ void CPacketTranslater::OnWebNoticeInGameAD(PacketHeader* header)
             return;
         Packet_Web_Notice_InGame_Advertisement pkt;
         m_pclApp->m_serverHandler->SendAllTcpServer(&pkt);
-        CMyFileLog log(__FUNCTION__, 0x2ae);
-        log("./log/Web", "OnWebNoticeInGameAD() packet_id(%d)\n", header->packetId);
+        // R10: 临时对象调用形态（ORIG 实测）
+        DNF_LOG_SCOPE_LINE(0x2ae, "./log/Web",
+            "OnWebNoticeInGameAD() packet_id(%d)\n", header->packetId);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x2b2);
-        log("./log/Except", "CPacketTranslater::OnWebNoticeInGameAD Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x2b2, "./log/Except",
+            "CPacketTranslater::OnWebNoticeInGameAD Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x2b7);
-        log("./log/Except", "CPacketTranslater::OnWebNoticeInGameAD Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x2b7, "./log/Except",
+            "CPacketTranslater::OnWebNoticeInGameAD Exception Break\n");
     }
 }
 
@@ -364,40 +433,52 @@ void CPacketTranslater::OnWebNoticeBroadcast(PacketHeader* header)
     {
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnWebNoticeBroadcast : 0 == m_pclApp");
-        int len = ((char*)header)[0x10a];
-        CMyFileLog log(__FUNCTION__, 0x1b2);
-        log("./log/test", "%d, %s, %d, %s\n",
-            ((char*)header)[0xa], (char*)header + 0xb, len, (char*)header + 0x10b);
-        if (m_pclApp && m_pclApp->m_serverHandler)
+        // R10: ORIG local_2c@-0x28 + 临时日志形态（第 4 实参先求值入栈槽）
+        PacketHeader* hdr = header;
+        DNF_LOG_SCOPE_LINE(0x1b2, "./log/test", "%d, %s, %d, %s\n",
+            ((WebNoticeBroadcastPacket*)hdr)->m_byType,
+            (char*)hdr + 0xb,
+            ((WebNoticeBroadcastPacket*)hdr)->m_byLen,
+            (char*)hdr + 0x10b);
+        // R10: ORIG local_28@-0x24（m_serverHandler 一次装载）
+        if (m_pclApp)
         {
-            std::vector<std::string> parts;
-            std::string s((char*)header + 0xb, len);
-            parse_string(parts, s, ',');
-            for (std::vector<std::string>::iterator it = parts.begin();
-                 it != parts.end(); ++it)
+            CServerHandler* handler = m_pclApp->m_serverHandler;
+            if (handler)
             {
-                std::string tok = *it;
-                int ch = atoi(tok.c_str());
-                if (ch <= 0x64)
+                // R10: ORIG string 构造形态：s(ptr) 无长度、tok 默认构造 + operator=
+                std::vector<std::string> parts;
+                std::string s((char*)hdr + 0xb);
+                std::string tok;
+                parse_string(parts, s, ',');
+                for (std::vector<std::string>::iterator it = parts.begin(),
+                         end = parts.end(); it != end; ++it)
                 {
-                    Packet_Web_Notice_Single pkt;
-                    ((char*)&pkt)[0xa] = len;
-                    memset((char*)&pkt + 0xb, 0, 0xff);
-                    strncpy((char*)&pkt + 0xb, (char*)header + 0x10b, len);
-                    m_pclApp->m_serverHandler->SendToTcpServer((char*)&pkt, 0x10a, ch);
+                    tok = *it;
+                    unsigned char ch = (unsigned char)atoi(tok.c_str());
+                    if (ch <= 0x64)
+                    {
+                        Packet_Web_Notice_Single pkt;
+                        // R10: 成员访问复现 ORIG 的 mov %al,-0x168(%ebp) 直写
+                        pkt.data[0] = ((WebNoticeBroadcastPacket*)hdr)->m_byLen;
+                        memset((char*)&pkt + 0xb, 0, 0xff);
+                        strncpy((char*)&pkt + 0xb, (char*)hdr + 0x10b,
+                            ((WebNoticeBroadcastPacket*)hdr)->m_byLen);
+                        handler->SendToTcpServer((char*)&pkt, 0x10a, ch);
+                    }
                 }
             }
         }
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x1e0);
-        log("./log/Except", "CPacketTranslater::OnWebNoticeBroadcast() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1e0, "./log/Except",
+            "CPacketTranslater::OnWebNoticeBroadcast() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x1e5);
-        log("./log/Except", "CPacketTranslater::OnWebNoticeBroadcast() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x1e5, "./log/Except",
+            "CPacketTranslater::OnWebNoticeBroadcast() Exception Break\n");
     }
 }
 
@@ -408,62 +489,72 @@ void CPacketTranslater::OnWebNoticeProhibitConnectUser(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException(
                 "CPacketTranslater::OnWebNoticeProhibitConnectUser : 0 == m_pclApp");
+        // R10: ORIG local_2c@-0x28
+        PacketHeader* hdr = header;
         Packet_Web_Prohibit_User_Connect pkt;
-        memcpy(&pkt, header, 0x12);
-        *(unsigned short*)((char*)&pkt + 2) = 0x13;
-        int m_id = pkt.m_fieldA;
-        int ip = *(int*)((char*)&pkt + 6);
-        int port = *(unsigned short*)((char*)&pkt + 4);
-        char flag = ((char*)&pkt)[0xe];
-        short time = *(short*)((char*)&pkt + 0xf);
-        {
-            CMyFileLog log(__FUNCTION__, 0xdb);
-            log("./log/ProhibitUser",
-                "CPacketTranslater::OnWebNoticeProhibitConnectUser m_id : %d, flag( %d ), time( %d ), ip( %d ), port( %d )\n",
-                m_id, flag, time, ip, port);
-        }
+        memcpy(&pkt, hdr, 0x12);
+        pkt.packetSize = 0x13;
+        // R10: 临时日志形态（前两个实参溢出栈槽 -0x90/-0x8c）
+        DNF_LOG_SCOPE_LINE(0xdb, "./log/ProhibitUser",
+            "CPacketTranslater::OnWebNoticeProhibitConnectUser m_id : %d, flag( %d ), time( %d ), ip( %d ), port( %d )\n",
+            ((ProhibitUserPacket*)hdr)->m_nFieldA,
+            ((ProhibitUserPacket*)hdr)->m_chFieldE,
+            ((ProhibitUserPacket*)hdr)->m_sFieldF,
+            ((ProhibitUserPacket*)hdr)->m_dwReversed2,
+            ((ProhibitUserPacket*)hdr)->m_wReversed1);
         CUserManager* um = &m_pclApp->m_userManager;
-        if (flag && um->DeleteProhibitUser(m_id))
+        // R10: ORIG je 目标为 Find 路径 → if(flag!=0){Delete}else{Find}
+        if (((ProhibitUserPacket*)hdr)->m_chFieldE != 0)
         {
-            CMyFileLog log(__FUNCTION__, 0xe6);
-            log("./log/Web",
-                "CPacketTranslater::OnWebNoticeProhibitConnectUser Delete Err  m_id : %d, flag( %d ), time( %d ), ip( %d ), port( %d )\n",
-                m_id, flag, time, ip, port);
+            if (um->DeleteProhibitUser(((ProhibitUserPacket*)hdr)->m_nFieldA) == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0xe6, "./log/Web",
+                    "CPacketTranslater::OnWebNoticeProhibitConnectUser Delete Err  m_id : %d, flag( %d ), time( %d ), ip( %d ), port( %d )\n",
+                    ((ProhibitUserPacket*)hdr)->m_nFieldA,
+                    ((ProhibitUserPacket*)hdr)->m_chFieldE,
+                    ((ProhibitUserPacket*)hdr)->m_sFieldF,
+                    ((ProhibitUserPacket*)hdr)->m_dwReversed2,
+                    ((ProhibitUserPacket*)hdr)->m_wReversed1);
+            }
             m_pclApp->m_serverHandler->SendAllTcpServer((PacketHeader*)&pkt);
-            return;
         }
-        CDNFProhibitUser* pu = um->FindProhibitUser(m_id);
-        if (!pu)
+        else
         {
-            pu = new CDNFProhibitUser;
-            pu->SetMonitorWaitTime(m_id, 2);
-            pu->SetIpPort(ip, port);
-            um->InsertProhibitUser(m_id, pu);
-            m_pclApp->m_serverHandler->SendAllTcpServer((PacketHeader*)&pkt);
-            return;
-        }
-        ((char*)header)[0x11] = 2;
-        {
-            CMyFileLog log(__FUNCTION__, 0x113);
-            log("./log/ProhibitUser",
+            CDNFProhibitUser* pu = um->FindProhibitUser(((ProhibitUserPacket*)hdr)->m_nFieldA);
+            if (pu == 0)
+            {
+                pu = new CDNFProhibitUser;
+                pu->SetMonitorWaitTime(((ProhibitUserPacket*)hdr)->m_nFieldA, 2);
+                pu->SetIpPort(((ProhibitUserPacket*)hdr)->m_dwReversed2,
+                    ((ProhibitUserPacket*)hdr)->m_wReversed1);
+                um->InsertProhibitUser(((ProhibitUserPacket*)hdr)->m_nFieldA, pu);
+                m_pclApp->m_serverHandler->SendAllTcpServer((PacketHeader*)&pkt);
+                return;
+            }
+            ((ProhibitUserPacket*)hdr)->m_chField11 = 2;
+            DNF_LOG_SCOPE_LINE(0x113, "./log/ProhibitUser",
                 "CPacketTranslater::OnWebNoticeProhibitConnectUser SendToClient, m_id : %d, ip( %d ), port( %d ), m_bIsConnect(%d), m_bProhibitConnect(%d)\n",
-                m_id, ip, port, ((char*)header)[0x11], ((char*)header)[0xe]);
+                ((ProhibitUserPacket*)hdr)->m_nFieldA,
+                ((ProhibitUserPacket*)hdr)->m_dwReversed2,
+                ((ProhibitUserPacket*)hdr)->m_wReversed1,
+                ((ProhibitUserPacket*)hdr)->m_chField11,
+                ((ProhibitUserPacket*)hdr)->m_chFieldE);
+            if (!((CUdpHandler*)m_pclApp->Get_UdpHandler())
+                    ->SendToClient((char*)hdr, 0x13,
+                        ((ProhibitUserPacket*)hdr)->m_wReversed1, 0,
+                        ((ProhibitUserPacket*)hdr)->m_dwReversed2))
+                throw CDNFException(strerror(errno));
         }
-        if (!((CUdpHandler*)m_pclApp->Get_UdpHandler())
-                 ->SendToClient((char*)header, 0x13, port, 0, ip))
-            throw CDNFException(strerror(errno));
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x11b);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x11b, "./log/Except",
             "CPacketTranslater::OnWebNoticeProhibitConnectUser() Exception Break : %s\n",
             e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x120);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x120, "./log/Except",
             "CPacketTranslater::OnWebNoticeProhibitConnectUser() Exception Break\n");
     }
 }

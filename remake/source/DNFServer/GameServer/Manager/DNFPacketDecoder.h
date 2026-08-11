@@ -19,7 +19,7 @@ public:
     void SetUdpQueue(UdpRecvQueue* q);
     void TcpProcess();
     void UdpProcess();
-    char MsgDecode(PacketHeader* header);
+    bool MsgDecode(PacketHeader* header);
     TcpRecvQueue* m_tcpQueue;  // +0
     CMutex* m_tcpRecvQLock;    // +4
     CMutex* m_tcpRecvBLock;    // +8

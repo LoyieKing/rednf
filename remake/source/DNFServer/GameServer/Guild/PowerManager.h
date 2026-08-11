@@ -48,7 +48,7 @@ public:
     void InitPowerManager(char* path, CApplication* app);
     void Process();
     void ProcessByMinute();
-    unsigned char IsPowerWarOn();
+    bool IsPowerWarOn();
     void SetPowerInfo(char side, int score1, int score2);
     void CleanPowerWar();
     int GetPowerScore(ENUM_POWER_SIDE_TYPE side);
@@ -165,7 +165,7 @@ public:
 class Packet_Notice_Power_War_Rank : public PacketHeader {
 public:
     Packet_Notice_Power_War_Rank();
-    char m_data[0x12];
+    char m_data[0xc];
 };
 
 // from GuildPackets.h
@@ -179,7 +179,7 @@ public:
 class Packet_Reply_Power_War_Score : public PacketHeader {
 public:
     Packet_Reply_Power_War_Score();
-    char m_data[0xa];
+    char m_data[8];
 };
 
 #endif

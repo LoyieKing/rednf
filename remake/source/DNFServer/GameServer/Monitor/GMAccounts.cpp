@@ -34,12 +34,13 @@ CGMAccounts::~CGMAccounts() {}
 
 bool CGMAccounts::isGM(unsigned int dbid)
 {
-    for (std::list<stGMInfo_t>::iterator it = m_list.begin(); it != m_list.end(); ++it)
+    stGMInfo_t key;
+    key.m_dbid = dbid;
+    key.m_field4 = 3;
+    std::list<stGMInfo_t>::iterator it = std::find(m_list.begin(), m_list.end(), key);
+    if (it != m_list.end())
     {
-        if (it->m_dbid == dbid)
-        {
-            return true;
-        }
+        return true;
     }
     return false;
 }
@@ -49,13 +50,14 @@ CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int dbid) const
     stGMInfo_t out;
     out.m_dbid = 0;
     out.m_field4 = 3;
-    for (std::list<stGMInfo_t>::const_iterator it = m_list.begin(); it != m_list.end(); ++it)
+    stGMInfo_t key;
+    key.m_dbid = dbid;
+    key.m_field4 = 3;
+    std::list<stGMInfo_t>::const_iterator it =
+        std::find(m_list.begin(), m_list.end(), key);
+    if (it != m_list.end())
     {
-        if (it->m_dbid == dbid)
-        {
-            out = *it;
-            break;
-        }
+        out = *it;
     }
     return out;
 }
@@ -67,17 +69,13 @@ void CGMAccounts::clearGmList()
 
 void CGMAccounts::AppendGM_Sys(unsigned int dbid, char level)
 {
-    for (std::list<stGMInfo_t>::iterator it = m_list.begin(); it != m_list.end(); ++it)
-    {
-        if (it->m_dbid == dbid)
-        {
-            return;
-        }
-    }
-    stGMInfo_t info;
+    stGMInfo_t info = {};
     info.m_dbid = dbid;
     info.m_field4 = (unsigned int)level;
     m_list.push_back(info);
+    char* mid = NumberToString(dbid, 0);
+    CMyFileLog log(__FUNCTION__, 0xcd);
+    log("./log/Init", "GM List Add mid:%s", mid);
 }
 
 char CGMAccounts::loadGMAccounts(const char* path) { return 1; }

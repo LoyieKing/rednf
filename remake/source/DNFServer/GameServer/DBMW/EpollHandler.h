@@ -14,7 +14,9 @@ public:
     virtual int ResetEpoll(int fd) = 0;
     virtual void Destroy() = 0;
     virtual int WaitForEvent() = 0;
-    virtual char IsSetErrEvent(int idx) = 0;
+    virtual bool IsSetErrEvent(int idx) = 0;
+    virtual bool IsSetOutEvent(int idx) = 0;
+    virtual bool IsSetInEvent(int idx) = 0;
 };
 
 class EpollHandler : public CProtocol
@@ -27,16 +29,16 @@ public:
     virtual int ResetEpoll(int fd);
     virtual void Destroy();
     virtual int WaitForEvent();
-    virtual char IsSetErrEvent(int idx);
-    virtual char IsSetOutEvent(int idx);
-    virtual char IsSetInEvent(int idx);
+    virtual bool IsSetErrEvent(int idx);
+    virtual bool IsSetOutEvent(int idx);
+    virtual bool IsSetInEvent(int idx);
     virtual void* GetEventPtr(int idx);
     int GetEpollFD();
-    void* GetEpollEvents();
+    struct epoll_event* GetEpollEvents();
     int m_eventType;  // +4
     void* m_peer;     // +8
     char m_dataC[4];  // +0xc
-    void* m_events;   // +0x10
+    struct epoll_event* m_events;  // +0x10（指针，布局不变）
     int m_epollFd;    // +0x14
     CMutex m_mutex;   // +0x18
 };

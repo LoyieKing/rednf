@@ -609,7 +609,9 @@ int CUser::GetConnLowerMemberCnt()
 
 CMember* CUser::GetMember()
 {
-    return *(CMember**)((char*)this + 0x14);
+    if (m_member)
+        return m_member;
+    return 0;
 }
 
 void CUser::SetMemberRegisterFlag(bool flag)

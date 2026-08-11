@@ -30,7 +30,6 @@ CDBHandle::CDBHandle() {}
 CDBHandle::~CDBHandle() {}
 CAppInit::CAppInit() {}
 CAppInit::~CAppInit() {}
-CDnFTimer::CDnFTimer() {}
 
 CSourceVersionMgr::SourceVersion::SourceVersion(const SourceVersion& other)
     : m_name(other.m_name), m_version(other.m_version)

@@ -143,8 +143,17 @@ dnf_service(dbmw
         "${SVC_DIR}/DNFPacketBuffer.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/StackBuffer.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DBManager.cpp|-B${DF_CC1P446}"
-        "${SVC_DIR}/QueryCounter.cpp|-B${DF_CC1P446} -march=i486 -mtune=pentiumpro"
+        "${SVC_DIR}/QueryCounter.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/QueryCounterFileLog.cpp|-B${DF_CC1P446}"
+        # 2026-08-11 第 8 轮：与 manager 同源 TU 的虚调用寄存器形态对齐
+        # （ORIG fn 指针进 ecx/edx，4.4.7-23 进 eax）；manager 已逐文件
+        # A/B 验证 4.4.6-3 cc1plus 与 ORIG 一致，补齐 dbmw 缺失的 6 个 TU。
+        "${SVC_DIR}/DNFNetworkThread.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFPacketDecoder.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFTcpAcceptThread.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFTcpNetworkThread.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFTableBase.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/TcpNetSystem.cpp|-B${DF_CC1P446}"
     LIBS
         ${SRC_ROOT}/../build/manager/mysqlclient/libmysqlclient.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a

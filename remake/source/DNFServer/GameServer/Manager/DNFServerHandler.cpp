@@ -11,7 +11,10 @@
 #include "Peer.h"
 #include "TcpNetSystem.h"
 
-CServerHandler::CServerHandler() {}
+CServerHandler::CServerHandler() : m_app(0)
+{
+    *(unsigned int*)m_pad = 0;
+}
 CServerHandler::~CServerHandler() {}
 
 void CServerHandler::Attach(CApplication* app)
@@ -87,8 +90,9 @@ void CServerHandler::Process()
             if (p->IsHeartBeatTimeOver())
             {
                 p->OnDisconnect();
+                register int index = 0x66 - i;
                 CMyFileLog log(__FUNCTION__, 0x55);
-                log("./log/MonitorDown", "CServerHandler::Process() Index : %d!\n", 0x66 - i);
+                log("./log/MonitorDown", "CServerHandler::Process() Index : %d!\n", index);
             }
         }
         p++;
@@ -104,23 +108,24 @@ char CServerHandler::CreateTcpServer(unsigned char idx, unsigned int port)
     std::pair<std::map<unsigned int, CTcpServer*>::iterator, bool> pr =
         m_tcpServers.insert(std::make_pair(idx, server));
     if (pr.second)
-        return 1;
+        return (int)server;
     delete server;
     return 0;
 }
 
 char CServerHandler::DeleteTcpServer(unsigned char idx)
 {
-    std::map<unsigned int, CTcpServer*>::iterator it = m_tcpServers.find(idx);
-    if (it != m_tcpServers.end())
     {
-        CTcpServer* server = it->second;
-        if (server)
-            delete server;
-        m_tcpServers.erase(it);
-        CMyFileLog log("DeleteTcpServer", 0x113);
-        log("./log/Tcp", "TcpMonitorServer Delete !");
-        return 1;
+        std::map<unsigned int, CTcpServer*>::iterator it = m_tcpServers.find(idx);
+        std::map<unsigned int, CTcpServer*>::iterator end = m_tcpServers.end();
+        if (it != end)
+        {
+            delete it->second;
+            m_tcpServers.erase(it);
+            CMyFileLog log(__FUNCTION__, 0x113);
+            log("./log/Tcp", "TcpMonitorServer Delete !");
+            return 1;
+        }
     }
     return 0;
 }
@@ -153,7 +158,8 @@ void CServerHandler::SendAllTcpServer(PacketHeader* header)
         CTcpServer* server = it->second;
         if (server->IsValidServer())
         {
-            char* buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
+            char* buf = 0;
+            buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
             memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
             server->SendToServer(buf);
         }
@@ -167,8 +173,9 @@ void CServerHandler::SetConnectFlag(unsigned char idx, bool flag)
         m_monitorServers[idx].SetConnFlag(flag);
         return;
     }
+    register int nIdx = idx;
     CMyFileLog log(__FUNCTION__, 0xa7);
-    log("./log/Server.log", "Monitor Server Index Over Index : %d!\n", idx);
+    log("./log/Server.log", "Monitor Server Index Over Index : %d!\n", nIdx);
 }
 
 int CServerHandler::GetAlivedMonitorServer()
@@ -190,8 +197,9 @@ char CServerHandler::IsConnectedMonitorServer(unsigned char idx)
 {
     if (idx <= 0x64 && m_monitorServers[idx].IsValidMonitorServer())
         return m_monitorServers[idx].IsConnected();
+    register int nIdx = idx;
     CMyFileLog log(__FUNCTION__, 0x91);
-    log("./log/Server.log", "Server Index Over Index : %d!\n", idx);
+    log("./log/Server.log", "Server Index Over Index : %d!\n", nIdx);
     return 0;
 }
 
@@ -202,8 +210,9 @@ void CServerHandler::ResetHeartBeat(unsigned char idx)
         m_monitorServers[idx].ResetHeartBeat();
         return;
     }
+    register int nIdx = idx;
     CMyFileLog log(__FUNCTION__, 0x70);
-    log("./log/Server.log", "Server Index Over Index : %d!\n", idx);
+    log("./log/Server.log", "Server Index Over Index : %d!\n", nIdx);
 }
 
 void CServerHandler::SendToTcpServer(PacketHeader* header, unsigned char idx)
@@ -211,7 +220,8 @@ void CServerHandler::SendToTcpServer(PacketHeader* header, unsigned char idx)
     CTcpServer* server = GetTcpServer(idx);
     if (!server)
         return;
-    char* buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
+    char* buf = 0;
+    buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
     memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
     server->SendToServer(buf);
 }

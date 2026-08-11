@@ -38,12 +38,12 @@ CFrameCountHandler::CFrameCountHandler()
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int frameCount,
                                             unsigned short tick)
 {
-    if (tick != 0)
+    if (frameCount != 0)
     {
         m_app = app;
         memset(this, 0, 0x28);
-        m_field4 = tick;
-        m_field8 = 100 / tick;
+        m_field4 = frameCount;
+        m_field8 = 100 / frameCount;
         return;
     }
     throw CDNFException("CFrameCountHandler::InitFrameCountInfo() Exception Break!");

@@ -37,11 +37,11 @@ public:
     ~CDBServer();
     void Init(unsigned char id, std::string& name, unsigned short port, unsigned char param);
     bool IsValidServer();
-    int IsHeartBeatTimeOver();
+    bool IsHeartBeatTimeOver();
     void ResetHeartBeat();
     void SendToServer(char* buf, int len);
     void OnDisconnect();
-    char IsConnected();
+    bool IsConnected();
     void SetConnFlag(bool flag);
     unsigned char m_id;             // +0（0xff=无效）
     std::string m_name;             // +4

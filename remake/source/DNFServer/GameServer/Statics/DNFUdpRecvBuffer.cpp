@@ -28,58 +28,68 @@ MemPool<T>::~MemPool()
 template<class T>
 void* MemPool<T>::alloc()
 {
-    void* result;
-    if (m_classSize == 0x1804)
+    struct __attribute__((packed)) MemLink
     {
-        if (headOfFreeList_ == 0)
-        {
-            void* block = ::operator new(m_classSize * m_count);
-            for (unsigned int i = 0; i < m_count - 1U; i++)
-            {
-                *(void**)((int)block + i * 0x1804 + 0x1800) =
-                    (void*)((i + 1) * 0x1804 + (int)block);
-            }
-            *(void**)((int)block + (m_count - 1) * 0x1804 + 0x1800) = 0;
-            headOfFreeList_ = (void*)((int)block + 0x1804);
-            result = block;
-            m_chunks.push_back(std::move(block));
-            DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize, m_count * (int)m_chunks.size());
-        }
-        else
-        {
-            result = headOfFreeList_;
-            headOfFreeList_ = *(void**)((int)headOfFreeList_ + 0x200);
-        }
+        char m_pad[0x1800];
+        void* m_next;
+    };
+    if (m_classSize != 0x1804)
+        return ::operator new(0x1804);
+    void* result = headOfFreeList_;
+    if (result != 0)
+    {
+        headOfFreeList_ = ((MemLink*)result)->m_next;
     }
     else
     {
-        result = ::operator new(0x1804);
+        MemLink* block = (MemLink*)::operator new(m_count * m_classSize);
+        for (unsigned int i = 0; i < m_count - 1U; i++)
+        {
+            block[i].m_next = &block[i + 1];
+        }
+        block[m_count - 1].m_next = 0;
+        result = block;
+        headOfFreeList_ = &block[1];
+        m_chunks.push_back((void*)block);
+        DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize, m_count * (int)m_chunks.size());
     }
     return result;
 }
 template<class T>
 void MemPool<T>::free(void* p)
 {
-    if (p != 0)
+    if (p == 0)
+        return;
     {
-        *(void**)((int)p + 0x1800) = headOfFreeList_;
-        headOfFreeList_ = p;
+        struct __attribute__((packed)) MemLink
+        {
+            char m_pad[0x1800];
+            void* m_next;
+        };
+        MemLink* q = (MemLink*)p;
+        q->m_next = headOfFreeList_;
+        headOfFreeList_ = q;
     }
 }
 template<class T>
 void MemPool<T>::free(void* p, unsigned int size)
 {
-    if (p != 0)
+    if (p == 0)
+        return;
+    if (m_classSize != size)
     {
-        if (m_classSize == (int)size)
+        ::operator delete(p);
+    }
+    else
+    {
+        struct __attribute__((packed)) MemLink
         {
-            *(void**)((int)p + 0x1800) = headOfFreeList_;
-            headOfFreeList_ = p;
-        }
-        else
-        {
-            ::operator delete(p);
-        }
+            char m_pad[0x1800];
+            void* m_next;
+        };
+        MemLink* q = (MemLink*)p;
+        q->m_next = headOfFreeList_;
+        headOfFreeList_ = q;
     }
 }
 void* CUdpRecvBuffer::operator new(unsigned int size)

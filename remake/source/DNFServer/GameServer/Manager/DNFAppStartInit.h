@@ -22,7 +22,7 @@ public:
     virtual ~CAppStartInit();
     virtual void Init(CApplication* app, int argc, char** argv);
     int Init_Daemon(int argc, char** argv);
-    int Save_pid(const std::string& path);
+    bool Save_pid(const std::string& path);
 };
 
 #endif  // DNF_APP_START_INIT_H_

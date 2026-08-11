@@ -87,7 +87,6 @@ char CQueryCounter::IncreQureyCount(unsigned int idx, const char* name)
         m_timer->SetLastTime();
         return !m_used[i];
     }
-    return 0;
 }
 void CQueryCounter::SetResponseTime(unsigned int ms)
 {
@@ -104,14 +103,17 @@ void CQueryCounter::SetResponseTime(unsigned int ms)
 }
 int CQueryCounter::LoadQueryIdTable(int queryId)
 {
-    if (queryId > 0x4e20)
+    if (queryId > 0x4e20 && queryId <= 0x4f60)
     {
-        if (queryId <= 0x4f60)
-        {
-            int i = queryId - 0x4e20;
-            m_used[i] = 1;
-            return 1;
-        }
+        int i = queryId - 0x4e20;
+        m_used[i] = 1;
+        return 1;
     }
     return 0;
 }
+
+// force rebuild
+
+// y
+
+// z

@@ -20,10 +20,6 @@ CSystemTimeHandler* CSystemTimeHandlerInstance()
     return &instance;
 }
 
-CDnFTimer::CDnFTimer() {}
-
-CUnixTimer::CUnixTimer() throw() {}
-
 double CUnixTimer::GetNowTime()
 {
     struct timeval tv;

@@ -237,10 +237,11 @@ void CUser::send_buddy_list() {
             packet.buddies[i].isOnline = false;
             packet.buddies[i].channel_no = -1;
         }
-        STPvPBuddyDBInfo buddy = *iBuddy;
         // 原始：Ghidra 还原出 local_10 = &local_43 的指针形态（-0xc 槽），
         // 字段访问经指针重载（mov -0xc,%eax; movzbl (%eax)），非直接栈槽偏移。
-        STPvPBuddyDBInfo *buddyPtr = &buddy;
+        // 43 字节拷贝以临时对象形式出现（-0x3f 槽，紧邻迭代器槽之后，
+        // 在 ORIG 布局中为立即分配的临时体而非延迟的命名局部）。
+        STPvPBuddyDBInfo *buddyPtr = &(STPvPBuddyDBInfo(*iBuddy));
         packet.buddies[i].server_id = buddyPtr->server_id;
         packet.buddies[i].charac_no = buddyPtr->charac_no;
         packet.buddies[i].variable_what1 = buddyPtr->variable_what1;
@@ -276,11 +277,12 @@ void CUser::send_other_channel_chat_hyper_link(Packet_Monitor_Other_Channel_Chat
     packet.what_0x16f = chat->what_0x173;
     memcpy(packet.what_0x170, chat->what_0x174, chat->what_0x173);
     packet.what_0x36 = chat->what_0x3a;
-    // 原始：直接成员访问（what_0x37=0x37/ what_0x3b=0x3b，GCC 4.4 把成员偏移拆成
-    // add $0x30 + lea/add 余量：ORIG add $0x30; add chat; lea 0xb → edx 形态）；
-    // 不能用平铺 (char*)chat + 0x30 + i*0x68 + 0xb（常量折叠为 0x3b）。
+    // 原始：what_0x37/what_0x3b 为 2D 数组 char[3][0x68]（0x138 == 3×0x68，
+    // 头文件 2026-08-11 按 ORIG 反汇编还原），索引形态 &arr[i] 使 GCC 4.4 产生
+    // ORIG 的 add $0x30 + add $0x7/0xb 分步地址计算（平铺 (char*)chat+0x30+i*0x68+0xb
+    // 会常量折叠为 0x3b，助记符不一致）。
     for (int i = 0; i < chat->what_0x3a; i++) {
-        memcpy(&packet.what_0x37[i * 0x68], &chat->what_0x3b[i * 0x68], 0x68);
+        memcpy(&packet.what_0x37[i], &chat->what_0x3b[i], 0x68);
     }
     networkSession->Send((char *)&packet, packet.packetSize);
 }
@@ -307,9 +309,9 @@ void CUser::send_other_channel_chat_result_hyper_link(Packet_Monitor_Other_Chann
     packet.what_0x16f = chat->what_0x173;
     memcpy(packet.what_0x170, chat->what_0x174, chat->what_0x173);
     packet.what_0x36 = chat->what_0x3a;
-    // 原始：同 send_other_channel_chat_hyper_link 的直接成员访问形态
+    // 原始：同 send_other_channel_chat_hyper_link 的 2D 数组索引形态
     for (int i = 0; i < chat->what_0x3a; i++) {
-        memcpy(&packet.what_0x37[i * 0x68], &chat->what_0x3b[i * 0x68], 0x68);
+        memcpy(&packet.what_0x37[i], &chat->what_0x3b[i], 0x68);
     }
     networkSession->Send((char *)&packet, packet.packetSize);
 }

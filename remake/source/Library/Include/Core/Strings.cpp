@@ -238,14 +238,8 @@ uint32 CharString::getHash() const
     }
     uint32 value = 0;
     const char* str = buffer_;
-    while (true)
+    while (char c = *str++)
     {
-        char c = *str;
-        str = str + 1;
-        if (c == '\0')
-        {
-            break;
-        }
         value = (value << 6) + (value << 16) - value + (int)c;
     }
     if (value == 0)
@@ -709,14 +703,8 @@ uint32 WideString::getHash() const
     }
     uint32 value = 0;
     const wchar* str = buffer_;
-    while (true)
+    while (wchar c = *str++)
     {
-        wchar c = *str;
-        str = str + 1;
-        if (c == 0)
-        {
-            break;
-        }
         value = (value << 6) + (value << 16) - value + (uint32)c;
     }
     if (value == 0)

@@ -228,7 +228,9 @@ struct LoadingTimeReport
     LoadingTimeReport();
     ~LoadingTimeReport();
     void Reset();
-    int m_data[18];
+    // ORIG：两个 9 元素数组（m_data2 编译为 add $8 + 0x4(%eax,%edx,4) 形态）
+    int m_data[9];   // +0
+    int m_data2[9];  // +0x24
 };
 
 // ---- STPowerwarFightLoadingKey：0x6 ----
@@ -499,7 +501,8 @@ class Packet_DBMW_Query_String : public PacketHeader
 {
 public:
     Packet_DBMW_Query_String();
-    char m_data[0x1005];
+    unsigned int m_queryId;  // +0xa
+    char m_data[0x1001];     // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_Fatigue_Battery_Money_Statistic : public PacketHeader
@@ -543,7 +546,8 @@ class Packet_DBMW_Loading_Time_Report : public PacketHeader
 {
 public:
     Packet_DBMW_Loading_Time_Report();
-    char m_data[0x2d];
+    char m_group[9];         // +0xa
+    unsigned int m_value[9]; // +0x13
 } __attribute__((packed));
 
 class Packet_DBMW_Assert_Manager_Info_Write_Query : public PacketHeader

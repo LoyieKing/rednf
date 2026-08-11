@@ -24,16 +24,20 @@ CAppStartInit::~CAppStartInit() {}
 CAppInit::CAppInit() {}
 CAppInit::~CAppInit() {}
 
-int CAppStartInit::Save_pid(const std::string& path)
+bool CAppStartInit::Save_pid(const std::string& path)
 {
-    std::string full = std::string("./pid/") + path + std::string(".pid");
+    // R10: ORIG 为 "./pid/" + path + ".pid" 的 operator+ 链（无显式 string 临时），
+    // 且返回类型为 bool（调用侧 ORIG 为 mov %eax,%ebx; xor $1,%ebx 形态）。
+    std::string full = "./pid/" + path + ".pid";
+    // R10: ORIG 槽位 fd@-0xc / n@-0x10；先声明 n 使槽位与 ORIG 对齐。
+    int n;
     int fd = open(full.c_str(), 0x42, 0x1a4);
     if (fd < 0)
         return 0;
     char buf[0x400];
     memset(buf, 0, 0x400);
     sprintf(buf, "%ld\n", (long)getpid());
-    int n = write(fd, buf, strlen(buf));
+    n = write(fd, buf, strlen(buf));
     if (n < 0)
     {
         close(fd);
@@ -44,12 +48,15 @@ int CAppStartInit::Save_pid(const std::string& path)
 
 int CAppStartInit::Init_Daemon(int argc, char** argv)
 {
-    if (strcmp(argv[2], "start") == 0)
+    // R10: ORIG 先把 argv[2] 存入局部再 strcmp（复现 -0x10 槽位存取）。
+    char* arg = argv[2];
+    if (strcmp(arg, "start") == 0)
     {
         int pid = fork();
         if (pid < 0)
             return -1;
-        if (pid > 0)
+        // R10: ORIG 为 cmpl $0; je 形态（if (pid != 0) exit），非 jle。
+        if (pid != 0)
             exit(0);
         setsid();
         chdir("./");

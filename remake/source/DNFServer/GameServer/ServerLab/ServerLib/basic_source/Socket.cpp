@@ -106,16 +106,13 @@ int TCPSocket::send(char* buf, int size)
             {
                 G_TraceLog()->sysLog(0, "EWOULDBLOCK");
             }
-            mSendRetryCount = mSendRetryCount + 1;
+            // ORIG：自增并判断写在条件里（重载成员 + setg %al; test %al,%al）
+            if ((mSendRetryCount = mSendRetryCount + 1) > 0x64)
             {
-                unsigned char tooMany = (unsigned char)(mSendRetryCount > 0x64);
-                if (tooMany)
-                {
-                    G_TraceLog()->sysLog(7, "So many retry. so disconnect him, %d.%d.%d.%d:%d",
-                                         c_adrs_[0], c_adrs_[1], c_adrs_[2], c_adrs_[3], port_);
-                    mSendRetryCount = 0;
-                    return -100;
-                }
+                G_TraceLog()->sysLog(7, "So many retry. so disconnect him, %d.%d.%d.%d:%d",
+                                     c_adrs_[0], c_adrs_[1], c_adrs_[2], c_adrs_[3], port_);
+                mSendRetryCount = 0;
+                return -100;
             }
             G_TraceLog()->sysLog(0, "tcp send retry='%d', error ='%s(%d)'",
                                  n_bytes, strerror(error_number), error_number);
@@ -164,9 +161,9 @@ int TCPSocket::recv(char* buf, int size)
 
 void TCPSocket::shutdown(int opt)
 {
-    // ORIG: load sock_, cmp $-1, ret (no ::shutdown, no branch, no frame)
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     (void)opt;
-    __asm__ __volatile__("cmpl $-1, %0" : : "r"(sock_) : "cc");
+    sock_ == -1;
 }
 
 void TCPSocket::close()
@@ -327,23 +324,25 @@ bool TCPSocket::connect_nonb(const char* ip, unsigned short port, timeval tval)
             p->fds_bits[i] = 0;
         }
         FD_SET((unsigned int)sock_, &wset);
-        n = select(sock_ + 1, NULL, &wset, NULL, &tval);
-        // ORIG: && 物化为 0/1（mov $1; jmp; mov $0; test; je）
-        if (n < 0 && errno != EINTR)
+        // ORIG: 赋值在条件内（n<0 && errno!=EINTR 物化为 0/1：mov $1; jmp; mov $0; test; je）
+        if ((n = select(sock_ + 1, NULL, &wset, NULL, &tval)) < 0 && errno != EINTR)
         {
             return false;
         }
-        if (n < 1)
+        if (n >= 1)
         {
-            return false;
+            socklen_t lon = 4;
+            int valopt;
+            if (getsockopt(sock_, 1, 4, &valopt, &lon) < 0)
+            {
+                return false;
+            }
+            if (valopt != 0)
+            {
+                return false;
+            }
         }
-        socklen_t lon = 4;
-        int valopt;
-        if (getsockopt(sock_, 1, 4, &valopt, &lon) < 0)
-        {
-            return false;
-        }
-        if (valopt != 0)
+        else
         {
             return false;
         }

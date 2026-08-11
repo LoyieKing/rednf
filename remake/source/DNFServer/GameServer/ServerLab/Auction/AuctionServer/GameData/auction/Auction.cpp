@@ -331,129 +331,129 @@ __attribute__((target("arch=i586"))) int Auction::RegistItem(
     {
         return 0;
     }
-    bool db_loaded = (GetPayType() == PAY_TYPE_POINT) && !isLoad;
-    if (db_loaded)
+    if ((GetPayType() == PAY_TYPE_POINT) && !isLoad)
     {
         ROI_AverageKey roiAverageKey;
         char itemRefineValue = 0;
         int AvePrice = 0;
         GetAveragePrice(itemInfo.GetItemId(), itemInfo.GetUpgradeValue(),
                         roiAverageKey, itemRefineValue, &AvePrice);
-        if (((AvePrice != -1) && (AvePrice != 0)) &&
-            (((double)instantPrice / (double)AvePrice) < 0.5))
+        if ((AvePrice != -1) && (AvePrice != 0))
         {
-            return 0x37;
+            double PriceRate = (double)instantPrice / (double)AvePrice;
+            if (PriceRate < 0.5)
+            {
+                return 0x37;
+            }
         }
     }
     EnumAuctionItemType item_type = CheckItemType(itemInfo.item_id);
-    char is_available_item = '\x01';
-    if (item_type == AUCTION_ITEM_TYPE_CREATURE)
+    bool is_available_item = true;
+    switch (item_type)
     {
-        is_available_item = (char)RegistChkMapForAvatarCreature(false, itemInfo.add_info);
-    }
-    else if (item_type == AUCTION_ITEM_TYPE_AVATAR)
-    {
-        is_available_item = (char)RegistChkMapForAvatarCreature(true, itemInfo.add_info);
-    }
-    else if (item_type != AUCTION_ITEM_TYPE_PLAIN)
-    {
-        is_available_item = '\0';
+    case AUCTION_ITEM_TYPE_PLAIN:
+        break;
+    case AUCTION_ITEM_TYPE_CREATURE:
+        is_available_item = RegistChkMapForAvatarCreature(false, itemInfo.add_info);
+        break;
+    case AUCTION_ITEM_TYPE_AVATAR:
+        is_available_item = RegistChkMapForAvatarCreature(true, itemInfo.add_info);
+        break;
+    default:
+        is_available_item = false;
         G_TraceLog()->sysLog(7, "ERROR: Auction::RegistItem(), item_type check unknown, item_id : %d",
                              itemInfo.item_id);
+        break;
     }
-    if (is_available_item == '\x01')
+    if (!is_available_item)
     {
-        now_registed_item_num = GetNowRegistedItemNum(ownerId);
-        if (ownerType == '\x01')
-        {
-            if (0x1d < now_registed_item_num)
-            {
-                return 0x1e;
-            }
-        }
-        else if (9 < now_registed_item_num)
+        return 0x23;
+    }
+    now_registed_item_num = GetNowRegistedItemNum(ownerId);
+    if (ownerType == '\x01')
+    {
+        if (0x1d < now_registed_item_num)
         {
             return 0x1e;
         }
-        char db_loaded_auction_id = '\0';
-        if ((auctionId == 0))
-        {
-            auctionId = getNextAuctionId();
-        }
-        else
-        {
-            db_loaded_auction_id = '\x01';
-            checkMaxAuctionId(auctionId);
-        }
-        if (expireTime == 0)
-        {
-            time(&expireTime);
-            if (ownerId == -1)
-            {
-                expireTime = mSYSTEM_AUCTION_EXPIRE_TIME + expireTime;
-            }
-            else
-            {
-                if ((strlen(ownerName) == 0xc) &&
-                    (strcmp(ownerName, "\xb0\xe6\xb8\xc5\xb7\xce\xc0\xfa\xb7\xb9\xba\xf3") == 0))
-                {
-                    expireTime = mSYSTEM_AUCTION_EXPIRE_TIME + expireTime;
-                    ownerId = -1;
-                }
-                else
-                {
-                    expireTime = mAUCTION_EXPIRE_TIME + expireTime;
-                }
-            }
-        }
-        return_code = mAuctionDic.RegistItem(
-            auctionId, ownerId, ownerName, price, instantPrice, black_point, unitPrice,
-            itemInfo, expireTime, buyerId, buyerName, roiKey, ownerType, ownerNexonId);
-        if (return_code == 0)
-        {
-            if (db_loaded_auction_id != '\x01')
-            {
-                PrintDnfItemInfo(itemInfo, mpSzBuffer);
-                G_TraceLog()->sysLog(
-                    5, "AuctionDictionary::RegistItem(), before DB insert, o_id : %d , item : %s",
-                    ownerId, mpSzBuffer);
-                tagAUCTION_DB_REGIST_ITEM dbtr_regist_item;
-                dbtr_regist_item.auction_id = auctionId;
-                dbtr_regist_item.expire_time = expireTime;
-                dbtr_regist_item.owner_id = ownerId;
-                if (ownerId == -1)
-                {
-                    strncpy(dbtr_regist_item.owner_name, SENDER_NPC_NAME, 0xd);
-                }
-                else
-                {
-                    strncpy(dbtr_regist_item.owner_name, ownerName, 0xc);
-                }
-                dbtr_regist_item.buyer_id = -1;
-                dbtr_regist_item.buyer_name[0] = '\0';
-                dbtr_regist_item.price = price;
-                dbtr_regist_item.instant_price = instantPrice;
-                dbtr_regist_item.item_info = itemInfo;
-                dbtr_regist_item.black_point = black_point;
-                dbtr_regist_item.unit_price = unitPrice;
-                dbtr_regist_item._reg_roi_category_key = roiKey;
-                dbtr_regist_item.owner_type = ownerType;
-                strncpy(dbtr_regist_item.owner_nexon_id, ownerNexonId,
-                        strlen(ownerNexonId));
-                CommonDataPool* pPool = pApp->super_DataPools.getCommonDataPool(tlsThreadId);
-                Message* pMsg = pPool->createMessage(3);
-                CMsgCell* pNewCell = pMsg->getCellFromMessage();
-                *pNewCell << &dbtr_regist_item;
-                pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
-            }
-            return_code = 0;
-        }
+    }
+    else if (9 < now_registed_item_num)
+    {
+        return 0x1e;
+    }
+    bool db_loaded = false;
+    if (auctionId == 0)
+    {
+        auctionId = getNextAuctionId();
     }
     else
     {
-        return_code = 0x23;
+        db_loaded = true;
+        checkMaxAuctionId(auctionId);
     }
-    return return_code;
+    if (expireTime == 0)
+    {
+        time(&expireTime);
+        if (ownerId == -1)
+        {
+            expireTime = mSYSTEM_AUCTION_EXPIRE_TIME + expireTime;
+        }
+        else
+        {
+            if ((strlen(ownerName) == 0xc) &&
+                (strcmp(ownerName, "\xb0\xe6\xb8\xc5\xb7\xce\xc0\xfa\xb7\xb9\xba\xf3") == 0))
+            {
+                expireTime = mSYSTEM_AUCTION_EXPIRE_TIME + expireTime;
+                ownerId = -1;
+            }
+            else
+            {
+                expireTime = mAUCTION_EXPIRE_TIME + expireTime;
+            }
+        }
+    }
+    return_code = mAuctionDic.RegistItem(
+        auctionId, ownerId, ownerName, price, instantPrice, black_point, unitPrice,
+        itemInfo, expireTime, buyerId, buyerName, roiKey, ownerType, ownerNexonId);
+    if (return_code != 0)
+    {
+        return return_code;
+    }
+    if (!db_loaded)
+    {
+        PrintDnfItemInfo(itemInfo, mpSzBuffer);
+        G_TraceLog()->sysLog(
+            5, "AuctionDictionary::RegistItem(), before DB insert, o_id : %d , item : %s",
+            ownerId, mpSzBuffer);
+        tagAUCTION_DB_REGIST_ITEM dbtr_regist_item;
+        dbtr_regist_item.auction_id = auctionId;
+        dbtr_regist_item.expire_time = expireTime;
+        dbtr_regist_item.owner_id = ownerId;
+        if (ownerId == -1)
+        {
+            strncpy(dbtr_regist_item.owner_name, SENDER_NPC_NAME, 0xd);
+        }
+        else
+        {
+            strncpy(dbtr_regist_item.owner_name, ownerName, 0xc);
+        }
+        dbtr_regist_item.buyer_id = -1;
+        dbtr_regist_item.buyer_name[0] = '\0';
+        dbtr_regist_item.price = price;
+        dbtr_regist_item.instant_price = instantPrice;
+        dbtr_regist_item.item_info = itemInfo;
+        dbtr_regist_item.owner_type = ownerType;
+        dbtr_regist_item.black_point = black_point;
+        dbtr_regist_item.unit_price = unitPrice;
+        dbtr_regist_item._reg_roi_category_key = roiKey;
+        strncpy(dbtr_regist_item.owner_nexon_id, ownerNexonId,
+                strlen(ownerNexonId));
+        Message* pMsg = pApp->super_DataPools.getCommonDataPool(tlsThreadId)->createMessage(3);
+        CMsgCell* pNewCell = pMsg->getCellFromMessage();
+        *pNewCell << &dbtr_regist_item;
+        pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
+    }
+    return 0;
 }
 
 int Auction::AddItemAveragePrice(unsigned long itemId, unsigned char itemUpgradeValue,

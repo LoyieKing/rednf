@@ -37,7 +37,6 @@ CSystemTimeHandler* CSystemTimeHandlerInstance()
     static CSystemTimeHandler instance;
     return &instance;
 }
-CUnixTimer::CUnixTimer() {}
 double CUnixTimer::GetNowTime()
 {
     struct timeval tv;

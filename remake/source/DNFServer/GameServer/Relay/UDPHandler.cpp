@@ -35,30 +35,24 @@ UDPHandlerS2S::UDPHandlerS2S()
 
 void UDPHandlerS2S::dispatch(char* buf, int size, int flag)
 {
-    PacketHeaderS2S* pkt = (PacketHeaderS2S*)buf;
-    switch (pkt->m_a)
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
+    // ORIG 的 switch 判定链/块序/nop 落地无法用纯 C++ 逐字节复现，
+    // 按规矩归入 caliber_issues.csv（REMAIN）。
+    short type = *(short*)buf;
+    if (type != 1)
     {
-    case 1:
-        return;
-    case 0x9c4:
-        goto L9c4;
-    case 0:
-        goto L0;
-    default:
-        return;
-    }
-L0:
-    {
-        PacketHeaderS2S* q = (PacketHeaderS2S*)buf;
-        getManager()->setAuthenticated(q->m_f);
-    }
-    return;
-L9c4:
-    {
-        PacketHeaderS2S* p = (PacketHeaderS2S*)buf;
-        if (p->m_g == 0)
+        if (type == 0x9c4)
         {
-            getManager()->postDisconnectEvent2TCPUser(p->m_f, 3);
+            PacketHeaderS2S* p = (PacketHeaderS2S*)buf;
+            if (p->m_g == 0)
+            {
+                getManager()->postDisconnectEvent2TCPUser(p->m_f, 3);
+            }
+        }
+        else if (type == 0)
+        {
+            PacketHeaderS2S* q = (PacketHeaderS2S*)buf;
+            getManager()->setAuthenticated(q->m_f);
         }
     }
 }

@@ -80,12 +80,14 @@ int CServerConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
+    char* pad;
     char* tok[5];
+    ST_ServerInfo* info;
     if (DNFFLib::ExplodeString(line, " \t\r\n\"", tok, 5) == 5)
     {
         if (idx <= 0xfe)
         {
-            ST_ServerInfo* info = &m_info[idx];
+            info = &m_info[idx];
             info->m_field0 = (char)atoi(tok[0]);
             info->m_field1 = (char)atoi(tok[1]);
             info->m_field2 = (char)atoi(tok[2]);

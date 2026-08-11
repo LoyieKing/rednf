@@ -19,7 +19,7 @@ public:
     virtual ~CAppStartInit();
     virtual void Init(CApplication* app, int argc, char** argv);
     int Init_Daemon(int argc, char** argv);
-    int Save_pid(const std::string& path);
+    bool Save_pid(const std::string& path);
 };
 
 #endif  // DBMW_DNFAPPSTARTINIT_H_

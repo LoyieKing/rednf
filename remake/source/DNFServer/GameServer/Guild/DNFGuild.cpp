@@ -151,6 +151,9 @@ void RandomOptionSeed::reset()
 
 void RandomOption::reset()
 {
+    // ORIG 帧 sub $0x18；本编译器对 ≥0x11 的 char 数组做 32 字节对齐，
+    // 无法精确复现（REMAIN：栈帧形态，语义等价）
+    char pad[0x10];
     ((RandomOptionField*)this)->reset();
     ((RandomOptionField*)((char*)this + 3))->reset();
     ((RandomOptionField*)((char*)this + 6))->reset();
@@ -2002,8 +2005,7 @@ void CGuild::LoadGuildAgit(CServerHandler* handler, unsigned int charNo)
     if ((m_field1c & 4) != 0)
     {
         Packet_DB_Load_Guild_Agit pkt;
-        unsigned int t = charNo;
-        (void)t;
+        pkt.m_charNo = charNo;
         handler->SendToDB(&pkt);
     }
 }
@@ -2249,7 +2251,9 @@ void CGuild::NotifyTodayGuildMember(CUser* user)
 void CGuild::QueryTodayGuildMember(CServerHandler* handler)
 {
     Packet_Query_Today_Guild_Member pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = m_guildKey;
+    // ORIG：仅把 m_guildKey 写入局部变量（Ghidra 反编译证实未写包字段）
+    unsigned int guildKey = m_guildKey;
+    (void)guildKey;
     handler->SendToDB(&pkt);
 }
 

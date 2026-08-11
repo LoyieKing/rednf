@@ -12,7 +12,7 @@ public:
     void Init(unsigned short port);
     int OpenTcpService(int& serverCount, const char* ip, unsigned short port);
     int WaitForEvent();
-    void SendPacket();
+    int SendPacket();
     void CleanPeers();
     void CleanTcpSendPacketQ();
     void DeletePeer(CPeer* peer);

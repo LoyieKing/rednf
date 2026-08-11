@@ -59,7 +59,7 @@ bool CDNFProhibitUser::IsTimeOutConnectable()
 {
     ((RA_U16<4>*)this)->v =
         (unsigned short)(((RA_U16<4>*)this)->v - 1);
-    if (((RA_U16<4>*)this)->v <= 0)
+    if ((short)(((RA_U16<4>*)this)->v) <= 0)
     {
         return 1;
     }

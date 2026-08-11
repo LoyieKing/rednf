@@ -82,7 +82,7 @@
 struct PowerWarLayout
 {
     char pad0[4];
-    unsigned char m_on;         // +4
+    bool m_on;                  // +4
     char pad1[3];
     int m_field8;               // +8
     unsigned short m_endKillPoint; // +0xc
@@ -93,12 +93,7 @@ ST_PowerWarEventStartTimeConfig::~ST_PowerWarEventStartTimeConfig()
 {
 }
 
-unsigned char CPowerWar::IsPowerWarOn()
-{
-    return ((PowerWarLayout*)this)->m_on;
-}
-
-unsigned char CPowerWar::IsPowerWarOn() const
+bool CPowerWar::IsPowerWarOn() const
 {
     return ((PowerWarLayout*)this)->m_on;
 }

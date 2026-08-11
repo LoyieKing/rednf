@@ -279,7 +279,7 @@ public:
 
 struct stItemLimitEditionItemInfo_t
 {
-    char m_data[0x4c];
-};
+    char m_data[0x48];
+} __attribute__((aligned(4)));
 
 #endif  // MONITOR_ITEMLIMITEDITIONMANAGER_H_

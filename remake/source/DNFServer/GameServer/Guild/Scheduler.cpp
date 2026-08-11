@@ -109,43 +109,43 @@ void CScheduler::Clear()
     m_flag2 = 0xff;
     for (int i = 0; i < 7; i++)
     {
-        *(char*)((char*)this + i * 4 + 8) = 0;
-        *(char*)((char*)this + i * 4 + 9) = 0xff;
-        *(char*)((char*)this + i * 4 + 10) = 0xff;
-        *(char*)((char*)this + i * 4 + 0xb) = 0xff;
+        m_table[i].m_flag = 0;
+        m_table[i].m_hour = 0xff;
+        m_table[i].m_min = 0xff;
+        m_table[i].m_reserved = 0xff;
     }
 }
 
 void CScheduler::SetSpecialHour(int hour)
 {
-    *(char*)((char*)this + 2) = (char)hour;
-    *(char*)((char*)this + 1) = 0;
+    m_hour = (char)hour;
+    m_min = 0;
 }
 
 int CScheduler::IsOnTimeSpecialHour(int hour, int min)
 {
-    return (char)*(char*)((char*)this + 2) == hour &&
-           (char)*(char*)((char*)this + 1) == min;
+    if ((char)m_hour == hour && (char)m_min == min)
+        return 1;
+    return 0;
 }
 
 void CScheduler::SetSpecialDayHour(int day, int hour)
 {
-    *(char*)((char*)this + 2) = (char)hour;
-    *(char*)((char*)this + 3) = (char)day;
-    *(char*)((char*)this + 1) = 0;
+    m_hour = (char)hour;
+    m_sec = (char)day;
+    m_min = 0;
 }
 
 int CScheduler::IsOnTimeSpecialDayHour(int day, int hour, int min)
 {
-    return (char)*(char*)((char*)this + 3) == day &&
-           (char)*(char*)((char*)this + 2) == hour &&
-           (char)*(char*)((char*)this + 1) == min;
+    if ((char)m_sec == day && (char)m_hour == hour && (char)m_min == min)
+        return 1;
+    return 0;
 }
 
 int CScheduler::GetSpecificDayScheduleHour(int day)
 {
-    return ((int)(char)*(char*)((char*)this + day * 4 + 10) -
-            (int)(char)*(char*)((char*)this + day * 4 + 9)) * 0x3c;
+    return ((int)(char)m_table[day].m_min - (int)(char)m_table[day].m_hour) * 0x3c;
 }
 
 void CScheduler::SetSpecialWeekDayHour(std::vector<STPowerWarScheduleTime> schedule)
@@ -153,88 +153,78 @@ void CScheduler::SetSpecialWeekDayHour(std::vector<STPowerWarScheduleTime> sched
     for (std::vector<STPowerWarScheduleTime>::iterator it = schedule.begin();
          it != schedule.end(); ++it)
     {
-        char* p = (char*)&(*it);
-        *(char*)((char*)this + p[0] * 4 + 8) = 1;
-        *(char*)((char*)this + p[0] * 4 + 9) = p[1];
-        *(char*)((char*)this + p[0] * 4 + 10) = p[2];
-        *(char*)((char*)this + p[0] * 4 + 0xb) = 0;
+        STPowerWarScheduleTime* p = &(*it);
+        m_table[p->m_data[0]].m_flag = 1;
+        m_table[p->m_data[0]].m_hour = p->m_data[1];
+        m_table[p->m_data[0]].m_min = p->m_data[2];
+        m_table[p->m_data[0]].m_reserved = 0;
     }
 }
 
 void CScheduler::SetSpecialWeekDayHour(int day, int hour)
 {
-    *(char*)((char*)this + day * 4 + 8) = 1;
-    *(char*)((char*)this + day * 4 + 9) = (char)hour;
+    m_hour = (char)hour;
+    m_flag1 = (char)day;
+    m_min = 0;
 }
 
 STPowerWarScheduleTime* CScheduler::GetNextScheduleTime(unsigned char& hour,
                                                        unsigned char& min)
 {
-    time_t now = time(0);
-    tm* pt = localtime(&now);
     tm t;
-    t.tm_sec = pt->tm_sec;
-    t.tm_min = pt->tm_min;
-    t.tm_hour = pt->tm_hour;
-    t.tm_mday = pt->tm_mday;
-    t.tm_mon = pt->tm_mon;
-    t.tm_year = pt->tm_year;
-    t.tm_wday = pt->tm_wday;
-    t.tm_yday = pt->tm_yday;
-    t.tm_isdst = pt->tm_isdst;
-    t.tm_gmtoff = pt->tm_gmtoff;
-    t.tm_zone = pt->tm_zone;
-    int curDay = pt->tm_wday;
-    if (*(char*)((char*)this + curDay * 4 + 8) == 0 ||
-        (char)*(char*)((char*)this + curDay * 4 + 9) < pt->tm_hour)
+    time_t now;
+    time_t next;
+    time(&now);
+    t = *localtime(&now);
+    if (m_table[t.tm_wday].m_flag != 0 &&
+        t.tm_hour <= (char)m_table[t.tm_wday].m_hour)
     {
-        int target = -1;
-        int d = curDay;
-        do
+        hour = (unsigned char)m_table[t.tm_wday].m_hour;
+        min = (unsigned char)m_table[t.tm_wday].m_min;
+        return (STPowerWarScheduleTime*)localtime(&now);
+    }
+    bool found = false;
+    int target = 0;
+    int daysAhead = 0;
+    int d = t.tm_wday + 1;
+    for (; d <= 6; d++)
+    {
+        if (m_table[d].m_flag != 0)
         {
-            d++;
-            if (d > 6)
-            {
-                break;
-            }
-        } while (*(char*)((char*)this + d * 4 + 8) == 0);
-        if (d <= 6)
-        {
+            found = true;
             target = d;
+            break;
         }
-        else
-        {
-            for (int i = 0; i < 7; i++)
-            {
-                if (*(char*)((char*)this + i * 4 + 8) != 0)
-                {
-                    target = i;
-                    break;
-                }
-            }
-        }
-        int daysAhead = (d <= 6) ? (target - curDay) : ((7 - curDay) + target);
-        time_t next = daysAhead * 0x15180 + mktime(&t);
-        hour = (unsigned char)*(char*)((char*)this + target * 4 + 9);
-        min = (unsigned char)*(char*)((char*)this + target * 4 + 10);
-        return (STPowerWarScheduleTime*)localtime(&next);
+    }
+    if (found)
+    {
+        daysAhead = target - t.tm_wday;
     }
     else
     {
-        hour = (unsigned char)*(char*)((char*)this + curDay * 4 + 9);
-        min = (unsigned char)*(char*)((char*)this + curDay * 4 + 10);
-        return (STPowerWarScheduleTime*)localtime(&now);
+        int i = 0;
+        for (; i <= 6; i++)
+        {
+            if (m_table[i].m_flag != 0)
+            {
+                target = i;
+                break;
+            }
+        }
+        daysAhead = 7 - t.tm_wday + target;
     }
+    next = mktime(&t);
+    next += daysAhead * 0x15180;
+    hour = (unsigned char)m_table[target].m_hour;
+    min = (unsigned char)m_table[target].m_min;
+    return (STPowerWarScheduleTime*)localtime(&next);
 }
 
 int CScheduler::IsOnTimeSpecialWeekDayHour(int day, int hour, int min)
 {
-    if (*(char*)((char*)this + day * 4 + 8) != 0 &&
-        *(char*)((char*)this + day * 4 + 9) == (char)hour &&
-        *(char*)((char*)this + day * 4 + 0xb) == (char)min)
-    {
+    if (m_table[day].m_flag != 0 && (char)m_table[day].m_hour == hour &&
+        (char)m_table[day].m_reserved == min)
         return 1;
-    }
     return 0;
 }
 

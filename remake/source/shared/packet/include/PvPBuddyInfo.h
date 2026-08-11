@@ -25,7 +25,9 @@ public:
         memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
     }
     char server_id;        // offset 0x00
-    char channel_no;       // offset 0x01
+    unsigned char channel_no;       // offset 0x01（原始：ORIG movzbl 直接装入存储寄存器 %cl，
+                                    // 无 char 强转的 eax 往返；unsigned char 目标在 4.4.6 -O0
+                                    // 下折叠为直接装载，2026-08-11 二进制实测）
     bool isOnline;         // offset 0x02
     int charac_no;         // offset 0x03
     char buddy_n_user_id_what[0x1e];  // offset 0x07

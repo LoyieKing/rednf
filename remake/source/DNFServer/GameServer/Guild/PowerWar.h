@@ -35,8 +35,7 @@ class CPowerWar
 public:
     CPowerWar();
     virtual ~CPowerWar();
-    unsigned char IsPowerWarOn();
-    unsigned char IsPowerWarOn() const;
+    bool IsPowerWarOn() const;
     unsigned short getPowerWarEndKillPoint();
     unsigned short getPowerWarEndKillPoint() const;
     void setPowerWarEndKillPoint(unsigned short point);

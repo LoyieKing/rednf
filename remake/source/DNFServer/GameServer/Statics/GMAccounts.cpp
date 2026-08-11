@@ -405,7 +405,7 @@ void LoadingTimeReport::Reset()
     for (int i = 0; i < 9; i++)
     {
         m_data[i] = 0;
-        m_data[i + 9] = 0;
+        m_data2[i] = 0;
     }
 }
 STPowerwarFightLoadingKey::STPowerwarFightLoadingKey()
@@ -542,7 +542,7 @@ void CGMAccounts::clearGmList()
 
 void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
 {
-    stGMInfo_t info;
+    stGMInfo_t info = {};
     info.m_field0 = id;
     info.m_field1 = flag;
     m_list.push_back(info);
@@ -557,12 +557,13 @@ bool CGMAccounts::loadGMAccounts(const char* path)
 
 int CGMAccounts::isGM(unsigned int id)
 {
-    stGMInfo_t key;
-    key.m_field0 = id;
+    stGMInfo_t key = {};
     key.m_field1 = 3;
-    std::list<stGMInfo_t>::iterator it =
-        std::find(m_list.begin(), m_list.end(), key);
-    return it != m_list.end();
+    key.m_field0 = id;
+    if (std::find(m_list.begin(), m_list.end(), key) != m_list.end())
+        return 1;
+    else
+        return 0;
 }
 
 int CGMAccounts::appendGM(unsigned int id, unsigned int value)
@@ -586,19 +587,18 @@ int CGMAccounts::removeGM(unsigned int id, unsigned int value)
 
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
 {
-    stGMInfo_t key;
-    key.m_field0 = id;
+    stGMInfo_t out;
+    out.m_field0 = 0;
+    out.m_field1 = 3;
+    stGMInfo_t key = {};
     key.m_field1 = 3;
-    stGMInfo_t result;
-    result.m_field0 = 0;
-    result.m_field1 = 3;
+    key.m_field0 = id;
     std::list<stGMInfo_t>::const_iterator it =
         std::find(m_list.begin(), m_list.end(), key);
     if (it != m_list.end())
-    {
-        result = *it;
-    }
-    return result;
+        return *it;
+    else
+        return out;
 }
 }
 bool STPartyStatisticKey::operator<(const STPartyStatisticKey& other) const
@@ -612,16 +612,16 @@ bool STPartyStatisticKey::operator<(const STPartyStatisticKey& other) const
             if (m_field8 < other.m_field8) return true;
             if (m_field8 == other.m_field8)
             {
-                if ((unsigned char)m_field9 < (unsigned char)other.m_field9) return true;
+                if (m_field9 < other.m_field9) return true;
                 if (m_field9 == other.m_field9)
                 {
-                    if ((unsigned char)m_fielda < (unsigned char)other.m_fielda) return true;
+                    if (m_fielda < other.m_fielda) return true;
                     if (m_fielda == other.m_fielda)
                     {
-                        if ((unsigned char)m_fieldb < (unsigned char)other.m_fieldb) return true;
+                        if (m_fieldb < other.m_fieldb) return true;
                         if (m_fieldb == other.m_fieldb)
                         {
-                            if ((unsigned char)m_fieldc < (unsigned char)other.m_fieldc) return true;
+                            if (m_fieldc < other.m_fieldc) return true;
                             if (m_fieldc == other.m_fieldc &&
                                 m_fieldd < other.m_fieldd) return true;
                         }

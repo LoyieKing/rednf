@@ -1242,7 +1242,7 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* header)
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* buf = tcp->makePacketHeader(0x27fb, 0x1a);
+            char* buf = (char*)tcp->makePacketHeader(0x27fb, 0x1a);
             *(int*)(buf + 0xa) = pkt->m_eventType;
             *(int*)(buf + 0xe) = pkt->m_eventFlag;
             *(int*)(buf + 0x12) = pkt->m_serverId;
@@ -1284,7 +1284,7 @@ void CPacketTranslater::onEndGameEventFromServer(PacketHeader* header)
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* buf = tcp->makePacketHeader(0x27fc, 0x16);
+            char* buf = (char*)tcp->makePacketHeader(0x27fc, 0x16);
             *(int*)(buf + 0xa) = pkt->m_eventType;
             *(int*)(buf + 0x12) = pkt->m_endTime;
             *(int*)(buf + 0xe) = pkt->m_serverId;
@@ -1812,7 +1812,8 @@ void CPacketTranslater::OnServeQueueLoadStatistic(PacketHeader* header)
     unsigned char fieldA;
     if (pkt->m_fieldA == 0xc8)
     {
-        fieldA = (unsigned char)(pkt->m_fieldA - m_pclApp->m_appConfig->Get_DbmwType());
+        fieldA = (unsigned char)(pkt->m_fieldA -
+                                 ((CAppConfig*)m_pclApp->m_appConfig)->Get_DbmwType());
     }
     else
     {
@@ -1919,8 +1920,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
              "CPacketTranslater::OnPcRoomPlayTimeReward Noti acc_id(%d), charac_no(%d), server_info(%d)",
              accId, characNo, serverInfo);
         unsigned int pinNo = 0;
-        char pinBuf[0x15];
-        memset(pinBuf, 0, 0x15);
+        char pinBuf[0x15] = {0};
         if (!m_pclApp->m_dbManager.updateNexonPinPcRoomPlayTimeEvent(
                 serverInfo, accId, pinNo, pinBuf, 0x15))
         {
@@ -1938,8 +1938,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
         t->tm_hour = 0;
         t->tm_min = 0;
         time_t tomorrow = mktime(t);
-        char str[0x100];
-        memset(str, 0, 0x100);
+        char str[0x100] = {0};
         sprintf(str,
                 "\xbf\xa9\xb8\xa7\xb9\xe6\xc7\xd0\x20\xb1\xe2\xb0\xa3\xbf\xa1\x20\x31\xbd\xc3\xb0\xa3\xb5\xbf\xbe\xc8\x20\x50\x43\xb9\xe6\xbf\xa1\xbc\xad\x20\xc1\xa2\xbc\xd3\xc0\xbb\x20\xc0\xaf\xc1\xf6\xc7\xcf\xbd\xc5\x20\x50\x43\xb9\xe6\x20\xc0\xaf\xc0\xfa\x20\xbf\xa9\xb7\xaf\xba\xd0\xb2\xb2\x20\xc6\xaf\xba\xb0\xc7\xd1\x20\xbc\xb1\xb9\xb0\xc0\xbb\x20\xb5\xe5\xb8\xb3\xb4\xcf\xb4\xd9\x2e\x0a\x20\x2d\x20\xb3\xd8\xbd\xbc\xc7\xc9\x3a\x20\x25\x73\x20",
                 pinBuf);
@@ -2306,7 +2305,7 @@ void CPacketTranslater::OnReqOntimeEventIdx(PacketHeader* header)
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* pkt = tcp->makePacketHeader(0x2341, 0xf);
+            char* pkt = (char*)tcp->makePacketHeader(0x2341, 0xf);
             memcpy(pkt + 0xa, (char*)&reply + 0xa, 5);
             tcp->SendToServer(pkt);
         }
@@ -2339,7 +2338,7 @@ void CPacketTranslater::OnReqOntimeEventIdxUpdate(PacketHeader* header)
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* pkt = tcp->makePacketHeader(0x2348, 0xe);
+            char* pkt = (char*)tcp->makePacketHeader(0x2348, 0xe);
             memcpy(pkt + 0xa, (char*)&reply + 0xa, 4);
             tcp->SendToServer(pkt);
         }
@@ -2368,7 +2367,7 @@ void CPacketTranslater::OnReqOntimeEventItem(PacketHeader* header)
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* pkt = tcp->makePacketHeader(0x2346, 0x14);
+            char* pkt = (char*)tcp->makePacketHeader(0x2346, 0x14);
             memcpy(pkt + 0xa, (char*)&reply + 0xa, 0xa);
             tcp->SendToServer(pkt);
         }

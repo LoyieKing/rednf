@@ -84,7 +84,9 @@ int CArchiveLog::WriteLog(const char *log) {
             return 0;
         }
     }
-    // 原始：仅复制 7 字节（year..sec）。
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）：
+    // 仅复制 7 字节（year..sec）；ORIG 的寄存器复用/指令序无法用纯 C++
+    // 逐字节复现，按规矩归入 caliber_issues.csv（REMAIN）。
     if (&this->time != &now) {
         memcpy(&this->time, &now, 7);
     }

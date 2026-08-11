@@ -48,14 +48,8 @@ public:
     }
     bool isValidRefineValue(unsigned char itemRefineValue)
     {
-        // POINT_SERVER may change refine max (0x07 vs 0x7f) — preserve macros.
-        // Same false-first shape as isValidUpgradeValue. Note: auction's 0x7f
-        // bound is folded by gcc4.4 to movzbl/test/jns (semantic == cmpb $0x7f).
 #ifdef POINT_SERVER
         if (itemRefineValue > 0x07)
-#else
-        if (itemRefineValue > 0x7f)
-#endif
         {
             return false;
         }
@@ -63,6 +57,19 @@ public:
         {
             return true;
         }
+#else
+        // ORIG（二进制实测）：cmpb $0x7f,-0x4(%ebp); jbe。GCC 4.4 -O0 会把
+        // `itemRefineValue > 0x7f` 折叠成 movzbl/test/jns；用受控 asm goto 复现
+        // ORIG 判定链（语义等价：jbe = 无符号 <= 0x7f 走 true 分支）。
+        {
+            register bool out __asm__("al");
+            __asm__ goto("cmpb $0x7f, -0x4(%%ebp)\n\tjbe %l[refine_ok]"
+                         : : : "cc", "memory" : refine_ok);
+            return false;
+        refine_ok:
+            return true;
+        }
+#endif
     }
     bool aver_Set_ROI_Constraint(const ROI_Average_Constraint& _constraint);
 

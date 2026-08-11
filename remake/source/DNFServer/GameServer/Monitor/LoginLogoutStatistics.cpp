@@ -48,10 +48,12 @@ CLoginLogoutStatistics::~CLoginLogoutStatistics()
 void CLoginLogoutStatistics::ProcessByMinute()
 {
     Packet_DBMW_Statistic_Login_Logout pkt;
-    ((RA_UINT<1544>*)&pkt)->v = m_fieldac;
-    ((RA_UINT<1548>*)&pkt)->v = m_fieldb0;
-    ((RA_UINT<1552>*)&pkt)->v = m_fieldb4;
-    ((RA_UINT<1556>*)&pkt)->v = m_fieldb8;
+    int v0, v1, v2, v3;
+    int cnt = 0;
+    v0 = m_fieldac;
+    v1 = m_fieldb0;
+    v2 = m_fieldb4;
+    v3 = m_fieldb8;
     m_fieldb4 = 0;
     m_fieldb8 = 0;
     m_app->Get_ServerHandler()->GetDBServer()->SendToServer((char*)&pkt, 0x618);
@@ -60,7 +62,11 @@ void CLoginLogoutStatistics::ProcessByMinute()
 void CLoginLogoutStatistics::LoginLogout(ENUM_LOGIN_LOGOUT type, unsigned char channel)
 {
     std::map<unsigned char, stLoginLogout>::iterator it = m_maps[(int)type].find(channel);
-    if (it == m_maps[(int)type].end())
+    if (it != m_maps[(int)type].end())
+    {
+        it->second.m_count = it->second.m_count + 1;
+    }
+    else
     {
         for (int i = 0; i < 7; i++)
         {
@@ -71,10 +77,6 @@ void CLoginLogoutStatistics::LoginLogout(ENUM_LOGIN_LOGOUT type, unsigned char c
             m_maps[i].insert(std::pair<const unsigned char, stLoginLogout>(channel, st));
         }
         LoginLogout(type, channel);
-    }
-    else
-    {
-        it->second.m_count = it->second.m_count + 1;
     }
 }
 

@@ -28,20 +28,19 @@ CTableBase::CTableBase() {}
 CTableBase::~CTableBase() {}
 int CTableBase::Load_Txt_Table_Data(const char* fileName, int idx)
 {
-    FILE* f = fopen(fileName, "r");
-    if (!f)
+    int count = 0;
+    FILE* f;
+    if ((f = fopen(fileName, "rb")) == NULL)
         return -1;
     char buf[0x400];
-    int count = 0;
     while (!feof(f) && fgets(buf, 0x400, f))
     {
         if (buf[0] == '#')
             continue;
         if (count >= idx)
             return -2;
-        if (!Parse_Table(buf, count))
-            return -1;
-        count++;
+        if (Parse_Table(buf, count))
+            count++;
     }
     fclose(f);
     return count;
@@ -50,7 +49,6 @@ CDNFException::CDNFException(const std::string& msg) : m_msg(msg) {}
 CDNFException::~CDNFException() throw() {}
 const char* CDNFException::what() const throw()
 {
-    CMyFileLog log(__FUNCTION__, 0x1a);
-    log("./log/Except", "%s", m_msg.c_str());
+    DNF_LOG_SCOPE_LINE(0x1a, "./log/Except", "%s", m_msg.c_str());
     return m_msg.c_str();
 }

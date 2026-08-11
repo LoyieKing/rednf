@@ -53,34 +53,37 @@ void CServerHandler::Load(ST_ServerInfo* info)
 }
 void CServerHandler::Process()
 {
-    int tick = m_reserved2;
-    m_reserved2 = tick + 1;
-    if (3 < tick)
+    if (m_reserved2++ > 3)
     {
         m_mgrServer.SendHeartBeat(GetServerGroupNo() & 0xff);
         m_reserved2 = 0;
     }
     CGameServer* p = m_servers;
     int left = 0xff;
-    while (left != 0)
+    int i = 0;
+    while (left-- != 0)
     {
-        left--;
-        if (p->IsValidServer())
+        i++;
+        if (!p->IsValidServer())
         {
-            if (p->IsConnected())
+            p++;
+            continue;
+        }
+        if (p->IsConnected())
+        {
+            if (p->IsHeartBeatTimeOver())
             {
-                if (p->IsHeartBeatTimeOver())
-                {
-                    p->OnDisconnect();
-                    DNF_LOG_SCOPE_LINE(0x89, "./log/GameServer",
-                        "CServerHandler::Process() Index : %d!\tCall User Info!\n", 0x100 - left);
-                }
+                p->OnDisconnect();
+                DNF_LOG_SCOPE_LINE(0x89, "./log/GameServer",
+                    "CServerHandler::Process() Index : %d!\tCall User Info!\n", 0x100 - left);
             }
         }
         p++;
     }
-    if (m_dbServer.IsValidServer())
+    for (;;)
     {
+        if (!m_dbServer.IsValidServer())
+            break;
         if (m_dbServer.IsConnected())
         {
             if (m_dbServer.IsHeartBeatTimeOver())
@@ -89,6 +92,7 @@ void CServerHandler::Process()
                 DNF_LOG_SCOPE_LINE(0x9e, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
             }
         }
+        break;
     }
 }
 void CServerHandler::ResetHeartBeat(unsigned char index)

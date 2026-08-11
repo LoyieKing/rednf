@@ -392,9 +392,7 @@ void CVillageAttackedManager::SendVillageAttackedEnd()
 
 int CVillageAttackedManager::GetRemainTime()
 {
-    int end = m_field28;
-    int now = (int)GetNowTime();
-    return end - now;
+    return m_field28 - (int)GetNowTime();
 }
 
 void CVillageAttackedManager::OnUpdateVillageAttacked()
@@ -715,8 +713,8 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
     char* p = pkt;
-    *(unsigned int*)(p + 0xa) = m_field30;
-    *(unsigned int*)(p + 0xe) = GetDungeonRemainTime();
+    ((RA_UINT<10>*)p)->v = m_field30;
+    ((RA_UINT<14>*)p)->v = GetDungeonRemainTime();
 }
 
 void CVillageAttackedManager::ProcessByMinute()

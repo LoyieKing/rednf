@@ -13,9 +13,9 @@ void CSegmentationFaultSig::handle(int sig)
     }
     dump_core_file();
 }
-CSegmentationFaultSig::~CSegmentationFaultSig()
+CSegmentationFaultSig::~CSegmentationFaultSig() throw()
 {
 }
-CSegmentationFaultSig::CSegmentationFaultSig()
+CSegmentationFaultSig::CSegmentationFaultSig() throw()
 {
 }

@@ -48,6 +48,7 @@ dnf_service(relay
         ${RELAY}/PIDHelper.cpp
         ${RELAY}/Reactor.cpp
         ${RELAY}/RelayService.cpp
+        ${RELAY}/TickLog.cpp
         ${RELAY}/Script.cpp
         ${RELAY}/ScriptData.cpp
         ${RELAY}/ScriptRawData.cpp
@@ -78,6 +79,8 @@ dnf_service(relay
         -lpthread -ldl -lm
     LINK_FLAGS
         -m32 -no-pie
+    SRC_OPTS
+        ${RELAY}/TickLog.cpp|-mpreferred-stack-boundary=2
 )
 
 # C6 组：cc1plus 4.4.6-3（-B）+ gnu++0x + RELAY_USERPOOL_C6（仅作用于 C6 源文件）
@@ -104,6 +107,7 @@ add_custom_command(TARGET relay POST_BUILD
         ${RELAY_OBJ_PREFIX}/PIDHelper.cpp.o
         ${RELAY_OBJ_PREFIX}/Reactor.cpp.o
         ${RELAY_OBJ_PREFIX}/RelayService.cpp.o
+        ${RELAY_OBJ_PREFIX}/TickLog.cpp.o
         ${RELAY_OBJ_PREFIX}/Script.cpp.o
         ${RELAY_OBJ_PREFIX}/ScriptData.cpp.o
         ${RELAY_OBJ_PREFIX}/ScriptRawData.cpp.o

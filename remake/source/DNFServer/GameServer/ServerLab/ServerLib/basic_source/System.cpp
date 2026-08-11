@@ -24,9 +24,7 @@ long long get_ms_tick()
 {
     timeval tv;
     gettimeofday(&tv, NULL);
-    long long sec;
-    sec = tv.tv_sec;
-    return sec * 1000 + (unsigned long long)tv.tv_usec / 1000;
+    return (unsigned long long)tv.tv_sec * 1000 + (unsigned long long)tv.tv_usec / 1000;
 }
 
 } // namespace nsl

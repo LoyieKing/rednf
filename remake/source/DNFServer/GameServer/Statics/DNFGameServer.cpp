@@ -31,17 +31,17 @@ bool CGameServer::IsValidServer()
     }
     return true;
 }
-int CGameServer::IsHeartBeatTimeOver()
+bool CGameServer::IsHeartBeatTimeOver()
 {
     if ((--m_heartBeatCount) == 0)
     {
         if ((++m_heartBeatOver) > 0x14)
         {
-            return 1;
+            return true;
         }
         m_heartBeatCount = 0x14;
     }
-    return 0;
+    return false;
 }
 void CGameServer::ResetHeartBeat()
 {
@@ -65,7 +65,7 @@ void CGameServer::OnDisconnect()
     m_heartBeatCount = 0x14;
     m_heartBeatOver = 0;
 }
-char CGameServer::IsConnected()
+bool CGameServer::IsConnected()
 {
     return m_connectFlag;
 }

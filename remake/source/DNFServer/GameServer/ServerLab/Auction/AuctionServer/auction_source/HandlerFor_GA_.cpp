@@ -66,7 +66,9 @@ unsigned int HandlerFor_GA_::onAUCTION_REGIST_GA(nsl::CMsgCell* pCell, nsl::TCPU
 
 unsigned int HandlerFor_GA_::onAUCTION_ASK_AVERAGE_PRICE_GA(nsl::CMsgCell* pCell, nsl::TCPUser* u)
 {
-    int result = 0;
+    // ORIG DWARF：return_code(174)@-0x38 顶部声明、GetAveragePrice 结果进它（死值）；
+    // result(238)@-0x30 在 search/list 报文声明(225/226)之后声明，接 SearchByItemId 结果
+    int return_code = 0;
     PCK_AUCTION_ASK_AVERAGE_PRICE_AG packet;
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_ASK_AVERAGE_PRICE_GA");
@@ -79,35 +81,30 @@ unsigned int HandlerFor_GA_::onAUCTION_ASK_AVERAGE_PRICE_GA(nsl::CMsgCell* pCell
         (PCK_AUCTION_ASK_AVERAGE_PRICE_GA*)pCell->GetPacket();
     ROI_AverageKey _temp_roi_average;
     _temp_roi_average.baseItem_index = pPck->item_id;
-    _temp_roi_average.option_category.field_0._high_category_key =
-        *(unsigned long long*)&pPck->roi_search_key;
-    _temp_roi_average.option_category.field_1._low_category_key =
-        *(int*)((char*)&pPck->roi_search_key + 8);
+    // ORIG：整个 ROI_Category 结构复制（12B = 3 个 dword，基址寄存器单次装载）
+    _temp_roi_average.option_category = pPck->roi_search_key;
     for (int i = 0; i <= 2; i = i + 1)
     {
         _temp_roi_average._oiv.option_index_value[i] = (short)pPck->randomOption_index[i];
     }
     std::sort(_temp_roi_average._oiv.option_index_value,
               _temp_roi_average._oiv.option_index_value + 3);
-    result = G_Auction()->GetAveragePrice(pPck->item_id, pPck->item_upgrade_value,
-                                          _temp_roi_average, pPck->item_refine_value,
-                                          &packet.average_price);
+    return_code = G_Auction()->GetAveragePrice(pPck->item_id, pPck->item_upgrade_value,
+                                               _temp_roi_average, pPck->item_refine_value,
+                                               &packet.average_price);
     packet.char_idx = pPck->char_idx;
     packet.character_id = pPck->character_id;
     PCK_AUCTION_SEARCH_BY_ITEMKEY_GA searchPck;
     PCK_AUCTION_ITEM_LIST_AG listPck;
-    searchPck.tSearchByItemId.startIndex = 0;
-    searchPck.tSearchByItemId.itemIdNum = 1;
+    // ORIG：字段写入顺序 category → itemIdNum → startIndex → upgrade → item_id → ROI
     searchPck.tSearchByItemId.category = 0;
+    searchPck.tSearchByItemId.itemIdNum = 1;
+    searchPck.tSearchByItemId.startIndex = 0;
     searchPck.tSearchByItemId.upgradeStart = pPck->item_upgrade_value;
     searchPck.tSearchByItemId.upgradeEnd = pPck->item_upgrade_value;
     searchPck.item_id_array[0] = pPck->item_id;
-    *(int*)((char*)&searchPck.tSearchByItemId.ROI_Search_category_key + 0) =
-        *(int*)((char*)&pPck->roi_search_key + 0);
-    *(int*)((char*)&searchPck.tSearchByItemId.ROI_Search_category_key + 4) =
-        *(int*)((char*)&pPck->roi_search_key + 4);
-    *(int*)((char*)&searchPck.tSearchByItemId.ROI_Search_category_key + 8) =
-        *(int*)((char*)&pPck->roi_search_key + 8);
+    searchPck.tSearchByItemId.ROI_Search_category_key = pPck->roi_search_key;
+    int result;
     result = G_Auction()->SearchByItemId(&searchPck.tSearchByItemId,
                                          searchPck.item_id_array,
                                          &listPck.total_item_num, &listPck.item_num,

@@ -33,7 +33,7 @@ public:
     unsigned short getPeerPort();
     int m_fd;       // +0
     char m_data4[0x10];  // +4
-    unsigned int m_addr;  // +0x14（4 字节 IP，ORIG connect 仅 memcpy sin_addr 4 字节到此）
+    char m_addr[4];     // +0x14（原版仅 4 字节地址域）
     unsigned short m_port;  // +0x18
     char m_pad1A[2];
 };

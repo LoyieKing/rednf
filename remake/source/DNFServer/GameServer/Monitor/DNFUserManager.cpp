@@ -448,12 +448,12 @@ bool CUserManager::InsertUser_CharNo(const unsigned int charNo, CUser* user)
         {
             return 1;
         }
+        register unsigned int cNo = charNo;
         register char* charName = user->GetCharName();
         register unsigned int dbid = user->GetDBID();
-        register unsigned int cNo = charNo;
         CMyFileLog log(__FUNCTION__, 0x1d0);
         log("./log/Except",
-            "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s",
+            "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s\n",
             cNo, dbid, charName);
     }
     return 0;
@@ -475,7 +475,7 @@ bool CUserManager::InsertUser_CharName(char* name, CUser* user)
         register char* nm = name;
         register unsigned int dbid = user->GetDBID();
         CMyFileLog log(__FUNCTION__, 0x211);
-        log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d",
+        log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
             nm, dbid);
     }
     return 0;

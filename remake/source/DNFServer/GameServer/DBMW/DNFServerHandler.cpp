@@ -46,34 +46,38 @@ void CServerHandler::Load(ST_ServerInfo* infos)
 {
     for (int i = 0; i <= 0xfe; i++)
     {
-        ST_ServerInfo& info = infos[i];
-        if (info.m_type == 1)
+        unsigned char idx;
+        if (infos[i].m_type == 1)
         {
-            unsigned char idx = info.m_idx;
+            idx = infos[i].m_idx;
             if (idx == 0xff)
                 throw CDNFException("CGameServerHandler::Load() Server Table Exception Break!");
-            m_gameServers[idx].Init(info.m_flag, info.m_name, info.m_port, idx);
+            m_gameServers[idx].Init(infos[i].m_flag, infos[i].m_name,
+                                    infos[i].m_port, idx);
         }
-        if (info.m_type == 3)
+        if (infos[i].m_type == 3)
         {
-            unsigned char idx = info.m_idx;
+            idx = infos[i].m_idx;
             if (idx == 0xff || idx != 0xc9)
                 throw CDNFException("CServerHandler::Load() Monitor Server Table Exception Break!");
-            m_monitorServer.Init(info.m_flag, info.m_name, info.m_port, 0xc9);
+            m_monitorServer.Init(infos[i].m_flag, infos[i].m_name,
+                                 infos[i].m_port, 0xc9);
         }
-        if (info.m_type == 5)
+        if (infos[i].m_type == 5)
         {
-            unsigned char idx = info.m_idx;
+            idx = infos[i].m_idx;
             if (idx == 0xff || idx != 0xcb)
                 throw CDNFException("CServerHandler::Load() Guild Server Table Exception Break!");
-            m_guildServer.Init(info.m_flag, info.m_name, info.m_port, 0xcb);
+            m_guildServer.Init(infos[i].m_flag, infos[i].m_name,
+                               infos[i].m_port, 0xcb);
         }
-        if (info.m_type == 7)
+        if (infos[i].m_type == 7)
         {
-            unsigned char idx = info.m_idx;
+            idx = infos[i].m_idx;
             if (idx != 0xcd)
                 throw CDNFException("CServerHandler::Load() Statistics Server Table Exception Break!");
-            m_statisticsServer.Init(info.m_flag, info.m_name, info.m_port, 0xcd);
+            m_statisticsServer.Init(infos[i].m_flag, infos[i].m_name,
+                                    infos[i].m_port, 0xcd);
         }
     }
 }

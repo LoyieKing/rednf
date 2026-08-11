@@ -69,7 +69,7 @@ int CPeer::recv_packet()
 void CPeer::DisConnSig()
 {
     Packet_InnerPakcet_Logout pkt;
-    int fd = getHandle();  // ORIG：结果落 -0xc 局部槽
+    pkt.reversed2 = (unsigned int)getHandle();  // ORIG：fd 写入 pkt+6（reversed2），无独立局部
     CTcpRecvBuffer* buf;
     {
         CGuard<CMutex> guard((CMutex*)m_bLock);
@@ -162,7 +162,7 @@ int CPeer::send_packet(char* buf, int len)
         if (m_sendPtr < (char*)this + 0x183c || (char*)this + 0x9783c <= m_sendPtr)
         {
             DNF_LOG_SCOPE_LINE(0x13b,"./log/TcpErr",
-                "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
+                "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
                 (unsigned char)buf[1], m_sendRemain, len);
             m_sendPtr = (char*)this + 0x183c;
             m_sendRemain = 0;
@@ -172,7 +172,7 @@ int CPeer::send_packet(char* buf, int len)
         m_sendPtr = m_sendPtr + len;
         return send_packet();
     }
-    DNF_LOG_SCOPE_LINE(0x133,"./log/TcpErr", "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
+    DNF_LOG_SCOPE_LINE(0x133,"./log/TcpErr", "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
         (unsigned char)buf[1], m_sendRemain, len);
     m_sendPtr = (char*)this + 0x183c;
     m_sendRemain = 0;
@@ -224,7 +224,7 @@ int CPeer::RecvPacket()
 void CPeer::ConnSig()
 {
     Packet_InnerPakcet_Login pkt;
-    int fd = getHandle();  // ORIG：结果落 -0xc 局部槽
+    pkt.reversed2 = (unsigned int)getHandle();  // ORIG：fd 写入 pkt+6（reversed2），无独立局部
     CTcpRecvBuffer* buf;
     {
         CGuard<CMutex> guard((CMutex*)m_bLock);

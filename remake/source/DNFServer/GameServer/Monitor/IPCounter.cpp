@@ -71,22 +71,19 @@ void CIPCounter::setLoadTerm(unsigned char term)
         v = 0x2a30;
     }
     m_term = v;
-    unsigned int w = m_term;
-    if (w < 0x708)
+    if (m_term < 0x708)
     {
-        w = 0x708;
+        m_term = 0x708;
     }
-    m_term = w;
 }
 
 void CIPCounter::setMinIPCount(unsigned char count)
 {
-    unsigned char v = count;
-    if (v > 200)
+    if (count > 200)
     {
-        v = 200;
+        count = 200;
     }
-    m_option = v;
+    m_option = count;
 }
 
 void CIPCounter::setOption(unsigned char type, unsigned char opt)

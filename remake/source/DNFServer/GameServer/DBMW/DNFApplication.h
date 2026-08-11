@@ -38,7 +38,7 @@ public:
     void SwitchQueueTCP();
     void SwitchQueueUDP();
     int Send_Suspend_Signal(const std::string& msg);
-    int Send_Term_Signal(const std::string& msg);
+    bool Send_Term_Signal(const std::string& msg);
     void AttachAppInitor(char** argv);
     CServerHandler* Get_ServerHandler();
     void* Get_UdpHandler();
@@ -58,8 +58,8 @@ public:
     char m_pad5[3];                     // +5
     int m_field8;                       // +8
     CAppInit* m_appInitor;              // +0xc
-    CAppConfig* m_appConfig;            // +0x10
-    CServerConfig* m_serverConfig;      // +0x14
+    CTableBase* m_appConfig;            // +0x10（ORIG 为基类指针：Free 走虚析构）
+    CTableBase* m_serverConfig;         // +0x14（ORIG 为基类指针：Free 走虚析构）
     CServerHandler* m_serverHandler;    // +0x18
     CFrameCountHandler m_frameCount;    // +0x1c
     CKillUSRConfig* m_killUsrConfig;    // +0x4c（原版为 CKillUSRConfig*）

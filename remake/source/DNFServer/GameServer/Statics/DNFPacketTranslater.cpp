@@ -51,7 +51,60 @@
 #include "Packet_TowerOfDespair_Statistic_GTS.h"
 #include "Packet_Frame_Lag_Statistic_Add.h"
 
-static char chk_ting[8];
+#pragma pack(push, 1)
+struct Packet_ClientSpecLocal
+{
+    char m_pad[0xa];
+    unsigned char m_type;       // +0xa
+    unsigned char m_count;      // +0xb
+    int m_errorCode;            // +0xc
+    unsigned short m_errorLine; // +0x10
+    HWSpec m_spec[1];           // +0x12
+};
+#pragma pack(pop)
+#pragma pack(push, 1)
+struct FrameLagFpsEntry
+{
+    char m_pad[4];                    // +0
+    short m_windowFps;                // +4
+    short m_fullFps;                  // +6
+    short m_fullWindowFps;            // +8
+    short m_fullWindowNosyncFps;      // +0xa
+    char m_rest[0x2c];                // +0xc
+};
+struct FrameLagRec
+{
+    int m_frame;                      // +0
+    float m_time;                     // +4
+};
+union Packet_FrameLagAddLocal
+{
+    struct
+    {
+        unsigned short m_packetId;          // +0
+        unsigned short m_packetSize;        // +2
+        unsigned short m_reversed1;         // +4
+        unsigned int m_reversed2;           // +6
+        int m_cpuClock;                     // +0xa
+        char m_numOfProcessor;              // +0xe
+        char m_cpuVendor;                   // +0xf
+        char m_pad1[2];                     // +0x10
+        unsigned short m_videoCardVendorId; // +0x12
+        unsigned short m_videoCardDeviceId; // +0x14
+        short m_availableTextureMemory;     // +0x16
+        short m_ramMemory;                  // +0x18
+        char m_osVersion;                   // +0x1a
+        int m_directxVersion;               // +0x1b
+        char m_crash;                       // +0x1f
+        FrameLagFpsEntry m_fps[6];          // +0x20
+    } m_main;
+    struct
+    {
+        char m_pad2[0xc];                   // +0
+        FrameLagRec m_frameLag[52];         // +0xc
+    } m_lag;
+};
+#pragma pack(pop)
 void CPacketTranslater::attach(CApplication* app)
 {
     m_pclApp = app;
@@ -73,15 +126,15 @@ void CPacketTranslater::OnClientSpecStatistic(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnClientSpecStatistic : 0 == m_pclApp")
-        char* pb = (char*)pkt;
+        Packet_ClientSpecLocal* pck = (Packet_ClientSpecLocal*)pkt;
         CHWSpecResearcher* hw = m_pclApp->Get_HWspecResearch();
-        for (int i = 0; i < (int)(unsigned char)pb[0xb]; i++)
+        for (int i = 0; i < (int)(unsigned char)pck->m_count; i++)
         {
-            hw->WriteSpecStatics(pb[10], *(HWSpec*)(pb + i * 0xc + 0x12));
+            hw->WriteSpecStatics(pck->m_type, pck->m_spec[i]);
         }
-        if (pb[10] == 1)
+        if (pck->m_type == 1)
         {
-            hw->WriteErrorLineStatics(*(unsigned short*)(pb + 0x10), *(int*)(pb + 0xc));
+            hw->WriteErrorLineStatics(pck->m_errorLine, pck->m_errorCode);
         }
 
     }
@@ -100,56 +153,60 @@ void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnFrameLagStatisticsAdd() : 0 == m_pclApp")
+        Packet_FrameLagAddLocal* pck = (Packet_FrameLagAddLocal*)pkt;
+        static int chk_ting[8];
+        int nRet;
         FrameLagCollector* flc = m_pclApp->Get_FrameLagCollector();
-        char* pb = (char*)pkt;
-        if (access("./SHOW_PACKET", 0) == 0)
+        const char* pPath = "./SHOW_PACKET";
+        nRet = access(pPath, 0);
+        if (nRet == 0)
         {
-            CMyFileLog(__FUNCTION__, 0x124)("./log/FrameLag.log", "packet->m_wSize\t\t: %hu", *(unsigned short*)(pb + 2));
-            CMyFileLog(__FUNCTION__, 0x125)("./log/FrameLag.log", "crashCount\t\t\t\t: %hhd", (int)(char)pb[0x1f]);
-            CMyFileLog(__FUNCTION__, 0x126)("./log/FrameLag.log", "cpuInfo.cpuClock       : %d", *(int*)(pb + 0x28));
-            CMyFileLog(__FUNCTION__, 0x127)("./log/FrameLag.log", "cpuInfo.numOfProcessor : %hhd", (int)(char)pb[0x38]);
-            CMyFileLog(__FUNCTION__, 0x128)("./log/FrameLag.log", "cpuInfo.cpuVendor      : %hhd", (int)(char)pb[0x3c]);
-            CMyFileLog(__FUNCTION__, 0x129)("./log/FrameLag.log", "videoCardVendorId      : %hu", (unsigned int)*(unsigned short*)(pb + 0x48));
-            CMyFileLog(__FUNCTION__, 0x12a)("./log/FrameLag.log", "videoCardDeviceId      : %hu", (unsigned int)*(unsigned short*)(pb + 0x50));
-            CMyFileLog(__FUNCTION__, 299)("./log/FrameLag.log", "availableTextureMemory : %hd", (int)*(short*)(pb + 0x58));
-            CMyFileLog(__FUNCTION__, 300)("./log/FrameLag.log", "ramMemory              : %hd", (int)*(short*)(pb + 0x60));
-            CMyFileLog(__FUNCTION__, 0x12d)("./log/FrameLag.log", "osVersion              : %hhd", (int)(char)pb[0x68]);
-            CMyFileLog(__FUNCTION__, 0x12e)("./log/FrameLag.log", "directxVersion         : %x", *(unsigned int*)(pb + 0x6c));
-            CMyFileLog(__FUNCTION__, 0x130)("./log/FrameLag.log", "crash\t\t\t\t\t: %hhd", (int)(char)pb[0x7c]);
-            if (-1 < (char)pb[0x7c] && (char)pb[0x7c] < 8)
+            CMyFileLog(__FUNCTION__, 0x124)("./log/FrameLag.log", "packet->m_wSize\t\t: %hu", pck->m_main.m_packetSize);
+            CMyFileLog(__FUNCTION__, 0x125)("./log/FrameLag.log", "crashCount\t\t\t\t: %hhd", (int)(char)pck->m_main.m_crash);
+            CMyFileLog(__FUNCTION__, 0x126)("./log/FrameLag.log", "cpuInfo.cpuClock       : %d", pck->m_main.m_cpuClock);
+            CMyFileLog(__FUNCTION__, 0x127)("./log/FrameLag.log", "cpuInfo.numOfProcessor : %hhd", (int)(char)pck->m_main.m_numOfProcessor);
+            CMyFileLog(__FUNCTION__, 0x128)("./log/FrameLag.log", "cpuInfo.cpuVendor      : %hhd", (int)(char)pck->m_main.m_cpuVendor);
+            CMyFileLog(__FUNCTION__, 0x129)("./log/FrameLag.log", "videoCardVendorId      : %hu", pck->m_main.m_videoCardVendorId);
+            CMyFileLog(__FUNCTION__, 0x12a)("./log/FrameLag.log", "videoCardDeviceId      : %hu", pck->m_main.m_videoCardDeviceId);
+            CMyFileLog(__FUNCTION__, 299)("./log/FrameLag.log", "availableTextureMemory : %hd", (int)pck->m_main.m_availableTextureMemory);
+            CMyFileLog(__FUNCTION__, 300)("./log/FrameLag.log", "ramMemory              : %hd", (int)pck->m_main.m_ramMemory);
+            CMyFileLog(__FUNCTION__, 0x12d)("./log/FrameLag.log", "osVersion              : %hhd", (int)(char)pck->m_main.m_osVersion);
+            CMyFileLog(__FUNCTION__, 0x12e)("./log/FrameLag.log", "directxVersion         : %x", pck->m_main.m_directxVersion);
+            CMyFileLog(__FUNCTION__, 0x130)("./log/FrameLag.log", "crash\t\t\t\t\t: %hhd", (int)(char)pck->m_main.m_crash);
+            if (-1 < pck->m_main.m_crash && pck->m_main.m_crash < 8)
             {
-                chk_ting[(char)pb[0x7c]]++;
+                chk_ting[pck->m_main.m_crash] = chk_ting[pck->m_main.m_crash] + 1;
             }
-            unsigned int t5 = *(unsigned int*)(pb + 0x14c);
-            unsigned int t4 = *(unsigned int*)(pb + 0x148);
-            unsigned int t3 = *(unsigned int*)(pb + 0x144);
-            unsigned int t2 = *(unsigned int*)(pb + 0x140);
-            unsigned int t1 = *(unsigned int*)(pb + 0x13c);
-            unsigned int t0 = *(unsigned int*)(pb + 0x138);
             for (int i = 0; i < 6; i++)
             {
                 CMyFileLog(__FUNCTION__, 0x138)("./log/FrameLag.log", "window_fps fps[%d]             : %hd", i,
-                      (int)*(short*)(pb + i * 0x38 + 0x24));
+                      (int)pck->m_main.m_fps[i].m_windowFps);
                 CMyFileLog(__FUNCTION__, 0x139)("./log/FrameLag.log", "full_fps fps[%d]               : %hd", i,
-                      (int)*(short*)(pb + i * 0x38 + 0x26));
+                      (int)pck->m_main.m_fps[i].m_fullFps);
                 CMyFileLog(__FUNCTION__, 0x13a)("./log/FrameLag.log", "full_window_fps fps[%d]        : %hd", i,
-                      (int)*(short*)(pb + i * 0x38 + 0x28));
+                      (int)pck->m_main.m_fps[i].m_fullWindowFps);
                 CMyFileLog(__FUNCTION__, 0x13b)("./log/FrameLag.log", "full_window_nosync_fps fps[%d] : %hd", i,
-                      (int)*(short*)(pb + i * 0x38 + 0x2a));
+                      (int)pck->m_main.m_fps[i].m_fullWindowNosyncFps);
                 for (int j = 0; j < 6; j++)
                 {
                     CMyFileLog(__FUNCTION__, 0x13e)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].frame : %d", i, j,
-                          *(int*)(pb + (i * 7 + j + 4) * 8 + 0xc));
+                          pck->m_lag.m_frameLag[i * 7 + (4 + j)].m_frame);
                     CMyFileLog(__FUNCTION__, 0x13f)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].time : %.3f", i, j,
-                          (double)*(float*)(pb + (i * 7 + j + 4) * 8 + 0x10));
+                          (double)pck->m_lag.m_frameLag[i * 7 + (4 + j)].m_time);
                 }
             }
+            register unsigned int t5 = chk_ting[5];
+            register unsigned int t4 = chk_ting[4];
+            register unsigned int t3 = chk_ting[3];
+            register unsigned int t2 = chk_ting[2];
+            register unsigned int t1 = chk_ting[1];
+            register unsigned int t0 = chk_ting[0];
             CMyFileLog(__FUNCTION__, 0x142)("./log/FrameLag.log", "TOTAL TING : %u, %u, %u, %u, %u, %u",
                   t0, t1, t2, t3, t4, t5);
-            unsigned int valid = flc->is_valid_statistic_packet((Packet_Frame_Lag_Statistic_Add*)pkt);
-            CMyFileLog(__FUNCTION__, 0x144)("./log/FrameLag.log", "packet validation : %d", valid & 0xff);
+            CMyFileLog(__FUNCTION__, 0x144)("./log/FrameLag.log", "packet validation : %d",
+                  flc->is_valid_statistic_packet((Packet_Frame_Lag_Statistic_Add*)pck) & 0xff);
             CMyFileLog(__FUNCTION__, 0x146)("./log/FrameLag.log", "\n");
         }
         else
@@ -159,7 +216,7 @@ void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
                 chk_ting[i] = 0;
             }
         }
-        flc->PushOneFrameLagData((Packet_Frame_Lag_Statistic_Add*)pkt);
+        flc->PushOneFrameLagData((Packet_Frame_Lag_Statistic_Add*)pck);
 
     }
     catch (CDNFException& e)
@@ -922,7 +979,7 @@ void CPacketTranslater::OnFileStatistic(PacketHeader* pkt)
     try
     {
         char* pb = (char*)pkt;
-        std::string path = "./log/";
+        std::string path("./log/");
         if (pb[10] == 0)
         {
             path.append("filestatics");
@@ -931,8 +988,7 @@ void CPacketTranslater::OnFileStatistic(PacketHeader* pkt)
         {
             path.append(pb + 10);
         }
-        CMyRawFileLog raw;
-        raw(path.c_str(), pb + 0x10a);
+        CMyRawFileLog()(path.c_str(), pb + 0x10a);
 
     }
     catch (CDNFException& e)
@@ -950,14 +1006,14 @@ void CPacketTranslater::OnHolePunchingSuccessRateStatistic(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("OnHolePunchingSuccessRateStatistic() : 0 == m_pclApp")
-        char* pb = (char*)pkt;
+        Packet_GameServer2Statisctics2DBServer* pck = (Packet_GameServer2Statisctics2DBServer*)pkt;
         Packet_GameServer2Statisctics2DBServer out;
-        *(unsigned short*)((char*)&out + 10) = *(unsigned short*)(pb + 10);
-        *(char*)((char*)&out + 0xc) = pb[0xc];
-        *(int*)((char*)&out + 0xd) = *(int*)(pb + 0xd);
-        *(int*)((char*)&out + 0x11) = *(int*)(pb + 0x11);
-        strncpy((char*)&out + 0x15, pb + 0x15, 0x10);
-        strncpy((char*)&out + 0x25, pb + 0x25, 0x10);
+        out.m_fieldA = pck->m_fieldA;
+        out.m_fieldB = pck->m_fieldB;
+        out.m_fieldC = pck->m_fieldC;
+        out.m_fieldD = pck->m_fieldD;
+        strncpy(out.m_restE, pck->m_restE, 0x10);
+        strncpy(out.m_restF, pck->m_restF, 0x10);
         m_pclApp->Get_ServerHandler()->SendToDB((PacketHeader*)&out);
 
     }

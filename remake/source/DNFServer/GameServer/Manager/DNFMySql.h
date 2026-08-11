@@ -79,11 +79,11 @@ public:
     MYSQL_ROW m_row;      // +0xc
     unsigned long* m_lengths;  // +0x10
     int m_nRows;      // +0x14
-    int m_nFields;    // +0x18
+    unsigned int m_nFields;    // +0x18（A/B 测试）
     char m_query[0x1001];  // +0x1c（memset 0x1001 证实）
     char m_blob[10][0x1001];  // +0x101d（blob 索引按 0x1001 步长）
-    unsigned int m_queryLen;  // +0xb028
-    unsigned int m_lastErrno; // +0xb02c
+    int m_queryLen;  // +0xb028（A/B：int 形态）
+    int m_lastErrno; // +0xb02c（A/B：int 形态）
 };
 
 #endif  // DNF_MYSQL_H_

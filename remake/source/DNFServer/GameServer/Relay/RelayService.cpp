@@ -265,15 +265,6 @@ void RelayService::setTick()
     m_tick = get_ms_tick();
 }
 
-long long RelayService::getTickLog()
-{
-    if (m_tickLog == 0)
-    {
-        m_tickLog = getTick();
-    }
-    return m_tickLog;
-}
-
 void RelayService::setTickLog()
 {
     m_tickLog = m_tick;

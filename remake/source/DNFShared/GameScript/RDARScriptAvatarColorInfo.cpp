@@ -51,29 +51,30 @@ void bracketTrim(char* data, char type, char changeType)
 bool Parse_Table(char* in_pcReadData, int iLineCount, AvatarColorInfo* avatarColorInfo)
 {
     int AVATAR_COLOR_SCRIPT = 5;
-    char* pcColumn_Arg[5];
+    char* pcColumn_Arg[6];
 
     if ((*in_pcReadData == '#') || (*in_pcReadData == '/') || (*in_pcReadData == '['))
     {
         return false;
     }
-    if (DNFFLib::ExplodeString(in_pcReadData, " \t\r\n\"", pcColumn_Arg, 5) == 5 &&
-        iLineCount <= 0xfe)
+    if (DNFFLib::ExplodeString(in_pcReadData, " \t\r\n\"", pcColumn_Arg, 5) == 5)
     {
-        colorRGB temColor;
-        std::string name;
-        int intData;
-        intData = 0;
-        intData = atoi(pcColumn_Arg[0]);
-        temColor.red = (byte)atoi(pcColumn_Arg[1]);
-        temColor.green = (byte)atoi(pcColumn_Arg[2]);
-        temColor.blue = (byte)atoi(pcColumn_Arg[3]);
-        bracketTrim(pcColumn_Arg[4], '`', '(');
-        bracketTrim(pcColumn_Arg[4], '`', ')');
-        name = pcColumn_Arg[4];
-        avatarColorInfo->avatarColorMap.insert(std::make_pair(intData, temColor));
-        avatarColorInfo->avatarColorNameMap.insert(std::make_pair(intData, name));
-        return true;
+        if (iLineCount <= 0xfe)
+        {
+            colorRGB temColor;
+            int intData = 0;
+            std::string name;
+            intData = atoi(pcColumn_Arg[0]);
+            temColor.red = (byte)atoi(pcColumn_Arg[1]);
+            temColor.green = (byte)atoi(pcColumn_Arg[2]);
+            temColor.blue = (byte)atoi(pcColumn_Arg[3]);
+            bracketTrim(pcColumn_Arg[4], '`', '(');
+            bracketTrim(pcColumn_Arg[4], '`', ')');
+            name = pcColumn_Arg[4];
+            avatarColorInfo->avatarColorMap.insert(std::make_pair(intData, temColor));
+            avatarColorInfo->avatarColorNameMap.insert(std::make_pair(intData, name));
+            return true;
+        }
     }
     return false;
 }
@@ -82,31 +83,29 @@ bool importAvatarColorVariation(AvatarColorInfo* avatarColorInfo)
 {
     int iParseCount = 0;
     char cReadData[1024];
-    FILE* pFile = fopen("AvatarColorVariation.etc", "rb");
-    if (pFile == 0)
+    FILE* pFile;
+    if ((pFile = fopen("AvatarColorVariation.etc", "rb")) == 0)
     {
         return false;
     }
     avatarColorInfo->avatarColorMap.clear();
-    while (true)
+    while (!feof(pFile) && fgets(cReadData, 0x400, pFile))
     {
-        if (feof(pFile) == 0 && fgets(cReadData, 0x400, pFile) != (char*)0)
+        if (cReadData[0] == '#')
         {
+            continue;
         }
-        else
+        if (cReadData[0] == '/')
         {
-            break;
+            continue;
         }
-        if (cReadData[0] != '#' && cReadData[0] != '/')
+        if (0xfe < iParseCount)
         {
-            if (0xfe < iParseCount)
-            {
-                return false;
-            }
-            if (Parse_Table(cReadData, iParseCount, avatarColorInfo))
-            {
-                iParseCount = iParseCount + 1;
-            }
+            return false;
+        }
+        if (Parse_Table(cReadData, iParseCount, avatarColorInfo))
+        {
+            iParseCount = iParseCount + 1;
         }
     }
     fclose(pFile);
@@ -130,13 +129,13 @@ colorRGB getAvatarColorValue(int index)
     {
         index = 0;
     }
-    AvatarColorInfo* tempMap = getAvatarColorInfoInst();
-    if (tempMap == (AvatarColorInfo*)0)
+    AvatarColorMap* tempMap = &getAvatarColorInfoInst()->avatarColorMap;
+    if (tempMap == (AvatarColorMap*)0)
     {
         return colorRGB();
     }
-    AvatarColorMap::const_iterator itr = tempMap->avatarColorMap.find(index);
-    if (itr != tempMap->avatarColorMap.end())
+    AvatarColorMap::const_iterator itr = tempMap->find(index);
+    if (itr != tempMap->end())
     {
         return itr->second;
     }

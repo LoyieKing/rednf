@@ -24,12 +24,13 @@ bool CSignalTranslator::regist_signal(int sig, void (*handler)(int))
     struct sigaction act;
     act.sa_handler = handler;
     sigemptyset(&act.sa_mask);
-    int flags = 0;
+    // R10: ORIG 直接对 act.sa_flags 赋值/位或（无独立 flags 局部），
+    // 消除多余栈槽并复现 ORIG 的 eax 往返形态。
+    act.sa_flags = 0;
     if (sig == 0xe)
-        flags |= 0x20000000;
+        act.sa_flags |= 0x20000000;
     else
-        flags |= 0x10000000;
-    act.sa_flags = flags;
+        act.sa_flags |= 0x10000000;
     struct sigaction old;
     if (sigaction(sig, &act, &old) < 0)
     {

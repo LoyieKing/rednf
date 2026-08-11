@@ -26,7 +26,7 @@ int getErrno();
 // CTableBase / CAppInit / CAppConfig / CServerConfig
 CAppStartInit::CAppStartInit() {}
 CAppStartInit::~CAppStartInit() {}
-int CAppStartInit::Save_pid(const std::string& path)
+bool CAppStartInit::Save_pid(const std::string& path)
 {
     std::string full = std::string("./pid/") + path + std::string(".pid");
     int fd = open(full.c_str(), 0x42, 0x1a4);
@@ -45,12 +45,13 @@ int CAppStartInit::Save_pid(const std::string& path)
 }
 int CAppStartInit::Init_Daemon(int argc, char** argv)
 {
-    if (strcmp(argv[2], "start") == 0)
+    const char* arg = argv[2];
+    if (strcmp(arg, "start") == 0)
     {
         int pid = fork();
         if (pid < 0)
             return -1;
-        if (pid > 0)
+        if (pid != 0)
             exit(0);
         setsid();
         chdir("./");
@@ -62,11 +63,13 @@ int CAppStartInit::Init_Daemon(int argc, char** argv)
 }
 void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
-    srand((unsigned int)time(0));
+    srand(time(0));
     app->m_appConfig = new CAppConfig;
-    app->m_appConfig->Check_FileName(std::string(argv[1]));
+    ((CAppConfig*)app->m_appConfig)->Check_FileName(argv[1]);
     app->m_serverConfig = new CServerConfig;
     app->m_killUsrConfig = new CKillUSRConfig;
-    if (Init_Daemon(argc, argv) != 0)
+    if (Init_Daemon(argc, argv) == -1)
+    {
         throw CDNFException("CAppStartInit::Init() Demon Init Exception Break!");
+    }
 }

@@ -18,7 +18,9 @@ public:
     char what_0x17[30];      // offset 0x17
     char what_0x35;          // offset 0x35
     char what_0x36;          // offset 0x36
-    char what_0x37[0x138];   // offset 0x37
+    // 原始：0x138 == 3×0x68，按 ORIG 反汇编（循环地址计算拆成 add $0x30 + add $0x7）
+    // 还原为 2D 数组形态（布局与 char[0x138] 完全一致，仅类型形态影响代码生成）。
+    char what_0x37[3][0x68];   // offset 0x37
     char what_0x16f;         // offset 0x16f
     char what_0x170[0x100];  // offset 0x170
 

@@ -66,8 +66,10 @@ void TCPSocket::close()
 
 int TCPSocket::shutdown(int how)
 {
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     (void)how;
-    return m_fd == -1 ? m_fd : m_fd;
+    m_fd == -1;
+    return m_fd;
 }
 
 int TCPSocket::send(char* buf, int len)
@@ -311,7 +313,8 @@ char TCPSocket::pollReadEvent() const
 char TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
-    sock.m_fd = ::accept(m_fd, (struct sockaddr*)((char*)&sock + 4), &len);
+    // (int) 强转：复现 ORIG 的 add $0x4 + mov 形态（纯指针算术会被折叠成 lea）。
+    sock.m_fd = ::accept(m_fd, (struct sockaddr*)((int)&sock + 4), &len);
     if (sock.m_fd == 0)
     {
         FILE* f = fopen("log.txt", "a+");

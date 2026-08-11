@@ -95,6 +95,9 @@ bool CPacketDecoder::MsgDecode(PacketHeader* pkt)
         packet_counter.BeforeProcess();
         m_handlers[*(unsigned short*)pkt](pkt);
         packet_counter.AfterProcess(*(unsigned short*)pkt);
+        // ORIG 在 AfterProcess 调用后有一条 1 字节对齐 nop（§8 对齐伪影），
+        // 使 return 1 前的 mov 对齐；缺失会导致后续分支目标偏移注释整体 +1。
+        __asm__("nop");
         return 1;
     }
     printf("Game Message with identifier %d has arrived.\n", *(unsigned short*)pkt);
@@ -109,19 +112,21 @@ void CPacketDecoder::Process()
     {
         throw CDNFException("CPacketDecoder is Not Ready!\n");
     }
-    PacketHeader* pkt = 0;
+    CUdpRecvBuffer* pkt = 0;
     {
         CGuard<CMutex> g((CMutex*)m_lock);
-        std::queue<CUdpRecvBuffer*>* q = (std::queue<CUdpRecvBuffer*>*)m_queue;
-        if (!q->empty())
+        // ORIG：每次调用都重载 m_queue（无 q 局部变量，避免栈槽往返）。
+        if (!((std::queue<CUdpRecvBuffer*>*)m_queue)->empty())
         {
-            pkt = (PacketHeader*)q->front();
-            q->pop();
+            pkt = ((std::queue<CUdpRecvBuffer*>*)m_queue)->front();
+            ((std::queue<CUdpRecvBuffer*>*)m_queue)->pop();
         }
     }
     if (pkt != 0)
     {
-        if (MsgDecode(pkt) != 1)
+        // ORIG：强转结果经 -0x1c 临时槽往返后作为 MsgDecode 参数。
+        PacketHeader* hdr = (PacketHeader*)pkt;
+        if (MsgDecode(hdr) != 1)
         {
             {
                 CGuard<CMutex> g((CMutex*)m_poolLock);
@@ -154,17 +159,16 @@ template<int Lo, int Hi>
 CPacketCounter<Lo, Hi>::CPacketCounter(char* name, char* title)
 {
     Reset();
-    time_t t = time(0);
-    *(time_t*)((char*)this + 4) = t;
-    if (name == 0)
+    m_t = time(0);
+    if (name != 0)
     {
-        sprintf((char*)this + 0x1d540, "./log/%s", title);
+        sprintf(m_path, "./log/%s/%s", name, title);
     }
     else
     {
-        sprintf((char*)this + 0x1d540, "./log/%s/%s", name, title);
+        sprintf(m_path, "./log/%s", title);
     }
-    *(unsigned char*)((char*)this + 0x1d640) = 1;
+    m_bProcess = 1;
 }
 template<int Lo, int Hi>
 CPacketCounter<Lo, Hi>::~CPacketCounter()
@@ -173,58 +177,60 @@ CPacketCounter<Lo, Hi>::~CPacketCounter()
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
 {
-    if (id < 0x2800 && 999 < id &&
-        (*(unsigned char*)((char*)this + 0x1d640) == 1 ||
-         *(unsigned int*)((char*)this + (id - 1000) * 4 + 8) < 0xb))
-    {
-        *(unsigned int*)((char*)this + (id - 1000) * 4 + 8) += 1;
-    }
+    // ORIG 分支形态：显式 return + !b && counts>=0xb 跳过；布尔物化 xor $1/test/je，
+    // 退出经 nop+jmp 链，自增用 ++（sub 同寄存器形态）。
+    if (id >= 0x2800) return;
+    if (id <= 999) return;
+    if (!m_bProcess && m_counts[id - 1000] >= 0xb) return;
+    ++m_counts[id - 1000];
 }
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::BeforeProcess()
 {
-    *(unsigned int*)((char*)this + 0x9068) = *(unsigned int*)this;
-    if (*(int*)((char*)this + 0x9068) == -1)
+    m_snapshot[0] = m_count;
+    // ORIG 为 while+break 形态（cmp/sete/test/je 布尔物化），if 直接跳会变 jne。
+    while ((int)m_snapshot[0] == -1)
     {
-        *(unsigned int*)((char*)this + 0x9068) = 0;
+        m_snapshot[0] = 0;
+        break;
     }
 }
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::AfterProcess(int id)
 {
-    if (id < 0x2800 && 999 < id &&
-        (*(unsigned char*)((char*)this + 0x1d640) == 1 ||
-         *(unsigned int*)((char*)this + (id - 1000) * 4 + 8) < 0xb))
+    if (id >= 0x2800) return;
+    if (id <= 999) return;
+    if (!m_bProcess && m_counts[id - 1000] >= 0xb) return;
+    int diff = (int)m_count;
+    // ORIG：while+return 产生 cmp/sete/test/je 布尔物化。
+    while (diff == -1)
     {
-        int diff = *(int*)this;
-        if (diff != -1)
-        {
-            int start;
-            if (*(unsigned char*)((char*)this + 0x1d640) == 0)
-            {
-                start = *(int*)((char*)this + (id + 0x2030) * 4 + 8);
-                *(unsigned int*)((char*)this + (id - 1000) * 4 + 8) += 1;
-                *(unsigned char*)((char*)this + id + 0x11ce0) = 0;
-            }
-            else
-            {
-                start = *(int*)((char*)this + 0x9068);
-            }
-            diff = diff - start;
-            *(int*)((char*)this + (id + 0x4d50) * 4) += diff;
-        }
+        diff = 0;
+        return;
     }
+    int diff2;
+    if (m_bProcess)
+    {
+        diff2 = diff - (int)m_snapshot[0];
+    }
+    else
+    {
+        diff2 = diff - (int)m_snapshot[id - 1000];
+        ++m_counts[id - 1000];
+        m_pending[id - 1000] = 0;
+    }
+    m_diffs[id - 1000] += diff2;
 }
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::Reset()
 {
     for (int i = 0; i < 0x2418; i++)
     {
-        *(unsigned int*)((char*)this + i * 4 + 8) = 0;
-        *(unsigned int*)((char*)this + (i + 0x5138) * 4) = 0;
-        *(unsigned int*)((char*)this + (i + 0x2418) * 4 + 8) = 0;
-        *(unsigned char*)((char*)this + i + 0x120c8) = 0;
+        m_counts[i] = 0;
+        m_diffs[i] = 0;
+        m_snapshot[i] = 0;
+        m_pending[i] = 0;
     }
-    *(unsigned int*)this = 0;
-    *(unsigned char*)((char*)this + 0x1d641) = 0;
+    m_count = 0;
+    m_bInit = 0;
 }

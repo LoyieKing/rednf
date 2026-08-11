@@ -64,7 +64,7 @@ bool CDBServer::IsValidServer()
     }
     return true;
 }
-int CDBServer::IsHeartBeatTimeOver()
+bool CDBServer::IsHeartBeatTimeOver()
 {
     if ((--m_heartBeatCount) == 0)
     {
@@ -94,7 +94,7 @@ void CDBServer::OnDisconnect()
     m_heartBeatCount = 0x14;
     m_heartBeatOver = 0;
 }
-char CDBServer::IsConnected()
+bool CDBServer::IsConnected()
 {
     return m_connectFlag;
 }

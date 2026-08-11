@@ -846,7 +846,7 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
         if (*(int*)((char*)pkt + i * 4 + 10) != 0)
         {
             m_loading.m_data[i] += *(int*)((char*)pkt + i * 4 + 10);
-            m_loading.m_data[i + 9] += 1;
+            m_loading.m_data2[i] += 1;
         }
         if (i == 7)
         {
@@ -919,15 +919,15 @@ void StatisticManager::SendDBLoadingTimeReport(CServerHandler* handler)
     Packet_DBMW_Loading_Time_Report pkt;
     for (int i = 0; i < 9; i++)
     {
-        *(char*)((char*)&pkt + 0xa + i) = handler->GetServerGroupNo();
-        if (m_loading.m_data[i + 9] == 0)
+        pkt.m_group[i] = handler->GetServerGroupNo();
+        if (m_loading.m_data2[i] == 0)
         {
-            *(unsigned int*)((char*)&pkt + 0x13 + i * 4) = 0;
+            pkt.m_value[i] = 0;
         }
         else
         {
-            *(unsigned int*)((char*)&pkt + 0x13 + i * 4) =
-                m_loading.m_data[i] / m_loading.m_data[i + 9];
+            pkt.m_value[i] =
+                (unsigned int)m_loading.m_data[i] / (unsigned int)m_loading.m_data2[i];
         }
     }
     handler->SendToDB((PacketHeader*)&pkt);
@@ -1199,10 +1199,13 @@ void StatisticManager::ResetBloodDungeon()
 }
 void StatisticManager::SendDBBloodDungeonStatistic(CServerHandler* handler)
 {
-    if (!m_blood.empty())
+    if (m_blood.empty())
+    {
+    }
+    else
     {
         Packet_DBMW_Query_String pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = 0x4ed3;
+        pkt.m_queryId = 0x4ed3;
         for (std::map<unsigned int, STBloodDungeonStatistic>::iterator it = m_blood.begin();
              it != m_blood.end(); ++it)
         {
@@ -1211,6 +1214,7 @@ void StatisticManager::SendDBBloodDungeonStatistic(CServerHandler* handler)
                 "inSert into log_blood_dungeon(occ_date,level,try_count,clear_count) values (now(),%d,%d,%d)",
                 it->first, it->second.m_field0, it->second.m_field4);
             handler->SendToDB((PacketHeader*)&pkt);
+            continue;
         }
     }
 }
@@ -1248,17 +1252,31 @@ void StatisticManager::AddDisjointAvatarInfo(Packet_Avater_Disjoint_Statistic* p
 void StatisticManager::SendDBDisjointAvatarInfoTotal(CServerHandler* handler)
 {
     Packet_Avater_Disjoint_Statistic_DB pkt;
-    memcpy((char*)&pkt + 0xa, (char*)this + 0x1e8, 0x144);
+    memcpy(&pkt.m_info, &this->m_disjoint, 0x144);
     handler->SendToDB((PacketHeader*)&pkt);
     DNF_LOG_SCOPE_LINE(0x5fa, "./log/statistic", "Packet_Avater_Disjoint_Statistic_DB");
 }
 void StatisticManager::AddCreateEmblemInfo(Packet_Emblem_Create_Statistic* pkt)
 {
-    for (int i = 0; i < *(int*)((char*)pkt + 10); i++)
+    union __attribute__((packed)) Wire
     {
-        for (int j = 0; j < *(int*)((char*)pkt + (i + 8) * 4 + 2); j++)
+        struct __attribute__((packed))
         {
-            m_createEmblem.increaseCount(*(int*)((char*)pkt + i * 4 + 0xe));
+            char m_hdr[2];
+            int m_arrA[0x100];
+        } a;
+        struct __attribute__((packed))
+        {
+            char m_hdr2[0xa];
+            int m_count;
+            int m_arrB[0x100];
+        } b;
+    };
+    for (int i = 0; i < ((Wire*)pkt)->b.m_count; i++)
+    {
+        for (int j = 0; j < ((Wire*)pkt)->a.m_arrA[i + 8]; j++)
+        {
+            m_createEmblem.increaseCount(((Wire*)pkt)->b.m_arrB[i]);
         }
     }
 }
@@ -1451,7 +1469,11 @@ void StatisticManager::ResetValueStatistic()
 }
 void StatisticManager::SendDBValueStatistic(CServerHandler* handler)
 {
-    if (!m_value.empty())
+    // ORIG：空 if + else 形态（call empty; test; jne），直接写 !empty() 会物化 xor。
+    if (m_value.empty())
+    {
+    }
+    else
     {
         Packet_DBMW_Query_String pkt;
         *(unsigned int*)((char*)&pkt + 0xa) = 0x4ef5;
@@ -1633,7 +1655,7 @@ void StatisticManager::AddGoldcardEventStatistic(Packet_Goldcard_Event_Statistic
 void StatisticManager::SendDBGoldcardEventStatistic(CServerHandler* handler)
 {
     Packet_Goldcard_Event_Statistic_STD pkt;
-    memcpy((char*)&pkt + 10, (char*)this + 0x48c, 0x37b);
+    memcpy(&pkt.m_items, this->m_goldcard, 0x37b);
     handler->SendToDB((PacketHeader*)&pkt);
 }
 void StatisticManager::ResetGoldcardEventStatistic()
@@ -1664,10 +1686,9 @@ void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statisti
 void StatisticManager::SendDBTowerOfDespairStatistic(CServerHandler* handler)
 {
     Packet_TowerOfDespair_Statistic_STD pkt;
-    unsigned int group = handler->GetServerGroupNo();
-    group = group & 0xff;
-    memcpy((char*)&pkt + 0x12, (char*)this + 0x807, 0x328);
-    unsigned int size = m_serverList.size();
+    pkt.m_countA = handler->GetServerGroupNo();
+    memcpy(&pkt.m_items, this->m_tower, 0x328);
+    pkt.m_countB = m_serverList.size();
     handler->SendToDB((PacketHeader*)&pkt);
     DNF_LOG_SCOPE_LINE(0x837, "./log/statistic", "TOD Send to DB");
 }
@@ -1679,20 +1700,30 @@ void StatisticManager::ResetTowerOfDespair()
 }
 void StatisticManager::AddMoneyLog(MoneyLogPacket* pkt, CServerHandler* handler)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        unsigned int m_f0a;   // +0xa
+        unsigned int m_f0e;   // +0xe
+        unsigned int m_f12;   // +0x12
+        unsigned int m_f16;   // +0x16
+        unsigned int m_f1a;   // +0x1a
+    };
     PacketInsertUpdate p;
     p.m_handleIdx = 4;
     p.m_updateQueryId = 0x4f2d;
-    unsigned int a = *(unsigned int*)((char*)pkt + 0x12);
-    unsigned int b = *(unsigned int*)((char*)pkt + 0xe);
-    char* uid = NumberToString(*(unsigned int*)((char*)pkt + 0x16), 0);
+    // ORIG：参数按从右到左求值，a/b 在 NumberToString 之前载入 esi/ebx 并跨调用保留；
+    // 写局部变量会被 GCC 压栈，须内联。
     snprintf(p.m_updateSql, 0x800,
         "inSert into log_charac_money(charac_no,occ_date,m_id,money_plus,money_minus) values(%u,cast(from_unixtime(%d) as date),%s,%u,%u)",
-        *(unsigned int*)((char*)pkt + 10), *(unsigned int*)((char*)pkt + 0x1a), uid, b, a);
+        ((Wire*)pkt)->m_f0a, ((Wire*)pkt)->m_f1a,
+        NumberToString(((Wire*)pkt)->m_f16, 0),
+        ((Wire*)pkt)->m_f0e, ((Wire*)pkt)->m_f12);
     p.m_insertQueryId = 0x4f2e;
     snprintf(p.m_insertSql, 0x800,
         "update log_charac_money set money_plus=money_plus+%u,money_minus=money_minus+%u where charac_no=%u and occ_date=cast(from_unixtime(%d) as date)",
-        *(unsigned int*)((char*)pkt + 0xe), *(unsigned int*)((char*)pkt + 0x12),
-        *(unsigned int*)((char*)pkt + 10), *(unsigned int*)((char*)pkt + 0x1a));
+        ((Wire*)pkt)->m_f0e, ((Wire*)pkt)->m_f12,
+        ((Wire*)pkt)->m_f0a, ((Wire*)pkt)->m_f1a);
     handler->SendToDB((PacketHeader*)&p);
 }
 void StatisticManager::AddCompatibilityIndex(Packet_Stat_Compatibility_Index* pkt,

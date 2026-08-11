@@ -38,16 +38,23 @@ int CKillUSRConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
-    char* tokens[4];
-    if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 4) == 4)
+    char* tok0;
+    char* tok1;
+    char* tok2;
+    char* tok3;
+    // 死局部：与 ORIG 栈布局对齐（tok 槽位 -0x1c..-0x10 / cfg@-0x20），
+    // 同族 coserver 还原已验证该模式。
+    int n;
+    (void)n;
+    if (DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 4) == 4)
     {
         ST_KillUSRConfig* cfg = new (std::nothrow) ST_KillUSRConfig;
         if (cfg != 0)
         {
-            cfg->m_type = atoi(tokens[0]);
-            cfg->m_val = atoi(tokens[1]);
-            cfg->m_b = atoi(tokens[2]);
-            cfg->m_c = atoi(tokens[3]);
+            cfg->m_type = atoi(tok0);
+            cfg->m_val = atoi(tok1);
+            cfg->m_b = atoi(tok2);
+            cfg->m_c = atoi(tok3);
             m_vec.push_back(cfg);
             return 1;
         }
@@ -84,4 +91,3 @@ ST_KillUSRConfig::ST_KillUSRConfig()
     m_b = 0;
     m_c = 0;
 }
-

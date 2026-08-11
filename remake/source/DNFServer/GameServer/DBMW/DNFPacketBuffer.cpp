@@ -38,13 +38,14 @@ template<class T> void* MemPool<T>::headOfFreeList_;
 template<class T>
 MemPool<T>::MemPool() {}
 template<class T>
-MemPool<T>::MemPool(unsigned int count) : m_size((int)sizeof(T)), m_count((int)count) {}
+MemPool<T>::MemPool(unsigned int count) : m_size((int)sizeof(T)), m_count(count) {}
 template<class T>
 MemPool<T>::~MemPool()
 {
     if (!m_blocks.empty())
     {
-        for (std::vector<void*>::iterator it = m_blocks.begin(); it != m_blocks.end(); ++it)
+        for (std::vector<void*>::iterator it = m_blocks.begin();
+             it != m_blocks.end(); ++it)
             ::operator delete(*it);
         m_blocks.clear();
     }
@@ -54,51 +55,51 @@ void* MemPool<T>::alloc()
 {
     if (m_size != (int)sizeof(T))
         return ::operator new(sizeof(T));
-    void* head = headOfFreeList_;
-    if (head != 0)
+    void* result = headOfFreeList_;
+    if (result != 0)
     {
-        headOfFreeList_ = *(void**)((char*)head + m_size - 4);
+        headOfFreeList_ = ((MemPoolFreeLink<T>*)result)->next;
     }
     else
     {
-        T* block = (T*)::operator new((unsigned int)m_size * (unsigned int)m_count);
-        for (unsigned int i = 0; i < (unsigned int)m_count - 1; i++)
+        MemPoolFreeLink<T>* arr = (MemPoolFreeLink<T>*)::operator new(m_count * m_size);
+        for (unsigned int i = 0; i < m_count - 1U; i++)
         {
-            ((MemPoolFreeLink<T>*)((char*)block + i * sizeof(T)))->next =
-                (void*)((i + 1) * sizeof(T) + (unsigned int)block);
+            arr[i].next = (void*)&arr[i + 1];
         }
-        ((MemPoolFreeLink<T>*)((char*)block + ((unsigned int)m_count - 1) * sizeof(T)))->next = 0;
-        headOfFreeList_ = (void*)((char*)block + sizeof(T));
-        head = block;
-        m_blocks.push_back((void*)block);
-        CMyFileLog log(__FUNCTION__, 0x7d);
-        log("./log/Mempool", "class size(%d) cnt(%d)", m_size,
+        arr[m_count - 1U].next = 0;
+        result = arr;
+        headOfFreeList_ = (void*)((char*)arr + sizeof(T));
+        m_blocks.push_back((void*)arr);
+        DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_size,
             m_count * (int)m_blocks.size());
     }
-    return head;
+    return result;
 }
 template<class T>
 void MemPool<T>::free(void* ptr, unsigned int size)
 {
-    if (ptr == 0) return;
+    if (ptr == 0)
+        return;
     if ((unsigned int)m_size != size)
     {
         ::operator delete(ptr);
+        return;
     }
-    else
-    {
-        void* p = ptr;
-        ((MemPoolFreeLink<T>*)((char*)p))->next = headOfFreeList_;
-        headOfFreeList_ = p;
-    }
+    MemPoolFreeLink<T>* t = (MemPoolFreeLink<T>*)ptr;
+    t->next = headOfFreeList_;
+    headOfFreeList_ = t;
+    return;
 }
 template<class T>
 void MemPool<T>::free(void* ptr)
 {
-    if (ptr == 0) return;
-    void* p = ptr;
-    ((MemPoolFreeLink<T>*)((char*)p))->next = headOfFreeList_;
-    headOfFreeList_ = p;
+    if (ptr == 0)
+        return;
+    MemPoolFreeLink<T>* t = (MemPoolFreeLink<T>*)ptr;
+    t->next = headOfFreeList_;
+    headOfFreeList_ = t;
+    return;
 }
 MemPool<CUdpRecvBuffer> g_udpRecvPool(10000);
 MemPool<CTcpRecvBuffer> g_tcpRecvPool(1000);

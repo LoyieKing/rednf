@@ -90,7 +90,6 @@ int main(int argc, char **argv) {
             if (remove(pidPath) == -1) {
                 printf("FAIL TO DELETE PID FILE ERROR: %s\n", strerror(errno));
             }
-            return 0;
         }
     } catch (std::exception& e) {
         // 原始：std::cerr << "error: " << e.what() << "\n"（_ZStls 三次输出）
@@ -98,6 +97,8 @@ int main(int argc, char **argv) {
         return 1;
     } catch (...) {
         std::cerr << "Exception of unknown type!\n";
-        return 0;
     }
+    // 原始：main 末尾公共 return 0（ORIG 反汇编：正常落出 try + catch(...) 落出后
+    // 共享 esi=0 收尾，指令形态 test %ebx 归零链 + mov %esi,%eax）
+    return 0;
 }

@@ -60,16 +60,17 @@ int CKillUSRConfig::Parse_Table(char* data, int size)
 }
 void CKillUSRConfig::Clear_Table()
 {
-    if (m_list.empty())
-        return;
-    for (std::vector<ST_KillUSRConfig*>::iterator it = m_list.begin();
-         it != m_list.end(); ++it)
+    if (!m_list.empty())
     {
-        ST_KillUSRConfig* p = *it;
-        delete p;
-        p = 0;
+        for (std::vector<ST_KillUSRConfig*>::iterator it = m_list.begin();
+             it != m_list.end(); ++it)
+        {
+            ST_KillUSRConfig* p = *it;
+            delete p;
+            p = 0;
+        }
+        m_list.clear();
     }
-    m_list.clear();
 }
 void* CKillUSRConfig::GetInfo() const { return (void*)&m_list; }
 ST_KillUSRConfig::ST_KillUSRConfig()

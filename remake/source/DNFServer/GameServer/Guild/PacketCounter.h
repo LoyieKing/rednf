@@ -45,7 +45,7 @@ public:
 class Packet_DB_Load_Request_Guild_Board_Open : public PacketHeader {
 public:
     Packet_DB_Load_Request_Guild_Board_Open();
-    char m_data[0xa];
+    char m_data[8];
 };
 
 // from GuildPackets.h

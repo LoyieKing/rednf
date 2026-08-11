@@ -57,7 +57,7 @@ void CApplication::SendTestPacket_1() {}
 void CApplication::SendTestPacket_2() {}
 void CApplication::Process()
 {
-    while (1)
+    while (m_loaded)
     {
         try
         {
@@ -282,6 +282,7 @@ void CApplication::Free()
         puts("Application Free Start!");
         if (m_udpNetworkThread)
         {
+            m_udpNetworkThread->stop();  // ORIG：先虚调 stop（vptr[0]），再 delete（D0）
             delete m_udpNetworkThread;
             m_udpNetworkThread = 0;
         }
@@ -343,23 +344,26 @@ void CApplication::TranslateSignal()
     for (std::vector<ST_KillUSRConfig*>::const_iterator it = list->begin();
          it != list->end(); ++it)
     {
-        ST_KillUSRConfig* kc = *it;
-        switch (kc->m_type)
+        switch ((*it)->m_type)
         {
         case 2:
         {
             Packet_Monitor_Event_Start pkt;
-            *(int*)((char*)&pkt + 0xa) = kc->m_field4;
-            *(unsigned short*)((char*)&pkt + 0xe) = (unsigned short)kc->m_field8;
-            *(unsigned short*)((char*)&pkt + 0x10) = (unsigned short)kc->m_fieldC;
+            pkt.m_fieldA = (*it)->m_field4;
+            pkt.m_fieldE = (unsigned short)(*it)->m_field8;
+            pkt.m_field10 = (unsigned short)(*it)->m_fieldC;
             CPacketTranslater::OnEventStart(&pkt);
             break;
         }
         case 3:
         {
-            Packet_Monitor_Event_End pkt;
-            *(int*)((char*)&pkt + 0xa) = kc->m_field4;
-            CPacketTranslater::OnEventEnd(&pkt);
+            // ORIG 布局：Packet_Monitor_Event_End 含 +0xa 的 int（总 0xe 字节）；
+            // 共享头未还原该成员，用本地 packed 派生结构复现布局与直写形态。
+            struct __attribute__((packed)) EventEndFull : Packet_Monitor_Event_End {
+                int m_fieldA;  // +0xa
+            } pkt;
+            pkt.m_fieldA = (*it)->m_field4;
+            CPacketTranslater::OnEventEnd((PacketHeader*)&pkt);
             break;
         }
         case 4:
@@ -369,9 +373,9 @@ void CApplication::TranslateSignal()
         case 5:
         {
             Packet_Web_Prohibit_User_Connect pkt;
-            *(int*)((char*)&pkt + 0xa) = kc->m_field4;
-            *(unsigned char*)((char*)&pkt + 0xe) = (unsigned char)kc->m_field8;
-            *(unsigned short*)((char*)&pkt + 0xf) = (unsigned short)kc->m_fieldC;
+            pkt.m_fieldA = (*it)->m_field4;
+            pkt.m_fieldE = (char)(*it)->m_field8;
+            pkt.m_fieldF = (unsigned short)(*it)->m_fieldC;
             CPacketTranslater::OnWebNoticeProhibitConnectUser(&pkt);
             break;
         }

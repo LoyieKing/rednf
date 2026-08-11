@@ -82,10 +82,10 @@ void WorkThread::PushTransaction(IMessageStruct* pMessage)
         u->IncPendingWorkNum();
         u->SetWorking(true);
         orderQueue.push(pMessage);
-        // ORIG: idLo/idHi 常驻 ebx/esi（register 局部，直接双字装载，无 shift 机器码）
-        register unsigned int idLo = (unsigned int)Message::ident;
-        register unsigned int idHi = (unsigned int)(Message::ident >> 32);
-        G_TraceLog()->sysLog(4, "RECV PUSH USER=%x, ID=%d, msg=%d", u, u->mUserId, (int)idLo, (int)idHi);
+        // ORIG（二进制实测）：`Message::ident` 作为单个 64 位 vararg 传入——
+        // 一次双字装载进 ebx:esi，低/高字直接压栈（供 %d,%d 读取）。拆成两个
+        // (int) 参数（含 register 局部）会让 GCC 4.4 -O0 产生重复装载+xor 舞步。
+        G_TraceLog()->sysLog(4, "RECV PUSH USER=%x, ID=%d, msg=%d", u, u->mUserId, Message::ident);
     }
     mQueueSize = mQueueSize + 1;
     pthread_cond_signal(&isEmpty);
@@ -189,8 +189,9 @@ void WorkThread::loop(void* temp)
             teMsg = (ITimeEntity*)recvMessage;
             if (!teMsg->isTerminated())
             {
-                return_code = teMsg->operator()();
-                if (return_code != 0)
+                // ORIG（二进制实测）：cmpl $0; setne %al; test %al,%al; je
+                // ——条件内赋值形态 if((rc=op())!=0) 触发 bool 物化，无尾随 nop
+                if ((return_code = teMsg->operator()()) != 0)
                 {
                     G_TraceLog()->sysLog(7, "Fail: TIME : failed to handle '%d', error_code('%d').",
                                          teMsg->proc_id, return_code);
@@ -226,9 +227,9 @@ void WorkThread::loop(void* temp)
             if (pUser->isAboutToDisconnect() || pUser->isDisconnected())
             {
                 pUser->SetWorking(false);
-                register unsigned int idLo = (unsigned int)Message::ident;
-                register unsigned int idHi = (unsigned int)(Message::ident >> 32);
-                G_TraceLog()->sysLog(7, "\xb2\xf7\xb1\xe4 \xc0\xaf\xc0\xfa\xb0\xa1 worker\xb7\xce \xb5\xe9\xbe\xee\xbf\xd4\xb4\xd9. msg-%d", (int)idLo, (int)idHi);
+                // ORIG（二进制实测）：ident 一次双字装载进 ebx:esi 作为单个
+                // 64 位 vararg 压 0xc/0x10
+                G_TraceLog()->sysLog(7, "\xb2\xf7\xb1\xe4 \xc0\xaf\xc0\xfa\xb0\xa1 worker\xb7\xce \xb5\xe9\xbe\xee\xbf\xd4\xb4\xd9. msg-%d", Message::ident);
                 pkMsg->setUse(false);
                 pUser->setActiveSyncByWorker(true);
                 G_ActiveNetClose()->pushActiveClose(pUser);
@@ -244,21 +245,25 @@ void WorkThread::loop(void* temp)
                 G_TraceLog()->sysLog(4, "RECV PCK id    =%d", recvMsg->GetPacket()->getPacketID());
                 G_TraceLog()->sysLog(4, "RECV PCK seq   =%u", recvMsg->GetPacket()->sequence);
                 recvMsg->GetPacket();
-                if (DataType == TCPUser::RECV_DATA_NORMAL)
+                // ORIG（二进制实测）：mov -0x20(%ebp),%eax; cmp $0x4,%eax; jne
+                // ——switch 单 case 形态（if 直比会退化成 cmpl 内存操作数）
+                switch (DataType)
                 {
+                case TCPUser::RECV_DATA_NORMAL:
                     handlerTCP->dispatch(pUser, pkMsg);
                     pkMsg->setUse(false);
                     if (pUser->GetPendingWorkNum() == 0)
                     {
                         pUser->SetWorking(false);
                     }
+                    break;
                 }
                 zipMsg->Clear();
                 encMsg->Clear();
                 CompressLen = 0x3c00;
-                register unsigned int idLo = (unsigned int)Message::ident;
-                register unsigned int idHi = (unsigned int)(Message::ident >> 32);
-                G_TraceLog()->sysLog(8, "work ended id=%d", (int)idLo, (int)idHi);
+                // ORIG（二进制实测）：ident 一次双字装载进 ebx:esi 后作为单个
+                // 64 位 vararg 压 0xc/0x10（拆两个 (int) 会产生重复装载+xor 舞步）
+                G_TraceLog()->sysLog(8, "work ended id=%d", Message::ident);
             }
             break;
         }

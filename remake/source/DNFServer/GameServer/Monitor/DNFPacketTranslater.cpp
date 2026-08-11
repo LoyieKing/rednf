@@ -276,11 +276,11 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
         }
         catch (CDNFException& e)
         {
-            DNF_LOG_SCOPE_LINE(0x1ff, "%s", "CPacketTranslater::OnLogin() Exception Break : %s\n", e.what());
+            DNF_LOG_SCOPE_LINE(0x1ff, "./log/Except", "CPacketTranslater::OnLogin() Exception Break : %s\n", e.what());
         }
         catch (...)
         {
-            DNF_LOG_SCOPE_LINE(0x204, "%s", "CPacketTranslater::OnLogin() Exception Break");
+            DNF_LOG_SCOPE_LINE(0x204, "./log/Except", "CPacketTranslater::OnLogin() Exception Break\n");
         }
     }
 }
@@ -430,12 +430,12 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnLogout() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x2eb, "%s", "CPacketTranslater::OnLogout() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x2eb, "./log/Except", "CPacketTranslater::OnLogout() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnLogout() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x2f1, "%s", "CPacketTranslater::OnLogout() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x2f1, "./log/Except", "CPacketTranslater::OnLogout() Exception Break\n");
     }
 }
 
@@ -518,12 +518,12 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnReplyUserInfo() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x3ac, "%s", "CPacketTranslater::OnReplyUserInfo() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x3ac, "./log/Except", "CPacketTranslater::OnReplyUserInfo() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnReplyUserInfo() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x3b2, "%s", "CPacketTranslater::OnReplyUserInfo() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x3b2, "./log/Except", "CPacketTranslater::OnReplyUserInfo() Exception Break\n");
     }
 }
 
@@ -578,12 +578,12 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
             catch (CDNFException& e)
             {
                 printf("CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
-                DNF_LOG_SCOPE_LINE(0x348, "%s", "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
+                DNF_LOG_SCOPE_LINE(0x348, "./log/Except", "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
             }
             catch (...)
             {
                 puts("CPacketTranslater::OnHeartBeat() Exception Break");
-                DNF_LOG_SCOPE_LINE(0x34e, "%s", "CPacketTranslater::OnHeartBeat() Exception Break");
+                DNF_LOG_SCOPE_LINE(0x34e, "./log/Except", "CPacketTranslater::OnHeartBeat() Exception Break\n");
             }
         }
     }
@@ -726,12 +726,12 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
         catch (CDNFException& e)
         {
             printf("CPacketTranslater::OnCharLogin() Exception Break : %s\n", e.what());
-            DNF_LOG_SCOPE_LINE(0x463, "%s", "CPacketTranslater::OnCharLogin() Exception Break : %s\n", e.what());
+            DNF_LOG_SCOPE_LINE(0x463, "./log/Except", "CPacketTranslater::OnCharLogin() Exception Break : %s\n", e.what());
         }
         catch (...)
         {
             puts("CPacketTranslater::OnCharLogin() Exception Break");
-            DNF_LOG_SCOPE_LINE(0x469, "%s", "CPacketTranslater::OnCharLogin() Exception Break");
+            DNF_LOG_SCOPE_LINE(0x469, "./log/Except", "CPacketTranslater::OnCharLogin() Exception Break\n");
         }
     }
 }
@@ -857,24 +857,22 @@ void CPacketTranslater::OnCeraUpdate(PacketHeader* pkt)
 {try
 {
 
-
+    PacketHeader* pkt2 = pkt;
     CUser* user =
         ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-            ((RA_UINT<10>*)pkt)->v);
+            ((RA_UINT<10>*)pkt2)->v);
     if (user != 0)
     {
-        char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
-        DNF_LOG_SCOPE_LINE(0x47f, "./log/User", "Cera Payed User , DB ID : %s\n", dbid);
-        void* gs = user->GetGameServer();
-        if (gs == 0)
+        DNF_LOG_SCOPE_LINE(0x47f, "./log/User", "Cera Payed User , DB ID : %s\n",
+            NumberToString(((RA_UINT<10>*)pkt2)->v, 0));
+        if (user->GetGameServer() != 0)
         {
-            CMyFileLog log2("OnCeraUpdate", 0x48a);
-            log2("./log/Except", "CPacketTranslater::OnCeraUpdate : pUser->GetGameServer() == 0",
-                 dbid);
+            ((CServerInterface*)user->GetGameServer())->SendToServer((char*)pkt2, 0xe);
         }
         else
         {
-            ((CServerInterface*)gs)->SendToServer((char*)pkt, 0xe);
+            DNF_LOG_SCOPE_LINE(0x48a, "./log/Except",
+                "CPacketTranslater::OnCeraUpdate : pUser->GetGameServer() == 0");
         }
     }
 
@@ -943,13 +941,13 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        printf("CPacketTranslater::OnEventItemUpdate() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x4dd, "%s", "CPacketTranslater::OnEventItemUpdate() Exception Break : %s\n", e.what());
+        printf("CPacketTranslater::OnCoinUpdate() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x4dd, "./log/Except", "CPacketTranslater::OnCoinUpdate() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        puts("CPacketTranslater::OnEventItemUpdate() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x4e3, "%s", "CPacketTranslater::OnEventItemUpdate() Exception Break");
+        puts("CPacketTranslater::OnCoinUpdate() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x4e3, "./log/Except", "CPacketTranslater::OnCoinUpdate() Exception Break\n");
     }
 }
 
@@ -1511,7 +1509,8 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
         catch (CDNFException& e)
         {
             printf("CPacketTranslater::OnCallMemberList() Exception Break : %s\n", e.what());
-            DNF_LOG_SCOPE_LINE(0x7cd, "./log/Except", "%s", e.what());
+            DNF_LOG_SCOPE_LINE(0x7cd, "./log/Except",
+                "CPacketTranslater::OnCallMemberList() Exception Break : %s\n", e.what());
         }
         catch (...)
         {
@@ -1644,8 +1643,7 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
     catch (...)
     {
         puts("CPacketTranslater::OnPayTaxToUpper() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x886,"./log/Except", "CPacketTranslater::OnPayTaxToUpper() Exception Break : %s\n",
-            "CPacketTranslater::OnPayTaxToUpper() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x886,"./log/Except", "CPacketTranslater::OnPayTaxToUpper() Exception Break\n");
     }
 }
 
@@ -1852,18 +1850,18 @@ void CPacketTranslater::OnNotifyNewMail(PacketHeader* pkt)
 {
     try
     {
-        CUser* user =
-            ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                ((RA_UINT<10>*)pkt)->v);
+        PacketHeader* pkt2 = pkt;
+        CUserManager* mgr = (CUserManager*)((char*)m_pclApp + 0x10);
+        CUser* user = mgr->FindUser_CharNo(((RA_UINT<10>*)pkt2)->v);
         if (user != 0)
         {
-            ((RA_UINT<14>*)pkt)->v = user->GetIdByChannel();
-            user->SendToGameserver((char*)pkt, 0x12);
+            ((RA_UINT<14>*)pkt2)->v = user->GetIdByChannel();
+            user->SendToGameserver((char*)pkt2, 0x12);
         }
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0xb66, "%s", "%s", "OnNotifyNewMail");
+        DNF_LOG_SCOPE_LINE(0xb66, "./log/Except", "%s Exception Break\n", __FUNCTION__);
     }
 }
 
@@ -2085,12 +2083,13 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x939,"%s", "CPacketTranslater::OnNoticeProhibitConnectUser() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x939,"./log/Except",
+            "CPacketTranslater::OnNoticeProhibitConnectUser Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x93e, "%s", "CPacketTranslater::OnNoticeProhibitConnectUser() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x93e, "./log/Except",
+            "CPacketTranslater::OnNoticeProhibitConnectUser Exception Break\n");
     }
 }
 
@@ -2102,19 +2101,19 @@ void CPacketTranslater::OnMonitorManagerConnectOK(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnMonitorManagerConnectOK : 0 == m_pclApp");
         }
-        CServerHandler* handler = m_pclApp->m_serverHandler2;
-        handler->SetManagerConnectFlag(true);
+        m_pclApp->m_serverHandler2->SetManagerConnectFlag(true);
         DNF_LOG_SCOPE_LINE(0xc19, "./log/Manager", "Manager Server Connect Success");
         puts("** Manager Server Connect Success **");
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0xc1e,"%s", "CPacketTranslater::OnMonitorManagerConnectOK() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0xc1e,"./log/Except",
+            "CPacketTranslater::OnMonitorManagerConnectOK() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0xc23, "%s", "CPacketTranslater::OnMonitorManagerConnectOK() Exception Break");
+        DNF_LOG_SCOPE_LINE(0xc23, "./log/Except",
+            "CPacketTranslater::OnMonitorManagerConnectOK() Exception Break\n");
     }
 }
 
@@ -2728,11 +2727,13 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1018, "%s", "CPacketTranslater::OnAddBuddy() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1018, "./log/Except",
+            "CPacketTranslater::OnRegisterToBlackList Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x101d, "%s", "CPacketTranslater::OnAddBuddy() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x101d, "./log/Except",
+            "CPacketTranslater::OnRegisterToBlackList Exception Break\n");
     }
 }
 
@@ -2793,11 +2794,13 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1065, "%s", "CPacketTranslater::OnAddBuddyDBReply() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1065, "./log/Except",
+            "CPacketTranslater::OnAddBuddyDBReply Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x106a, "%s", "CPacketTranslater::OnAddBuddyDBReply() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x106a, "./log/Except",
+            "CPacketTranslater::OnAddBuddyDBReply Exception Break\n");
     }
 }
 
@@ -2837,11 +2840,13 @@ void CPacketTranslater::OnDelBuddy(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1098, "%s", "CPacketTranslater::OnDelBuddy() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1098, "./log/Except",
+            "CPacketTranslater::OnDelBuddy Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x109d, "%s", "CPacketTranslater::OnDelBuddy() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x109d, "./log/Except",
+            "CPacketTranslater::OnDelBuddy Exception Break\n");
     }
 }
 
@@ -2886,11 +2891,13 @@ void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x10d5, "%s", "CPacketTranslater::OnDelBuddyDBReply() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x10d5, "./log/Except",
+            "CPacketTranslater::OnDelBuddyDBReply Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x10da, "%s", "CPacketTranslater::OnDelBuddyDBReply() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x10da, "./log/Except",
+            "CPacketTranslater::OnDelBuddyDBReply Exception Break\n");
     }
 }
 
@@ -2936,12 +2943,13 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1118,"%s", "CPacketTranslater::OnQueryBuddyInfoDBReply() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1118,"./log/Except",
+            "CPacketTranslater::OnQueryBuddyInfoDBReply Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x111d, "%s", "CPacketTranslater::OnQueryBuddyInfoDBReply() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x111d, "./log/Except",
+            "CPacketTranslater::OnQueryBuddyInfoDBReply Exception Break\n");
     }
 }
 
@@ -3070,12 +3078,13 @@ void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x117e,"%s", "CPacketTranslater::onReplyLoadTowerFullRank() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x117e,"./log/Except",
+            "CPacketTranslater::onReplyLoadTowerFullRank Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1183, "%s", "CPacketTranslater::onReplyLoadTowerFullRank() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1183, "./log/Except",
+            "CPacketTranslater::onReplyLoadTowerFullRank Exception Break\n");
     }
 }
 
@@ -3422,18 +3431,19 @@ void CPacketTranslater::OnNotifyAuctionMail(PacketHeader* pkt)
 {
     try
     {
+        PacketHeader* pkt2 = pkt;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                ((RA_UINT<10>*)pkt)->v);
+                ((RA_UINT<10>*)pkt2)->v);
         if (user != 0)
         {
-            ((RA_UINT<14>*)pkt)->v = user->GetIdByChannel();
-            user->SendToGameserver((char*)pkt, 0x26);
+            ((RA_UINT<14>*)pkt2)->v = user->GetIdByChannel();
+            user->SendToGameserver((char*)pkt2, 0x26);
         }
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x137e, "%s", "%s", "OnNotifyAuctionMail");
+        DNF_LOG_SCOPE_LINE(0x137e, "./log/Except", "%s Exception Break\n", __FUNCTION__);
     }
 }
 
@@ -3972,12 +3982,14 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnNoticeGuildChatMsg() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x1660, "%s", "CPacketTranslater::OnSetCleanPadPoint() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1660, "./log/Except",
+            "CPacketTranslater::OnSetCleanPadPoint() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnNoticeGuildChatMsg() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x1666, "%s", "CPacketTranslater::OnSetCleanPadPoint() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1666, "./log/Except",
+            "CPacketTranslater::OnSetCleanPadPoint() Exception Break\n");
     }
 }
 
@@ -4070,12 +4082,14 @@ void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnTakeScreenShot() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x1717, "%s", "CPacketTranslater::OnTakeScreenShot() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1717, "./log/Except",
+            "CPacketTranslater::OnResponseIPCounterList() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnTakeScreenShot() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x171d, "%s", "CPacketTranslater::OnTakeScreenShot() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x171d, "./log/Except",
+            "CPacketTranslater::OnResponseIPCounterList() Exception Break\n");
     }
 }
 
@@ -4111,17 +4125,20 @@ void CPacketTranslater::OnVillageAttackedGMCommand(PacketHeader* pkt)
 {
     try
     {
-        ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-            ((RA_UINT<14>*)pkt)->v);
+        PacketHeader* pkt2 = pkt;
+        CUserManager* mgr = (CUserManager*)((char*)m_pclApp + 0x10);
+        CUser* user = 0;
+        user = mgr->FindUser_CharNo(((RA_UINT<14>*)pkt2)->v);
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1764,"%s", "CPacketTranslater::OnVillageAttackedGMCommand() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1764,"./log/Except",
+            "CPacketTranslater::OnVillageAttackedGMCommand() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1769, "%s", "CPacketTranslater::OnVillageAttackedGMCommand() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x1769, "./log/Except",
+            "CPacketTranslater::OnVillageAttackedGMCommand() Exception Break\n");
     }
 }
 
@@ -4403,22 +4420,29 @@ void CPacketTranslater::OnResultLoadPeriodicMessage(PacketHeader* pkt)
 {
     try
     {
-        unsigned int endHour = ((RA_UINT<526>*)pkt)->v;
-        unsigned int startHour = ((RA_UINT<522>*)pkt)->v;
+        struct ResultPeriodicInfo
+        {
+            char pad[0xa];
+            char msg[0x200];
+            int start;
+            int end;
+        } __attribute__((packed));
+        ResultPeriodicInfo* info = (ResultPeriodicInfo*)pkt;
         DNF_LOG_SCOPE_LINE(0x19f7,"./log/PeriodicMessage",
-            "DB Load Message : Message(%s), start_hour(%d), end_hour(%d)", (char*)pkt + 0xa,
-            startHour, endHour);
+            "DB Load Message : Message(%s), start_hour(%d), end_hour(%d)", info->msg,
+            info->start, info->end);
         ((CPeriodicMessageMgr*)m_pclApp->GetPeriodicMessageManager())
-            ->SetMessageData((char*)pkt + 0xa, (int)startHour, (int)endHour);
+            ->SetMessageData(info->msg, info->start, info->end);
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1a02,"%s", "CPacketTranslater::OnResultLoadPeriodicMessage() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1a02,"./log/Except",
+            "CPacketTranslater::OnResultLoadPeriodicMessage Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1a07, "%s", "CPacketTranslater::OnResultLoadPeriodicMessage() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1a07, "./log/Except",
+            "CPacketTranslater::OnResultLoadPeriodicMessage Exception Break\n");
     }
 }
 
@@ -4451,31 +4475,30 @@ void CPacketTranslater::OnRegisterEventUserIdx(PacketHeader* pkt)
 {
     try
     {
-        unsigned short errType = ((RA_U16<18>*)pkt)->v;
-        unsigned int idx = ((RA_UINT<14>*)pkt)->v;
-        unsigned int id = ((RA_UINT<10>*)pkt)->v;
-        if (m_pclApp == 0)
+        PacketHeader* pkt2 = pkt;
+        unsigned int errType = ((RA_U16<18>*)pkt2)->v;
+        if (m_pclApp != 0)
         {
-            DNF_LOG_SCOPE_LINE(0x1a35,"./log/OnTimeEvent",
-                "OnRegisterEventUserIdx:id = %u , idx = %u, errortype = %d", id, idx,
-                (unsigned int)errType);
+            DNF_LOG_SCOPE_LINE(0x1a30,"./log/OnTimeEvent",
+                "OnRegisterEventUserIdx:id = %u , rcv_idx = %u, cur_idx = %d, errortype = %d",
+                ((RA_UINT<10>*)pkt2)->v, ((RA_UINT<14>*)pkt2)->v,
+                m_pclApp->m_onTimeEventMgr->GetEvent_Idx(), errType);
         }
         else
         {
-            unsigned int curIdx =
-                ((COnTimeEventManager*)*(void**)((char*)m_pclApp + 800))->GetEvent_Idx();
-            DNF_LOG_SCOPE_LINE(0x1a30,"./log/OnTimeEvent",
-                "OnRegisterEventUserIdx:id = %u , rcv_idx = %u, cur_idx = %d, errortype = %d",
-                id, idx, curIdx, (unsigned int)errType);
+            DNF_LOG_SCOPE_LINE(0x1a35,"./log/OnTimeEvent",
+                "OnRegisterEventUserIdx:id = %u , idx = %u, errortype = %d",
+                ((RA_UINT<10>*)pkt2)->v, ((RA_UINT<14>*)pkt2)->v,
+                (unsigned int)((RA_U16<18>*)pkt2)->v);
         }
-        if (((RA_S16<18>*)pkt)->v == 0 || ((RA_S16<18>*)pkt)->v == 3)
+        if (((RA_S16<18>*)pkt2)->v == 0 || ((RA_S16<18>*)pkt2)->v == 3)
         {
             CUser* user = m_pclApp->Get_UserManager()->FindUser(
-                ((RA_UINT<10>*)pkt)->v);
+                ((RA_UINT<10>*)pkt2)->v);
             if (user != 0)
             {
-                user->SetEvent_idx(idx);
-                if (((RA_S16<18>*)pkt)->v == 3)
+                user->SetEvent_idx(((RA_UINT<14>*)pkt2)->v);
+                if (((RA_S16<18>*)pkt2)->v == 3)
                 {
                     user->Event_idx_modify_state();
                 }
@@ -4484,12 +4507,13 @@ void CPacketTranslater::OnRegisterEventUserIdx(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1a4a,"%s", "CPacketTranslater::OnRegisterEventUserIdx() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1a4a,"./log/Except",
+            "CPacketTranslater::OnResultLoadPeriodicMessage Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1a4f, "%s", "CPacketTranslater::OnRegisterEventUserIdx() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1a4f, "./log/Except",
+            "CPacketTranslater::OnResultLoadPeriodicMessage Exception Break\n");
     }
 }
 
@@ -4540,29 +4564,28 @@ void CPacketTranslater::OnResultRegisterEventIdx(PacketHeader* pkt)
 {
     try
     {
+        PacketHeader* pkt2 = pkt;
         if (m_pclApp != 0)
         {
-            COnTimeEventManager* mgr =
-                (COnTimeEventManager*)*(void**)((char*)m_pclApp + 800);
-            unsigned int curIdx = mgr->GetEvent_Idx();
-            unsigned int newIdx = ((RA_UINT<10>*)pkt)->v;
             DNF_LOG_SCOPE_LINE(0x1a85,"./log/OnTimeEvent",
-                "OnResultRegisterEventIdx:event_idx(%d) , cur_idx(%d)", newIdx, curIdx);
-            if (mgr->GetEvent_Idx() < newIdx)
+                "OnResultRegisterEventIdx:event_idx(%d) , cur_idx(%d)",
+                ((RA_UINT<10>*)pkt2)->v, m_pclApp->m_onTimeEventMgr->GetEvent_Idx());
+            if (m_pclApp->m_onTimeEventMgr->GetEvent_Idx() < ((RA_UINT<10>*)pkt2)->v)
             {
-                mgr->SetEventIdx(newIdx);
+                m_pclApp->m_onTimeEventMgr->SetEventIdx(((RA_UINT<10>*)pkt2)->v);
             }
-            mgr->SendContinueTimeToGS();
+            m_pclApp->m_onTimeEventMgr->SendContinueTimeToGS();
         }
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1a92,"%s", "CPacketTranslater::OnResultRegisterEventIdx() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1a92,"./log/Except",
+            "CPacketTranslater::OnResultLoadPeriodicMessage Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1a97, "%s", "CPacketTranslater::OnResultRegisterEventIdx() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1a97, "./log/Except",
+            "CPacketTranslater::OnResultLoadPeriodicMessage Exception Break\n");
     }
 }
 
@@ -4639,13 +4662,14 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnMonitorPunishCancel() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x1bf5,"%s", "CPacketTranslater::OnMonitorPunishCancel() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1bf5,"./log/Except",
+            "CPacketTranslater::OnMonitorPunishCancel() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnMonitorPunishCancel() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x1bfb, "%s", "CPacketTranslater::OnMonitorPunishCancel() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x1bfb, "./log/Except",
+            "CPacketTranslater::OnMonitorPunishCancel() Exception Break\n");
     }
 }
 
@@ -4659,19 +4683,21 @@ void CPacketTranslater::OnBroadcastMsg(PacketHeader* pkt)
         }
         else
         {
-            CServerHandler* handler = m_pclApp->m_serverHandler2;
-            handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
-            DNF_LOG_SCOPE_LINE(0x1c14,"./log/WebNotice", "OnBroadcastMsg : (%s,%d)\n", (char*)pkt + 0xf,
-                (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v);
+            PacketHeader* pkt2 = pkt;
+            m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt2)->v);
+            DNF_LOG_SCOPE_LINE(0x1c14,"./log/WebNotice", "OnBroadcastMsg : (%s,%d)\n", (char*)pkt2 + 0xf,
+                (unsigned int)(unsigned char)((RA_S8<14>*)pkt2)->v);
         }
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1c18, "%s", "CPacketTranslater::OnBroadcastMsg Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1c18, "./log/Except",
+            "CPacketTranslater::OnBroadcastMsg Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1c1d, "%s", "CPacketTranslater::OnBroadcastMsg Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1c1d, "./log/Except",
+            "CPacketTranslater::OnBroadcastMsg Exception Break\n");
     }
 }
 
@@ -4715,13 +4741,14 @@ void CPacketTranslater::OnMonitorSecuServiceConnWeb(PacketHeader* pkt)
     {
         printf("CPacketTranslater::OnMonitorSecuServiceConnWeb() Exception Break : %s\n",
                e.what());
-        DNF_LOG_SCOPE_LINE(0x1c4f,"%s", "CPacketTranslater::OnMonitorSecuServiceConnWeb() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1c4f,"./log/Except",
+            "CPacketTranslater::OnMonitorSecuServiceConnWeb() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnMonitorSecuServiceConnWeb() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x1c55, "%s", "CPacketTranslater::OnMonitorSecuServiceConnWeb() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x1c55, "./log/Except",
+            "CPacketTranslater::OnMonitorSecuServiceConnWeb() Exception Break\n");
     }
 }
 
@@ -5255,11 +5282,13 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1fcb, "%s", "CPacketTranslater::onCollectItems() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x1fcb, "./log/Except",
+            "CPacketTranslater::onCollectItems Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1fd0, "%s", "CPacketTranslater::onCollectItems() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1fd0, "./log/Except",
+            "CPacketTranslater::onCollectItems Exception Break\n");
     }
 }
 
@@ -5412,12 +5441,13 @@ void CPacketTranslater::OnUpdateMiniCraneSeed(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1b82,"%s", "CPacketTranslater::OnUpdateMiniCraneSeed() Exception Break : %s\n",
-            e.what());
+        DNF_LOG_SCOPE_LINE(0x1b82,"./log/Except",
+            "CPacketTranslater::OnUpdateMiniCraneSeed Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1b87, "%s", "CPacketTranslater::OnUpdateMiniCraneSeed() Exception Break");
+        DNF_LOG_SCOPE_LINE(0x1b87, "./log/Except",
+            "CPakcetTranslater::OnUpdateMiniCraneSeed Exception Break\n");
     }
 }
 

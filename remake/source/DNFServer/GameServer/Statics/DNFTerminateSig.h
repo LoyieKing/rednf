@@ -6,8 +6,8 @@
 class CTerminateSig : public CSignal
 {
 public:
-    CTerminateSig();
-    virtual ~CTerminateSig();
+    CTerminateSig() throw();
+    virtual ~CTerminateSig() throw();
     virtual void handle(int sig);
 };
 

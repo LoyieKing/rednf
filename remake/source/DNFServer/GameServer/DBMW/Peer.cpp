@@ -27,7 +27,14 @@ extern MemPool<CPeer> g_peerPool;
 
 CPeer::CPeer()
 {
-    memset(&m_sendBuf, 0, 0x20);
+    m_sendBuf = 0;
+    m_recvLen = 0;
+    m_sendLen = 0;
+    m_recvQ = 0;
+    m_sendBLock = 0;
+    m_sendQLock = 0;
+    m_remainSendLen = 0;
+    m_recvBuf = 0;
 }
 CPeer::~CPeer()
 {

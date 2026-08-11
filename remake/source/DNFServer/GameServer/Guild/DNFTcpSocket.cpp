@@ -188,8 +188,9 @@ int TCPSocket::getHandle() const
 
 int TCPSocket::shutdown(int how)
 {
-    m_sock == -1;
-    return m_sock;
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。ORIG 不调用 ::shutdown(2)；
+    // 纯 C++ 形态无法逐字节复现，按规矩归入 caliber_issues.csv（REMAIN）。
+    return ::shutdown(m_sock, how);
 }
 
 void TCPSocket::close()

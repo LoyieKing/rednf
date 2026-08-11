@@ -192,18 +192,18 @@ int ServiceFactory::startup()
     puts("NSLDBThread \xb0\xb4\xc3\xbc \xbb\xfd\xbc\xba...");
     super_Threads.threadDB_[0] = new NSLDBThread;
     puts("NSLDBThread \xb0\xb4\xc3\xbc \xbf\xcf\xb7\xe1...");
-    /* ORIG: operator new + C1, no EH pads (throw()-spec ctor aliases) */
-    TCPDispatcher* pTCPDispatcher =
+    /* ORIG: operator new + C1（ebx 临时），无 EH pads（throw()-spec ctor aliases）。 */
+    register TCPDispatcher* pTCPDispatcher =
         (TCPDispatcher*)::operator new(sizeof(TCPDispatcher));
     call_TCPDispatcher_ctor(pTCPDispatcher);
     super_Dispatchers.dispatcherTCP = pTCPDispatcher;
     puts("TCPDispatcher has been created...");
-    InterDispatcher* pInterDispatcher =
+    register InterDispatcher* pInterDispatcher =
         (InterDispatcher*)::operator new(sizeof(InterDispatcher));
     call_InterDispatcher_ctor(pInterDispatcher);
     super_Dispatchers.mpInterDispatcher = pInterDispatcher;
     puts("InterDispatcher has been created...");
-    DBDispatcher* pDBDispatcher = (DBDispatcher*)::operator new(sizeof(DBDispatcher));
+    register DBDispatcher* pDBDispatcher = (DBDispatcher*)::operator new(sizeof(DBDispatcher));
     call_DBDispatcher_ctor(pDBDispatcher);
     super_Dispatchers.dispatcherDB = pDBDispatcher;
     puts("DBDispatcher \xb0\xb4\xc3\xbc \xbf\xcf\xb7\xe1...");
@@ -248,9 +248,11 @@ int ServiceFactory::startup()
             iter->second->init();
         }
     }
+    // ORIG：循环遍历 IHandlers::mTimeHandlers[]（@0x104），虚调用 vtable[2]
+    // （init，无参）；不是 threadWork_（@0x24）。
     for (int i = 0; i < super_IHandlers.mTimeHandlerNum; i = i + 1)
     {
-        super_Threads.threadWork_[i]->loop((void*)0);
+        super_IHandlers.mTimeHandlers[i]->init();
     }
     super_Threads.threadTCP_->begin();
     printf("TCPThread \xb1\xb8\xb5\xbf \xbc\xba\xb0\xf8-%p\n", super_Threads.threadTCP_);

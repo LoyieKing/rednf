@@ -16,7 +16,7 @@ class stServerInfo;
 class Packet_Monitor_UDP_HeartBeat : public PacketHeader {
 public:
     Packet_Monitor_UDP_HeartBeat();
-    char m_data[0x7];
+    char m_data[1];
 };
 
 // from GuildServer.h

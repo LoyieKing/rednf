@@ -118,13 +118,10 @@ ssize_t TCPSocket::recv(char* buf, int len)
 
 int TCPSocket::shutdown(int how)
 {
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     (void)how;
-    // ORIG（自定义 4.1.2-52）保留 sock_==-1 的死比较并复用 eax 直接返回；
-    // 库存 4.1.2/4.4.6 在 -O0 会消除该 cmp。eax 钉住 + 空比较 asm 复现原版指令流（语义等价）。
-    register int sock __asm__("eax");
-    sock = *(int*)this;
-    __asm__ volatile("cmp $0xffffffff, %0" : "+r"(sock) : : "cc");
-    return sock;
+    sock_ == -1;
+    return *(int*)this;
 }
 
 void TCPSocket::close()

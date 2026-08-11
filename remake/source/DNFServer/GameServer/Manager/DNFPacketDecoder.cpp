@@ -65,78 +65,79 @@ void CPacketDecoder::Attach(CApplication* app)
 
 void CPacketDecoder::TcpProcess()
 {
-    if (!m_tcpQueue)
-        return;
-    if (!m_tcpRecvQLock)
+    if (!m_tcpQueue || !m_tcpRecvQLock)
         throw CDNFException("CPacketDecoder is Not Ready!\n");
+    CTcpRecvBuffer* buf = 0;
     while (!m_tcpQueue->empty())
     {
-        CTcpRecvBuffer* buf = m_tcpQueue->front();
+        buf = m_tcpQueue->front();
         m_tcpQueue->pop();
-        if (!buf)
-            continue;
-        PacketHeader* p = (PacketHeader*)buf;
-        if (m_tcpQueue->size() > 0xa)
+        if (buf)
         {
-            CMyFileLog log(__FUNCTION__, 0xe7);
-            log("./log/TcpRecv", "cnt(%)id(%d)size(%d)ip(%d)",
-                (int)m_tcpQueue->size(), p->packetId, p->packetSize,
-                ((char*)buf)[6]);
-        }
-        if (!MsgDecode(p))
-        {
+            PacketHeader* p = (PacketHeader*)buf;
+            int qsize = (int)m_tcpQueue->size();
+            if (qsize > 0xa)
+            {
+                CMyFileLog(__FUNCTION__, 0xe7)("./log/TcpRecv",
+                    "cnt(%)id(%d)size(%d)ip(%d)",
+                    qsize, p->packetId, p->packetSize, p->reversed2);
+            }
+            if (!MsgDecode(p))
+            {
+                {
+                    CGuard<CMutex> guard(m_tcpRecvBLock);
+                    delete buf;
+                }
+                printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
+                       p, p->packetId);
+                throw CDNFException("CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
+            }
             {
                 CGuard<CMutex> guard(m_tcpRecvBLock);
                 delete buf;
             }
-            printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
-                   p, p->packetId);
-            throw CDNFException("CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
-        }
-        {
-            CGuard<CMutex> guard(m_tcpRecvBLock);
-            delete buf;
         }
     }
 }
 
 void CPacketDecoder::UdpProcess()
 {
-    if (!m_udpQueue)
-        return;
-    if (!m_udpQLock)
+    if (!m_udpQueue || !m_udpQLock)
         throw CDNFException("CPacketDecoder is Not Ready!\n");
+    CUdpRecvBuffer* buf = 0;
     while (!m_udpQueue->empty())
     {
-        CUdpRecvBuffer* buf = m_udpQueue->front();
+        buf = m_udpQueue->front();
         m_udpQueue->pop();
-        if (!buf)
-            continue;
-        PacketHeader* p = (PacketHeader*)buf;
-        if (m_udpQueue->size() > 0x64)
+        if (buf)
         {
-            CMyFileLog log(__FUNCTION__, 0x91);
-            log("./log/UdpRecv", "cnt(%d)id(%d)size(%d)",
-                (int)m_udpQueue->size(), p->packetId, p->packetSize);
-        }
-        if (!MsgDecode(p))
-        {
+            PacketHeader* p = (PacketHeader*)buf;
+            int qsize = (int)m_udpQueue->size();
+            if (qsize > 0x64)
+            {
+                CMyFileLog(__FUNCTION__, 0x91)("./log/UdpRecv",
+                    "cnt(%d)id(%d)size(%d)",
+                    (int)m_udpQueue->size(), p->packetId, p->packetSize);
+            }
+            if (!MsgDecode(p))
+            {
+                {
+                    CGuard<CMutex> guard(m_udpBLock);
+                    delete buf;
+                }
+                printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
+                       p, p->packetId);
+                throw CDNFException("CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
+            }
             {
                 CGuard<CMutex> guard(m_udpBLock);
                 delete buf;
             }
-            printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
-                   p, p->packetId);
-            throw CDNFException("CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
-        }
-        {
-            CGuard<CMutex> guard(m_udpBLock);
-            delete buf;
         }
     }
 }
 
-char CPacketDecoder::MsgDecode(PacketHeader* header)
+bool CPacketDecoder::MsgDecode(PacketHeader* header)
 {
     if (!header)
         return 0;
@@ -145,6 +146,7 @@ char CPacketDecoder::MsgDecode(PacketHeader* header)
         if (!m_table[header->packetId])
             return 0;
         m_table[header->packetId](header);
+        __asm__("nop");
         return 1;
     }
     printf("Game Message with identifier %i has arrived.\n", header->packetId);

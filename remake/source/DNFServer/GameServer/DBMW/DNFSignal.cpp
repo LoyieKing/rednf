@@ -47,7 +47,5 @@ void CSignal::attachApp(CApplication* app) { m_app = app; }
 
 void signal_handler(int sig)
 {
-    CSignalTranslator* t = CSignalTranslatorInstance();
-    CSignal* s = t->getSignal(sig);
-    s->handle(sig);
+    CSignalTranslatorInstance()->getSignal(sig)->handle(sig);
 }

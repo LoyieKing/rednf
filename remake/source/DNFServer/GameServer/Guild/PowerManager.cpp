@@ -93,12 +93,12 @@ void CPowerManager::Process()
 
 void CPowerManager::SetPowerDBFlag(unsigned short flag)
 {
-    *(unsigned short*)((char*)this + 0x18a) |= flag;
+    m_field18a |= flag;
 }
 
-unsigned char CPowerManager::IsPowerWarOn()
+bool CPowerManager::IsPowerWarOn()
 {
-    return ((const CPowerWar*)((char*)this + 0x14c))->IsPowerWarOn();
+    return m_powerWar.IsPowerWarOn();
 }
 
 CPowerManager::CPowerManager()
@@ -122,11 +122,11 @@ void CPowerManager::InitPowerManager(char* path, CApplication* app)
 
 void CPowerManager::SetPowerInfo(char side, int score1, int score2)
 {
-    *(char*)((char*)this + 0x184) = side;
-    if (IsPowerWarOn() != 1)
+    m_winnerSide = side;
+    if (!IsPowerWarOn())
     {
-        ((CPower*)((char*)this + 0x74))->SetScore(score1);
-        ((CPower*)((char*)this + 0xe0))->SetScore(score2);
+        m_power[1].SetScore(score1);
+        m_power[2].SetScore(score2);
     }
     SetPowerDBFlag(4);
 }
@@ -176,16 +176,16 @@ void CPowerManager::SendPowerWarEndTime(int time)
 
 int CPowerManager::IncPowerScore(ENUM_POWER_SIDE_TYPE side, int score)
 {
-    if (((const CPowerWar*)((char*)this + 0x14c))->IsPowerWarOn() == 0)
+    if (m_powerWar.IsPowerWarOn() != 0)
     {
-        return ((CPower*)((char*)this + 8 + side * 0x6c))->GetScore();
+        return m_power[side].IncScore(score);
     }
-    return ((CPower*)((char*)this + 8 + side * 0x6c))->IncScore(score);
+    return m_power[side].GetScore();
 }
 
 int CPowerManager::GetPowerScore(ENUM_POWER_SIDE_TYPE side)
 {
-    return ((CPower*)((char*)this + 8 + side * 0x6c))->GetScore();
+    return m_power[side].GetScore();
 }
 
 void CPowerManager::StartPowerWarEvent()
@@ -416,12 +416,12 @@ void CPowerManager::LoadPowerWarCfg(char* path)
 
 void CPowerManager::SetPowerWarEndKillPoint(unsigned short point)
 {
-    ((CPowerWar*)((char*)this + 0x14c))->setPowerWarEndKillPoint(point);
+    m_powerWar.setPowerWarEndKillPoint(point);
 }
 
 unsigned short CPowerManager::GetPowerWarEndKillPoint()
 {
-    return ((const CPowerWar*)((char*)this + 0x14c))->getPowerWarEndKillPoint();
+    return ((const CPowerWar&)m_powerWar).getPowerWarEndKillPoint();
 }
 
 void CPowerManager::ProcessByMinute()
@@ -513,29 +513,33 @@ void CPowerManager::SetPowerWarRewardInfo(int a, int b, int c, int d)
 
 unsigned int CPowerManager::GetUserPowerWarPoint(ENUM_POWER_SIDE_TYPE side, unsigned int charNo)
 {
-    return ((CPower*)((char*)this + side * 0x6c + 8))->GetPowerWarCharacInfo()
+    return m_power[side].GetPowerWarCharacInfo()
         ->GetUserPowerWarPoint(charNo);
 }
 
 unsigned int CPowerManager::GetGuildRankingInPower(ENUM_POWER_SIDE_TYPE side, unsigned int guildKey)
 {
-    return ((CPower*)((char*)this + side * 0x6c + 8))->GetPowerWarGuildInfo()
+    return m_power[side].GetPowerWarGuildInfo()
         ->GetGuildRanking(guildKey);
 }
 
 unsigned int CPowerManager::GetUserRankingInPower(ENUM_POWER_SIDE_TYPE side, unsigned int charNo)
 {
-    return ((CPower*)((char*)this + side * 0x6c + 8))->GetPowerWarCharacInfo()
+    return m_power[side].GetPowerWarCharacInfo()
         ->GetUserRanking(charNo);
 }
 
 void CPowerManager::PrintDebugInfo()
 {
-    CMyFileLog logA(__FUNCTION__, 0x3c9);
-    logA("./log/PowerResult", "----- POWER A");
+    {
+        CMyFileLog logA(__FUNCTION__, 0x3c9);
+        logA("./log/PowerResult", "----- POWER A");
+    }
     ((CPower*)((char*)this + 0x74))->GetPowerWarGuildInfo()->PrintDebugInfo();
-    CMyFileLog logB(__FUNCTION__, 0x3cf);
-    logB("./log/PowerResult", "----- POWER B");
+    {
+        CMyFileLog logB(__FUNCTION__, 0x3cf);
+        logB("./log/PowerResult", "----- POWER B");
+    }
     ((CPower*)((char*)this + 0xe0))->GetPowerWarGuildInfo()->PrintDebugInfo();
 }
 
@@ -891,10 +895,10 @@ Packet_Reply_Power_War_Score::Packet_Reply_Power_War_Score()
 
 char CPowerManager::GetWinnerSide()
 {
-    return ((PowerManagerLayout*)this)->m_winnerSide;
+    return m_winnerSide;
 }
 
 void CPowerManager::SetWinnerSide(char side)
 {
-    ((PowerManagerLayout*)this)->m_winnerSide = side;
+    m_winnerSide = side;
 }

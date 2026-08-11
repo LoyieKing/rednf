@@ -18,7 +18,9 @@ public:
     char what_0x1b;                 // offset 0x1b
     char buddy_n_user_id_what[30];  // offset 0x1c
     unsigned char what_0x3a;        // offset 0x3a（原始：movzx 零扩展）
-    char what_0x3b[0x138];          // offset 0x3b
+    // 原始：0x138 == 3×0x68，按 ORIG 反汇编（循环地址计算拆成 add $0x30 + add $0xb）
+    // 还原为 2D 数组形态（布局与 char[0x138] 完全一致，仅类型形态影响代码生成）。
+    char what_0x3b[3][0x68];          // offset 0x3b
     unsigned char what_0x173;       // offset 0x173（原始：movzx 零扩展）
     char what_0x174[0x100];         // offset 0x174
 

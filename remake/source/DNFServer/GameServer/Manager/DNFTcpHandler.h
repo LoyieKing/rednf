@@ -17,6 +17,7 @@ public:
     virtual bool IsSetErrEvent(int idx) = 0;
     virtual bool IsSetOutEvent(int idx) = 0;
     virtual bool IsSetInEvent(int idx) = 0;
+    virtual void* GetEventPtr(int idx) = 0;  // ORIG vtable +0x28（经 CProtocol* 调用）
 };
 
 class EpollHandler : public CProtocol
@@ -55,7 +56,7 @@ public:
     bool IsSetInEvent(int idx);
     bool IsSetOutEvent(int idx);
     bool IsSetErrEvent(int idx);
-    EpollHandler* m_epoll;  // +0
+    CProtocol* m_epoll;  // +0（ORIG：基类指针赋值产生 mov ebx,eax;mov eax,edx 形态）
 };
 
 #endif  // DNF_TCP_HANDLER_H_

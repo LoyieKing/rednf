@@ -57,15 +57,14 @@ char* CMySql::blob_to_str(int col, void* buf, int len)
         return 0;
     if (buf == 0 && len > 0x5fff)
         return 0;
-    char* base = (char*)this + 0x6070 + col * 0x6001;
-    base[0x9] = 0;
+    ((char*)(col * 0x6001 + (unsigned int)this + 0x6070))[0x9] = 0;
     if (len > 0)
     {
-        char* dst = base + 0x9;
+        char* dst = (char*)(col * 0x6001 + 0x6070 + (unsigned int)this + 0x9);
         dst += mysql_real_escape_string(m_mysql, dst, (const char*)buf, len);
-        *dst = 0;
+        *dst++ = 0;
     }
-    return base + 0x9;
+    return (char*)(col * 0x6001 + 0x6070 + (unsigned int)this + 0x9);
 }
 bool CMySql::set_compress_option()
 {
@@ -105,14 +104,10 @@ bool CMySql::get_uint(int col, unsigned long long& v)
 }
 bool CMySql::get_ulonglong(int col, unsigned long long& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = strtoull(m_row[col], 0, 10);
-        return 1;
-    }
+    v = strtoull(m_row[col], 0, 10);
+    return 1;
 }
 const char* CMySql::get_quest_str() const
 {
@@ -217,19 +212,19 @@ bool CMySql::fetch()
     if (!m_result)
         return 0;
     m_row = mysql_fetch_row(m_result);
-    if (!m_row)
-        return 0;
-    m_lengths = mysql_fetch_lengths(m_result);
-    return 1;
+    if (m_row)
+    {
+        m_lengths = mysql_fetch_lengths(m_result);
+        return 1;
+    }
+    return 0;
 }
 void CMySql::clear_result_set()
 {
     if (m_result)
-    {
         mysql_free_result(m_result);
-        m_result = 0;
-        m_row = 0;
-    }
+    m_result = 0;
+    m_row = 0;
 }
 bool CMySql::set_query(unsigned int q, char* fmt, ...)
 {
@@ -238,148 +233,103 @@ bool CMySql::set_query(unsigned int q, char* fmt, ...)
     vsprintf(m_query, fmt, ap);
     va_end(ap);
     int len = strlen(m_query);
-    if (len >= 0x6000)
+    if (len > 0x5fff)
         return 0;
-    m_queryLen = len;
-    CQueryCounterInstance()->IncreQureyCount(q, fmt);
+    this->m_queryLen = len;
+    CQueryCounter* pCounter = CQueryCounterInstance();
+    pCounter->IncreQureyCount(q, fmt);
     return 1;
 }
 bool CMySql::get_int(int col, int& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = atoi(m_row[col]);
-        return 1;
-    }
+    v = atoi(m_row[col]);
+    return 1;
 }
 bool CMySql::get_uint(int col, unsigned int& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        unsigned long uRet = strtoul(m_row[col], 0, 10);
-        v = (unsigned int)uRet;
-        return 1;
-    }
+    unsigned long uRet = strtoul(m_row[col], 0, 10);
+    v = (unsigned int)uRet;
+    return 1;
 }
 bool CMySql::get_short(int col, short& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (short)atoi(m_row[col]);
-        return 1;
-    }
+    v = (short)atoi(m_row[col]);
+    return 1;
 }
 bool CMySql::get_short(int col, int& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (short)atoi(m_row[col]);
-        return 1;
-    }
+    short s = (short)atoi(m_row[col]);
+    v = s;
+    return 1;
 }
 bool CMySql::get_ushort(int col, unsigned short& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (unsigned short)atoi(m_row[col]);
-        return 1;
-    }
+    v = (unsigned short)atoi(m_row[col]);
+    return 1;
 }
 bool CMySql::get_ushort(int col, int& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (unsigned short)atoi(m_row[col]);
-        return 1;
-    }
+    unsigned short s = (unsigned short)atoi(m_row[col]);
+    v = s;
+    return 1;
 }
 bool CMySql::get_byte(int col, char& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (char)atoi(m_row[col]);
-        return 1;
-    }
+    v = (char)atoi(m_row[col]);
+    return 1;
 }
 bool CMySql::get_byte(int col, int& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (char)atoi(m_row[col]);
-        return 1;
-    }
+    char c = (char)atoi(m_row[col]);
+    v = c;
+    return 1;
 }
 bool CMySql::get_ubyte(int col, unsigned char& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (unsigned char)atoi(m_row[col]);
-        return 1;
-    }
+    v = (unsigned char)atoi(m_row[col]);
+    return 1;
 }
 bool CMySql::get_ubyte(int col, int& v)
 {
-    switch ((m_row == 0) ? 1 : !is_valid_col(col))
-    {
-    default:
+    if (!(m_row && is_valid_col(col)))
         return 0;
-    case 0:
-        v = (unsigned char)atoi(m_row[col]);
-        return 1;
-    }
+    unsigned char c = (unsigned char)atoi(m_row[col]);
+    v = c;
+    return 1;
 }
 bool CMySql::get_str(int col, char* buf, int len)
 {
-    if ((m_row == 0) || !is_valid_col(col) || len <= 0)
-    {
-    }
-    else
-    {
-        strncpy(buf, m_row[col], len);
-        buf[len - 1] = 0;
-        return 1;
-    }
-    return 0;
+    if (!(m_row && is_valid_col(col)) || len <= 0)
+        return 0;
+    strncpy(buf, m_row[col], len);
+    buf[len - 1] = 0;
+    return 1;
 }
 bool CMySql::get_binary(int col, void* buf, int len)
 {
-    if ((m_row == 0) || !is_valid_col(col) || len <= 0)
-    {
-    }
-    else
-    {
-        int copyLen = m_lengths[col] < (unsigned int)len ? m_lengths[col] : len;
-        memcpy(buf, m_row[col], copyLen);
-        return 1;
-    }
-    return 0;
+    if (!(m_row && is_valid_col(col)) || len <= 0)
+        return 0;
+    int copyLen = (int)m_lengths[col] < len ? (int)m_lengths[col] : len;
+    memcpy(buf, m_row[col], copyLen);
+    return 1;
 }
 char CMySql::open(const char* host, const char* user, const char* pass, const char* db)
 {
@@ -424,25 +374,29 @@ char CMySql::open(const char* host, unsigned int port, const char* user, const c
     }
     return 1;
 }
-char CMySql::is_valid_col(int col)
+bool CMySql::is_valid_col(int col)
 {
-    if (col < 0)
+    if (col < 0 || m_nFields <= col)
         return 0;
-    if (m_nFields > col)
-        return 1;
-    return 0;
+    return 1;
 }
-char CMySql::init()
+bool CMySql::init()
 {
-    if (!init_db_handle())
+    bool r;
+    r = init_db_handle();
+    if (!r)
         return 0;
-    if (!set_compress_option())
+    r = set_compress_option();
+    if (!r)
         return 0;
-    if (!set_read_default_grp_option())
+    r = set_read_default_grp_option();
+    if (!r)
         return 0;
-    if (!set_charset_name_option())
+    r = set_charset_name_option();
+    if (!r)
         return 0;
-    if (!set_reconnect_option())
+    r = set_reconnect_option();
+    if (!r)
         return 0;
     memset(m_query, 0, 0x6001);
     m_queryLen = 0;

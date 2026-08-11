@@ -108,16 +108,13 @@ void App::prepareRun(char* Service_identify)
         nsl::pApp->super_IHandlers.setTimeHandler(
             0, handlerFor_TE_);
         nsl::pApp->super_IHandlers.setTimeHandleNum(1);
-        // Evaluate findIntValue before findCharValue (arg order / ORIG esi/ebx)
-        int iVar3 = nsl::G_Script()->findIntValue(0, 4);
-        char* pcVar4 = nsl::G_Script()->findCharValue(0, 1);
-        if (!G_StatisticsCollector()->SetLogFileName(pcVar4, iVar3))
+        // ORIG keeps both results in esi/ebx (no stack locals) — inline the calls
+        if (!G_StatisticsCollector()->SetLogFileName(
+                nsl::G_Script()->findCharValue(0, 1), nsl::G_Script()->findIntValue(0, 4)))
         {
-            iVar3 = nsl::G_Script()->findIntValue(0, 4);
-            pcVar4 = nsl::G_Script()->findCharValue(0, 1);
             nsl::G_TraceLog()->sysLog(
                 7, "G_StatisticsCollector()->SetLogFileName(%s, %d)",
-                pcVar4, iVar3);
+                nsl::G_Script()->findCharValue(0, 1), nsl::G_Script()->findIntValue(0, 4));
             exit(1);
         }
         // ORIG: local_24 = limit(1), i at separate local

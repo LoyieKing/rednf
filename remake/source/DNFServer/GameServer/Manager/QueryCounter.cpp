@@ -39,18 +39,22 @@ void CQueryCounter::WriteFileLog()
 void CQueryCounter::WriteDBLog(CDBManager& db)
 {
     m_interval--;
-    if (m_interval > 0)
+    while (m_interval > 0)  // ORIG：while 形态物化比较（setg %al/test %al/jne）
         return;
     for (int q = 0x4e21; q <= 0x4f60; q++)
     {
-        int time = (int)(m_responseTimes[q - 0x4e20] * 1000.0);
-        if (!db.UpdateQueryCount(q, m_counts[q - 0x4e20], time))
+        if (!db.UpdateQueryCount(q, m_counts[q - 0x4e20],
+                                 (int)(m_responseTimes[q - 0x4e20] * 1000.0)))
         {
-            DNF_LOG_SCOPE_LINE(0x63, "./log/QueryCount", "Count DB Insert Fail! id(%d), count(%d), time(%d)", q, m_counts[q - 0x4e20], time);
+            // ORIG：log 实参内联再次求值 (int)(...×1000.0)，临时对象形式下
+            // 先于 ctor 物化到 esi（push %esi 的来源）。
+            DNF_LOG_SCOPE_LINE(0x63, "./log/QueryCount", "Count DB Insert Fail! id(%d), count(%d), time(%d)",
+                q, m_counts[q - 0x4e20], (int)(m_responseTimes[q - 0x4e20] * 1000.0));
         }
         else
         {
-            DNF_LOG_SCOPE_LINE(0x66, "./log/QueryCount", "Count DB Insert Success! id(%d), count(%d), time(%d)", q, m_counts[q - 0x4e20], time);
+            DNF_LOG_SCOPE_LINE(0x66, "./log/QueryCount", "Count DB Insert Success! id(%d), count(%d), time(%d)",
+                q, m_counts[q - 0x4e20], (int)(m_responseTimes[q - 0x4e20] * 1000.0));
             m_counts[q - 0x4e20] = 0;
             m_responseTimes[q - 0x4e20] = 0.0;
         }
@@ -73,8 +77,7 @@ void CQueryCounter::SetResponseTime(unsigned int ms)
     if (ms > 0x4f60)
         return;
     int i = ms - 0x4e20;
-    double cur = m_responseTimes[i];
-    m_responseTimes[i] = cur + m_timer->GetTimeInterval();
+    m_responseTimes[i] = m_responseTimes[i] + m_timer->GetTimeInterval();
 }
 
 CQueryCounter* CQueryCounterInstance()
@@ -82,3 +85,5 @@ CQueryCounter* CQueryCounterInstance()
     static CQueryCounter instance;
     return &instance;
 }
+
+// x

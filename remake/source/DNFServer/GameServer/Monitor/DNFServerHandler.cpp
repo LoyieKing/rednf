@@ -251,19 +251,19 @@ void CServerHandler::queryReloadTowerRank(unsigned int channel)
 
 int CServerHandler::SendToManager(PacketHeader* pkt)
 {
-    if (m_managerServer == 0)
+    if (m_managerServer)
     {
-        return 0;
+        return m_managerServer->SendToServer((char*)pkt,
+                                             (unsigned int)((RA_U16<2>*)pkt)->v);
     }
-    return m_managerServer->SendToServer((char*)pkt,
-                                         (unsigned int)((RA_U16<2>*)pkt)->v);
+    return 0;
 }
 
 void CServerHandler::SendDBMWRequestIPCounter(unsigned char flag, unsigned char b)
 {
     Packet_Request_IPCounterList pkt;
-    ((RA_S8<10>*)&pkt)->v = (char)flag;
-    ((RA_S8<11>*)&pkt)->v = (char)b;
+    pkt.m_fieldA = flag;
+    pkt.m_fieldB = b;
     SendToDB(&pkt);
 }
 
@@ -519,8 +519,8 @@ CManagerServer* CServerHandler::GetManagerServer() { return m_managerServer; }
 
 void CServerHandler::SetGameServerIpPort(unsigned char a, unsigned int b, unsigned short c)
 {
-    char x = (char)a;
-    unsigned short y = (unsigned short)c;
+    (void)a;
+    (void)c;
 }
 
 void CServerHandler::QueryMember(unsigned int key)
@@ -539,8 +539,7 @@ void CServerHandler::QueryMemberMember(unsigned int key)
 
 void CServerHandler::SendDBMWRequest_D_IPCounter(unsigned char flag)
 {
-    unsigned char x = flag;
     Packet_Request_IPCounterList pkt;
-    pkt.m_fieldA = x;
+    pkt.m_fieldA = flag;
     SendToDB(&pkt);
 }

@@ -244,9 +244,9 @@ public:
     char CheckTcpRecvQ(int size);
     char CheckUdpRecvQ(int size);
     char CheckTcpSendQ(int size);
-    int checkTcpRecvLoad(int size);
-    int checkUdpRecvLoad(int size);
-    int checkTcpSendLoad(int size);
+    bool checkTcpRecvLoad(int size);
+    bool checkUdpRecvLoad(int size);
+    bool checkTcpSendLoad(int size);
     void setTcpRecvQueue(int size);
     void setUdpRecvQueue(int size);
     void setTcpSendQueue(int size);

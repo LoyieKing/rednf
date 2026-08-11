@@ -123,16 +123,18 @@ void CApplication::Load(int argc, char** argv)
         puts("Application App Config Load_Table() Success!");
         m_serverConfig->Load_Table(std::string("./table/server_config.tbl"));
         puts("Application Server Config Load_Table() Success!");
-        m_frameCount.InitFrameCountInfo(this, m_appConfig->Get_FrameCountValue(), 0x3e8);
+        m_frameCount.InitFrameCountInfo(this,
+                                        ((CAppConfig*)m_appConfig)->Get_FrameCountValue(),
+                                        0x3e8);
         puts("Application Init Frame Count() Success!");
         m_udpHandler = new CUdpHandler;
         if (((CUdpHandler*)m_udpHandler)->InitServerSocket(
-                (unsigned short)m_appConfig->Get_ServerUdpPort()) == -1)
+                (unsigned short)((CAppConfig*)m_appConfig)->Get_ServerUdpPort()) == -1)
             throw CDNFException("CApplication::Load() Init Server Socket Exception Break!");
         puts("Application UDP Handler Create() Success!");
         m_serverHandler = new CServerHandler;
         m_serverHandler->Attach(this);
-        m_serverHandler->Load((ST_ServerInfo*)m_serverConfig->GetServerInfo());
+        m_serverHandler->Load((ST_ServerInfo*)((CServerConfig*)m_serverConfig)->GetServerInfo());
         puts("Application Server Handler Create() Success!");
         CPacketTranslater::attach(this);
         puts("Application Packet Translater Attach() Success!");
@@ -150,7 +152,7 @@ void CApplication::Load(int argc, char** argv)
         if (m_networkThread->begin() != 1)
             throw;
         puts("Application Network Thread Begin() Success!");
-        unsigned short port = m_appConfig->Get_ServerTcpPort();
+        unsigned short port = ((CAppConfig*)m_appConfig)->Get_ServerTcpPort();
         if (port != 0)
         {
             m_tcpNetSystem.Init(port);
@@ -194,8 +196,9 @@ bool CApplication::InitDB()
     for (std::map<ENUM_DB_HANDLE_IDX, std::string>::iterator it = dbMap.begin();
          it != dbMap.end(); ++it)
     {
-        if (QueryConnInfo(it->first, (ENUM_SERVER_GROUP)m_appConfig->GetServerGroup(),
-                          *m_appConfig->GetDBConnInfo(it->first)) != 1)
+        if (QueryConnInfo(it->first,
+                          (ENUM_SERVER_GROUP)((CAppConfig*)m_appConfig)->GetServerGroup(),
+                          *((CAppConfig*)m_appConfig)->GetDBConnInfo(it->first)) != 1)
             return 0;
         if (OpenDB(it->first, it->second) != 1)
             return 0;
@@ -205,7 +208,7 @@ bool CApplication::InitDB()
 }
 bool CApplication::OpenDB(ENUM_DB_HANDLE_IDX idx, std::string name)
 {
-    STDBConnInfo* connInfo = m_appConfig->GetDBConnInfo(idx);
+    STDBConnInfo* connInfo = ((CAppConfig*)m_appConfig)->GetDBConnInfo(idx);
     if (strncmp(connInfo->m_host, "unused", strlen(connInfo->m_host)) == 0 ||
         strncmp(connInfo->m_host, "", strlen(connInfo->m_host)) == 0)
         return 1;
@@ -244,10 +247,10 @@ bool CApplication::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP serve
         return 0;
     if (!h->get_str(i++, connInfo.m_user, 0x15))
         return 0;
-    char buf[0x40] = {0};
+    char buf[0x3c] = {0};
     if (!h->get_str(i++, buf, 0x3c))
         return 0;
-    if (!m_appConfig->DecryptValue(buf, connInfo.m_pass))
+    if (!((CAppConfig*)m_appConfig)->DecryptValue(buf, connInfo.m_pass))
         return 0;
     connInfo.m_tail = serverGroup;
     return 1;
@@ -271,7 +274,7 @@ CMutex* CApplication::Get_QLock() { return &m_mutexF8; }
 CMutex* CApplication::Get_BLock() { return &m_mutex110; }
 UdpRecvQueue* CApplication::Get_UdpPacketRecvQ() { return m_udpSwapQueue.GetRecvQ(); }
 UdpRecvQueue* CApplication::Get_UdpPacketParseQ() { return m_udpSwapQueue.GetParseQ(); }
-int CApplication::Send_Term_Signal(const std::string& msg)
+bool CApplication::Send_Term_Signal(const std::string& msg)
 {
     std::string filename = std::string("./pid/") + msg + std::string(".pid");
     FILE* f = fopen(filename.c_str(), "r");
@@ -425,7 +428,7 @@ void CApplication::TranslateSignal()
         {
         case 1:
             m_serverConfig->Load_Table(std::string("./table/server_config.tbl"));
-            m_serverHandler->Load((ST_ServerInfo*)m_serverConfig->GetServerInfo());
+            m_serverHandler->Load((ST_ServerInfo*)((CServerConfig*)m_serverConfig)->GetServerInfo());
             break;
         case 2:
         {

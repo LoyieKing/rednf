@@ -267,11 +267,12 @@ char CDBManager::OnLoadGuildCargo(unsigned int guildId,
 char CDBManager::OnCreateGuildAgit(Packet_DB_Create_Guild_Agit* req,
                                    Packet_DB_Create_Guild_Agit_Reply& reply)
 {
+    bool ret;
     CDBHandle* h = m_handles[8];    // guild db
     h->set_query(0x4eae,
                  "inSert into guild_agit set guild_id=%d, upgrade=1, cargo_capacity=8",
                  req->m_guildId);
-    bool ret = h->exec(0x4eae);
+    ret = h->exec(0x4eae);
     if (!ret)
     {
         reply.m_field12 = 2;
@@ -300,8 +301,7 @@ char CDBManager::OnInsertGuildCargoHistory(
 {
     CDBHandle* h = m_handles[8];    // guild db
     char* r = (char*)req;
-    char table[0x100];
-    memset(table, 0, 0x100);
+    char table[0x100] = {0};
     sprintf(table, "guild_cargo_history_%d", *(unsigned int*)(r + 0xb) % 10);
     h->set_query(
         0x4ed9,
@@ -1199,8 +1199,7 @@ char CDBManager::QueryErrorLineStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     char* p = (char*)packet;
     int count = *(int*)(p + 0xa);
-    char buf[0x200];
-    memset(buf, 0, 0x200);
+    char buf[0x200] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -2652,8 +2651,7 @@ char CDBManager::QueryPartyStatisticCreate(
     log("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
-    char buf[0x200];
-    memset(buf, 0, 0x200);
+    char buf[0x200] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -2722,8 +2720,7 @@ char CDBManager::QueryPartyJobStatisticCreate(
     log("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
-    char buf[0x200];
-    memset(buf, 0, 0x200);
+    char buf[0x200] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -2786,8 +2783,7 @@ char CDBManager::QueryPartyCharacStatisticCreate(
     log("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party_Charac : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
-    char buf[0x200];
-    memset(buf, 0, 0x200);
+    char buf[0x200] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -2945,11 +2941,13 @@ void CDBManager::Init(ENUM_DB_KIND kind, CApplication* app)
         {
             m_handles[i] = new (std::nothrow) CMySql;
             if (!m_handles[i])
-                throw CDNFException("CDBManager::Init() new CMySql fail!");
+                throw CDNFException("CDBManager::Init() DB Handle New Error\n");
             if (!m_handles[i]->init())
-                throw CDNFException("CDBManager::Init() mysql init fail!");
+                throw CDNFException("CDBManager::Init() DB Handle Error\n");
         }
     }
+    else
+        throw CDNFException("CDBManager::Init() DB Handle Create Error\n");
 }
 unsigned int CDBManager::GetIdentity(CDBHandle* h)
 {
@@ -3897,8 +3895,7 @@ char CDBManager::onItemLimitEditionLoadData(
     if (!h)
         return 0;
     time_t now = time(0);
-    char buf[0x400];
-    memset(buf, 0, 0x400);
+    char buf[0x400] = {0};
     if (req->m_fieldF != 0 || req->m_fieldA != 1)
     {
         memcpy(buf, "and ipg_no ", 0xc);
@@ -4620,9 +4617,9 @@ char CDBManager::QueryHWspecCreate(
 {
     time_t now = time(0);
     CDBHandle* h = m_handles[4];    // log db
-    int count = *(int*)((char*)packet + 0xb);
     if (*(unsigned char*)((char*)packet + 0xa) == 0)
     {
+        int count = *(int*)((char*)packet + 0xb);
         for (int i = 0; i < count; i++)
         {
             char* e = (char*)packet + 0xf + i * 0xe;
@@ -4644,6 +4641,7 @@ char CDBManager::QueryHWspecCreate(
     }
     else if (*(unsigned char*)((char*)packet + 0xa) == 1)
     {
+        int count = *(int*)((char*)packet + 0xb);
         for (int i = 0; i < count; i++)
         {
             char* e = (char*)packet + 0xf + i * 0xe;
@@ -4665,6 +4663,7 @@ char CDBManager::QueryHWspecCreate(
     }
     else
     {
+        int count = *(int*)((char*)packet + 0xb);
         for (int i = 0; i < count; i++)
         {
             char* e = (char*)packet + 0xf + i * 0xe;
@@ -4690,8 +4689,7 @@ char CDBManager::OnLoadGuildCargoHistory(
     unsigned int guildId, Packet_Guild_Load_Guild_Cargo_History& reply)
 {
     CDBHandle* h = m_handles[8];    // guild db
-    char buf[0x100];
-    memset(buf, 0, 0x100);
+    char buf[0x100] = {0};
     sprintf(buf, "guild_cargo_history_%d", guildId % 10);
     h->set_query(0x4ed8,
                  "seLect occ_time,behavior,charac_name,item_id,add_info,random_option from %s where guild_id=%d order by occ_time desc limit %d",
@@ -5022,8 +5020,7 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     CMyFileLog slog("QueryCubeStatisticCreate", 0x1872);
     slog("./log/statistic",
          "CDBManager::QueryCubeStatisticCreate : (%d) °³ ÆÐÅ¶ ¼ö½Å\n", count);
-    char buf[0x800];
-    memset(buf, 0, 0x800);
+    char buf[0x800] = {0};
     std::string str;
     for (int i = 0; i < count; i++)
     {
@@ -5158,11 +5155,9 @@ char CDBManager::InsertLetter(unsigned int characNo, unsigned int sendCharacNo,
                               int& letterNo, long expiry)
 {
     CDBHandle* h = m_handles[3];    // game db
-    char buf1[0x200];
-    memset(buf1, 0, 0x200);
+    char buf1[0x200] = {0};
     h->escape_string(buf1, (char*)content);
-    char buf2[0x3c];
-    memset(buf2, 0, 0x3c);
+    char buf2[0x3c] = {0};
     h->escape_string(buf2, (char*)subject);
     h->set_query(0x4e5c,
                  "inSert into letter(charac_no,send_charac_no,send_charac_name,letter_text,reg_date,stat) values(%d,%d,'%s','%s',from_unixtime(%d),%d)",
@@ -5178,8 +5173,7 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
     result = 3;
     CDBHandle* h = m_handles[2];    // game db
     memcpy(&info, name, 0x1d);
-    char buf[0x3c];
-    memset(buf, 0, 0x3c);
+    char buf[0x3c] = {0};
     h->escape_string(buf, name);
     if (!h->set_query(0x4e50,
                       "seLect charac_no, lev, job, grow_type, sex, m_id, charac_name from charac_info where charac_name = '%s' and delete_flag = 0",
@@ -5316,8 +5310,7 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     slog("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Playdata_Job : (%d) °³ ÆÐÅ¶ ¼ö½Å\n",
          count);
-    char buf[0x800];
-    memset(buf, 0, 0x800);
+    char buf[0x800] = {0};
     std::string str;
     for (int i = 0; i < count / 2; i++)
     {
@@ -5395,8 +5388,7 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
          count);
     for (int i = 0; i < count; i++)
     {
-        unsigned int vals[0xb];
-        memset(vals, 0, 0x2c);
+        unsigned int vals[0xb] = {0};
         vals[*(int*)((char*)packet + i * 0xf + 0x11)] =
             *(unsigned int*)((char*)packet + i * 0xf + 0x19);
         h->set_query(0x4e9e,
@@ -5555,8 +5547,7 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     slog("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Playdata_Party : (%d) °³ ÆÐÅ¶ ¼ö½Å\n",
          count);
-    char buf[0x800];
-    memset(buf, 0, 0x800);
+    char buf[0x800] = {0};
     std::string str;
     for (int i = 0; i < count / 2; i++)
     {

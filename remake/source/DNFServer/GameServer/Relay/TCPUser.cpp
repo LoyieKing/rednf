@@ -286,7 +286,7 @@ int TCPUser::send(PacketHeader* buf)
 
 void TCPUser::onPacketParse()
 {
-    for (;;)
+    do
     {
         if (m_recvQueue.isPopStraight(0xc))
         {
@@ -298,52 +298,55 @@ void TCPUser::onPacketParse()
                 postDisconnected(1);
                 return;
             }
-            if (size <= 0)
+            if (size > 0)
             {
-                postDisconnected(1);
-                return;
-            }
-            if (m_recvQueue.isPopStraight(size))
-            {
-                long long t1 = get_ms_tick();
-                getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, p, 0, size);
-                if (pkt->m_type == 0 && getACCID() == 0)
+                if (m_recvQueue.isPopStraight(size))
                 {
-                    postDisconnected(1);
-                    return;
+                    long long t1 = get_ms_tick();
+                    getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, p, 0, size);
+                    if (pkt->m_type == 0 && getACCID() == 0)
+                    {
+                        postDisconnected(1);
+                        return;
+                    }
+                    m_recvQueue.pop(size);
+                    long long t2 = get_ms_tick();
+                    getManager()->m_users.setDispatchTime((int)(t2 - t1));
                 }
-                m_recvQueue.pop(size);
-                long long t2 = get_ms_tick();
-                getManager()->m_users.setDispatchTime((int)(t2 - t1));
+                else
+                {
+                    if ((int)m_recvQueue.getPushedLength() < size)
+                    {
+                        return;
+                    }
+                    char* buf = (char*)calloc(size, 1);
+                    if (buf == 0)
+                    {
+                        return;
+                    }
+                    bool ok = m_recvQueue.popCopy(size, buf);
+                    if (!ok)
+                    {
+                        free(buf);
+                        return;
+                    }
+                    long long t1 = get_ms_tick();
+                    getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, buf, 0, size);
+                    if (pkt->m_type == 0 && getACCID() == 0)
+                    {
+                        free(buf);
+                        postDisconnected(1);
+                        return;
+                    }
+                    long long t2 = get_ms_tick();
+                    getManager()->m_users.setDispatchTime((int)(t2 - t1));
+                    free(buf);
+                }
             }
             else
             {
-                if ((int)m_recvQueue.getPushedLength() < size)
-                {
-                    return;
-                }
-                char* buf = (char*)calloc(size, 1);
-                if (buf == 0)
-                {
-                    return;
-                }
-                bool ok = m_recvQueue.popCopy(size, buf);
-                if (!ok)
-                {
-                    free(buf);
-                    return;
-                }
-                long long t1 = get_ms_tick();
-                getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, buf, 0, size);
-                if (pkt->m_type == 0 && getACCID() == 0)
-                {
-                    free(buf);
-                    postDisconnected(1);
-                    return;
-                }
-                long long t2 = get_ms_tick();
-                getManager()->m_users.setDispatchTime((int)(t2 - t1));
-                free(buf);
+                postDisconnected(1);
+                return;
             }
         }
         else
@@ -352,62 +355,70 @@ void TCPUser::onPacketParse()
             {
                 return;
             }
+            // round-11：1 字节栈槽使 header 落在 -0x69（ORIG 布局），
+            // 帧 0x94 对齐；仅布局占位，不参与逻辑。
+            char header_pad[1];
             char header[0xc];
-            if (!m_recvQueue.peekCopy(0xc, header))
+            if (m_recvQueue.peekCopy(0xc, header) != 0)
+            {
+                char* p = header;
+                int size = ((PacketHeader*)p)->m_size;
+                if ((((PacketHeader*)p)->m_type != 0) && (((PacketHeader*)p)->m_type != 1))
+                {
+                    postDisconnected(1);
+                    return;
+                }
+                if (size > 0)
+                {
+                    if ((int)m_recvQueue.getPushedLength() >= size)
+                    {
+                        char* buf = (char*)calloc(size, 1);
+                        if (buf == 0)
+                        {
+                            return;
+                        }
+                        bool ok = m_recvQueue.popCopy(size, buf);
+                        if (!ok)
+                        {
+                            free(buf);
+                            postDisconnected(1);
+                            return;
+                        }
+                        long long t1 = get_ms_tick();
+                        getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, buf, 0, size);
+                        if (((PacketHeader*)p)->m_type == 0 && getACCID() == 0)
+                        {
+                            free(buf);
+                            postDisconnected(1);
+                            return;
+                        }
+                        long long t2 = get_ms_tick();
+                        getManager()->m_users.setDispatchTime((int)(t2 - t1));
+                        free(buf);
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+                else
+                {
+                    postDisconnected(1);
+                    return;
+                }
+            }
+            else
             {
                 postDisconnected(1);
                 return;
             }
-            char* p = header;
-            int size = ((PacketHeader*)p)->m_size;
-            if ((((PacketHeader*)p)->m_type != 0) && (((PacketHeader*)p)->m_type != 1))
-            {
-                postDisconnected(1);
-                return;
-            }
-            if (size <= 0)
-            {
-                postDisconnected(1);
-                return;
-            }
-            if ((int)m_recvQueue.getPushedLength() < size)
-            {
-                return;
-            }
-            char* buf = (char*)calloc(size, 1);
-            if (buf == 0)
-            {
-                return;
-            }
-            bool ok = m_recvQueue.popCopy(size, buf);
-            if (!ok)
-            {
-                free(buf);
-                postDisconnected(1);
-                return;
-            }
-            long long t1 = get_ms_tick();
-            getManager()->m_handlers.getTCPHandlerRelay()->dispatch(this, buf, 0, size);
-            if (((PacketHeader*)p)->m_type == 0 && getACCID() == 0)
-            {
-                free(buf);
-                postDisconnected(1);
-                return;
-            }
-            long long t2 = get_ms_tick();
-            getManager()->m_users.setDispatchTime((int)(t2 - t1));
-            free(buf);
         }
         if (isAboutToDisconnect())
         {
             return;
         }
-        if (m_recvQueue.isEmpty() == 0)
-        {
-            continue;
-        }
-        return;
-    }
+    } while (m_recvQueue.isEmpty() == 0);
+    return;
 }
 
 

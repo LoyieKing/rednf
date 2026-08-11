@@ -147,14 +147,12 @@ void TCPSocket::close()
     port_ = 0;
 }
 
-void TCPSocket::shutdown(int opt)
+int TCPSocket::shutdown(int opt)
 {
-    // ORIG: load sock_, cmp $-1, ret (no ::shutdown(2), no branch, no frame).
-    // The dead compare is not emitted by any plain-C++ shape with this
-    // compiler (-O0 drops unused `sock_ == -1;`), so force it with the same
-    // inline asm used by channel/relay's Socket.cpp.
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     (void)opt;
-    __asm__ __volatile__("cmpl $-1, %0" : : "r"(sock_) : "cc");
+    sock_ == -1;
+    return sock_;
 }
 
 bool TCPSocket::accept(TCPSocket& accepted)

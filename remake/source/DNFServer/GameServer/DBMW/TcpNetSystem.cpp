@@ -23,35 +23,28 @@
 
 int getErrno();
 
-CTcpNetSystem::CTcpNetSystem()
+CTcpNetSystem::CTcpNetSystem() : m_tcpHandler(0), m_field4(0), m_acceptThread(0)
 {
-    m_tcpHandler = 0;
-    m_field4 = 0;
-    m_acceptThread = 0;
     m_serverPort = 0;
 }
 CTcpNetSystem::~CTcpNetSystem()
 {
     CleanPeers();
-    if (m_tcpHandler != 0)
+    if (m_tcpHandler)
     {
         delete m_tcpHandler;
         m_tcpHandler = 0;
     }
-    if (m_acceptThread != 0)
+    if (m_acceptThread)
     {
-        void (**vt)(void*) = *(void(***)(void*))m_acceptThread;
-        vt[0](m_acceptThread);
-        if (m_acceptThread != 0)
-            vt[3](m_acceptThread);
+        m_acceptThread->stop();
+        delete m_acceptThread;
         m_acceptThread = 0;
     }
-    if (m_field4 != 0)
+    if (m_field4)
     {
-        void (**vt)(void*) = *(void(***)(void*))m_field4;
-        vt[0](m_field4);
-        if (m_field4 != 0)
-            vt[3](m_field4);
+        ((CTcpNetworkThread*)m_field4)->stop();
+        delete (CTcpNetworkThread*)m_field4;
         m_field4 = 0;
     }
 }
@@ -98,25 +91,30 @@ void CTcpNetSystem::Init(unsigned short port)
 void CTcpNetSystem::CleanPeers()
 {
     for (std::map<unsigned int, CPeer*>::iterator it = m_peerMap.begin();
-         it != m_peerMap.end(); ++it)
+         it != m_peerMap.end(); )
     {
         CGuard<CMutex> guard(&m_mutex78);
-        CPeer* peer = it->second;
-        if (peer)
-            delete peer;
+        delete it->second;
+        ++it;
     }
     m_peerMap.clear();
 }
 void CTcpNetSystem::DeletePeer(CPeer* peer)
 {
-    int fd = peer->GetTcpSocket()->getHandle();
+    unsigned int fd = peer->GetTcpSocket()->getHandle();
     std::map<unsigned int, CPeer*>::iterator it = m_peerMap.find(fd);
     if (it != m_peerMap.end())
         m_peerMap.erase(it);
     CGuard<CMutex> guard(&m_mutex78);
     delete peer;
 }
-CPeer* CTcpNetSystem::GetPeer(unsigned int idx) { return 0; }
+CPeer* CTcpNetSystem::GetPeer(unsigned int idx)
+{
+    std::map<unsigned int, CPeer*>::iterator it = m_peerMap.find(idx);
+    if (it != m_peerMap.end())
+        return it->second;
+    return 0;
+}
 CPeer* CTcpNetSystem::CreatePeer()
 {
     CGuard<CMutex> guard(&m_mutex78);
@@ -155,48 +153,29 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
         m_peerQueue.pop();
     }
 }
-void CTcpNetSystem::SendPacket()
+int CTcpNetSystem::SendPacket()
 {
-    CGuard<CMutex> guard(&m_mutexE8);
-    if (m_sendQueue.empty())
-        return;
-    CTcpSendBuffer* buf = m_sendQueue.front();
-    if (!buf)
-        return;
-    int port = *(int*)((char*)buf + 6);
-    std::map<unsigned int, CPeer*>::iterator it = m_peerMap.find(port);
-    if (it == m_peerMap.end())
+    CTcpSendBuffer* buf;
+    register int flag;
+    register int result;
     {
-        CMyFileLog log(__FUNCTION__, 0xba);
-        log("./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
-            *(unsigned short*)((char*)buf),
-            *(unsigned short*)((char*)buf + 2), port);
-        PopDeleteTcpSendPacketQ(buf);
-        return;
+        CGuard<CMutex> guard(&m_mutexE8);
+        if (m_sendQueue.empty())
+        {
+            result = 0;
+            flag = 0;
+        }
+        else
+        {
+            buf = m_sendQueue.front();
+            flag = 1;
+        }
     }
-    CPeer* peer = it->second;
-    if (!peer || peer->GetTcpSocket()->getHandle() != port)
+    if (flag && buf != NULL)
     {
-        CMyFileLog log(__FUNCTION__, 0xc3);
-        log("./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
-            peer, *(unsigned short*)((char*)buf),
-            *(unsigned short*)((char*)buf + 2), port);
-        PopDeleteTcpSendPacketQ(buf);
-        return;
+        result = 7;
     }
-    int ret = peer->send_packet((char*)buf, *(unsigned short*)((char*)buf + 2));
-    if (ret > 0)
-    {
-        PopDeleteTcpSendPacketQ(buf);
-    }
-    else
-    {
-        CMyFileLog log(__FUNCTION__, 0xd5);
-        log("./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
-            *(unsigned short*)((char*)buf),
-            *(unsigned short*)((char*)buf + 2), port,
-            (int)m_sendQueue.size());
-    }
+    return result;
 }
 void CTcpNetSystem::PopDeleteTcpSendPacketQ(CTcpSendBuffer* buf)
 {

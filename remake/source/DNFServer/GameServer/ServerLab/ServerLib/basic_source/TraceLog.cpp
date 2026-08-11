@@ -74,9 +74,18 @@ int TraceLog::init(char* ServiceName, char* ServiceIdentity)
 
 void TraceLog::sysNSL_LOG_date_ch()
 {
-    TScopedLock<TThreadLock<ThreadLock_linux> > slock(lockLog);
+    // ORIG DWARF 声明序（decl 220/221/222/223/225）：数组→orifname→st→size/rst/i→slock
+    char logdname[4096];
+    char renfname[4096];
+    char* orifname;
     struct stat st;
+    int size;
     int rst;
+    int i;
+    TScopedLock<TThreadLock<ThreadLock_linux> > slock(lockLog);
+    time_t now;
+    tm* tm_now;
+    int ret;
     // ORIG: 赋值在条件内（mov rst; shr $0x1f; test; je）
     if ((rst = stat(logfname, &st)) < 0)
     {
@@ -99,11 +108,12 @@ void TraceLog::sysNSL_LOG_date_ch()
             bChangedDataForLog = true;
         }
         // 原始：if (!bChangedDataForLog) 跳过；否则旋转日志
-        if (bChangedDataForLog != false)
+        if (bChangedDataForLog == false)
+        {
+        }
+        else
         {
             bChangedDataForLog = false;
-            char logdname[4096];
-            char renfname[4096];
             sprintf(logdname, "%s/old_log", G_Script()->findCharValue(0, 1));
             if ((rst = stat(logdname, &st)) < 0)
             {
@@ -119,26 +129,28 @@ void TraceLog::sysNSL_LOG_date_ch()
                 }
             }
             // 原始：close 结果存局部再与 0 比较
-            int close_rst = close(logfd);
-            if (close_rst != 0)
+            ret = close(logfd);
+            if (ret != 0)
             {
                 printf("file close error ('%s'), fd=%d\n", strerror(errno), logfd);
             }
-            close_rst = close(errfd);
-            if (close_rst != 0)
+            ret = close(errfd);
+            if (ret != 0)
             {
                 printf("file close error ('%s'), fd=%d\n", strerror(errno), errfd);
             }
-            close_rst = close(statfd);
-            if (close_rst != 0)
+            ret = close(statfd);
+            if (ret != 0)
             {
                 printf("file close error ('%s'), fd=%d\n", strerror(errno), statfd);
             }
-            char* orifname = NULL;
-            for (int i = 0; i < 3; i = i + 1)
+            for (i = 0; i < 3; i = i + 1)
             {
-                time_t now = time(NULL);
-                tm* tm_now = localtime(&now);
+                if (i == 0)
+                {
+                    now = time(NULL);
+                    tm_now = localtime(&now);
+                }
                 if (i == 0)
                 {
                     orifname = logfname;
@@ -192,32 +204,33 @@ void TraceLog::sysLog(int flag, const char* msg, ...)
     }
     char buf[2088];
     len = SnPrintf(buf, 0x2028, (char*)"%s %s : %s\n", cur_date, cur_time, tmpbuf);
-    if (len >= 0)
+    if (len < 0)
     {
-        // 原始：if (write_to_logserver) SendLogMsg 在前，else 本地写
-        if (write_to_logserver != false)
+        return;
+    }
+    // 原始：if (write_to_logserver) SendLogMsg 在前，else 本地写
+    if (write_to_logserver != false)
+    {
+        logSendThread_->SendLogMsg(buf, len);
+    }
+    else
+    {
+        sysNSL_LOG_date_ch();
+        if (logfd < 1)
         {
-            logSendThread_->SendLogMsg(buf, len);
+            puts("syslog fd error");
+        }
+        else if (other_file_log != false)
+        {
+            write(statfd, buf, len);
         }
         else
         {
-            sysNSL_LOG_date_ch();
-            if (logfd < 1)
+            if (flag == 7)
             {
-                puts("syslog fd error");
+                write(errfd, buf, len);
             }
-            else if (other_file_log != false)
-            {
-                write(statfd, buf, len);
-            }
-            else
-            {
-                if (flag == 7)
-                {
-                    write(errfd, buf, len);
-                }
-                write(logfd, buf, len);
-            }
+            write(logfd, buf, len);
         }
     }
 }

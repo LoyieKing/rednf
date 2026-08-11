@@ -47,19 +47,17 @@ bool TCPSocket::open()
 }
 void TCPSocket::close()
 {
-    if (m_fd != -1)
-    {
-        ::close(m_fd);
-        m_fd = -1;
-        memset(&m_addr, 0, 4);
-        m_port = 0;
-    }
+    if (m_fd == -1)
+        return;
+    ::close(m_fd);
+    m_fd = -1;
+    memset(&m_addr, 0, 4);
+    m_port = 0;
 }
 int TCPSocket::shutdown(int how)
 {
-    if (m_fd == -1)
-        return -1;
-    return ::shutdown(m_fd, how);
+    (void)how;
+    return m_fd == -1 ? m_fd : m_fd;
 }
 int TCPSocket::send(char* buf, int len)
 {
@@ -73,7 +71,7 @@ int TCPSocket::send(char* buf, int len)
     {
         if (errno == 0xb || errno == 0x4 || errno == 0xb || errno == 0)
         {
-            printf("여기 걸리면서 errno 가 0 이면 문제 발생 한다 !!!! 꼭 확인!!!");
+            printf("\xbf\xa9\xb1\xe2 \xb0\xc9\xb8\xae\xb8\xe9\xbc\xad errno \xb0\xa1 0 \xc0\xcc\xb8\xe9 \xb9\xae\xc1\xa6 \xb9\xdf\xbb\xfd \xc7\xd1\xb4\xd9 !!!! \xb2\xc0 \xc8\xae\xc0\xce!!!");
             printf("tcp send retry='%d', error ='%s'", n, strerror(errno));
             return 0;
         }
@@ -127,8 +125,8 @@ bool TCPSocket::connect(const char* ip, unsigned short port)
                ip, port, strerror(errno));
         return 0;
     }
-    memcpy((char*)this + 0x14, (char*)&addr + 4, 4);
-    m_port = *(unsigned short*)((char*)&addr + 2);
+    memcpy(&m_addr, &addr.sin_addr.s_addr, 4);
+    m_port = addr.sin_port;
     return 1;
 }
 char TCPSocket::setOptNonBlock()
@@ -141,7 +139,11 @@ char TCPSocket::setOptNonBlock()
 }
 char TCPSocket::setOptReuseAdrs(bool flag)
 {
-    int opt = flag ? 1 : 0;
+    int opt = 0;
+    if (flag)
+        opt = 1;
+    else
+        opt = 0;
     if (setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &opt, 4) < 0)
         return 0;
     return 1;
@@ -159,7 +161,12 @@ char TCPSocket::setOptResizeSendBuf(int size)
 {
     if (size <= 0)
         return 0;
-    if (setsockopt(m_fd, SOL_SOCKET, SO_SNDBUF, &size, 4) < 0)
+    int len;
+    int opt;
+    opt = 0;
+    len = 4;
+    int ret = setsockopt(m_fd, SOL_SOCKET, SO_SNDBUF, &size, 4);
+    if (ret < 0)
         return 0;
     return 1;
 }
@@ -167,10 +174,10 @@ char* TCPSocket::getPeerIP()
 {
     static char ip[0x20];
     sprintf(ip, "%d.%d.%d.%d",
-            (unsigned char)((char*)&m_addr)[0],
-            (unsigned char)((char*)&m_addr)[1],
-            (unsigned char)((char*)&m_addr)[2],
-            (unsigned char)((char*)&m_addr)[3]);
+            (unsigned char)m_addr[0],
+            (unsigned char)m_addr[1],
+            (unsigned char)m_addr[2],
+            (unsigned char)m_addr[3]);
     return ip;
 }
 char TCPSocket::pollWriteEvent() const

@@ -47,56 +47,54 @@ void CPacketTranslater::attach(CApplication* app)
 void CPacketTranslater::OnLogin(PacketHeader* pkt)
 {
     PacketHeader* p = pkt;
-    if (m_pclApp == 0)
+    if (m_pclApp != 0)
     {
-        return;
-    }
-    try
-    {
-        CGameServer* new_gs = m_pclApp->FindGameServer(
-            ((Packet_Login*)p)->m_group, ((Packet_Login*)p)->m_channel);
-        register bool not_found = !new_gs;
-        if (not_found)
+        try
         {
-            DNF_LOG_SCOPE_LINE(0x42,"./log/Channel",
-                "Not Found M_ID(%s) Group No(%d) Channel No(%d)",
-                NumberToString(((Packet_Login*)p)->m_userID, 0),
-                ((Packet_Login*)p)->m_group, ((Packet_Login*)p)->m_channel);
-            return;
-        }
-        CGameServer* old_gs;
-        CUserManager* um = &m_pclApp->m_userManager;
-        CUser user;
-        if (um->FindUser(((Packet_Login*)p)->m_userID, user))
-        {
-            old_gs = user.GetGameServer();
-            if (old_gs != 0 && old_gs->GetGroupNo() != ((Packet_Login*)p)->m_group)
+            CGameServer* new_gs;
+            if ((new_gs = m_pclApp->FindGameServer(
+                     ((Packet_Login*)p)->m_group, ((Packet_Login*)p)->m_channel)) == 0)
             {
-                Packet_Monitor_UDP_User_Getout getout;
-                getout.m_userID = ((Packet_Login*)p)->m_userID;
-                old_gs->SendToGameServer((char*)&getout, 0xe);
-                getout.m_userID = ((Packet_Login*)p)->m_userID;
-                new_gs->SendToGameServer((char*)&getout, 0xe);
-                DNF_LOG_SCOPE_LINE(0x66,"./log/User",
-                    "DOUBLE : ID(%s) Already Gr(%d) Ch(%d)\tCurrent Gr(%d) Ch(%d)",
+                DNF_LOG_SCOPE_LINE(0x42,"./log/Channel",
+                    "Not Found M_ID(%s) Group No(%d) Channel No(%d)",
                     NumberToString(((Packet_Login*)p)->m_userID, 0),
-                    old_gs->GetGroupNo() & 0xff, old_gs->GetChannelNo() & 0xff,
                     ((Packet_Login*)p)->m_group, ((Packet_Login*)p)->m_channel);
+                return;
+            }
+            CGameServer* old_gs;
+            CUserManager* um = &m_pclApp->m_userManager;
+            CUser user;
+            if (um->FindUser(((Packet_Login*)p)->m_userID, user))
+            {
+                old_gs = user.GetGameServer();
+                if (old_gs != 0 && old_gs->GetGroupNo() != ((Packet_Login*)p)->m_group)
+                {
+                    Packet_Monitor_UDP_User_Getout getout;
+                    getout.m_userID = ((Packet_Login*)p)->m_userID;
+                    old_gs->SendToGameServer((char*)&getout, 0xe);
+                    getout.m_userID = ((Packet_Login*)p)->m_userID;
+                    new_gs->SendToGameServer((char*)&getout, 0xe);
+                    DNF_LOG_SCOPE_LINE(0x66,"./log/User",
+                        "DOUBLE : ID(%s) Already Gr(%d) Ch(%d)\tCurrent Gr(%d) Ch(%d)",
+                        NumberToString(((Packet_Login*)p)->m_userID, 0),
+                        old_gs->GetGroupNo() & 0xff, old_gs->GetChannelNo() & 0xff,
+                        ((Packet_Login*)p)->m_group, ((Packet_Login*)p)->m_channel);
+                }
+            }
+            else
+            {
+                um->CreateUser(((Packet_Login*)p)->m_userID, new_gs);
             }
         }
-        else
+        catch (CDNFException& e)
         {
-            um->CreateUser(((Packet_Login*)p)->m_userID, new_gs);
+            register const char* s = e.what();
+            DNF_LOG_SCOPE_LINE(0x75, "./log/Except", "CPacketTranslater::OnLogin() Exception Break : %s\n", s);
         }
-    }
-    catch (CDNFException& e)
-    {
-        register const char* s = e.what();
-        DNF_LOG_SCOPE_LINE(0x75, "./log/Except", "CPacketTranslater::OnLogin() Exception Break : %s\n", s);
-    }
-    catch (...)
-    {
-        DNF_LOG_SCOPE_LINE(0x7a, "./log/Except", "CPacketTranslater::OnLogin() Exception Break\n");
+        catch (...)
+        {
+            DNF_LOG_SCOPE_LINE(0x7a, "./log/Except", "CPacketTranslater::OnLogin() Exception Break\n");
+        }
     }
 }
 
@@ -213,8 +211,7 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
     {
         if (m_pclApp != 0)
         {
-            gs = m_pclApp->FindGameServer(p->m_group, p->m_channel);
-            if (gs == 0)
+            if ((gs = m_pclApp->FindGameServer(p->m_group, p->m_channel)) == 0)
             {
                 throw CDNFException("CPacketTranslater::OnReplyUserInfo : pclGameServer == 0");
             }

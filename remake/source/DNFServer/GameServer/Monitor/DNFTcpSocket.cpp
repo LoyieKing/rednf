@@ -75,8 +75,12 @@ char TCPSocket::connect(const char* ip, unsigned short port)
 char TCPSocket::setOptNonBlock()
 {
     unsigned int flags = fcntl(m_fd, 3, 0);
-    int r = fcntl(m_fd, 4, flags | 0x800);
-    return (char)(r >= 0);
+    flags |= 0x800;
+    if (fcntl(m_fd, 4, flags) < 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 char TCPSocket::bind(unsigned short port, bool flag)
@@ -102,12 +106,12 @@ char TCPSocket::bind(unsigned short port, bool flag)
 
 char TCPSocket::listen(int backlog)
 {
-    int r = ::listen(m_fd, backlog);
-    if (r < 0)
+    if (::listen(m_fd, backlog) < 0)
     {
         close();
+        return 0;
     }
-    return (char)(r >= 0);
+    return 1;
 }
 
 char TCPSocket::pollReadEvent() const
@@ -317,29 +321,39 @@ void TCPSocket::close()
 
 int TCPSocket::shutdown(int how)
 {
-    // ORIG：load m_fd → cmp $-1 → ret（无 ::shutdown 调用、无分支、无帧）。
-    // GCC 4.4.x -O0 会折叠裸 `m_fd == -1;` 死比较，用与 channel 相同的
-    // 内联汇编强制保留该 cmp（见 identical_pitfalls.md §104）。
+    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     (void)how;
-    register int r asm("eax") = m_fd;
-    __asm__ __volatile__("cmpl $-1, %0" : : "r"(r) : "cc");
-    return r;
+    return m_fd;
 }
 
 char TCPSocket::setOptReuseAdrs(bool flag)
 {
-    unsigned int opt = (unsigned int)flag;
-    int r = setsockopt(m_fd, 1, 2, &opt, 4);
-    return (char)(r >= 0);
+    unsigned int opt = 0;
+    if (flag)
+    {
+        opt = 1;
+    }
+    else
+    {
+        opt = 0;
+    }
+    if (setsockopt(m_fd, 1, 2, &opt, 4) < 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 char TCPSocket::setOptLinger(bool flag)
 {
     unsigned int opt[2];
-    opt[0] = (unsigned int)flag;
+    opt[0] = flag ? 1 : 0;
     opt[1] = 0;
-    int r = setsockopt(m_fd, 1, 0xd, opt, 8);
-    return (char)(r >= 0);
+    if (setsockopt(m_fd, 1, 0xd, opt, 8) < 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 char* TCPSocket::getPeerAdrs() { return (char*)this + 0x14; }
@@ -362,8 +376,14 @@ char TCPSocket::setOptResizeSendBuf(int size)
     {
         return 0;
     }
+    int optlen = 4;
+    int opt = 0;
     int r = setsockopt(m_fd, 1, 7, &size, 4);
-    return (char)(r >= 0);
+    if (r < 0)
+    {
+        return 0;
+    }
+    return 1;
 }
 
 char TCPSocket::setOptResizeRecvBuf(int size)
@@ -373,5 +393,9 @@ char TCPSocket::setOptResizeRecvBuf(int size)
         return 0;
     }
     int r = setsockopt(m_fd, 1, 8, &size, 4);
-    return (char)(r >= 0);
+    if (r < 0)
+    {
+        return 0;
+    }
+    return 1;
 }

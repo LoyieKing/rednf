@@ -59,4 +59,3 @@ unsigned int GetNowTime()
 {
     return (unsigned int)time(0);
 }
-

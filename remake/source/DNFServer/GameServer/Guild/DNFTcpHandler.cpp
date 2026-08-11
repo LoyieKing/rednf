@@ -189,7 +189,8 @@ int CTcpHandler::ResetEpoll(int fd)
     {
         return -1;
     }
-    return m_epoll->ResetEpoll(fd);
+    int result = m_epoll->ResetEpoll(fd);
+    return result;
 }
 
 int CTcpHandler::WaitForEvent()

@@ -89,7 +89,7 @@ CAppLoadChecker* CAppLoadCheckerInstance()
     return &instance;
 }
 
-int CAppLoadChecker::checkTcpRecvLoad(int size)
+bool CAppLoadChecker::checkTcpRecvLoad(int size)
 {
         if (m_tcpRecvLevel < 1 && 0x32 < size - m_tcpRecvLast)
     {
@@ -163,7 +163,7 @@ int CAppLoadChecker::checkTcpRecvLoad(int size)
 
 }
 
-int CAppLoadChecker::checkUdpRecvLoad(int size)
+bool CAppLoadChecker::checkUdpRecvLoad(int size)
 {
         if (m_udpRecvLevel < 1 && 0x32 < size - m_udpRecvLast)
     {
@@ -237,7 +237,7 @@ int CAppLoadChecker::checkUdpRecvLoad(int size)
 
 }
 
-int CAppLoadChecker::checkTcpSendLoad(int size)
+bool CAppLoadChecker::checkTcpSendLoad(int size)
 {
         if (m_tcpSendLevel < 1 && 0x32 < size - m_tcpSendLast)
     {

@@ -122,8 +122,8 @@ struct STGuildAgitDBInfo
     STGuildAgitDBInfo();
     union
     {
-        char m_data[1];
-        unsigned char m_agitLevel;         // +0（this+0x4d09，ORIG 仅 1 字节）
+    char m_data[1];
+    unsigned char m_agitLevel;         // +0（this+0x4d09，ORIG 仅 1 字节）
     };
 };
 
@@ -309,7 +309,7 @@ public:
     void SendGuildInfoToMembers(bool flag);
     void MakeGameServerSendUserInfoPacket(CUser* user, unsigned int guildKey);
     void DBGuildMemberSave(CUser* user, unsigned char flag, CServerHandler* handler,
-                           unsigned char param);
+                       unsigned char param);
     void InsertGuildMemberChanglableInfo(unsigned int charNo);
     void SendToGuild(PacketHeader* pkt);
     void SendToGuildForMail();
@@ -320,7 +320,7 @@ public:
     void NoticeChatMsgToGuildMembers(unsigned int charNo, char* msg, int len,
                                      const char* name);
     void NoticeChatMsgToGuildMembersHyperLink(unsigned int charNo, char* msg, int len,
-                                              unsigned char type,
+                                          unsigned char type,
                                               const hyperlink_item_info* link,
                                               const char* name);
     void UpdateChangableInfoProcess();
@@ -339,10 +339,10 @@ public:
     void SetGuildAgitInfo(STGuildAgitDBInfo& info);
     void SetGuildAgitLevelUp();
     void CreateGuildAgit(CServerHandler* handler, unsigned int a, unsigned int b,
-                         unsigned int c, unsigned int d);
+                     unsigned int c, unsigned int d);
     void DeleteGuildAgit(CServerHandler* handler, unsigned int a, unsigned int b);
     void UpgradeGuildAgit(CServerHandler* handler, unsigned int a, unsigned int b,
-                          unsigned int c, unsigned int d);
+                      unsigned int c, unsigned int d);
     void AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user);
     void SetSubGuildMaster(unsigned int charNo, bool flag);
     void SecedeProxyMember(ST_Notice_Guild_Secede& info);
@@ -366,12 +366,12 @@ public:
     void CallGuildAllMembersProxy(CUser* user, CServerHandler* handler);
     void QueryGuildAllMembersProxy(CServerHandler* handler, unsigned int charNo);
     void LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char flag,
-                                  unsigned char param);
+                              unsigned char param);
     int PopGuildMemberChanglableInfo(unsigned int charNo,
                                      STGuildMemberChangableInfo& info) const;
     int ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info);
     void DBSaveGuildMemberUnChangableInfo(CServerHandler* handler, unsigned int a,
-                                          unsigned int b, char* name);
+                                      unsigned int b, char* name);
     void DismissGuildMemberAndNotice(int group);
     void ReplyGuildAllMembers(CUser* user);
     int BuyGuildSkill(int skillId, int slot, short param, unsigned int charNo);
@@ -417,7 +417,10 @@ public:
 class Packet_Channel_Create_Guild_Agit : public PacketHeader {
 public:
     Packet_Channel_Create_Guild_Agit();
-    char m_data[0xc];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned int m12;                 // +0x12
+
 };
 
 // from GuildPackets.h
@@ -443,42 +446,52 @@ public:
 class Packet_DB_Call_Guild_All_Members : public PacketHeader {
 public:
     Packet_DB_Call_Guild_All_Members();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+
 };
 
 // from GuildPackets.h
 class Packet_DB_Call_Unconn_Guild_Member : public PacketHeader {
 public:
     Packet_DB_Call_Unconn_Guild_Member();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+
 };
 
 // from GuildPackets.h
 class Packet_DB_Create_Guild_Agit : public PacketHeader {
 public:
     Packet_DB_Create_Guild_Agit();
-    char m_data[0xa];
+    unsigned int m0xa;                 // +0xa
+    unsigned int m0xe;                 // +0xe
+
 };
 
 // from GuildPackets.h
 class Packet_DB_Delete_Guild_Agit : public PacketHeader {
 public:
     Packet_DB_Delete_Guild_Agit();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+
 };
 
 // from GuildPackets.h
 class Packet_DB_Load_Guild_Agit : public PacketHeader {
 public:
     Packet_DB_Load_Guild_Agit();
-    char m_data[0xa];
+    unsigned int m_charNo;   // +0xa
 };
 
 // from GuildPackets.h
 class Packet_DB_Upgrade_Guild_Agit : public PacketHeader {
 public:
     Packet_DB_Upgrade_Guild_Agit();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+
 };
 
 // from GuildPackets.h
@@ -527,7 +540,9 @@ public:
 class Packet_Monitor_Notice_Guild_Dismiss_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Dismiss_ToUser();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+
 };
 
 // from GuildPackets.h
@@ -595,7 +610,8 @@ public:
 class Packet_Query_Today_Guild_Member : public PacketHeader {
 public:
     Packet_Query_Today_Guild_Member();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+
 };
 
 // from GuildPackets.h

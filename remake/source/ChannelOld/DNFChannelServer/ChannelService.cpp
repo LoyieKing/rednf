@@ -370,29 +370,11 @@ void TGlobalInstance<TextOutputDevice_stdout>::create()
             {
                 register void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
                 register void* p2 = pvMem;
-                // ORIG materializes the memset size-arg through a register
-                // (`mov $0x1902c,%edx; mov %edx,0x8(%esp)`) instead of a direct
-                // immediate store; reproduce that exact sequence. The p2/ptr
-                // argument order (eax before size/zero) also matches ORIG.
-                __asm__ __volatile__(
-                    "mov %0, %%eax\n\t"
-                    "mov $0x1902c, %%edx\n\t"
-                    "mov %%edx, 0x8(%%esp)\n\t"
-                    "movl $0, 4(%%esp)\n\t"
-                    "mov %%eax, (%%esp)\n\t"
-                    "call memset"
-                    :
-                    : "r"(p2)
-                    : "eax", "edx", "memory");
-                // ORIG calls TextOutputDevice_stdout::C1 directly after the memset;
-                // GCC 4.4 -O0 emits an extra _ZnwjPv + null check for `new (p) T`,
-                // which ORIG does not contain, so call the ctor via the same
-                // direct-call shape (cdecl: this passed on the stack).
-                __asm__ __volatile__(
-                    "mov %0, (%%esp)\n\tcall _ZN23TextOutputDevice_stdoutC1Ev"
-                    :
-                    : "r"(p2)
-                    : "memory");
+                // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
+                // ORIG 的 memset/ctor 指令形态（寄存器装载、无 _ZnwjPv+null test）
+                // 纯 C++ 无法逐字节复现，按规矩归入 caliber_issues.csv（REMAIN）。
+                memset(pvMem, 0, sizeof(TextOutputDevice_stdout));
+                new (pvMem) TextOutputDevice_stdout();
                 m_p = (TextOutputDevice_stdout*)pvMem;
             }
             catch (...)

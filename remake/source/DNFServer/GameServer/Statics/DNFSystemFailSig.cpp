@@ -5,7 +5,7 @@
 #include "DNFSystemFailSig.h"
 #include "DNFApplication.h"
 
-CSystemFailSig::CSystemFailSig()
+CSystemFailSig::CSystemFailSig() throw()
 {
 }
 void CSystemFailSig::handle(int sig)
@@ -19,6 +19,6 @@ void CSystemFailSig::handle(int sig)
     dump_core_file();
     exit(-1);
 }
-CSystemFailSig::~CSystemFailSig()
+CSystemFailSig::~CSystemFailSig() throw()
 {
 }

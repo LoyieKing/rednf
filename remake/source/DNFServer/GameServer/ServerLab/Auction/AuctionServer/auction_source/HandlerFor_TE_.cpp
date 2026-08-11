@@ -46,97 +46,112 @@ void HandlerFor_TE_::initTimeEvent()
 {
     G_TraceLog()->sysLog(8, "In  initTimeEvent");
 
-    // Separate locals per timer so frame size matches ORIG (~0x80)
-    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity0;
-    nsl::InternalMsg* pArg0;
-    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity1;
-    nsl::InternalMsg* pArg1;
-    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity2;
-    nsl::InternalMsg* pArg2;
-    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity3;
-    nsl::InternalMsg* pArg3;
-    nsl::TE_Entity<HandlerFor_TE_>* pTimeEntity4;
-    nsl::InternalMsg* pArg4;
-    // Extra slots to approach ORIG's 0x80 frame (member-ptr / getArg spills)
-    nsl::InternalMsg* pArg0b;
-    nsl::InternalMsg* pArg1b;
-    nsl::InternalMsg* pArg2b;
-    nsl::InternalMsg* pArg3b;
-    nsl::InternalMsg* pArg4b;
-
-    pTimeEntity0 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
-        ->createTimeEntity();
-    pArg0 = pTimeEntity0->getArg();
-    pArg0->workIndex = 0;
-    pTimeEntity0->regist(0x19, 2000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK);
-    if (pTimeEntity0->check_period == 0)
+    // ORIG DWARF：每段 timer 一个词法块（entity+pArg），分支 getArg 在 if 内
+    // 嵌套块复用同名 pArg；槽位按声明序连续 -0x44..-0xc
     {
-        pArg0b = pTimeEntity0->getArg();
-        pApp->super_Threads.getWorkThread(pArg0b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity0);
+        nsl::TE_Entity<HandlerFor_TE_>* ptime_expire_event;
+        nsl::InternalMsg* pArg;
+        ptime_expire_event = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+            ->createTimeEntity();
+        pArg = ptime_expire_event->getArg();
+        pArg->workIndex = 0;
+        ptime_expire_event->regist(0x19, 2000, 0xffffffff, pTimeHandler,
+                                   &HandlerFor_TE_::onTIME_AUCTION_EXPIRE_EVENT_CHECK);
+        if (ptime_expire_event->check_period == 0)
+        {
+            nsl::InternalMsg* pArg;
+            pArg = ptime_expire_event->getArg();
+            pApp->super_Threads.getWorkThread(pArg->workIndex)
+                ->PushTransaction((IMessageStruct*)ptime_expire_event);
+        }
+        else
+        {
+            pApp->super_Threads.getTimerThread()->PushTimeReqEvent(ptime_expire_event);
+        }
     }
-    else
     {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity0);
+        nsl::TE_Entity<HandlerFor_TE_>* ptime_stlog_event;
+        nsl::InternalMsg* pArg;
+        ptime_stlog_event = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+            ->createTimeEntity();
+        pArg = ptime_stlog_event->getArg();
+        pArg->workIndex = 0;
+        ptime_stlog_event->regist(0x1c, 10000, 0xffffffff, pTimeHandler,
+                                  &HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR);
+        if (ptime_stlog_event->check_period == 0)
+        {
+            nsl::InternalMsg* pArg;
+            pArg = ptime_stlog_event->getArg();
+            pApp->super_Threads.getWorkThread(pArg->workIndex)
+                ->PushTransaction((IMessageStruct*)ptime_stlog_event);
+        }
+        else
+        {
+            pApp->super_Threads.getTimerThread()->PushTimeReqEvent(ptime_stlog_event);
+        }
     }
-
-    pTimeEntity1 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
-        ->createTimeEntity();
-    pArg1 = pTimeEntity1->getArg();
-    pArg1->workIndex = 0;
-    pTimeEntity1->regist(0x1c, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_STATISTICS_COLLECTOR);
-    if (pTimeEntity1->check_period == 0)
     {
-        pArg1b = pTimeEntity1->getArg();
-        pApp->super_Threads.getWorkThread(pArg1b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity1);
+        nsl::TE_Entity<HandlerFor_TE_>* ptime_cfg_event;
+        nsl::InternalMsg* pArg;
+        ptime_cfg_event = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+            ->createTimeEntity();
+        pArg = ptime_cfg_event->getArg();
+        pArg->workIndex = 0;
+        ptime_cfg_event->regist(1, 5000, 0xffffffff, pTimeHandler,
+                                &HandlerFor_TE_::onTIME_CHECK_CONFIG);
+        if (ptime_cfg_event->check_period == 0)
+        {
+            nsl::InternalMsg* pArg;
+            pArg = ptime_cfg_event->getArg();
+            pApp->super_Threads.getWorkThread(pArg->workIndex)
+                ->PushTransaction((IMessageStruct*)ptime_cfg_event);
+        }
+        else
+        {
+            pApp->super_Threads.getTimerThread()->PushTimeReqEvent(ptime_cfg_event);
+        }
     }
-    else
     {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity1);
+        nsl::TE_Entity<HandlerFor_TE_>* pTimeDbPing;
+        nsl::InternalMsg* pArg;
+        pTimeDbPing = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+            ->createTimeEntity();
+        pArg = pTimeDbPing->getArg();
+        pArg->workIndex = 0;
+        pTimeDbPing->regist(0x1d, 10000, 0xffffffff, pTimeHandler,
+                            &HandlerFor_TE_::onTIME_AUCTION_DB_PING);
+        if (pTimeDbPing->check_period == 0)
+        {
+            nsl::InternalMsg* pArg;
+            pArg = pTimeDbPing->getArg();
+            pApp->super_Threads.getWorkThread(pArg->workIndex)
+                ->PushTransaction((IMessageStruct*)pTimeDbPing);
+        }
+        else
+        {
+            pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeDbPing);
+        }
     }
-
-    pTimeEntity2 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
-        ->createTimeEntity();
-    pArg2 = pTimeEntity2->getArg();
-    pArg2->workIndex = 0;
-    pTimeEntity2->regist(1, 5000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_CHECK_CONFIG);
-    if (pTimeEntity2->check_period == 0)
     {
-        pArg2b = pTimeEntity2->getArg();
-        pApp->super_Threads.getWorkThread(pArg2b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity2);
-    }
-    else
-    {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity2);
-    }
-
-    pTimeEntity3 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
-        ->createTimeEntity();
-    pArg3 = pTimeEntity3->getArg();
-    pArg3->workIndex = 0;
-    pTimeEntity3->regist(0x1d, 10000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_DB_PING);
-    if (pTimeEntity3->check_period == 0)
-    {
-        pArg3b = pTimeEntity3->getArg();
-        pApp->super_Threads.getWorkThread(pArg3b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity3);
-    }
-    else
-    {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity3);
-    }
-
-    pTimeEntity4 = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
-        ->createTimeEntity();
-    pArg4 = pTimeEntity4->getArg();
-    pArg4->workIndex = 0;
-    pTimeEntity4->regist(0x28, 60000, 0xffffffff, pTimeHandler, &HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE);
-    if (pTimeEntity4->check_period == 0)
-    {
-        pArg4b = pTimeEntity4->getArg();
-        pApp->super_Threads.getWorkThread(pArg4b->workIndex)->PushTransaction((IMessageStruct*)pTimeEntity4);
-    }
-    else
-    {
-        pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeEntity4);
+        nsl::TE_Entity<HandlerFor_TE_>* pTimeUpdateAveragePrice;
+        nsl::InternalMsg* pArg;
+        pTimeUpdateAveragePrice = ((GameDataPool*)pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId))
+            ->createTimeEntity();
+        pArg = pTimeUpdateAveragePrice->getArg();
+        pArg->workIndex = 0;
+        pTimeUpdateAveragePrice->regist(0x28, 60000, 0xffffffff, pTimeHandler,
+                                        &HandlerFor_TE_::onTIME_AUCTION_UPDATE_AVERAGE_PRICE);
+        if (pTimeUpdateAveragePrice->check_period == 0)
+        {
+            nsl::InternalMsg* pArg;
+            pArg = pTimeUpdateAveragePrice->getArg();
+            pApp->super_Threads.getWorkThread(pArg->workIndex)
+                ->PushTransaction((IMessageStruct*)pTimeUpdateAveragePrice);
+        }
+        else
+        {
+            pApp->super_Threads.getTimerThread()->PushTimeReqEvent(pTimeUpdateAveragePrice);
+        }
     }
     G_TraceLog()->sysLog(8, "Out initTimeEvent");
 }
@@ -204,21 +219,23 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg
 {
     unsigned long result = 0;
     G_TraceLog()->sysLog(7, "In  onTIME_AUCTION_TRY_SHUTDOWN");
-    size_t pendingWorkNumSum = 0;
+    int pendingWorkNumSum = 0;
     for (int i = 0; i < pApp->super_Threads.getWorkThreadNum(); i = i + 1)
     {
-        // No intermediate temp: ORIG does load-sum / add / store-sum
-        pendingWorkNumSum = pendingWorkNumSum + pApp->super_Threads.getWorkThread(i)->GetQueueSizeNoLock();
+        // ORIG: load-sum / add / store-sum (call result first, then sum)
+        pendingWorkNumSum = pApp->super_Threads.getWorkThread(i)->GetQueueSizeNoLock() + pendingWorkNumSum;
     }
     int pendingDbNum = 0;
     pendingDbNum = pApp->super_Threads.getDBThread(0)->mQueueSize;
-    G_TraceLog()->sysLog(5, "work queue size: %d, db queue size: %d", (int)pendingWorkNumSum, pendingDbNum);
-    nsl::IArea* pArea = G_Zone()->mArea[0];
+    G_TraceLog()->sysLog(5, "work queue size: %d, db queue size: %d", pendingWorkNumSum, pendingDbNum);
+    GSArea* pArea = (GSArea*)G_Zone()->mArea[0];
+    nsl::ISession* pCharacter;
     if ((pendingWorkNumSum == 0) && (pendingDbNum == 0))
     {
         nsl::TSystem<nsl::LinuxSystem>::sleep(1000);
-        G_TraceLog()->sysLog(5, "These two should be 0, work queue size: %d, db queue size: %d", (int)pendingWorkNumSum, pendingDbNum);
+        G_TraceLog()->sysLog(5, "These two should be 0, work queue size: %d, db queue size: %d", pendingWorkNumSum, pendingDbNum);
         nsl::LinuxService::getInstance()->controlStop();
+        return 0;
     }
     else
     {
@@ -226,10 +243,11 @@ unsigned long HandlerFor_TE_::onTIME_AUCTION_TRY_SHUTDOWN(nsl::InternalMsg* pArg
         nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter();
         while (!pArea->isIterEnd(iter))
         {
-            nsl::ISession* pCharacter = pArea->getValueFromIter(iter);
+            pCharacter = pArea->getValueFromIter(iter);
+            register nsl::TCPUser* pTCPUser = pCharacter->getTCPUser();
             nsl::Message* pNewMsg =
                 pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)
-                    ->getSendMessage(pCharacter->getTCPUser());
+                    ->getSendMessage(pTCPUser);
             nsl::CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
             *pNewCell << &pck;
             pNewCell->PAD();

@@ -22,6 +22,15 @@ struct STPowerWarScheduleTime
     char m_data[3];   // {type@0, hour@1, min@2}（ORIG：POD 3 字节，vector 元素步进 3）
 };
 
+// 周时刻表元素（ORIG：4 字节步进，m_table 位于 +8，元素字段 flag/hour/min/reserved）
+struct STGuildScheduleTime
+{
+    char m_flag;      // +0
+    char m_hour;      // +1
+    char m_min;       // +2
+    char m_reserved;  // +3
+};
+
 // from GuildDomain.h
 class CScheduler
 {
@@ -46,7 +55,7 @@ public:
     unsigned short m_week;  // +4
     char m_flag1;     // +6
     char m_flag2;     // +7
-    char m_table[28]; // +8（周时刻表：7×4）
+    STGuildScheduleTime m_table[7];  // +8（周时刻表：7×4）
 };
 
 bool CheckDayScheduleTimeOver(int hour, long t);

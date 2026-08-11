@@ -58,8 +58,7 @@ int CMySql::exec_query()
             int pingRet = mysql_ping(m_mysql);
             if (pingRet != 0)
             {
-                CMyFileLog log(__FUNCTION__, 0xa3);
-                log("./log/MysqlErr.log", "DB reconnection fail. %d\n", pingRet);
+                DNF_LOG_SCOPE_LINE(0xa3, "./log/MysqlErr.log", "DB reconnection fail. %d\n", pingRet);
             }
             return 2;
         }
@@ -68,8 +67,7 @@ int CMySql::exec_query()
             DNF_LOG_SCOPE_LINE(0xaa, "./log/MysqlErr.log", "DB error occured (%d) Query('%s')\n", m_lastErrno, m_query);
             if (m_lastErrno == 0x7d6)
             {
-                CMyFileLog log(__FUNCTION__, 0xac);
-                log("./log/MysqlErr.log",
+                DNF_LOG_SCOPE_LINE(0xac, "./log/MysqlErr.log",
                     "CMySql::open() Function Error!\tCheck Connection First, Must Be Not Connected!\n");
             }
         }
@@ -254,21 +252,16 @@ bool CMySql::get_binary(int col, void* buf, int len)
 
 char* CMySql::blob_to_str(int col, void* buf, int len)
 {
-    if (col >= 0 && col <= 9)
+    if (col < 0 || col > 9 || (buf == 0 && len > 0xfff))
+        return 0;
+    ((char*)this + col * 0x1001 + 0x1010)[0xd] = 0;
+    if (len > 0)
     {
-        if (buf != 0 || len <= 0xfff)
-        {
-            ((char*)this + col * 0x1001 + 0x1010)[0xd] = 0;
-            if (len > 0)
-            {
-                char* dst = (char*)this + col * 0x1001 + 0x1010 + 0xd;
-                dst += mysql_real_escape_string(m_mysql, dst, (const char*)buf, len);
-                *dst++ = 0;
-            }
-            return (char*)this + col * 0x1001 + 0x1010 + 0xd;
-        }
+        char* dst = (char*)this + col * 0x1001 + 0x1010 + 0xd;
+        dst += mysql_real_escape_string(m_mysql, dst, (const char*)buf, len);
+        *dst++ = 0;
     }
-    return 0;
+    return (char*)this + col * 0x1001 + 0x1010 + 0xd;
 }
 
 bool CMySql::set_compress_option()
@@ -304,7 +297,7 @@ bool CMySql::open(const char* host, const char* user, const char* pass, const ch
 
 bool CMySql::is_valid_col(int col)
 {
-    if (col < 0 || m_nFields <= col)
+    if (col < 0 || (int)m_nFields <= col)
         return 0;
     return 1;
 }

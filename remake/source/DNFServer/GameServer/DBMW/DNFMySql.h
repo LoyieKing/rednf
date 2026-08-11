@@ -10,7 +10,7 @@ public:
     CDBHandle();
     virtual ~CDBHandle();
     // dbmw 虚表顺序（vptr+0x08 起，共 31 个虚函数）
-    virtual char init() { return 0; }
+    virtual bool init() { return 0; }
     virtual char open(const char* host, const char* user, const char* pass, const char* db) { return 0; }
     virtual char open(const char* host, unsigned int port, const char* user, const char* pass, const char* db) { return 0; }
     virtual void close() {}
@@ -44,7 +44,7 @@ public:
     bool init_db_handle();
     bool set_compress_option();
     bool set_read_default_grp_option();
-    char is_valid_col(int col);
+    bool is_valid_col(int col);
     int exec_query();
 };
 
@@ -53,7 +53,7 @@ class CMySql : public CDBHandle
 public:
     CMySql();
     virtual ~CMySql();
-    virtual char init();
+    virtual bool init();
     char open(const char* host, const char* user, const char* pass, const char* db);
     char open(const char* host, unsigned int port, const char* user, const char* pass, const char* db);
     void close();
@@ -85,7 +85,7 @@ public:
     unsigned long long getAffectedRowCount();
     char* escape_string(char* dst, char const* src);
     bool get_ulonglong(int col, unsigned long long& v);
-    char is_valid_col(int col); // 非虚
+    bool is_valid_col(int col); // 非虚
     bool set_compress_option(); // 非虚
     bool set_read_default_grp_option(); // 非虚
     bool set_charset_name_option(); // 非虚
@@ -105,7 +105,7 @@ public:
     unsigned int m_port;  // +0x74
     char m_query[0x6001];  // +0x78（memset 0x6001）
     char m_blob[10][0x6001];  // +0x6079（blob_to_str 基址 this+0x6079+col*0x6001，10×0x6001=0x3c00a 至 0x42083）
-    unsigned int m_queryLen;  // +0x42084
+    int m_queryLen;  // +0x42084（ORIG int 形态：赋值无转换，LHS 先求址）
     unsigned int m_lastErrno; // +0x42088（sizeof=0x4208c，与 ORIG 分配一致）
 };
 

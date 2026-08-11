@@ -293,8 +293,14 @@ int initialize()
 void addStatisticProxy(StatisticsPacket* packet)
 {
     char* p = (char*)packet + 0xa;
-    unsigned int value = *(unsigned int*)((char*)packet + 0x85);
-    getStatisticProxy()->add((char*)packet + 0x2b, value, (char*)packet + 0x4c, p);
+#pragma pack(push,1)
+    struct PktLayout
+    {
+        char pad[0x85];
+        unsigned int value;
+    };
+#pragma pack(pop)
+    getStatisticProxy()->add((char*)packet + 0x2b, ((PktLayout*)packet)->value, (char*)packet + 0x4c, p);
 }
 
 void sendDBStatisticProxy()

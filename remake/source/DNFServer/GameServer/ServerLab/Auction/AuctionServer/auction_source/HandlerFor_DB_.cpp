@@ -224,11 +224,10 @@ bool HandlerFor_DB_::GetAuctionMainFetchResult(nsl::DBConnection* db,
     if (!bRet) return false;
     bRet = db->get_binary(i++, &pContext->item_info.random_option_, 0xe);
     if (!bRet) return false;
-    // ORIG：upgrade 在左（先求值）；seal_cnt 先 & 0x7 再 << 5（ORIG 有 and $0x7）
-    pContext->item_info.uniItemAttr =
-        (upgrade & 0x1f) | (pContext->item_info.uniItemAttr & 0xe0);
-    pContext->item_info.uniItemAttr =
-        ((seal_cnt & 0x7) << 5) | (pContext->item_info.uniItemAttr & 0x1f);
+    // ORIG：直接写位域成员（btUpgrade 5bit/btSealCount 3bit），GCC 4.4 -O0
+    // 产出双掩码 + 保留 and $0x7 的形态（与 ORIG 逐指令一致）
+    pContext->item_info.btUpgrade = upgrade;
+    pContext->item_info.btSealCount = seal_cnt;
     bRet = db->get_longlong(i++, *(long long*)&pContext->_reg_roi_category_key);
     if (!bRet) return false;
     bRet = db->get_int(i++, pContext->_reg_roi_category_key.field_1._low_category_key);
@@ -246,15 +245,15 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_REGISTED_ITEM(nsl::CMsgCell* pCell
     stAvatarExpansionInfo_t expansion_info_struct;
     DBConnection* db;
     DBConnection* game_db;
-    // ORIG：int 型（this 先求值、参数走 edx）；unsigned 会 arg 先求值走 ebx
     int item_category_temp;
     LPDBTR_AUCTION_DB_GET_REGISTED_ITEM pContext;
     int ret;
     bool bRet;
-    char* yyyymm;
-    unsigned int row;
+    // ORIG DWARF：history_db_count(601)/yyyymm(603)/pArea(665) 在顶层块，
+    // row(401)/field_index(409) 在循环作用域，pCharacter(670) 在两分支之前
     unsigned int history_db_count;
-    unsigned long long history_max_auction_id;
+    char* yyyymm;
+    GSArea* pArea;
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_DB_GET_REGISTED_ITEM");
     db = pApp->super_DBConnections.getDBConnection(1);
@@ -272,15 +271,17 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_REGISTED_ITEM(nsl::CMsgCell* pCell
             "***************Fail to exec(select * from auction_main order by expire_time). process exits.************");
         exit(5);
     }
-    for (row = 0; row < db->get_n_rows(); row = row + 1)
+    for (unsigned int row = 0; row < db->get_n_rows(); row = row + 1)
     {
+        // ORIG：循环体有死局部 field_index（仅赋 0，不再读），占 -0x30 槽
+        int field_index;
         bRet = db->fetch();
         if (!bRet)
         {
             G_TraceLog()->sysLog(7, "ERROR, db->fetch()");
             break;
         }
-        item_category_temp = 0;
+        field_index = 0;
         bRet = GetAuctionMainFetchResult(db, pContext);
         if (!bRet)
         {
@@ -404,6 +405,7 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_REGISTED_ITEM(nsl::CMsgCell* pCell
     db->get_uint(0, history_db_count);
     if (history_db_count)
     {
+        unsigned long long history_max_auction_id;
         history_max_auction_id = 0;
         db->set_query("seLect max(auction_id) from auction_history_%s", yyyymm);
         ret = db->exec(true);
@@ -433,42 +435,46 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_GET_REGISTED_ITEM(nsl::CMsgCell* pCell
             G_Auction()->SetMaxHistoryAuctionId(history_max_auction_id);
         }
     }
-    GSArea* pArea = (GSArea*)G_Zone()->mArea[0];
+    pArea = (GSArea*)G_Zone()->mArea[0];
     pArea->SetServiceRunning(true);
-    if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
+    // ORIG：pCharacter 在 if/else 前声明一次，两分支共用 -0x2c 槽
     {
-        PCK_AUCTION_SERVICE_AVAILABLE_PG pck;
-        nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter();
-        while (!pArea->isIterEnd(iter))
+        nsl::ISession* pCharacter;
+        if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
         {
-            nsl::ISession* pSession = pArea->getValueFromIter(iter);
-            // ORIG：pTCPUser 常驻 ebx（register 局部），不溢出到栈
-            register TCPUser* pTCPUser = pSession->getTCPUser();
-            // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
-            Message* pNewMsg =
-                pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(pTCPUser);
-            CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
-            *pNewCell << &pck;
-            pNewCell->PAD();
-            sendTCP_->PushSendMsg(pNewMsg);
-            ++iter;
+            PCK_AUCTION_SERVICE_AVAILABLE_PG pck;
+            nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter();
+            while (!pArea->isIterEnd(iter))
+            {
+                pCharacter = pArea->getValueFromIter(iter);
+                // ORIG：pTCPUser 常驻 ebx（register 局部），不溢出到栈
+                register TCPUser* pTCPUser = pCharacter->getTCPUser();
+                // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
+                Message* pNewMsg =
+                    pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(pTCPUser);
+                CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
+                *pNewCell << &pck;
+                pNewCell->PAD();
+                sendTCP_->PushSendMsg(pNewMsg);
+                ++iter;
+            }
         }
-    }
-    else
-    {
-        PCK_AUCTION_SERVICE_AVAILABLE_AG pck;
-        nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter();
-        while (!pArea->isIterEnd(iter))
+        else
         {
-            nsl::ISession* pSession = pArea->getValueFromIter(iter);
-            register TCPUser* pTCPUser = pSession->getTCPUser();
-            Message* pNewMsg =
-                pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(pTCPUser);
-            CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
-            *pNewCell << &pck;
-            pNewCell->PAD();
-            sendTCP_->PushSendMsg(pNewMsg);
-            ++iter;
+            PCK_AUCTION_SERVICE_AVAILABLE_AG pck;
+            nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter();
+            while (!pArea->isIterEnd(iter))
+            {
+                pCharacter = pArea->getValueFromIter(iter);
+                register TCPUser* pTCPUser = pCharacter->getTCPUser();
+                Message* pNewMsg =
+                    pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(pTCPUser);
+                CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
+                *pNewCell << &pck;
+                pNewCell->PAD();
+                sendTCP_->PushSendMsg(pNewMsg);
+                ++iter;
+            }
         }
     }
     G_TraceLog()->sysLog(5, "out onAUCTION_DB_GET_REGISTED_ITEM : paytype(%d)",

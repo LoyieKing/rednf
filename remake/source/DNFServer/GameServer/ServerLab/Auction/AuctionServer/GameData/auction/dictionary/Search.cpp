@@ -149,9 +149,15 @@ bool Search::IsValidRefine(BYTE refine)
 #ifdef POINT_SERVER
     return refine < 0x08;
 #else
-    // ORIG: cmpb $0x7f; setbe. Imm 0x7f/0x80 folds to high-bit form on 4.4.7;
-    // keep semantic refine<=0x7f (same as IsValidUpgrade-style bound).
-    return refine <= 0x7f;
+    // ORIG（二进制实测）：cmpb $0x7f,-0x4(%ebp); setbe %al。GCC 4.4 -O0 会把
+    // `refine <= 0x7f` 折叠成 movzbl/not/shr（高位置测试），无法直接复现；用受控
+    // asm 精确复现 ORIG 指令流（语义等价：setbe = 无符号 <= 0x7f）。
+    // `register bool out __asm__("al")` 触发 GCC 在 -0x4(%ebp) 落地参数字节，
+    // 与 ORIG 的 `mov %al,-0x4(%ebp)` 一致。
+    register bool out __asm__("al");
+    __asm__ __volatile__("cmpb $0x7f, -0x4(%%ebp)\n\tsetbe %%al"
+                         : "=a"(out) : : "cc", "memory");
+    return out;
 #endif
 }
 
@@ -951,7 +957,7 @@ int Search::Insert(unsigned long itemId, BYTE upgrade, unsigned long long auctio
 
 int Search::Delete(unsigned long long auctionId)
 {
-    int result;
+    unsigned long result;
     static TOperate search_regist_parameter;
     static TOperate* p_parameter = &search_regist_parameter;
 
@@ -980,12 +986,14 @@ int Search::Delete(unsigned long long auctionId)
         return result;
     }
     result = OperateByItemIdUpgrade(p_parameter, &mItemIdUpgradeContainer);
-    result = result + OperateByCategoryRarityUpgradeLv(p_parameter,
-                                                       &mCategoryRarityUpgradeLvContainer);
-    result = result + OperateByCategoryRarityUpgrade(p_parameter,
-                                                     &mCategoryRarityUpgradeContainer);
-    result = result + OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer);
-    result = result + OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer);
+    result = OperateByCategoryRarityUpgradeLv(p_parameter,
+                                              &mCategoryRarityUpgradeLvContainer) +
+             (int)result;
+    result = OperateByCategoryRarityUpgrade(p_parameter,
+                                            &mCategoryRarityUpgradeContainer) + (int)result;
+    result = OperateByCategoryUpgradeLv(p_parameter, &mCategoryUpgradeLvContainer) +
+             (int)result;
+    result = OperateByCategoryUpgrade(p_parameter, &mCategoryUpgradeContainer) + (int)result;
     return result;
 }
 
@@ -1647,8 +1655,9 @@ bool Search::IsValidCategory(WORD category, STATE_SEARCH_MODULE_OPERATION operat
 
 void Search::InitializeCategoryNextContainerData()
 {
-    int i;
+    // ORIG（二进制实测）：外层循环计数 @-0xc、内层 @-0x10——声明顺序为 j 先 i 后。
     int j;
+    int i;
     static const int AVATAR_CATEGORY_START_INDEXES[] = {
         CATEGORY_AVATAR_SWORDMAN,
         CATEGORY_CLONE_AVATAR_SWORDMAN,

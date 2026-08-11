@@ -161,10 +161,9 @@ RELOAD_SCRIPT:
                 DBMgr_.Mysql_query(query);
             }
             row = *DBMgr_.Mysql_fetch(row, res);
-            // ORIG 在此保留 row != NULL 的死比较（mov row; test %eax,%eax; mov row），
-            // 当前 cc1plus 对任何纯 C++ 死比较形态都会折叠，按 channel Socket.cpp 先例
-            // 用内联 asm 精确复现。
-            __asm__ __volatile__("testl %0, %0" : : "r"(row) : "cc");
+            // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）：
+            // ORIG 的 row != NULL 死比较无法用纯 C++ 复现，按规矩归入
+            // caliber_issues.csv（REMAIN），不再用内联 asm 强制。
             if (strcmp(G_ScriptData()->channel_script_version, row[0]) != 0)
             {
                 GLOG(gFileLogInfo, "Script Reload : cur=" << row[0]

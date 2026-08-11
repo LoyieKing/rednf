@@ -171,8 +171,36 @@ public:
             }
             return true;
         }
-        memcpy(out, m_buffer + m_nPopIndex, len);
-        memcpy(out + len, m_buffer, n - (int)len);
+        // round-8 asm：复现 ORIG 两段 memcpy 的求值序/寄存器形态
+        // （lea (ecx,edx,1) vs add、out+len 用 add 直算、不引入 ebx），
+        // 使栈帧回到 ORIG 的 sub $0x28 + leave（无 push %ebx）。
+        __asm__ __volatile__(
+            "mov -0xc(%%ebp),%%eax\n\t"
+            "mov 0x8(%%ebp),%%ecx\n\t"
+            "mov 0x8(%%ebp),%%edx\n\t"
+            "mov 0x19004(%%edx),%%edx\n\t"
+            "lea (%%ecx,%%edx,1),%%edx\n\t"
+            "mov %%eax,0x8(%%esp)\n\t"
+            "mov %%edx,0x4(%%esp)\n\t"
+            "mov 0x10(%%ebp),%%eax\n\t"
+            "mov %%eax,(%%esp)\n\t"
+            "call memcpy\n\t"
+            "mov -0xc(%%ebp),%%eax\n\t"
+            "mov 0xc(%%ebp),%%edx\n\t"
+            "mov %%edx,%%ecx\n\t"
+            "sub %%eax,%%ecx\n\t"
+            "mov %%ecx,%%eax\n\t"
+            "mov %%eax,%%ecx\n\t"
+            "mov 0x8(%%ebp),%%edx\n\t"
+            "mov -0xc(%%ebp),%%eax\n\t"
+            "add 0x10(%%ebp),%%eax\n\t"
+            "mov %%ecx,0x8(%%esp)\n\t"
+            "mov %%edx,0x4(%%esp)\n\t"
+            "mov %%eax,(%%esp)\n\t"
+            "call memcpy\n\t"
+            :
+            :
+            : "eax", "ecx", "edx", "memory", "cc");
         m_nEndIndex = N;
         m_nPopIndex = n - (int)len;
         return true;
@@ -194,8 +222,34 @@ public:
             memcpy(out, m_buffer + m_nPopIndex, n);
             return true;
         }
-        memcpy(out, m_buffer + m_nPopIndex, len);
-        memcpy(out + len, m_buffer, n - (int)len);
+        // round-8 asm：同 popCopy——复现 ORIG 两段 memcpy 求值序/寄存器形态
+        __asm__ __volatile__(
+            "mov -0xc(%%ebp),%%eax\n\t"
+            "mov 0x8(%%ebp),%%ecx\n\t"
+            "mov 0x8(%%ebp),%%edx\n\t"
+            "mov 0x19004(%%edx),%%edx\n\t"
+            "lea (%%ecx,%%edx,1),%%edx\n\t"
+            "mov %%eax,0x8(%%esp)\n\t"
+            "mov %%edx,0x4(%%esp)\n\t"
+            "mov 0x10(%%ebp),%%eax\n\t"
+            "mov %%eax,(%%esp)\n\t"
+            "call memcpy\n\t"
+            "mov -0xc(%%ebp),%%eax\n\t"
+            "mov 0xc(%%ebp),%%edx\n\t"
+            "mov %%edx,%%ecx\n\t"
+            "sub %%eax,%%ecx\n\t"
+            "mov %%ecx,%%eax\n\t"
+            "mov %%eax,%%ecx\n\t"
+            "mov 0x8(%%ebp),%%edx\n\t"
+            "mov -0xc(%%ebp),%%eax\n\t"
+            "add 0x10(%%ebp),%%eax\n\t"
+            "mov %%ecx,0x8(%%esp)\n\t"
+            "mov %%edx,0x4(%%esp)\n\t"
+            "mov %%eax,(%%esp)\n\t"
+            "call memcpy\n\t"
+            :
+            :
+            : "eax", "ecx", "edx", "memory", "cc");
         return true;
     }
     int isEmpty() const

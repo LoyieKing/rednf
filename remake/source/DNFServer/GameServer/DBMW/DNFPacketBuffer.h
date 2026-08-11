@@ -52,7 +52,7 @@ public:
     void free(void* ptr, unsigned int size);
     static void* headOfFreeList_;
     int m_size;                     // +0
-    int m_count;                    // +4
+    unsigned int m_count;           // +4（ORIG 为 unsigned；影响 ctor 求值顺序）
     std::vector<void*> m_blocks;    // +8
 };
 

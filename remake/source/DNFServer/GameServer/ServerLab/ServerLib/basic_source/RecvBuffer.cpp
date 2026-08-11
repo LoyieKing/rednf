@@ -108,8 +108,9 @@ bool RecvBuffer::Parse(TCPUser* pUser)
     while (mRearIdx > mParseIdx)
     {
         // ORIG：单一 lenCheck（@-0x24），无 parsableLength 双局部
-        unsigned int lenCheck = mRearIdx - mParseIdx;
-        if (lenCheck < 0x12)
+        // 有符号 int + (unsigned int) 强转比较 → mov 槽重载 + cmp $0x11,%eax; ja
+        int lenCheck = mRearIdx - mParseIdx;
+        if ((unsigned int)lenCheck < 0x12)
         {
             mParseStatus = 0;
             break;
@@ -122,11 +123,11 @@ bool RecvBuffer::Parse(TCPUser* pUser)
             G_TraceLog()->sysLog(7, "ERR: msgsize < 0 ");
             return false;
         }
-        // ORIG：单表达式初始化（bool 在 eax 物化，非栈槽）
-        // ORIG：register bool（物化结果留在 al，不落栈槽）
-        register bool bOversize = (pUser->GetMaxPacketSize() < msgSize
-                                   || (mQueueSize + mMaxPacketSize < mParseIdx + msgSize));
-        if (bOversize)
+        // ORIG：无 bool 局部，|| 条件物化在 eax（mov $1/jmp/mov $0/test %al）；
+        // 右侧写成 mParseIdx + msgSize > mQueueSize + mMaxPacketSize
+        // （先求 parse+size 再求 queue+max）
+        if (pUser->GetMaxPacketSize() < msgSize
+            || mParseIdx + msgSize > mQueueSize + mMaxPacketSize)
         {
             return false;
         }
@@ -144,7 +145,7 @@ bool RecvBuffer::Parse(TCPUser* pUser)
         }
         if (pUser->isActiveCloseSyncByWorker())
         {
-            G_TraceLog()->sysLog(7, "FAIL: Message From ActiveClose User - msg ident(%d) Qindex(%d)", (int)Message::ident, (int)(Message::ident >> 32), mParseIdx);
+            G_TraceLog()->sysLog(7, "FAIL: Message From ActiveClose User - msg ident(%d) Qindex(%d)", Message::ident, mParseIdx);
             if (pMessage != NULL)
             {
                 pUser->pmWorkThread->destroyOrderPool(pMessage);
@@ -162,7 +163,10 @@ bool RecvBuffer::Parse(TCPUser* pUser)
             G_TraceLog()->sysLog(7, "ERR: mParseIdx < 0 ");
             return false;
         }
-        if (mPartialQueueSize <= mParseIdx)
+        if (mParseIdx < mPartialQueueSize)
+        {
+        }
+        else
         {
             if (mParseIdx != mRearIdx)
             {
@@ -184,6 +188,11 @@ bool RecvBuffer::Parse(TCPUser* pUser)
 
 bool RecvBuffer::ClearUsedMsgs()
 {
+    // ORIG 局部作用域序：外层（ip3..ip0 最先声明）→ while 体（pRawMsg/msgSize/pTcpUser）→ 内层 if（pTcpUserTmp）
+    unsigned int ip3;
+    unsigned int ip2;
+    unsigned int ip1;
+    unsigned int ip0;
     while (!mRecvMsgs.empty())
     {
         Message* pRawMsg = mRecvMsgs.front();
@@ -192,22 +201,26 @@ bool RecvBuffer::ClearUsedMsgs()
             if (pRawMsg->getUse())
             {
                 TCPUser* pTcpUserTmp = pRawMsg->getUserFromMessage();
-                unsigned int b3 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[3];
-                unsigned int b2 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[2];
-                unsigned int b1 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[1];
-                unsigned int b0 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[0];
-                // ORIG：idLo/idHi/sz 常驻 ebx/esi/edi（register 局部，直接双字装载）
-                register unsigned int idLo = (unsigned int)Message::ident;
-                register unsigned int idHi = (unsigned int)(Message::ident >> 32);
-                register unsigned int sz = (unsigned int)mRecvMsgs.size();
+                // ORIG：ip 字节按 +3..+0 求值并各自落栈槽（-0x38..-0x2c），
+                // ident 以单个 64 位 vararg 一次双字装载进 ebx/esi
+                ip3 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[3];
+                ip2 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[2];
+                ip1 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[1];
+                ip0 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[0];
                 G_TraceLog()->sysLog(5, "force delete activeclose size(%d) ident(%d) ip(%d.%d.%d.%d)",
-                                     sz, idLo, idHi, b0, b1, b2, b3);
+                                     (unsigned int)mRecvMsgs.size(),
+                                     Message::ident,
+                                     ip0, ip1, ip2, ip3);
             }
             int msgSize = pRawMsg->mSize;
             mRecvMsgs.pop_front();
-            pRawMsg->getUserFromMessage()->pmWorkThread->destroyOrderPool(pRawMsg);
+            TCPUser* pTcpUser = pRawMsg->getUserFromMessage();
+            pTcpUser->pmWorkThread->destroyOrderPool(pRawMsg);
             mFrontIdx = mFrontIdx + msgSize;
-            if (mPartialQueueSize <= mFrontIdx)
+            if (mFrontIdx < mPartialQueueSize)
+            {
+            }
+            else
             {
                 mFrontIdx = 0;
             }
@@ -217,7 +230,11 @@ bool RecvBuffer::ClearUsedMsgs()
             break;
         }
     }
-    return mRecvMsgs.empty();
+    if (mRecvMsgs.empty())
+    {
+        return true;
+    }
+    return false;
 }
 
 char* RecvBuffer::GetFront()

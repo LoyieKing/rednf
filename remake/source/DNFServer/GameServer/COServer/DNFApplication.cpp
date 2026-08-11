@@ -130,17 +130,18 @@ void CApplication::Load(int argc, char** argv)
         m_userManager.Init(this);
         m_appConfig->Load_Table(argv[1]);
         m_serverConfig->Load_Table("./table/server_config.tbl");
-        m_frame.InitFrameCountInfo(this, m_appConfig->Get_FrameCountValue(), 1000);
+        m_frame.InitFrameCountInfo(
+            this, static_cast<CAppConfig*>(m_appConfig)->Get_FrameCountValue(), 1000);
         m_serverHandler = new CServerHandler;
         m_serverHandler->Attach(this);
-        m_serverHandler->Load(m_serverConfig->GetServerInfo());
+        m_serverHandler->Load(static_cast<CServerConfig*>(m_serverConfig)->GetServerInfo());
         CPacketTranslater::attach(this);
         m_innerMsg = new CInnerMsgHandler;
         CPacketDecoderInstance()->Attach(this);
         for (int i = 0; i < 10; i++)
         {
             m_appThreads[i] = new CAppThread;
-            m_appThreads[i]->attach(this, i);
+            static_cast<CAppThread*>(m_appThreads[i])->attach(this, i);
             if (!m_appThreads[i]->begin())
             {
                 throw CDNFException(
@@ -149,7 +150,8 @@ void CApplication::Load(int argc, char** argv)
         }
         for (int i = 0; i <= 100; i++)
         {
-            unsigned short port = m_appConfig->Get_ServerUdpPort((unsigned char)i);
+            unsigned short port =
+                static_cast<CAppConfig*>(m_appConfig)->Get_ServerUdpPort((unsigned char)i);
             if (port != 0)
             {
                 m_udpHandlers[i] = new CUdpHandler;
@@ -159,7 +161,7 @@ void CApplication::Load(int argc, char** argv)
                         std::string("CApplication::Load() Init Server Socket Exception Break!"));
                 }
                 m_netThreads[i] = new CNetworkThread;
-                m_netThreads[i]->attach(this, i);
+                static_cast<CNetworkThread*>(m_netThreads[i])->attach(this, i);
                 if (!m_netThreads[i]->begin())
                 {
                     throw CDNFException(

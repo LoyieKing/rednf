@@ -270,7 +270,7 @@ public:
         }
         bool operator<(const CTaskProxy& other) const
         {
-            return other.GetDeliveryTime() < GetDeliveryTime();
+            return GetDeliveryTime() > other.GetDeliveryTime();
         }
         void DoExcute()
         {

@@ -9,7 +9,7 @@
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 
-CAppConfig::CAppConfig() {}
+CAppConfig::CAppConfig() throw() {}
 CAppConfig::~CAppConfig() {}
 
 int CAppConfig::Load_Table(const std::string& fileName)

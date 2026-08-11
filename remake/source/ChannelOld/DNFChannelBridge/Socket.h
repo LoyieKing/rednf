@@ -16,7 +16,7 @@ public:
     int send(char* buf, int size);
     int recv(char* buf, int size);
     void close();
-    void shutdown(int opt);
+    int shutdown(int opt);
     bool accept(TCPSocket& accepted);
     bool setOptLinger(bool b);
     bool setOptNonBlock();

@@ -48,10 +48,10 @@ bool CSignalTranslator::regist_signal(int sig, void (*handler)(int))
     struct sigaction old;
     if (sigaction(sig, &act, &old) < 0)
     {
-        printf("%d signal regist fail\n", sig);
-        return 0;
+        printf("%d\xB9\xF8 signal \xB5\xEE\xB7\xCF \xBD\xC7\xC6\xD0\n", sig);
+        return false;
     }
-    return 1;
+    return true;
 }
 void CSignalTranslator::init_signal()
 {
@@ -104,6 +104,9 @@ void CSignalTranslator::init_handler(CApplication* app)
     m_signals[7] = m_signals[4];
     m_signals[23] = m_signals[4];
     m_signals[16] = m_signals[4];
+    m_signals[24] = m_signals[4];
+    m_signals[25] = m_signals[4];
+    m_signals[31] = m_signals[4];
 }
 void CSignalTranslator::clear()
 {

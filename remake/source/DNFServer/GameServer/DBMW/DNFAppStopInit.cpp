@@ -29,7 +29,6 @@ CAppStopInit::~CAppStopInit() {}
 void CAppStopInit::Init(CApplication* app, int argc, char** argv)
 {
     puts("RECV STOP, Manager had stoped this program.");
-    if (app->Send_Term_Signal(std::string(argv[1])))
+    if (!app->Send_Term_Signal(std::string(argv[1])))
         throw CDNFException("By CAppStopInit::Init(), this app had stoped!");
-    throw CDNFException("By CAppStopInit::Init(), this app had stoped!_1");
 }

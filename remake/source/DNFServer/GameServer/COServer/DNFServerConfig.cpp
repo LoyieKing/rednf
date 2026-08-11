@@ -20,23 +20,19 @@ bool CServerConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
-    char* tok0;
-    char* tok1;
-    char* tok2;
-    char* tok3;
-    char* tok4;
+    char* tok[5];
     char* tok5;
     (void)tok5;
-    if (DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 5) == 5)
+    if (DNFFLib::ExplodeString(line, " \t\r\n\"", tok, 5) == 5)
     {
         if (idx < 0x649b)
         {
             ST_ServerInfo* s = &m_servers[idx];
-            s->m_field0 = (char)atoi(tok0);
-            s->m_field1 = (char)atoi(tok1);
-            s->m_field2 = (char)atoi(tok2);
-            s->m_string = tok3;
-            s->m_ushort = (unsigned short)atoi(tok4);
+            s->m_field0 = (char)atoi(tok[0]);
+            s->m_field1 = (char)atoi(tok[1]);
+            s->m_field2 = (char)atoi(tok[2]);
+            s->m_string = tok[3];
+            s->m_ushort = (unsigned short)atoi(tok[4]);
             return 1;
         }
     }

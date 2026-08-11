@@ -183,8 +183,8 @@ public:
     static void OnNoticeGuildChatMsgHyperLink(PacketHeader* pkt);
     static void RequestBlackListToDBMW(unsigned int charNo);
     static void SendPacketGuildMail(unsigned char group, unsigned int charNo,
-                                    unsigned int guildKey, const char* title, const char* content,
-                                    unsigned int param);
+                                unsigned int guildKey, const char* title, const char* content,
+                                unsigned int param);
     static void GuildJoin(CGuild* guild, STGuildJoinInfo* info, unsigned int dbid);
     static void GuildJoin(CGuild* guild, CUser* user, unsigned int dbid);
 
@@ -196,7 +196,11 @@ public:
 class Packet_Add_Guild_Fund_Result : public PacketHeader {
 public:
     Packet_Add_Guild_Fund_Result();
-    char m_data[0xd];
+    unsigned char ma;                 // +0xa
+    unsigned int mb;                 // +0xb
+    unsigned int mf;                 // +0xf
+    unsigned int m13;                 // +0x13
+
 };
 
 // from GuildPackets.h
@@ -217,28 +221,51 @@ public:
 class Packet_Approve_Join_Guild_Result : public PacketHeader {
 public:
     Packet_Approve_Join_Guild_Result();
-    char m_data[0x10];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned int m12;                 // +0x12
+    unsigned int m16;                 // +0x16
+
 };
 
 // from GuildPackets.h
 class Packet_Channel_Check_Guild_Cargo_Push_Item : public PacketHeader {
 public:
     Packet_Channel_Check_Guild_Cargo_Push_Item();
-    char m_data[0x1d];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned char m12;                 // +0x12
+    unsigned int m13;                 // +0x13
+    unsigned int m17;                 // +0x17
+    unsigned int m1b;                 // +0x1b
+    unsigned int m1f;                 // +0x1f
+    unsigned char m23;                 // +0x23
+    unsigned char m24;                 // +0x24
+    unsigned short m25;                 // +0x25
+
 };
 
 // from GuildPackets.h
 class Packet_Channel_Delete_Guild_Agit : public PacketHeader {
 public:
     Packet_Channel_Delete_Guild_Agit();
-    char m_data[0xd];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned int m12;                 // +0x12
+    unsigned char m16;                 // +0x16
+
 };
 
 // from GuildPackets.h
 class Packet_Channel_Guild_Cargo_Move_Item : public PacketHeader {
 public:
     Packet_Channel_Guild_Cargo_Move_Item();
-    char m_data[0x11];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned char m12;                 // +0x12
+    unsigned int m13;                 // +0x13
+    unsigned int m17;                 // +0x17
+
 };
 
 // from GuildPackets.h
@@ -274,7 +301,10 @@ public:
 class Packet_Channel_Guild_Cargo_Upgrade : public PacketHeader {
 public:
     Packet_Channel_Guild_Cargo_Upgrade();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned char m12;                 // +0x12
+
 };
 
 // from GuildPackets.h
@@ -346,7 +376,8 @@ public:
 class Packet_DMBW_Delete_To_BlackList : public PacketHeader {
 public:
     Packet_DMBW_Delete_To_BlackList();
-    char m_data[0x26];
+    unsigned int m2c;                 // +0xa
+
 };
 
 // from GuildPackets.h
@@ -360,7 +391,11 @@ public:
 class Packet_Guild_Apply_Origial_Power_Side_Reply : public PacketHeader {
 public:
     Packet_Guild_Apply_Origial_Power_Side_Reply();
-    char m_data[0xd];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned int m12;                 // +0x12
+    unsigned char m16;                 // +0x16
+
 };
 
 // from GuildPackets.h
@@ -393,7 +428,6 @@ public:
     unsigned int m_b;              // +0xe
     STGuildCargoDBInfo m_cargo;    // +0x12
     unsigned char m_flag;          // +0x18ee
-    char m_pad;                    // +0x18ef
 };
 #pragma pack(pop)
 
@@ -401,7 +435,11 @@ public:
 class Packet_Guild_Exp_Book_Delete : public PacketHeader {
 public:
     Packet_Guild_Exp_Book_Delete();
-    char m_data[0x10];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    char pad0x12[0x4];                 // +0x12
+    unsigned int m16;                 // +0x16
+
 };
 
 // from GuildPackets.h
@@ -453,7 +491,8 @@ public:
 class Packet_Monitor_Notify_GuildMemberGrade : public PacketHeader {
 public:
     Packet_Monitor_Notify_GuildMemberGrade();
-    char m_data[0x9];
+    unsigned char m12;                 // +0xa
+
 };
 
 // from GuildPackets.h
@@ -481,14 +520,18 @@ public:
 class Packet_Monitor_UDP_User_Getout : public PacketHeader {
 public:
     Packet_Monitor_UDP_User_Getout();
-    char m_data[0xa];
+    unsigned int ma;                 // +0xa
+
 };
 
 // from GuildPackets.h
 class Packet_No_Cache : public PacketHeader {
 public:
     Packet_No_Cache();
-    char m_data[0xc];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned int m12;                 // +0x12
+
 };
 
 // from GuildPackets.h
@@ -502,7 +545,12 @@ public:
 class Packet_Notice_GuildName_On_Guild_Create : public PacketHeader {
 public:
     Packet_Notice_GuildName_On_Guild_Create();
-    char m_data[0x24];
+    unsigned int ma;                 // +0xa
+    unsigned int me;                 // +0xe
+    unsigned int m12;                 // +0x12
+    char pad0x16[0x17];                 // +0x16
+    unsigned char m2d;                 // +0x2d
+
 };
 
 // from GuildPackets.h
@@ -572,7 +620,11 @@ public:
 class Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade : public PacketHeader {
 public:
     Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade();
-    char m_data[0x29];
+    unsigned char ma;                 // +0xa
+    unsigned int mb;                 // +0xb
+    char pad0xf[0x23];                 // +0xf
+    unsigned char m32;                 // +0x32
+
 };
 
 #pragma pack(pop)

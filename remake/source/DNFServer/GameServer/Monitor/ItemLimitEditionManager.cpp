@@ -202,22 +202,22 @@ unsigned int CItemLimitEdition::getSellEndTime() const { return m_sellEndTime; }
 
 unsigned int CItemLimitEdition::getIPGNO() const { return m_ipgno; }
 
-unsigned int CItemLimitEdition::getSellNum() const { return m_sellNum; }
-
 char CItemLimitEdition::isSellComplete() const
 {
     if (m_sellLimit == -1)
     {
         return 0;
     }
-    return (char)(m_sellLimit <= (int)getSellNum());
+    return (char)((int)getSellNum() >= m_sellLimit);
 }
 
 void CItemLimitEdition::makeItemInfo(stItemLimitEditionItemInfo_t& info) const
 {
-    memcpy(&info, this, 0x48);
+    *((stItemLimitEditionItemInfo_t*)&info) = *((const stItemLimitEditionItemInfo_t*)this);
     ((RA_UINT<24>*)&info)->v = getSellNum();
 }
+
+unsigned int CItemLimitEdition::getSellNum() const { return m_sellNum; }
 
 void CItemLimitEdition::updateSellNum(unsigned int num)
 {

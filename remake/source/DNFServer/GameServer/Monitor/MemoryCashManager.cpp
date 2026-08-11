@@ -76,8 +76,8 @@ void CMemoryCashManager::ProcessCashDataPrint()
     m_cashCnt34 = m_cashCnt34 - 1;
     if (m_cashCnt34 <= 0)
     {
-        CMyFileLog log("ProcessCashDataPrint", 0x4e);
-        log("./log/cashmem", "buddy(%d/%d)  member(%d/%d)  black(%d/%d)\n",
+        DNF_LOG_SCOPE_LINE(0x4e, "./log/cashmem",
+            "buddy(%d/%d)  member(%d/%d)  black(%d/%d)",
             m_field44, m_buddyCashCnt, m_field48, m_memberCashCnt, m_field4c,
             m_blackListCashCnt);
         resetCashCnt();

@@ -63,61 +63,54 @@ void CNetworkThread::dispatch(void* param)
             else
             {
                 {
-                    if (*(unsigned short*)((char*)buf + 2) == len)
+                    PacketHeader* ph = (PacketHeader*)buf;
+                    if (ph->packetSize != len)
                     {
-                        if (*(unsigned short*)((char*)buf + 2) < 0x200)
+                        DNF_LOG_SCOPE_LINE(0x6f,"./log/recvErr",
+                            "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                            ph->packetSize, len, ph->packetId);
                         {
-                            if (len < 0x201)
-                            {
-                                if (*(int*)((char*)buf + 6) == 0)
-                                {
-                                    printf("id(%d), m_id(%d)", *(unsigned short*)buf,
-                                           *(int*)((char*)buf + 6));
-                                }
-                                unsigned int idx = *(unsigned int*)((char*)buf + 6) % 10;
-                                {
-                                    CGuard<CMutex> g((CMutex*)m_locks[idx]);
-                                    ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->push(buf);
-                                    unsigned int qsize =
-                                        ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size();
-                                    if (100 < qsize)
-                                    {
-                                        DNF_LOG_SCOPE_LINE(0xa3,"./log/recv", "idx(%d) cnt(%d)", idx,
-                                            ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size());
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                DNF_LOG_SCOPE_LINE(0x6f,"./log/recvErr",
-                                    "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                                    *(unsigned short*)((char*)buf + 2), len,
-                                    *(unsigned short*)buf);
-                                {
-                                    CGuard<CMutex> g((CMutex*)m_bLock);
-                                    CUdpRecvBuffer::operator delete(buf);
-                                }
-                            }
+                            CGuard<CMutex> g((CMutex*)m_bLock);
+                            CUdpRecvBuffer::operator delete(buf);
                         }
-                        else
+                    }
+                    else if (ph->packetSize >= 0x200)
+                    {
+                        DNF_LOG_SCOPE_LINE(0x7a,"./log/recvErr",
+                            "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                            ph->packetSize, len, ph->packetId);
                         {
-                            DNF_LOG_SCOPE_LINE(0x7a,"./log/recvErr",
-                                "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                                *(unsigned short*)((char*)buf + 2), len, *(unsigned short*)buf);
-                            {
-                                CGuard<CMutex> g((CMutex*)m_bLock);
-                                CUdpRecvBuffer::operator delete(buf);
-                            }
+                            CGuard<CMutex> g((CMutex*)m_bLock);
+                            CUdpRecvBuffer::operator delete(buf);
+                        }
+                    }
+                    else if (len >= 0x201)
+                    {
+                        DNF_LOG_SCOPE_LINE(0x86,"./log/recvErr",
+                            "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                            ph->packetSize, len, ph->packetId);
+                        {
+                            CGuard<CMutex> g((CMutex*)m_bLock);
+                            CUdpRecvBuffer::operator delete(buf);
                         }
                     }
                     else
                     {
-                        DNF_LOG_SCOPE_LINE(0x86,"./log/recvErr",
-                            "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                            *(unsigned short*)((char*)buf + 2), len, *(unsigned short*)buf);
+                        if (ph->reversed2 == 0)
                         {
-                            CGuard<CMutex> g((CMutex*)m_bLock);
-                            CUdpRecvBuffer::operator delete(buf);
+                            printf("id(%d), m_id(%d)", ph->packetId, ph->reversed2);
+                        }
+                        unsigned int idx = ph->reversed2 % 10;
+                        {
+                            CGuard<CMutex> g((CMutex*)m_locks[idx]);
+                            ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->push(buf);
+                            unsigned int qsize =
+                                ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size();
+                            if (100 < qsize)
+                            {
+                                DNF_LOG_SCOPE_LINE(0xa3,"./log/recv", "idx(%d) cnt(%d)", idx,
+                                    ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size());
+                            }
                         }
                     }
                 }

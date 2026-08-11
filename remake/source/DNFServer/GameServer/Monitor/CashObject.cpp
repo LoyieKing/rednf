@@ -171,7 +171,11 @@ char CCashObject::IsLifeTimeOut()
         return 0;
     }
     m_lifeTime = m_lifeTime - 1;
-    return (char)(m_lifeTime == 0);
+    if (m_lifeTime == 0)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 std::map<unsigned int, CBlackUser*>* CCashObject::GetBlackUsersObject() { return &m_blackUsers; }

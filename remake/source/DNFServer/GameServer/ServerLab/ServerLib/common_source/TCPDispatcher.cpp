@@ -30,22 +30,40 @@ bool TCPDispatcher::dispatch(TCPUser* u, Message* msg)
 {
     CMsgCell* pMsg = msg->getCellFromMessage();
     PACKET_HEADER* pPCK = pMsg->GetPacket();
-    unsigned int nProtoID = pPCK->getPacketID();
-    unsigned int nCategory = pPCK->getCategory();
+    int nProtoID = pPCK->getPacketID();
+    int nCategory = pPCK->getCategory();
     int ret = 0;
     u->setLastAccessTime();
     if ((nCategory == 0xffffffff) && (nProtoID == 0))
     {
         return false;
     }
-    else if (((int)nCategory < 0) || ((int)nCategory >= MaxCategory))
+    else if (nCategory < 0 || nCategory >= MaxCategory)
     {
         return true;
     }
     else
     {
         INetWorkHandler* netWorkHandler = pApp->super_IHandlers.getNetWorkHandler(nCategory);
-        if (netWorkHandler == NULL)
+        if (netWorkHandler != NULL)
+        {
+            INetWorkHandler::networkFuncType handle = netWorkHandler->searchNetworkFunc(nProtoID);
+            if (handle != NULL)
+            {
+                ret = (pApp->super_IHandlers.getNetWorkHandler(nCategory)->*handle)(pMsg, u);
+                if (ret != 0)
+                {
+                    G_TraceLog()->sysLog(7, "TCP : '%d' \xc3\xb3\xb8\xae\xbf\xa1 \xbd\xc7\xc6\xd0 \xc7\xcf\xbf\xb4\xbd\xc0\xb4\xcf\xb4\xd9. Error: %d", nProtoID, ret);
+                    return true;
+                }
+            }
+            else
+            {
+                G_TraceLog()->sysLog(7, "TCP : could not find handler for Category :'%d' Protocol: '%d'.", nCategory, nProtoID);
+                return true;
+            }
+        }
+        else
         {
             G_TraceLog()->sysLog(7,
                 "TCP : '%d' <- protocol category \xb0\xa1 \xb9\xfc\xc0\xa7\xb8\xa6 \xb9\xfe\xbe\xee\xb3\xb5\xbd\xc0\xb4\xcf\xb4\xd9, ip:%d.%d.%d.%d",
@@ -54,23 +72,7 @@ bool TCPDispatcher::dispatch(TCPUser* u, Message* msg)
                 (int)u->pSock_->getPeerAdrs()[3]);
             return true;
         }
-        else
-        {
-            INetWorkHandler::networkFuncType handle = netWorkHandler->searchNetworkFunc(nProtoID);
-            if (handle == NULL)
-            {
-                G_TraceLog()->sysLog(7, "TCP : could not find handler for Category :'%d' Protocol: '%d'.", nCategory, nProtoID);
-                return true;
-            }
-            netWorkHandler = pApp->super_IHandlers.getNetWorkHandler(nCategory);
-            ret = (netWorkHandler->*handle)(pMsg, u);
-            if (ret == 0)
-            {
-                return false;
-            }
-            G_TraceLog()->sysLog(7, "TCP : '%d' \xc3\xb3\xb8\xae\xb5\xa1 \xbd\xc7\xc6\xd0 \xc7\xcf\xb4\xb5\xbd\xc0\xb4\xcf\xb4\xd9. Error: %d", nProtoID, ret);
-            return true;
-        }
+        return false;
     }
 }
 

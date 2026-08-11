@@ -5,10 +5,10 @@
 #include "DNFApplication.h"
 #include "DNFFileLog.h"
 
-CUser1Sig::CUser1Sig()
+CUser1Sig::CUser1Sig() throw()
 {
 }
-CUser2Sig::CUser2Sig()
+CUser2Sig::CUser2Sig() throw()
 {
 }
 void CUser1Sig::handle(int sig)
@@ -27,9 +27,9 @@ void CUser2Sig::handle(int sig)
         m_app->TranslateSignal();
     }
 }
-CUser2Sig::~CUser2Sig()
+CUser2Sig::~CUser2Sig() throw()
 {
 }
-CUser1Sig::~CUser1Sig()
+CUser1Sig::~CUser1Sig() throw()
 {
 }

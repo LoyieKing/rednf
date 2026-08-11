@@ -4,7 +4,7 @@
 #include "DNFTerminateSig.h"
 #include "DNFApplication.h"
 
-CTerminateSig::CTerminateSig()
+CTerminateSig::CTerminateSig() throw()
 {
 }
 void CTerminateSig::handle(int sig)
@@ -15,6 +15,6 @@ void CTerminateSig::handle(int sig)
         m_app->App_Stop();
     }
 }
-CTerminateSig::~CTerminateSig()
+CTerminateSig::~CTerminateSig() throw()
 {
 }

@@ -5,7 +5,7 @@
 
 int main(int argc, char** argv)
 {
-    CAppBase* app = CApplicationInstance();
+    CApplication* app = CApplicationInstance();
     try
     {
         app->Create(argc, argv);

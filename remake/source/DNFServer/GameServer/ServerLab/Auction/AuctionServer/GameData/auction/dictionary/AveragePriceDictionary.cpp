@@ -117,44 +117,44 @@ int AveragePriceDictionary::GetItemAveragePrice(
     const ROI_AverageKey& roi_average_key, unsigned char itemRefineValue,
     int* pOutAveragePrice)
 {
+    AveragePriceDictionaryData* ptr_data;
     if (!isValidUpgradeValue(itemUpgradeValue))
     {
         return 0x20;
     }
     // Orig: !isEmpty fallthrough = ROI map first; empty is jump target (callset order).
-    // Each branch ends with its own `return 0` (mov $0; jmp/ret), matching orig.
     if (!roi_average_key.option_category.isEmpty())
     {
-        std::map<ROI_AverageKey, AveragePriceDictionaryData*>::iterator find_iter =
+        std::map<ROI_AverageKey, AveragePriceDictionaryData*>::iterator find_iter_roi =
             mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].find(
                 roi_average_key);
-        if (find_iter != mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].end())
+        if (find_iter_roi !=
+            mAvrgPrice_ROI_DicTable[itemUpgradeValue][itemRefineValue].end())
         {
-            *pOutAveragePrice = find_iter->second->average_price_notice;
+            *pOutAveragePrice = find_iter_roi->second->average_price_notice;
         }
         else
         {
             *pOutAveragePrice = -1;
         }
         return 0;
+    }
+    // ulong-map iterator is a direct child of the function body in orig DWARF
+    // (decl line 428, slot -0x18), initialized from find (no default-ctor call,
+    // no temp+copy). Declared after the ROI if-block so GCC assigns -0x18.
+    std::map<unsigned long, AveragePriceDictionaryData*>::iterator find_iter =
+        mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].find(itemId);
+    if (find_iter == mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].end())
+    {
+        *pOutAveragePrice = -1;
     }
     else
     {
-        AveragePriceDictionaryData* ptr_data;
-        std::map<unsigned long, AveragePriceDictionaryData*>::iterator find_iter =
-            mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].find(itemId);
-        if (find_iter == mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].end())
-        {
-            *pOutAveragePrice = -1;
-        }
-        else
-        {
-            // intermediate ptr_data (orig stores then reloads)
-            ptr_data = find_iter->second;
-            *pOutAveragePrice = ptr_data->average_price_notice;
-        }
-        return 0;
+        // intermediate ptr_data (orig stores then reloads)
+        ptr_data = find_iter->second;
+        *pOutAveragePrice = ptr_data->average_price_notice;
     }
+    return 0;
 }
 
 // ORIG 的 FP 比较用 fucompp+fnstsw（i586 形态）；函数级 target 覆盖。

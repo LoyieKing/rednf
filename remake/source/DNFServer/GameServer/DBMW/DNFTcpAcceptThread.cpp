@@ -23,16 +23,23 @@
 
 int getErrno();
 
-CTcpAcceptThread::CTcpAcceptThread() {}
-CTcpAcceptThread::~CTcpAcceptThread() {}
+CTcpAcceptThread::CTcpAcceptThread() : m_net(0), m_recvQLock(0), m_recvBLock(0) {}
+
+CTcpAcceptThread::~CTcpAcceptThread()
+{
+    m_recvQLock = 0;
+    m_net = 0;
+}
+
 void CTcpAcceptThread::attach(CTcpNetSystem* net)
 {
-    if (!net)
-        return;
-    m_net = net;
-    m_recvQLock = net->Get_TcpRecvQLock();
-    m_recvBLock = net->Get_TcpRecvBLock();
-    m_port = net->Get_TcpServerPort();
+    if (net)
+    {
+        m_net = net;
+        m_recvQLock = net->Get_TcpRecvQLock();
+        m_recvBLock = net->Get_TcpRecvBLock();
+        m_port = net->Get_TcpServerPort();
+    }
 }
 void CTcpAcceptThread::dispatch(void* param)
 {
