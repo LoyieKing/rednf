@@ -292,7 +292,7 @@ void ChannelServiceApp::EncyptTool::createEncKey()
     sprintf(EncKey, "%04d%02d%02d", t.tm_year + 0x76c, t.tm_mon + 1, t.tm_mday);
     sprintf(EncKey + 8, "%02d%02d%02d", t.tm_hour, t.tm_min, t.tm_sec);
     EncKey[0xe] = '\0';
-    pcryptRijndael->Initialize(EncKey, 0x20, "", 0x10, 0x10, 0, 0);
+    pcryptRijndael->Initialize(EncKey, 0x20, CRijndael::sm_chain0, 0x10, 0x10, 0, 0);
 }
 
 char* ChannelServiceApp::EncyptTool::getEncKey()
@@ -795,7 +795,7 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
     encMsg->AttachStream((char*)&buffer, enc_len);
     encMsg->PAD();
     u->onWrite2Buffer(encMsg);
-    GLOG(gFileLogInfo, "Out  " << "onCS_CHECK_SCRIPT_VERSION");
+    GLOG(gFileLogInfo, "Out " << "onCS_CHECK_SCRIPT_VERSION");
     return 1;
 }
 

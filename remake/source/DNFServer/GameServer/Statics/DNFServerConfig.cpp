@@ -54,12 +54,9 @@ ST_ServerInfo* CServerConfig::GetServerInfo()
 {
     return m_servers;
 }
-ST_ServerInfo::ST_ServerInfo() : m_string()
+ST_ServerInfo::ST_ServerInfo()
+    : m_field0(0), m_field1(0), m_field2(0xff), m_ushort(0)
 {
-    m_field0 = 0;
-    m_field1 = 0;
-    m_field2 = 0xff;
-    m_ushort = 0;
 }
 CServerConfig::CServerConfig()
 {

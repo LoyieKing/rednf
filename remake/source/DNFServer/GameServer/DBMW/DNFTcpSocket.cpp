@@ -70,19 +70,18 @@ int TCPSocket::send(char* buf, int len)
     int n = write(m_fd, buf, len);
     if (n <= 0)
     {
-        int e = errno;
-        if (e == 0xb || e == 0x4 || e == 0xb)
+        if (errno == 0xb || errno == 0x4 || errno == 0xb)
         {
-            printf("tcp send fail='%d', error ='%s'", n, strerror(e));
+            printf("tcp send fail='%d', error ='%s'", n, strerror(errno));
             return -1;
         }
-        if (e != 0)
+        if (errno != 0)
         {
-            printf("tcp send retry='%d', error ='%s'", n, strerror(e));
+            printf("tcp send retry='%d', error ='%s'", n, strerror(errno));
             return 0;
         }
         printf("send error no 0");
-        printf("tcp send retry='%d', error ='%s'", n, strerror(e));
+        printf("tcp send retry='%d', error ='%s'", n, strerror(errno));
         return 0;
     }
     printf("tcp send='%d', error ='%s'", n, strerror(errno));
@@ -98,15 +97,14 @@ int TCPSocket::recv(char* buf, int len)
     int n = read(m_fd, buf, len);
     if (n < 0)
     {
-        int e = errno;
-        if (e == 0xb || e == 0x4 || e == 0xb)
+        if (errno == 0xb || errno == 0x4 || errno == 0xb)
         {
             if (n != 0)
                 return n;
-            printf("tcp recv : FIN recv, %s", strerror(e));
+            printf("tcp recv : FIN recv, %s", strerror(errno));
             return -1;
         }
-        if (e != 0)
+        if (errno != 0)
             return n;
         return 0;
     }

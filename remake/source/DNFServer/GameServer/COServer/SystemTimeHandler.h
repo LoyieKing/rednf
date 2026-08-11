@@ -15,8 +15,13 @@ public:
 class CSystemTime
 {
 public:
-    CSystemTime();
-    ~CSystemTime();
+    CSystemTime()
+    {
+        gettimeofday(&m_tv, 0);
+        m_sec = m_tv.tv_sec;
+        m_msec = m_tv.tv_usec / 1000;
+    }
+    ~CSystemTime() {}
     int m_field0;     // +0
     int m_msec;       // +4
     struct timeval m_tv;  // +8
@@ -27,7 +32,7 @@ class CSystemTimeHandler : public CSystemTime
 {
 public:
     CSystemTimeHandler();
-    ~CSystemTimeHandler();
+    ~CSystemTimeHandler() {}
 };
 
 CSystemTimeHandler* CSystemTimeHandlerInstance();

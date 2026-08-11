@@ -110,8 +110,8 @@ public:
 class CInnerMsgHandler
 {
 public:
-    CInnerMsgHandler();
-    ~CInnerMsgHandler();
+    CInnerMsgHandler() throw();
+    ~CInnerMsgHandler() throw();
 };
 
 // 全局单例

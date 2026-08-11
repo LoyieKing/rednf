@@ -33,11 +33,10 @@ CUser *CUserManager::find_user(unsigned int m_id) {
 }
 
 CUser *CUserManager::find_user(char service_id, char const *user_id_what) {
-    // 原始：CFindUser 局部对象 + end/begin 先求值（值传递副本 [ebp-0x38]）
+    // 原始：CFindUser 局部对象 + find_if(users.begin(), users.end(), finder) 内联求值
+    // （槽位：finder@-0x33、end 临时@-0x14、begin 临时@-0x10、user@-0x38）
     CFindUser finder(service_id, user_id_what);
-    std::map<unsigned int, CUser>::iterator end = users.end();
-    std::map<unsigned int, CUser>::iterator begin = users.begin();
-    std::map<unsigned int, CUser>::iterator user = std::find_if(begin, end, finder);
+    std::map<unsigned int, CUser>::iterator user = std::find_if(users.begin(), users.end(), finder);
     // 原始：!= end 分支在前（调用 ne + test al,al; je）
     if (user != users.end()) {
         return &user->second;

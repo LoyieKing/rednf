@@ -34,11 +34,20 @@ template<class T>
 void* MemPool<T>::alloc()
 {
     void* result;
-    if (m_classSize == 0x204)
+    if (m_classSize != 0x204)
     {
-        if (headOfFreeList_ == 0)
+        result = ::operator new(0x204);
+    }
+    else
+    {
+        result = headOfFreeList_;
+        if (result != 0)
         {
-            void* block = ::operator new(m_classSize * m_count);
+            headOfFreeList_ = *(void**)((int)result + 0x200);
+        }
+        else
+        {
+            void* block = ::operator new(m_count * m_classSize);
             for (unsigned int i = 0; i < m_count - 1U; i++)
             {
                 *(void**)((int)block + i * 0x204 + 0x200) = (void*)((i + 1) * 0x204 + (int)block);
@@ -49,15 +58,6 @@ void* MemPool<T>::alloc()
             m_chunks.push_back(static_cast<void*&&>(block));
             DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize, m_count * (int)m_chunks.size());
         }
-        else
-        {
-            result = headOfFreeList_;
-            headOfFreeList_ = *(void**)((int)headOfFreeList_ + 0x200);
-        }
-    }
-    else
-    {
-        result = ::operator new(0x204);
     }
     return result;
 }
@@ -68,7 +68,7 @@ void MemPool<T>::free(void* p)
     if (p != 0)
     {
         void* q = p;
-        *((void**)q + 0x80) = headOfFreeList_;
+        ((void**)q)[0x80] = headOfFreeList_;
         headOfFreeList_ = q;
     }
 }
@@ -78,14 +78,14 @@ void MemPool<T>::free(void* p, unsigned int size)
 {
     if (p != 0)
     {
-        if (m_classSize != (int)size)
+        if (m_classSize != size)
         {
             ::operator delete(p);
         }
         else
         {
             void* q = p;
-            *((void**)q + 0x80) = headOfFreeList_;
+            ((void**)q)[0x80] = headOfFreeList_;
             headOfFreeList_ = q;
         }
     }

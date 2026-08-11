@@ -263,7 +263,6 @@ public:
     unsigned short m_port; // +4
     int m_sock;            // +8
     void* m_net;           // +0xc
-    int m_field10;         // +0x10
 };
 
 class CDBServer : public CServerInterface

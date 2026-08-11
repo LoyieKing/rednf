@@ -31,7 +31,11 @@
 #include "DNFServerHandler.h"
 #include "DNFUser.h"
 
-CBuddyHandle::CBuddyHandle() {}
+CBuddyHandle::CBuddyHandle()
+{
+    m_prUser = 0;
+    m_field1c = 0;
+}
 
 unsigned short CBuddyHandle::GetBuddyDBFlag() { return m_field1c; }
 
@@ -301,4 +305,3 @@ void CBuddyHandle::clear(bool flag)
         m_buddies.clear();
     }
 }
-

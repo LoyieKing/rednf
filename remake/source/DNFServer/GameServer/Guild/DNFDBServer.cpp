@@ -112,11 +112,12 @@ bool CDBServer::Destroy()
 
 CTcpDBServer::CTcpDBServer()
 {
-    m_ip = std::string();
     m_port = 0;
     m_sock = -1;
     m_net = 0;
     m_guildMgr = 0;
+    // ORIG：string 成员默认构造后再显式 clear()（无临时对象 + assign）
+    m_ip.clear();
 }
 
 CTcpDBServer::~CTcpDBServer()
@@ -226,4 +227,3 @@ unsigned short CTcpDBServer::GetPort()
 {
     return m_port;
 }
-

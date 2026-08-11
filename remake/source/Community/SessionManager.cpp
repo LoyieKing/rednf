@@ -175,10 +175,10 @@ int CEpoll<Session>::WaitForEvent(int timeout) {
 
 template<class Session>
 CEpoll<Session>::~CEpoll() {
-    if(this->epollEvents != NULL) {
+    if (this->epollEvents != NULL) {
         delete[] this->epollEvents;
+        this->epollEvents = NULL;
     }
-    this->epollEvents = NULL;
 }
 
 template class CEpoll<CNetworkSession>;

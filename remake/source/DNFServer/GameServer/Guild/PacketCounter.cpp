@@ -146,13 +146,23 @@ void CPacketCounter<Lo, Hi>::Reset()
 
 template class CPacketCounter<1000, 10240>;
 
+#pragma pack(push,1)
+struct Packet_DB_Request_Approve_Join_Guild_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    unsigned int m12;
+    unsigned char m16;
+};
+#pragma pack(pop)
 Packet_DB_Request_Approve_Join_Guild::Packet_DB_Request_Approve_Join_Guild()
     : PacketHeader(0x1bc4, 0x17)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned int*)((char*)this + 0x12) = 0;
-    *(unsigned char*)((char*)this + 0x16) = 0x0;
+    ((Packet_DB_Request_Approve_Join_Guild_Layout*)this)->ma = 0;
+    ((Packet_DB_Request_Approve_Join_Guild_Layout*)this)->me = 0;
+    ((Packet_DB_Request_Approve_Join_Guild_Layout*)this)->m12 = 0;
+    ((Packet_DB_Request_Approve_Join_Guild_Layout*)this)->m16 = 0;
 }
 
 Packet_Guild_Attendance_Info_Reply::Packet_Guild_Attendance_Info_Reply()
@@ -178,11 +188,19 @@ Packet_Guild_Reply_Guild_Board::Packet_Guild_Reply_Guild_Board()
     memset((char*)this + 0x18, 0, 0x672);
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Load_Request_Guild_Board_Open_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_DB_Load_Request_Guild_Board_Open::Packet_DB_Load_Request_Guild_Board_Open()
     : PacketHeader(0x232b, 0x12)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_DB_Load_Request_Guild_Board_Open_Layout*)this)->ma = 0;
+    ((Packet_DB_Load_Request_Guild_Board_Open_Layout*)this)->me = 0;
 }
 
 Packet_DB_Load_Request_Guild_Board_Write::Packet_DB_Load_Request_Guild_Board_Write()
@@ -195,28 +213,55 @@ Packet_DB_Load_Request_Guild_Board_Write::Packet_DB_Load_Request_Guild_Board_Wri
     *(unsigned int*)((char*)this + 0x13) = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Load_Request_Guild_Board_Delete_Layout
+{
+    char pad0x0[0xa];
+    unsigned char ma;
+    unsigned int mb;
+    unsigned int mf;
+    unsigned int m13;
+};
+#pragma pack(pop)
 Packet_DB_Load_Request_Guild_Board_Delete::Packet_DB_Load_Request_Guild_Board_Delete()
     : PacketHeader(0x2333, 0x17)
 {
-    *(unsigned char*)((char*)this + 0xa) = 0x0;
-    *(unsigned int*)((char*)this + 0xb) = 0;
-    *(unsigned int*)((char*)this + 0xf) = 0;
-    *(unsigned int*)((char*)this + 0x13) = 0;
+    ((Packet_DB_Load_Request_Guild_Board_Delete_Layout*)this)->ma = 0;
+    ((Packet_DB_Load_Request_Guild_Board_Delete_Layout*)this)->mb = 0;
+    ((Packet_DB_Load_Request_Guild_Board_Delete_Layout*)this)->mf = 0;
+    ((Packet_DB_Load_Request_Guild_Board_Delete_Layout*)this)->m13 = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_Guild_Reply_Guild_Board_Delete_Layout
+{
+    char pad0x0[0xa];
+    unsigned short ma;
+    unsigned int mc;
+    unsigned int m10;
+};
+#pragma pack(pop)
 Packet_Guild_Reply_Guild_Board_Delete::Packet_Guild_Reply_Guild_Board_Delete()
     : PacketHeader(0x2332, 0x14)
 {
-    *(unsigned short*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xc) = 0;
-    *(unsigned int*)((char*)this + 0x10) = 0;
+    ((Packet_Guild_Reply_Guild_Board_Delete_Layout*)this)->ma = 0;
+    ((Packet_Guild_Reply_Guild_Board_Delete_Layout*)this)->mc = 0;
+    ((Packet_Guild_Reply_Guild_Board_Delete_Layout*)this)->m10 = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Load_Request_Web_Guild_Board_Write_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    unsigned int m12;
+};
+#pragma pack(pop)
 Packet_DB_Load_Request_Web_Guild_Board_Write::Packet_DB_Load_Request_Web_Guild_Board_Write()
     : PacketHeader(0x233e, 0x16)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned int*)((char*)this + 0x12) = 0;
+    ((Packet_DB_Load_Request_Web_Guild_Board_Write_Layout*)this)->ma = 0;
+    ((Packet_DB_Load_Request_Web_Guild_Board_Write_Layout*)this)->me = 0;
+    ((Packet_DB_Load_Request_Web_Guild_Board_Write_Layout*)this)->m12 = 0;
 }
-

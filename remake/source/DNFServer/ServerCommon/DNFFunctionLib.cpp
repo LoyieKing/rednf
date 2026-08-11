@@ -48,6 +48,14 @@ static std::string gDatabaseEncoding;
 // 与 ORIG 一致；写成 char[0x200] + index*0x40 会产生 add 形态（§39 伪影）。
 static __thread char gNumberToStringBuffer[8][0x40];
 
+// 注（2026-08-11 修正）：不要在此处“还原”匿名命名空间的 get_global()。
+// ORIG 二进制 TLS 块中的 _ZZN12_GLOBAL__N_110get_globalEvE6global（.tbss
+// 偏移 0x200，位于 gNumberToStringBuffer 之后，使缓冲区地址为 GS-0x208）
+// 来自静态链接的 libstdc++ eh_globals.o（标准库内部符号），并非项目函数。
+// 曾按同名同形伪造一份，导致本项目对象与 libstdc++ 各持一个同名 LOCAL TLS
+// 符号、链接不合并，.tbss 变 0x210、缓冲区偏移错误地变成 GS-0x210。
+// 删除伪造定义后，仅保留 libstdc++ 提供的唯一副本，TLS 布局恢复 GS-0x208。
+
 char* NumberToString(unsigned int value, int index) {
     sprintf(gNumberToStringBuffer[index], "%u", value);
     return gNumberToStringBuffer[index];
@@ -75,7 +83,9 @@ void PrintBackTrace() {
     for (int index = 0; index < count; index++) {
         // 原始：先取 symbols[index] 到局部变量（触发 ebx 保存，ctor 调用前取值）
         register char* s = symbols[index];
-        CMyFileLog log("PrintBackTrace", 0x1d1);
+        // 行号实参以 ORIG 二进制实测为准（0x186=390；DWARF decl_line 465=0x1d1
+        // 是伪 C 还原的猜测值，与二进制不符，2026-08-11 修正）
+        CMyFileLog log("PrintBackTrace", 0x186);
         log("./log/BackTrace", s);
     }
     free(symbols);
@@ -168,11 +178,11 @@ unsigned int SDC_Rand(unsigned int* seed) {
     a *= 0x41c64e6d;
     a += 0x3039;
     result <<= 10;
-    result ^= (a >> 0x10) & 0x3ff;
+    result = result ^ ((a >> 0x10) & 0x3ff);
     a *= 0x41c64e6d;
     a += 0x3039;
     result <<= 10;
-    result ^= (a >> 0x10) & 0x3ff;
+    result = result ^ ((a >> 0x10) & 0x3ff);
     *seed = a;
     return result;
 }

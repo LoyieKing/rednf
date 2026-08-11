@@ -276,7 +276,7 @@ char CDBManager::OnCreateGuildAgit(Packet_DB_Create_Guild_Agit* req,
         *(int*)((char*)&reply + 0x12) = 2;
         CMyFileLog log("OnCreateGuildAgit", 0x1975);
         log("./log/DBQueryErr",
-            "upDate_into_guild_info_guild_agit_flag Query Error\n");
+            "inSert_into_guild_Agit Query Error\n");
         return 0;
     }
     h->set_query(0x4eb4,
@@ -1748,18 +1748,17 @@ STBlackUserDBType::STBlackUserDBType()
     memset((char*)this + 4, 0, 0x1e);
 }
 STGuildBoardDBInfo::STGuildBoardDBInfo()
+    : m_member()
 {
-    new ((STGuildMemberCharacData*)((char*)this + 0x84)) STGuildMemberCharacData;
     *(int*)((char*)this + 0x78) = 0;
     *(int*)((char*)this + 0x7c) = 0;
     *(int*)((char*)this + 0x80) = 0;
     memset(this, 0, 0x78);
 }
 STGuildCargoDBInfo::STGuildCargoDBInfo()
+    : m_items()
 {
-    for (int i = 0x76; i != -1; i--)
-        new ((DnfItemInfo*)((char*)this + i * 0x35)) DnfItemInfo;
-    *(int*)((char*)this + 0x18d8) = 0;
+    m_tail = 0;
 }
 STGuildMemerDBInfo::STGuildMemerDBInfo()
 {
@@ -3260,7 +3259,7 @@ char CDBManager::OnDeleteGuildAgit(Packet_DB_Delete_Guild_Agit* req,
         *(int*)((char*)&reply + 0x12) = 2;
         CMyFileLog log("OnDeleteGuildAgit", 0x199d);
         log("./log/DBQueryErr",
-            "upDate_into_guild_info_guild_agit_flag Query Error\n");
+            "deLete_from_guild_Agit Query Error\n");
         return 0;
     }
     h->set_query(0x4eb4,

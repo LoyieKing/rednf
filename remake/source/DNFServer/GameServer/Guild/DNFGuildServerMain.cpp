@@ -72,7 +72,14 @@
 int main(int argc, char** argv)
 {
     CApplication* app = CApplicationInstance();
-    app->Create(argc, argv);
-    return 0;
+    try
+    {
+        app->Create(argc, argv);
+        app->Process();
+    }
+    catch (...)
+    {
+        app->Clear();
+    }
+    return 1;
 }
-

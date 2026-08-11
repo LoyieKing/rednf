@@ -123,12 +123,19 @@ unsigned char AuctionDictionary::getExpiringTime(long expirationTime, long nowTi
 
 char* AuctionDictionary::getCharacterName(int characterId)
 {
+    // ORIG 失败分支返回 .rodata:0x8151740：该处是 4 字节 NUL 对齐填充 +
+    // "getCharacterName, failed(), characterId : %d" 日志串（C 语义为空字符串，
+    // 首个字节即 NUL）。重建不得硬编码 ORIG 地址，改为等长 const 静态缓冲，
+    // 精确复刻 ORIG 的 64 字节数据快照（含紧邻的日志表串尾），
+    // 使伪代码化 &data#hash 与 ORIG 完全一致（IDENTICAL_AE）。
+    static const char s_failedCharacterName[] =
+        "\x00\x00\x00\x00getCharacterName, failed(), characterId : %d\x00%llu:%d:%d:%d:%";
     std::map<const int, CharacterNameStruct*>::iterator iter =
         mCharacterNameTable.find(characterId);
     if (iter == mCharacterNameTable.end())
     {
         G_TraceLog()->sysLog(7, "getCharacterName, failed(), characterId : %d", characterId);
-        return (char*)0x8151740;
+        return const_cast<char*>(s_failedCharacterName);
     }
     return (char*)iter->second;
 }

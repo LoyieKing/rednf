@@ -76,13 +76,13 @@ void CTcpDBServer::Clear()
     m_ip.clear();
 }
 
-void CTcpDBServer::Init(CTcpNetSystem* net) {}
+void CTcpDBServer::Init(CTcpNetSystem* net) { m_net = net; }
 
 void CTcpDBServer::SetIP(std::string ip) {}
 
-void CTcpDBServer::SetPort(unsigned short port) {}
+void CTcpDBServer::SetPort(unsigned short port) { m_port = port; }
 
-int* CTcpDBServer::GetSockRef() { return 0; }
+int* CTcpDBServer::GetSockRef() { return &m_sock; }
 
 int CTcpDBServer::GetSock() { return m_sock; }
 
@@ -158,4 +158,3 @@ void CTcpDBServer::SendToServer(char* buf)
 {
     ((CTcpNetSystem*)m_net)->PushTcpSendPacketQ(buf);
 }
-

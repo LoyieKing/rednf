@@ -161,7 +161,16 @@ int CSignalTranslator::regist_signal(int sig, void (*handler)(int))
     struct sigaction old;
     sa.sa_handler = (__sighandler_t)handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = (sig == 0xe) ? 0x20000000 : 0x10000000;
+    int flags = 0;
+    if (sig == 0xe)
+    {
+        flags |= 0x20000000;
+    }
+    else
+    {
+        flags |= 0x10000000;
+    }
+    sa.sa_flags = flags;
     int r = sigaction(sig, &sa, &old);
     if (-1 >= r)
     {

@@ -85,7 +85,7 @@ bool regist_signal(int signal, func_void_int *handler) {
     // 原始：call sigaction 后 shr eax,0x1f + test al,al + je（调用结果直接入条件 < 0）
     if (sigaction(signal, &sa, &uap) < 0) {
         // EUC-KR："%d번 signal 등록 실패"
-        printf("%d\271\370 signal \265\356\267\317 \275\307\306\320", signal);
+        printf("%d\271\370 signal \265\356\267\317 \275\307\306\320\n", signal);
         return 0;
     }
     return 1;

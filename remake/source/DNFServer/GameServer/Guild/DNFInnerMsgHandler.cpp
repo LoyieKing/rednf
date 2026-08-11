@@ -75,15 +75,23 @@ CInnerMsgHandler::~CInnerMsgHandler()
 {
 }
 
+#pragma pack(push,1)
+struct Packet_Server_Queue_Load_Statistic_Layout
+{
+    char pad0x0[0xa];
+    unsigned char ma;
+    unsigned char mb;
+    unsigned short mc;
+};
+#pragma pack(pop)
 Packet_Server_Queue_Load_Statistic::Packet_Server_Queue_Load_Statistic()
     : PacketHeader(0x9d2, 0xe)
 {
-    *(unsigned char*)((char*)this + 0xa) = 0x0;
-    *(unsigned char*)((char*)this + 0xb) = 0x0;
-    *(unsigned short*)((char*)this + 0xc) = 0;
+    ((Packet_Server_Queue_Load_Statistic_Layout*)this)->ma = 0;
+    ((Packet_Server_Queue_Load_Statistic_Layout*)this)->mb = 0;
+    ((Packet_Server_Queue_Load_Statistic_Layout*)this)->mc = 0;
 }
 
 void CInnerMsgHandler::SendStopNetworkThread()
 {
 }
-

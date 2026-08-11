@@ -18,9 +18,10 @@ void CSignal::dump_core_file()
 {
     CPacketTracerInstance()->AbsoluteWriteLog();
     struct rlimit rl;
-    getrlimit(RLIMIT_CORE, &rl);
+    volatile int r;
+    r = getrlimit(RLIMIT_CORE, &rl);
     rl.rlim_cur = 0xffffffff;
-    setrlimit(RLIMIT_CORE, &rl);
+    r = setrlimit(RLIMIT_CORE, &rl);
     abort();
 }
 CSignal::CSignal()

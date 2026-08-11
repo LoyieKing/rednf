@@ -119,6 +119,20 @@ dnf_service(auction
         -no-pie -static-libgcc -lpthread -ldl ${DF_ZLIB32}/lib/libz.a -lm
 )
 
+# __FILE__ 覆盖：复刻 ORIG 的 assert 路径字符串（见 auction_filepath_override.h）。
+# 仅影响 auction 构建；point/其它服务不受影响。
+set(_AUCTION_FILEPATH_H "${CMAKE_CURRENT_LIST_DIR}/auction_filepath_override.h")
+set_source_files_properties(${CORE}/SecureStdio.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_AUCTION_FILEPATH_H};-DAUCTION_FILEPATH_SECURESTDIO")
+set_source_files_properties(${BASIC}/RecvBuffer.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_AUCTION_FILEPATH_H};-DAUCTION_FILEPATH_RECVBUFFER")
+set_source_files_properties(${COMMON}/CommonDataPool.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_AUCTION_FILEPATH_H};-DAUCTION_FILEPATH_COMMONDATAPOOL")
+set_source_files_properties(${BASIC}/Token.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_AUCTION_FILEPATH_H};-DAUCTION_FILEPATH_TOKEN")
+set_source_files_properties(${COMMON}/LogSendThread.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_AUCTION_FILEPATH_H};-DAUCTION_FILEPATH_LOGSENDTHREAD")
+
 # 链接用宿主 g++（与 build-auction.sh 一致：-m32 -no-pie -static-libgcc）。
 find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)
 set(CMAKE_CXX_LINK_EXECUTABLE "${DNF_HOST_GXX} -m32 -no-pie <OBJECTS> -o <TARGET> <LINK_FLAGS> <LINK_LIBRARIES>")

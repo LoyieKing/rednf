@@ -61,6 +61,23 @@ void Neof_SignalHandler(int sig)
 {
     switch (sig)
     {
+    case 0xf:
+        Neof_SignalLog("SIGTERM - LinuxService::getInstance()->controlStop()");
+        LinuxService::getInstance()->controlStop();
+        break;
+    case 10:
+        Neof_SignalLog("SIGUSR1 - LinuxService::getInstance()->controlPause()");
+        LinuxService::getInstance()->controlPause();
+        break;
+    case 6:
+    case 0xb:
+        Neof_SignalLog("SIGSEGV/SIGABRT - Neof_dumpCoreFile()");
+        Neof_dumpCoreFile();
+        break;
+    case 8:
+        Neof_SignalLog("SIGFPE - Neof_dumpCoreFile()");
+        Neof_dumpCoreFile();
+        break;
     case 4:
     case 7:
     case 0x10:
@@ -72,22 +89,6 @@ void Neof_SignalHandler(int sig)
             "SIGILL/SIGBUS/SIGSTKFLT/SIGURG/SIGXCPU/SIGXFSZ/SIGSYS - Neof_dumpCoreFile(), exit(-1)");
         Neof_dumpCoreFile();
         exit(-1);
-    case 6:
-    case 0xb:
-        Neof_SignalLog("SIGSEGV/SIGABRT - Neof_dumpCoreFile()");
-        Neof_dumpCoreFile();
-        break;
-    case 8:
-        Neof_SignalLog("SIGFPE - Neof_dumpCoreFile()");
-        Neof_dumpCoreFile();
-        break;
-    case 10:
-        Neof_SignalLog("SIGUSR1 - LinuxService::getInstance()->controlPause()");
-        LinuxService::getInstance()->controlPause();
-        break;
-    case 0xf:
-        Neof_SignalLog("SIGTERM - LinuxService::getInstance()->controlStop()");
-        LinuxService::getInstance()->controlStop();
     }
 }
 
@@ -131,7 +132,7 @@ bool Neof_sendTerminateSignal()
 {
     puts("called Neof_sendTerminateSignal");
     char path[30] = {0};
-    char buf[30] = {0};
+    char buf[30];
     snprintf(path, 0x1e, "pid/%s.pid",
              LinuxService::getInstance()->getPIDFileName());
     FILE* f = fopen(path, "r");
@@ -162,7 +163,7 @@ bool Neof_sendTerminateSignal()
 void Neof_sendSuspendSignal()
 {
     char path[30] = {0};
-    char buf[30] = {0};
+    char buf[30];
     snprintf(path, 0x1e, "pid/%s",
              LinuxService::getInstance()->getPIDFileName());
     FILE* f = fopen(path, "r");

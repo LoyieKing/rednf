@@ -11,7 +11,7 @@ public:
     StackBuffer(const StackBuffer& other);
     ~StackBuffer();
     StackBuffer& operator=(const StackBuffer& other);
-    void alloc(unsigned int size);
+    static StackBuffer alloc(unsigned int size);
     void freeAll();
     char* getBuffer();
     char* m_buf;   // +0
@@ -21,14 +21,14 @@ public:
 class StackBuffer_char : public StackBuffer
 {
 public:
-    void alloc(unsigned int size);
+    static StackBuffer_char alloc(unsigned int size);
     operator char*();
 };
 
 class StackBuffer_wchar : public StackBuffer
 {
 public:
-    void alloc(unsigned int size);
+    static StackBuffer_wchar alloc(unsigned int size);
     operator wchar_t*();
 };
 

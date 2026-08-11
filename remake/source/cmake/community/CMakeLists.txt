@@ -1,86 +1,67 @@
 cmake_minimum_required(VERSION 3.10)
+project(community CXX)
 
 # ============================================================
-# df_community_r  CMake 构建（独立自包含，沿用 source/CMakeLists.txt 的 community
-# 构建逻辑：系统编译器 GCC 13 + -m32 + 静态 libstdc++/libgcc + gnu++0x）
-# 不引入 GCC 4.x 工具链文件（社区官方口径 113 IDENT 由该系统编译器构建达成）。
+# df_community_r  CMake 构建（2026-08-11 切换为 GCC 4.4.6 精确对齐工具链）
+#
+# 原系统编译器(GCC 13)构建与 ORIG(GCC 4.4.6-3)代码生成差异过大，265 个函数全部
+# DIFF。与 channel/bridge/auction/point 相同方案：c6root 4.4.7 驱动 + cc1plus
+# 4.4.6（DF_CC_VARIANT=c6446r），dnf_toolchain_44.cmake 提供 -nostdinc + c6root
+# 头文件；链接用宿主 g++ -m32 -no-pie（同 build-channel.sh）。
+#
+# 用法:
+#   cmake -S source/cmake/community -B build/community \
+#       -DCMAKE_TOOLCHAIN_FILE=source/toolchain/cmake/dnf_toolchain_44.cmake \
+#       -DDF_CC_VARIANT=c6446r -DDF_TC_ROOT=/tmp
+#   cmake --build build/community -j4
 # ============================================================
-project(community C CXX)
-message(STATUS "Using system compiler")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
 
-# --- C++ standard matching original build ---
-if(NOT DF_CXX_STANDARD)
-    set(DF_CXX_STANDARD gnu++0x)
-endif()
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=${DF_CXX_STANDARD}")
+set(DNF_SRC "${CMAKE_CURRENT_LIST_DIR}/../..")
+include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
 
-# --- Global compiler/linker flags（同 source/CMakeLists.txt community 段）---
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "8")
-    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -m32 -pthread -O0 -fno-pie -fno-PIC")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32 -pthread -O0 -fno-pie -fno-PIC -D_GLIBCXX_USE_CXX11_ABI=0 -static-libstdc++ -static-libgcc")
-    set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} -m32 -pthread -no-pie -static-libstdc++ -static-libgcc -lpthread -lrt -lm")
-else()
-    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -m32 -pthread -O0")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32 -pthread -O0")
-    set(CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS} -m32 -pthread")
-endif()
-set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -m32 -pthread")
-set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -m32 -pthread")
+set(COMMUNITY     "${DNF_SRC}/Community")
+set(SERVERCOMMON  "${DNF_SRC}/DNFServer/ServerCommon")
+set(SHARED        "${DNF_SRC}/shared")
 
-set(CMAKE_C_FLAGS_DEBUG "-g -O0")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
-set(CMAKE_C_FLAGS_RELEASE "-O0")
-set(CMAKE_CXX_FLAGS_RELEASE "-O0")
-set(CMAKE_C_FLAGS_RELWITHDEBINFO "-g -O0")
-set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-g -O0")
-set(CMAKE_C_FLAGS_MINSIZEREL "-O0")
-set(CMAKE_CXX_FLAGS_MINSIZEREL "-O0")
-
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE Debug)
-endif()
-
-set(SRC_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
-set(COMMUNITY ${SRC_ROOT}/Community)
-
-set(DF_COMMUNITY_R_SOURCES
-    ${COMMUNITY}/ArchiveLog.cpp
-    ${COMMUNITY}/BuddyManager.cpp
-    ${COMMUNITY}/CommunityServer.cpp
-    ${COMMUNITY}/ConfigFileReader.cpp
-    ${COMMUNITY}/CoreDump.cpp
-    ${COMMUNITY}/GlobalFunction.cpp
-    ${COMMUNITY}/GlobalInstance.cpp
-    ${COMMUNITY}/NetworkSession.cpp
-    ${COMMUNITY}/PacketDispatcher.cpp
-    ${COMMUNITY}/PacketParser.cpp
-    ${COMMUNITY}/PacketProc.cpp
-    ${COMMUNITY}/ProcessManager.cpp
-    ${COMMUNITY}/SessionManager.cpp
-    ${COMMUNITY}/User.cpp
-    ${COMMUNITY}/UserManager.cpp
-    ${COMMUNITY}/rand_r.cpp
-    ${SRC_ROOT}/DNFServer/ServerCommon/DNFFileLog.cpp
-    ${SRC_ROOT}/DNFServer/ServerCommon/CFileLogWriterBase.cpp
-    ${SRC_ROOT}/DNFServer/ServerCommon/DNFFunctionLib.cpp
-    ${SRC_ROOT}/DNFServer/ServerCommon/Thread.cpp
-    ${SRC_ROOT}/shared/packet/src/PacketHeader.cpp
-    ${SRC_ROOT}/shared/packet/src/STGameUserInfo.cpp
-    ${SRC_ROOT}/shared/packet/src/STPvPBuddyDBInfo.cpp
+dnf_service(community
+    SOURCES
+        ${COMMUNITY}/ArchiveLog.cpp
+        ${COMMUNITY}/BuddyManager.cpp
+        ${COMMUNITY}/CommunityServer.cpp
+        ${COMMUNITY}/ConfigFileReader.cpp
+        ${COMMUNITY}/CoreDump.cpp
+        ${COMMUNITY}/GlobalFunction.cpp
+        ${COMMUNITY}/GlobalInstance.cpp
+        ${COMMUNITY}/NetworkSession.cpp
+        ${COMMUNITY}/PacketDispatcher.cpp
+        ${COMMUNITY}/PacketParser.cpp
+        ${COMMUNITY}/PacketProc.cpp
+        ${COMMUNITY}/ProcessManager.cpp
+        ${COMMUNITY}/SessionManager.cpp
+        ${COMMUNITY}/User.cpp
+        ${COMMUNITY}/UserManager.cpp
+        ${COMMUNITY}/rand_r.cpp
+        ${SERVERCOMMON}/DNFFileLog.cpp
+        ${SERVERCOMMON}/CFileLogWriterBase.cpp
+        ${SERVERCOMMON}/DNFFunctionLib.cpp
+        ${SERVERCOMMON}/Thread.cpp
+        ${SHARED}/packet/src/PacketHeader.cpp
+        ${SHARED}/packet/src/STGameUserInfo.cpp
+        ${SHARED}/packet/src/STPvPBuddyDBInfo.cpp
+    INCLUDES
+        -I${COMMUNITY} -I${SERVERCOMMON}
+        -isystem${DNF_SRC}/Library3rd/Boost/Include
+        -I${SHARED} -I${SHARED}/common/include -I${SHARED}/packet/include
+    DEFINES
+        -D_GNU_SOURCE -std=gnu++0x -pthread -DBOOST_DISABLE_ASSERTS
+    SRC_OPTS
+        "${COMMUNITY}/ArchiveLog.cpp|-fno-exceptions"
+        "${SERVERCOMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
+    LINK_FLAGS
+        -no-pie -static-libgcc -lpthread -lrt -lm
 )
-set_source_files_properties(
-    ${COMMUNITY}/ArchiveLog.cpp
-    PROPERTIES COMPILE_FLAGS "-fno-exceptions")
-set_source_files_properties(
-    ${SRC_ROOT}/DNFServer/ServerCommon/CFileLogWriterBase.cpp
-    PROPERTIES COMPILE_FLAGS "-fno-exceptions")
-add_executable(df_community_r ${DF_COMMUNITY_R_SOURCES})
-target_include_directories(df_community_r PRIVATE
-    ${COMMUNITY}
-    ${SRC_ROOT}/DNFServer/ServerCommon
-    ${SRC_ROOT}/Library3rd/Boost/Include
-    ${SRC_ROOT}/shared
-    ${SRC_ROOT}/shared/common/include
-    ${SRC_ROOT}/shared/packet/include
-)
-target_compile_definitions(df_community_r PRIVATE BOOST_DISABLE_ASSERTS)
+
+# 链接用宿主 g++（同 build-channel.sh / build-auction.sh：-m32 -no-pie -static-libgcc）。
+find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)
+set(CMAKE_CXX_LINK_EXECUTABLE "${DNF_HOST_GXX} -m32 -no-pie <OBJECTS> -o <TARGET> <LINK_FLAGS> <LINK_LIBRARIES>")

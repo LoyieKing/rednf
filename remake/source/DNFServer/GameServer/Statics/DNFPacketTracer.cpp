@@ -12,18 +12,15 @@ CPacketTracer* CPacketTracerInstance()
 }
 void CPacketTracer::AddLog(int p1, int p2)
 {
-    time_t t = time(0);
-    tm* pt = localtime(&t);
+    time_t t;
+    time(&t);
+    tm now = *localtime(&t);
     char buf[32];
-    char* p = buf;
-    for (unsigned int i = 0; i < 0x20; i += 4)
+    for (unsigned int i = 0; i < 8; i++)
     {
-        p[i] = '\0';
-        p[i + 1] = '\0';
-        p[i + 2] = '\0';
-        p[i + 3] = '\0';
+        ((unsigned int*)buf)[i] = 0;
     }
-    sprintf(buf, "(%02d:%02d:%02d/%d/%d)", pt->tm_hour, pt->tm_min, pt->tm_sec, p2, p1);
+    sprintf(buf, "(%02d:%02d:%02d/%d/%d)", now.tm_hour, now.tm_min, now.tm_sec, p2, p1);
     m_log += buf;
     m_count++;
 }

@@ -654,8 +654,8 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
         << ", cur version =" << G_ScriptData()->channel_script_version);
     TMsgCell<128> buffer;
     CMsgCell* pMsg = &buffer;
-    register size_t nLen = strlen(G_ScriptData()->channel_script_version);
-    if (strncmp(G_ScriptData()->channel_script_version, _pPCK->channel_script_version, nLen) == 0)
+    if (strncmp(G_ScriptData()->channel_script_version, _pPCK->channel_script_version,
+                strlen(G_ScriptData()->channel_script_version)) == 0)
     {
         pck.is_valid_version = true;
     }
@@ -663,10 +663,9 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
     {
         pck.is_valid_version = false;
     }
-    nLen = strlen(G_ScriptData()->channel_script_version);
-    strncpy(pck.channel_script_version, G_ScriptData()->channel_script_version, nLen);
-    nLen = strlen(G_ScriptData()->channel_script_version);
-    pck.channel_script_version[nLen] = '\0';
+    strncpy(pck.channel_script_version, G_ScriptData()->channel_script_version,
+            strlen(G_ScriptData()->channel_script_version));
+    pck.channel_script_version[strlen(G_ScriptData()->channel_script_version)] = '\0';
     *pMsg << &pck;
     pMsg->PAD();
     u->onWrite2Buffer(pMsg);

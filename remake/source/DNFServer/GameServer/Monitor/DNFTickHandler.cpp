@@ -30,7 +30,6 @@
 
 CFrameCountHandler::CFrameCountHandler() {}
 
-CFrameCountHandler::~CFrameCountHandler() {}
 
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int frameCount,
                                             unsigned short tick)
@@ -120,4 +119,3 @@ void CFrameCountHandler::SaveProcess(int threadNo)
         m_field28 = 0;
     }
 }
-

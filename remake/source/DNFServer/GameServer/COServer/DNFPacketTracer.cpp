@@ -26,7 +26,7 @@ void CPacketTracer::AddLog(int p1, int p2)
     time(&t);
     tm t2 = *localtime(&t);
     char buf[32];
-    for (unsigned int i = 0; i < 0x20; i += 4)
+    for (int i = 0; i < 0x20; i += 4)
     {
         *(unsigned int*)(buf + i) = 0;
     }

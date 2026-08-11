@@ -112,9 +112,17 @@ unsigned int CBlackUser::GetOccurTime()
     return m_time;
 }
 
+#pragma pack(push,1)
+struct STBlackUserDBType_Layout
+{
+    unsigned int m0;
+    char pad0x4[0x20];
+    unsigned int m24;
+};
+#pragma pack(pop)
 STBlackUserDBType::STBlackUserDBType()
 {
-    *(unsigned int*)((char*)this + 0x24) = 0;
+    ((STBlackUserDBType_Layout*)this)->m0 = 0;
+    ((STBlackUserDBType_Layout*)this)->m24 = 0;
     memset((char*)this + 0x4, 0, 0x1e);
 }
-

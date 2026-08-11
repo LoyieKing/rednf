@@ -9,6 +9,7 @@ class CTEA : public IMethod
 public:
     CTEA();
     virtual ~CTEA();
+    static const char sm_chain0[8];  // 初始链向量（全零）
     int Initialize(char const* key, int keyLen, char const* iv, int ivLen, int mode);
     int ResetChain();
     int EncryptBlock(unsigned char const* src, unsigned char* dst);

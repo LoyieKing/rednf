@@ -37,7 +37,7 @@ void TextOutputDevice_FILE::_reopen()
     {
         return;
     }
-    FILE* fp = fopen(m_filename, "a");
+    FILE* fp = fopen(m_filename, "at");
     if (fp == 0)
     {
         return;

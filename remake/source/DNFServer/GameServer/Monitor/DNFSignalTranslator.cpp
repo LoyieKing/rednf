@@ -36,8 +36,8 @@
 
 CSignalTranslator* CSignalTranslatorInstance()
 {
-    static CSignalTranslator inst;
-    return &inst;
+    static CSignalTranslator instance;
+    return &instance;
 }
 
 CSignalTranslator::CSignalTranslator() {}

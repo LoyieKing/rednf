@@ -53,13 +53,13 @@ bool Token::get_token(char* str, int size)
 
 char* Token::get_context(int idx0)
 {
-    assert(idx0 >= 0 && idx0 < MAX_TOKEN);
+    assert(idx0>=0 && idx0<MAX_TOKEN);
     return m_token[idx0];
 }
 
 void Token::free_token(int idx0)
 {
-    assert(idx0 >= 0 && idx0 < MAX_TOKEN);
+    assert(idx0>=0 && idx0<MAX_TOKEN);
     if (m_token[idx0] != NULL)
     {
         operator delete[](m_token[idx0]);

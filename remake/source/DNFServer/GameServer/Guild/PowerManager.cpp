@@ -693,9 +693,17 @@ void CPowerManager::SendPowerWarEndInfoToSpecificUser(CUser* user, unsigned int 
     user->SendToGameserver((char*)&pkt, 0x27);
 }
 
+#pragma pack(push,1)
+struct STUserPoint_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+};
+#pragma pack(pop)
 STUserPoint::STUserPoint()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
+    ((STUserPoint_Layout*)this)->m0 = 0;
+    ((STUserPoint_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_Bonus_Point::Packet_DB_Save_Power_War_Bonus_Point()
@@ -712,9 +720,17 @@ Packet_DB_Save_Power_War_Point::Packet_DB_Save_Power_War_Point()
     (void)0;
 }
 
+#pragma pack(push,1)
+struct STGuildRank_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+};
+#pragma pack(pop)
 STGuildRank::STGuildRank()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
+    ((STGuildRank_Layout*)this)->m0 = 0;
+    ((STGuildRank_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_Guild_Rank::Packet_DB_Save_Power_War_Guild_Rank()
@@ -727,9 +743,17 @@ Packet_DB_Save_Power_War_Guild_Rank::Packet_DB_Save_Power_War_Guild_Rank()
     memset((char*)this + 0x10, 0, 800);
 }
 
+#pragma pack(push,1)
+struct STUserRank_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+};
+#pragma pack(pop)
 STUserRank::STUserRank()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
+    ((STUserRank_Layout*)this)->m0 = 0;
+    ((STUserRank_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_User_Rank::Packet_DB_Save_Power_War_User_Rank()
@@ -744,16 +768,31 @@ Packet_DB_Save_Power_War_User_Rank::Packet_DB_Save_Power_War_User_Rank()
     memset((char*)this + 0x15, 0, 2000);
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Save_Power_War_Statue_Ranker_Layout
+{
+    char pad0x0[0xa];
+    unsigned char ma;
+};
+#pragma pack(pop)
 Packet_DB_Save_Power_War_Statue_Ranker::Packet_DB_Save_Power_War_Statue_Ranker()
     : PacketHeader(0x6da, 0x17)
 {
-    *(unsigned char*)((char*)this + 0xa) = 0x0;
+    ((Packet_DB_Save_Power_War_Statue_Ranker_Layout*)this)->ma = 0;
     memset((char*)this + 0xb, 0, 0xc);
 }
 
+#pragma pack(push,1)
+struct STPowerWarPointInfo_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+};
+#pragma pack(pop)
 STPowerWarPointInfo::STPowerWarPointInfo()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
+    ((STPowerWarPointInfo_Layout*)this)->m0 = 0;
+    ((STPowerWarPointInfo_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_Point_Reward::Packet_DB_Save_Power_War_Point_Reward()
@@ -765,16 +804,29 @@ Packet_DB_Save_Power_War_Point_Reward::Packet_DB_Save_Power_War_Point_Reward()
     memset((char*)this + 0xf, 0, 2000);
 }
 
+#pragma pack(push,1)
+struct Packet_Channel_Power_War_Process_Info_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    unsigned int m12;
+    unsigned int m16;
+    unsigned int m1a;
+    unsigned int m1e;
+    unsigned int m22;
+};
+#pragma pack(pop)
 Packet_Channel_Power_War_Process_Info::Packet_Channel_Power_War_Process_Info()
     : PacketHeader(0x6e0, 0x26)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned int*)((char*)this + 0x12) = 0;
-    *(unsigned int*)((char*)this + 0x16) = 0;
-    *(unsigned int*)((char*)this + 0x1a) = 0;
-    *(unsigned int*)((char*)this + 0x1e) = 0;
-    *(unsigned int*)((char*)this + 0x22) = 0;
+    ((Packet_Channel_Power_War_Process_Info_Layout*)this)->ma = 4294967295;
+    ((Packet_Channel_Power_War_Process_Info_Layout*)this)->me = 0;
+    ((Packet_Channel_Power_War_Process_Info_Layout*)this)->m12 = 0;
+    ((Packet_Channel_Power_War_Process_Info_Layout*)this)->m16 = 0;
+    ((Packet_Channel_Power_War_Process_Info_Layout*)this)->m1a = 0;
+    ((Packet_Channel_Power_War_Process_Info_Layout*)this)->m1e = 0;
+    ((Packet_Channel_Power_War_Process_Info_Layout*)this)->m22 = 0;
 }
 
 Packet_Notice_Power_War_Info::Packet_Notice_Power_War_Info()
@@ -789,17 +841,31 @@ Packet_Notice_Power_War_Rank::Packet_Notice_Power_War_Rank()
     memset((char*)this + 0x10, 0, 0xc);
 }
 
+#pragma pack(push,1)
+struct Packet_Notice_Power_war_End_Info_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    unsigned char m12;
+    unsigned int m13;
+    unsigned int m17;
+    unsigned int m1b;
+    unsigned int m1f;
+    unsigned int m23;
+};
+#pragma pack(pop)
 Packet_Notice_Power_war_End_Info::Packet_Notice_Power_war_End_Info()
     : PacketHeader(0x6b0, 0x27)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned char*)((char*)this + 0x12) = 0x0;
-    *(unsigned int*)((char*)this + 0x13) = 0;
-    *(unsigned int*)((char*)this + 0x17) = 0;
-    *(unsigned int*)((char*)this + 0x1b) = 0;
-    *(unsigned int*)((char*)this + 0x1f) = 0;
-    *(unsigned int*)((char*)this + 0x23) = 0;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->ma = 4294967295;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->me = 0;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->m12 = 0;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->m13 = 0;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->m17 = 0;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->m1b = 0;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->m1f = 0;
+    ((Packet_Notice_Power_war_End_Info_Layout*)this)->m23 = 0;
 }
 
 Packet_Notice_Power_War_End_Time::Packet_Notice_Power_War_End_Time()
@@ -808,11 +874,19 @@ Packet_Notice_Power_War_End_Time::Packet_Notice_Power_War_End_Time()
     (void)0;
 }
 
+#pragma pack(push,1)
+struct Packet_Reply_Power_War_Score_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_Reply_Power_War_Score::Packet_Reply_Power_War_Score()
     : PacketHeader(0x6a5, 0x12)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_Reply_Power_War_Score_Layout*)this)->ma = 0;
+    ((Packet_Reply_Power_War_Score_Layout*)this)->me = 0;
 }
 
 char CPowerManager::GetWinnerSide()
@@ -824,4 +898,3 @@ void CPowerManager::SetWinnerSide(char side)
 {
     *(char*)((char*)this + 0x184) = side;
 }
-

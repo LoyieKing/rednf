@@ -32,8 +32,6 @@
 
 CExchangeServer::CExchangeServer() { m_active = 0; }
 
-CExchangeServer::~CExchangeServer() {}
-
 CExchangeServer* GetInstanceExchangeServer()
 {
     static CExchangeServer instance;

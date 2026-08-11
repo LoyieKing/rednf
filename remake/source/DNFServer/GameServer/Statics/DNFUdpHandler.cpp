@@ -15,7 +15,8 @@ bool SetNonBlock(int fd)
 {
     unsigned int flags = fcntl(fd, 3, 0);
     int r = fcntl(fd, 4, flags | 0x800);
-    return -1 < r;
+    if (r < 0) return 0;
+    return 1;
 }
 CUdpHandler::CUdpHandler()
 {
@@ -30,12 +31,12 @@ int CUdpHandler::InitServerSocket(int port)
         printf("Could not create a UDP socket : %d\n", getErrno());
         return -1;
     }
-    sockaddr local;
+    sockaddr_in local;
     memset(&local, 0, 0x10);
-    local.sa_family = 2;
-    *(unsigned int*)(local.sa_data + 2) = htonl(0);
-    *(unsigned short*)local.sa_data = htons((unsigned short)port);
-    if (bind(m_sock, &local, 0x10) != 0)
+    local.sin_family = 2;
+    local.sin_addr.s_addr = htonl(0);
+    local.sin_port = htons((unsigned short)port);
+    if (bind(m_sock, (sockaddr*)&local, 0x10) != 0)
     {
         int err = getErrno();
         if (err == 0x62)
@@ -79,8 +80,8 @@ int CUdpHandler::RecvFromClient(char* buf, int* len, unsigned int* ip,
         return 0;
     }
     socklen_t slen = 0x10;
-    sockaddr from;
-    ssize_t r = recvfrom(m_sock, buf, *len, 0, &from, &slen);
+    sockaddr_in from;
+    ssize_t r = recvfrom(m_sock, buf, *len, 0, (sockaddr*)&from, &slen);
     *len = r;
     if (r == -1)
     {
@@ -103,8 +104,8 @@ int CUdpHandler::RecvFromClient(char* buf, int* len, unsigned int* ip,
         DNF_LOG_SCOPE_AT("RecvFromClient", 0xdd, "./log/UdpErr", "Socket closed? Recv size = %d\n", r);
         return 0;
     }
-    *port = ntohs(*(unsigned short*)from.sa_data);
-    *ip = ntohl(*(unsigned int*)(from.sa_data + 2));
+    *port = ntohs(from.sin_port);
+    *ip = ntohl(from.sin_addr.s_addr);
     buf[*len] = '\0';
     return 1;
 }
@@ -133,12 +134,12 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, char cons
     }
     else
     {
-        sockaddr to;
+        sockaddr_in to;
         memset(&to, 0, 0x10);
-        to.sa_family = 2;
-        *(unsigned short*)to.sa_data = htons(port);
-        *(unsigned int*)(to.sa_data + 2) = ntohl(ipaddr);
-        n = sendto(m_sock, buf, len, 0, &to, 0x10);
+        to.sin_family = 2;
+        to.sin_port = htons(port);
+        to.sin_addr.s_addr = ntohl(ipaddr);
+        n = sendto(m_sock, buf, len, 0, (sockaddr*)&to, 0x10);
     }
     if (n == -1)
     {
@@ -182,8 +183,8 @@ int CUdpHandler::RecvFromServer(char* buf, int* len, unsigned int* ip,
         return 0;
     }
     socklen_t slen = 0x10;
-    sockaddr from;
-    ssize_t r = recvfrom(m_clientSock, buf, *len, 0, &from, &slen);
+    sockaddr_in from;
+    ssize_t r = recvfrom(m_clientSock, buf, *len, 0, (sockaddr*)&from, &slen);
     *len = r;
     if (r == -1)
     {
@@ -210,8 +211,8 @@ int CUdpHandler::RecvFromServer(char* buf, int* len, unsigned int* ip,
         DNF_LOG_SCOPE_AT("RecvFromServer", 0x184, "./log/UdpErr", "Socket closed? Recv size = %d\n", r);
         return 0;
     }
-    *port = ntohs(*(unsigned short*)from.sa_data);
-    *ip = ntohl(*(unsigned int*)(from.sa_data + 2));
+    *port = ntohs(from.sin_port);
+    *ip = ntohl(from.sin_addr.s_addr);
     buf[*len] = '\0';
     return 1;
 }
@@ -231,12 +232,12 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
     }
     else
     {
-        sockaddr to;
+        sockaddr_in to;
         memset(&to, 0, 0x10);
-        to.sa_family = 2;
-        *(unsigned short*)to.sa_data = htons(port);
-        *(unsigned int*)(to.sa_data + 2) = inet_addr(ip);
-        n = sendto(m_clientSock, buf, len, 0, &to, 0x10);
+        to.sin_family = 2;
+        to.sin_port = htons(port);
+        to.sin_addr.s_addr = inet_addr(ip);
+        n = sendto(m_clientSock, buf, len, 0, (sockaddr*)&to, 0x10);
     }
     if (n == -1)
     {

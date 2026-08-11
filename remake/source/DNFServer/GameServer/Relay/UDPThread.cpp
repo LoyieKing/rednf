@@ -27,7 +27,7 @@ void UDPThread::loop(void* pParam)
     epoll_fd = epoll_create(1);
     if (epoll_fd == -1)
     {
-        printf("In %s : Can't create epoll device", "UDPThread::loop");
+        printf("In %s : Can't create epoll device", "loop");
     }
     UDPSocket udp;
     if (udp.open() == 1)
@@ -42,7 +42,7 @@ void UDPThread::loop(void* pParam)
                 ev.data.ptr = (void*)udp.getHandle();
                 if (epoll_ctl(epoll_fd, 1, udp.getHandle(), &ev) < 0)
                 {
-                    printf("In %s : epoll_ctl error\n", "UDPThread::loop");
+                    printf("In %s : epoll_ctl error\n", "loop");
                 }
                 setUDPSocket(&udp);
                 char buf[0x1000];

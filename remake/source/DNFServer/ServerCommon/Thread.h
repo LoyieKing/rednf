@@ -6,8 +6,8 @@
 // 原始二进制中的线程工具（Ghidra 反编译：pthread_mutex_* 直接作用于对象自身，偏移 0）
 class CMutex {
 public:
-    CMutex();
-    ~CMutex();
+    CMutex() throw();
+    ~CMutex() throw();
     void lock();
     void unlock();
 private:

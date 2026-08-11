@@ -16,16 +16,21 @@ unsigned int timeGetTime() {
 unsigned int Rand_r(unsigned int* seed) {
     static unsigned int staticSeed = 0x05397fb1;
     if (seed == NULL) {
-        staticSeed += timeGetTime();
+        staticSeed = timeGetTime() + staticSeed;
         return Rand_r(&staticSeed);
     }
     unsigned int x = *seed;
-    x = x * 0x41c64e6d + 0x3039;
-    unsigned int result = ((x >> 16) & 0x7ff) << 10;
-    x = x * 0x41c64e6d + 0x3039;
-    result = (result ^ (x >> 16 & 0x3ff)) << 10;
-    x = x * 0x41c64e6d + 0x3039;
-    result ^= (x >> 16 & 0x3ff);
+    x = x * 0x41c64e6d;
+    x += 0x3039;
+    unsigned int result = (x >> 16) & 0x7ff;
+    x = x * 0x41c64e6d;
+    x += 0x3039;
+    result <<= 10;
+    result ^= (x >> 16) & 0x3ff;
+    x = x * 0x41c64e6d;
+    x += 0x3039;
+    result <<= 10;
+    result ^= (x >> 16) & 0x3ff;
     *seed = x;
     return result;
 }

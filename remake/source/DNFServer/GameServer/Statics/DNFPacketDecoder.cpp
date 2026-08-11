@@ -36,25 +36,25 @@ CPacketDecoder::CPacketDecoder()
     m_handlers[0xc2a] = (void*)&CPacketTranslater::OnFrameLagStatisticsResultReloadSpec;
     m_handlers[0xc2e] = (void*)&CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify;
     m_handlers[0xc2f] = (void*)&CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck;
+    m_handlers[0xfa6] = (void*)&CPacketTranslater::OnPartyResultStatistic;
+    m_handlers[0xfa7] = (void*)&CPacketTranslater::OnPartyPingStatistic;
+    m_handlers[0xfa8] = (void*)&CPacketTranslater::OnPvpPingStatistic;
+    m_handlers[0xfa9] = (void*)&CPacketTranslater::OnAbnormalExitStatistic;
     m_handlers[0xc35] = (void*)&CPacketTranslater::OnDungeonStatisticParty;
     m_handlers[0xc37] = (void*)&CPacketTranslater::OnDungeonStatisticPartyJob;
     m_handlers[0xc39] = (void*)&CPacketTranslater::OnDungeonStatisticPartyCharac;
     m_handlers[0xc3b] = (void*)&CPacketTranslater::OnDeathTowerStatisticValue;
     m_handlers[0xc3d] = (void*)&CPacketTranslater::OnDeathTowerStatisticPlayDataJob;
     m_handlers[0xc3f] = (void*)&CPacketTranslater::OnDeathTowerStatisticPlayDataParty;
-    m_handlers[0xc31] = (void*)&CPacketTranslater::OnHellPartyStatisticItem;
-    m_handlers[0xc33] = (void*)&CPacketTranslater::OnCubeStatistic;
-    m_handlers[0xc41] = (void*)&CPacketTranslater::OnAssertManagerStatistic;
     m_handlers[0xc43] = (void*)&CPacketTranslater::OnPacketOverflowStatistic;
+    m_handlers[0xc41] = (void*)&CPacketTranslater::OnAssertManagerStatistic;
     m_handlers[0xc45] = (void*)&CPacketTranslater::OnUserTingTimeCheck;
-    m_handlers[0xc48] = (void*)&CPacketTranslater::OnReasonCrashDownData;
-    m_handlers[0xc4a] = (void*)&CPacketTranslater::OnFatigueBatteryMoneyStatistics;
-    m_handlers[0xfa6] = (void*)&CPacketTranslater::OnPartyResultStatistic;
-    m_handlers[0xfa7] = (void*)&CPacketTranslater::OnPartyPingStatistic;
-    m_handlers[0xfa8] = (void*)&CPacketTranslater::OnPvpPingStatistic;
-    m_handlers[0xfa9] = (void*)&CPacketTranslater::OnAbnormalExitStatistic;
+    m_handlers[0xc31] = (void*)&CPacketTranslater::OnHellPartyStatisticItem;
     m_handlers[0xfb0] = (void*)&CPacketTranslater::OnLoadingTimeReportStatistics;
+    m_handlers[0xc4a] = (void*)&CPacketTranslater::OnFatigueBatteryMoneyStatistics;
     m_handlers[0x1036] = (void*)&CPacketTranslater::OnBloodDungeonStatistic;
+    m_handlers[0xc33] = (void*)&CPacketTranslater::OnCubeStatistic;
+    m_handlers[0xc48] = (void*)&CPacketTranslater::OnReasonCrashDownData;
     m_handlers[0x17a2] = (void*)&CPacketTranslater::OnUpdateDisjointAvatarStatic;
     m_handlers[0x17a4] = (void*)&CPacketTranslater::OnUpdateCreateEmblemStatic;
     m_handlers[0x17ad] = (void*)&CPacketTranslater::OnUserCountStatistic;
@@ -77,13 +77,13 @@ CPacketDecoder::CPacketDecoder()
 }
 int CPacketDecoder::MsgDecode(PacketHeader* pkt)
 {
-    static CPacketCounter<1000, 10240> packet_counter((char*)0, "PacketDispatcher");
     if (pkt == 0)
     {
         return 0;
     }
     if (*(unsigned short*)pkt < 0x2800 && 999 < *(unsigned short*)pkt)
     {
+        static CPacketCounter<1000, 10240> packet_counter((char*)0, "PacketDispatcher");
         packet_counter.IncrementPacketCount(*(unsigned short*)pkt);
         if (m_handlers[*(unsigned short*)pkt] == 0)
         {
@@ -105,37 +105,36 @@ int CPacketDecoder::MsgDecode(PacketHeader* pkt)
 }
 void CPacketDecoder::Process()
 {
-    if (m_queue != 0 && m_lock != 0)
+    if (m_queue == 0 || m_lock == 0)
     {
-        PacketHeader* pkt = 0;
+        throw CDNFException("CPacketDecoder is Not Ready!\n");
+    }
+    PacketHeader* pkt = 0;
+    {
+        CGuard<CMutex> g((CMutex*)m_lock);
+        std::queue<CUdpRecvBuffer*>* q = (std::queue<CUdpRecvBuffer*>*)m_queue;
+        if (!q->empty())
         {
-            CGuard<CMutex> g((CMutex*)m_lock);
-            std::queue<CUdpRecvBuffer*>* q = (std::queue<CUdpRecvBuffer*>*)m_queue;
-            if (!q->empty())
-            {
-                pkt = (PacketHeader*)q->front();
-                q->pop();
-            }
+            pkt = (PacketHeader*)q->front();
+            q->pop();
         }
-        if (pkt != 0)
+    }
+    if (pkt != 0)
+    {
+        if (MsgDecode(pkt) != 1)
         {
-            if (MsgDecode(pkt) != 1)
-            {
-                {
-                    CGuard<CMutex> g((CMutex*)m_poolLock);
-                    CUdpRecvBuffer::operator delete(pkt);
-                }
-                throw CDNFException(
-                    "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
-            }
             {
                 CGuard<CMutex> g((CMutex*)m_poolLock);
                 CUdpRecvBuffer::operator delete(pkt);
             }
+            throw CDNFException(
+                "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
         }
-        return;
+        {
+            CGuard<CMutex> g((CMutex*)m_poolLock);
+            CUdpRecvBuffer::operator delete(pkt);
+        }
     }
-    throw CDNFException("CPacketDecoder is Not Ready!\n");
 }
 void CPacketDecoder::Attach(CApplication* app)
 {

@@ -105,10 +105,19 @@ void CGuild::AddGuildMemberPoint(unsigned int charNo, unsigned int point)
 
 MemPool<CGuild> m_GuildMemPool_(10000);
 
+#pragma pack(push,1)
+struct ST_Notice_Guild_Enter_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+    unsigned int m8;
+};
+#pragma pack(pop)
 ST_Notice_Guild_Enter::ST_Notice_Guild_Enter()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
-    *(unsigned int*)((char*)this + 0x8) = 0;
+    ((ST_Notice_Guild_Enter_Layout*)this)->m0 = 0;
+    ((ST_Notice_Guild_Enter_Layout*)this)->m4 = 0;
+    ((ST_Notice_Guild_Enter_Layout*)this)->m8 = 0;
     memset((char*)this + 0xc, 0, 0x17);
     memset((char*)this + 0x23, 0, 0x1e);
 }
@@ -199,25 +208,51 @@ STGuildMemberProxy::STGuildMemberProxy()
     memset(m_data + 0x2c, 0, 0x15);
 }
 
+#pragma pack(push,1)
+struct STGuildMemberCharacData_Layout
+{
+    char pad0x0[0x1];
+    unsigned char m1;
+    unsigned char m2;
+};
+#pragma pack(pop)
 STGuildMemberCharacData::STGuildMemberCharacData()
 {
     *(unsigned char*)this = 0xff;
-    *(unsigned char*)((char*)this + 0x1) = 0xff;
-    *(unsigned char*)((char*)this + 0x2) = 0x0;
+    ((STGuildMemberCharacData_Layout*)this)->m1 = 255;
+    ((STGuildMemberCharacData_Layout*)this)->m2 = 0;
     memset((char*)this + 0x3, 0, 0x1e);
 }
 
+#pragma pack(push,1)
+struct ST_GuildCreateFromWeb_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+};
+#pragma pack(pop)
 ST_GuildCreateFromWeb::ST_GuildCreateFromWeb()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
+    ((ST_GuildCreateFromWeb_Layout*)this)->m0 = 0;
+    ((ST_GuildCreateFromWeb_Layout*)this)->m4 = 0;
     memset((char*)this + 0x8, 0, 0x17);
 }
 
+#pragma pack(push,1)
+struct ST_Notice_Guild_Secede_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+    unsigned int m8;
+    unsigned short mc;
+};
+#pragma pack(pop)
 ST_Notice_Guild_Secede::ST_Notice_Guild_Secede()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
-    *(unsigned int*)((char*)this + 0x8) = 0;
-    *(unsigned short*)((char*)this + 0xc) = 0;
+    ((ST_Notice_Guild_Secede_Layout*)this)->m0 = 0;
+    ((ST_Notice_Guild_Secede_Layout*)this)->m4 = 0;
+    ((ST_Notice_Guild_Secede_Layout*)this)->m8 = 0;
+    ((ST_Notice_Guild_Secede_Layout*)this)->mc = 0;
     memset((char*)this + 0xe, 0, 0x17);
     memset((char*)this + 0x25, 0, 0x1e);
 }
@@ -408,18 +443,23 @@ int CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)
     {
         return 0;
     }
-    if (m_members.erase(charNo) == 0)
+    if (m_members.erase(charNo) != 0)
+    {
+        if (user->IsSetGuildMemFlag(2) != 1)
+        {
+            user->SetGuildMemFlag(8);
+        }
+        return 1;
+    }
+    // ORIG：erase 失败时先 find，仅当成员仍存在才打日志
+    std::map<unsigned int, CUser*>::iterator it = m_members.find(charNo);
+    if (it != m_members.end())
     {
         DNF_LOG_SCOPE_LINE(0xaf,"./log/Except",
             "CGuild::DeleteGuildMember\tException Break Possible! Or Check Using Function FindUser() or FindUser_CharNo()\tGuild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
             GetGuildKey(), charNo, user->GetCharName(), (int)m_members.size());
-        return 0;
     }
-    if (user->IsSetGuildMemFlag(2) != 1)
-    {
-        user->SetGuildMemFlag(8);
-    }
-    return 1;
+    return 0;
 }
 
 CUser* CGuild::FindGuildMember(unsigned int charNo)
@@ -1754,8 +1794,9 @@ void CGuild::DecTotalCnt_Of_GuildDBInfo()
 void CGuild::InsertGuildMemberChanglableInfo(unsigned int charNo)
 {
     STGuildMemberChangableInfo info;
-    memset(info.m_data, 0, sizeof(info.m_data));
-    m_changable[charNo] = info;
+    // ORIG：仅写首 dword = time(0)，其余字段保持未初始化；insert 不覆盖已存在项
+    *(unsigned int*)((char*)&info + 0) = time(0);
+    m_changable.insert(std::make_pair(charNo, info));
 }
 
 int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
@@ -2243,11 +2284,19 @@ STGuildAgitDBInfo::STGuildAgitDBInfo()
     memset(m_data, 0, sizeof(m_data));
 }
 
+#pragma pack(push,1)
+struct Packet_Monitor_Notice_Guild_Dismiss_ToUser_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_Monitor_Notice_Guild_Dismiss_ToUser::Packet_Monitor_Notice_Guild_Dismiss_ToUser()
     : PacketHeader(0x3fc, 0x12)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_Monitor_Notice_Guild_Dismiss_ToUser_Layout*)this)->ma = 4294967295;
+    ((Packet_Monitor_Notice_Guild_Dismiss_ToUser_Layout*)this)->me = 0;
 }
 
 Packet_Monitor_Notice_Guild_Enter_ToUser::Packet_Monitor_Notice_Guild_Enter_ToUser()
@@ -2266,45 +2315,89 @@ Packet_Monitor_Notice_Guild_Secede_ToUser::Packet_Monitor_Notice_Guild_Secede_To
     new ((char*)this + 0x12) ST_Notice_Guild_Secede;
 }
 
+#pragma pack(push,1)
+struct Packet_Monitor_Notice_Guild_Mark_Change_ToUser_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_Monitor_Notice_Guild_Mark_Change_ToUser::
     Packet_Monitor_Notice_Guild_Mark_Change_ToUser()
     : PacketHeader(0x3ff, 0x16)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_Monitor_Notice_Guild_Mark_Change_ToUser_Layout*)this)->ma = 4294967295;
+    ((Packet_Monitor_Notice_Guild_Mark_Change_ToUser_Layout*)this)->me = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_Monitor_Guild_Chat_ToUser_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    char pad0x12[0x1e];
+    unsigned char m30;
+};
+#pragma pack(pop)
 Packet_Monitor_Guild_Chat_ToUser::Packet_Monitor_Guild_Chat_ToUser()
     : PacketHeader(0x400, 0x131)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned char*)((char*)this + 0x30) = 0x0;
+    ((Packet_Monitor_Guild_Chat_ToUser_Layout*)this)->ma = 4294967295;
+    ((Packet_Monitor_Guild_Chat_ToUser_Layout*)this)->me = 0;
+    ((Packet_Monitor_Guild_Chat_ToUser_Layout*)this)->m30 = 0;
     memset((char*)this + 0x12, 0, 0x1e);
     memset((char*)this + 0x31, 0, 0x100);
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Call_Guild_All_Members_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_DB_Call_Guild_All_Members::Packet_DB_Call_Guild_All_Members()
     : PacketHeader(0x425, 0x12)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_DB_Call_Guild_All_Members_Layout*)this)->ma = 0;
+    ((Packet_DB_Call_Guild_All_Members_Layout*)this)->me = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Call_Unconn_Guild_Member_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_DB_Call_Unconn_Guild_Member::Packet_DB_Call_Unconn_Guild_Member()
     : PacketHeader(0x427, 0x12)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_DB_Call_Unconn_Guild_Member_Layout*)this)->ma = 0;
+    ((Packet_DB_Call_Unconn_Guild_Member_Layout*)this)->me = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_Monitor_Notice_Guild_Member_Login_out_Layout
+{
+    char pad0x0[0xa];
+    unsigned char ma;
+    unsigned int mb;
+    unsigned int mf;
+    unsigned char m13;
+};
+#pragma pack(pop)
 Packet_Monitor_Notice_Guild_Member_Login_out::Packet_Monitor_Notice_Guild_Member_Login_out()
     : PacketHeader(0x407, 0x32)
 {
-    *(unsigned char*)((char*)this + 0xa) = 0x0;
-    *(unsigned int*)((char*)this + 0xb) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xf) = 0;
-    *(unsigned char*)((char*)this + 0x13) = 0xff;
+    ((Packet_Monitor_Notice_Guild_Member_Login_out_Layout*)this)->ma = 0;
+    ((Packet_Monitor_Notice_Guild_Member_Login_out_Layout*)this)->mb = 4294967295;
+    ((Packet_Monitor_Notice_Guild_Member_Login_out_Layout*)this)->mf = 0;
+    ((Packet_Monitor_Notice_Guild_Member_Login_out_Layout*)this)->m13 = 255;
     memset((char*)this + 0x14, 0, 0x1e);
 }
 
@@ -2330,11 +2423,19 @@ Packet_Monitor_Notice_Guild_Info::Packet_Monitor_Notice_Guild_Info()
     memset((char*)this + 0xd4, 0, 0x65);
 }
 
+#pragma pack(push,1)
+struct Packet_Guild_Notify_Guild_Member_Memo_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_Guild_Notify_Guild_Member_Memo::Packet_Guild_Notify_Guild_Member_Memo()
     : PacketHeader(0x4d2, 0x45)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_Guild_Notify_Guild_Member_Memo_Layout*)this)->ma = 0;
+    ((Packet_Guild_Notify_Guild_Member_Memo_Layout*)this)->me = 0;
     memset((char*)this + 0x30, 0, 0x15);
     memset((char*)this + 0x12, 0, 0x1e);
 }
@@ -2345,32 +2446,65 @@ Packet_Guild_Notify_Message_To_Guild_Mem::Packet_Guild_Notify_Message_To_Guild_M
     memset((char*)this + 0x12, 0, 0x65);
 }
 
+#pragma pack(push,1)
+struct Packet_Channel_Create_Guild_Agit_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    unsigned int m12;
+};
+#pragma pack(pop)
 Packet_Channel_Create_Guild_Agit::Packet_Channel_Create_Guild_Agit()
     : PacketHeader(0x6dc, 0x16)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned int*)((char*)this + 0x12) = 0;
+    ((Packet_Channel_Create_Guild_Agit_Layout*)this)->ma = 4294967295;
+    ((Packet_Channel_Create_Guild_Agit_Layout*)this)->me = 0;
+    ((Packet_Channel_Create_Guild_Agit_Layout*)this)->m12 = 0;
 }
+
+#pragma pack(push,1)
+struct Packet_DB_Create_Guild_Agit_Layout
+{
+    char hdr[0xa];
+    unsigned int m0xa;
+    unsigned int m0xe;
+};
+#pragma pack(pop)
 
 Packet_DB_Create_Guild_Agit::Packet_DB_Create_Guild_Agit()
     : PacketHeader(0x6dd, 0x12)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_DB_Create_Guild_Agit_Layout*)this)->m0xa = 0;
+    ((Packet_DB_Create_Guild_Agit_Layout*)this)->m0xe = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Delete_Guild_Agit_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_DB_Delete_Guild_Agit::Packet_DB_Delete_Guild_Agit()
     : PacketHeader(0x6df, 0x12)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_DB_Delete_Guild_Agit_Layout*)this)->ma = 0;
+    ((Packet_DB_Delete_Guild_Agit_Layout*)this)->me = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Load_Guild_Agit_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+};
+#pragma pack(pop)
 Packet_DB_Load_Guild_Agit::Packet_DB_Load_Guild_Agit()
     : PacketHeader(0x6e1, 0xe)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
+    ((Packet_DB_Load_Guild_Agit_Layout*)this)->ma = 0;
 }
 
 Packet_Channel_Guild_Agit_Info::Packet_Channel_Guild_Agit_Info()
@@ -2383,11 +2517,19 @@ Packet_Channel_Guild_Agit_Info::Packet_Channel_Guild_Agit_Info()
     memset((char*)this + 0x16, 0, 1);
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Upgrade_Guild_Agit_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_DB_Upgrade_Guild_Agit::Packet_DB_Upgrade_Guild_Agit()
     : PacketHeader(0x6e4, 0x12)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_DB_Upgrade_Guild_Agit_Layout*)this)->ma = 0;
+    ((Packet_DB_Upgrade_Guild_Agit_Layout*)this)->me = 0;
 }
 
 Packet_Guild_Notice_Guild_Master_Delegate::Packet_Guild_Notice_Guild_Master_Delegate()
@@ -2402,33 +2544,67 @@ Packet_Guild_Notice_Guild_Name_Change::Packet_Guild_Notice_Guild_Name_Change()
     memset((char*)this + 0x16, 0, 0x17);
 }
 
+#pragma pack(push,1)
+struct Packet_Query_Today_Guild_Member_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+};
+#pragma pack(pop)
 Packet_Query_Today_Guild_Member::Packet_Query_Today_Guild_Member()
     : PacketHeader(0x1bbf, 0xe)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
+    ((Packet_Query_Today_Guild_Member_Layout*)this)->ma = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_Notify_Today_Guild_Member_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+};
+#pragma pack(pop)
 Packet_Notify_Today_Guild_Member::Packet_Notify_Today_Guild_Member()
     : PacketHeader(0x1bc1, 0x3d)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
+    ((Packet_Notify_Today_Guild_Member_Layout*)this)->ma = 0;
     memset((char*)this + 0x16, 0, 0x27);
 }
 
+#pragma pack(push,1)
+struct Packet_Achieve_Guild_Attendance_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+};
+#pragma pack(pop)
 Packet_Achieve_Guild_Attendance::Packet_Achieve_Guild_Attendance()
     : PacketHeader(0x1bc8, 0x1a)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
+    ((Packet_Achieve_Guild_Attendance_Layout*)this)->ma = 0;
+    ((Packet_Achieve_Guild_Attendance_Layout*)this)->me = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_Monitor_Guild_Chat_ToUser_Hyper_Link_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    char pad0x12[0x1e];
+    unsigned char m30;
+    char pad0x31[0x138];
+    unsigned char m169;
+};
+#pragma pack(pop)
 Packet_Monitor_Guild_Chat_ToUser_Hyper_Link::Packet_Monitor_Guild_Chat_ToUser_Hyper_Link()
     : PacketHeader(0x2718, 0x26a)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned char*)((char*)this + 0x30) = 0x0;
-    *(unsigned char*)((char*)this + 0x169) = 0x0;
+    ((Packet_Monitor_Guild_Chat_ToUser_Hyper_Link_Layout*)this)->ma = 4294967295;
+    ((Packet_Monitor_Guild_Chat_ToUser_Hyper_Link_Layout*)this)->me = 0;
+    ((Packet_Monitor_Guild_Chat_ToUser_Hyper_Link_Layout*)this)->m30 = 0;
+    ((Packet_Monitor_Guild_Chat_ToUser_Hyper_Link_Layout*)this)->m169 = 0;
     memset((char*)this + 0x12, 0, 0x1e);
     memset((char*)this + 0x16a, 0, 0x100);
     memset((char*)this + 0x31, 0, 0x138);
@@ -2443,4 +2619,3 @@ unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const
 {
     return (unsigned char)(*(unsigned char*)m_data & 0x1f);
 }
-

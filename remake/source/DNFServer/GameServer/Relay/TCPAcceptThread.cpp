@@ -18,7 +18,7 @@ TCPAcceptThread::~TCPAcceptThread()
 void TCPAcceptThread::loop(void* pParam)
 {
     unsigned short port = (unsigned short)getPort();
-    printf("In %s \n", "TCPAcceptThread::loop");
+    printf("In %s \n", "loop");
     TCPSocket listenSocket;
     if (!listenSocket.open())
     {

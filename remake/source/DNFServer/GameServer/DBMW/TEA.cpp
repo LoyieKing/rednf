@@ -24,6 +24,8 @@
 int getErrno();
 
 // ---- CSHA：SHA-256 ----
+const char CTEA::sm_chain0[8] = {0, 0, 0, 0, 0, 0, 0, 0};
+
 CTEA::CTEA()
 {
     m_blockSize = 8;

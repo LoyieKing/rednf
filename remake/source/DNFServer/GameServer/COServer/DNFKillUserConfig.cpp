@@ -48,8 +48,7 @@ bool CKillUSRConfig::Parse_Table(char* line, int idx)
     char* tok1;
     char* tok2;
     char* tok3;
-    int n = DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 4);
-    if (n == 4)
+    if (DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 4) == 4)
     {
         ST_KillUSRConfig* p = new (std::nothrow) ST_KillUSRConfig;
         if (p != 0)

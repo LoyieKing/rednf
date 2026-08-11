@@ -519,18 +519,34 @@ CMonitorServer* CServerHandler::GetMonitorServer()
     return m_monitorServer;
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Query_Guild_Member_Layout
+{
+    char pad0x0[0xb];
+    unsigned int mb;
+};
+#pragma pack(pop)
 Packet_DB_Query_Guild_Member::Packet_DB_Query_Guild_Member()
     : PacketHeader(0x402, 0xf)
 {
-    *(unsigned int*)((char*)this + 0xb) = 0;
+    ((Packet_DB_Query_Guild_Member_Layout*)this)->mb = 0;
 }
 
+#pragma pack(push,1)
+struct Packet_DB_Query_Guild_Layout
+{
+    char pad0x0[0xa];
+    unsigned char ma;
+    unsigned int mb;
+    unsigned int mf;
+};
+#pragma pack(pop)
 Packet_DB_Query_Guild::Packet_DB_Query_Guild()
     : PacketHeader(0x404, 0x13)
 {
-    *(unsigned char*)((char*)this + 0xa) = 0xff;
-    *(unsigned int*)((char*)this + 0xb) = 0;
-    *(unsigned int*)((char*)this + 0xf) = 0;
+    ((Packet_DB_Query_Guild_Layout*)this)->ma = 255;
+    ((Packet_DB_Query_Guild_Layout*)this)->mb = 0;
+    ((Packet_DB_Query_Guild_Layout*)this)->mf = 0;
 }
 
 Packet_DBMW_Connection_Check::Packet_DBMW_Connection_Check()
@@ -538,4 +554,3 @@ Packet_DBMW_Connection_Check::Packet_DBMW_Connection_Check()
 {
     (void)0;
 }
-

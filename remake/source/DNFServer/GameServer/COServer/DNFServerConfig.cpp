@@ -25,8 +25,7 @@ bool CServerConfig::Parse_Table(char* line, int idx)
     char* tok2;
     char* tok3;
     char* tok4;
-    int n = DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 5);
-    if (n == 5 && idx < 0x649b)
+    if (DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 5) == 5 && idx < 0x649b)
     {
         ST_ServerInfo* s = &m_servers[idx];
         s->m_field0 = (char)atoi(tok0);

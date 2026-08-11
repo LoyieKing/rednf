@@ -103,14 +103,27 @@ void CGuildManager::CargoUnlock()
 {
 }
 
+#pragma pack(push,1)
+struct STAttendanceInfo_Layout
+{
+    unsigned int m0;
+    unsigned int m4;
+    unsigned int m8;
+    unsigned int mc;
+    unsigned int m10;
+    unsigned int m14;
+    unsigned int m18;
+};
+#pragma pack(pop)
 STAttendanceInfo::STAttendanceInfo()
 {
-    *(unsigned int*)((char*)this + 0x4) = 0;
-    *(unsigned int*)((char*)this + 0x8) = 0;
-    *(unsigned int*)((char*)this + 0xc) = 0;
-    *(unsigned int*)((char*)this + 0x10) = 0;
-    *(unsigned int*)((char*)this + 0x14) = 0;
-    *(unsigned int*)((char*)this + 0x18) = 0xffffffff;
+    ((STAttendanceInfo_Layout*)this)->m0 = 0;
+    ((STAttendanceInfo_Layout*)this)->m4 = 0;
+    ((STAttendanceInfo_Layout*)this)->m8 = 0;
+    ((STAttendanceInfo_Layout*)this)->mc = 0;
+    ((STAttendanceInfo_Layout*)this)->m10 = 0;
+    ((STAttendanceInfo_Layout*)this)->m14 = 0;
+    ((STAttendanceInfo_Layout*)this)->m18 = 4294967295;
 }
 
 CGuildWar* CGuildManager::GetGuildWar()
@@ -601,7 +614,12 @@ int CGuildManager::GetGuildLevelWithExp(unsigned int exp)
 
 void CGuildManager::InsertTodayMember(unsigned int guildKey, STTodayGuildMember& member)
 {
-    m_todayMembers[guildKey] = member;
+    // ORIG：find 后仅当不存在才 insert（不覆盖已存在项）
+    std::map<unsigned int, STTodayGuildMember>::iterator it = m_todayMembers.find(guildKey);
+    if (it == m_todayMembers.end())
+    {
+        m_todayMembers.insert(std::make_pair(guildKey, member));
+    }
 }
 
 STTodayGuildMember* CGuildManager::GetTodayMember(unsigned int guildKey)
@@ -800,4 +818,3 @@ void CGuildManager::RewardAttendance(unsigned int guildKey, unsigned int charNo,
         }
     }
 }
-

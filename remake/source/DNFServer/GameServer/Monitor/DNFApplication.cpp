@@ -147,7 +147,13 @@ unsigned int get_rand_int(int n)
     return u;
 }
 
-CollectItms::CollectItms() {}
+CollectItms::CollectItms()
+{
+    *(unsigned int*)(m_data + 0) = 0;
+    *(unsigned int*)(m_data + 4) = 0;
+    *(unsigned int*)(m_data + 8) = 0;
+    m_data[0xc] = 1;
+}
 
 CollectItms::~CollectItms() {}
 
@@ -449,12 +455,12 @@ void CApplication::Load(int argc, char** argv)
     }
     catch (CDNFException& e)
     {
-        printf("Load Exception : %s\n", e.what());
+        printf("CApplication::Load() Exception Break : %s\n", e.what());
         throw;
     }
     catch (...)
     {
-        puts("Load Exception !");
+        puts("CApplication::Load() Exception Break");
         throw;
     }
 }
@@ -613,14 +619,12 @@ void CApplication::Process()
         catch (CDNFException& e)
         {
             printf("CApplication::Process() Exception Break : %s\n", e.what());
-            DNF_LOG_SCOPE_LINE(0x413, "./log/process", "CApplication::Process() Exception Break : %s", e.what());
-            throw;
+            DNF_LOG_SCOPE_LINE(0x413, "./log/process", "CApplication::Process() Exception Break : %s\n", e.what());
         }
         catch (...)
         {
             puts("CApplication::Process() Exception Break");
             DNF_LOG_SCOPE_LINE(0x418, "./log/process", "CApplication::Process() Exception Break\n");
-            throw;
         }
     }
     puts("CApplication::Process() Exit");
@@ -754,7 +758,7 @@ void CApplication::SendTestPacket_1()
     Packet_Monitor_Event_Start startPkt;
     *(unsigned int*)((char*)&startPkt + 0xa) = 9;
     *(unsigned short*)((char*)&startPkt + 0xe) = 4;
-    *(unsigned short*)((char*)&startPkt + 0x12) = 0;
+    *(unsigned short*)((char*)&startPkt + 0x10) = 0;
     CPacketTranslater::OnEventStart(&startPkt);
 }
 
@@ -794,13 +798,9 @@ char CApplication::isAbleUserChatWithGM(unsigned int channel, unsigned int charN
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
     if (it != m_map368.end())
     {
-        for (std::list<unsigned int>::iterator li = it->second.begin(); li != it->second.end();
-             ++li)
+        if (std::find(it->second.begin(), it->second.end(), charNo) != it->second.end())
         {
-            if (*li == charNo)
-            {
-                return 1;
-            }
+            return 1;
         }
     }
     return 0;
@@ -811,15 +811,10 @@ void CApplication::AddChattableUserWithGM(unsigned int channel, unsigned int cha
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
     if (it != m_map368.end())
     {
-        for (std::list<unsigned int>::iterator li = it->second.begin(); li != it->second.end();
-             ++li)
+        if (std::find(it->second.begin(), it->second.end(), charNo) == it->second.end())
         {
-            if (*li == charNo)
-            {
-                return;
-            }
+            it->second.push_back(charNo);
         }
-        it->second.push_back(charNo);
     }
 }
 
@@ -828,15 +823,7 @@ void CApplication::DisableChatUserWithGM(unsigned int channel, unsigned int char
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
     if (it != m_map368.end())
     {
-        for (std::list<unsigned int>::iterator li = it->second.begin(); li != it->second.end();
-             ++li)
-        {
-            if (*li == charNo)
-            {
-                it->second.erase(li);
-                return;
-            }
-        }
+        it->second.remove(charNo);
     }
 }
 
@@ -1011,7 +998,7 @@ void CApplication::Add_GM_id(unsigned int id)
     if (it == m_map368.end())
     {
         std::list<unsigned int> l;
-        m_map368.insert(std::pair<const unsigned int, std::list<unsigned int> >(id, l));
+        m_map368.insert(std::make_pair(id, l));
     }
 }
 
@@ -1047,35 +1034,36 @@ CUdpHandler* CApplication::Get_UdpHandler()
 
 void* CApplication::Get_UdpQLock()
 {
-    return 0;
+    return &m_udpQLock;
 }
 
 void* CApplication::Get_UdpBLock()
 {
-    return 0;
+    return &m_udpBLock;
 }
 
 void CApplication::CheckArgv(int argc, char** argv)
 {
     if (argc < 3)
     {
-        throw CDNFException("CApplication::CheckArgv() Argv Count Exception Break!");
+        throw CDNFException("CApplication::CheckArgv() \xbd\xc7\xc7\xe0 \xbe\xc6\xb1\xd4\xb8\xd5\xc6\xae \xbf\xc0\xb7\xf9\n");
     }
 }
 
 void CApplication::AttachAppInitor(char** argv)
 {
     const char* mode = argv[2];
-    if (strcmp(mode, "start") != 0 && strcmp(mode, "nofork") != 0)
+    if (strcmp(mode, "start") == 0 || strcmp(mode, "nofork") == 0)
     {
-        if (strcmp(mode, "stop") == 0)
-        {
-            m_appInit = new CAppStopInit;
-            return;
-        }
-        throw CDNFException("CApplication::AttachAppInitor() unknown argv[2]");
+        m_appInit = new CAppStartInit;
+        return;
     }
-    m_appInit = new CAppStartInit;
+    if (strcmp(mode, "stop") == 0)
+    {
+        m_appInit = new CAppStopInit;
+        return;
+    }
+    throw CDNFException("CApplication::AttachAppInitor() \xbd\xc7\xc7\xe0 \xbe\xc6\xb1\xd4\xb8\xd5\xc6\xae \xbf\xc0\xb7\xf9\n");
 }
 
 unsigned char CApplication::Get_ServerGroup()
@@ -1149,15 +1137,18 @@ void ShowLogo()
 {
     putchar('\n');
     puts("**********************************************************");
-    puts("* DUNGEON & FIGHTER Monitor Server                        *");
-    puts("**********************************************************");
-    puts("**********************************************************");
-    puts("* DUNGEON & FIGHTER Monitor Server                        *");
-    puts("**********************************************************");
+    puts("* +---   +-+ +  +----         DUNGEON & FIGHTER          *");
+    puts("* |   |  | | |  |                                        *");
+    puts("* |   |  | | |  +----                                    *");
+    puts("* |   |  | | |  |      Open Beta Test on 2005.08.10~     *");
+    puts("* +---   + +-+  |      Copyright(c) 2004,2005 Neople Co. *");
     puts("**********************************************************");
     CommonTime t;
     t.SetCurTime();
-    printf("%c%c%c%c%c", t.m_field0, t.m_field1, t.m_field2, t.m_field3, t.m_field4);
+    printf("[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n",
+           (int)(char)t.m_field0, (int)(char)t.m_field1,
+           (int)(char)t.m_field2, (int)(char)t.m_field3,
+           (int)(char)t.m_field4);
 }
 
 CAppBase* CApplicationInstance()

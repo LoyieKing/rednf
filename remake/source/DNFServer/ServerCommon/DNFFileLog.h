@@ -55,7 +55,12 @@ public:
 
 // 显式行号版本：函数名自动（__FUNCTION__），行号由调用处显式传入（重构保真的 0xNN）。
 // 适用于尚未做行号对齐的文件——值不变，仅把构造抽成宏。
-#define DNF_LOG_SCOPE_LINE(line, ...) CMyFileLog log(__FUNCTION__, line); log(__VA_ARGS__)
+// 2026-08-11 二进制实测：ORIG 展开为临时对象直接调用 operator()——
+// `CMyFileLog log(...); log(args)` 的两语句形式会让 operator() 的实参（如
+// *(ushort*)pkt、e.what()）在 ctor 之后求值，与 ORIG 逐条不符；临时对象形式
+// 下实参在临时构造前按从右到左求值并装入 callee-saved 寄存器（ebx/esi/edi），
+// 与 ORIG MsgDecode/CNetworkThread 等反汇编逐字节一致（t4 验证）。
+#define DNF_LOG_SCOPE_LINE(line, ...) CMyFileLog(__FUNCTION__, line)(__VA_ARGS__)
 
 // 全手动版本：函数名与行号都显式传入（用于名字不是函数短名的少数调用点）。
 #define DNF_LOG_SCOPE_AT(name, line, ...) CMyFileLog log(name, line); log(__VA_ARGS__)

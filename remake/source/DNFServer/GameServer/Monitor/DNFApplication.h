@@ -399,7 +399,6 @@ public:
     CTaskScheduler* m_taskScheduler;    // +0x2c8
     WongWork::CGMAccounts* m_field2cc;  // +0x2cc
     CMemberManager m_memberManager;     // +0x2d0
-    unsigned char m_pad[8];             // +0x2f8 (ORIG CMemberManager 实际 0x30)
     CBuddyRegisterManager m_buddyMgr;   // +0x300
     CMemoryCashManager* m_memoryCash;   // +0x318
     void* m_field31c;                   // +0x31c

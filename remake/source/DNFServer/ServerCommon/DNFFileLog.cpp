@@ -149,12 +149,7 @@ CMyFileLog::CMyFileLog(char const* name, int level) : name(name), level(level) {
 
 void CMyFileLog::operator()(char const* filename, char const* format, ...) {
     char buff[0x7000];
-    // 原始：size 经寄存器局部现装（ORIG 为 mov $0x7000,%edx；本工具链 register size_t 落 ebx，
-    // 为不可复现的寄存器分配伪影，指令条数与结构一致）
-    {
-        register size_t n = 0x7000;
-        memset(buff, 0, n);
-    }
+    memset(buff, 0, 0x7000);
     sprintf(buff, "%s(%d): ", name, level);
     va_list args;
     va_start(args, format);
@@ -189,16 +184,8 @@ CToolFileLog::CToolFileLog(char const* name, int level) : name(name), level(leve
 void CToolFileLog::operator()(char const* filename, int no, char const* format, ...) {
     char buff[0x7000];
     char argsbuff[0x7000];
-    // 原始：先 memset line/message（ORIG 每处现装 %edx；此处两个独立 register 局部以匹配
-    // 两次现装的指令数，寄存器名差异为工具链伪影），再 subfile 聚合初始化（rep stosl）
-    {
-        register size_t n1 = 0x7000;
-        memset(buff, 0, n1);
-    }
-    {
-        register size_t n2 = 0x7000;
-        memset(argsbuff, 0, n2);
-    }
+    memset(buff, 0, 0x7000);
+    memset(argsbuff, 0, 0x7000);
     char fbuff[256] = {0};
     sprintf(buff, "%s(%d): ", name, level);
     va_list args;

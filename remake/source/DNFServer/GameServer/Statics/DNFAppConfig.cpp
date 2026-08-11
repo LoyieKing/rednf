@@ -72,7 +72,7 @@ void CAppConfig::Check_FileName(const std::string& filename)
 CAppConfig::~CAppConfig()
 {
 }
-unsigned char CAppConfig::Get_FrameCountValue()
+unsigned short CAppConfig::Get_FrameCountValue()
 {
     return m_frameCount;
 }

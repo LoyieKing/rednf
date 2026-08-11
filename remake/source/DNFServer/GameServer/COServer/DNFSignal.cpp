@@ -33,10 +33,6 @@ void CSignal::dump_core_file()
     abort();
 }
 
-CTerminateSig::CTerminateSig() throw()
-{
-}
-
 CTerminateSig::~CTerminateSig() throw()
 {
 }
@@ -48,10 +44,6 @@ void CTerminateSig::handle(int sig)
     {
         m_app->App_Stop();
     }
-}
-
-CSegmentationFaultSig::CSegmentationFaultSig() throw()
-{
 }
 
 CSegmentationFaultSig::~CSegmentationFaultSig() throw()
@@ -66,10 +58,6 @@ void CSegmentationFaultSig::handle(int sig)
         m_app->App_Stop();
     }
     dump_core_file();
-}
-
-CSystemFailSig::CSystemFailSig() throw()
-{
 }
 
 CSystemFailSig::~CSystemFailSig() throw()

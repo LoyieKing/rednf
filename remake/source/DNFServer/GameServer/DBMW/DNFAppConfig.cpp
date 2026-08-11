@@ -26,7 +26,7 @@ int getErrno();
 // CTableBase / CAppInit / CAppConfig / CServerConfig
 CAppConfig::CAppConfig()
 {
-    m_cipher.Initialize("qortmddkqortmdcksqordudwlswjdguswn", 0x21, 0, 0, 0);
+    m_cipher.Initialize("qortmddkqortmdcksqordudwlswjdguswn", 0x21, CTEA::sm_chain0, 0, 0);
     memset(m_dbConnInfo, 0, 0x17e8);
     m_tcpPort = 0;
     m_dbmwType = 0;

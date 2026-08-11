@@ -54,21 +54,24 @@ void CServerHandler::Process()
     CGameServer* p = m_servers;
     int left = 0x649b;
     int counter = 0;
-    while (left != 0)
+    while (left-- != 0)
     {
-        left--;
         counter++;
-        if (p->IsValidServer())
+        if (!p->IsValidServer())
         {
-            if (p->IsConnected())
+            p++;
+            continue;
+        }
+        if (p->IsConnected())
+        {
+            if (p->IsHeartBeatTimeOver())
             {
-                if (p->IsHeartBeatTimeOver())
-                {
-                    p->OnDisconnect();
-                    DNF_LOG_SCOPE_LINE(0x5e, "./log/GameServer",
-                        "Game Server Disconnect, Index : %d, channel no : %d, group no: %d\n",
-                        counter, p->GetChannelNo() & 0xff, p->GetGroupNo() & 0xff);
-                }
+                p->OnDisconnect();
+                int groupNo = p->GetGroupNo();
+                int channelNo = p->GetChannelNo();
+                DNF_LOG_SCOPE_LINE(0x5e, "./log/GameServer",
+                    "Game Server Disconnect, Index : %d, channel no : %d, group no: %d\n",
+                    counter, channelNo & 0xff, groupNo & 0xff);
             }
         }
         p++;
@@ -114,7 +117,9 @@ void CServerHandler::SetConnectFlag(unsigned char group, unsigned char index, bo
     if (index != 0xff && group < 0x65 &&
         m_servers[(int)group * 0xff + (int)index].IsValidServer())
     {
-        m_servers[(int)group * 0xff + (int)index].SetConnFlag(flag);
+        // 原始：SetConnFlag 目标地址按 this + group*0x13ec + index*0x14 形态计算
+        ((CGameServer*)((char*)this + (int)group * 0x13ec + (int)index * 0x14))
+            ->SetConnFlag(flag);
     }
     else
     {
@@ -128,7 +133,7 @@ CGameServer* CServerHandler::GetGameServer(int idx)
 {
     if (idx < 0x649b && m_servers[idx].IsValidServer())
     {
-        return &m_servers[idx];
+        return m_servers + idx;
     }
     DNF_LOG_SCOPE_LINE(0xdc,"./log/GameServer", "CServerHandler::GetGameServer\tGame Server Index Over Index : %d!\n",
         idx);
@@ -149,13 +154,12 @@ void CServerHandler::SendAllToGameServer(char* buf, int len)
 {
     CGameServer* p = m_servers;
     int left = 0x649b;
-    while (left != 0)
+    while (left-- != 0)
     {
         if (p->IsValidServer())
         {
             p->SendToGameServer(buf, len);
         }
         p++;
-        left--;
     }
 }

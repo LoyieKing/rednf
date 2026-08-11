@@ -125,7 +125,7 @@ int main(int argc, char** argv)
         }
         else
         {
-            printf("# %s\n", e.getErrorMsg());
+            printf("# %d %s\n", e.getErrorCode(), e.getErrorMsg());
         }
     }
 }

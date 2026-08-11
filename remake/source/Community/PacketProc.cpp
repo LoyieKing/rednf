@@ -185,7 +185,7 @@ int OnBuddyChatMsgHyperLink(ISessionManager* sessionManager, CNetworkSession* ne
 
 }  // namespace packet_proc
 
-static packet_table_item g_packet_table[] = {
+packet_table_item g_packet_table[] = {
     {0x1b58, packet_proc::OnLogin},
     {0x1b59, packet_proc::OnLogout},
     {0x1b5a, packet_proc::OnReqBuddyList},

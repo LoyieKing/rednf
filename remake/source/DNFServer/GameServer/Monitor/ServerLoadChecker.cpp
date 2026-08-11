@@ -85,8 +85,8 @@ CAppLoadChecker::CAppLoadChecker()
 
 CAppLoadChecker* CAppLoadCheckerInstance()
 {
-    static CAppLoadChecker inst;
-    return &inst;
+    static CAppLoadChecker instance;
+    return &instance;
 }
 
 int CAppLoadChecker::checkTcpRecvLoad(int size)
@@ -310,4 +310,3 @@ int CAppLoadChecker::checkTcpSendLoad(int size)
     m_tcpSendLevel = 0xff;
     return 1;
 }
-

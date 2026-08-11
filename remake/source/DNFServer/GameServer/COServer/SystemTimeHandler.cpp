@@ -20,22 +20,7 @@ void CommonTime::SetCurTime()
     m_time[5] = (char)pt->tm_wday;
 }
 
-CSystemTime::CSystemTime()
-{
-    gettimeofday(&m_tv, 0);
-    m_sec = m_tv.tv_sec;
-    m_msec = m_tv.tv_usec / 1000;
-}
-
-CSystemTime::~CSystemTime()
-{
-}
-
 CSystemTimeHandler::CSystemTimeHandler()
-{
-}
-
-CSystemTimeHandler::~CSystemTimeHandler()
 {
 }
 

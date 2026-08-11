@@ -21,7 +21,7 @@ TCPThread::~TCPThread()
 void TCPThread::loop(void* pParam)
 {
     unsigned short port = (unsigned short)getPort();
-    printf("In %s : port='%d'\n", "TCPThread::loop", (unsigned int)port);
+    printf("In %s : port='%d'\n", "loop", (unsigned int)port);
     TReactor<EpollReactor<TCPUser, TCPSocket, TCPSocket>, TCPUser, TCPSocket, TCPSocket> *reactor =
         (TReactor<EpollReactor<TCPUser, TCPSocket, TCPSocket>, TCPUser, TCPSocket, TCPSocket> *)
             getManager()->m_reactor.getReactor();

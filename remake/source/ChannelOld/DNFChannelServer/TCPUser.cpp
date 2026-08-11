@@ -138,7 +138,7 @@ void ChannelServiceApp::TCPUser::onRead_()
                     TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, s, nMessageSize, 0);
                     if (bufferRecv_.pop(nMessageSize) < 0)
                     {
-                        GLOG(gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
+                        GLOG(gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                         postDisconnected(3);
                         return;
                     }
@@ -161,7 +161,7 @@ void ChannelServiceApp::TCPUser::onRead_()
                         else
                         {
                             free(szBuf);
-                            GLOG(gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
+                            GLOG(gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                             postDisconnected(4);
                             return;
                         }
@@ -214,7 +214,7 @@ void ChannelServiceApp::TCPUser::onRead_()
                         else
                         {
                             free(szBuf);
-                            GLOG(gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
+                            GLOG(gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                             postDisconnected(7);
                             return;
                         }
@@ -291,7 +291,7 @@ void ChannelServiceApp::TCPUser::onWrite_()
                         if (bufferSend_.pop(nSent) < 0)
                         {
                             postDisconnected(10);
-                            GLOG(gFileLogInfo, "AAA 2.pop \xc0\xd4 \xbd\xc7\xc6\xd4\xb8\xe9 \xb9\xae\xc1\xa2\xc0\xd4\xb4\xd9.");
+                            GLOG(gFileLogInfo, "AAA 2.pop \xbf\xa1 \xbd\xc7\xc6\xd0\xb8\xe9 \xb9\xae\xc1\xa6\xc0\xd6\xb4\xd9.");
                             return;
                         }
                         GLOG(gFileLogInfo, "1.AAA pop \xbc\xba\xb0\xf8, " << nSent);
@@ -300,17 +300,17 @@ void ChannelServiceApp::TCPUser::onWrite_()
                     {
                         if (nSent == 0)
                         {
-                            GLOG(gFileLogInfo, "AAA send \xbd\xc7\xc6\xd4, \xbc\xd2\xc4\xc9 \xc0\xcc\xba\xa5\xc6\xae \xbf\xa9\xc0\xfc\xc8\xfe \xc1\xb8\xc0\xe7, \xb4\xd9\xc0\xfd \xbc\xbc\xc8\xb8\xbf\xa1 .. ");
+                            GLOG(gFileLogInfo, "AAA send \xbd\xc7\xc6\xd0, \xbc\xd2\xc4\xcf \xc0\xcc\xba\xa5\xc6\xae \xbf\xa9\xc0\xfc\xc8\xf7 \xc1\xb8\xc0\xe7, \xb4\xd9\xc0\xbd \xb1\xe2\xc8\xb8\xbf\xa1 .. ");
                             return;
                         }
-                        GLOG(gFileLogInfo, "AAA send \xbd\xc7\xc6\xd4, disconnect.. count =" << count);
+                        GLOG(gFileLogInfo, "AAA send \xbd\xc7\xc6\xd0, disconnect.. count =" << count);
                         postDisconnected(0xb);
                         return;
                     }
                 }
                 else
                 {
-                    GLOG(gFileLogInfo, "AAA \xba\xec\xc1\xa4\xc3\xfb send queue \xb9\xdf\xc3\xfd nSize=" << nSize);
+                    GLOG(gFileLogInfo, "AAA \xba\xf1\xc1\xa4\xbb\xf3 send queue \xb9\xdf\xbb\xfd nSize=" << nSize);
                     postDisconnected(0xc);
                     return;
                 }
@@ -329,7 +329,7 @@ void ChannelServiceApp::TCPUser::onWrite_()
                     {
                         if (bufferSend_.pop(nSent) < 0)
                         {
-                            GLOG(gFileLogInfo, "AAA 3.pop \xc0\xd4 \xbd\xc7\xc6\xd4\xb8\xe9 \xb9\xae\xc1\xa2\xc0\xd4\xb4\xd9.");
+                            GLOG(gFileLogInfo, "AAA 3.pop \xbf\xa1 \xbd\xc7\xc6\xd0\xb8\xe9 \xb9\xae\xc1\xa6\xc0\xd6\xb4\xd9.");
                             postDisconnected(0xd);
                             return;
                         }
@@ -339,17 +339,17 @@ void ChannelServiceApp::TCPUser::onWrite_()
                     {
                         if (nSent == 0)
                         {
-                            GLOG(gFileLogInfo, "AAA send \xbd\xc7\xc6\xd4, \xbc\xd2\xc4\xc9 \xcc\xcc\xba\xa5\xc6\xae \xbf\xa9\xc0\xfc\xc8\xfe \xc1\xb8\xc0\xe7, \xb4\xd9\xc0\xfd \xbc\xbc\xc8\xb8\xbf\xa1 .. ");
+                            GLOG(gFileLogInfo, "AAA send \xbd\xc7\xc6\xd0, \xbc\xd2\xc4\xcf \xc0\xcc\xba\xa5\xc6\xae \xbf\xa9\xc0\xfc\xc8\xf7 \xc1\xb8\xc0\xe7, \xb4\xd9\xc0\xbd \xb1\xe2\xc8\xb8\xbf\xa1 .. ");
                             return;
                         }
-                        GLOG(gFileLogInfo, "2.AAA send \xbd\xc7\xc6\xd4, disconnect.. count=" << count);
+                        GLOG(gFileLogInfo, "2.AAA send \xbd\xc7\xc6\xd0, disconnect.. count=" << count);
                         postDisconnected(0xe);
                         return;
                     }
                 }
                 else
                 {
-                    GLOG(gFileLogInfo, "AAA \xba\xec\xc1\xa4\xc3\xfb send queue \xb9\xdf\xc3\xfd  nSize=" << nSize);
+                    GLOG(gFileLogInfo, "AAA \xba\xf1\xc1\xa4\xbb\xf3 send queue \xb9\xdf\xbb\xfd  nSize=" << nSize);
                     postDisconnected(0xf);
                     return;
                 }

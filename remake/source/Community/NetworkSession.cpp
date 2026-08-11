@@ -147,20 +147,21 @@ bool CNetworkSession::Send(const char *data, int len) {
 }
 CNetworkSession *CNetworkSession::Connect(const char *ip, int port) {
     CNetworkSession* networkSession = new CNetworkSession();
-    if (networkSession == NULL) {
-        return NULL;
+    if (networkSession != NULL) {
+        // 原始：CreateConnectionSocket == false 提前处理（xor eax,1; test/je 形态）
+        if (networkSession->CreateConnectionSocket(ip, port) == false) {
+            ArchiveLog("CreateConnectionSocket failed - %s", strerror(errno));
+            delete networkSession;
+            return NULL;
+        }
+        // 原始：GetSocket() 直接作为变参
+        ArchiveLog("Try connect to other server sock(%d), ip(%s), port(%d)", networkSession->GetSocket(), ip, port);
+        networkSession->set_type(SESSION_TYPE_SERVER);
+        pSessionManager->RegisterSession(networkSession, SESSION_TYPE_SERVER);
+        return networkSession;
     }
-    // 原始：CreateConnectionSocket == false 提前处理（xor eax,1; test/je 形态）
-    if (networkSession->CreateConnectionSocket(ip, port) == false) {
-        ArchiveLog("CreateConnectionSocket failed - %s", strerror(errno));
-        delete networkSession;
-        return NULL;
-    }
-    // 原始：GetSocket() 直接作为变参
-    ArchiveLog("Try connect to other server sock(%d), ip(%s), port(%d)", networkSession->GetSocket(), ip, port);
-    networkSession->set_type(SESSION_TYPE_SERVER);
-    pSessionManager->RegisterSession(networkSession, SESSION_TYPE_SERVER);
-    return networkSession;
+    // 原始：NULL 分支的 return NULL 位于函数末尾（je 跳到末尾的 mov eax,0）
+    return NULL;
 }
 CNetworkSession *CNetworkSession::CreateListenSocket(int port, const char *ip) {
     int socket = 0;

@@ -241,7 +241,6 @@ class CFrameCountHandler
 {
 public:
     CFrameCountHandler();
-    ~CFrameCountHandler();
     void InitFrameCountInfo(CApplication* app, unsigned int frameCount, unsigned short tick);
     CFrameCountHandler* GetFrameCountInfo();
     void SaveProcess();

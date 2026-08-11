@@ -63,10 +63,9 @@ void LogSendThread::loop(void* temp)
     }
 }
 
-bool LogSendThread::CheckLogServer()
+void LogSendThread::CheckLogServer()
 {
     assert(false);
-    return false;
 }
 
 void LogSendThread::SendLogMsg(char* buf, int len)

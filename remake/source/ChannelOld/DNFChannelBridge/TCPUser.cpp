@@ -51,7 +51,7 @@ void ChannelServiceApp::TCPUser::startupAfterSetSocket()
 void ChannelServiceApp::TCPUser::postDisconnected(int nReason)
 {
     bAboutToDisconnect_ = true;
-    GLOG(ChannelServiceApp::gFileLogInfo, "In postDisconnected =" << nReason);
+    GLOG(ChannelServiceApp::gFileLogError, "In postDisconnected =" << nReason);
     nReason_ = nReason;
 }
 

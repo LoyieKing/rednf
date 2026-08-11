@@ -63,10 +63,11 @@ int CUdpHandler::InitClientSocket()
     m_clientSock = socket(2, 2, 0x11);
     if (m_clientSock == -1)
     {
-        printf("Could not create a UDP socket : %d\n", getErrno());
+        int err = getErrno();
+        printf("Could not create a UDP socket : %d\n", err);
         return -1;
     }
-    DNF_LOG_SCOPE_LINE(0x8f, "./log/Udp", "Opened port with fd %d\n", m_clientSock);
+    CMyFileLog("InitClientSocket", 0x8f)("./log/Udp", "Opened port with fd %d\n", m_clientSock);
     return m_clientSock;
 }
 

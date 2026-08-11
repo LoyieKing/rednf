@@ -103,9 +103,9 @@ CArchiveLog::~CArchiveLog() {
 DateTime::DateTime() {
     tm *pt;
     tm time;
-    time_t time_size[4];
-    time_size[0] = ::time(NULL);
-    pt = localtime_r(time_size, &time);
+    time_t time_size;
+    time_size = ::time(NULL);
+    pt = localtime_r(&time_size, &time);
     this->year = (short)(pt->tm_year + 1900);
     this->month = pt->tm_mon + 1;
     this->day = pt->tm_mday;

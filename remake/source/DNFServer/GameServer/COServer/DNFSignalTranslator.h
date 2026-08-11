@@ -13,10 +13,10 @@ public:
     CSignalTranslator();
     ~CSignalTranslator();
     void clear();
-    int init(CApplication* app);
+    void init(CApplication* app);
     void init_signal();
     int init_handler(CApplication* app);
-    int regist_signal(int sig, void (*handler)(int));
+    bool regist_signal(int sig, void (*handler)(int));
     CSignal* getSignal(int sig) const;
     CSignal* m_handlers[0x20];  // +0
 };

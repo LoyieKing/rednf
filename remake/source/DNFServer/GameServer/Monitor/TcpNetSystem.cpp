@@ -46,7 +46,7 @@ void EpollHandler::Destroy()
 {
     if (m_events != 0)
     {
-        ::operator delete(m_events);
+        ::operator delete[](m_events);
     }
     m_events = 0;
 }
@@ -59,7 +59,7 @@ int EpollHandler::Init()
         puts("[Epoll::init] Can\'t init epoll create");
         return 0;
     }
-    m_events = ::operator new(12000);
+    m_events = new char[12000];
     if (m_events == 0)
     {
         printf("[Epoll::init] Can\'t alloc event memory");
@@ -104,8 +104,7 @@ int EpollHandler::ResetEpoll(int fd)
 
 int EpollHandler::WaitForEvent()
 {
-    epoll_wait(GetEpollFD(), (epoll_event*)GetEpollEvents(), 1000, 100);
-    return 0;
+    return epoll_wait(GetEpollFD(), (epoll_event*)GetEpollEvents(), 1000, 100);
 }
 
 char EpollHandler::IsSetErrEvent(int idx)
@@ -445,4 +444,3 @@ CSwapQueue<std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*, std::allocato
 {
     return &m_recvSwapQ;
 }
-

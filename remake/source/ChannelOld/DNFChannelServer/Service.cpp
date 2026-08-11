@@ -166,7 +166,7 @@ void LinuxService::start()
 {
     if (m_bRunAsService)
     {
-        _evlog("Run As Non Service\n");
+        _evlog("Run As Service\n");
         make_dir((char*)"./pid");
         pid_t pid = fork();
         if (pid < 0)
@@ -187,7 +187,7 @@ void LinuxService::start()
     }
     else
     {
-        _evlog("Run As Service\n");
+        _evlog("Run As Non Service\n");
     }
 }
 
@@ -336,7 +336,7 @@ bool Neof_registerSignalHandler(int sig, handler func_name)
     }
     if (sigaction(sig, &act, &oact) < 0)
     {
-        printf("fail to regist signal (signal id: %d)\n", sig);
+        printf("%d\xb9\xf8 signal \xb5\xee\xb7\xcf \xbd\xc7\xc6\xd0\n", sig);
         return false;
     }
     return true;
@@ -428,14 +428,14 @@ bool Neof_sendTerminateSignal()
     fp = fopen(file_path, "r");
     if (fp == NULL)
     {
-        printf("process id file open fail : %s\n", file_path);
+        printf("%s process id file open \xbd\xc7\xc6\xd0\n", file_path);
         return false;
     }
     fscanf(fp, "%d", &pid);
     if (pid < 1)
     {
         fclose(fp);
-        printf("wrong process id (%d)\n", pid);
+        printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
         return false;
     }
     ret = kill(pid, 0xf);
@@ -443,7 +443,7 @@ bool Neof_sendTerminateSignal()
     if (ret < 0)
     {
         fclose(fp);
-        printf("fail to terminate process (process id: %d)\n", ret, pid);
+        printf("[ret = %d ]called Neof_sendTerminateSignal() : %d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", ret, pid);
         return false;
     }
     fclose(fp);
@@ -460,7 +460,7 @@ void Neof_sendSuspendSignal()
     FILE* fp = fopen(file_path, "r");
     if (fp == NULL)
     {
-        printf("process id file open fail : %s\n", file_path);
+        printf("%s process id file open \xbd\xc7\xc6\xd0\n", file_path);
     }
     else
     {
@@ -468,7 +468,7 @@ void Neof_sendSuspendSignal()
         if (pid < 1)
         {
             fclose(fp);
-            printf("wrong process id (%d)\n", pid);
+            printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
         }
         else
         {
@@ -476,7 +476,7 @@ void Neof_sendSuspendSignal()
             if (ret < 0)
             {
                 fclose(fp);
-                printf("fail to suspend process (process id: %d)\n", pid);
+                printf("%d\xb9\xf8 process\xb7\xce \xc1\xbe\xb7\xe1 signal \xbc\xdb\xbd\xc5 \xbd\xc7\xc6\xd0", pid);
             }
             else
             {

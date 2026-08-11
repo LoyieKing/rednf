@@ -131,11 +131,11 @@ StackBuffer& StackBuffer::operator=(const StackBuffer& other)
     }
     return *this;
 }
-void StackBuffer::alloc(unsigned int size)
+StackBuffer StackBuffer::alloc(unsigned int size)
 {
-    m_buf = 0;
-    m_end = 0;
-    allocStackBuffer(size, (unsigned char**)&m_buf, &m_end);
+    StackBuffer sb;
+    allocStackBuffer(size, (unsigned char**)&sb.m_buf, &sb.m_end);
+    return sb;
 }
 void StackBuffer::freeAll()
 {
@@ -145,22 +145,22 @@ char* StackBuffer::getBuffer()
 {
     return m_buf;
 }
-void StackBuffer_char::alloc(unsigned int size)
+StackBuffer_char StackBuffer_char::alloc(unsigned int size)
 {
-    m_buf = 0;
-    m_end = 0;
-    allocStackBuffer(size, (unsigned char**)&m_buf, &m_end);
+    StackBuffer_char sb;
+    allocStackBuffer(size, (unsigned char**)&sb.m_buf, &sb.m_end);
+    return sb;
 }
 StackBuffer_char::operator char*()
 {
     return getBuffer();
 }
 
-void StackBuffer_wchar::alloc(unsigned int size)
+StackBuffer_wchar StackBuffer_wchar::alloc(unsigned int size)
 {
-    m_buf = 0;
-    m_end = 0;
-    allocStackBuffer(size, (unsigned char**)&m_buf, &m_end);
+    StackBuffer_wchar sb;
+    allocStackBuffer(size, (unsigned char**)&sb.m_buf, &sb.m_end);
+    return sb;
 }
 StackBuffer_wchar::operator wchar_t*()
 {

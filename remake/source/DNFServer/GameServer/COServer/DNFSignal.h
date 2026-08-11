@@ -18,9 +18,9 @@ public:
 class CTerminateSig : public CSignal
 {
 public:
-    // throw() 声明：TU 拆分后让编译器在 DNFSignalTranslator.cpp 里仍能看到
-    // 空构造/析构不抛异常，从而不发射 EH cleanup（复现 ORIG 137 insns 机器码）
-    CTerminateSig() throw();
+    // 空构造内联于头（复现 ORIG：构造器为 weak 符号且帧为 sub $0x18,%esp；
+    // 若在 .cpp 定义，同 TU 可见 CSignal::CSignal 定义，帧会变成 sub $0x4,%esp）
+    CTerminateSig() throw() {}
     virtual ~CTerminateSig() throw();
     virtual void handle(int sig);
 };
@@ -28,7 +28,7 @@ public:
 class CSegmentationFaultSig : public CSignal
 {
 public:
-    CSegmentationFaultSig() throw();
+    CSegmentationFaultSig() throw() {}
     virtual ~CSegmentationFaultSig() throw();
     virtual void handle(int sig);
 };
@@ -36,7 +36,7 @@ public:
 class CSystemFailSig : public CSignal
 {
 public:
-    CSystemFailSig() throw();
+    CSystemFailSig() throw() {}
     virtual ~CSystemFailSig() throw();
     virtual void handle(int sig);
 };

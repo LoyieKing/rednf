@@ -29,17 +29,15 @@ StackBuffer_char sformat(const char* fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     int len = vsnprintf(buf, 0x200, fmt, ap);
-    if (len >= 0 && len <= 0x1ff)
+    if (len >= 0 && (unsigned int)len <= 0x1ff)
     {
-        StackBuffer_char tmp;
-        tmp.alloc(len + 1);
+        StackBuffer_char tmp = StackBuffer_char::alloc(len + 1);
         memcpy(tmp.getBuffer(), buf, len + 1);
         va_end(ap);
         return tmp;
     }
     len = vsnprintf(0, 0, fmt, ap);
-    StackBuffer_char tmp;
-    tmp.alloc(len + 1);
+    StackBuffer_char tmp = StackBuffer_char::alloc(len + 1);
     vsnprintf(tmp.getBuffer(), len + 1, fmt, ap);
     va_end(ap);
     return tmp;
@@ -50,17 +48,15 @@ StackBuffer_wchar wformat(const wchar_t* fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     int len = vswprintf(buf, 0x200, fmt, ap);
-    if (len >= 0 && len <= 0x1ff)
+    if (len >= 0 && (unsigned int)len <= 0x1ff)
     {
-        StackBuffer_wchar tmp;
-        tmp.alloc((len + 1) * 4);
+        StackBuffer_wchar tmp = StackBuffer_wchar::alloc((len + 1) * 4);
         memcpy(tmp.getBuffer(), buf, (len + 1) * 4);
         va_end(ap);
         return tmp;
     }
     len = vswprintf((wchar_t*)0, 0, fmt, ap);
-    StackBuffer_wchar tmp;
-    tmp.alloc((len + 1) * 4);
+    StackBuffer_wchar tmp = StackBuffer_wchar::alloc((len + 1) * 4);
     vswprintf((wchar_t*)tmp.getBuffer(), len + 1, fmt, ap);
     va_end(ap);
     return tmp;

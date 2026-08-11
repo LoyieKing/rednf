@@ -36,12 +36,10 @@ void CCashObject::operator delete(void* p) { ::operator delete(p); }
 void CCashObject::operator delete(void* p, unsigned int size) { ::operator delete(p); }
 
 CCashObject::CCashObject()
+    : m_lifeTime(5), m_characNo(0), m_memberObject(0)
 {
-    m_lifeTime = 5;
-    m_characNo = 0;
-    m_memberObject = 0;
-    memset(m_buddys, 0, sizeof(m_buddys));
-    m_blackUsers.clear();
+    ClearBuddys();
+    ClearMapBlackUsers();
 }
 
 CCashObject::~CCashObject()
@@ -91,7 +89,7 @@ void CCashObject::SetBlackUsersObject(std::map<unsigned int, CBlackUser*>& map)
 
 void CCashObject::SetLifeTime(unsigned int lifeTime) { m_lifeTime = lifeTime; }
 
-void CCashObject::ClearMemberObject() {}
+void CCashObject::ClearMemberObject() { m_memberObject = 0; }
 
 void CCashObject::DeleteMemberObject()
 {
@@ -155,7 +153,10 @@ void CCashObject::ClearBuddys()
 {
     for (int i = 0; i <= 0x1f; i++)
     {
-        m_buddys[i] = 0;
+        if (m_buddys[i] != 0)
+        {
+            m_buddys[i] = 0;
+        }
     }
 }
 
@@ -169,7 +170,6 @@ char CCashObject::IsLifeTimeOut()
     return (char)(m_lifeTime == 0);
 }
 
-std::map<unsigned int, CBlackUser*>* CCashObject::GetBlackUsersObject() { return 0; }
+std::map<unsigned int, CBlackUser*>* CCashObject::GetBlackUsersObject() { return &m_blackUsers; }
 
 void CCashObject::ClearMapBlackUsers() { m_blackUsers.clear(); }
-

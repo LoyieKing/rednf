@@ -43,12 +43,12 @@ void CSignalTranslator::clear()
     }
 }
 
-int CSignalTranslator::init(CApplication* app)
+void CSignalTranslator::init(CApplication* app)
 {
     try
     {
         init_signal();
-        return init_handler(app);
+        init_handler(app);
     }
     catch (CDNFException& e)
     {
@@ -150,19 +150,27 @@ int CSignalTranslator::init_handler(CApplication* app)
     // NOTE: ORIG 无 return 语句直接落底（返回残留 eax），调用方均忽略返回值；照抄 ORIG 以对齐机器码
 }
 
-int CSignalTranslator::regist_signal(int sig, void (*handler)(int))
+bool CSignalTranslator::regist_signal(int sig, void (*handler)(int))
 {
     struct sigaction sa;
     struct sigaction old;
     sa.sa_handler = (__sighandler_t)handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = (sig == 0xe) ? 0x20000000 : 0x10000000;
-    int r = sigaction(sig, &sa, &old);
-    if (-1 >= r)
+    sa.sa_flags = 0;
+    if (sig == 0xe)
+    {
+        sa.sa_flags |= 0x20000000;
+    }
+    else
+    {
+        sa.sa_flags |= 0x10000000;
+    }
+    if (-1 >= sigaction(sig, &sa, &old))
     {
         printf("%d\xb9\xf8 signal \xb5\xee\xb7\xcf \xbd\xc7\xc6\xd0\n", sig);
+        return 0;
     }
-    return -1 < r;
+    return 1;
 }
 
 CSignal* CSignalTranslator::getSignal(int sig) const

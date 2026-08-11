@@ -101,9 +101,15 @@ void CManagerServer::SendHeartBeat(int group)
     }
 }
 
+#pragma pack(push,1)
+struct Packet_Monitor_UDP_HeartBeat_Layout
+{
+    char pad0x0[0xa];
+    unsigned char ma;
+};
+#pragma pack(pop)
 Packet_Monitor_UDP_HeartBeat::Packet_Monitor_UDP_HeartBeat()
     : PacketHeader(0x3ec, 0xb)
 {
-    *(unsigned char*)((char*)this + 0xa) = 0xff;
+    ((Packet_Monitor_UDP_HeartBeat_Layout*)this)->ma = 255;
 }
-

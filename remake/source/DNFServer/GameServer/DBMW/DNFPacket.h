@@ -946,13 +946,15 @@ struct STBlackUserDBType
 struct STGuildBoardDBInfo
 {
     STGuildBoardDBInfo();
-    char m_data[0xa5];
+    char m_pre[0x84];
+    STGuildMemberCharacData m_member;  // +0x84（0x21 字节，总大小 0xa5）
 };
 
 struct STGuildCargoDBInfo
 {
     STGuildCargoDBInfo();
-    char m_data[0x18dc];
+    DnfItemInfo m_items[0x78];  // +0（0x18d8 字节）
+    int m_tail;                  // +0x18d8（总大小 0x18dc）
 };
 
 struct STGuildMemerDBInfo

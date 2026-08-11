@@ -463,10 +463,18 @@ void CUser::MakeGameServerSendUserInfoPacket(unsigned int guildKey)
     SendTcpGameserver(&pkt);
 }
 
+#pragma pack(push,1)
+struct STGuildMemerDBInfo_Layout
+{
+    char pad0x0[0x15];
+    unsigned char m15;
+    unsigned int m16;
+};
+#pragma pack(pop)
 STGuildMemerDBInfo::STGuildMemerDBInfo()
 {
-    *(unsigned char*)((char*)this + 0x15) = 0x0;
-    *(unsigned int*)((char*)this + 0x16) = 0;
+    ((STGuildMemerDBInfo_Layout*)this)->m15 = 0;
+    ((STGuildMemerDBInfo_Layout*)this)->m16 = 0;
     memset((char*)this, 0, 0x15);
 }
 
@@ -517,12 +525,21 @@ unsigned int CUser::GetUniqCharNo()
     return m_charNo;
 }
 
+#pragma pack(push,1)
+struct Packet_Monitor_Set_Guild_Key_Layout
+{
+    char pad0x0[0xa];
+    unsigned int ma;
+    unsigned int me;
+    unsigned int m12;
+};
+#pragma pack(pop)
 Packet_Monitor_Set_Guild_Key::Packet_Monitor_Set_Guild_Key()
     : PacketHeader(0x40b, 0x16)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned int*)((char*)this + 0x12) = 0;
+    ((Packet_Monitor_Set_Guild_Key_Layout*)this)->ma = 4294967295;
+    ((Packet_Monitor_Set_Guild_Key_Layout*)this)->me = 0;
+    ((Packet_Monitor_Set_Guild_Key_Layout*)this)->m12 = 0;
 }
 
 Packet_Monitor_SAVE_Guild_Member::Packet_Monitor_SAVE_Guild_Member()
@@ -621,9 +638,22 @@ STGuildMemerDBInfo* CUser::GetGuildMemDBInfo()
     return &m_guildDBInfo;
 }
 
+#pragma pack(push,1)
+struct CUser_IsSubGuildMaster_Layout
+{
+    char h[0x5f];
+    unsigned char m5f;
+};
+#pragma pack(pop)
+
 bool CUser::IsSubGuildMaster()
 {
-    return m_guild != 0 && m_guild->IsSubGuildMaster(m_dbid);
+    // ORIG：仅比较 this+0x5f 字节 == 2（无 m_guild 解引用），打包布局复现直接偏移读取
+    if (((CUser_IsSubGuildMaster_Layout*)this)->m5f == 2)
+    {
+        return true;
+    }
+    return false;
 }
 
 void CUser::SetBlackListDBFlag(unsigned short flag)
@@ -655,4 +685,3 @@ unsigned short CUser::GetBlackListDBFlag()
 {
     return m_field7c;
 }
-

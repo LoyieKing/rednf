@@ -9,11 +9,11 @@
 #include "DNFUdpRecvBuffer.h"
 #include "DNFFileLog.h"
 
-CInnerMsgHandler::CInnerMsgHandler()
+CInnerMsgHandler::CInnerMsgHandler() throw()
 {
 }
 
-CInnerMsgHandler::~CInnerMsgHandler()
+CInnerMsgHandler::~CInnerMsgHandler() throw()
 {
 }
 

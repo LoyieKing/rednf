@@ -16,9 +16,9 @@ struct STCubeStatisticKey
     STCubeStatisticKey(const STCubeStatisticKey& other);
     ~STCubeStatisticKey();
     bool operator<(STCubeStatisticKey other) const;
-    unsigned int m_field0;  // +0
-    unsigned int m_field4;  // +4
-    unsigned int m_field8;  // +8
+    int m_field0;           // +0
+    int m_field4;           // +4
+    int m_field8;           // +8
     unsigned char m_fieldc; // +0xc
 };
 
@@ -29,7 +29,7 @@ struct STPartyStatisticKey
     ~STPartyStatisticKey();
     bool operator<(const STPartyStatisticKey& other) const;
     unsigned short m_field0;  // +0
-    unsigned int m_field4;    // +4
+    int m_field4;             // +4
     char m_field8;            // +8
     unsigned char m_field9;   // +9
     unsigned char m_fielda;   // +0xa
@@ -44,7 +44,7 @@ struct PartyStatistic
     PartyStatistic();
     ~PartyStatistic();
     void Reset();
-    PartyStatistic& operator+=(const PartyStatistic& other);
+    void operator+=(const PartyStatistic& other);
     int m_data[12];
 };
 
@@ -55,14 +55,14 @@ struct STPartyJobStatisticKey
     ~STPartyJobStatisticKey();
     bool operator<(const STPartyJobStatisticKey& other) const;
     unsigned short m_field0;  // +0
-    unsigned int m_field4;    // +4
+    int m_field4;             // +4
     char m_field8;            // +8
     unsigned char m_field9;   // +9
     unsigned char m_fielda;   // +0xa
     unsigned char m_fieldb;   // +0xb
     unsigned char m_fieldc;   // +0xc
     char m_fieldd;            // +0xd
-    unsigned int m_field10;   // +0x10
+    int m_field10;            // +0x10
     char m_field14;           // +0x14
 };
 
@@ -72,7 +72,7 @@ struct PartyJobStatistic
     PartyJobStatistic();
     ~PartyJobStatistic();
     void reset();
-    PartyJobStatistic& operator+=(const PartyJobStatistic& other);
+    void operator+=(const PartyJobStatistic& other);
     int m_data[2];
 };
 
@@ -83,11 +83,11 @@ struct STPartyCharacKey
     ~STPartyCharacKey();
     bool operator<(const STPartyCharacKey& other) const;
     unsigned short m_field0;  // +0
-    unsigned int m_field4;    // +4
+    int m_field4;             // +4
     char m_field8;            // +8
     unsigned char m_field9;   // +9
     unsigned char m_fielda;   // +0xa
-    unsigned int m_fieldc;    // +0xc
+    int m_fieldc;             // +0xc
     char m_field10;           // +0x10
     char m_field11;           // +0x11
 };
@@ -98,7 +98,7 @@ struct PartyCharacStatistic
     PartyCharacStatistic();
     ~PartyCharacStatistic();
     void Reset();
-    PartyCharacStatistic& operator+=(const PartyCharacStatistic& other);
+    void operator+=(const PartyCharacStatistic& other);
     int m_data[13];
 };
 
@@ -109,7 +109,7 @@ struct STDeathTowerValueStatisticKey
     ~STDeathTowerValueStatisticKey();
     bool operator<(const STDeathTowerValueStatisticKey& other) const;
     char m_field0;            // +0
-    unsigned short m_field2;  // +2
+    short m_field2;           // +2
     unsigned int m_field4;    // +4
 };
 
@@ -119,7 +119,7 @@ struct ValueStatistic
     ValueStatistic();
     ~ValueStatistic();
     void Reset();
-    ValueStatistic& operator+=(const ValueStatistic& other);
+    void operator+=(const ValueStatistic& other);
     int m_data[2];
 };
 
@@ -130,7 +130,7 @@ struct STDeathTowerPlayDataJobStatisticKey
     ~STDeathTowerPlayDataJobStatisticKey();
     bool operator<(const STDeathTowerPlayDataJobStatisticKey& other) const;
     char m_field0;            // +0
-    unsigned short m_field2;  // +2
+    short m_field2;           // +2
     unsigned int m_field4;    // +4
     char m_field8;            // +8
 };
@@ -141,7 +141,7 @@ struct PlayDataJobStatistic
     PlayDataJobStatistic();
     ~PlayDataJobStatistic();
     void Reset();
-    PlayDataJobStatistic& operator+=(const PlayDataJobStatistic& other);
+    void operator+=(const PlayDataJobStatistic& other);
     int m_data[2];
 };
 
@@ -161,7 +161,7 @@ struct PlayDataPartyStatistic
     PlayDataPartyStatistic();
     ~PlayDataPartyStatistic();
     void Reset();
-    PlayDataPartyStatistic& operator+=(const PlayDataPartyStatistic& other);
+    void operator+=(const PlayDataPartyStatistic& other);
     int m_data[2];
 };
 
@@ -195,7 +195,7 @@ struct STUserTingTimeCheckKey
     ~STUserTingTimeCheckKey();
     void Reset();
     bool operator<(const STUserTingTimeCheckKey& other) const;
-    unsigned int m_field0;  // +0
+    int m_field0;           // +0
 };
 
 // ---- STHellPartyStatisticItemKey：0xb ----
@@ -205,7 +205,7 @@ struct STHellPartyStatisticItemKey
     ~STHellPartyStatisticItemKey();
     bool operator<(const STHellPartyStatisticItemKey& other) const;
     unsigned char m_field0;  // +0
-    unsigned int m_field4;   // +4
+    int m_field4;            // +4
     char m_field8;           // +8
     char m_field9;           // +9
     char m_fielda;           // +0xa
@@ -217,7 +217,7 @@ struct HellPartyItenmData
     HellPartyItenmData();
     ~HellPartyItenmData();
     void Reset();
-    HellPartyItenmData& operator+=(const HellPartyItenmData& other);
+    void operator+=(const HellPartyItenmData& other);
     int m_count;       // +0（1）
     int m_data[6];     // +4
 };
@@ -579,7 +579,7 @@ public:
     void LoadGmList(unsigned int group, int index);
     void clearGmList();
     void AppendGM_Sys(unsigned int id, char flag);
-    void loadGMAccounts(const char* path);
+    bool loadGMAccounts(const char* path);
     int isGM(unsigned int id);
     void appendGM(unsigned int id, unsigned int value);
     void removeGM(unsigned int id, unsigned int value);

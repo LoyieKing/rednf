@@ -30,7 +30,10 @@ void CNetworkThread::dispatch(void* param)
 {
     try
     {
-    if (m_queue != 0 && m_udp != 0 && m_lock != 0)
+    if (m_queue == 0 || m_udp == 0 || m_lock == 0)
+    {
+        throw CDNFException("NetworkThread is Not Ready!\n");
+    }
     {
         DNFFLib::Sleep_Ext(5, 0);
         puts("Network Thread Start!");
@@ -107,9 +110,7 @@ void CNetworkThread::dispatch(void* param)
                 CUdpRecvBuffer::operator delete(buf);
             }
         }
-        return;
     }
-    throw CDNFException("NetworkThread is Not Ready!\n");
     }
     catch (std::exception& e)
     {

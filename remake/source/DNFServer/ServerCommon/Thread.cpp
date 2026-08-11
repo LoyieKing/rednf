@@ -7,11 +7,11 @@ extern "C" int pthread_equal(pthread_t t1, pthread_t t2) {
     return t1 == t2;
 }
 
-CMutex::CMutex() {
+CMutex::CMutex() throw() {
     pthread_mutex_init(&mutex, NULL);
 }
 
-CMutex::~CMutex() {
+CMutex::~CMutex() throw() {
     pthread_mutex_destroy(&mutex);
 }
 

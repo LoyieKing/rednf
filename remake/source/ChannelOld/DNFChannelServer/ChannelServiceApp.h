@@ -234,8 +234,8 @@ class TCircularQueueBuffer
 public:
     TCircularQueueBuffer()
     {
-        m_nPopIndex = 0;
         m_nPushIndex = 0;
+        m_nPopIndex = 0;
         memset(&m_buffer[0], 0, sizeof(m_buffer));
     }
     void clear()

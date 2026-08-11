@@ -24,7 +24,8 @@ UserPools::~UserPools()
 
 TCPSocket* UserPools::createTCPSocket()
 {
-    return m_tcpSocketPool.alloc();
+    TCPSocket* p = m_tcpSocketPool.alloc();
+    return p;
 }
 
 void UserPools::destroyTCPSocket(TCPSocket* sock)
@@ -34,7 +35,8 @@ void UserPools::destroyTCPSocket(TCPSocket* sock)
 
 TCPUser* UserPools::createTCPUser()
 {
-    return m_tcpUserPool.alloc();
+    TCPUser* p = m_tcpUserPool.alloc();
+    return p;
 }
 
 void UserPools::destroyTCPUser(TCPUser* user)
@@ -52,7 +54,8 @@ void UserPools::destroyTCPUser(TCPUser* user)
 
 UDPUser* UserPools::createUDPUser()
 {
-    return m_udpUserPool.alloc();
+    UDPUser* p = m_udpUserPool.alloc();
+    return p;
 }
 
 void UserPools::destroyUDPUser(UDPUser* user)

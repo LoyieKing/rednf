@@ -14,11 +14,12 @@ CThreadInterface::~CThreadInterface()
 bool CThreadInterface::begin()
 {
     int r = pthread_create(&m_handle, 0, dispatch_proxy, this);
-    if (-1 >= r)
+    if (r < 0)
     {
         puts("[ThreadInterface::begin] Can't begin thread");
+        return false;
     }
-    return -1 < r;
+    return true;
 }
 void CThreadInterface::stop()
 {

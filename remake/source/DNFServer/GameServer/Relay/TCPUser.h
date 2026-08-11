@@ -38,7 +38,7 @@ public:
     }
     int pushIndex(int n)
     {
-        if (n > (int)N - 1)
+        if ((unsigned int)n >= N)
         {
             return -1;
         }
@@ -213,7 +213,7 @@ public:
     }
     int push(char* data, int n)
     {
-        if (n > (int)N - 1)
+        if ((unsigned int)n >= N)
         {
             return -1;
         }

@@ -30,7 +30,7 @@
 
 CGameServer::CGameServer() { m_socket = 0; }
 
-CGameServer::CGameServer(stServerInfo* info) : CServerInterface(info) {}
+CGameServer::CGameServer(stServerInfo* info) : CServerInterface(info) { m_socket = 0; }
 
 CGameServer::~CGameServer() {}
 
@@ -140,4 +140,3 @@ char CTcpGameServer::IsValidServer()
     }
     return 0;
 }
-

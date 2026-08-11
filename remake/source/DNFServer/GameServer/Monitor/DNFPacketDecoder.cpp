@@ -316,8 +316,8 @@ char CPacketDecoder::MsgDecode(PacketHeader* pkt)
 
 CPacketDecoder* CPacketDecoderInstance()
 {
-    static CPacketDecoder inst;
-    return &inst;
+    static CPacketDecoder instance;
+    return &instance;
 }
 
 void CPacketDecoder::SetUdpQueue(

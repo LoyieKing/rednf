@@ -267,7 +267,7 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                     gFileLogCri << "End" << endl;
                     gFileLogCri.Unlock();
                     GLOG(gFileLogInfo, "ABCD *************************************************************");
-                    GLOG(gFileLogInfo, "ABCD * " << i << "\xbc\xad\xb9\xf6\xb1\xba, \xbc\xad\xb9\xf6 \xb0\xb3\xbc\xf6 = " << (count + 1));
+                    GLOG(gFileLogInfo, "ABCD * " << i << "\xbc\xad\xb9\xf6\xb1\xba, \xbc\xad\xb9\xf6 \xb0\xb3\xbc\xf6 =" << (count + 1));
                     GLOG(gFileLogInfo, "ABCD *************************************************************");
                 }
             }

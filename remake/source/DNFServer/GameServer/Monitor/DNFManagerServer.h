@@ -242,7 +242,6 @@ class CExchangeServer
 {
 public:
     CExchangeServer();
-    ~CExchangeServer();
     void SetExchageServer(unsigned int ip, short port, int code, bool& result);
     unsigned int GetExchangeServerIp();
     unsigned short GetExchangeServerPort();
@@ -281,7 +280,6 @@ public:
     unsigned short m_port; // +4
     int m_sock;            // +8
     void* m_net;           // +0xc
-    int m_field10;         // +0x10
 };
 
 class CManagerServer : public CServerInterface
