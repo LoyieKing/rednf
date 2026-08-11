@@ -1,5 +1,6 @@
 // df_monitor_r — Peer（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -68,7 +69,7 @@ int CPeer::recv_packet()
 void CPeer::DisConnSig()
 {
     Packet_InnerPakcet_Logout pkt;
-    getHandle();
+    int fd = getHandle();  // ORIG：结果落 -0xc 局部槽
     CTcpRecvBuffer* buf;
     {
         CGuard<CMutex> guard((CMutex*)m_bLock);
@@ -81,7 +82,7 @@ void CPeer::DisConnSig()
     }
 }
 
-unsigned int CPeer::get_remain_sendlen() { return 0; }
+unsigned int CPeer::get_remain_sendlen() { return m_sendRemain; }
 
 int CPeer::send_packet()
 {
@@ -178,7 +179,7 @@ int CPeer::send_packet(char* buf, int len)
     return -1;
 }
 
-TCPSocket* CPeer::GetTcpSocket() { return 0; }
+TCPSocket* CPeer::GetTcpSocket() { return this; }
 
 void CPeer::InitPeer(std::queue<CTcpRecvBuffer*>* recvQ, CMutex* recvQLock, CMutex* recvBLock)
 {
@@ -223,7 +224,7 @@ int CPeer::RecvPacket()
 void CPeer::ConnSig()
 {
     Packet_InnerPakcet_Login pkt;
-    getHandle();
+    int fd = getHandle();  // ORIG：结果落 -0xc 局部槽
     CTcpRecvBuffer* buf;
     {
         CGuard<CMutex> guard((CMutex*)m_bLock);
@@ -257,7 +258,7 @@ int CPeer::parsing(int recvLen)
                 m_buf = m_buf - m_remainLen;
             }
             memcpy(&header, m_buf, 10);
-            unsigned int pktSize = (unsigned int)*(unsigned short*)((char*)&header + 2);
+            unsigned int pktSize = (unsigned int)((RA_U16<2>*)&header)->v;
             if (pktSize < 10 || 0x1800 < pktSize)
             {
                 DNF_LOG_SCOPE_LINE(0xd0,"./log/TcpRecv",
@@ -280,7 +281,7 @@ int CPeer::parsing(int recvLen)
                 buf = new CTcpRecvBuffer;
             }
             memcpy(buf, m_buf, pktSize);
-            *(unsigned int*)((char*)buf + 6) = (unsigned int)getHandle();
+            ((RA_UINT<6>*)buf)->v = (unsigned int)getHandle();
             {
                 CGuard<CMutex> guard((CMutex*)m_qLock);
                 ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
@@ -325,7 +326,17 @@ LAB_51773:
     return 1;
 }
 
-CPeer::CPeer() {}
+CPeer::CPeer()
+{
+    m_buf = 0;
+    m_remainLen = 0;
+    m_alreadyRead = 0;
+    m_recvQ = 0;
+    m_bLock = 0;
+    m_qLock = 0;
+    m_sendRemain = 0;
+    m_sendPtr = 0;
+}
 
 CPeer::~CPeer()
 {
@@ -339,4 +350,3 @@ CPeer::~CPeer()
 void* CPeer::operator new(unsigned int size) { return ::operator new(size); }
 
 void CPeer::operator delete(void* p) { ::operator delete(p); }
-

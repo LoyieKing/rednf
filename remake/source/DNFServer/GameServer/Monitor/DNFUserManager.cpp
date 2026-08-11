@@ -1,5 +1,6 @@
 // df_monitor_r — DNFUserManager（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,7 +34,10 @@
 #include "DNFServerInterface.h"
 #include "DNFUser.h"
 
-CUserManager::CUserManager() {}
+CUserManager::CUserManager()
+{
+    m_app = 0;
+}
 
 CUserManager::~CUserManager()
 {
@@ -59,7 +63,10 @@ CUserManager::~CUserManager()
     m_prohibitUsers.clear();
 }
 
-void CUserManager::Init(CApplication* app) {}
+void CUserManager::Init(CApplication* app)
+{
+    m_app = app;
+}
 
 void CUserManager::MemberEnterProcess()
 {
@@ -88,7 +95,7 @@ void CUserManager::ProcessByMinute()
                 {
                     register int remain = (short)pu->GetProhibitRemainTime();
                     register unsigned int dbid = pu->GetDBID();
-                    CMyFileLog log("ProcessByMinute", 0x292);
+                    CMyFileLog log(__FUNCTION__, 0x292);
                     log("./log/User",
                         "[PROHIBIT CONNECT USER TIME_OUT] Prohibit User DB ID : %d\t Remain time(%d)\n",
                         dbid, remain);
@@ -106,15 +113,12 @@ void CUserManager::ProcessByMinute()
 
 CUser* CUserManager::FindUser_CharNo(unsigned int charNo) const
 {
-    if (!m_charNoUsers.empty())
+    std::map<const unsigned int, CUser*>::const_iterator it = m_charNoUsers.find(charNo);
+    if (it == m_charNoUsers.end())
     {
-        std::map<const unsigned int, CUser*>::const_iterator it = m_charNoUsers.find(charNo);
-        if (it != m_charNoUsers.end())
-        {
-            return it->second;
-        }
+        return 0;
     }
-    return 0;
+    return it->second;
 }
 
 CUser* CUserManager::FindUser_CharName(std::string name) const
@@ -132,14 +136,19 @@ CUser* CUserManager::FindUser_CharName(std::string name) const
 
 void CUserManager::ChangeBlackListCharName(unsigned int dbid, char* name)
 {
-    if (!m_users.empty())
+    if (m_users.empty())
+    {
+    }
+    else
     {
         for (std::map<unsigned int, CUser*>::const_iterator it = m_users.begin();
              it != m_users.end(); ++it)
         {
-            it->second->ChangeCharNameToBlackList(dbid, name);
+            CUser* user = it->second;
+            user->ChangeCharNameToBlackList(dbid, name);
         }
     }
+    return;
 }
 
 void CUserManager::ResetBlackList(unsigned int charNo)
@@ -149,6 +158,7 @@ void CUserManager::ResetBlackList(unsigned int charNo)
     {
         user->ResetBlackList(1);
     }
+    return;
 }
 
 void CUserManager::ResetBuddyList(unsigned int charNo)
@@ -158,49 +168,50 @@ void CUserManager::ResetBuddyList(unsigned int charNo)
     {
         user->ResetBuddyList(true);
     }
+    return;
 }
 
-void CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
+int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
 {
-    if (!m_charNoUsers.empty())
+    if (m_users.empty())
     {
-        for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
-             it != m_charNoUsers.end(); )
+        return 0;
+    }
+    for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
+         it != m_charNoUsers.end(); )
+    {
+        if (it->second != 0)
         {
-            if (it->second != 0 && it->second->GetGameServer() == gameServer)
+            if (it->second->GetGameServer() == gameServer)
             {
                 std::map<const unsigned int, CUser*>::iterator cur = it++;
                 m_charNoUsers.erase(cur);
+                continue;
             }
-            else
-            {
-                ++it;
-            }
+            ++it;
         }
     }
-    if (!m_charNameUsers.empty())
+    for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
+         it != m_charNameUsers.end(); )
     {
-        for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
-             it != m_charNameUsers.end(); )
+        if (it->second != 0)
         {
-            if (it->second != 0 && it->second->GetGameServer() == gameServer)
+            if (it->second->GetGameServer() == gameServer)
             {
                 std::map<const std::string, CUser*>::iterator cur = it++;
                 m_charNameUsers.erase(cur);
+                continue;
             }
-            else
-            {
-                ++it;
-            }
+            ++it;
         }
     }
-    if (!m_users.empty())
+    for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
+         it != m_users.end(); )
     {
-        for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
-             it != m_users.end(); )
+        CUser* user = it->second;
+        if (user != 0)
         {
-            CUser* user = it->second;
-            if (user != 0 && user->GetGameServer() == gameServer)
+            if (user->GetGameServer() == gameServer)
             {
                 unsigned int key = user->GetUniqCharNo();
                 if (key != 0)
@@ -216,56 +227,55 @@ void CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
                 }
                 std::map<unsigned int, CUser*>::iterator cur = it++;
                 m_users.erase(cur);
+                continue;
             }
-            else
-            {
-                ++it;
-            }
+            ++it;
         }
     }
+    return 0;
 }
 
-void CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
+int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
 {
-    if (!m_charNoUsers.empty())
+    if (m_users.empty())
     {
-        for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
-             it != m_charNoUsers.end(); )
+        return 0;
+    }
+    for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
+         it != m_charNoUsers.end(); )
+    {
+        if (it->second != 0)
         {
-            if (it->second != 0 && it->second->GetTcpGameServer() == (void*)tcpGameServer)
+            if (it->second->GetTcpGameServer() == (void*)tcpGameServer)
             {
                 std::map<const unsigned int, CUser*>::iterator cur = it++;
                 m_charNoUsers.erase(cur);
+                continue;
             }
-            else
-            {
-                ++it;
-            }
+            ++it;
         }
     }
-    if (!m_charNameUsers.empty())
+    for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
+         it != m_charNameUsers.end(); )
     {
-        for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
-             it != m_charNameUsers.end(); )
+        if (it->second != 0)
         {
-            if (it->second != 0 && it->second->GetTcpGameServer() == (void*)tcpGameServer)
+            if (it->second->GetTcpGameServer() == (void*)tcpGameServer)
             {
                 std::map<const std::string, CUser*>::iterator cur = it++;
                 m_charNameUsers.erase(cur);
+                continue;
             }
-            else
-            {
-                ++it;
-            }
+            ++it;
         }
     }
-    if (!m_users.empty())
+    for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
+         it != m_users.end(); )
     {
-        for (std::map<const unsigned int, CUser*>::iterator it = m_users.begin();
-             it != m_users.end(); )
+        CUser* user = it->second;
+        if (user != 0)
         {
-            CUser* user = it->second;
-            if (user != 0 && user->GetTcpGameServer() == (void*)tcpGameServer)
+            if (user->GetTcpGameServer() == (void*)tcpGameServer)
             {
                 unsigned int key = user->GetUniqCharNo();
                 if (key != 0)
@@ -279,15 +289,14 @@ void CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
                 {
                     delete user;
                 }
-                std::map<const unsigned int, CUser*>::iterator cur = it++;
+                std::map<unsigned int, CUser*>::iterator cur = it++;
                 m_users.erase(cur);
+                continue;
             }
-            else
-            {
-                ++it;
-            }
+            ++it;
         }
     }
+    return 0;
 }
 
 void CUserManager::SendConnectedBuddysList(CUser* user)
@@ -298,7 +307,7 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
         int idx = 0;
         CBuddy* buddies[32];
         int count = user->GetBuddys(buddies);
-        *(char*)((char*)&pkt + 0xe) = (char)count;
+        ((RA_S8<14>*)&pkt)->v = (char)count;
         while (count != 0)
         {
             count--;
@@ -330,7 +339,7 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
             }
             else
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = user->GetDBID();
+                ((RA_UINT<10>*)&pkt)->v = user->GetDBID();
                 unsigned short size =
                     (unsigned short)((idx << 2) * 8 + idx * 10 + 0xf);
                 ((CServerInterface*)user->GetGameServer())
@@ -357,29 +366,26 @@ void CUserManager::GetSchoolCount(unsigned int school, unsigned int* out, unsign
             pos++;
             out[pos] = c->second;
             pos++;
-            CMyFileLog log2("GetSchoolCount", 0x423);
+            CMyFileLog log2(__FUNCTION__, 0x423);
             log2("./log/School", "GetSchoolCount(%u) channelNo(%u) Count(%u)", school,
                  out[pos - 2], out[pos - 1]);
             n++;
         }
         idx = (unsigned char)n;
-        CMyFileLog log3("GetSchoolCount", 0x426);
+        CMyFileLog log3(__FUNCTION__, 0x426);
         log3("./log/School", "GetSchoolCount(%u) size(%d)", school, (unsigned int)idx);
     }
 }
 
 CDNFProhibitUser* CUserManager::FindProhibitUser(unsigned int dbid) const
 {
-    if (!m_prohibitUsers.empty())
+    std::map<const unsigned int, CDNFProhibitUser*>::const_iterator it =
+        m_prohibitUsers.find(dbid);
+    if (it == m_prohibitUsers.end())
     {
-        std::map<const unsigned int, CDNFProhibitUser*>::const_iterator it =
-            m_prohibitUsers.find(dbid);
-        if (it != m_prohibitUsers.end())
-        {
-            return it->second;
-        }
+        return 0;
     }
-    return 0;
+    return it->second;
 }
 
 int CUserManager::DeleteProhibitUser(unsigned int dbid, char channel)
@@ -389,30 +395,26 @@ int CUserManager::DeleteProhibitUser(unsigned int dbid, char channel)
         return 0;
     }
     CDNFProhibitUser* pu = FindProhibitUser(dbid);
-    if (pu != 0)
+    register bool hasPu = pu != 0;
+    if (hasPu)
     {
-        char puCh = pu->GetChannelNo();
-        if (puCh != -1 && puCh != channel)
+        if (pu->GetChannelNo() != -1 && pu->GetChannelNo() != channel)
         {
             DNF_LOG_SCOPE_LINE(0x2c7,"./log/User",
                 "[PROHIBIT DELETE USER Err] Disconnected User DB ID : %s, first ch(%d)/complete ch(%d)",
-                NumberToString(dbid, 0), (int)puCh, (int)channel);
+                NumberToString(dbid, 0), (int)pu->GetChannelNo(), (int)channel);
             return 0;
         }
-        char fromWeb = pu->fromWeb();
-        if (fromWeb != 0 && channel != -1)
+        if (pu->fromWeb() != 0 && channel != -1)
         {
             DNF_LOG_SCOPE_LINE(0x2ce,"./log/User",
                 "[PROHIBIT DELETE USER Err From Web] Disconnected User DB ID : %s, first ch(%d)/complete ch(%d)",
-                NumberToString(dbid, 0), (int)puCh, (int)channel);
+                NumberToString(dbid, 0), (int)pu->GetChannelNo(), (int)channel);
             return 0;
         }
         if (m_prohibitUsers.erase(dbid) == 1)
         {
-            if (pu != 0)
-            {
-                delete pu;
-            }
+            delete pu;
             return 1;
         }
     }
@@ -421,55 +423,61 @@ int CUserManager::DeleteProhibitUser(unsigned int dbid, char channel)
 
 CUser* CUserManager::FindUser(unsigned int dbid) const
 {
-    if (!m_users.empty())
+    std::map<const unsigned int, CUser*>::const_iterator it = m_users.find(dbid);
+    if (it == m_users.end())
     {
-        std::map<const unsigned int, CUser*>::const_iterator it = m_users.find(dbid);
-        if (it != m_users.end())
-        {
-            return it->second;
-        }
+        return 0;
+    }
+    return it->second;
+}
+
+bool CUserManager::InsertUser(const unsigned int dbid, CUser* user)
+{
+    if (user != 0)
+    {
+        return m_users.insert(std::make_pair(dbid, user)).second;
     }
     return 0;
 }
 
-char CUserManager::InsertUser(unsigned int dbid, CUser* user)
+bool CUserManager::InsertUser_CharNo(const unsigned int charNo, CUser* user)
 {
-    if (user == 0)
+    if (user != 0)
     {
-        return 0;
+        if (m_charNoUsers.insert(std::make_pair(charNo, user)).second)
+        {
+            return 1;
+        }
+        register char* charName = user->GetCharName();
+        register unsigned int dbid = user->GetDBID();
+        register unsigned int cNo = charNo;
+        CMyFileLog log(__FUNCTION__, 0x1d0);
+        log("./log/Except",
+            "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s",
+            cNo, dbid, charName);
     }
-    m_users.insert(std::pair<const unsigned int, CUser*>(dbid, user));
-    return 1;
+    return 0;
 }
 
-char CUserManager::InsertUser_CharNo(unsigned int charNo, CUser* user)
+bool CUserManager::InsertUser_CharName(char* name, CUser* user)
 {
-    if (user == 0)
+    if (user != 0)
     {
-        return 0;
+        register bool ok;
+        {
+            std::pair<const std::string, CUser*> p(name, user);
+            ok = m_charNameUsers.insert(p).second;
+        }
+        if (ok)
+        {
+            return 1;
+        }
+        register char* nm = name;
+        register unsigned int dbid = user->GetDBID();
+        CMyFileLog log(__FUNCTION__, 0x211);
+        log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d",
+            nm, dbid);
     }
-    m_charNoUsers.insert(std::pair<const unsigned int, CUser*>(charNo, user));
-    return 1;
-}
-
-char CUserManager::InsertUser_CharName(char* name, CUser* user)
-{
-    if (user == 0)
-    {
-        return 0;
-    }
-    bool ok;
-    {
-        std::pair<const std::string, CUser*> p(name, user);
-        ok = m_charNameUsers.insert(p).second;
-    }
-    if (ok)
-    {
-        return 1;
-    }
-    CMyFileLog log("InsertUser_CharName", 0x211);
-    log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
-        name, user->GetDBID());
     return 0;
 }
 
@@ -483,7 +491,7 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     user->SetGameServer(server);
     if (InsertUser(dbid, user) != 1)
     {
-        DNF_LOG_SCOPE_AT("CreateUser", 0x1a9,"./log/LoginErr",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x1a9,"./log/LoginErr",
             "uDBID(%s) uCharNo(%d) is already exist at m_mapUsers!", NumberToString(dbid, 0),
             charNo);
     }
@@ -492,13 +500,13 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     {
         if (InsertUser_CharNo(charNo, user) != 1)
         {
-            DNF_LOG_SCOPE_AT("CreateUser", 0x1b3,"./log/LoginErr",
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x1b3,"./log/LoginErr",
                 "uDBID(%s) uCharNo(%d) is already exist at m_mapCharNoUsers!",
                 NumberToString(dbid, 0), charNo);
         }
         if (InsertUser_CharName(charName, user) != 1)
         {
-            DNF_LOG_SCOPE_AT("CreateUser", 0x1b7,"./log/LoginErr",
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x1b7,"./log/LoginErr",
                 "uDBID(%s) uCharName(%s) is already exist at m_mapCharNameUsers!",
                 NumberToString(dbid, 0), charName);
         }
@@ -507,14 +515,13 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     return user;
 }
 
-char CUserManager::InsertProhibitUser(unsigned int dbid, CDNFProhibitUser* pu)
+bool CUserManager::InsertProhibitUser(const unsigned int dbid, CDNFProhibitUser* pu)
 {
-    if (pu == 0)
+    if (pu != 0)
     {
-        return 0;
+        return m_prohibitUsers.insert(std::make_pair(dbid, pu)).second;
     }
-    m_prohibitUsers.insert(std::pair<const unsigned int, CDNFProhibitUser*>(dbid, pu));
-    return 1;
+    return 0;
 }
 
 int CUserManager::DeleteUser(unsigned int dbid)
@@ -524,28 +531,27 @@ int CUserManager::DeleteUser(unsigned int dbid)
         return 0;
     }
     CUser* user = FindUser(dbid);
-    if (user != 0)
+    register bool hasUser = user != 0;
+    if (hasUser)
     {
         if (user->GetGameServer() == 0)
         {
             return 0;
         }
         CDNFProhibitUser* pu = new CDNFProhibitUser;
-        char ch = ((CServerInterface*)user->GetGameServer())->GetChannelNo();
-        pu->SetUserConnectableTime(dbid, 10, ch, false);
+        pu->SetUserConnectableTime(
+            dbid, 10, ((CServerInterface*)user->GetGameServer())->GetChannelNo(), false);
         if (InsertProhibitUser(dbid, pu) != 1)
         {
             DNF_LOG_SCOPE_LINE(0x8b,"./log/ProhibitUser",
                 "[INSERT_ERR_] CUserManager::DeleteUser() m_id : %s, time( %d ), Channel( %d )\n",
-                NumberToString(dbid, 0), 10, (unsigned int)ch & 0xff);
+                NumberToString(dbid, 0), 10,
+                (unsigned int)((CServerInterface*)user->GetGameServer())->GetChannelNo() & 0xff);
             delete pu;
         }
         if (m_users.erase(dbid) == 1)
         {
-            if (user != 0)
-            {
-                delete user;
-            }
+            delete user;
             return 1;
         }
     }
@@ -566,21 +572,19 @@ int CUserManager::DeleteUser(CUser* user)
         }
         unsigned int dbid = user->GetDBID();
         CDNFProhibitUser* pu = new CDNFProhibitUser;
-        char ch = ((CServerInterface*)user->GetGameServer())->GetChannelNo();
-        pu->SetUserConnectableTime(dbid, 10, ch, false);
+        pu->SetUserConnectableTime(
+            dbid, 10, ((CServerInterface*)user->GetGameServer())->GetChannelNo(), false);
         if (InsertProhibitUser(dbid, pu) != 1)
         {
             DNF_LOG_SCOPE_LINE(0xc4,"./log/ProhibitUser",
                 "[INSERT_ERR_] CUserManager::DeleteUser() m_id : %s, time( %d ), Channel( %d )\n",
-                NumberToString(dbid, 0), 10, (unsigned int)ch & 0xff);
+                NumberToString(dbid, 0), 10,
+                (unsigned int)((CServerInterface*)user->GetGameServer())->GetChannelNo() & 0xff);
             delete pu;
         }
         if (m_users.erase(dbid) == 1)
         {
-            if (user != 0)
-            {
-                delete user;
-            }
+            delete user;
             return 1;
         }
     }
@@ -625,17 +629,19 @@ void CUserManager::AddSchoolNo(unsigned int schoolNo, unsigned char channel)
 
 void CUserManager::DeleteBlackUserOnCharacDelete(unsigned int charNo)
 {
-    if (!m_users.empty())
+    if (m_users.empty())
     {
-        for (std::map<const unsigned int, CUser*>::iterator it = m_users.begin();
+    }
+    else
+    {
+        for (std::map<unsigned int, CUser*>::const_iterator it = m_users.begin();
              it != m_users.end(); ++it)
         {
-            if (it->second != 0)
-            {
-                it->second->DeleteToBlackList(charNo);
-            }
+            CUser* user = it->second;
+            user->DeleteToBlackList(charNo);
         }
     }
+    return;
 }
 
 unsigned int CUserManager::GetSizeOfCharnoUsers()
@@ -717,5 +723,5 @@ void CUserManager::ResetMemberInfo(unsigned int charNo)
     {
         user->ResetMemberInfo();
     }
+    return;
 }
-

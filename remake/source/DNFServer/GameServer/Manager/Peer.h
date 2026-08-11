@@ -21,7 +21,8 @@ public:
     int send_packet();
     int send_packet(char* buf, int len);
     void InitPeer(TcpRecvQueue* recvQ, CMutex* qLock, CMutex* bLock);
-    int parsing(int len);
+    // ORIG 返回类型 bool（RecvPacket 中 !parsing(...) 编译为 xor $1）。
+    bool parsing(int len);
     void ConnSig();
     void DisConnSig();
     char RecvPacket();

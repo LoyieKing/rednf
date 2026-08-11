@@ -21,7 +21,7 @@ public:
     virtual int Parse_Table(char* line, int idx);
     void Check_FileName(const std::string& filename);
     unsigned char Get_ServerGroup();
-    unsigned char Get_FrameCountValue();
+    unsigned int Get_FrameCountValue();
     unsigned short Get_ServerUdpPort();
     const char* Get_DBMWTcpIP();
     unsigned short Get_DBMWTcpPort();

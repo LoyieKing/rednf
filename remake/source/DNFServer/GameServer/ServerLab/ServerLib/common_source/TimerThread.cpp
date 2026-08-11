@@ -37,12 +37,12 @@ ITimeEntity* TimerThread::PopTimeReqEvent()
     // ORIG: if (bWillDelete) insert; else log+delete  (test/je delete path)
     if (ent->bWillDelete)
     {
-        super_TimeManager.insert2PeriodQueue(ent);
+        insert2PeriodQueue(ent);
     }
     else
     {
         G_TraceLog()->sysLog(8, "11Time Event Delete!!!!\n");
-        super_TimeManager.delete2PeriodQueue(ent);
+        delete2PeriodQueue(ent);
     }
     timeReqQueue.pop();
     pthread_mutex_unlock(&timerLock);
@@ -56,14 +56,18 @@ void TimerThread::loop(void* temp)
     {
         long long startTime = (long long)time(NULL);
         PopTimeReqEvent();
-        super_TimeManager.onTime();
+        onTime();
         long long endTime = (long long)time(NULL);
-        unsigned long long elapsedTime = (unsigned long long)endTime - (unsigned long long)startTime;
+        // ORIG：无显式 unsigned 转型（-O0 先装 startTime 再装 endTime 的
+        // 64 位减法装载顺序；显式转型会先装 endTime，顺序相反）。
+        unsigned long long elapsedTime = endTime - startTime;
         if (elapsedTime > (unsigned long long)0x14)
         {
             puts("TimerThread spent more time than NEXT_CHECK_TIME");
             printf("Elapsed Time: %lld\n", (long long)elapsedTime);
-            printf("Map size: %d\n", super_TimeManager.timePeriodMap.Size());
+            printf("Map size: %d\n", timePeriodMap.Size());
+            // ORIG: explicit continue reproduces nop; jmp back-edge merge
+            continue;
         }
         else
         {

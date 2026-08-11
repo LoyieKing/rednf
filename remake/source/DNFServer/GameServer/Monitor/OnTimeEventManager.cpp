@@ -59,15 +59,14 @@ bool COnTimeEventManager::IsCurState(ENUM_ONTIME_EVENT_STATE state)
 
 void COnTimeEventManager::ChangeState(ENUM_ONTIME_EVENT_STATE state)
 {
-    if (-1 < (int)state && (int)state < 4)
-    {
-        m_state2c = (int)state;
-    }
+    if ((int)state < 0) return;
+    if ((int)state > 3) return;
+    m_state2c = state;
 }
 
 void COnTimeEventManager::SetEventIdx(unsigned int idx)
 {
-    m_field30 = (int)idx;
+    m_field30 = idx;
     m_field34 = 1;
 }
 
@@ -99,7 +98,7 @@ void COnTimeEventManager::Clear()
     m_field20 = 0;
     m_field24 = 0;
     m_field28 = 0;
-    m_state2c = 2;
+    m_state2c = ONTIME_EVENT_STATE_REWARD;
 }
 
 int CRewardUserList::Insert(unsigned int key)
@@ -230,7 +229,7 @@ void COnTimeEventManager::OnRewardStart()
             new COnTimeEventRewardEndTrigger((unsigned int)(m_field28 * 0x3c + t), 0, this);
         m_app->GetTaskScheduler()->AddTask(task);
         unsigned int idx = GetEvent_Idx();
-        CMyFileLog log2("OnRewardStart", 0xa7);
+        CMyFileLog log2(__FUNCTION__, 0xa7);
         log2("./log/OnTimeEvent",
              "On Time Event : On Reward Start Trigger Process Success curidx(%d)", idx);
     }
@@ -239,7 +238,7 @@ void COnTimeEventManager::OnRewardStart()
 void COnTimeEventManager::OnRewardEnd()
 {
     time_t now = time(0);
-    CMyFileLog log("OnRewardEnd", 0xae);
+    CMyFileLog log(__FUNCTION__, 0xae);
     log("./log/OnTimeEvent", "On Time Event : On Reward End Trigger On(%d)\n", now);
     if (IsCurState(ONTIME_EVENT_STATE_REWARD))
     {
@@ -251,7 +250,7 @@ void COnTimeEventManager::OnRewardEnd()
         ChangeState(ONTIME_EVENT_STATE_START);
         Packet_MTG_OntimeEvent_RewardEnd pkt;
         m_app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
-        CMyFileLog log2("OnRewardEnd", 0xd9);
+        CMyFileLog log2(__FUNCTION__, 0xd9);
         log2("./log/OnTimeEvent", "On Time Event : On Reward End Trigger Process Success");
     }
 }
@@ -307,4 +306,3 @@ void COnTimeEventManager::EventRewardOff()
         ChangeState(ONTIME_EVENT_STATE_START);
     }
 }
-

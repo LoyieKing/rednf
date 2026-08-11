@@ -427,6 +427,5 @@ Packet_InnerPakcet_Logout::Packet_InnerPakcet_Logout()
 
 int CPeer::get_remain_sendlen()
 {
-    return *(int*)((char*)this + 0x1834);
+    return m_remainSendLen;
 }
-

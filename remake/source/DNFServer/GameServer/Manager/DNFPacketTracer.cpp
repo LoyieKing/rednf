@@ -6,17 +6,13 @@
 
 #include "DNFFileLog.h"
 
-CPacketTracer::CPacketTracer()
-{
-    m_field0 = 0;
-}
+CPacketTracer::CPacketTracer() : m_field0(0), m_log() {}
 
 CPacketTracer::~CPacketTracer() {}
 
 void CPacketTracer::AbsoluteWriteLog()
 {
-    CMyFileLog log("AbsoluteWriteLog", 0x2e);
-    log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
+    DNF_LOG_SCOPE_LINE(0x2e, "./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
     ResetLog();
 }
 
@@ -24,8 +20,7 @@ void CPacketTracer::WriteLog()
 {
     if (m_field0 % 30 == 0)
     {
-        CMyFileLog log("WriteLog", 0x26);
-        log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
+        DNF_LOG_SCOPE_LINE(0x26, "./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
         ResetLog();
     }
 }

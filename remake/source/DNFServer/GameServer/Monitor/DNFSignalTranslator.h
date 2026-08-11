@@ -246,9 +246,9 @@ public:
     void init_signal();
     void init_handler(CApplication* app);
     bool regist_signal(int sig, void (*handler)(int));
-    void* getSignal(int sig) const;
+    CSignal* getSignal(int sig) const;
     void clear();
-    char m_data[0x68];
+    CSignal* m_data[0x1a];
 };
 
 CSignalTranslator* CSignalTranslatorInstance();

@@ -76,7 +76,6 @@ void CAppBase::Create(int argc, char** argv)
 {
     Init(argc, argv);
     Load(argc, argv);
-    Process();
 }
 
 void CAppBase::Clear()
@@ -408,7 +407,7 @@ CGameServer* CApplication::FindGameServer(int group)
 
 CTcpGameServer* CApplication::FindTcpGameServer(unsigned int group)
 {
-    return m_serverHandler ? m_serverHandler->GetTcpGameServer(group) : 0;
+    return m_serverHandler->GetTcpGameServer(group);
 }
 
 void CApplication::App_Stop()
@@ -435,7 +434,7 @@ void CApplication::Call_DeleteGuildMember(unsigned int group, CUser* user)
 
 unsigned char CApplication::Get_ServerGroup()
 {
-    return m_appConfig ? m_appConfig->Get_ServerGroup() : 0;
+    return m_appConfig->Get_ServerGroup();
 }
 
 void CApplication::SendTestPacket_2()
@@ -585,7 +584,6 @@ CAppBase::CAppBase()
 Packet_Monitor_Notice_Guild_Enter::Packet_Monitor_Notice_Guild_Enter()
     : PacketHeader(0x3fd, 0x50)
 {
-    new ((char*)this + 0x10) ST_Notice_Guild_Enter;
 }
 
 Packet_Monitor_Set_GuildMember_Grade_FromWeb::Packet_Monitor_Set_GuildMember_Grade_FromWeb()
@@ -683,4 +681,3 @@ void* CApplication::Get_UdpPacketRecvQ()
 {
     return m_swapQueue.GetRecvQ();
 }
-

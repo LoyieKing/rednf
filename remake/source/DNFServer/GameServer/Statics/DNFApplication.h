@@ -11,6 +11,7 @@
 #include "FrameLagCollector.h"
 #include "UdpCharacteristic.h"
 #include "Statistics.h"
+#include "DNFTableBase.h"
 
 class CAppConfig;
 class CServerConfig;
@@ -54,7 +55,7 @@ public:
     virtual void Load(int argc, char** argv);
     virtual void Free();
     void CheckArgv(int argc, char** argv);
-    int Send_Term_Signal(const std::string& name);
+    bool Send_Term_Signal(const std::string& name);
     void Send_Suspend_Signal(const std::string& name);
     void App_Stop();
     void SendTestPacket_1();
@@ -75,8 +76,8 @@ public:
     bool m_loaded;                    // +4
     int m_reserved1;                  // +8
     CAppInit* m_appInit;              // +0xc
-    CAppConfig* m_appConfig;          // +0x10
-    CServerConfig* m_serverConfig;    // +0x14
+    CTableBase* m_appConfig;          // +0x10
+    CTableBase* m_serverConfig;       // +0x14
     CHWSpecResearcher m_hwSpec;       // +0x18
     FrameLagCollector m_frameLag;     // +0x84
     UdpCharacteristic m_udpChar;      // +0x26c

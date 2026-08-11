@@ -73,7 +73,7 @@ void CMemberManager::MemberRegisterFlagProcess()
             CMember* member = it->second;
             member->CheckMemberRegisterFlag();
         }
-        CMyFileLog log("MemberRegisterFlagProcess", 0x19a);
+        CMyFileLog log(__FUNCTION__, 0x19a);
         log("./log/MemberModify", "CMemberManager::MemberRegisterFlagProcess(%d,%d)",
             lt->tm_min, lt->tm_hour);
     }
@@ -117,7 +117,7 @@ int CMemberManager::DeleteMember(unsigned int key, bool cash)
     }
     if (cash)
     {
-        CMyFileLog log("DeleteMember", 0xbb);
+        CMyFileLog log(__FUNCTION__, 0xbb);
         log("./log/Member", "[DELETE_CASH_PROCESS] Member Key : %d", key);
     }
     return 0;
@@ -231,14 +231,14 @@ int CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned 
     CMember* member = FindMember(key);
     if (member == 0)
     {
-        DNF_LOG_SCOPE_AT("LoadMember", 0x26d,"./log/Except",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x26d,"./log/Except",
             "[MEMBER]\tCMemberManager::LoadMember()\tpclMember is Null, member key(%d)\n", key);
         return 0;
     }
     CUser* user = FindMemberUser(key);
     if (user == 0)
     {
-        DNF_LOG_SCOPE_AT("LoadMember", 0x273,"./log/Except",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x273,"./log/Except",
             "[MEMBER]\tCMemberManager::LoadMember()\tpclUser is Null, member key(%d)\n", key);
         return 0;
     }
@@ -255,7 +255,7 @@ int CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned 
     user->SendToGameserver((char*)&pkt, 0x12);
     SendToDBMemberUpdateCharInfo(handler, key, 0);
     unsigned int charNo = user->GetUniqCharNo();
-    DNF_LOG_SCOPE_AT("LoadMember", 0x285,"./log/Except",
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x285,"./log/Except",
         "CMemberManager::LoadMember, true == pclMember->IsEmpty()\tChar id(%d), Member Key(%d)",
         charNo, key);
     DeleteMember(user->GetUniqCharNo(), true);
@@ -410,7 +410,7 @@ void CMemberManager::SaveMemberOnUnConnect(CServerHandler* handler, unsigned int
             pkt.m_type = 2;
             if (c != 2)
             {
-                DNF_LOG_SCOPE_AT("SaveMemberOnUnConnect", 0x137,"./log/Member",
+                DNF_LOG_SCOPE_AT(__FUNCTION__, 0x137,"./log/Member",
                     "CMemberManager::SaveMemberOnUnConnect , isSecederUpperOrLower == 0");
                 return;
             }
@@ -505,13 +505,9 @@ char CMemberManager::IsAlreadyMemberMember(unsigned int key, unsigned int charNo
     return member->IsAlreadyMemberMember(charNo);
 }
 
-void CMemberManager::GetMemberExpLevel(unsigned int level)
+int CMemberManager::GetMemberExpLevel(unsigned int level)
 {
-    CMemberExpTbl* tbl = *(CMemberExpTbl**)((char*)this + 0x24);
-    if (tbl != 0)
-    {
-        tbl->GetMemberExpLevel(level);
-    }
+    return m_memberExpTbl->GetMemberExpLevel(level);
 }
 
 void CMemberManager::GetMemberExpNextLevelNeedExpLevel(unsigned int& exp,
@@ -571,4 +567,3 @@ int CMemberManager::IsThereUpperMember(unsigned int charNo)
     }
     return -2;
 }
-

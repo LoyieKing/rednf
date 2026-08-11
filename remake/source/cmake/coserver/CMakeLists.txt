@@ -8,13 +8,14 @@ cmake_minimum_required(VERSION 3.10)
 # 链接：宿主机 g++ -m32 -no-pie + 4.4.4/4.1.1 静态 libstdc++/libgcc（同 build 脚本）
 # 源顺序 = build 脚本链接顺序（按 .o 基名排序，必须原样保持）
 # ============================================================
-set(DF_CC_VARIANT "c6")
+set(DF_CC_VARIANT "c6446r")
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_toolchain_44.cmake)
 
 # 同 statics：包装脚本避免工具链文件的全局 LD_LIBRARY_PATH 污染 CMake 自身进程。
+# 编译器本体按 DF_CC_VARIANT 走 dnf_c*_gxx.sh（c6=4.4.7 / c6446r=4.4.6 cc1plus）。
 set(DF_CXX_WRAPPER ${CMAKE_BINARY_DIR}/df-cxx-wrap.sh)
 file(WRITE ${DF_CXX_WRAPPER}
-    "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C6ROOT}/usr/lib64:${DF_C6ROOT}/usr/lib\"\nexec \"${DF_C6ROOT}/usr/bin/g++\" \"$@\"\n")
+    "#!/bin/sh\nexec \"${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_${DF_CC_VARIANT}_gxx.sh\" \"$@\"\n")
 execute_process(COMMAND chmod +x ${DF_CXX_WRAPPER})
 set(ENV{LD_LIBRARY_PATH} "")
 set(CMAKE_CXX_COMPILER ${DF_CXX_WRAPPER})
@@ -70,9 +71,10 @@ dnf_service(coserver
         -I${COMMON} -I${COS} -I${PACKET}/include
         -I${SRC_ROOT}/shared -I${SRC_ROOT}/shared/common/include
     DEFINES
-        -DDF_NO_CODEPAGE
+        -DDF_NO_CODEPAGE -DDNF_SVC_COSERVER
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
+        "${COS}/DNFTableBase.cpp|-fenforce-eh-specs"
     LIBS
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a

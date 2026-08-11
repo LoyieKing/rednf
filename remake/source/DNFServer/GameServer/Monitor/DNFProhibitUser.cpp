@@ -1,5 +1,6 @@
 // df_monitor_r — DNFProhibitUser（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -51,33 +52,32 @@ unsigned int CDNFProhibitUser::GetDBID() { return *(unsigned int*)this; }
 
 unsigned short CDNFProhibitUser::GetProhibitRemainTime()
 {
-    return *(unsigned short*)((char*)this + 4);
+    return m_remain;
 }
 
 bool CDNFProhibitUser::IsTimeOutConnectable()
 {
-    *(unsigned short*)((char*)this + 4) =
-        (unsigned short)(*(unsigned short*)((char*)this + 4) - 1);
-    if (*(unsigned short*)((char*)this + 4) <= 0)
+    ((RA_U16<4>*)this)->v =
+        (unsigned short)(((RA_U16<4>*)this)->v - 1);
+    if (((RA_U16<4>*)this)->v <= 0)
     {
         return 1;
     }
     return 0;
 }
 
-char CDNFProhibitUser::GetChannelNo() { return *(char*)((char*)this + 6); }
+char CDNFProhibitUser::GetChannelNo() { return m_channel; }
 
-char CDNFProhibitUser::fromWeb() { return 0; }
+char CDNFProhibitUser::fromWeb() { return m_flag; }
 
 void CDNFProhibitUser::SetUserConnectableTime(unsigned int dbid, short time, char channel,
                                               bool flag)
 {
-    if (*(char*)((char*)this + 7) != 1)
+    if (((RA_S8<7>*)this)->v != 1)
     {
-        *(short*)((char*)this + 4) = time;
+        ((RA_S16<4>*)this)->v = time;
         *(unsigned int*)this = dbid;
-        *(char*)((char*)this + 6) = channel;
-        *(char*)((char*)this + 7) = (char)flag;
+        ((RA_S8<6>*)this)->v = channel;
+        ((RA_S8<7>*)this)->v = (char)flag;
     }
 }
-

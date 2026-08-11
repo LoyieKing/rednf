@@ -16,11 +16,8 @@ CUserManager::~CUserManager()
     for (std::map<const unsigned int, CDNFProhibitUser*>::const_iterator it = m_prohibitUsers.begin();
          it != m_prohibitUsers.end(); ++it)
     {
-        CDNFProhibitUser* pu = it->second;
-        if (pu)
-        {
-            delete pu;
-        }
+        if (it->second)
+            delete it->second;
     }
     m_prohibitUsers.clear();
 }
@@ -32,9 +29,9 @@ void CUserManager::Init(CApplication* app)
 
 char CUserManager::InsertProhibitUser(const unsigned int dbid, CDNFProhibitUser* pu)
 {
-    if (!pu)
-        return 0;
-    return m_prohibitUsers.insert(std::make_pair(dbid, pu)).second;
+    if (pu)
+        return m_prohibitUsers.insert(std::make_pair(dbid, pu)).second;
+    return 0;
 }
 
 CDNFProhibitUser* CUserManager::FindProhibitUser(unsigned int dbid) const
@@ -68,9 +65,9 @@ void CUserManager::ProcessByMinute()
             CDNFProhibitUser* pu = (*it).second;
             if (pu && pu->IsTimeOutWaitMonitor())
             {
-                CMyFileLog log("ProcessByMinute", 0x43);
+                CMyFileLog log(__FUNCTION__, 0x43);
                 log("./log/ProhibitUser",
-                    "[PROHIBIT CONNECT USER TIME_OUT] Prohibit User DB ID : %d. Remain time(%d)\n",
+                    "[PROHIBIT CONNECT USER TIME_OUT] Prohibit User DB ID : %d\t Remain time(%d)\n",
                     pu->GetDBID(), pu->GetProhibitRemainTime());
                 delete pu;
                 m_prohibitUsers.erase(it++);

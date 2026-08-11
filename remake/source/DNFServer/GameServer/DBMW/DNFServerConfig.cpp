@@ -56,11 +56,6 @@ int CServerConfig::Parse_Table(char* data, int size)
     return 0;
 }
 ST_ServerInfo::ST_ServerInfo()
-{
-    m_type = 0;
-    m_flag = 0;
-    m_idx = 0xff;
-    m_port = 0;
-}
+    : m_type(0), m_flag(0), m_idx(0xff), m_name(), m_port(0) {}
 ST_ServerInfo::~ST_ServerInfo() {}
 void* CServerConfig::GetServerInfo() { return &m_servers; }

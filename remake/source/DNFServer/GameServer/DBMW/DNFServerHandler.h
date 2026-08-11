@@ -19,7 +19,7 @@ public:
     CMonitorServer* GetMonitorServer();
     CStatisticsServer* GetStatisticsServerPtr();
     char CreateTcpServer(unsigned char idx, unsigned int port);
-    char DeleteTcpServer(unsigned char idx);
+    bool DeleteTcpServer(unsigned char idx);
     void SendAllTcpServer(PacketHeader* header);
     void SendAllToGameServer(char* buf, int len);
     void CheckTcpServerHeartbeat();

@@ -56,25 +56,29 @@ FrameLagCollector::~FrameLagCollector()
 }
 bool FrameLagCollector::Init()
 {
-    char ret = m_field0;
-    if (m_field0 == 0)
+    if (m_field0 != 0)
     {
-        m_field0 = 1;
-        time_t now = time(0);
-        tm* pt = localtime(&now);
-        m_today = pt->tm_mday;
+        return 1;
     }
-    return ret != 0;
+    m_field0 = 1;
+    time_t now = time(0);
+    tm* pt = localtime(&now);
+    m_today = pt->tm_mday;
+    return 0;
 }
 void FrameLagCollector::RenewToday()
 {
-    m_renewCnt++;
-    if (9 < m_renewCnt)
+    for (;;)
     {
-        m_renewCnt = 0;
-        time_t now = time(0);
-        tm* pt = localtime(&now);
-        m_today = pt->tm_mday;
+        m_renewCnt++;
+        if (9 < m_renewCnt)
+        {
+            m_renewCnt = 0;
+            time_t now = time(0);
+            tm* pt = localtime(&now);
+            m_today = pt->tm_mday;
+        }
+        break;
     }
 }
 void FrameLagCollector::LoadSpec(CServerHandler* handler)
@@ -339,13 +343,13 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
 }
 int FrameLagCollector::CollectIntervalCheck(Packet_Frame_Lag_Collect_Interval_Check* pkt)
 {
-    if (*(short*)((char*)pkt + 10) == 0)
+    if (pkt->m_fieldA != 0)
     {
-        m_collectInterval = 0x1e;
+        m_collectInterval = (short)pkt->m_fieldA;
     }
     else
     {
-        m_collectInterval = (int)*(short*)((char*)pkt + 10);
+        m_collectInterval = 0x1e;
     }
     printf("FrameLagCollector::CollectIntervalCheck(), Interval check : %d", m_collectInterval);
     return 0;

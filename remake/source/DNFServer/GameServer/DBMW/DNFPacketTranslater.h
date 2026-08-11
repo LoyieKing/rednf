@@ -27,7 +27,7 @@ public:
     static void OnDBLoadRequestGuildBoardOpen(PacketHeader* header);
     static void OnPcRoomPlayTimeReward(PacketHeader* header);
     static void OnAddBuddy(PacketHeader* header);
-    static char OnRequestIPCounterList(PacketHeader* header);
+    static void OnRequestIPCounterList(PacketHeader* header);
     static void onQueryTowerFullRank(PacketHeader* header);
     static void OnRequestARSInfo(PacketHeader* header);
     static void OnQueryGuild(PacketHeader* header);

@@ -250,7 +250,7 @@ public:
     unsigned char GetGroupNo();
     void SetServerInfo(stServerInfo* info);
     bool IsValidServer();
-    char IsConnected();
+    bool IsConnected();
     char IsHeartBeatTimeOver();
     unsigned char GetChannelNo();
     void OnDisconnect();
@@ -258,7 +258,9 @@ public:
     void ResetHeartBeat();
     int SendToServer(char* buf, int len);
     stServerInfo* m_info;  // +4
-    char m_field8[4];      // +8
+    bool m_connected;      // +8
+    unsigned char m_heart; // +9
+    char m_padA[2];        // +0xa
     void* m_udpHandler;    // +0xc
 };
 

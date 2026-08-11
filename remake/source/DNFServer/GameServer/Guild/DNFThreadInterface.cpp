@@ -83,8 +83,9 @@ int CThreadInterface::begin()
     if (r < 0)
     {
         puts("[ThreadInterface::begin] Can't begin thread");
+        return 0;
     }
-    return r >= 0;
+    return 1;
 }
 
 void CThreadInterface::stop()
@@ -102,4 +103,3 @@ void* CThreadInterface::dispatch_proxy(void* temp)
     ((CThreadInterface*)temp)->dispatch(temp);
     return 0;
 }
-

@@ -247,7 +247,7 @@ public:
     virtual void dispatch(void* param) = 0;
     bool begin();
     static void* dispatch_proxy(void* temp);
-    void* m_thread;   // +4
+    pthread_t m_thread;   // +4
     bool m_running;   // +8
 };
 

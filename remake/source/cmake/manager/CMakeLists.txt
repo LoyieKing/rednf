@@ -117,12 +117,35 @@ dnf_service(manager
         "-I${SHARED}" "-I${SHARED}/common/include"
         "-I${MYSQL}/include" "-I${MYSQL}/mysys" "-I${MYSQL}/strings"
     DEFINES
-        -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS
+        -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS -DDNF_SVC_MANAGER
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
         "${COMMON}/tinyxml.cpp|-O3 -std=gnu++98"
         "${COMMON}/tinyxmlerror.cpp|-O3 -std=gnu++98"
         "${COMMON}/tinyxmlparser.cpp|-O3 -std=gnu++98"
+        "${SVC_DIR}/DNFTableBase.cpp|-fenforce-eh-specs"
+        # 逐 TU 工具链对齐（ORIG .comment 混合 4.4.6/4.4.7/4.4.4/4.1.2）：
+        # DNFApplication.cpp / DNFSignalTranslator.cpp / DNFTcpHandler.cpp 在
+        # 4.4.6-3 cc1plus 下与 ORIG 逐条一致（A/B 验证；成员链虚调用 fn 指针
+        # 进 ecx/edx，4.4.7 进 eax，与 ORIG 不符）。
+        "${SVC_DIR}/DNFApplication.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFSignalTranslator.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFTcpHandler.cpp|-B${DF_CC1P446}/"
+        # 2026-08-11 第 4 轮：以下 TU 的 ORIG 虚调用同样为 fn 指针进
+        # ecx/edx（4.4.7-23 进 eax），A/B 试编译 4.4.6-3 后 call 寄存器
+        # 与 ORIG 一致（其余差异继续逐函数源码修复）。
+        "${SVC_DIR}/DBManager.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFMySql.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFNetworkThread.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFPacketDecoder.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFPacketTranslater.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFTcpAcceptThread.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFTcpNetworkThread.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFTableBase.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFThreadInterface.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/DNFPacketBuffer.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/QueryCounter.cpp|-B${DF_CC1P446}/"
+        "${SVC_DIR}/TcpNetSystem.cpp|-B${DF_CC1P446}/"
     LIBS
         ${SRC_ROOT}/../build/manager/mysqlclient/libmysqlclient.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a

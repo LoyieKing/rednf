@@ -13,7 +13,7 @@ public:
     virtual bool init() { return 0; }
     virtual bool open(const char* host, const char* user, const char* pass, const char* db) { return 0; }
     virtual void close() {}
-    virtual bool ping() { return 0; }
+    virtual int ping() { return 0; }
     virtual bool set_query(unsigned int q, char* fmt, ...) { return 0; }
     virtual bool exec(unsigned int q) { return 0; }
     virtual bool fetch() { return 0; }
@@ -73,7 +73,7 @@ public:
     bool is_valid_col(int col); // 非虚
     bool set_compress_option(); // 非虚
     bool set_read_default_grp_option(); // 非虚
-    bool ping();        // 虚（虚表 vptr+0x14）
+    int ping();         // 虚（虚表 vptr+0x14，ORIG 返回 int：无 test/setne）
     MYSQL* m_mysql;   // +4
     MYSQL_RES* m_result;  // +8
     MYSQL_ROW m_row;      // +0xc

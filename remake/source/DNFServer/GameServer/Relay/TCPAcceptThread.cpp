@@ -18,7 +18,7 @@ TCPAcceptThread::~TCPAcceptThread()
 void TCPAcceptThread::loop(void* pParam)
 {
     unsigned short port = (unsigned short)getPort();
-    printf("In %s \n", "loop");
+    printf("In %s \n", __FUNCTION__);
     TCPSocket listenSocket;
     if (!listenSocket.open())
     {
@@ -40,40 +40,36 @@ void TCPAcceptThread::loop(void* pParam)
             break;
         }
         TCPSocket* sock = getManager()->m_userPools.createTCPSocket();
-        if (sock != 0)
+        if (sock == 0)
         {
-            bool accepted = listenSocket.accept(*sock);
-            if (!accepted)
-            {
-                getManager()->m_userPools.destroyTCPSocket(sock);
-            }
-            else
-            {
-                if (getManager()->m_users.getUserCount() >= getManager()->m_users.getMaxUserCount())
-                {
-                    notifyCannotLoginByMaxUserCount(*sock);
-                    sock->close();
-                    getManager()->m_userPools.destroyTCPSocket(sock);
-                }
-                else
-                {
-                    TCPUser* user = getManager()->m_userPools.createTCPUser();
-                    if (user == 0)
-                    {
-                        notifyCannotCreateUser(*sock);
-                        sock->close();
-                        getManager()->m_userPools.destroyTCPSocket(sock);
-                    }
-                    else
-                    {
-                        user->setManager(getManager());
-                        user->setSocket(sock);
-                        user->startupAfterSetSocket();
-                        lockPushAcceptedUser(user);
-                    }
-                }
-            }
+            continue;
         }
+        bool accepted = listenSocket.accept(*sock);
+        if (!accepted)
+        {
+            getManager()->m_userPools.destroyTCPSocket(sock);
+            continue;
+        }
+        if (getManager()->m_users.getUserCount() >= getManager()->m_users.getMaxUserCount())
+        {
+            notifyCannotLoginByMaxUserCount(*sock);
+            sock->close();
+            getManager()->m_userPools.destroyTCPSocket(sock);
+            continue;
+        }
+        TCPUser* user = getManager()->m_userPools.createTCPUser();
+        if (user == 0)
+        {
+            notifyCannotCreateUser(*sock);
+            sock->close();
+            getManager()->m_userPools.destroyTCPSocket(sock);
+            continue;
+        }
+        user->setManager(getManager());
+        user->setSocket(sock);
+        user->startupAfterSetSocket();
+        lockPushAcceptedUser(user);
+        continue;
     }
     isTerminating();
     listenSocket.close();

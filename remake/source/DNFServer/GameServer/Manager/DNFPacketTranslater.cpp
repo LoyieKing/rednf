@@ -45,20 +45,20 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* header)
             Packet_Monitor_Manager_Connect_OK pkt;
             handler->SendToTcpServer(&pkt, idx);
             printf("First Heart Beat Arrived From %d Group Monitor!\n", idx);
-            CMyFileLog log("OnHeartBeat", 0x43);
+            CMyFileLog log(__FUNCTION__, 0x43);
             log("./log/Monitor", "First Heart Beat Arrived From %d Group Monitor!", idx);
         }
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
-        CMyFileLog log("OnHeartBeat", 0x52);
+        CMyFileLog log(__FUNCTION__, 0x52);
         log("./log/Except", "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnHeartBeat() Exception Break");
-        CMyFileLog log("OnHeartBeat", 0x58);
+        CMyFileLog log(__FUNCTION__, 0x58);
         log("./log/Except", "CPacketTranslater::OnHeartBeat() Exception Break\n");
     }
 }
@@ -70,7 +70,7 @@ void CPacketTranslater::OnEventStart(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnEventStart : 0 == m_pclApp");
         m_pclApp->m_serverHandler->SendAllTcpServer(header);
-        CMyFileLog log("OnEventStart", 0x70);
+        CMyFileLog log(__FUNCTION__, 0x70);
         log("./log/Web",
             "CPacketTranslater::OnEventStart() eventCode(%d), eventParam1(%d), eventParam2(%d)\n",
             *(int*)((char*)header + 0xa),
@@ -80,7 +80,7 @@ void CPacketTranslater::OnEventStart(PacketHeader* header)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n", e.what());
-        CMyFileLog log("OnEventStart", 0x75);
+        CMyFileLog log(__FUNCTION__, 0x75);
         log("./log/Except",
             "CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n",
             e.what());
@@ -88,7 +88,7 @@ void CPacketTranslater::OnEventStart(PacketHeader* header)
     catch (...)
     {
         puts("CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd");
-        CMyFileLog log("OnEventStart", 0x7b);
+        CMyFileLog log(__FUNCTION__, 0x7b);
         log("./log/Except",
             "CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd\n");
     }
@@ -101,14 +101,14 @@ void CPacketTranslater::OnEventEnd(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnEventEnd : 0 == m_pclApp");
         m_pclApp->m_serverHandler->SendAllTcpServer(header);
-        CMyFileLog log("OnEventEnd", 0x92);
+        CMyFileLog log(__FUNCTION__, 0x92);
         log("./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n",
             *(int*)((char*)header + 0xa));
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n", e.what());
-        CMyFileLog log("OnEventEnd", 0x97);
+        CMyFileLog log(__FUNCTION__, 0x97);
         log("./log/Except",
             "CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n",
             e.what());
@@ -116,7 +116,7 @@ void CPacketTranslater::OnEventEnd(PacketHeader* header)
     catch (...)
     {
         puts("CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd");
-        CMyFileLog log("OnEventEnd", 0x9d);
+        CMyFileLog log(__FUNCTION__, 0x9d);
         log("./log/Except",
             "CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd\n");
     }
@@ -129,13 +129,13 @@ void CPacketTranslater::OnCommonPacket(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnCommonPacket : 0 == m_pclApp");
         m_pclApp->m_serverHandler->SendAllTcpServer(header);
-        CMyFileLog log("OnCommonPacket", 0xb5);
+        CMyFileLog log(__FUNCTION__, 0xb5);
         log("./log/Web", "CPacketTranslater::OnCommonPacket() packet_id(%d)\n", header->packetId);
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnCommonPacket() Exception Break : %s\n", e.what());
-        CMyFileLog log("OnCommonPacket", 0xbb);
+        CMyFileLog log(__FUNCTION__, 0xbb);
         log("./log/Except",
             "CPacketTranslater::OnEventEnd() Exception Break : %s\n",
             e.what());
@@ -143,7 +143,7 @@ void CPacketTranslater::OnCommonPacket(PacketHeader* header)
     catch (...)
     {
         puts("CPacketTranslater::OnCommonPacket() Exception Break");
-        CMyFileLog log("OnCommonPacket", 0xc1);
+        CMyFileLog log(__FUNCTION__, 0xc1);
         log("./log/Except",
             "CPacketTranslater::OnEventEnd() Exception Break\n");
     }
@@ -155,22 +155,22 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* header)
     {
         if (!m_pclApp)
         {
-            CMyFileLog log("OnInnerPacketLogin", 0x1f0);
+            CMyFileLog log(__FUNCTION__, 0x1f0);
             log("./log/Except", "CPacketTranslater::OnInnerPacketLogin : 0 == m_pclApp");
             return;
         }
-        CMyFileLog log("OnInnerPacketLogin", 0x1f6);
+        CMyFileLog log(__FUNCTION__, 0x1f6);
         log("./log/TcpServer", "CPacketTranslater::OnInnerPacketLogin (sock:%d)",
             *(int*)((char*)header + 6));
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnInnerPacketLogin", 0x1fa);
+        CMyFileLog log(__FUNCTION__, 0x1fa);
         log("./log/Except", "CPacketTranslater::OnInnerPacketLogin Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnInnerPacketLogin", 0x1ff);
+        CMyFileLog log(__FUNCTION__, 0x1ff);
         log("./log/Except", "CPacketTranslater::OnInnerPacketLogin Exception Break\n");
     }
 }
@@ -181,7 +181,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
     {
         if (!m_pclApp)
         {
-            CMyFileLog log("OnInnerPacketLogout", 0x20a);
+            CMyFileLog log(__FUNCTION__, 0x20a);
             log("./log/Except", "CPacketTranslater::OnInnerPacketLogout : 0 == m_pclApp");
             return;
         }
@@ -190,7 +190,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
         CTcpServer* server = handler->GetTcpServer((unsigned int)port);
         if (!server)
         {
-            CMyFileLog log("OnInnerPacketLogout", 0x215);
+            CMyFileLog log(__FUNCTION__, 0x215);
             log("./log/TcpServer", "CPacketTranslater::OnInnerPacketLogout Invalid Server Instance(sock:%d)",
                 port);
             return;
@@ -199,24 +199,24 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
         handler = m_pclApp->Get_ServerHandler();
         if (!handler->DeleteTcpServer(idx))
         {
-            CMyFileLog log("OnInnerPacketLogout", 0x21d);
+            CMyFileLog log(__FUNCTION__, 0x21d);
             log("./log/TcpServer", "CPacketTranslater::OnInnerPacketLogout DeleteTcpServer fail(sock:%d)",
                 port);
             return;
         }
-        CMyFileLog log("OnInnerPacketLogout", 0x221);
+        CMyFileLog log(__FUNCTION__, 0x221);
         log("./log/TcpServer",
             "CPacketTranslater::OnInnerPacketLogout DeleteTcpServer Success(TYPE:%d, sock:%d)",
             idx, port);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnInnerPacketLogout", 0x225);
+        CMyFileLog log(__FUNCTION__, 0x225);
         log("./log/Except", "CPacketTranslater::OnInnerPacketLogout Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnInnerPacketLogout", 0x22a);
+        CMyFileLog log(__FUNCTION__, 0x22a);
         log("./log/Except", "CPacketTranslater::OnInnerPacketLogout Exception Break\n");
     }
 }
@@ -232,7 +232,7 @@ void CPacketTranslater::OnTcpServerLogin(PacketHeader* header)
         CServerHandler* handler = m_pclApp->Get_ServerHandler();
         if (handler->GetTcpServer(idx))
         {
-            CMyFileLog log("OnTcpServerLogin", 0x239);
+            CMyFileLog log(__FUNCTION__, 0x239);
             log("./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogin Duplicate Server Instance(TYPE:%d, sock:%d)",
                 idx, port);
@@ -241,24 +241,24 @@ void CPacketTranslater::OnTcpServerLogin(PacketHeader* header)
         handler = m_pclApp->Get_ServerHandler();
         if (!handler->CreateTcpServer(idx, port))
         {
-            CMyFileLog log("OnTcpServerLogin", 0x242);
+            CMyFileLog log(__FUNCTION__, 0x242);
             log("./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogin CreateTcpServer fail(TYPE:%d, sock:%d)\n",
                 idx, port);
             return;
         }
-        printf("CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)", idx, port);
-        CMyFileLog log("OnTcpServerLogin", 0x250);
-        log("./log/TcpServer", "CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)", idx, port);
+        printf("CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)\n", idx, port);
+        CMyFileLog log(__FUNCTION__, 0x250);
+        log("./log/TcpServer", "CPacketTranslater::OnTcpServerLogin(TYPE:%d, sock:%d)\n", idx, port);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnTcpServerLogin", 0x254);
+        CMyFileLog log(__FUNCTION__, 0x254);
         log("./log/Except", "CPacketTranslater::OnTcpServerLogin Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnTcpServerLogin", 0x259);
+        CMyFileLog log(__FUNCTION__, 0x259);
         log("./log/Except", "CPacketTranslater::OnTcpServerLogin Exception Break\n");
     }
 }
@@ -274,7 +274,7 @@ void CPacketTranslater::OnTcpServerLogout(PacketHeader* header)
         CServerHandler* handler = m_pclApp->Get_ServerHandler();
         if (!handler->GetTcpServer(idx))
         {
-            CMyFileLog log("OnTcpServerLogout", 0x269);
+            CMyFileLog log(__FUNCTION__, 0x269);
             log("./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogout Invalid Server Instance(TYPE:%d, sock:%d)",
                 idx, port);
@@ -282,24 +282,24 @@ void CPacketTranslater::OnTcpServerLogout(PacketHeader* header)
         }
         if (!handler->DeleteTcpServer(idx))
         {
-            CMyFileLog log("OnTcpServerLogout", 0x26f);
+            CMyFileLog log(__FUNCTION__, 0x26f);
             log("./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogout DeleteTcpServer fail(TYPE:%d, sock:%d)",
                 idx, port);
             return;
         }
         printf("CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", idx, port);
-        CMyFileLog log("OnTcpServerLogout", 0x273);
+        CMyFileLog log(__FUNCTION__, 0x273);
         log("./log/TcpServer", "CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", idx, port);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnTcpServerLogout", 0x277);
+        CMyFileLog log(__FUNCTION__, 0x277);
         log("./log/Except", "CPacketTranslater::OnTcpServerLogout Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnTcpServerLogout", 0x27c);
+        CMyFileLog log(__FUNCTION__, 0x27c);
         log("./log/Except", "CPacketTranslater::OnTcpServerLogout Exception Break\n");
     }
 }
@@ -315,7 +315,7 @@ void CPacketTranslater::OnTcpServerHeartbeat(PacketHeader* header)
         CTcpServer* server = handler->GetTcpServer(idx);
         if (!server)
         {
-            CMyFileLog log("OnTcpServerHeartbeat", 0x28d);
+            CMyFileLog log(__FUNCTION__, 0x28d);
             log("./log/TcpServer",
                 "CPacketTranslater::OnTcpServerHeartbeat Invalid Server Instance(TYPE:%d, sock:%d)",
                 idx, *(int*)((char*)header + 6));
@@ -325,12 +325,12 @@ void CPacketTranslater::OnTcpServerHeartbeat(PacketHeader* header)
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnTcpServerHeartbeat", 0x299);
+        CMyFileLog log(__FUNCTION__, 0x299);
         log("./log/Except", "CPacketTranslater::OnTcpServerHeartbeat Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnTcpServerHeartbeat", 0x29e);
+        CMyFileLog log(__FUNCTION__, 0x29e);
         log("./log/Except", "CPacketTranslater::OnTcpServerHeartbeat Exception Break\n");
     }
 }
@@ -343,17 +343,17 @@ void CPacketTranslater::OnWebNoticeInGameAD(PacketHeader* header)
             return;
         Packet_Web_Notice_InGame_Advertisement pkt;
         m_pclApp->m_serverHandler->SendAllTcpServer(&pkt);
-        CMyFileLog log("OnWebNoticeInGameAD", 0x2ae);
+        CMyFileLog log(__FUNCTION__, 0x2ae);
         log("./log/Web", "OnWebNoticeInGameAD() packet_id(%d)\n", header->packetId);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnWebNoticeInGameAD", 0x2b2);
+        CMyFileLog log(__FUNCTION__, 0x2b2);
         log("./log/Except", "CPacketTranslater::OnWebNoticeInGameAD Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnWebNoticeInGameAD", 0x2b7);
+        CMyFileLog log(__FUNCTION__, 0x2b7);
         log("./log/Except", "CPacketTranslater::OnWebNoticeInGameAD Exception Break\n");
     }
 }
@@ -365,7 +365,7 @@ void CPacketTranslater::OnWebNoticeBroadcast(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException("CPacketTranslater::OnWebNoticeBroadcast : 0 == m_pclApp");
         int len = ((char*)header)[0x10a];
-        CMyFileLog log("OnWebNoticeBroadcast", 0x1b2);
+        CMyFileLog log(__FUNCTION__, 0x1b2);
         log("./log/test", "%d, %s, %d, %s\n",
             ((char*)header)[0xa], (char*)header + 0xb, len, (char*)header + 0x10b);
         if (m_pclApp && m_pclApp->m_serverHandler)
@@ -391,12 +391,12 @@ void CPacketTranslater::OnWebNoticeBroadcast(PacketHeader* header)
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnWebNoticeBroadcast", 0x1e0);
+        CMyFileLog log(__FUNCTION__, 0x1e0);
         log("./log/Except", "CPacketTranslater::OnWebNoticeBroadcast() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnWebNoticeBroadcast", 0x1e5);
+        CMyFileLog log(__FUNCTION__, 0x1e5);
         log("./log/Except", "CPacketTranslater::OnWebNoticeBroadcast() Exception Break\n");
     }
 }
@@ -417,7 +417,7 @@ void CPacketTranslater::OnWebNoticeProhibitConnectUser(PacketHeader* header)
         char flag = ((char*)&pkt)[0xe];
         short time = *(short*)((char*)&pkt + 0xf);
         {
-            CMyFileLog log("OnWebNoticeProhibitConnectUser", 0xdb);
+            CMyFileLog log(__FUNCTION__, 0xdb);
             log("./log/ProhibitUser",
                 "CPacketTranslater::OnWebNoticeProhibitConnectUser m_id : %d, flag( %d ), time( %d ), ip( %d ), port( %d )\n",
                 m_id, flag, time, ip, port);
@@ -425,8 +425,8 @@ void CPacketTranslater::OnWebNoticeProhibitConnectUser(PacketHeader* header)
         CUserManager* um = &m_pclApp->m_userManager;
         if (flag && um->DeleteProhibitUser(m_id))
         {
-            CMyFileLog log("OnWebNoticeProhibitConnectUser", 0xe6);
-            log("./log/ProhibitUser",
+            CMyFileLog log(__FUNCTION__, 0xe6);
+            log("./log/Web",
                 "CPacketTranslater::OnWebNoticeProhibitConnectUser Delete Err  m_id : %d, flag( %d ), time( %d ), ip( %d ), port( %d )\n",
                 m_id, flag, time, ip, port);
             m_pclApp->m_serverHandler->SendAllTcpServer((PacketHeader*)&pkt);
@@ -444,7 +444,7 @@ void CPacketTranslater::OnWebNoticeProhibitConnectUser(PacketHeader* header)
         }
         ((char*)header)[0x11] = 2;
         {
-            CMyFileLog log("OnWebNoticeProhibitConnectUser", 0x113);
+            CMyFileLog log(__FUNCTION__, 0x113);
             log("./log/ProhibitUser",
                 "CPacketTranslater::OnWebNoticeProhibitConnectUser SendToClient, m_id : %d, ip( %d ), port( %d ), m_bIsConnect(%d), m_bProhibitConnect(%d)\n",
                 m_id, ip, port, ((char*)header)[0x11], ((char*)header)[0xe]);
@@ -455,14 +455,14 @@ void CPacketTranslater::OnWebNoticeProhibitConnectUser(PacketHeader* header)
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnWebNoticeProhibitConnectUser", 0x11b);
+        CMyFileLog log(__FUNCTION__, 0x11b);
         log("./log/Except",
             "CPacketTranslater::OnWebNoticeProhibitConnectUser() Exception Break : %s\n",
             e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnWebNoticeProhibitConnectUser", 0x120);
+        CMyFileLog log(__FUNCTION__, 0x120);
         log("./log/Except",
             "CPacketTranslater::OnWebNoticeProhibitConnectUser() Exception Break\n");
     }
@@ -482,7 +482,7 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
         CDNFProhibitUser* pu = um->FindProhibitUser(key);
         if (!pu)
         {
-            CMyFileLog log("OnMonitorNoticeProhibitConnectUser", 0x138);
+            CMyFileLog log(__FUNCTION__, 0x138);
             log("./log/ProhibitUser",
                 "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Time Out, m_id : %d, flag( %d ), time( %d )\n",
                 key, flag, time);
@@ -498,7 +498,7 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
             *(unsigned short*)((char*)header) = 0x4c8;
             ((char*)header)[0x11] = 2;
             *(unsigned short*)((char*)header + 2) = 0x12;
-            CMyFileLog log("OnMonitorNoticeProhibitConnectUser", 0x14a);
+            CMyFileLog log(__FUNCTION__, 0x14a);
             log("./log/ProhibitUser",
                 "CPacketTranslater::OnMonitorNoticeProhibitConnectUser SendToClient, m_id : %d, ip( %d ), port( %d ), m_bIsConnect(%d), m_bProhibitConnect(%d)\n",
                 key, uip, uport, ((char*)header)[0x11], ((char*)header)[0xe]);
@@ -509,7 +509,7 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
         }
         pu->IncreMonitorRetPacket();
         pu->SetProhibitUserInfo(((char*)header)[0x11]);
-        CMyFileLog log("OnMonitorNoticeProhibitConnectUser", 0x157);
+        CMyFileLog log(__FUNCTION__, 0x157);
         log("./log/ProhibitUser",
             "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Check IP Port, m_id : %d, server group(%d), cnt(%d), m_bIsConnect(%d)",
             key, ((char*)header)[0x12], pu->GetMonitorRetPacketCnt(), ((char*)header)[0x11]);
@@ -530,14 +530,14 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnMonitorNoticeProhibitConnectUser", 0x180);
+        CMyFileLog log(__FUNCTION__, 0x180);
         log("./log/Except",
             "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Exception Break : %s\n",
             e.what());
     }
     catch (...)
     {
-        CMyFileLog log("OnMonitorNoticeProhibitConnectUser", 0x185);
+        CMyFileLog log(__FUNCTION__, 0x185);
         log("./log/Except",
             "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Exception Break\n");
     }

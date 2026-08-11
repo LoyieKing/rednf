@@ -362,20 +362,51 @@ template class TMsgCell<409600>;
 template <>
 void TGlobalInstance<TextOutputDevice_stdout>::create()
 {
-    if (m_p == 0 && m_p == 0)
+    if (m_p == 0)
     {
-        try
+        if (m_p == 0)
         {
-            register void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
-            memset(pvMem, 0, sizeof(TextOutputDevice_stdout));
-            new (pvMem) TextOutputDevice_stdout();
-            m_p = (TextOutputDevice_stdout*)pvMem;
+            try
+            {
+                register void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
+                register void* p2 = pvMem;
+                // ORIG materializes the memset size-arg through a register
+                // (`mov $0x1902c,%edx; mov %edx,0x8(%esp)`) instead of a direct
+                // immediate store; reproduce that exact sequence. The p2/ptr
+                // argument order (eax before size/zero) also matches ORIG.
+                __asm__ __volatile__(
+                    "mov %0, %%eax\n\t"
+                    "mov $0x1902c, %%edx\n\t"
+                    "mov %%edx, 0x8(%%esp)\n\t"
+                    "movl $0, 4(%%esp)\n\t"
+                    "mov %%eax, (%%esp)\n\t"
+                    "call memset"
+                    :
+                    : "r"(p2)
+                    : "eax", "edx", "memory");
+                // ORIG calls TextOutputDevice_stdout::C1 directly after the memset;
+                // GCC 4.4 -O0 emits an extra _ZnwjPv + null check for `new (p) T`,
+                // which ORIG does not contain, so call the ctor via the same
+                // direct-call shape (cdecl: this passed on the stack).
+                __asm__ __volatile__(
+                    "mov %0, (%%esp)\n\tcall _ZN23TextOutputDevice_stdoutC1Ev"
+                    :
+                    : "r"(p2)
+                    : "memory");
+                m_p = (TextOutputDevice_stdout*)pvMem;
+            }
+            catch (...)
+            {
+                printf("cannot allocate memory in TGlobalInstance.! cannot continue");
+                exit(-1);
+            }
         }
-        catch (...)
-        {
-            printf("cannot allocate memory in TGlobalInstance.! cannot continue");
-            exit(-1);
-        }
+    }
+    else
+    {
+        // ORIG: first `m_p == 0` false-path lands on a lone nop before the
+        // epilogue (GCC 4.4 empty-block layout artifact); force it explicitly.
+        __asm__ __volatile__("nop");
     }
 }
 
@@ -448,7 +479,7 @@ CHANNEL_HANDLER_BEGIN(SC_GET_SCRIPT)
         {
             GLOG(gFileLogInfo, "[ERROR] : cannt open channel_script_version file");
         }
-        int ret = fwrite(pSGet + 1, 1, pSGet->getSize() - 0xb, pFile);
+        int ret = fwrite(pSGet + 1, 1, (unsigned int)pSGet->getSize() - 0xb, pFile);
         fflush(pFile);
         fclose(pFile);
         ReloadScript();
@@ -511,14 +542,18 @@ CHANNEL_HANDLER_BEGIN(CS_CONNECT)
 CHANNEL_HANDLER_BEGIN(CS_GET_SCRIPT)
     tagSC_GET_SCRIPT pck;
     char* script = getScriptFromFile();
+    unsigned int CompressLen;
+    CMsgCell* pMsg;
     script[getScriptFileSize()] = '\0';
     TMsgCell<409600> buffer;
+    CMsgCell* encMsg;
     TMsgCell<409600> encbuffer;
     TMsgCell<1048576> tmpbuffer;
+    CMsgCell* zipMsg;
     TMsgCell<409600> zipbuffer;
-    CMsgCell* pMsg = &buffer;
-    CMsgCell* encMsg = &encbuffer;
-    CMsgCell* zipMsg = &zipbuffer;
+    pMsg = &buffer;
+    encMsg = &encbuffer;
+    zipMsg = &zipbuffer;
     pck.setAckOk();
     *pMsg << &pck;
     *encMsg << &pck;
@@ -530,7 +565,7 @@ CHANNEL_HANDLER_BEGIN(CS_GET_SCRIPT)
     {
         if ((int)getScriptFileSize() > len)
         {
-            int remain = (int)getScriptFileSize() - len;
+            int remain = (int)(getScriptFileSize() - len);
             for (int i = 0; i < remain; i = i + 1)
             {
                 script[len + i + 1] = ' ';
@@ -543,10 +578,11 @@ CHANNEL_HANDLER_BEGIN(CS_GET_SCRIPT)
     }
     pMsg->AttachStream(script, getScriptFileSize());
     pMsg->PAD();
-    int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xb, (char*)&tmpbuffer);
+    int enc_len;
+    enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xbU, (char*)&tmpbuffer);
     encMsg->AttachStream((char*)&tmpbuffer, enc_len);
     encMsg->PAD();
-    unsigned int CompressLen = enc_len + 0xd;
+    CompressLen = enc_len + 0xd;
     compress2((unsigned char*)&tmpbuffer, (unsigned long*)&CompressLen, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, -1);
     zipMsg->AttachStream((char*)&tmpbuffer, CompressLen);
     zipMsg->PAD();
@@ -593,60 +629,61 @@ CHANNEL_HANDLER_BEGIN(CS_ASK_CHANNEL_INFO)
     int CurrentConnectedUserForGroup = 0;
     int TotalConnectedUser = 0;
     GLOG(gFileLogInfo, "*****************************************************************************************");
-    GLOG(gFileLogInfo, pck.server_group_count << "\xb0\xb3 ServerGroupNum");
+    GLOG(gFileLogInfo, ServerGroupNum << "\xb0\xb3 ServerGroupNum");
     for (int i = 0; i < 0x80; i = i + 1)
     {
         CurrentConnectedUserForGroup = 0;
         tServerGroupInfo ServerGroupInfo;
         TSerializer<tServerGroupInfo> Ginfo(ServerGroupInfo);
         ServerGroupInfo.server_count = Servers[i].getServerCount();
-        if (ServerGroupInfo.server_count != 0)
+        if (ServerGroupInfo.server_count == 0)
         {
-            GLOG(gFileLogInfo, "*****************************************************************************************");
-            GLOG(gFileLogInfo, i << "th SG");
-            GLOG(gFileLogInfo, "channel count=" << ServerGroupInfo.server_count);
-            strncpy(ServerGroupInfo.server_group_name, Servers[i].ServerName, 0x14);
-            *pMsg << Ginfo;
-            GLOG(gFileLogInfo, ServerGroupInfo.server_group_name);
-            for (std::map<int, tServerInfo*>::iterator it = Servers[i].listServerInfo_.begin(); it != Servers[i].listServerInfo_.end(); it++)
-            {
-                tpServerInfo _ServerInfo;
-                TSerializer<tpServerInfo> Sinfo(_ServerInfo);
-                strcpy(_ServerInfo.channel_name, (*it).second->ChannelName);
-                _ServerInfo.max_user_num = (*it).second->nMaxUserCount_;
-                _ServerInfo.cur_user_num = (*it).second->nCurrentUserCount_;
-                strcpy(_ServerInfo.server_ip, (*it).second->IP);
-                _ServerInfo.port = (*it).second->port;
-                GLOG(gFileLogInfo, _ServerInfo.channel_name);
-                GLOG(gFileLogInfo, "IP    " << (*it).second->IP);
-                GLOG(gFileLogInfo, "POPT  " << (*it).second->port);
-                GLOG(gFileLogInfo, "MAX  " << (*it).second->nMaxUserCount_);
-                GLOG(gFileLogInfo, "CUR  " << (*it).second->nCurrentUserCount_);
-                CurrentConnectedUserForGroup = CurrentConnectedUserForGroup + (*it).second->nCurrentUserCount_;
-                *pMsg << Sinfo;
-            }
-            GLOG(gFileLogInfo, " CurrentConnectedUserForGroup = " << CurrentConnectedUserForGroup);
-            TotalConnectedUser = TotalConnectedUser + CurrentConnectedUserForGroup;
+            continue;
         }
+        GLOG(gFileLogInfo, "*****************************************************************************************");
+        GLOG(gFileLogInfo, i << "th SG");
+        GLOG(gFileLogInfo, "channel count=" << ServerGroupInfo.server_count);
+        strncpy(ServerGroupInfo.server_group_name, Servers[i].ServerName, 0x14);
+        *pMsg << Ginfo;
+        GLOG(gFileLogInfo, ServerGroupInfo.server_group_name);
+        for (std::map<int, tServerInfo*>::iterator it = Servers[i].listServerInfo_.begin(); it != Servers[i].listServerInfo_.end(); it++)
+        {
+            tpServerInfo _ServerInfo;
+            TSerializer<tpServerInfo> Sinfo(_ServerInfo);
+            strcpy(_ServerInfo.channel_name, (*it).second->ChannelName);
+            _ServerInfo.max_user_num = (*it).second->nMaxUserCount_;
+            _ServerInfo.cur_user_num = (*it).second->nCurrentUserCount_;
+            strcpy(_ServerInfo.server_ip, (*it).second->IP);
+            _ServerInfo.port = (*it).second->port;
+            GLOG(gFileLogInfo, _ServerInfo.channel_name);
+            GLOG(gFileLogInfo, "IP    " << (*it).second->IP);
+            GLOG(gFileLogInfo, "POPT  " << (*it).second->port);
+            GLOG(gFileLogInfo, "MAX  " << (*it).second->nMaxUserCount_);
+            GLOG(gFileLogInfo, "CUR  " << (*it).second->nCurrentUserCount_);
+            CurrentConnectedUserForGroup = CurrentConnectedUserForGroup + (*it).second->nCurrentUserCount_;
+            *pMsg << Sinfo;
+        }
+        GLOG(gFileLogInfo, " CurrentConnectedUserForGroup = " << CurrentConnectedUserForGroup);
+        TotalConnectedUser = TotalConnectedUser + CurrentConnectedUserForGroup;
     }
     GLOG(gFileLogInfo, " TotalConnectedUser = " << TotalConnectedUser);
     GLOG(gFileLogInfo, "*****************************************************************************************");
     pMsg->PAD();
-    int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xb, (char*)&tmpbuffer);
+    int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xbU, (char*)&tmpbuffer);
     encMsg->AttachStream(pMsg->GetBuf(), 0xb);
     encMsg->AttachStream((char*)&tmpbuffer, enc_len);
     encMsg->PAD();
     zipMsg->AttachStream(pMsg->GetBuf(), 0xb);
-    // ORIG：ttt 为压缩长度临时（DWARF decl 613）
-    unsigned int ttt = enc_len + 0xd;
-    int ret = compress2((unsigned char*)&tmpbuffer, (unsigned long*)&ttt, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, 1);
-    zipMsg->AttachStream((char*)&tmpbuffer, ttt);
+    CompressLen = enc_len + 0xd;
+    int ret = compress2((unsigned char*)&tmpbuffer, (unsigned long*)&CompressLen, (unsigned char*)(encMsg->GetBuf() + 0xb), enc_len, 1);
+    zipMsg->AttachStream((char*)&tmpbuffer, CompressLen);
     zipMsg->PAD();
     u->onWrite2Buffer(zipMsg);
 CHANNEL_HANDLER_END()
 
 CHANNEL_HANDLER_BEGIN(CS_UPDATE_CHANNEL_INFO)
     int ServerGroupIndex = -1;
+    int k;
     int count = 0;
     LPPACKET_HEADER _pPCK = pPCK;
     int gc_no = ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->gc_no;
@@ -697,7 +734,6 @@ CHANNEL_HANDLER_BEGIN(CS_UPDATE_CHANNEL_INFO)
             ServerGroupCount = ServerGroupCount + 1;
         }
     }
-    int k;
     for (k = 0; k < 0x1000; k = k + 1)
     {
         if (Servers[ServerGroupIndex].ServerInfo[k].gc_no == gc_no)
@@ -736,8 +772,10 @@ CHANNEL_HANDLER_BEGIN(CS_UPDATE_CHANNEL_INFO)
                      << ", gc_no=" << gc_no << endl;
         gFileLogInfo.Unlock();
         Servers[ServerGroupIndex].ServerInfo[k].use = true;
+        // ORIG 以数组退化 + 指针加法（ServerInfo + k）计算地址，
+        // 使 ServerGroupIndex*0x3804c 先于 k*56 求值（实测与二进制一致）。
         Servers[ServerGroupIndex].listServerInfo_[gc_no] =
-            &Servers[ServerGroupIndex].ServerInfo[k];
+            Servers[ServerGroupIndex].ServerInfo + k;
         Servers[ServerGroupIndex].increseServerCount();
     }
     else
@@ -757,7 +795,7 @@ CHANNEL_HANDLER_BEGIN(CS_UPDATE_CHANNEL_INFO)
                      << ", PORT= " << ((tagCS_UPDATE_CHANNEL_INFO*)_pPCK)->port
                      << ", gc_no=" << gc_no << endl;
         gFileLogInfo.Unlock();
-        Servers[ServerGroupIndex].listServerInfo_[gc_no] = &Servers[ServerGroupIndex].ServerInfo[k];
+        Servers[ServerGroupIndex].listServerInfo_[gc_no] = Servers[ServerGroupIndex].ServerInfo + k;
         Servers[ServerGroupIndex].ServerInfo[k].use = true;
     }
     DNF_LOG_OUT();
@@ -769,7 +807,7 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
     tagCS_CHECK_SCRIPT_VERSION _DPCK;
     tagSC_CHECK_SCRIPT_VERSION pck;
     pck.setAckOk();
-    getEncInc()->Decrypt((const char*)_pEPCK->_getData(), (char*)_DPCK._getData(), _pEPCK->getSize() - 0xb);
+    getEncInc()->Decrypt(_pEPCK->_getData(), _DPCK._getData(), _pEPCK->getSize() - 0xbU);
     TMsgCell<128> tmpbuffer;
     CMsgCell* pMsg = &tmpbuffer;
     TMsgCell<128> encbuffer;
@@ -790,12 +828,12 @@ CHANNEL_HANDLER_BEGIN(CS_CHECK_SCRIPT_VERSION)
     pck.channel_script_version[strlen(G_ScriptData()->channel_script_version)] = '\0';
     *pMsg << &pck;
     pMsg->PAD();
-    int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xb, (char*)&buffer);
+    int enc_len = wrapEncrypt(pMsg->GetBuf() + 0xb, pMsg->GetSize() - 0xbU, (char*)&buffer);
     encMsg->AttachStream(pMsg->GetBuf(), 0xb);
     encMsg->AttachStream((char*)&buffer, enc_len);
     encMsg->PAD();
     u->onWrite2Buffer(encMsg);
-    GLOG(gFileLogInfo, "Out " << "onCS_CHECK_SCRIPT_VERSION");
+    GLOG(gFileLogInfo, "Out " << __FUNCTION__);
     return 1;
 }
 
@@ -1040,7 +1078,7 @@ CMsgCell* GetMessageBuffer(int nSize)
 {
     if (!((nSize < 0x80001) && (-1 < nSize)))
     {
-        throw "GetMessageBuffer";
+        throw __FUNCTION__;
     }
     CMsgCell* pCell = 0;
     if (nSize < 0x11)
@@ -1185,10 +1223,6 @@ void CMsgCell::AttachStream(char* pBuf, int wSize)
 
 template class TSerializer<tpServerInfo>;
 template class TSerializer<tServerGroupInfo>;
-
-ITextOutputDevice::ITextOutputDevice()
-{
-}
 
 TextOutputDevice_FILE::TextOutputDevice_FILE()
 {

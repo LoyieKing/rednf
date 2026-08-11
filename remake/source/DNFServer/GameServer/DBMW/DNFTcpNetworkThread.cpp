@@ -48,7 +48,7 @@ void CTcpNetworkThread::dispatch(void* param)
         {
             if (!m_runningFlag)
             {
-                CMyFileLog log("dispatch", 0xae);
+                CMyFileLog log(__FUNCTION__, 0xae);
                 log("./log/TcpRecv", "RecvThread Terminate");
                 break;
             }

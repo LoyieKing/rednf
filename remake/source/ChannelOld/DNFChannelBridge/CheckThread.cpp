@@ -202,6 +202,7 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
 {
     puts("Start up CheckThread");
     ChannelService* pApp = getManager();
+    int count;
     do
     {
         time_t cur_time = time(NULL);
@@ -209,41 +210,44 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
             TScopedLock<TThreadLock<ThreadLock_linux> > slock(pApp->LockChannel);
             for (int i = 0; i < 0x100; i++)
             {
+                count = 0;
                 if (pApp->Servers[i].use != false)
                 {
                     gFileLogCri.Lock();
-                    gFileLogCri << "AAAAA=" << pApp->Servers[i].use << endl;
-                    gFileLogCri.Unlock();
                 }
-                if (pApp->Servers[i].use == true)
+                gFileLogCri << "AAAAA=" << pApp->Servers[i].use << endl;
+                gFileLogCri.Unlock();
+                if (pApp->Servers[i].use == false) continue;
+                gFileLogCri.Lock();
+                gFileLogCri << "BBBBB=" << pApp->Servers[i].listServerInfo_.size() << ", i = " << i << endl;
+                gFileLogCri.Unlock();
+                if (pApp->Servers[i].listServerInfo_.size() == 0)
                 {
-                    gFileLogCri.Lock();
-                    gFileLogCri << "BBBBB=" << pApp->Servers[i].listServerInfo_.size() << ", i = " << i << endl;
-                    gFileLogCri.Unlock();
-                    if (pApp->Servers[i].listServerInfo_.size() == 0)
+                    pApp->Servers[i].use = false;
+                    pApp->ServerGroupCount = 0;
+                    for (int j = 0; j < 0x100; j++)
                     {
-                        pApp->Servers[i].use = false;
-                        pApp->ServerGroupCount = 0;
-                        for (int j = 0; j < 0x100; j++)
+                        if (pApp->Servers[j].use != false)
                         {
-                            if (pApp->Servers[j].use != false)
-                            {
-                                pApp->ServerGroupCount = pApp->ServerGroupCount + 1;
-                            }
+                            pApp->ServerGroupCount = pApp->ServerGroupCount + 1;
                         }
                     }
+                }
+                gFileLogCri.Lock();
+                gFileLogCri << "Start=" << pApp->Servers[i].listServerInfo_.size() << endl;
+                gFileLogCri.Unlock();
+                std::map<int, tServerInfo*>::iterator it;
+                if (pApp->Servers[i].listServerInfo_.size() == 0) continue;
+                it = pApp->Servers[i].listServerInfo_.begin();
+                while (it != pApp->Servers[i].listServerInfo_.end())
+                {
                     gFileLogCri.Lock();
-                    gFileLogCri << "Start=" << pApp->Servers[i].listServerInfo_.size() << endl;
+                    gFileLogCri << "gc_no=" << (*it).second->gc_no << ", Cur=" << (int)cur_time
+                                << ", tic=" << (int)(*it).second->tic << ", result=" << (int)(cur_time - (*it).second->tic) << endl;
                     gFileLogCri.Unlock();
-                    int count = 0;
-                    std::map<int, tServerInfo*>::iterator it = pApp->Servers[i].listServerInfo_.begin();
-                    while (it != pApp->Servers[i].listServerInfo_.end())
+                    if ((*it).second->use != false)
                     {
-                        gFileLogCri.Lock();
-                        gFileLogCri << "gc_no=" << (*it).second->gc_no << ", Cur=" << (int)cur_time
-                                    << ", tic=" << (int)(*it).second->tic << ", result=" << (int)(cur_time - (*it).second->tic) << endl;
-                        gFileLogCri.Unlock();
-                        if (((*it).second->use != false) && (0x14 < cur_time - (*it).second->tic))
+                        if (0x14 < cur_time - (*it).second->tic)
                         {
                             gFileLogCri.Lock();
                             gFileLogCri << "delete gc_no=" << (*it).second->gc_no << ", tic="
@@ -260,16 +264,16 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                             pApp->Servers[i].listServerInfo_.erase(it);
                             pApp->Servers[i].decreseServerCount();
                         }
-                        it++;
-                        count = count + 1;
                     }
-                    gFileLogCri.Lock();
-                    gFileLogCri << "End" << endl;
-                    gFileLogCri.Unlock();
-                    GLOG(gFileLogInfo, "ABCD *************************************************************");
-                    GLOG(gFileLogInfo, "ABCD * " << i << "\xbc\xad\xb9\xf6\xb1\xba, \xbc\xad\xb9\xf6 \xb0\xb3\xbc\xf6 =" << (count + 1));
-                    GLOG(gFileLogInfo, "ABCD *************************************************************");
+                    it++;
+                    count = count + 1;
                 }
+                gFileLogCri.Lock();
+                gFileLogCri << "End" << endl;
+                gFileLogCri.Unlock();
+                GLOG(gFileLogInfo, "ABCD *************************************************************");
+                GLOG(gFileLogInfo, "ABCD * " << i << "\xbc\xad\xb9\xf6\xb1\xba, \xbc\xad\xb9\xf6 \xb0\xb3\xbc\xf6 =" << (count + 1));
+                GLOG(gFileLogInfo, "ABCD *************************************************************");
             }
         }
         for (int k = 0; k < pApp->ChannelServerNumber; k++)
@@ -282,7 +286,14 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
             gFileLogCri << "12345 START Send Channel Index = " << pApp->CServers[k].id
                         << "tic=" << (int)(cur_time - pApp->CServers[k].tic) << endl;
             gFileLogCri.Unlock();
-            if (cur_time - pApp->CServers[k].tic < 0xc9)
+            if (0xc8 < cur_time - pApp->CServers[k].tic)
+            {
+                TScopedLock<TThreadLock<ThreadLock_linux> > slock(pApp->LockChannel);
+                pApp->CServers[k].id = -1;
+                pApp->ChannelServerNumber = pApp->ChannelServerNumber + -1;
+                pApp->CServers[k].uTCP = NULL;
+            }
+            else
             {
                 for (int i = 0; i < 0x100; i++)
                 {
@@ -296,49 +307,46 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
                     it = pApp->Servers[i].listServerInfo_.begin();
                     while (it != pApp->Servers[i].listServerInfo_.end())
                     {
-                        tagCS_UPDATE_CHANNEL_INFO pck;
-                        TMsgCell<64> buffer;
-                        CMsgCell* pMsg = &buffer;
-                        pck.gc_no = (*it).second->gc_no;
-                        pck.group = 0;
-                        pck.channel_no = (*it).second->channel_no;
-                        pck.max_user_num = (*it).second->nMaxUserCount_;
-                        pck.cur_user_num = (*it).second->nCurrentUserCount_;
-                        strcpy(pck.server_ip, (*it).second->IP);
-                        pck.port = (*it).second->port;
-                        *pMsg << (LPPACKET_HEADER)&pck;
-                        pMsg->PAD();
-                        GLOG(gFileLogInfo, "------------------------------------------------------");
-                        GLOG(gFileLogInfo, "INDEX=" << k);
-                        GLOG(gFileLogInfo, "TCP USER=" << (int)pApp->CServers[k].uTCP);
-                        GLOG(gFileLogInfo, "TCP SOCK=" << (int)pApp->CServers[k].uTCP->getSocket());
-                        GLOG(gFileLogInfo, "------------------------------------------------------");
-                        int ret = pApp->CServers[k].uTCP->onWrite2Buffer(pMsg);
-                        if (ret < 0)
                         {
-                            GLOG(gFileLogInfo, "Update Send Fail=" << ret << ", error=" << strerror(errno));
-                            printf("Update Send Fail");
+                            tagCS_UPDATE_CHANNEL_INFO pck;
+                            TMsgCell<64> buffer;
+                            CMsgCell* pMsg = &buffer;
+                            pck.gc_no = (*it).second->gc_no;
+                            pck.group = 0;
+                            pck.channel_no = (*it).second->channel_no;
+                            pck.max_user_num = (*it).second->nMaxUserCount_;
+                            pck.cur_user_num = (*it).second->nCurrentUserCount_;
+                            strcpy(pck.server_ip, (*it).second->IP);
+                            pck.port = (*it).second->port;
+                            *pMsg << (LPPACKET_HEADER)&pck;
+                            pMsg->PAD();
+                            GLOG(gFileLogInfo, "------------------------------------------------------");
+                            GLOG(gFileLogInfo, "INDEX=" << k);
+                            GLOG(gFileLogInfo, "TCP USER=" << (int)pApp->CServers[k].uTCP);
+                            GLOG(gFileLogInfo, "TCP SOCK=" << (int)pApp->CServers[k].uTCP->getSocket());
+                            GLOG(gFileLogInfo, "------------------------------------------------------");
+                            int ret = pApp->CServers[k].uTCP->onWrite2Buffer(pMsg);
+                            if (ret < 0)
+                            {
+                                GLOG(gFileLogInfo, "Update Send Fail=" << ret << ", error=" << strerror(errno));
+                                printf("Update Send Fail");
+                            }
+                            if (ret == 0)
+                            {
+                                gFileLogInfo.Lock();
+                            }
+                            gFileLogInfo << "ret = 0" << endl;
+                            gFileLogInfo.Unlock();
+                            GLOG(gFileLogInfo, "\xc3\xa4\xb3\xce \xbc\xad\xb9\xf6\xbf\xa1 \xbe\xcb\xb8\xb0\xb4\xd9. "
+                                << "gc_no=" << pck.gc_no << ", IP=" << pApp->CServers[k].IP
+                                << ", PORT=" << pApp->CServers[k].port);
                         }
-                        if (ret == 0)
-                        {
-                            GLOG(gFileLogInfo, "ret = 0");
-                        }
-                        GLOG(gFileLogInfo, "\xc3\xa4\xb3\xce \xbc\xad\xb9\xf6\xbf\xa1 \xbe\xcb\xb8\xb0\xb4\xd9. "
-                            << "gc_no=" << pck.gc_no << ", IP=" << pApp->CServers[k].IP
-                            << ", PORT=" << pApp->CServers[k].port);
                         it++;
                     }
                 }
                 gFileLogCri.Lock();
                 gFileLogCri << "12345 END Send Channel Index = " << pApp->CServers[k].id << endl;
                 gFileLogCri.Unlock();
-            }
-            else
-            {
-                TScopedLock<TThreadLock<ThreadLock_linux> > slock(pApp->LockChannel);
-                pApp->CServers[k].id = -1;
-                pApp->ChannelServerNumber = pApp->ChannelServerNumber + -1;
-                pApp->CServers[k].uTCP = NULL;
             }
         }
         gFileLogCri.Lock();

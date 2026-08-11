@@ -308,43 +308,6 @@ void TDebugTrace<T>::setOutputDevice(ITextOutputDevice* in_device)
 
 template void TDebugTrace<char>::setOutputDevice(ITextOutputDevice*);
 
-template <>
-void TGlobalInstance<TextOutputDevice_stdout>::create()
-{
-    if (m_p == 0 && m_p == 0)
-    {
-        try
-        {
-            register void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
-            memset(pvMem, 0, sizeof(TextOutputDevice_stdout));
-            new (pvMem) TextOutputDevice_stdout();
-            m_p = (TextOutputDevice_stdout*)pvMem;
-        }
-        catch (...)
-        {
-            printf("cannot allocate memory in TGlobalInstance.! cannot continue");
-            exit(-1);
-        }
-    }
-}
-
-template <>
-void TGlobalInstance<TextOutputDevice_FILE>::create()
-{
-    if (m_p == 0 && m_p == 0)
-    {
-        try
-        {
-            m_p = new TextOutputDevice_FILE;
-        }
-        catch (...)
-        {
-            printf("cannot allocate memory in TGlobalInstance.! cannot continue");
-            exit(-1);
-        }
-    }
-}
-
 ChannelServiceApp::ChannelService::ChannelService()
     : PortInfo(), Handlers(), Protocols(), Threads(), UserPools(), Channel(), ChannelServer(), Reactor(), ChannelScript()
 {
@@ -859,10 +822,6 @@ TextOutputDevice_stdout* ChannelServiceApp::getLogWarn()
 TextOutputDevice_stdout* ChannelServiceApp::getLogError()
 {
     return g_LogError.get();
-}
-
-ITextOutputDevice::ITextOutputDevice()
-{
 }
 
 TextOutputDevice_FILE::TextOutputDevice_FILE()

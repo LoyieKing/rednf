@@ -139,7 +139,7 @@ void CServerHandler::SetConnectFlag(unsigned char index, bool flag)
 {
     if (index != 0xff && m_servers[index].IsValidServer())
     {
-        m_servers[index].SetConnFlag(flag);
+        (m_servers + index)->SetConnFlag(flag);
     }
     else
     {
@@ -159,7 +159,7 @@ CGameServer* CServerHandler::GetGameServer(int idx)
 {
     if (idx < 0xff && m_servers[idx].IsValidServer())
     {
-        return &m_servers[idx];
+        return m_servers + idx;
     }
     DNF_LOG_SCOPE_LINE(0x145,"./log/GameServer", "CServerHandler::GetGameServer\tGame Server Index Over Index : %d!\n",
         idx);

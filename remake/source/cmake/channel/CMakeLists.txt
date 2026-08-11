@@ -1,4 +1,8 @@
 cmake_minimum_required(VERSION 3.13)
+# channel 专用编译规则：经 channel_cc.sh 把 "-c <绝对路径>" 改写为
+# "cd 到源目录 + basename"，复现 ORIG 构建的 __FILE__（见 channel_cc.sh）。
+set(CMAKE_CXX_COMPILE_OBJECT
+    "${CMAKE_CURRENT_LIST_DIR}/channel_cc.sh <DEFINES> <INCLUDES> <FLAGS> -MD -MT <TARGET> -MF <DEP_FILE> -o <OBJECT> -c <SOURCE>")
 project(channel CXX)
 
 # c6446r 变体：c6root g++ 4.4.7 驱动 + cc1plus 4.4.6（等价 /tmp/c6-g++-446r 的 -B）。

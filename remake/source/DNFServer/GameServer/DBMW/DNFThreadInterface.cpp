@@ -29,13 +29,9 @@ CThreadInterface::CThreadInterface()
     m_stop = 0;
 }
 CThreadInterface::~CThreadInterface() {}
-static void* thread_proxy(void* param)
-{
-    return ((CThreadInterface*)param)->dispatch_proxy(param);
-}
 bool CThreadInterface::begin()
 {
-    int ret = pthread_create(&m_thread, 0, thread_proxy, this);
+    int ret = pthread_create(&m_thread, 0, &CThreadInterface::dispatch_proxy, this);
     if (ret < 0)
     {
         puts("[ThreadInterface::begin] Can't begin thread");
@@ -45,7 +41,8 @@ bool CThreadInterface::begin()
 }
 void* CThreadInterface::dispatch_proxy(void* param)
 {
-    dispatch(param);
+    CThreadInterface* t = (CThreadInterface*)param;
+    t->dispatch(param);
     return 0;
 }
 void CThreadInterface::join()

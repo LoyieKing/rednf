@@ -80,34 +80,32 @@ struct STGuildMemberProxy
 };
 
 // from GuildDomain.h
-struct STGuildDBInfoOnly
+struct __attribute__((packed)) STGuildDBInfoOnly
 {
     STGuildDBInfoOnly();
-    union
-    {
-        char m_data[0xbd];
-        struct __attribute__((packed))
-        {
-            char m_pad0[0x17];
-            unsigned int m_masterId;       // +0x17（this+0x37）
-            unsigned char m_guildLevel;    // +0x1b（this+0x3b）
-            char m_pad2[0x22 - 0x1c];
-            unsigned short m_totalCnt;     // +0x22（this+0x42）
-            unsigned int m_guildPoint;     // +0x24（this+0x44）
-            unsigned char m_guildRank;     // +0x28（this+0x48）
-            unsigned int m_guildExp;       // +0x29（this+0x49）
-            char m_pad5[0x2d - 0x2d];
-            unsigned char m_subMasterCnt;  // +0x2d（this+0x4d）
-            char m_pad6[0x95 - 0x2e];
-            unsigned char m_powerSide;     // +0x95（this+0xb5）
-            unsigned int m_powerSecedeTime;// +0x96（this+0xb6）
-            unsigned int m_powerWarPoint;  // +0x9a（this+0xba）
-            unsigned char m_agitFlag;      // +0x9e（this+0xbe）
-            char m_pad7[0xa0 - 0x9f];
-            unsigned int m_guildFund;      // +0xa0（this+0xc0）
-            char m_pad8[0xbd - 0xa4];
-        };
-    };
+    char m_pad0[0x17];             // +0
+    unsigned int m_masterId;       // +0x17
+    unsigned char m_guildLevel;    // +0x1b
+    unsigned char m_flags;         // +0x1c
+    char m_pad1d;                  // +0x1d
+    unsigned int m_field1e;        // +0x1e
+    unsigned short m_totalCnt;     // +0x22
+    unsigned int m_guildPoint;     // +0x24
+    unsigned char m_guildRank;     // +0x28
+    unsigned int m_guildExp;       // +0x29
+    unsigned char m_subMasterCnt;  // +0x2d
+    char m_pad2e[0x42 - 0x2e];     // +0x2e
+    unsigned short m_field42;      // +0x42
+    unsigned char m_field44;       // +0x44
+    STGuildSkill m_skills[16];     // +0x45（自动构造）
+    unsigned char m_powerSide;     // +0x95
+    unsigned int m_powerSecedeTime;// +0x96
+    unsigned int m_powerWarPoint;  // +0x9a
+    unsigned char m_agitFlag;      // +0x9e
+    unsigned char m_field9f;       // +0x9f
+    unsigned int m_guildFund;      // +0xa0
+    char m_pada4[0xb9 - 0xa4];     // +0xa4
+    unsigned int m_fieldB9;        // +0xb9
 };
 
 // from GuildDomain.h
@@ -166,12 +164,16 @@ struct UpgradeSeparateInfo
 };
 
 // from GuildDomain.h
+#pragma pack(push,1)
 struct ReservedCapacity
 {
     ReservedCapacity();
     void reset();
-    char m_data[0xc];
+    unsigned int m_field0;   // +0
+    unsigned int m_field4;   // +4
+    unsigned char m_field8;  // +8
 };
+#pragma pack(pop)
 
 // from GuildDomain.h
 struct STGuildMemberCharacData
@@ -187,13 +189,33 @@ struct hyperlink_item_info
 };
 
 // from GuildDomain.h
+#pragma pack(push,1)
 class DnfItemInfo
 {
 public:
     DnfItemInfo();
     void reset();
-    char m_data[0x35];
+    char m_data[0x2b];
+    UpgradeSeparateInfo m_up;      // +0x2b
+    ReservedCapacity m_res;        // +0x2c
 };
+#pragma pack(pop)
+
+// from GuildPackets.h
+#pragma pack(push,1)
+class Packet_DB_Insert_Guild_Cargo_History : public PacketHeader {
+public:
+    Packet_DB_Insert_Guild_Cargo_History();
+    unsigned char m_a;             // +0xa
+    unsigned int m_b;              // +0xb
+    unsigned int m_c;              // +0xf
+    char m_pad[0x15];              // +0x13
+    unsigned char m_d;             // +0x28
+    unsigned int m_e;              // +0x29
+    unsigned int m_f;              // +0x2d
+    DnfItemInfo m_item;            // +0x31
+};
+#pragma pack(pop)
 
 // from GuildDomain.h
 struct STGuildMemberWebConnInfo
@@ -205,7 +227,10 @@ struct STGuildMemberWebConnInfo
 struct STGuildCallInfo
 {
     STGuildCallInfo();
-    char m_data[0x1d];
+    unsigned int m_field0;      // +0
+    unsigned char m_field4;     // +4
+    unsigned char m_field5;     // +5
+    char m_data[0x1d - 6];
 };
 
 // from GuildDomain.h
@@ -246,7 +271,7 @@ public:
     void SetGuildDBFlag(unsigned short flag);
     bool IsSetGuildDBFlag(unsigned short flag);
     void EnableDBSaveFlag();
-    bool GetDBSaveFlag();
+    unsigned char GetDBSaveFlag();
     unsigned int GetGuildExp();
     void AddGuildExp(unsigned int exp);
     unsigned char GetGuildLevel();
@@ -255,7 +280,7 @@ public:
     unsigned int GetGuildFund();
     void AddGuildFund(unsigned int fund);
     void SubGuildFund(unsigned int fund);
-    bool IsAddableGuildFund(unsigned int fund);
+    unsigned int IsAddableGuildFund(unsigned int fund);
     bool IsCompleteGuildFund();
     int InsertGuildMember(unsigned int charNo, CUser* user);
     int DeleteGuildMember(unsigned int charNo, CUser* user);
@@ -380,6 +405,7 @@ public:
     CGuildBoard m_board;                        // +0x66c4（内嵌对象）
 };
 
+#pragma pack(push, 1)
 // from GuildPackets.h
 class Packet_Achieve_Guild_Attendance : public PacketHeader {
 public:
@@ -395,11 +421,16 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Channel_Guild_Agit_Info : public PacketHeader {
 public:
     Packet_Channel_Guild_Agit_Info();
-    char m_data[0xd];
+    unsigned int m_a;              // +0xa
+    unsigned int m_b;              // +0xe
+    unsigned int m_c;              // +0x12
+    STGuildAgitDBInfo m_info;      // +0x16
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_DBMW_Save_Power_Secede_Time : public PacketHeader {
@@ -500,17 +531,27 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_Notice_Guild_Enter_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Enter_ToUser();
-    char m_data[0x50];
+    unsigned int m_a;              // +0xa
+    unsigned int m_b;              // +0xe
+    char m_pad12[2];               // +0x12
+    ST_Notice_Guild_Enter m_info;  // +0x14
+    char m_pad55[5];               // +0x55
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Monitor_Notice_Guild_Info : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Info();
-    char m_data[0x12f];
+    char m_pad[8];
+    unsigned int m_field12;          // +0x12
+    STGuildDBInfoOnly m_info;        // +0x16
+    char m_padD3;                    // +0xd3（ORIG 布局：m_info 后 1 字节间隙）
+    char m_rest[0x65];               // +0xd4
 };
 
 // from GuildPackets.h
@@ -521,18 +562,27 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_Notice_Guild_Secede_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Secede_ToUser();
-    char m_data[0x4b];
+    unsigned int m_a;              // +0xa
+    unsigned int m_b;              // +0xe
+    ST_Notice_Guild_Secede m_info; // +0x12
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_SAVE_Guild : public PacketHeader {
 public:
     Packet_Monitor_SAVE_Guild();
-    char m_data[0xc6];
+    unsigned char m_flag;          // +0xa
+    unsigned int m_b;              // +0xb
+    STGuildDBInfoOnly m_info;      // +0xf
+    char m_pad[4];                 // +0xcc
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Notify_Today_Guild_Member : public PacketHeader {
@@ -555,6 +605,7 @@ public:
     char m_data[0xc];
 };
 
+#pragma pack(pop)
 extern int g_guildDBProcessDay;
 
 #endif

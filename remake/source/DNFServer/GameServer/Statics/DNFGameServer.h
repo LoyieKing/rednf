@@ -23,7 +23,7 @@ public:
     unsigned char m_group;          // +0（0xff=无效）
     std::string m_name;             // +4
     unsigned short m_port;          // +8
-    unsigned char m_connectFlag;    // +0xa
+    bool m_connectFlag;             // +0xa（coserver 同型：bool 使 SetConnFlag 恢复 ORIG 求值顺序）
     unsigned char m_heartBeatCount; // +0xb（0x1e）
     unsigned char m_heartBeatOver;  // +0xc
     unsigned char m_channelNo;      // +0xd

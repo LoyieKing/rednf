@@ -1,5 +1,6 @@
 // df_monitor_r — ItemLimitEditionManager（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -46,7 +47,7 @@ void CItemLimitEditionMgr::makeItemLimitEditionUpdatePacket(
         *(char*)((char*)&pkt + idx * 9 + 0x1a) = (char)item->isSellComplete();
         idx++;
     }
-    *(int*)((char*)&pkt + 0xe) = idx;
+    ((RA_INT<14>*)&pkt)->v = idx;
 }
 
 void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
@@ -59,7 +60,7 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
         it->second->makeItemInfo(*(stItemLimitEditionItemInfo_t*)((char*)&pkt + idx * 0x48 + 0xf));
         idx++;
     }
-    *(int*)((char*)&pkt + 0xb) = idx;
+    ((RA_INT<11>*)&pkt)->v = idx;
 }
 
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
@@ -193,8 +194,8 @@ CItemLimitEdition::~CItemLimitEdition() {}
 
 CItemLimitEdition::CItemLimitEdition(const stItemLimitEditionItemInfo_t& info)
 {
-    memcpy(this, &info, 0x48);
-    m_sellNum = *(unsigned int*)((char*)&info + 0x18);
+    *((stItemLimitEditionItemInfo_t*)this) = info;
+    m_sellNum = ((RA_UINT<24>*)&info)->v;
 }
 
 unsigned int CItemLimitEdition::getSellEndTime() const { return m_sellEndTime; }
@@ -215,11 +216,10 @@ char CItemLimitEdition::isSellComplete() const
 void CItemLimitEdition::makeItemInfo(stItemLimitEditionItemInfo_t& info) const
 {
     memcpy(&info, this, 0x48);
-    *(unsigned int*)((char*)&info + 0x18) = getSellNum();
+    ((RA_UINT<24>*)&info)->v = getSellNum();
 }
 
 void CItemLimitEdition::updateSellNum(unsigned int num)
 {
     m_sellNum = num;
 }
-

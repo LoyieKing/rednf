@@ -66,6 +66,12 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
+struct DBServerPacketLayout
+{
+    PacketHeader hdr;
+    char m_field_a;   // +0xa
+};
+
 void CTcpDBServer::SetIP(std::string ip)
 {
     m_ip = ip;
@@ -102,12 +108,20 @@ CDBServer::~CDBServer()
 
 bool CDBServer::Initialize()
 {
-    return CServerInterface::Initialize();
+    if (!CServerInterface::Initialize())
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CDBServer::Destroy()
 {
-    return CServerInterface::Destroy();
+    if (!CServerInterface::Destroy())
+    {
+        return false;
+    }
+    return true;
 }
 
 CTcpDBServer::CTcpDBServer()
@@ -137,40 +151,40 @@ void CTcpDBServer::Clear()
 void CTcpDBServer::SendLogin()
 {
     char* buf = makePacketHeader(0x1068, 0xb);
-    if (buf != 0)
+    char* pkt = buf;
+    if (pkt != 0)
     {
-        buf[10] = 9;
-        SendToServer(buf);
+        ((DBServerPacketLayout*)pkt)->m_field_a = 9;
+        SendToServer(pkt);
     }
 }
 
 void CTcpDBServer::SendLogout()
 {
     char* buf = makePacketHeader(0x1069, 0xb);
-    if (buf != 0)
+    char* pkt = buf;
+    if (pkt != 0)
     {
-        buf[10] = 9;
-        SendToServer(buf);
+        ((DBServerPacketLayout*)pkt)->m_field_a = 9;
+        SendToServer(pkt);
     }
 }
 
 void CTcpDBServer::SendHeartbeat()
 {
     char* pkt = makePacketHeader(0x106a, 0xb);
-    if (pkt != 0)
+    char* buf = pkt;
+    if (buf != 0)
     {
-        pkt[10] = '\t';
-        SendToServer(pkt);
+        ((DBServerPacketLayout*)buf)->m_field_a = '\t';
+        SendToServer(buf);
     }
 }
 
 void CTcpDBServer::Connected()
 {
     SendLogin();
-    if (m_guildMgr != 0)
-    {
-        m_guildMgr->CargoUnlock();
-    }
+    m_guildMgr->CargoUnlock();
     DNF_LOG_SCOPE_LINE(0x121, "./log/GuildCargo", "TCP DBMW(%s,%d) CONNECTED! GUILD CARGO ACTIVE!",
         m_ip.c_str(), (unsigned int)m_port);
 }

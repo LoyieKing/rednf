@@ -71,7 +71,7 @@ int CUdpHandler::InitServerSocket(int port)
     }
     unsigned int rcvbuf = 0xf4240;
     setsockopt(m_clientSock, SOL_SOCKET, SO_RCVBUF, (char*)&rcvbuf, 4);
-    CMyFileLog log("InitServerSocket", 0x6e);
+    CMyFileLog log(__FUNCTION__, 0x6e);
     log("./log/Udp", "Opened port %d with fd %d, recv buf size %d\n", port, m_sock,
         rcvbuf);
     return m_sock;
@@ -86,7 +86,7 @@ int CUdpHandler::InitClientSocket()
         printf("Could not create a UDP socket : %d\n", getErrno());
         return -1;
     }
-    CMyFileLog log("InitClientSocket", 0x8f);
+    CMyFileLog log(__FUNCTION__, 0x8f);
     log("./log/Udp", "Opened port with fd %d\n", m_clientSock);
     return m_clientSock;
 }

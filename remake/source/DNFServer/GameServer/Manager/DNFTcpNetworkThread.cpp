@@ -11,21 +11,43 @@
 #include "Peer.h"
 #include "TcpNetSystem.h"
 
-CTcpNetworkThread::CTcpNetworkThread() {}
-CTcpNetworkThread::~CTcpNetworkThread() {}
+CTcpNetworkThread::CTcpNetworkThread()
+{
+    m_net = 0;
+    m_recvQ = 0;
+    m_handler = 0;
+    m_recvQLock = 0;
+    m_recvBLock = 0;
+    m_sendQ = 0;
+    m_sendQLock = 0;
+    m_sendBLock = 0;
+    m_runningFlag = 0;
+}
+
+CTcpNetworkThread::~CTcpNetworkThread()
+{
+    m_recvQ = 0;
+    m_handler = 0;
+    m_recvQLock = 0;
+    m_net = 0;
+    m_sendQ = 0;
+    m_sendQLock = 0;
+    m_sendBLock = 0;
+}
 
 void CTcpNetworkThread::attach(CTcpNetSystem* net)
 {
-    if (!net)
-        return;
-    m_net = net;
-    m_recvQ = net->Get_TcpSwapQPacket()->GetRecvQ();
-    m_handler = net->Get_TcpHandler();
-    m_recvQLock = net->Get_TcpRecvQLock();
-    m_recvBLock = net->Get_TcpRecvBLock();
-    m_sendQ = net->Get_TcpSendQPacket();
-    m_sendQLock = net->Get_TcpSendQLock();
-    m_sendBLock = net->Get_TcpSendBLock();
+    if (net)
+    {
+        m_net = net;
+        m_recvQ = net->Get_TcpSwapQPacket()->GetRecvQ();
+        m_handler = net->Get_TcpHandler();
+        m_recvQLock = net->Get_TcpRecvQLock();
+        m_recvBLock = net->Get_TcpRecvBLock();
+        m_sendQ = net->Get_TcpSendQPacket();
+        m_sendQLock = net->Get_TcpSendQLock();
+        m_sendBLock = net->Get_TcpSendBLock();
+    }
 }
 
 void* CTcpNetworkThread::dispatch(void* param)
@@ -38,7 +60,7 @@ void* CTcpNetworkThread::dispatch(void* param)
         {
             if (!m_runningFlag)
             {
-                CMyFileLog log("dispatch", 0xae);
+                CMyFileLog log(__FUNCTION__, 0xae);
                 log("./log/TcpRecv", "RecvThread Terminate");
                 break;
             }

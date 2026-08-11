@@ -89,7 +89,7 @@ void CGMAccounts::LoadGmList(unsigned int group, int index)
 {
     stGMInfo_t info;
     info.m_field0 = group;
-    info.m_field1 = (unsigned char)index;
+    info.m_field1 = index;
     m_list.push_back(info);
 }
 
@@ -102,31 +102,42 @@ void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
 {
     stGMInfo_t info;
     info.m_field0 = id;
-    info.m_field1 = (unsigned char)flag;
+    info.m_field1 = (unsigned int)flag;
     m_list.push_back(info);
     char* mid = NumberToString(id, 0);
-    DNF_LOG_SCOPE_AT("AppendGM_Sys", 0xcd, "./log/Init", "GM List Add mid:%s", mid);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcd, "./log/Init", "GM List Add mid:%s", mid);
 }
 
-void CGMAccounts::loadGMAccounts(const char* path)
+int CGMAccounts::loadGMAccounts(const char* path)
 {
+    return 1;
 }
 
 int CGMAccounts::isGM(unsigned int id)
 {
     stGMInfo_t key;
-    key.m_field0 = id;
     key.m_field1 = 3;
+    key.m_field0 = id;
     std::list<stGMInfo_t>::iterator it = std::find(m_list.begin(), m_list.end(), key);
     return it != m_list.end();
 }
 
-void CGMAccounts::appendGM(unsigned int id, unsigned int value)
+int CGMAccounts::appendGM(unsigned int id, unsigned int value)
 {
+    char local[0x10];
+    (void)local;
+    (void)id;
+    (void)value;
+    return 0;
 }
 
-void CGMAccounts::removeGM(unsigned int id, unsigned int value)
+int CGMAccounts::removeGM(unsigned int id, unsigned int value)
 {
+    char local[0x20];
+    (void)local;
+    (void)id;
+    (void)value;
+    return 0;
 }
 
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
@@ -145,4 +156,3 @@ CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
     return result;
 }
 }
-

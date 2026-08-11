@@ -16,11 +16,13 @@
 #include "DNFServerConfig.h"
 #include "DNFTableBase.h"
 
-CAppInit::CAppInit() {}
-CAppInit::~CAppInit() {}
-
 CAppStartInit::CAppStartInit() {}
 CAppStartInit::~CAppStartInit() {}
+
+// CAppInit ctor 定义置于 CAppStartInit ctor 之后（理由同 SystemTimeHandler.cpp：
+// ORIG CAppStartInitC1 栈帧 0x18，定义在前会退化为 sub $0x4）。
+CAppInit::CAppInit() {}
+CAppInit::~CAppInit() {}
 
 int CAppStartInit::Save_pid(const std::string& path)
 {

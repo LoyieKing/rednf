@@ -47,7 +47,7 @@ void CDBManager::Close()
     }
 }
 
-char CDBManager::UpdateQueryCount(unsigned int idx, int count, int time)
+bool CDBManager::UpdateQueryCount(unsigned int idx, int count, int time)
 {
     bool b;
     CDBHandle* h = m_handles[4];
@@ -96,9 +96,11 @@ void CDBManager::Init(ENUM_DB_KIND kind, CApplication* app)
         {
             m_handles[i] = new (std::nothrow) CMySql;
             if (!m_handles[i])
-                throw CDNFException("CDBManager::Init() new CMySql fail!");
+                throw CDNFException("CDBManager::Init() DB Handle New Error\n");
             if (!m_handles[i]->init())
-                throw CDNFException("CDBManager::Init() mysql init fail!");
+                throw CDNFException("CDBManager::Init() DB Handle Error\n");
         }
     }
+    else
+        throw CDNFException("CDBManager::Init() DB Handle Create Error\n");
 }

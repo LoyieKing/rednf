@@ -116,9 +116,9 @@ public:
     unsigned char m_posState;         // +0x10
     int m_channel;                    // +0x14
     char m_charInfo[0x1e];            // +0x18（name@0x18, level/job/sex 等）
-    unsigned char m_job;              // +0x36
-    unsigned char m_growthType;       // +0x37
-    unsigned short m_guildMemFlag;    // +0x38
+    char m_job;                       // +0x36
+    char m_growthType;                // +0x37
+    short m_guildMemFlag;             // +0x38
     unsigned char m_field3a;          // +0x3a
     char m_field3b[7];                // +0x3b
     CGuild* m_guild;                  // +0x44
@@ -136,15 +136,22 @@ public:
 class Packet_Monitor_Notice_Guild_Member_Info : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Member_Info();
-    char m_data[0x22];
+    char m_pad[8];
+    STGuildMemerDBInfo m_info;   // +0x12
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_SAVE_Guild_Member : public PacketHeader {
 public:
     Packet_Monitor_SAVE_Guild_Member();
-    char m_data[0x24];
+    unsigned char m_flag;          // +0xa
+    unsigned int m_b;              // +0xb
+    char m_pad[4];                 // +0xf
+    STGuildMemerDBInfo m_info;     // +0x13
+    char m_pad2d;                  // +0x2d
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Monitor_Set_Guild_Key : public PacketHeader {

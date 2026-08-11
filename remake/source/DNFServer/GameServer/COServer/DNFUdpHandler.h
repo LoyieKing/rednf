@@ -24,11 +24,13 @@ public:
     CUdpHandler();
     int InitServerSocket(int port);
     int InitClientSocket();
-    int RecvFromClient(char* buf, int* len, unsigned int* ip, unsigned short* port) const;
-    int SendToClient(char* buf, int len, unsigned short port, char const* ip,
+    // ORIG 实测：四个收发函数均返回 bool（0/1），调用侧 `!bool` 直出 xor $0x1 形态；
+    // int 声明会生成 test/sete（仅差返回类型语义）。
+    bool RecvFromClient(char* buf, int* len, unsigned int* ip, unsigned short* port) const;
+    bool SendToClient(char* buf, int len, unsigned short port, char const* ip,
                      unsigned int ipaddr) const;
-    int RecvFromServer(char* buf, int* len, unsigned int* ip, unsigned short* port) const;
-    int SendToServer(char* buf, int len, unsigned short port, char const* ip) const;
+    bool RecvFromServer(char* buf, int* len, unsigned int* ip, unsigned short* port) const;
+    bool SendToServer(char* buf, int len, unsigned short port, char const* ip) const;
     void InetAddr(char const* ip) const;
     int m_sock;        // +0
     int m_clientSock;  // +4

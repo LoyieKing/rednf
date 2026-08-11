@@ -33,7 +33,7 @@ CDNFException::~CDNFException() throw() {}
 const char* CDNFException::what() const throw()
 {
     register const char* p = m_msg.c_str();
-    CMyFileLog log("what", 0x1a);
+    CMyFileLog log(__FUNCTION__, 0x1a);
     log("./log/Except", "%s", p);
     return m_msg.c_str();
 }
@@ -87,4 +87,3 @@ int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
     }
     return count;
 }
-

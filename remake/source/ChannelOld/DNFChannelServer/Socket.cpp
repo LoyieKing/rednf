@@ -157,13 +157,14 @@ void TCPSocket::close()
     port_ = 0;
 }
 
-int TCPSocket::shutdown(int opt)
+void TCPSocket::shutdown(int opt)
 {
-    // Verified from original: does NOT call ::shutdown(2); only loads sock_
-    // and compares against -1 (return value remains sock_ in eax).
+    // ORIG: load sock_, cmp $-1, ret (no ::shutdown(2), no branch, no frame).
+    // The dead compare is not emitted by any plain-C++ shape with this
+    // compiler (-O0 drops unused `sock_ == -1;`), so force it with the same
+    // inline asm used by ServerLab/relay's Socket.cpp.
     (void)opt;
-    sock_ == -1;
-    return sock_;
+    __asm__ __volatile__("cmpl $-1, %0" : : "r"(sock_) : "cc");
 }
 
 bool TCPSocket::accept(TCPSocket& accepted)

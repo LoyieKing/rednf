@@ -18,8 +18,6 @@ void CConfigFileReader::add_tag(const char *tag) {
 }
 
 bool CConfigFileReader::CheckCommand(char *cmd) {
-    static char COMMENT_TOKEN[] = "//";
-
     if (cmd[0] == '\0') {
         return 1;
     } else if (cmd[0] == '[' || cmd[0] == '\r' || cmd[0] == '\n') {
@@ -30,11 +28,13 @@ bool CConfigFileReader::CheckCommand(char *cmd) {
             int comment_match = 0;
             // 原始：j <= 1（有符号；sizeof 无符号会导致 setbe）
             for (int j = 0; j <= 1; ++j) {
-                if (cmd[i + j] == COMMENT_TOKEN[j]) {
+                // 原始：直接引用 rodata 字面量 "//"（movzbl "//"(,%eax),%eax），
+                // 不能用 static 数组（会产生 _ZZN...COMMENT_TOKEN 数据符号引用）。
+                if (cmd[i + j] == "//"[j]) {
                     comment_match += 1;
                 }
             }
-            if (comment_match == (sizeof COMMENT_TOKEN - 1)) {
+            if (comment_match == 2) {
                 return 1;
             }
         }
@@ -136,9 +136,12 @@ int CConfigFileReader::ReadConfigFile(char const *configFilePath) {
 
 char *CConfigFileReader::Trim(char *str) {
     size_t len = strlen(str);
-    // 原始：while + break 结构（end = i 在循环顶；>0x20 或 <0 停止；setb/seta 无符号物化）
-    int end = 0;
-    int i = 0;
+    // 原始（ORIG 二进制实测）：i 先声明（槽 -0x14）、end 后声明（槽 -0x10），
+    // 但赋值语句先 end = 0 后 i = 0（初始化顺序 -0x10 先于 -0x14）。
+    // i/end 均为 size_t：unsigned 才生成 lea (%edx,%eax,1) 索引形态与 setb/seta 物化。
+    size_t i, end;
+    end = 0;
+    i = 0;
     while (i < len) {
         end = i;
         if (str[i] > ' ') {

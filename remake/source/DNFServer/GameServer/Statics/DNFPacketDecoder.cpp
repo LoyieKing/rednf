@@ -26,56 +26,56 @@ CPacketDecoder::CPacketDecoder()
     {
         m_handlers[i] = 0;
     }
-    m_handlers[0x3ec] = (void*)&CPacketTranslater::OnHeartBeat;
-    m_handlers[0x44f] = (void*)&CPacketTranslater::OnEventStart;
-    m_handlers[0x450] = (void*)&CPacketTranslater::OnEventEnd;
-    m_handlers[0x578] = (void*)&CPacketTranslater::OnMonitorManagerConnectOK;
-    m_handlers[0x9ce] = (void*)&CPacketTranslater::OnClientSpecStatistic;
-    m_handlers[0xc26] = (void*)&CPacketTranslater::OnFrameLagStatisticsAdd;
-    m_handlers[0xc28] = (void*)&CPacketTranslater::OnFrameLagStatisticsResultLoadSpec;
-    m_handlers[0xc2a] = (void*)&CPacketTranslater::OnFrameLagStatisticsResultReloadSpec;
-    m_handlers[0xc2e] = (void*)&CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify;
-    m_handlers[0xc2f] = (void*)&CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck;
-    m_handlers[0xfa6] = (void*)&CPacketTranslater::OnPartyResultStatistic;
-    m_handlers[0xfa7] = (void*)&CPacketTranslater::OnPartyPingStatistic;
-    m_handlers[0xfa8] = (void*)&CPacketTranslater::OnPvpPingStatistic;
-    m_handlers[0xfa9] = (void*)&CPacketTranslater::OnAbnormalExitStatistic;
-    m_handlers[0xc35] = (void*)&CPacketTranslater::OnDungeonStatisticParty;
-    m_handlers[0xc37] = (void*)&CPacketTranslater::OnDungeonStatisticPartyJob;
-    m_handlers[0xc39] = (void*)&CPacketTranslater::OnDungeonStatisticPartyCharac;
-    m_handlers[0xc3b] = (void*)&CPacketTranslater::OnDeathTowerStatisticValue;
-    m_handlers[0xc3d] = (void*)&CPacketTranslater::OnDeathTowerStatisticPlayDataJob;
-    m_handlers[0xc3f] = (void*)&CPacketTranslater::OnDeathTowerStatisticPlayDataParty;
-    m_handlers[0xc43] = (void*)&CPacketTranslater::OnPacketOverflowStatistic;
-    m_handlers[0xc41] = (void*)&CPacketTranslater::OnAssertManagerStatistic;
-    m_handlers[0xc45] = (void*)&CPacketTranslater::OnUserTingTimeCheck;
-    m_handlers[0xc31] = (void*)&CPacketTranslater::OnHellPartyStatisticItem;
-    m_handlers[0xfb0] = (void*)&CPacketTranslater::OnLoadingTimeReportStatistics;
-    m_handlers[0xc4a] = (void*)&CPacketTranslater::OnFatigueBatteryMoneyStatistics;
-    m_handlers[0x1036] = (void*)&CPacketTranslater::OnBloodDungeonStatistic;
-    m_handlers[0xc33] = (void*)&CPacketTranslater::OnCubeStatistic;
-    m_handlers[0xc48] = (void*)&CPacketTranslater::OnReasonCrashDownData;
-    m_handlers[0x17a2] = (void*)&CPacketTranslater::OnUpdateDisjointAvatarStatic;
-    m_handlers[0x17a4] = (void*)&CPacketTranslater::OnUpdateCreateEmblemStatic;
-    m_handlers[0x17ad] = (void*)&CPacketTranslater::OnUserCountStatistic;
-    m_handlers[0x17b6] = (void*)&CPacketTranslater::OnRandomboxStatistic;
-    m_handlers[0x17b9] = (void*)&CPacketTranslater::OnLagStatisticsAdd;
-    m_handlers[0x17ca] = (void*)&CPacketTranslater::OnValueStatistic;
-    m_handlers[0x17cb] = (void*)&CPacketTranslater::OnCirculationStatistic;
-    m_handlers[0x1b67] = (void*)&CPacketTranslater::OnServerMatchData;
-    m_handlers[0x1b69] = (void*)&CPacketTranslater::OnSecretShopStatistic;
-    m_handlers[0x1f46] = (void*)&CPacketTranslater::OnGoldCardEventStatistic;
-    m_handlers[0x271c] = (void*)&CPacketTranslater::OnTowerOfDespairStatistic;
-    m_handlers[0x2720] = (void*)&CPacketTranslater::OnStatistic;
-    m_handlers[0x2722] = (void*)&CPacketTranslater::OnStatisticGmCmd;
-    m_handlers[0x2723] = (void*)&CPacketTranslater::OnMoneyLog;
-    m_handlers[0x27e0] = (void*)&CPacketTranslater::OnCompatibilityIndex;
-    m_handlers[0x27e1] = (void*)&CPacketTranslater::OnP2PStatistic;
-    m_handlers[0x27ed] = (void*)&CPacketTranslater::OnFairPvpPingStatistic;
-    m_handlers[0x27f3] = (void*)&CPacketTranslater::OnFileStatistic;
-    m_handlers[0x27fd] = (void*)&CPacketTranslater::OnHolePunchingSuccessRateStatistic;
+    m_handlers[0x3ec] = &CPacketTranslater::OnHeartBeat;
+    m_handlers[0x44f] = &CPacketTranslater::OnEventStart;
+    m_handlers[0x450] = &CPacketTranslater::OnEventEnd;
+    m_handlers[0x578] = &CPacketTranslater::OnMonitorManagerConnectOK;
+    m_handlers[0x9ce] = &CPacketTranslater::OnClientSpecStatistic;
+    m_handlers[0xc26] = &CPacketTranslater::OnFrameLagStatisticsAdd;
+    m_handlers[0xc28] = &CPacketTranslater::OnFrameLagStatisticsResultLoadSpec;
+    m_handlers[0xc2a] = &CPacketTranslater::OnFrameLagStatisticsResultReloadSpec;
+    m_handlers[0xc2e] = &CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify;
+    m_handlers[0xc2f] = &CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck;
+    m_handlers[0xfa6] = &CPacketTranslater::OnPartyResultStatistic;
+    m_handlers[0xfa7] = &CPacketTranslater::OnPartyPingStatistic;
+    m_handlers[0xfa8] = &CPacketTranslater::OnPvpPingStatistic;
+    m_handlers[0xfa9] = &CPacketTranslater::OnAbnormalExitStatistic;
+    m_handlers[0xc35] = &CPacketTranslater::OnDungeonStatisticParty;
+    m_handlers[0xc37] = &CPacketTranslater::OnDungeonStatisticPartyJob;
+    m_handlers[0xc39] = &CPacketTranslater::OnDungeonStatisticPartyCharac;
+    m_handlers[0xc3b] = &CPacketTranslater::OnDeathTowerStatisticValue;
+    m_handlers[0xc3d] = &CPacketTranslater::OnDeathTowerStatisticPlayDataJob;
+    m_handlers[0xc3f] = &CPacketTranslater::OnDeathTowerStatisticPlayDataParty;
+    m_handlers[0xc43] = &CPacketTranslater::OnPacketOverflowStatistic;
+    m_handlers[0xc41] = &CPacketTranslater::OnAssertManagerStatistic;
+    m_handlers[0xc45] = &CPacketTranslater::OnUserTingTimeCheck;
+    m_handlers[0xc31] = &CPacketTranslater::OnHellPartyStatisticItem;
+    m_handlers[0xfb0] = &CPacketTranslater::OnLoadingTimeReportStatistics;
+    m_handlers[0xc4a] = &CPacketTranslater::OnFatigueBatteryMoneyStatistics;
+    m_handlers[0x1036] = &CPacketTranslater::OnBloodDungeonStatistic;
+    m_handlers[0xc33] = &CPacketTranslater::OnCubeStatistic;
+    m_handlers[0xc48] = &CPacketTranslater::OnReasonCrashDownData;
+    m_handlers[0x17a2] = &CPacketTranslater::OnUpdateDisjointAvatarStatic;
+    m_handlers[0x17a4] = &CPacketTranslater::OnUpdateCreateEmblemStatic;
+    m_handlers[0x17ad] = &CPacketTranslater::OnUserCountStatistic;
+    m_handlers[0x17b6] = &CPacketTranslater::OnRandomboxStatistic;
+    m_handlers[0x17b9] = &CPacketTranslater::OnLagStatisticsAdd;
+    m_handlers[0x17ca] = &CPacketTranslater::OnValueStatistic;
+    m_handlers[0x17cb] = &CPacketTranslater::OnCirculationStatistic;
+    m_handlers[0x1b67] = &CPacketTranslater::OnServerMatchData;
+    m_handlers[0x1b69] = &CPacketTranslater::OnSecretShopStatistic;
+    m_handlers[0x1f46] = &CPacketTranslater::OnGoldCardEventStatistic;
+    m_handlers[0x271c] = &CPacketTranslater::OnTowerOfDespairStatistic;
+    m_handlers[0x2720] = &CPacketTranslater::OnStatistic;
+    m_handlers[0x2722] = &CPacketTranslater::OnStatisticGmCmd;
+    m_handlers[0x2723] = &CPacketTranslater::OnMoneyLog;
+    m_handlers[0x27e0] = &CPacketTranslater::OnCompatibilityIndex;
+    m_handlers[0x27e1] = &CPacketTranslater::OnP2PStatistic;
+    m_handlers[0x27ed] = &CPacketTranslater::OnFairPvpPingStatistic;
+    m_handlers[0x27f3] = &CPacketTranslater::OnFileStatistic;
+    m_handlers[0x27fd] = &CPacketTranslater::OnHolePunchingSuccessRateStatistic;
 }
-int CPacketDecoder::MsgDecode(PacketHeader* pkt)
+bool CPacketDecoder::MsgDecode(PacketHeader* pkt)
 {
     if (pkt == 0)
     {
@@ -93,7 +93,7 @@ int CPacketDecoder::MsgDecode(PacketHeader* pkt)
             return 0;
         }
         packet_counter.BeforeProcess();
-        ((void (*)(PacketHeader*))m_handlers[*(unsigned short*)pkt])(pkt);
+        m_handlers[*(unsigned short*)pkt](pkt);
         packet_counter.AfterProcess(*(unsigned short*)pkt);
         return 1;
     }

@@ -33,6 +33,7 @@ public:
             {
                 m_p = new T;
             }
+#line 47 "GlobalInstance.h"
             assert(m_p);
         }
         else

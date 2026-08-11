@@ -83,9 +83,23 @@ void PrintBackTrace() {
     for (int index = 0; index < count; index++) {
         // 原始：先取 symbols[index] 到局部变量（触发 ebx 保存，ctor 调用前取值）
         register char* s = symbols[index];
-        // 行号实参以 ORIG 二进制实测为准（0x186=390；DWARF decl_line 465=0x1d1
-        // 是伪 C 还原的猜测值，与二进制不符，2026-08-11 修正）
+        // 行号实参以各服务 ORIG 二进制实测为准：
+        //   coserver: 0x186=390（DWARF decl_line 465=0x1d1 是伪 C 还原
+        //   的猜测值，与 coserver 二进制不符，2026-08-11 修正）
+        //   point/auction/guild: 0x1d1=465（对应服务 ORIG 实测）。
+        // 四服务 ORIG 第四参实测均为 _ZZ14PrintBackTracevE12__FUNCTION__
+        //   （__FUNCTION__ 符号：coserver 0x80bb834 / point 0x8154f34 /
+        //   guild 0x811aa74 / manager 0x8159bc4），不得用字面量；
+        //   statics/monitor 亦为 __FUNCTION__（0x1d1），
+        //   见 2026-08-11 coserver/manager 第 2 轮记录。
+#if defined(DNF_SVC_POINT) || defined(DNF_SVC_AUCTION) || defined(DNF_SVC_GUILD) || defined(DNF_SVC_DBMW) || defined(DNF_SVC_COMMUNITY) || defined(DNF_SVC_MANAGER) || defined(DNF_SVC_STATICS) || defined(DNF_SVC_MONITOR)
+        CMyFileLog log(__FUNCTION__, 0x1d1);
+#elif defined(DNF_SVC_COSERVER)
+        // coserver ORIG 实测（0x8054328）：__FUNCTION__ 符号 + 0x186。
+        CMyFileLog log(__FUNCTION__, 0x186);
+#else
         CMyFileLog log("PrintBackTrace", 0x186);
+#endif
         log("./log/BackTrace", s);
     }
     free(symbols);
@@ -178,11 +192,13 @@ unsigned int SDC_Rand(unsigned int* seed) {
     a *= 0x41c64e6d;
     a += 0x3039;
     result <<= 10;
-    result = result ^ ((a >> 0x10) & 0x3ff);
+    // ORIG xor 为寄存器形态（edx 装载掩码、eax 装载 result、xor、存回）；
+    // 直接 result ^ mask 在 4.4.6-3 -O0 下折叠为 xor %eax,mem。(int) 转换包裹复现 ORIG。
+    result = (unsigned int)((int)result ^ (int)((a >> 0x10) & 0x3ff));
     a *= 0x41c64e6d;
     a += 0x3039;
     result <<= 10;
-    result = result ^ ((a >> 0x10) & 0x3ff);
+    result = (unsigned int)((int)result ^ (int)((a >> 0x10) & 0x3ff));
     *seed = a;
     return result;
 }
@@ -208,7 +224,7 @@ void DNFFLib::Binary2Hex(unsigned char const* data, int len, char* out) {
     }
 }
 
-int DNFFLib::Hex2Binary(char const* hex, unsigned char* out, int maxLen) {
+bool DNFFLib::Hex2Binary(char const* hex, unsigned char* out, int maxLen) {
     int count = 0;
     while (count < maxLen) {
         unsigned char value;
@@ -376,7 +392,13 @@ void DNFFLib::Sleep_Ext(int sec, int usec) {
 
 void CodePage::initCodePage() {
     gClientEncoding = "UTF-8";
+#if defined(DNF_SVC_AUCTION) || defined(DNF_SVC_POINT) || defined(DNF_SVC_GUILD)
+    // auction/point/guild ORIG 实测 script 编码为 GBK。
+    gScriptEncoding = "GBK";
+#else
+    // manager/monitor/statics/community/dbmw 等其余服务 ORIG 实测为 BIG5。
     gScriptEncoding = "BIG5";
+#endif
     gDatabaseEncoding = "UTF-8";
 }
 

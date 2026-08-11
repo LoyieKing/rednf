@@ -248,7 +248,11 @@ bool CServerHandler::IsConnectedGameServer(unsigned char group)
 
 bool CServerHandler::IsConnectedDBServer()
 {
-    return m_dbServer != 0 && m_dbServer->IsConnected();
+    if (m_dbServer != 0)
+    {
+        return m_dbServer->IsConnected();
+    }
+    return 0;
 }
 
 void CServerHandler::SetDBConnectFlag(bool flag)
@@ -284,7 +288,10 @@ void CServerHandler::SetConnectFlag(unsigned char type, bool flag)
 
 void CServerHandler::Attach(CApplication* app)
 {
-    m_app = app;
+    if (app != 0)
+    {
+        m_app = app;
+    }
 }
 
 void CServerHandler::SendToGameServer(unsigned char group, PacketHeader* pkt)
@@ -292,7 +299,7 @@ void CServerHandler::SendToGameServer(unsigned char group, PacketHeader* pkt)
     CGameServer* gs = GetGameServer((unsigned int)group);
     if (gs != 0)
     {
-        gs->SendToServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+        gs->SendToServer((char*)pkt, pkt->packetSize);
     }
 }
 
@@ -343,8 +350,8 @@ void CServerHandler::SendTcpGameServerFirst(PacketHeader* pkt)
 void CServerHandler::QueryGuildMember(unsigned char group, unsigned int characNo)
 {
     Packet_DB_Query_Guild_Member pkt;
-    *(unsigned char*)((char*)&pkt + 0xa) = group;
-    *(unsigned int*)((char*)&pkt + 0xb) = characNo;
+    pkt.m_group = group;
+    pkt.m_characNo = characNo;
     m_dbServer->SendToServer((char*)&pkt, 0xf);
 }
 
@@ -359,24 +366,24 @@ void CServerHandler::QueryGuild(unsigned int group, unsigned int guildId)
 
 void CServerHandler::SendToDB(PacketHeader* pkt)
 {
-    m_dbServer->SendToServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+    m_dbServer->SendToServer((char*)pkt, pkt->packetSize);
 }
 
 void CServerHandler::SendToManager(PacketHeader* pkt)
 {
-    m_managerServer->SendToServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+    m_managerServer->SendToServer((char*)pkt, pkt->packetSize);
 }
 
 unsigned char CServerHandler::GetServerGroupNo()
 {
-    return m_app ? m_app->Get_ServerGroup() : 0;
+    return m_app->Get_ServerGroup();
 }
 
 void CServerHandler::SendDBMWConnectionCheck()
 {
     Packet_DBMW_Connection_Check pkt;
-    *(unsigned char*)((char*)&pkt + 0xa) = 0xcb;
-    m_dbServer->SendToServer((char*)&pkt, *(unsigned short*)((char*)&pkt + 2));
+    pkt.m_data[0] = 0xcb;
+    m_dbServer->SendToServer((char*)&pkt, pkt.packetSize);
 }
 
 CTcpGameServer* CServerHandler::CreateTcpGameServer(unsigned int group)
@@ -467,8 +474,8 @@ bool CServerHandler::UnregistDBServer()
     if (m_dbServer != 0)
     {
         delete m_dbServer;
-        m_dbServer = 0;
     }
+    m_dbServer = 0;
     return true;
 }
 
@@ -488,8 +495,8 @@ bool CServerHandler::UnregistManagerServer()
     if (m_managerServer != 0)
     {
         delete m_managerServer;
-        m_managerServer = 0;
     }
+    m_managerServer = 0;
     return true;
 }
 
@@ -509,8 +516,8 @@ bool CServerHandler::UnregistMonitorServer()
     if (m_monitorServer != 0)
     {
         delete m_monitorServer;
-        m_monitorServer = 0;
     }
+    m_monitorServer = 0;
     return true;
 }
 

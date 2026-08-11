@@ -1,5 +1,6 @@
 // df_monitor_r — DNFMemberConfig（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -75,7 +76,7 @@ ST_MemberConfig* CMemberConfig::GetMemberInfo()
 
 CMemberExpTbl::CMemberExpTbl()
 {
-    *(char*)((char*)this + 4) = 0;
+    ((RA_S8<4>*)this)->v = 0;
     memset((char*)this + 8, 0, 0x2c);
 }
 
@@ -106,7 +107,7 @@ int CMemberExpTbl::Parse_Table(char* line, int idx)
 
 int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
 {
-    int local_c = (int)(unsigned char)*(char*)((char*)this + 4) - 1;
+    int local_c = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
     int local_8 = 1;
     if (exp < *(unsigned int*)((char*)this + local_c * 4 + 8))
     {
@@ -132,21 +133,19 @@ int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
     }
     else
     {
-        local_8 = (int)(unsigned char)*(char*)((char*)this + 4) - 1;
+        local_8 = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
     }
     return local_8;
 }
 
 unsigned int CMemberExpTbl::GetMaxMemberExp()
 {
-    return *(unsigned int*)((char*)this +
-                            ((unsigned int)(unsigned char)*(char*)((char*)this + 4) - 1) * 4 +
-                            8);
+    return m_table[m_count - 1];
 }
 
 unsigned char CMemberExpTbl::IsMemberExpLevelUp(unsigned int exp)
 {
-    unsigned int count = (unsigned int)(unsigned char)*(char*)((char*)this + 4);
+    unsigned int count = (unsigned int)(unsigned char)((RA_S8<4>*)this)->v;
     if (exp == 1)
     {
         return 0;
@@ -175,12 +174,12 @@ void CMemberExpTbl::GetMemberExpLevel(unsigned int exp, unsigned int& lo, unsign
                                       unsigned char& lv)
 {
     char* p = (char*)this + 8;
-    unsigned char count = *(unsigned char*)((char*)this + 4);
+    unsigned char count = ((RA_U8<4>*)this)->v;
     unsigned char l = 1;
     if (exp == 0)
     {
         lo = *(unsigned int*)p;
-        hi = *(unsigned int*)((char*)this + 0xc);
+        hi = ((RA_UINT<12>*)this)->v;
         lv = 1;
     }
     else
@@ -207,4 +206,3 @@ ST_MemberConfig::ST_MemberConfig()
     m_b = 0;
     m_c = 0;
 }
-

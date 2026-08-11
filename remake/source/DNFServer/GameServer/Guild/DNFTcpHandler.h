@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 #include "Thread.h"
+#include <sys/epoll.h>
 
 #include "PacketHeader.h"
 #include "DNFTcpHandler.h"
@@ -70,7 +71,7 @@ public:
     int m_field4;     // +4
     void* m_ptr;      // +8
     int m_fieldC;     // +0xc
-    unsigned char* m_events;  // +0x10
+    epoll_event* m_events;    // +0x10
     int m_epollFd;    // +0x14
     CMutex m_mutex;   // +0x18
 };

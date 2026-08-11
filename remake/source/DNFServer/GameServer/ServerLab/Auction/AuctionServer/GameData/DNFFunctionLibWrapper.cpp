@@ -3,12 +3,14 @@
 
 #include "DNFFunctionLibWrapper.h"
 
-static char saucHex[] = "0123456789abcdef";
-
 void DNFFLibWrapper::Char2Hex(unsigned char ch, char* szHex)
 {
-    szHex[0] = saucHex[ch >> 4];
-    szHex[1] = saucHex[ch & 0xf];
+    // ORIG：函数级静态 saucHex（_ZZN14DNFFLibWrapper8Char2HexEhPcE7saucHex），
+    // 必须非 const unsigned char 才会出 movzbl T(%eax),%eax + mov %eax,%edx
+    // 的寄存器形态（与 DNFFunctionLib.cpp 自由函数同款结论）。
+    static unsigned char saucHex[] = "0123456789abcdef";
+    szHex[0] = (char)saucHex[ch >> 4];
+    szHex[1] = (char)saucHex[ch & 0xf];
     szHex[2] = '\0';
 }
 
@@ -29,11 +31,14 @@ bool DNFFLibWrapper::Hex2Char(const char* szHex, unsigned char& rch)
     szHex = szHex + 1;
     if ((szHex[0] > 0x2f) && (szHex[0] <= 0x39))
     {
-        rch = (unsigned char)((rch << 4) + (szHex[0] - 0x30));
+        // ORIG：先 rch <<= 4 回写，再 (rch + szHex[0]) - 0x30 回写（两次重载）。
+        rch = (unsigned char)(rch << 4);
+        rch = (unsigned char)(rch + szHex[0] - 0x30);
     }
     else if ((szHex[0] > 0x60) && (szHex[0] <= 0x66))
     {
-        rch = (unsigned char)((rch << 4) + (szHex[0] - 0x57));
+        rch = (unsigned char)(rch << 4);
+        rch = (unsigned char)(rch + szHex[0] - 0x57);
     }
     else
     {

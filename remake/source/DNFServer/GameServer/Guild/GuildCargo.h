@@ -10,6 +10,7 @@
 #include <vector>
 #include "Thread.h"
 #include "PacketHeader.h"
+#include "DNFFunctionLib.h"
 
 #include "PacketHeader.h"
 
@@ -44,7 +45,7 @@ public:
     void SetCapacity(unsigned int capacity);
     int IsValidSlot(int slot);
     void SetGuildInfo(int guildKey);
-    bool IsLoadComplete();
+    unsigned char IsLoadComplete();
     int CalcItemCount();
     int IsEmpty();
     void* GetGuildCargoDBInfo();
@@ -66,21 +67,20 @@ public:
     void SendGuildCargoToDBMW(CServerHandler* handler, int slot);
     void SetGuildCargoHistory(unsigned int idx, STGuildCargoLog* log);
     void SetGuildCargoDBInfo(STGuildCargoDBInfo& info);
-    char m_data[0x1910];
+    STGuildCargoDBInfo m_info;     // +0（0x18dc；+0x18d8 的 u32 与容量字段别名）
+    char m_tail[0x18e8 - 0x18dc];  // +0x18dc（m_field18dc/m_guildKey/m_load/pad）
+    std::deque<STGuildCargoLog> m_history;   // +0x18e8
 };
 
 // from GuildPackets.h
-class Packet_DB_Insert_Guild_Cargo_History : public PacketHeader {
-public:
-    Packet_DB_Insert_Guild_Cargo_History();
-    char m_data[0x5c];
-};
-
-// from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Notice_Guild_Cargo : public PacketHeader {
 public:
     Packet_Notice_Guild_Cargo();
-    char m_data[0x18e4];
+    unsigned int m_a;              // +0xa
+    unsigned int m_b;              // +0xe
+    STGuildCargoDBInfo m_cargo;    // +0x12
 };
+#pragma pack(pop)
 
 #endif

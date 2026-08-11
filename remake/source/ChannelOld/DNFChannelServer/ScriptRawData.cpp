@@ -9,6 +9,7 @@ ScriptRawData::ScriptRawData(char* key, char* val, int val_size)
     if (val != NULL)
     {
         m_val = new char[val_size + 1];
+#line 16 "ScriptRawData.cpp"
         assert(m_val);
         strncpy(m_val, val, val_size);
         m_val[val_size] = '\0';
@@ -87,6 +88,7 @@ char* ScriptRawData::get_data(char* parent_key, char* child_key)
 
 bool ScriptRawData::push_child(ScriptRawData* sd)
 {
+#line 65 "ScriptRawData.cpp"
     assert(sd);
     m_child_list.push_back(sd);
     return true;
@@ -96,7 +98,7 @@ bool ScriptRawData::push_child(char* key, ScriptRawData* sd)
 {
     if ((key == NULL) || (sd == NULL))
     {
-        __assert_fail("key && sd", "ScriptRawData.cpp", 0x49, "bool ScriptRawData::push_child(char*, ScriptRawData*)");
+        __assert_fail("key && sd", "ScriptRawData.cpp", 0x49, __PRETTY_FUNCTION__);
     }
     else
     {

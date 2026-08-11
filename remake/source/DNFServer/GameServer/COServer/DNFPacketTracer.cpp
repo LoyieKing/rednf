@@ -25,11 +25,7 @@ void CPacketTracer::AddLog(int p1, int p2)
     time_t t;
     time(&t);
     tm t2 = *localtime(&t);
-    char buf[32];
-    for (int i = 0; i < 0x20; i += 4)
-    {
-        *(unsigned int*)(buf + i) = 0;
-    }
+    char buf[32] = {0};
     sprintf(buf, "(%02d:%02d:%02d/%d/%d)", t2.tm_hour, t2.tm_min, t2.tm_sec, p2, p1);
     m_log += buf;
     m_count++;

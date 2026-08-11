@@ -23,14 +23,18 @@
 
 int getErrno();
 
-CFrameCountHandler::CFrameCountHandler() {}
+CFrameCountHandler::CFrameCountHandler()
+{
+    m_field28 = 0;
+    m_app = 0;
+}
 CFrameCountHandler::~CFrameCountHandler() {}
 void CFrameCountHandler::SaveProcess()
 {
     m_field28++;
     if (m_field28 != 0)
     {
-        CMyFileLog log("SaveProcess", 0xa8);
+        CMyFileLog log(__FUNCTION__, 0xa8);
         log("./log/frame", "FPS(%02d) / DFC(%02d)\n", m_field18, m_field4);
         m_field28 = 0;
     }
@@ -40,7 +44,7 @@ void CFrameCountHandler::SaveProcess(int n)
     m_field28++;
     if (m_field28 != 0)
     {
-        CMyFileLog log("SaveProcess", 0xb8);
+        CMyFileLog log(__FUNCTION__, 0xb8);
         log("./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", n, m_field18, m_field4);
         m_field28 = 0;
     }

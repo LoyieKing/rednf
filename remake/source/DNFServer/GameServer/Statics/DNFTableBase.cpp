@@ -14,7 +14,7 @@ CDNFException::CDNFException(const std::string& msg)
 }
 const char* CDNFException::what() const throw()
 {
-    const char* msg = m_msg.c_str();
+    register const char* msg = m_msg.c_str();
     DNF_LOG_SCOPE_LINE(0x1a, "./log/Except", "%s", msg);
     return m_msg.c_str();
 }
@@ -27,32 +27,28 @@ CTableBase::~CTableBase()
 int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
 {
     int count = 0;
-    FILE* f = fopen(path, "rb");
-    if (f == 0)
+    FILE* f;
+    if ((f = fopen(path, "rb")) == 0)
     {
         return -1;
     }
     else
     {
         char line[1024];
-        while (true)
+        while (!feof(f) && fgets(line, 0x400, f) != 0)
         {
-            if (line[0] != '#')
-            {
-                if (count >= maxCount)
-                {
-                    return -2;
-                }
-                if (Parse_Table(line, count))
-                {
-                    count++;
-                }
-            }
-            if (!feof(f) && fgets(line, 0x400, f) != 0)
+            if (line[0] == '#')
             {
                 continue;
             }
-            break;
+            if (count >= maxCount)
+            {
+                return -2;
+            }
+            if (Parse_Table(line, count))
+            {
+                count++;
+            }
         }
         fclose(f);
     }

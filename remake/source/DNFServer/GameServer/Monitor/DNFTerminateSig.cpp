@@ -27,7 +27,7 @@
 #include "Packet_Monitor_Reply_Charac_Info.h"
 #include "DNFApplication.h"
 
-CTerminateSig::CTerminateSig() {}
+CTerminateSig::CTerminateSig() throw() {}
 
 CTerminateSig::~CTerminateSig() {}
 

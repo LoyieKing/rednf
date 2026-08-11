@@ -76,13 +76,12 @@ int get_day_interval(struct tm* a, struct tm* b)
     time_t tb = mktime(b);
     return (int)((tb - ta) / 86400);
 }
-char isDayTimeOver(unsigned int timestamp, unsigned int days)
+bool isDayTimeOver(unsigned int timestamp, unsigned int days)
 {
     struct tm t;
     time_t now;
     time(&now);
-    struct tm* p = localtime(&now);
-    t = *p;
+    t = *localtime(&now);
     t.tm_mday -= days;
     time_t limit = mktime(&t);
     return (int)timestamp < (int)limit;
@@ -148,4 +147,3 @@ unsigned long long TIME_to_ulonglong_datetime(void* t)
 {
     return 0;
 }
-

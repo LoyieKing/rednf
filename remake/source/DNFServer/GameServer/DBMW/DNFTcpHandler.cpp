@@ -37,29 +37,44 @@ CTcpHandler::~CTcpHandler()
 }
 int CTcpHandler::WaitForEvent()
 {
-    return m_epoll ? m_epoll->WaitForEvent() : -1;
+    if (!m_epoll)
+        return -1;
+    return m_epoll->WaitForEvent();
 }
 int CTcpHandler::ResetEpoll(int flag)
 {
-    return m_epoll ? m_epoll->ResetEpoll(flag) : -1;
+    if (!m_epoll)
+        return -1;
+    int nRet = m_epoll->ResetEpoll(flag);
+    return nRet;
 }
 int CTcpHandler::SetPeer(void* peer, int fd, bool flag)
 {
-    return m_epoll ? m_epoll->SetEpoll(peer, fd, flag) : -1;
+    if (!m_epoll)
+        return -1;
+    return m_epoll->SetEpoll(peer, fd, flag);
 }
 void* CTcpHandler::GetEventPtr(int idx)
 {
-    return m_epoll ? m_epoll->GetEventPtr(idx) : 0;
+    if (!m_epoll)
+        return 0;
+    return m_epoll->GetEventPtr(idx);
 }
 char CTcpHandler::IsSetInEvent(int idx)
 {
-    return m_epoll ? m_epoll->IsSetInEvent(idx) : 0;
+    if (!m_epoll)
+        return 0;
+    return m_epoll->IsSetInEvent(idx);
 }
 char CTcpHandler::IsSetOutEvent(int idx)
 {
-    return m_epoll ? m_epoll->IsSetOutEvent(idx) : 0;
+    if (!m_epoll)
+        return 0;
+    return m_epoll->IsSetOutEvent(idx);
 }
 char CTcpHandler::IsSetErrEvent(int idx)
 {
-    return m_epoll ? m_epoll->IsSetErrEvent(idx) : 0;
+    if (!m_epoll)
+        return 0;
+    return m_epoll->IsSetErrEvent(idx);
 }

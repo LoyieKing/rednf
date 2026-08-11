@@ -16,7 +16,7 @@ public:
     bool begin();
     static void* dispatch_proxy(void* temp);
     pthread_t m_handle;   // +4
-    char m_running;       // +8
+    bool m_running;       // +8（ORIG 为 bool：while 条件直出 test/jne，char 会多 setne 物化）
 };
 
 #endif // DNF_THREAD_INTERFACE_H_

@@ -42,11 +42,13 @@ void ChannelServiceApp::UDPThread::loop(void* temp)
         if (nRead < 0)
         {
             printf("[ERROR] UDP Thread Recv Error(%s)", strerror(errno));
+            continue;
         }
-        else if (nRead != 0)
+        if (nRead == 0)
         {
-            pHandler_->dispatch(recv_buf, nRead, 0);
+            continue;
         }
+        pHandler_->dispatch(recv_buf, nRead, 0);
     }
     setTerminated();
 }

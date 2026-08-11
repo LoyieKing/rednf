@@ -306,11 +306,11 @@ bool TCPSocket::connect_nonb(const char* ip, unsigned short port, timeval tval)
     svradr.sin_port = htons(port);
     int len = 0x10;
     setOptNonBlock();
+    int n;
     int error = 0;
     (void)error;
-    int n = ::connect(sock_, (sockaddr*)&svradr, len);
-    // ORIG: mov n; shr $0x1f; test; je cont — gcc 4.4.7 emits cmpl/jns for (n < 0)
-    if (n < 0)
+    // ORIG: 赋值在条件内（mov n; shr $0x1f; test; je）
+    if ((n = ::connect(sock_, (sockaddr*)&svradr, len)) < 0)
     {
         if ((errno != EINPROGRESS) && (errno != EINTR) && (errno != EAGAIN) && (errno != EAGAIN))
         {
@@ -320,32 +320,16 @@ bool TCPSocket::connect_nonb(const char* ip, unsigned short port, timeval tval)
     if (n != 0)
     {
         fd_set wset;
-        fd_set* p = &wset;
         unsigned int i;
+        fd_set* p = &wset;
         for (i = 0; i <= 0x1f; i = i + 1)
         {
             p->fds_bits[i] = 0;
         }
         FD_SET((unsigned int)sock_, &wset);
         n = select(sock_ + 1, NULL, &wset, NULL, &tval);
-        // ORIG: (n < 0 && errno != 4) as 0/1 in eax then test
-        int bad;
-        if (n < 0)
-        {
-            if (errno != EINTR)
-            {
-                bad = 1;
-            }
-            else
-            {
-                bad = 0;
-            }
-        }
-        else
-        {
-            bad = 0;
-        }
-        if (bad)
+        // ORIG: && 物化为 0/1（mov $1; jmp; mov $0; test; je）
+        if (n < 0 && errno != EINTR)
         {
             return false;
         }

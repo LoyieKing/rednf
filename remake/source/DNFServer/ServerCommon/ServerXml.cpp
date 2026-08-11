@@ -12,6 +12,10 @@
 namespace np_server_xml
 {
 
+// ORIG：命名空间内静态 FILE_NAME（_ZN13np_server_xmlL9FILE_NAMEE），
+// StrLoading 与 Load Fail 日志引用该符号。
+static const char FILE_NAME[] = "server_str.xml";
+
 CServerXml::CServerXml()
 {
     InitString();
@@ -35,7 +39,7 @@ void CServerXml::InitString()
 
 void CServerXml::StrLoading()
 {
-    StrLoading(std::string("server_str.xml"));
+    StrLoading(std::string(FILE_NAME));
 }
 
 void CServerXml::StrLoading(std::string file)
@@ -45,7 +49,7 @@ void CServerXml::StrLoading(std::string file)
     m_cStrDoc.Clear();
     if (!m_cStrDoc.LoadFile(xmlFileName_, TIXML_ENCODING_UNKNOWN))
     {
-        printf("[CServerXml] Load Fail File : %s\n", "server_str.xml");
+        printf("[CServerXml] Load Fail File : %s\n", FILE_NAME);
     }
     else
     {

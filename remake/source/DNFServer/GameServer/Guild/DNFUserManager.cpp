@@ -281,7 +281,7 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     if (InsertUser(dbid, user) != 1)
     {
         char* mid = NumberToString(dbid, 0);
-        DNF_LOG_SCOPE_AT("CreateUser", 0x13c,"./log/LoginErr",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x13c,"./log/LoginErr",
             "uDBID(%s) uCharNo(%d) is already exist at m_mapUsers!", mid, charNo);
     }
     user->SetUserPosState(2);
@@ -290,13 +290,13 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
         if (InsertUser_CharNo(charNo, user) != 1)
         {
             char* mid = NumberToString(dbid, 0);
-            DNF_LOG_SCOPE_AT("CreateUser", 0x146,"./log/LoginErr",
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x146,"./log/LoginErr",
                 "uDBID(%s) uCharNo(%d) is already exist at m_mapCharNoUsers!", mid, charNo);
         }
         if (InsertUser_CharName(charName, user) != 1)
         {
             char* mid = NumberToString(dbid, 0);
-            DNF_LOG_SCOPE_AT("CreateUser", 0x14a,"./log/LoginErr",
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x14a,"./log/LoginErr",
                 "uDBID(%s) uCharName(%s) is already exist at m_mapCharNameUsers!", mid, charName);
         }
         user->SetUserPosState(3);
@@ -417,4 +417,3 @@ int CUserManager::Size()
 {
     return (int)m_users.size();
 }
-

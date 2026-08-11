@@ -317,8 +317,8 @@ public:
     void free(void* ptr, unsigned int size);
     void free(void* ptr);
     static void* headOfFreeList_;
-    int m_size;                     // +0
-    int m_count;                    // +4
+    unsigned int m_size;            // +0
+    unsigned int m_count;           // +4
     std::vector<void*> m_blocks;    // +8
 };
 

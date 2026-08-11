@@ -16,7 +16,9 @@ unsigned int timeGetTime() {
 unsigned int Rand_r(unsigned int* seed) {
     static unsigned int staticSeed = 0x05397fb1;
     if (seed == NULL) {
-        staticSeed = timeGetTime() + staticSeed;
+        // ORIG 4.4.6-3 代码生成：call 结果先 mov %eax,%edx，再装载 staticSeed，
+        // 再 lea (%edx,%eax,1),%eax；必须用 (int) 转换包裹使树形不匹配 RMW 折叠。
+        staticSeed = (unsigned int)((int)staticSeed + (int)timeGetTime());
         return Rand_r(&staticSeed);
     }
     unsigned int x = *seed;
@@ -26,11 +28,13 @@ unsigned int Rand_r(unsigned int* seed) {
     x = x * 0x41c64e6d;
     x += 0x3039;
     result <<= 10;
-    result ^= (x >> 16) & 0x3ff;
+    // ORIG 的 xor 为寄存器形态（mov %eax,%edx; and; mov result,%eax; xor; mov），
+    // 直接 ^= 会被 -O0 折叠为内存 RMW（xor %eax,-0xc(%ebp)）；(int) 转换包裹可复现。
+    result = (unsigned int)((int)result ^ (int)((x >> 16) & 0x3ff));
     x = x * 0x41c64e6d;
     x += 0x3039;
     result <<= 10;
-    result ^= (x >> 16) & 0x3ff;
+    result = (unsigned int)((int)result ^ (int)((x >> 16) & 0x3ff));
     *seed = x;
     return result;
 }

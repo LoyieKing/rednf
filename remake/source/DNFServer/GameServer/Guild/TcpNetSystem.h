@@ -50,7 +50,8 @@ public:
     bool OpenTcpService(int& sock, const char* ip, unsigned short port);
     void SetEpollAcceptedPeers();
     void SetEpollConnectedPeer(CPeer* peer);
-    char m_data[0x160];
+    char m_data[0x15c];
+    unsigned short m_tcpServerPort;   // +0x15c
 };
 
 // from GuildThread.h

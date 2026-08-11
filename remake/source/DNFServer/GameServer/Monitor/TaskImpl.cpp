@@ -1,5 +1,6 @@
 // df_monitor_r — TaskImpl（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -55,7 +56,7 @@ int CTask_ChristmasEvent::DecideEventTime()
 
 unsigned int CTask_ChristmasEvent::getEventStartTime() { return 0x47698650; }
 
-long long CTask_ChristmasEvent::getEventEndTime() { return 0x47726c70; }
+unsigned int CTask_ChristmasEvent::getEventEndTime() { return 0x47726c70; }
 
 unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
 {
@@ -124,9 +125,9 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
 void CTask_ChristmasEvent::_DoExecute()
 {
     Packet_Monitor_ServerEvent_Start pkt;
-    *(int*)((char*)&pkt + 0xa) = 1;
-    *(unsigned short*)((char*)&pkt + 0xe) = 0x14;
-    *(unsigned short*)((char*)&pkt + 0x12) = 0xe10;
+    ((RA_INT<10>*)&pkt)->v = 1;
+    ((RA_U16<14>*)&pkt)->v = 0x14;
+    ((RA_U16<18>*)&pkt)->v = 0xe10;
     ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendAllToGameServer(
         (char*)&pkt, 0x12);
     unsigned int t = MakeEventStartTick(1);
@@ -142,6 +143,9 @@ void CTask_ChristmasEvent::_DoExecute()
     }
 }
 
-CTask_ChristmasEvent::CTask_ChristmasEvent(unsigned int tick, unsigned int flag) {}
+CTask_ChristmasEvent::CTask_ChristmasEvent(unsigned int tick, unsigned int flag)
+    : CTaskScheduler::CTask(tick, flag)
+{
+}
 
 CTask_ChristmasEvent::~CTask_ChristmasEvent() {}

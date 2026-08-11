@@ -176,7 +176,7 @@ public:
     std::map<unsigned short, STDungeonLagStatistics> m_dungeonLag;  // +0x3f0
     std::map<int, ValueStatisticData> m_value;       // +0x408
     std::map<int, CirculationStatisticData> m_circ;  // +0x420
-    char m_serverMatch[0xc];               // +0x438
+    int m_serverMatch[3];                  // +0x438（同布局 0xc；typed 成员使 Reset/Send 直接位移寻址）
     std::map<int, SECRET_SHOP_STATISTIC_DATA> m_secretShop[3];  // +0x444
     GoldCardEventStatistic m_goldcard[0x63];         // +0x48c
     TowerOfDespairStatistic_Value m_tower[101];      // +0x807

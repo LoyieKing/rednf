@@ -49,9 +49,9 @@ public:
     char m_table[28]; // +8（周时刻表：7×4）
 };
 
-int CheckDayScheduleTimeOver(int hour, long t);
+bool CheckDayScheduleTimeOver(int hour, long t);
 bool CheckDailyScheduleTimeOver(int hour, long t);
-int CheckDayHourScheduleTimeOver(int day, int hour, long t);
+bool CheckDayHourScheduleTimeOver(int day, int hour, long t);
 void GetScheduleTimeAsWDay(int day, int hour);
 
 #endif

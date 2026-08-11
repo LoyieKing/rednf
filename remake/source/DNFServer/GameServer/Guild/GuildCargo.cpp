@@ -78,9 +78,20 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
+// 按 ORIG 布局的字段覆盖视图（避免 char* 算术产生 add 指令形态）
+struct GuildCargoLayout
+{
+    char pad[0x18d8];
+    int m_capacity;      // +0x18d8
+    int m_field18dc;     // +0x18dc
+    int m_guildKey;      // +0x18e0
+    unsigned char m_load; // +0x18e4
+    char rest[0x1910 - 0x18e8];
+};
+
 STGuildCargoLog::STGuildCargoLog()
 {
-    memset((char*)this, 0, 0x30);
+    memset(this, 0, sizeof(STGuildCargoLog));
 }
 
 STGuildCargoDBInfo::STGuildCargoDBInfo()
@@ -89,19 +100,19 @@ STGuildCargoDBInfo::STGuildCargoDBInfo()
     *(unsigned int*)((char*)this + 0x18d8) = 0;
 }
 
-bool CGuildCargo::IsLoadComplete()
+unsigned char CGuildCargo::IsLoadComplete()
 {
-    return *(char*)((char*)this + 0x18e4) != 0;
+    return ((GuildCargoLayout*)this)->m_load;
 }
 
 void CGuildCargo::SetCapacity(unsigned int capacity)
 {
-    *(unsigned int*)((char*)this + 0x18d8) = capacity;
+    ((GuildCargoLayout*)this)->m_capacity = (int)capacity;
 }
 
 int CGuildCargo::GetCapacity()
 {
-    return *(int*)((char*)this + 0x18d8);
+    return ((GuildCargoLayout*)this)->m_capacity;
 }
 
 void* CGuildCargo::GetGuildCargoDBInfo()
@@ -111,15 +122,12 @@ void* CGuildCargo::GetGuildCargoDBInfo()
 
 CGuildCargo::CGuildCargo()
 {
-    new (m_data) STGuildCargoDBInfo();
-    new (m_data + 0x18e8) std::deque<STGuildCargoLog>();
     Reset();
 }
 
 CGuildCargo::~CGuildCargo()
 {
     Reset();
-    ((std::deque<STGuildCargoLog>*)(m_data + 0x18e8))->~deque();
 }
 
 void CGuildCargo::Reset()
@@ -128,13 +136,13 @@ void CGuildCargo::Reset()
     *(int*)((char*)this + 0x18dc) = 0;
     *(int*)((char*)this + 0x18e0) = 0;
     *(char*)((char*)this + 0x18e4) = 0;
-    ((std::deque<STGuildCargoLog>*)(m_data + 0x18e8))->clear();
-    memset(m_data, 0, 0x18d8);
+    m_history.clear();
+    memset(&m_info, 0, 0x18d8);
 }
 
 void CGuildCargo::SetGuildInfo(int guildKey)
 {
-    *(int*)((char*)this + 0x18e0) = guildKey;
+    ((GuildCargoLayout*)this)->m_guildKey = guildKey;
 }
 
 int CGuildCargo::IsValidSlot(int slot)
@@ -285,7 +293,7 @@ int CGuildCargo::MoveItem(DnfItemInfo& from, DnfItemInfo& to, int fromSlot, int 
     int fromId = *(int*)((char*)this + fromSlot * 0x35 + 1);
     int toId = *(int*)((char*)this + toSlot * 0x35 + 1);
     {
-        DNF_LOG_SCOPE_AT("MoveItem", 0x115,"./log/GuildCargo",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x115,"./log/GuildCargo",
             "Before MoveItem - GUILD:%d, CHARAC:%d, SLOT1:(%d,%d), SLOT2:(%d,%d)",
             guildKey, charNo, fromSlot, fromId, toSlot, toId);
     }
@@ -299,7 +307,7 @@ int CGuildCargo::MoveItem(DnfItemInfo& from, DnfItemInfo& to, int fromSlot, int 
         int newFromId = *(int*)((char*)this + fromSlot * 0x35 + 1);
         int newToId = *(int*)((char*)this + toSlot * 0x35 + 1);
         {
-            DNF_LOG_SCOPE_AT("MoveItem", 0x131,"./log/GuildCargo",
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x131,"./log/GuildCargo",
                 "After MoveItem - GUILD:%d, CHARAC:%d, SLOT1:(%d,%d), SLOT2:(%d,%d)",
                 guildKey, charNo, fromSlot, newFromId, toSlot, newToId);
         }
@@ -344,7 +352,7 @@ void CGuildCargo::SendGuildCargo(CUser* user)
 
 void CGuildCargo::PrintCargo(ENUM_GUILD_CARGO_BEHAVIOR behavior)
 {
-    CMyFileLog log0("PrintCargo", 0x18d);
+    CMyFileLog log0(__FUNCTION__, 0x18d);
     log0("./log/GuildCargo", "CARGO - g:%d,capa:%d,behavior:%d",
          *(int*)((char*)this + 0x18e0), *(int*)((char*)this + 0x18d8),
          (int)behavior);
@@ -455,24 +463,14 @@ void CGuildCargo::SendHistoryToDBMW(CServerHandler* handler, ENUM_GUILD_CARGO_BE
 }
 
 Packet_Notice_Guild_Cargo::Packet_Notice_Guild_Cargo()
-    : PacketHeader(0x712, 0x18ee)
+    : PacketHeader(0x712, 0x18ee), m_a(0xffffffff), m_b(0)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    new ((char*)this + 0x12) STGuildCargoDBInfo;
     memset((char*)this + 0x12, 0, 0x18dc);
 }
 
 Packet_DB_Insert_Guild_Cargo_History::Packet_DB_Insert_Guild_Cargo_History()
-    : PacketHeader(0x711, 0x66)
+    : PacketHeader(0x711, 0x66), m_a(0), m_b(0), m_c(0), m_d(0xff), m_e(0), m_f(0)
 {
-    *(unsigned char*)((char*)this + 0x10) = 0x0;
-    *(unsigned int*)((char*)this + 0xb) = 0;
-    *(unsigned int*)((char*)this + 0xf) = 0;
-    *(unsigned char*)((char*)this + 0x28) = 0xff;
-    *(unsigned int*)((char*)this + 0x29) = 0;
-    *(unsigned int*)((char*)this + 0x2d) = 0;
-    new ((char*)this + 0x31) DnfItemInfo;
     memset((char*)this + 0x13, 0, 0x15);
     memset((char*)this + 0x31, 0, 0x35);
 }
@@ -480,4 +478,3 @@ Packet_DB_Insert_Guild_Cargo_History::Packet_DB_Insert_Guild_Cargo_History()
 STGuildCargoLog::~STGuildCargoLog()
 {
 }
-

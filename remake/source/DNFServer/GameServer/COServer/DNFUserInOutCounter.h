@@ -5,7 +5,6 @@
 
 // ---- CDNFUserInOutCounter：0x324d9 ----
 // counters[101][255][2]（in@0/out@4，共 0x324d8）+ tick@0x324d8
-extern char USER_IN_OUT_WRITE_LOG_TIME;
 
 class CDNFUserInOutCounter
 {
@@ -17,8 +16,8 @@ public:
     void ProcessWrite();
     void IncUserIn(int group, int index);
     void IncUserOut(int group, int index);
-    char m_counters[0x324d8];
-    char m_tick;   // +0x324d8
+    int m_counters[101][255][2];
+    unsigned char m_tick;   // +0x324d8
 };
 
 #endif // DNF_USER_IN_OUT_COUNTER_H_

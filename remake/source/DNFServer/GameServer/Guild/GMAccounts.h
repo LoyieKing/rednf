@@ -28,15 +28,15 @@ public:
     {
         bool operator==(const stGMInfo_t& other) const;
         unsigned int m_field0;
-        unsigned char m_field1;
+        unsigned int m_field1;
     };
     void LoadGmList(unsigned int group, int index);
     void clearGmList();
     void AppendGM_Sys(unsigned int id, char flag);
-    void loadGMAccounts(const char* path);
+    int loadGMAccounts(const char* path);
     int isGM(unsigned int id);
-    void appendGM(unsigned int id, unsigned int value);
-    void removeGM(unsigned int id, unsigned int value);
+    int appendGM(unsigned int id, unsigned int value);
+    int removeGM(unsigned int id, unsigned int value);
     stGMInfo_t getGMInfo(unsigned int id) const;
     std::list<stGMInfo_t> m_list;
 };

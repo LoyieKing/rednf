@@ -11,6 +11,7 @@
 #include "Thread.h"
 
 #include "PacketHeader.h"
+#include "PowerWarTypes.h"
 
 class CPowerWarCharacInfo;
 struct Packet_DB_Save_Power_War_Bonus_Point;
@@ -25,7 +26,7 @@ struct STPowerWarCharacInfo
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
-    char m_data[0x10];
+    char m_data[0xc];
 };
 
 // from GuildDomain.h
@@ -51,7 +52,9 @@ public:
     int GetBonus(Packet_DB_Save_Power_War_Bonus_Point& pkt);
     int GetBonus(int idx);
     void CalcBonus();
-    char m_data[0x2c];   // vptr@0 + map@+4(0x14) + vector@+0x1c(0xc) + list@+0x28(8) = 0x30
+    std::map<unsigned int, STPowerWarCharacInfo*> m_map;   // +4（vptr@0）
+    std::vector<STPowerWarCharacInfo*> m_vec;              // +0x1c
+    std::list<STUserPoint> m_list;                         // +0x28
 };
 
 #endif

@@ -11,10 +11,10 @@
 
 ST_KillUSRConfig::ST_KillUSRConfig()
 {
-    *(int*)((char*)this + 0) = 0;
-    *(int*)((char*)this + 4) = 0;
-    *(int*)((char*)this + 8) = 0;
-    *(int*)((char*)this + 0xc) = 0;
+    m_type = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+    m_fieldC = 0;
 }
 
 CKillUSRConfig::CKillUSRConfig() {}
@@ -31,22 +31,24 @@ int CKillUSRConfig::Load_Table(const std::string& fileName)
     log("./log/Config", "CKillUSRConfig Load_Table() fail(%d)", n);
     throw CDNFException("CKillUSRConfig::Load_Table() fail!");
 }
-int CKillUSRConfig::Parse_Table(char* data, int size)
+bool CKillUSRConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;
     char* fields[4];
+    int n;  // ORIG 布局：额外槽位（fields 落在 -0x1c）
     if (DNFFLib::ExplodeString(data, " \t\r\n\"", fields, 4) == 4)
     {
         ST_KillUSRConfig* kc = new (std::nothrow) ST_KillUSRConfig;
-        if (!kc)
-            return 0;
-        kc->m_type = atoi(fields[0]);
-        kc->m_field4 = atoi(fields[1]);
-        kc->m_field8 = atoi(fields[2]);
-        kc->m_fieldC = atoi(fields[3]);
-        m_list.push_back(kc);
-        return 1;
+        if (kc)
+        {
+            kc->m_type = atoi(fields[0]);
+            kc->m_field4 = atoi(fields[1]);
+            kc->m_field8 = atoi(fields[2]);
+            kc->m_fieldC = atoi(fields[3]);
+            m_list.push_back(kc);
+            return 1;
+        }
     }
     return 0;
 }

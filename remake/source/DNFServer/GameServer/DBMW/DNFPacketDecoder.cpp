@@ -118,8 +118,7 @@ CPacketDecoder::CPacketDecoder()
     m_table[0x1006] = CPacketTranslater::onItemLimitEditionUpdateData;
     m_table[0x9d2] = CPacketTranslater::OnServeQueueLoadStatistic;
     m_table[0x1037] = CPacketTranslater::OnBloodDungeonStatistic;
-    m_table[0x1038] =
-        (void (*)(PacketHeader*))CPacketTranslater::OnRequestIPCounterList;
+    m_table[0x1038] = CPacketTranslater::OnRequestIPCounterList;
     m_table[0xc49] = CPacketTranslater::OnReasonCrashDownQuery;
     m_table[0x177c] = CPacketTranslater::OnDBMWInsertMail;
     m_table[0x177d] = CPacketTranslater::OnDBMWQueryMsg;
@@ -254,7 +253,7 @@ bool CPacketDecoder::MsgDecode(PacketHeader* header)
         return 1;
     }
     printf("Game Message with identifier %i has arrived.\n", header->packetId);
-    CMyFileLog log("MsgDecode", 0x1da);
+    CMyFileLog log(__FUNCTION__, 0x1da);
     log("./log/Decoder.log",
         "CPacketDecoder::MsgDecode() Game Message with identifier %i has arrived.\n",
         header->packetId);

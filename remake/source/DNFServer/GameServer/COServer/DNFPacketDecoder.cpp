@@ -30,10 +30,10 @@ CPacketDecoder::CPacketDecoder()
     {
         m_handlers[i] = 0;
     }
-    m_handlers[0xbb8] = (void*)&CPacketTranslater::OnLogin;
-    m_handlers[0xbb9] = (void*)&CPacketTranslater::OnLogout;
-    m_handlers[0x3f9] = (void*)&CPacketTranslater::OnReplyUserInfo;
-    m_handlers[0xbba] = (void*)&CPacketTranslater::OnHeartBeat;
+    m_handlers[0xbb8] = &CPacketTranslater::OnLogin;
+    m_handlers[0xbb9] = &CPacketTranslater::OnLogout;
+    m_handlers[0x3f9] = &CPacketTranslater::OnReplyUserInfo;
+    m_handlers[0xbba] = &CPacketTranslater::OnHeartBeat;
 }
 
 CPacketDecoder::~CPacketDecoder()
@@ -63,7 +63,10 @@ int CPacketDecoder::MsgDecode(PacketHeader* pkt)
                 *(unsigned short*)pkt);
             return 0;
         }
-        ((void (*)(PacketHeader*))m_handlers[*(unsigned short*)pkt])(pkt);
+        m_handlers[*(unsigned short*)pkt](pkt);
+        // ORIG 实测（0x8056e3e）：间接调用后有一条对齐 nop（else 块跳转目标
+        // 落在偶数地址）；编译器布局差异无法用源码表达式复现，显式补 nop。
+        __asm__ __volatile__("nop");
         return 1;
     }
     printf("Game Message with identifier %d has arrived.\n", *(unsigned short*)pkt);

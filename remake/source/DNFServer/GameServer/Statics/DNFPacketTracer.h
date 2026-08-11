@@ -13,7 +13,7 @@ public:
     void ResetLog();
     void WriteLog();
     void AbsoluteWriteLog();
-    int m_count;
+    unsigned int m_count;   // ORIG 实测：无符号成员使 WriteLog 直接 ecx 装载
     std::string m_log;
 };
 

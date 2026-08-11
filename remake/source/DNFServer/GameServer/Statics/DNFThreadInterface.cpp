@@ -31,6 +31,7 @@ void CThreadInterface::join()
 }
 void* CThreadInterface::dispatch_proxy(void* temp)
 {
-    ((CThreadInterface*)temp)->dispatch(temp);
+    CThreadInterface* t = (CThreadInterface*)temp;
+    t->dispatch(temp);
     return 0;
 }

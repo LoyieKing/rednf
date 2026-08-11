@@ -1,6 +1,7 @@
 #ifndef MONITOR_DNFMEMBER_H_
 #define MONITOR_DNFMEMBER_H_
 #include <deque>
+#include "RawAccess.h"
 #include <list>
 #include <map>
 #include <queue>
@@ -265,12 +266,12 @@ struct ST_MemberInfo
 {
     ST_MemberInfo()
     {
-        *(char*)((char*)this + 0) = 0;
-        *(char*)((char*)this + 1) = 0;
-        *(char*)((char*)this + 0x20) = 0;
-        *(char*)((char*)this + 0x21) = 0;
-        *(unsigned int*)((char*)this + 0x22) = 0;
-        *(unsigned int*)((char*)this + 0x26) = 0;
+        ((RA_S8<0>*)this)->v = 0;
+        ((RA_S8<1>*)this)->v = 0;
+        ((RA_S8<32>*)this)->v = 0;
+        ((RA_S8<33>*)this)->v = 0;
+        ((RA_UINT<34>*)this)->v = 0;
+        ((RA_UINT<38>*)this)->v = 0;
         memset((char*)this + 2, 0, 0x1e);
     }
 };
@@ -303,7 +304,7 @@ public:
     void NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned char count,
                                                const hyperlink_item_info* items, CUser* user);
     void NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user);
-    int IsThereUpper() const;
+    bool IsThereUpper() const;
     int GetUpperMember_CharId() const;
     int FindLowerMember(unsigned int charNo) const;
     unsigned int GetLowerMemberCount() const;
@@ -322,7 +323,7 @@ public:
     char CheckDailyScheduleTimeOver(int day, long time);
     char CheckDayHourScheduleTimeOver(int day, int hour, long time);
     void SetMemberRegisterFlag(bool flag);
-    char IsAbleToRegisterMember();
+    bool IsAbleToRegisterMember();
     unsigned int GetMemberKey();
     unsigned int GetUpperMemberExpLevel();
     int GetConnLowerMemberCnt();
@@ -341,7 +342,7 @@ public:
     unsigned short m_flag;          // +4
     STMemberDBInfo m_dbInfo;        // +6
     CMemberManager* m_memberManager;// +0x1b4
-    char m_state1b8;                // +0x1b8
+    bool m_state1b8;                // +0x1b8
     char m_pad1b9[3];               // +0x1b9
     unsigned int m_registerTime;    // +0x1bc
     unsigned int m_dayHourTime;     // +0x1c0

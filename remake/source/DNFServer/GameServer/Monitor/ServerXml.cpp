@@ -28,13 +28,15 @@
 
 namespace np_server_xml
 {
+static const char FILE_NAME[] = "server_str.xml";
+
 CServerXml::CServerXml() { InitString(); }
 
 CServerXml::~CServerXml() { InitString(); }
 
 void CServerXml::StrLoading()
 {
-    StrLoading(std::string("server_str.xml"));
+    StrLoading(std::string(FILE_NAME));
 }
 
 void CServerXml::StrLoading(std::string path)
@@ -303,4 +305,3 @@ void CServerXml::ProcessLoad(TiXmlNode* node)
 }
 
 np_server_xml::CServerXml g_ServerString_;
-

@@ -8,7 +8,11 @@
 class CServerHandler;
 class FrameLagStruct;
 class Packet_Frame_Lag_Statistic_Add;
-class Packet_Frame_Lag_Collect_Interval_Check;
+class Packet_Frame_Lag_Collect_Interval_Check : public PacketHeader
+{
+public:
+    unsigned short m_fieldA;  // +0xa
+} __attribute__((packed));
 class Packet_Frame_Lag_Spec_Delete_Notify;
 class Packet_Frame_Lag_Statistic_Result_Load_Spec;
 class Packet_Frame_Lag_Statistic_Result_Reload_Spec;

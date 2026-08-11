@@ -31,7 +31,7 @@ public:
     unsigned char GetChannelNo();
     unsigned char GetGroupNo();
     stServerInfo* m_info;    // +4
-    char m_field8;           // +8
+    bool m_field8;           // +8
     char m_field9;           // +9
     char m_fielda;           // +0xa
     int m_sock;              // +0xc

@@ -29,9 +29,9 @@ template <typename T>
 struct GlobalInstance
 {
     static T* inst_ptr();
-    static T* create();
+    static void create();
     static T* m_p;
-    static Mutex m_lock;
+    static Mutex sync;
 };
 
 struct ScriptData;

@@ -20,10 +20,10 @@
  */
 class PacketHeader {
 public:
-    const ushort packetId;
-    const ushort packetSize;
-    const ushort reversed1;
-    const unsigned int reversed2;  // 0x06-0x09（uint，原始一次 movl 清零）
+    ushort packetId;
+    ushort packetSize;
+    ushort reversed1;
+    unsigned int reversed2;  // 0x06-0x09（uint，原始一次 movl 清零）
 
     PacketHeader(ushort packetId, ushort packetSize);
 } __attribute__((packed));

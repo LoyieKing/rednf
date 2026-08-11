@@ -60,10 +60,14 @@ int CTcpHandler::ResetEpoll(int flag)
     {
         return -1;
     }
-    return ((EpollHandler*)m_epoll)->ResetEpoll(flag);
+    int ret = m_epoll->ResetEpoll(flag);
+    return ret;
 }
 
-CTcpHandler::CTcpHandler() : m_epoll(new EpollHandler) {}
+CTcpHandler::CTcpHandler()
+{
+    m_epoll = new EpollHandler;
+}
 
 CTcpHandler::~CTcpHandler()
 {
@@ -100,4 +104,3 @@ char CTcpHandler::IsSetErrEvent(int idx)
     }
     return m_epoll->IsSetErrEvent(idx);
 }
-

@@ -45,9 +45,9 @@ void CMonitorServer::SendToServer(char* buf, int len)
 } 
 char CMonitorServer::IsValidGameServer() 
 { 
-    if (m_type != 0xff) 
-        return 1; 
-    return 0; 
+    if (m_type == 0xff) 
+        return 0; 
+    return 1; 
 }
 
 void CMonitorServer::SendHeartBeat() 
@@ -59,4 +59,3 @@ void CMonitorServer::SendHeartBeat()
         SendToServer((char*)&pkt, pkt.packetSize); 
     } 
 }
-

@@ -248,8 +248,8 @@ public:
     void AddSchoolNo(unsigned int schoolNo, unsigned char channel);
     void DelSchoolNo(unsigned int schoolNo, unsigned char channel);
     CUser* FindUser_CharNo(unsigned int charNo) const;
-    void DeleteUsersOnGameServerDown(CGameServer* gameServer);
-    void DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer);
+    int DeleteUsersOnGameServerDown(CGameServer* gameServer);
+    int DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer);
     void SendConnectedBuddysList(CUser* user);
     void GetSchoolCount(unsigned int school, unsigned int* out, unsigned char& idx);
     CUser* FindUser_CharName(std::string name) const;
@@ -264,12 +264,12 @@ public:
     int DeleteUser_CharName(std::string name);
     CUser* CreateUser(unsigned int dbid, unsigned int charNo, char* charName, int channel,
                       CGameServer* server);
-    char InsertUser(unsigned int dbid, CUser* user);
-    char InsertUser_CharNo(unsigned int charNo, CUser* user);
-    char InsertUser_CharName(char* name, CUser* user);
+    bool InsertUser(const unsigned int dbid, CUser* user);
+    bool InsertUser_CharNo(const unsigned int charNo, CUser* user);
+    bool InsertUser_CharName(char* name, CUser* user);
     class CDNFProhibitUser* FindProhibitUser(unsigned int dbid) const;
     CUser* FindUser(unsigned int dbid) const;
-    char InsertProhibitUser(unsigned int dbid, class CDNFProhibitUser* pu);
+    bool InsertProhibitUser(const unsigned int dbid, class CDNFProhibitUser* pu);
     void ResetMemberInfo(unsigned int charNo);
     int DeleteUser(unsigned int dbid);
     int DeleteUser(CUser* user);

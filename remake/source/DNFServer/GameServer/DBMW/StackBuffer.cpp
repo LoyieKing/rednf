@@ -26,83 +26,95 @@ int getErrno();
 StackBufferContext::StackBufferContext() {}
 StackBufferContext::~StackBufferContext() {}
 
+// .tbss 布局与 ORIG 一致（GS-0x4）：eh_globals.o 显式链接在 DNFFunctionLib.o
+// 与 StackBuffer.o 之间（见 cmake/dbmw/CMakeLists.txt），使 libstdc++ 的
+// eh_global 排在 g_stackBufferContext 之前。必须是 static（LOCAL）才能生成
+// 直接 GS 寻址 mov %gs:0xfffffffc,%eax。
 static __thread StackBufferContext* g_stackBufferContext;
 
-static void allocStackBuffer(unsigned int size, unsigned char** buf, int* end)
+static bool allocStackBuffer(unsigned int size, unsigned char** buf, int* end)
 {
-    StackBufferContext* ctx = g_stackBufferContext;
-    if (!ctx)
+    if (!g_stackBufferContext)
     {
-        ctx = new StackBufferContext;
-        g_stackBufferContext = ctx;
-        ctx->m_buffers.reserve(0x20);
-        ctx->m_blocks.reserve(8);
-        unsigned char* block = new unsigned char[0x4000];
-        ctx->m_blocks.push_back(block);
-        ctx->m_blockIndex = 0;
-        ctx->m_offset = 0;
-        StackBufferContext::Buffer b;
-        b.m_blockIndex = 0;
-        b.m_offset = 0;
-        b.m_size = 0;
-        ctx->m_buffers.push_back(std::move(b));
+        g_stackBufferContext = new StackBufferContext;
+        g_stackBufferContext->m_buffers.reserve(0x20);
+        g_stackBufferContext->m_blocks.reserve(8);
+        g_stackBufferContext->m_blocks.push_back(
+            new unsigned char[0x4000]);
+        g_stackBufferContext->m_blockIndex = 0;
+        g_stackBufferContext->m_offset = 0;
     }
+    StackBufferContext::Buffer b;
+    b.m_blockIndex = 0;
+    b.m_offset = 0;
+    b.m_size = 0;
+    g_stackBufferContext->m_buffers.push_back(
+        (StackBufferContext::Buffer&&)b);
+    StackBufferContext::Buffer& cur = g_stackBufferContext->m_buffers.back();
+    cur.m_blockIndex = 0;
+    cur.m_offset = 0;
+    cur.m_size = size;
     if (size > 0x4000)
     {
         *buf = new unsigned char[size];
         *end = -1;
-        return;
+        return *buf != 0;
     }
-    if (ctx->m_offset + (int)size > 0x4000)
+    if (g_stackBufferContext->m_offset + size > 0x4000)
     {
-        int idx = ctx->m_blockIndex + 1;
-        if (idx == (int)ctx->m_blocks.size())
+        int idx = g_stackBufferContext->m_blockIndex + 1;
+        if (idx == (int)g_stackBufferContext->m_blocks.size())
         {
-            unsigned char* nb = new unsigned char[0x4000];
-            ctx->m_blocks.push_back(nb);
+            g_stackBufferContext->m_blocks.push_back(
+                new unsigned char[0x4000]);
         }
-        ctx->m_buffers.back().m_blockIndex = idx;
-        ctx->m_buffers.back().m_offset = 0;
-        ctx->m_blockIndex = idx;
-        ctx->m_offset = 0;
+        cur.m_blockIndex = idx;
+        cur.m_offset = 0;
+        g_stackBufferContext->m_blockIndex = idx;
+        g_stackBufferContext->m_offset = 0;
     }
-    *buf = ctx->m_blocks[ctx->m_blockIndex] + ctx->m_offset;
-    ctx->m_offset += size;
-    *end = ctx->m_blockIndex;
+    *buf = g_stackBufferContext->m_blocks[cur.m_blockIndex] + cur.m_offset;
+    g_stackBufferContext->m_offset += size;
+    *end = g_stackBufferContext->m_buffers.size() - 1;
+    return 1;
 }
 static void freeStackBuffer(unsigned char* buf, int end)
 {
     if (end == -1)
     {
-        if (buf)
-            delete[] buf;
+        delete[] buf;
         return;
     }
-    StackBufferContext* ctx = g_stackBufferContext;
-    ctx->m_buffers.erase(ctx->m_buffers.begin() + end);
-    if (ctx->m_buffers.empty())
+    g_stackBufferContext->m_buffers.erase(
+        g_stackBufferContext->m_buffers.begin() + end);
+    if (g_stackBufferContext->m_buffers.empty())
     {
-        ctx->m_blockIndex = 0;
-        ctx->m_offset = 0;
+        g_stackBufferContext->m_blockIndex = 0;
+        g_stackBufferContext->m_offset = 0;
     }
     else
     {
-        ctx->m_blockIndex = ctx->m_buffers.back().m_blockIndex;
-        ctx->m_offset = ctx->m_buffers.back().m_offset + ctx->m_buffers.back().m_size;
+        StackBufferContext::Buffer& b =
+            g_stackBufferContext->m_buffers.back();
+        g_stackBufferContext->m_blockIndex = b.m_blockIndex;
+        g_stackBufferContext->m_offset = b.m_offset + b.m_size;
     }
 }
 static void freeAllStackBuffers()
 {
-    StackBufferContext* ctx = g_stackBufferContext;
-    if (!ctx)
+    if (!g_stackBufferContext)
         return;
-    for (std::vector<unsigned char*>::iterator it = ctx->m_blocks.begin();
-         it != ctx->m_blocks.end(); ++it)
+    std::vector<unsigned char*>::iterator it =
+        g_stackBufferContext->m_blocks.begin();
+    std::vector<unsigned char*>::iterator e =
+        g_stackBufferContext->m_blocks.end();
+    for (; it != e; it++)
     {
-        if (*it)
-            delete[] *it;
+        unsigned char* p = *it;
+        if (p)
+            delete[] p;
     }
-    delete ctx;
+    delete g_stackBufferContext;
     g_stackBufferContext = 0;
 }
 StackBuffer::StackBuffer() : m_buf(0), m_end(0) {}

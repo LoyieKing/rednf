@@ -100,7 +100,11 @@ void CMemoryCashManager::Init(CApplication* app)
 
 bool CMemoryCashManager::IsRightObject(CUser* user)
 {
-    return (user->GetBlackListDBFlag() & 4) != 0;
+    if ((user->GetBlackListDBFlag() & 4) != 0)
+    {
+        return true;
+    }
+    return false;
 }
 
 int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user)
@@ -179,4 +183,3 @@ void CMemoryCashManager::DeleteCashObjecct(unsigned int dbid)
         m_cashObjects.erase(it);
     }
 }
-

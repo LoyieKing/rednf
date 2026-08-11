@@ -81,8 +81,11 @@ public:
     void TranslateSignal();
     void SwitchQueueTCP();
     void SwitchQueueUDP();
-    int Send_Suspend_Signal(const std::string& msg);
-    int Send_Term_Signal(const std::string& msg);
+    // ORIG 返回类型 bool：CAppStopInit::Init 中 !Send_Term_Signal(...)
+    // 编译为 xor $1（int 返回会 sete 物化）。函数为 std::string 参数，
+    // 属 STL 豁免，不计入 identical 统计。
+    bool Send_Suspend_Signal(const std::string& msg);
+    bool Send_Term_Signal(const std::string& msg);
     void AttachAppInitor(char** argv);
     CUserManager* Get_UserManager();
     CServerHandler* Get_ServerHandler();

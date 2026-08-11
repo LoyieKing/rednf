@@ -237,7 +237,7 @@ struct stServerInfo;
 struct stTowerRankElement_t;
 struct stUserHuntingPoint;
 
-class CDNFException
+class CDNFException : public std::exception
 {
 public:
     CDNFException(const std::string& msg);

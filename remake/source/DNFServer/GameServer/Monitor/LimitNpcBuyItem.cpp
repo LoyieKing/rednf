@@ -1,5 +1,6 @@
 // df_monitor_r — LimitNpcBuyItem（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -117,8 +118,8 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemCount(unsigned int itemId,
 
 LimitNpcBuyItemChangeInfo::LimitNpcBuyItemChangeInfo() : PacketHeader(0x27db, 0x12)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(int*)((char*)this + 0xe) = 0;
+    ((RA_UINT<10>*)this)->v = 0;
+    ((RA_INT<14>*)this)->v = 0;
 }
 
 LimitNpcBuyItemRequestInfo::LimitNpcBuyItemRequestInfo() : PacketHeader(0x27d8, 10) {}

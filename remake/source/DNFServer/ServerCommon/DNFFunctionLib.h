@@ -12,7 +12,7 @@ struct STGuildCargoLog {
     ~STGuildCargoLog();
     int time;  // offset 0
     char m_rest[0x2c];
-};
+} __attribute__((packed));
 
 // 原始 comp_by_time 为头文件内 static 函数（_ZL12comp_by_timeRK15STGuildCargoLogS1_），
 // 被多个 TU 包含后每个 TU 生成一份本地副本（原始共 18 份）。
@@ -39,12 +39,15 @@ public:
     template<class T>
     static void Swap(T* a, T* b)
     {
-        T t = *a;
-        *a = *b;
-        *b = t;
+        if (a != 0 && b != 0)
+        {
+            T t = *a;
+            *a = *b;
+            *b = t;
+        }
     }
     static void Binary2Hex(unsigned char const* data, int len, char* out);
-    static int Hex2Binary(char const* hex, unsigned char* out, int maxLen);
+    static bool Hex2Binary(char const* hex, unsigned char* out, int maxLen);
     static unsigned int get_rand_int(int range);
     static int ExplodeString(char* str, char* delims, char** out, int maxCount);
     static void PrintTextFile(char* file, char* text);

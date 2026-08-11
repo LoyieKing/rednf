@@ -1,5 +1,6 @@
 // df_monitor_r — DNFServerConfig（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -57,11 +58,11 @@ int CServerConfig::Parse_Table(char* line, int idx)
         return 0;
     }
     ST_ServerInfo* entry = &m_table[idx];
-    *(char*)((char*)entry + 0) = (char)atoi(tokens[0]);
-    *(char*)((char*)entry + 1) = (char)atoi(tokens[1]);
-    *(char*)((char*)entry + 2) = (char)atoi(tokens[2]);
+    ((RA_S8<0>*)entry)->v = (char)atoi(tokens[0]);
+    ((RA_S8<1>*)entry)->v = (char)atoi(tokens[1]);
+    ((RA_S8<2>*)entry)->v = (char)atoi(tokens[2]);
     entry->m_str = tokens[3];
-    *(unsigned short*)((char*)entry + 8) = (unsigned short)atoi(tokens[4]);
+    ((RA_U16<8>*)entry)->v = (unsigned short)atoi(tokens[4]);
     return 1;
 }
 

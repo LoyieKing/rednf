@@ -1,6 +1,7 @@
 #ifndef MONITOR_DNFPACKETTRANSLATER_H_
 #define MONITOR_DNFPACKETTRANSLATER_H_
 #include <deque>
+#include "RawAccess.h"
 #include <list>
 #include <map>
 #include <queue>
@@ -930,9 +931,9 @@ class Packet_Manager_Event_Trigger_Ack : public PacketHeader
 public:
     Packet_Manager_Event_Trigger_Ack() : PacketHeader(0x1b6b, 0x16)
     {
-        *(unsigned int*)((char*)this + 0xa) = 0;
-        *(unsigned int*)((char*)this + 0xe) = 0;
-        *(unsigned int*)((char*)this + 0x12) = 0;
+        ((RA_UINT<10>*)this)->v = 0;
+        ((RA_UINT<14>*)this)->v = 0;
+        ((RA_UINT<18>*)this)->v = 0;
     }
     unsigned int m_eventId;  // +10
     unsigned int m_flag;     // +14
@@ -948,7 +949,7 @@ public:
 class Packet_Req_Ontime_Event_Idx : public PacketHeader
 {
 public:
-    Packet_Req_Ontime_Event_Idx() : PacketHeader(0x2346, 0xa) {}
+    Packet_Req_Ontime_Event_Idx() : PacketHeader(0x2340, 0xa) {}
 } __attribute__((packed));
 
 class Packet_MTG_OntimeEvent_RewardEnd : public PacketHeader
@@ -964,17 +965,13 @@ public:
     {
         memset((char*)this + 0xa, 0, 0x200);
     }
+    char m_data[0x200];  // +0xa payload
 } __attribute__((packed));
 
 class Packet_DB_Save_Member_Exp : public PacketHeader
 {
 public:
-    Packet_DB_Save_Member_Exp() : PacketHeader(0x641, 0x16)
-    {
-        *(unsigned int*)((char*)this + 0xa) = 0;
-        *(unsigned int*)((char*)this + 0xe) = 0;
-        *(unsigned int*)((char*)this + 0x12) = 0;
-    }
+    Packet_DB_Save_Member_Exp() : PacketHeader(0x641, 0x16) {}
     unsigned int m_memberKey;    // +10
     unsigned int m_upperCharId;  // +14
     unsigned int m_exp;          // +18
@@ -983,12 +980,7 @@ public:
 class Packet_Monitor_Notice_MemberExp_LevelUp : public PacketHeader
 {
 public:
-    Packet_Monitor_Notice_MemberExp_LevelUp() : PacketHeader(0x642, 0x13)
-    {
-        *(unsigned int*)((char*)this + 0xa) = 0;
-        *(unsigned int*)((char*)this + 0xe) = 0;
-        *(char*)((char*)this + 0x12) = 0;
-    }
+    Packet_Monitor_Notice_MemberExp_LevelUp() : PacketHeader(0x642, 0x13) {}
     unsigned int m_idByChannel;  // +10
     unsigned int m_uniqCharNo;   // +14
     unsigned char m_level;       // +18
@@ -999,9 +991,9 @@ class BuddyList
 public:
     BuddyList()
     {
-        *(char*)((char*)this + 0) = 0xff;
-        *(char*)((char*)this + 1) = 0;
-        *(char*)((char*)this + 2) = 0;
+        ((RA_S8<0>*)this)->v = 0xff;
+        ((RA_S8<1>*)this)->v = 0;
+        ((RA_S8<2>*)this)->v = 0;
         memset((char*)this + 3, 0, 0x27);
     }
     char m_data[0x2a];
@@ -1020,6 +1012,13 @@ class Packet_DB_InsertMail : public PacketHeader
 {
 public:
     Packet_DB_InsertMail();
+    unsigned int m_fieldA;      // +0xa
+    unsigned int m_fieldB;      // +0xe
+    unsigned int m_fieldC;      // +0x12
+    unsigned int m_fieldD;      // +0x16
+    char m_title[0x15];         // +0x1a
+    char m_body[0x100];         // +0x2f
+    unsigned int m_field12f;    // +0x12f
 } __attribute__((packed));
 
 class Packet_VillageAttackedStart : public PacketHeader
@@ -1027,9 +1026,9 @@ class Packet_VillageAttackedStart : public PacketHeader
 public:
     Packet_VillageAttackedStart() : PacketHeader(0x1773, 0x16)
     {
-        *(int*)((char*)this + 0xa) = 0;
-        *(int*)((char*)this + 0xe) = 0;
-        *(int*)((char*)this + 0x12) = 0;
+        ((RA_INT<10>*)this)->v = 0;
+        ((RA_INT<14>*)this)->v = 0;
+        ((RA_INT<18>*)this)->v = 0;
     }
 } __attribute__((packed));
 
@@ -1038,7 +1037,8 @@ class Packet_VillageAttackedCountdown : public PacketHeader
 public:
     Packet_VillageAttackedCountdown() : PacketHeader(0x1776, 0xe)
     {
-        *(int*)((char*)this + 0xa) = 0;
+        struct M { char p[0xa]; int v; } __attribute__((packed));
+        ((M*)this)->v = 0;
     }
 } __attribute__((packed));
 
@@ -1051,11 +1051,8 @@ public:
 class Packet_Request_Load_Tower_Full_Rank : public PacketHeader
 {
 public:
-    Packet_Request_Load_Tower_Full_Rank() : PacketHeader(0x4cc, 0x12)
-    {
-        *(int*)((char*)this + 0xa) = 0;
-        *(int*)((char*)this + 0xe) = 0;
-    }
+    // ORIG：仅调用 PacketHeader ctor，不置零（+0xa/+0xe 保持未初始化）
+    Packet_Request_Load_Tower_Full_Rank() : PacketHeader(0x4cc, 0x12) {}
 } __attribute__((packed));
 
 class Packet_Request_IPCounterList : public PacketHeader
@@ -1073,12 +1070,7 @@ public:
 class Packet_Monitor_ServerEvent_Start : public PacketHeader
 {
 public:
-    Packet_Monitor_ServerEvent_Start() : PacketHeader(0x44e, 0x12)
-    {
-        *(int*)((char*)this + 0xa) = 0;
-        *(unsigned short*)((char*)this + 0xe) = 0;
-        *(unsigned short*)((char*)this + 0x12) = 0;
-    }
+    Packet_Monitor_ServerEvent_Start() : PacketHeader(0x44e, 0x12) {}
 } __attribute__((packed));
 
 class Packet_TOD_DoRandomSelect : public PacketHeader

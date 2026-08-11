@@ -9,7 +9,7 @@
 class CAppConfig : public CTableBase
 {
 public:
-    CAppConfig();
+    CAppConfig() throw();
     virtual ~CAppConfig();
     virtual void Load_Table(const std::string& filename);
     virtual bool Parse_Table(char* line, int idx);

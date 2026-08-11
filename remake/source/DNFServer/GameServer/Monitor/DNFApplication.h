@@ -402,7 +402,7 @@ public:
     CBuddyRegisterManager m_buddyMgr;   // +0x300
     CMemoryCashManager* m_memoryCash;   // +0x318
     void* m_field31c;                   // +0x31c
-    void* m_field320;                   // +0x320
+    class COnTimeEventManager* m_onTimeEventMgr;  // +0x320
     CTowerRank* m_towerRank;            // +0x324
     CItemLimitEditionMgr* m_itemLimitMgr;  // +0x328
     CIPCounter* m_ipCounter;            // +0x32c

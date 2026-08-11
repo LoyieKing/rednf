@@ -36,8 +36,8 @@ bool Token::get_token(char* str, int size)
     char* token = strtok(dest, seps);
     while (token != 0 && n_token <= 0xff)
     {
-        size_t len = strlen(token);
-        if ((int)len > 0x800)
+        int len = (int)strlen(token);
+        if (len > 0x800)
         {
             len = 0x800;
         }

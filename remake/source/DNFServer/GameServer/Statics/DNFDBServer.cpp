@@ -5,16 +5,6 @@
 #include "DNFDBServer.h"
 #include "DNFUdpHandler.h"
 
-ErrorValue::ErrorValue()
-{
-    m_field0 = 0xffff;
-    m_field4 = 0xffffffff;
-}
-ErrorValue::ErrorValue(unsigned short value, unsigned int param)
-{
-    m_field0 = value;
-    m_field4 = param;
-}
 STSpecCount::STSpecCount()
     : m_field0(0)
 {
@@ -76,11 +66,9 @@ bool CDBServer::IsValidServer()
 }
 int CDBServer::IsHeartBeatTimeOver()
 {
-    m_heartBeatCount = (char)(m_heartBeatCount - 1);
-    if (m_heartBeatCount == 0)
+    if ((--m_heartBeatCount) == 0)
     {
-        m_heartBeatOver = (char)(m_heartBeatOver + 1);
-        if (0x14 < m_heartBeatOver)
+        if ((++m_heartBeatOver) > 0x14)
         {
             return 1;
         }

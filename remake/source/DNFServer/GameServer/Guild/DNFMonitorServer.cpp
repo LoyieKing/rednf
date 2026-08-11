@@ -82,12 +82,20 @@ CMonitorServer::~CMonitorServer()
 
 bool CMonitorServer::Initialize()
 {
-    return CServerInterface::Initialize();
+    if (!CServerInterface::Initialize())
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CMonitorServer::Destroy()
 {
-    return CServerInterface::Destroy();
+    if (!CServerInterface::Destroy())
+    {
+        return false;
+    }
+    return true;
 }
 
 void CMonitorServer::SendHeartBeat(int group)
@@ -100,4 +108,3 @@ void CMonitorServer::SendHeartBeat(int group)
             GetServerInfo()->m_port, GetServerInfo()->m_name);
     }
 }
-

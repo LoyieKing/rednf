@@ -45,7 +45,10 @@ template <class TSession>
 bool EpollReactor<TSession>::handleEvents(unsigned int milisec)
 {
     int n_event = epoll_wait(epoll_fd_, events_, max_client_, (int)milisec);
-    if (n_event != 0)
+    if (n_event == 0)
+    {
+        goto DO_TIMEOUT_PROCESS;
+    }
     {
         if (n_event < 0)
         {
@@ -94,21 +97,24 @@ bool EpollReactor<TSession>::handleEvents(unsigned int milisec)
             }
         }
     }
+DO_TIMEOUT_PROCESS:
     if (map_.size() != 0)
     {
         typename std::map<TSession*, unsigned int>::iterator iter = map_.begin();
         while (iter != map_.end())
         {
             TSession* s = iter->first;
-            ++iter;
-            if (s != NULL)
+            typename std::map<TSession*, unsigned int>::iterator next = ++iter;
+            if (s == NULL)
             {
-                if (s->isIdle())
-                {
-                    s->onClose("Reactor.inl", 199);
-                    break;
-                }
+                continue;
             }
+            if (s->isIdle())
+            {
+                s->onClose("Reactor.inl", 199);
+                break;
+            }
+            iter = next;
         }
     }
     return true;

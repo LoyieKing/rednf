@@ -75,7 +75,7 @@ bool App::load_script()
     char path[0x100];
     snprintf(path, 0x100, "./cfg/%s.cfg", (char*)this + 0x404);
     printf("[!] Server environment(%s) script loading : %s\n", (char*)this + 0x404, path);
-    char loaded = G_Script()->load(path);
+    bool loaded = G_Script()->load(path);
     if (!loaded)
     {
         printf("Can't open script file : %s", (char*)this + 0x404);
@@ -92,7 +92,8 @@ bool App::load_script()
 void App::readConfig()
 {
     puts("Called readConfig");
-    if (!load_script())
+    bool loaded = load_script();
+    if (!loaded)
     {
         puts("ERROR readConfig()");
     }
@@ -114,7 +115,6 @@ int main(int argc, char** argv)
         App* app = new App;
         app->processCommandLine(argc, argv);
         app->main();
-        return 0;
     }
     catch (Exception& e)
     {
@@ -128,4 +128,5 @@ int main(int argc, char** argv)
             printf("# %d %s\n", e.getErrorCode(), e.getErrorMsg());
         }
     }
+    return 0;
 }

@@ -37,8 +37,7 @@ void CBuddy::operator delete(void* ptr) { ::operator delete(ptr); }
 
 CBuddy::CBuddy(STBuddyDBInfo& info)
 {
-    memcpy(this, &info, 0x27);
+    memcpy(m_data, &info, 0x27);
 }
 
 CBuddy::~CBuddy() {}
-

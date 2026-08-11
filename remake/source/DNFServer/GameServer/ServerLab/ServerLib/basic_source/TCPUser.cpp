@@ -13,7 +13,7 @@
 
 namespace nsl {
 
-static int user_count = 0;
+static unsigned int user_count = 0;
 int ddebug = 0;
 
 TCPUser::TCPUser()
@@ -235,17 +235,18 @@ bool TCPUser::onPassiveClose(char* file, int line)
     {
         bAboutToDisconnect_ = true;
     }
+    // ORIG: bDisconnected_ 为真直接 return true；IsSending/IsWorking 检查在非断开分支。
     if (bDisconnected_ != false)
     {
-        if (!IsSending() && !IsWorking())
-        {
-            pApp->super_DataPools.getDataPool()->destroyTCPUser(this);
-            return true;
-        }
-        G_TraceLog()->sysLog(0, "onPassiveClose(): mPendingSendNum not 0");
-        return false;
+        return true;
     }
-    return true;
+    if (!IsSending() && !IsWorking())
+    {
+        pApp->super_DataPools.getDataPool()->destroyTCPUser(this);
+        return true;
+    }
+    G_TraceLog()->sysLog(0, "onPassiveClose(): mPendingSendNum not 0");
+    return false;
 }
 
 bool TCPUser::onActiveClose(unsigned int key)
@@ -269,8 +270,12 @@ bool TCPUser::onActiveClose(unsigned int key)
         {
             bAboutToDisconnect_ = true;
         }
-        // ORIG：正条件直 test+je（== false 会物化 xor+test+je，差 1 条）。
-        if (!bDisconnected_)
+        // ORIG：正条件 if/else（直 test+je + mov $1+jmp），!x 会物化 xor+test+je。
+        if (bDisconnected_)
+        {
+            return true;
+        }
+        else
         {
             pApp->super_DataPools.getDataPool()->destroyTCPUser(this);
         }

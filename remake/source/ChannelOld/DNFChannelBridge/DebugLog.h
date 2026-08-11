@@ -10,7 +10,12 @@
 class ITextOutputDevice
 {
 public:
-    ITextOutputDevice();
+    // ORIG：基类构造函数内联定义于头文件（weak 符号 C1/C2 同址）。
+    // 内联定义使派生类隐式构造函数的基类子对象调用带 EH region，
+    // 栈帧预留 0x18（与 ORIG TextOutputDevice_stdout C1 逐字节一致）。
+    ITextOutputDevice()
+    {
+    }
     virtual void serialize(char* s) = 0;
     virtual void flush() = 0;
     void get_time(char* todaystr, char* timestr);
@@ -49,9 +54,6 @@ private:
 class TextOutputDevice_stdout : public ITextOutputDevice
 {
 public:
-    TextOutputDevice_stdout()
-    {
-    }
     virtual void serialize(char* s);
     virtual void flush();
 };
@@ -120,11 +122,21 @@ public:
     }
     void create()
     {
-        if (m_p == 0 && m_p == 0)
+        // ORIG 模板体为两次独立检查（if (m_p != 0) return; if (m_p == 0) {...}），
+        // 与 `m_p == 0 && m_p == 0` 语义等价，但生成 ORIG 的 nop 落地形态：
+        // 第一次检查假分支落在尾声前 nop，第二次检查与正常出口直落尾声。
+        if (m_p != 0)
+        {
+            return;
+        }
+        if (m_p == 0)
         {
             try
             {
-                m_p = new T;
+                // ORIG 模板体为 value-initialization：new T()
+                // （stdout 无用户构造函数 -> GCC 生成 operator new + memset + ctor，
+                //   FILE 有用户构造函数 -> operator new + ctor，与 ORIG 二进制一致）
+                m_p = new T();
             }
             catch (...)
             {
@@ -145,8 +157,5 @@ public:
 private:
     T* m_p;
 };
-
-template <>
-void TGlobalInstance<TextOutputDevice_stdout>::create();
 
 #endif // DEBUGLOG_H_

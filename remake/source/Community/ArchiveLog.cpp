@@ -84,8 +84,9 @@ int CArchiveLog::WriteLog(const char *log) {
             return 0;
         }
     }
+    // 原始：仅复制 7 字节（year..sec）。
     if (&this->time != &now) {
-        memcpy(&this->time, &now, 7);  // 原始：仅复制 7 字节（year..sec）
+        memcpy(&this->time, &now, 7);
     }
     fprintf(this->logFile, "[%02d:%02d:%02d] %s\r\n", (int)now.hour, (int)now.min, (int)now.sec, log);
     printf("[%02d:%02d:%02d] %s\r\n", (int)now.hour, (int)now.min, (int)now.sec, log);

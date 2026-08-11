@@ -62,7 +62,7 @@ int CTcpNetSystem::OpenTcpService(int& serverCount, const char* ip, unsigned sho
     if (!sock->open())
     {
         puts("Tcp Open Socket Err");
-        CMyFileLog log("OpenTcpService", 0x118);
+        CMyFileLog log(__FUNCTION__, 0x118);
         log("./log/TcpConnect", "Tcp Open Socket Err");
         DeletePeer(peer);
         return 0;
@@ -70,7 +70,7 @@ int CTcpNetSystem::OpenTcpService(int& serverCount, const char* ip, unsigned sho
     if (!sock->connect(ip, port))
     {
         puts("Tcp Connect Err");
-        CMyFileLog log("OpenTcpService", 0x123);
+        CMyFileLog log(__FUNCTION__, 0x123);
         log("./log/TcpConnect", "Tcp Connect Err(ip:%s, port:%d)", ip, port);
         DeletePeer(peer);
         return 0;
@@ -167,7 +167,7 @@ void CTcpNetSystem::SendPacket()
     std::map<unsigned int, CPeer*>::iterator it = m_peerMap.find(port);
     if (it == m_peerMap.end())
     {
-        CMyFileLog log("CTcpNetSystem::SendPacket", 0xba);
+        CMyFileLog log(__FUNCTION__, 0xba);
         log("./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
             *(unsigned short*)((char*)buf),
             *(unsigned short*)((char*)buf + 2), port);
@@ -177,7 +177,7 @@ void CTcpNetSystem::SendPacket()
     CPeer* peer = it->second;
     if (!peer || peer->GetTcpSocket()->getHandle() != port)
     {
-        CMyFileLog log("CTcpNetSystem::SendPacket", 0xc3);
+        CMyFileLog log(__FUNCTION__, 0xc3);
         log("./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
             peer, *(unsigned short*)((char*)buf),
             *(unsigned short*)((char*)buf + 2), port);
@@ -191,7 +191,7 @@ void CTcpNetSystem::SendPacket()
     }
     else
     {
-        CMyFileLog log("CTcpNetSystem::SendPacket", 0xd5);
+        CMyFileLog log(__FUNCTION__, 0xd5);
         log("./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
             *(unsigned short*)((char*)buf),
             *(unsigned short*)((char*)buf + 2), port,
@@ -222,7 +222,7 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
     int n = m_sendQueue.size();
     if (n > 0xa)
     {
-        CMyFileLog log("PushTcpSendPacketQ", 0x91);
+        CMyFileLog log(__FUNCTION__, 0x91);
         log("./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", n,
             (unsigned short)buf[0], (unsigned short)((unsigned short*)buf)[1],
             ((char*)buf)[6]);
@@ -240,7 +240,7 @@ void CTcpNetSystem::CleanTcpSendPacketQ()
             delete p;
         }
     }
-    CMyFileLog log("CleanTcpSendPacketQ", 0x16b);
+    CMyFileLog log(__FUNCTION__, 0x16b);
     log("./log/TcpSend", "Clean Tcp Send Queue Complete !");
 }
 int CTcpNetSystem::WaitForEvent()

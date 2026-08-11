@@ -78,28 +78,39 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
+// 按 ORIG 布局的字段覆盖视图
+struct PowerWarLayout
+{
+    char pad0[4];
+    unsigned char m_on;         // +4
+    char pad1[3];
+    int m_field8;               // +8
+    unsigned short m_endKillPoint; // +0xc
+    char rest[0x34 - 0xe];
+};
+
 ST_PowerWarEventStartTimeConfig::~ST_PowerWarEventStartTimeConfig()
 {
 }
 
-int CPowerWar::IsPowerWarOn()
+unsigned char CPowerWar::IsPowerWarOn()
 {
-    return *(int*)((char*)this + 4);
+    return ((PowerWarLayout*)this)->m_on;
 }
 
-int CPowerWar::IsPowerWarOn() const
+unsigned char CPowerWar::IsPowerWarOn() const
 {
-    return *(int*)((char*)this + 4);
+    return ((PowerWarLayout*)this)->m_on;
 }
 
 unsigned short CPowerWar::getPowerWarEndKillPoint()
 {
-    return *(unsigned short*)((char*)this + 0xc);
+    return ((PowerWarLayout*)this)->m_endKillPoint;
 }
 
 unsigned short CPowerWar::getPowerWarEndKillPoint() const
 {
-    return *(unsigned short*)((char*)this + 0xc);
+    return ((PowerWarLayout*)this)->m_endKillPoint;
 }
 
 CPowerWar::CPowerWar()
@@ -149,7 +160,10 @@ void CPowerWar::resetEvent()
 
 void CPowerWar::setPowerWarEndKillPoint(unsigned short point)
 {
-    *(unsigned short*)((char*)this + 0xc) = point;
+    if (((PowerWarLayout*)this)->m_endKillPoint == 0xffff)
+    {
+        ((PowerWarLayout*)this)->m_endKillPoint = point;
+    }
 }
 
 int CPowerWar::ProcessByMinuteStartEvent()
@@ -193,11 +207,9 @@ void CPowerWar::LoadPowerWarTableFile(char* path)
 void CPowerWar::GetPowerWarConfigTbl(unsigned char& a, unsigned char& b, unsigned char& c,
                                      unsigned char& d)
 {
-    STPowerWarScheduleTime* p =
-        (STPowerWarScheduleTime*)((CScheduler*)((char*)this + 0x14))
-            ->GetNextScheduleTime(c, d);
-    a = (unsigned char)(*(unsigned int*)((char*)p + 0x10) + 1);
-    b = (unsigned char)*(unsigned int*)((char*)p + 0xc);
+    tm* p = (tm*)((CScheduler*)((char*)this + 0x14))->GetNextScheduleTime(c, d);
+    a = (unsigned char)(p->tm_mon + 1);
+    b = (unsigned char)p->tm_mday;
 }
 
 int CPowerWar::GetPowerWarRankingUpdateTime()
@@ -210,9 +222,6 @@ int CPowerWar::GetPowerWarRankingUpdateTime()
 }
 
 ST_PowerWarEventStartTimeConfig::ST_PowerWarEventStartTimeConfig()
+    : m_day(0xff), m_hour(0xff), m_min(0xff)
 {
-    m_day = 0xff;
-    m_hour = 0xff;
-    m_min = 0xff;
 }
-

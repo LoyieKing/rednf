@@ -78,6 +78,14 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
+unsigned int CGuildManager::m_ExpTable[17] = {
+    0x546, 0x131e, 0x2f76, 0x6257, 0xb692, 0x13aa3, 0x201d9, 0x325db,
+    0x4c89a, 0x716e2, 0xa4794, 0xe7e87, 0x140087, 0x1b00b6, 0x231a87,
+    0x2c3b06, 0x3513a1,
+};
+unsigned int CGuildManager::m_uGuildExpMax1 = 10000;
+unsigned int CGuildManager::m_uGuildExpMax2 = 20000;
+
 void CGuildManager::LoadGuildAgit(unsigned int guildKey, CServerHandler* handler)
 {
     CGuild* guild = FindGuild(guildKey);
@@ -97,10 +105,12 @@ void CGuildManager::DBSaveProcess(CApplication* app, bool force)
 
 void CGuildManager::CargoLock()
 {
+    m_field40 = 1;
 }
 
 void CGuildManager::CargoUnlock()
 {
+    m_field40 = 0;
 }
 
 #pragma pack(push,1)
@@ -133,30 +143,31 @@ CGuildWar* CGuildManager::GetGuildWar()
 
 unsigned int CGuildManager::GetMaxGuildExp1()
 {
-    return 10000;
+    return m_uGuildExpMax1;
 }
 
 unsigned int CGuildManager::GetMaxGuildExp2()
 {
-    return 20000;
+    return m_uGuildExpMax2;
 }
 
-bool CGuildManager::IsCargoLock()
+unsigned char CGuildManager::IsCargoLock()
 {
-    return m_field40 != 0;
+    return m_field40;
 }
 
 CGuildManager::CGuildManager()
+    : m_app(0)
 {
-    m_app = 0;
+    m_scheduler.SetSpecialDayHour(1, 5);
     m_field40 = 1;
     memset(m_time1, 0, sizeof(m_time1));
     memset(m_time2, 0, sizeof(m_time2));
-    m_scheduler.SetSpecialDayHour(1, 5);
 }
 
 CGuildManager::~CGuildManager()
 {
+    m_app = 0;
 }
 
 void CGuildManager::Init(CApplication* app)
@@ -165,14 +176,13 @@ void CGuildManager::Init(CApplication* app)
     m_guilds.clear();
 }
 
-int CGuildManager::InsertGuild(unsigned int guildKey, CGuild* guild)
+bool CGuildManager::InsertGuild(unsigned int guildKey, CGuild* guild)
 {
-    if (guild == 0)
+    if (guild != 0)
     {
-        return 0;
+        return m_guilds.insert(std::make_pair(guildKey, guild)).second;
     }
-    m_guilds.insert(std::make_pair(guildKey, guild));
-    return 1;
+    return 0;
 }
 
 void CGuildManager::DeleteGuild(unsigned int guildKey)
@@ -331,8 +341,8 @@ void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
 
 int CGuildManager::LoadGuild(unsigned int guildKey, STGuildDBInfoOnly& info, char* name)
 {
-    CGuild* guild = FindGuild(guildKey);
-    if (guild == 0)
+    CGuild* guild;
+    if ((guild = FindGuild(guildKey)) == 0)
     {
         return 0;
     }
@@ -589,7 +599,11 @@ void CGuildManager::SetGuildExpTable(unsigned int* table)
 
 unsigned int CGuildManager::GetGuildExpWithLevel(unsigned char level)
 {
-    return (unsigned int)level * 1000;
+    if (level > 0xf)
+    {
+        return m_ExpTable[0x10];
+    }
+    return m_ExpTable[level];
 }
 
 int CGuildManager::GetGuildLevelWithExp(unsigned int exp)

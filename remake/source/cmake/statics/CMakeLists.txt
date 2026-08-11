@@ -7,14 +7,28 @@ cmake_minimum_required(VERSION 3.10)
 # 链接：宿主机 g++ -m32 -no-pie + 4.4.4/4.1.1 静态 libstdc++/libgcc（同 build 脚本）
 # 源顺序 = build 脚本链接顺序（按 .o 基名排序，对 _GLOBAL__I_ 敏感，必须原样保持）
 # ============================================================
-set(DF_CC_VARIANT "c6")
+if(NOT DEFINED DF_CC_VARIANT)
+    set(DF_CC_VARIANT "c6")
+endif()
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_toolchain_44.cmake)
 
 # 工具链文件会全局设置 ENV{LD_LIBRARY_PATH}，会污染 CMake 自身的子进程（jsoncpp/icu
-# 需要新版 libstdc++）；改为生成编译器包装脚本，只把 4.4.7 运行库注入编译器子进程。
+# 需要新版 libstdc++）；改为生成编译器包装脚本，只把对应变体的运行库注入编译器子进程。
+# DF_CC_VARIANT: c6 = 4.4.7（默认）/ c6446r = 4.4.6-3 / c6444r = 4.4.4-13 / c5 = 4.1.2-55
 set(DF_CXX_WRAPPER ${CMAKE_BINARY_DIR}/df-cxx-wrap.sh)
-file(WRITE ${DF_CXX_WRAPPER}
-    "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C6ROOT}/usr/lib64:${DF_C6ROOT}/usr/lib\"\nexec \"${DF_C6ROOT}/usr/bin/g++\" \"$@\"\n")
+if(DF_CC_VARIANT STREQUAL "c5")
+    file(WRITE ${DF_CXX_WRAPPER}
+        "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C5ROOT}/usr/lib64:${DF_C5ROOT}/usr/lib\"\nexec \"${DF_C5ROOT}/usr/bin/g++\" \"$@\"\n")
+elseif(DF_CC_VARIANT STREQUAL "c6446r")
+    file(WRITE ${DF_CXX_WRAPPER}
+        "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C6ROOT}/usr/lib64:${DF_C6ROOT}/usr/lib\"\nexec \"${DF_C6ROOT}/usr/bin/g++\" -B \"${DF_TC_ROOT}/cc1plus446bin/\" \"$@\"\n")
+elseif(DF_CC_VARIANT STREQUAL "c6444r")
+    file(WRITE ${DF_CXX_WRAPPER}
+        "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C6ROOT}/usr/lib64:${DF_C6ROOT}/usr/lib\"\nexec \"${DF_C6ROOT}/usr/bin/g++\" -B \"${DF_TC_ROOT}/cc1plus444bin/\" \"$@\"\n")
+else()
+    file(WRITE ${DF_CXX_WRAPPER}
+        "#!/bin/sh\nexport LD_LIBRARY_PATH=\"${DF_C6ROOT}/usr/lib64:${DF_C6ROOT}/usr/lib\"\nexec \"${DF_C6ROOT}/usr/bin/g++\" \"$@\"\n")
+endif()
 execute_process(COMMAND chmod +x ${DF_CXX_WRAPPER})
 set(ENV{LD_LIBRARY_PATH} "")
 set(CMAKE_CXX_COMPILER ${DF_CXX_WRAPPER})
@@ -41,6 +55,7 @@ dnf_service(statics
         ${STATICS}/DNFAppStopInit.cpp
         ${STATICS}/DNFApplication.cpp
         ${STATICS}/DNFDBServer.cpp
+        ${STATICS}/ErrorValue.cpp
         ${COMMON}/DNFFileLog.cpp
         ${STATICS}/DNFFloatingPointExceptSig.cpp
         ${COMMON}/DNFFunctionLib.cpp
@@ -80,8 +95,11 @@ dnf_service(statics
     INCLUDES
         -I${COMMON} -I${STATICS} -I${PACKET}/include
         -I${SRC_ROOT}/shared -I${SRC_ROOT}/shared/common/include
+    DEFINES
+        -DDNF_SVC_STATICS
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
+        "${STATICS}/DNFTableBase.cpp|-fenforce-eh-specs"
     LIBS
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
@@ -93,4 +111,6 @@ dnf_service(statics
         -m32 -no-pie
 )
 
-target_compile_options(statics PRIVATE -std=gnu++0x)
+if(NOT DF_CC_VARIANT STREQUAL "c5")
+    target_compile_options(statics PRIVATE -std=gnu++0x)
+endif()

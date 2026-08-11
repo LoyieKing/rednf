@@ -124,16 +124,19 @@ bool CServerInterface::IsValidServer()
 
 bool CServerInterface::IsConnected()
 {
-    return m_field8 != 0;
+    return m_field8;
 }
 
 void CServerInterface::SetConnFlag(bool flag)
 {
-    m_field8 = (char)flag;
+    m_field8 = flag;
 }
 
 void CServerInterface::OnDisconnect()
 {
+    m_field8 = 0;
+    m_field9 = 0x14;
+    m_fielda = 0;
 }
 
 int CServerInterface::IsHeartBeatTimeOver()
@@ -179,6 +182,5 @@ unsigned char CServerInterface::GetChannelNo()
 
 unsigned char CServerInterface::GetGroupNo()
 {
-    return m_info ? *(unsigned char*)m_info : 0;
+    return *(unsigned char*)m_info;
 }
-

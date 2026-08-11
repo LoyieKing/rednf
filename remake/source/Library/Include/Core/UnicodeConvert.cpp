@@ -7,7 +7,9 @@ static int gCodePage;
 
 static __thread char g_szMbcsBuffer[10][0x1000];
 static __thread int g_nMbcsBufferIndex;
-static __thread wchar_t g_szUnicodeBuffer[10][0x1000];
+// ORIG：符号名 gUnicodeBuffer（_ZL14gUnicodeBuffer）——与符号名一致才能
+// 伪代码化为 &gUnicodeBuffer+0xN（TMsgCell/GetMessageBuffer 等引用）。
+static __thread wchar_t gUnicodeBuffer[10][0x1000];
 static __thread int g_nUnicodeBufferIndex;
 static __thread char g_szTCharBuffer[10][0x1000];
 static __thread int g_nTCharBufferIndex;
@@ -31,7 +33,7 @@ char* getMbcsBuffer()
 
 wchar_t* getUnicodeBuffer()
 {
-    return g_szUnicodeBuffer[g_nUnicodeBufferIndex];
+    return gUnicodeBuffer[g_nUnicodeBufferIndex];
 }
 
 char* getTCharBuffer()
@@ -169,10 +171,10 @@ void toMbcs(const wchar_t* pszSrc, std::string& sDst)
 const wchar_t* toUnicode(const std::string& sSrc)
 {
     int curIndex = g_nUnicodeBufferIndex;
-    size_t nRet = mbstowcs(g_szUnicodeBuffer[curIndex], sSrc.c_str(), 0x1000);
-    g_szUnicodeBuffer[curIndex][nRet] = 0;
+    size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gUnicodeBuffer[curIndex][nRet] = 0;
     g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
-    return g_szUnicodeBuffer[curIndex];
+    return gUnicodeBuffer[curIndex];
 }
 
 const wchar_t* toUnicode(const std::wstring& sSrc)
@@ -183,10 +185,10 @@ const wchar_t* toUnicode(const std::wstring& sSrc)
 const wchar_t* toUnicode(const char* pszSrc)
 {
     int curIndex = g_nUnicodeBufferIndex;
-    size_t nRet = mbstowcs(g_szUnicodeBuffer[curIndex], pszSrc, 0x1000);
-    g_szUnicodeBuffer[curIndex][nRet] = 0;
+    size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], pszSrc, 0x1000);
+    gUnicodeBuffer[curIndex][nRet] = 0;
     g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
-    return g_szUnicodeBuffer[curIndex];
+    return gUnicodeBuffer[curIndex];
 }
 
 const wchar_t* toUnicode(const wchar_t* pszSrc)
@@ -197,9 +199,9 @@ const wchar_t* toUnicode(const wchar_t* pszSrc)
 void toUnicode(const std::string& sSrc, std::wstring& sDst)
 {
     int curIndex = g_nUnicodeBufferIndex;
-    size_t nRet = mbstowcs(g_szUnicodeBuffer[curIndex], sSrc.c_str(), 0x1000);
-    g_szUnicodeBuffer[curIndex][nRet] = 0;
-    sDst = g_szUnicodeBuffer[curIndex];
+    size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], sSrc.c_str(), 0x1000);
+    gUnicodeBuffer[curIndex][nRet] = 0;
+    sDst = gUnicodeBuffer[curIndex];
     g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
 }
 
@@ -211,9 +213,9 @@ void toUnicode(const std::wstring& sSrc, std::wstring& sDst)
 void toUnicode(const char* pszSrc, std::wstring& sDst)
 {
     int curIndex = g_nUnicodeBufferIndex;
-    size_t nRet = mbstowcs(g_szUnicodeBuffer[curIndex], pszSrc, 0x1000);
-    g_szUnicodeBuffer[curIndex][nRet] = 0;
-    sDst = g_szUnicodeBuffer[curIndex];
+    size_t nRet = mbstowcs(gUnicodeBuffer[curIndex], pszSrc, 0x1000);
+    gUnicodeBuffer[curIndex][nRet] = 0;
+    sDst = gUnicodeBuffer[curIndex];
     g_nUnicodeBufferIndex = (g_nUnicodeBufferIndex + 1) % 10;
 }
 
@@ -299,6 +301,8 @@ CharString convertToCharString(const CharString& src)
 bool convertToUtf8(const wchar* source, int32 sourceLen, CharString* dest)
 {
     int32 newLength = 0;
+    CharStringData* newData;
+    char* newBuf;
     int32 i = 0;
     while (i < sourceLen)
     {
@@ -326,8 +330,8 @@ bool convertToUtf8(const wchar* source, int32 sourceLen, CharString* dest)
     }
     else
     {
-        CharStringData* newData = CharStringData::createTerminated(newLength);
-        char* newBuf = newData->getBuffer();
+        newData = CharStringData::createTerminated(newLength);
+        newBuf = newData->getBuffer();
         for (int32 i2 = 0; i2 < sourceLen; i2 = i2 + 1)
         {
             int32 c = source[i2];
@@ -362,6 +366,8 @@ bool convertToUtf8(const wchar* source, int32 sourceLen, CharString* dest)
 bool convertFromUtf8(const char* source, int32 sourceLen, WideString* dest)
 {
     int32 newLength = 0;
+    WideStringData* newData;
+    wchar_t* newBuf;
     int32 i = 0;
     while (i < sourceLen)
     {
@@ -396,8 +402,8 @@ bool convertFromUtf8(const char* source, int32 sourceLen, WideString* dest)
     }
     else
     {
-        WideStringData* newData = WideStringData::createTerminated(newLength);
-        wchar_t* newBuf = newData->getBuffer();
+        newData = WideStringData::createTerminated(newLength);
+        newBuf = newData->getBuffer();
         int32 i2 = 0;
         while (i2 < sourceLen)
         {

@@ -13,10 +13,6 @@ static void _evlog(const char* sz);
 
 LinuxService* LinuxService::theInstance = NULL;
 
-ServiceInfo::ServiceInfo()
-{
-}
-
 void ServiceInfo::setPIDFileName(const char* szPIDFileName)
 {
     if (szPIDFileName != NULL)
@@ -84,10 +80,6 @@ const char* ServiceInfo::getConfigFileName() const
 const char* ServiceInfo::getChannelName() const
 {
     return m_szChannelName;
-}
-
-IService::IService()
-{
 }
 
 LinuxService::LinuxService()

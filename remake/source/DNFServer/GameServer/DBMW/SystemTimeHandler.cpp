@@ -37,7 +37,6 @@ CSystemTimeHandler* CSystemTimeHandlerInstance()
     static CSystemTimeHandler instance;
     return &instance;
 }
-CDnFTimer::CDnFTimer() {}
 CUnixTimer::CUnixTimer() {}
 double CUnixTimer::GetNowTime()
 {
@@ -63,5 +62,5 @@ void CommonTime::SetCurTime()
     m_mday = tm->tm_mday;
     m_hour = tm->tm_hour;
     m_min = tm->tm_min;
-    m_sec = tm->tm_sec;
+    m_sec = tm->tm_wday;
 }

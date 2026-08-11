@@ -241,7 +241,7 @@ struct stUserHuntingPoint;
 class CTerminateSig : public CSignal
 {
 public:
-    CTerminateSig();
+    CTerminateSig() throw();
     ~CTerminateSig();
     void handle(int sig);
 };

@@ -46,7 +46,7 @@ struct MemPoolSlot
 template<class T>
 MemPool<T>::MemPool() {}
 template<class T>
-MemPool<T>::MemPool(unsigned int count) : m_size((int)sizeof(T)), m_count((int)count) {}
+MemPool<T>::MemPool(unsigned int count) : m_size((unsigned int)sizeof(T)), m_count(count) {}
 template<class T>
 MemPool<T>::~MemPool()
 {
@@ -100,9 +100,9 @@ void MemPool<T>::free(void* ptr, unsigned int size)
         ::operator delete(ptr);
         return;
     }
-    void* p = ptr;
-    ((MemPoolSlot<T>*)p)->next = headOfFreeList_;
-    headOfFreeList_ = p;
+    MemPoolSlot<T>* slot = (MemPoolSlot<T>*)ptr;
+    slot->next = headOfFreeList_;
+    headOfFreeList_ = slot;
 }
 
 template<class T>
@@ -112,9 +112,9 @@ void MemPool<T>::free(void* ptr)
     {
         return;
     }
-    void* p = ptr;
-    ((MemPoolSlot<T>*)p)->next = headOfFreeList_;
-    headOfFreeList_ = p;
+    MemPoolSlot<T>* slot = (MemPoolSlot<T>*)ptr;
+    slot->next = headOfFreeList_;
+    headOfFreeList_ = slot;
 }
 
 template class MemPool<CUdpRecvBuffer>;

@@ -135,7 +135,10 @@ void CCashObject::DeleteBuddys()
 
 void CCashObject::DeleteBlackUsers()
 {
-    if (!m_blackUsers.empty())
+    if (m_blackUsers.empty())
+    {
+    }
+    else
     {
         for (std::map<unsigned int, CBlackUser*>::iterator it = m_blackUsers.begin();
              it != m_blackUsers.end(); ++it)
@@ -147,6 +150,7 @@ void CCashObject::DeleteBlackUsers()
         }
         m_blackUsers.clear();
     }
+    return;
 }
 
 void CCashObject::ClearBuddys()

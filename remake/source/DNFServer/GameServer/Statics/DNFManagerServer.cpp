@@ -50,7 +50,7 @@ void CManagerServer::SendHeartBeat(int group)
     if (m_udp != 0)
     {
         Packet_Monitor_UDP_HeartBeat pkt;
-        char g = (char)group;
+        pkt.m_fieldA = (char)group;
         m_udp->SendToServer((char*)&pkt, 0xb, m_port, m_name.c_str());
     }
 }

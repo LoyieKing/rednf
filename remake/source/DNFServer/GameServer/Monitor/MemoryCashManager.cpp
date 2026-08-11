@@ -1,5 +1,6 @@
 // df_monitor_r — MemoryCashManager（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -39,7 +40,10 @@ void CMemoryCashManager::Init(CApplication* app)
     resetCashCnt();
 }
 
-CMemoryCashManager::CMemoryCashManager() {}
+CMemoryCashManager::CMemoryCashManager()
+{
+    m_app = 0;
+}
 
 CMemoryCashManager::~CMemoryCashManager() {}
 
@@ -103,7 +107,7 @@ char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
                         memset((char*)dbInfo + 5 * 4, 0, 0x1e);
                         strncpy((char*)dbInfo + 5 * 4, name.c_str(), 0x1d);
                     }
-                    for (int i = 0; i < (int)*(unsigned char*)((char*)dbInfo + 0x27); i++)
+                    for (int i = 0; i < (int)((RA_U8<39>*)dbInfo)->v; i++)
                     {
                         unsigned int* sub =
                             (unsigned int*)((char*)dbInfo + i * 0x27 + 0x28);
@@ -153,14 +157,14 @@ int CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
                     {
                         std::string name;
                         unsigned int* info = buddies[i]->getBuddyDBInfo();
-                        if (QueryUpdatedCharacName(*(unsigned int*)((char*)info + 0x22), name))
+                        if (QueryUpdatedCharacName(((RA_UINT<34>*)info)->v, name))
                         {
                             memset(info, 0, 0x1e);
                             strncpy((char*)info, name.c_str(), 0x1d);
                         }
                         user->AddBuddyFromCash(buddies[i]);
                         user->GetUniqCharNo();
-                        unsigned int charNo = *(unsigned int*)((char*)info + 0x22);
+                        unsigned int charNo = ((RA_UINT<34>*)info)->v;
                         m_app->Get_BuddyRegisterManager()->addBuddyRegister(charNo,
                                                                             user->GetUniqCharNo());
                     }
@@ -193,8 +197,8 @@ char CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
             for (std::map<unsigned int, CBlackUser*>::iterator bi = blackMap->begin();
                  bi != blackMap->end(); ++bi)
             {
-                unsigned int key = bi->first;
-                CBlackUser* bu = bi->second;
+                unsigned int key = (*bi).first;
+                CBlackUser* bu = (*bi).second;
                 if (bu != 0)
                 {
                     std::string name;
@@ -376,4 +380,3 @@ void CMemoryCashManager::resetCashCnt()
     m_field48 = 0;
     m_field4c = 0;
 }
-

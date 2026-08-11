@@ -30,9 +30,16 @@
 #include "Peer.h"
 #include "TcpNetSystem.h"
 
-CTcpAcceptThread::CTcpAcceptThread() {}
+CTcpAcceptThread::CTcpAcceptThread()
+    : m_net(0), m_recvQLock(0), m_recvBLock(0)
+{
+}
 
-CTcpAcceptThread::~CTcpAcceptThread() {}
+CTcpAcceptThread::~CTcpAcceptThread()
+{
+    m_recvQLock = 0;
+    m_net = 0;
+}
 
 void CTcpAcceptThread::attach(CTcpNetSystem* net)
 {
@@ -104,4 +111,3 @@ void CTcpAcceptThread::dispatch(void* param)
         throw CDNFException("CTcpAcceptThread::dispatch() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd!");
     }
 }
-

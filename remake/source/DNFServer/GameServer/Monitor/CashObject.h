@@ -261,11 +261,12 @@ public:
     char IsLifeTimeOut();
     std::map<unsigned int, class CBlackUser*>* GetBlackUsersObject();
     void ClearMapBlackUsers();
-    int m_lifeTime;                 // +0
+    unsigned int m_lifeTime;        // +0
     unsigned int m_characNo;        // +4
     CMember* m_memberObject;        // +8
     CBuddy* m_buddys[0x20];         // +0xc
     std::map<unsigned int, class CBlackUser*> m_blackUsers;  // +0x8c
+    unsigned int m_field98;         // +0x98
 };
 
 #endif  // MONITOR_CASHOBJECT_H_

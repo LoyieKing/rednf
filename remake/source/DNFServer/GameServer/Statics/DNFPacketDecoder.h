@@ -28,12 +28,12 @@ public:
     CPacketDecoder();
     ~CPacketDecoder();
     void Attach(CApplication* app);
-    int MsgDecode(PacketHeader* pkt);
+    bool MsgDecode(PacketHeader* pkt);
     void Process();
     void* m_queue;                 // +0
     void* m_lock;                  // +4
     void* m_poolLock;              // +8
-    void* m_handlers[0x2800];      // +0xc
+    void (*m_handlers[0x2800])(PacketHeader*);   // +0xc
 };
 
 CPacketDecoder* CPacketDecoderInstance();

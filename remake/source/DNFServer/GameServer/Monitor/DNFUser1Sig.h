@@ -241,7 +241,7 @@ struct stUserHuntingPoint;
 class CUser1Sig : public CSignal
 {
 public:
-    CUser1Sig();
+    CUser1Sig() throw();
     ~CUser1Sig();
     void handle(int sig);
 };
@@ -249,7 +249,7 @@ public:
 class CUser2Sig : public CSignal
 {
 public:
-    CUser2Sig();
+    CUser2Sig() throw();
     ~CUser2Sig();
     void handle(int sig);
 };

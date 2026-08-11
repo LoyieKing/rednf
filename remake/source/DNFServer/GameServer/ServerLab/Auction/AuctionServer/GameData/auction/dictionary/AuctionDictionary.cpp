@@ -128,21 +128,21 @@ char* AuctionDictionary::getCharacterName(int characterId)
     // 首个字节即 NUL）。重建不得硬编码 ORIG 地址，改为等长 const 静态缓冲，
     // 精确复刻 ORIG 的 64 字节数据快照（含紧邻的日志表串尾），
     // 使伪代码化 &data#hash 与 ORIG 完全一致（IDENTICAL_AE）。
-    static const char s_failedCharacterName[] =
-        "\x00\x00\x00\x00getCharacterName, failed(), characterId : %d\x00%llu:%d:%d:%d:%";
     std::map<const int, CharacterNameStruct*>::iterator iter =
         mCharacterNameTable.find(characterId);
     if (iter == mCharacterNameTable.end())
     {
         G_TraceLog()->sysLog(7, "getCharacterName, failed(), characterId : %d", characterId);
-        return const_cast<char*>(s_failedCharacterName);
+        // ORIG 失败分支返回 .rodata:0x8151740（前串末尾的 NUL 对齐处，
+        // C 语义为空字符串）。以空串字面量复刻（解析器按 "" 解析两侧一致）。
+        return const_cast<char*>("");
     }
     return (char*)iter->second;
 }
 
 void AuctionDictionary::AuctionDictionaryData::PrintOut(unsigned long long auctionId)
 {
-    char temp[524];
+    char temp[512];
     PrintDnfItemInfo(item_info, temp);
     G_TraceLog()->sysLog(5, "%llu:%d:%d:%d:%d:%d:%s", auctionId, price, instant_price,
                          owner_id, buyer_id, expire_time, temp);
@@ -150,25 +150,22 @@ void AuctionDictionary::AuctionDictionaryData::PrintOut(unsigned long long aucti
 
 void GetRandomOptionName(DnfItemInfo* item, char* itemName, int itemNameLength)
 {
-    // Original places the non-zero (seed&3) branch first (test/je to -1 path).
-    register unsigned int uVar11 = (item->random_option_.modify_option_.option_index_ != '\0')
-        ? (unsigned int)(item->random_option_.modify_seed_.seed_ & 3)
-        : 0xffffffff;
-    unsigned char bVar1 = item->random_option_.seed_.seed_;
-    unsigned char bVar2 = item->random_option_.get_second_value(ENUM_RANDOM_OPTION_THIRD);
-    unsigned char bVar3 = item->random_option_.get_first_value(ENUM_RANDOM_OPTION_THIRD);
-    unsigned char bVar4 = item->random_option_.get_option_index(ENUM_RANDOM_OPTION_THIRD);
-    unsigned char bVar5 = item->random_option_.get_second_value(ENUM_RANDOM_OPTION_SECOND);
-    unsigned char bVar6 = item->random_option_.get_first_value(ENUM_RANDOM_OPTION_SECOND);
-    unsigned char bVar7 = item->random_option_.get_option_index(ENUM_RANDOM_OPTION_SECOND);
-    unsigned char bVar8 = item->random_option_.get_second_value(ENUM_RANDOM_OPTION_FIRST);
-    unsigned char bVar9 = item->random_option_.get_first_value(ENUM_RANDOM_OPTION_FIRST);
-    unsigned char bVar10 = item->random_option_.get_option_index(ENUM_RANDOM_OPTION_FIRST);
+    // ORIG（DWARF 无局部变量）：整条 snprintf 实参右到左求值，逐条内联。
     snprintf(itemName, itemNameLength, "@%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d@",
-             item->item_id, (unsigned int)bVar10, (unsigned int)bVar9, (unsigned int)bVar8,
-             (unsigned int)bVar7, (unsigned int)bVar6, (unsigned int)bVar5,
-             (unsigned int)bVar4, (unsigned int)bVar3, (unsigned int)bVar2,
-             (unsigned int)bVar1, uVar11);
+             item->item_id,
+             item->random_option_.get_option_index(ENUM_RANDOM_OPTION_FIRST),
+             item->random_option_.get_first_value(ENUM_RANDOM_OPTION_FIRST),
+             item->random_option_.get_second_value(ENUM_RANDOM_OPTION_FIRST),
+             item->random_option_.get_option_index(ENUM_RANDOM_OPTION_SECOND),
+             item->random_option_.get_first_value(ENUM_RANDOM_OPTION_SECOND),
+             item->random_option_.get_second_value(ENUM_RANDOM_OPTION_SECOND),
+             item->random_option_.get_option_index(ENUM_RANDOM_OPTION_THIRD),
+             item->random_option_.get_first_value(ENUM_RANDOM_OPTION_THIRD),
+             item->random_option_.get_second_value(ENUM_RANDOM_OPTION_THIRD),
+             item->random_option_.seed_.seed_,
+             (item->random_option_.modify_option_.option_index_ != '\0')
+                 ? item->random_option_.modify_seed_.option_give_type_
+                 : 0xffffffff);
 }
 
 void AuctionDictionary::PutDBBuyerHistory(unsigned long long auctionId, int pre_buyer_id,
@@ -243,7 +240,7 @@ void AuctionDictionary::PutDBExpireHistory(
 int AuctionDictionary::GetRegistedItemInfo(int ownerId, int* pInOutItemNum,
                                            MyRegistedItemInfo* pOutMyRegistedItemInfoArray)
 {
-    static int index_cnt = 0;
+    static unsigned int index_cnt = 0;
     int error_code = 0;
     AuctionDictionaryData* ptr_auc_data;
     CharacterDictionary::CharacterDictionaryData* ptr_data;
@@ -284,7 +281,6 @@ int AuctionDictionary::GetRegistedItemInfo(int ownerId, int* pInOutItemNum,
                     pOutMyRegistedItemInfoArray[index_cnt].price = ptr_auc_data->price;
                     pOutMyRegistedItemInfoArray[index_cnt].instant_price =
                         ptr_auc_data->instant_price;
-                    // Original places "has buyer" branch first.
                     if (ptr_auc_data->buyer_id != -1)
                     {
                         strncpy(pOutMyRegistedItemInfoArray[index_cnt].buyer_name,
@@ -891,6 +887,7 @@ void AuctionDictionary::PutDBSendPackageByExpire(
         *pNewCell << &dbtr_expire_package;
         pApp->super_Threads.getDBThread(0)->PushTransaction(pNewMsg);
     }
+    return;
 }
 
 int AuctionDictionary::Bidding(const unsigned long long& auctionId, int buyerId, const char* buyerName, int price,
@@ -1090,7 +1087,7 @@ int AuctionDictionary::Bidding(const unsigned long long& auctionId, int buyerId,
 int AuctionDictionary::GetBiddingInfo(int buyerId, int* pInOutItemNum,
                                       MyBiddingItemInfo* pOutMyBiddingItemInfoArray)
 {
-    static int index_cnt = 0;
+    static unsigned int index_cnt = 0;
     int error_code = 0;
     CharacterDictionary::CharacterDictionaryData* ptr_data;
     // Default-construct iterator before the null check (matches original call order).
@@ -1212,7 +1209,7 @@ int AuctionDictionary::BuyItemApiece(unsigned long long& auctionId, int buyerId,
     return 0;
 }
 
-__attribute__((target("arch=i586"))) int AuctionDictionary::Purchase(unsigned long long auctionId, int buyerId,
+int AuctionDictionary::Purchase(unsigned long long auctionId, int buyerId,
                                 AuctionDictionaryData* pAucDicData, int price, int count,
                                 bool entire)
 {
@@ -1256,7 +1253,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::Purchase(unsigned lo
     }
     else
     {
-        int send_money = price - commission;
+        send_money = price - commission;
         int remain_price = pAucDicData->instant_price - price;
         int remain_count = pAucDicData->item_info.add_info - count;
         if ((remain_price < 1) || (remain_count < 1))
@@ -1483,6 +1480,8 @@ int AuctionDictionary::RegistCancel(int ownerId, unsigned long long auctionId)
 {
     AuctionDictionaryData* ptr_data = NULL;
     int error_code = 0;
+    int item_type;
+    int item_category;
     std::map<unsigned long long, AuctionDictionaryData*>::iterator iter =
         mAuctionDicTable.find(auctionId);
     if (iter != mAuctionDicTable.end())
@@ -1513,179 +1512,183 @@ int AuctionDictionary::RegistCancel(int ownerId, unsigned long long auctionId)
     }
     else
     {
-        tagAUCTION_DB_EXPIRE_HISTORY dbtr_history;
-        // ORIG：auction_id 赋值在最前（随后 expire_time/event_type/owner/buyer/price/...）
-        dbtr_history.auction_id = auctionId;
-        dbtr_history.expire_time = ptr_data->expire_time;
-        dbtr_history.event_type = AUCTION_HISTORY_REGIST_CANCEL_EVENT;
-        dbtr_history.owner_id = ptr_data->owner_id;
-        dbtr_history.buyer_id = ptr_data->buyer_id;
-        dbtr_history.price = ptr_data->price;
-        dbtr_history.item_info = ptr_data->item_info;
-        dbtr_history.unit_price = ptr_data->unit_price;
-        dbtr_history._reg_roi_category_key = ptr_data->_reg_roi_category_key;
-        if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
         {
-            dbtr_history.commission = 0;
-            dbtr_history.owner_type = ptr_data->owner_type;
-        }
-        dbtr_history.owner_postal_id = 0;
-        dbtr_history.buyer_postal_id = 0;
-        Message* pMsg =
-            pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
-        CMsgCell* pNewCell = pMsg->getCellFromMessage();
-        *pNewCell << &dbtr_history;
-        pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
-        tagAUCTION_DB_DELETE_ITEM dbtr_delete_item;
-        dbtr_delete_item.auction_id = auctionId;
-        pMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)
-                   ->createMessage(3);
-        pNewCell = pMsg->getCellFromMessage();
-        *pNewCell << &dbtr_delete_item;
-        pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
-        tagGAME_DB_SEND_PACKAGE_BY_EXPIRE dbtr_expire_package;
-        // ORIG：先 auction_id 再 package_type
-        dbtr_expire_package.send_to_owner.auction_id = auctionId;
-        dbtr_expire_package.package_type = AUCTION_HISTORY_REGIST_CANCEL_EVENT;
-        char _itemName[128];
-        if (ptr_data->_reg_roi_category_key.field_0._high_category_key != 0)
-        {
-            GetRandomOptionName(&ptr_data->item_info, _itemName, 0x7f);
-        }
-        // ORIG：大块（b_exist_buyer=true + 买家逻辑）在 then，false 块延迟置尾
-        if (ptr_data->buyer_id != -1)
-        {
-            dbtr_expire_package.b_exist_buyer = true;
-            error_code = mBidderDic.SubAuctionId(ptr_data->buyer_id, auctionId);
-            if (error_code != 0)
-            {
-                return error_code;
-            }
-            dbtr_expire_package.send_to_buyer.owner_id = ptr_data->owner_id;
-            dbtr_expire_package.send_to_buyer.receiver = ptr_data->buyer_id;
-            dbtr_expire_package.send_to_buyer.money = ptr_data->price;
-            dbtr_expire_package.send_to_buyer.item_info.seal = false;
-            dbtr_expire_package.send_to_buyer.item_info.item_id = 0;
-            dbtr_expire_package.send_to_buyer.item_info.uniItemAttr = '\0';
-            dbtr_expire_package.send_to_buyer.item_info.add_info = 0;
-            dbtr_expire_package.send_to_buyer.item_info.endurance = 0;
-            dbtr_expire_package.send_to_buyer.item_info.extendInfo = 0;
-            dbtr_expire_package.send_to_buyer.item_info.abilityType_ = '\0';
-            dbtr_expire_package.send_to_buyer.item_info.abilityValue_ = 0;
-            unsigned int category = (unsigned int)
-                mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
+            tagAUCTION_DB_EXPIRE_HISTORY dbtr_history;
+            // ORIG：auction_id 赋值在最前（随后 expire_time/event_type/owner/buyer/price/...）
+            dbtr_history.auction_id = auctionId;
+            dbtr_history.expire_time = ptr_data->expire_time;
+            dbtr_history.event_type = AUCTION_HISTORY_REGIST_CANCEL_EVENT;
+            dbtr_history.owner_id = ptr_data->owner_id;
+            dbtr_history.buyer_id = ptr_data->buyer_id;
+            dbtr_history.price = ptr_data->price;
+            dbtr_history.item_info = ptr_data->item_info;
+            dbtr_history.unit_price = ptr_data->unit_price;
+            dbtr_history._reg_roi_category_key = ptr_data->_reg_roi_category_key;
             if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
             {
-                snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
-                         LETTER_TEXT[4],
-                         mpAuction->GetItemInfo(ptr_data->item_info.item_id)
+                dbtr_history.commission = 0;
+                dbtr_history.owner_type = ptr_data->owner_type;
+            }
+            dbtr_history.owner_postal_id = 0;
+            dbtr_history.buyer_postal_id = 0;
+            Message* pMsg =
+                pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
+            CMsgCell* pNewCell = pMsg->getCellFromMessage();
+            *pNewCell << &dbtr_history;
+            pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
+        }
+        {
+            tagAUCTION_DB_DELETE_ITEM dbtr_delete_item;
+            dbtr_delete_item.auction_id = auctionId;
+            Message* pMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)
+                                ->createMessage(3);
+            CMsgCell* pNewCell = pMsg->getCellFromMessage();
+            *pNewCell << &dbtr_delete_item;
+            pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
+        }
+        {
+            tagGAME_DB_SEND_PACKAGE_BY_EXPIRE dbtr_expire_package;
+            // ORIG：先 auction_id 再 package_type
+            dbtr_expire_package.send_to_owner.auction_id = auctionId;
+            dbtr_expire_package.package_type = AUCTION_HISTORY_REGIST_CANCEL_EVENT;
+            char _itemName[128];
+            if (ptr_data->_reg_roi_category_key.field_0._high_category_key != 0)
+            {
+                GetRandomOptionName(&ptr_data->item_info, _itemName, 0x7f);
+            }
+            // ORIG：大块（b_exist_buyer=true + 买家逻辑）在 then，false 块延迟置尾
+            if (ptr_data->buyer_id != -1)
+            {
+                dbtr_expire_package.b_exist_buyer = true;
+                error_code = mBidderDic.SubAuctionId(ptr_data->buyer_id, auctionId);
+                if (error_code != 0)
+                {
+                    return error_code;
+                }
+                dbtr_expire_package.send_to_buyer.owner_id = ptr_data->owner_id;
+                dbtr_expire_package.send_to_buyer.receiver = ptr_data->buyer_id;
+                dbtr_expire_package.send_to_buyer.money = ptr_data->price;
+                dbtr_expire_package.send_to_buyer.item_info.seal = false;
+                dbtr_expire_package.send_to_buyer.item_info.item_id = 0;
+                dbtr_expire_package.send_to_buyer.item_info.uniItemAttr = '\0';
+                dbtr_expire_package.send_to_buyer.item_info.add_info = 0;
+                dbtr_expire_package.send_to_buyer.item_info.endurance = 0;
+                dbtr_expire_package.send_to_buyer.item_info.extendInfo = 0;
+                dbtr_expire_package.send_to_buyer.item_info.abilityType_ = '\0';
+                dbtr_expire_package.send_to_buyer.item_info.abilityValue_ = 0;
+                int category = (int)
+                    mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
+                if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
+                {
+                    snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
+                             LETTER_TEXT[4],
+                             mpAuction->GetItemInfo(ptr_data->item_info.item_id)
+                                 ->sName_.c_str(),
+                             mpAuction->IsAvatarCategory(category)
+                                 ? mpAuction->GetAvatarColorName(
+                                       ptr_data->item_info.add_info)
+                                 : LETTER_TEXT[7]);
+                }
+                else
+                {
+                    snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
+                             LETTER_TEXT[4],
+                             ptr_data->_reg_roi_category_key.field_0._high_category_key != 0
+                                 ? _itemName
+                                 : (char*)mpAuction->GetItemInfo(
+                                       ptr_data->item_info.item_id)->sName_.c_str(),
+                             mpAuction->IsAvatarCategory(category)
+                                 ? mpAuction->GetAvatarColorName(
+                                       ptr_data->item_info.add_info)
+                                 : LETTER_TEXT[7]);
+                }
+                dbtr_expire_package.send_to_buyer.letter_text_length =
+                    (unsigned short)strlen(
+                        dbtr_expire_package.send_to_buyer.letter_text);
+                dbtr_expire_package.send_to_buyer.temp_item_id =
+                    ptr_data->item_info.item_id;
+            }
+            else
+            {
+                dbtr_expire_package.b_exist_buyer = false;
+            }
+            dbtr_expire_package.send_to_owner.owner_id = ptr_data->owner_id;
+            dbtr_expire_package.send_to_owner.receiver = ptr_data->owner_id;
+            dbtr_expire_package.send_to_owner.money = 0;
+            dbtr_expire_package.send_to_owner.item_info = ptr_data->item_info;
+            if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
+            {
+                // ORIG：category 用 ptr_data 的 item_id，sName 用 dbtr 副本的 item_id
+                int category = (int)
+                    mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
+                snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
+                         LETTER_TEXT[5],
+                         mpAuction->GetItemInfo(
+                             dbtr_expire_package.send_to_owner.item_info.item_id)
                              ->sName_.c_str(),
                          mpAuction->IsAvatarCategory(category)
                              ? mpAuction->GetAvatarColorName(
-                                   ptr_data->item_info.add_info)
+                                   dbtr_expire_package.send_to_owner.item_info.add_info)
                              : LETTER_TEXT[7]);
             }
             else
             {
-                snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
-                         LETTER_TEXT[4],
+                int category = (int)
+                    mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
+                snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
+                         LETTER_TEXT[5],
                          ptr_data->_reg_roi_category_key.field_0._high_category_key != 0
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
-                                   ptr_data->item_info.item_id)->sName_.c_str(),
+                                   dbtr_expire_package.send_to_owner.item_info
+                                       .item_id)
+                                   ->sName_.c_str(),
                          mpAuction->IsAvatarCategory(category)
                              ? mpAuction->GetAvatarColorName(
-                                   ptr_data->item_info.add_info)
+                                   dbtr_expire_package.send_to_owner.item_info.add_info)
                              : LETTER_TEXT[7]);
             }
-            dbtr_expire_package.send_to_buyer.letter_text_length =
+            dbtr_expire_package.send_to_owner.temp_item_id =
+                dbtr_expire_package.send_to_owner.item_info.item_id;
+            dbtr_expire_package.send_to_owner.letter_text_length =
                 (unsigned short)strlen(
-                    dbtr_expire_package.send_to_buyer.letter_text);
-            dbtr_expire_package.send_to_buyer.temp_item_id =
-                ptr_data->item_info.item_id;
-        }
-        else
-        {
-            dbtr_expire_package.b_exist_buyer = false;
-        }
-        dbtr_expire_package.send_to_owner.owner_id = ptr_data->owner_id;
-        dbtr_expire_package.send_to_owner.receiver = ptr_data->owner_id;
-        dbtr_expire_package.send_to_owner.money = 0;
-        dbtr_expire_package.send_to_owner.item_info = ptr_data->item_info;
-        if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
-        {
-            // ORIG：category 用 ptr_data 的 item_id，sName 用 dbtr 副本的 item_id
-            unsigned int category = (unsigned int)
-                mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
-            snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                     LETTER_TEXT[5],
-                     mpAuction->GetItemInfo(
-                         dbtr_expire_package.send_to_owner.item_info.item_id)
-                         ->sName_.c_str(),
-                     mpAuction->IsAvatarCategory(category)
-                         ? mpAuction->GetAvatarColorName(
-                               dbtr_expire_package.send_to_owner.item_info.add_info)
-                         : LETTER_TEXT[7]);
-        }
-        else
-        {
-            unsigned int category = (unsigned int)
-                mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
-            snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
-                     LETTER_TEXT[5],
-                     ptr_data->_reg_roi_category_key.field_0._high_category_key != 0
-                         ? _itemName
-                         : (char*)mpAuction->GetItemInfo(
-                               dbtr_expire_package.send_to_owner.item_info
-                                   .item_id)
-                               ->sName_.c_str(),
-                     mpAuction->IsAvatarCategory(category)
-                         ? mpAuction->GetAvatarColorName(
-                               dbtr_expire_package.send_to_owner.item_info.add_info)
-                         : LETTER_TEXT[7]);
-        }
-        dbtr_expire_package.send_to_owner.temp_item_id =
-            dbtr_expire_package.send_to_owner.item_info.item_id;
-        dbtr_expire_package.send_to_owner.letter_text_length =
-            (unsigned short)strlen(
-                dbtr_expire_package.send_to_owner.letter_text);
-        {
+                    dbtr_expire_package.send_to_owner.letter_text);
             Message* pNewMsg =
                 pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)
                     ->createMessage(3);
             CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
             *pNewCell << &dbtr_expire_package;
             pApp->super_Threads.getDBThread(0)->PushTransaction(pNewMsg);
+            item_type =
+                mpAuction->CheckItemType(ptr_data->item_info.item_id);
+            // ORIG 为 switch：case 序 PLAIN/CREATURE/AVATAR，gcc 4.4 -O0 反序
+            // 发射 cmp 2/3/1（switch 的连续比较 + 尾 jmp，与 if/else-if 的
+            // jne 反转链形态不同）
+            switch (item_type)
+            {
+            case AUCTION_ITEM_TYPE_PLAIN:
+                break;
+            case AUCTION_ITEM_TYPE_CREATURE:
+                mpAuction->UnregistChkMapForAvatarCreature(
+                    false, ptr_data->item_info.add_info);
+                break;
+            case AUCTION_ITEM_TYPE_AVATAR:
+                mpAuction->UnregistChkMapForAvatarCreature(
+                    true, ptr_data->item_info.add_info);
+                break;
+            default:
+                break;
+            }
+            item_category = (int)
+                mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
+            if (mpAuction->IsAvatarCategory(item_category))
+            {
+                mpAuction->SubAvatarEmblemInfo(ptr_data->item_info.add_info);
+                mpAuction->SubAvatarExpansionInfo(ptr_data->item_info.add_info);
+            }
+            ptr_data->expire_table_ptr->auction_id = 0;
+            mAuctionDicDataPool.free(ptr_data);
         }
-        int item_type =
-            mpAuction->CheckItemType(ptr_data->item_info.item_id);
-        // ORIG 为 switch：case 序 PLAIN/CREATURE/AVATAR，gcc 4.4 -O0 反序
-        // 发射 cmp 2/3/1（switch 的连续比较 + 尾 jmp，与 if/else-if 的
-        // jne 反转链形态不同）
-        switch (item_type)
-        {
-        case AUCTION_ITEM_TYPE_PLAIN:
-            break;
-        case AUCTION_ITEM_TYPE_CREATURE:
-            mpAuction->UnregistChkMapForAvatarCreature(
-                false, ptr_data->item_info.add_info);
-            break;
-        case AUCTION_ITEM_TYPE_AVATAR:
-            mpAuction->UnregistChkMapForAvatarCreature(
-                true, ptr_data->item_info.add_info);
-            break;
-        default:
-            break;
-        }
-        int item_category = (int)
-            mpAuction->GetItemInfo(ptr_data->item_info.item_id)->category_;
-        if (mpAuction->IsAvatarCategory(item_category))
-        {
-            mpAuction->SubAvatarEmblemInfo(ptr_data->item_info.add_info);
-            mpAuction->SubAvatarExpansionInfo(ptr_data->item_info.add_info);
-        }
-        ptr_data->expire_table_ptr->auction_id = 0;
-        mAuctionDicDataPool.free(ptr_data);
     }
     // ORIG：尾部直接返回 0（mov $0x0,%eax），无 error_code=0 赋值
     return 0;

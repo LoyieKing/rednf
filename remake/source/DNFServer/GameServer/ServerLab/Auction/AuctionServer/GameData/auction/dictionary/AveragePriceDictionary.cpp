@@ -117,8 +117,6 @@ int AveragePriceDictionary::GetItemAveragePrice(
     const ROI_AverageKey& roi_average_key, unsigned char itemRefineValue,
     int* pOutAveragePrice)
 {
-    AveragePriceDictionaryData* ptr_data;
-
     if (!isValidUpgradeValue(itemUpgradeValue))
     {
         return 0x20;
@@ -142,6 +140,7 @@ int AveragePriceDictionary::GetItemAveragePrice(
     }
     else
     {
+        AveragePriceDictionaryData* ptr_data;
         std::map<unsigned long, AveragePriceDictionaryData*>::iterator find_iter =
             mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].find(itemId);
         if (find_iter == mAvrgPriceDicTable[itemUpgradeValue][itemRefineValue].end())

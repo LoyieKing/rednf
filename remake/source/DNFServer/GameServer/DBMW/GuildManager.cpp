@@ -183,7 +183,7 @@ void CGuildManager::printGuildWarRank()
              m_warRankList.begin();
          it != m_warRankList.end(); ++it)
     {
-        CMyFileLog log("printGuildWarRank", 0x10a);
+        CMyFileLog log(__FUNCTION__, 0x10a);
         log("./log/GuildWar", "GuildKey : %d,  GuildWarPoint : %d, Guild Rank : %d",
             it->first, it->second->m_field4, it->second->m_field8);
     }

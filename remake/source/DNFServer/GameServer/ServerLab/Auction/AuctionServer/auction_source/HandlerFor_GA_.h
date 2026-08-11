@@ -34,21 +34,36 @@ public:
         {
             mArrayFunc[i] = NULL;
         }
-        mArrayFunc[0] = &HandlerFor_GA_::onAUCTION_REGIST_GA;
-        mArrayFunc[1] = &HandlerFor_GA_::onAUCTION_ASK_AVERAGE_PRICE_GA;
-        mArrayFunc[2] = &HandlerFor_GA_::onAUCTION_ASK_REGISTED_ITEM_NUM_GA;
-        mArrayFunc[3] = &HandlerFor_GA_::onAUCTION_REGIST_ITEM_GA;
-        mArrayFunc[4] = &HandlerFor_GA_::onAUCTION_REGIST_CANCEL_GA;
-        mArrayFunc[5] = &HandlerFor_GA_::onAUCTION_BIDDING_GA;
-        mArrayFunc[6] = &HandlerFor_GA_::onAUCTION_SEARCH_BY_ITEMKEY_GA;
-        mArrayFunc[7] = &HandlerFor_GA_::onAUCTION_SEARCH_BY_NOITEMKEY_GA;
-        mArrayFunc[8] = &HandlerFor_GA_::onAUCTION_MY_REGISTED_ITEM_INFO_GA;
-        mArrayFunc[9] = &HandlerFor_GA_::onAUCTION_MY_BIDDING_INFO_GA;
-        mArrayFunc[10] = &HandlerFor_GA_::onAUCTION_MY_AUCTION_HISTORY_GA;
-        mArrayFunc[11] = &HandlerFor_GA_::onAUCTION_OPEN_PRIVATE_STORE_GA;
-        mArrayFunc[12] = &HandlerFor_GA_::onAUCTION_CLOSE_PRIVATE_STORE_GA;
-        mArrayFunc[13] = &HandlerFor_GA_::onAUCTION_CHECK_AUCION_READY_GA;
-        mArrayFunc[14] = &HandlerFor_GA_::onAUCTION_BUY_ITEM_APIECE_GA;
+        mArrayFunc[0] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_REGIST_GA;
+        mArrayFunc[1] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_ASK_AVERAGE_PRICE_GA;
+        mArrayFunc[2] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_ASK_REGISTED_ITEM_NUM_GA;
+        mArrayFunc[3] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_REGIST_ITEM_GA;
+        mArrayFunc[4] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_REGIST_CANCEL_GA;
+        mArrayFunc[5] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_BIDDING_GA;
+        mArrayFunc[6] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_SEARCH_BY_ITEMKEY_GA;
+        mArrayFunc[7] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_SEARCH_BY_NOITEMKEY_GA;
+        mArrayFunc[8] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_MY_REGISTED_ITEM_INFO_GA;
+        mArrayFunc[9] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_MY_BIDDING_INFO_GA;
+        mArrayFunc[10] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_MY_AUCTION_HISTORY_GA;
+        mArrayFunc[11] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_OPEN_PRIVATE_STORE_GA;
+        mArrayFunc[12] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_CLOSE_PRIVATE_STORE_GA;
+        mArrayFunc[13] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_CHECK_AUCION_READY_GA;
+        mArrayFunc[14] =
+            (nsl::INetWorkHandler::networkFuncType)&HandlerFor_GA_::onAUCTION_BUY_ITEM_APIECE_GA;
     }
 
     bool IsGoldServer()
@@ -73,7 +88,7 @@ public:
     unsigned int onAUCTION_BUY_ITEM_APIECE_GA(nsl::CMsgCell* pCell, nsl::TCPUser* u);
 
 private:
-    networkFuncType mArrayFunc[1024];   // @12
+    nsl::INetWorkHandler::networkFuncType mArrayFunc[1024];   // @12
     char mpSzBuffer[4096];              // @8204
 };
 

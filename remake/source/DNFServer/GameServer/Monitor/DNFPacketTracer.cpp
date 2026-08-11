@@ -26,7 +26,7 @@
 #include "Packet_DBMW_Change_Char_Name.h"
 #include "Packet_Monitor_Reply_Charac_Info.h"
 
-CPacketTracer::CPacketTracer() : m_count(0), m_str("") {}
+CPacketTracer::CPacketTracer() : m_count(0), m_str() {}
 
 CPacketTracer* CPacketTracerInstance()
 {
@@ -63,6 +63,4 @@ void CPacketTracer::AbsoluteWriteLog()
 void CPacketTracer::ResetLog()
 {
     m_str.clear();
-    m_count = 0;
 }
-

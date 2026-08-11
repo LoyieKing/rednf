@@ -18,7 +18,7 @@ public:
     unsigned char Get_DbmwType();
     STDBConnInfo* GetDBConnInfo(ENUM_DB_HANDLE_IDX idx);
     int GetServerGroup();
-    int DecryptValue(const char* value, char* dst);
+    bool DecryptValue(const char* value, char* dst);
     CTEA m_cipher;          // +4（0x48 字节）
     char m_tickValue;       // +0x4c
     char m_pad4d[3];

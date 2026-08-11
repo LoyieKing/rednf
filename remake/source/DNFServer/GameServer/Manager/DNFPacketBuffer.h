@@ -66,7 +66,7 @@ public:
     void free(void* ptr, unsigned int size);
     static void* headOfFreeList_;
     int m_size;                     // +0
-    int m_count;                    // +4
+    unsigned int m_count;           // +4（ORIG 为 unsigned；影响 ctor 求值顺序）
     std::vector<void*> m_blocks;    // +8
 };
 
@@ -87,7 +87,7 @@ public:
     static IQueue& Get();
     char InitQueue(T* recv, T* parse) { m_recv = recv; m_parse = parse; return 1; }
     T* GetParseQueue() { return m_parse; }
-    char SwitchQueue();
+    bool SwitchQueue();
     T* m_recv;   // +0
     T* m_parse;  // +4
 };

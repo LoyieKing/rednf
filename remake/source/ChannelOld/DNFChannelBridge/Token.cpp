@@ -31,7 +31,8 @@ bool Token::get_token(char* str, int size)
     char* temp = new char[size + 1];
     if (temp == NULL)
     {
-        __assert_fail("temp", "Token.cpp", 0x22, "bool Token::get_token(char*, int)");
+#line 33 "Token.cpp"
+        __assert_fail("temp", "Token.cpp", 0x21, __PRETTY_FUNCTION__);
     }
     memset(temp, 0, size + 1);
     strncpy(temp, str, size);
@@ -58,7 +59,8 @@ char* Token::get_context(int idx0)
 {
     if (idx0 < 0 || idx0 >= MAX_TOKEN)
     {
-        __assert_fail("idx0>=0 && idx0<MAX_TOKEN", "Token.cpp", 0x42, "char* Token::get_context(int)");
+#line 65 "Token.cpp"
+        __assert_fail("idx0>=0 && idx0<MAX_TOKEN", "Token.cpp", 0x41, __PRETTY_FUNCTION__);
     }
     return m_token[idx0];
 }

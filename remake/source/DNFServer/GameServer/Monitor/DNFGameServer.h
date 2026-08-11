@@ -252,7 +252,7 @@ public:
     void SetChannelNo(unsigned char channel);
     unsigned char GetChannelNo();
     char IsValidServer();
-    int m_sock;           // +0
+    unsigned int m_sock;  // +0
     CTcpNetSystem* m_net;  // +4
     int m_channelType;     // +8
     unsigned char m_channelNo;  // +0xc

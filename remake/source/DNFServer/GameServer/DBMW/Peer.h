@@ -18,10 +18,10 @@ public:
     int send_packet();
     int send_packet(char* buf, int len);
     void InitPeer(TcpRecvQueue* recvQ, CMutex* qLock, CMutex* bLock);
-    int parsing(int len);
+    bool parsing(int len);
     void ConnSig();
     void DisConnSig();
-    char RecvPacket();
+    bool RecvPacket();
     char m_gap1c[0x1800];   // +0x1c（收包缓冲区：this+0x1c..this+0x181c，代码以指针算术访问，无成员）
     char* m_sendBuf;        // +0x181c
     int m_recvLen;          // +0x1820

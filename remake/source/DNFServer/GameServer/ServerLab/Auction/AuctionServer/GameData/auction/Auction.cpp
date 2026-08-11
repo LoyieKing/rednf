@@ -67,9 +67,10 @@ char Auction::msAuctionServerName[20] = {0};
 
 Auction::Auction()
     : mMaxAuctionId(0),
-      mAUCTION_COMMISSION(0.5),
-      mAUCTION_VIP_COMMISSION(5.0),
-      mAUCTION_PRIVATE_STORE_COMISSION(5.0),
+      // ORIG（point 与 auction 实测一致）：0x8152f98=5.0, 0x8152fa0=3.0
+      mAUCTION_COMMISSION(5.0),
+      mAUCTION_VIP_COMMISSION(3.0),
+      mAUCTION_PRIVATE_STORE_COMISSION(3.0),
       mAUCTION_EXPIRE_TIME(0xd2f00),
       mSYSTEM_AUCTION_EXPIRE_TIME(0x1c20),
       mEmblemInfoStructPool(0x20),
@@ -83,16 +84,17 @@ Auction::Auction()
                            (unsigned short)G_Script()->findIntValue(0, 5));
     G_TraceLog()->sysLog(5, "load item info");
     CodePage::initCodePage();
-    bool load_item_ok = mItemInfo.Load("./iteminfo.dat", CodePage::script2Database);
-    if (!load_item_ok)
+    // ORIG DWARF 仅一个 bool 局部（-0x9(%ebp) 复用）：两个 Load 结果共用一个变量。
+    bool load_ok = mItemInfo.Load("./iteminfo.dat", CodePage::script2Database);
+    if (!load_ok)
     {
         G_TraceLog()->sysLog(7, "fail to load item info");
         exit(1);
     }
     G_TraceLog()->sysLog(5, "successfully load item info");
     G_TraceLog()->sysLog(5, "load avatar variation");
-    bool load_avatar_ok = importAvatarColorVariation(&avatarColorInfo);
-    if (!load_avatar_ok)
+    load_ok = importAvatarColorVariation(&avatarColorInfo);
+    if (!load_ok)
     {
         G_TraceLog()->sysLog(7, "fail to load avatar variation");
         exit(1);
@@ -571,7 +573,7 @@ int Auction::SearchByItemId(PSearchByItemId pSearch, unsigned long* pItemIdArray
         pOutAuctionItemInfoArray);
     if (error_no != 0)
     {
-        G_TraceLog()->sysLog(7, "ERROR: %s, %s", "SearchByItemId", GetErrorStr(error_no));
+        G_TraceLog()->sysLog(7, "ERROR: %s, %s", __FUNCTION__, GetErrorStr(error_no));
     }
     else
     {
@@ -595,7 +597,7 @@ int Auction::SearchByCategory(PSearchByCategory pSearch, unsigned int* pTotalNum
         pSearch, pTotalNumberOfFound, pNumberOfFound, pOutAuctionItemInfoArray);
     if (error_no != 0)
     {
-        G_TraceLog()->sysLog(7, "ERROR: %s, %s", "SearchByCategory", GetErrorStr(error_no));
+        G_TraceLog()->sysLog(7, "ERROR: %s, %s", __FUNCTION__, GetErrorStr(error_no));
     }
     else
     {
@@ -911,7 +913,7 @@ void PrintDnfItemInfo(DnfItemInfo& itemInfo, char* out)
 {
     sprintf(out, "s:%d, id:%d,up:%d,sc:%d,add:%d,en:%d,ex:%d",
             (unsigned int)itemInfo.seal, itemInfo.item_id,
-            (unsigned int)(itemInfo.uniItemAttr & 0x1f),
-            ((unsigned int)itemInfo.uniItemAttr) >> 5,
+            (unsigned int)itemInfo.btUpgrade,
+            (unsigned int)itemInfo.btSealCount,
             itemInfo.add_info, (unsigned int)itemInfo.endurance, itemInfo.extendInfo);
 }

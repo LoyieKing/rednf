@@ -38,8 +38,9 @@ public:
 class Packet_DB_Query_Guild_Member : public PacketHeader {
 public:
     Packet_DB_Query_Guild_Member();
-    char m_data[0x5];
-};
+    unsigned char m_group;     // +0xa
+    unsigned int m_characNo;   // +0xb
+} __attribute__((packed));
 
 // from GuildServer.h
 class CServerHandler

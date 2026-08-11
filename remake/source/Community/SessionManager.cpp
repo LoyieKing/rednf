@@ -124,7 +124,7 @@ int CEpoll<Session>::WaitForEvent(int timeout) {
     if (count < 0 && errno != EINTR /*4*/ && errno != 0) {
         return 0;
     }
-    // 原始：succeed 在循环外初始化（mov BYTE [ebp-0x1d],1），循环体内再显式赋值
+    // 原始：succeed 在循环外初始化（mov BYTE [ebp-0x1d],1），循环体内再显式赋值；
     bool succeed = true;
     for (int i = 0; i < count; i++) {
         Session *session = (Session *)this->epollEvents[i].data.ptr;
@@ -136,8 +136,8 @@ int CEpoll<Session>::WaitForEvent(int timeout) {
             if (((session)->GetTriggerSessionEventType() & 8) != 0) {
                 // 原始：OnAccept 结果经独立临时承接（mov DWORD [ebp-0x10],0 再赋值）
                 Session *ns = NULL;
-                ns = session->OnAccept();
-                if (ns != NULL) {
+                // 原始：赋值入条件形态（cmpl+setne+test+je 物化）
+                if ((ns = session->OnAccept()) != NULL) {
                     RegisterSession(ns, 7);
                 }
             } else {
@@ -148,14 +148,17 @@ int CEpoll<Session>::WaitForEvent(int timeout) {
         }
         if (this->epollEvents[i].events & EPOLLOUT) {
             // 原始：(type & 0x10) != 0 分支在前（OnConnect），== 0 为 else（OnSend）
+            // 原始：size 在 EPOLLOUT 块首初始化 0（movl $0x0,-0xc），再在 else 分支赋值
+            int size = 0;
             if (((session)->GetTriggerSessionEventType() & 0x10) != 0) {
-                succeed = (session)->OnConnect();
-                if (succeed) {
+                // 原始：赋值入条件形态（ORIG 为 mov %al,[ebp-0x1d] + movzbl+test+je；
+                // 分离赋值+if 会退化为 cmpb 直测栈槽）
+                if ((succeed = (session)->OnConnect())) {
                     (session)->SetTriggerSessionEventType(7);
                 }
             } else {
                 if ((session)->GetTriggerSessionEventType() & 2) {
-                    int size = (session)->OnSend();
+                    size = (session)->OnSend();
                     if (size < 0) {
                         succeed = false;
                     }

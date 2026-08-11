@@ -31,8 +31,12 @@ public:
 
     void registFuncMap()
     {
-        mArrayFunc[2] = &InterHandler::onINTER_DESTORY_CHARACTER;
-        mArrayFunc[0] = &InterHandler::onINTER_SERVICE_UNAVAILABLE;
+        // ORIG：mArrayFunc 为基类 PMF 类型，派生→基 PMF 需显式转换
+        // （GCC 4.4 拒绝隐式转换），转换产生 edx 临时装载形态。
+        mArrayFunc[2] =
+            (nsl::IInterHandler::interFuncType)&InterHandler::onINTER_DESTORY_CHARACTER;
+        mArrayFunc[0] =
+            (nsl::IInterHandler::interFuncType)&InterHandler::onINTER_SERVICE_UNAVAILABLE;
     }
 
     void initInterEvent();
@@ -41,7 +45,7 @@ public:
 
     // PMF 8B x 1024 @ offset 12 => sizeof(InterHandler) = 0x200c (ORIG operator new size)
     // init() already clears only 0x400 entries; HandlerFor_GA_/GP_ use the same 1024 length.
-    InterFunc mArrayFunc[1024];
+    nsl::IInterHandler::interFuncType mArrayFunc[1024];
 };
 
 #endif // AUCTION_INTERHANDLER_H_

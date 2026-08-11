@@ -32,8 +32,6 @@
 #include "DNFMemberConfig.h"
 #include "DNFTableBase.h"
 
-CAppInit::CAppInit() {}
-
 CAppInit::~CAppInit() {}
 
 void CAppInit::Init(CApplication* app, int argc, char** argv) {}
@@ -105,4 +103,3 @@ char CAppStartInit::Save_pid(const std::string& file)
     }
     return 1;
 }
-

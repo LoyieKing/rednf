@@ -20,8 +20,17 @@
 
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
+#include "DNFMySql.h"
 
 int getErrno();
+
+// ORIG 的 TU 边界：这些基类构造在独立 TU 定义（派生类 TU 只见声明，
+// 触发 may-throw 预留栈帧 sub $0x18，与 ORIG 对齐，2026-08-11）。
+CDBHandle::CDBHandle() {}
+CDBHandle::~CDBHandle() {}
+CAppInit::CAppInit() {}
+CAppInit::~CAppInit() {}
+CDnFTimer::CDnFTimer() {}
 
 CSourceVersionMgr::SourceVersion::SourceVersion(const SourceVersion& other)
     : m_name(other.m_name), m_version(other.m_version)

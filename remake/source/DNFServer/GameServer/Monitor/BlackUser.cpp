@@ -32,14 +32,14 @@ void CBlackUser::operator delete(void* p, unsigned int size) { ::operator delete
 
 void CBlackUser::SetBlackUser(char* name, unsigned int time)
 {
-    memcpy(this, name, 0x1d);
+    memcpy(m_name, name, 0x1d);
     m_occurTime = time;
 }
 
 void CBlackUser::ChangeCharName(char* name)
 {
-    memset(this, 0, 0x1e);
-    memcpy(this, name, 0x1d);
+    memset(m_name, 0, 0x1e);
+    memcpy(m_name, name, 0x1d);
 }
 
 char* CBlackUser::GetName() { return (char*)this; }
@@ -51,7 +51,7 @@ void CBlackUser::operator delete(void* p) { ::operator delete(p); }
 CBlackUser::CBlackUser()
 {
     m_occurTime = 0;
-    memset(m_data, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 STBlackUserDBType::STBlackUserDBType()
@@ -60,4 +60,3 @@ STBlackUserDBType::STBlackUserDBType()
     m_field24 = 0;
     memset(m_name, 0, 0x1e);
 }
-

@@ -16,18 +16,19 @@ bool delete_pid()
     snprintf(path, 0x1e, "./pid/%s.pid",
              LinuxService::getInstance()->getPIDFileName());
     printf("delete_pid() : file[%s]\n", path);
-    int r = unlink(path);
-    if (r == 0)
+    if (unlink(path) == 0)
     {
         printf("delete %s\n", path);
+        return true;
     }
-    return r == 0;
+    return false;
 }
 
 int save_pid()
 {
     char path[512];
     char tmp[30] = {0};
+    ssize_t n;
     snprintf(tmp, 0x1e, "./pid/%s.pid",
              LinuxService::getInstance()->getPIDFileName());
     int fd = open(tmp, 0x42, 0x1a4);
@@ -37,7 +38,7 @@ int save_pid()
     }
     memset(path, 0, 0x200);
     snprintf(path, 0x200, "%ld\n", (long)getpid());
-    ssize_t n = write(fd, path, strlen(path));
+    n = write(fd, path, strlen(path));
     if (n < 0)
     {
         close(fd);

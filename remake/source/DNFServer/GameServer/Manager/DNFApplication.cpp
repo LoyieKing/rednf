@@ -41,16 +41,12 @@ void CAppBase::Clear()
 }
 
 CApplication::CApplication()
+    : m_loaded(0), m_field8(0), m_appInitor(0), m_appConfig(0),
+      m_serverConfig(0), m_serverHandler(0), m_frameCount(),
+      m_userManager(), m_killUsrConfig(0), m_udpSwapQueue(),
+      m_udpHandler(0), m_udpNetworkThread(0), m_tcpNetSystem(),
+      m_mutex22c(), m_mutex244()
 {
-    m_loaded = 0;
-    m_field8 = 0;
-    m_appInitor = 0;
-    m_appConfig = 0;
-    m_serverConfig = 0;
-    m_serverHandler = 0;
-    m_killUsrConfig = 0;
-    m_udpHandler = 0;
-    m_udpNetworkThread = 0;
 }
 CApplication::~CApplication()
 {
@@ -127,7 +123,7 @@ void CApplication::Load(int argc, char** argv)
         puts("Application Init Frame Count() Success!");
         m_udpHandler = new CUdpHandler;
         if (((CUdpHandler*)m_udpHandler)->InitServerSocket(m_appConfig->Get_ServerUdpPort()) == -1)
-            throw CDNFException("Application::Load() Init Server Socket Exception Break!");
+            throw CDNFException("CApplication::Load() Init Server Socket Exception Break!");
         puts("Application UDP Handler Create() Success!");
         m_serverHandler = new CServerHandler;
         m_serverHandler->Attach(this);
@@ -184,9 +180,11 @@ CMutex* CApplication::Get_UdpQLock() { return &m_mutex22c; }
 CMutex* CApplication::Get_UdpBLock() { return &m_mutex244; }
 UdpRecvQueue* CApplication::Get_UdpPacketRecvQ() { return m_udpSwapQueue.GetRecvQ(); }
 UdpRecvQueue* CApplication::Get_UdpPacketParseQ() { return m_udpSwapQueue.GetParseQ(); }
-int CApplication::Send_Term_Signal(const std::string& msg)
+bool CApplication::Send_Term_Signal(const std::string& msg)
 {
-    std::string filename = std::string("./pid/") + msg + std::string(".pid");
+    // ORIG 形态："./pid/" + msg + ".pid"（operator+(const char*, string) +
+    // operator+(string, const char*)；包 std::string() 会改重载序列）。
+    std::string filename = "./pid/" + msg + ".pid";
     FILE* f = fopen(filename.c_str(), "r");
     if (!f)
     {
@@ -214,9 +212,9 @@ int CApplication::Send_Term_Signal(const std::string& msg)
     return 0;
 }
 
-int CApplication::Send_Suspend_Signal(const std::string& msg)
+bool CApplication::Send_Suspend_Signal(const std::string& msg)
 {
-    std::string filename = std::string("./pid/") + msg + std::string(".pid");
+    std::string filename = "./pid/" + msg + ".pid";
     FILE* f = fopen(filename.c_str(), "r");
     if (!f)
     {
@@ -254,14 +252,22 @@ CMonitorServer* CApplication::FindMonitorServer(int idx)
 void CApplication::SwitchQueueTCP()
 {
     CGuard<CMutex> guard(m_tcpNetSystem.Get_TcpRecvQLock());
-    if (IQueue<TcpRecvQueue>::Get().SwitchQueue())
+    if (IQueue<TcpRecvQueue>::Get().SwitchQueue() == false)
+    {
+    }
+    else
+    {
         CPacketDecoderInstance()->SetTCPQueue(IQueue<TcpRecvQueue>::Get().GetParseQueue());
+    }
 }
 
 void CApplication::SwitchQueueUDP()
 {
     CGuard<CMutex> guard(&m_mutex22c);
-    if (!m_udpSwapQueue.GetRecvQ()->empty())
+    if (m_udpSwapQueue.GetRecvQ()->empty())
+    {
+    }
+    else
     {
         m_udpSwapQueue.SwapQ();
         m_udpNetworkThread->SetUDPQueue(m_udpSwapQueue.GetRecvQ());

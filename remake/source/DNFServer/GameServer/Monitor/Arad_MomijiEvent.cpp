@@ -1,5 +1,6 @@
 // df_monitor_r — Arad_MomijiEvent（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -34,6 +35,7 @@ namespace momiji_event
 StartEffectTask::StartEffectTask(unsigned int time, unsigned int flag)
     : CTaskScheduler::CTask(time, flag)
 {
+    m_flag = 1;  // ORIG：movb $0x1,0x10(%eax)
     EventManager::Get()->SetStartEffectTask(this);
 }
 
@@ -49,7 +51,7 @@ void StartEffectTask::_DoExecute()
         EndEffectTask* task = new EndEffectTask(end, 0);
         ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
         tm* t = localtime((time_t*)&end);
-        DNF_LOG_SCOPE_AT("_DoExecute", 0xb0,"./log/AradOnly", "[Momiji] start event. next endEffect %02dh:%02dm:%02ds",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0xb0,"./log/AradOnly", "[Momiji] start event. next endEffect %02dh:%02dm:%02ds",
             t->tm_hour, t->tm_min, t->tm_sec);
         em->sendApplyEffect(end);
     }
@@ -60,7 +62,7 @@ void StartEffectTask::_DoExecute()
 EndEffectTask::EndEffectTask(unsigned int time, unsigned int flag)
     : CTaskScheduler::CTask(time, flag)
 {
-    *(char*)((char*)this + 0x10) = 1;
+    ((RA_S8<16>*)this)->v = 1;
     EventManager::Get()->SetEndEffectTask(this);
 }
 
@@ -68,7 +70,7 @@ EndEffectTask::~EndEffectTask() {}
 
 void EndEffectTask::_DoExecute()
 {
-    if (*(char*)((char*)this + 0x10) != 0)
+    if (((RA_S8<16>*)this)->v != 0)
     {
         time_t now = time(0);
         EventManager* em = EventManager::Get();
@@ -77,14 +79,21 @@ void EndEffectTask::_DoExecute()
         StartEffectTask* task = new StartEffectTask(next, 0);
         ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
         tm* t = localtime((time_t*)&next);
-        DNF_LOG_SCOPE_AT("_DoExecute", 200,"./log/AradOnly", "[Momiji] start event. next startEffect %02dh:%02dm:%02ds",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 200,"./log/AradOnly", "[Momiji] start event. next startEffect %02dh:%02dm:%02ds",
             t->tm_hour, t->tm_min, t->tm_sec);
         EventManager::Get()->sendDeleteEffect();
     }
     EventManager::Get()->SetEndEffectTask(0);
 }
 
-EventManager::EventManager() {}
+EventManager::EventManager()
+{
+    m_startHour = 0;
+    m_interval = 0;
+    m_duration = 0;
+    m_startTask = 0;
+    m_endTask = 0;
+}
 
 EventManager::~EventManager() {}
 
@@ -116,11 +125,10 @@ void EventManager::SetEndEffectTask(EndEffectTask* task)
 
 void EventManager::sendApplyEffect(unsigned int time)
 {
-    CApplication* app = (CApplication*)CApplicationInstance();
-    unsigned int group = (unsigned int)app->Get_ServerGroup();
-    Packet_Arad_ApplyEffect pkt(group & 0xff, 2, time);
-    app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
-    DNF_LOG_SCOPE_AT("sendApplyEffect", 0x97, "./log/AradOnly", "[Momiji] apply effect. (code:%u)", 2);
+    Packet_Arad_ApplyEffect pkt(
+        (int)(unsigned char)((CApplication*)CApplicationInstance())->Get_ServerGroup(), 2, time);
+    ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x97, "./log/AradOnly", "[Momiji] apply effect. (code:%u)", 2);
 }
 
 void EventManager::StartEvent(unsigned char startHour, unsigned char interval,
@@ -146,28 +154,27 @@ void EventManager::StartEvent(unsigned char startHour, unsigned char interval,
             StartEffectTask* task = new StartEffectTask((unsigned int)first, 0);
             ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
             tm* t2 = localtime((time_t*)&first);
-            DNF_LOG_SCOPE_AT("StartEvent", 0x6e,"./log/AradOnly", "[Momiji] start event. first time %02dh:%02dm:%02ds",
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x6e,"./log/AradOnly", "[Momiji] start event. first time %02dh:%02dm:%02ds",
                 t2->tm_hour, t2->tm_min, t2->tm_sec);
         }
         else
         {
-            DNF_LOG_SCOPE_AT("StartEvent", 0x51, "./log/AradOnly", "[Momiji] (startTime(%d) >= 24)", (unsigned int)startHour);
+            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x51, "./log/AradOnly", "[Momiji] (startTime(%d) >= 24)", (unsigned int)startHour);
         }
     }
     else
     {
-        DNF_LOG_SCOPE_AT("StartEvent", 0x4b,"./log/AradOnly", "[Momiji] (durationTime(%d) >= intervalTime(%d))",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x4b,"./log/AradOnly", "[Momiji] (durationTime(%d) >= intervalTime(%d))",
             (unsigned int)duration, (unsigned int)interval);
     }
 }
 
 void EventManager::sendDeleteEffect()
 {
-    CApplication* app = (CApplication*)CApplicationInstance();
-    unsigned int group = (unsigned int)app->Get_ServerGroup();
-    Packet_Arad_DeleteEffect pkt((int)(group & 0xff), 2);
-    app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
-    DNF_LOG_SCOPE_AT("sendDeleteEffect", 0x9e, "./log/AradOnly", "[Momiji] delete effect. (code:%u)", 2);
+    Packet_Arad_DeleteEffect pkt(
+        (int)(unsigned char)((CApplication*)CApplicationInstance())->Get_ServerGroup(), 2);
+    ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x9e, "./log/AradOnly", "[Momiji] delete effect. (code:%u)", 2);
 }
 
 void EventManager::EndEvent()
@@ -175,11 +182,11 @@ void EventManager::EndEvent()
     sendDeleteEffect();
     if (m_startTask != 0)
     {
-        *(char*)((char*)m_startTask + 0x10) = 0;
+        ((RA_S8<16>*)m_startTask)->v = 0;
     }
     if (m_endTask != 0)
     {
-        *(char*)((char*)m_endTask + 0x10) = 0;
+        ((RA_S8<16>*)m_endTask)->v = 0;
     }
     Init();
 }
@@ -192,24 +199,23 @@ void EventAction::onStartAction(EventParam& param)
     {
         m_running = 1;
         DNF_LOG_SCOPE_AT("onStartAction", 0x17,"./log/AradOnly", "[Momiji] onStartAction(%d,%d,%d)",
-            (unsigned int)(unsigned char)*(char*)((char*)&param + 0),
-            (unsigned int)(unsigned char)*(char*)((char*)&param + 1),
-            (unsigned int)(unsigned char)*(char*)((char*)&param + 2));
+            (unsigned int)(unsigned char)((RA_S8<0>*)&param)->v,
+            (unsigned int)(unsigned char)((RA_S8<1>*)&param)->v,
+            (unsigned int)(unsigned char)((RA_S8<2>*)&param)->v);
         EventManager* em = EventManager::Get();
-        em->StartEvent(*(unsigned char*)((char*)&param + 0),
-                       *(unsigned char*)((char*)&param + 1),
-                       *(unsigned char*)((char*)&param + 2));
+        em->StartEvent(((RA_U8<0>*)&param)->v,
+                       ((RA_U8<1>*)&param)->v,
+                       ((RA_U8<2>*)&param)->v);
     }
 }
 
 void EventAction::onEndAction()
 {
-    if (isRunning() != 0)
+    if (isRunning())
     {
         m_running = 0;
-        EventManager* em = EventManager::Get();
-        em->EndEvent();
-        DNF_LOG_SCOPE_AT("onEndAction", 0x26, "./log/AradOnly", "[Momiji] end event.");
+        EventManager::Get()->EndEvent();
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x26, "./log/AradOnly", "[Momiji] end event.");
     }
 }
 

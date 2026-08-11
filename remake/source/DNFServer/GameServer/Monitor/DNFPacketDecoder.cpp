@@ -1,5 +1,6 @@
 // df_monitor_r — DNFPacketDecoder（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -38,13 +39,13 @@
 CPacketDecoder::CPacketDecoder()
 {
     int i;
-    *(int*)((char*)this + 0) = 0;
-    *(int*)((char*)this + 4) = 0;
-    *(int*)((char*)this + 8) = 0;
-    *(int*)((char*)this + 0xc) = 0;
-    *(int*)((char*)this + 0x10) = 0;
-    *(int*)((char*)this + 0x14) = 0;
-    *(int*)((char*)this + 0x18) = 0;
+    ((RA_INT<0>*)this)->v = 0;
+    ((RA_INT<4>*)this)->v = 0;
+    ((RA_INT<8>*)this)->v = 0;
+    ((RA_INT<12>*)this)->v = 0;
+    ((RA_INT<16>*)this)->v = 0;
+    ((RA_INT<20>*)this)->v = 0;
+    ((RA_INT<24>*)this)->v = 0;
     for (i = 1000; i < 0x2800; i++)
     {
         m_handlers[i] = 0;
@@ -170,7 +171,11 @@ CPacketDecoder::CPacketDecoder()
     REG_HANDLER(10239, onReloadSecurityRestrictPolicy);
 }
 
-CPacketDecoder::~CPacketDecoder() {}
+CPacketDecoder::~CPacketDecoder()
+{
+    m_field0 = 0;
+    m_field4 = 0;
+}
 
 void CPacketDecoder::Attach(CApplication* app)
 {

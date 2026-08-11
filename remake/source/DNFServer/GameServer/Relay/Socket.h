@@ -7,7 +7,7 @@
 
 #include "ThreadLock.h"
 
-// TCPSocket：sock_@0 / adrs_@4[16] / peer_ip@0x14 / peer_port@0x18，总 0x20
+// TCPSocket：sock_@0 / adrs_@4[16] / peer_ip@0x14 / peer_port@0x18，总 0x1c（无显式 pad）
 class TCPSocket
 {
 public:
@@ -44,7 +44,6 @@ private:
     sockaddr_in adrs_;          // +4 (16B)
     unsigned int peer_ip_;      // +0x14
     unsigned short peer_port_;  // +0x18
-    char pad_[2];               // +0x1a..0x1b（总 0x1c）
 };
 
 // UDPSocket：sock_@0 / adrs_@4[16] / port_@0x14 / from_@0x18[16] /
@@ -55,7 +54,7 @@ public:
     UDPSocket();
     ~UDPSocket();
     bool open();
-    int bind(unsigned short port, bool bNonBlock);
+    bool bind(unsigned short port, bool bNonBlock);
     bool setOptNonBlock();
     void delDisconnectUser(unsigned int acc_id);
     void pushMonitorAuthPacket(unsigned int acc_id);

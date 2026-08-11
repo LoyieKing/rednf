@@ -289,7 +289,10 @@ void CBuddyHandle::reset(CUser* user, bool flag)
 
 void CBuddyHandle::clear(bool flag)
 {
-    if (!m_buddies.empty())
+    if (m_buddies.empty())
+    {
+    }
+    else
     {
         if (flag)
         {
@@ -304,4 +307,5 @@ void CBuddyHandle::clear(bool flag)
         }
         m_buddies.clear();
     }
+    return;
 }

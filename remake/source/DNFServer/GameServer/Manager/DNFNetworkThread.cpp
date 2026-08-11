@@ -14,17 +14,29 @@
 #include "DNFUdpHandler.h"
 #include "Thread.h"
 
-CUdpNetworkThread::CUdpNetworkThread() {}
-CUdpNetworkThread::~CUdpNetworkThread() {}
+CUdpNetworkThread::CUdpNetworkThread()
+{
+    m_udpQueue = 0;
+    m_udpHandler = 0;
+    m_udpQLock = 0;
+    m_udpBLock = 0;
+}
+CUdpNetworkThread::~CUdpNetworkThread()
+{
+    m_udpQueue = 0;
+    m_udpHandler = 0;
+    m_udpQLock = 0;
+}
 
 void CUdpNetworkThread::attach(CApplication* app)
 {
-    if (!app)
-        return;
-    m_udpQueue = app->Get_UdpPacketRecvQ();
-    m_udpHandler = app->Get_UdpHandler();
-    m_udpQLock = app->Get_UdpQLock();
-    m_udpBLock = app->Get_UdpBLock();
+    if (app)
+    {
+        m_udpQueue = app->Get_UdpPacketRecvQ();
+        m_udpHandler = app->Get_UdpHandler();
+        m_udpQLock = app->Get_UdpQLock();
+        m_udpBLock = app->Get_UdpBLock();
+    }
 }
 
 void* CUdpNetworkThread::dispatch(void* param)
@@ -36,7 +48,8 @@ void* CUdpNetworkThread::dispatch(void* param)
         DNFFLib::Sleep_Ext(5, 0);
         puts("Network Thread Start!");
         m_stop = 1;
-        int sock = ((CUdpHandler*)m_udpHandler)->GetServerSocket();
+        // ORIG：FD_SET/FD_ISSET 中 sock/32 为无符号 shr（sock 为 unsigned）。
+        unsigned int sock = ((CUdpHandler*)m_udpHandler)->GetServerSocket();
         int flags = fcntl(sock, F_GETFL, 0);
         flags |= O_NONBLOCK;
         if (fcntl(sock, F_SETFL, flags) < 0)
@@ -47,7 +60,10 @@ void* CUdpNetworkThread::dispatch(void* param)
         while (m_stop)
         {
             fd_set readfds;
-            FD_ZERO(&readfds);
+            // ORIG：FD_ZERO 展开为 32 次循环清零（老 glibc 宏形态；
+            // 4.4.7 头是 memset/rep stos，需显式循环复现）。
+            for (int i = 0; i < 0x20; i++)
+                readfds.fds_bits[i] = 0;
             FD_SET(sock, &readfds);
             struct timeval tv;
             tv.tv_sec = 1;
@@ -73,7 +89,7 @@ void* CUdpNetworkThread::dispatch(void* param)
             unsigned short code = *(unsigned short*)((char*)buf + 2);
             if (code != (unsigned short)size)
             {
-                CMyFileLog log("dispatch", 0xb5);
+                CMyFileLog log(__FUNCTION__, 0xb5);
                 log("./log/recvErr",
                     "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                     *(unsigned short*)buf, size, code);
@@ -85,7 +101,7 @@ void* CUdpNetworkThread::dispatch(void* param)
             }
             if (code > 0x17ff)
             {
-                CMyFileLog log("dispatch", 0xc0);
+                CMyFileLog log(__FUNCTION__, 0xc0);
                 log("./log/recvErr",
                     "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                     *(unsigned short*)buf, size, code);
@@ -97,7 +113,7 @@ void* CUdpNetworkThread::dispatch(void* param)
             }
             if (size > 0x1800)
             {
-                CMyFileLog log("dispatch", 0xcc);
+                CMyFileLog log(__FUNCTION__, 0xcc);
                 log("./log/recvErr",
                     "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                     *(unsigned short*)buf, size, code);
@@ -114,7 +130,7 @@ void* CUdpNetworkThread::dispatch(void* param)
                 m_udpQueue->push(buf);
                 if (m_udpQueue->size() > 0x64)
                 {
-                    CMyFileLog log("dispatch", 0xe0);
+                    CMyFileLog log(__FUNCTION__, 0xe0);
                     log("./log/recv",
                         "buffer(%d) ,id(%d), size(%d) \n",
                         m_udpQueue->size(), *(unsigned short*)buf, code);

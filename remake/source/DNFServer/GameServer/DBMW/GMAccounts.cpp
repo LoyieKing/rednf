@@ -63,10 +63,12 @@ WongWork::CGMAccounts::stGMInfo_t WongWork::CGMAccounts::getGMInfo(
 }
 int WongWork::CGMAccounts::appendGM(unsigned int id, unsigned int flag)
 {
+    char pad[0x10];
     return 0;
 }
 int WongWork::CGMAccounts::removeGM(unsigned int id, unsigned int flag)
 {
+    char pad[0x20];
     return 0;
 }
 void WongWork::CGMAccounts::clearGmList() { m_list.clear(); }
@@ -84,6 +86,6 @@ void WongWork::CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
     info.m_field1 = (int)flag;
     m_list.push_back(info);
     char* mid = NumberToString(id, 0);
-    CMyFileLog log("AppendGM_Sys", 0xcd);
+    CMyFileLog log(__FUNCTION__, 0xcd);
     log("./log/Init", "GM List Add mid:%s", mid);
 }

@@ -58,7 +58,7 @@ void CCubeStatistic::sendStatisticData(CServerHandler* handler)
                 *(unsigned int*)((char*)&pkt + 10) = 0x1d6;
                 handler->SendToDB((PacketHeader*)&pkt);
                 count = 0;
-                DNF_LOG_SCOPE_LINE(0x40, "./log/statistic", "cube statistic DB Sent %d", 0x1d6);
+                DNF_LOG_SCOPE_LINE(0x40, "./log/statistic", "CCubeStatistic::sendStatisticData : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", 0x1d6);
             }
         }
         if (0 < (int)count)
@@ -66,7 +66,7 @@ void CCubeStatistic::sendStatisticData(CServerHandler* handler)
             *(unsigned int*)((char*)&pkt + 10) = count;
             *(unsigned short*)((char*)&pkt + 2) = (unsigned short)(count * 0xd + 0xe);
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x49, "./log/statistic", "cube statistic DB Sent %d", count);
+            DNF_LOG_SCOPE_LINE(0x49, "./log/statistic", "CCubeStatistic::sendStatisticData : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", count);
         }
     }
 }

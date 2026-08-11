@@ -245,9 +245,8 @@ public:
     ~TowerOfDespairReloadAPC_Task();
     void _DoExecute();
     static bool isReturnedMessage();
-    static void returnUpdateMessageFromGameServer();
     static void SendRequest_DoRandomSelectUserAPC();
-    static bool returnUpdateMessageFromGameServer_flag;
+    static bool returnUpdateMessageFromGameServer;
 };
 
 class TowerOfDespairWaitGameServerResponse_Task : public CTaskScheduler::CTask

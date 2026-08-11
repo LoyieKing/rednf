@@ -88,13 +88,11 @@ void CPacketTranslater::OnClientSpecStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnClientSpecStatistic", 254);
-        log("./log/Except", "CPacketTranslater::OnClientSpecStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 254)("./log/Except", "CPacketTranslater::OnClientSpecStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnClientSpecStatistic", 259);
-        log("./log/Except", "CPacketTranslater::OnClientSpecStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 259)("./log/Except", "CPacketTranslater::OnClientSpecStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
@@ -106,30 +104,18 @@ void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
         char* pb = (char*)pkt;
         if (access("./SHOW_PACKET", 0) == 0)
         {
-            CMyFileLog log1("OnFrameLagStatisticsAdd", 0x124);
-            log1("./log/FrameLag.log", "packet->m_wSize\t\t: %hu", *(unsigned short*)(pb + 2));
-            CMyFileLog log2("OnFrameLagStatisticsAdd", 0x125);
-            log2("./log/FrameLag.log", "crashCount\t\t\t\t: %hhd", (int)(char)pb[0x1f]);
-            CMyFileLog log3("OnFrameLagStatisticsAdd", 0x126);
-            log3("./log/FrameLag.log", "cpuInfo.cpuClock       : %d", *(int*)(pb + 0x28));
-            CMyFileLog log4("OnFrameLagStatisticsAdd", 0x127);
-            log4("./log/FrameLag.log", "cpuInfo.numOfProcessor : %hhd", (int)(char)pb[0x38]);
-            CMyFileLog log5("OnFrameLagStatisticsAdd", 0x128);
-            log5("./log/FrameLag.log", "cpuInfo.cpuVendor      : %hhd", (int)(char)pb[0x3c]);
-            CMyFileLog log6("OnFrameLagStatisticsAdd", 0x129);
-            log6("./log/FrameLag.log", "videoCardVendorId      : %hu", (unsigned int)*(unsigned short*)(pb + 0x48));
-            CMyFileLog log7("OnFrameLagStatisticsAdd", 0x12a);
-            log7("./log/FrameLag.log", "videoCardDeviceId      : %hu", (unsigned int)*(unsigned short*)(pb + 0x50));
-            CMyFileLog log8("OnFrameLagStatisticsAdd", 299);
-            log8("./log/FrameLag.log", "availableTextureMemory : %hd", (int)*(short*)(pb + 0x58));
-            CMyFileLog log9("OnFrameLagStatisticsAdd", 300);
-            log9("./log/FrameLag.log", "ramMemory              : %hd", (int)*(short*)(pb + 0x60));
-            CMyFileLog log10("OnFrameLagStatisticsAdd", 0x12d);
-            log10("./log/FrameLag.log", "osVersion              : %hhd", (int)(char)pb[0x68]);
-            CMyFileLog log11("OnFrameLagStatisticsAdd", 0x12e);
-            log11("./log/FrameLag.log", "directxVersion         : %x", *(unsigned int*)(pb + 0x6c));
-            CMyFileLog log12("OnFrameLagStatisticsAdd", 0x130);
-            log12("./log/FrameLag.log", "crash\t\t\t\t\t: %hhd", (int)(char)pb[0x7c]);
+            CMyFileLog(__FUNCTION__, 0x124)("./log/FrameLag.log", "packet->m_wSize\t\t: %hu", *(unsigned short*)(pb + 2));
+            CMyFileLog(__FUNCTION__, 0x125)("./log/FrameLag.log", "crashCount\t\t\t\t: %hhd", (int)(char)pb[0x1f]);
+            CMyFileLog(__FUNCTION__, 0x126)("./log/FrameLag.log", "cpuInfo.cpuClock       : %d", *(int*)(pb + 0x28));
+            CMyFileLog(__FUNCTION__, 0x127)("./log/FrameLag.log", "cpuInfo.numOfProcessor : %hhd", (int)(char)pb[0x38]);
+            CMyFileLog(__FUNCTION__, 0x128)("./log/FrameLag.log", "cpuInfo.cpuVendor      : %hhd", (int)(char)pb[0x3c]);
+            CMyFileLog(__FUNCTION__, 0x129)("./log/FrameLag.log", "videoCardVendorId      : %hu", (unsigned int)*(unsigned short*)(pb + 0x48));
+            CMyFileLog(__FUNCTION__, 0x12a)("./log/FrameLag.log", "videoCardDeviceId      : %hu", (unsigned int)*(unsigned short*)(pb + 0x50));
+            CMyFileLog(__FUNCTION__, 299)("./log/FrameLag.log", "availableTextureMemory : %hd", (int)*(short*)(pb + 0x58));
+            CMyFileLog(__FUNCTION__, 300)("./log/FrameLag.log", "ramMemory              : %hd", (int)*(short*)(pb + 0x60));
+            CMyFileLog(__FUNCTION__, 0x12d)("./log/FrameLag.log", "osVersion              : %hhd", (int)(char)pb[0x68]);
+            CMyFileLog(__FUNCTION__, 0x12e)("./log/FrameLag.log", "directxVersion         : %x", *(unsigned int*)(pb + 0x6c));
+            CMyFileLog(__FUNCTION__, 0x130)("./log/FrameLag.log", "crash\t\t\t\t\t: %hhd", (int)(char)pb[0x7c]);
             if (-1 < (char)pb[0x7c] && (char)pb[0x7c] < 8)
             {
                 chk_ting[(char)pb[0x7c]]++;
@@ -142,38 +128,29 @@ void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
             unsigned int t0 = *(unsigned int*)(pb + 0x138);
             for (int i = 0; i < 6; i++)
             {
-                CMyFileLog log13("OnFrameLagStatisticsAdd", 0x138);
-                log13("./log/FrameLag.log", "window_fps fps[%d]             : %hd", i,
+                CMyFileLog(__FUNCTION__, 0x138)("./log/FrameLag.log", "window_fps fps[%d]             : %hd", i,
                       (int)*(short*)(pb + i * 0x38 + 0x24));
-                CMyFileLog log14("OnFrameLagStatisticsAdd", 0x139);
-                log14("./log/FrameLag.log", "full_fps fps[%d]               : %hd", i,
+                CMyFileLog(__FUNCTION__, 0x139)("./log/FrameLag.log", "full_fps fps[%d]               : %hd", i,
                       (int)*(short*)(pb + i * 0x38 + 0x26));
-                CMyFileLog log15("OnFrameLagStatisticsAdd", 0x13a);
-                log15("./log/FrameLag.log", "full_window_fps fps[%d]        : %hd", i,
+                CMyFileLog(__FUNCTION__, 0x13a)("./log/FrameLag.log", "full_window_fps fps[%d]        : %hd", i,
                       (int)*(short*)(pb + i * 0x38 + 0x28));
-                CMyFileLog log16("OnFrameLagStatisticsAdd", 0x13b);
-                log16("./log/FrameLag.log", "full_window_nosync_fps fps[%d] : %hd", i,
+                CMyFileLog(__FUNCTION__, 0x13b)("./log/FrameLag.log", "full_window_nosync_fps fps[%d] : %hd", i,
                       (int)*(short*)(pb + i * 0x38 + 0x2a));
                 for (int j = 0; j < 6; j++)
                 {
-                    CMyFileLog log17("OnFrameLagStatisticsAdd", 0x13e);
-                    log17("./log/FrameLag.log",
+                    CMyFileLog(__FUNCTION__, 0x13e)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].frame : %d", i, j,
                           *(int*)(pb + (i * 7 + j + 4) * 8 + 0xc));
-                    CMyFileLog log18("OnFrameLagStatisticsAdd", 0x13f);
-                    log18("./log/FrameLag.log",
+                    CMyFileLog(__FUNCTION__, 0x13f)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].time : %.3f", i, j,
                           (double)*(float*)(pb + (i * 7 + j + 4) * 8 + 0x10));
                 }
             }
-            CMyFileLog log19("OnFrameLagStatisticsAdd", 0x142);
-            log19("./log/FrameLag.log", "TOTAL TING : %u, %u, %u, %u, %u, %u",
+            CMyFileLog(__FUNCTION__, 0x142)("./log/FrameLag.log", "TOTAL TING : %u, %u, %u, %u, %u, %u",
                   t0, t1, t2, t3, t4, t5);
             unsigned int valid = flc->is_valid_statistic_packet((Packet_Frame_Lag_Statistic_Add*)pkt);
-            CMyFileLog log20("OnFrameLagStatisticsAdd", 0x144);
-            log20("./log/FrameLag.log", "packet validation : %d", valid & 0xff);
-            CMyFileLog log21("OnFrameLagStatisticsAdd", 0x146);
-            log21("./log/FrameLag.log", "\n");
+            CMyFileLog(__FUNCTION__, 0x144)("./log/FrameLag.log", "packet validation : %d", valid & 0xff);
+            CMyFileLog(__FUNCTION__, 0x146)("./log/FrameLag.log", "\n");
         }
         else
         {
@@ -188,13 +165,11 @@ void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFrameLagStatisticsAdd", 340);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsAdd() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 340)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsAdd() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFrameLagStatisticsAdd", 345);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsAdd() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 345)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsAdd() Exception Break\n");
     }
 }
 void CPacketTranslater::OnFrameLagStatisticsResultLoadSpec(PacketHeader* pkt)
@@ -209,13 +184,11 @@ void CPacketTranslater::OnFrameLagStatisticsResultLoadSpec(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFrameLagStatisticsResultLoadSpec", 370);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultLoadSpec() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 370)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultLoadSpec() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFrameLagStatisticsResultLoadSpec", 375);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultLoadSpec() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 375)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultLoadSpec() Exception Break\n");
     }
 }
 void CPacketTranslater::OnFrameLagStatisticsResultReloadSpec(PacketHeader* pkt)
@@ -230,13 +203,11 @@ void CPacketTranslater::OnFrameLagStatisticsResultReloadSpec(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFrameLagStatisticsResultReloadSpec", 396);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultReloadSpec() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 396)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultReloadSpec() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFrameLagStatisticsResultReloadSpec", 401);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultReloadSpec() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 401)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsResultReloadSpec() Exception Break\n");
     }
 }
 void CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck(PacketHeader* pkt)
@@ -251,13 +222,11 @@ void CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck(PacketHeader* p
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFrameLagStatisticsCollectIntervalCheck", 422);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 422)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFrameLagStatisticsCollectIntervalCheck", 427);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 427)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsCollectIntervalCheck() Exception Break\n");
     }
 }
 void CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify(PacketHeader* pkt)
@@ -272,13 +241,11 @@ void CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFrameLagStatisticsSpecDeleteNotify", 450);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 450)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFrameLagStatisticsSpecDeleteNotify", 455);
-        log("./log/Except", "CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 455)("./log/Except", "CPacketTranslater::OnFrameLagStatisticsSpecDeleteNotify() Exception Break\n");
     }
 }
 void CPacketTranslater::OnPartyResultStatistic(PacketHeader* pkt)
@@ -293,13 +260,11 @@ void CPacketTranslater::OnPartyResultStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnPartyResultStatistic", 478);
-        log("./log/Except", "CPacketTranslater::OnPartyResultStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 478)("./log/Except", "CPacketTranslater::OnPartyResultStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnPartyResultStatistic", 484);
-        log("./log/Except", "CPacketTranslater::OnPartyResultStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 484)("./log/Except", "CPacketTranslater::OnPartyResultStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnPartyPingStatistic(PacketHeader* pkt)
@@ -314,13 +279,11 @@ void CPacketTranslater::OnPartyPingStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnPartyPingStatistic", 508);
-        log("./log/Except", "CPacketTranslater::OnPartyPingStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 508)("./log/Except", "CPacketTranslater::OnPartyPingStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnPartyPingStatistic", 514);
-        log("./log/Except", "CPacketTranslater::OnPartyPingStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 514)("./log/Except", "CPacketTranslater::OnPartyPingStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnPvpPingStatistic(PacketHeader* pkt)
@@ -335,13 +298,11 @@ void CPacketTranslater::OnPvpPingStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnPvpPingStatistic", 538);
-        log("./log/Except", "CPacketTranslater::OnPvpPingStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 538)("./log/Except", "CPacketTranslater::OnPvpPingStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnPvpPingStatistic", 544);
-        log("./log/Except", "CPacketTranslater::OnPvpPingStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 544)("./log/Except", "CPacketTranslater::OnPvpPingStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnFairPvpPingStatistic(PacketHeader* pkt)
@@ -356,13 +317,11 @@ void CPacketTranslater::OnFairPvpPingStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFairPvpPingStatistic", 569);
-        log("./log/Except", "CPacketTranslater::OnFairPvpPingStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 569)("./log/Except", "CPacketTranslater::OnFairPvpPingStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFairPvpPingStatistic", 575);
-        log("./log/Except", "CPacketTranslater::OnFairPvpPingStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 575)("./log/Except", "CPacketTranslater::OnFairPvpPingStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnAbnormalExitStatistic(PacketHeader* pkt)
@@ -377,13 +336,11 @@ void CPacketTranslater::OnAbnormalExitStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnAbnormalExitStatistic", 600);
-        log("./log/Except", "CPacketTranslater::OnAbnormalExitStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 600)("./log/Except", "CPacketTranslater::OnAbnormalExitStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnAbnormalExitStatistic", 606);
-        log("./log/Except", "CPacketTranslater::OnAbnormalExitStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 606)("./log/Except", "CPacketTranslater::OnAbnormalExitStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnDungeonStatisticParty(PacketHeader* pkt)
@@ -398,13 +355,11 @@ void CPacketTranslater::OnDungeonStatisticParty(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnDungeonStatisticParty", 631);
-        log("./log/Except", "CPacketTranslater::OnDungeonStatisticParty() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 631)("./log/Except", "CPacketTranslater::OnDungeonStatisticParty() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnDungeonStatisticParty", 637);
-        log("./log/Except", "CPacketTranslater::OnDungeonStatisticParty() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 637)("./log/Except", "CPacketTranslater::OnDungeonStatisticParty() Exception Break\n");
     }
 }
 void CPacketTranslater::OnDungeonStatisticPartyJob(PacketHeader* pkt)
@@ -419,13 +374,11 @@ void CPacketTranslater::OnDungeonStatisticPartyJob(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnDungeonStatisticPartyJob", 663);
-        log("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyJob() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 663)("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyJob() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnDungeonStatisticPartyJob", 669);
-        log("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyJob() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 669)("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyJob() Exception Break\n");
     }
 }
 void CPacketTranslater::OnDungeonStatisticPartyCharac(PacketHeader* pkt)
@@ -440,13 +393,11 @@ void CPacketTranslater::OnDungeonStatisticPartyCharac(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnDungeonStatisticPartyCharac", 695);
-        log("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyCharac() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 695)("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyCharac() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnDungeonStatisticPartyCharac", 701);
-        log("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyCharac() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 701)("./log/Except", "CPacketTranslater::OnDungeonStatisticPartyCharac() Exception Break\n");
     }
 }
 void CPacketTranslater::OnDeathTowerStatisticValue(PacketHeader* pkt)
@@ -461,13 +412,11 @@ void CPacketTranslater::OnDeathTowerStatisticValue(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnDeathTowerStatisticValue", 728);
-        log("./log/Except", "CPacketTranslater::OnDeathTowerStatisticValue() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 728)("./log/Except", "CPacketTranslater::OnDeathTowerStatisticValue() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnDeathTowerStatisticValue", 734);
-        log("./log/Except", "CPacketTranslater::OnDeathTowerStatisticValue() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 734)("./log/Except", "CPacketTranslater::OnDeathTowerStatisticValue() Exception Break\n");
     }
 }
 void CPacketTranslater::OnDeathTowerStatisticPlayDataJob(PacketHeader* pkt)
@@ -482,13 +431,11 @@ void CPacketTranslater::OnDeathTowerStatisticPlayDataJob(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnDeathTowerStatisticPlayDataJob", 760);
-        log("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataJob() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 760)("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataJob() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnDeathTowerStatisticPlayDataJob", 766);
-        log("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataJob() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 766)("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataJob() Exception Break\n");
     }
 }
 void CPacketTranslater::OnDeathTowerStatisticPlayDataParty(PacketHeader* pkt)
@@ -503,13 +450,11 @@ void CPacketTranslater::OnDeathTowerStatisticPlayDataParty(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnDeathTowerStatisticPlayDataParty", 792);
-        log("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataParty() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 792)("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataParty() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnDeathTowerStatisticPlayDataParty", 798);
-        log("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataParty() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 798)("./log/Except", "CPacketTranslater::OnDeathTowerStatisticPlayDataParty() Exception Break\n");
     }
 }
 void CPacketTranslater::OnPacketOverflowStatistic(PacketHeader* pkt)
@@ -524,13 +469,11 @@ void CPacketTranslater::OnPacketOverflowStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnPacketOverflowStatistic", 822);
-        log("./log/Except", "CPacketTranslater::OnPacketOverflowStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 822)("./log/Except", "CPacketTranslater::OnPacketOverflowStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnPacketOverflowStatistic", 827);
-        log("./log/Except", "CPacketTranslater::OnPacketOverflowStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 827)("./log/Except", "CPacketTranslater::OnPacketOverflowStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnAssertManagerStatistic(PacketHeader* pkt)
@@ -545,13 +488,11 @@ void CPacketTranslater::OnAssertManagerStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnAssertManagerStatistic", 845);
-        log("./log/Except", "CPacketTranslater::OnAssertManagerStatistic() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 845)("./log/Except", "CPacketTranslater::OnAssertManagerStatistic() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnAssertManagerStatistic", 850);
-        log("./log/Except", "CPacketTranslater::OnAssertManagerStatistic() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 850)("./log/Except", "CPacketTranslater::OnAssertManagerStatistic() Exception Break\n");
     }
 }
 void CPacketTranslater::OnUserTingTimeCheck(PacketHeader* pkt)
@@ -566,13 +507,11 @@ void CPacketTranslater::OnUserTingTimeCheck(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnUserTingTimeCheck", 868);
-        log("./log/Except", "CPacketTranslater::OnUserTingTimeCheck() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 868)("./log/Except", "CPacketTranslater::OnUserTingTimeCheck() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnUserTingTimeCheck", 873);
-        log("./log/Except", "CPacketTranslater::OnUserTingTimeCheck() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 873)("./log/Except", "CPacketTranslater::OnUserTingTimeCheck() Exception Break\n");
     }
 }
 void CPacketTranslater::OnHellPartyStatisticItem(PacketHeader* pkt)
@@ -587,13 +526,11 @@ void CPacketTranslater::OnHellPartyStatisticItem(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnHellPartyStatisticItem", 896);
-        log("./log/Except", "CPacketTranslater::OnHellPartyStatisticItem() Exception Break : %s\n", reason);
+        CMyFileLog(__FUNCTION__, 896)("./log/Except", "CPacketTranslater::OnHellPartyStatisticItem() Exception Break : %s\n", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnHellPartyStatisticItem", 902);
-        log("./log/Except", "CPacketTranslater::OnHellPartyStatisticItem() Exception Break\n");
+        CMyFileLog(__FUNCTION__, 902)("./log/Except", "CPacketTranslater::OnHellPartyStatisticItem() Exception Break\n");
     }
 }
 void CPacketTranslater::OnLoadingTimeReportStatistics(PacketHeader* pkt)
@@ -608,13 +545,11 @@ void CPacketTranslater::OnLoadingTimeReportStatistics(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnLoadingTimeReportStatistics", 923);
-        log("./log/Except", "CPacketTranslater::OnLoadingTimeReportStatistics() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 923)("./log/Except", "CPacketTranslater::OnLoadingTimeReportStatistics() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnLoadingTimeReportStatistics", 928);
-        log("./log/Except", "CPacketTranslater::OnLoadingTimeReportStatistics() Exception Break");
+        CMyFileLog(__FUNCTION__, 928)("./log/Except", "CPacketTranslater::OnLoadingTimeReportStatistics() Exception Break");
     }
 }
 void CPacketTranslater::OnFatigueBatteryMoneyStatistics(PacketHeader* pkt)
@@ -629,13 +564,11 @@ void CPacketTranslater::OnFatigueBatteryMoneyStatistics(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFatigueBatteryMoneyStatistics", 946);
-        log("./log/Except", "CPacketTranslater::OnFatigueBatteryMoneyStatistics() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 946)("./log/Except", "CPacketTranslater::OnFatigueBatteryMoneyStatistics() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFatigueBatteryMoneyStatistics", 951);
-        log("./log/Except", "CPacketTranslater::OnFatigueBatteryMoneyStatistics() Exception Break");
+        CMyFileLog(__FUNCTION__, 951)("./log/Except", "CPacketTranslater::OnFatigueBatteryMoneyStatistics() Exception Break");
     }
 }
 void CPacketTranslater::OnBloodDungeonStatistic(PacketHeader* pkt)
@@ -650,13 +583,11 @@ void CPacketTranslater::OnBloodDungeonStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnBloodDungeonStatistic", 994);
-        log("./log/Except", "CPacketTranslater::OnBloodDungeonStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 994)("./log/Except", "CPacketTranslater::OnBloodDungeonStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnBloodDungeonStatistic", 999);
-        log("./log/Except", "CPacketTranslater::OnBloodDungeonStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 999)("./log/Except", "CPacketTranslater::OnBloodDungeonStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnCubeStatistic(PacketHeader* pkt)
@@ -671,13 +602,11 @@ void CPacketTranslater::OnCubeStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnCubeStatistic", 1017);
-        log("./log/Except", "CPacketTranslater::OnCubeStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1017)("./log/Except", "CPacketTranslater::OnCubeStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnCubeStatistic", 1022);
-        log("./log/Except", "CPacketTranslater::OnCubeStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1022)("./log/Except", "CPacketTranslater::OnCubeStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnReasonCrashDownData(PacketHeader* pkt)
@@ -692,13 +621,11 @@ void CPacketTranslater::OnReasonCrashDownData(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnReasonCrashDownData", 1040);
-        log("./log/Except", "CPacketTranslater::OnReasonCrashDownData() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1040)("./log/Except", "CPacketTranslater::OnReasonCrashDownData() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnReasonCrashDownData", 1045);
-        log("./log/Except", "CPacketTranslater::OnReasonCrashDownData() Exception Break");
+        CMyFileLog(__FUNCTION__, 1045)("./log/Except", "CPacketTranslater::OnReasonCrashDownData() Exception Break");
     }
 }
 void CPacketTranslater::OnUpdateDisjointAvatarStatic(PacketHeader* pkt)
@@ -713,13 +640,11 @@ void CPacketTranslater::OnUpdateDisjointAvatarStatic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnUpdateDisjointAvatarStatic", 1065);
-        log("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1065)("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnUpdateDisjointAvatarStatic", 1070);
-        log("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1070)("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break");
     }
 }
 void CPacketTranslater::OnUpdateCreateEmblemStatic(PacketHeader* pkt)
@@ -734,13 +659,11 @@ void CPacketTranslater::OnUpdateCreateEmblemStatic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnUpdateCreateEmblemStatic", 1091);
-        log("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1091)("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnUpdateCreateEmblemStatic", 1096);
-        log("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1096)("./log/Except", "CPacketTranslater::OnUpdateDisjointAvatarStatic() Exception Break");
     }
 }
 void CPacketTranslater::OnUserCountStatistic(PacketHeader* pkt)
@@ -755,13 +678,11 @@ void CPacketTranslater::OnUserCountStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnUserCountStatistic", 1116);
-        log("./log/Except", "CPacketTranslater::OnUserCountStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1116)("./log/Except", "CPacketTranslater::OnUserCountStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnUserCountStatistic", 1121);
-        log("./log/Except", "CPacketTranslater::OnUserCountStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1121)("./log/Except", "CPacketTranslater::OnUserCountStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnRandomboxStatistic(PacketHeader* pkt)
@@ -776,13 +697,11 @@ void CPacketTranslater::OnRandomboxStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnRandomboxStatistic", 1142);
-        log("./log/Except", "CPacketTranslater::OnRandomboxStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1142)("./log/Except", "CPacketTranslater::OnRandomboxStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnRandomboxStatistic", 1147);
-        log("./log/Except", "CPacketTranslater::OnRandomboxStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1147)("./log/Except", "CPacketTranslater::OnRandomboxStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnLagStatisticsAdd(PacketHeader* pkt)
@@ -797,13 +716,11 @@ void CPacketTranslater::OnLagStatisticsAdd(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnLagStatisticsAdd", 1166);
-        log("./log/Except", "CPacketTranlater::OnLagStatisticsAdd() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1166)("./log/Except", "CPacketTranlater::OnLagStatisticsAdd() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnLagStatisticsAdd", 1171);
-        log("./log/Except", "CPacketTranlater::OnLagStatisticsAdd() Exception Break");
+        CMyFileLog(__FUNCTION__, 1171)("./log/Except", "CPacketTranlater::OnLagStatisticsAdd() Exception Break");
     }
 }
 void CPacketTranslater::OnValueStatistic(PacketHeader* pkt)
@@ -818,13 +735,11 @@ void CPacketTranslater::OnValueStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnValueStatistic", 1198);
-        log("./log/Except", "CPacketTranslater::OnValueStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1198)("./log/Except", "CPacketTranslater::OnValueStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnValueStatistic", 1203);
-        log("./log/Except", "CPacketTranslater::OnValueStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1203)("./log/Except", "CPacketTranslater::OnValueStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnCirculationStatistic(PacketHeader* pkt)
@@ -839,13 +754,11 @@ void CPacketTranslater::OnCirculationStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnCirculationStatistic", 1230);
-        log("./log/Except", "CPacketTranslater::OnCirculationStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1230)("./log/Except", "CPacketTranslater::OnCirculationStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnCirculationStatistic", 1235);
-        log("./log/Except", "CPacketTranslater::OnCirculationStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1235)("./log/Except", "CPacketTranslater::OnCirculationStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnServerMatchData(PacketHeader* pkt)
@@ -860,13 +773,11 @@ void CPacketTranslater::OnServerMatchData(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnServerMatchData", 1255);
-        log("./log/Except", "CPacketTranslater::OnServerMatchData() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1255)("./log/Except", "CPacketTranslater::OnServerMatchData() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnServerMatchData", 1260);
-        log("./log/Except", "CPacketTranslater::OnServerMatchData() Exception Break");
+        CMyFileLog(__FUNCTION__, 1260)("./log/Except", "CPacketTranslater::OnServerMatchData() Exception Break");
     }
 }
 void CPacketTranslater::OnSecretShopStatistic(PacketHeader* pkt)
@@ -881,13 +792,11 @@ void CPacketTranslater::OnSecretShopStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnSecretShopStatistic", 1279);
-        log("./log/Except", "CPacketTranslater::OnSecretShopStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1279)("./log/Except", "CPacketTranslater::OnSecretShopStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnSecretShopStatistic", 1284);
-        log("./log/Except", "CPacketTranslater::OnSecretShopStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1284)("./log/Except", "CPacketTranslater::OnSecretShopStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnGoldCardEventStatistic(PacketHeader* pkt)
@@ -902,13 +811,11 @@ void CPacketTranslater::OnGoldCardEventStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnGoldCardEventStatistic", 1327);
-        log("./log/Except", "CPacketTranslater::OnGoldCardEventStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1327)("./log/Except", "CPacketTranslater::OnGoldCardEventStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnGoldCardEventStatistic", 1332);
-        log("./log/Except", "CPacketTranslater::OnGoldCardEventStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1332)("./log/Except", "CPacketTranslater::OnGoldCardEventStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnTowerOfDespairStatistic(PacketHeader* pkt)
@@ -923,13 +830,11 @@ void CPacketTranslater::OnTowerOfDespairStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnTowerOfDespairStatistic", 1351);
-        log("./log/Except", "CPacketTranslater::OnTowerOfDespairStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1351)("./log/Except", "CPacketTranslater::OnTowerOfDespairStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnTowerOfDespairStatistic", 1356);
-        log("./log/Except", "CPacketTranslater::OnTowerOfDespairStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1356)("./log/Except", "CPacketTranslater::OnTowerOfDespairStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnStatistic(PacketHeader* pkt)
@@ -943,13 +848,11 @@ void CPacketTranslater::OnStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnStatistic", 1400);
-        log("./log/Except", "CPacketTranslater::OnStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1400)("./log/Except", "CPacketTranslater::OnStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnStatistic", 1405);
-        log("./log/Except", "CPacketTranslater::OnStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1405)("./log/Except", "CPacketTranslater::OnStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnStatisticGmCmd(PacketHeader* pkt)
@@ -964,13 +867,11 @@ void CPacketTranslater::OnStatisticGmCmd(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnStatisticGmCmd", 1422);
-        log("./log/Except", "CPacketTranslater::OnStatisticGmCmd() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1422)("./log/Except", "CPacketTranslater::OnStatisticGmCmd() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnStatisticGmCmd", 1427);
-        log("./log/Except", "CPacketTranslater::OnStatisticGmCmd() Exception Break");
+        CMyFileLog(__FUNCTION__, 1427)("./log/Except", "CPacketTranslater::OnStatisticGmCmd() Exception Break");
     }
 }
 void CPacketTranslater::OnMoneyLog(PacketHeader* pkt)
@@ -985,17 +886,17 @@ void CPacketTranslater::OnMoneyLog(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnMoneyLog", 1447);
-        log("./log/Except", "CPacketTranslater::OnMoneyLog() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1447)("./log/Except", "CPacketTranslater::OnMoneyLog() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnMoneyLog", 1452);
-        log("./log/Except", "CPacketTranslater::OnMoneyLog() Exception Break");
+        CMyFileLog(__FUNCTION__, 1452)("./log/Except", "CPacketTranslater::OnMoneyLog() Exception Break");
     }
 }
 void CPacketTranslater::OnCompatibilityIndex(PacketHeader* pkt)
 {
+    char dummy[16];
+    (void)dummy;
 }
 void CPacketTranslater::OnP2PStatistic(PacketHeader* pkt)
 {
@@ -1009,13 +910,11 @@ void CPacketTranslater::OnP2PStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnP2PStatistic", 1515);
-        log("./log/Except", "CPacketTranslater::OnP2PStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1515)("./log/Except", "CPacketTranslater::OnP2PStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnP2PStatistic", 1518);
-        log("./log/Except", "CPacketTranslater::OnP2PStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1518)("./log/Except", "CPacketTranslater::OnP2PStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnFileStatistic(PacketHeader* pkt)
@@ -1039,13 +938,11 @@ void CPacketTranslater::OnFileStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnFileStatistic", 1541);
-        log("./log/Except", "CPacketTranslater::OnFileStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1541)("./log/Except", "CPacketTranslater::OnFileStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnFileStatistic", 1546);
-        log("./log/Except", "CPacketTranslater::OnFileStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1546)("./log/Except", "CPacketTranslater::OnFileStatistic() Exception Break");
     }
 }
 void CPacketTranslater::OnHolePunchingSuccessRateStatistic(PacketHeader* pkt)
@@ -1067,13 +964,11 @@ void CPacketTranslater::OnHolePunchingSuccessRateStatistic(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         register const char* reason = e.what();
-        CMyFileLog log("OnHolePunchingSuccessRateStatistic", 1574);
-        log("./log/Except", "OnHolePunchingSuccessRateStatistic() Exception Break : %s", reason);
+        CMyFileLog(__FUNCTION__, 1574)("./log/Except", "OnHolePunchingSuccessRateStatistic() Exception Break : %s", reason);
     }
     catch (...)
     {
-        CMyFileLog log("OnHolePunchingSuccessRateStatistic", 1579);
-        log("./log/Except", "OnHolePunchingSuccessRateStatistic() Exception Break");
+        CMyFileLog(__FUNCTION__, 1579)("./log/Except", "OnHolePunchingSuccessRateStatistic() Exception Break");
     }
 }
 Packet_GameServer2Statisctics2DBServer::Packet_GameServer2Statisctics2DBServer()

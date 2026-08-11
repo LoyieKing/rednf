@@ -1,5 +1,6 @@
 // df_monitor_r — DNFApplication（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -96,6 +97,7 @@ void CPeriodicMessageMgr::OnTimerSendData(CServerHandler* handler)
         strncpy((char*)&pkt + 0xa, m_msg, len);
         handler->SendAllTcpGameServer(&pkt);
     }
+    return;
 }
 
 void CPeriodicMessageMgr::SetMessageData(char* msg, int startHour, int endHour)
@@ -106,7 +108,7 @@ void CPeriodicMessageMgr::SetMessageData(char* msg, int startHour, int endHour)
     }
     else if (*msg == 0)
     {
-        memset(this, 0, 0x200);
+        memset(m_msg, 0, 0x200);
         DNF_LOG_SCOPE_LINE(0x24, "./log/PeriodicMessage", "SetData() Error : No string");
     }
     else
@@ -118,40 +120,50 @@ void CPeriodicMessageMgr::SetMessageData(char* msg, int startHour, int endHour)
     }
 }
 
+// 与 DNFFLib::get_rand_int 同源形态：divide==0 走 switch（mov;test; jne），
+// r/65536 用 i586 除法定型（sar;shr;lea;sar），单变量 r 原地 LCG。
+__attribute__((target("arch=i586")))
 unsigned int get_rand_int(int n)
 {
     if (n < 0)
     {
         return 0;
     }
-    if (n == 0)
+    switch (n)
     {
+    case 0:
         return rand();
+    default:
+        break;
     }
     int r = rand();
-    if (n < r)
+    if (r > n)
     {
-        r = rand();
-        return (unsigned int)r % (unsigned int)n;
+        return rand() % n;
     }
-    int a = r * 0x41c64e6d + 0x3039;
-    int b = a * 0x41c64e6d + 0x3039;
-    int c = b * 0x41c64e6d + 0x3039;
-    unsigned int u = ((((int)(((unsigned int)(a >> 31) >> 16) + a) >> 16) & 0x7ff) << 10 ^
-                      (((int)(((unsigned int)(b >> 31) >> 16) + b) >> 16) & 0x3ff)) << 10 ^
-                     ((int)(((unsigned int)(c >> 31) >> 16) + c) >> 16) & 0x3ff;
-    if ((unsigned int)n < u)
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    unsigned int result = (r / 65536) & 0x7ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    if (result > (unsigned int)n)
     {
-        u = u % (unsigned int)n;
+        return result % n;
     }
-    return u;
+    return result;
 }
 
 CollectItms::CollectItms()
 {
-    *(unsigned int*)(m_data + 0) = 0;
-    *(unsigned int*)(m_data + 4) = 0;
-    *(unsigned int*)(m_data + 8) = 0;
+    ((RA_UINT<0>*)this)->v = 0;
+    ((RA_UINT<4>*)this)->v = 0;
+    ((RA_UINT<8>*)this)->v = 0;
     m_data[0xc] = 1;
 }
 
@@ -159,7 +171,10 @@ CollectItms::~CollectItms() {}
 
 namespace init_accusation
 {
-CInitAccusationListMgr::CInitAccusationListMgr(CApplication& app) {}
+CInitAccusationListMgr::CInitAccusationListMgr(CApplication& app)
+{
+    *(CApplication**)this = &app;  // ORIG：mov 0xc(%ebp),%edx; mov %edx,(%eax)
+}
 
 CInitAccusationListMgr::~CInitAccusationListMgr() {}
 
@@ -213,6 +228,12 @@ void CAppBase::Process()
 {
 }
 
+// ORIG 中 CAppInit ctor 与 CAppStartInit/StopInit 不同 TU（派生 ctor 帧 0x18）
+CAppInit::CAppInit() {}
+
+// ORIG 中 CBaseEventAction ctor 与 CNullEventAction 不同 TU（派生 ctor 帧 0x18）
+CBaseEventAction::CBaseEventAction() {}
+
 void CAppBase::Create(int argc, char** argv)
 {
     Init(argc, argv);
@@ -221,8 +242,7 @@ void CAppBase::Create(int argc, char** argv)
 
 void CAppBase::Clear()
 {
-    void (**vtab)(void*) = (void(**)(void*))(*(void**)this);
-    vtab[5](this);
+    Free();
 }
 
 CApplication::CApplication()
@@ -268,7 +288,7 @@ void CApplication::Init(int argc, char** argv)
         AttachAppInitor(argv);
         m_appInit->Init(this, argc, argv);
         m_field31c = 0;
-        m_field320 = 0;
+        m_onTimeEventMgr = 0;
         puts("Application Init() Success!");
     }
     catch (CDNFException& e)
@@ -407,11 +427,11 @@ void CApplication::Load(int argc, char** argv)
         {
             m_field31c = new CEventActionManager;
         }
-        if (m_field320 == 0)
+        if (m_onTimeEventMgr == 0)
         {
-            m_field320 = new COnTimeEventManager;
+            m_onTimeEventMgr = new COnTimeEventManager;
         }
-        ((COnTimeEventManager*)m_field320)->AttachApp(this);
+        m_onTimeEventMgr->AttachApp(this);
 
         m_field2cc = new WongWork::CGMAccounts;
         m_periodicMsg = new CPeriodicMessageMgr;
@@ -607,8 +627,9 @@ void CApplication::Process()
                         UpdateMiniCraneSeed();
                     }
                 }
+                // ORIG：processScheduledJob 位于外层 if 块末尾（内层 if 之后）
+                getItemLimitEditionMgr()->processScheduledJob(this, false);
             }
-            getItemLimitEditionMgr()->processScheduledJob(this, false);
             SwitchQueueTCP();
             SwitchQueueUDP();
             CPacketDecoderInstance()->Process();
@@ -634,7 +655,12 @@ void CApplication::Process()
 void CApplication::SwitchQueueTCP()
 {
     CGuard<CMutex> guard(m_tcpNetSystem.Get_TcpRecvQLock());
+    // ORIG：xor $0x1,%eax + jne = `if (!SwitchQueue()) {} else {swap}`
+    // （空 if + else 形态才会物化 xor $1）
     if (!IQueue<TcpRecvQueue>::Get()->SwitchQueue())
+    {
+    }
+    else
     {
         CPacketDecoderInstance()->SetTCPQueue(IQueue<TcpRecvQueue>::Get()->GetParseQueue());
     }
@@ -643,7 +669,10 @@ void CApplication::SwitchQueueTCP()
 void CApplication::SwitchQueueUDP()
 {
     CGuard<CMutex> guard(&m_udpQLock);
-    if (!m_udpSwapQueue.GetRecvQ()->empty())
+    if (m_udpSwapQueue.GetRecvQ()->empty())
+    {
+    }
+    else
     {
         m_udpSwapQueue.SwapQ();
         m_udpThread->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
@@ -707,7 +736,7 @@ CTaskScheduler* CApplication::GetTaskScheduler()
 
 COnTimeEventManager* CApplication::GetOnTimeEventManager()
 {
-    return *(COnTimeEventManager**)((char*)this + 0x320);
+    return m_onTimeEventMgr;
 }
 
 void* CApplication::GetGMAccounts()
@@ -753,12 +782,12 @@ void CApplication::OnTcpGameServerDown(CTcpGameServer* tcpGameServer)
 void CApplication::SendTestPacket_1()
 {
     Packet_Monitor_Event_End endPkt;
-    *(unsigned int*)((char*)&endPkt + 0xa) = 9;
+    endPkt.m_fieldA = 9;
     CPacketTranslater::OnEventEnd(&endPkt);
     Packet_Monitor_Event_Start startPkt;
-    *(unsigned int*)((char*)&startPkt + 0xa) = 9;
-    *(unsigned short*)((char*)&startPkt + 0xe) = 4;
-    *(unsigned short*)((char*)&startPkt + 0x10) = 0;
+    startPkt.m_fieldA = 9;
+    startPkt.m_fieldB = 4;
+    startPkt.m_fieldC = 0;
     CPacketTranslater::OnEventStart(&startPkt);
 }
 
@@ -780,7 +809,7 @@ void* CApplication::GetPeriodicMessageManager()
 void CApplication::Remove_GM_id(unsigned int id)
 {
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(id);
-    if (it != m_map368.end())
+    if (m_map368.end() != it)
     {
         it->second.clear();
         m_map368.erase(it);
@@ -1118,15 +1147,15 @@ void CApplication::UpdateCollectItems()
     {
         CollectItms* items = (CollectItms*)m_field388;
         Packet_CollectItemsUpdate pkt;
-        pkt.m_fieldA = *(unsigned int*)((char*)items + 4);
-        pkt.m_fieldF = *(unsigned int*)((char*)items + 8);
+        pkt.m_fieldA = ((RA_UINT<4>*)items)->v;
+        pkt.m_fieldF = ((RA_UINT<8>*)items)->v;
         pkt.m_fieldE = Get_ServerGroup();
-        pkt.m_field13 = *(unsigned char*)((char*)items + 0xc);
+        pkt.m_field13 = ((RA_U8<12>*)items)->v;
         m_serverHandler2->SendToDB(&pkt);
         Packet_CollectItemsResult pkt2;
-        pkt2.m_fieldE = *(unsigned int*)((char*)items + 4);
-        pkt2.m_fieldA = *(unsigned int*)((char*)items + 0);
-        pkt2.m_field12 = *(unsigned int*)((char*)items + 8);
+        pkt2.m_fieldE = ((RA_UINT<4>*)items)->v;
+        pkt2.m_fieldA = ((RA_UINT<0>*)items)->v;
+        pkt2.m_field12 = ((RA_UINT<8>*)items)->v;
         m_serverHandler2->SendAllTcpGameServer(&pkt2);
     }
 }

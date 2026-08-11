@@ -24,8 +24,6 @@
 int getErrno();
 
 // CTableBase / CAppInit / CAppConfig / CServerConfig
-CAppInit::CAppInit() {}
-CAppInit::~CAppInit() {}
 CAppStartInit::CAppStartInit() {}
 CAppStartInit::~CAppStartInit() {}
 int CAppStartInit::Save_pid(const std::string& path)

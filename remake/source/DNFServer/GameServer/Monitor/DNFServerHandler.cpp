@@ -1,5 +1,6 @@
 // df_monitor_r — DNFServerHandler（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -33,7 +34,11 @@
 #include "DNFTableBase.h"
 #include "TcpNetSystem.h"
 
-CServerHandler::CServerHandler() {}
+CServerHandler::CServerHandler()
+    : m_dbServer(0), m_managerServer(0), m_app(0), m_field24(0),
+      m_field50(0), m_field64(0)
+{
+}
 
 CServerHandler::~CServerHandler()
 {
@@ -51,7 +56,13 @@ CServerHandler::~CServerHandler()
     }
 }
 
-void CServerHandler::Attach(CApplication* app) {}
+void CServerHandler::Attach(CApplication* app)
+{
+    if (app != 0)
+    {
+        m_app = app;
+    }
+}
 
 unsigned char CServerHandler::GetServerGroupNo()
 {
@@ -232,8 +243,8 @@ void CServerHandler::queryReloadTowerRank(unsigned int channel)
     for (int i = 0; i <= 4; i++)
     {
         Packet_Request_Load_Tower_Full_Rank pkt;
-        *(int*)((char*)&pkt + 0xa) = i;
-        *(unsigned int*)((char*)&pkt + 0xe) = channel;
+        ((RA_INT<10>*)&pkt)->v = i;
+        ((RA_UINT<14>*)&pkt)->v = channel;
         SendToDB(&pkt);
     }
 }
@@ -245,14 +256,14 @@ int CServerHandler::SendToManager(PacketHeader* pkt)
         return 0;
     }
     return m_managerServer->SendToServer((char*)pkt,
-                                         (unsigned int)*(unsigned short*)((char*)pkt + 2));
+                                         (unsigned int)((RA_U16<2>*)pkt)->v);
 }
 
 void CServerHandler::SendDBMWRequestIPCounter(unsigned char flag, unsigned char b)
 {
     Packet_Request_IPCounterList pkt;
-    *(char*)((char*)&pkt + 0xa) = (char)flag;
-    *(char*)((char*)&pkt + 0xb) = (char)b;
+    ((RA_S8<10>*)&pkt)->v = (char)flag;
+    ((RA_S8<11>*)&pkt)->v = (char)b;
     SendToDB(&pkt);
 }
 
@@ -260,23 +271,32 @@ unsigned int CServerHandler::getfirstLinkedServer()
 {
     if (m_gameServers.empty())
     {
-        return 0;
+        return 0xa;
     }
     return m_gameServers.begin()->first;
 }
 
-void CServerHandler::RegistDBServer(CDBServer* db) { m_dbServer = db; }
+int CServerHandler::RegistDBServer(CDBServer* db)
+{
+    m_dbServer = db;
+    return 1;
+}
 
-void CServerHandler::UnregistDBServer()
+int CServerHandler::UnregistDBServer()
 {
     if (m_dbServer != 0)
     {
         delete m_dbServer;
-        m_dbServer = 0;
     }
+    m_dbServer = 0;  // ORIG：两个 je 同目标（0 置放在 if 块之后）
+    return 1;  // ORIG：末尾 mov $0x1,%eax
 }
 
-void CServerHandler::RegistManagerServer(CManagerServer* mgr) { m_managerServer = mgr; }
+int CServerHandler::RegistManagerServer(CManagerServer* mgr)
+{
+    m_managerServer = mgr;
+    return 1;
+}
 
 CTcpGameServer* CServerHandler::CreateTcpGameServer(unsigned int id)
 {
@@ -326,13 +346,14 @@ int CServerHandler::UnregistGameServer(unsigned int channel)
     return 1;
 }
 
-void CServerHandler::UnregistManagerServer()
+int CServerHandler::UnregistManagerServer()
 {
     if (m_managerServer != 0)
     {
         delete m_managerServer;
-        m_managerServer = 0;
     }
+    m_managerServer = 0;  // ORIG：两个 je 同目标
+    return 1;  // ORIG：末尾 mov $0x1,%eax
 }
 
 void CServerHandler::SendAllTcpGameServer(PacketHeader* pkt)
@@ -344,8 +365,8 @@ void CServerHandler::SendAllTcpGameServer(PacketHeader* pkt)
         if (tcp->IsValidServer())
         {
             char* buf = tcp->makePacketHeader(*(unsigned short*)pkt,
-                                              *(unsigned short*)((char*)pkt + 2));
-            memcpy(buf + 10, (char*)pkt + 10, *(unsigned short*)((char*)pkt + 2) - 10);
+                                              ((RA_U16<2>*)pkt)->v);
+            memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
             tcp->SendToGameServer(buf);
         }
     }
@@ -361,8 +382,8 @@ int CServerHandler::SendAllTcpGameServer(PacketHeader* pkt, int channel)
         if (tcp->IsValidServer() && tcp->GetChannelType() == channel)
         {
             char* buf = tcp->makePacketHeader(*(unsigned short*)pkt,
-                                              *(unsigned short*)((char*)pkt + 2));
-            memcpy(buf + 10, (char*)pkt + 10, *(unsigned short*)((char*)pkt + 2) - 10);
+                                              ((RA_U16<2>*)pkt)->v);
+            memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
             tcp->SendToGameServer(buf);
             count++;
         }
@@ -388,7 +409,7 @@ void CServerHandler::SendToGameServer(unsigned char channel, PacketHeader* pkt)
     if (gs != 0)
     {
         ((CServerInterface*)gs)->SendToServer((char*)pkt,
-                                              *(unsigned short*)((char*)pkt + 2));
+                                              ((RA_U16<2>*)pkt)->v);
     }
 }
 
@@ -416,13 +437,13 @@ void CServerHandler::ResetDBHeartBeat()
     }
 }
 
-char CServerHandler::IsConnectedDBServer()
+bool CServerHandler::IsConnectedDBServer()
 {
-    if (m_dbServer == 0)
+    if (m_dbServer != 0)
     {
-        return 0;
+        return m_dbServer->IsConnected();
     }
-    return ((CServerInterface*)m_dbServer)->IsConnected();
+    return 0;
 }
 
 void CServerHandler::SendDBMWConnectionCheck()
@@ -443,15 +464,17 @@ void CServerHandler::ResetHeartBeat(unsigned char channel)
     }
 }
 
-char CServerHandler::IsConnectedGameServer(unsigned char channel)
+bool CServerHandler::IsConnectedGameServer(unsigned char channel)
 {
-    std::map<unsigned int, CGameServer*>::iterator it =
-        m_gameServers.find((unsigned int)channel);
-    if (it == m_gameServers.end())
+    unsigned int ch = (unsigned int)channel;
+    std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.find(ch);
+    if (it != m_gameServers.end())
     {
-        return 0;
+        return ((CServerInterface*)it->second)->IsConnected();
     }
-    return ((CServerInterface*)it->second)->IsConnected();
+    CMyFileLog log(__FUNCTION__, 0x19e);
+    log("./log/GameServer", "Game Server Index Over Index : %d!\n", channel);
+    return 0;
 }
 
 void CServerHandler::SetConnectFlag(unsigned char channel, bool flag)
@@ -464,7 +487,7 @@ void CServerHandler::SetConnectFlag(unsigned char channel, bool flag)
     }
     else
     {
-        CMyFileLog log("SetConnectFlag", 0x1f8);
+        CMyFileLog log(__FUNCTION__, 0x1f8);
         log("./log/GameServer",
             "CServerHandler::SetConnectFlag\tGame Server Index Over Index : %d!\n",
             channel);
@@ -521,4 +544,3 @@ void CServerHandler::SendDBMWRequest_D_IPCounter(unsigned char flag)
     pkt.m_fieldA = x;
     SendToDB(&pkt);
 }
-

@@ -71,14 +71,17 @@
 #include "WebEvent.h"
 
 template<class T>
+struct MemPoolFreeLink
+{
+    char pad[sizeof(T) - 4];
+    void* next;
+};
+
+template<class T>
 void* MemPool<T>::headOfFreeList_ = 0;
 
 template<class T>
-MemPool<T>::MemPool(unsigned int count)
-{
-    m_classSize = (int)sizeof(T);
-    m_count = count;
-}
+MemPool<T>::MemPool(unsigned int count) : m_classSize((int)sizeof(T)), m_count(count) {}
 
 template<class T>
 MemPool<T>::~MemPool()
@@ -96,33 +99,30 @@ MemPool<T>::~MemPool()
 template<class T>
 void* MemPool<T>::alloc()
 {
-    void* result;
-    if (m_classSize == (int)sizeof(T))
+    if (m_classSize != (int)sizeof(T))
     {
-        if (headOfFreeList_ == 0)
-        {
-            void* block = ::operator new(m_classSize * m_count);
-            for (unsigned int i = 0; i < m_count - 1U; i++)
-            {
-                *(void**)((char*)block + i * m_classSize + (m_classSize - 4)) =
-                    (void*)((i + 1) * m_classSize + (int)block);
-            }
-            *(void**)((char*)block + (m_count - 1) * m_classSize + (m_classSize - 4)) = 0;
-            headOfFreeList_ = (void*)((char*)block + m_classSize);
-            result = block;
-            m_chunks.push_back(std::move(block));
-            DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize,
-                m_count * (int)m_chunks.size());
-        }
-        else
-        {
-            result = headOfFreeList_;
-            headOfFreeList_ = *(void**)((char*)headOfFreeList_ + (m_classSize - 4));
-        }
+        return ::operator new(sizeof(T));
+    }
+    void* result = headOfFreeList_;
+    if (result != 0)
+    {
+        headOfFreeList_ = ((MemPoolFreeLink<T>*)result)->next;
     }
     else
     {
-        result = ::operator new(m_classSize);
+        void* block = ::operator new(m_count * m_classSize);
+        for (unsigned int i = 0; i < m_count - 1U; i++)
+        {
+            ((MemPoolFreeLink<T>*)((i * sizeof(T)) + (unsigned int)block))->next =
+                (void*)(((i + 1) * sizeof(T)) + (unsigned int)block);
+        }
+        ((MemPoolFreeLink<T>*)(sizeof(T) * ((unsigned int)m_count - 1) +
+            (unsigned int)block))->next = 0;
+        result = block;
+        headOfFreeList_ = (void*)((char*)block + sizeof(T));
+        m_chunks.push_back((void*)block);
+        DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize,
+            m_count * (int)m_chunks.size());
     }
     return result;
 }
@@ -132,9 +132,11 @@ void MemPool<T>::free(void* p)
 {
     if (p != 0)
     {
-        *(void**)((char*)p + (sizeof(T) - 4)) = headOfFreeList_;
-        headOfFreeList_ = p;
+        MemPoolFreeLink<T>* t = (MemPoolFreeLink<T>*)p;
+        t->next = headOfFreeList_;
+        headOfFreeList_ = t;
     }
+    return;
 }
 
 template<class T>
@@ -142,16 +144,18 @@ void MemPool<T>::free(void* p, unsigned int size)
 {
     if (p != 0)
     {
-        if (m_classSize == (int)size)
-        {
-            *(void**)((char*)p + (m_classSize - 4)) = headOfFreeList_;
-            headOfFreeList_ = p;
-        }
-        else
+        if (m_classSize != size)
         {
             ::operator delete(p);
         }
+        else
+        {
+            MemPoolFreeLink<T>* t = (MemPoolFreeLink<T>*)p;
+            t->next = headOfFreeList_;
+            headOfFreeList_ = t;
+        }
     }
+    return;
 }
 
 template class MemPool<CUdpRecvBuffer>;
@@ -175,4 +179,3 @@ template class MemPool<CPeer>;
 template class MemPool<CUser>;
 
 template class MemPool<CGuild>;
-

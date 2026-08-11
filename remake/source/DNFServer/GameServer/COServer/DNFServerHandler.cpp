@@ -27,12 +27,18 @@ void CServerHandler::Attach(CApplication* app)
 
 void CServerHandler::Load(ST_ServerInfo* info)
 {
-    for (int i = 0; i < 0x649b; i++)
+    // ORIG 实测槽位：index@-0x1e / group@-0x1d / i@-0x1c（声明序 先 index、
+    // group、后 i）。循环变量声明在 index/group 之后才能复现该布局
+    // （GCC 4.4 O0 按声明序分配：先声明者取低地址）。
+    unsigned char index;
+    unsigned char group;
+    int i;
+    for (i = 0; i < 0x649b; i++)
     {
         if (info[i].m_field0 == 1)
         {
-            unsigned char index = info[i].m_field2;
-            unsigned char group = info[i].m_field1;
+            index = info[i].m_field2;
+            group = info[i].m_field1;
             if (index == 0xff)
             {
                 throw CDNFException("CServerHandler::Load() Server Table Exception Break! "
@@ -67,11 +73,11 @@ void CServerHandler::Process()
             if (p->IsHeartBeatTimeOver())
             {
                 p->OnDisconnect();
-                int groupNo = p->GetGroupNo();
-                int channelNo = p->GetChannelNo();
+                // ORIG 实测（0x8056702）：无 groupNo/channelNo 局部槽，
+                // GetGroupNo/GetChannelNo 结果直接 movzbl 到 esi/ebx 供日志实参。
                 DNF_LOG_SCOPE_LINE(0x5e, "./log/GameServer",
                     "Game Server Disconnect, Index : %d, channel no : %d, group no: %d\n",
-                    counter, channelNo & 0xff, groupNo & 0xff);
+                    counter, p->GetChannelNo() & 0xff, p->GetGroupNo() & 0xff);
             }
         }
         p++;

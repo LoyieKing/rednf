@@ -20,7 +20,8 @@ class CEvent
 public:
     CEvent();
     virtual ~CEvent();
-    char m_data[8];
+    unsigned char m_field4;  // +4
+    char m_pad[3];
 };
 
 #endif

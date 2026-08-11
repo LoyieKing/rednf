@@ -26,7 +26,18 @@ public:
     int MsgDecode(PacketHeader* pkt);
     void SetTCPQueue(std::queue<CTcpRecvBuffer*>* q);
     void SetUdpQueue(std::queue<CUdpRecvBuffer*>* q);
-    char m_data[0x3ec0];
+    void* m_udpParseQ;                          // +0
+    void* m_udpQLock;                           // +4
+    void* m_udpBLock;                           // +8
+    union {
+        struct {
+            void* m_tcpParseQ;                  // +0xc
+            void* m_tcpRecvQLock;               // +0x10
+            void* m_tcpRecvBLock;               // +0x14
+            void* m_serverHandler;              // +0x18
+        };
+        void (*m_table[0x2804])(PacketHeader*); // +0xc（handler 表，按 ORIG 0xa01c 布局）
+    };
 };
 
 CPacketDecoder* CPacketDecoderInstance();

@@ -10,11 +10,11 @@ CTableBase::~CTableBase() {}
 
 int CTableBase::Load_Txt_Table_Data(const char* fileName, int idx)
 {
-    FILE* f = fopen(fileName, "r");
-    if (!f)
+    int count = 0;
+    FILE* f;
+    if ((f = fopen(fileName, "rb")) == NULL)
         return -1;
     char buf[0x400];
-    int count = 0;
     while (!feof(f) && fgets(buf, 0x400, f))
     {
         if (buf[0] == '#')
@@ -33,7 +33,8 @@ CDNFException::~CDNFException() throw() {}
 
 const char* CDNFException::what() const throw()
 {
-    CMyFileLog log("what", 0x1a);
-    log("./log/Except", "%s", m_msg.c_str());
+    // ORIG：operator() 实参（m_msg.c_str()）在临时构造前求值并装入 ebx
+    // （callee-saved），返回处再次调用 c_str() —— 宏临时对象形式逐条一致。
+    DNF_LOG_SCOPE_LINE(0x1a, "./log/Except", "%s", m_msg.c_str());
     return m_msg.c_str();
 }

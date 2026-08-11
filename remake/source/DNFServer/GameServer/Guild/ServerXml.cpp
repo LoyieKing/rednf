@@ -78,6 +78,10 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
+namespace np_server_xml {
+static const char FILE_NAME[] = "server_str.xml";
+}
+
 namespace np_server_xml
 {
 CServerXml::CServerXml()
@@ -112,7 +116,7 @@ void CServerXml::InitString()
 
 void CServerXml::StrLoading()
 {
-    StrLoading(std::string("server_str.xml"));
+    StrLoading(std::string(np_server_xml::FILE_NAME));
 }
 
 void CServerXml::StrLoading(std::string path)
@@ -355,4 +359,3 @@ std::string CServerXml::GetEventString(int idx, _eStringType type, bool* ok) con
 }
 
 np_server_xml::CServerXml g_ServerString_;
-

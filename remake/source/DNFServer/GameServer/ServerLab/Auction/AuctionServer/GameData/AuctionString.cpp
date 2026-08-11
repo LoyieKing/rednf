@@ -23,101 +23,65 @@ bool initAuctionString(const char* file)
     }
     g_ServerString_.StrLoading(std::string(file));
     bool result = false;
+    strncpy(LETTER_TEXT[0], g_ServerString_.getAuctionString(0, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(0, result);
-        strncpy(LETTER_TEXT[0], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[1], g_ServerString_.getAuctionString(1, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(1, result);
-        strncpy(LETTER_TEXT[1], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[2], g_ServerString_.getAuctionString(2, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(2, result);
-        strncpy(LETTER_TEXT[2], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[3], g_ServerString_.getAuctionString(3, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(3, result);
-        strncpy(LETTER_TEXT[3], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[4], g_ServerString_.getAuctionString(4, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(4, result);
-        strncpy(LETTER_TEXT[4], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[5], g_ServerString_.getAuctionString(5, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(5, result);
-        strncpy(LETTER_TEXT[5], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[6], g_ServerString_.getAuctionString(6, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(6, result);
-        strncpy(LETTER_TEXT[6], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[7], g_ServerString_.getAuctionString(7, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(7, result);
-        strncpy(LETTER_TEXT[7], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(LETTER_TEXT[8], g_ServerString_.getAuctionString(8, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(8, result);
-        strncpy(LETTER_TEXT[8], s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(SENDER_NAME, g_ServerString_.getAuctionString(100, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(100, result);
-        strncpy(SENDER_NAME, s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(SENDER_NPC_NAME, g_ServerString_.getAuctionString(101, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(101, result);
-        strncpy(SENDER_NPC_NAME, s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
+    strncpy(SENDER_NAME_GOLD, g_ServerString_.getAuctionString(102, result).c_str(), 0xff);
+    if (!result)
     {
-        std::string s = g_ServerString_.getAuctionString(102, result);
-        strncpy(SENDER_NAME_GOLD, s.c_str(), 0xff);
-        if (!result)
-        {
-            return false;
-        }
+        return false;
     }
     return result;
 }

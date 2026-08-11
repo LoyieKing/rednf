@@ -50,7 +50,7 @@ CDNFException::CDNFException(const std::string& msg) : m_msg(msg) {}
 CDNFException::~CDNFException() throw() {}
 const char* CDNFException::what() const throw()
 {
-    CMyFileLog log("what", 0x1a);
+    CMyFileLog log(__FUNCTION__, 0x1a);
     log("./log/Except", "%s", m_msg.c_str());
     return m_msg.c_str();
 }

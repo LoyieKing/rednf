@@ -21,7 +21,7 @@ TCPThread::~TCPThread()
 void TCPThread::loop(void* pParam)
 {
     unsigned short port = (unsigned short)getPort();
-    printf("In %s : port='%d'\n", "loop", (unsigned int)port);
+    printf("In %s : port='%d'\n", __FUNCTION__, (unsigned int)port);
     TReactor<EpollReactor<TCPUser, TCPSocket, TCPSocket>, TCPUser, TCPSocket, TCPSocket> *reactor =
         (TReactor<EpollReactor<TCPUser, TCPSocket, TCPSocket>, TCPUser, TCPSocket, TCPSocket> *)
             getManager()->m_reactor.getReactor();
@@ -33,7 +33,7 @@ void TCPThread::loop(void* pParam)
     {
         printf("listenSocket.open : ERROR(%s)\n", strerror(*__errno_location()));
     }
-    if (*(unsigned short*)((char*)G_ScriptData() + 0x1a) != 0)
+    if (G_ScriptData()->mReservedA != 0)
     {
         puts("Set Relay Server for PVP Channel");
         listenSocket.setOptNagle(false);

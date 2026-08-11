@@ -15,7 +15,7 @@ public:
     void SetServerIndex(unsigned char idx);
     unsigned char GetServerIndex();
     void* GetSocket();
-    char IsValidServer();
+    bool IsValidServer();
     void NotifyHeartbeat();
     char IsHeartbeatTimeOver();
     void SendToServer(char* buf);

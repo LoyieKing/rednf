@@ -1385,7 +1385,7 @@ int Search::SearchByItemIdUpgrade(TItemIdParameter* pParameter, PItemIdUpgradeCo
 {
     TItemIdUpgradeContainer::iterator pos;
     unsigned long key;
-    int i;
+    register int i;
     CNRDItemInfoList::STItemInfo* p_item_info;
     bool has_category_selected;
     BYTE upgrade_start_backup;
@@ -1514,7 +1514,7 @@ int Search::GetAuctionItemInfo(unsigned long long auctionId,
                 .option_[i].option_index_;
     }
     std::sort((short*)&_roi_average_key.option_index_key,
-              (short*)((int)&_roi_average_key.option_index_key + 6));
+              (short*)((char*)&_roi_average_key.option_index_key + 6));
     result = p_auction_dictionary->mAvrgPriceDic.GetItemAveragePrice(
         p_auction_dictionary_data->item_info.GetItemId(),
         p_auction_dictionary_data->item_info.GetUpgradeValue(),
@@ -1647,11 +1647,9 @@ bool Search::IsValidCategory(WORD category, STATE_SEARCH_MODULE_OPERATION operat
 
 void Search::InitializeCategoryNextContainerData()
 {
-    static const int NUMBER_OF_AVATAR_TYPE = 6;
-    static const int NUMBER_OF_CLASS = 9;
-    static const int GAP_OF_BEGIN_AND_END_IN_SAME_CLASS = 10;
-    static const int GAP_OF_NEXT_CLASS_AVATAR = 100;
-    static const int AVATAR_CATEGORY_START_INDEXES[NUMBER_OF_AVATAR_TYPE] = {
+    int i;
+    int j;
+    static const int AVATAR_CATEGORY_START_INDEXES[] = {
         CATEGORY_AVATAR_SWORDMAN,
         CATEGORY_CLONE_AVATAR_SWORDMAN,
         CATEGORY_EMBLEM_AVATAR_SWORDMAN,
@@ -1659,6 +1657,10 @@ void Search::InitializeCategoryNextContainerData()
         CATEGORY_NORMAL_EMBLEM_AVATAR_SWORDMAN,
         CATEGORY_CLONE_NORMAL_EMBLEM_AVATAR_SWORDMAN,
     };
+    static const int NUMBER_OF_AVATAR_TYPE = 6;
+    static const int NUMBER_OF_CLASS = 9;
+    static const int GAP_OF_BEGIN_AND_END_IN_SAME_CLASS = 10;
+    static const int GAP_OF_NEXT_CLASS_AVATAR = 100;
 
     mCategoryNextContainer.insert(std::make_pair(CATEGORY_WEAPON, CATEGORY_WEAPON_LAST));
     mCategoryNextContainer.insert(std::make_pair(CATEGORY_SWORD_MAN, CATEGORY_SWORD_MAN_LAST));
@@ -1679,10 +1681,10 @@ void Search::InitializeCategoryNextContainerData()
     mCategoryNextContainer.insert(std::make_pair(CATEGORY_CREATURE, CATEGORY_CREATURE_LAST));
     mCategoryNextContainer.insert(std::make_pair(CATEGORY_AVATAR, CATEGORY_AVATAR_LAST));
 
-    for (int i = 0; i < NUMBER_OF_AVATAR_TYPE; i = i + 1)
+    for (i = 0; i < NUMBER_OF_AVATAR_TYPE; i = i + 1)
     {
         int first_element = AVATAR_CATEGORY_START_INDEXES[i];
-        for (int j = 0; j < NUMBER_OF_CLASS; j = j + 1)
+        for (j = 0; j < NUMBER_OF_CLASS; j = j + 1)
         {
             mCategoryNextContainer.insert(
                 std::make_pair(first_element,

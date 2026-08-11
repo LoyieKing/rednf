@@ -42,7 +42,7 @@ public:
     void clearGuildBoardData();
     void deleteGuildBoardData(unsigned int a, unsigned int b, unsigned int c);
     bool isGuildBoardDBAccess();
-    bool isWebGuildBoardAction();
+    unsigned char isWebGuildBoardAction();
     void setGuildBoardDBAccess();
     void setWebGuildBoardAction(bool flag);
     int getGuildBoardDBLoadState();
@@ -53,7 +53,13 @@ public:
                                            unsigned int c, unsigned int d);
     void sendMessageToDBMW_GuildMasterChanging(CServerHandler* handler, CUser* user,
                                                const char* name);
-    char m_data[0x54];   // ORIG 内嵌于 CGuild+0x66c4，sizeof(CGuild)=0x6718
+    unsigned int m_field0;   // +0
+    unsigned char m_webAction;   // +4
+    char m_pad5[3];
+    int m_loadState;         // +8
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> > m_board;  // +0xc
+    unsigned int m_dbAccessTime;   // +0x24
+    char m_rest[0x54 - 0x28];      // +0x28
 };
 
 #endif

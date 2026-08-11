@@ -55,16 +55,18 @@ void NSLDBThread::loop(void* temp)
 {
     Message* pMsg;
     DBDispatcher* pDbDispatcher = pApp->super_Dispatchers.getDBDispatcher();
+    DBTR_HEADER* pDbTr;
     while (true)
     {
-        do
+        pMsg = PopTransaction();
+        pDbTr = pMsg->getCellFromMessage()->GetDBTr();
+        if (!pDbTr->mbWillDelete)
         {
-            pMsg = PopTransaction();
-        } while (pMsg->getCellFromMessage()->GetDBTr()->mbWillDelete == true);
-        pDbDispatcher->dispatch(pMsg);
-        pMsg->getCellFromMessage()->GetDBTr()->mbWillDelete = true;
-        pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyMessage(pMsg);
-        mTransactionCntPerSec = mTransactionCntPerSec + 1;
+            pDbDispatcher->dispatch(pMsg);
+            pDbTr->mbWillDelete = true;
+            pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyMessage(pMsg);
+            mTransactionCntPerSec = mTransactionCntPerSec + 1;
+        }
     }
 }
 

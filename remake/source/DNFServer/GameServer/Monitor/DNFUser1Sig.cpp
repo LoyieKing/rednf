@@ -28,13 +28,13 @@
 #include "DNFApplication.h"
 #include "DNFUser.h"
 
-CUser1Sig::CUser1Sig() {}
+CUser1Sig::CUser1Sig() throw() {}
 
 CUser1Sig::~CUser1Sig() {}
 
 void CUser1Sig::handle(int sig)
 {
-    CMyFileLog log("handle", 0x13);
+    CMyFileLog log(__FUNCTION__, 0x13);
     log("./log/Signal", "CUser1Sig::handle( int sig )");
     if (m_app != 0)
     {
@@ -42,13 +42,13 @@ void CUser1Sig::handle(int sig)
     }
 }
 
-CUser2Sig::CUser2Sig() {}
+CUser2Sig::CUser2Sig() throw() {}
 
 CUser2Sig::~CUser2Sig() {}
 
 void CUser2Sig::handle(int sig)
 {
-    CMyFileLog log("handle", 0x20);
+    CMyFileLog log(__FUNCTION__, 0x20);
     log("./log/Signal", "CUser2Sig::handle( int sig )");
     if (m_app != 0)
     {

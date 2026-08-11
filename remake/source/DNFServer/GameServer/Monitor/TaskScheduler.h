@@ -245,8 +245,8 @@ public:
     public:
         CTask() {}
         CTask(unsigned int tick, unsigned int flag);
-        virtual ~CTask();
-        virtual void _DoExecute() {}
+        virtual void _DoExecute() = 0;  // 纯虚（ORIG vtable[0]=__cxa_pure_virtual）
+        virtual ~CTask();               // ORIG vtable[4]=D1、vtable[8]=D0
         unsigned int GetDeliveryTime() { return m_tick; }
         unsigned int GetTaskID() { return m_taskID; }
         unsigned int m_tick;         // +4
@@ -272,8 +272,15 @@ public:
         {
             return other.GetDeliveryTime() < GetDeliveryTime();
         }
-        void DoExcute() { m_task->_DoExecute(); }
-        void Destroy() { delete m_task; }
+        void DoExcute()
+        {
+            if (m_task != 0) m_task->_DoExecute();  // ORIG：test+je 空指针检查
+        }
+        void Destroy()
+        {
+            delete m_task;                   // ORIG：delete 走 vtable[8] D0
+            m_task = 0;                      // ORIG：末尾 movl $0,(%eax)
+        }
         CTask* m_task;  // +0
     };
     CTaskScheduler();

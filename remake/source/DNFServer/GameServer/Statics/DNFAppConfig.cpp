@@ -84,6 +84,6 @@ unsigned char CAppConfig::Get_ServerGroup()
 {
     return m_serverGroup;
 }
-CAppConfig::CAppConfig()
+CAppConfig::CAppConfig() throw()
 {
 }

@@ -27,16 +27,17 @@ int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
     char line[1024];
     while (feof(f) == 0 && fgets(line, 0x400, f) != 0)
     {
-        if (line[0] != '#')
+        if (line[0] == '#')
         {
-            if (count >= maxCount)
-            {
-                return -2;
-            }
-            if (Parse_Table(line, count))
-            {
-                count++;
-            }
+            continue;
+        }
+        if (count >= maxCount)
+        {
+            return -2;
+        }
+        if (Parse_Table(line, count))
+        {
+            count++;
         }
     }
     fclose(f);

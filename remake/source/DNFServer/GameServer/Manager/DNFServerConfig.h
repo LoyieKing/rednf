@@ -10,8 +10,9 @@ struct ST_ServerInfo
 {
     ST_ServerInfo();
     ~ST_ServerInfo();
-    char m_index;      // +0
-    char m_type;       // +1
+    // ORIG 布局（二进制实测）：+0=m_type（Load 中 ==3 检查）、+1=m_index（>0x64 检查）。
+    char m_type;       // +0
+    char m_index;      // +1
     char m_pad2[2];
     std::string m_name;  // +4
     unsigned short m_port;  // +8
@@ -25,7 +26,7 @@ public:
     CServerConfig();
     virtual ~CServerConfig();
     virtual int Load_Table(const std::string& fileName);
-    virtual int Parse_Table(char* data, int size);
+    virtual bool Parse_Table(char* data, int size);
     void* GetServerInfo();
     ST_ServerInfo m_servers[0x65];  // +4（101 × 0xc = 0x4bc；ORIG C1/D1 循环计数 101；sizeof=0x4c0）
 };

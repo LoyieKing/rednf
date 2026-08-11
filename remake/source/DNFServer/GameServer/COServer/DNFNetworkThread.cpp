@@ -36,22 +36,32 @@ void CNetworkThread::dispatch(void* param)
 {
     try
     {
-        if (m_queues != 0 && m_udp != 0 && m_locks != 0)
+        if (m_queues == 0 || m_udp == 0 || m_locks == 0)
         {
-            DNFFLib::Sleep_Ext(5, 0);
-            puts("Network Thread Start!");
-            m_running = 1;
-            while (m_running != 0)
+            throw CDNFException("NetworkThread is Not Ready!\n");
+        }
+        DNFFLib::Sleep_Ext(5, 0);
+        puts("Network Thread Start!");
+        m_running = 1;
+        while (m_running != 0)
+        {
+            CUdpRecvBuffer* buf;
             {
-                CUdpRecvBuffer* buf;
-                {
-                    CGuard<CMutex> g((CMutex*)m_bLock);
-                    buf = (CUdpRecvBuffer*)CUdpRecvBuffer::operator new(0x204);
-                }
-                int len = 0x200;
-                unsigned short port = 0;
-                unsigned int ip = 0;
-                if (((CUdpHandler*)m_udp)->RecvFromClient((char*)buf, &len, &ip, &port) == 1)
+                CGuard<CMutex> g((CMutex*)m_bLock);
+                buf = (CUdpRecvBuffer*)CUdpRecvBuffer::operator new(0x204);
+            }
+            int len = 0x200;
+            unsigned short port = 0;
+            unsigned int ip = 0;
+            // ORIG 实测：`if (!RecvFromClient(...)) { error } else { success }` 形态
+            // （xor $0x1; test; je 跳过错误块）；`== 1` 会生成 cmp/sete（仅差条件形态）。
+            if (!((CUdpHandler*)m_udp)->RecvFromClient((char*)buf, &len, &ip, &port))
+            {
+                CGuard<CMutex> g((CMutex*)m_bLock);
+                CUdpRecvBuffer::operator delete(buf);
+            }
+            else
+            {
                 {
                     if (*(unsigned short*)((char*)buf + 2) == len)
                     {
@@ -79,7 +89,7 @@ void CNetworkThread::dispatch(void* param)
                             }
                             else
                             {
-                                DNF_LOG_SCOPE_LINE(0x86,"./log/recvErr",
+                                DNF_LOG_SCOPE_LINE(0x6f,"./log/recvErr",
                                     "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                                     *(unsigned short*)((char*)buf + 2), len,
                                     *(unsigned short*)buf);
@@ -102,7 +112,7 @@ void CNetworkThread::dispatch(void* param)
                     }
                     else
                     {
-                        DNF_LOG_SCOPE_LINE(0x6f,"./log/recvErr",
+                        DNF_LOG_SCOPE_LINE(0x86,"./log/recvErr",
                             "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                             *(unsigned short*)((char*)buf + 2), len, *(unsigned short*)buf);
                         {
@@ -111,15 +121,9 @@ void CNetworkThread::dispatch(void* param)
                         }
                     }
                 }
-                else
-                {
-                    CGuard<CMutex> g((CMutex*)m_bLock);
-                    CUdpRecvBuffer::operator delete(buf);
-                }
             }
-            return;
         }
-        throw CDNFException("NetworkThread is Not Ready!\n");
+        return;
     }
     catch (CDNFException& e)
     {

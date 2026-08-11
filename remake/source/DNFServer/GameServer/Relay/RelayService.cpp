@@ -109,8 +109,7 @@ void Users::delUser(unsigned int acc_id)
 void Users::increaseUserCount()
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > scoped(m_lock1);
-    m_currentUserCount++;
-    if (m_currentMaxUserCount < m_currentUserCount)
+    if (m_currentMaxUserCount < ++m_currentUserCount)
     {
         m_currentMaxUserCount = m_currentUserCount;
     }
@@ -119,8 +118,7 @@ void Users::increaseUserCount()
 void Users::decreaseUserCount()
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > scoped(m_lock1);
-    m_currentUserCount--;
-    if (m_currentMaxUserCount < m_currentUserCount)
+    if (m_currentMaxUserCount < --m_currentUserCount)
     {
         m_currentMaxUserCount = m_currentUserCount;
     }
@@ -153,7 +151,7 @@ void Users::clearDispatchTime()
 
 RelayService::RelayService()
 {
-    m_mode = 0;
+    m_mode = MODE_NONE;
     m_tick = 0;
     m_tickLog = 0;
 }
@@ -297,67 +295,37 @@ void RelayService::makeLog()
         FILE* f = fopen(filename, "a+");
         if (f != 0)
         {
-            if (!G_ScriptData()->mFlag)
+            if (G_ScriptData()->mFlag)
             {
-                int count = m_users.getDispatchCout();
-                double avg = m_users.getAverageDispatchTime();
-                int max = m_users.getMaxDispatchTime();
-                int cur;
-                if (m_users.getCurrentMaxUserCount() == 0)
-                {
-                    cur = -m_users.getUserCount();
-                }
-                else
-                {
-                    cur = m_users.getCurrentMaxUserCount();
-                }
-                fprintf(f,
-                    "%02d/%02d/%02d %02d:%02d:%02d Current User: %d Dispatch Time: MAX = %d, AVG = %.2f, CNT = %d\n",
-                    tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
-                    tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec, cur, max, avg, count);
-            }
-                else
-                {
-                    UDPSocket* udp = m_threads.m_udpS2SThread->getUDPSocket();
+                UDPSocket* udp = m_threads.m_udpS2SThread->getUDPSocket();
                 if (udp == 0)
                 {
-                    int count = m_users.getDispatchCout();
-                    double avg = m_users.getAverageDispatchTime();
-                    int max = m_users.getMaxDispatchTime();
-                    int cur;
-                    if (m_users.getCurrentMaxUserCount() == 0)
-                    {
-                        cur = -m_users.getUserCount();
-                    }
-                    else
-                    {
-                        cur = m_users.getCurrentMaxUserCount();
-                    }
                     fprintf(f,
                         "%02d/%02d/%02d %02d:%02d:%02d Current User: %d\tError UDPS2SSocket!! Not Auth mode\tDispatch Time: MAX = %d, AVG = %.2f, CNT = %d\n",
                         tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
-                        tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec, cur, max, avg, count);
+                        tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec,
+                        m_users.getCurrentMaxUserCount() == 0 ? -m_users.getUserCount() : m_users.getCurrentMaxUserCount(),
+                        m_users.getMaxDispatchTime(), m_users.getAverageDispatchTime(), m_users.getDispatchCout());
                 }
                 else
                 {
-                    int count = m_users.getDispatchCout();
-                    double avg = m_users.getAverageDispatchTime();
-                    int max = m_users.getMaxDispatchTime();
-                    int qsize = udp->sizeMonitorAuthPacket();
-                    int cur;
-                    if (m_users.getCurrentMaxUserCount() == 0)
-                    {
-                        cur = -m_users.getUserCount();
-                    }
-                    else
-                    {
-                        cur = m_users.getCurrentMaxUserCount();
-                    }
                     fprintf(f,
                         "%02d/%02d/%02d %02d:%02d:%02d Current User: %d\tAuth Packet Queue: %d\tDispatch Time: MAX = %d, AVG = %.2f, CNT = %d\n",
                         tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
-                        tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec, cur, qsize, max, avg, count);
+                        tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec,
+                        m_users.getCurrentMaxUserCount() == 0 ? -m_users.getUserCount() : m_users.getCurrentMaxUserCount(),
+                        udp->sizeMonitorAuthPacket(), m_users.getMaxDispatchTime(),
+                        m_users.getAverageDispatchTime(), m_users.getDispatchCout());
                 }
+            }
+            else
+            {
+                fprintf(f,
+                    "%02d/%02d/%02d %02d:%02d:%02d Current User: %d Dispatch Time: MAX = %d, AVG = %.2f, CNT = %d\n",
+                    tm_now->tm_year + 1900, tm_now->tm_mon + 1, tm_now->tm_mday,
+                    tm_now->tm_hour, tm_now->tm_min, tm_now->tm_sec,
+                    m_users.getCurrentMaxUserCount() == 0 ? -m_users.getUserCount() : m_users.getCurrentMaxUserCount(),
+                    m_users.getMaxDispatchTime(), m_users.getAverageDispatchTime(), m_users.getDispatchCout());
             }
             fclose(f);
             m_users.clearCurrentMaxUserCount();

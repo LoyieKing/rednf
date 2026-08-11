@@ -265,7 +265,9 @@ public:
     char* getPeerAdrs();
     unsigned short getPeerPort();
     int m_fd;             // +0
-    char m_data[0x18];    // +4
+    char m_data[0x14];    // +4
+    unsigned short m_peerPort;  // +0x18
+    char m_data2[2];      // +0x1a
 };
 
 #endif  // MONITOR_DNFTCPSOCKET_H_

@@ -119,8 +119,12 @@ ssize_t TCPSocket::recv(char* buf, int len)
 int TCPSocket::shutdown(int how)
 {
     (void)how;
-    sock_ == -1;
-    return *(int*)this;
+    // ORIG（自定义 4.1.2-52）保留 sock_==-1 的死比较并复用 eax 直接返回；
+    // 库存 4.1.2/4.4.6 在 -O0 会消除该 cmp。eax 钉住 + 空比较 asm 复现原版指令流（语义等价）。
+    register int sock __asm__("eax");
+    sock = *(int*)this;
+    __asm__ volatile("cmp $0xffffffff, %0" : "+r"(sock) : : "cc");
+    return sock;
 }
 
 void TCPSocket::close()
@@ -361,7 +365,7 @@ bool UDPSocket::open()
     return 1;
 }
 
-int UDPSocket::bind(unsigned short port, bool bNonBlock)
+bool UDPSocket::bind(unsigned short port, bool bNonBlock)
 {
     port_ = port;
     memset(&adrs_, 0, 0x10);

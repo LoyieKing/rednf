@@ -269,7 +269,9 @@ public:
                            unsigned char& lv);
     unsigned int GetMaxMemberExp();
     unsigned char IsMemberExpLevelUp(unsigned int exp);
-    char m_data[0x30];
+    unsigned char m_count; // +4（vptr@0）
+    char m_pad4[3];        // +5
+    int m_table[10];       // +8
 };
 
 #endif  // MONITOR_DNFMEMBERCONFIG_H_

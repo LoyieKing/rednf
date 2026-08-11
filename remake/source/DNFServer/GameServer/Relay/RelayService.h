@@ -24,7 +24,7 @@ namespace RelayServiceApp
 
 struct PacketHeader
 {
-    short m_type;              // +0
+    unsigned short m_type;     // +0
     unsigned short m_size;     // +2
     unsigned int m_reserved;   // +4
     unsigned int m_accId;      // +8
@@ -148,16 +148,8 @@ public:
     }
     float getAverageDispatchTime() const
     {
-        volatile float f;
-        if (m_dispatchCount != 0)
-        {
-            f = (float)(m_totalDispatchTime / m_dispatchCount);
-        }
-        else
-        {
-            f = 0.0f;
-        }
-        return f;
+        return m_dispatchCount != 0
+            ? (float)(m_totalDispatchTime / m_dispatchCount) : 0.0f;
     }
     int getMaxDispatchTime() const
     {
@@ -222,7 +214,7 @@ public:
     Threads m_threads;        // +0xdc
     UserPools m_userPools;    // +0xf4
     Reactor m_reactor;        // +0x184
-    int m_mode;               // +0x1c4
+    Mode m_mode;              // +0x1c4
     long long m_tick;         // +0x1c8
     long long m_tickLog;      // +0x1d0
 };

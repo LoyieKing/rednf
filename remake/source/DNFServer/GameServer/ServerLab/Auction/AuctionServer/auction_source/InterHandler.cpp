@@ -63,12 +63,13 @@ unsigned int InterHandler::onINTER_SERVICE_UNAVAILABLE(nsl::CMsgCell* pCell)
     GSArea* pArea = (GSArea*)G_Zone()->mArea[0];
     pArea->SetServiceRunning(false);
 
+    nsl::ISession* pSession;
     PCK_AUCTION_SERVICE_UNAVAILABLE_AG pck;
     PCK_AUCTION_SERVICE_UNAVAILABLE_PG pck_pg;
 
     for (nsl::MAP_OBJECTS_ITER iter = pArea->getBeginIter(); !pArea->isIterEnd(iter); ++iter)
     {
-        nsl::ISession* pSession = pArea->getValueFromIter(iter);
+        pSession = pArea->getValueFromIter(iter);
         nsl::TCPUser* pTcpUser = pSession->getTCPUser();
         if (!pTcpUser->isAboutToDisconnect() && !pTcpUser->isDisconnected())
         {
@@ -112,13 +113,17 @@ unsigned int InterHandler::onINTER_SERVICE_UNAVAILABLE(nsl::CMsgCell* pCell)
 unsigned int InterHandler::onINTER_DESTORY_CHARACTER(nsl::CMsgCell* pCell)
 {
     G_TraceLog()->sysLog(5, "In  onINTER_DESTORY_CHARACTER");
+    auction::Character* pCharacter;
+    bool bActiveClosing;
+    int workIndex;
+    unsigned int characKey;
+    int areaIndex;
     INTERNALMSG_DESTROY_CHARACTER* pInterMsg =
         (INTERNALMSG_DESTROY_CHARACTER*)pCell->GetInternalMsg();
-    int workIndex = pInterMsg->workIndex;
-    bool bActiveClosing = pInterMsg->bActiveClosing;
-    unsigned int characKey = pInterMsg->characKey;
-    int areaIndex = pInterMsg->areaIndex;
-    auction::Character* pCharacter;
+    workIndex = pInterMsg->workIndex;
+    bActiveClosing = pInterMsg->bActiveClosing;
+    characKey = pInterMsg->characKey;
+    areaIndex = pInterMsg->areaIndex;
     if (areaIndex == 0)
     {
         pCharacter = (auction::Character*)G_Zone()->mArea[0]->getMemberAt(characKey);

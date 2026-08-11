@@ -94,16 +94,16 @@ void CApplication::Load(int argc, char** argv)
         statistc_proxy::StatisticProxy::sendPacketFunctionPointer = global_function::SendPacketToDbmw;
         m_appConfig->Load_Table(argv[1]);
         m_serverConfig->Load_Table("./table/server_config.tbl");
-        m_frame.InitFrameCountInfo(this, m_appConfig->Get_FrameCountValue(), 0x3e8);
+        m_frame.InitFrameCountInfo(this, ((CAppConfig*)m_appConfig)->Get_FrameCountValue(), 0x3e8);
         m_udpHandler = new CUdpHandler;
-        if (m_udpHandler->InitServerSocket(m_appConfig->Get_ServerUdpPort() & 0xffff) == -1)
+        if (m_udpHandler->InitServerSocket(((CAppConfig*)m_appConfig)->Get_ServerUdpPort() & 0xffff) == -1)
         {
             throw CDNFException(
                 std::string("CApplication::Load() Init Server Socket Exception Break!"));
         }
         m_serverHandler = new CServerHandler;
         m_serverHandler->Attach(this);
-        m_serverHandler->Load(m_serverConfig->GetServerInfo());
+        m_serverHandler->Load(((CServerConfig*)m_serverConfig)->GetServerInfo());
         CPacketTranslater::attach(this);
         m_innerMsg = new CInnerMsgHandler;
         CPacketDecoderInstance()->Attach(this);
@@ -164,28 +164,22 @@ void CApplication::Free()
             m_appInit = 0;
         }
         puts("Application Initor Free Success!");
-        puts("Application \xc1\xbe\xb7\xe1!");
+        puts("application \xc1\xbe\xb7\xe1!");
     }
     catch (CDNFException& e)
     {
-        printf("CApplication::Free() Exception Break : %s\n", e.what());
+        printf("capplication::free() exception break : %s\n", e.what());
         throw;
     }
     catch (...)
     {
-        puts("CApplication::Free() Exception Break");
+        puts("capplication::free() exception break");
         throw;
     }
 }
 void CApplication::Process()
 {
-    char buf[0x1800];
-    char* p = buf;
-    for (int i = 0x600; i != 0; i--)
-    {
-        *(unsigned int*)p = 0;
-        p += 4;
-    }
+    char buf[0x1800] = {0};
     PacketHeader* pkt = (PacketHeader*)buf;
     while (m_loaded)
     {
@@ -213,56 +207,53 @@ void CApplication::Process()
             }
             memset(buf, 0, 0x1800);
             int len = 0x1800;
-            unsigned int ip = 0;
-            unsigned short port = 0;
-            if (m_udpHandler->RecvFromClient(buf, &len, &ip, &port) == 1)
+            unsigned short port;
+            unsigned int ip;
+            if (m_udpHandler->RecvFromClient(buf, &len, &ip, &port) != 1)
             {
-                if (*(unsigned short*)((char*)pkt + 2) == len)
-                {
-                    if (*(unsigned short*)((char*)pkt + 2) < 0x1800)
-                    {
-                        if (len < 0x1801)
-                        {
-                            *(unsigned int*)((char*)pkt + 6) = ip;
-                            *(unsigned short*)((char*)pkt + 4) = port;
-                            if (CPacketDecoderInstance()->MsgDecode(pkt) != 1)
-                            {
-                                DNF_LOG_SCOPE_LINE(0x22a, "./log/recv",
-                                    "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
-                            }
-                        }
-                        else
-                        {
-                            DNF_LOG_SCOPE_LINE(0x219,"./log/recvErr",
-                                "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                                *(unsigned short*)((char*)pkt + 2), len,
-                                *(unsigned short*)pkt);
-                        }
-                    }
-                    else
-                    {
-                        DNF_LOG_SCOPE_LINE(0x212,"./log/recvErr",
-                            "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                            *(unsigned short*)((char*)pkt + 2), len, *(unsigned short*)pkt);
-                    }
-                }
-                else
+                continue;
+            }
+            {
+                if (pkt->packetSize != len)
                 {
                     DNF_LOG_SCOPE_LINE(0x20c,"./log/recvErr",
                         "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        *(unsigned short*)((char*)pkt + 2), len, *(unsigned short*)pkt);
+                        pkt->packetSize, len, pkt->packetId);
+                    continue;
+                }
+                if (0x17ff < pkt->packetSize)
+                {
+                    DNF_LOG_SCOPE_LINE(0x212,"./log/recvErr",
+                        "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                        pkt->packetSize, len, pkt->packetId);
+                    continue;
+                }
+                if (0x1800u < len)
+                {
+                    DNF_LOG_SCOPE_LINE(0x219,"./log/recvErr",
+                        "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                        pkt->packetSize, len,
+                        pkt->packetId);
+                    continue;
+                }
+                pkt->reversed2 = ip;
+                pkt->reversed1 = port;
+                if (CPacketDecoderInstance()->MsgDecode(pkt) != 1)
+                {
+                    DNF_LOG_SCOPE_LINE(0x22a, "./log/recv",
+                        "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
                 }
             }
         }
         catch (CDNFException& e)
         {
             printf("CApplication::Process() Exception Break : %s\n", e.what());
-            DNF_LOG_SCOPE_LINE(0x22e, "./log/process", "CApplication::Process() Exception Break : %s\n", e.what());
+            DNF_LOG_SCOPE_LINE(0x234, "./log/process", "CApplication::Process() Exception Break : %s\n", e.what());
         }
         catch (...)
         {
             puts("CApplication::Process() Exception Break");
-            DNF_LOG_SCOPE_LINE(0x233, "./log/process", "CApplication::Process() Exception Break\n");
+            DNF_LOG_SCOPE_LINE(0x239, "./log/process", "CApplication::Process() Exception Break\n");
         }
     }
 }
@@ -290,7 +281,7 @@ void CApplication::CheckArgv(int argc, char** argv)
                             "\xbe\xc6\xb1\xd4\xb8\xd5\xc6\xae \xbf\xc0\xb7\xf9\n");
     }
 }
-int CApplication::Send_Term_Signal(const std::string& name)
+bool CApplication::Send_Term_Signal(const std::string& name)
 {
     std::string path = "./pid/" + name + ".pid";
     FILE* f = fopen(path.c_str(), "r");
@@ -402,7 +393,7 @@ void CApplication::App_Stop()
 }
 unsigned char CApplication::Get_ServerGroup()
 {
-    return m_appConfig->Get_ServerGroup();
+    return ((CAppConfig*)m_appConfig)->Get_ServerGroup();
 }
 void CApplication::SendTestPacket_2()
 {
@@ -414,12 +405,9 @@ void CApplication::SendTestPacket_1()
     (void)x;
     CPacketTranslater::OnEventEnd((PacketHeader*)&end);
     Packet_Monitor_Event_Start start;
-    unsigned int a = 9;
-    unsigned short b = 4;
-    unsigned short c = 0;
-    (void)a;
-    (void)b;
-    (void)c;
+    start.m_fieldA = 9;
+    start.m_fieldE = 4;
+    start.m_field10 = 0;
     CPacketTranslater::OnEventStart((PacketHeader*)&start);
 }
 void CApplication::TranslateSignal()

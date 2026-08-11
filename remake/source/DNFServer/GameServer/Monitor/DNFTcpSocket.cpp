@@ -1,5 +1,6 @@
 // df_monitor_r — DNFTcpSocket（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,7 +32,7 @@ TCPSocket::TCPSocket()
     m_fd = -1;
     memset((char*)this + 0x14, 0, 4);
     memset((char*)this + 4, 0, 0x10);
-    *(unsigned short*)((char*)this + 0x18) = 0;
+    ((RA_U16<24>*)this)->v = 0;
 }
 
 TCPSocket::~TCPSocket()
@@ -55,13 +56,13 @@ char TCPSocket::connect(const char* ip, unsigned short port)
     sockaddr addr;
     memset(&addr, 0, 0x10);
     addr.sa_family = 2;
-    *(unsigned int*)((char*)&addr + 4) = inet_addr(ip);
-    *(unsigned short*)((char*)&addr + 2) = htons(port);
+    ((RA_UINT<4>*)&addr)->v = inet_addr(ip);
+    ((RA_U16<2>*)&addr)->v = htons(port);
     int r = ::connect(m_fd, &addr, 0x10);
     if (r >= 0)
     {
         memcpy((char*)this + 0x14, (char*)&addr + 4, 4);
-        *(unsigned short*)((char*)this + 0x18) = *(unsigned short*)((char*)&addr + 2);
+        ((RA_U16<24>*)this)->v = ((RA_U16<2>*)&addr)->v;
     }
     else
     {
@@ -84,7 +85,7 @@ char TCPSocket::bind(unsigned short port, bool flag)
     sockaddr addr;
     memset(&addr, 0, 0x10);
     addr.sa_family = 2;
-    *(unsigned short*)((char*)&addr + 2) = htons(port);
+    ((RA_U16<2>*)&addr)->v = htons(port);
     int r = ::bind(m_fd, &addr, 0x10);
     if (r < 0)
     {
@@ -112,52 +113,70 @@ char TCPSocket::listen(int backlog)
 char TCPSocket::pollReadEvent() const
 {
     fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(m_fd, &readfds);
+    // ORIG 用 RHEL5 风格 FD_ZERO 循环（__arr/__i 槽位 + setbe 终止）；
+    // 当前 RHEL6 头 FD_ZERO 展开为 rep stos，按 ORIG 显式循环复刻。
+    {
+        unsigned int __i;
+        fd_set* __arr = &readfds;
+        for (__i = 0; __i < 32; ++__i) __arr->fds_bits[__i] = 0;
+    }
+    FD_SET((unsigned int)m_fd, &readfds);  // ORIG：shr 逻辑移位（无符号）
     timeval tv;
     tv.tv_sec = 5;
     tv.tv_usec = 0;
-    int r = select(m_fd + 1, &readfds, 0, 0, &tv);
-    if (r < 0)
+    int r = 0;
+    if ((r = select(m_fd + 1, &readfds, 0, 0, &tv)) < 0)
     {
         printf("pollReadEvent(%s)", strerror(errno));
         return 0;
     }
-    return (char)FD_ISSET(m_fd, &readfds);
+    // ORIG FD_ISSET 形态：(fds_bits[fd>>5] >> (fd&31)) & 1（sar）
+    return (char)((readfds.fds_bits[(unsigned int)m_fd >> 5] >>
+                   ((unsigned int)m_fd & 0x1f)) & 1);
 }
 
 char TCPSocket::pollWriteEvent() const
 {
     fd_set writefds;
-    FD_ZERO(&writefds);
-    FD_SET(m_fd, &writefds);
+    {
+        unsigned int __i;
+        fd_set* __arr = &writefds;
+        for (__i = 0; __i < 32; ++__i) __arr->fds_bits[__i] = 0;
+    }
+    FD_SET((unsigned int)m_fd, &writefds);
     timeval tv;
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int r = select(2, 0, &writefds, 0, &tv);
-    if (r < 0)
+    int r = 0;
+    if ((r = select(2, 0, &writefds, 0, &tv)) < 0)
     {
         printf("pollWriteEvent(%s)", strerror(errno));
         return 0;
     }
-    return (char)FD_ISSET(m_fd, &writefds);
+    return (char)((writefds.fds_bits[(unsigned int)m_fd >> 5] >>
+                   ((unsigned int)m_fd & 0x1f)) & 1);
 }
 
 char TCPSocket::pollErrorEvent() const
 {
     fd_set errfds;
-    FD_ZERO(&errfds);
-    FD_SET(m_fd, &errfds);
+    {
+        unsigned int __i;
+        fd_set* __arr = &errfds;
+        for (__i = 0; __i < 32; ++__i) __arr->fds_bits[__i] = 0;
+    }
+    FD_SET((unsigned int)m_fd, &errfds);
     timeval tv;
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int r = select(2, 0, 0, &errfds, &tv);
-    if (r < 0)
+    int r = 0;
+    if ((r = select(2, 0, 0, &errfds, &tv)) < 0)
     {
         printf("pollErrorEvent(%s)", strerror(errno));
         return 0;
     }
-    return (char)FD_ISSET(m_fd, &errfds);
+    return (char)((errfds.fds_bits[(unsigned int)m_fd >> 5] >>
+                   ((unsigned int)m_fd & 0x1f)) & 1);
 }
 
 int TCPSocket::pollReadWriteErrEvent() const
@@ -165,45 +184,44 @@ int TCPSocket::pollReadWriteErrEvent() const
     fd_set readfds;
     fd_set writefds;
     fd_set errfds;
-    FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    FD_ZERO(&errfds);
-    FD_SET(m_fd, &readfds);
-    FD_SET(m_fd, &writefds);
-    FD_SET(m_fd, &errfds);
+    {
+        unsigned int __i;
+        fd_set* __arr = &readfds;
+        for (__i = 0; __i < 32; ++__i) __arr->fds_bits[__i] = 0;
+    }
+    {
+        unsigned int __i;
+        fd_set* __arr = &writefds;
+        for (__i = 0; __i < 32; ++__i) __arr->fds_bits[__i] = 0;
+    }
+    {
+        unsigned int __i;
+        fd_set* __arr = &errfds;
+        for (__i = 0; __i < 32; ++__i) __arr->fds_bits[__i] = 0;
+    }
+    FD_SET((unsigned int)m_fd, &readfds);
+    FD_SET((unsigned int)m_fd, &writefds);
+    FD_SET((unsigned int)m_fd, &errfds);
     timeval tv;
     tv.tv_sec = 1;
     tv.tv_usec = 0;
     int result = 0;
     int flag = 0;
-    result = select(2, &readfds, &writefds, &errfds, &tv);
-    if (result < 0)
+    if ((result = select(2, &readfds, &writefds, &errfds, &tv)) < 0)
     {
         printf("pollReadWriteErrEvent(%s)", strerror(errno));
+        return result;  // ORIG：错误路径返回 select 结果
     }
-    else if (!FD_ISSET(m_fd, &readfds))
-    {
-        if (!FD_ISSET(m_fd, &writefds))
-        {
-            result = flag;
-            if (FD_ISSET(m_fd, &errfds))
-            {
-                flag = 3;
-                result = flag;
-            }
-        }
-        else
-        {
-            flag = 2;
-            result = flag;
-        }
-    }
-    else
-    {
+    if ((readfds.fds_bits[(unsigned int)m_fd >> 5] >>
+         ((unsigned int)m_fd & 0x1f)) & 1)
         flag = 1;
-        result = flag;
-    }
-    return result;
+    else if ((writefds.fds_bits[(unsigned int)m_fd >> 5] >>
+              ((unsigned int)m_fd & 0x1f)) & 1)
+        flag = 2;
+    else if ((errfds.fds_bits[(unsigned int)m_fd >> 5] >>
+              ((unsigned int)m_fd & 0x1f)) & 1)
+        flag = 3;
+    return flag;
 }
 
 char TCPSocket::accept(TCPSocket& sock)
@@ -231,7 +249,7 @@ char TCPSocket::accept(TCPSocket& sock)
         return 0;
     }
     memcpy((char*)&sock + 0x14, (char*)&sock + 8, 4);
-    *(unsigned short*)((char*)&sock + 0x18) = *(unsigned short*)((char*)&sock + 6);
+    ((RA_U16<24>*)&sock)->v = ((RA_U16<6>*)&sock)->v;
     sock.setOptNonBlock();
     return 1;
 }
@@ -271,7 +289,7 @@ int TCPSocket::recv(char* buf, int len)
     int n = read(m_fd, buf, len);
     if (n < 0)
     {
-        if (errno == EAGAIN || errno == EINTR || errno == 0)
+        if (errno == EAGAIN || errno == EINTR || errno == EWOULDBLOCK || errno == 0)
         {
             return 0;
         }
@@ -292,11 +310,21 @@ void TCPSocket::close()
         ::close(m_fd);
         m_fd = -1;
         memset((char*)this + 0x14, 0, 4);
-        *(unsigned short*)((char*)this + 0x18) = 0;
+        ((RA_U16<24>*)this)->v = 0;
     }
+    return;
 }
 
-int TCPSocket::shutdown(int how) { return m_fd; }
+int TCPSocket::shutdown(int how)
+{
+    // ORIG：load m_fd → cmp $-1 → ret（无 ::shutdown 调用、无分支、无帧）。
+    // GCC 4.4.x -O0 会折叠裸 `m_fd == -1;` 死比较，用与 channel 相同的
+    // 内联汇编强制保留该 cmp（见 identical_pitfalls.md §104）。
+    (void)how;
+    register int r asm("eax") = m_fd;
+    __asm__ __volatile__("cmpl $-1, %0" : : "r"(r) : "cc");
+    return r;
+}
 
 char TCPSocket::setOptReuseAdrs(bool flag)
 {
@@ -316,15 +344,15 @@ char TCPSocket::setOptLinger(bool flag)
 
 char* TCPSocket::getPeerAdrs() { return (char*)this + 0x14; }
 
-unsigned short TCPSocket::getPeerPort() { return *(unsigned short*)((char*)this + 0x18); }
+unsigned short TCPSocket::getPeerPort() { return m_peerPort; }
 
 char* TCPSocket::getPeerIP()
 {
     static char ip[0x10];
-    sprintf(ip, "%d.%d.%d.%d", (unsigned int)(unsigned char)*(char*)((char*)this + 0x14),
-            (unsigned int)(unsigned char)*(char*)((char*)this + 0x15),
-            (unsigned int)(unsigned char)*(char*)((char*)this + 0x16),
-            (unsigned int)(unsigned char)*(char*)((char*)this + 0x17));
+    sprintf(ip, "%d.%d.%d.%d", (unsigned int)(unsigned char)((RA_S8<20>*)this)->v,
+            (unsigned int)(unsigned char)((RA_S8<21>*)this)->v,
+            (unsigned int)(unsigned char)((RA_S8<22>*)this)->v,
+            (unsigned int)(unsigned char)((RA_S8<23>*)this)->v);
     return ip;
 }
 
@@ -347,4 +375,3 @@ char TCPSocket::setOptResizeRecvBuf(int size)
     int r = setsockopt(m_fd, 1, 8, &size, 4);
     return (char)(r >= 0);
 }
-

@@ -3,10 +3,8 @@
 
 #include "DNFUdpHandler.h"
 
-CMonitorServer::CMonitorServer()
+CMonitorServer::CMonitorServer() : m_index(0xff), m_name()
 {
-    m_index = 0xff;
-    m_name = "";
     m_port = 0;
     m_connected = 0;
     m_heartBeat = 0x14;

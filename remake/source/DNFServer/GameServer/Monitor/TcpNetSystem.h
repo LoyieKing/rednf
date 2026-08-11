@@ -7,6 +7,7 @@
 #include <set>
 #include <string>
 #include <vector>
+#include <sys/epoll.h>
 #include "PacketHeader.h"
 #include "Thread.h"
 #include "tinyxml.h"
@@ -273,7 +274,7 @@ public:
     int m_eventType;  // +4
     void* m_peer;     // +8
     int m_pad;        // +0xc（ORIG 布局占位）
-    void* m_events;   // +0x10
+    epoll_event* m_events;  // +0x10
     int m_epollFd;    // +0x14
     CMutex m_mutex;   // +0x18
 };

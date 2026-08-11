@@ -73,7 +73,9 @@ bool findFileWithServerTokenInAuction(TCHAR* fullPath)
         {
             return true;
         }
-        ss_strcpy(fullPath, 0x104, newFullPathStr.c_str());
+        // ORIG 二进制实测：第二次 ss_strcpy 用 fullPathStr（还原原始路径），
+        // 不是 newFullPathStr。
+        ss_strcpy(fullPath, 0x104, fullPathStr.c_str());
     }
     return false;
 }

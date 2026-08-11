@@ -10,7 +10,9 @@
 class ITextOutputDevice
 {
 public:
-    ITextOutputDevice();
+    ITextOutputDevice()
+    {
+    }
     virtual void serialize(char* s) = 0;
     virtual void flush() = 0;
     void get_time(char* todaystr, char* timestr);
@@ -118,17 +120,27 @@ public:
     }
     void create()
     {
-        if (m_p == 0 && m_p == 0)
+        if (m_p == 0)
         {
-            try
+            if (m_p == 0)
             {
-                m_p = new T;
+                try
+                {
+                    m_p = new T;
+                }
+                catch (...)
+                {
+                    printf("cannot allocate memory in TGlobalInstance.! cannot continue");
+                    exit(-1);
+                }
             }
-            catch (...)
-            {
-                printf("cannot allocate memory in TGlobalInstance.! cannot continue");
-                exit(-1);
-            }
+        }
+        else
+        {
+            // ORIG: the first `m_p == 0` false-path jumps to a lone nop before
+            // the epilogue (GCC 4.4 empty-block layout artifact). This compiler
+            // merges both false exits, so force the same layout explicitly.
+            __asm__ __volatile__("nop");
         }
     }
     void destroy()

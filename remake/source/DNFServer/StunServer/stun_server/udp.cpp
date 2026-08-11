@@ -1,3 +1,42 @@
+// ============================================================================
+// 源码行号对齐说明（2026-08-11 严格回归）：
+//
+// ORIG 二进制中三个 __assert_fail 的 __LINE__ 实参（objdump 实测）为：
+//   openPort    -> 0x63 = 99   （第 99 行）
+//   getMessage  -> 0x71 = 113  （第 113 行）
+//   sendMessage -> 0xa2 = 162  （第 162 行）
+// 本文件顶部保留 39 行注释、openPort 与 getMessage 的 assert 之间保留
+// 2 行、getMessage 与 sendMessage 的 assert 之间保留 4 行，使上述三个
+// assert 语句恰好落在与 ORIG 相同的物理行号上（行号差异按
+// docs/identical_brief_for_agents.md §4.1 属于真实差异，必须对齐）。
+// ============================================================================
+// ----------------------------------------------------------------------------
+// 保留区（39 行）：请不要删除下面的空行/注释，行号偏移会被破坏。
+// ----------------------------------------------------------------------------
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 #include <iostream>
 #include <string.h>
 #include <assert.h>
@@ -64,6 +103,8 @@ Socket openPort(unsigned short port, unsigned int interfaceIp)
     return fd;
 }
 
+//
+//
 bool getMessage(Socket fd, char* buf, int* len, unsigned int* srcIp, unsigned short* srcPort)
 {
     if (fd == INVALID_SOCKET)
@@ -109,6 +150,10 @@ bool getMessage(Socket fd, char* buf, int* len, unsigned int* srcIp, unsigned sh
     }
 }
 
+//
+//
+//
+//
 bool sendMessage(Socket fd, char* buf, int l, unsigned int dstIp, unsigned short dstPort)
 {
     if (fd == INVALID_SOCKET)

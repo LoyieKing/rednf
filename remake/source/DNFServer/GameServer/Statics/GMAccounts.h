@@ -321,7 +321,11 @@ struct stP2PStatistics
 {
     stP2PStatistics();
     void Init();
-    char m_data[0x48];
+    char m_data[10];           // +0x0
+    unsigned short m_fieldA;   // +0xa（ORIG Init 以命名成员访问，movw 0xa(%eax)）
+    char m_pad[0x1c];          // +0xc..+0x27
+    unsigned short m_fieldB;   // +0x28
+    char m_tail[0x1e];         // +0x2a..+0x47
 };
 
 // ---- stDisjointAvatarInfoTotal：0x144 ----
@@ -329,9 +333,9 @@ struct stDisjointAvatarInfoTotal
 {
     stDisjointAvatarInfoTotal();
     void clear();
-    int checkCondition(int a, int b, int c);
+    bool checkCondition(int a, int b, int c);
     void incCount(int a, int b, int c, int d);
-    char m_data[0x144];
+    int m_data[0x51];   // 0x144 字节（ORIG 按 int 索引寻址）
 };
 
 // ---- stCreateEmblemStatistic：0x1c ----
@@ -366,7 +370,7 @@ struct TowerOfDespairStatistic_Value
     TowerOfDespairStatistic_Value();
     unsigned int m_field0;  // +0
     unsigned int m_field4;  // +4
-};
+} __attribute__((packed));
 
 // ---- STReasonCrashDownKey / STBloodDungeonStatistic ----
 struct STReasonCrashDownKey
@@ -387,6 +391,20 @@ struct STBloodDungeonStatistic
 
 // ==================== DB 统计上报包（ORIG GMAccounts.cpp 发射）====================
 #pragma pack(push, 1)
+
+// ---- PartyStatistic 统计元素 wire 布局（packed，0x3c 字节）----
+struct STPartyStatisticWire
+{
+    unsigned short m_field0;   // +0
+    int m_field4;              // +2
+    char m_field8;             // +6
+    unsigned char m_field9;    // +7
+    unsigned char m_fielda;    // +8
+    unsigned char m_fieldb;    // +9
+    unsigned char m_fieldc;    // +a
+    char m_fieldd;             // +b
+    int m_data[12];            // +c
+};
 
 class Packet_Goldcard_Event_Statistic_STD : public PacketHeader
 {
@@ -415,7 +433,8 @@ class Packet_DBMW_Dungeon_Statistic_Party : public PacketHeader
 {
 public:
     Packet_DBMW_Dungeon_Statistic_Party();
-    char m_data[0x1774];
+    unsigned int m_count;                 // +0xa
+    STPartyStatisticWire m_elem[100];     // +0xe（100 * 0x3c）
 } __attribute__((packed));
 
 class Packet_DBMW_Dungeon_Statistic_Party_Job : public PacketHeader
@@ -581,8 +600,8 @@ public:
     void AppendGM_Sys(unsigned int id, char flag);
     bool loadGMAccounts(const char* path);
     int isGM(unsigned int id);
-    void appendGM(unsigned int id, unsigned int value);
-    void removeGM(unsigned int id, unsigned int value);
+    int appendGM(unsigned int id, unsigned int value);
+    int removeGM(unsigned int id, unsigned int value);
     stGMInfo_t getGMInfo(unsigned int id) const;
     std::list<stGMInfo_t> m_list;
 };

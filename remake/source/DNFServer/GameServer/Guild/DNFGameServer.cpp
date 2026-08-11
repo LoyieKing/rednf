@@ -84,17 +84,25 @@ CGameServer::~CGameServer()
 
 bool CGameServer::Initialize()
 {
-    return CServerInterface::Initialize();
+    if (!CServerInterface::Initialize())
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CGameServer::Destroy()
 {
-    return CServerInterface::Destroy();
+    if (!CServerInterface::Destroy())
+    {
+        return false;
+    }
+    return true;
 }
 
 void CGameServer::SetSocket(unsigned int sock)
 {
-    m_field10 = (int)sock;
+    m_field10 = sock;
 }
 
 int CGameServer::GetSocket()
@@ -123,10 +131,7 @@ void CTcpGameServer::Init(unsigned int group, CTcpNetSystem* net)
 
 void CTcpGameServer::SendToGameServer(char* buf)
 {
-    if (m_net != 0)
-    {
-        m_net->PushTcpSendPacketQ(buf);
-    }
+    m_net->PushTcpSendPacketQ(buf);
 }
 
 bool CTcpGameServer::IsValidServer()
@@ -149,11 +154,10 @@ char* CTcpGameServer::makePacketHeader(unsigned short id, unsigned short size)
 
 void CTcpGameServer::SetChannelNo(unsigned char channel)
 {
-    m_channel = (char)channel;
+    m_channel = channel;
 }
 
 unsigned char CTcpGameServer::GetChannelNo()
 {
     return (unsigned char)m_channel;
 }
-

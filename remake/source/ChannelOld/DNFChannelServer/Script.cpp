@@ -20,6 +20,7 @@ Script::~Script()
 bool Script::load(char* filename)
 {
     data = new ScriptRawData("[__root__]", "title", 1);
+#line 27 "Script.cpp"
     assert(data);
     memset(parent_tag, 0, 0x100);
     depth = 0;
@@ -138,6 +139,7 @@ bool Script::on_keyval_tag(char* key, char* val)
     {
         return false;
     }
+#line 162 "Script.cpp"
     assert(strlen(parent_tag));
     data->push_child(parent_tag, s);
     return true;

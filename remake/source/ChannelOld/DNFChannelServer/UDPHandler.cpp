@@ -33,7 +33,7 @@ void ChannelServiceApp::UDPHandlerRelay::dispatch(char* szBlock, int nSize, int 
         ret = (TManager<ChannelService>::getManager()->*Handler)(pPCK);
         if (ret == 0)
         {
-            gLogInfo << "ERROR :" << "dispatch" << "ID" << nProtoID << endl;
+            gLogInfo << "ERROR :" << __FUNCTION__ << "ID" << nProtoID << endl;
         }
     }
     else

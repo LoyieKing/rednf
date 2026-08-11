@@ -177,24 +177,24 @@ void CAppConfig::clearServerInfoMap()
     m_serverInfo.clear();
 }
 
-unsigned char CAppConfig::Get_FrameCountValue()
+unsigned int CAppConfig::Get_FrameCountValue()
 {
-    return *(unsigned char*)((char*)this + 4);
+    return m_frameCount;
 }
 
 unsigned short CAppConfig::Get_ServerUdpPort()
 {
-    return *(unsigned short*)((char*)this + 6);
+    return m_udpPort;
 }
 
 unsigned char CAppConfig::Get_ServerGroup()
 {
-    return *(unsigned char*)((char*)this + 10);
+    return m_group;
 }
 
 unsigned short CAppConfig::Get_ServerTcpPort()
 {
-    return *(unsigned short*)((char*)this + 8);
+    return m_tcpPort;
 }
 
 const char* CAppConfig::Get_DBMWTcpIP()
@@ -204,7 +204,7 @@ const char* CAppConfig::Get_DBMWTcpIP()
 
 unsigned short CAppConfig::Get_DBMWTcpPort()
 {
-    return *(unsigned short*)((char*)this + 0x10);
+    return m_dbmwTcpPort;
 }
 
 CAppConfig::CAppConfig()
@@ -212,4 +212,3 @@ CAppConfig::CAppConfig()
 {
     m_dbmwTcpPort = 0;
 }
-

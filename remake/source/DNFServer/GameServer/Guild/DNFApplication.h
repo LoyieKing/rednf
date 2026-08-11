@@ -7,6 +7,7 @@
 #include <string>
 #include "Thread.h"
 #include "PacketHeader.h"
+#include "DNFGuild.h"
 
 #include "PacketHeader.h"
 #include "DNFApplication.h"
@@ -145,11 +146,14 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_Notice_Guild_Enter : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Enter();
-    char m_data[0x46];
+    ST_Notice_Guild_Enter m_info;  // +0xa
+    char m_pad[5];                 // +0x4b
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Monitor_Send_Guild_Mail : public PacketHeader {

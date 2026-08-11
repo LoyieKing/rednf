@@ -82,10 +82,10 @@ CTcpNetworkThread::CTcpNetworkThread()
 
 CTcpNetworkThread::~CTcpNetworkThread()
 {
-    m_net = 0;
     m_recvQ = 0;
     m_handler = 0;
     m_recvQLock = 0;
+    m_net = 0;
     m_sendQ = 0;
     m_sendQLock = 0;
     m_sendBLock = 0;
@@ -167,4 +167,3 @@ void CTcpNetworkThread::attach(CTcpNetSystem* net)
         m_sendBLock = net->Get_TcpSendBLock();
     }
 }
-

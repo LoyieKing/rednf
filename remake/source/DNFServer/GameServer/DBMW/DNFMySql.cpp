@@ -24,8 +24,6 @@
 int getErrno();
 CQueryCounter* CQueryCounterInstance();
 
-CDBHandle::CDBHandle() {}
-CDBHandle::~CDBHandle() {}
 CMySql::CMySql()
 {
     m_mysql = 0;
@@ -44,7 +42,7 @@ void CMySql::close()
         m_mysql = 0;
     }
 }
-char CMySql::init_db_handle()
+bool CMySql::init_db_handle()
 {
     if (m_mysql)
         return 0;
@@ -69,23 +67,23 @@ char* CMySql::blob_to_str(int col, void* buf, int len)
     }
     return base + 0x9;
 }
-char CMySql::set_compress_option()
+bool CMySql::set_compress_option()
 {
     if (mysql_options(m_mysql, MYSQL_OPT_COMPRESS, 0) != 0)
         return 0;
     return 1;
 }
-char CMySql::set_read_default_grp_option()
+bool CMySql::set_read_default_grp_option()
 {
     if (mysql_options(m_mysql, MYSQL_READ_DEFAULT_GROUP, "UseSQL") != 0)
         return 0;
     return 1;
 }
-char CMySql::set_charset_name_option()
+bool CMySql::set_charset_name_option()
 {
     return 1;
 }
-char CMySql::set_reconnect_option()
+bool CMySql::set_reconnect_option()
 {
     return 1;
 }
@@ -144,13 +142,13 @@ int CMySql::exec_query()
                                             m_user, 0xcea, 0, 0x400))
                     {
                         int e2 = mysql_errno(m_mysql);
-                        CMyFileLog log("exec_query", 0x118);
+                        CMyFileLog log(__FUNCTION__, 0x118);
                         log("./log/MysqlErr.log",
                             "DB reconnection fail. err_no(%d)\n", e2);
                     }
                     else
                     {
-                        CMyFileLog log("exec_query", 0x11c);
+                        CMyFileLog log(__FUNCTION__, 0x11c);
                         log("./log/MysqlErr.log",
                             "DB Reconnect By Server Gone Error\n");
                     }
@@ -160,12 +158,12 @@ int CMySql::exec_query()
         }
         if (m_lastErrno != 0x426)
         {
-            CMyFileLog log("exec_query", 0x12a);
+            CMyFileLog log(__FUNCTION__, 0x12a);
             log("./log/MysqlErr.log",
                 "DB error occured (%d) Query('%s')\n", m_lastErrno, m_query);
             if (m_lastErrno == 0x7d6)
             {
-                CMyFileLog log2("exec_query", 300);
+            CMyFileLog log2(__FUNCTION__, 300);
                 log2("./log/MysqlErr.log",
                      "CMySql::open() Function Error!\tCheck Connection First, Must Be Not Connected!\n",
                      m_lastErrno, m_query);
@@ -184,7 +182,7 @@ bool CMySql::exec(unsigned int q)
         if (ret == 1)
         {
             CQueryCounterInstance()->SetResponseTime(q);
-            CMyFileLog log("exec", 0x14e);
+            CMyFileLog log(__FUNCTION__, 0x14e);
             log("./log/MysqlErr.log",
                 "Database query error. The last query('%s') has been lost. iret == R_FAIL",
                 m_query);
@@ -209,7 +207,7 @@ bool CMySql::exec(unsigned int q)
         }
         return 1;
     }
-    CMyFileLog log("exec", 0x16e);
+    CMyFileLog log(__FUNCTION__, 0x16e);
     log("./log/MysqlErr.log",
         "Database query error. The last query('%s') has been lost.", m_query);
     return 0;
@@ -398,7 +396,7 @@ char CMySql::open(const char* host, const char* user, const char* pass, const ch
         m_lastErrno = mysql_errno(m_mysql);
         printf("Can't connect db : ( dbname : %s, ip : %s, id : %s )\n",
                user, host, pass);
-        CMyFileLog log("open", 0xad);
+        CMyFileLog log(__FUNCTION__, 0xad);
         log("./log/DBErr", "Can't connect db : ( dbname : %s, ip : %s, id : %s )\n",
             user, host, pass);
         return 0;
@@ -419,7 +417,7 @@ char CMySql::open(const char* host, unsigned int port, const char* user, const c
     {
         m_lastErrno = mysql_errno(m_mysql);
         printf("Can't connect db : ( dbname : %s, ip : %s, id : %s )\n", user, host, pass);
-        CMyFileLog log("open", 0xd2);
+        CMyFileLog log(__FUNCTION__, 0xd2);
         log("./log/DBErr", "Can't connect db : ( dbname : %s, ip : %s, id : %s )\n",
             user, host, pass);
         return 0;

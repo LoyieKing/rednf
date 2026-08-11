@@ -23,7 +23,11 @@
 
 int getErrno();
 
-CUdpHandler::CUdpHandler() {}
+CUdpHandler::CUdpHandler()
+{
+    m_sock = -1;
+    m_clientSock = -1;
+}
 CUdpHandler::~CUdpHandler() {}
 int CUdpHandler::InitServerSocket(int port)
 {
@@ -52,7 +56,7 @@ int CUdpHandler::InitServerSocket(int port)
     }
     int bufsize = 0xf4240;
     setsockopt(m_clientSock, SOL_SOCKET, SO_RCVBUF, &bufsize, 4);
-    CMyFileLog log("InitServerSocket", 0x6e);
+    CMyFileLog log(__FUNCTION__, 0x6e);
     log("./log/Udp", "Opened port %d with fd %d, recv buf size %d\n", port, m_sock, bufsize);
     return m_sock;
 }
@@ -64,7 +68,7 @@ int CUdpHandler::InitClientSocket()
         printf("udp client socket error : %d", getErrno());
         return -1;
     }
-    CMyFileLog log("CUdpHandler::InitClientSocket", 0x8f);
+    CMyFileLog log(__FUNCTION__, 0x8f);
     log("./log/UdpClient", "udp client socket = %d", m_clientSock);
     return m_clientSock;
 }
@@ -91,30 +95,30 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const cha
         int e = getErrno();
         if (e == 0x61)
         {
-            CMyFileLog log("SendToServer", 0x1b8);
+            CMyFileLog log(__FUNCTION__, 0x1b8);
             log("./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", e);
         }
         else if (e >= 0x6f && e <= 0x71)
         {
-            CMyFileLog log("SendToServer", 0x1b2);
+            CMyFileLog log(__FUNCTION__, 0x1b2);
             log("./log/UdpErr", "Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", e);
         }
         else
         {
-            CMyFileLog log("SendToServer", 0x1be);
+            CMyFileLog log(__FUNCTION__, 0x1be);
             log("./log/UdpErr", "err = %d , strerror = %s in send\n", e, strerror(e));
         }
         return 0;
     }
     if (n == 0)
     {
-        CMyFileLog log("SendToServer", 0x1c7);
+        CMyFileLog log(__FUNCTION__, 0x1c7);
         log("./log/UdpErr", "no data sent in send\n");
         return 0;
     }
     if (n != len)
     {
-        CMyFileLog log("SendToServer", 0x1ce);
+        CMyFileLog log(__FUNCTION__, 0x1ce);
         log("./log/UdpErr", "Only %d out of %d bytes sent\n", n, len);
         return 0;
     }
@@ -149,19 +153,19 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
         if (e == 0x61)
         {
             puts("err EAFNOSUPPORT in send");
-            CMyFileLog log("SendToClient", 0x119);
+            CMyFileLog log(__FUNCTION__, 0x119);
             log("./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", e);
         }
         else if (e >= 0x6f && e <= 0x71)
         {
             printf("Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", e);
-            CMyFileLog log("SendToClient", 0x113);
+            CMyFileLog log(__FUNCTION__, 0x113);
             log("./log/UdpErr", "Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", e);
         }
         else
         {
             printf("err = %d , strerror = %s in send\n", e, strerror(e));
-            CMyFileLog log("SendToClient", 0x11f);
+            CMyFileLog log(__FUNCTION__, 0x11f);
             log("./log/UdpErr", "err = %d , strerror = %s in send\n", e, strerror(e));
         }
         return 0;
@@ -169,14 +173,14 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
     if (n == 0)
     {
         puts("no data sent in send");
-        CMyFileLog log("SendToClient", 0x128);
+        CMyFileLog log(__FUNCTION__, 0x128);
         log("./log/UdpErr", "no data sent in send\n");
         return 0;
     }
     if (n != len)
     {
         printf("Only %s out of %d bytes sent\n", (const char*)n, len);
-        CMyFileLog log("SendToClient", 0x133);
+        CMyFileLog log(__FUNCTION__, 0x133);
         log("./log/UdpErr", "Only %d out of %d bytes sent\n", n, len);
         return 0;
     }
@@ -196,13 +200,13 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
         if (e == 0x58)
         {
             puts("Error fd not a socket");
-            CMyFileLog log("RecvFromClient", 0xaf);
+            CMyFileLog log(__FUNCTION__, 0xaf);
             log("./log/UdpErr", "Error fd not a socket\n");
         }
         else if (e == 0x68)
         {
             puts("Error connection reset - host not reachable");
-            CMyFileLog log("RecvFromClient", 0xb6);
+            CMyFileLog log(__FUNCTION__, 0xb6);
             log("./log/UdpErr", "Error connection reset - host not reachable\n");
         }
         else
@@ -214,7 +218,7 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
     if (*size <= 0)
     {
         printf("Socket closed? Recv size = %d\n", *size);
-        CMyFileLog log("RecvFromClient", 0xc6);
+        CMyFileLog log(__FUNCTION__, 0xc6);
         log("./log/UdpErr", "Socket closed? Recv size = %d\n", *size);
         return 0;
     }
@@ -223,7 +227,7 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
     if (*(unsigned short*)buf == 0x4c8 || *(unsigned short*)buf == 0x4c9 ||
         *(unsigned short*)buf == 0x44f || *(unsigned short*)buf == 0x450)
     {
-        CMyFileLog log("RecvFromClient", 0xd1);
+        CMyFileLog log(__FUNCTION__, 0xd1);
         log("./log/Udp", "PacketId(%d) Recv success! IP = %s, Port %d, Recv size = %d",
             *(unsigned short*)buf, inet_ntoa(from.sin_addr), *port, *size);
         buf[*size] = 0;
@@ -245,13 +249,13 @@ char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
         if (e == 0x58)
         {
             puts("Error fd not a socket");
-            CMyFileLog log("RecvFromServer", 0x156);
+            CMyFileLog log(__FUNCTION__, 0x156);
             log("./log/UdpErr", "Error fd not a socket\n");
         }
         else if (e == 0x68)
         {
             puts("Error connection reset - host not reachable");
-            CMyFileLog log("RecvFromServer", 0x15d);
+            CMyFileLog log(__FUNCTION__, 0x15d);
             log("./log/UdpErr", "Error connection reset - host not reachable\n");
         }
         else
@@ -263,7 +267,7 @@ char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
     if (*size <= 0)
     {
         printf("Socket closed? Recv size = %d\n", *size);
-        CMyFileLog log("RecvFromServer", 0x16d);
+        CMyFileLog log(__FUNCTION__, 0x16d);
         log("./log/UdpErr", "Socket closed? Recv size = %d\n", *size);
         return 0;
     }
@@ -272,7 +276,7 @@ char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
     if (*(unsigned short*)buf == 0x4c8 || *(unsigned short*)buf == 0x4c9 ||
         *(unsigned short*)buf == 0x44f || *(unsigned short*)buf == 0x450)
     {
-        CMyFileLog log("RecvFromServer", 0x179);
+        CMyFileLog log(__FUNCTION__, 0x179);
         log("./log/Udp", "PacketId(%d) Recv success! IP = %s, Port %d, Recv size = %d",
             *(unsigned short*)buf, inet_ntoa(from.sin_addr), *port, *size);
         buf[*size] = 0;

@@ -70,11 +70,7 @@ bool ChannelServiceApp::TCPUser::isIdle() const
 {
     __int64 now = TManager<ChannelService>::getManager()->getTick();
     __int64 gap = now - tickLast_;
-    if (tickLast_ == 0 || gap <= 0x124f80)
-    {
-        return false;
-    }
-    return true;
+    return tickLast_ != 0 && gap > 0x124f80;
 }
 
 void ChannelServiceApp::TCPUser::onAccept()
@@ -150,7 +146,7 @@ void ChannelServiceApp::TCPUser::onRead_()
                     TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, s, nMessageSize, 0);
                     if (bufferRecv_.pop(nMessageSize) < 0)
                     {
-                        GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
+                        GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                         postDisconnected(3);
                         return;
                     }
@@ -159,14 +155,14 @@ void ChannelServiceApp::TCPUser::onRead_()
                 {
                     if (bufferRecv_.getPushedLength() >= nMessageSize)
                     {
-                        char szBuf[nMessageSize];
+                        char* szBuf = (char*)__builtin_alloca(nMessageSize);
                         if (bufferRecv_.popCopy(nMessageSize, szBuf))
                         {
                             TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, szBuf, nMessageSize, 0);
                         }
                         else
                         {
-                            GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
+                            GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                             postDisconnected(4);
                             return;
                         }
@@ -205,14 +201,14 @@ void ChannelServiceApp::TCPUser::onRead_()
                 {
                     if (bufferRecv_.getPushedLength() >= nMessageSize)
                     {
-                        char szBuf[nMessageSize];
+                        char* szBuf = (char*)__builtin_alloca(nMessageSize);
                         if (bufferRecv_.popCopy(nMessageSize, szBuf))
                         {
                             TManager<ChannelService>::getManager()->getTCPHandlerRelay()->dispatch(this, szBuf, nMessageSize, 0);
                         }
                         else
                         {
-                            GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \x20\xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
+                            GLOG(ChannelServiceApp::gFileLogInfo, "1.\xbf\xa9\xb1\xe2\xbc\xad pop error \xb0\xa1 \xb6\xb3\xbe\xee\xc1\xf6\xb8\xe9 \xbe\xc8\xb5\xc8\xb4\xd9.");
                             postDisconnected(7);
                             return;
                         }

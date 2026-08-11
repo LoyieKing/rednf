@@ -270,7 +270,7 @@ public:
     char CheckEmptyMember(CMember* member, CUser* user);
     char IsAlreadyMemberMember(unsigned int key, unsigned int charNo);
     char IsEmptyMember(unsigned int key);
-    void GetMemberExpLevel(unsigned int level);
+    int GetMemberExpLevel(unsigned int level);
     void GetMemberExpNextLevelNeedExpLevel(unsigned int& exp, unsigned int& expNext,
                                            unsigned char& level);
     CMemberExpTbl* GetMemberExpTable();

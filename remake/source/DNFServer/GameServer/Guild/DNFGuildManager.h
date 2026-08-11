@@ -60,7 +60,7 @@ public:
     void DeleteGuild(unsigned int guildKey);
     void DeleteGuild(CGuild* guild);
     void GuildDismiss(CGuild* guild);
-    int InsertGuild(unsigned int guildKey, CGuild* guild);
+    bool InsertGuild(unsigned int guildKey, CGuild* guild);
     CGuild* FindGuild(unsigned int guildKey);
     bool IsEmptyGuild(unsigned int guildKey);
     int LoadGuild(unsigned int guildKey, STGuildDBInfoOnly& info, char* name);
@@ -88,7 +88,7 @@ public:
     CGuildWar* GetGuildWar();
     void CargoLock();
     void CargoUnlock();
-    bool IsCargoLock();
+    unsigned char IsCargoLock();
     CApplication* m_app;          // +0
     std::map<unsigned int, CGuild*> m_guilds;  // +4
     CScheduler m_scheduler;       // +0x1c
@@ -99,6 +99,9 @@ public:
     char m_time1[0x2c];           // +0x70
     std::map<unsigned int, std::vector<unsigned int> > m_attendance;  // +0x9c
     char m_time2[0x2c];           // +0xb4
+    static unsigned int m_ExpTable[17];
+    static unsigned int m_uGuildExpMax1;
+    static unsigned int m_uGuildExpMax2;
 };
 
 #endif

@@ -22,7 +22,7 @@ CSystemTimeHandler* CSystemTimeHandlerInstance()
 
 CDnFTimer::CDnFTimer() {}
 
-CUnixTimer::CUnixTimer() {}
+CUnixTimer::CUnixTimer() throw() {}
 
 double CUnixTimer::GetNowTime()
 {

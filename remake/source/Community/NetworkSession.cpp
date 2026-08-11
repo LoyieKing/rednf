@@ -90,21 +90,23 @@ bool CNetworkSession::Disconnect() {
 }
 int CNetworkSession::Parsing(const char *data, int len) {
     // 原始：while (len > i) + 两个 break（setg 物化循环条件；len-i 先求值）
-    ushort *p;
-    ushort *p2;  // 原始：p2 = p 副本（mov [ebp-0xc],eax）
     int i;
+    char *p;
+    ushort *p2;  // 原始：p2 = p 副本（mov [ebp-0xc],eax）
     i = 0;
     while (len > i) {
-        p = (ushort *)(data + i);
-        p2 = p;
+        // 原始：char* 局部经 add 0xc(%ebp),%eax 计算（非 lea 索引形态）
+        p = (char *)data + i;
         if (9 >= (uint)(len - i)) {
             break;
         }
-        if ((len - i) < (int)p2[1]) {
+        p2 = (ushort *)p;
+        // 原始：packetSize 为结构体成员访问（movzwl 0x2(%eax) 折叠形态）
+        if ((len - i) < (int)((PacketHeader *)p2)->packetSize) {
             break;
         }
         dispatch((PacketHeader *)p2);
-        i += p2[1];
+        i += ((PacketHeader *)p2)->packetSize;
     }
     /**
      * some information about each packet:
@@ -121,9 +123,10 @@ int CNetworkSession::Parsing(const char *data, int len) {
 bool CNetworkSession::dispatch(PacketHeader *packet) {
     // 原始：get_type() 调用结果直接入条件（cmp eax,1; sete al; test al,al; je 形态）
     if (get_type() == SESSION_TYPE_USER) {
-        ushort packetId = packet->packetId;
-        CPacketDispatcher* packetDispatcher = pSessionManager->GetPacketDispatcher();
-        DispatcherFunction dispatcher = packetDispatcher->get_dispatcher(packetId);
+        // 原始：packet->packetId 作为实参内联求值，在虚调用前装载到 eax 再
+        // movzwl %ax,%ebx 跨调用保存（push ebx/sub $0x24 帧），调用点直接
+        // mov %ebx,0x4(%esp)；命名局部会引入额外转换指令。
+        DispatcherFunction dispatcher = pSessionManager->GetPacketDispatcher()->get_dispatcher(packet->packetId);
         if (dispatcher != NULL) {
             dispatcher(pSessionManager, this, packet);
         }
@@ -189,9 +192,10 @@ CNetworkSession::~CNetworkSession() {
 template<int TSizeIn, int TSizeOut>
 int CAbstractSocket<TSizeIn, TSizeOut>::AcceptSocket() {
     sockaddr_in addr;
-    socklen_t len;
+    // 原始：int len + 显式 (socklen_t*) 转换（指针转换形态与 ORIG 的 lea 在前一致）
+    int len;
     len = 16;
-    int sock = accept(socket, (sockaddr *)&addr, &len);
+    int sock = accept(socket, (sockaddr *)&addr, (socklen_t *)&len);
     if (sock < 0) {
         // 原始：strerror(errno) 直接内联为变参
         ArchiveLog("Accept Socket[%d] Error(%s)", sock, strerror(errno));
@@ -374,14 +378,17 @@ ssize_t CAbstractSocket<MaxRecvBuf, MaxSendBuf>::recv_packet() {
         return 0;
     }
     errno = 0;
-    size_t maxRead = MaxRecvBuf - m_remain_recvlen;
+    // 原始：int maxRead（read 第三实参 int→size_t 隐式转换，迫使 GCC 先求值该实参，
+    // 与 ORIG 的 mov [ebp-0x10],%ecx 在前形态一致；size_t 会推迟到栈槽装载之后）
+    int maxRead = MaxRecvBuf - m_remain_recvlen;
     if (maxRead == 0) {
         recvBufferOffset = recvBuffer;
         m_remain_recvlen = 0;
         maxRead = MaxRecvBuf;
     }
-    ssize_t nRead = read(this->socket, this->recvBufferOffset, maxRead);
-    if (nRead < 0) {
+    ssize_t nRead;
+    // 原始：赋值入条件形态（ORIG 为 mov [ebp-0xc]; mov; shr $0x1f; test %al; je）
+    if ((nRead = read(this->socket, this->recvBufferOffset, maxRead)) < 0) {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN /*two 0xb, not typo. copied from original code*/ || errno == 0) {
             return 0;
         } else {
@@ -449,8 +456,8 @@ int CAbstractSocket<MaxRecvBuf, MaxSendBuf>::send_packet() {
     if (this->remainSendLen < 1) {
         return 0;
     }
-    nSend = write(this->socket, this->sendBuffer, this->remainSendLen);
-    if (nSend < 1) {
+    // 原始：赋值入条件形态（setle 物化；< 1 会生成 setl 形态）
+    if ((nSend = write(this->socket, this->sendBuffer, this->remainSendLen)) <= 0) {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN /*two 0xb, not typo. copied from original code*/ || errno == 0) {
             return 0;
         } else {

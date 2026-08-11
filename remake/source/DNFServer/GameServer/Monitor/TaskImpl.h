@@ -246,7 +246,7 @@ public:
     void _DoExecute();
     static int DecideEventTime();
     static unsigned int getEventStartTime();
-    static long long getEventEndTime();
+    static unsigned int getEventEndTime();
     static unsigned int MakeEventStartTick(int flag);
 };
 

@@ -30,7 +30,7 @@ public:
     std::map<unsigned int, CBlackUser*>* GetBlackUsersObject();
     void SetCharacNo(unsigned int charNo);
     int m_lifeTime;      // +0
-    int m_charNo;        // +4
+    unsigned int m_charNo;  // +4
     std::map<unsigned int, CBlackUser*> m_blackUsers;  // +8
     char m_pad[4];       // +0x20
 };

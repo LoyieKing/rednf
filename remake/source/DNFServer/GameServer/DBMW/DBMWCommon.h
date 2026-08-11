@@ -1,6 +1,26 @@
 #ifndef DBMW_COMMON_H_
 #define DBMW_COMMON_H_
 
+#include <stddef.h>
+
+// 成员视图：把「基址 + 常量偏移」的原始字节访问转成带成员的结构访问，
+// 使 -O0 下把偏移折叠进寻址（ORIG 为 mov 0xa(%eax) 形态，纯指针运算会 add/lea）。
+// FieldView 用于自然对齐偏移（成员可绑定引用）；FieldViewP 用于未对齐偏移
+// （packed，仅按值读写；若需传引用则在调用点保持原始指针运算形态）。
+template<int OFF, class T>
+struct FieldView
+{
+    char pad[OFF];
+    T v;
+};
+
+template<int OFF, class T>
+struct FieldViewP
+{
+    char pad[OFF];
+    T v;
+} __attribute__((packed));
+
 #include "DBMWTypes.h"
 
 #include "Method.h"

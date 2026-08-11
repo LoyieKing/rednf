@@ -248,7 +248,7 @@ public:
     unsigned int GetExchangeServerChannelNo();
     char m_active;         // +0
     char m_pad1[3];        // +1
-    long long m_time;      // +4
+    unsigned int m_time;   // +4（ORIG 4 字节 time_t，非 long long）
     unsigned int m_ip;     // +8
     short m_port;          // +0xc
     int m_code;            // +0x10
@@ -279,7 +279,7 @@ public:
     std::string m_ip;      // +0
     unsigned short m_port; // +4
     int m_sock;            // +8
-    void* m_net;           // +0xc
+    CTcpNetSystem* m_net;  // +0xc
 };
 
 class CManagerServer : public CServerInterface

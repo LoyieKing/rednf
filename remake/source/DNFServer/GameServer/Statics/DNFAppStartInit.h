@@ -21,7 +21,7 @@ public:
     virtual ~CAppStartInit();
     virtual void Init(CApplication* app, int argc, char** argv);
     int Init_Daemon(int argc, char** argv);
-    int Save_pid(const std::string& name);
+    bool Save_pid(const std::string& name);
 };
 
 // ---- CommonTime：6 字节（y-100/m/d/h/m/w）----

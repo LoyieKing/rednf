@@ -241,7 +241,7 @@ struct stUserHuntingPoint;
 class CSegmentationFaultSig : public CSignal
 {
 public:
-    CSegmentationFaultSig();
+    CSegmentationFaultSig() throw();
     ~CSegmentationFaultSig();
     void handle(int sig);
 };

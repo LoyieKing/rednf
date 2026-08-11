@@ -14,17 +14,17 @@ class Script
 public:
     Script();
     ~Script();
-    int load(char* path);
+    bool load(char* path);
     int parse(char* line);
-    int parse_channel_script();
-    int get_server_section();
-    int get_aradauth_section();
+    bool parse_channel_script();
+    bool get_server_section();
+    bool get_aradauth_section();
     int get_key_val(char* line);
     bool on_parent_tag(char* tag);
     bool on_keyval_tag(char* key, char* value);
     int remove_comment(char* line);
     void destroy_raw_script();
-    int fgetln(FILE* fp, char* buf);
+    bool fgetln(FILE* fp, char* buf);
 
 private:
     ScriptRawData* data;

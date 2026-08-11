@@ -242,8 +242,9 @@ void signal_handler(int sig);
 class CSignal
 {
 public:
+    CSignal();
+    virtual void handle(int sig) = 0;
     virtual ~CSignal();
-    virtual void handle(int sig);
     void attachApp(CApplication* app);
     void dump_core_file();
     CApplication* m_app;  // +4

@@ -15,24 +15,23 @@ CPacketDecoder::CPacketDecoder()
     m_udpQueue = 0;
     m_udpQLock = 0;
     m_udpBLock = 0;
-    void (**table)(PacketHeader*) = (void (**)(PacketHeader*))((char*)this + 0x18);
     for (int i = 0x3e8; i <= 0x27ff; i++)
-        table[i] = 0;
-    table[0x3ec] = CPacketTranslater::OnHeartBeat;
-    table[0x44f] = CPacketTranslater::OnCommonPacket;
-    table[0x450] = CPacketTranslater::OnCommonPacket;
-    table[0x4c1] = CPacketTranslater::OnCommonPacket;
-    table[0x4c8] = CPacketTranslater::OnWebNoticeProhibitConnectUser;
-    table[0x4c9] = CPacketTranslater::OnMonitorNoticeProhibitConnectUser;
-    table[0x9d3] = CPacketTranslater::OnCommonPacket;
-    table[0x9df] = CPacketTranslater::OnWebNoticeBroadcast;
-    table[0xa8c] = CPacketTranslater::OnCommonPacket;
-    table[0xfa0] = CPacketTranslater::OnInnerPacketLogin;
-    table[0xfa1] = CPacketTranslater::OnInnerPacketLogout;
-    table[0x106b] = CPacketTranslater::OnTcpServerLogin;
-    table[0x106c] = CPacketTranslater::OnTcpServerLogout;
-    table[0x106d] = CPacketTranslater::OnTcpServerHeartbeat;
-    table[0x27e2] = CPacketTranslater::OnWebNoticeInGameAD;
+        m_table[i] = 0;
+    m_table[0x3ec] = CPacketTranslater::OnHeartBeat;
+    m_table[0x44f] = CPacketTranslater::OnCommonPacket;
+    m_table[0x450] = CPacketTranslater::OnCommonPacket;
+    m_table[0x4c1] = CPacketTranslater::OnCommonPacket;
+    m_table[0x4c8] = CPacketTranslater::OnWebNoticeProhibitConnectUser;
+    m_table[0x4c9] = CPacketTranslater::OnMonitorNoticeProhibitConnectUser;
+    m_table[0x9df] = CPacketTranslater::OnWebNoticeBroadcast;
+    m_table[0xa8c] = CPacketTranslater::OnCommonPacket;
+    m_table[0x9d3] = CPacketTranslater::OnCommonPacket;
+    m_table[0xfa0] = CPacketTranslater::OnInnerPacketLogin;
+    m_table[0xfa1] = CPacketTranslater::OnInnerPacketLogout;
+    m_table[0x106b] = CPacketTranslater::OnTcpServerLogin;
+    m_table[0x106c] = CPacketTranslater::OnTcpServerLogout;
+    m_table[0x106d] = CPacketTranslater::OnTcpServerHeartbeat;
+    m_table[0x27e2] = CPacketTranslater::OnWebNoticeInGameAD;
 }
 
 CPacketDecoder::~CPacketDecoder()
@@ -79,7 +78,7 @@ void CPacketDecoder::TcpProcess()
         PacketHeader* p = (PacketHeader*)buf;
         if (m_tcpQueue->size() > 0xa)
         {
-            CMyFileLog log("TcpProcess", 0xe7);
+            CMyFileLog log(__FUNCTION__, 0xe7);
             log("./log/TcpRecv", "cnt(%)id(%d)size(%d)ip(%d)",
                 (int)m_tcpQueue->size(), p->packetId, p->packetSize,
                 ((char*)buf)[6]);
@@ -116,7 +115,7 @@ void CPacketDecoder::UdpProcess()
         PacketHeader* p = (PacketHeader*)buf;
         if (m_udpQueue->size() > 0x64)
         {
-            CMyFileLog log("UdpProcess", 0x91);
+            CMyFileLog log(__FUNCTION__, 0x91);
             log("./log/UdpRecv", "cnt(%d)id(%d)size(%d)",
                 (int)m_udpQueue->size(), p->packetId, p->packetSize);
         }
@@ -141,17 +140,16 @@ char CPacketDecoder::MsgDecode(PacketHeader* header)
 {
     if (!header)
         return 0;
-    unsigned short id = header->packetId;
-    if (id > 0x27ff || id <= 0x3e7)
+    if (header->packetId <= 0x27ff && header->packetId > 0x3e7)
     {
-        printf("Unknown Packet(%d)", id);
-        CMyFileLog log("MsgDecode", 0x6c);
-        log("./log/PacketDecode", "Unknown Packet(%d)", id);
-        return 0;
+        if (!m_table[header->packetId])
+            return 0;
+        m_table[header->packetId](header);
+        return 1;
     }
-    void (**handler)(PacketHeader*) = (void (**)(PacketHeader*))((char*)this + 0x18 + id * 4);
-    if (!*handler)
-        return 0;
-    (*handler)(header);
-    return 1;
+    printf("Game Message with identifier %i has arrived.\n", header->packetId);
+    DNF_LOG_SCOPE_LINE(0x6c, "./log/Decoder.log",
+        "CPacketDecoder::MsgDecode() Game Message with identifier %i has arrived.\n",
+        header->packetId);
+    return 0;
 }

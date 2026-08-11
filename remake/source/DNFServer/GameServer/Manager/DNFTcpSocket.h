@@ -1,14 +1,18 @@
 #ifndef DNF_TCP_SOCKET_H_
 #define DNF_TCP_SOCKET_H_
 
+#include <netinet/in.h>
+
 // ---- TCPSocket：0x1c ----
 class TCPSocket
 {
 public:
     TCPSocket();
     ~TCPSocket();
-    char open();
-    char connect(const char* ip, unsigned short port);
+    // ORIG 返回类型 bool：调用方 !open()/!connect() 编译为 xor $1
+    // （char 返回会 sete 物化）。
+    bool open();
+    bool connect(const char* ip, unsigned short port);
     char setOptNonBlock();
     char bind(unsigned short port, bool flag);
     char listen(int backlog);
@@ -30,7 +34,7 @@ public:
     char* getPeerAdrs();
     unsigned short getPeerPort();
     int m_fd;       // +0
-    char m_data4[0x10];  // +4
+    struct sockaddr_in m_sock;  // +4
     char m_addr[4];     // +0x14（原版仅 4 字节地址域）
     unsigned short m_port;  // +0x18
     char m_pad1A[2];

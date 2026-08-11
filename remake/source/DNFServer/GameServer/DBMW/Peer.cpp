@@ -105,7 +105,7 @@ int CPeer::recv_packet()
     }
     if (n == 0)
     {
-        CMyFileLog log("recv_packet", 0xa4);
+        CMyFileLog log(__FUNCTION__, 0xa4);
         log("./log/TcpRecv", "Recv ERROR = 0 (%d) : %s, MaxRead(%d) nRead(%d)",
             errno, strerror(errno), remaining, n);
         return -1;
@@ -144,7 +144,7 @@ int CPeer::send_packet()
     m_remainSendLen -= ret;
     if (m_remainSendLen > 0x96000)
     {
-        CMyFileLog log("send_packet", 0x17e);
+        CMyFileLog log(__FUNCTION__, 0x17e);
         log("./log/TcpErr", "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
             m_remainSendLen);
         m_recvBuf = (char*)this + 0x183c;
@@ -168,7 +168,7 @@ int CPeer::send_packet(char* buf, int len)
     m_remainSendLen += len;
     if (m_remainSendLen > 0x96000)
     {
-        CMyFileLog log("send_packet", 0x133);
+        CMyFileLog log(__FUNCTION__, 0x133);
         log("./log/TcpErr", "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
         m_recvBuf = (char*)this + 0x183c;
@@ -178,7 +178,7 @@ int CPeer::send_packet(char* buf, int len)
     if (m_recvBuf < (char*)this + 0x183c ||
         m_recvBuf >= (char*)this + 0x183c + 0x96000)
     {
-        CMyFileLog log("send_packet", 0x13b);
+        CMyFileLog log(__FUNCTION__, 0x13b);
         log("./log/TcpErr", "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
         m_recvBuf = (char*)this + 0x183c;
@@ -189,14 +189,14 @@ int CPeer::send_packet(char* buf, int len)
     m_recvBuf += len;
     return send_packet();
 }
-int CPeer::parsing(int len)
+bool CPeer::parsing(int len)
 {
     int parsinglength = m_recvLen + len;
     if (parsinglength <= 9)
     {
         m_recvLen += len;
         m_sendBuf += len;
-        CMyFileLog log("parsing", 0xbb);
+        CMyFileLog log(__FUNCTION__, 0xbb);
         log("./log/TcpRecv", "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
             (char*)this + 0x1c, m_sendBuf, m_recvLen, len);
         return 1;
@@ -210,7 +210,7 @@ int CPeer::parsing(int len)
         int size = hdr.packetSize;
         if (size <= 9 || size > 0x1800)
         {
-            CMyFileLog log("parsing", 0xd0);
+            CMyFileLog log(__FUNCTION__, 0xd0);
             log("./log/TcpRecv",
                 "Recv Size[%d], Parsing Packet Size[%d] is Too Large, offset:%x, buf:%x, alreadyRead:%d",
                 len, size, m_sendBuf, (char*)this + 0x1c, m_sendLen);
@@ -220,7 +220,7 @@ int CPeer::parsing(int len)
         }
         if (parsinglength < size)
         {
-            CMyFileLog log("parsing", 0x100);
+            CMyFileLog log(__FUNCTION__, 0x100);
             log("./log/TcpRecv",
                 "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
                 parsinglength);
@@ -247,7 +247,7 @@ int CPeer::parsing(int len)
         }
         if (parsinglength <= 9)
         {
-            CMyFileLog log("parsing", 0xf8);
+            CMyFileLog log(__FUNCTION__, 0xf8);
             log("./log/TcpRecv",
                 "need more data (parsinglength < HEADER_SIZE): body=%d !!",
                 parsinglength);
@@ -258,7 +258,7 @@ int CPeer::parsing(int len)
     {
         if (parsinglength > 0x1800)
         {
-            CMyFileLog log("parsing", 0x10e);
+            CMyFileLog log(__FUNCTION__, 0x10e);
             log("./log/TcpRecv",
                 "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
                 parsinglength);
@@ -270,14 +270,14 @@ int CPeer::parsing(int len)
     }
     return 1;
 }
-char CPeer::RecvPacket()
+bool CPeer::RecvPacket()
 {
     int ret = recv_packet();
     if (ret > 0)
     {
         if (!parsing(ret))
         {
-            CMyFileLog log("RecvPacket", 0x4d);
+            CMyFileLog log(__FUNCTION__, 0x4d);
             log("./log/TcpRecv", "CPeer::Recv (false == parsing( size:%d ) )\n", ret);
             printf("CPeer::Recv (false == parsing( size:%d ) )\n", ret);
             return 1;
@@ -286,14 +286,14 @@ char CPeer::RecvPacket()
     }
     if (ret < 0)
     {
-        CMyFileLog log("RecvPacket", 0x59);
+        CMyFileLog log(__FUNCTION__, 0x59);
         log("./log/TcpRecv",
             "Maybe Peer is disconnect!(%d), socket no(%d), addr(%s), port(%d)",
             ret, getHandle(), getPeerAdrs(), getPeerPort());
         printf("CPeer::Recv (size(%d) < 0)\n", ret);
         return 0;
     }
-    CMyFileLog log("RecvPacket", 0x63);
+    CMyFileLog log(__FUNCTION__, 0x63);
     log("./log/TcpRecv", "Maybe Peer is disconnect!(size == 0)");
     puts("CPeer::Recv (size == 0)");
     return 1;

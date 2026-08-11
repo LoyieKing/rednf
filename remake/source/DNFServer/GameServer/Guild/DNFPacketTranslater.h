@@ -7,6 +7,8 @@
 #include "Thread.h"
 
 #include "PacketHeader.h"
+#include "DNFGuild.h"
+#include "GuildCargo.h"
 
 class CApplication;
 class CGuild;
@@ -189,6 +191,7 @@ public:
     static CApplication* m_pclApp;
 };
 
+#pragma pack(push, 1)
 // from GuildPackets.h
 class Packet_Add_Guild_Fund_Result : public PacketHeader {
 public:
@@ -239,18 +242,33 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Channel_Guild_Cargo_Pop_Item : public PacketHeader {
 public:
     Packet_Channel_Guild_Cargo_Pop_Item();
-    char m_data[0x46];
+    unsigned int m_a;            // +0xa
+    unsigned int m_b;            // +0xe
+    unsigned int m_c;            // +0x12
+    DnfItemInfo m_item;          // +0x16
+    unsigned char m_flag;        // +0x4b
+    unsigned int m_d;            // +0x4c
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Channel_Guild_Cargo_Push_Item : public PacketHeader {
 public:
     Packet_Channel_Guild_Cargo_Push_Item();
-    char m_data[0x45];
+    unsigned int m_a;            // +0xa
+    unsigned int m_b;            // +0xe
+    unsigned char m_c;           // +0x12
+    unsigned int m_d;            // +0x13
+    DnfItemInfo m_item;          // +0x17
+    unsigned char m_flag;        // +0x4c
+    unsigned short m_e;          // +0x4d
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Channel_Guild_Cargo_Upgrade : public PacketHeader {
@@ -263,7 +281,9 @@ public:
 class Packet_DBMW_Query_Msg : public PacketHeader {
 public:
     Packet_DBMW_Query_Msg();
-    char m_data[0x1009];
+    unsigned int m_fieldA;    // +0xa
+    unsigned int m_fieldE;    // +0xe
+    char m_data[0x1001];      // +0x12
 };
 
 // from GuildPackets.h
@@ -365,11 +385,17 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Guild_Cargo_Response : public PacketHeader {
 public:
     Packet_Guild_Cargo_Response();
-    char m_data[0x18e5];
+    unsigned int m_a;              // +0xa
+    unsigned int m_b;              // +0xe
+    STGuildCargoDBInfo m_cargo;    // +0x12
+    unsigned char m_flag;          // +0x18ee
+    char m_pad;                    // +0x18ef
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Guild_Exp_Book_Delete : public PacketHeader {
@@ -414,11 +440,14 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_Notice_Guild_Create_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Create_ToUser();
-    char m_data[0x23];
+    ST_GuildCreateFromWeb m_info;   // +0xa
+    unsigned int m_member;          // +0x29
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Monitor_Notify_GuildMemberGrade : public PacketHeader {
@@ -546,4 +575,5 @@ public:
     char m_data[0x29];
 };
 
+#pragma pack(pop)
 #endif

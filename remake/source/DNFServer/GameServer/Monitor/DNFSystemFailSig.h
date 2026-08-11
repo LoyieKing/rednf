@@ -241,7 +241,7 @@ struct stUserHuntingPoint;
 class CSystemFailSig : public CSignal
 {
 public:
-    CSystemFailSig();
+    CSystemFailSig() throw();
     ~CSystemFailSig();
     void handle(int sig);
 };

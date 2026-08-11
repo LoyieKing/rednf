@@ -36,13 +36,13 @@ int EpollHandler::Init()
     m_epollFd = epoll_create(0x3e8);
     if (m_epollFd < 0)
     {
-        puts("epoll create error");
+        puts("[Epoll::init] Can't init epoll create");
         return 0;
     }
     m_events = (void*)new char[0x2ee0];
     if (!m_events)
     {
-        printf("epoll events alloc error\n");
+        printf("[Epoll::init] Can't alloc event memory");
         return 0;
     }
     return 1;

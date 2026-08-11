@@ -158,9 +158,8 @@ unsigned int HandlerFor_GA_::onAUCTION_ASK_REGISTED_ITEM_NUM_GA(nsl::CMsgCell* p
     PCK_AUCTION_ASK_REGISTED_ITEM_NUM_GA* pPck =
         (PCK_AUCTION_ASK_REGISTED_ITEM_NUM_GA*)pCell->GetPacket();
     {
-        // ORIG：register limit；条件反置 limit <= mQueueSize（-1 块 fall-through）
-        register int limit = G_Script()->findIntValue(1, 0xd);
-        if (limit <= pApp->super_Threads.getDBThread(0)->mQueueSize)
+        // ORIG：inline 比较（无 limit 局部，cmp %eax,%ebx+setle 形态；-1 块 fall-through）
+        if (G_Script()->findIntValue(1, 0xd) <= pApp->super_Threads.getDBThread(0)->mQueueSize)
         {
             packet.now_registed_num = -1;
         }
@@ -252,9 +251,8 @@ unsigned int HandlerFor_GA_::onAUCTION_REGIST_CANCEL_GA(nsl::CMsgCell* pCell, ns
     }
     if (return_code != 0)
     {
-        const char* errStr = GetErrorStr(return_code);
         G_TraceLog()->sysLog(5, "Out onAUCTION_REGIST_CANCEL_GA, owner:%d, auId:%llu, %s",
-                             pPck->owner_id, pPck->auction_id, errStr);
+                             pPck->owner_id, pPck->auction_id, GetErrorStr(return_code));
     }
     else
     {
@@ -297,10 +295,8 @@ unsigned int HandlerFor_GA_::onAUCTION_BIDDING_GA(nsl::CMsgCell* pCell, nsl::TCP
     temp_result_price = 0;
     {
         char temp_id[32];
-        // ORIG：register limit（ebx 常驻）；条件反置 limit <= mQueueSize
-        // （setle 物化，0x31 块 fall-through，Bidding 在跳转目标）
-        register int limit = G_Script()->findIntValue(1, 0xd);
-        if (limit <= pApp->super_Threads.getDBThread(0)->mQueueSize)
+        // ORIG：inline 比较（无 limit 局部；setle 物化，0x31 块 fall-through）
+        if (G_Script()->findIntValue(1, 0xd) <= pApp->super_Threads.getDBThread(0)->mQueueSize)
         {
             return_code = 0x31;
         }
@@ -330,15 +326,16 @@ unsigned int HandlerFor_GA_::onAUCTION_BIDDING_GA(nsl::CMsgCell* pCell, nsl::TCP
     packet.auction_id = pPck->auction_id;
     packet.price = pPck->price;
     // ORIG DWARF：newMsg/newCell 先声明（槽位 -0x2c/-0x28），msg/cell 后声明（-0x24/-0x20）；
-    // 执行序仍是 log_packet 先发（msg/cell）、packet 后发（newMsg/newCell）
-    Message* newMsg =
-        pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
-    CMsgCell* newCell = newMsg->getCellFromMessage();
+    // 执行序是 msg/cell（log_packet 先发）在前、newMsg/newCell（packet 后发）在后
+    Message* newMsg;
+    CMsgCell* newCell;
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
     *cell << &log_packet;
     cell->PAD();
     sendTCP_->PushSendMsg(msg);
+    newMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
+    newCell = newMsg->getCellFromMessage();
     *newCell << &packet;
     newCell->PAD();
     sendTCP_->PushSendMsg(newMsg);
@@ -374,7 +371,10 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_ITEMKEY_GA(nsl::CMsgCell* pCell
                                          pPck->item_id_array,
                                          &packet.total_item_num, &packet.item_num,
                                          packet.item_info);
-    if (result == 0)
+    if (result != 0)
+    {
+        return result;
+    }
     {
         packet.char_idx = pPck->char_idx;
         packet.character_id = pPck->character_id;
@@ -385,7 +385,7 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_ITEMKEY_GA(nsl::CMsgCell* pCell
                 G_Auction()->GetItemInfo(packet.item_info[i].item_info.item_id);
             if (pItemInfo != NULL)
             {
-                unsigned int item_category = (unsigned int)pItemInfo->category_;
+                int item_category = (int)pItemInfo->category_;
                 if (G_Auction()->IsAvatarCategory(item_category))
                 {
                     G_Auction()->GetAvatarEmblemInfo(
@@ -398,7 +398,7 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_ITEMKEY_GA(nsl::CMsgCell* pCell
                 }
             }
         }
-        packet.setSize((0x3c - (unsigned int)packet.item_num) * -0x89 + 0x203d);
+        packet.setSize(0x203d - (0x3c - (unsigned int)packet.item_num) * 0x89);
         // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
         Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
         CMsgCell* cell = msg->getCellFromMessage();
@@ -422,7 +422,6 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_ITEMKEY_GA(nsl::CMsgCell* pCell
 unsigned int HandlerFor_GA_::onAUCTION_MY_REGISTED_ITEM_INFO_GA(nsl::CMsgCell* pCell,
                                                                 nsl::TCPUser* u)
 {
-    int packet_array_size = 0x1e;
     int return_code = 0;
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_MY_REGISTED_ITEM_INFO_GA");
@@ -432,6 +431,7 @@ unsigned int HandlerFor_GA_::onAUCTION_MY_REGISTED_ITEM_INFO_GA(nsl::CMsgCell* p
         return 1;
     }
     PCK_AUCTION_MY_REGISTED_ITEM_INFO_AG packet;
+    int packet_array_size = 0x1e;
     PCK_AUCTION_MY_REGISTED_ITEM_INFO_GA* pPck =
         (PCK_AUCTION_MY_REGISTED_ITEM_INFO_GA*)pCell->GetPacket();
     return_code = G_Auction()->GetMyRegistedItemInfo(
@@ -453,7 +453,7 @@ unsigned int HandlerFor_GA_::onAUCTION_MY_REGISTED_ITEM_INFO_GA(nsl::CMsgCell* p
                 packet.my_registed_item_info[i].item_info.item_id);
         if (pItemInfo != NULL)
         {
-            unsigned int item_category = (unsigned int)pItemInfo->category_;
+            int item_category = (int)pItemInfo->category_;
             if (G_Auction()->IsAvatarCategory(item_category))
             {
                 G_Auction()->GetAvatarEmblemInfo(
@@ -466,7 +466,7 @@ unsigned int HandlerFor_GA_::onAUCTION_MY_REGISTED_ITEM_INFO_GA(nsl::CMsgCell* p
             }
         }
     }
-    packet.setSize((0x1e - packet_array_size) * -0x75 + 0xdd2);
+    packet.setSize(0xdd2 - (0x1e - (unsigned int)packet_array_size) * 0x75);
     // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
@@ -490,10 +490,6 @@ unsigned int HandlerFor_GA_::onAUCTION_MY_BIDDING_INFO_GA(nsl::CMsgCell* pCell,
                                                           nsl::TCPUser* u)
 {
     int return_code = 0;
-    PCK_AUCTION_MY_BIDDING_INFO_AG packet;
-    int packet_array_size = 0x3c;
-    PCK_AUCTION_MY_BIDDING_INFO_GA* pPck =
-        (PCK_AUCTION_MY_BIDDING_INFO_GA*)pCell->GetPacket();
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_MY_BIDDING_INFO_GA");
     if (!IsGoldServer())
@@ -501,6 +497,10 @@ unsigned int HandlerFor_GA_::onAUCTION_MY_BIDDING_INFO_GA(nsl::CMsgCell* pCell,
         G_TraceLog()->sysLog(7, "Out onAUCTION_MY_BIDDING_INFO_GA:this is not gold server");
         return 1;
     }
+    PCK_AUCTION_MY_BIDDING_INFO_AG packet;
+    int packet_array_size = 0x3c;
+    PCK_AUCTION_MY_BIDDING_INFO_GA* pPck =
+        (PCK_AUCTION_MY_BIDDING_INFO_GA*)pCell->GetPacket();
     return_code = G_Auction()->GetMyBiddingInfo(
         pPck->buyer_id, &packet_array_size, packet.my_bidding_item_info);
     if (return_code != 0)
@@ -520,7 +520,7 @@ unsigned int HandlerFor_GA_::onAUCTION_MY_BIDDING_INFO_GA(nsl::CMsgCell* pCell,
                 packet.my_bidding_item_info[i].item_info.item_id);
         if (pItemInfo != NULL)
         {
-            unsigned int item_category = (unsigned int)pItemInfo->category_;
+            int item_category = (int)pItemInfo->category_;
             if (G_Auction()->IsAvatarCategory(item_category))
             {
                 G_Auction()->GetAvatarEmblemInfo(
@@ -533,7 +533,7 @@ unsigned int HandlerFor_GA_::onAUCTION_MY_BIDDING_INFO_GA(nsl::CMsgCell* pCell,
             }
         }
     }
-    packet.setSize((0x3c - packet_array_size) * -0x7d + 0x1d69);
+    packet.setSize(0x1d69 - (0x3c - (unsigned int)packet_array_size) * 0x7d);
     // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
@@ -663,11 +663,9 @@ unsigned int HandlerFor_GA_::onAUCTION_BUY_ITEM_APIECE_GA(nsl::CMsgCell* pCell,
         log_packet.item_id = ptr_data->item_info.item_id;
         log_packet.uniItemAttr = ptr_data->item_info.uniItemAttr;
     }
-    // ORIG：register int limit（ebx 常驻）；条件反置 limit <= mQueueSize
-    // （cmp+setle 物化，0x31 块 fall-through，BuyItemApiece 在跳转目标）
+    // ORIG：inline 比较（cmp+setle 物化，0x31 块 fall-through，BuyItemApiece 在跳转目标）
     {
-        register int limit = G_Script()->findIntValue(1, 0xd);
-        if (limit <= pApp->super_Threads.getDBThread(0)->mQueueSize)
+        if (G_Script()->findIntValue(1, 0xd) <= pApp->super_Threads.getDBThread(0)->mQueueSize)
         {
             return_code = 0x31;
         }
@@ -687,16 +685,17 @@ unsigned int HandlerFor_GA_::onAUCTION_BUY_ITEM_APIECE_GA(nsl::CMsgCell* pCell,
         packet.result_because =
             (unsigned char)G_Auction()->TransErrToReason(return_code);
     }
-    // ORIG DWARF：newMsg/newCell、msg/cell 四个独立局部；log_packet 先发（msg/cell）、
-    // packet 后发（newMsg/newCell）
-    Message* newMsg =
-        pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
-    CMsgCell* newCell = newMsg->getCellFromMessage();
+    // ORIG DWARF：msg/cell（log_packet 先发）槽位 -0x28/-0x24 深于 newMsg/newCell
+    // （-0x20/-0x1c）；按执行序声明。
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
     *cell << &log_packet;
     cell->PAD();
     sendTCP_->PushSendMsg(msg);
+    Message* newMsg;
+    CMsgCell* newCell;
+    newMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
+    newCell = newMsg->getCellFromMessage();
     *newCell << &packet;
     newCell->PAD();
     sendTCP_->PushSendMsg(newMsg);
@@ -721,7 +720,10 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_NOITEMKEY_GA(nsl::CMsgCell* pCe
     result = G_Auction()->SearchByCategory(&pPck->tSearchByCategory,
                                            &packet.total_item_num, &packet.item_num,
                                            packet.item_info);
-    if (result == 0)
+    if (result != 0)
+    {
+        return result;
+    }
     {
         packet.char_idx = pPck->char_idx;
         packet.character_id = pPck->character_id;
@@ -732,7 +734,7 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_NOITEMKEY_GA(nsl::CMsgCell* pCe
                 G_Auction()->GetItemInfo(packet.item_info[i].item_info.item_id);
             if (pItemInfo != NULL)
             {
-                unsigned int item_category = (unsigned int)pItemInfo->category_;
+                int item_category = (int)pItemInfo->category_;
                 if (G_Auction()->IsAvatarCategory(item_category))
                 {
                     G_Auction()->GetAvatarEmblemInfo(
@@ -745,7 +747,7 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_NOITEMKEY_GA(nsl::CMsgCell* pCe
                 }
             }
         }
-        packet.setSize((0x3c - (unsigned int)packet.item_num) * -0x89 + 0x203d);
+        packet.setSize(0x203d - (0x3c - (unsigned int)packet.item_num) * 0x89);
         // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
         Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
         CMsgCell* cell = msg->getCellFromMessage();
@@ -768,7 +770,7 @@ unsigned int HandlerFor_GA_::onAUCTION_SEARCH_BY_NOITEMKEY_GA(nsl::CMsgCell* pCe
 
 unsigned int HandlerFor_GA_::onAUCTION_REGIST_ITEM_GA(nsl::CMsgCell* pCell, nsl::TCPUser* u)
 {
-    unsigned int return_code = 0;
+    int return_code = 0;
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_REGIST_ITEM_GA");
     if (!IsGoldServer())
@@ -801,7 +803,7 @@ unsigned int HandlerFor_GA_::onAUCTION_REGIST_ITEM_GA(nsl::CMsgCell* pCell, nsl:
     PCK_AUCTION_REGIST_RESULT_AG result_packet;
     result_packet.char_idx = pPck->char_idx;
     result_packet.owner_id = pPck->owner_id;
-    unsigned int item_category = 0xffffffff;
+    int item_category = -1;
     if (return_code != 0)
     {
         result_packet.regist_result = 0;
@@ -819,7 +821,7 @@ unsigned int HandlerFor_GA_::onAUCTION_REGIST_ITEM_GA(nsl::CMsgCell* pCell, nsl:
             G_Auction()->GetItemInfo(pPck->item_info.item_id);
         if (pItemInfo != NULL)
         {
-            item_category = (unsigned int)pItemInfo->category_;
+            item_category = (int)pItemInfo->category_;
             if (G_Auction()->IsAvatarCategory(item_category))
             {
                 G_Auction()->AddAvatarEmblemInfo(pPck->item_info.add_info,
@@ -859,15 +861,13 @@ unsigned int HandlerFor_GA_::onAUCTION_REGIST_ITEM_GA(nsl::CMsgCell* pCell, nsl:
     {
         if (return_code == 9)
         {
-            const char* errStr = GetErrorStr(return_code);
             G_TraceLog()->sysLog(7, "Out onAUCTION_REGIST_ITEM_GA , auction_id : %llu, %s",
-                                 log_packet.auction_id, errStr);
+                                 log_packet.auction_id, GetErrorStr(return_code));
             return return_code;
         }
         {
-            const char* errStr = GetErrorStr(return_code);
             G_TraceLog()->sysLog(5, "Out onAUCTION_REGIST_ITEM_GA , auction_id : %llu, %s",
-                                 log_packet.auction_id, errStr);
+                                 log_packet.auction_id, GetErrorStr(return_code));
         }
     }
     else

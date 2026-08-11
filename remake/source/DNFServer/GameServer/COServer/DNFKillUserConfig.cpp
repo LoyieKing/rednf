@@ -48,6 +48,10 @@ bool CKillUSRConfig::Parse_Table(char* line, int idx)
     char* tok1;
     char* tok2;
     char* tok3;
+    // 死局部：与 ORIG 栈布局对齐（tok 槽位 -0x1c..-0x10 / p@-0x20）。
+    // 同族 statics 还原已验证该模式（statics ORIG Parse_Table 同为 -0x1c）。
+    int n;
+    (void)n;
     if (DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 4) == 4)
     {
         ST_KillUSRConfig* p = new (std::nothrow) ST_KillUSRConfig;

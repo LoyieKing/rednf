@@ -35,9 +35,9 @@ HandlerFor_DB_::~HandlerFor_DB_()
 
 void HandlerFor_DB_::DecryptPassword(const char* pInput, char* pOutput)
 {
-    // ORIG 槽位 p_decrypt@-0x48/p_binary@-0x88（大数组在上）；本工具链固定
-    // p_decrypt@-0x90/p_binary@-0x48，声明序不可控——记录为帧打包伪影。
-    char p_decrypt_result[72];
+    // ORIG DWARF：p_decrypt_result（decl 49）char[64]@-0x48、
+    // p_binary_decrypt_result（decl 50）uchar[64]@-0x88（2026-08-11 复检修正）。
+    char p_decrypt_result[64];
     unsigned char p_binary_decrypt_result[64];
 
     memset(p_decrypt_result, 0, 0x40);
@@ -502,8 +502,8 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_EXPIRE_HISTORY(nsl::CMsgCell* pCell)
         time_now, (unsigned int)pContext->event_type, pContext->owner_id,
         pContext->buyer_id, pContext->price, (int)pContext->item_info.seal,
         pContext->item_info.item_id, pContext->item_info.add_info,
-        (unsigned int)(pContext->item_info.uniItemAttr & 0x1f),
-        (pContext->item_info.uniItemAttr >> 5) & 0x1f,
+        (unsigned int)pContext->item_info.btUpgrade,
+        (unsigned int)pContext->item_info.btSealCount,
         pContext->item_info.endurance, pContext->item_info.extendInfo,
         pContext->owner_postal_id, pContext->buyer_postal_id,
         (unsigned int)pContext->item_info.abilityType_,
@@ -1025,8 +1025,8 @@ unsigned int HandlerFor_DB_::onAUCTION_DB_REGIST_ITEM(nsl::CMsgCell* pCell)
         pContext->auction_id, pContext->expire_time - expire_time, pContext->expire_time,
         pContext->owner_id, owner_name, pContext->buyer_id, buyer_name, pContext->price,
         pContext->instant_price, (int)pContext->item_info.seal, pContext->item_info.item_id,
-        pContext->item_info.add_info, (unsigned int)(pContext->item_info.uniItemAttr & 0x1f),
-        (pContext->item_info.uniItemAttr >> 5) & 0x1f,
+        pContext->item_info.add_info, (unsigned int)pContext->item_info.btUpgrade,
+        (unsigned int)pContext->item_info.btSealCount,
         pContext->item_info.endurance,
         pContext->item_info.extendInfo, (unsigned int)pContext->item_info.abilityType_,
         pContext->item_info.abilityValue_, (unsigned int)pContext->owner_type,

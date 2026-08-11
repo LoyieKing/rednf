@@ -16,21 +16,39 @@ TCPSocket::TCPSocket()
 {
     m_fd = -1;
     memset(&m_addr, 0, 4);
-    memset(&m_data4, 0, 0x10);
+    memset(&m_sock, 0, 0x10);
     m_port = 0;
 }
+
+// ORIG 用 glibc 2.5 头编译：FD_ZERO 展开为循环（0x20 次 dword 清零），
+// __NFDBITS 为无符号（8*sizeof，无 (int) 强转），FD_SET/FD_ISSET 用无符号除法
+// （shr/and 形态）。c6root glibc 2.12 的 __NFDBITS 带 (int) 强转（sar 形态）
+// 且 FD_ZERO 为 inline asm（rep stos），均与 ORIG 不一致，这里按 2.5 复现。
+#define MGR_NFDBITS (8 * sizeof(__fd_mask))
+#define MGR_FD_ZERO(fdsetp) \
+    do { \
+        unsigned int __mgr_i; \
+        fd_set* __mgr_arr = (fdsetp); \
+        for (__mgr_i = 0; __mgr_i < sizeof(fd_set) / sizeof(__fd_mask); ++__mgr_i) \
+            __FDS_BITS(__mgr_arr)[__mgr_i] = 0; \
+    } while (0)
+#define MGR_FD_SET(d, fdsetp) \
+    (__FDS_BITS((fdsetp))[(d) / MGR_NFDBITS] |= (__fd_mask)1 << ((d) % MGR_NFDBITS))
+#define MGR_FD_ISSET(d, fdsetp) \
+    ((__FDS_BITS((fdsetp))[(d) / MGR_NFDBITS] & (__fd_mask)1 << ((d) % MGR_NFDBITS)) != 0)
 
 TCPSocket::~TCPSocket()
 {
     close();
 }
 
-char TCPSocket::open()
+bool TCPSocket::open()
 {
     m_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (m_fd == -1)
     {
-        printf("socket error %d", errno);
+        int e = errno;
+        printf("Could not create a TDP socket : %d\n", e);
         return 0;
     }
     return 1;
@@ -38,21 +56,18 @@ char TCPSocket::open()
 
 void TCPSocket::close()
 {
-    if (m_fd != -1)
-    {
-        ::close(m_fd);
-        m_fd = -1;
-        memset(&m_addr, 0, 4);
-        m_port = 0;
-    }
+    if (m_fd == -1)
+        return;
+    ::close(m_fd);
+    m_fd = -1;
+    memset(&m_addr, 0, 4);
+    m_port = 0;
 }
 
 int TCPSocket::shutdown(int how)
 {
-    // ORIG 反汇编：不调用 ::shutdown(2)，仅装载 m_fd 并与 -1 比较（返回值仍为 m_fd）。
     (void)how;
-    m_fd == -1;
-    return m_fd;
+    return m_fd == -1 ? m_fd : m_fd;
 }
 
 int TCPSocket::send(char* buf, int len)
@@ -65,22 +80,16 @@ int TCPSocket::send(char* buf, int len)
     int n = write(m_fd, buf, len);
     if (n <= 0)
     {
-        int e = errno;
-        if (e == 0xb || e == 0x4 || e == 0xb)
+        if (errno == 0xb || errno == 0x4 || errno == 0xb || errno == 0)
         {
-            printf("tcp send fail='%d', error ='%s'", n, strerror(e));
-            return -1;
-        }
-        if (e != 0)
-        {
-            printf("tcp send retry='%d', error ='%s'", n, strerror(e));
+            printf("\xbf\xa9\xb1\xe2 \xb0\xc9\xb8\xae\xb8\xe9\xbc\xad errno \xb0\xa1 0 \xc0\xcc\xb8\xe9 \xb9\xae\xc1\xa6 \xb9\xdf\xbb\xfd \xc7\xd1\xb4\xd9 !!!! \xb2\xc0 \xc8\xae\xc0\xce!!!");
+            printf("tcp send retry='%d', error ='%s'", n, strerror(errno));
             return 0;
         }
-        printf("send error no 0");
-        printf("tcp send retry='%d', error ='%s'", n, strerror(e));
-        return 0;
+        printf("tcp send fail='%d', error ='%s'", n, strerror(errno));
+        return -1;
     }
-    printf("tcp send='%d', error ='%s'", n, strerror(errno));
+    printf("1.tcp send='%d', error ='%s'", n, strerror(errno));
     return n;
 }
 
@@ -94,17 +103,13 @@ int TCPSocket::recv(char* buf, int len)
     int n = read(m_fd, buf, len);
     if (n < 0)
     {
-        int e = errno;
-        if (e == 0xb || e == 0x4 || e == 0xb)
-        {
-            if (n != 0)
-                return n;
-            printf("tcp recv : FIN recv, %s", strerror(e));
-            return -1;
-        }
-        if (e != 0)
-            return n;
-        return 0;
+        if (errno == 0xb || errno == 0x4 || errno == 0xb || errno == 0)
+            return 0;
+    }
+    else if (n == 0)
+    {
+        printf("tcp recv : FIN recv, %s", strerror(errno));
+        return -1;
     }
     printf("tcp recv ='%d'", n);
     return n;
@@ -120,7 +125,7 @@ char TCPSocket::setOptResizeRecvBuf(int size)
     return 1;
 }
 
-char TCPSocket::connect(const char* ip, unsigned short port)
+bool TCPSocket::connect(const char* ip, unsigned short port)
 {
     struct sockaddr_in addr;
     memset(&addr, 0, 0x10);
@@ -134,8 +139,8 @@ char TCPSocket::connect(const char* ip, unsigned short port)
                ip, port, strerror(errno));
         return 0;
     }
-    memcpy((char*)this + 0x14, (char*)&addr + 4, 4);
-    m_port = *(unsigned short*)((char*)&addr + 2);
+    memcpy(&m_addr, &addr.sin_addr.s_addr, 4);
+    m_port = addr.sin_port;
     return 1;
 }
 
@@ -150,7 +155,11 @@ char TCPSocket::setOptNonBlock()
 
 char TCPSocket::setOptReuseAdrs(bool flag)
 {
-    int opt = flag ? 1 : 0;
+    int opt = 0;
+    if (flag)
+        opt = 1;
+    else
+        opt = 0;
     if (setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &opt, 4) < 0)
         return 0;
     return 1;
@@ -170,7 +179,12 @@ char TCPSocket::setOptResizeSendBuf(int size)
 {
     if (size <= 0)
         return 0;
-    if (setsockopt(m_fd, SOL_SOCKET, SO_SNDBUF, &size, 4) < 0)
+    int len;
+    int opt;
+    opt = 0;
+    len = 4;
+    int ret = setsockopt(m_fd, SOL_SOCKET, SO_SNDBUF, &size, 4);
+    if (ret < 0)
         return 0;
     return 1;
 }
@@ -189,61 +203,61 @@ char* TCPSocket::getPeerIP()
 char TCPSocket::pollWriteEvent() const
 {
     fd_set writefds;
-    FD_ZERO(&writefds);
-    FD_SET(m_fd, &writefds);
+    MGR_FD_ZERO(&writefds);
+    MGR_FD_SET(m_fd, &writefds);
     struct timeval tv;
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int ret = select(2, 0, &writefds, 0, &tv);
-    if (ret < 0)
+    int ret = 0;
+    if ((ret = select(2, 0, &writefds, 0, &tv)) < 0)
     {
         printf("pollWriteEvent(%s)", strerror(errno));
         return 0;
     }
-    return FD_ISSET(m_fd, &writefds) ? 1 : 0;
+    return MGR_FD_ISSET(m_fd, &writefds);
 }
 
 char TCPSocket::pollErrorEvent() const
 {
     fd_set exceptfds;
-    FD_ZERO(&exceptfds);
-    FD_SET(m_fd, &exceptfds);
+    MGR_FD_ZERO(&exceptfds);
+    MGR_FD_SET(m_fd, &exceptfds);
     struct timeval tv;
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int ret = select(2, 0, 0, &exceptfds, &tv);
-    if (ret < 0)
+    int ret = 0;
+    if ((ret = select(2, 0, 0, &exceptfds, &tv)) < 0)
     {
         printf("pollErrorEvent(%s)", strerror(errno));
         return 0;
     }
-    return FD_ISSET(m_fd, &exceptfds) ? 1 : 0;
+    return MGR_FD_ISSET(m_fd, &exceptfds);
 }
 
 int TCPSocket::pollReadWriteErrEvent() const
 {
     fd_set readfds, writefds, exceptfds;
-    FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    FD_ZERO(&exceptfds);
-    FD_SET(m_fd, &readfds);
-    FD_SET(m_fd, &writefds);
-    FD_SET(m_fd, &exceptfds);
+    MGR_FD_ZERO(&readfds);
+    MGR_FD_ZERO(&writefds);
+    MGR_FD_ZERO(&exceptfds);
+    MGR_FD_SET(m_fd, &readfds);
+    MGR_FD_SET(m_fd, &writefds);
+    MGR_FD_SET(m_fd, &exceptfds);
     struct timeval tv;
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int ret = select(2, &readfds, &writefds, &exceptfds, &tv);
-    if (ret < 0)
+    int ret = 0;
+    int result = 0;
+    if ((ret = select(2, &readfds, &writefds, &exceptfds, &tv)) < 0)
     {
         printf("pollReadWriteErrEvent(%s)", strerror(errno));
         return ret;
     }
-    int result = 0;
-    if (FD_ISSET(m_fd, &readfds))
+    if (MGR_FD_ISSET(m_fd, &readfds))
         result = 1;
-    else if (FD_ISSET(m_fd, &writefds))
+    else if (MGR_FD_ISSET(m_fd, &writefds))
         result = 2;
-    else if (FD_ISSET(m_fd, &exceptfds))
+    else if (MGR_FD_ISSET(m_fd, &exceptfds))
         result = 3;
     return result;
 }
@@ -280,18 +294,18 @@ char TCPSocket::listen(int backlog)
 char TCPSocket::pollReadEvent() const
 {
     fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(m_fd, &readfds);
+    MGR_FD_ZERO(&readfds);
+    MGR_FD_SET(m_fd, &readfds);
     struct timeval tv;
     tv.tv_sec = 5;
     tv.tv_usec = 0;
-    int ret = select(m_fd + 1, &readfds, 0, 0, &tv);
-    if (ret < 0)
+    int ret = 0;
+    if ((ret = select(m_fd + 1, &readfds, 0, 0, &tv)) < 0)
     {
         printf("pollReadEvent(%s)", strerror(errno));
         return 0;
     }
-    return FD_ISSET(m_fd, &readfds) ? 1 : 0;
+    return MGR_FD_ISSET(m_fd, &readfds);
 }
 
 char TCPSocket::accept(TCPSocket& sock)
@@ -307,7 +321,7 @@ char TCPSocket::accept(TCPSocket& sock)
             fclose(f);
         }
     }
-    if (sock.m_fd < 0)
+    if (sock.m_fd < 0 || sock.m_fd == -1)
     {
         FILE* f = fopen("log.txt", "a+");
         if (f)
@@ -315,11 +329,10 @@ char TCPSocket::accept(TCPSocket& sock)
             fprintf(f, "[TCPSocket::Accept] Accept fail[%d]\n", sock.m_fd);
             fclose(f);
         }
-    }
-    if (sock.m_fd == -1)
         return 0;
+    }
     memcpy((char*)&sock + 0x14, (char*)&sock + 8, 4);
-    sock.m_port = *(unsigned short*)((char*)&sock + 6);
+    sock.m_port = sock.m_sock.sin_port;
     sock.setOptNonBlock();
     return 1;
 }

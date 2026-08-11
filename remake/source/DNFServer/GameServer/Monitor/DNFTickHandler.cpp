@@ -28,7 +28,11 @@
 #include "DNFApplication.h"
 #include "DNFTableBase.h"
 
-CFrameCountHandler::CFrameCountHandler() {}
+CFrameCountHandler::CFrameCountHandler()
+{
+    m_field28 = 0;
+    m_app = 0;
+}
 
 
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int frameCount,

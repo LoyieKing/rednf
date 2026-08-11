@@ -23,7 +23,7 @@ public:
     CKillUSRConfig();
     virtual ~CKillUSRConfig();
     virtual int Load_Table(const std::string& fileName);
-    virtual int Parse_Table(char* data, int size);
+    virtual bool Parse_Table(char* data, int size);
     void Clear_Table();
     void* GetInfo() const;
     std::vector<ST_KillUSRConfig*> m_list;  // +4（sizeof=0x10）

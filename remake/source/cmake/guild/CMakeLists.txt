@@ -91,7 +91,7 @@ dnf_service(guild
         "-I${COMMON}" "-I${SVC_DIR}" "-I${PACKET}/include"
         "-I${SHARED}" "-I${SHARED}/common/include"
     DEFINES
-        -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS
+        -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS -DDNF_SVC_GUILD
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
         "${COMMON}/tinyxml.cpp|-O3 -std=gnu++98"

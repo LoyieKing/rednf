@@ -91,10 +91,11 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 }
 void CFrameCountHandler::SaveProcess()
 {
-    m_writeTick = (char)(m_writeTick + 1);
-    if (m_writeTick != 0)
+    m_writeTick++;
+    bool b = m_writeTick != 0;
+    if (b)
     {
-        DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_fps, m_tick);
+        DNF_LOG_SCOPE_LINE(0x9d, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_fps, m_tick);
         m_writeTick = 0;
     }
 }

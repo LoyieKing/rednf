@@ -102,7 +102,7 @@ int EpollHandler::Init()
         puts("[Epoll::init] Can't init epoll create");
         return 0;
     }
-    m_events = new unsigned char[12000];
+    m_events = new epoll_event[1000];
     if (m_events == 0)
     {
         printf("[Epoll::init] Can't alloc event memory");
@@ -142,22 +142,22 @@ int EpollHandler::WaitForEvent()
 
 bool EpollHandler::IsSetErrEvent(int idx)
 {
-    return (*(unsigned int*)((char*)m_events + idx * 0xc) & 0x18) != 0;
+    return (m_events[idx].events & 0x18) != 0;
 }
 
 bool EpollHandler::IsSetOutEvent(int idx)
 {
-    return (*(unsigned int*)((char*)m_events + idx * 0xc) & 4) != 0;
+    return (m_events[idx].events & 4) != 0;
 }
 
 unsigned int EpollHandler::IsSetInEvent(int idx)
 {
-    return *(unsigned int*)((char*)m_events + idx * 0xc) & 1;
+    return m_events[idx].events & 1;
 }
 
 void* EpollHandler::GetEventPtr(int idx)
 {
-    return *(void**)((char*)m_events + idx * 0xc + 4);
+    return m_events[idx].data.ptr;
 }
 
 CTcpHandler::CTcpHandler()
@@ -194,31 +194,47 @@ int CTcpHandler::ResetEpoll(int fd)
 
 int CTcpHandler::WaitForEvent()
 {
-    if (m_epoll != 0)
+    if (m_epoll == 0)
     {
-        return m_epoll->WaitForEvent();
+        return -1;
     }
-    return -1;
+    return m_epoll->WaitForEvent();
 }
 
 bool CTcpHandler::IsSetErrEvent(int idx)
 {
-    return m_epoll != 0 && m_epoll->IsSetErrEvent(idx);
+    if (m_epoll == 0)
+    {
+        return 0;
+    }
+    return m_epoll->IsSetErrEvent(idx);
 }
 
 bool CTcpHandler::IsSetOutEvent(int idx)
 {
-    return m_epoll != 0 && m_epoll->IsSetOutEvent(idx);
+    if (m_epoll == 0)
+    {
+        return 0;
+    }
+    return m_epoll->IsSetOutEvent(idx);
 }
 
 unsigned int CTcpHandler::IsSetInEvent(int idx)
 {
-    return m_epoll != 0 ? m_epoll->IsSetInEvent(idx) : 0;
+    if (m_epoll == 0)
+    {
+        return 0;
+    }
+    return m_epoll->IsSetInEvent(idx);
 }
 
 void* CTcpHandler::GetEventPtr(int idx)
 {
-    return m_epoll != 0 ? m_epoll->GetEventPtr(idx) : 0;
+    if (m_epoll == 0)
+    {
+        return 0;
+    }
+    return m_epoll->GetEventPtr(idx);
 }
 
 CProtocol::~CProtocol()
@@ -238,4 +254,3 @@ void* EpollHandler::GetEpollEvents()
 CProtocol::CProtocol()
 {
 }
-

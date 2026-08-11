@@ -30,6 +30,8 @@ Message* CommonDataPool::getSendMessage(TCPUser* u)
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(mSendPoolLock);
     Message* msg = mSendMessagePool->construct();
+    // ORIG __LINE__ 实测 0x22=34（point/auction 同源一致）
+#line 34
     assert(msg && "mSendMessagePool");
     msg->setWorkId(tlsThreadId);
     msg->setUserToMessage(u);
@@ -39,6 +41,8 @@ Message* CommonDataPool::getSendMessage(TCPUser* u)
     {
         puts("wtf");
     }
+    // ORIG __LINE__ 实测 0x2e=46（point/auction 同源一致）
+#line 46
     assert(pSendBuffer && "getSendMessage");
     msg->setStringToMessage(pSendBuffer);
     pool_send_msg = pool_send_msg + 1;
@@ -61,6 +65,8 @@ Message* CommonDataPool::createMessage(int msgType)
     Message* r = mMessagePool->construct();
     r->mMsgType = (char)msgType;
     DbBuffer* pBuf = mBufPool->malloc();
+    // ORIG __LINE__ 实测 0x4b=75（point/auction 同源一致）
+#line 75
     assert(pBuf && "mBufPool");
     r->setStringToMessage(pBuf);
     return r;

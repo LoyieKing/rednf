@@ -12,6 +12,9 @@
 #include "PacketHeader.h"
 
 #include "PacketHeader.h"
+#include "PowerWarTypes.h"
+#include "Power.h"
+#include "PowerWar.h"
 
 class CApplication;
 class CPowerManager;
@@ -37,34 +40,6 @@ struct STUserRank;
 enum ENUM_POWER_SIDE_TYPE {};
 
 // from GuildDomain.h
-struct STGuildRank
-{
-    STGuildRank();
-    char m_data[8];   // {guildKey@0, point@4}
-};
-
-// from GuildDomain.h
-struct STUserRank
-{
-    STUserRank();
-    char m_data[8];   // {charNo@0, point@4}
-};
-
-// from GuildDomain.h
-struct STUserPoint
-{
-    STUserPoint();
-    char m_data[8];
-};
-
-// from GuildDomain.h
-struct STPowerWarPointInfo
-{
-    STPowerWarPointInfo();
-    char m_data[8];
-};
-
-// from GuildDomain.h
 class CPowerManager
 {
 public:
@@ -73,7 +48,7 @@ public:
     void InitPowerManager(char* path, CApplication* app);
     void Process();
     void ProcessByMinute();
-    int IsPowerWarOn();
+    unsigned char IsPowerWarOn();
     void SetPowerInfo(char side, int score1, int score2);
     void CleanPowerWar();
     int GetPowerScore(ENUM_POWER_SIDE_TYPE side);
@@ -111,7 +86,16 @@ public:
                                            unsigned int d, unsigned int e, unsigned int f,
                                            unsigned int g, unsigned int h);
     void SendPowerWarEndInfoInSpecificPower(char side);
-    char m_data[0x198];
+    unsigned int m_field4;       // +4（ORIG C1 置 0）
+    CPower m_power[3];           // +8（0x6c × 3 → +8..+0x14c）
+    CPowerWar m_powerWar;        // +0x14c（0x38 → +0x14c..+0x184）
+    char m_winnerSide;           // +0x184
+    char m_pad185;
+    unsigned short m_powerWarEndKillPoint;  // +0x186
+    char m_sideCount;            // +0x188
+    char m_pad189;
+    unsigned short m_field18a;   // +0x18a
+    char m_rest[0x19c - 0x18c];  // +0x18c
 };
 
 // from GuildPackets.h

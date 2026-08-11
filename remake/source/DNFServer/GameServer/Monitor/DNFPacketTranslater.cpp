@@ -1,5 +1,6 @@
 // df_monitor_r — DNFPacketTranslater（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -14,10 +15,12 @@
 #include <sys/stat.h>
 #include <sys/times.h>
 #include <algorithm>
+#include <new>
 
 #include "DNFPacketTranslater.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
+#include "DNFMember.h"
 #include "Packet_Monitor_Member_Secede.h"
 #include "Packet_GM_Request_Mid.h"
 #include "Packet_PvPChannelInfo.h"
@@ -122,9 +125,9 @@ void CPacketTranslater::SendRequestMemberDeleteResult(CUser* user, unsigned char
                                                       const char* name)
 {
     Packet_Monitor_Member_Secede pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = user->GetIdByChannel();
-    *(unsigned int*)((char*)&pkt + 0xe) = user->GetUniqCharNo();
-    *(unsigned char*)((char*)&pkt + 0x12) = result;
+    ((RA_UINT<10>*)&pkt)->v = user->GetIdByChannel();
+    ((RA_UINT<14>*)&pkt)->v = user->GetUniqCharNo();
+    ((RA_U8<18>*)&pkt)->v = result;
     memcpy((char*)&pkt + 0x13, name, 0x1d);
     user->SendTcpGameserver(&pkt);
 }
@@ -136,7 +139,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
         try
         {
             unsigned int channel =
-                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x12);
+                (unsigned int)(unsigned char)((RA_S8<18>*)pkt)->v;
             CTcpGameServer* tcpGs =
                 (CTcpGameServer*)m_pclApp->FindTcpGameServer(channel);
             if (tcpGs != 0)
@@ -145,9 +148,9 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                     (CServerInterface*)m_pclApp->FindGameServer((int)channel);
                 if (gs == 0)
                 {
-                    char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xe), 0);
+                    char* dbid = NumberToString(((RA_UINT<14>*)pkt)->v, 0);
                     DNF_LOG_SCOPE_LINE(0x129,"./log/Channel", "Not Found M_ID(%s) Channel No(%d)", dbid,
-                        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x12));
+                        (unsigned int)(unsigned char)((RA_S8<18>*)pkt)->v);
                 }
                 else
                 {
@@ -165,22 +168,22 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                         memcpy(pktBuf + 10, (char*)pkt + 0xa, 0x29);
                     }
                     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-                    CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xe));
+                    CUser* user = userMgr->FindUser(((RA_UINT<14>*)pkt)->v);
                     if (user == 0)
                     {
                         if (userMgr->FindProhibitUser(
-                                *(unsigned int*)((char*)pkt + 0xe)) == 0)
+                                ((RA_UINT<14>*)pkt)->v) == 0)
                         {
                             user = userMgr->CreateUser(
-                                *(unsigned int*)((char*)pkt + 0xe), 0, "",
-                                *(int*)((char*)pkt + 0xa), (CGameServer*)gs);
-                            user->SetSex(*(unsigned char*)((char*)pkt + 0x23));
+                                ((RA_UINT<14>*)pkt)->v, 0, "",
+                                ((RA_INT<10>*)pkt)->v, (CGameServer*)gs);
+                            user->SetSex(((RA_U8<35>*)pkt)->v);
                             DNF_LOG_SCOPE_LINE(0x198,"./log/User", "OnLogin - SetSex : %d",
-                                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x23));
+                                (unsigned int)(unsigned char)((RA_S8<35>*)pkt)->v);
                             user->SetSsn((char*)pkt + 0x2c);
                             user->SetTcpGameServer(tcpGs);
                             outBuf[0x23] = 1;
-                            char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xe), 0);
+                            char* dbid = NumberToString(((RA_UINT<14>*)pkt)->v, 0);
                             CMyFileLog log2("OnLogin", 0x1a5);
                             log2("./log/User",
                                  "Current user count : %d\tConnected User DB ID : %s\n",
@@ -201,7 +204,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                             else
                             {
                                 RequestBlackListToDBMW(
-                                    *(unsigned int*)((char*)pkt + 0xe));
+                                    ((RA_UINT<14>*)pkt)->v);
                             }
                         }
                         else
@@ -211,7 +214,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                                 outBuf[0x23] = 3;
                             }
                             unsigned int ch = gs->GetChannelNo();
-                            char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xe), 0);
+                            char* dbid = NumberToString(((RA_UINT<14>*)pkt)->v, 0);
                             DNF_LOG_SCOPE_LINE(400,"./log/User",
                                 "PROHIBIT USER CONNECTED : m_ID(%s)\tChannel(%d)\n", dbid,
                                 ch & 0xff);
@@ -227,12 +230,12 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                             if (oldBuf != 0)
                             {
                                 *(unsigned int*)(oldBuf + 10) =
-                                    *(unsigned int*)((char*)pkt + 0xe);
+                                    ((RA_UINT<14>*)pkt)->v;
                                 oldGs->SendToGameServer(oldBuf);
                             }
                         }
                         unsigned int ch = gs->GetChannelNo();
-                        char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xe), 1);
+                        char* dbid = NumberToString(((RA_UINT<14>*)pkt)->v, 1);
                         char* oldDbid = NumberToString(user->GetDBID(), 0);
                         DNF_LOG_SCOPE_LINE(0x17a,"./log/User",
                             "DOUBLE CONNECTED : Already User DB ID(%s)\tCurrent Connect User "
@@ -256,7 +259,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                     }
                     exchange_server::CACHE_CHARACTER_TYPE cacheType;
                     if (exchange_server::GetInstanceCacheCharacterMgr()->GetCacheCharacter(
-                            *(unsigned int*)((char*)pkt + 0xe), &cacheType) != 0 &&
+                            ((RA_UINT<14>*)pkt)->v, &cacheType) != 0 &&
                         pktBuf != 0)
                     {
                         *(unsigned int*)(outBuf + 0x28) =
@@ -294,31 +297,31 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
         CMemberManager* memberMgr = m_pclApp->Get_MemberManager();
         CLoginLogoutStatistics* stats =
             (CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics();
-        if (stats != 0 && *(char*)((char*)pkt + 0x17) == 0)
+        if (stats != 0 && ((RA_S8<23>*)pkt)->v == 0)
         {
             stats->CountNumOfLoginout((ENUM_LOGIN_LOGOUT)6);
         }
-        CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
-            char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+            char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
             DNF_LOG_SCOPE_LINE(0x22d,"./log/User", "LOGOUT ERR : User DB ID(%s), F.O.C(%d), Ch(%d)", dbid,
-                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x17),
-                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe));
+                (unsigned int)(unsigned char)((RA_S8<23>*)pkt)->v,
+                (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v);
             return;
         }
         char* name = user->GetCharName();
         unsigned int memberKey = user->GetMemberKey();
         unsigned int charNo = user->GetUniqCharNo();
-        char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+        char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
         DNF_LOG_SCOPE_LINE(0x230,"./log/User",
             "LOGOUT : User DB ID(%s), Char No(%d), Member K(%d) , name(%s), F.O.C(%d), Ch(%d)",
             dbid, charNo, memberKey, name,
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x17),
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe));
-        unsigned int memberKey2 = *(unsigned int*)((char*)pkt + 0x18);
+            (unsigned int)(unsigned char)((RA_S8<23>*)pkt)->v,
+            (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v);
+        unsigned int memberKey2 = ((RA_UINT<24>*)pkt)->v;
         CMemoryCashManager* cash = (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
-        CMember* member = memberMgr->FindMember(*(unsigned int*)((char*)pkt + 0xa));
+        CMember* member = memberMgr->FindMember(((RA_UINT<10>*)pkt)->v);
         bool f1 = false;
         bool f2 = false;
         cash->InsertCashMemorySetCharacterObject(user, member, f1, f2);
@@ -355,16 +358,16 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                     }
                 }
                 exchange_server::CACHE_CHARACTER_TYPE cacheType;
-                cacheType.m_field0 = *(int*)((char*)pkt + 0xf);
-                cacheType.m_field4 = (int)(unsigned char)*(char*)((char*)pkt + 0xe);
-                char* dbid2 = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
-                CMyFileLog log2("OnLogout", 0x290);
+                cacheType.m_field0 = ((RA_INT<15>*)pkt)->v;
+                cacheType.m_field4 = (int)(unsigned char)((RA_S8<14>*)pkt)->v;
+                char* dbid2 = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
+                CMyFileLog log2(__FUNCTION__, 0x290);
                 log2("./log/ExchangeServer", "CacheCharacter() (%s,%d,%d)\n", dbid2,
                      cacheType.m_field0, cacheType.m_field4);
-                if (*(char*)((char*)pkt + 0x3a) != 0)
+                if (((RA_S8<58>*)pkt)->v != 0)
                 {
                     exchange_server::GetInstanceCacheCharacterMgr()->CacheCharacter(
-                        *(unsigned int*)((char*)pkt + 0xa), &cacheType);
+                        ((RA_UINT<10>*)pkt)->v, &cacheType);
                 }
                 CLoginLogoutStatistics* stats2 =
                     (CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics();
@@ -377,7 +380,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
             userMgr->DeleteUser_CharName(user->GetCharName());
             user->ResetCharInfo(!f1);
         }
-        if (*(char*)((char*)pkt + 0x17) != 0)
+        if (((RA_S8<23>*)pkt)->v != 0)
         {
             user->SetUserPosState(2);
             return;
@@ -393,12 +396,12 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
         }
         if (user->GetGameServer() != 0 &&
             ((CServerInterface*)user->GetGameServer())->GetChannelNo() ==
-                (unsigned char)*(char*)((char*)pkt + 0xe))
+                (unsigned char)((RA_S8<14>*)pkt)->v)
         {
             if (userMgr->DeleteUser(user) != 1)
             {
-                char* dbid3 = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
-                CMyFileLog log3("OnLogout", 0x2c5);
+                char* dbid3 = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
+                CMyFileLog log3(__FUNCTION__, 0x2c5);
                 log3("./log/User",
                      "[NO USER] Disconnected User DB ID : %s, Char No : %d , char name:%s\n",
                      dbid3, user->GetUniqCharNo(), user->GetCharName());
@@ -408,9 +411,9 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
         {
             unsigned char alreadyCh =
                 ((CServerInterface*)user->GetGameServer())->GetChannelNo();
-            unsigned char logoutCh = (unsigned char)*(char*)((char*)pkt + 0xe);
-            char* dbid4 = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
-            CMyFileLog log4("OnLogout", 0x2cc);
+            unsigned char logoutCh = (unsigned char)((RA_S8<14>*)pkt)->v;
+            char* dbid4 = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
+            CMyFileLog log4(__FUNCTION__, 0x2cc);
             log4("./log/User",
                  "[LOGOUT SESSION MISMATCH] User DB ID : %s, Char No : %d , Already Ch(%d), "
                  "Logout Ch(%d)",
@@ -441,26 +444,26 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
     try
     {
         DNF_LOG_SCOPE_LINE(0x361,"./log/Reboot", "[GAME SERVER] Channel No : %d\n",
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xb));
+            (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
         if (m_pclApp == 0)
         {
             throw CDNFException("CPacketTranslater::OnReplyUserInfo : m_pclApp == 0");
         }
         CGameServer* gs =
             (CGameServer*)m_pclApp->FindGameServer(
-                (int)(unsigned char)*(char*)((char*)pkt + 0xb));
+                (int)(unsigned char)((RA_S8<11>*)pkt)->v);
         if (gs == 0)
         {
             throw CDNFException("CPacketTranslater::OnReplyUserInfo : pclGameServer == 0");
         }
         CTcpGameServer* tcpGs =
             (CTcpGameServer*)m_pclApp->FindTcpGameServer(
-                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xb));
+                (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
         if (tcpGs != 0)
         {
             CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
             for (int i = 0;
-                 i < (int)(unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa); i++)
+                 i < (int)(unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v; i++)
             {
                 char* entry = (char*)pkt + i * 0x4e + 0xc;
                 if (*(int*)entry != 0)
@@ -499,7 +502,7 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
                         if (cash3->QueryCashMemoryBuddyInfo(user) != 1)
                         {
                             user->QueryBuddyInfo(
-                                (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0));
+                                m_pclApp->m_serverHandler2);
                         }
                     }
                     else
@@ -526,59 +529,62 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
 
 void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
 {
-    if (m_pclApp != 0 &&
-        (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0) != 0)
+    PacketHeader* p = pkt;
+    if (m_pclApp != 0)
     {
-        try
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
+        if (handler != 0)
         {
-            CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-            unsigned char channel = *(unsigned char*)((char*)pkt + 0xa);
-            if (channel == 0xc8)
+            try
             {
-                handler->ResetDBHeartBeat();
-                if (handler->IsConnectedDBServer() != 1)
+                unsigned char channel = ((RA_U8<10>*)p)->v;
+                if (channel == 0xc8)
                 {
-                    handler->SetDBConnectFlag(true);
-                    handler->SendDBMWConnectionCheck();
-                    DNF_LOG_SCOPE_LINE(0x318, "./log/DBHeartBeat", "DB Server Connection Complete!");
-                }
-            }
-            else if (channel == 0 || 0xbe < channel)
-            {
-                DNF_LOG_SCOPE_LINE(0x341,"./log/Except", "[ERROR - HEART BEAT] Channel Index(%d) Over.",
-                    (unsigned int)channel);
-            }
-            else
-            {
-                handler->ResetHeartBeat(channel);
-                if (handler->IsConnectedGameServer(channel) != 1)
-                {
-                    handler->SetConnectFlag(channel, true);
-                    Packet_Tcp_Server_Connect pkt2;
-                    pkt2.m_channel = 0xc9;
-                    CServerInterface* gs = handler->GetGameServer((unsigned int)channel);
-                    if (gs == 0)
+                    handler->ResetDBHeartBeat();
+                    if (!handler->IsConnectedDBServer())
                     {
-                        DNF_LOG_SCOPE_LINE(0x337,"./log/Except",
-                            "CPacketTranslater::OnHeartBeat() => Channel Index : %d\n",
-                            (unsigned int)channel);
-                    }
-                    else
-                    {
-                        gs->SendToServer((char*)&pkt2, 0xb);
+                        handler->SetDBConnectFlag(true);
+                        handler->SendDBMWConnectionCheck();
+                        DNF_LOG_SCOPE_LINE(0x318, "./log/DBHeartBeat", "DB Server Connection Complete!");
                     }
                 }
+                else if (channel == 0 || 0xbe < channel)
+                {
+                    DNF_LOG_SCOPE_LINE(0x341,"./log/Except", "[ERROR - HEART BEAT] Channel Index(%d) Over.",
+                        (unsigned int)((RA_U8<10>*)p)->v);
+                }
+                else
+                {
+                    handler->ResetHeartBeat(channel);
+                    if (!handler->IsConnectedGameServer(channel))
+                    {
+                        handler->SetConnectFlag(channel, true);
+                        Packet_Tcp_Server_Connect pkt2;
+                        pkt2.m_channel = 0xc9;
+                        CServerInterface* gs = handler->GetGameServer((unsigned int)channel);
+                        if (gs == 0)
+                        {
+                            DNF_LOG_SCOPE_LINE(0x337,"./log/Except",
+                                "CPacketTranslater::OnHeartBeat() => Channel Index : %d\n",
+                                (unsigned int)channel);
+                        }
+                        else
+                        {
+                            gs->SendToServer((char*)&pkt2, 0xb);
+                        }
+                    }
+                }
             }
-        }
-        catch (CDNFException& e)
-        {
-            printf("CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
-            DNF_LOG_SCOPE_LINE(0x348, "%s", "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
-        }
-        catch (...)
-        {
-            puts("CPacketTranslater::OnHeartBeat() Exception Break");
-            DNF_LOG_SCOPE_LINE(0x34e, "%s", "CPacketTranslater::OnHeartBeat() Exception Break");
+            catch (CDNFException& e)
+            {
+                printf("CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
+                DNF_LOG_SCOPE_LINE(0x348, "%s", "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
+            }
+            catch (...)
+            {
+                puts("CPacketTranslater::OnHeartBeat() Exception Break");
+                DNF_LOG_SCOPE_LINE(0x34e, "%s", "CPacketTranslater::OnHeartBeat() Exception Break");
+            }
         }
     }
 }
@@ -590,40 +596,40 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
         try
         {
             CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-            CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+            CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
             if (user == 0)
             {
-                char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+                char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
                 DNF_LOG_SCOPE_LINE(0x457,"./log/User",
                     "[CHAR_LOGIN_ERR]\tDB ID : %s\tChar Key : %d\tGuild Key : %d\tJob : "
                     "%d\tname : %s\n",
-                    dbid, *(unsigned int*)((char*)pkt + 0xf),
-                    *(unsigned int*)((char*)pkt + 0x13),
-                    (int)(char)*(char*)((char*)pkt + 0x17), (char*)pkt + 0x1f);
+                    dbid, ((RA_UINT<15>*)pkt)->v,
+                    ((RA_UINT<19>*)pkt)->v,
+                    (int)(char)((RA_S8<23>*)pkt)->v, (char*)pkt + 0x1f);
             }
             else
             {
                 user->SetUserInfo_CharNo(
-                    *(char*)((char*)pkt + 0x17), *(char*)((char*)pkt + 0x18),
-                    *(short*)((char*)pkt + 0x19), *(unsigned int*)((char*)pkt + 0xf),
+                    ((RA_S8<23>*)pkt)->v, ((RA_S8<24>*)pkt)->v,
+                    ((RA_S16<25>*)pkt)->v, ((RA_UINT<15>*)pkt)->v,
                     (char*)pkt + 0x1f);
-                char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+                char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
                 DNF_LOG_SCOPE_LINE(0x3cf,"./log/User",
                     "[CHAR_LOGIN]\tDB ID(%s)\tChar Key(%d)\tGuild K(%d)\tMember K(%d)\tJob(%d)"
                     "\tname(%s)\tCh No(%d)\treturn_user(%d)\n",
-                    dbid, *(unsigned int*)((char*)pkt + 0xf),
-                    *(unsigned int*)((char*)pkt + 0x13),
-                    *(unsigned int*)((char*)pkt + 0x1b),
-                    (int)(char)*(char*)((char*)pkt + 0x17), (char*)pkt + 0x1f,
-                    (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe),
-                    (int)(char)*(char*)((char*)pkt + 0x3e));
+                    dbid, ((RA_UINT<15>*)pkt)->v,
+                    ((RA_UINT<19>*)pkt)->v,
+                    ((RA_UINT<27>*)pkt)->v,
+                    (int)(char)((RA_S8<23>*)pkt)->v, (char*)pkt + 0x1f,
+                    (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v,
+                    (int)(char)((RA_S8<62>*)pkt)->v);
                 user->SetUserPosState(3);
                 CMemoryCashManager* cash =
                     (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
                 if (cash->QueryCashMemoryBuddyInfo(user) != 1)
                 {
                     user->QueryBuddyInfo(
-                        (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0));
+                        m_pclApp->m_serverHandler2);
                 }
                 std::vector<unsigned int> vec;
                 ((CBuddyRegisterManager*)((char*)m_pclApp + 0x300))
@@ -638,31 +644,31 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                             ((CServerInterface*)user->GetGameServer())->GetChannelNo(),
                             user->GetUniqCharNo(), user->GetCharName(),
                             (unsigned char)(user->IsBlackUser(*it) != 0), 1,
-                            *(char*)((char*)pkt + 0x3e));
+                            ((RA_S8<62>*)pkt)->v);
                     }
                 }
-                if (*(int*)((char*)pkt + 0x1b) != 0)
+                if (((RA_INT<27>*)pkt)->v != 0)
                 {
                     CMemoryCashManager* cash2 =
                         (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
                     if (cash2->QueryCashMemoryMember(user) != 1)
                     {
                         ((CMemberManager*)((char*)m_pclApp + 0x2d0))
-                            ->MemerMemLogin(*(unsigned int*)((char*)pkt + 0x1b), user);
+                            ->MemerMemLogin(((RA_UINT<27>*)pkt)->v, user);
                     }
                 }
                 if (userMgr->InsertUser_CharName((char*)pkt + 0x1f, user) != 1)
                 {
-                    char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+                    char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
                     DNF_LOG_SCOPE_LINE(0x3fd,"./log/Except",
                         "uDBID(%s) uCharName(%s) is already exist at m_mapCharNameUsers!", dbid,
                         (char*)pkt + 0x1f);
                 }
-                if (userMgr->InsertUser_CharNo(*(unsigned int*)((char*)pkt + 0xf), user) != 1)
+                if (userMgr->InsertUser_CharNo(((RA_UINT<15>*)pkt)->v, user) != 1)
                 {
                     DNF_LOG_SCOPE_LINE(0x401,"./log/Except",
                         "uDBID(%d) uCharName(%s) is already exist at m_mapCharNoUsers!",
-                        *(unsigned int*)((char*)pkt + 0xf), (char*)pkt + 0x1f);
+                        ((RA_UINT<15>*)pkt)->v, (char*)pkt + 0x1f);
                 }
                 user->GetDBID();
                 ((CMemoryCashManager*)m_pclApp->Get_MemoryCashManager())
@@ -676,9 +682,9 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                     elements[i].m_score = 0;
                 }
                 Packet_Request_Charac_Tower_Ranking rankPkt;
-                *(unsigned int*)((char*)&rankPkt + 0xa) = user->GetIdByChannel();
-                *(unsigned int*)((char*)&rankPkt + 0xe) =
-                    *(unsigned int*)((char*)pkt + 0xf);
+                ((RA_UINT<10>*)&rankPkt)->v = user->GetIdByChannel();
+                ((RA_UINT<14>*)&rankPkt)->v =
+                    ((RA_UINT<15>*)pkt)->v;
                 char hasData = 0;
                 for (int t = 0; t < 4; t++)
                 {
@@ -698,7 +704,7 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                 if (hasData != 0)
                 {
                     user->SendToGameserver(
-                        (char*)&rankPkt, *(unsigned short*)((char*)&rankPkt + 2));
+                        (char*)&rankPkt, ((RA_U16<2>*)&rankPkt)->v);
                 }
                 time_t now = time(0);
                 tm* pt = localtime(&now);
@@ -740,41 +746,41 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnNoticeBuddyChatMsg : 0 == m_pclApp");
     }
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-    if (*(char*)((char*)pkt + 0x1b) != 0 &&
-        (unsigned char)*(char*)((char*)pkt + 0x1b) < 0x1e)
+    if (((RA_S8<27>*)pkt)->v != 0 &&
+        (unsigned char)((RA_S8<27>*)pkt)->v < 0x1e)
     {
         CUser* target = userMgr->FindUser_CharName((char*)pkt + 0x1c);
-        *(unsigned int*)((char*)pkt + 0x17) =
+        ((RA_UINT<23>*)pkt)->v =
             target != 0 ? target->GetUniqCharNo() : 0xffffffff;
     }
-    if (*(unsigned int*)((char*)pkt + 0x13) == 0 ||
-        *(unsigned int*)((char*)pkt + 0x17) == 0 ||
-        *(char*)((char*)pkt + 0x3a) == 0)
+    if (((RA_UINT<19>*)pkt)->v == 0 ||
+        ((RA_UINT<23>*)pkt)->v == 0 ||
+        ((RA_S8<58>*)pkt)->v == 0)
     {
         DNF_LOG_SCOPE_LINE(0xb46,"./log/Except",
             "CPacketTranslater::OnNoticeOtherChannelChatMsg, sender(%d), receiver(%d), "
             "msglen(%d)",
-            *(unsigned int*)((char*)pkt + 0x13), *(unsigned int*)((char*)pkt + 0x17),
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x3a));
+            ((RA_UINT<19>*)pkt)->v, ((RA_UINT<23>*)pkt)->v,
+            (unsigned int)(unsigned char)((RA_S8<58>*)pkt)->v);
         throw CDNFException(
             "CPacketTranslater::OnNoticeOtherChannelChatMsg : packet->m_uSenderCharID &&  "
             "packet->m_uRecverCharID && packet->m_msgLen");
     }
     Packet_Monitor_Other_Channel_Chat_ToUser reply;
-    reply.m_senderCharId = *(unsigned int*)((char*)pkt + 0xa);
-    CUser* sender = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0x13));
+    reply.m_senderCharId = ((RA_UINT<10>*)pkt)->v;
+    CUser* sender = userMgr->FindUser_CharNo(((RA_UINT<19>*)pkt)->v);
     if (sender == 0)
     {
         return;
     }
-    CUser* receiver = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0x17));
+    CUser* receiver = userMgr->FindUser_CharNo(((RA_UINT<23>*)pkt)->v);
     if (receiver == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         memcpy(reply.m_name, (char*)pkt + 0x1c, 0x1d);
         reply.m_type = 1;
-        *(unsigned short*)((char*)&reply + 2) = 0x37;
+        ((RA_U16<2>*)&reply)->v = 0x37;
         sender->SendToGameserver((char*)&reply, 0x37);
         return;
     }
@@ -795,7 +801,7 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         reply.m_type = 2;
         memcpy(reply.m_name, (char*)pkt + 0x1c, 0x1d);
-        *(unsigned short*)((char*)&reply + 2) = 0x37;
+        ((RA_U16<2>*)&reply)->v = 0x37;
         sender->SendToGameserver((char*)&reply, 0x37);
         return;
     }
@@ -818,7 +824,7 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         reply.m_type = 3;
         memcpy(reply.m_name, (char*)pkt + 0x1c, 0x1d);
-        *(unsigned short*)((char*)&reply + 2) = 0x37;
+        ((RA_U16<2>*)&reply)->v = 0x37;
         sender->SendToGameserver((char*)&reply, 0x37);
     }
     else
@@ -826,13 +832,13 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
         memcpy(reply.m_name, sender->GetCharName(), 0x1d);
         reply.m_idByChannel = receiver->GetIdByChannel();
         reply.m_uniqCharNo = receiver->GetUniqCharNo();
-        reply.m_msgLen = *(unsigned char*)((char*)pkt + 0x3a);
+        reply.m_msgLen = ((RA_U8<58>*)pkt)->v;
         memcpy(reply.m_msg, (char*)pkt + 0x3b,
-               (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x3a));
-        *(unsigned short*)((char*)&reply + 2) =
-            (unsigned short)((unsigned char)*(char*)((char*)pkt + 0x3a) + 0x37);
+               (unsigned int)(unsigned char)((RA_S8<58>*)pkt)->v);
+        ((RA_U16<2>*)&reply)->v =
+            (unsigned short)((unsigned char)((RA_S8<58>*)pkt)->v + 0x37);
         receiver->SendToGameserver((char*)&reply,
-                                   *(unsigned short*)((char*)&reply + 2));
+                                   ((RA_U16<2>*)&reply)->v);
     }
 
 
@@ -854,10 +860,10 @@ void CPacketTranslater::OnCeraUpdate(PacketHeader* pkt)
 
     CUser* user =
         ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-            *(unsigned int*)((char*)pkt + 0xa));
+            ((RA_UINT<10>*)pkt)->v);
     if (user != 0)
     {
-        char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+        char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
         DNF_LOG_SCOPE_LINE(0x47f, "./log/User", "Cera Payed User , DB ID : %s\n", dbid);
         void* gs = user->GetGameServer();
         if (gs == 0)
@@ -892,7 +898,7 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         CServerInterface* gs = 0;
         if (user == 0)
         {
@@ -906,14 +912,14 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
             }
             if (gs == 0)
             {
-                char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+                char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
                 DNF_LOG_SCOPE_LINE(0x4b0,"./log/User",
                     "Fail: Event User DB ID : %s [EventType: %d][CharacNo: %d][ItemID: "
                     "%d][Stack: %d]\n",
-                    dbid, *(unsigned int*)((char*)pkt + 0x12),
-                    *(unsigned int*)((char*)pkt + 0xe),
-                    *(unsigned int*)((char*)pkt + 0x16),
-                    *(unsigned int*)((char*)pkt + 0x1a));
+                    dbid, ((RA_UINT<18>*)pkt)->v,
+                    ((RA_UINT<14>*)pkt)->v,
+                    ((RA_UINT<22>*)pkt)->v,
+                    ((RA_UINT<26>*)pkt)->v);
                 return;
             }
         }
@@ -922,13 +928,13 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
             gs = (CServerInterface*)user->GetGameServer();
         }
         unsigned char channel = gs->GetChannelNo();
-        char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+        char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
         DNF_LOG_SCOPE_LINE(0x4b7,"./log/User",
             "Event User DB ID : %s [EventType: %d][CharacNo: %d][ItemID: %d][Stack: "
             "%d][TableID: %d][Channel No: %d]\n",
-            dbid, *(unsigned int*)((char*)pkt + 0x12),
-            *(unsigned int*)((char*)pkt + 0xe), *(unsigned int*)((char*)pkt + 0x16),
-            *(unsigned int*)((char*)pkt + 0x1a), *(unsigned int*)((char*)pkt + 0x1e),
+            dbid, ((RA_UINT<18>*)pkt)->v,
+            ((RA_UINT<14>*)pkt)->v, ((RA_UINT<22>*)pkt)->v,
+            ((RA_UINT<26>*)pkt)->v, ((RA_UINT<30>*)pkt)->v,
             (unsigned int)channel);
         if (gs != 0)
         {
@@ -952,22 +958,22 @@ void CPacketTranslater::OnReplyQueryMember(PacketHeader* pkt)
 {
 
 
-    if (*(char*)((char*)pkt + 0xa) == 1)
+    if (((RA_S8<10>*)pkt)->v == 1)
     {
-        CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
         if (handler != 0)
         {
             char ok = ((CMemberManager*)((char*)m_pclApp + 0x2d0))
-                          ->LoadMember(*(unsigned int*)((char*)pkt + 0xb),
+                          ->LoadMember(((RA_UINT<11>*)pkt)->v,
                                        *(STMemberDBInfo*)((char*)pkt + 0x17),
-                                       *(unsigned int*)((char*)pkt + 0xf),
-                                       *(unsigned int*)((char*)pkt + 0x13), handler);
+                                       ((RA_UINT<15>*)pkt)->v,
+                                       ((RA_UINT<19>*)pkt)->v, handler);
             if (ok != 1)
             {
                 DNF_LOG_SCOPE_LINE(0x4e5,"./log/MemberMember",
                     "CHECK MEMBER ID: CPacketTranslater::OnReplyQueryMember()\t"
                     "m_clMemberManager.LoadMember()\tmember id(%d)",
-                    *(unsigned int*)((char*)pkt + 0xb));
+                    ((RA_UINT<11>*)pkt)->v);
             }
         }
     }
@@ -975,7 +981,7 @@ void CPacketTranslater::OnReplyQueryMember(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x4eb,"./log/Except",
             "[DB ERROR]CPacketTranslater::OnReplyQueryMember() packet->bSuccess : %d\n",
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa));
+            (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v);
     }
 
 
@@ -1003,7 +1009,7 @@ void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
     }
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
     CMemberManager* memberMgr = (CMemberManager*)((char*)m_pclApp + 0x2d0);
-    CUser* requester = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xe));
+    CUser* requester = userMgr->FindUser_CharNo(((RA_UINT<14>*)pkt)->v);
     if (requester == 0)
     {
         return;
@@ -1014,7 +1020,7 @@ void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
         SendRequestMemberEnterResult(requester, '1', (char*)pkt + 0x12);
         return;
     }
-    if (memberMgr->IsAlreadyMemberMember(*(unsigned int*)((char*)pkt + 0xe),
+    if (memberMgr->IsAlreadyMemberMember(((RA_UINT<14>*)pkt)->v,
                                          target->GetUniqCharNo()) != 0)
     {
         SendRequestMemberEnterResult(requester, '2', (char*)pkt + 0x12);
@@ -1068,7 +1074,7 @@ void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
         int err = memberMgr->CheckMemberEnter(requester, requesterMember, target, targetMember);
         if (err == 0)
         {
-            if (target->RecordCallMemberEnter(*(unsigned int*)((char*)pkt + 0xe), 1) == 1)
+            if (target->RecordCallMemberEnter(((RA_UINT<14>*)pkt)->v, 1) == 1)
             {
                 SendRequestMemberEnterResult(requester, 0, (char*)pkt + 0x12);
                 Packet_Monitor_Request_Member_Enter_To_Responser rpkt;
@@ -1115,7 +1121,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
         CMemberManager* memberMgr = (CMemberManager*)((char*)m_pclApp + 0x2d0);
-        CUser* requester = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xe));
+        CUser* requester = userMgr->FindUser_CharNo(((RA_UINT<14>*)pkt)->v);
         if (requester != 0)
         {
             requester->GetMemberEnterCallerId();
@@ -1133,7 +1139,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                 }
                 else if (requester->CheckPrevCallMemberEnter() == 1)
                 {
-                    unsigned char code = *(unsigned char*)((char*)pkt + 0x12);
+                    unsigned char code = ((RA_U8<18>*)pkt)->v;
                     if (code == 2)
                     {
                         SendNoticeMemberEnterPacketOk(responser, requester, 2, 0, 0, 0, 0);
@@ -1182,7 +1188,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                             if (err == 0)
                             {
                                 CServerHandler* handler =
-                                    (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+                                    m_pclApp->m_serverHandler2;
                                 if (handler != 0)
                                 {
                                     if (responserMember == 0)
@@ -1319,7 +1325,7 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
         CMemberManager* memberMgr = (CMemberManager*)((char*)m_pclApp + 0x2d0);
-        unsigned int secederCharNo = *(unsigned int*)((char*)pkt + 0xe);
+        unsigned int secederCharNo = ((RA_UINT<14>*)pkt)->v;
         CUser* seceder = userMgr->FindUser_CharNo(secederCharNo);
         if (seceder != 0)
         {
@@ -1330,7 +1336,7 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
             }
             else
             {
-                CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+                CServerHandler* handler = m_pclApp->m_serverHandler2;
                 if (handler != 0)
                 {
                     CUser* target = userMgr->FindUser_CharName((char*)pkt + 0x13);
@@ -1426,7 +1432,7 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
         {
             CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
             CMemberManager* memberMgr = (CMemberManager*)((char*)m_pclApp + 0x2d0);
-            CUser* user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xe));
+            CUser* user = userMgr->FindUser_CharNo(((RA_UINT<14>*)pkt)->v);
             if (user != 0)
             {
                 user->GetUniqCharNo();
@@ -1524,20 +1530,20 @@ void CPacketTranslater::OnNoticeMemberChatMsg(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnNoticeMemberChatMsg : 0 == m_pclApp");
     }
-    if (*(unsigned int*)((char*)pkt + 0xa) != 0 && *(char*)((char*)pkt + 0xe) != 0)
+    if (((RA_UINT<10>*)pkt)->v != 0 && ((RA_S8<14>*)pkt)->v != 0)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             CMember* member =
                 ((CMemberManager*)((char*)m_pclApp + 0x2d0))->FindMember(
-                    *(unsigned int*)((char*)pkt + 0xa));
+                    ((RA_UINT<10>*)pkt)->v);
             if (member != 0)
             {
                 member->NoticeChatMsgToMemberMembers(
-                    (char*)pkt + 0xf, (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe),
+                    (char*)pkt + 0xf, (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v,
                     user);
             }
         }
@@ -1570,14 +1576,14 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
         }
         CMemberManager* memberMgr = (CMemberManager*)((char*)m_pclApp + 0x2d0);
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CMember* member = memberMgr->FindMember(*(unsigned int*)((char*)pkt + 0xa));
+        CMember* member = memberMgr->FindMember(((RA_UINT<10>*)pkt)->v);
         if (member == 0)
         {
             DNF_LOG_SCOPE_LINE(0x842,"./log/Except",
                 "[MEMBER] CPacketTranslater::OnPayTaxToUpper : pclMember == 0!\tchar id(%d)\t"
                 "money(%d)\tfatigue(%d)",
-                *(unsigned int*)((char*)pkt + 0xa), *(unsigned int*)((char*)pkt + 0xe),
-                *(unsigned int*)((char*)pkt + 0x12));
+                ((RA_UINT<10>*)pkt)->v, ((RA_UINT<14>*)pkt)->v,
+                ((RA_UINT<18>*)pkt)->v);
         }
         else
         {
@@ -1592,14 +1598,14 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
             }
             else
             {
-                CUser* payUser = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+                CUser* payUser = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
                 if (payUser == 0)
                 {
                     DNF_LOG_SCOPE_LINE(0x84f,"./log/Except",
                         "[MEMBER] CPacketTranslater::OnPayTaxToUpper : pclPayUser == 0!\tchar "
                         "id(%d)\tmoney(%d)\tfatigue(%d)",
-                        *(unsigned int*)((char*)pkt + 0xa), *(unsigned int*)((char*)pkt + 0xe),
-                        *(unsigned int*)((char*)pkt + 0x12));
+                        ((RA_UINT<10>*)pkt)->v, ((RA_UINT<14>*)pkt)->v,
+                        ((RA_UINT<18>*)pkt)->v);
                 }
                 else
                 {
@@ -1612,9 +1618,9 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
                     float rate = (float)(0.01 * (double)expLevel) +
                                  (float)(0.05 * ((double)lowerCnt / (double)limit));
                     int moneyTax =
-                        (int)((double)*(unsigned int*)((char*)pkt + 0xe) * (double)rate);
+                        (int)((double)((RA_UINT<14>*)pkt)->v * (double)rate);
                     int fatigueTax =
-                        (int)((double)*(unsigned int*)((char*)pkt + 0x12) * (double)rate);
+                        (int)((double)((RA_UINT<18>*)pkt)->v * (double)rate);
                     if (moneyTax != 0 || fatigueTax != 0)
                     {
                         Packet_Monitor_Member_Pay_Tax_ToUpper reply;
@@ -1654,10 +1660,10 @@ void CPacketTranslater::OnUpdateChangableCharInfo(PacketHeader* pkt)
     }
     CUser* user =
         ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-            *(unsigned int*)((char*)pkt + 0xa));
+            ((RA_UINT<10>*)pkt)->v);
     if (user != 0)
     {
-        user->SetUserChangableInfo(*(short*)((char*)pkt + 0xf), *(char*)((char*)pkt + 0x11));
+        user->SetUserChangableInfo(((RA_S16<15>*)pkt)->v, ((RA_S8<17>*)pkt)->v);
     }
 
 
@@ -1684,20 +1690,20 @@ void CPacketTranslater::OnLogoutComplete(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnLogoutComplete : 0 == m_pclApp");
     }
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-    char ok = userMgr->DeleteProhibitUser(*(unsigned int*)((char*)pkt + 0xa),
-                                          (char)*(char*)((char*)pkt + 0xe));
+    char ok = userMgr->DeleteProhibitUser(((RA_UINT<10>*)pkt)->v,
+                                          (char)((RA_S8<14>*)pkt)->v);
     if (ok == 1)
     {
-        char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+        char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
         DNF_LOG_SCOPE_LINE(0x8a5,"./log/User", "[LOGOUT COMPLETE] m_id : %s\tchannel No : %d\n", dbid,
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe));
+            (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v);
     }
     else
     {
-        char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+        char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
         DNF_LOG_SCOPE_LINE(0x8a1,"./log/User",
             "[DELETE_ERR_] CPacketTranslater::OnLogoutComplete m_id : %s\tChannel No : %d\n",
-            dbid, (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe));
+            dbid, (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v);
     }
 
 
@@ -1723,16 +1729,16 @@ void CPacketTranslater::OnUserRepel(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnUserRepel : 0 == m_pclApp");
     }
-    char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+    char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
     DNF_LOG_SCOPE_LINE(0x954,"./log/Web", "CPacketTranslater::OnUserRepel m_id(%s) , charNo(%d)\n", dbid,
-        *(unsigned int*)((char*)pkt + 0xe));
+        ((RA_UINT<14>*)pkt)->v);
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-    CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+    CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
     if (user != 0 &&
-        (*(unsigned int*)((char*)pkt + 0xe) == 0 ||
-         (user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xe))) != 0))
+        (((RA_UINT<14>*)pkt)->v == 0 ||
+         (user = userMgr->FindUser_CharNo(((RA_UINT<14>*)pkt)->v)) != 0))
     {
-        *(unsigned int*)((char*)pkt + 0xa) = user->GetIdByChannel();
+        ((RA_UINT<10>*)pkt)->v = user->GetIdByChannel();
         user->SendToGameserver((char*)pkt, 0x12);
     }
 
@@ -1759,13 +1765,13 @@ void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnCharacterDelete : 0 == m_pclApp");
     }
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     if (handler != 0)
     {
         ((CUserManager*)((char*)m_pclApp + 0x10))
-            ->DeleteBlackUserOnCharacDelete(*(unsigned int*)((char*)pkt + 0xa));
+            ->DeleteBlackUserOnCharacDelete(((RA_UINT<10>*)pkt)->v);
         Packet_DB_Member_Delete_As_Charac_Delete dbPkt;
-        dbPkt.m_charNo = *(unsigned int*)((char*)pkt + 0xe);
+        dbPkt.m_charNo = ((RA_UINT<14>*)pkt)->v;
         handler->SendToDB(&dbPkt);
     }
 
@@ -1792,16 +1798,16 @@ void CPacketTranslater::OnEventStart(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::OnEventStart : 0 == m_pclApp");
         }
         PacketHeader* rpkt = pkt;
-        unsigned short p2 = *(unsigned short*)((char*)pkt + 0x10);
-        unsigned short p1 = *(unsigned short*)((char*)pkt + 0xe);
-        unsigned int code = *(unsigned int*)((char*)pkt + 0xa);
+        unsigned short p2 = ((RA_U16<16>*)pkt)->v;
+        unsigned short p1 = ((RA_U16<14>*)pkt)->v;
+        unsigned int code = ((RA_UINT<10>*)pkt)->v;
         DNF_LOG_SCOPE_LINE(0x9f4,"./log/Web",
             "CPacketTranslater::OnEventStart() eventCode(%d), eventParam1(%d), "
             "eventParam2(%d)\n",
             code, (unsigned int)p1, (unsigned int)p2);
-        ((CEventActionManager*)*(int*)((char*)m_pclApp + 0x31c))
+        ((CEventActionManager*)((RA_INT<796>*)m_pclApp)->v)
             ->OnStartAction((Packet_Monitor_Event_Start*)pkt);
-        ((CServerHandler*)*(void**)((char*)m_pclApp + 0xa0))
+        (m_pclApp->m_serverHandler2)
             ->SendAllTcpGameServer(pkt);
     }
     catch (CDNFException& e)
@@ -1825,9 +1831,9 @@ void CPacketTranslater::OnEventEnd(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::OnEventEnd : 0 == m_pclApp");
         }
         PacketHeader* rpkt = pkt;
-        unsigned int code = *(unsigned int*)((char*)pkt + 0xa);
+        unsigned int code = ((RA_UINT<10>*)pkt)->v;
         DNF_LOG_SCOPE_LINE(0xa66, "./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n", code);
-        ((CEventActionManager*)*(int*)((char*)m_pclApp + 0x31c))->OnEndAction(code);
+        ((CEventActionManager*)((RA_INT<796>*)m_pclApp)->v)->OnEndAction(code);
         m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(pkt);
     }
     catch (CDNFException& e)
@@ -1848,10 +1854,10 @@ void CPacketTranslater::OnNotifyNewMail(PacketHeader* pkt)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
-            *(unsigned int*)((char*)pkt + 0xe) = user->GetIdByChannel();
+            ((RA_UINT<14>*)pkt)->v = user->GetIdByChannel();
             user->SendToGameserver((char*)pkt, 0x12);
         }
     }
@@ -1868,19 +1874,19 @@ void CPacketTranslater::OnWebQueryUserState(PacketHeader* pkt)
 
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
     int found = 0;
-    if (userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa)) == 0)
+    if (userMgr->FindUser(((RA_UINT<10>*)pkt)->v) == 0)
     {
-        *(char*)((char*)pkt + 0x12) = 0;
+        ((RA_S8<18>*)pkt)->v = 0;
     }
     else
     {
-        *(char*)((char*)pkt + 0x12) = 1;
+        ((RA_S8<18>*)pkt)->v = 1;
     }
-    const char* state = *(char*)((char*)pkt + 0x12) == 1 ? "true" : "false";
-    char* dbid = NumberToString(*(unsigned int*)((char*)pkt + 0xa), 0);
+    const char* state = ((RA_S8<18>*)pkt)->v == 1 ? "true" : "false";
+    char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
     DNF_LOG_SCOPE_LINE(0xb78, "./log/User", "WebQueryUserState Result[m_id: %s] : [%s] : %d\n", dbid, state);
-    unsigned int addr = *(unsigned int*)((char*)pkt + 6);
-    unsigned short port = *(unsigned short*)((char*)pkt + 4);
+    unsigned int addr = ((RA_UINT<6>*)pkt)->v;
+    unsigned short port = ((RA_U16<4>*)pkt)->v;
     if (m_pclApp->Get_UdpHandler()->SendToClient((char*)pkt, 0x13, port, (char*)0, addr) != 1)
     {
         throw CDNFException(strerror(errno));
@@ -1890,11 +1896,11 @@ void CPacketTranslater::OnWebQueryUserState(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0xb7f, "./log/Except", "%s Exception Break : %s\n", "OnWebQueryUserState", e.what());
+        DNF_LOG_SCOPE_LINE(0xb7f, "./log/Except", "%s Exception Break : %s\n", __FUNCTION__, e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0xb84, "./log/Except", "%s Exception Break\n", "OnWebQueryUserState");
+        DNF_LOG_SCOPE_LINE(0xb84, "./log/Except", "%s Exception Break\n", __FUNCTION__);
     }
 }
 
@@ -1908,7 +1914,7 @@ void CPacketTranslater::OnNoticeMessage(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnNoticeMessage : 0 == m_pclApp");
     }
     DNF_LOG_SCOPE_LINE(0xf8e, "./log/GM_msg", "CPacketTranslater::OnNoticeMessage()%s\n", (char*)pkt + 0xb);
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0x10b);
 
 
@@ -1930,16 +1936,16 @@ void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
 
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
     int found = 0;
-    if (userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa)) == 0)
+    if (userMgr->FindUser(((RA_UINT<10>*)pkt)->v) == 0)
     {
-        *(char*)((char*)pkt + 0xe) = 0;
+        ((RA_S8<14>*)pkt)->v = 0;
     }
     else
     {
-        *(char*)((char*)pkt + 0xe) = 1;
+        ((RA_S8<14>*)pkt)->v = 1;
     }
     CServerInterface* gs =
-        (CServerInterface*)m_pclApp->FindGameServer((int)*(unsigned int*)((char*)pkt + 0xa));
+        (CServerInterface*)m_pclApp->FindGameServer((int)((RA_UINT<10>*)pkt)->v);
     if (gs == 0)
     {
         throw CDNFException(strerror(errno));
@@ -1950,11 +1956,11 @@ void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0xfc8, "./log/Except", "%s Exception Break : %s\n", "OnRelayServerUserCheck", e.what());
+        DNF_LOG_SCOPE_LINE(0xfc8, "./log/Except", "%s Exception Break : %s\n", __FUNCTION__, e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0xfcd, "./log/Except", "%s Exception Break\n", "OnRelayServerUserCheck");
+        DNF_LOG_SCOPE_LINE(0xfcd, "./log/Except", "%s Exception Break\n", __FUNCTION__);
     }
 }
 
@@ -1968,8 +1974,8 @@ void CPacketTranslater::OnForbidChat(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnForbidChat : 0 == m_pclApp");
     }
     DNF_LOG_SCOPE_LINE(0xfdd,"./log/GM_msg", "CPacketTranslater::OnForbidChat() %s for %d secs\n", (char*)pkt + 0x12,
-        *(unsigned int*)((char*)pkt + 0xa));
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+        ((RA_UINT<10>*)pkt)->v);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0x30);
 
 
@@ -1995,7 +2001,7 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
         }
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
         CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        unsigned int dbid = *(unsigned int*)((char*)pkt + 0xa);
+        unsigned int dbid = ((RA_UINT<10>*)pkt)->v;
         exchange_server::CACHE_CHARACTER_TYPE cacheType;
         if (exchange_server::GetInstanceCacheCharacterMgr()->GetCacheCharacter(dbid,
                                                                                &cacheType) != 0)
@@ -2006,56 +2012,56 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
         }
         bool notPresent =
             userMgr->FindUser(dbid) == 0 && userMgr->FindProhibitUser(dbid) == 0;
-        *(char*)((char*)pkt + 0x11) = notPresent ? 0 : 1;
-        if (*(char*)((char*)pkt + 0xe) == 0)
+        ((RA_S8<17>*)pkt)->v = notPresent ? 0 : 1;
+        if (((RA_S8<14>*)pkt)->v == 0)
         {
             CDNFProhibitUser* p = userMgr->FindProhibitUser(dbid);
             if (p == 0)
             {
                 p = new CDNFProhibitUser;
-                p->SetUserConnectableTime(dbid, *(short*)((char*)pkt + 0xf), -1, true);
+                p->SetUserConnectableTime(dbid, ((RA_S16<15>*)pkt)->v, -1, true);
                 if (userMgr->InsertProhibitUser(dbid, p) != 1)
                 {
                     char* s = NumberToString(dbid, 0);
                     DNF_LOG_SCOPE_LINE(0x922,"./log/ProhibitUser",
                         "[INSERT_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : "
                         "%s, flag( %d ), time( %d ) \n",
-                        s, (int)(char)*(char*)((char*)pkt + 0xe),
-                        (int)*(short*)((char*)pkt + 0xf));
+                        s, (int)(char)((RA_S8<14>*)pkt)->v,
+                        (int)((RA_S16<15>*)pkt)->v);
                     delete p;
                 }
                 char* s = NumberToString(dbid, 0);
                 DNF_LOG_SCOPE_LINE(0x926,"./log/ProhibitUser",
                     "[INSERT_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser "
                     "m_id : %s, flag( %d ), time( %d ) \n",
-                    s, (int)(char)*(char*)((char*)pkt + 0xe),
-                    (int)*(short*)((char*)pkt + 0xf));
+                    s, (int)(char)((RA_S8<14>*)pkt)->v,
+                    (int)((RA_S16<15>*)pkt)->v);
             }
             else
             {
                 if (p->GetChannelNo() == -1)
                 {
-                    *(char*)((char*)pkt + 0xe) = 2;
+                    ((RA_S8<14>*)pkt)->v = 2;
                     *(unsigned short*)pkt = 0x4c9;
-                    *(char*)((char*)pkt + 0x12) = (char)m_pclApp->Get_ServerGroup();
+                    ((RA_S8<18>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
                     handler->GetTcpManagerServer()->SendTcpPacket(pkt);
                     char* s = NumberToString(dbid, 0);
                     DNF_LOG_SCOPE_LINE(0x90a,"./log/ProhibitUser",
                         "[ALREADY_INSERT] CPacketTranslater::OnNoticeProhibitConnectUser m_id "
                         ": %s, flag( %d ), time( %d ) \n",
-                        s, (int)(char)*(char*)((char*)pkt + 0xe),
-                        (int)*(short*)((char*)pkt + 0xf));
+                        s, (int)(char)((RA_S8<14>*)pkt)->v,
+                        (int)((RA_S16<15>*)pkt)->v);
                     return;
                 }
                 char* s = NumberToString(dbid, 0);
                 DNF_LOG_SCOPE_LINE(0x90e,"./log/ProhibitUser",
                     "[ALREADY_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser "
                     "m_id : %s, flag( %d ), time( %d ) \n",
-                    s, (int)(char)*(char*)((char*)pkt + 0xe),
-                    (int)*(short*)((char*)pkt + 0xf));
+                    s, (int)(char)((RA_S8<14>*)pkt)->v,
+                    (int)((RA_S16<15>*)pkt)->v);
             }
             *(unsigned short*)pkt = 0x4c9;
-            *(char*)((char*)pkt + 0x12) = (char)m_pclApp->Get_ServerGroup();
+            ((RA_S8<18>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
             handler->GetTcpManagerServer()->SendTcpPacket(pkt);
         }
         else
@@ -2066,15 +2072,15 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
                 DNF_LOG_SCOPE_LINE(0x8ef,"./log/ProhibitUser",
                     "[DELETE_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : %s, "
                     "flag( %d ), time( %d ) \n",
-                    s, (int)(char)*(char*)((char*)pkt + 0xe),
-                    (int)*(short*)((char*)pkt + 0xf));
+                    s, (int)(char)((RA_S8<14>*)pkt)->v,
+                    (int)((RA_S16<15>*)pkt)->v);
             }
             char* s = NumberToString(dbid, 0);
             DNF_LOG_SCOPE_LINE(0x8f2,"./log/ProhibitUser",
                 "[DELETE_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser m_id : "
                 "%s, flag( %d ), time( %d ) \n",
-                s, (int)(char)*(char*)((char*)pkt + 0xe),
-                (int)*(short*)((char*)pkt + 0xf));
+                s, (int)(char)((RA_S8<14>*)pkt)->v,
+                (int)((RA_S16<15>*)pkt)->v);
         }
     }
     catch (CDNFException& e)
@@ -2096,7 +2102,7 @@ void CPacketTranslater::OnMonitorManagerConnectOK(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnMonitorManagerConnectOK : 0 == m_pclApp");
         }
-        CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
         handler->SetManagerConnectFlag(true);
         DNF_LOG_SCOPE_LINE(0xc19, "./log/Manager", "Manager Server Connect Success");
         puts("** Manager Server Connect Success **");
@@ -2114,9 +2120,9 @@ void CPacketTranslater::OnMonitorManagerConnectOK(PacketHeader* pkt)
 
 void CPacketTranslater::OnMonitorMegaPhoneMsg(PacketHeader* pkt)
 {
-    *(char*)((char*)pkt + 0xa) = (char)m_pclApp->Get_ServerGroup();
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-    handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+    ((RA_S8<10>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
+    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
 }
 
 void CPacketTranslater::OnRegisterGM_mid(PacketHeader* pkt)
@@ -2124,7 +2130,7 @@ void CPacketTranslater::OnRegisterGM_mid(PacketHeader* pkt)
     PacketHeader* p = pkt;
     if (m_pclApp != 0)
     {
-        m_pclApp->Add_GM_id(*(unsigned int*)((char*)p + 0xa));
+        m_pclApp->Add_GM_id(((RA_UINT<10>*)p)->v);
     }
 }
 
@@ -2140,12 +2146,12 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
     else
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
         Packet_DBMW_Register_To_BlackList dbPkt;
         Packet_Register_To_BlackList_RESULT result;
-        dbPkt.m_charNo = *(unsigned int*)((char*)pkt + 0xa);
+        dbPkt.m_charNo = ((RA_UINT<10>*)pkt)->v;
         memcpy(dbPkt.m_name, (char*)pkt + 0xe, 0x1d);
-        CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xc50, "./log/BlackList", "CPacketTranslater::OnRegisterToBlackList : 0 == pclUser");
@@ -2156,7 +2162,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
             result.m_idByChannel = user->GetIdByChannel();
             result.m_charNo = 0xffffffff;
             memcpy(result.m_name, (char*)pkt + 0xe, 0x1d);
-            user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+            user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
         }
         else
         {
@@ -2173,7 +2179,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
                     {
                         result.m_result = 5;
                         user->SendToGameserver((char*)&result,
-                                               *(unsigned short*)((char*)&result + 2));
+                                               ((RA_U16<2>*)&result)->v);
                         return;
                     }
                     if (user->RegisterToBlackList(target->GetUniqCharNo(),
@@ -2181,20 +2187,20 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
                     {
                         result.m_result = 2;
                         user->SendToGameserver((char*)&result,
-                                               *(unsigned short*)((char*)&result + 2));
+                                               ((RA_U16<2>*)&result)->v);
                         return;
                     }
                     dbPkt.m_charNo2 = target->GetUniqCharNo();
                     result.m_result = 1;
                     user->SendToGameserver((char*)&result,
-                                           *(unsigned short*)((char*)&result + 2));
+                                           ((RA_U16<2>*)&result)->v);
                 }
                 handler->SendToDB(&dbPkt);
             }
             else
             {
                 result.m_result = 4;
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
         }
     }
@@ -2222,15 +2228,15 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
         return;
     }
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     Packet_DMBW_Delete_To_BlackList dbPkt;
     Packet_Delete_To_BlackList_Result result;
-    dbPkt.m_charNo = *(unsigned int*)((char*)pkt + 0xa);
+    dbPkt.m_charNo = ((RA_UINT<10>*)pkt)->v;
     memcpy(dbPkt.m_name, (char*)pkt + 0xe, 0x1d);
     CUser* target = userMgr->FindUser_CharName((char*)pkt + 0xe);
     if (target != 0)
     {
-        CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xcb6, "./log/BlackList", "CPacketTranslater::OnDeleteToBlackList : 0 == pclUser");
@@ -2242,12 +2248,12 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
         if (user->DeleteToBlackList(target->GetUniqCharNo()) != 1)
         {
             result.m_result = 2;
-            user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+            user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             return;
         }
         dbPkt.m_charNo2 = target->GetUniqCharNo();
         result.m_result = 1;
-        user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+        user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
     }
     handler->SendToDB(&dbPkt);
 
@@ -2276,8 +2282,8 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
         Packet_Request_Result_BlackList reply;
-        reply.m_idByChannel = *(unsigned int*)((char*)pkt + 0xe);
-        CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+        reply.m_idByChannel = ((RA_UINT<14>*)pkt)->v;
+        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xcf3, "./log/BlackList", "CPacketTranslater::OnRequestBlackList : 0 == pclUser");
@@ -2287,7 +2293,7 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
             unsigned char count = 0;
             user->GetBlackList(count, reply.m_blackList);
             reply.m_count = count;
-            user->SendToGameserver((char*)&reply, *(unsigned short*)((char*)&reply + 2));
+            user->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
         }
     }
 
@@ -2316,7 +2322,7 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xd1f, "./log/BlackList", "CPacketTranslater::OnDBMWResisterToBlackList : 0 == pclUser");
@@ -2326,33 +2332,33 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
             Packet_Register_To_BlackList_RESULT result;
             result.m_idByChannel = user->GetIdByChannel();
             memcpy(result.m_name, (char*)pkt + 0xe, 0x1d);
-            if (*(int*)((char*)pkt + 0x30) == 0x5a)
+            if (((RA_INT<48>*)pkt)->v == 0x5a)
             {
                 result.m_result = 5;
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
-            else if (*(int*)((char*)pkt + 0x2c) == -1)
+            else if (((RA_INT<44>*)pkt)->v == -1)
             {
                 result.m_result = 3;
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
-            else if (user->IsBlackUser(*(unsigned int*)((char*)pkt + 0x2c)) != 0)
+            else if (user->IsBlackUser(((RA_UINT<44>*)pkt)->v) != 0)
             {
                 result.m_result = 2;
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
             else if (user->GetBlackListSize() < 10)
             {
-                user->RegisterToBlackList(*(unsigned int*)((char*)pkt + 0x2c),
+                user->RegisterToBlackList(((RA_UINT<44>*)pkt)->v,
                                           (char*)pkt + 0xe);
                 result.m_result = 1;
-                result.m_charNo = *(unsigned int*)((char*)pkt + 0x2c);
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                result.m_charNo = ((RA_UINT<44>*)pkt)->v;
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
             else
             {
                 result.m_result = 4;
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
         }
     }
@@ -2382,7 +2388,7 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xd70, "./log/BlackList", "CPacketTranslater::OnDBMWDeleteToBlackList : 0 == pclUser");
@@ -2392,21 +2398,21 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
             Packet_Delete_To_BlackList_Result result;
             result.m_idByChannel = user->GetIdByChannel();
             memcpy(result.m_name, (char*)pkt + 0xe, 0x1d);
-            if (*(int*)((char*)pkt + 0x2c) == -1)
+            if (((RA_INT<44>*)pkt)->v == -1)
             {
                 result.m_result = 3;
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
-            else if (user->DeleteToBlackList(*(unsigned int*)((char*)pkt + 0x2c)) != 1)
+            else if (user->DeleteToBlackList(((RA_UINT<44>*)pkt)->v) != 1)
             {
                 result.m_result = 2;
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
             else
             {
                 result.m_result = 1;
-                result.m_charNo = *(unsigned int*)((char*)pkt + 0x2c);
-                user->SendToGameserver((char*)&result, *(unsigned short*)((char*)&result + 2));
+                result.m_charNo = ((RA_UINT<44>*)pkt)->v;
+                user->SendToGameserver((char*)&result, ((RA_U16<2>*)&result)->v);
             }
         }
     }
@@ -2431,7 +2437,7 @@ void CPacketTranslater::RequestBlackListToDBMW(unsigned int charNo)
     Packet_DBMW_Request_BlackList pkt;
     pkt.m_charNo = charNo;
     pkt.m_flag = 0xc9;
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendToDB(&pkt);
 
 
@@ -2466,7 +2472,7 @@ void CPacketTranslater::SendColletItemsReward(unsigned int charNo, int itemId,
         bpkt.m_type = (unsigned char)type;
         bpkt.m_nameLen = (unsigned char)nameLen;
         strncpy(bpkt.m_name, itemName, (unsigned int)nameLen);
-        CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
         handler->SendAllTcpGameServer(&bpkt);
     }
 }
@@ -2485,7 +2491,7 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xdcb,"./log/BlackList",
@@ -2532,20 +2538,20 @@ void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
         else
         {
             PacketHeader* reply = pkt;
-            unsigned int channel = *(unsigned int*)((char*)pkt + 0xa);
-            unsigned int ip = *(unsigned int*)((char*)pkt + 0x10);
+            unsigned int channel = ((RA_UINT<10>*)pkt)->v;
+            unsigned int ip = ((RA_UINT<16>*)pkt)->v;
             bool result = false;
-            int code = *(int*)((char*)pkt + 0xa);
-            short port = *(short*)((char*)pkt + 0xe);
-            unsigned int ip2 = *(unsigned int*)((char*)pkt + 0x10);
+            int code = ((RA_INT<10>*)pkt)->v;
+            short port = ((RA_S16<14>*)pkt)->v;
+            unsigned int ip2 = ((RA_UINT<16>*)pkt)->v;
             GetInstanceExchangeServer()->SetExchageServer(ip2, port, code, result);
             if (!result)
             {
-                *(unsigned short*)((char*)reply + 0xe) =
+                ((RA_U16<14>*)reply)->v =
                     GetInstanceExchangeServer()->GetExchangeServerPort();
-                *(unsigned int*)((char*)reply + 0x10) =
+                ((RA_UINT<16>*)reply)->v =
                     GetInstanceExchangeServer()->GetExchangeServerIp();
-                *(unsigned int*)((char*)reply + 0xa) =
+                ((RA_UINT<10>*)reply)->v =
                     GetInstanceExchangeServer()->GetExchangeServerChannelNo();
                 m_pclApp->Get_ServerHandler()->SendToGameServer((unsigned char)channel, reply);
             }
@@ -2568,11 +2574,11 @@ void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
         CMemberManager* memberMgr = (CMemberManager*)((char*)m_pclApp + 0x2d0);
-        CUser* user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             CMember* member = user->GetMember();
-            CServerHandler* handler = *(CServerHandler**)((char*)m_pclApp + 0xa0);
+            CServerHandler* handler = m_pclApp->m_serverHandler2;
             if (member != 0 && handler != 0)
             {
                 if (memberMgr->FindMemberUser(
@@ -2670,10 +2676,10 @@ void CPacketTranslater::OnWebNoticeSingle(PacketHeader* pkt)
         }
         else
         {
-            CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-            handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+            CServerHandler* handler = m_pclApp->m_serverHandler2;
+            handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
             DNF_LOG_SCOPE_LINE(0xf6f,"./log/WebNotice", "OnWebNoticeSingle : (%s,%d)\n", (char*)pkt + 0xb,
-                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa));
+                (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v);
         }
     }
     catch (CDNFException& e)
@@ -2699,7 +2705,7 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* pkt)
         {
             CUser* user =
                 ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                    *(unsigned int*)((char*)pkt + 0xa));
+                    ((RA_UINT<10>*)pkt)->v);
             if (user == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x1012, "./log/buddy", "CPacketTranslater::OnAddBuddy\t pclUser is NULL");
@@ -2711,11 +2717,11 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* pkt)
                 if (r != 0)
                 {
                     Packet_Monitor_Add_Buddy_Reply reply;
-                    reply.m_charNo = *(unsigned int*)((char*)pkt + 0xa);
-                    reply.m_idByChannel = *(unsigned int*)((char*)pkt + 0xe);
+                    reply.m_charNo = ((RA_UINT<10>*)pkt)->v;
+                    reply.m_idByChannel = ((RA_UINT<14>*)pkt)->v;
                     reply.m_result = (unsigned char)r;
                     user->SendToGameserver((char*)&reply,
-                                           *(unsigned short*)((char*)&reply + 2));
+                                           ((RA_U16<2>*)&reply)->v);
                 }
             }
         }
@@ -2741,7 +2747,7 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
         else
         {
             CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-            CUser* user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+            CUser* user = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
             if (user == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x105f, "./log/buddy", "CPacketTranslater::OnAddBuddyDBReply\tpclUser is NULL");
@@ -2749,14 +2755,14 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
             else
             {
                 Packet_Monitor_Add_Buddy_Reply reply;
-                reply.m_charNo = *(unsigned int*)((char*)pkt + 0xa);
+                reply.m_charNo = ((RA_UINT<10>*)pkt)->v;
                 reply.m_idByChannel = user->GetIdByChannel();
-                if (*(char*)((char*)pkt + 0x35) == 0)
+                if (((RA_S8<53>*)pkt)->v == 0)
                 {
                     user->AddBuddy(*(STBuddyDBInfo*)((char*)pkt + 0xe));
                     memcpy(reply.m_name, (char*)pkt + 0xe, 0x27);
                     CUser* other =
-                        userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0x30));
+                        userMgr->FindUser_CharNo(((RA_UINT<48>*)pkt)->v);
                     if (other == 0)
                     {
                         reply.m_channel = 0xff;
@@ -2770,18 +2776,18 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
                         reply.m_channel =
                             ((CServerInterface*)other->GetGameServer())->GetChannelNo();
                     }
-                    reply.m_result = *(unsigned char*)((char*)pkt + 0x35);
+                    reply.m_result = ((RA_U8<53>*)pkt)->v;
                     user->GetUniqCharNo();
                     ((CBuddyRegisterManager*)((char*)m_pclApp + 0x300))
-                        ->addBuddyRegister(*(unsigned int*)((char*)pkt + 0x30),
+                        ->addBuddyRegister(((RA_UINT<48>*)pkt)->v,
                                            user->GetUniqCharNo());
                 }
                 else
                 {
-                    reply.m_result = *(unsigned char*)((char*)pkt + 0x35);
+                    reply.m_result = ((RA_U8<53>*)pkt)->v;
                 }
                 user->SendToGameserver((char*)&reply,
-                                       *(unsigned short*)((char*)&reply + 2));
+                                       ((RA_U16<2>*)&reply)->v);
             }
         }
     }
@@ -2807,7 +2813,7 @@ void CPacketTranslater::OnDelBuddy(PacketHeader* pkt)
         {
             CUser* user =
                 ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                    *(unsigned int*)((char*)pkt + 0xa));
+                    ((RA_UINT<10>*)pkt)->v);
             if (user == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x1092, "./log/buddy", "CPacketTranslater::OnDelBuddy\t pclUser is NULL");
@@ -2819,12 +2825,12 @@ void CPacketTranslater::OnDelBuddy(PacketHeader* pkt)
                 if (r != 0)
                 {
                     Packet_Monitor_Del_Buddy_Reply reply;
-                    reply.m_charNo = *(unsigned int*)((char*)pkt + 0xa);
-                    reply.m_idByChannel = *(unsigned int*)((char*)pkt + 0xe);
+                    reply.m_charNo = ((RA_UINT<10>*)pkt)->v;
+                    reply.m_idByChannel = ((RA_UINT<14>*)pkt)->v;
                     memcpy(reply.m_name, (char*)pkt + 0x12, 0x1d);
                     reply.m_result = (unsigned char)r;
                     user->SendToGameserver((char*)&reply,
-                                           *(unsigned short*)((char*)&reply + 2));
+                                           ((RA_U16<2>*)&reply)->v);
                 }
             }
         }
@@ -2850,7 +2856,7 @@ void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
         else
         {
             CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-            CUser* user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+            CUser* user = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
             if (user == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x10cf, "./log/buddy", "CPacketTranslater::OnDelBuddyDBReply\tpclUser is NULL");
@@ -2858,23 +2864,23 @@ void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
             else
             {
                 Packet_Monitor_Del_Buddy_Reply reply;
-                reply.m_charNo = *(unsigned int*)((char*)pkt + 0xa);
+                reply.m_charNo = ((RA_UINT<10>*)pkt)->v;
                 reply.m_idByChannel = user->GetIdByChannel();
-                if (*(char*)((char*)pkt + 0x30) == 0)
+                if (((RA_S8<48>*)pkt)->v == 0)
                 {
                     user->DelBuddy((char*)pkt + 0x12);
                     memcpy(reply.m_name, (char*)pkt + 0x12, 0x1d);
-                    reply.m_result = *(unsigned char*)((char*)pkt + 0x30);
+                    reply.m_result = ((RA_U8<48>*)pkt)->v;
                     unsigned int uniq = user->GetUniqCharNo();
                     ((CBuddyRegisterManager*)((char*)m_pclApp + 0x300))
-                        ->delBuddyRegister(*(unsigned int*)((char*)pkt + 0xe), uniq);
+                        ->delBuddyRegister(((RA_UINT<14>*)pkt)->v, uniq);
                 }
                 else
                 {
                     reply.m_result = 3;
                 }
                 user->SendToGameserver((char*)&reply,
-                                       *(unsigned short*)((char*)&reply + 2));
+                                       ((RA_U16<2>*)&reply)->v);
             }
         }
     }
@@ -2899,11 +2905,11 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
         else
         {
             CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-            if (0x20 < (unsigned char)*(char*)((char*)pkt + 0xe))
+            if (0x20 < (unsigned char)((RA_S8<14>*)pkt)->v)
             {
-                *(char*)((char*)pkt + 0xe) = 0x20;
+                ((RA_S8<14>*)pkt)->v = 0x20;
             }
-            CUser* user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+            CUser* user = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
             if (user == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x1112,"./log/buddy",
@@ -2912,7 +2918,7 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
             else
             {
                 for (int i = 0;
-                     i < (int)(unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe); i++)
+                     i < (int)(unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v; i++)
                 {
                     user->AddBuddy(*(STBuddyDBInfo*)((char*)pkt + i * 0x27 + 0xf));
                     user->GetUniqCharNo();
@@ -2920,7 +2926,7 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
                         ->addBuddyRegister(*(unsigned int*)((char*)pkt + i * 0x27 + 0x31),
                                            user->GetUniqCharNo());
                 }
-                if (*(char*)((char*)pkt + 0xe) != 0)
+                if (((RA_S8<14>*)pkt)->v != 0)
                 {
                     userMgr->SendConnectedBuddysList(user);
                 }
@@ -2949,14 +2955,14 @@ void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             Packet_Change_User_Handicap reply;
-            reply.m_fieldA = *(unsigned int*)((char*)pkt + 0xa);
-            reply.m_fieldE = *(unsigned int*)((char*)pkt + 0xe);
-            reply.m_field12 = *(unsigned int*)((char*)pkt + 0x12);
-            user->SendToGameserver((char*)&reply, *(unsigned short*)((char*)&reply + 2));
+            reply.m_fieldA = ((RA_UINT<10>*)pkt)->v;
+            reply.m_fieldE = ((RA_UINT<14>*)pkt)->v;
+            reply.m_field12 = ((RA_UINT<18>*)pkt)->v;
+            user->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
         }
     }
 }
@@ -2973,23 +2979,23 @@ void CPacketTranslater::OnGMRequestMid(PacketHeader* pkt)
     else
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             Packet_GM_Request_Mid reply;
-            *(unsigned int*)((char*)&reply + 0xa) = *(unsigned int*)((char*)pkt + 0xa);
+            ((RA_UINT<10>*)&reply)->v = ((RA_UINT<10>*)pkt)->v;
             memcpy((char*)&reply + 0x16, (char*)pkt + 0x16, 0x1d);
             CUser* target = userMgr->FindUser_CharName((char*)pkt + 0x16);
             if (target == 0)
             {
-                *(unsigned int*)((char*)&reply + 0xe) = 0xffffffff;
+                ((RA_UINT<14>*)&reply)->v = 0xffffffff;
             }
             else
             {
-                *(unsigned int*)((char*)&reply + 0x12) = target->GetUniqCharNo();
-                *(unsigned int*)((char*)&reply + 0xe) = target->GetDBID();
+                ((RA_UINT<18>*)&reply)->v = target->GetUniqCharNo();
+                ((RA_UINT<14>*)&reply)->v = target->GetDBID();
             }
-            user->SendToGameserver((char*)&reply, *(unsigned short*)((char*)&reply + 2));
+            user->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
         }
     }
 
@@ -3013,7 +3019,7 @@ void CPacketTranslater::OnUserRepelByCharName(PacketHeader* pkt)
     if (m_pclApp != 0)
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CUser* user = userMgr->FindUser(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             Packet_Monitor_User_Repel reply;
@@ -3047,13 +3053,13 @@ void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
     try
     {
         CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
-        if (*(char*)((char*)pkt + 0xa) != 0)
+        if (((RA_S8<10>*)pkt)->v != 0)
         {
             tower->reset();
         }
-        DNF_LOG_SCOPE_LINE(0x1172,"./log/DeathTower", "%d/%d\n", *(unsigned int*)((char*)pkt + 0xb),
-            *(unsigned int*)((char*)pkt + 0xf));
-        for (unsigned int i = 0; i < *(unsigned int*)((char*)pkt + 0xb); i++)
+        DNF_LOG_SCOPE_LINE(0x1172,"./log/DeathTower", "%d/%d\n", ((RA_UINT<11>*)pkt)->v,
+            ((RA_UINT<15>*)pkt)->v);
+        for (unsigned int i = 0; i < ((RA_UINT<11>*)pkt)->v; i++)
         {
             tower->registRank(
                 (unsigned int)(unsigned char)*(char*)((char*)pkt + i * 0x65 + 0x1b),
@@ -3080,13 +3086,13 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
 
     CUser* user =
         ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-            *(unsigned int*)((char*)pkt + 0xe));
+            ((RA_UINT<14>*)pkt)->v);
     if (user != 0)
     {
-        unsigned int a = *(unsigned int*)((char*)pkt + 0x16);
-        unsigned int b = *(unsigned int*)((char*)pkt + 0xe);
+        unsigned int a = ((RA_UINT<22>*)pkt)->v;
+        unsigned int b = ((RA_UINT<14>*)pkt)->v;
         char* name = user->GetCharName();
-        unsigned int c = *(unsigned int*)((char*)pkt + 0x12);
+        unsigned int c = ((RA_UINT<18>*)pkt)->v;
         CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
         tower->registCharacRank(c, name, b, a);
     }
@@ -3108,7 +3114,7 @@ void CPacketTranslater::onRequestReloadTowerRanker(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
     tower->processReloadRanking(handler, true, 5);
     handler->SendAllToGameServer((char*)pkt, 10);
@@ -3130,7 +3136,7 @@ void CPacketTranslater::onWebReqReloadAutoPunishRule(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0xb);
 
 
@@ -3156,7 +3162,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
         else
         {
             CServerHandler* handler = m_pclApp->Get_ServerHandler();
-            if (handler->GetTcpDBServer()->GetSock() == *(int*)((char*)pkt + 6))
+            if (handler->GetTcpDBServer()->GetSock() == ((RA_INT<6>*)pkt)->v)
             {
                 handler = m_pclApp->Get_ServerHandler();
                 handler->GetTcpDBServer()->Connected();
@@ -3164,7 +3170,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
             else
             {
                 handler = m_pclApp->Get_ServerHandler();
-                if (handler->GetTcpManagerServer()->GetSock() == *(int*)((char*)pkt + 6))
+                if (handler->GetTcpManagerServer()->GetSock() == ((RA_INT<6>*)pkt)->v)
                 {
                     unsigned char group = m_pclApp->Get_ServerGroup();
                     handler = m_pclApp->Get_ServerHandler();
@@ -3172,7 +3178,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
                 }
                 else
                 {
-                    unsigned int sock = *(unsigned int*)((char*)pkt + 6);
+                    unsigned int sock = ((RA_UINT<6>*)pkt)->v;
                     handler = m_pclApp->Get_ServerHandler();
                     CTcpGameServer* tcp = handler->CreateTcpGameServer(sock);
                     if (tcp != 0)
@@ -3233,7 +3239,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
         else
         {
             CServerHandler* handler = m_pclApp->Get_ServerHandler();
-            if (handler->GetTcpDBServer()->GetSock() == *(int*)((char*)pkt + 6))
+            if (handler->GetTcpDBServer()->GetSock() == ((RA_INT<6>*)pkt)->v)
             {
                 handler = m_pclApp->Get_ServerHandler();
                 handler->GetTcpDBServer()->DisConnected();
@@ -3241,7 +3247,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
             else
             {
                 handler = m_pclApp->Get_ServerHandler();
-                if (handler->GetTcpManagerServer()->GetSock() == *(int*)((char*)pkt + 6))
+                if (handler->GetTcpManagerServer()->GetSock() == ((RA_INT<6>*)pkt)->v)
                 {
                     handler = m_pclApp->Get_ServerHandler();
                     handler->GetTcpManagerServer()->DisConnected();
@@ -3249,7 +3255,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
                 else
                 {
                     CTcpGameServer* tcp = (CTcpGameServer*)m_pclApp->FindTcpGameServer(
-                        *(unsigned int*)((char*)pkt + 6));
+                        ((RA_UINT<6>*)pkt)->v);
                     m_pclApp->OnTcpGameServerDown(tcp);
                     unsigned char channel = tcp->GetChannelNo();
                     if (channel != 0)
@@ -3258,7 +3264,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
                         handler->UnregistGameServer((unsigned int)channel);
                     }
                     handler = m_pclApp->Get_ServerHandler();
-                    handler->DeleteTcpGameServer(*(unsigned int*)((char*)pkt + 6));
+                    handler->DeleteTcpGameServer(((RA_UINT<6>*)pkt)->v);
                     void* net = m_pclApp->Get_TcpNetSystem();
                     DNF_LOG_SCOPE_LINE(0x12af, "./log/Tcp", "OnInnerPacketLogout : Network system (%x)", net);
                 }
@@ -3285,7 +3291,7 @@ void CPacketTranslater::OnNoticeSlang(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnNoticeSlang : 0 == m_pclApp");
     }
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0x3d);
 
 
@@ -3306,7 +3312,7 @@ void CPacketTranslater::onLoadCleanPadPoint(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x12e0, "./log/Cleanpad", "CleanPad Point");
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 10);
 
 
@@ -3329,7 +3335,7 @@ void CPacketTranslater::onLoadBlackIPMonitorPartLoad(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x1307, "./log/BlackIP", "BlackIP Monitor Part Load");
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 10);
 
 
@@ -3350,7 +3356,7 @@ void CPacketTranslater::onLoadBlackIPMonitorDeleteIP(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x131a, "./log/BlackIP", "BlackIP Monitor Delete IP");
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0x19e);
 
 
@@ -3377,28 +3383,28 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
         {
             PacketHeader* rpkt = pkt;
             Packet_DBMW_Change_Char_Name pkt2;
-            *(char*)((char*)&pkt2 + 0xa) = (char)m_pclApp->Get_ServerGroup();
-            *(unsigned int*)((char*)&pkt2 + 0xb) = *(unsigned int*)((char*)pkt + 0xe);
+            ((RA_S8<10>*)&pkt2)->v = (char)m_pclApp->Get_ServerGroup();
+            ((RA_UINT<11>*)&pkt2)->v = ((RA_UINT<14>*)pkt)->v;
             memcpy((char*)&pkt2 + 0xf, (char*)pkt + 0x16, 0x1d);
             m_pclApp->Get_ServerHandler()->SendToDB(&pkt2);
-            unsigned int dbid = *(unsigned int*)((char*)pkt + 0xe);
+            unsigned int dbid = ((RA_UINT<14>*)pkt)->v;
             CUserManager* userMgr = m_pclApp->Get_UserManager();
             userMgr->ChangeBlackListCharName(dbid, (char*)pkt + 0x16);
             std::vector<unsigned int> vec;
             ((CBuddyRegisterManager*)((char*)m_pclApp + 0x300))
-                ->findBuddyRegister(*(unsigned int*)((char*)pkt + 0xe), vec);
+                ->findBuddyRegister(((RA_UINT<14>*)pkt)->v, vec);
             for (std::vector<unsigned int>::iterator it = vec.begin(); it != vec.end(); ++it)
             {
                 CUser* user = userMgr->FindUser_CharNo(*it);
                 if (user != 0)
                 {
                     std::string name((char*)pkt + 0x16);
-                    user->SetBuddyCharName(*(int*)((char*)pkt + 0xe), name);
+                    user->SetBuddyCharName(((RA_INT<14>*)pkt)->v, name);
                 }
             }
             std::string name2((char*)pkt + 0x16);
             ((CMemoryCashManager*)m_pclApp->Get_MemoryCashManager())->InsertUpdatedCharacName(
-                *(unsigned int*)((char*)pkt + 0xe), name2);
+                ((RA_UINT<14>*)pkt)->v, name2);
         }
     }
     catch (CDNFException& e)
@@ -3418,10 +3424,10 @@ void CPacketTranslater::OnNotifyAuctionMail(PacketHeader* pkt)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
-            *(unsigned int*)((char*)pkt + 0xe) = user->GetIdByChannel();
+            ((RA_UINT<14>*)pkt)->v = user->GetIdByChannel();
             user->SendToGameserver((char*)pkt, 0x26);
         }
     }
@@ -3436,26 +3442,26 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
     try
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CUser* user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             Packet_PvPChannelUserCount pkt2;
-            *(unsigned int*)((char*)&pkt2 + 0xa) = *(unsigned int*)((char*)pkt + 0xa);
-            *(unsigned int*)((char*)&pkt2 + 0xe) = *(unsigned int*)((char*)pkt + 0xe);
-            *(unsigned int*)((char*)&pkt2 + 0x12) = *(unsigned int*)((char*)pkt + 0x12);
+            ((RA_UINT<10>*)&pkt2)->v = ((RA_UINT<10>*)pkt)->v;
+            ((RA_UINT<14>*)&pkt2)->v = ((RA_UINT<14>*)pkt)->v;
+            ((RA_UINT<18>*)&pkt2)->v = ((RA_UINT<18>*)pkt)->v;
             m_pclApp->Get_ServerGroup();
-            CServerHandler* handler = (CServerHandler*)((char*)m_pclApp + 0xa0);
+            CServerHandler* handler = m_pclApp->m_serverHandler2;
             int count = handler->SendAllTcpGameServer(
-                &pkt2, (int)(unsigned char)*(char*)((char*)pkt + 0x16));
+                &pkt2, (int)(unsigned char)((RA_S8<22>*)pkt)->v);
             user->ResetChannelUserCount(count);
-            if (count == 0 || *(int*)((char*)pkt + 0x12) == 0)
+            if (count == 0 || ((RA_INT<18>*)pkt)->v == 0)
             {
                 Packet_PvPChannelInfo reply;
-                *(unsigned int*)((char*)&reply + 0xa) = *(unsigned int*)((char*)pkt + 0xa);
-                *(unsigned int*)((char*)&reply + 0xe) = *(unsigned int*)((char*)pkt + 0xe);
-                *(unsigned int*)((char*)&reply + 0x12) = *(unsigned int*)((char*)pkt + 0x12);
-                *(char*)((char*)&reply + 0x17) = 0;
-                *(unsigned short*)((char*)&reply + 2) =
+                ((RA_UINT<10>*)&reply)->v = ((RA_UINT<10>*)pkt)->v;
+                ((RA_UINT<14>*)&reply)->v = ((RA_UINT<14>*)pkt)->v;
+                ((RA_UINT<18>*)&reply)->v = ((RA_UINT<18>*)pkt)->v;
+                ((RA_S8<23>*)&reply)->v = 0;
+                ((RA_U16<2>*)&reply)->v =
                     (unsigned short)((0 << 4) + 0x18);
                 user->SendTcpGameserver(&reply);
             }
@@ -3463,7 +3469,7 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x13aa, "./log/Except", "%s Exception Break\n", "OnPvPChannelInfo");
+        DNF_LOG_SCOPE_LINE(0x13aa, "./log/Except", "%s Exception Break\n", __FUNCTION__);
     }
 }
 
@@ -3472,20 +3478,20 @@ void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
     try
     {
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CUser* user = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* user = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
-            user->SetChannelUserCount(*(int*)((char*)pkt + 0x16), *(int*)((char*)pkt + 0x1a),
-                                      *(int*)((char*)pkt + 0x22), *(int*)((char*)pkt + 0x26));
+            user->SetChannelUserCount(((RA_INT<22>*)pkt)->v, ((RA_INT<26>*)pkt)->v,
+                                      ((RA_INT<34>*)pkt)->v, ((RA_INT<38>*)pkt)->v);
             if (user->IsCompleteChannelUserCount())
             {
                 Packet_PvPChannelInfo reply;
-                *(unsigned int*)((char*)&reply + 0xa) = *(unsigned int*)((char*)pkt + 0xa);
-                *(unsigned int*)((char*)&reply + 0xe) = *(unsigned int*)((char*)pkt + 0xe);
-                *(unsigned int*)((char*)&reply + 0x12) = *(unsigned int*)((char*)pkt + 0x12);
+                ((RA_UINT<10>*)&reply)->v = ((RA_UINT<10>*)pkt)->v;
+                ((RA_UINT<14>*)&reply)->v = ((RA_UINT<14>*)pkt)->v;
+                ((RA_UINT<18>*)&reply)->v = ((RA_UINT<18>*)pkt)->v;
                 unsigned char count = 0xff;
                 user->GetChannelUserCount((STPvPChannelInfo*)((char*)&reply + 0x18), count);
-                *(unsigned short*)((char*)&reply + 2) =
+                ((RA_U16<2>*)&reply)->v =
                     (unsigned short)((unsigned int)count * 0x10 + 0x18);
                 user->SendTcpGameserver(&reply);
             }
@@ -3493,35 +3499,32 @@ void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x13d3, "./log/Except", "%s Exception Break\n", "OnPvPChannelUserCount");
+        DNF_LOG_SCOPE_LINE(0x13d3, "./log/Except", "%s Exception Break\n", __FUNCTION__);
     }
 }
 
 void CPacketTranslater::OnChannelType(PacketHeader* pkt)
 {
+    PacketHeader* p = pkt;
     if (m_pclApp != 0)
     {
         try
         {
-            unsigned int channel = *(unsigned int*)((char*)pkt + 0xe);
-            if (m_pclApp->FindGameServer((int)channel) == 0)
+            CGameServer* gs = (CGameServer*)m_pclApp->FindGameServer((int)((RA_UINT<10>*)p)->v);
+            if (gs == 0)
             {
                 throw CDNFException("CPacketTranslater::OnChannelType : pclGameServer == 0");
             }
             CTcpGameServer* tcpGs =
-                (CTcpGameServer*)m_pclApp->FindTcpGameServer(channel);
+                (CTcpGameServer*)m_pclApp->FindTcpGameServer(((RA_UINT<6>*)p)->v);
             if (tcpGs != 0)
             {
-                tcpGs->SetChannelType(*(int*)((char*)pkt + 0xe));
+                tcpGs->SetChannelType(((RA_INT<14>*)p)->v);
             }
         }
         catch (CDNFException& e)
         {
-            DNF_LOG_SCOPE_LINE(0x1b21, "%s", "CPacketTranslater::OnChannelType() Exception Break : %s\n", e.what());
-        }
-        catch (...)
-        {
-            DNF_LOG_SCOPE_LINE(0x1b26, "%s", "CPacketTranslater::OnChannelType() Exception Break");
+            DNF_LOG_SCOPE_LINE(0x13f4, "./log/Except", "%s Exception Break\n", e.what());
         }
     }
 }
@@ -3532,7 +3535,7 @@ void CPacketTranslater::OnServerMessageInfo(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x1402, "./log/ServerEvent", "Packet_Monitor_Server_Message_Info");
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0x5f);
 
 
@@ -3553,7 +3556,7 @@ void CPacketTranslater::OnRequestReloadPowerWarRanker(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x1418, "./log/ServerEvent", "Packet_Request_Reload_Power_War_Ranker");
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 10);
 
 
@@ -3574,7 +3577,7 @@ void CPacketTranslater::onLoadPunishUserReq(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x142d, "./log/Secu", "Punish User Request");
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0x4bd);
 
 
@@ -3599,10 +3602,10 @@ void CPacketTranslater::onIPCounterControl(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::onIPCounterControl : 0 == m_pclApp");
     }
     DNF_LOG_SCOPE_LINE(0x1448,"./log/Secu", "IPCounterControl - type : %d, value : %d ",
-        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa),
-        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xb));
+        (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
+        (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
     CIPCounter* counter = (CIPCounter*)m_pclApp->getIPCounter();
-    counter->setOption(*(unsigned char*)((char*)pkt + 0xa), *(unsigned char*)((char*)pkt + 0xb));
+    counter->setOption(((RA_U8<10>*)pkt)->v, ((RA_U8<11>*)pkt)->v);
 
 
     }
@@ -3621,39 +3624,39 @@ void CPacketTranslater::onItemLimitEditionLoadDataReq(PacketHeader* pkt)
     try
     {
         PacketHeader* rpkt = pkt;
-        if (*(char*)((char*)pkt + 0xa) == 0)
+        if (((RA_S8<10>*)pkt)->v == 0)
         {
-            unsigned int grp = *(unsigned int*)((char*)pkt + 0xb);
+            unsigned int grp = ((RA_UINT<11>*)pkt)->v;
             if (grp != ((unsigned int)m_pclApp->Get_ServerGroup() & 0xff))
             {
-                unsigned int g = *(unsigned int*)((char*)pkt + 0xb);
+                unsigned int g = ((RA_UINT<11>*)pkt)->v;
                 DNF_LOG_SCOPE_LINE(0x146d, "./log/ItemLimitEdition", "(Ignore another server msg: %d)", g);
                 return;
             }
         }
         else
         {
-            *(unsigned int*)((char*)pkt + 0xb) =
+            ((RA_UINT<11>*)pkt)->v =
                 (unsigned int)m_pclApp->Get_ServerGroup() & 0xff;
         }
-        ((CServerHandler*)*(void**)((char*)m_pclApp + 0xa0))->SendToDB(pkt);
+        (m_pclApp->m_serverHandler2)->SendToDB(pkt);
         DNF_LOG_SCOPE_LINE(0x1474,"./log/ItemLimitEdition",
             "(FullLoad: %d, ServerType:%d, LoadTargetNum: %d, IPGNO: "
             "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa),
-            *(unsigned int*)((char*)pkt + 0xb), *(unsigned int*)((char*)pkt + 0xf),
-            *(unsigned int*)((char*)pkt + 0x13), *(unsigned int*)((char*)pkt + 0x17),
-            *(unsigned int*)((char*)pkt + 0x1b), *(unsigned int*)((char*)pkt + 0x1f),
-            *(unsigned int*)((char*)pkt + 0x23), *(unsigned int*)((char*)pkt + 0x27),
-            *(unsigned int*)((char*)pkt + 0x2b), *(unsigned int*)((char*)pkt + 0x2f),
-            *(unsigned int*)((char*)pkt + 0x33), *(unsigned int*)((char*)pkt + 0x37),
-            *(unsigned int*)((char*)pkt + 0x3b), *(unsigned int*)((char*)pkt + 0x3f),
-            *(unsigned int*)((char*)pkt + 0x43), *(unsigned int*)((char*)pkt + 0x47),
-            *(unsigned int*)((char*)pkt + 0x4b), *(unsigned int*)((char*)pkt + 0x4f),
-            *(unsigned int*)((char*)pkt + 0x53), *(unsigned int*)((char*)pkt + 0x57),
-            *(unsigned int*)((char*)pkt + 0x5b), *(unsigned int*)((char*)pkt + 0x5f),
-            *(unsigned int*)((char*)pkt + 0x63), *(unsigned int*)((char*)pkt + 0x67),
-            *(unsigned int*)((char*)pkt + 0x6b), *(unsigned int*)((char*)pkt + 0x6f));
+            (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
+            ((RA_UINT<11>*)pkt)->v, ((RA_UINT<15>*)pkt)->v,
+            ((RA_UINT<19>*)pkt)->v, ((RA_UINT<23>*)pkt)->v,
+            ((RA_UINT<27>*)pkt)->v, ((RA_UINT<31>*)pkt)->v,
+            ((RA_UINT<35>*)pkt)->v, ((RA_UINT<39>*)pkt)->v,
+            ((RA_UINT<43>*)pkt)->v, ((RA_UINT<47>*)pkt)->v,
+            ((RA_UINT<51>*)pkt)->v, ((RA_UINT<55>*)pkt)->v,
+            ((RA_UINT<59>*)pkt)->v, ((RA_UINT<63>*)pkt)->v,
+            ((RA_UINT<67>*)pkt)->v, ((RA_UINT<71>*)pkt)->v,
+            ((RA_UINT<75>*)pkt)->v, ((RA_UINT<79>*)pkt)->v,
+            ((RA_UINT<83>*)pkt)->v, ((RA_UINT<87>*)pkt)->v,
+            ((RA_UINT<91>*)pkt)->v, ((RA_UINT<95>*)pkt)->v,
+            ((RA_UINT<99>*)pkt)->v, ((RA_UINT<103>*)pkt)->v,
+            ((RA_UINT<107>*)pkt)->v, ((RA_UINT<111>*)pkt)->v);
     }
     catch (CDNFException& e)
     {
@@ -3673,13 +3676,13 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
     try
     {
         PacketHeader* rpkt = pkt;
-        if (*(int*)((char*)pkt + 0xb) != 0)
+        if (((RA_INT<11>*)pkt)->v != 0)
         {
-            if (*(char*)((char*)pkt + 0xa) != 0)
+            if (((RA_S8<10>*)pkt)->v != 0)
             {
                 m_pclApp->getItemLimitEditionMgr()->clear();
             }
-            for (unsigned int i = 0; i < *(unsigned int*)((char*)pkt + 0xb); i++)
+            for (unsigned int i = 0; i < ((RA_UINT<11>*)pkt)->v; i++)
             {
                 unsigned int ipgno = *(unsigned int*)((char*)pkt + i * 0x48 + 0xf);
                 if (ipgno > 799999 && ipgno < 1000000)
@@ -3691,27 +3694,27 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x14c2,"./log/ItemLimitEdition",
                 "(FullLoad: %d, LoadTargetNum: %d, IPGNO: "
                 "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
-                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa),
-                *(unsigned int*)((char*)pkt + 0xb), *(unsigned int*)((char*)pkt + 0xf),
-                *(unsigned int*)((char*)pkt + 0x57), *(unsigned int*)((char*)pkt + 0x9f),
-                *(unsigned int*)((char*)pkt + 0xe7), *(unsigned int*)((char*)pkt + 0x12f),
-                *(unsigned int*)((char*)pkt + 0x177), *(unsigned int*)((char*)pkt + 0x1bf),
-                *(unsigned int*)((char*)pkt + 0x207), *(unsigned int*)((char*)pkt + 0x24f),
-                *(unsigned int*)((char*)pkt + 0x297), *(unsigned int*)((char*)pkt + 0x2df),
-                *(unsigned int*)((char*)pkt + 0x327), *(unsigned int*)((char*)pkt + 0x36f),
-                *(unsigned int*)((char*)pkt + 0x3b7), *(unsigned int*)((char*)pkt + 0x3ff),
-                *(unsigned int*)((char*)pkt + 0x447), *(unsigned int*)((char*)pkt + 0x48f),
-                *(unsigned int*)((char*)pkt + 0x4d7), *(unsigned int*)((char*)pkt + 0x51f),
-                *(unsigned int*)((char*)pkt + 0x567), *(unsigned int*)((char*)pkt + 0x5af),
-                *(unsigned int*)((char*)pkt + 0x5f7), *(unsigned int*)((char*)pkt + 0x63f),
-                *(unsigned int*)((char*)pkt + 0x687));
+                (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
+                ((RA_UINT<11>*)pkt)->v, ((RA_UINT<15>*)pkt)->v,
+                ((RA_UINT<87>*)pkt)->v, ((RA_UINT<159>*)pkt)->v,
+                ((RA_UINT<231>*)pkt)->v, ((RA_UINT<303>*)pkt)->v,
+                ((RA_UINT<375>*)pkt)->v, ((RA_UINT<447>*)pkt)->v,
+                ((RA_UINT<519>*)pkt)->v, ((RA_UINT<591>*)pkt)->v,
+                ((RA_UINT<663>*)pkt)->v, ((RA_UINT<735>*)pkt)->v,
+                ((RA_UINT<807>*)pkt)->v, ((RA_UINT<879>*)pkt)->v,
+                ((RA_UINT<951>*)pkt)->v, ((RA_UINT<1023>*)pkt)->v,
+                ((RA_UINT<1095>*)pkt)->v, ((RA_UINT<1167>*)pkt)->v,
+                ((RA_UINT<1239>*)pkt)->v, ((RA_UINT<1311>*)pkt)->v,
+                ((RA_UINT<1383>*)pkt)->v, ((RA_UINT<1455>*)pkt)->v,
+                ((RA_UINT<1527>*)pkt)->v, ((RA_UINT<1599>*)pkt)->v,
+                ((RA_UINT<1671>*)pkt)->v);
             if (m_pclApp->getItemLimitEditionMgr()->isEmpty() != 1)
             {
                 Packet_Item_Limit_Edition_Sell_Start pkt2;
-                *(char*)((char*)&pkt2 + 0xa) = *(char*)((char*)pkt + 0xa);
-                if (*(char*)((char*)pkt + 0xa) == 0)
+                ((RA_S8<10>*)&pkt2)->v = ((RA_S8<10>*)pkt)->v;
+                if (((RA_S8<10>*)pkt)->v == 0)
                 {
-                    for (unsigned int i = 0; i < *(unsigned int*)((char*)pkt + 0xb); i++)
+                    for (unsigned int i = 0; i < ((RA_UINT<11>*)pkt)->v; i++)
                     {
                         CItemLimitEdition* item = m_pclApp->getItemLimitEditionMgr()
                                                       ->getItemInfo(
@@ -3722,8 +3725,8 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
                             item->makeItemInfo(
                                 *(stItemLimitEditionItemInfo_t*)((char*)&pkt2 +
                                                                  i * 0x48 + 0xf));
-                            *(int*)((char*)&pkt2 + 0xb) =
-                                *(int*)((char*)&pkt2 + 0xb) + 1;
+                            ((RA_INT<11>*)&pkt2)->v =
+                                ((RA_INT<11>*)&pkt2)->v + 1;
                         }
                     }
                 }
@@ -3754,10 +3757,10 @@ void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
     try
     {
         PacketHeader* rpkt = pkt;
-        unsigned int stype = *(unsigned int*)((char*)pkt + 0xa);
+        unsigned int stype = ((RA_UINT<10>*)pkt)->v;
         if (stype == ((unsigned int)m_pclApp->Get_ServerGroup() & 0xff))
         {
-            for (unsigned int i = 0; i < *(unsigned int*)((char*)pkt + 0xe); i++)
+            for (unsigned int i = 0; i < ((RA_UINT<14>*)pkt)->v; i++)
             {
                 CItemLimitEdition* item = m_pclApp->getItemLimitEditionMgr()->getItemInfo(
                     *(unsigned int*)((char*)pkt + 0x12 + i * 4));
@@ -3770,24 +3773,24 @@ void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x1519,"./log/ItemLimitEdition",
                 "(ServerType: %d, SellEndNum: %d, IPGNO: "
                 "%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
-                *(unsigned int*)((char*)pkt + 0xa), *(unsigned int*)((char*)pkt + 0xe),
-                *(unsigned int*)((char*)pkt + 0x12), *(unsigned int*)((char*)pkt + 0x16),
-                *(unsigned int*)((char*)pkt + 0x1a), *(unsigned int*)((char*)pkt + 0x1e),
-                *(unsigned int*)((char*)pkt + 0x22), *(unsigned int*)((char*)pkt + 0x26),
-                *(unsigned int*)((char*)pkt + 0x2a), *(unsigned int*)((char*)pkt + 0x2e),
-                *(unsigned int*)((char*)pkt + 0x32), *(unsigned int*)((char*)pkt + 0x36),
-                *(unsigned int*)((char*)pkt + 0x3a), *(unsigned int*)((char*)pkt + 0x3e),
-                *(unsigned int*)((char*)pkt + 0x42), *(unsigned int*)((char*)pkt + 0x46),
-                *(unsigned int*)((char*)pkt + 0x4a), *(unsigned int*)((char*)pkt + 0x4e),
-                *(unsigned int*)((char*)pkt + 0x52), *(unsigned int*)((char*)pkt + 0x56),
-                *(unsigned int*)((char*)pkt + 0x5a), *(unsigned int*)((char*)pkt + 0x5e),
-                *(unsigned int*)((char*)pkt + 0x62), *(unsigned int*)((char*)pkt + 0x66),
-                *(unsigned int*)((char*)pkt + 0x6a), *(unsigned int*)((char*)pkt + 0x6e));
+                ((RA_UINT<10>*)pkt)->v, ((RA_UINT<14>*)pkt)->v,
+                ((RA_UINT<18>*)pkt)->v, ((RA_UINT<22>*)pkt)->v,
+                ((RA_UINT<26>*)pkt)->v, ((RA_UINT<30>*)pkt)->v,
+                ((RA_UINT<34>*)pkt)->v, ((RA_UINT<38>*)pkt)->v,
+                ((RA_UINT<42>*)pkt)->v, ((RA_UINT<46>*)pkt)->v,
+                ((RA_UINT<50>*)pkt)->v, ((RA_UINT<54>*)pkt)->v,
+                ((RA_UINT<58>*)pkt)->v, ((RA_UINT<62>*)pkt)->v,
+                ((RA_UINT<66>*)pkt)->v, ((RA_UINT<70>*)pkt)->v,
+                ((RA_UINT<74>*)pkt)->v, ((RA_UINT<78>*)pkt)->v,
+                ((RA_UINT<82>*)pkt)->v, ((RA_UINT<86>*)pkt)->v,
+                ((RA_UINT<90>*)pkt)->v, ((RA_UINT<94>*)pkt)->v,
+                ((RA_UINT<98>*)pkt)->v, ((RA_UINT<102>*)pkt)->v,
+                ((RA_UINT<106>*)pkt)->v, ((RA_UINT<110>*)pkt)->v);
             m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(pkt);
         }
         else
         {
-            unsigned int v = *(unsigned int*)((char*)pkt + 0xa);
+            unsigned int v = ((RA_UINT<10>*)pkt)->v;
             DNF_LOG_SCOPE_LINE(0x150a, "./log/ItemLimitEdition", "(Ignore another server msg: %d)", v);
         }
     }
@@ -3809,7 +3812,7 @@ void CPacketTranslater::onItemLimitEditionBuyableRequest(PacketHeader* pkt)
     try
     {
         CTcpGameServer* tcp = (CTcpGameServer*)m_pclApp->FindTcpGameServer(
-            *(unsigned int*)((char*)pkt + 6));
+            ((RA_UINT<6>*)pkt)->v);
         if (tcp != 0)
         {
             time_t now = time(0);
@@ -3817,21 +3820,21 @@ void CPacketTranslater::onItemLimitEditionBuyableRequest(PacketHeader* pkt)
             if (buf != 0)
             {
                 CItemLimitEdition* item = m_pclApp->getItemLimitEditionMgr()->getItemInfo(
-                    *(unsigned int*)((char*)pkt + 0xe));
+                    ((RA_UINT<14>*)pkt)->v);
                 bool expired = (item == 0 || item->getSellEndTime() < (unsigned int)now);
                 if (expired)
                 {
-                    *(unsigned int*)(buf + 0xa) = *(unsigned int*)((char*)pkt + 0xa);
+                    *(unsigned int*)(buf + 0xa) = ((RA_UINT<10>*)pkt)->v;
                     buf[0x16] = 1;
                     tcp->SendToGameServer(buf);
                 }
                 else
                 {
-                    *(unsigned int*)(buf + 0xa) = *(unsigned int*)((char*)pkt + 0xa);
-                    *(unsigned int*)(buf + 0xe) = *(unsigned int*)((char*)pkt + 0xe);
+                    *(unsigned int*)(buf + 0xa) = ((RA_UINT<10>*)pkt)->v;
+                    *(unsigned int*)(buf + 0xe) = ((RA_UINT<14>*)pkt)->v;
                     if (item->isSellComplete() == 0)
                     {
-                        unsigned int num = *(unsigned int*)((char*)pkt + 0xe);
+                        unsigned int num = ((RA_UINT<14>*)pkt)->v;
                         m_pclApp->getItemLimitEditionMgr()->updateItem(
                             num, item->getSellNum() + 1);
                         buf[0x16] = 0;
@@ -3876,29 +3879,29 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
     }
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
     int targetCharNo = 0;
-    if (*(char*)((char*)pkt + 0xe) != 0 &&
-        (unsigned char)*(char*)((char*)pkt + 0xe) < 0x1e)
+    if (((RA_S8<14>*)pkt)->v != 0 &&
+        (unsigned char)((RA_S8<14>*)pkt)->v < 0x1e)
     {
         CUser* target = userMgr->FindUser_CharName((char*)pkt + 0xf);
         targetCharNo = target != 0 ? (int)target->GetUniqCharNo() : -1;
     }
     if (targetCharNo != 0)
     {
-        CUser* userA = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+        CUser* userA = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
         if (userA != 0)
         {
             Packet_Notice_Find_Factory_Hub_User reply;
-            CUser* userB = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0xa));
+            CUser* userB = userMgr->FindUser_CharNo(((RA_UINT<10>*)pkt)->v);
             if (userB == 0)
             {
                 reply.m_idByChannel = userA->GetIdByChannel();
                 reply.m_found = 0;
-                reply.m_nameLen = *(unsigned char*)((char*)pkt + 0xe);
+                reply.m_nameLen = ((RA_U8<14>*)pkt)->v;
                 strncpy(reply.m_name, (char*)pkt + 0xf,
-                        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe));
-                reply.m_field2e = *(unsigned short*)((char*)pkt + 0x2d);
-                reply.m_field30 = *(unsigned int*)((char*)pkt + 0x2f);
-                *(unsigned short*)((char*)&reply + 2) = 0x34;
+                        (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v);
+                reply.m_field2e = ((RA_U16<45>*)pkt)->v;
+                reply.m_field30 = ((RA_UINT<47>*)pkt)->v;
+                ((RA_U16<2>*)&reply)->v = 0x34;
                 userA->SendToGameserver((char*)&reply, 0x34);
             }
             else
@@ -3906,9 +3909,9 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
                 reply.m_idByChannel = userB->GetIdByChannel();
                 reply.m_found = 1;
                 reply.m_nameLen = 0;
-                reply.m_field2e = *(unsigned short*)((char*)pkt + 0x2d);
-                reply.m_field30 = *(unsigned int*)((char*)pkt + 0x2f);
-                *(unsigned short*)((char*)&reply + 2) = 0x34;
+                reply.m_field2e = ((RA_U16<45>*)pkt)->v;
+                reply.m_field30 = ((RA_UINT<47>*)pkt)->v;
+                ((RA_U16<2>*)&reply)->v = 0x34;
                 userB->SendToGameserver((char*)&reply, 0x34);
             }
         }
@@ -3941,7 +3944,7 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
         int charNo = 0;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             charNo = -1;
@@ -3958,8 +3961,8 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
             {
                 Packet_Set_CleanPad_Point reply;
                 reply.m_idByChannel = target->GetIdByChannel();
-                reply.m_fieldE = *(unsigned short*)((char*)pkt + 0xe);
-                *(unsigned short*)((char*)&reply + 2) = 0x10;
+                reply.m_fieldE = ((RA_U16<14>*)pkt)->v;
+                ((RA_U16<2>*)&reply)->v = 0x10;
                 target->SendToGameserver((char*)&reply, 0x10);
             }
             return;
@@ -3988,10 +3991,10 @@ void CPacketTranslater::OnResponseIPCounterList(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnResponseIPCounterList : 0 == m_pclApp");
     }
     DNF_LOG_SCOPE_LINE(0x16c8,"./log/Secu", "[IP Counter] DataStats : %d, DataSize : %d ",
-        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa),
-        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xb));
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-    handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+        (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
+        (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
+    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
 
 
     }
@@ -4017,10 +4020,10 @@ void CPacketTranslater::OnResponseFullIPCounterList(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnResponseFullIPCounterList : 0 == m_pclApp");
     }
     DNF_LOG_SCOPE_LINE(0x16e8,"./log/Secu", "[D_IP Counter] DataStats : %d, DataSize : %d ",
-        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa),
-        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xb));
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-    handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+        (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
+        (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
+    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
 
 
     }
@@ -4046,23 +4049,23 @@ void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
         }
         char buf[15];
         *(unsigned int*)buf = *(unsigned int*)pkt;
-        *(unsigned int*)(buf + 4) = *(unsigned int*)((char*)pkt + 4);
-        *(unsigned int*)(buf + 8) = *(unsigned int*)((char*)pkt + 8);
-        *(unsigned short*)(buf + 0xc) = *(unsigned short*)((char*)pkt + 0xc);
-        *(char*)(buf + 0xe) = *(char*)((char*)pkt + 0xe);
-        CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-        if (*(char*)((char*)pkt + 0xa) == 0)
+        *(unsigned int*)(buf + 4) = ((RA_UINT<4>*)pkt)->v;
+        *(unsigned int*)(buf + 8) = ((RA_UINT<8>*)pkt)->v;
+        *(unsigned short*)(buf + 0xc) = ((RA_U16<12>*)pkt)->v;
+        *(char*)(buf + 0xe) = ((RA_S8<14>*)pkt)->v;
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
+        if (((RA_S8<10>*)pkt)->v == 0)
         {
-            handler->SendAllToGameServer(buf, *(unsigned short*)((char*)pkt + 2));
+            handler->SendAllToGameServer(buf, ((RA_U16<2>*)pkt)->v);
         }
         else
         {
-            handler->SendToGameServer(*(unsigned char*)((char*)pkt + 0xa),
+            handler->SendToGameServer(((RA_U8<10>*)pkt)->v,
                                       (PacketHeader*)buf);
         }
         DNF_LOG_SCOPE_LINE(0x1710,"./log/ScreenShot", "Recv TakeScreenShot Command! channel(%d) time(%d)",
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xa),
-            *(unsigned int*)((char*)pkt + 0xb));
+            (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
+            ((RA_UINT<11>*)pkt)->v);
     }
     catch (CDNFException& e)
     {
@@ -4109,7 +4112,7 @@ void CPacketTranslater::OnVillageAttackedGMCommand(PacketHeader* pkt)
     try
     {
         ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-            *(unsigned int*)((char*)pkt + 0xe));
+            ((RA_UINT<14>*)pkt)->v);
     }
     catch (CDNFException& e)
     {
@@ -4122,14 +4125,20 @@ void CPacketTranslater::OnVillageAttackedGMCommand(PacketHeader* pkt)
     }
 }
 
-void CPacketTranslater::OnVillageAttackedRank(PacketHeader* pkt) {}
+void CPacketTranslater::OnVillageAttackedRank(PacketHeader* pkt)
+{
+    PacketHeader* p = pkt;
+    char* x = (char*)m_pclApp + 0x10;
+    int n = 0;
+    char buf[0x10];
+}
 
 void CPacketTranslater::OnMonitorFullLevelBroadCast(PacketHeader* pkt)
 {
     if (m_pclApp != 0)
     {
-        CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-        handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
+        handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
     }
 }
 
@@ -4143,7 +4152,7 @@ void CPacketTranslater::OnSetARSInfo(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnSetARSInfo : 0 == m_pclApp");
     }
     DNF_LOG_SCOPE_LINE(0x183d, "./log/Secu", "[ARS_INFO] DBMW -> Monitor -> GameSvr");
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllToGameServer((char*)pkt, 0x4bf);
 
 
@@ -4169,11 +4178,11 @@ void CPacketTranslater::OnWebRequestARSInfo(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnWebRequestARSInfo : 0 == m_pclApp");
     }
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     if (handler != 0)
     {
         DNF_LOG_SCOPE_LINE(0x181d, "./log/Secu", "[ARS_INFO] Web -> Monitor -> DBMW");
-        handler->SendDBMWRequestARSInfo(*(unsigned char*)((char*)pkt + 0xa));
+        handler->SendDBMWRequestARSInfo(((RA_U8<10>*)pkt)->v);
     }
 
 
@@ -4194,14 +4203,14 @@ void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
 {
     CTcpGameServer* tcpGs =
         (CTcpGameServer*)m_pclApp->FindTcpGameServer(
-            *(unsigned int*)((char*)pkt + 0xa));
+            ((RA_UINT<10>*)pkt)->v);
     if (tcpGs != 0)
     {
-        int type = *(int*)((char*)pkt + 0x12);
+        int type = ((RA_INT<18>*)pkt)->v;
         std::string name2((char*)pkt + 0x40);
         std::string name1((char*)pkt + 0x22);
-        *(char*)((char*)pkt + 0x15e) = (char)m_pclApp->AddAccusationCharac(
-            name1, name2, type, *(char*)((char*)pkt + 0x15e));
+        ((RA_S8<350>*)pkt)->v = (char)m_pclApp->AddAccusationCharac(
+            name1, name2, type, ((RA_S8<350>*)pkt)->v);
         char* buf = tcpGs->makePacketHeader(0x1b66, 0x15f);
         if (buf != 0)
         {
@@ -4214,18 +4223,18 @@ void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
 void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
 {
     stServerInfo* info = new stServerInfo;
-    *(char*)((char*)info + 0) = *(char*)((char*)pkt + 0xb);
-    *(char*)((char*)info + 1) = *(char*)((char*)pkt + 0xc);
-    *(char*)((char*)info + 2) = *(char*)((char*)pkt + 0xa);
-    *(unsigned short*)((char*)info + 0x14) = *(unsigned short*)((char*)pkt + 0x1d);
+    ((RA_S8<0>*)info)->v = ((RA_S8<11>*)pkt)->v;
+    ((RA_S8<1>*)info)->v = ((RA_S8<12>*)pkt)->v;
+    ((RA_S8<2>*)info)->v = ((RA_S8<10>*)pkt)->v;
+    ((RA_U16<20>*)info)->v = ((RA_U16<29>*)pkt)->v;
     strncpy((char*)info + 3, (char*)pkt + 0xd, 0x10);
-    unsigned int sock = *(unsigned int*)((char*)pkt + 6);
+    unsigned int sock = ((RA_UINT<6>*)pkt)->v;
     CTcpGameServer* tcp =
         (CTcpGameServer*)m_pclApp->Get_ServerHandler()->GetTcpGameServer(sock);
     if (tcp != 0)
     {
         DNF_LOG_SCOPE_LINE(0x190c,"./log/GameServer", "Get Packet - OnGameServerRegist from Channel:%d",
-            (unsigned int)(unsigned char)*(char*)((char*)info + 1));
+            (unsigned int)(unsigned char)((RA_S8<1>*)info)->v);
         if (tcp->GetChannelNo() == 0)
         {
             char* buf = tcp->makePacketHeader(0x1f42, 0xc);
@@ -4236,22 +4245,22 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
             }
             if (m_pclApp->Get_ServerHandler()->RegistGameServer(info) == 1)
             {
-                tcp->SetChannelNo((unsigned char)*(char*)((char*)pkt + 0xc));
+                tcp->SetChannelNo((unsigned char)((RA_S8<12>*)pkt)->v);
                 CGameServer* gs =
                     m_pclApp->Get_ServerHandler()->GetGameServer(sock);
-                gs->SetSocket(*(unsigned int*)((char*)pkt + 6));
+                gs->SetSocket(((RA_UINT<6>*)pkt)->v);
                 out[0xb] = 0;
-                CMyFileLog log2("OnGameServerRegist", 0x1930);
+                CMyFileLog log2(__FUNCTION__, 0x1930);
                 log2("./log/GameServer", "Game server regist success. Channel: %d",
-                     (unsigned int)(unsigned char)*(char*)((char*)info + 1));
+                     (unsigned int)(unsigned char)((RA_S8<1>*)info)->v);
             }
             else
             {
                 out[0xb] = 1;
-                CMyFileLog log2("OnGameServerRegist", 0x1923);
+                CMyFileLog log2(__FUNCTION__, 0x1923);
                 log2("./log/GameServer",
                      "Game server regist failed. Channel: %d is already exist.",
-                     (unsigned int)(unsigned char)*(char*)((char*)info + 1));
+                     (unsigned int)(unsigned char)((RA_S8<1>*)info)->v);
             }
             out[0xa] = 0;
             tcp->SendToGameServer(out);
@@ -4298,7 +4307,7 @@ void CPacketTranslater::OnDisableUserOneToOneChat_GM(PacketHeader* pkt)
 {
     if (m_pclApp != 0)
     {
-        unsigned int channel = *(unsigned int*)((char*)pkt + 0xa);
+        unsigned int channel = ((RA_UINT<10>*)pkt)->v;
         if (m_pclApp->isGM_regFromChannel(channel) != 0)
         {
             CUser* target =
@@ -4315,19 +4324,19 @@ void CPacketTranslater::OnFindCharacName_useUID(PacketHeader* pkt)
 {
     CTcpGameServer* tcpGs =
         (CTcpGameServer*)m_pclApp->FindTcpGameServer(
-            *(unsigned int*)((char*)pkt + 0xe));
+            ((RA_UINT<14>*)pkt)->v);
     if (tcpGs != 0)
     {
         char* buf = tcpGs->makePacketHeader(0x1f45, 0x34);
-        *(unsigned int*)(buf + 10) = *(unsigned int*)((char*)pkt + 10);
-        *(unsigned int*)(buf + 0xe) = *(unsigned int*)((char*)pkt + 0xe);
+        *(unsigned int*)(buf + 10) = ((RA_UINT<10>*)pkt)->v;
+        *(unsigned int*)(buf + 0xe) = ((RA_UINT<14>*)pkt)->v;
         buf[0x12] = 0;
         buf[0x13] = 0;
         buf[0x14] = 0;
         buf[0x15] = 0;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             char* name = user->GetCharName();
@@ -4355,16 +4364,16 @@ void CPacketTranslater::OnRenew_GM_List(PacketHeader* pkt)
     WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_pclApp->GetGMAccounts();
     if (gm != 0 && pkt != 0)
     {
-        if (*(char*)((char*)pkt + 0xa) == 0)
+        if (((RA_S8<10>*)pkt)->v == 0)
         {
             gm->clearGmList();
         }
-        for (int i = 0; i < (int)(char)*(char*)((char*)pkt + 0xb); i++)
+        for (int i = 0; i < (int)(char)((RA_S8<11>*)pkt)->v; i++)
         {
             gm->AppendGM_Sys(*(unsigned int*)((char*)pkt + i * 4 + 0xc),
                              *(char*)((char*)pkt + i + 0x5c));
         }
-        CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+        CServerHandler* handler = m_pclApp->m_serverHandler2;
         handler->SendToDB(pkt);
     }
 }
@@ -4374,7 +4383,7 @@ void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendToDB(pkt);
     DNF_LOG_SCOPE_LINE(0x19e0, "./log/PeriodicMessage", "Web Request is Arrived and Send Request DBMW");
 
@@ -4394,8 +4403,8 @@ void CPacketTranslater::OnResultLoadPeriodicMessage(PacketHeader* pkt)
 {
     try
     {
-        unsigned int endHour = *(unsigned int*)((char*)pkt + 0x20e);
-        unsigned int startHour = *(unsigned int*)((char*)pkt + 0x20a);
+        unsigned int endHour = ((RA_UINT<526>*)pkt)->v;
+        unsigned int startHour = ((RA_UINT<522>*)pkt)->v;
         DNF_LOG_SCOPE_LINE(0x19f7,"./log/PeriodicMessage",
             "DB Load Message : Message(%s), start_hour(%d), end_hour(%d)", (char*)pkt + 0xa,
             startHour, endHour);
@@ -4418,10 +4427,10 @@ void CPacketTranslater::OnRegisterEventIdx(PacketHeader* pkt)
 {
 
 
-    unsigned int idx = *(unsigned int*)((char*)pkt + 0xa);
+    unsigned int idx = ((RA_UINT<10>*)pkt)->v;
     DNF_LOG_SCOPE_LINE(0x1a15,"./log/OnTimeEvent", "OnRegisterEventIdx:result =%d, Eventidx =%d",
-        (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe), idx);
-    if (*(char*)((char*)pkt + 0xe) != 0)
+        (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v, idx);
+    if (((RA_S8<14>*)pkt)->v != 0)
     {
         ((COnTimeEventManager*)*(void**)((char*)m_pclApp + 800))->SetEventIdx(idx);
     }
@@ -4442,9 +4451,9 @@ void CPacketTranslater::OnRegisterEventUserIdx(PacketHeader* pkt)
 {
     try
     {
-        unsigned short errType = *(unsigned short*)((char*)pkt + 0x12);
-        unsigned int idx = *(unsigned int*)((char*)pkt + 0xe);
-        unsigned int id = *(unsigned int*)((char*)pkt + 0xa);
+        unsigned short errType = ((RA_U16<18>*)pkt)->v;
+        unsigned int idx = ((RA_UINT<14>*)pkt)->v;
+        unsigned int id = ((RA_UINT<10>*)pkt)->v;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1a35,"./log/OnTimeEvent",
@@ -4459,14 +4468,14 @@ void CPacketTranslater::OnRegisterEventUserIdx(PacketHeader* pkt)
                 "OnRegisterEventUserIdx:id = %u , rcv_idx = %u, cur_idx = %d, errortype = %d",
                 id, idx, curIdx, (unsigned int)errType);
         }
-        if (*(short*)((char*)pkt + 0x12) == 0 || *(short*)((char*)pkt + 0x12) == 3)
+        if (((RA_S16<18>*)pkt)->v == 0 || ((RA_S16<18>*)pkt)->v == 3)
         {
             CUser* user = m_pclApp->Get_UserManager()->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
             if (user != 0)
             {
                 user->SetEvent_idx(idx);
-                if (*(short*)((char*)pkt + 0x12) == 3)
+                if (((RA_S16<18>*)pkt)->v == 3)
                 {
                     user->Event_idx_modify_state();
                 }
@@ -4489,24 +4498,23 @@ void CPacketTranslater::OnRegisterEventItem(PacketHeader* pkt)
     try
     {
         PacketHeader* rpkt = pkt;
-        unsigned int errortype = (unsigned int)*(unsigned short*)((char*)pkt + 0x12);
-        unsigned int cnt = *(unsigned int*)((char*)pkt + 0xe);
-        unsigned int idx = *(unsigned int*)((char*)pkt + 0xa);
+        unsigned int errortype = (unsigned int)((RA_U16<18>*)pkt)->v;
+        unsigned int cnt = ((RA_UINT<14>*)pkt)->v;
+        unsigned int idx = ((RA_UINT<10>*)pkt)->v;
         DNF_LOG_SCOPE_LINE(0x1a5a,"./log/OnTimeEvent", "OnRegisterEventItem:idx = %u , cnt = %u, errortype = %d",
             idx, cnt, errortype);
-        if (*(short*)((char*)pkt + 0x12) == 0)
+        if (((RA_S16<18>*)pkt)->v == 0)
         {
-            if (*(int*)((char*)pkt + 0xa) == 0 || *(int*)((char*)pkt + 0xe) == 0)
+            if (((RA_INT<10>*)pkt)->v == 0 || ((RA_INT<14>*)pkt)->v == 0)
             {
                 CMyFileLog log2("OnRegisterEventItem", 0x1a66);
                 log2("./log/OnTimeEvent", "wrong item data", idx, cnt, errortype);
             }
             else if (m_pclApp != 0)
             {
-                COnTimeEventManager* mgr =
-                    *(COnTimeEventManager**)((char*)m_pclApp + 0x320);
-                mgr->SetEventItem(*(unsigned int*)((char*)pkt + 0xa),
-                                  *(unsigned int*)((char*)pkt + 0xe));
+                COnTimeEventManager* mgr = m_pclApp->m_onTimeEventMgr;
+                mgr->SetEventItem(((RA_UINT<10>*)pkt)->v,
+                                  ((RA_UINT<14>*)pkt)->v);
                 mgr->StartEvent();
             }
         }
@@ -4537,7 +4545,7 @@ void CPacketTranslater::OnResultRegisterEventIdx(PacketHeader* pkt)
             COnTimeEventManager* mgr =
                 (COnTimeEventManager*)*(void**)((char*)m_pclApp + 800);
             unsigned int curIdx = mgr->GetEvent_Idx();
-            unsigned int newIdx = *(unsigned int*)((char*)pkt + 0xa);
+            unsigned int newIdx = ((RA_UINT<10>*)pkt)->v;
             DNF_LOG_SCOPE_LINE(0x1a85,"./log/OnTimeEvent",
                 "OnResultRegisterEventIdx:event_idx(%d) , cur_idx(%d)", newIdx, curIdx);
             if (mgr->GetEvent_Idx() < newIdx)
@@ -4568,15 +4576,15 @@ void CPacketTranslater::OnGameMonitorGMVillageAttacked(PacketHeader* pkt)
         throw CDNFException(
             "CPacketTranslater::OnGameMonitorGMVillageAttacked : 0 == m_pclApp");
     }
-    if (*(char*)((char*)pkt + 0xa) == 0)
+    if (((RA_S8<10>*)pkt)->v == 0)
     {
         village_attacked::SetRealConfig();
     }
     else
     {
-        village_attacked::SetGMConfig(*(unsigned int*)((char*)pkt + 0xb),
-                                      *(unsigned int*)((char*)pkt + 0xf),
-                                      *(unsigned int*)((char*)pkt + 0x13));
+        village_attacked::SetGMConfig(((RA_UINT<11>*)pkt)->v,
+                                      ((RA_UINT<15>*)pkt)->v,
+                                      ((RA_UINT<19>*)pkt)->v);
     }
 
 
@@ -4602,7 +4610,7 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
         int charNo = 0;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             charNo = -1;
@@ -4619,9 +4627,9 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
             {
                 Packet_Punish_Cancel reply;
                 reply.m_idByChannel = target->GetIdByChannel();
-                reply.m_fieldE = *(unsigned short*)((char*)pkt + 0xe);
-                reply.m_field10 = *(unsigned short*)((char*)pkt + 0x10);
-                *(unsigned short*)((char*)&reply + 2) = 0x12;
+                reply.m_fieldE = ((RA_U16<14>*)pkt)->v;
+                reply.m_field10 = ((RA_U16<16>*)pkt)->v;
+                ((RA_U16<2>*)&reply)->v = 0x12;
                 target->SendToGameserver((char*)&reply, 0x12);
             }
             return;
@@ -4651,10 +4659,10 @@ void CPacketTranslater::OnBroadcastMsg(PacketHeader* pkt)
         }
         else
         {
-            CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-            handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+            CServerHandler* handler = m_pclApp->m_serverHandler2;
+            handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
             DNF_LOG_SCOPE_LINE(0x1c14,"./log/WebNotice", "OnBroadcastMsg : (%s,%d)\n", (char*)pkt + 0xf,
-                (unsigned int)(unsigned char)*(char*)((char*)pkt + 0xe));
+                (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v);
         }
     }
     catch (CDNFException& e)
@@ -4678,7 +4686,7 @@ void CPacketTranslater::OnMonitorSecuServiceConnWeb(PacketHeader* pkt)
         int charNo = 0;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user == 0)
         {
             charNo = -1;
@@ -4695,9 +4703,9 @@ void CPacketTranslater::OnMonitorSecuServiceConnWeb(PacketHeader* pkt)
             {
                 Packet_SecuService_Connect_Web reply;
                 memcpy(&reply, pkt, 0x15);
-                *(unsigned int*)((char*)&reply + 0xa) = target->GetIdByChannel();
+                ((RA_UINT<10>*)&reply)->v = target->GetIdByChannel();
                 target->SendToGameserver((char*)&reply,
-                                         *(unsigned short*)((char*)&reply + 2));
+                                         ((RA_U16<2>*)&reply)->v);
             }
             return;
         }
@@ -4717,7 +4725,10 @@ void CPacketTranslater::OnMonitorSecuServiceConnWeb(PacketHeader* pkt)
     }
 }
 
-void CPacketTranslater::OnResetTODAPCInfo(PacketHeader* pkt) {}
+void CPacketTranslater::OnResetTODAPCInfo(PacketHeader* pkt)
+{
+    char buf[0x20];
+}
 
 void CPacketTranslater::OnNoticeMemberChatMsgHyperLink(PacketHeader* pkt)
 {try
@@ -4728,22 +4739,22 @@ void CPacketTranslater::OnNoticeMemberChatMsgHyperLink(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnNoticeMemberChatMsgHyperLink : 0 == m_pclApp");
     }
-    if (*(unsigned int*)((char*)pkt + 0xa) != 0 && *(char*)((char*)pkt + 0x147) != 0)
+    if (((RA_UINT<10>*)pkt)->v != 0 && ((RA_S8<327>*)pkt)->v != 0)
     {
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                *(unsigned int*)((char*)pkt + 0xa));
+                ((RA_UINT<10>*)pkt)->v);
         if (user != 0)
         {
             CMember* member =
                 ((CMemberManager*)((char*)m_pclApp + 0x2d0))->FindMember(
-                    *(unsigned int*)((char*)pkt + 0xa));
+                    ((RA_UINT<10>*)pkt)->v);
             if (member != 0)
             {
                 member->NoticeChatMsgToMemberMembersHyperLink(
                     (char*)pkt + 0x148,
-                    (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x147),
-                    *(unsigned char*)((char*)pkt + 0xe),
+                    (unsigned int)(unsigned char)((RA_S8<327>*)pkt)->v,
+                    ((RA_U8<14>*)pkt)->v,
                     (hyperlink_item_info*)((char*)pkt + 0xf), user);
             }
         }
@@ -4778,46 +4789,46 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
             "CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink : 0 == m_pclApp");
     }
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-    if (*(char*)((char*)pkt + 0x1b) != 0 &&
-        (unsigned char)*(char*)((char*)pkt + 0x1b) < 0x1e)
+    if (((RA_S8<27>*)pkt)->v != 0 &&
+        (unsigned char)((RA_S8<27>*)pkt)->v < 0x1e)
     {
         CUser* target = userMgr->FindUser_CharName((char*)pkt + 0x1c);
-        *(unsigned int*)((char*)pkt + 0x17) =
+        ((RA_UINT<23>*)pkt)->v =
             target != 0 ? target->GetUniqCharNo() : 0xffffffff;
     }
-    if (*(unsigned int*)((char*)pkt + 0x13) == 0 ||
-        *(unsigned int*)((char*)pkt + 0x17) == 0 ||
-        *(char*)((char*)pkt + 0x173) == 0)
+    if (((RA_UINT<19>*)pkt)->v == 0 ||
+        ((RA_UINT<23>*)pkt)->v == 0 ||
+        ((RA_S8<371>*)pkt)->v == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1d71,"./log/Except",
             "CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink, sender(%d), "
             "receiver(%d), msglen(%d)",
-            *(unsigned int*)((char*)pkt + 0x13), *(unsigned int*)((char*)pkt + 0x17),
-            (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x173));
+            ((RA_UINT<19>*)pkt)->v, ((RA_UINT<23>*)pkt)->v,
+            (unsigned int)(unsigned char)((RA_S8<371>*)pkt)->v);
         throw CDNFException(
             "CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink : packet->m_uSenderCharID "
             "&&  packet->m_uRecverCharID && packet->m_msgLen");
     }
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link reply;
-    reply.m_senderCharId = *(unsigned int*)((char*)pkt + 0xa);
-    CUser* sender = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0x13));
+    reply.m_senderCharId = ((RA_UINT<10>*)pkt)->v;
+    CUser* sender = userMgr->FindUser_CharNo(((RA_UINT<19>*)pkt)->v);
     if (sender == 0)
     {
         return;
     }
-    CUser* receiver = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0x17));
+    CUser* receiver = userMgr->FindUser_CharNo(((RA_UINT<23>*)pkt)->v);
     if (receiver == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         memcpy(reply.m_name, (char*)pkt + 0x1c, 0x1d);
         reply.m_type = 1;
-        reply.m_itemCount = *(unsigned char*)((char*)pkt + 0x3a);
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)*(char*)((char*)pkt + 0x3a); i++)
+        reply.m_itemCount = ((RA_U8<58>*)pkt)->v;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)((RA_S8<58>*)pkt)->v; i++)
         {
             memcpy((char*)reply.m_items + i * 0x68, (char*)pkt + i * 0x68 + 0x3b, 0x68);
         }
-        *(unsigned short*)((char*)&reply + 2) = 0x170;
+        ((RA_U16<2>*)&reply)->v = 0x170;
         sender->SendToGameserver((char*)&reply, 0x170);
         return;
     }
@@ -4837,13 +4848,13 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         reply.m_type = 2;
-        reply.m_itemCount = *(unsigned char*)((char*)pkt + 0x3a);
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)*(char*)((char*)pkt + 0x3a); i++)
+        reply.m_itemCount = ((RA_U8<58>*)pkt)->v;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)((RA_S8<58>*)pkt)->v; i++)
         {
             memcpy((char*)reply.m_items + i * 0x68, (char*)pkt + i * 0x68 + 0x3b, 0x68);
         }
         memcpy(reply.m_name, (char*)pkt + 0x1c, 0x1d);
-        *(unsigned short*)((char*)&reply + 2) = 0x170;
+        ((RA_U16<2>*)&reply)->v = 0x170;
         sender->SendToGameserver((char*)&reply, 0x170);
         return;
     }
@@ -4865,13 +4876,13 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         reply.m_type = 3;
-        reply.m_itemCount = *(unsigned char*)((char*)pkt + 0x3a);
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)*(char*)((char*)pkt + 0x3a); i++)
+        reply.m_itemCount = ((RA_U8<58>*)pkt)->v;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)((RA_S8<58>*)pkt)->v; i++)
         {
             memcpy((char*)reply.m_items + i * 0x68, (char*)pkt + i * 0x68 + 0x3b, 0x68);
         }
         memcpy(reply.m_name, (char*)pkt + 0x1c, 0x1d);
-        *(unsigned short*)((char*)&reply + 2) = 0x170;
+        ((RA_U16<2>*)&reply)->v = 0x170;
         sender->SendToGameserver((char*)&reply, 0x170);
     }
     else
@@ -4879,17 +4890,17 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         memcpy(reply.m_name, sender->GetCharName(), 0x1d);
         reply.m_idByChannel = receiver->GetIdByChannel();
         reply.m_uniqCharNo = receiver->GetUniqCharNo();
-        reply.m_itemCount = *(unsigned char*)((char*)pkt + 0x3a);
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)*(char*)((char*)pkt + 0x3a); i++)
+        reply.m_itemCount = ((RA_U8<58>*)pkt)->v;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)((RA_S8<58>*)pkt)->v; i++)
         {
             memcpy((char*)reply.m_items + i * 0x68, (char*)pkt + i * 0x68 + 0x3b, 0x68);
         }
-        reply.m_msgLen = *(unsigned char*)((char*)pkt + 0x173);
+        reply.m_msgLen = ((RA_U8<371>*)pkt)->v;
         memcpy(reply.m_msg, (char*)pkt + 0x174,
-               (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x173));
-        *(unsigned short*)((char*)&reply + 2) =
-            (unsigned short)((unsigned char)*(char*)((char*)pkt + 0x173) + 0x170);
-        receiver->SendToGameserver((char*)&reply, *(unsigned short*)((char*)&reply + 2));
+               (unsigned int)(unsigned char)((RA_S8<371>*)pkt)->v);
+        ((RA_U16<2>*)&reply)->v =
+            (unsigned short)((unsigned char)((RA_S8<371>*)pkt)->v + 0x170);
+        receiver->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
     }
 
 
@@ -4906,9 +4917,9 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
 
 void CPacketTranslater::OnMonitorMegaPhoneMsgHyperLink(PacketHeader* pkt)
 {
-    *(char*)((char*)pkt + 0xa) = (char)m_pclApp->Get_ServerGroup();
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-    handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+    ((RA_S8<10>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
+    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
 }
 
 void CPacketTranslater::onSocialEventRewardItemRequest(PacketHeader* pkt)
@@ -4920,7 +4931,7 @@ void CPacketTranslater::onSocialEventRewardItemRequest(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::onSocialEventRewardItemRequest");
     }
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendToDB(pkt);
 
 
@@ -4947,7 +4958,7 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
         LimitNpcBuyItemManager* mgr = m_pclApp->getLimitNpcBuyItemManager();
         mgr->registItemClear();
         unsigned int i = 0;
-        while (i < *(unsigned int*)((char*)pkt + 0xa) && i < 0x1e)
+        while (i < ((RA_UINT<10>*)pkt)->v && i < 0x1e)
         {
             NpcBuyLimitItem* item = (NpcBuyLimitItem*)((char*)pkt + i * 0xc + 0xe);
             mgr = m_pclApp->getLimitNpcBuyItemManager();
@@ -4959,7 +4970,7 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
                 a, b, c);
             i++;
         }
-        ((CServerHandler*)*(void**)((char*)m_pclApp + 0xa0))
+        (m_pclApp->m_serverHandler2)
             ->SendAllTcpGameServer(pkt);
     }
     catch (CDNFException& e)
@@ -4986,11 +4997,11 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
         PacketHeader* rpkt = pkt;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))
-                ->FindUser(*(unsigned int*)((char*)pkt + 0xe));
+                ->FindUser(((RA_UINT<14>*)pkt)->v);
         if (user == 0)
         {
-            unsigned int cn = *(unsigned int*)((char*)pkt + 0x12);
-            char* s = NumberToString(*(unsigned int*)((char*)pkt + 0xe), 0);
+            unsigned int cn = ((RA_UINT<18>*)pkt)->v;
+            char* s = NumberToString(((RA_UINT<14>*)pkt)->v, 0);
             DNF_LOG_SCOPE_LINE(0x1dee,"./log/Except",
                 "CPacketTranslater::onSocialEventRewardItemInfo(), buyUser(%s), "
                 "characNo(%u)",
@@ -5006,13 +5017,13 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
         }
         else
         {
-            *(unsigned int*)((char*)pkt + 0x1a) = 0;
-            *(int*)((char*)pkt + 0x22) = result;
+            ((RA_UINT<26>*)pkt)->v = 0;
+            ((RA_INT<34>*)pkt)->v = result;
             user->SendTcpGameserver(pkt);
-            unsigned int buyCount = *(unsigned int*)((char*)pkt + 0x1a);
-            unsigned int itemId = *(unsigned int*)((char*)pkt + 0x16);
-            unsigned int errorNo = *(unsigned int*)((char*)pkt + 0x22);
-            unsigned int charNo = *(unsigned int*)((char*)pkt + 0x12);
+            unsigned int buyCount = ((RA_UINT<26>*)pkt)->v;
+            unsigned int itemId = ((RA_UINT<22>*)pkt)->v;
+            unsigned int errorNo = ((RA_UINT<34>*)pkt)->v;
+            unsigned int charNo = ((RA_UINT<18>*)pkt)->v;
             DNF_LOG_SCOPE_LINE(0x1dfc,"./log/NpcBuyLimitItem",
                 "don\'t sell-> characNo: %u, errorNo: %u, itemId: %u, buyCount: %u)",
                 charNo, errorNo, itemId, buyCount);
@@ -5042,11 +5053,11 @@ void CPacketTranslater::onSocialEventRewardItemInfoAll(PacketHeader* pkt)
         PacketHeader* rpkt = pkt;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))
-                ->FindUser(*(unsigned int*)((char*)pkt + 0xe));
+                ->FindUser(((RA_UINT<14>*)pkt)->v);
         if (user == 0)
         {
-            unsigned int cn = *(unsigned int*)((char*)pkt + 0x12);
-            char* s = NumberToString(*(unsigned int*)((char*)pkt + 0xe), 0);
+            unsigned int cn = ((RA_UINT<18>*)pkt)->v;
+            char* s = NumberToString(((RA_UINT<14>*)pkt)->v, 0);
             DNF_LOG_SCOPE_LINE(0x1e1c,"./log/Except",
                 "CPacketTranslater::onSocialEventRewardItemInfoAll(), buyUser(%s), "
                 "characNo(%u)",
@@ -5081,17 +5092,17 @@ void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
         }
         PacketHeader* rpkt = pkt;
         LimitNpcBuyItemChangeInfo change;
-        if (*(int*)((char*)pkt + 0x16) == 0)
+        if (((RA_INT<22>*)pkt)->v == 0)
         {
-            unsigned int itemId = *(unsigned int*)((char*)pkt + 0xa);
+            unsigned int itemId = ((RA_UINT<10>*)pkt)->v;
             LimitNpcBuyItemManager* mgr = m_pclApp->getLimitNpcBuyItemManager();
             mgr->getNpcLimitBuyItemCount(itemId, change);
-            ((CServerHandler*)*(void**)((char*)m_pclApp + 0xa0))
+            (m_pclApp->m_serverHandler2)
                 ->SendAllTcpGameServer(&change);
-            ((CServerHandler*)*(void**)((char*)m_pclApp + 0xa0))->SendToDB(pkt);
-            unsigned int buyCount = *(unsigned int*)((char*)pkt + 0x12);
-            unsigned int itemId2 = *(unsigned int*)((char*)pkt + 0xa);
-            unsigned int charNo = *(unsigned int*)((char*)pkt + 0xe);
+            (m_pclApp->m_serverHandler2)->SendToDB(pkt);
+            unsigned int buyCount = ((RA_UINT<18>*)pkt)->v;
+            unsigned int itemId2 = ((RA_UINT<10>*)pkt)->v;
+            unsigned int charNo = ((RA_UINT<14>*)pkt)->v;
             DNF_LOG_SCOPE_LINE(0x1e46,"./log/NpcBuyLimitItem",
                 "DB Update-> characNo: %u, itemId: %u, buyCount: %u)", charNo, itemId2,
                 buyCount);
@@ -5125,28 +5136,28 @@ void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
         PacketHeader* rpkt = pkt;
         try
         {
-            requester = userMgr->FindUser_CharNo(*(unsigned int*)((char*)pkt + 0x1f));
+            requester = userMgr->FindUser_CharNo(((RA_UINT<31>*)pkt)->v);
             if (requester != 0)
             {
                 Packet_Monitor_Reply_Charac_Info reply;
-                *(unsigned int*)((char*)&reply + 0xa) = 0;
-                *(unsigned int*)((char*)&reply + 0xe) = requester->GetIdByChannel();
+                ((RA_UINT<10>*)&reply)->v = 0;
+                ((RA_UINT<14>*)&reply)->v = requester->GetIdByChannel();
                 strncpy((char*)&reply + 0x17, (char*)pkt + 0xa, 0x1d);
                 std::string sname((char*)pkt + 0xa);
                 target = userMgr->FindUser_CharName(sname);
                 bool notfound = (target == 0);
                 if (notfound)
                 {
-                    *(char*)((char*)&reply + 0x16) = 0;
+                    ((RA_S8<22>*)&reply)->v = 0;
                 }
                 else
                 {
                     CServerInterface* gs = (CServerInterface*)target->GetGameServer();
-                    *(char*)((char*)&reply + 0x16) = gs->GetChannelNo();
-                    *(unsigned int*)((char*)&reply + 0x12) = target->GetIdByChannel();
-                    *(unsigned short*)((char*)&reply + 0x35) = target->GetLevel();
-                    *(char*)((char*)&reply + 0x37) = target->GetJob();
-                    *(char*)((char*)&reply + 0x38) = target->GetGrowthType();
+                    ((RA_S8<22>*)&reply)->v = gs->GetChannelNo();
+                    ((RA_UINT<18>*)&reply)->v = target->GetIdByChannel();
+                    ((RA_U16<53>*)&reply)->v = target->GetLevel();
+                    ((RA_S8<55>*)&reply)->v = target->GetJob();
+                    ((RA_S8<56>*)&reply)->v = target->GetGrowthType();
                 }
                 requester->SendToGameserver((char*)&reply, 0x39);
             }
@@ -5173,7 +5184,7 @@ void CPacketTranslater::OnWebNoticeInGameAD(PacketHeader* pkt)
         throw CDNFException("m_pclApp == 0");
     }
     Packet_Web_Notice_InGame_Advertisement reply;
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllTcpGameServer(&reply);
     DNF_LOG_SCOPE_LINE(0x1f84,"./log/Web", "OnWebNoticeInGameAD() packet_id(%d)\n",
         (unsigned int)*(unsigned short*)pkt);
@@ -5204,42 +5215,42 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
         {
             if (*(int*)(c + 4) == 0)
             {
-                SendColletItemsReward(*(unsigned int*)((char*)pkt + 0xe),
-                                      *(unsigned int*)((char*)pkt + 0xa), (char*)pkt + 0x1b,
-                                      (int)(unsigned char)*(char*)((char*)pkt + 0x1a),
+                SendColletItemsReward(((RA_UINT<14>*)pkt)->v,
+                                      ((RA_UINT<10>*)pkt)->v, (char*)pkt + 0x1b,
+                                      (int)(unsigned char)((RA_S8<26>*)pkt)->v,
                                       TimeGateRewardType::TYPE_0);
             }
             else
             {
                 int cur2 = *(int*)(c + 4);
-                int add = *(int*)((char*)pkt + 0x12);
+                int add = ((RA_INT<18>*)pkt)->v;
                 if ((unsigned int)(cur2 + add) < *(unsigned int*)c)
                 {
                     int cur3 = *(int*)(c + 4);
                     unsigned int rem = *(unsigned int*)(c + 4);
                     if ((cur3 - rem % 0x14) + 0x14 <=
-                        (unsigned int)(*(int*)(c + 4) + *(int*)((char*)pkt + 0x12)))
+                        (unsigned int)(*(int*)(c + 4) + ((RA_INT<18>*)pkt)->v))
                     {
-                        SendColletItemsReward(*(unsigned int*)((char*)pkt + 0xe),
-                                              *(unsigned int*)((char*)pkt + 0xa),
+                        SendColletItemsReward(((RA_UINT<14>*)pkt)->v,
+                                              ((RA_UINT<10>*)pkt)->v,
                                               (char*)pkt + 0x1b,
-                                              (int)(unsigned char)*(char*)((char*)pkt + 0x1a),
+                                              (int)(unsigned char)((RA_S8<26>*)pkt)->v,
                                               TimeGateRewardType::TYPE_1);
                     }
                 }
                 else
                 {
-                    SendColletItemsReward(*(unsigned int*)((char*)pkt + 0xe),
-                                          *(unsigned int*)((char*)pkt + 0xa),
+                    SendColletItemsReward(((RA_UINT<14>*)pkt)->v,
+                                          ((RA_UINT<10>*)pkt)->v,
                                           (char*)pkt + 0x1b,
-                                          (int)(unsigned char)*(char*)((char*)pkt + 0x1a),
+                                          (int)(unsigned char)((RA_S8<26>*)pkt)->v,
                                           TimeGateRewardType::TYPE_2);
                     char* c2 = (char*)m_pclApp->getCollectItems();
                     *(long*)(c2 + 8) = (long)time(0);
                 }
             }
             char* c3 = (char*)m_pclApp->getCollectItems();
-            *(int*)(c3 + 4) = *(int*)(c3 + 4) + *(int*)((char*)pkt + 0x12);
+            *(int*)(c3 + 4) = *(int*)(c3 + 4) + ((RA_INT<18>*)pkt)->v;
         }
     }
     catch (CDNFException& e)
@@ -5295,8 +5306,8 @@ void CPacketTranslater::onCollectItemsGm(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::onCollectItemsGm");
     }
-    *(char*)((char*)pkt + 0xa) = (char)m_pclApp->Get_ServerGroup();
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    ((RA_S8<10>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendToDB(pkt);
 
 
@@ -5320,7 +5331,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnPcRoomPlayTimeReward");
     }
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendToDB(pkt);
 
 
@@ -5356,11 +5367,11 @@ void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
                     char* buf = tcp->makePacketHeader(0x27f2, 0x10a);
                     if (buf != 0)
                     {
-                        *(char*)(buf + 10) = *(char*)((char*)pkt + 0x3c);
+                        *(char*)(buf + 10) = ((RA_S8<60>*)pkt)->v;
                         char* out = buf;
                         memset(buf + 0xb, 0, 0xff);
                         memcpy(out + 0xb, (char*)pkt + 0x3d,
-                               (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x3c));
+                               (unsigned int)(unsigned char)((RA_S8<60>*)pkt)->v);
                         tcp->SendToGameServer(out);
                     }
                 }
@@ -5386,15 +5397,15 @@ void CPacketTranslater::OnUpdateMiniCraneSeed(PacketHeader* pkt)
     try
     {
         m_pclApp->SetMiniCraneRandomSeed();
-        *(unsigned int*)((char*)pkt + 0xa) = (unsigned int)m_pclApp->getMiniCraneSeed();
+        ((RA_UINT<10>*)pkt)->v = (unsigned int)m_pclApp->getMiniCraneSeed();
         if (pkt == 0)
         {
             throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed, packet is null");
         }
-        if (m_pclApp != 0 && *(int*)((char*)m_pclApp + 0xa0) != 0)
+        if (m_pclApp != 0 && ((RA_INT<160>*)m_pclApp)->v != 0)
         {
-            CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
-            handler->SendAllToGameServer((char*)pkt, *(unsigned short*)((char*)pkt + 2));
+            CServerHandler* handler = m_pclApp->m_serverHandler2;
+            handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
             return;
         }
         throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed, m_pclApp == 0");
@@ -5426,14 +5437,14 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* pkt)
         throw 0x22ea;
     }
     Packet_Monitor_Event_Start epkt;
-    epkt.m_fieldA = *(unsigned int*)((char*)pkt + 0xa);
-    epkt.m_fieldB = *(unsigned short*)((char*)pkt + 0x16);
-    epkt.m_fieldC = *(unsigned short*)((char*)pkt + 0x18);
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    epkt.m_fieldA = ((RA_UINT<10>*)pkt)->v;
+    epkt.m_fieldB = ((RA_U16<22>*)pkt)->v;
+    epkt.m_fieldC = ((RA_U16<24>*)pkt)->v;
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllTcpGameServer(&epkt);
     DNF_LOG_SCOPE_LINE(0x22f2,"./log/AradOnly", "[Server Event] start event. (event:%d, param:%d,%d)",
-        *(unsigned int*)((char*)pkt + 0xa), *(unsigned short*)((char*)pkt + 0x16),
-        *(unsigned short*)((char*)pkt + 0x18));
+        ((RA_UINT<10>*)pkt)->v, ((RA_U16<22>*)pkt)->v,
+        ((RA_U16<24>*)pkt)->v);
 
 
     }
@@ -5459,11 +5470,11 @@ void CPacketTranslater::onEndGameEventFromServer(PacketHeader* pkt)
         throw 0x230c;
     }
     Packet_Monitor_Event_End epkt;
-    epkt.m_fieldA = *(unsigned int*)((char*)pkt + 0xa);
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    epkt.m_fieldA = ((RA_UINT<10>*)pkt)->v;
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllTcpGameServer(&epkt);
     DNF_LOG_SCOPE_LINE(0x2312,"./log/AradOnly", "[Server Event] end event. (event:%d)",
-        *(unsigned int*)((char*)pkt + 0xa));
+        ((RA_UINT<10>*)pkt)->v);
 
 
     }
@@ -5478,7 +5489,7 @@ void CPacketTranslater::onReloadCountryCode(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllTcpGameServer(pkt);
     DNF_LOG_SCOPE_LINE(0x2344, "./log/Web", "CPacketTranslater::onReloadCountryCode()\n");
 
@@ -5499,7 +5510,7 @@ void CPacketTranslater::onReloadSecurityRestrictPolicy(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = (CServerHandler*)*(void**)((char*)m_pclApp + 0xa0);
+    CServerHandler* handler = m_pclApp->m_serverHandler2;
     handler->SendAllTcpGameServer(pkt);
     DNF_LOG_SCOPE_LINE(0x2359, "./log/Web", "CPacketTranslater::onReloadSecurityRestrictPolicy()\n");
 
@@ -5550,9 +5561,10 @@ Packet_DBMW_Query_Msg::Packet_DBMW_Query_Msg() : PacketHeader(0x177d, 0x1013)
 {
     m_fieldA = 0;
     m_fieldB = 0;
-    for (int i = 0; i <= 0x1000; i++)
+    int i = 0;
+    for (i = 0; i <= 0x1000; i++)
     {
-        *(char*)((char*)this + 0x12 + i) = 0;
+        m_data[i] = 0;
     }
 }
 
@@ -5592,7 +5604,6 @@ Packet_VillageAttackedReward::Packet_VillageAttackedReward() : PacketHeader(0x17
     m_idByChannel = 0;
     m_uniqCharNo = 0;
     m_rewardType = 0;
-    m_count = 0;
 }
 
 Packet_DBMW_Add_Buddy::Packet_DBMW_Add_Buddy() : PacketHeader(0x673, 0x2c)
@@ -5653,10 +5664,6 @@ Packet_Monitor_SAVE_Member_Update_Char_Info::
 
 Packet_Monitor_SAVE_Member::Packet_Monitor_SAVE_Member() : PacketHeader(0x4b4, 0x14)
 {
-    m_fieldA = 0;
-    m_upperCharNo = 0;
-    m_lowerCharNo = 0;
-    m_type = 0;
 }
 
 Packet_Monitor_Request_Member_Enter_To_Requester::
@@ -5832,6 +5839,9 @@ Packet_MTG_OntimeEvent_RewardStart::Packet_MTG_OntimeEvent_RewardStart()
     : PacketHeader(0x17c0, 0x1a)
 {
     m_eventIdx = 0;
+    m_fieldE = 0;
+    m_field12 = 0;
+    m_field16 = 0;
 }
 
 Packet_MTG_OntimeEvent_RewardEnd::Packet_MTG_OntimeEvent_RewardEnd()
@@ -5842,24 +5852,26 @@ Packet_MTG_OntimeEvent_RewardEnd::Packet_MTG_OntimeEvent_RewardEnd()
 Packet_Arad_DeleteEffect::Packet_Arad_DeleteEffect(int group, int code)
     : PacketHeader(0x27fa, 0x12)
 {
-    *(int*)((char*)this + 0xa) = group;
-    *(int*)((char*)this + 0xe) = code;
+    ((RA_INT<10>*)this)->v = group;
+    ((RA_INT<14>*)this)->v = code;
 }
 
 Packet_DB_InsertMail::Packet_DB_InsertMail() : PacketHeader(0x177c, 0x133)
 {
-    *(unsigned int*)((char*)this + 0xa) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned int*)((char*)this + 0x12) = 0;
-    *(unsigned int*)((char*)this + 0x16) = 0;
-    *(unsigned int*)((char*)this + 0x12f) = 0;
-    for (int i = 0; i <= 0x14; i++)
+    m_fieldA = 0;
+    m_fieldB = 0;
+    m_fieldC = 0;
+    m_fieldD = 0;
+    m_field12f = 0;
+    unsigned i = 0;
+    for (i = 0; i <= 0x14; i++)
     {
-        *(char*)((char*)this + 0x1a + i) = 0;
+        m_title[i] = 0;
     }
-    for (int i = 0; i <= 0xff; i++)
+    int i2 = 0;
+    for (i2 = 0; i2 <= 0xff; i2++)
     {
-        *(char*)((char*)this + 0x2f + i) = 0;
+        m_body[i2] = 0;
     }
 }
 
@@ -5877,7 +5889,9 @@ Packet_DBMW_Statistic_Login_Logout::Packet_DBMW_Statistic_Login_Logout()
 Packet_Monitor_Call_Member_List_ToUser::Packet_Monitor_Call_Member_List_ToUser()
     : PacketHeader(0x4be, 0x1e1)
 {
-    memset((char*)this + 0x12, 0, 0x1cf);
+    // ORIG：lea 0x12(%eax) + call STMemberListInfo::STMemberListInfo()
+    // （GCC 4.4.x 不接受 ->Type::Type() 形式，用 placement new 等价展开）
+    new ((void*)((char*)this + 0x12)) STMemberListInfo;
 }
 
 Packet_Punish_Cancel::Packet_Punish_Cancel() : PacketHeader(0xb64, 0x12)
@@ -5927,8 +5941,8 @@ Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link::
     m_itemCount = 0;
     m_msgLen = 0;
     memset(m_name, 0, 0x1e);
-    memset(m_items, 0, 0x138);
     memset(m_msg, 0, 0x100);
+    memset(m_items, 0, 0x138);
 }
 
 Packet_Change_User_Handicap::Packet_Change_User_Handicap() : PacketHeader(0x3f7, 0x16) {}

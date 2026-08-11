@@ -22,28 +22,32 @@ int CAppConfig::Load_Table(const std::string& fileName)
     log("./log/TableError.log", "App Config Table - ReturnCode = %d\n", n);
     throw CDNFException("CAppConfig::Load_Setup_Table() Exception Break!");
 }
-int CAppConfig::Parse_Table(char* data, int size)
+bool CAppConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;
     char* fields[2];
-    if (DNFFLib::ExplodeString(data, " \t\r\n\"", fields, 2) == 2 && size <= 0x12)
+    int n;  // ORIG 布局：额外槽位（fields 落在 -0x14）
+    if (DNFFLib::ExplodeString(data, " \t\r\n\"", fields, 2) == 2)
     {
-        switch (size)
+        if (size <= 0x12)
         {
-        case 0:
-            m_frameCount = (char)atoi(fields[0]);
-            break;
-        case 1:
-            m_serverUdpPort = atoi(fields[0]);
-            break;
-        case 2:
-            m_serverTcpPort = atoi(fields[0]);
-            break;
-        default:
-            return 0;
+            switch (size)
+            {
+            case 0:
+                m_frameCount = (char)atoi(fields[1]);
+                break;
+            case 1:
+                m_serverUdpPort = atoi(fields[1]);
+                break;
+            case 2:
+                m_serverTcpPort = atoi(fields[1]);
+                break;
+            default:
+                return 0;
+            }
+            return 1;
         }
-        return 1;
     }
     return 0;
 }

@@ -27,9 +27,36 @@ function(dnf_service NAME)
         # 只保留第一个（GCC 4.4.7 实测已验证连接形式可用）。
         -isystem${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.7/include
         -isystem${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.7/include-fixed
-        -isystem${DF_C6ROOT}/usr/include/c++/4.4.7
-        -isystem${DF_C6ROOT}/usr/include/c++/4.4.7/x86_64-redhat-linux
-        -isystem${DF_C6ROOT}/usr/include/c++/4.4.7/backward
+    )
+    # C++ 标准库头：按编译变体匹配（4.4.x TU 不得混用 4.1.2 头，反之亦然），
+    # 紧跟 gcc 内建头，避免被后置的 c5root 4.1.2 头遮蔽。
+    if(DF_CC_VARIANT STREQUAL "c6444r")
+        list(APPEND COMMON_FLAGS
+            -isystem${DF_LSD444}/usr/include/c++/4.4.4
+            -isystem${DF_LSD444}/usr/include/c++/4.4.4/i686-redhat-linux
+            -isystem${DF_LSD444}/usr/include/c++/4.4.4/backward
+        )
+    elseif(DF_CC_VARIANT STREQUAL "c6446r")
+        list(APPEND COMMON_FLAGS
+            -isystem${DF_LSD44}/usr/include/c++/4.4.6
+            -isystem${DF_LSD44}/usr/include/c++/4.4.6/x86_64-redhat-linux
+            -isystem${DF_LSD44}/usr/include/c++/4.4.6/backward
+        )
+    elseif(DF_CC_VARIANT STREQUAL "c5")
+        list(APPEND COMMON_FLAGS
+            -isystem${DF_C5ROOT}/usr/include/c++/4.1.2
+            -isystem${DF_C5ROOT}/usr/include/c++/4.1.2/x86_64-redhat-linux
+            -isystem${DF_C5ROOT}/usr/include/c++/4.1.2/backward
+        )
+    else()
+        list(APPEND COMMON_FLAGS
+            -isystem${DF_C6ROOT}/usr/include/c++/4.4.7
+            -isystem${DF_C6ROOT}/usr/include/c++/4.4.7/x86_64-redhat-linux
+            -isystem${DF_C6ROOT}/usr/include/c++/4.4.7/backward
+        )
+    endif()
+    # 系统头与其余尾序与既有构建一致（c5root 4.1.2 / lsd44 4.4.6 靠后，不遮蔽变体头）
+    list(APPEND COMMON_FLAGS
         -isystem${DF_C6ROOT}/usr/include
         -isystem${DF_C5ROOT}/usr/include/c++/4.1.2
         -isystem${DF_C5ROOT}/usr/include/c++/4.1.2/x86_64-redhat-linux
@@ -66,7 +93,10 @@ function(dnf_service NAME)
                 math(EXPR _sp "${_sep}+1")
                 string(SUBSTRING "${pair}" ${_sp} -1 _o)
                 separate_arguments(_o)
-                set_source_files_properties(${_f} PROPERTIES COMPILE_OPTIONS "${_o}")
+                # 用 set_property(APPEND) 而不是 set_source_files_properties：
+                # 后者把多选项字符串展开成多个位置参数，只有第一个选项生效
+                # （如 "-O3 -std=gnu++98 -DTIXML_USE_STL ..." 只保留 -O3）。
+                set_property(SOURCE ${_f} APPEND PROPERTY COMPILE_OPTIONS "${_o}")
             endif()
         endforeach()
     endif()

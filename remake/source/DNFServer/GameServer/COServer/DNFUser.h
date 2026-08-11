@@ -13,6 +13,8 @@ class Packet_DoubleCheck_UDP_Logout : public PacketHeader
 {
 public:
     unsigned int m_userID;  // +0xa
+    unsigned char m_channel;  // +0xe
+    unsigned char m_group;    // +0xf
 } __attribute__((packed));
 
 // CUser：CGameServer*@0（4）

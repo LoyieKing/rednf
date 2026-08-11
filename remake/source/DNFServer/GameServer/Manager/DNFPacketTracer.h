@@ -13,7 +13,7 @@ public:
     void WriteLog();
     void AbsoluteWriteLog();
     void ResetLog();
-    int m_field0;      // +0
+    unsigned int m_field0;  // +0（ORIG 无符号除法：mul/shr 形态）
     std::string m_log; // +4
 };
 

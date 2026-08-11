@@ -8,11 +8,14 @@
 class Packet_DBMW_Change_Char_Name : public PacketHeader
 {
 public:
+    char m_type;              // +0xa
+    unsigned int m_charNo;    // +0xb
+    char m_name[0x1e];        // +0xf
     Packet_DBMW_Change_Char_Name() : PacketHeader(0x451, 0x2d)
     {
-        *(char*)((char*)this + 0xa) = 0;
-        *(int*)((char*)this + 0xb) = 0;
-        memset((char*)this + 0xf, 0, 0x1e);
+        m_type = 0;
+        m_charNo = 0;
+        memset(m_name, 0, 0x1e);
     }
 } __attribute__((packed));
 

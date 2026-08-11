@@ -314,17 +314,32 @@ public:
     char CheckPrevCallMemberEnter();
     void ResetRequestMemberEnter();
     char RecordCallMemberEnter(unsigned int callerId, unsigned short count);
-    unsigned int GetMemberDBFlag();
+    unsigned short GetMemberDBFlag();
     void SetMemberRegisterFlag(bool flag);
-    char IsAbleToRegisterMember();
+    bool IsAbleToRegisterMember();
     unsigned int GetMemberKey();
-    char m_data[8];                                     // +0
+    unsigned int m_dbid;                                // +0
+    unsigned int m_uniqCharNo;                          // +4
     CGameServer* m_gameServer;                          // +8
-    char m_dataC[0x44];                                 // +0xc
+    class CTcpGameServer* m_tcpGameServer;              // +0xc
+    unsigned char m_posState;                           // +0x10
+    char m_pad10[3];                                    // +0x11
+    class CMember* m_member;                            // +0x14
+    unsigned short m_field18;                           // +0x18
+    char m_field1a;                                     // +0x1a
+    unsigned int m_memberEnterCallerId;                 // +0x1c
+    int m_idByChannel;                                  // +0x20
+    char m_dataC2[0x1e];                                // +0x24
+    char m_job;                                         // +0x42
+    char m_growthType;                                  // +0x43
+    unsigned short m_level;                             // +0x44
+    unsigned char m_sex;                                // +0x46
+    char m_dataC2b[7];                                  // +0x47
+    char m_dataC2c[2];                                  // +0x4e
     std::map<unsigned int, class CBlackUser*> m_blackList;  // +0x50
     unsigned short m_field68;                           // +0x68
     class CBuddyHandle m_buddyHandle;                   // +0x6c
-    int m_channelCount;                                 // +0x8c
+    unsigned int m_channelCount;                        // +0x8c
     struct ChannelInfo
     {
         ChannelInfo() {}
@@ -334,7 +349,9 @@ public:
         int m_c;  // +8
     };
     std::map<int, ChannelInfo> m_channelInfoMap;        // +0x90
-    char m_data2[0x14];                                 // +0xa8
+    char m_data2[0xc];                                  // +0xa8
+    unsigned int m_eventIdx;                            // +0xb4
+    char m_data2b[0x4];                                 // +0xb8
 };
 
 #endif  // MONITOR_DNFUSER_H_

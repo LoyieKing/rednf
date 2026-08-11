@@ -23,7 +23,7 @@ public:
     bool Destroy();
     int GetSocket();
     void SetSocket(unsigned int sock);
-    int m_field10;          // +0x10
+    unsigned int m_field10; // +0x10
 };
 
 // from GuildServer.h
@@ -40,7 +40,7 @@ public:
     char* makePacketHeader(unsigned short id, unsigned short size);
     unsigned int m_group;         // +0
     CTcpNetSystem* m_net;         // +4
-    char m_channel;               // +8
+    unsigned char m_channel;      // +8
 };
 
 #endif

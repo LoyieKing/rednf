@@ -8,7 +8,9 @@ typedef void (*handler)(int);
 class ServiceInfo
 {
 public:
-    ServiceInfo();
+    ServiceInfo()
+    {
+    }
     void setInfo(const char* szServiceName, const char* szDisplayName, const char* szBinaryName, const char* szConfigFileName);
     void setPIDFileName(const char* szPIDFileName);
     void setRunAsService(bool bRunService);
@@ -33,7 +35,9 @@ protected:
 class IService
 {
 public:
-    IService();
+    IService()
+    {
+    }
     virtual bool checkConfigFile() = 0;
     virtual bool checkPIDFile() = 0;
     virtual void prepareStart() = 0;

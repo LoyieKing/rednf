@@ -28,43 +28,47 @@ void LogSendThread::loop(void* temp)
     while (true)
     {
         mThreadLock.lock();
-        // ORIG: empty(); xor $1; je empty_path  => if (!empty()) process else empty
         if (!mLogMessagePool.empty())
         {
             msg = mLogMessagePool.front();
             mLogMessagePool.pop_front();
-            mThreadLock.unlock();
-            // ORIG || expansion: about? -> true; else check disconnected -> 0/1; test
-            if (mLogUser->isAboutToDisconnect() || mLogUser->isDisconnected())
-            {
-                pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
-                TSystem<LinuxSystem>::sleep(1000);
-                return;
-            }
-            CMsgCell* cell = msg->getCellFromMessage();
-            if (mLogUser->onWriteByCMsg(cell) == 0)
-            {
-                msg->setOffDataTypeMask(0);
-                msg->setOnDataTypeMask(0);
-                G_TraceLog()->sysLog(7, "Would block \xC0\xCC\xB9\xC7\xB7\xCE \xB4\xD9\xBD\xC3 \xC5\xA5\xBF\xA1 \xB3\xD6\xB4\xC2\xB4\xD9. size=%d", cell->GetSize());
-                mLogMessagePool.push_front(msg);
-                TSystem<LinuxSystem>::sleep(1000);
-            }
-            else
-            {
-                pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
-            }
         }
         else
         {
             mThreadLock.unlock();
             TSystem<LinuxSystem>::sleep(1000);
+            continue;
+        }
+        mThreadLock.unlock();
+        // ORIG || expansion: about? -> true; else check disconnected -> 0/1; test
+        if (mLogUser->isAboutToDisconnect() || mLogUser->isDisconnected())
+        {
+            pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
+            TSystem<LinuxSystem>::sleep(1000);
+            return;
+        }
+        CMsgCell* cell = msg->getCellFromMessage();
+        if (mLogUser->onWriteByCMsg(cell) == 0)
+        {
+            msg->setOffDataTypeMask(0);
+            msg->setOnDataTypeMask(0);
+            G_TraceLog()->sysLog(7, "Would block \xC0\xCC\xB9\xC7\xB7\xCE \xB4\xD9\xBD\xC3 \xC5\xA5\xBF\xA1 \xB3\xD6\xB4\xC2\xB4\xD9. size=%d", cell->GetSize());
+            mLogMessagePool.push_front(msg);
+            TSystem<LinuxSystem>::sleep(1000);
+            // ORIG: explicit continue reproduces shared jmp-merge back-edge
+            continue;
+        }
+        else
+        {
+            pApp->super_DataPools.getDataPool()->destroyLogMessage(msg);
         }
     }
 }
 
 void LogSendThread::CheckLogServer()
 {
+    // ORIG __LINE__ 实测 0x26=38（point/auction 同源一致）
+#line 38
     assert(false);
 }
 
@@ -72,7 +76,7 @@ void LogSendThread::SendLogMsg(char* buf, int len)
 {
     PCK_CS_POSTING_LOG pck;
     mThreadLock.lock();
-    TCPUser* u = mLogUser;
+    register TCPUser* u = mLogUser;
     Message* msg = pApp->super_DataPools.getDataPool()->getLogMessage(u);
     mThreadLock.unlock();
     CMsgCell* pMsg = msg->getCellFromMessage();

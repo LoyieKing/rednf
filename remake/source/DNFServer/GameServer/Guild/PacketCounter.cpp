@@ -166,12 +166,8 @@ Packet_DB_Request_Approve_Join_Guild::Packet_DB_Request_Approve_Join_Guild()
 }
 
 Packet_Guild_Attendance_Info_Reply::Packet_Guild_Attendance_Info_Reply()
-    : PacketHeader(0x1bc7, 0x2f)
+    : PacketHeader(0x1bc7, 0x2f), m_a(0), m_b(0), m_c(0)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned char*)((char*)this + 0x12) = 0x0;
-    new ((char*)this + 0x13) STAttendanceInfo;
 }
 
 Packet_Guild_Reply_Guild_Board::Packet_Guild_Reply_Guild_Board()
@@ -206,11 +202,10 @@ Packet_DB_Load_Request_Guild_Board_Open::Packet_DB_Load_Request_Guild_Board_Open
 Packet_DB_Load_Request_Guild_Board_Write::Packet_DB_Load_Request_Guild_Board_Write()
     : PacketHeader(0x232f, 0xbc)
 {
-    new ((char*)this + 0x17) STGuildBoardDBInfo;
-    *(unsigned char*)((char*)this + 0x10) = 0x0;
-    *(unsigned int*)((char*)this + 0xb) = 0;
-    *(unsigned int*)((char*)this + 0xf) = 0;
-    *(unsigned int*)((char*)this + 0x13) = 0;
+    m_a = 0;
+    m_b = 0;
+    m_c = 0;
+    m_d = 0;
 }
 
 #pragma pack(push,1)

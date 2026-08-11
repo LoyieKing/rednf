@@ -72,7 +72,8 @@
 
 void CommonTime::SetCurTime()
 {
-    time_t t = time(0);
+    time_t t;
+    time(&t);
     tm* pt = localtime(&t);
     m_time[0] = (char)((char)pt->tm_year - 100);
     m_time[1] = (char)((char)pt->tm_mon + 1);
@@ -81,4 +82,3 @@ void CommonTime::SetCurTime()
     m_time[4] = (char)pt->tm_min;
     m_time[5] = (char)pt->tm_wday;
 }
-

@@ -91,6 +91,30 @@ StatisticsCollector::~StatisticsCollector()
     }
 }
 
+// 2026-08-11 复检修正：DataInitialization 移到 StData::reset/toString/
+// SetLogFileName 之前——GCC 4.4 -O0 的栈槽分配受 TU 内前置函数的伪寄存器
+// 编号影响；原顺序（reset/toString/SetLogFileName 在前）使本函数槽位为
+// -0x14/-0x8/-0x4（帧 0x18），与 ORIG 的 -0x1c/-0x10/-0xc（帧 0x38）不符。
+void StatisticsCollector::DataInitialization(bool dayDateInit)
+{
+    if (dayDateInit)
+    {
+        for (unsigned int i = 0; i < 3; i++)
+        {
+            mStDataPerDay[i].reset();
+        }
+    }
+    else
+    {
+        for (unsigned int i = 0; i < 3; i++)
+        {
+            mStDataPerSec[i].reset();
+        }
+        // 原版 else 路径落在 leave 前有 1 字节 nop（day 路径 jmp 直接到 leave）
+        __asm__ __volatile__("nop");
+    }
+}
+
 void StatisticsCollector::StData::reset()
 {
     tryCnt = 0;
@@ -127,26 +151,6 @@ bool StatisticsCollector::SetLogFileName(const char* logDir, int serviceId)
     sprintf(mpDayFileName, "%s/%s/DaySt_%d.log", logDir, mpStLogDir, serviceId);
     sprintf(mpSecFileName, "%s/%s/SecSt_%d.log", logDir, mpStLogDir, serviceId);
     return makeLogDir();
-}
-
-void StatisticsCollector::DataInitialization(bool dayDateInit)
-{
-    if (dayDateInit)
-    {
-        for (unsigned int i = 0; i < 3; i++)
-        {
-            mStDataPerDay[i].reset();
-        }
-    }
-    else
-    {
-        for (unsigned int i = 0; i < 3; i++)
-        {
-            mStDataPerSec[i].reset();
-        }
-        // 原版 else 路径落在 leave 前有 1 字节 nop（day 路径 jmp 直接到 leave）
-        __asm__ __volatile__("nop");
-    }
 }
 
 void StatisticsCollector::SetTimeToNow()

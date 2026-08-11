@@ -76,9 +76,9 @@ void TraceLog::sysNSL_LOG_date_ch()
 {
     TScopedLock<TThreadLock<ThreadLock_linux> > slock(lockLog);
     struct stat st;
-    int rst = stat(logfname, &st);
-    // 原始：rst 存局部后 shr $0x1f; test al; je（直接 if (rst < 0)，无 bool 栈变量）
-    if (rst < 0)
+    int rst;
+    // ORIG: 赋值在条件内（mov rst; shr $0x1f; test; je）
+    if ((rst = stat(logfname, &st)) < 0)
     {
         errorLog("sysNSL_LOG_date_ch stat() errmsg[%s(%d)] [%s]", strerror(errno), errno, logfname);
         exit(1);
@@ -105,8 +105,7 @@ void TraceLog::sysNSL_LOG_date_ch()
             char logdname[4096];
             char renfname[4096];
             sprintf(logdname, "%s/old_log", G_Script()->findCharValue(0, 1));
-            rst = stat(logdname, &st);
-            if (rst < 0)
+            if ((rst = stat(logdname, &st)) < 0)
             {
                 if (errno != ENOENT)
                 {

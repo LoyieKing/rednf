@@ -113,11 +113,8 @@ CServerConfig::~CServerConfig()
 }
 
 ST_ServerInfo::ST_ServerInfo()
+    : m_field0(0), m_field1(0), m_field2(0xff), m_ushort(0)
 {
-    m_field0 = 0;
-    m_field1 = 0;
-    m_field2 = 0xff;
-    m_ushort = 0;
 }
 
 CServerConfig::CServerConfig()
@@ -127,4 +124,3 @@ CServerConfig::CServerConfig()
         new ((void*)&m_info[i]) ST_ServerInfo;
     }
 }
-

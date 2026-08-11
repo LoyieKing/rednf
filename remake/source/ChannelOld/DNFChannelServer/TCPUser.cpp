@@ -73,7 +73,7 @@ void ChannelServiceApp::TCPUser::onError()
 
 void ChannelServiceApp::TCPUser::onClose(char* file, int line)
 {
-    GLOG(gFileLogInfo, "call onClose from " << file << ", " << line << ", TCPUSER=" << getACCID() << ", error=" << strerror(*__errno_location()) << ", dis=" << bDisconnected_);
+    GLOG(gFileLogInfo, "call onClose from " << file << ", " << line << ", TCPUSER=" << (int)getACCID() << ", error=" << strerror(*__errno_location()) << ", dis=" << bDisconnected_);
     if (bDisconnected_)
         return;
     TManager<ChannelService>::getManager()->UserPools::destroyTCPUser(this, "TCPUser.cpp", 0x6f);
@@ -86,7 +86,7 @@ void ChannelServiceApp::TCPUser::onClose(char* file, int line)
 
 void ChannelServiceApp::TCPUser::onRead(char* file, int line)
 {
-    GLOG(gFileLogInfo, "OnRead Call from  " << file << ", line " << line << ", TCPUSER=" << getACCID());
+    GLOG(gFileLogInfo, "OnRead Call from  " << file << ", line " << line << ", TCPUSER=" << (int)getACCID());
     if (pSock_->getHandle() < 0)
         return;
     if (isAboutToDisconnect() || isDisconnected())

@@ -1,5 +1,6 @@
 // df_monitor_r — IPCounter（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -52,40 +53,40 @@ void CIPCounter::Proc(unsigned int tick)
     {
         return;
     }
-    if (m_count + m_term >= tick)
+    if (m_count + m_term < tick)
     {
-        return;
+        m_handler->SendDBMWRequestIPCounter(m_option, m_field11);
+        m_count = tick;
+        CMyFileLog log(__FUNCTION__, 0x3c);
+        log("./log/Secu", "[IP Counter] LoadStart");
     }
-    m_handler->SendDBMWRequestIPCounter(m_field11, m_option);
-    m_count = tick;
-    CMyFileLog log("Proc", 0x3c);
-    log("./log/Secu", "[IP Counter] LoadStart");
     m_min = tick + 0x3c;
 }
 
 void CIPCounter::setLoadTerm(unsigned char term)
 {
-    unsigned int v = (unsigned int)term * 0x3c;
-    if (0x2a30 < v)
+    int v = (int)(unsigned char)term * 0x3c;
+    if (v > 0x2a30)
     {
         v = 0x2a30;
     }
-    *(unsigned int*)((char*)this + 0xc) = v;
-    v = *(unsigned int*)((char*)this + 0xc);
-    if (v < 0x708)
+    m_term = v;
+    unsigned int w = m_term;
+    if (w < 0x708)
     {
-        v = 0x708;
+        w = 0x708;
     }
-    *(unsigned int*)((char*)this + 0xc) = v;
+    m_term = w;
 }
 
 void CIPCounter::setMinIPCount(unsigned char count)
 {
-    if (200 < count)
+    unsigned char v = count;
+    if (v > 200)
     {
-        count = 200;
+        v = 200;
     }
-    *(unsigned char*)this = count;
+    m_option = v;
 }
 
 void CIPCounter::setOption(unsigned char type, unsigned char opt)
@@ -100,17 +101,16 @@ void CIPCounter::setOption(unsigned char type, unsigned char opt)
     }
     else if (type == 2)
     {
-        *(unsigned char*)((char*)this + 0x10) = 1;
-        *(unsigned int*)((char*)this + 8) = 0;
-        *(unsigned int*)((char*)this + 4) = 0;
+        ((RA_U8<16>*)this)->v = 1;
+        ((RA_UINT<8>*)this)->v = 0;
+        ((RA_UINT<4>*)this)->v = 0;
     }
     else if (type == 3)
     {
-        *(unsigned char*)((char*)this + 0x10) = 0;
+        ((RA_U8<16>*)this)->v = 0;
     }
     else if (type == 4)
     {
-        *(unsigned char*)((char*)this + 0x11) = 0;
+        ((RA_U8<17>*)this)->v = 0;
     }
 }
-

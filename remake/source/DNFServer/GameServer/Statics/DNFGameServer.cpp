@@ -33,11 +33,9 @@ bool CGameServer::IsValidServer()
 }
 int CGameServer::IsHeartBeatTimeOver()
 {
-    m_heartBeatCount = (char)(m_heartBeatCount - 1);
-    if (m_heartBeatCount == 0)
+    if ((--m_heartBeatCount) == 0)
     {
-        m_heartBeatOver = (char)(m_heartBeatOver + 1);
-        if (0x14 < m_heartBeatOver)
+        if ((++m_heartBeatOver) > 0x14)
         {
             return 1;
         }
@@ -52,7 +50,11 @@ void CGameServer::ResetHeartBeat()
 }
 void CGameServer::SendToGameServer(char* buf, int len)
 {
-    if (m_group != 0xff && m_udp != 0)
+    if (m_group == 0xff)
+    {
+        return;
+    }
+    if (m_udp != 0)
     {
         m_udp->SendToServer(buf, len, m_port, m_name.c_str());
     }

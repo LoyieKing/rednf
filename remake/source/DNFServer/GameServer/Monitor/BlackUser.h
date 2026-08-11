@@ -248,8 +248,10 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
-    char m_data[0x20];           // +0
+    char m_name[0x1e];           // +0
+    unsigned short m_field1e;    // +0x1e
     unsigned int m_occurTime;    // +0x20
+    unsigned int m_field24;      // +0x24
 };
 
 struct STBlackUserDBType

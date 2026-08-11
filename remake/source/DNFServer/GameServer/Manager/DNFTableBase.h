@@ -22,7 +22,9 @@ public:
     CTableBase();
     virtual ~CTableBase();
     virtual int Load_Table(const std::string& fileName) = 0;
-    virtual int Parse_Table(char* data, int size) = 0;
+    // ORIG 返回类型 bool：Load_Txt_Table_Data 中 if (Parse_Table(...))
+    // 直接 test %al（int 返回会 setne 物化）。
+    virtual bool Parse_Table(char* data, int size) = 0;
     int Load_Txt_Table_Data(const char* fileName, int idx);
 };
 

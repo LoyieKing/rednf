@@ -1,5 +1,6 @@
 // df_monitor_r — TcpNetSystem（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -59,7 +60,7 @@ int EpollHandler::Init()
         puts("[Epoll::init] Can\'t init epoll create");
         return 0;
     }
-    m_events = new char[12000];
+    m_events = new epoll_event[1000];
     if (m_events == 0)
     {
         printf("[Epoll::init] Can\'t alloc event memory");
@@ -70,7 +71,14 @@ int EpollHandler::Init()
 
 int EpollHandler::SetEpoll(void* peer, int fd, bool flag)
 {
-    m_eventType = flag ? 0x8000001d : 0x1d;
+    if (flag)
+    {
+        m_eventType = 0x8000001d;
+    }
+    else
+    {
+        m_eventType = 0x1d;
+    }
     m_peer = peer;
     CGuard<CMutex> guard(&m_mutex);
     int r = epoll_ctl(m_epollFd, 1, fd, (epoll_event*)((char*)this + 4));
@@ -88,9 +96,9 @@ int EpollHandler::SetEpoll(void* peer, int fd, bool flag)
 int EpollHandler::ResetEpoll(int fd)
 {
     memset((char*)this + 4, 0, 0xc);
-    *(int*)((char*)this + 4) = 1;
+    ((RA_INT<4>*)this)->v = 1;
     CGuard<CMutex> guard(&m_mutex);
-    int r = epoll_ctl(m_epollFd, 2, fd, (epoll_event*)((char*)this + 4));
+    register int r = epoll_ctl(m_epollFd, 2, fd, (epoll_event*)((char*)this + 4));
     if (r < 0)
     {
         r = errno;
@@ -104,27 +112,29 @@ int EpollHandler::ResetEpoll(int fd)
 
 int EpollHandler::WaitForEvent()
 {
-    return epoll_wait(GetEpollFD(), (epoll_event*)GetEpollEvents(), 1000, 100);
+    void* events = GetEpollEvents();
+    int fd = GetEpollFD();
+    return epoll_wait(fd, (epoll_event*)events, 1000, 100);
 }
 
 char EpollHandler::IsSetErrEvent(int idx)
 {
-    return (char)((*(unsigned int*)((char*)m_events + idx * 0xc) & 0x18) != 0);
+    return (char)((m_events[idx].events & 0x18) != 0);
 }
 
 char EpollHandler::IsSetInEvent(int idx)
 {
-    return (char)((*(unsigned int*)((char*)m_events + idx * 0xc) & 1) != 0);
+    return (char)((m_events[idx].events & 1) != 0);
 }
 
 char EpollHandler::IsSetOutEvent(int idx)
 {
-    return (char)((*(unsigned int*)((char*)m_events + idx * 0xc) & 4) != 0);
+    return (char)((m_events[idx].events & 4) != 0);
 }
 
 void* EpollHandler::GetEventPtr(int idx)
 {
-    return *(void**)((char*)m_events + idx * 0xc + 4);
+    return m_events[idx].data.ptr;
 }
 
 CTcpNetSystem::CTcpNetSystem()
@@ -270,11 +280,11 @@ int CTcpNetSystem::SendPacket()
     {
         return 0;
     }
-    unsigned int fd = *(unsigned int*)((char*)buf + 6);
+    unsigned int fd = ((RA_UINT<6>*)buf)->v;
     std::map<unsigned int, CPeer*>::iterator it = m_peers.find(fd);
     if (it == m_peers.end())
     {
-        unsigned short size = *(unsigned short*)((char*)buf + 2);
+        unsigned short size = ((RA_U16<2>*)buf)->v;
         unsigned short id = *(unsigned short*)buf;
         DNF_LOG_SCOPE_LINE(0xba,"./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)", (unsigned int)id,
             (unsigned int)size, fd);
@@ -289,18 +299,18 @@ int CTcpNetSystem::SendPacket()
     }
     if (invalid)
     {
-        unsigned short size = *(unsigned short*)((char*)buf + 2);
+        unsigned short size = ((RA_U16<2>*)buf)->v;
         unsigned short id = *(unsigned short*)buf;
         DNF_LOG_SCOPE_LINE(0xc3,"./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
             (unsigned int)id, (unsigned int)size, fd);
         PopDeleteTcpSendPacketQ(buf);
         return 0;
     }
-    int result = peer->send_packet((char*)buf, (unsigned int)*(unsigned short*)((char*)buf + 2));
+    int result = peer->send_packet((char*)buf, (unsigned int)((RA_U16<2>*)buf)->v);
     if (result < 1)
     {
         unsigned int cnt = (unsigned int)m_sendQ.size();
-        unsigned short size = *(unsigned short*)((char*)buf + 2);
+        unsigned short size = ((RA_U16<2>*)buf)->v;
         unsigned short id = *(unsigned short*)buf;
         DNF_LOG_SCOPE_LINE(0xd5,"./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)", (unsigned int)id,
             (unsigned int)size, fd, cnt);
@@ -422,8 +432,8 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
     {
         DNF_LOG_SCOPE_LINE(0x91,"./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", size,
             (unsigned int)*(unsigned short*)buf,
-            (unsigned int)*(unsigned short*)((char*)buf + 2),
-            *(unsigned int*)((char*)buf + 6));
+            (unsigned int)((RA_U16<2>*)buf)->v,
+            ((RA_UINT<6>*)buf)->v);
     }
 }
 

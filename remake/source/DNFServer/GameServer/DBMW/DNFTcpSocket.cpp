@@ -34,12 +34,13 @@ TCPSocket::~TCPSocket()
 {
     close();
 }
-char TCPSocket::open()
+bool TCPSocket::open()
 {
     m_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (m_fd == -1)
     {
-        printf("socket error %d", errno);
+        int e = errno;
+        printf("Could not create a TDP socket : %d\n", e);
         return 0;
     }
     return 1;
@@ -70,21 +71,16 @@ int TCPSocket::send(char* buf, int len)
     int n = write(m_fd, buf, len);
     if (n <= 0)
     {
-        if (errno == 0xb || errno == 0x4 || errno == 0xb)
+        if (errno == 0xb || errno == 0x4 || errno == 0xb || errno == 0)
         {
-            printf("tcp send fail='%d', error ='%s'", n, strerror(errno));
-            return -1;
-        }
-        if (errno != 0)
-        {
+            printf("여기 걸리면서 errno 가 0 이면 문제 발생 한다 !!!! 꼭 확인!!!");
             printf("tcp send retry='%d', error ='%s'", n, strerror(errno));
             return 0;
         }
-        printf("send error no 0");
-        printf("tcp send retry='%d', error ='%s'", n, strerror(errno));
-        return 0;
+        printf("tcp send fail='%d', error ='%s'", n, strerror(errno));
+        return -1;
     }
-    printf("tcp send='%d', error ='%s'", n, strerror(errno));
+    printf("1.tcp send='%d', error ='%s'", n, strerror(errno));
     return n;
 }
 int TCPSocket::recv(char* buf, int len)
@@ -97,16 +93,13 @@ int TCPSocket::recv(char* buf, int len)
     int n = read(m_fd, buf, len);
     if (n < 0)
     {
-        if (errno == 0xb || errno == 0x4 || errno == 0xb)
-        {
-            if (n != 0)
-                return n;
-            printf("tcp recv : FIN recv, %s", strerror(errno));
-            return -1;
-        }
-        if (errno != 0)
-            return n;
-        return 0;
+        if (errno == 0xb || errno == 0x4 || errno == 0xb || errno == 0)
+            return 0;
+    }
+    else if (n == 0)
+    {
+        printf("tcp recv : FIN recv, %s", strerror(errno));
+        return -1;
     }
     printf("tcp recv ='%d'", n);
     return n;
@@ -120,7 +113,7 @@ char TCPSocket::setOptResizeRecvBuf(int size)
         return 0;
     return 1;
 }
-char TCPSocket::connect(const char* ip, unsigned short port)
+bool TCPSocket::connect(const char* ip, unsigned short port)
 {
     struct sockaddr_in addr;
     memset(&addr, 0, 0x10);
@@ -239,7 +232,7 @@ int TCPSocket::pollReadWriteErrEvent() const
         result = 3;
     return result;
 }
-char TCPSocket::bind(unsigned short port, bool flag)
+bool TCPSocket::bind(unsigned short port, bool flag)
 {
     setOptReuseAdrs(true);
     struct sockaddr_in addr;
@@ -257,7 +250,7 @@ char TCPSocket::bind(unsigned short port, bool flag)
     printf("succeeded in binding TCP socket port #%d\n", port);
     return 1;
 }
-char TCPSocket::listen(int backlog)
+bool TCPSocket::listen(int backlog)
 {
     if (::listen(m_fd, backlog) < 0)
     {
@@ -266,7 +259,7 @@ char TCPSocket::listen(int backlog)
     }
     return 1;
 }
-char TCPSocket::pollReadEvent() const
+bool TCPSocket::pollReadEvent() const
 {
     fd_set readfds;
     FD_ZERO(&readfds);
@@ -282,7 +275,7 @@ char TCPSocket::pollReadEvent() const
     }
     return FD_ISSET(m_fd, &readfds) ? 1 : 0;
 }
-char TCPSocket::accept(TCPSocket& sock)
+bool TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
     sock.m_fd = ::accept(m_fd, (struct sockaddr*)((char*)&sock + 4), &len);

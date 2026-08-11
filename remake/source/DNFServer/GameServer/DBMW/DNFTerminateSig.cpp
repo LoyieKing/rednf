@@ -30,7 +30,7 @@ CTerminateSig::CTerminateSig() {}
 CTerminateSig::~CTerminateSig() {}
 void CTerminateSig::handle(int sig)
 {
-    puts("CTerminateSig");
+    puts("Recv SIGTERM signal");
     if (m_app)
         m_app->App_Stop();
 }

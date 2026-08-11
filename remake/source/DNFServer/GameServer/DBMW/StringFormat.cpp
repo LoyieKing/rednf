@@ -36,11 +36,14 @@ StackBuffer_char sformat(const char* fmt, ...)
         va_end(ap);
         return tmp;
     }
+    else
+    {
     len = vsnprintf(0, 0, fmt, ap);
     StackBuffer_char tmp = StackBuffer_char::alloc(len + 1);
     vsnprintf(tmp.getBuffer(), len + 1, fmt, ap);
     va_end(ap);
     return tmp;
+    }
 }
 StackBuffer_wchar wformat(const wchar_t* fmt, ...)
 {
@@ -55,9 +58,12 @@ StackBuffer_wchar wformat(const wchar_t* fmt, ...)
         va_end(ap);
         return tmp;
     }
+    else
+    {
     len = vswprintf((wchar_t*)0, 0, fmt, ap);
     StackBuffer_wchar tmp = StackBuffer_wchar::alloc((len + 1) * 4);
     vswprintf((wchar_t*)tmp.getBuffer(), len + 1, fmt, ap);
     va_end(ap);
     return tmp;
+    }
 }

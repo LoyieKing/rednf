@@ -474,17 +474,6 @@ void ChannelServiceApp::CheckThread::loop(void* temp)
     }
 }
 
-CMsgCell::CMsgCell()
-{
-    m_wSize = 0;
-    m_wPos = 0;
-    m_nRefCount = 0;
-}
-
-CMsgCell::~CMsgCell()
-{
-}
-
 CMsgCell& CMsgCell::operator<<(tagPacketHeader* pPacket)
 {
     if ((m_wSize == 0) && (m_wPos == 0))

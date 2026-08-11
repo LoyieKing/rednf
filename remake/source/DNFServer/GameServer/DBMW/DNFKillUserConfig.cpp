@@ -74,8 +74,8 @@ void CKillUSRConfig::Clear_Table()
 void* CKillUSRConfig::GetInfo() const { return (void*)&m_list; }
 ST_KillUSRConfig::ST_KillUSRConfig()
 {
-    *(int*)((char*)this + 0) = 0;
-    *(int*)((char*)this + 4) = 0;
-    *(int*)((char*)this + 8) = 0;
-    *(int*)((char*)this + 0xc) = 0;
+    m_type = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+    m_fieldC = 0;
 }

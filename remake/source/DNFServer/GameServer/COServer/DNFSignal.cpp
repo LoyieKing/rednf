@@ -8,15 +8,6 @@
 #include "DNFApplication.h"
 #include "DNFPacketTracer.h"
 
-CSignal::CSignal()
-{
-    m_app = 0;
-}
-
-CSignal::~CSignal()
-{
-}
-
 void CSignal::attachApp(CApplication* app)
 {
     m_app = app;
@@ -33,10 +24,6 @@ void CSignal::dump_core_file()
     abort();
 }
 
-CTerminateSig::~CTerminateSig() throw()
-{
-}
-
 void CTerminateSig::handle(int sig)
 {
     puts("Recv SIGTERM signal");
@@ -44,10 +31,6 @@ void CTerminateSig::handle(int sig)
     {
         m_app->App_Stop();
     }
-}
-
-CSegmentationFaultSig::~CSegmentationFaultSig() throw()
-{
 }
 
 void CSegmentationFaultSig::handle(int sig)
@@ -60,10 +43,6 @@ void CSegmentationFaultSig::handle(int sig)
     dump_core_file();
 }
 
-CSystemFailSig::~CSystemFailSig() throw()
-{
-}
-
 void CSystemFailSig::handle(int sig)
 {
     puts("Recv SIGSYS signal");
@@ -74,10 +53,6 @@ void CSystemFailSig::handle(int sig)
     }
     dump_core_file();
     exit(-1);
-}
-
-CFloatingPointExceptSig::~CFloatingPointExceptSig() throw()
-{
 }
 
 void CFloatingPointExceptSig::handle(int sig)

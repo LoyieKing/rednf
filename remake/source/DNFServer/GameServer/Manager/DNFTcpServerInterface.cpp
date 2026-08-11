@@ -29,7 +29,7 @@ void CTcpServer::Init(unsigned int sock, CTcpNetSystem* net)
     m_net = net;
 }
 
-char CTcpServer::IsValidServer()
+bool CTcpServer::IsValidServer()
 {
     return m_socket != 0 && m_net != 0;
 }
@@ -55,12 +55,21 @@ void CTcpServer::NotifyHeartbeat() { time(&m_heartbeat); }
 
 unsigned short CTcpServer::makePacketHeader(unsigned short type, unsigned short size)
 {
-    if (!m_net)
-        return 0;
-    CTcpSendBuffer* buf = m_net->Acquire_TcpSendBuffer();
-    char* p = (char*)buf;
-    *(unsigned short*)p = type;
-    *(unsigned short*)(p + 2) = size;
-    *(int*)(p + 6) = (int)m_socket;
-    return (unsigned short)(unsigned int)buf;
+    struct __attribute__((packed)) TcpPacketFields
+    {
+        unsigned short type;
+        unsigned short size;
+        unsigned short pad;
+        unsigned int socket;
+    };
+    if (m_net)
+    {
+        CTcpSendBuffer* buf = m_net->Acquire_TcpSendBuffer();
+        TcpPacketFields* f = (TcpPacketFields*)buf;
+        f->type = type;
+        f->size = size;
+        f->socket = (unsigned int)m_socket;
+        return (unsigned short)(unsigned int)f;
+    }
+    return 0;
 }

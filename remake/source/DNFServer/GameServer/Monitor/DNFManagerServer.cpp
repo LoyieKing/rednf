@@ -1,5 +1,6 @@
 // df_monitor_r — DNFManagerServer（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -30,6 +31,16 @@
 #include "DNFUdpHandler.h"
 #include "TcpNetSystem.h"
 
+// ORIG 内部 Tcp 服务器登录/心跳包：id@0 size@2 pad@4 sock@6 flag@0xa（packed 11B）
+struct __attribute__((packed)) TcpServerPkt
+{
+    unsigned short id;
+    unsigned short size;
+    unsigned short pad;
+    unsigned int sock;
+    unsigned char flag;
+};
+
 CExchangeServer::CExchangeServer() { m_active = 0; }
 
 CExchangeServer* GetInstanceExchangeServer()
@@ -57,7 +68,7 @@ void CExchangeServer::SetExchageServer(unsigned int ip, short port, int code, bo
 {
     time_t now = time(0);
     in_addr oldIp;
-    oldIp.s_addr = *(unsigned int*)((char*)this + 8);
+    oldIp.s_addr = ((RA_UINT<8>*)this)->v;
     result = false;
     if (m_active == 0)
     {
@@ -149,13 +160,19 @@ void CTcpManagerServer::Clear()
     m_ip.clear();
 }
 
-void CTcpManagerServer::Init(CTcpNetSystem* net) {}
+void CTcpManagerServer::Init(CTcpNetSystem* net)
+{
+    this->m_net = net;
+}
 
 void CTcpManagerServer::SetIP(std::string ip) {}
 
-void CTcpManagerServer::SetPort(unsigned short port) {}
+void CTcpManagerServer::SetPort(unsigned short port)
+{
+    m_port = port;
+}
 
-int* CTcpManagerServer::GetSockRef() { return 0; }
+int* CTcpManagerServer::GetSockRef() { return &m_sock; }
 
 int CTcpManagerServer::GetSock() { return m_sock; }
 
@@ -165,8 +182,10 @@ char CTcpManagerServer::IsValidServer()
     {
         return 1;
     }
-    CMyFileLog log("IsValidServer", 0x1a0);
-    log("./log/TcpServer", "Invalid Tcp Server(%d,%x)", m_sock, m_net);
+    register CTcpNetSystem* net = m_net;
+    register int sock = m_sock;
+    CMyFileLog log(__FUNCTION__, 0x1a0);
+    log("./log/TcpServer", "Invalid Tcp Server(%d,%x)", sock, net);
     return 0;
 }
 
@@ -177,30 +196,33 @@ unsigned short CTcpManagerServer::GetPort() { return m_port; }
 void CTcpManagerServer::SendHeartbeat(unsigned char group)
 {
     char* buf = makePacketHeader(0x106d, 0xb);
-    if (buf != 0)
+    TcpServerPkt* p = (TcpServerPkt*)buf;
+    if (p != 0)
     {
-        buf[10] = (char)group;
-        SendToServer(buf);
+        p->flag = (unsigned char)group;
+        SendToServer((char*)p);
     }
 }
 
 void CTcpManagerServer::SendLogin(unsigned char group)
 {
     char* buf = makePacketHeader(0x106b, 0xb);
-    if (buf != 0)
+    TcpServerPkt* p = (TcpServerPkt*)buf;
+    if (p != 0)
     {
-        buf[10] = (char)group;
-        SendToServer(buf);
+        p->flag = (unsigned char)group;
+        SendToServer((char*)p);
     }
 }
 
 void CTcpManagerServer::SendLogout()
 {
     char* buf = makePacketHeader(0x106c, 0xb);
-    if (buf != 0)
+    TcpServerPkt* p = (TcpServerPkt*)buf;
+    if (p != 0)
     {
-        buf[10] = 0xb;
-        SendToServer(buf);
+        p->flag = 0xb;
+        SendToServer((char*)p);
     }
 }
 
@@ -216,28 +238,31 @@ void CTcpManagerServer::DisConnected()
 
 char* CTcpManagerServer::makePacketHeader(unsigned short id, unsigned short size)
 {
-    if (m_net == 0)
+    char* buf;
+    TcpServerPkt* puVar1;
+    if (m_net != 0)
     {
-        return 0;
+        buf = (char*)m_net->Acquire_TcpSendBuffer();
+        puVar1 = (TcpServerPkt*)buf;
+        puVar1->id = id;
+        puVar1->size = size;
+        puVar1->sock = (unsigned int)m_sock;
+        return (char*)puVar1;
     }
-    char* buf = (char*)((CTcpNetSystem*)m_net)->Acquire_TcpSendBuffer();
-    *(unsigned short*)buf = id;
-    *(unsigned short*)(buf + 2) = size;
-    *(unsigned int*)(buf + 6) = (unsigned int)m_sock;
-    return buf;
+    return 0;
 }
 
 void CTcpManagerServer::SendToServer(char* buf)
 {
-    ((CTcpNetSystem*)m_net)->PushTcpSendPacketQ(buf);
+    m_net->PushTcpSendPacketQ(buf);
 }
 
 void CTcpManagerServer::SendTcpPacket(PacketHeader* pkt)
 {
-    char* buf = makePacketHeader(*(unsigned short*)pkt, *(unsigned short*)((char*)pkt + 2));
+    char* buf = makePacketHeader(*(unsigned short*)pkt, ((RA_U16<2>*)pkt)->v);
     if (buf != 0)
     {
-        memcpy(buf + 10, (char*)pkt + 10, *(unsigned short*)((char*)pkt + 2) - 10);
+        memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
         SendToServer(buf);
     }
 }
@@ -311,7 +336,7 @@ char CCacheCharacterMgr::CollectGarbage()
         }
         std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator it =
             m_cache.find((unsigned int)top.m_charNo);
-        if (it != m_cache.end() && 0x1d < now - *(int*)((char*)&it->second + 0xc))
+        if (it != m_cache.end() && 0x1d < now - ((RA_INT<12>*)&it->second)->v)
         {
             m_cache.erase(it);
             result = 1;

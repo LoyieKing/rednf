@@ -1,5 +1,6 @@
 // df_monitor_r — VillageAttackedManager（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -194,23 +195,23 @@ void CVillageAttackedManager::OnSchedule()
     time_t now = GetNowTime();
     tm* t = localtime(&now);
     int bestIdx = 0;
-    int bestTime = village_attacked::GetNextSchedule(*t, village_attacked_scheduler[0],
-                                                     village_attacked_scheduler[1],
-                                                     village_attacked_scheduler[2]);
+    int bestTime = ::GetNextSchedule(*t, village_attacked_scheduler[0],
+                                     village_attacked_scheduler[1],
+                                     village_attacked_scheduler[2]);
     for (int i = 1; i < MAX_SCHEDULER_COUNT; i++)
     {
-        int s = village_attacked::GetNextSchedule(*t, village_attacked_scheduler[i * 6],
-                                                  village_attacked_scheduler[i * 6 + 1],
-                                                  village_attacked_scheduler[i * 6 + 2]);
+        int s = ::GetNextSchedule(*t, village_attacked_scheduler[i * 6],
+                                  village_attacked_scheduler[i * 6 + 1],
+                                  village_attacked_scheduler[i * 6 + 2]);
         if (s < bestTime)
         {
             bestIdx = i;
             bestTime = s;
         }
     }
-    int end = village_attacked::GetNextSchedule(*t, village_attacked_scheduler[bestIdx * 6 + 3],
-                                                village_attacked_scheduler[bestIdx * 6 + 4],
-                                                village_attacked_scheduler[bestIdx * 6 + 5]);
+    int end = ::GetNextSchedule(*t, village_attacked_scheduler[bestIdx * 6 + 3],
+                                village_attacked_scheduler[bestIdx * 6 + 4],
+                                village_attacked_scheduler[bestIdx * 6 + 5]);
     InsertTimer(bestTime, end);
     tm* t2 = localtime((time_t*)&end);
     t2->tm_sec = 0;
@@ -260,7 +261,7 @@ int CVillageAttackedManager::GetMaxHuntingPoint()
     {
         return m_app->Get_UserManager()->Size() * HUNTING_POINT_WEIGTH_CONST;
     }
-    DNF_LOG_SCOPE_AT("GetMaxHuntingPoint", 0xfe, "./log/village", "ServerGroup is over REAL_GROUP_MAX : %d", group);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0xfe, "./log/village", "ServerGroup is over REAL_GROUP_MAX : %d", group);
     return 0;
 }
 
@@ -269,9 +270,9 @@ void CVillageAttackedManager::OnStartVillageAttacked()
     m_state24 = 1;
     ClearDungeonCloseTime();
     Packet_VillageAttackedStart pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = (unsigned int)GetRemainTime();
-    *(unsigned int*)((char*)&pkt + 0xe) = (unsigned int)m_field1c;
-    *(unsigned int*)((char*)&pkt + 0x12) = (unsigned int)m_field20;
+    ((RA_UINT<10>*)&pkt)->v = (unsigned int)GetRemainTime();
+    ((RA_UINT<14>*)&pkt)->v = (unsigned int)m_field1c;
+    ((RA_UINT<18>*)&pkt)->v = (unsigned int)m_field20;
     m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, 0x16);
 }
 
@@ -282,9 +283,9 @@ void CVillageAttackedManager::OnCountdownVillageAttacked(int time)
         m_field20 = GetMaxHuntingPoint();
     }
     Packet_VillageAttackedCountdown pkt;
-    *(int*)((char*)&pkt + 0xa) = time;
+    ((RA_INT<10>*)&pkt)->v = time;
     m_app->Get_ServerHandler()->SendAllToGameServer(
-        (char*)&pkt, (unsigned int)*(unsigned short*)((char*)&pkt + 2));
+        (char*)&pkt, (unsigned int)((RA_U16<2>*)&pkt)->v);
 }
 
 void CVillageAttackedManager::SendFirstRankerReward(unsigned int charNo)
@@ -305,12 +306,12 @@ void CVillageAttackedManager::SendFirstRankerReward(unsigned int charNo)
         '\xcc', '\x20', '\xc1', '\xf6', '\xb3', '\xaa', '\xb8', '\xe9', '\x20', '\xbb', '\xe7', '\xb6',
         '\xf3', '\xc1', '\xfd', '\xb4', '\xcf', '\xb4', '\xd9', '\x2e', '\x29', '\x00'};
     Packet_DB_InsertMail pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = charNo;
-    *(unsigned int*)((char*)&pkt + 0xe) = 0x1dfe;
-    *(unsigned int*)((char*)&pkt + 0x12) = 1;
+    ((RA_UINT<10>*)&pkt)->v = charNo;
+    ((RA_UINT<14>*)&pkt)->v = 0x1dfe;
+    ((RA_UINT<18>*)&pkt)->v = 1;
     memcpy((char*)&pkt + 0x1a, kTitle, 10);
     memcpy((char*)&pkt + 0x2f, kBody, 0x8e);
-    *(int*)((char*)&pkt + 0x12f) = 3;
+    ((RA_INT<303>*)&pkt)->v = 3;
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 
@@ -377,7 +378,7 @@ void CVillageAttackedManager::OnRewardVillageAttacked()
 
 unsigned int CVillageAttackedManager::GetDungeonRemainTime()
 {
-    return 0;
+    return m_field34;
 }
 
 void CVillageAttackedManager::SendVillageAttackedEnd()
@@ -497,11 +498,11 @@ void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
                                    village_attacked_scheduler[i * 6 + 2]);
     }
     std::sort(&times[0], &times[MAX_SCHEDULER_COUNT], compareTime);
-    *(char*)((char*)&pkt + 0xa) = (char)group;
-    *(int*)((char*)&pkt + 0xb) = times[0];
-    *(int*)((char*)&pkt + 0xf) = times[0];
-    *(int*)((char*)&pkt + 0x13) = times[1];
-    *(int*)((char*)&pkt + 0x17) = times[1];
+    ((RA_S8<10>*)&pkt)->v = (char)group;
+    ((RA_INT<11>*)&pkt)->v = times[0];
+    ((RA_INT<15>*)&pkt)->v = times[0];
+    ((RA_INT<19>*)&pkt)->v = times[1];
+    ((RA_INT<23>*)&pkt)->v = times[1];
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 
@@ -604,7 +605,7 @@ void CVillageAttackedManager::SendCharacRank()
                 if (user == 0)
                 {
                     pq.pop();
-                    DNF_LOG_SCOPE_AT("SendCharacRank", 0x238, "./log/village", "User is null [charac_no:%u]", p.m_characNo);
+                    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x238, "./log/village", "User is null [charac_no:%u]", p.m_characNo);
                 }
                 else
                 {

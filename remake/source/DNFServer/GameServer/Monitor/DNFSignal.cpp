@@ -30,12 +30,15 @@
 #include "DNFApplication.h"
 #include "DNFPacketTracer.h"
 
+CSignal::CSignal()
+{
+    m_app = 0;
+}
+
 void CSignal::attachApp(CApplication* app)
 {
     m_app = app;
 }
-
-void CSignal::handle(int sig) {}
 
 CSignal::~CSignal() {}
 

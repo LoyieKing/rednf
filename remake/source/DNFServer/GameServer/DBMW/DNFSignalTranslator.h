@@ -9,7 +9,7 @@ class CSignalTranslator
 public:
     CSignalTranslator();
     ~CSignalTranslator();
-    char regist_signal(int sig, void (*handler)(int));
+    bool regist_signal(int sig, void (*handler)(int));
     void clear();
     void init_signal();
     void init_handler(CApplication* app);

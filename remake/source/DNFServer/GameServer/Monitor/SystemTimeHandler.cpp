@@ -1,5 +1,6 @@
 // df_monitor_r — SystemTimeHandler（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -42,8 +43,8 @@ void CommonTime::SetCurTime()
 CSystemTime::CSystemTime()
 {
     gettimeofday((timeval*)((char*)this + 8), 0);
-    *(unsigned int*)((char*)this + 0x10) = *(unsigned int*)((char*)this + 8);
-    *(int*)((char*)this + 4) = *(int*)((char*)this + 0xc) / 1000;
+    ((RA_UINT<16>*)this)->v = ((RA_UINT<8>*)this)->v;
+    ((RA_INT<4>*)this)->v = ((RA_INT<12>*)this)->v / 1000;
 }
 
 CSystemTimeHandler::CSystemTimeHandler() {}

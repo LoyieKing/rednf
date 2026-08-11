@@ -23,6 +23,15 @@
 
 int getErrno();
 
+// MemPool 空闲链表指针存放在对象尾部（sizeof(T)-4）。用成员访问形态让编译器把
+// 常量偏移折叠进寻址（ORIG 为 mov %edx,0x1800(%eax) 形态，纯指针运算会产生 lea）。
+template<class T>
+struct MemPoolFreeLink
+{
+    char pad[sizeof(T) - 4];
+    void* next;
+};
+
 CSwapQueue<TcpRecvQueue, 2>* CTcpNetSystem::Get_TcpSwapQPacket() { return &m_recvSwapQueue; }
 template<class T> void* MemPool<T>::headOfFreeList_;
 
@@ -33,68 +42,63 @@ MemPool<T>::MemPool(unsigned int count) : m_size((int)sizeof(T)), m_count((int)c
 template<class T>
 MemPool<T>::~MemPool()
 {
-    for (std::vector<void*>::iterator it = m_blocks.begin(); it != m_blocks.end(); ++it)
-        ::operator delete(*it);
+    if (!m_blocks.empty())
+    {
+        for (std::vector<void*>::iterator it = m_blocks.begin(); it != m_blocks.end(); ++it)
+            ::operator delete(*it);
+        m_blocks.clear();
+    }
 }
 template<class T>
 void* MemPool<T>::alloc()
 {
-    void* result;
-    if (m_size == (int)sizeof(T))
+    if (m_size != (int)sizeof(T))
+        return ::operator new(sizeof(T));
+    void* head = headOfFreeList_;
+    if (head != 0)
     {
-        void* head = headOfFreeList_;
-        if (head == 0)
-        {
-            void* block = ::operator new((unsigned int)m_size * (unsigned int)m_count);
-            for (unsigned int i = 0; i < (unsigned int)m_count - 1; i++)
-            {
-                *(void**)((char*)block + i * m_size + m_size - 4) =
-                    (void*)((i + 1) * m_size + (unsigned int)block);
-            }
-            *(void**)((char*)block + ((unsigned int)m_count - 1) * m_size + m_size - 4) = 0;
-            headOfFreeList_ = (void*)((char*)block + m_size);
-            head = block;
-            m_blocks.push_back(block);
-            CMyFileLog log("alloc", 0x7d);
-            log("./log/Mempool", "class size(%d) cnt(%d)", m_size,
-                m_count * (int)m_blocks.size());
-        }
-        else
-        {
-            headOfFreeList_ = *(void**)((char*)head + m_size - 4);
-        }
-        result = head;
+        headOfFreeList_ = *(void**)((char*)head + m_size - 4);
     }
     else
     {
-        result = ::operator new(sizeof(T));
+        T* block = (T*)::operator new((unsigned int)m_size * (unsigned int)m_count);
+        for (unsigned int i = 0; i < (unsigned int)m_count - 1; i++)
+        {
+            ((MemPoolFreeLink<T>*)((char*)block + i * sizeof(T)))->next =
+                (void*)((i + 1) * sizeof(T) + (unsigned int)block);
+        }
+        ((MemPoolFreeLink<T>*)((char*)block + ((unsigned int)m_count - 1) * sizeof(T)))->next = 0;
+        headOfFreeList_ = (void*)((char*)block + sizeof(T));
+        head = block;
+        m_blocks.push_back((void*)block);
+        CMyFileLog log(__FUNCTION__, 0x7d);
+        log("./log/Mempool", "class size(%d) cnt(%d)", m_size,
+            m_count * (int)m_blocks.size());
     }
-    return result;
+    return head;
 }
 template<class T>
 void MemPool<T>::free(void* ptr, unsigned int size)
 {
-    if (ptr != 0)
+    if (ptr == 0) return;
+    if ((unsigned int)m_size != size)
     {
-        if ((unsigned int)m_size == size)
-        {
-            *(void**)((char*)ptr + m_size - 4) = headOfFreeList_;
-            headOfFreeList_ = ptr;
-        }
-        else
-        {
-            ::operator delete(ptr);
-        }
+        ::operator delete(ptr);
+    }
+    else
+    {
+        void* p = ptr;
+        ((MemPoolFreeLink<T>*)((char*)p))->next = headOfFreeList_;
+        headOfFreeList_ = p;
     }
 }
 template<class T>
 void MemPool<T>::free(void* ptr)
 {
-    if (ptr != 0)
-    {
-        *(void**)((char*)ptr + m_size - 4) = headOfFreeList_;
-        headOfFreeList_ = ptr;
-    }
+    if (ptr == 0) return;
+    void* p = ptr;
+    ((MemPoolFreeLink<T>*)((char*)p))->next = headOfFreeList_;
+    headOfFreeList_ = p;
 }
 MemPool<CUdpRecvBuffer> g_udpRecvPool(10000);
 MemPool<CTcpRecvBuffer> g_tcpRecvPool(1000);

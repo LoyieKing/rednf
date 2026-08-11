@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #include "LinuxService.h"
 #include "Helper.h"
@@ -97,7 +98,11 @@ bool LinuxService::checkConfigFile()
     char path[30] = {0};
     snprintf(path, 0x1e, "./cfg/%s.cfg", getConfigFileName());
     puts(path);
-    return access(path, 0) == 0;
+    if (access(path, 0) == 0)
+    {
+        return true;
+    }
+    return false;
 }
 
 bool LinuxService::checkPIDFile()
@@ -105,7 +110,11 @@ bool LinuxService::checkPIDFile()
     char path[30] = {0};
     snprintf(path, 0x1e, "./pid/%s.pid", getPIDFileName());
     puts(path);
-    return access(path, 0) == 0;
+    if (access(path, 0) == 0)
+    {
+        return true;
+    }
+    return false;
 }
 
 bool LinuxService::prepareStart()
@@ -129,11 +138,7 @@ void LinuxService::remove()
 
 void LinuxService::start()
 {
-    if (m_bRunAsService == 0)
-    {
-        _evlog("Run As Non Service\n");
-    }
-    else
+    if (m_bRunAsService)
     {
         _evlog("Run As Service\n");
         make_dir("./pid");
@@ -154,6 +159,10 @@ void LinuxService::start()
             umask(0);
             save_pid();
         }
+    }
+    else
+    {
+        _evlog("Run As Non Service\n");
     }
 }
 
@@ -221,7 +230,11 @@ void LinuxService::main()
 void LinuxService::processCommandLine(int argc, char** argv)
 {
     setInfo("RelayServer", "RelayServer", *argv, argv[1]);
-    if (prepareStart() == 1)
+    if (prepareStart() == 0)
+    {
+        puts("Fail to Preprocessing, Server process is terminated.");
+    }
+    else
     {
         char* pszCmdLine = argv[2];
         strncpy(m_command, pszCmdLine, 0x1d);
@@ -239,29 +252,29 @@ void LinuxService::processCommandLine(int argc, char** argv)
         else if (strstr(pszCmdLine, "run") != 0 || strstr(pszCmdLine, "test") != 0)
         {
             _evlog("ProcessCommandLine4");
-            if (checkConfigFile() == 1)
+            if (checkConfigFile() == 0)
             {
-                if (checkPIDFile() == 0)
-                {
-                    setRunAsService(false);
-                    start();
-                }
-                else
+                printf("There is not %s config_file\n",
+                       getInstance()->getConfigFileName());
+            }
+            else
+            {
+                if (checkPIDFile() != 0)
                 {
                     printf("Process(%s) is already operated.\n",
                            getInstance()->getChannelName());
                 }
-            }
-            else
-            {
-                printf("There is not %s config_file\n",
-                       getInstance()->getConfigFileName());
+                else
+                {
+                    setRunAsService(false);
+                    start();
+                }
             }
         }
         else if (strstr(pszCmdLine, "start") != 0)
         {
             _evlog("ProcessCommandLine5");
-            if (checkConfigFile() != 1)
+            if (checkConfigFile() == 0)
             {
                 printf("There is not %s config_file\n",
                        getInstance()->getConfigFileName());
@@ -278,13 +291,17 @@ void LinuxService::processCommandLine(int argc, char** argv)
         }
         else if (strstr(pszCmdLine, "stop") != 0)
         {
-            if (Neof_sendTerminateSignal() == 0)
+            bool r = Neof_sendTerminateSignal();
+            if (r)
             {
-                puts("Neof_sendTerminateSignal return FAIL");
+                puts("Neof_sendTerminateSignal return OK");
             }
             else
             {
-                puts("Neof_sendTerminateSignal return OK");
+                puts("Neof_sendTerminateSignal return FAIL");
+            }
+            if (r)
+            {
                 delete_pid();
             }
         }
@@ -296,9 +313,5 @@ void LinuxService::processCommandLine(int argc, char** argv)
         {
             sendBroadCastMessage(argv[3]);
         }
-    }
-    else
-    {
-        puts("Fail to Preprocessing, Server process is terminated.");
     }
 }

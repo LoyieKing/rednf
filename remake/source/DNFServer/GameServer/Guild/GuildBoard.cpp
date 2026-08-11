@@ -89,69 +89,64 @@ STGuildBoardDBInfo::STGuildBoardDBInfo()
 
 void CGuildBoard::setWebGuildBoardAction(bool flag)
 {
-    *(unsigned char*)(m_data + 4) = flag ? 1 : 0;
+    m_webAction = flag ? 1 : 0;
 }
 
-bool CGuildBoard::isWebGuildBoardAction()
+unsigned char CGuildBoard::isWebGuildBoardAction()
 {
-    return *(unsigned char*)(m_data + 4) != 0;
+    return m_webAction;
 }
 
 void CGuildBoard::setGuildBoardDBLoadState(ENUM_DB_LOAD_STATE state)
 {
-    *(unsigned int*)(m_data + 8) = (unsigned int)state;
+    struct BoardLoadView { char pad[8]; int m_loadState; };
+    ((BoardLoadView*)this)->m_loadState = (int)state;
 }
 
 int CGuildBoard::getGuildBoardDBLoadState()
 {
-    return *(unsigned int*)(m_data + 8);
+    return m_loadState;
 }
 
 CGuildBoard::CGuildBoard()
 {
-    new (m_data + 0xc) std::map<unsigned int, STGuildBoardDBInfo,
-                               std::greater<unsigned int> >();   // class +0xc
     reset();
 }
 
 CGuildBoard::~CGuildBoard()
 {
     reset();
-    ((std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >*)(m_data + 0xc))
-        ->~map();
 }
 
 void CGuildBoard::reset()
 {
-    ((std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >*)(m_data + 0xc))
-        ->clear();
-    *(unsigned int*)(m_data + 0) = 0;    // field0
-    *(unsigned char*)(m_data + 4) = 0;   // webAction
-    *(unsigned int*)(m_data + 8) = 0;    // dbLoadState
-    *(unsigned int*)(m_data + 0x24) = 0; // dbAccessTime
+    m_board.clear();
+    m_field0 = 0;
+    m_webAction = 0;
+    m_loadState = 0;
+    m_dbAccessTime = 0;
 }
 
 bool CGuildBoard::isGuildBoardDBAccess()
 {
-    return 5 < (unsigned int)(time(0) - *(unsigned int*)(m_data + 0x24));
+    return 5 < (unsigned int)(time(0) - m_dbAccessTime);
 }
 
 void CGuildBoard::setGuildBoardDBAccess()
 {
-    *(unsigned int*)(m_data + 0x24) = (unsigned int)time(0);
+    unsigned int t = (unsigned int)time(0);
+    m_dbAccessTime = t;
 }
 
 void CGuildBoard::clearGuildBoardData()
 {
-    ((std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >*)(m_data + 0xc))
-        ->clear();
+    m_board.clear();
 }
 
 void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guild, int c,
                                     STGuildBoardDBInfo* info)
 {
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map =
-        (std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >*)(m_data + 0xc);
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
     for (int i = 0; i < c; i++)
     {
         STGuildBoardDBInfo entry;
@@ -168,7 +163,7 @@ void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guil
         }
         map->insert(std::make_pair(key, entry));
     }
-    DNF_LOG_SCOPE_AT("setGuildBoardData", 0x5f, "./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, COUNT:%u", a, b, c);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5f, "./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, COUNT:%u", a, b, c);
 }
 
 void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned int c,
@@ -178,8 +173,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     {
         return;
     }
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map =
-        (std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >*)(m_data + 0xc);
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
     int total = (int)map->size();
     unsigned short codeType = (unsigned short)c;
     if (total == 0)
@@ -191,7 +185,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         *(unsigned char*)((char*)&reply + 0xe) = 0;
         *(unsigned char*)((char*)&reply + 0x17) = 0;
         user->SendTcpGameserver(&reply);
-        DNF_LOG_SCOPE_AT("sendGuildBoardData", 0x77,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x77,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, 0);
         return;
     }
@@ -223,7 +217,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
             ++it;
         }
         user->SendTcpGameserver(&reply);
-        DNF_LOG_SCOPE_AT("sendGuildBoardData", 0xa5,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0xa5,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, total, 10);
     }
     if (remainder != 0)
@@ -246,15 +240,14 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
             ++it;
         }
         user->SendTcpGameserver(&reply);
-        DNF_LOG_SCOPE_AT("sendGuildBoardData", 0xcb,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcb,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, total, remainder);
     }
 }
 
 void CGuildBoard::deleteGuildBoardData(unsigned int a, unsigned int b, unsigned int c)
 {
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map =
-        (std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >*)(m_data + 0xc);
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
     std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
         map->find(a);
     if (it == map->end())
@@ -285,7 +278,7 @@ void CGuildBoard::sendMessageToDBMW_GuildLevelUP(CServerHandler* handler, int le
     {
         memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
         handler->SendToDB(&pkt);
-        DNF_LOG_SCOPE_AT("sendMessageToDBMW_GuildLevelUP", 0x107,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, LEVEL:%u",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x107,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, LEVEL:%u",
             *(unsigned int*)((char*)&pkt + 0xb), *(unsigned int*)((char*)&pkt + 0x13),
             level + 1);
     }
@@ -333,15 +326,14 @@ void CGuildBoard::sendMessageToDBMW_GuildMasterChanging(CServerHandler* handler,
     {
         memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
         handler->SendToDB(&pkt);
-        DNF_LOG_SCOPE_AT("sendMessageToDBMW_GuildMasterChanging", 0x17b,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x17b,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u",
             *(unsigned int*)((char*)&pkt + 0xb), *(unsigned int*)((char*)&pkt + 0x13));
     }
 }
 
 void CGuildBoard::printGuildBoard()
 {
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map =
-        (std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >*)(m_data + 0xc);
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
     for (std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
              map->begin();
          it != map->end(); ++it)
@@ -351,4 +343,3 @@ void CGuildBoard::printGuildBoard()
             (char*)&it->second + 4);
     }
 }
-

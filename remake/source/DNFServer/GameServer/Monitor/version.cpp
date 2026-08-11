@@ -42,8 +42,7 @@ CSourceVersionMgr::SourceVersion::~SourceVersion() {}
 
 void CSourceVersionMgr::InsertSourceVersion(char* path, int version)
 {
-    SourceVersion sv(path, version);
-    m_versions.push_back(sv);
+    m_versions.push_back(SourceVersion(path, version));
 }
 
 CVersionMgr::CVersionMgr(int a, int b, int c, int d)
@@ -53,6 +52,5 @@ CVersionMgr::CVersionMgr(int a, int b, int c, int d)
     m_c = c;
     m_d = d;
 }
-
 
 

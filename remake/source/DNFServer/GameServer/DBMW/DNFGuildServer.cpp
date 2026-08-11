@@ -45,9 +45,9 @@ void CGuildServer::SendToServer(char* buf, int len)
 } 
 char CGuildServer::IsValidGameServer() 
 { 
-    if (m_type != 0xff) 
-        return 1; 
-    return 0; 
+    if (m_type == 0xff) 
+        return 0; 
+    return 1; 
 }
 
 void CGuildServer::SendHeartBeat() 
@@ -59,4 +59,3 @@ void CGuildServer::SendHeartBeat()
         SendToServer((char*)&pkt, pkt.packetSize); 
     } 
 }
-

@@ -6,7 +6,7 @@ project(dbmw CXX)
 # 口径与原脚本完全一致（源顺序/按文件 flags/include/链接），参见 manager 说明。
 # 注意：mysqlclient 与 manager 共用 build/manager/mysqlclient（原脚本如此）。
 # ============================================================
-set(CMAKE_CXX_LINK_EXECUTABLE "/usr/bin/g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/link_dbmw.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -69,6 +69,7 @@ dnf_service(dbmw
         ${PACKET}/src/PacketHeader.cpp
         ${SVC_DIR}/Peer.cpp
         ${SVC_DIR}/QueryCounter.cpp
+        ${SVC_DIR}/QueryCounterFileLog.cpp
         ${SVC_DIR}/SHA.cpp
         ${SVC_DIR}/ServerLoadChecker.cpp
         ${SVC_DIR}/ServerXml.cpp
@@ -121,12 +122,29 @@ dnf_service(dbmw
         "-I${SHARED}" "-I${SHARED}/common/include"
         "-I${MYSQL}/include" "-I${MYSQL}/mysys" "-I${MYSQL}/strings"
     DEFINES
-        -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS
+        -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS -DDNF_SVC_DBMW
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
         "${COMMON}/tinyxml.cpp|-O3 -std=gnu++98"
         "${COMMON}/tinyxmlerror.cpp|-O3 -std=gnu++98"
         "${COMMON}/tinyxmlparser.cpp|-O3 -std=gnu++98"
+        # 虚调用 fn 指针寄存器形态对齐（ORIG 进 ecx/edx，4.4.7-23 进 eax）：
+        # 与 manager 同源 TU 同批 A/B 验证（DNFApplication/DNFSignalTranslator），
+        # DNFPacketTracer/DNFMySql 同形态逐函数复检。
+        "${SVC_DIR}/DNFApplication.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFSignalTranslator.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFPacketTracer.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFMySql.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFSignal.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFTcpHandler.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFThreadInterface.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFServerHandler.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFPacketTranslater.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFPacketBuffer.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/StackBuffer.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DBManager.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/QueryCounter.cpp|-B${DF_CC1P446} -march=i486 -mtune=pentiumpro"
+        "${SVC_DIR}/QueryCounterFileLog.cpp|-B${DF_CC1P446}"
     LIBS
         ${SRC_ROOT}/../build/manager/mysqlclient/libmysqlclient.a
         ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a

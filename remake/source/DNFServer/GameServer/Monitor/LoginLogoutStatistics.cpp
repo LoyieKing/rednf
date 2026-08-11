@@ -1,5 +1,6 @@
 // df_monitor_r — LoginLogoutStatistics（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -30,12 +31,8 @@
 #include "DNFPacketTranslater.h"
 
 CLoginLogoutStatistics::CLoginLogoutStatistics(CApplication& app)
+    : m_app(&app)
 {
-    m_app = &app;
-    for (int i = 0; i < 7; i++)
-    {
-        new (&m_maps[i]) std::map<unsigned char, stLoginLogout>();
-    }
     m_fieldac = 0;
     m_fieldb0 = 0;
 }
@@ -44,17 +41,17 @@ CLoginLogoutStatistics::~CLoginLogoutStatistics()
 {
     for (int i = 0; i < 7; i++)
     {
-        m_maps[i].~map();
+        m_maps[i].clear();
     }
 }
 
 void CLoginLogoutStatistics::ProcessByMinute()
 {
     Packet_DBMW_Statistic_Login_Logout pkt;
-    *(unsigned int*)((char*)&pkt + 0x608) = m_fieldac;
-    *(unsigned int*)((char*)&pkt + 0x60c) = m_fieldb0;
-    *(unsigned int*)((char*)&pkt + 0x610) = m_fieldb4;
-    *(unsigned int*)((char*)&pkt + 0x614) = m_fieldb8;
+    ((RA_UINT<1544>*)&pkt)->v = m_fieldac;
+    ((RA_UINT<1548>*)&pkt)->v = m_fieldb0;
+    ((RA_UINT<1552>*)&pkt)->v = m_fieldb4;
+    ((RA_UINT<1556>*)&pkt)->v = m_fieldb8;
     m_fieldb4 = 0;
     m_fieldb8 = 0;
     m_app->Get_ServerHandler()->GetDBServer()->SendToServer((char*)&pkt, 0x618);
@@ -97,11 +94,11 @@ void CLoginLogoutStatistics::CountNumOfOccupations(ENUM_LOGIN_LOGOUT type, int v
 {
     if ((int)type == 0)
     {
-        m_fieldac = (unsigned int)value;
+        m_fieldac = value;
     }
     else if ((int)type == 4)
     {
-        m_fieldb0 = (unsigned int)value;
+        m_fieldb0 = value;
     }
 }
 

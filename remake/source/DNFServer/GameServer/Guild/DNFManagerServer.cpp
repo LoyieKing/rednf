@@ -82,12 +82,20 @@ CManagerServer::~CManagerServer()
 
 bool CManagerServer::Initialize()
 {
-    return CServerInterface::Initialize();
+    if (!CServerInterface::Initialize())
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CManagerServer::Destroy()
 {
-    return CServerInterface::Destroy();
+    if (!CServerInterface::Destroy())
+    {
+        return false;
+    }
+    return true;
 }
 
 void CManagerServer::SendHeartBeat(int group)

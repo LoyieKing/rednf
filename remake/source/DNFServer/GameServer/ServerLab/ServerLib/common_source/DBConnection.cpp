@@ -82,9 +82,9 @@ bool DBConnection::open(char* ip, char* dbname, char* id, char* pass, unsigned i
     strncpy(dbName_, dbname, 0x1e);
     if (mysql_real_connect(h_db, ip, id, pass, dbname, port, 0, 0) == 0)
     {
-        unsigned int err = mysql_errno(h_db);
-        TraceLog* pLog = G_TraceLog();
-        pLog->errorLog("%s %u %s %s %s error=\'%d\' FAILED", ip, port, dbname, id, pass, err);
+        // ORIG: err 与 G_TraceLog() 均为内联临时（err 保存在 ebx 跨调用）。
+        G_TraceLog()->errorLog("%s %u %s %s %s error=\'%d\' FAILED", ip, port, dbname, id, pass,
+                               mysql_errno(h_db));
         printf("%s %u %s %s %s error=\'%d\' FAILED\n", ip, port, dbname, id, pass,
                mysql_errno(h_db));
         return false;
@@ -249,9 +249,8 @@ int DBConnection::exec_query()
     if (db_ret != 0)
     {
         m_db_err = (int)mysql_errno(h_db);
-        int iVar2 = m_db_err;
-        TraceLog* pLog = G_TraceLog();
-        pLog->sysLog(7, "Fail: mysql_real_query(), %d", iVar2);
+        // ORIG: m_db_err 内联（跨 G_TraceLog 调用保存在 ebx）。
+        G_TraceLog()->sysLog(7, "Fail: mysql_real_query(), %d", m_db_err);
         if ((m_db_err == 0x7d5) || (m_db_err == 0x7dd) || (m_db_err == 0x7d3) ||
             (m_db_err == 0x7d6))
         {
@@ -259,14 +258,14 @@ int DBConnection::exec_query()
             int ping_ret = mysql_ping(h_db);
             if (ping_ret != 0)
             {
-                bool bGone = (mysql_errno(h_db) == CR_SERVER_GONE_ERROR);
-                if (bGone)
+                // ORIG: 条件内联（sete+test），无 bool 局部。
+                if (mysql_errno(h_db) == CR_SERVER_GONE_ERROR)
                 {
                     if (mysql_real_connect(h_db, dbIp_, dbAcc_, dbPwd_, dbName_, dbPort_, 0, 0) ==
                         0)
                     {
-                        unsigned int errno2 = mysql_errno(h_db);
-                        G_TraceLog()->sysLog(7, "DB reconnection fail. err_no(%d)", errno2);
+                        G_TraceLog()->sysLog(7, "DB reconnection fail. err_no(%d)",
+                                             mysql_errno(h_db));
                     }
                     else
                     {
@@ -279,8 +278,8 @@ int DBConnection::exec_query()
                 }
                 else
                 {
-                    int err2 = (int)mysql_errno(h_db);
-                    G_TraceLog()->sysLog(7, "DB reconnection fail. %d, %d", ping_ret, err2);
+                    G_TraceLog()->sysLog(7, "DB reconnection fail. %d, %d", ping_ret,
+                                         mysql_errno(h_db));
                 }
             }
             return 2;

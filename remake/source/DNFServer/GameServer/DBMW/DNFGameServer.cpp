@@ -45,9 +45,9 @@ void CGameServer::SendToServer(char* buf, int len)
 } 
 char CGameServer::IsValidGameServer() 
 { 
-    if (m_type != 0xff) 
-        return 1; 
-    return 0; 
+    if (m_type == 0xff) 
+        return 0; 
+    return 1; 
 }
 
 void CGameServer::SendHeartBeat()
@@ -59,4 +59,3 @@ void CGameServer::SendHeartBeat()
         m_udpHandler->SendToServer((char*)&pkt, 0xb, m_port, m_name.c_str());
     }
 }
-

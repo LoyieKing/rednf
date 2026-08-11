@@ -82,6 +82,21 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
+#pragma pack(push,1)
+struct STGuildMemerDBInfo_Layout
+{
+    char pad0x0[0x15];
+    unsigned char m15;
+    unsigned int m16;   // +0x16（CUser 内 +0x60）
+};
+#pragma pack(pop)
+
+struct CUserGuildPointLayout
+{
+    char pad[0x60];
+    unsigned int m_guildPoint;   // +0x60
+};
+
 void* CUser::operator new(unsigned int size)
 {
     return m_UserMemPool_.alloc();
@@ -172,12 +187,12 @@ void CUser::LoadGuildMember(unsigned int guildKey, STGuildMemerDBInfo& info)
 
 void CUser::AddGuildMemberPoint(unsigned int point)
 {
-    unsigned int old = *(unsigned int*)((char*)this + 0x60);
-    *(unsigned int*)((char*)this + 0x60) += point;
+    unsigned int old = ((CUserGuildPointLayout*)this)->m_guildPoint;
+    ((CUserGuildPointLayout*)this)->m_guildPoint += point;
     SetGuildMemFlag(0x10);
-    if (*(unsigned int*)((char*)this + 0x60) < old)
+    if ((unsigned int)((CUserGuildPointLayout*)this)->m_guildPoint < old)
     {
-        *(unsigned int*)((char*)this + 0x60) = old;
+        ((CUserGuildPointLayout*)this)->m_guildPoint = old;
     }
 }
 
@@ -204,7 +219,7 @@ void CUser::SaveGuildMember(unsigned char type, unsigned int value, CServerHandl
 
 void CUser::ResetGuildPoint()
 {
-    *(unsigned int*)((char*)this + 0x60) = 0;
+    ((CUserGuildPointLayout*)this)->m_guildPoint = 0;
 }
 
 void CUser::ResetCharInfo()
@@ -258,7 +273,7 @@ void CUser::SetUserInfo_CharNo(char sex, char job, short flag, unsigned int char
 {
     m_job = (unsigned char)sex;
     m_growthType = (unsigned char)job;
-    *(short*)((char*)this + 0x38) = flag;
+    m_guildMemFlag = (unsigned short)flag;
     m_charNo = charNo;
     memcpy(m_charInfo, name, 0x1d);
 }
@@ -326,8 +341,8 @@ void CUser::SendGuildMemberDBInfo(STGuildMemerDBInfo& info)
 
 void CUser::SetUserChangableInfo(short type, char value)
 {
-    *(short*)((char*)this + 0x38) = type;
-    *(char*)((char*)this + 0x37) = value;
+    m_guildMemFlag = type;
+    m_growthType = value;
 }
 
 int CUser::RegisterToBlackList(unsigned int charNo, char* name)
@@ -369,10 +384,12 @@ int CUser::DeleteToBlackList(unsigned int charNo)
 
 void CUser::ResetBlackList()
 {
-    if (!m_blackList.empty())
+    if (m_blackList.empty())
     {
-        m_blackList.clear();
+        return;
     }
+    m_blackList.clear();
+    return;
 }
 
 void CUser::GetBlackList(unsigned char& count, STBlackUserDBType* list)
@@ -425,7 +442,8 @@ int CUser::IsBlackUser(unsigned int charNo)
     {
         return 0;
     }
-    return m_blackList.find(charNo) != m_blackList.end() ? 1 : 0;
+    std::map<unsigned int, CBlackUser*>::iterator it = m_blackList.find(charNo);
+    return it != m_blackList.end() ? 1 : 0;
 }
 
 unsigned short CUser::GetBlackListSize()
@@ -463,14 +481,6 @@ void CUser::MakeGameServerSendUserInfoPacket(unsigned int guildKey)
     SendTcpGameserver(&pkt);
 }
 
-#pragma pack(push,1)
-struct STGuildMemerDBInfo_Layout
-{
-    char pad0x0[0x15];
-    unsigned char m15;
-    unsigned int m16;
-};
-#pragma pack(pop)
 STGuildMemerDBInfo::STGuildMemerDBInfo()
 {
     ((STGuildMemerDBInfo_Layout*)this)->m15 = 0;
@@ -495,7 +505,7 @@ bool CUser::IsSetGuildMemFlag(unsigned short flag)
 
 void CUser::SetGuildMemFlag(unsigned short flag)
 {
-    m_field48 = flag;
+    m_field48 |= flag;
 }
 
 int CUser::GetIdByChannel()
@@ -510,7 +520,7 @@ unsigned char CUser::GetJob()
 
 void CUser::ResetGuildMemFlag(unsigned short flag)
 {
-    m_field48 &= (unsigned short)~flag;
+    m_field48 = (unsigned short)(m_field48 & ~flag);
 }
 
 void CUser::SetGuildInviteFact(unsigned int guildId, unsigned int callerId, unsigned char fact)
@@ -543,18 +553,14 @@ Packet_Monitor_Set_Guild_Key::Packet_Monitor_Set_Guild_Key()
 }
 
 Packet_Monitor_SAVE_Guild_Member::Packet_Monitor_SAVE_Guild_Member()
-    : PacketHeader(0x40f, 0x2e)
+    : PacketHeader(0x40f, 0x2e), m_flag(0xff), m_b(0)
 {
-    *(unsigned char*)((char*)this + 0x10) = 0xff;
-    *(unsigned int*)((char*)this + 0xb) = 0;
-    new ((char*)this + 0x13) STGuildMemerDBInfo;
 }
 
 Packet_Monitor_Notice_Guild_Member_Info::Packet_Monitor_Notice_Guild_Member_Info()
     : PacketHeader(0x431, 0x2c)
 {
-    new ((char*)this + 0x12) STGuildMemerDBInfo;
-    memset((char*)this + 0x12, 0, 0x1a);
+    memset(&m_info, 0, sizeof(m_info));
 }
 
 Packet_Send_All_User_Info_Minimum_For_Guild_System::
@@ -610,17 +616,17 @@ unsigned char CUser::GetGrowthType()
 
 unsigned char CUser::GetLevel()
 {
-    return *(unsigned short*)((char*)this + 0x38);
+    return (unsigned char)m_guildMemFlag;
 }
 
 void CUser::SetSex(unsigned char sex)
 {
-    *(unsigned char*)((char*)this + 0x3a) = sex;
+    m_field3a = sex;
 }
 
 unsigned char CUser::GetSex()
 {
-    return *(unsigned char*)((char*)this + 0x3a);
+    return m_field3a;
 }
 
 void CUser::SetSsn(char* ssn)
@@ -658,17 +664,17 @@ bool CUser::IsSubGuildMaster()
 
 void CUser::SetBlackListDBFlag(unsigned short flag)
 {
-    m_field7c = flag;
+    m_field7c |= flag;
 }
 
 unsigned int CUser::GetGuildInviteCallerId()
 {
-    return *(unsigned int*)((char*)this + 0x80);
+    return m_field80;
 }
 
 unsigned int CUser::GetGuildInviteGuildId()
 {
-    return *(unsigned int*)((char*)this + 0x84);
+    return m_field84;
 }
 
 void CUser::SetTcpGameServer(CTcpGameServer* server)

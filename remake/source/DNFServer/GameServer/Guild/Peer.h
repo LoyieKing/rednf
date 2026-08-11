@@ -39,7 +39,9 @@ public:
     int send_packet();
     void DisConnSig();
     void ConnSig();
-    char m_data[0x97824];   // +0x1c 起，sizeof(CPeer)=0x97840（MemPool chunk）
+    char m_data[0x1818];        // +0x1c 起
+    int m_remainSendLen;        // +0x1834
+    char m_rest[0x97824 - 0x1818 - 4];
 };
 
 // from GuildPackets.h

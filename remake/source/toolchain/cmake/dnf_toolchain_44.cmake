@@ -7,6 +7,7 @@
 #   c6      -> c6root g++ 4.4.7（默认，多数服务）
 #   c5      -> c5root g++ 4.1.2-55（relay C5 组 / stun）
 #   c6446r  -> c6root 驱动 + 4.4.6 cc1plus（channel/bridge/auction/point）
+#   c6444r  -> c6root 驱动 + Red Hat 4.4.4-13 cc1plus（monitor ORIG .comment 主体）
 if(NOT DEFINED DF_TC_ROOT)
     if(DEFINED ENV{DNF_TC_ROOT} AND NOT "$ENV{DNF_TC_ROOT}" STREQUAL "")
         set(DF_TC_ROOT "$ENV{DNF_TC_ROOT}")
@@ -23,6 +24,7 @@ set(DF_C5ROOT  "${DF_TC_ROOT}/c5root")
 set(DF_C5R52T  "${DF_TC_ROOT}/c5r52tool")
 set(DF_C5R52I  "${DF_TC_ROOT}/c5r52i386")
 set(DF_LSD44   "${DF_TC_ROOT}/lsd44/v4.4.6")
+set(DF_LSD444  "${DF_TC_ROOT}/lsd44/v4.4.4")
 set(DF_ZLIB32  "${DF_TC_ROOT}/zlib32")
 set(DF_CC1P446 "${DF_TC_ROOT}/cc1plus446bin")
 
@@ -35,6 +37,9 @@ if(DF_CC_VARIANT STREQUAL "c5")
 elseif(DF_CC_VARIANT STREQUAL "c6446r")
     set(CMAKE_C_COMPILER   "${_DNF_TC_CMAKE_DIR}/dnf_c6446r_gxx.sh")
     set(CMAKE_CXX_COMPILER "${_DNF_TC_CMAKE_DIR}/dnf_c6446r_gxx.sh")
+elseif(DF_CC_VARIANT STREQUAL "c6444r")
+    set(CMAKE_C_COMPILER   "${_DNF_TC_CMAKE_DIR}/dnf_c6444r_gxx.sh")
+    set(CMAKE_CXX_COMPILER "${_DNF_TC_CMAKE_DIR}/dnf_c6444r_gxx.sh")
 else()
     set(CMAKE_C_COMPILER   "${_DNF_TC_CMAKE_DIR}/dnf_c6_gxx.sh")
     set(CMAKE_CXX_COMPILER "${_DNF_TC_CMAKE_DIR}/dnf_c6_gxx.sh")

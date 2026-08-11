@@ -191,8 +191,15 @@ private:
 class CMsgCell
 {
 public:
-    CMsgCell();
-    virtual ~CMsgCell();
+    CMsgCell()
+    {
+        m_wSize = 0;
+        m_wPos = 0;
+        m_nRefCount = 0;
+    }
+    virtual ~CMsgCell()
+    {
+    }
     BOOL PAD();
     void AttachStream(char* szBuf, int nSize);
     CMsgCell& operator<<(tagPacketHeader* pHeader);
@@ -531,7 +538,9 @@ namespace ChannelServiceApp
     class UDPUserStates
     {
     public:
-        UDPUserStates();
+        UDPUserStates()
+        {
+        }
 
     private:
         TCPUserStates::Status Status_;
@@ -572,7 +581,7 @@ namespace ChannelServiceApp
         }
         bool isToWrite() const;
         bool isIdle() const;
-        int getACCID() const
+        unsigned int getACCID() const
         {
             return nAccID_;
         }
@@ -593,7 +602,7 @@ namespace ChannelServiceApp
     private:
         TThreadLock<ThreadLock_linux> lockRecv_;
         TThreadLock<ThreadLock_linux> lockSend_;
-        int nAccID_;
+        unsigned int nAccID_;
         int nReason_;
         bool bDisconnected_;
         bool bAboutToDisconnect_;

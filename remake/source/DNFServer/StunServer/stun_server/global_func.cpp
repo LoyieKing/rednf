@@ -79,7 +79,12 @@ bool save_pid()
         return false;
     }
 
-    memset(buf, 0, 512);
+    // ORIG 二进制中 save_pid 的 memset 走 builtin 参数路径（lea-rax 直取地址再
+    // mov 到 rdi），而 write_log 的 memset 走普通调用路径（lea 直入 rdi）——
+    // 同 TU 双形态只能由「本 TU 编译带 -fno-builtin-memset + save_pid 显式
+    // __builtin_memset」复现（A/B 试编译验证，见 build 备注）。调用目标仍为
+    // memset@plt，语义不变。
+    __builtin_memset(buf, 0, 512);
     sprintf(buf, "%ld\n", (long)getpid());
     write_byte = write(fd, buf, strlen(buf));
     if (write_byte < 0)

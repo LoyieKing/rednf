@@ -26,20 +26,27 @@
 #include "Packet_DBMW_Change_Char_Name.h"
 #include "Packet_Monitor_Reply_Charac_Info.h"
 
-CThreadInterface::CThreadInterface() {}
+CThreadInterface::CThreadInterface()
+{
+    m_thread = 0;
+    m_running = 0;
+}
 
 CThreadInterface::~CThreadInterface() {}
 
-void CThreadInterface::stop() {}
+void CThreadInterface::stop()
+{
+    m_running = false;
+}
 
 void CThreadInterface::join()
 {
-    pthread_join((pthread_t)m_thread, 0);
+    pthread_join(m_thread, 0);
 }
 
 bool CThreadInterface::begin()
 {
-    int r = pthread_create((pthread_t*)&m_thread, 0, dispatch_proxy, this);
+    int r = pthread_create(&m_thread, 0, dispatch_proxy, this);
     if (r < 0)
     {
         puts("[ThreadInterface::begin] Can't begin thread");
@@ -48,5 +55,9 @@ bool CThreadInterface::begin()
     return 1;
 }
 
-void* CThreadInterface::dispatch_proxy(void* temp) { return 0; }
-
+void* CThreadInterface::dispatch_proxy(void* temp)
+{
+    CThreadInterface* t = (CThreadInterface*)temp;
+    t->dispatch(temp);
+    return 0;
+}

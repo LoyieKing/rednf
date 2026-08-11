@@ -28,6 +28,16 @@
 #include "DNFAppConfig.h"
 #include "TcpNetSystem.h"
 
+// ORIG 内部 Tcp 服务器登录/心跳包：id@0 size@2 pad@4 sock@6 flag@0xa（packed 11B）
+struct __attribute__((packed)) TcpServerPkt
+{
+    unsigned short id;
+    unsigned short size;
+    unsigned short pad;
+    unsigned int sock;
+    unsigned char flag;
+};
+
 CDBServer::CDBServer() {}
 
 CDBServer::CDBServer(stServerInfo* info) : CServerInterface(info) {}
@@ -76,7 +86,7 @@ void CTcpDBServer::Clear()
     m_ip.clear();
 }
 
-void CTcpDBServer::Init(CTcpNetSystem* net) { m_net = net; }
+void CTcpDBServer::Init(CTcpNetSystem* net) { this->m_net = net; }
 
 void CTcpDBServer::SetIP(std::string ip) {}
 
@@ -92,8 +102,10 @@ char CTcpDBServer::IsValidServer()
     {
         return 1;
     }
-    CMyFileLog log("IsValidServer", 0x16d);
-    log("./log/TcpServer", "Invalid Tcp Server(%d,%x)", m_sock, m_net);
+    register CTcpNetSystem* net = m_net;
+    register int sock = m_sock;
+    CMyFileLog log(__FUNCTION__, 0x16d);
+    log("./log/TcpServer", "Invalid Tcp Server(%d,%x)", sock, net);
     return 0;
 }
 
@@ -104,30 +116,33 @@ unsigned short CTcpDBServer::GetPort() { return m_port; }
 void CTcpDBServer::SendHeartbeat()
 {
     char* buf = makePacketHeader(0x106a, 0xb);
-    if (buf != 0)
+    TcpServerPkt* p = (TcpServerPkt*)buf;
+    if (p != 0)
     {
-        buf[10] = 0xa;
-        SendToServer(buf);
+        p->flag = 0xa;
+        SendToServer((char*)p);
     }
 }
 
 void CTcpDBServer::SendLogin()
 {
     char* buf = makePacketHeader(0x1068, 0xb);
-    if (buf != 0)
+    TcpServerPkt* p = (TcpServerPkt*)buf;
+    if (p != 0)
     {
-        buf[10] = 0xa;
-        SendToServer(buf);
+        p->flag = 0xa;
+        SendToServer((char*)p);
     }
 }
 
 void CTcpDBServer::SendLogout()
 {
     char* buf = makePacketHeader(0x1069, 0xb);
-    if (buf != 0)
+    TcpServerPkt* p = (TcpServerPkt*)buf;
+    if (p != 0)
     {
-        buf[10] = 0xa;
-        SendToServer(buf);
+        p->flag = 0xa;
+        SendToServer((char*)p);
     }
 }
 
@@ -143,18 +158,21 @@ void CTcpDBServer::DisConnected()
 
 char* CTcpDBServer::makePacketHeader(unsigned short id, unsigned short size)
 {
-    if (m_net == 0)
+    char* buf;
+    TcpServerPkt* puVar1;
+    if (m_net != 0)
     {
-        return 0;
+        buf = (char*)m_net->Acquire_TcpSendBuffer();
+        puVar1 = (TcpServerPkt*)buf;
+        puVar1->id = id;
+        puVar1->size = size;
+        puVar1->sock = (unsigned int)m_sock;
+        return (char*)puVar1;
     }
-    char* buf = (char*)((CTcpNetSystem*)m_net)->Acquire_TcpSendBuffer();
-    *(unsigned short*)buf = id;
-    *(unsigned short*)(buf + 2) = size;
-    *(unsigned int*)(buf + 6) = (unsigned int)m_sock;
-    return buf;
+    return 0;
 }
 
 void CTcpDBServer::SendToServer(char* buf)
 {
-    ((CTcpNetSystem*)m_net)->PushTcpSendPacketQ(buf);
+    m_net->PushTcpSendPacketQ(buf);
 }

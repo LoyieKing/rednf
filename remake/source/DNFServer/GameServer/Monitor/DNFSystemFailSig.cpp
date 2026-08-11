@@ -27,7 +27,7 @@
 #include "Packet_Monitor_Reply_Charac_Info.h"
 #include "DNFApplication.h"
 
-CSystemFailSig::CSystemFailSig() {}
+CSystemFailSig::CSystemFailSig() throw() {}
 
 CSystemFailSig::~CSystemFailSig() {}
 

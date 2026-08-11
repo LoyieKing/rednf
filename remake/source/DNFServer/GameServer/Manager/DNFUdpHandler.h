@@ -10,7 +10,8 @@ public:
     unsigned int InetAddr(const char* ip) const;
     int InitServerSocket(int port);
     int InitClientSocket();
-    char RecvFromClient(char* buf, int* size, unsigned int* addr, unsigned short* port) const;
+    // ORIG 返回类型 bool：调用方 !RecvFromClient(...) 编译为 xor $1。
+    bool RecvFromClient(char* buf, int* size, unsigned int* addr, unsigned short* port) const;
     int SendToClient(char* buf, int len, unsigned short port, const char* ip,
                      unsigned int addr) const;
     int SendToServer(char* buf, int len, unsigned short port, const char* ip) const;

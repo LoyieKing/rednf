@@ -8,12 +8,13 @@ class CThreadInterface
 {
 public:
     CThreadInterface();
-    virtual ~CThreadInterface();
-    virtual char begin();
-    virtual void* dispatch_proxy(void* param);
-    virtual void* dispatch(void* param) = 0;
+    // ORIG 虚表槽位：stop / join / ~ / dispatch（析构排在 stop/join 之后）
     virtual void stop();
     virtual void join();
+    virtual ~CThreadInterface();
+    virtual void* dispatch(void* param) = 0;
+    bool begin();
+    static void* dispatch_proxy(void* param);
     pthread_t m_thread;  // +4
     char m_stop;         // +8
 };

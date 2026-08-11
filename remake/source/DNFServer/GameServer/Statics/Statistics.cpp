@@ -9,6 +9,7 @@
 #include "DNFFunctionLib.h"
 #include "StatisticProxy.h"
 #include "Packet_P2P_Statistics.h"
+#include "Packet_Server_Match_data.h"
 
 void StatisticManager::ResetDisjointAvatarInfoTotal()
 {
@@ -36,10 +37,25 @@ STCubeStatisticKey::~STCubeStatisticKey()
 {
 }
 StatisticManager::StatisticManager()
+    : m_flag(0), m_field34(0)
 {
 }
 StatisticManager::~StatisticManager()
 {
+    ResetPartyMap();
+    ResetPartyJobMap();
+    ResetPartyCharacMap();
+    ResetDeathTowerValueMap();
+    ResetDeathTowerPlayDataJobMap();
+    ResetDeathTowerPlayDataPartyMap();
+    ResetPacketOverflowMap();
+    ResetHellPartyStatisticItemMap();
+    ResetReasonCrashDownInfoMap();
+    for (int i = 0; i < 8; i++)
+    {
+        m_modules[i].Reset();
+    }
+    m_dungeonLag.clear();
 }
 void StatisticManager::ResetPartyMap()
 {
@@ -75,16 +91,24 @@ void StatisticManager::ResetHellPartyStatisticItemMap()
 }
 void StatisticManager::WriteDeathTowerValueStatistic(Packet_DeathTower_Statistic_Value* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        char m_f0a;
+        unsigned short m_f0b;
+        unsigned int m_f0d;
+        int m_f11;
+    };
+    int m_padFrame;
     STDeathTowerValueStatisticKey key;
-    key.m_field0 = *(char*)((char*)pkt + 10);
-    key.m_field2 = *(unsigned short*)((char*)pkt + 0xb);
-    key.m_field4 = *(unsigned int*)((char*)pkt + 0xd);
+    key.m_field0 = ((Wire*)pkt)->m_f0a;
+    key.m_field2 = ((Wire*)pkt)->m_f0b;
+    key.m_field4 = ((Wire*)pkt)->m_f0d;
     ValueStatistic value;
-    value.m_data[0] = *(int*)((char*)pkt + 0x11);
+    value.m_data[0] = ((Wire*)pkt)->m_f11;
     std::map<STDeathTowerValueStatisticKey, ValueStatistic>::iterator it =
         m_deathTowerValue.find(key);
-    bool isNew = (m_deathTowerValue.empty() || it == m_deathTowerValue.end());
-    if (isNew)
+    if (m_deathTowerValue.empty() || it == m_deathTowerValue.end())
     {
         m_deathTowerValue.insert(std::make_pair(key, value));
     }
@@ -96,17 +120,26 @@ void StatisticManager::WriteDeathTowerValueStatistic(Packet_DeathTower_Statistic
 void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
     Packet_DeathTower_Statistic_Playdata_Job* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        char m_f0a;
+        unsigned short m_f0b;
+        unsigned int m_f0d;
+        char m_f11;
+        int m_f12;
+    };
+    int m_padFrame;
     STDeathTowerPlayDataJobStatisticKey key;
-    key.m_field0 = *(char*)((char*)pkt + 10);
-    key.m_field2 = *(unsigned short*)((char*)pkt + 0xb);
-    key.m_field4 = *(unsigned int*)((char*)pkt + 0xd);
-    key.m_field8 = *(char*)((char*)pkt + 0x11);
+    key.m_field0 = ((Wire*)pkt)->m_f0a;
+    key.m_field2 = ((Wire*)pkt)->m_f0b;
+    key.m_field4 = ((Wire*)pkt)->m_f0d;
+    key.m_field8 = ((Wire*)pkt)->m_f11;
     PlayDataJobStatistic value;
-    value.m_data[0] = *(int*)((char*)pkt + 0x12);
+    value.m_data[0] = ((Wire*)pkt)->m_f12;
     std::map<STDeathTowerPlayDataJobStatisticKey, PlayDataJobStatistic>::iterator it =
         m_deathTowerJob.find(key);
-    bool isNew = (m_deathTowerJob.empty() || it == m_deathTowerJob.end());
-    if (isNew)
+    if (m_deathTowerJob.empty() || it == m_deathTowerJob.end())
     {
         m_deathTowerJob.insert(std::make_pair(key, value));
     }
@@ -118,15 +151,22 @@ void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
 void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
     Packet_DeathTower_Statistic_Playdata_Party* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        char m_f0a;
+        char m_f0b;
+        int m_f0c;
+    };
+    int m_padFrame;
     STDeathTowerPlayDataPartyStatisticKey key;
-    key.m_field0 = *(char*)((char*)pkt + 10);
-    key.m_field1 = *(char*)((char*)pkt + 0xb);
+    key.m_field0 = ((Wire*)pkt)->m_f0a;
+    key.m_field1 = ((Wire*)pkt)->m_f0b;
     PlayDataPartyStatistic value;
-    value.m_data[0] = *(int*)((char*)pkt + 0xc);
+    value.m_data[0] = ((Wire*)pkt)->m_f0c;
     std::map<STDeathTowerPlayDataPartyStatisticKey, PlayDataPartyStatistic>::iterator it =
         m_deathTowerParty.find(key);
-    bool isNew = (m_deathTowerParty.empty() || it == m_deathTowerParty.end());
-    if (isNew)
+    if (m_deathTowerParty.empty() || it == m_deathTowerParty.end())
     {
         m_deathTowerParty.insert(std::make_pair(key, value));
     }
@@ -137,31 +177,43 @@ void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
 }
 void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xc];
+        int m_field4;             // +0xc
+        char m_field8;            // +0x10
+        unsigned char m_field9;   // +0x11
+        unsigned char m_fielda;   // +0x12
+        unsigned char m_fieldb;   // +0x13
+        unsigned char m_fieldc;   // +0x14
+        char m_fieldd;            // +0x15
+        int m_data[10];           // +0x16
+        short m_last;             // +0x3e
+    };
+    int m_padFrame;
     STPartyStatisticKey key;
     key.m_field0 = 0;
-    key.m_field4 = *(unsigned int*)((char*)pkt + 0xc);
-    key.m_field8 = *(char*)((char*)pkt + 0x10);
-    key.m_field9 = *(char*)((char*)pkt + 0x11);
-    key.m_fielda = *(char*)((char*)pkt + 0x12);
-    key.m_fieldb = *(char*)((char*)pkt + 0x13);
-    key.m_fieldc = *(char*)((char*)pkt + 0x14);
-    key.m_fieldd = *(char*)((char*)pkt + 0x15);
+    key.m_field4 = ((Wire*)pkt)->m_field4;
+    key.m_field8 = ((Wire*)pkt)->m_field8;
+    key.m_field9 = ((Wire*)pkt)->m_field9;
+    key.m_fielda = ((Wire*)pkt)->m_fielda;
+    key.m_fieldb = ((Wire*)pkt)->m_fieldb;
+    key.m_fieldc = ((Wire*)pkt)->m_fieldc;
+    key.m_fieldd = ((Wire*)pkt)->m_fieldd;
     PartyStatistic value;
-    value.m_data[0] = *(int*)((char*)pkt + 0x16);
-    value.m_data[1] = *(int*)((char*)pkt + 0x1a);
-    value.m_data[2] = *(int*)((char*)pkt + 0x1e);
-    value.m_data[3] = *(int*)((char*)pkt + 0x22);
-    value.m_data[4] = *(int*)((char*)pkt + 0x26);
-    value.m_data[5] = *(int*)((char*)pkt + 0x2a);
-    value.m_data[6] = *(int*)((char*)pkt + 0x2e);
-    value.m_data[7] = *(int*)((char*)pkt + 0x32);
-    value.m_data[8] = *(int*)((char*)pkt + 0x36);
-    value.m_data[9] = *(int*)((char*)pkt + 0x3a);
-    value.m_data[10] = 0;
-    value.m_data[11] = (int)*(short*)((char*)pkt + 0x3e);
+    value.m_data[0] = ((Wire*)pkt)->m_data[0];
+    value.m_data[1] = ((Wire*)pkt)->m_data[1];
+    value.m_data[2] = ((Wire*)pkt)->m_data[2];
+    value.m_data[3] = ((Wire*)pkt)->m_data[3];
+    value.m_data[4] = ((Wire*)pkt)->m_data[4];
+    value.m_data[5] = ((Wire*)pkt)->m_data[5];
+    value.m_data[6] = ((Wire*)pkt)->m_data[6];
+    value.m_data[7] = ((Wire*)pkt)->m_data[7];
+    value.m_data[8] = ((Wire*)pkt)->m_data[8];
+    value.m_data[9] = ((Wire*)pkt)->m_data[9];
+    value.m_data[11] = ((Wire*)pkt)->m_last;
     std::map<STPartyStatisticKey, PartyStatistic>::iterator it = m_party.find(key);
-    bool isNew = (m_party.empty() || it == m_party.end());
-    if (isNew)
+    if (m_party.empty() || it == m_party.end())
     {
         m_party.insert(std::make_pair(key, value));
     }
@@ -172,22 +224,36 @@ void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party
 }
 void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Party_Job* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xc];
+        unsigned int m_f0c;
+        char m_f10;
+        char m_f11;
+        char m_f12;
+        char m_f13;
+        char m_f14;
+        char m_f15;
+        unsigned int m_f16;
+        char m_f1a;
+        int m_f1b;
+    };
+    int m_padFrame;
     STPartyJobStatisticKey key;
     key.m_field0 = 0;
-    key.m_field4 = *(unsigned int*)((char*)pkt + 0xc);
-    key.m_field8 = *(char*)((char*)pkt + 0x10);
-    key.m_field9 = *(char*)((char*)pkt + 0x11);
-    key.m_fielda = *(char*)((char*)pkt + 0x12);
-    key.m_fieldb = *(char*)((char*)pkt + 0x13);
-    key.m_fieldc = *(char*)((char*)pkt + 0x14);
-    key.m_fieldd = *(char*)((char*)pkt + 0x15);
-    key.m_field10 = *(unsigned int*)((char*)pkt + 0x16);
-    key.m_field14 = *(char*)((char*)pkt + 0x1a);
+    key.m_field4 = ((Wire*)pkt)->m_f0c;
+    key.m_field8 = ((Wire*)pkt)->m_f10;
+    key.m_field9 = ((Wire*)pkt)->m_f11;
+    key.m_fielda = ((Wire*)pkt)->m_f12;
+    key.m_fieldb = ((Wire*)pkt)->m_f13;
+    key.m_fieldc = ((Wire*)pkt)->m_f14;
+    key.m_fieldd = ((Wire*)pkt)->m_f15;
+    key.m_field10 = ((Wire*)pkt)->m_f16;
+    key.m_field14 = ((Wire*)pkt)->m_f1a;
     PartyJobStatistic value;
-    value.m_data[1] = *(int*)((char*)pkt + 0x1b);
+    value.m_data[1] = ((Wire*)pkt)->m_f1b;
     std::map<STPartyJobStatisticKey, PartyJobStatistic>::iterator it = m_partyJob.find(key);
-    bool isNew = (m_partyJob.empty() || it == m_partyJob.end());
-    if (isNew)
+    if (m_partyJob.empty() || it == m_partyJob.end())
     {
         m_partyJob.insert(std::make_pair(key, value));
     }
@@ -198,31 +264,55 @@ void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Pa
 }
 void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic_Party_Charac* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xc];
+        unsigned int m_f0c;
+        char m_f10;
+        char m_f11;
+        char m_f12;
+        unsigned int m_f13;
+        char m_pad[3];
+        char m_f17;
+        char m_f18;
+        int m_f19;
+        int m_f1d;
+        int m_f21;
+        int m_f25;
+        int m_f29;
+        int m_f2d;
+        int m_f31;
+        int m_f35;
+        int m_f39;
+        int m_f3d;
+        short m_f41;
+        int m_f43;
+    };
+    int m_padFrame;
     STPartyCharacKey key;
     key.m_field0 = 0;
-    key.m_field4 = *(unsigned int*)((char*)pkt + 0xc);
-    key.m_field8 = *(char*)((char*)pkt + 0x10);
-    key.m_field9 = *(char*)((char*)pkt + 0x11);
-    key.m_fielda = *(char*)((char*)pkt + 0x12);
-    key.m_fieldc = *(unsigned int*)((char*)pkt + 0x13);
-    key.m_field10 = *(char*)((char*)pkt + 0x17);
-    key.m_field11 = *(char*)((char*)pkt + 0x18);
+    key.m_field4 = ((Wire*)pkt)->m_f0c;
+    key.m_field8 = ((Wire*)pkt)->m_f10;
+    key.m_field9 = ((Wire*)pkt)->m_f11;
+    key.m_fielda = ((Wire*)pkt)->m_f12;
+    key.m_fieldc = ((Wire*)pkt)->m_f13;
+    key.m_field10 = ((Wire*)pkt)->m_f17;
+    key.m_field11 = ((Wire*)pkt)->m_f18;
     PartyCharacStatistic value;
-    value.m_data[0] = *(int*)((char*)pkt + 0x19);
-    value.m_data[1] = *(int*)((char*)pkt + 0x1d);
-    value.m_data[2] = *(int*)((char*)pkt + 0x21);
-    value.m_data[3] = *(int*)((char*)pkt + 0x25);
-    value.m_data[4] = *(int*)((char*)pkt + 0x29);
-    value.m_data[5] = *(int*)((char*)pkt + 0x2d);
-    value.m_data[6] = *(int*)((char*)pkt + 0x31);
-    value.m_data[7] = *(int*)((char*)pkt + 0x35);
-    value.m_data[8] = *(int*)((char*)pkt + 0x39);
-    value.m_data[9] = *(int*)((char*)pkt + 0x3d);
-    value.m_data[10] = (int)*(short*)((char*)pkt + 0x41);
-    value.m_data[12] = *(int*)((char*)pkt + 0x43);
+    value.m_data[0] = ((Wire*)pkt)->m_f19;
+    value.m_data[1] = ((Wire*)pkt)->m_f1d;
+    value.m_data[2] = ((Wire*)pkt)->m_f21;
+    value.m_data[3] = ((Wire*)pkt)->m_f25;
+    value.m_data[4] = ((Wire*)pkt)->m_f29;
+    value.m_data[5] = ((Wire*)pkt)->m_f2d;
+    value.m_data[6] = ((Wire*)pkt)->m_f31;
+    value.m_data[7] = ((Wire*)pkt)->m_f35;
+    value.m_data[8] = ((Wire*)pkt)->m_f39;
+    value.m_data[9] = ((Wire*)pkt)->m_f3d;
+    value.m_data[10] = (int)((Wire*)pkt)->m_f41;
+    value.m_data[12] = ((Wire*)pkt)->m_f43;
     std::map<STPartyCharacKey, PartyCharacStatistic>::iterator it = m_partyCharac.find(key);
-    bool isNew = (m_partyCharac.empty() || it == m_partyCharac.end());
-    if (isNew)
+    if (m_partyCharac.empty() || it == m_partyCharac.end())
     {
         m_partyCharac.insert(std::make_pair(key, value));
     }
@@ -233,12 +323,18 @@ void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic
 }
 void StatisticManager::WritePacketOverflowStatistic(Packet_Overflow_Statistic_Add* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        char m_f0a;
+        unsigned short m_f0b;
+    };
+    int m_padFrame;
     STPacketOverflowKey key;
-    key.m_field0 = *(char*)((char*)pkt + 10);
-    key.m_field2 = *(unsigned short*)((char*)pkt + 0xb);
+    key.m_field0 = ((Wire*)pkt)->m_f0a;
+    key.m_field2 = ((Wire*)pkt)->m_f0b;
     std::map<STPacketOverflowKey, int>::iterator it = m_packetOverflow.find(key);
-    bool isNew = (m_packetOverflow.empty() || it == m_packetOverflow.end());
-    if (isNew)
+    if (m_packetOverflow.empty() || it == m_packetOverflow.end())
     {
         m_packetOverflow.insert(std::make_pair(key, 1));
     }
@@ -256,33 +352,40 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
         for (std::map<STPartyStatisticKey, PartyStatistic>::iterator it = m_party.begin();
              it != m_party.end(); ++it)
         {
-            char* slot = (char*)&pkt + 0xe + idx * 0x3c;
-            *(unsigned short*)(slot + 0) = it->first.m_field0;
-            *(unsigned int*)(slot + 4) = it->first.m_field4;
-            slot[8] = it->first.m_field8;
-            slot[9] = it->first.m_field9;
-            slot[10] = it->first.m_fielda;
-            slot[11] = it->first.m_fieldb;
-            slot[12] = it->first.m_fieldc;
-            slot[13] = it->first.m_fieldd;
-            for (int k = 0; k < 11; k++)
-            {
-                *(int*)(slot + 0xe + k * 4) = it->second.m_data[k];
-            }
+            pkt.m_elem[idx].m_field0 = it->first.m_field0;
+            pkt.m_elem[idx].m_field4 = it->first.m_field4;
+            pkt.m_elem[idx].m_field8 = it->first.m_field8;
+            pkt.m_elem[idx].m_field9 = it->first.m_field9;
+            pkt.m_elem[idx].m_fielda = it->first.m_fielda;
+            pkt.m_elem[idx].m_fieldb = it->first.m_fieldb;
+            pkt.m_elem[idx].m_fieldc = it->first.m_fieldc;
+            pkt.m_elem[idx].m_fieldd = it->first.m_fieldd;
+            pkt.m_elem[idx].m_data[0] = it->second.m_data[0];
+            pkt.m_elem[idx].m_data[1] = it->second.m_data[1];
+            pkt.m_elem[idx].m_data[2] = it->second.m_data[2];
+            pkt.m_elem[idx].m_data[3] = it->second.m_data[3];
+            pkt.m_elem[idx].m_data[4] = it->second.m_data[4];
+            pkt.m_elem[idx].m_data[5] = it->second.m_data[5];
+            pkt.m_elem[idx].m_data[6] = it->second.m_data[6];
+            pkt.m_elem[idx].m_data[7] = it->second.m_data[7];
+            pkt.m_elem[idx].m_data[8] = it->second.m_data[8];
+            pkt.m_elem[idx].m_data[9] = it->second.m_data[9];
+            pkt.m_elem[idx].m_data[10] = it->second.m_data[10];
+            pkt.m_elem[idx].m_data[11] = it->second.m_data[11];
             idx++;
             if (99 < idx)
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = 100;
+                pkt.m_count = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x183, "./log/statistic", "Party DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x183, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
             }
         }
         if (idx != 0)
         {
-            *(unsigned int*)((char*)&pkt + 0xa) = idx;
+            pkt.m_count = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x18d, "./log/statistic", "Party DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x18d, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
         }
     }
 }
@@ -312,7 +415,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
             {
                 *(unsigned int*)((char*)&pkt + 0xa) = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x19a, "./log/statistic", "PartyJob DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x1b3, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
             }
         }
@@ -320,7 +423,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
         {
             *(unsigned int*)((char*)&pkt + 0xa) = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x1a4, "./log/statistic", "PartyJob DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x1bd, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
         }
     }
 }
@@ -351,7 +454,7 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
             {
                 *(unsigned int*)((char*)&pkt + 0xa) = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x1b1, "./log/statistic", "PartyCharac DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x1f0, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party_Charac : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
             }
         }
@@ -359,7 +462,7 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
         {
             *(unsigned int*)((char*)&pkt + 0xa) = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x1bb, "./log/statistic", "PartyCharac DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x1fa, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party_Charac : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
         }
     }
 }
@@ -383,7 +486,7 @@ void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
             {
                 *(unsigned int*)((char*)&pkt + 0xa) = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x217, "./log/statistic", "DeathTowerValue DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x217, "./log/statistic", "Packet_DBMW_DeathTower_Statistic_Value : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
             }
         }
@@ -391,7 +494,7 @@ void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
         {
             *(unsigned int*)((char*)&pkt + 0xa) = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x220, "./log/statistic", "DeathTowerValue DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x220, "./log/statistic", "Packet_DBMW_DeathTower_Statistic_Value : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
         }
     }
 }
@@ -474,7 +577,7 @@ void StatisticManager::SendDBPacketOverflowStatistic(CServerHandler* handler)
             handler->SendToDB((PacketHeader*)&pkt);
             count++;
         }
-        DNF_LOG_SCOPE_LINE(0x297, "./log/Statistic", "Packet Overflow DB Sent %d", count);
+        DNF_LOG_SCOPE_LINE(0x297, "./log/Statistic", "Packet_DBMW_Packet_Overflow_Statistic : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", count);
     }
 }
 void StatisticManager::AMDecrypt(void* data, unsigned int len)
@@ -482,8 +585,9 @@ void StatisticManager::AMDecrypt(void* data, unsigned int len)
     for (unsigned int i = 0; i < len; i++)
     {
         ((unsigned char*)data)[i] ^= 0x9d;
-        ((unsigned char*)data)[i] = ((unsigned char*)data)[i] << 2 |
-                                    ((unsigned char*)data)[i] >> 6;
+        // ORIG 0x8074f24 实测：先求值 (x >> 6) 再 (x << 2)（sar 在前、shl 在后）。
+        ((unsigned char*)data)[i] = ((unsigned char*)data)[i] >> 6 |
+                                    ((unsigned char*)data)[i] << 2;
     }
 }
 void StatisticManager::WriteAssertManagerStatistic(Packet_Assert_Manager_Info* pkt)
@@ -492,14 +596,23 @@ void StatisticManager::WriteAssertManagerStatistic(Packet_Assert_Manager_Info* p
     {
         return;
     }
-    STAssertManagerKey key;
-    memcpy(key.m_str0, (char*)pkt + 0xe, *(size_t*)((char*)pkt + 10));
-    AMDecrypt(key.m_str0, *(unsigned int*)((char*)pkt + 10));
-    key.m_field100 = *(unsigned short*)((char*)pkt + 0x10e);
-    if (-1 < *(int*)((char*)pkt + 0x110) && *(int*)((char*)pkt + 0x110) < 0x101)
+    struct __attribute__((packed)) Wire
     {
-        memcpy(key.m_str2, (char*)pkt + 0x114, *(size_t*)((char*)pkt + 0x110));
-        AMDecrypt(key.m_str2, *(unsigned int*)((char*)pkt + 0x110));
+        char m_hdr[0xa];
+        unsigned int m_f0a;
+        char m_pad[0x104];
+        unsigned short m_f10e;
+        int m_f110;
+    };
+    int m_padFrame;
+    STAssertManagerKey key;
+    memcpy(key.m_str0, (char*)pkt + 0xe, ((Wire*)pkt)->m_f0a);
+    AMDecrypt(key.m_str0, ((Wire*)pkt)->m_f0a);
+    key.m_field100 = ((Wire*)pkt)->m_f10e;
+    if (-1 < ((Wire*)pkt)->m_f110 && ((Wire*)pkt)->m_f110 < 0x101)
+    {
+        memcpy(key.m_str2, (char*)pkt + 0x114, ((Wire*)pkt)->m_f110);
+        AMDecrypt(key.m_str2, ((Wire*)pkt)->m_f110);
         DNF_LOG_SCOPE_LINE(0x2b5, "./log/Statistic", "[AssertManager] Reason(%s)", key.m_str2);
     }
     if (99 < m_assertManager.size())
@@ -508,8 +621,7 @@ void StatisticManager::WriteAssertManagerStatistic(Packet_Assert_Manager_Info* p
         return;
     }
     std::map<STAssertManagerKey, int>::iterator it = m_assertManager.find(key);
-    bool isNew = (m_assertManager.empty() || it == m_assertManager.end());
-    if (isNew)
+    if (m_assertManager.empty() || it == m_assertManager.end())
     {
         m_assertManager.insert(std::make_pair(key, 1));
     }
@@ -537,7 +649,7 @@ void StatisticManager::SendDBAssertManagerStatistic(CServerHandler* handler)
             {
                 *(unsigned int*)((char*)&pkt + 0xa) = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x2a7, "./log/statistic", "AssertManager DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x2e1, "./log/Statistic", "Packet_DBMW_Assert_Manager_Info_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
                 idx = 0;
             }
         }
@@ -545,7 +657,7 @@ void StatisticManager::SendDBAssertManagerStatistic(CServerHandler* handler)
         {
             *(unsigned int*)((char*)&pkt + 0xa) = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x2b1, "./log/statistic", "AssertManager DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x2eb, "./log/Statistic", "Packet_DBMW_Assert_Manager_Info_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
         }
     }
 }
@@ -556,16 +668,21 @@ void StatisticManager::ResetAssertManagerMap()
 void StatisticManager::WriteUserTingTImeCheckStatistic(
     Packet_User_Ting_TimeCheck_Statistic_Add* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        int m_f0a;
+    };
+    int m_padFrame;
     STUserTingTimeCheckKey key;
-    key.m_field0 = *(int*)((char*)pkt + 10) / 0x3c;
+    key.m_field0 = ((Wire*)pkt)->m_f0a / 0x3c;
     if (0x59f < (int)key.m_field0)
     {
-        DNF_LOG_SCOPE_AT("WriteUserTingTImeCheckStatistic", 0x2fd, "./log/Statistic", "[User Ting Wrong] %d Sec", *(unsigned int*)((char*)pkt + 10));
+        DNF_LOG_SCOPE_LINE(0x2fd, "./log/Statistic", "[User Ting Wrong] %d Sec", ((Wire*)pkt)->m_f0a);
         return;
     }
     std::map<STUserTingTimeCheckKey, int>::iterator it = m_userTing.find(key);
-    bool isNew = (m_userTing.empty() || it == m_userTing.end());
-    if (isNew)
+    if (m_userTing.empty() || it == m_userTing.end())
     {
         m_userTing.insert(std::make_pair(key, 1));
     }
@@ -606,7 +723,7 @@ void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
             {
                 *(unsigned int*)((char*)&pkt + 0xa) = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x377, "./log/statistic", "TingUserTimeCheck DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x327, "./log/Statistic", "Packet_DBMW_Ting_User_TimeCheck_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
                 idx = 0;
             }
         }
@@ -614,7 +731,7 @@ void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
         {
             *(unsigned int*)((char*)&pkt + 0xa) = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x381, "./log/statistic", "TingUserTimeCheck DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x331, "./log/Statistic", "Packet_DBMW_Ting_User_TimeCheck_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
         }
     }
 }
@@ -638,7 +755,7 @@ void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
             {
                 *(unsigned int*)((char*)&pkt + 0xa) = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x353, "./log/statistic", "UserTing DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x34c, "./log/Statistic", "Packet_DBMW_User_Ting_TimeCheck_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
                 idx = 0;
             }
         }
@@ -646,7 +763,7 @@ void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
         {
             *(unsigned int*)((char*)&pkt + 0xa) = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x35d, "./log/statistic", "UserTing DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x356, "./log/Statistic", "Packet_DBMW_User_Ting_TimeCheck_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
         }
     }
 }
@@ -656,18 +773,27 @@ void StatisticManager::ResetUserTIngTimeCheckMap()
 }
 void StatisticManager::WriteHellPartyStatisticItem(Packet_HellParty_Statistic_Item* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        char m_f0a;
+        unsigned int m_f0b;
+        char m_f0f;
+        char m_f10;
+        char m_f11;
+    };
+    int m_padFrame;
     STHellPartyStatisticItemKey key;
-    key.m_field0 = *(char*)((char*)pkt + 10);
-    key.m_field4 = *(unsigned int*)((char*)pkt + 0xb);
-    key.m_field8 = *(char*)((char*)pkt + 0xf);
-    key.m_field9 = *(char*)((char*)pkt + 0x10);
-    key.m_fielda = *(char*)((char*)pkt + 0x11);
+    key.m_field0 = ((Wire*)pkt)->m_f0a;
+    key.m_field4 = ((Wire*)pkt)->m_f0b;
+    key.m_field8 = ((Wire*)pkt)->m_f0f;
+    key.m_field9 = ((Wire*)pkt)->m_f10;
+    key.m_fielda = ((Wire*)pkt)->m_f11;
     HellPartyItenmData value;
     memcpy(value.m_data, (char*)pkt + 0x12, 0x18);
     std::map<STHellPartyStatisticItemKey, HellPartyItenmData>::iterator it =
         m_hellParty.find(key);
-    bool isNew = (m_hellParty.empty() || it == m_hellParty.end());
-    if (isNew)
+    if (m_hellParty.empty() || it == m_hellParty.end())
     {
         m_hellParty.insert(std::make_pair(key, value));
     }
@@ -701,7 +827,7 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
             {
                 *(unsigned int*)((char*)&pkt + 0xa) = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
-                DNF_LOG_SCOPE_LINE(0x391, "./log/statistic", "HellParty DB Sent %d", idx);
+                DNF_LOG_SCOPE_LINE(0x391, "./log/statistic", "Packet_DBMW_HellParty_Statistic_Item : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
             }
         }
@@ -709,7 +835,7 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
         {
             *(unsigned int*)((char*)&pkt + 0xa) = idx;
             handler->SendToDB((PacketHeader*)&pkt);
-            DNF_LOG_SCOPE_LINE(0x39b, "./log/statistic", "HellParty DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x39b, "./log/statistic", "Packet_DBMW_HellParty_Statistic_Item : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
         }
     }
 }
@@ -1012,9 +1138,16 @@ void StatisticManager::DBSaveProcess(CServerHandler* handler)
 }
 void StatisticManager::AddFatigueBatteryStatistics(Packet_Fatigue_Battery_Money_Statistic* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        char m_f0a;
+        int m_f0b;
+        unsigned short m_f0f;
+    };
     STFatigueBattery value;
-    value.m_field0 = *(int*)((char*)pkt + 0xb);
-    value.m_field4 = (unsigned int)*(unsigned short*)((char*)pkt + 0xf);
+    value.m_field0 = ((Wire*)pkt)->m_f0b;
+    value.m_field4 = (unsigned int)((Wire*)pkt)->m_f0f;
     std::map<unsigned char, STFatigueBattery>::iterator it = m_fatigue.find(*(char*)((char*)pkt + 10));
     if (it == m_fatigue.end())
     {
@@ -1022,8 +1155,8 @@ void StatisticManager::AddFatigueBatteryStatistics(Packet_Fatigue_Battery_Money_
     }
     else
     {
-        it->second.m_field0 += *(int*)((char*)pkt + 0xb);
-        it->second.m_field4 += (unsigned int)*(unsigned short*)((char*)pkt + 0xf);
+        it->second.m_field0 += ((Wire*)pkt)->m_f0b;
+        it->second.m_field4 += (unsigned int)((Wire*)pkt)->m_f0f;
     }
 }
 void StatisticManager::ResetFatigueBattery()
@@ -1096,7 +1229,7 @@ void StatisticManager::AddReasonCrashDownData(Packet_Reason_Crash_Down_Info* pkt
              *(unsigned int*)((char*)pkt + 10), *(unsigned int*)((char*)pkt + 0xe),
              *(unsigned int*)((char*)pkt + 0x12), *(unsigned int*)((char*)pkt + 0x16));
     handler->SendToDB((PacketHeader*)&query);
-    DNF_LOG_SCOPE_AT("AddReasonCrashDownData", 0x5b8, "./log/ReasonCrashDown", "%s", sql);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5b8, "./log/ReasonCrashDown", "%s", sql);
 }
 void StatisticManager::AddDisjointAvatarInfo(Packet_Avater_Disjoint_Statistic* pkt)
 {
@@ -1137,15 +1270,21 @@ void StatisticManager::SendDBCreateEmblemInfo(CServerHandler* handler)
 }
 void StatisticManager::AddRandomboxStatistic(Packet_Randombox_statistic* pkt)
 {
-    if ((char)*(char*)((char*)pkt + 10) < 5 && -1 < (char)*(char*)((char*)pkt + 10))
+    struct __attribute__((packed)) Wire
     {
-        if (*(char*)((char*)pkt + 0xb) == 0)
+        char m_hdr[0xa];
+        char m_f0a;
+        char m_f0b;
+    };
+    if ((char)((Wire*)pkt)->m_f0a < 5 && -1 < (char)((Wire*)pkt)->m_f0a)
+    {
+        if (((Wire*)pkt)->m_f0b == 0)
         {
-            *(int*)((char*)this + ((char)*(char*)((char*)pkt + 10) + 0xd0) * 4 + 8) += 1;
+            *(int*)((char*)this + ((char)((Wire*)pkt)->m_f0a + 0xd0) * 4 + 8) += 1;
         }
-        else if (*(char*)((char*)pkt + 0xb) == 1)
+        else if (((Wire*)pkt)->m_f0b == 1)
         {
-            *(int*)((char*)this + ((char)*(char*)((char*)pkt + 10) + 0xd4) * 4 + 0xc) += 1;
+            *(int*)((char*)this + ((char)((Wire*)pkt)->m_f0a + 0xd4) * 4 + 0xc) += 1;
         }
     }
 }
@@ -1272,9 +1411,9 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
             unsigned int g = it->second.m_data[1];
             unsigned int group = handler->GetServerGroupNo();
             snprintf(sql, 0x400,
-                "inSert into lag_stat_dungeon (occ_time, server_id, dungeon_id, average, deviation, count, e1, e2, e3) values ('%s', %d, %d, %d, %d, %d, %d, %d, %d)",
+                "inSert into lag_stat_dungeon (occ_time, server_id, dungeon_idx, first_average, first_deviation, first_count, boss_average, boss_deviation, boss_count) values ('%s', %d, %d, %d, %d, %d, %d, %d, %d)",
                 timeStr, group & 0xff, it->first, c / d, a / b, d1 / d2, e, f, g);
-            DNF_LOG_SCOPE_LINE(0x6bb, "./log/LagStatistics", "%s", sql);
+            DNF_LOG_SCOPE_LINE(0x6b8, "./log/LagStatistics", "%s", sql);
             handler->SendToDB((PacketHeader*)&pkt);
         }
         m_dungeonLag.clear();
@@ -1282,22 +1421,28 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
 }
 void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        int m_f0a;
+        int m_data[0x1e];
+    };
     std::map<int, ValueStatisticData>::iterator it = m_value.find(*(int*)((char*)pkt + 10));
-    if (it == m_value.end())
+    if (it != m_value.end())
+    {
+        for (int i = 0; i < 0x1e; i++)
+        {
+            it->second.m_data[i] += ((Wire*)pkt)->m_data[i];
+        }
+    }
+    else
     {
         ValueStatisticData v;
         for (int i = 0; i < 0x1e; i++)
         {
-            v.m_data[i] = *(int*)((char*)pkt + i * 4 + 0xe);
+            v.m_data[i] = ((Wire*)pkt)->m_data[i];
         }
         m_value.insert(std::make_pair(*(int*)((char*)pkt + 10), v));
-    }
-    else
-    {
-        for (int i = 0; i < 0x1e; i++)
-        {
-            it->second.m_data[i] += *(int*)((char*)pkt + i * 4 + 0xe);
-        }
     }
 }
 void StatisticManager::ResetValueStatistic()
@@ -1331,22 +1476,28 @@ void StatisticManager::SendDBValueStatistic(CServerHandler* handler)
 }
 void StatisticManager::AddCirculationStatistics(Packet_Circulation_Statistic* pkt)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        int m_f0a;
+        int m_data[0x30];
+    };
     std::map<int, CirculationStatisticData>::iterator it = m_circ.find(*(int*)((char*)pkt + 10));
-    if (it == m_circ.end())
+    if (it != m_circ.end())
+    {
+        for (int i = 0; i < 0x30; i++)
+        {
+            it->second.m_data[i] += ((Wire*)pkt)->m_data[i];
+        }
+    }
+    else
     {
         CirculationStatisticData v;
         for (int i = 0; i < 0x30; i++)
         {
-            v.m_data[i] = *(int*)((char*)pkt + i * 4 + 0xe);
+            v.m_data[i] = ((Wire*)pkt)->m_data[i];
         }
         m_circ.insert(std::make_pair(*(int*)((char*)pkt + 10), v));
-    }
-    else
-    {
-        for (int i = 0; i < 0x30; i++)
-        {
-            it->second.m_data[i] += *(int*)((char*)pkt + i * 4 + 0xe);
-        }
     }
 }
 void StatisticManager::ResetCirculationStatistic()
@@ -1385,25 +1536,29 @@ void StatisticManager::SendDBCirculationStatistic(CServerHandler* handler)
 }
 void StatisticManager::AddServerMatchData(Packet_Server_Match_data* pkt)
 {
-    *(int*)((char*)this + 0x438) = (int)(char)*(char*)((char*)pkt + 10);
-    *(int*)((char*)this + 0x43c) += (int)(char)*(char*)((char*)pkt + 0xb);
-    *(int*)((char*)this + 0x440) += (int)(char)*(char*)((char*)pkt + 0xc);
+    m_serverMatch[0] = (int)pkt->m_fieldA;
+    m_serverMatch[1] += (int)pkt->m_fieldB;
+    m_serverMatch[2] += (int)pkt->m_fieldC;
 }
 void StatisticManager::ResetServerMatchData()
 {
-    *(unsigned int*)((char*)this + 0x438) = 0;
-    *(unsigned int*)((char*)this + 0x43c) = 0;
-    *(unsigned int*)((char*)this + 0x440) = 0;
+    m_serverMatch[0] = 0;
+    m_serverMatch[1] = 0;
+    m_serverMatch[2] = 0;
 }
 void StatisticManager::SendDBServerMatchData(CServerHandler* handler)
 {
-    if (*(int*)((char*)this + 0x438) != 0)
+    for (;;)
     {
-        Packet_Server_Match_data_DBMW pkt;
-        *(char*)((char*)&pkt + 0xa) = *(char*)((char*)this + 0x438);
-        *(unsigned int*)((char*)&pkt + 0xb) = *(unsigned int*)((char*)this + 0x43c);
-        *(unsigned int*)((char*)&pkt + 0xf) = *(unsigned int*)((char*)this + 0x440);
-        handler->SendToDB((PacketHeader*)&pkt);
+        if (m_serverMatch[0] != 0)
+        {
+            Packet_Server_Match_data_DBMW pkt;
+            pkt.m_fieldA = m_serverMatch[0];
+            pkt.m_fieldB = m_serverMatch[1];
+            pkt.m_fieldC = m_serverMatch[2];
+            handler->SendToDB((PacketHeader*)&pkt);
+        }
+        break;
     }
 }
 void StatisticManager::AddSecretShopStatistic(Packet_Secret_Shop_Statistic* pkt)
@@ -1461,11 +1616,18 @@ void StatisticManager::ResetSecretShopStatistic()
 }
 void StatisticManager::AddGoldcardEventStatistic(Packet_Goldcard_Event_Statistic_GTS* pkt)
 {
-    unsigned int idx = (unsigned int)(unsigned char)*(char*)((char*)pkt + 10);
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        char m_f0a;
+        int m_f0b;
+        int m_f0f;
+    };
+    unsigned int idx = (unsigned int)(unsigned char)((Wire*)pkt)->m_f0a;
     if (idx < 100)
     {
-        *(int*)((char*)this + idx * 9 + 0x48d) += *(int*)((char*)pkt + 0xb);
-        *(int*)((char*)this + idx * 9 + 0x491) += *(int*)((char*)pkt + 0xf);
+        *(int*)((char*)this + idx * 9 + 0x48d) += ((Wire*)pkt)->m_f0b;
+        *(int*)((char*)this + idx * 9 + 0x491) += ((Wire*)pkt)->m_f0f;
     }
 }
 void StatisticManager::SendDBGoldcardEventStatistic(CServerHandler* handler)
@@ -1480,16 +1642,22 @@ void StatisticManager::ResetGoldcardEventStatistic()
 }
 void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statistic_GTS* pkt)
 {
-    if (pkt != 0 && 0 < *(int*)((char*)pkt + 0xe) && *(int*)((char*)pkt + 0xe) < 0x65)
+    struct __attribute__((packed)) Wire
     {
-        if (*(char*)((char*)pkt + 0x12) == 0)
+        char m_hdr[0xe];
+        int m_f0e;
+        char m_f12;
+    };
+    if (pkt != 0 && 0 < ((Wire*)pkt)->m_f0e && ((Wire*)pkt)->m_f0e < 0x65)
+    {
+        if (((Wire*)pkt)->m_f12 == 0)
         {
-            *(int*)((char*)this + (*(int*)((char*)pkt + 0xe) + 0x100) * 8 + 7) += 1;
+            *(int*)((char*)this + (((Wire*)pkt)->m_f0e + 0x100) * 8 + 7) += 1;
         }
         else
         {
-            *(int*)((char*)this + (*(int*)((char*)pkt + 0xe) + 0x100) * 8 + 0xb) += 1;
-            m_serverList.insert(*(int*)((char*)pkt + 0xe));
+            *(int*)((char*)this + (((Wire*)pkt)->m_f0e + 0x100) * 8 + 0xb) += 1;
+            m_serverList.insert(((Wire*)pkt)->m_f0e);
         }
     }
 }
@@ -1512,16 +1680,16 @@ void StatisticManager::ResetTowerOfDespair()
 void StatisticManager::AddMoneyLog(MoneyLogPacket* pkt, CServerHandler* handler)
 {
     PacketInsertUpdate p;
-    *(unsigned int*)((char*)&p + 0xa) = 4;
-    *(unsigned int*)((char*)&p + 0xe) = 0x4f2d;
+    p.m_handleIdx = 4;
+    p.m_updateQueryId = 0x4f2d;
     unsigned int a = *(unsigned int*)((char*)pkt + 0x12);
     unsigned int b = *(unsigned int*)((char*)pkt + 0xe);
     char* uid = NumberToString(*(unsigned int*)((char*)pkt + 0x16), 0);
-    snprintf((char*)&p + 0x12, 0x800,
+    snprintf(p.m_updateSql, 0x800,
         "inSert into log_charac_money(charac_no,occ_date,m_id,money_plus,money_minus) values(%u,cast(from_unixtime(%d) as date),%s,%u,%u)",
         *(unsigned int*)((char*)pkt + 10), *(unsigned int*)((char*)pkt + 0x1a), uid, b, a);
-    *(unsigned int*)((char*)&p + 0x812) = 0x4f2e;
-    snprintf((char*)&p + 0x816, 0x800,
+    p.m_insertQueryId = 0x4f2e;
+    snprintf(p.m_insertSql, 0x800,
         "update log_charac_money set money_plus=money_plus+%u,money_minus=money_minus+%u where charac_no=%u and occ_date=cast(from_unixtime(%d) as date)",
         *(unsigned int*)((char*)pkt + 0xe), *(unsigned int*)((char*)pkt + 0x12),
         *(unsigned int*)((char*)pkt + 10), *(unsigned int*)((char*)pkt + 0x1a));
@@ -1530,63 +1698,74 @@ void StatisticManager::AddMoneyLog(MoneyLogPacket* pkt, CServerHandler* handler)
 void StatisticManager::AddCompatibilityIndex(Packet_Stat_Compatibility_Index* pkt,
                                              CServerHandler* handler)
 {
-    if (pkt != 0 && handler != 0)
+    for (;;)
     {
+        if (pkt == 0) break;
+        if (handler == 0) break;
         handler->SendToDB((PacketHeader*)pkt);
+        break;
     }
 }
 void StatisticManager::minPing(short& a, short& b)
 {
-    int bv = (int)b;
-    printf("minPing(%d, %d)\n", (int)a, bv);
-    if (-1 < b)
+    for (;;)
     {
-        if (b < a)
+        printf("minPing(%d, %d)\n", a, b);
+        if (-1 < b)
         {
-            a = b;
+            if (a > b)
+            {
+                a = b;
+            }
+            printf("minPing Res(%d)\n", a);
         }
-        printf("minPing Res(%d)\n", (int)a, bv);
+        break;
     }
 }
 void StatisticManager::maxPing(short& a, short& b)
 {
-    int bv = (int)b;
-    printf("maxPing(%d, %d)\n", (int)a, bv);
-    if (-1 < b)
+    for (;;)
     {
-        if (a < b)
+        printf("maxPing(%d, %d)\n", a, b);
+        if (-1 < b)
         {
-            a = b;
+            if (a < b)
+            {
+                a = b;
+            }
+            printf("maxPing Res(%d)\n", a);
         }
-        printf("maxPing Res(%d)\n", (int)a, bv);
+        break;
     }
 }
 void StatisticManager::sumPing(int& a, short& b, int& c)
 {
-    printf("sumPing(%d, %d, %d)\n", a, (int)b, c);
-    if (-1 < b)
+    for (;;)
     {
-        if (a + (int)b < 0)
+        printf("sumPing(%d, %d, %d)\n", a, (int)b, c);
+        if (-1 < b)
         {
-            a = 0x7fffffff;
-        }
-        else
-        {
-            a = a + (int)b;
-            if (-1 < c + 1)
+            if (a + (int)b < 0)
             {
-                c = c + 1;
+                a = 0x7fffffff;
             }
+            else
+            {
+                a = a + (int)b;
+                if (-1 < c + 1)
+                {
+                    c = c + 1;
+                }
+            }
+            printf("sumPing Res(%d, %d, %d)\n", a, (int)b, c);
         }
-        printf("sumPing Res(%d, %d, %d)\n", a, (int)b, c);
+        break;
     }
 }
 void StatisticManager::avgPing(int& a, int& b, short& c)
 {
-    int bv = (int)c;
-    int b2 = b;
-    printf("avgPing(%d, %d, %d)\n", a, b2, bv);
-    double avg;
+    printf("avgPing(%d, %d, %d)\n", a, b, (int)c);
+    double avg = 0.0;
     if (a == 0 || b == 0)
     {
         avg = 0.0;
@@ -1595,8 +1774,8 @@ void StatisticManager::avgPing(int& a, int& b, short& c)
     {
         avg = (double)a / (double)b;
     }
-    c = (short)(int)(avg + 0.5);
-    printf("avgPing Res(%d)\n", (int)c, b2, bv);
+    c = (short)(int)avg;
+    printf("avgPing Res(%d)\n", (int)c);
 }
 void StatisticManager::AddP2PStatistic(Packet_P2P_Statistics* pkt)
 {

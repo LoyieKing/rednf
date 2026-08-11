@@ -20,11 +20,13 @@ TCPHandlerRelay::~TCPHandlerRelay()
 
 void TCPHandlerRelay::dispatch(TCPUser* user, char* buf, int size, int flag)
 {
-    if (*(short*)buf == 0)
+    PacketHeader* pkt = (PacketHeader*)buf;
+    switch (pkt->m_type)
     {
+    case 0:
         if (user->getACCID() == 0)
         {
-            unsigned int new_acc = *(unsigned int*)(buf + 4);
+            unsigned int new_acc = pkt->m_reserved;
             if (new_acc == 0)
             {
                 user->onClose();
@@ -41,9 +43,8 @@ void TCPHandlerRelay::dispatch(TCPUser* user, char* buf, int size, int flag)
                 getManager()->setAuthenticated(new_acc);
             }
         }
-    }
-    else if (*(short*)buf == 1)
-    {
+        break;
+    case 1:
         if (user->getACCID() == 0)
         {
             user->onClose();
@@ -51,8 +52,9 @@ void TCPHandlerRelay::dispatch(TCPUser* user, char* buf, int size, int flag)
         else
         {
             user->setLastAccessTime();
-            getManager()->relayToTCP((PacketHeader*)buf);
+            getManager()->relayToTCP(pkt);
         }
+        break;
     }
 }
 

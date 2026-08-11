@@ -23,7 +23,7 @@ public:
     }
     ~CSystemTime() {}
     int m_field0;     // +0
-    int m_msec;       // +4
+    unsigned int m_msec;  // +4（ORIG 为无符号，除 1000 后的隐式转换产生 eax 物化形态）
     struct timeval m_tv;  // +8
     int m_sec;        // +0x10
 };

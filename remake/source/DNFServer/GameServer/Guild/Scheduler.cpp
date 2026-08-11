@@ -240,80 +240,56 @@ int CScheduler::IsOnTimeSpecialWeekDayHour(int day, int hour, int min)
 
 bool CheckDailyScheduleTimeOver(int hour, long t)
 {
-    time_t now = time(0);
-    tm* pt = localtime(&now);
-    tm local;
-    local.tm_sec = pt->tm_sec;
-    local.tm_min = pt->tm_min;
-    local.tm_hour = pt->tm_hour;
-    local.tm_mday = pt->tm_mday;
-    local.tm_mon = pt->tm_mon;
-    local.tm_year = pt->tm_year;
-    local.tm_wday = pt->tm_wday;
-    local.tm_yday = pt->tm_yday;
-    local.tm_isdst = pt->tm_isdst;
-    local.tm_gmtoff = pt->tm_gmtoff;
-    local.tm_zone = pt->tm_zone;
-    local.tm_hour = hour;
-    local.tm_min = 0;
-    local.tm_sec = 0;
-    time_t target = mktime(&local);
+    time_t now;
+    time(&now);
+    struct tm local = *localtime(&now);
+    struct tm local2 = local;
+    local2.tm_hour = hour;
+    local2.tm_min = 0;
+    local2.tm_sec = 0;
+    time_t target = mktime(&local2);
+    if (local.tm_hour < hour)
+    {
+        target -= 86400;
+    }
     return t < target;
 }
 
-int CheckDayHourScheduleTimeOver(int day, int hour, long t)
+bool CheckDayHourScheduleTimeOver(int day, int hour, long t)
 {
-    time_t now = time(0);
-    tm* pt = localtime(&now);
-    tm local;
-    local.tm_sec = pt->tm_sec;
-    local.tm_min = pt->tm_min;
-    local.tm_hour = pt->tm_hour;
-    local.tm_mday = pt->tm_mday;
-    local.tm_mon = pt->tm_mon;
-    local.tm_year = pt->tm_year;
-    local.tm_wday = pt->tm_wday;
-    local.tm_yday = pt->tm_yday;
-    local.tm_isdst = pt->tm_isdst;
-    local.tm_gmtoff = pt->tm_gmtoff;
-    local.tm_zone = pt->tm_zone;
-    local.tm_hour = hour;
-    local.tm_min = 0;
-    local.tm_sec = 0;
-    time_t target = mktime(&local);
-    return t < target;
+    time_t now;
+    time(&now);
+    struct tm local = *localtime(&now);
+    struct tm local2 = local;
+    local2.tm_hour = hour;
+    local2.tm_min = 0;
+    local2.tm_sec = 0;
+    time_t target = mktime(&local2);
+    if (local.tm_hour < hour)
+    {
+        target -= 86400;
+    }
+    return t < target + (1 - day) * 86400;
 }
 
-int CheckDayScheduleTimeOver(int hour, long t)
+bool CheckDayScheduleTimeOver(int hour, long t)
 {
-    time_t now = time(0);
-    time_t target = (time_t)((long)now - (long)hour * 86400);
-    return t < target;
+    time_t now;
+    time(&now);
+    return t < now - hour * 86400;
 }
 
 void GetScheduleTimeAsWDay(int day, int hour)
 {
-    time_t now = time(0);
-    tm* pt = localtime(&now);
-    tm local;
-    local.tm_sec = pt->tm_sec;
-    local.tm_min = pt->tm_min;
-    local.tm_hour = pt->tm_hour;
-    local.tm_mday = pt->tm_mday;
-    local.tm_mon = pt->tm_mon;
-    local.tm_year = pt->tm_year;
-    local.tm_wday = pt->tm_wday;
-    local.tm_yday = pt->tm_yday;
-    local.tm_isdst = pt->tm_isdst;
-    local.tm_gmtoff = pt->tm_gmtoff;
-    local.tm_zone = pt->tm_zone;
+    time_t now;
+    time(&now);
+    struct tm local = *localtime(&now);
     int diff = day - local.tm_wday;
     if (diff < 0 || (diff == 0 && hour <= local.tm_hour))
     {
         diff += 7;
     }
-    time_t t2 = mktime(&local);
-    time_t target = (time_t)(diff * 86400 + t2);
+    time_t target = mktime(&local);
+    target = diff * 86400 + target;
     localtime(&target);
 }
-

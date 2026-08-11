@@ -175,9 +175,8 @@ unsigned int HandlerFor_GP_::onAUCTION_BIDDING_GP(nsl::CMsgCell* pCell, nsl::TCP
     log_packet.price = pPck->price;
     log_packet.auction_id = pPck->auction_id;
     {
-        // ORIG：register maxQueue（ebx 常驻）
-        register int maxQueue = G_Script()->findIntValue(1, 0xd);
-        if (maxQueue <= pApp->super_Threads.getDBThread(0)->mQueueSize)
+        // ORIG：inline 比较（无 maxQueue 局部，cmp %eax,%ebx+setle 形态）
+        if (G_Script()->findIntValue(1, 0xd) <= pApp->super_Threads.getDBThread(0)->mQueueSize)
         {
             return_code = 0x31;
         }
@@ -209,17 +208,19 @@ unsigned int HandlerFor_GP_::onAUCTION_BIDDING_GP(nsl::CMsgCell* pCell, nsl::TCP
     packet.buyer_id = pPck->buyer_id;
     packet.auction_id = pPck->auction_id;
     packet.price = pPck->price;
-    // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
+    // ORIG：第二次发送用独立 newMsg/newCell 局部（先声明，栈槽 -0x28/-0x24）
+    Message* newMsg;
+    CMsgCell* newCell;
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
     *cell << &log_packet;
     cell->PAD();
     sendTCP_->PushSendMsg(msg);
-    msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
-    cell = msg->getCellFromMessage();
-    *cell << &packet;
-    cell->PAD();
-    sendTCP_->PushSendMsg(msg);
+    newMsg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
+    newCell = newMsg->getCellFromMessage();
+    *newCell << &packet;
+    newCell->PAD();
+    sendTCP_->PushSendMsg(newMsg);
     G_TraceLog()->sysLog(5, "Out onAUCTION_BIDDING_GP");
     return 0;
 }
@@ -267,7 +268,7 @@ unsigned int HandlerFor_GP_::onAUCTION_SEARCH_BY_ITEMKEY_GP(nsl::CMsgCell* pCell
                 }
             }
         }
-        packet.setSize((0x3c - (unsigned int)packet.item_num) * -0x89 + 0x203d);
+        packet.setSize(0x203d - (0x3c - (unsigned int)packet.item_num) * 0x89);
         // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
         Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
         CMsgCell* cell = msg->getCellFromMessage();
@@ -321,7 +322,7 @@ unsigned int HandlerFor_GP_::onAUCTION_SEARCH_BY_NOITEMKEY_GP(nsl::CMsgCell* pCe
                 }
             }
         }
-        packet.setSize((0x3c - (unsigned int)packet.item_num) * -0x89 + 0x203d);
+        packet.setSize(0x203d - (0x3c - (unsigned int)packet.item_num) * 0x89);
         // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
         Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
         CMsgCell* cell = msg->getCellFromMessage();
@@ -379,7 +380,7 @@ unsigned int HandlerFor_GP_::onAUCTION_MY_REGISTED_ITEM_INFO_GP(nsl::CMsgCell* p
             }
         }
     }
-    packet.setSize((0x1e - packet_array_size) * -0x75 + 0xdd2);
+    packet.setSize(0xdd2 - (0x1e - (unsigned int)packet_array_size) * 0x75);
     // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
@@ -437,7 +438,7 @@ unsigned int HandlerFor_GP_::onAUCTION_MY_BIDDING_INFO_GP(nsl::CMsgCell* pCell,
         }
     }
     // ORIG：0x1d69 - (0x3c - n) * 0x7d（§66：减号分发不可复现，保持内联）
-    packet.setSize(0x1d69 - (0x3c - packet_array_size) * 0x7d);
+    packet.setSize(0x1d69 - (0x3c - (unsigned int)packet_array_size) * 0x7d);
     // ORIG：getCommonDataPool 结果直喂 getSendMessage（无 pPool 命名局部）
     Message* msg = pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->getSendMessage(u);
     CMsgCell* cell = msg->getCellFromMessage();
@@ -580,9 +581,8 @@ unsigned int HandlerFor_GP_::onAUCTION_ASK_REGISTED_ITEM_NUM_GP(nsl::CMsgCell* p
     PCK_AUCTION_ASK_REGISTED_ITEM_NUM_GA* pPck =
         (PCK_AUCTION_ASK_REGISTED_ITEM_NUM_GA*)pCell->GetPacket();
     {
-        // ORIG：register maxQueue（ebx 常驻）
-        register int maxQueue = G_Script()->findIntValue(1, 0xd);
-        if (maxQueue <= pApp->super_Threads.getDBThread(0)->mQueueSize)
+        // ORIG：inline 比较（无 maxQueue 局部，cmp %eax,%ebx+setle 形态）
+        if (G_Script()->findIntValue(1, 0xd) <= pApp->super_Threads.getDBThread(0)->mQueueSize)
         {
             packet.now_registed_num = -1;
         }
@@ -616,7 +616,7 @@ unsigned int HandlerFor_GP_::onAUCTION_ASK_REGISTED_ITEM_NUM_GP(nsl::CMsgCell* p
 
 unsigned int HandlerFor_GP_::onAUCTION_REGIST_ITEM_GP(nsl::CMsgCell* pCell, nsl::TCPUser* u)
 {
-    unsigned int return_code = 0;
+    int return_code = 0;
 
     G_TraceLog()->sysLog(5, "In  onAUCTION_REGIST_ITEM_GP");
     if (!IsPointServer())

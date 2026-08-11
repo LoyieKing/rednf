@@ -24,18 +24,18 @@ void StringData::decRef()
     (refCount_ > 0)
         ? (void)0
         : __assert_fail("refCount_ > 0", "../../Include/Core/Strings.cpp", 0x23,
-                        "void StringData::decRef()");
+                        __PRETTY_FUNCTION__);
     // lock xadd -1; ORIG uses xadd with neg'd 1 then add back
     if (__sync_sub_and_fetch(&refCount_, 1) <= 0)
     {
         (size_ > 0)
             ? (void)0
             : __assert_fail("size_ > 0", "../../Include/Core/Strings.cpp", 0x27,
-                            "void StringData::decRef()");
+                            __PRETTY_FUNCTION__);
         (getBuffer()[size_ - 1] == 0)
             ? (void)0
             : __assert_fail("getBuffer()[size_-1] == 0", "../../Include/Core/Strings.cpp", 0x28,
-                            "void StringData::decRef()");
+                            __PRETTY_FUNCTION__);
         ::free(this);
     }
 }
@@ -65,7 +65,7 @@ StringData* StringData::create(int32 size)
     (size > 0)
         ? (void)0
         : __assert_fail("size > 0", "../../Include/Core/Strings.cpp", 0x44,
-                        "static StringData* StringData::create(int32)");
+                        __PRETTY_FUNCTION__);
     StringData* data = (StringData*)malloc(size + 8);
     if (data == NULL)
     {
@@ -91,7 +91,7 @@ CharStringData* CharStringData::create(int32 length)
     (length > 0)
         ? (void)0
         : __assert_fail("length > 0", "../../Include/Core/Strings.cpp", 0x5e,
-                        "static CharStringData* CharStringData::create(int32)");
+                        __PRETTY_FUNCTION__);
     // ORIG stores length+1 to a local before create call
     int32 size = length + 1;
     StringData* data = StringData::create(size);
@@ -125,7 +125,7 @@ WideStringData* WideStringData::create(int32 length)
     (length > 0)
         ? (void)0
         : __assert_fail("length > 0", "../../Include/Core/Strings.cpp", 0x54d,
-                        "static WideStringData* WideStringData::create(int32)");
+                        __PRETTY_FUNCTION__);
     // ORIG: add $1; shl $2
     int32 size = (length + 1) << 2;
     StringData* data = StringData::create(size);
@@ -156,7 +156,8 @@ CharString::CharString(const CharString& src)
 
 CharString::CharString(const char* src)
 {
-    size_t length = strlen(src);
+    // ORIG：int32 局部（size_t 会让 length+1 出 lea 形态，ORIG 为 add+mov）
+    int length = (int)strlen(src);
     if (length == 0)
     {
         attachData(s_emptyCharStringData);
@@ -260,7 +261,7 @@ char CharString::getAt(int32 idx) const
     ((idx >= 0) && (idx <= length()))
         ? (void)0
         : __assert_fail("(idx >= 0) && (idx <= length())", "../../Include/Core/Strings.cpp", 0xe2,
-                        "char CharString::getAt(int32) const");
+                        __PRETTY_FUNCTION__);
     return buffer_[idx];
 }
 
@@ -269,11 +270,11 @@ CharString CharString::setAt(int32 idx, char ch)
     ((idx >= 0) && (idx < length()))
         ? (void)0
         : __assert_fail("(idx >= 0) && (idx < length())", "../../Include/Core/Strings.cpp", 0xe8,
-                        "CharString CharString::setAt(int32, char)");
+                        __PRETTY_FUNCTION__);
     (ch != '\0')
         ? (void)0
         : __assert_fail("ch != 0", "../../Include/Core/Strings.cpp", 0xe9,
-                        "CharString CharString::setAt(int32, char)");
+                        __PRETTY_FUNCTION__);
     if (buffer_[idx] == ch)
     {
         return CharString(*this);
@@ -310,9 +311,10 @@ bool CharString::endsWith(const char* pat, bool isIgnoreCase) const
     }
     if (isIgnoreCase)
     {
-        return strncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
+        // ORIG：无内层括号（(c_str()+length())-patLength 左结合形态）
+        return strncasecmp(c_str() + length() - patLength, pat, patLength) == 0;
     }
-    return strncmp(c_str() + (length() - patLength), pat, patLength) == 0;
+    return strncmp(c_str() + length() - patLength, pat, patLength) == 0;
 }
 
 char CharString::front() const
@@ -604,7 +606,8 @@ WideString::WideString(const WideString& src)
 
 WideString::WideString(const wchar* src)
 {
-    size_t length = wcslen(src);
+    // ORIG：int32 局部（size_t 会让 (length+1)*4 出 lea 形态，ORIG 为 shl）
+    int length = (int)wcslen(src);
     if (length == 0)
     {
         attachData(s_emptyWideStringData);
@@ -626,7 +629,8 @@ WideString::WideString(const wchar* src, int32 length)
     else
     {
         WideStringData* data = WideStringData::createTerminated(length);
-        memcpy(data->getBuffer(), src, length * 4);
+        // ORIG：unsigned 乘形态 lea（int32 会出 shl 形态）
+        memcpy(data->getBuffer(), src, (size_t)length * 4);
         attachData(data);
     }
 }
@@ -727,7 +731,7 @@ wchar WideString::getAt(int32 idx) const
     ((idx >= 0) && (idx <= length()))
         ? (void)0
         : __assert_fail("(idx >= 0) && (idx <= length())", "../../Include/Core/Strings.cpp", 0x5d1,
-                        "wchar WideString::getAt(int32) const");
+                        __PRETTY_FUNCTION__);
     return buffer_[idx];
 }
 
@@ -736,11 +740,11 @@ WideString WideString::setAt(int32 idx, wchar ch)
     ((idx >= 0) && (idx < length()))
         ? (void)0
         : __assert_fail("(idx >= 0) && (idx < length())", "../../Include/Core/Strings.cpp", 0x5d7,
-                        "WideString WideString::setAt(int32, wchar)");
+                        __PRETTY_FUNCTION__);
     (ch != 0)
         ? (void)0
         : __assert_fail("ch != 0", "../../Include/Core/Strings.cpp", 0x5d8,
-                        "WideString WideString::setAt(int32, wchar)");
+                        __PRETTY_FUNCTION__);
     if (buffer_[idx] == ch)
     {
         return WideString(*this);
@@ -775,9 +779,10 @@ bool WideString::endsWith(const wchar* pat, bool isIgnoreCase) const
     }
     if (isIgnoreCase)
     {
-        return wcsncasecmp(c_str() + (length() - patLength), pat, patLength) == 0;
+        // ORIG：无内层括号（(c_str()+length())-patLength 左结合形态）
+        return wcsncasecmp(c_str() + length() - patLength, pat, patLength) == 0;
     }
-    return wcsncmp(c_str() + (length() - patLength), pat, patLength) == 0;
+    return wcsncmp(c_str() + length() - patLength, pat, patLength) == 0;
 }
 
 void WideString::attachData(WideStringData* newData)
@@ -813,7 +818,8 @@ void WideString::assign(const wchar* src, int32 srcLength)
     else
     {
         WideStringData* newData = WideStringData::createTerminated(srcLength);
-        memcpy(newData->getBuffer(), src, srcLength * 4);
+        // ORIG：unsigned 乘形态 lea
+        memcpy(newData->getBuffer(), src, (size_t)srcLength * 4);
         replaceData(newData);
     }
 }
@@ -1155,8 +1161,8 @@ CharString CharString::concat(const CharString& src1, char ch)
     else
     {
         CharStringData* newData = CharStringData::createTerminated(src1.length() + 1);
-        size_t n = src1.length();
-        memcpy(newData->getBuffer(), src1.c_str(), n);
+        // ORIG：length() 直接作 memcpy 参数（无局部中转），结果存 callee-saved 寄存器
+        memcpy(newData->getBuffer(), src1.c_str(), src1.length());
         newData->getBuffer()[src1.length()] = ch;
         return CharString(newData);
     }
@@ -1210,8 +1216,8 @@ CharString CharString::format(const char* format, ...)
         return CharString();
     }
     CharStringData* newData = CharStringData::create(length);
-    char* buffer = newData->getBuffer();
-    ss_vsprintf(buffer, length + 1, format, argList);
+    // ORIG：getBuffer() 直接作参数（argList/length+1 预载 callee-saved 寄存器）
+    ss_vsprintf(newData->getBuffer(), length + 1, format, argList);
     va_end(argList);
     return CharString(newData);
 }
@@ -1224,8 +1230,7 @@ CharString CharString::vformat(const char* format, char* argList)
         return CharString();
     }
     CharStringData* newData = CharStringData::create(length);
-    char* buffer = newData->getBuffer();
-    ss_vsprintf(buffer, length + 1, format, argList);
+    ss_vsprintf(newData->getBuffer(), length + 1, format, argList);
     return CharString(newData);
 }
 
@@ -1431,8 +1436,9 @@ WideString WideString::concat(const wchar* src1, int32 src1Len, const wchar* src
         return WideString();
     }
     WideStringData* newData = WideStringData::createTerminated(src1Len + src2Len);
-    memcpy(newData->getBuffer(), src1, src1Len * 4);
-    memcpy(newData->getBuffer() + src1Len, src2, src2Len * 4);
+    // ORIG：unsigned 乘形态 lea
+    memcpy(newData->getBuffer(), src1, (size_t)src1Len * 4);
+    memcpy(newData->getBuffer() + src1Len, src2, (size_t)src2Len * 4);
     return WideString(newData);
 }
 
@@ -1518,7 +1524,8 @@ WideString WideString::concat(const WideString& src1, wchar ch)
     else
     {
         WideStringData* newData = WideStringData::createTerminated(src1.length() + 1);
-        memcpy(newData->getBuffer(), src1.c_str(), src1.length() * 4);
+        // ORIG：unsigned 乘形态 lea
+        memcpy(newData->getBuffer(), src1.c_str(), (size_t)src1.length() * 4);
         newData->getBuffer()[src1.length()] = ch;
         return WideString(newData);
     }
@@ -1540,7 +1547,8 @@ WideString WideString::concat(wchar ch, const WideString& src1)
         {
             WideStringData* newData = WideStringData::createTerminated(src1.length() + 1);
             newData->getBuffer()[0] = ch;
-            memcpy(newData->getBuffer() + 1, src1.c_str(), src1.length() * 4);
+            // ORIG：unsigned 乘形态 lea
+            memcpy(newData->getBuffer() + 1, src1.c_str(), (size_t)src1.length() * 4);
             return WideString(newData);
         }
     }
@@ -1605,8 +1613,8 @@ WideString WideString::format(const wchar* format, ...)
         return WideString();
     }
     WideStringData* newData = WideStringData::create(length);
-    wchar_t* buffer = newData->getBuffer();
-    ss_vswprintf(buffer, length + 1, format, argList);
+    // ORIG：getBuffer() 直接作参数（argList/length+1 预载 callee-saved 寄存器）
+    ss_vswprintf(newData->getBuffer(), length + 1, format, argList);
     va_end(argList);
     return WideString(newData);
 }
@@ -1619,8 +1627,7 @@ WideString WideString::vformat(const wchar* format, char* argList)
         return WideString();
     }
     WideStringData* newData = WideStringData::create(length);
-    wchar_t* buffer = newData->getBuffer();
-    ss_vswprintf(buffer, length + 1, format, argList);
+    ss_vswprintf(newData->getBuffer(), length + 1, format, argList);
     return WideString(newData);
 }
 
@@ -1884,7 +1891,7 @@ CharString left(const CharString& str, int32 length)
     if (length < 0)
     {
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x2c4,
-                      "CharString left(const CharString&, int32)");
+                      __PRETTY_FUNCTION__);
     }
     // ORIG: setle on (str.length() <= length) then copy-ctor branch first
     if (str.length() <= length)
@@ -1899,7 +1906,7 @@ CharString mid(const CharString& str, int32 start)
     if (start < 0)
     {
         __assert_fail("0 <= start", "../../Include/Core/Strings.cpp", 0x2cd,
-                      "CharString mid(const CharString&, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (start == 0)
     {
@@ -1918,12 +1925,12 @@ CharString mid(const CharString& str, int32 start, int32 length)
     if (start < 0)
     {
         __assert_fail("0 <= start", "../../Include/Core/Strings.cpp", 0x2d9,
-                      "CharString mid(const CharString&, int32, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (length < 0)
     {
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x2da,
-                      "CharString mid(const CharString&, int32, int32)");
+                      __PRETTY_FUNCTION__);
     }
     // ORIG: setle empty-first; clamp uses length += str.length()-(start+length)
     if (str.length() <= start)
@@ -1942,7 +1949,7 @@ CharString right(const CharString& str, int32 length)
     if (length < 0)
     {
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x2e7,
-                      "CharString right(const CharString&, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (str.length() <= length)
     {
@@ -2067,7 +2074,7 @@ CharString insert(const CharString& str, int32 pos, const char* src, int32 srcLe
     ((pos >= 0) && (pos <= str.length()))
         ? (void)0
         : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x220,
-                        "CharString insert(const CharString&, int32, const char*, int32)");
+                        __PRETTY_FUNCTION__);
     if (str.length() == 0)
     {
         return CharString(src, srcLength);
@@ -2079,8 +2086,9 @@ CharString insert(const CharString& str, int32 pos, const char* src, int32 srcLe
     CharStringData* newData = CharStringData::createTerminated(str.length() + srcLength);
     memcpy(newData->getBuffer(), str.c_str(), pos);
     memcpy(newData->getBuffer() + pos, src, srcLength);
-    // ORIG：dst 地址按 srcLength 先装载（pos 后）。
-    memcpy(newData->getBuffer() + srcLength + pos, str.c_str() + pos, str.length() - pos);
+    // ORIG：dst 地址按 srcLength 先装载（pos 后）；GCC 4.4 -O0 对 `pos + srcLength`
+    // 先装载右操作数 srcLength，实测 `srcLength + pos` 反而先装载 pos（反序）。
+    memcpy(newData->getBuffer() + (pos + srcLength), str.c_str() + pos, str.length() - pos);
     return CharString(newData);
 }
 
@@ -2105,7 +2113,7 @@ CharString insert(const CharString& str, int32 pos, char src)
     ((pos >= 0) && (pos <= str.length()))
         ? (void)0
         : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x23f,
-                        "CharString insert(const CharString&, int32, char)");
+                        __PRETTY_FUNCTION__);
     if (str.length() == 0)
     {
         return CharString(src);
@@ -2126,12 +2134,12 @@ CharString remove(const CharString& str, int32 pos, int32 removeLength)
     ((pos >= 0) && (pos <= str.length()))
         ? (void)0
         : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x253,
-                        "CharString remove(const CharString&, int32, int32)");
+                        __PRETTY_FUNCTION__);
     ((removeLength >= 0) && (pos + removeLength <= str.length()))
         ? (void)0
         : __assert_fail("0 <= removeLength && pos + removeLength <= str.length()",
                         "../../Include/Core/Strings.cpp", 0x254,
-                        "CharString remove(const CharString&, int32, int32)");
+                        __PRETTY_FUNCTION__);
     if (removeLength == 0)
     {
         return CharString(str);
@@ -2142,7 +2150,8 @@ CharString remove(const CharString& str, int32 pos, int32 removeLength)
     }
     CharStringData* newData = CharStringData::createTerminated(str.length() - removeLength);
     memcpy(newData->getBuffer(), str.c_str(), pos);
-    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
+    // ORIG：2nd 参数按 removeLength 先装载（pos 后）；同上，需写作 `pos + removeLength`
+    memcpy(newData->getBuffer() + pos, str.c_str() + (pos + removeLength),
            (str.length() - pos) - removeLength);
     return CharString(newData);
 }
@@ -2152,12 +2161,12 @@ CharString replace(const CharString& str, char oldChar, char newChar)
     if (oldChar == '\0')
     {
         __assert_fail("pat != 0", "../../Include/Core/Strings.cpp", 0x267,
-                      "CharString replace(const CharString&, char, char)");
+                      __PRETTY_FUNCTION__);
     }
     if (newChar == '\0')
     {
         __assert_fail("target != 0", "../../Include/Core/Strings.cpp", 0x268,
-                      "CharString replace(const CharString&, char, char)");
+                      __PRETTY_FUNCTION__);
     }
     if (str.length() == 0)
     {
@@ -2196,55 +2205,56 @@ CharString replace(const CharString& str, const char* oldChars, int32 oldCharsLe
     const char* strBuffer = str.c_str();
     int32 strLength = str.length();
     int32 replaceCount = 0;
-    int32 i = 0;
-    while (i <= strLength - oldCharsLength)
     {
-        if (memcmp(strBuffer + i, oldChars, oldCharsLength) == 0)
+        int32 i = 0;
+        while (i <= strLength - oldCharsLength)
         {
-            replaceCount = replaceCount + 1;
-            i = i + oldCharsLength;
-        }
-        else
-        {
-            i = i + 1;
+            if (memcmp(strBuffer + i, oldChars, oldCharsLength) == 0)
+            {
+                replaceCount = replaceCount + 1;
+                i = i + oldCharsLength;
+            }
+            else
+            {
+                i = i + 1;
+            }
         }
     }
     if (replaceCount == 0)
     {
         return CharString(str);
     }
-    // ORIG: store delta, reload strLen to second temp, then imul+add
-    int32 delta = newCharsLength - oldCharsLength;
-    int32 baseLen = strLength;
-    int32 newLength = delta * replaceCount + baseLen;
+    // ORIG DWARF：wordDelta(672) -> nowLength(673) -> newLength(674) 声明顺序；
+    // 最终加法直接读 strLength 槽（-0x30），nowLength 只保留死存储。
+    int32 wordDelta = newCharsLength - oldCharsLength;
+    int32 nowLength = strLength;
+    int32 newLength = wordDelta * replaceCount + strLength;
     if (newLength == 0)
     {
         return CharString();
     }
     CharStringData* newData = CharStringData::createTerminated(newLength);
     char* newBuffer = newData->getBuffer();
-    int32 ni = 0;
-    i = 0;
-    while (i < strLength)
     {
-        // ORIG: if (strLen-old < i) goto copy; if (memcmp!=0) goto copy; else replace
-        if (strLength - oldCharsLength < i)
+        int32 i = 0;
+        int32 ni = 0;
+        while (i < strLength)
         {
-            newBuffer[ni] = strBuffer[i];
-            ni = ni + 1;
-            i = i + 1;
-        }
-        else if (memcmp(strBuffer + i, oldChars, oldCharsLength) != 0)
-        {
-            newBuffer[ni] = strBuffer[i];
-            ni = ni + 1;
-            i = i + 1;
-        }
-        else
-        {
-            memcpy(newBuffer + ni, newChars, newCharsLength);
-            i = i + oldCharsLength;
-            ni = ni + newCharsLength;
+            // ORIG 形态：单一 copy 块（jl/jne 共享出口），即
+            // if (A && memcmp==0) replace; else copy;
+            if (strLength - oldCharsLength >= i &&
+                memcmp(strBuffer + i, oldChars, oldCharsLength) == 0)
+            {
+                memcpy(newBuffer + ni, newChars, newCharsLength);
+                i = i + oldCharsLength;
+                ni = ni + newCharsLength;
+            }
+            else
+            {
+                newBuffer[ni] = strBuffer[i];
+                ni = ni + 1;
+                i = i + 1;
+            }
         }
     }
     return CharString(newData);
@@ -2392,7 +2402,7 @@ WideString left(const WideString& str, int32 length)
     if (length < 0)
     {
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x7b3,
-                      "WideString left(const WideString&, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (str.length() <= length)
     {
@@ -2406,7 +2416,7 @@ WideString mid(const WideString& str, int32 start)
     if (start < 0)
     {
         __assert_fail("0 <= start", "../../Include/Core/Strings.cpp", 0x7bc,
-                      "WideString mid(const WideString&, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (start == 0)
     {
@@ -2424,12 +2434,12 @@ WideString mid(const WideString& str, int32 start, int32 length)
     if (start < 0)
     {
         __assert_fail("0 <= start", "../../Include/Core/Strings.cpp", 0x7c8,
-                      "WideString mid(const WideString&, int32, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (length < 0)
     {
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x7c9,
-                      "WideString mid(const WideString&, int32, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (str.length() <= start)
     {
@@ -2447,7 +2457,7 @@ WideString right(const WideString& str, int32 length)
     if (length < 0)
     {
         __assert_fail("0 <= length", "../../Include/Core/Strings.cpp", 0x7d6,
-                      "WideString right(const WideString&, int32)");
+                      __PRETTY_FUNCTION__);
     }
     if (str.length() <= length)
     {
@@ -2522,7 +2532,8 @@ WideString trimLeft(const WideString& str)
                 return WideString(str);
             }
             WideStringData* newData = WideStringData::createTerminated(str.length() - pos);
-            memcpy(newData->getBuffer(), strBuf + pos, (str.length() - pos) * 4);
+            // ORIG：unsigned 乘形态 lea
+            memcpy(newData->getBuffer(), strBuf + pos, (size_t)(str.length() - pos) * 4);
             return WideString(newData);
         }
     }
@@ -2568,7 +2579,7 @@ WideString insert(const WideString& str, int32 pos, const wchar* src, int32 srcL
     ((pos >= 0) && (pos <= str.length()))
         ? (void)0
         : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x70f,
-                        "WideString insert(const WideString&, int32, const wchar*, int32)");
+                        __PRETTY_FUNCTION__);
     if (str.length() == 0)
     {
         return WideString(src, srcLength);
@@ -2578,10 +2589,12 @@ WideString insert(const WideString& str, int32 pos, const wchar* src, int32 srcL
         return WideString(str);
     }
     WideStringData* newData = WideStringData::createTerminated(str.length() + srcLength);
-    memcpy(newData->getBuffer(), str.c_str(), pos * 4);
-    memcpy(newData->getBuffer() + pos, src, srcLength * 4);
-    memcpy(newData->getBuffer() + pos + srcLength, str.c_str() + pos,
-           (str.length() - pos) * 4);
+    // ORIG：unsigned 乘形态 lea
+    memcpy(newData->getBuffer(), str.c_str(), (size_t)pos * 4);
+    memcpy(newData->getBuffer() + pos, src, (size_t)srcLength * 4);
+    // ORIG：内括号求 int 和（srcLength 先装载）；GCC 4.4 -O0 需写作 `pos + srcLength`
+    memcpy(newData->getBuffer() + (pos + srcLength), str.c_str() + pos,
+           (size_t)(str.length() - pos) * 4);
     return WideString(newData);
 }
 
@@ -2603,7 +2616,7 @@ WideString insert(const WideString& str, int32 pos, wchar src)
     ((pos >= 0) && (pos <= str.length()))
         ? (void)0
         : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x72e,
-                        "WideString insert(const WideString&, int32, wchar)");
+                        __PRETTY_FUNCTION__);
     if (str.length() == 0)
     {
         return WideString(src);
@@ -2613,10 +2626,11 @@ WideString insert(const WideString& str, int32 pos, wchar src)
         return WideString(str);
     }
     WideStringData* newData = WideStringData::createTerminated(str.length() + 1);
-    memcpy(newData->getBuffer(), str.c_str(), pos * 4);
+    // ORIG：unsigned 乘形态 lea
+    memcpy(newData->getBuffer(), str.c_str(), (size_t)pos * 4);
     newData->getBuffer()[pos] = src;
     memcpy(newData->getBuffer() + pos + 1, str.c_str() + pos,
-           (str.length() - pos) * 4);
+           (size_t)(str.length() - pos) * 4);
     return WideString(newData);
 }
 
@@ -2625,12 +2639,12 @@ WideString remove(const WideString& str, int32 pos, int32 removeLength)
     ((pos >= 0) && (pos <= str.length()))
         ? (void)0
         : __assert_fail("0 <= pos && pos <= str.length()", "../../Include/Core/Strings.cpp", 0x742,
-                        "WideString remove(const WideString&, int32, int32)");
+                        __PRETTY_FUNCTION__);
     ((removeLength >= 0) && (pos + removeLength <= str.length()))
         ? (void)0
         : __assert_fail("0 <= removeLength && pos + removeLength <= str.length()",
                         "../../Include/Core/Strings.cpp", 0x743,
-                        "WideString remove(const WideString&, int32, int32)");
+                        __PRETTY_FUNCTION__);
     if (removeLength == 0)
     {
         return WideString(str);
@@ -2640,9 +2654,11 @@ WideString remove(const WideString& str, int32 pos, int32 removeLength)
         return WideString();
     }
     WideStringData* newData = WideStringData::createTerminated(str.length() - removeLength);
-    memcpy(newData->getBuffer(), str.c_str(), pos * 4);
-    memcpy(newData->getBuffer() + pos, str.c_str() + pos + removeLength,
-           (str.length() - pos - removeLength) * 4);
+    // ORIG：unsigned 乘形态 lea
+    memcpy(newData->getBuffer(), str.c_str(), (size_t)pos * 4);
+    // ORIG：内括号求 int 和（removeLength 先装载）；同上需写作 `pos + removeLength`
+    memcpy(newData->getBuffer() + pos, str.c_str() + (pos + removeLength),
+           (size_t)(str.length() - pos - removeLength) * 4);
     return WideString(newData);
 }
 
@@ -2651,12 +2667,12 @@ WideString replace(const WideString& str, wchar pat, wchar target)
     if (pat == 0)
     {
         __assert_fail("pat != 0", "../../Include/Core/Strings.cpp", 0x756,
-                      "WideString replace(const WideString&, wchar, wchar)");
+                      __PRETTY_FUNCTION__);
     }
     if (target == 0)
     {
         __assert_fail("target != 0", "../../Include/Core/Strings.cpp", 0x757,
-                      "WideString replace(const WideString&, wchar, wchar)");
+                      __PRETTY_FUNCTION__);
     }
     if (str.length() == 0)
     {
@@ -2695,53 +2711,52 @@ WideString replace(const WideString& str, const wchar* pat, int32 patLength,
     const wchar* strBuffer = str.c_str();
     int32 strLength = str.length();
     int32 replaceCount = 0;
-    int32 i = 0;
-    while (i <= strLength - patLength)
     {
-        if (memcmp(strBuffer + i, pat, (size_t)patLength * 4) == 0)
+        int32 i = 0;
+        while (i <= strLength - patLength)
         {
-            replaceCount = replaceCount + 1;
-            i = i + patLength;
-        }
-        else
-        {
-            i = i + 1;
+            if (memcmp(strBuffer + i, pat, (size_t)patLength * 4) == 0)
+            {
+                replaceCount = replaceCount + 1;
+                i = i + patLength;
+            }
+            else
+            {
+                i = i + 1;
+            }
         }
     }
     if (replaceCount == 0)
     {
         return WideString(str);
     }
-    int32 delta = targetLength - patLength;
-    int32 baseLen = strLength;
-    int32 newLength = delta * replaceCount + baseLen;
+    int32 wordDelta = targetLength - patLength;
+    int32 nowLength = strLength;
+    int32 newLength = wordDelta * replaceCount + strLength;
     if (newLength == 0)
     {
         return WideString();
     }
     WideStringData* newData = WideStringData::createTerminated(newLength);
     wchar* newBuffer = newData->getBuffer();
-    int32 ni = 0;
-    i = 0;
-    while (i < strLength)
     {
-        if (strLength - patLength < i)
+        int32 i = 0;
+        int32 ni = 0;
+        while (i < strLength)
         {
-            newBuffer[ni] = strBuffer[i];
-            ni = ni + 1;
-            i = i + 1;
-        }
-        else if (memcmp(strBuffer + i, pat, (size_t)patLength * 4) != 0)
-        {
-            newBuffer[ni] = strBuffer[i];
-            ni = ni + 1;
-            i = i + 1;
-        }
-        else
-        {
-            memcpy(newBuffer + ni, target, (size_t)targetLength * 4);
-            i = i + patLength;
-            ni = ni + targetLength;
+            if (strLength - patLength >= i &&
+                memcmp(strBuffer + i, pat, (size_t)patLength * 4) == 0)
+            {
+                memcpy(newBuffer + ni, target, (size_t)targetLength * 4);
+                i = i + patLength;
+                ni = ni + targetLength;
+            }
+            else
+            {
+                newBuffer[ni] = strBuffer[i];
+                ni = ni + 1;
+                i = i + 1;
+            }
         }
     }
     return WideString(newData);

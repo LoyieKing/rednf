@@ -72,7 +72,7 @@ void CNetworkThread::dispatch(void* param)
                         }
                         else
                         {
-                            DNF_LOG_SCOPE_LINE(0x8d,"./log/recvErr",
+                            DNF_LOG_SCOPE_LINE(0x81,"./log/recvErr",
                                 "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                                 *(unsigned short*)((char*)buf + 2), len,
                                 *(unsigned short*)buf);
@@ -84,7 +84,7 @@ void CNetworkThread::dispatch(void* param)
                     }
                     else
                     {
-                        DNF_LOG_SCOPE_LINE(0x81,"./log/recvErr",
+                        DNF_LOG_SCOPE_LINE(0x8d,"./log/recvErr",
                             "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                             *(unsigned short*)((char*)buf + 2), len, *(unsigned short*)buf);
                         {

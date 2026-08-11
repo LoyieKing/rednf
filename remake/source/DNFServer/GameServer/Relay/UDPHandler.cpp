@@ -21,9 +21,11 @@ UDPHandlerRelay::~UDPHandlerRelay()
 void UDPHandlerRelay::dispatch(char* buf, int size, int flag)
 {
     PacketHeader* pkt = (PacketHeader*)buf;
-    if (*(unsigned short*)pkt == 0)
+    switch (pkt->m_type)
     {
+    case 0:
         getManager()->relayToTCP(pkt);
+        break;
     }
 }
 
@@ -33,19 +35,30 @@ UDPHandlerS2S::UDPHandlerS2S()
 
 void UDPHandlerS2S::dispatch(char* buf, int size, int flag)
 {
-    short type = *(short*)buf;
-    if (type != 1)
+    PacketHeaderS2S* pkt = (PacketHeaderS2S*)buf;
+    switch (pkt->m_a)
     {
-        if (type == 0x9c4)
+    case 1:
+        return;
+    case 0x9c4:
+        goto L9c4;
+    case 0:
+        goto L0;
+    default:
+        return;
+    }
+L0:
+    {
+        PacketHeaderS2S* q = (PacketHeaderS2S*)buf;
+        getManager()->setAuthenticated(q->m_f);
+    }
+    return;
+L9c4:
+    {
+        PacketHeaderS2S* p = (PacketHeaderS2S*)buf;
+        if (p->m_g == 0)
         {
-            if (*(char*)(buf + 0xe) == 0)
-            {
-                getManager()->postDisconnectEvent2TCPUser(*(unsigned int*)(buf + 0xa), 3);
-            }
-        }
-        else if (type == 0)
-        {
-            getManager()->setAuthenticated(*(unsigned int*)(buf + 0xa));
+            getManager()->postDisconnectEvent2TCPUser(p->m_f, 3);
         }
     }
 }

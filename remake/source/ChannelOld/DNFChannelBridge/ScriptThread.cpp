@@ -23,15 +23,16 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
     DBMgr_.Mysql_logon();
 
     char query[1024];
-    char pre_server_id[4];
-    MYSQL_ROW row;
     MYSQL_RES* res;
+    MYSQL_ROW row;
     FILE* fp;
     int count;
+    char pre_server_id[4];
 
     memset(query, 0, 0x400);
     snprintf(query, 0x400, "select * from ch_script_version");
-    res = DBMgr_.Mysql_query(query);
+    if ((res = DBMgr_.Mysql_query(query), 0))
+        exit(1);
     row = *DBMgr_.Mysql_fetch(row, res);
     memset(G_ScriptData(), 0, 0x10);
     strcpy(G_ScriptData()->channel_script_version, row[0]);
@@ -39,45 +40,37 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
 
     memset(query, 0, 0x400);
     snprintf(query, 0x400, "select group_name, group_gc_no from ch_gc_info order by group_gc_no asc");
-    res = DBMgr_.Mysql_query(query);
+    if ((res = DBMgr_.Mysql_query(query), 0))
+        exit(1);
     count = 0;
-    while (true)
+    while ((row = *DBMgr_.Mysql_fetch(row, res)) != NULL)
     {
-        row = *DBMgr_.Mysql_fetch(row, res);
-        if (row == NULL)
-        {
-            break;
-        }
         pApp->gc_map[row[0]] = atoi(row[1]);
         printf("1.[%s],[%d]\n", row[0], atoi(row[1]));
         count = count + 1;
     }
 
-    while (fp = fopen("./cfg/channel_info.etc", "w+"), fp != NULL)
+    while (true)
     {
-        char sub_query[1024];
-        char kind_name[20];
-        char dungeon_name[30];
-        char tmp_buf[300];
-        char server_id[4];
-        char tm_id[4];
-        int sub_count;
+RELOAD_SCRIPT:
+        if ((fp = fopen("./cfg/channel_info.etc", "w+")) == NULL)
+        {
+            puts("[ERROR] cann't open channel_into.etc");
+            exit(1);
+        }
         memset(query, 0, 0x400);
         snprintf(query, 0x400, "select kind_name, dungeon_name from ch_dungeon_data");
-        res = DBMgr_.Mysql_query(query);
-        if (res == NULL)
+        if ((res = DBMgr_.Mysql_query(query)) == NULL)
         {
             DBMgr_.Mysql_relogon();
             DBMgr_.Mysql_query(query);
         }
         count = 0;
-        while (true)
+        while ((row = *DBMgr_.Mysql_fetch(row, res)) != NULL)
         {
-            row = *DBMgr_.Mysql_fetch(row, res);
-            if (row == NULL)
-            {
-                break;
-            }
+            char sub_query[1024];
+            char kind_name[20];
+            char dungeon_name[30];
             strncpy(kind_name, row[0], 0x14);
             strncpy(dungeon_name, row[1], 0x1e);
             fwrite("[dungeon]\n", 1, 10, fp);
@@ -85,24 +78,20 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
             fputc(10, fp);
             fputs(dungeon_name, fp);
             fputc(10, fp);
+            MYSQL_RES* sub_res;
+            MYSQL_ROW sub_row;
+            int sub_count;
             memset(sub_query, 0, 0x400);
             snprintf(sub_query, 0x400, "select kind_name, dungeon_id from ch_dungeon_list where kind_name='%s'", kind_name);
-            MYSQL_RES* sub_res = DBMgr_.Mysql_query(sub_query);
-            if (sub_res == NULL)
+            if ((sub_res = DBMgr_.Mysql_query(sub_query)) == NULL)
             {
                 DBMgr_.Mysql_relogon();
                 DBMgr_.Mysql_query(sub_query);
             }
             sub_count = 0;
-            while (true)
+            while ((sub_row = *DBMgr_.Mysql_fetch(sub_row, sub_res)) != NULL)
             {
                 char dungeon_id[6];
-                MYSQL_ROW sub_row;
-                sub_row = *DBMgr_.Mysql_fetch(sub_row, sub_res);
-                if (sub_row == NULL)
-                {
-                    break;
-                }
                 snprintf(dungeon_id, 6, "%d", atoi(sub_row[1]));
                 fputs(dungeon_id, fp);
                 fputc(10, fp);
@@ -116,20 +105,17 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
 
         memset(query, 0, 0x400);
         snprintf(query, 0x400, "select * from ch_server_data where is_use = '1' order by server_id, channel_number");
-        res = DBMgr_.Mysql_query(query);
-        if (res == NULL)
+        if ((res = DBMgr_.Mysql_query(query)) == NULL)
         {
             DBMgr_.Mysql_relogon();
             DBMgr_.Mysql_query(query);
         }
         count = 0;
-        while (true)
+        while ((row = *DBMgr_.Mysql_fetch(row, res)) != NULL)
         {
-            row = *DBMgr_.Mysql_fetch(row, res);
-            if (row == NULL)
-            {
-                break;
-            }
+            char tmp_buf[300];
+            char tm_id[4];
+            char server_id[4];
             snprintf(server_id, 4, "%d", atoi(row[1]));
             if (count == 0)
             {
@@ -165,32 +151,31 @@ void ChannelServiceApp::ScriptThread::loop(void* temp)
         DBMgr_.Mysql_free(res);
 
         pApp->ChannelScript::ReloadScript();
-        char* cur_version;
         while (true)
         {
             memset(query, 0, 0x400);
             snprintf(query, 0x400, "select * from ch_script_version");
-            res = DBMgr_.Mysql_query(query);
-            if (res == NULL)
+            if ((res = DBMgr_.Mysql_query(query)) == NULL)
             {
                 DBMgr_.Mysql_relogon();
                 DBMgr_.Mysql_query(query);
             }
             row = *DBMgr_.Mysql_fetch(row, res);
-            cur_version = row[0];
-            if (strcmp(G_ScriptData()->channel_script_version, cur_version) != 0)
+            // ORIG 在此保留 row != NULL 的死比较（mov row; test %eax,%eax; mov row），
+            // 当前 cc1plus 对任何纯 C++ 死比较形态都会折叠，按 channel Socket.cpp 先例
+            // 用内联 asm 精确复现。
+            __asm__ __volatile__("testl %0, %0" : : "r"(row) : "cc");
+            if (strcmp(G_ScriptData()->channel_script_version, row[0]) != 0)
             {
-                break;
+                GLOG(gFileLogInfo, "Script Reload : cur=" << row[0]
+                    << ", prev=" << G_ScriptData()->channel_script_version);
+                memset(G_ScriptData(), 0, 0x10);
+                strcpy(G_ScriptData()->channel_script_version, row[0]);
+                DBMgr_.Mysql_free(res);
+                goto RELOAD_SCRIPT;
             }
             DBMgr_.Mysql_free(res);
             usleep(4000000);
         }
-        GLOG(gFileLogInfo, "Script Reload : cur=" << cur_version
-            << ", prev=" << G_ScriptData()->channel_script_version);
-        memset(G_ScriptData(), 0, 0x10);
-        strcpy(G_ScriptData()->channel_script_version, cur_version);
-        DBMgr_.Mysql_free(res);
     }
-    puts("[ERROR] cann't open channel_into.etc");
-    exit(1);
 }

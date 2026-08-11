@@ -31,7 +31,11 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
-    char m_data[0x204];
+    // ORIG 实测：池化元素 0x204 字节 = 数据区 0x200 + 空闲链指针@0x200。
+    // 用成员形态访问（mov 0x200(%eax),%eax / mov %edx,0x200(%eax)），
+    // 指针算术形态会退化成 lea+间接存储（与 ORIG 不符）。
+    char m_data[0x200];
+    void* m_next;  // +0x200（MemPool 空闲链）
 };
 
 #endif // DNF_UDP_RECV_BUFFER_H_

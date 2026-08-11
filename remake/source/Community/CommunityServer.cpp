@@ -50,39 +50,17 @@ int main(int argc, char **argv) {
         cfg.add_tag("ip");
         cfg.add_tag("port");
         cfg.add_tag("domain");
-        if (argc == 3) {
-            char buffer[255];
-            // 与原始一致：按地址对齐展开的清 0 循环（非 memset）
-            // 原始：p/size 保持在寄存器（edx/ebx），无栈溢写
-            register char *p = buffer;
-            register unsigned int size = 255;
-            register bool odd = ((unsigned int)p & 1) != 0;
-            if (odd) {
-                buffer[0] = '\0';
-                p = buffer + 1;
-                size = 254;
-            }
-            if (((unsigned int)p & 2) != 0) {
-                p[0] = '\0';
-                p[1] = '\0';
-                p += 2;
-                size -= 2;
-            }
-            for (register unsigned int i = size >> 2; i != 0; i--) {
-                p[0] = '\0';
-                p[1] = '\0';
-                p[2] = '\0';
-                p[3] = '\0';
-                p += 4;
-            }
-            if ((size & 2) != 0) {
-                p[0] = '\0';
-                p[1] = '\0';
-                p += 2;
-            }
-            if (!odd) {
-                *p = '\0';
-            }
+        // 原始：argc != 3 错误分支在前（ORIG cmp; je <main body>，错误路径内联），
+        // if/else 结构而非 if 后直落。
+        if (argc != 3) {
+            puts("wrong parameter!");
+            puts("[execute filename]  [cfg filename]  [command]");
+            return 0;
+        } else {
+            // 原始：char buffer[255] = {0}; 初始化展开为运行时对齐分拆块清 0
+            // （and $0x1 / and $0x2 + rep stosd + 尾 2/1 字节，edx=地址 ebx=0xff），
+            // 与 CreateLogFile 的 char buffer[1024] = {0} 同一编译器形态。
+            char buffer[255] = {0};
             sprintf(buffer, "./cfg/%s.cfg", argv[1]);
             cfg.ReadConfigFile(buffer);
             // 原始：command == false 直接 return 0（xor eax,1; test/je 形态）
@@ -92,10 +70,10 @@ int main(int argc, char **argv) {
             CCoreDump coreDump;
             CSessionManager sessionManager;
             sessionManager.CreateEvents(100);
-            int port = atoi(cfg.get_value("port"));
-            const char* ip = cfg.get_value("ip");
+            // 原始：get_value/atoi 直接内联为 TryListen/ArchiveLog/printf 实参
+            // （ORIG 每次重新求值，无 port/ip 命名局部）。
             // 原始：TryListen == false 直接 return 0
-            if (sessionManager.TryListen(ip, port) == false) {
+            if (sessionManager.TryListen(cfg.get_value("ip"), atoi(cfg.get_value("port"))) == false) {
                 return 0;
             }
             ArchiveLog("Listen Socket IP:%s, PORT:%s", cfg.get_value("ip"), cfg.get_value("port"));
@@ -114,10 +92,6 @@ int main(int argc, char **argv) {
             }
             return 0;
         }
-        // 原始：argc != 3 时直落到 puts（if 后无 else）
-        puts("wrong parameter!");
-        puts("[execute filename]  [cfg filename]  [command]");
-        return 0;
     } catch (std::exception& e) {
         // 原始：std::cerr << "error: " << e.what() << "\n"（_ZStls 三次输出）
         std::cerr << "error: " << e.what() << "\n";

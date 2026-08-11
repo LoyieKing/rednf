@@ -38,7 +38,7 @@ public:
 class CUnixTimer : public CDnFTimer
 {
 public:
-    CUnixTimer();
+    CUnixTimer() throw();  // ORIG 空异常规格：CQueryCounterC1 的 new 不产生 EH 清理块
     ~CUnixTimer() {}
     virtual void SetLastTime();
     virtual double GetTimeInterval();

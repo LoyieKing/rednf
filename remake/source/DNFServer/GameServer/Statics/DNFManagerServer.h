@@ -20,7 +20,7 @@ public:
     unsigned char m_id;          // +0（0xff=无效）
     std::string m_name;          // +4
     unsigned short m_port;       // +8
-    unsigned char m_connectFlag; // +0xa
+    bool m_connectFlag;          // +0xa（同 coserver：SetConnFlag 求值顺序对齐 ORIG）
     unsigned char m_param;       // +0xb
     CUdpHandler* m_udp;          // +0xc
 };

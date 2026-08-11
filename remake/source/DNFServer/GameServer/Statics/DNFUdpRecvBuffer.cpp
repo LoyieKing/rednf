@@ -10,9 +10,8 @@ void* MemPool<T>::headOfFreeList_ = 0;
 MemPool<CUdpRecvBuffer> m_RecvBufferMemPool_(10000);
 template<class T>
 MemPool<T>::MemPool(unsigned int count)
+    : m_classSize(0x1804), m_count(count)
 {
-    m_classSize = 0x1804;
-    m_count = count;
 }
 template<class T>
 MemPool<T>::~MemPool()

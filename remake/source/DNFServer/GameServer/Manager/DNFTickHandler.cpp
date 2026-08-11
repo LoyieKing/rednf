@@ -19,7 +19,7 @@ void CFrameCountHandler::SaveProcess()
     m_field28++;
     if (m_field28 != 0)
     {
-        CMyFileLog log("SaveProcess", 0xa8);
+        CMyFileLog log(__FUNCTION__, 0xa8);
         log("./log/frame", "FPS(%02d) / DFC(%02d)\n", m_field18, m_field4);
         m_field28 = 0;
     }
@@ -30,7 +30,7 @@ void CFrameCountHandler::SaveProcess(int n)
     m_field28++;
     if (m_field28 != 0)
     {
-        CMyFileLog log("SaveProcess", 0xb8);
+        CMyFileLog log(__FUNCTION__, 0xb8);
         log("./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", n, m_field18, m_field4);
         m_field28 = 0;
     }
@@ -49,6 +49,13 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int a, u
 void* CFrameCountHandler::GetFrameCountInfo()
 {
     struct tms tms;
+    // ORIG：入口零初始化 4 个局部（-0x2c diff / -0x28 diff2 / -0x24 pad / -0x1c pad），
+    // frame（-0x20）不初始化；0x63 检查前重算 m_field10 - m_fieldC。
+    unsigned int diff = 0;
+    unsigned int diff2 = 0;
+    unsigned int pad1 = 0;
+    unsigned int frame;
+    unsigned int pad2 = 0;
     m_field24 = 0;
     if (!m_field0[0])
     {
@@ -64,14 +71,15 @@ void* CFrameCountHandler::GetFrameCountInfo()
         throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
     if (m_fieldC > (unsigned int)m_field10)
         m_fieldC = m_field10;
-    unsigned int diff = m_field10 - m_fieldC;
-    unsigned int frame = diff / m_field8;
+    diff = m_field10 - m_fieldC;
+    frame = diff / m_field8;
     if (m_field14 < frame)
     {
         m_field14++;
         m_field24 = 1;
     }
-    if (diff > 0x63)
+    diff2 = m_field10 - m_fieldC;
+    if (diff2 > 0x63)
     {
         m_field18 = m_field14;
         m_field24 = 2;

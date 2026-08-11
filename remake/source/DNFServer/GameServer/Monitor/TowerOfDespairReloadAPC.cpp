@@ -29,20 +29,18 @@
 #include "DNFPacketTranslater.h"
 #include "DNFServerHandler.h"
 
-bool TowerOfDespairReloadAPC_Task::returnUpdateMessageFromGameServer_flag = false;
+bool TowerOfDespairReloadAPC_Task::returnUpdateMessageFromGameServer = false;
 
-TowerOfDespairReloadAPC_Task::TowerOfDespairReloadAPC_Task(unsigned int a, unsigned int b) {}
+TowerOfDespairReloadAPC_Task::TowerOfDespairReloadAPC_Task(unsigned int a, unsigned int b)
+    : CTaskScheduler::CTask(a, b)
+{
+}
 
 TowerOfDespairReloadAPC_Task::~TowerOfDespairReloadAPC_Task() {}
 
 bool TowerOfDespairReloadAPC_Task::isReturnedMessage()
 {
-    return returnUpdateMessageFromGameServer_flag;
-}
-
-void TowerOfDespairReloadAPC_Task::returnUpdateMessageFromGameServer()
-{
-    returnUpdateMessageFromGameServer_flag = true;
+    return returnUpdateMessageFromGameServer;
 }
 
 void TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC()
@@ -54,7 +52,7 @@ void TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC()
         CApplication* app = (CApplication*)CApplicationInstance();
         CServerHandler* handler = app->Get_ServerHandler();
         unsigned int first = handler->getfirstLinkedServer();
-        CMyFileLog log2("SendRequest_DoRandomSelectUserAPC", 0x40);
+        CMyFileLog log2(__FUNCTION__, 0x40);
         log2("./log/GameServer", "TOD : main GameServerChannel %u\n", first);
         handler->SendToGameServer((unsigned char)first, &pkt);
     }
@@ -62,6 +60,7 @@ void TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC()
 
 TowerOfDespairWaitGameServerResponse_Task::TowerOfDespairWaitGameServerResponse_Task(
     unsigned int a, unsigned int b)
+    : CTaskScheduler::CTask(a, b)
 {
 }
 

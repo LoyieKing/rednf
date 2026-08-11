@@ -33,31 +33,32 @@ MemPool<T>::~MemPool()
 template<class T>
 void* MemPool<T>::alloc()
 {
+    // ORIG 实测（0x805858e）：result@-0x14 / block@-0x10 两个独立槽位，
+    // 第一条分支直接 return ::operator new（不经 result 槽），
+    // 链指针用成员位移形态（mov %eax,0x200(%edx)）。
     void* result;
+    CUdpRecvBuffer* block;
     if (m_classSize != 0x204)
     {
-        result = ::operator new(0x204);
+        return ::operator new(0x204);
+    }
+    result = headOfFreeList_;
+    if (result != 0)
+    {
+        headOfFreeList_ = ((CUdpRecvBuffer*)result)->m_next;
     }
     else
     {
-        result = headOfFreeList_;
-        if (result != 0)
+        block = (CUdpRecvBuffer*)::operator new(m_count * m_classSize);
+        for (unsigned int i = 0; i < m_count - 1U; i++)
         {
-            headOfFreeList_ = *(void**)((int)result + 0x200);
+            block[i].m_next = (void*)&block[i + 1];
         }
-        else
-        {
-            void* block = ::operator new(m_count * m_classSize);
-            for (unsigned int i = 0; i < m_count - 1U; i++)
-            {
-                *(void**)((int)block + i * 0x204 + 0x200) = (void*)((i + 1) * 0x204 + (int)block);
-            }
-            *(void**)((int)block + (m_count - 1) * 0x204 + 0x200) = 0;
-            headOfFreeList_ = (void*)((int)block + 0x204);
-            result = block;
-            m_chunks.push_back(static_cast<void*&&>(block));
-            DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize, m_count * (int)m_chunks.size());
-        }
+        block[m_count - 1].m_next = 0;
+        result = block;
+        headOfFreeList_ = (void*)((char*)block + 0x204);
+        m_chunks.push_back(static_cast<void*&&>((void*)block));
+        DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize, m_count * (int)m_chunks.size());
     }
     return result;
 }
@@ -67,10 +68,13 @@ void MemPool<T>::free(void* p)
 {
     if (p != 0)
     {
-        void* q = p;
-        ((void**)q)[0x80] = headOfFreeList_;
+        CUdpRecvBuffer* q = (CUdpRecvBuffer*)p;
+        q->m_next = headOfFreeList_;
         headOfFreeList_ = q;
+        // ORIG 实测（0x8058732 尾）：if 块末有显式 jmp+对齐 nop 的共享出口。
+        return;
     }
+    return;
 }
 
 template<class T>
@@ -84,11 +88,13 @@ void MemPool<T>::free(void* p, unsigned int size)
         }
         else
         {
-            void* q = p;
-            ((void**)q)[0x80] = headOfFreeList_;
+            CUdpRecvBuffer* q = (CUdpRecvBuffer*)p;
+            q->m_next = headOfFreeList_;
             headOfFreeList_ = q;
+            return;
         }
     }
+    return;
 }
 
 void* CUdpRecvBuffer::operator new(unsigned int size)

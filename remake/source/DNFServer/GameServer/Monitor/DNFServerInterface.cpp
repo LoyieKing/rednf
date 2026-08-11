@@ -1,5 +1,6 @@
 // df_monitor_r — DNFServerInterface（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,18 +32,18 @@
 CServerInterface::CServerInterface()
 {
     m_info = 0;
-    m_field8[0] = 0;
-    m_field8[1] = 0;
-    m_field8[2] = 0;
+    m_connected = 0;
+    m_heart = 0;
+    m_padA[0] = 0;
     m_udpHandler = 0;
 }
 
 CServerInterface::CServerInterface(stServerInfo* info)
 {
     m_info = info;
-    m_field8[0] = 0;
-    m_field8[1] = 0;
-    m_field8[2] = 0;
+    m_connected = 0;
+    m_heart = 0;
+    m_padA[0] = 0;
     m_udpHandler = 0;
 }
 
@@ -58,13 +59,13 @@ void CServerInterface::SetServerInfo(stServerInfo* info) { m_info = info; }
 
 bool CServerInterface::Initialize()
 {
-    if (m_udpHandler != 0)
+    if (m_udpHandler == 0)
     {
-        return false;
+        m_udpHandler = new CUdpHandler;
+        ((CUdpHandler*)m_udpHandler)->InitClientSocket();
+        return 1;
     }
-    m_udpHandler = new CUdpHandler;
-    ((CUdpHandler*)m_udpHandler)->InitClientSocket();
-    return true;
+    return 0;
 }
 
 bool CServerInterface::Destroy()
@@ -76,53 +77,61 @@ bool CServerInterface::Destroy()
     return true;
 }
 
-bool CServerInterface::IsValidServer() { return 1; }
+bool CServerInterface::IsValidServer()
+{
+    if (m_info->m_field0 == 0xff)
+    {
+        return 0;
+    }
+    return 1;
+}
 
-char CServerInterface::IsConnected() { return 1; }
+bool CServerInterface::IsConnected() { return m_connected; }
 
 char CServerInterface::IsHeartBeatTimeOver()
 {
-    m_field8[1] = m_field8[1] - 1;
-    if (m_field8[1] == 0)
+    m_heart = m_heart - 1;
+    bool zero = (m_heart == 0);
+    if (zero)
     {
-        m_field8[2] = m_field8[2] + 1;
-        if (m_field8[2] > 20)
+        m_padA[0] = m_padA[0] + 1;
+        bool over = (m_padA[0] > 0x14);
+        if (over)
         {
             return 1;
         }
-        m_field8[1] = 20;
+        m_heart = 0x14;
     }
     return 0;
 }
 
-unsigned char CServerInterface::GetChannelNo() { return 0; }
+unsigned char CServerInterface::GetChannelNo() { return m_info->m_field1; }
 
 void CServerInterface::OnDisconnect()
 {
-    m_field8[0] = 0;
-    m_field8[1] = 20;
-    m_field8[2] = 0;
+    m_connected = 0;
+    m_heart = 20;
+    m_padA[0] = 0;
 }
 
 void CServerInterface::SetConnFlag(bool flag)
 {
-    *(char*)((char*)this + 8) = (char)flag;
+    m_connected = flag;
 }
 
 void CServerInterface::ResetHeartBeat()
 {
-    *(char*)((char*)this + 9) = 0x14;
-    *(char*)((char*)this + 10) = 0;
+    m_heart = 0x14;
+    m_padA[0] = 0;
 }
 
 int CServerInterface::SendToServer(char* buf, int len)
 {
-    if (*(int*)((char*)this + 0xc) == 0)
+    if (m_udpHandler != 0)
     {
-        return 0;
+        return ((CUdpHandler*)m_udpHandler)
+            ->SendToServer(buf, len, m_info->m_port,
+                           (char*)((unsigned int)m_info + 3));
     }
-    return ((CUdpHandler*)*(int*)((char*)this + 0xc))
-        ->SendToServer(buf, len, *(unsigned short*)(*(int*)((char*)this + 4) + 0x14),
-                       (char*)(*(int*)((char*)this + 4) + 3));
+    return 0;
 }
-

@@ -79,19 +79,23 @@ void CCashObject::operator delete(void* p) { m_CashObjectMemPool_.free(p); }
 void CCashObject::operator delete(void* p, unsigned int size) { m_CashObjectMemPool_.free(p, size); }
 
 CCashObject::CCashObject()
+    : m_lifeTime(5), m_charNo(0)
 {
-    m_lifeTime = 5;
-    m_charNo = 0;
 }
 
 CCashObject::~CCashObject()
 {
+    m_lifeTime = 0;
+    m_charNo = 0;
+    m_blackUsers.clear();
 }
 
 bool CCashObject::IsLifeTimeOut()
 {
     m_lifeTime -= 1;
-    return m_lifeTime == 0;
+    if (m_lifeTime == 0)
+        return true;
+    return false;
 }
 
 void CCashObject::SetBlackUsersObject(std::map<unsigned int, CBlackUser*>& blackUsers)
@@ -119,6 +123,5 @@ std::map<unsigned int, CBlackUser*>* CCashObject::GetBlackUsersObject()
 
 void CCashObject::SetCharacNo(unsigned int charNo)
 {
-    m_charNo = (int)charNo;
+    m_charNo = charNo;
 }
-

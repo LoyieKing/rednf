@@ -1,5 +1,6 @@
 // df_monitor_r — EventActionManager（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -30,8 +31,6 @@
 #include "DNFPacketTranslater.h"
 #include "DNFServerHandler.h"
 #include "OnTimeEventManager.h"
-
-CBaseEventAction::CBaseEventAction() : m_eventId(0) {}
 
 CBaseEventAction::~CBaseEventAction() {}
 
@@ -146,13 +145,14 @@ void CEventActionManager::destroy()
 
 void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
 {
-    unsigned int code = *(unsigned int*)((char*)pkt + 0xa);
+    unsigned int code = ((RA_UINT<10>*)pkt)->v;
     if (code < 0xa6)
     {
-        EventParam param = *(EventParam*)((char*)pkt + 0xe);
-        m_actions[code]->OnStartEvent(param);
-        *(unsigned int*)((char*)pkt + 0xe) = *(unsigned int*)&param;
+        unsigned int param = ((RA_UINT<14>*)pkt)->v;
+        m_actions[code]->OnStartEvent(*(EventParam*)&param);
+        ((RA_UINT<14>*)pkt)->v = param;
     }
+    return;
 }
 
 void CEventActionManager::OnEndAction(unsigned int code)
@@ -161,6 +161,7 @@ void CEventActionManager::OnEndAction(unsigned int code)
     {
         m_actions[code]->OnEndEvent();
     }
+    return;
 }
 
 CBaseEventAction* CEventActionManager::GetEventAction(int code)
@@ -171,4 +172,3 @@ CBaseEventAction* CEventActionManager::GetEventAction(int code)
     }
     return m_actions[code];
 }
-

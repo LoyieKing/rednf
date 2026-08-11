@@ -43,15 +43,6 @@ void CQueryCounter::ResetQueryCount()
     memset((char*)this + 0x4, 0, 0x141);
     m_field0 = 0;
 }
-void CQueryCounter::WriteFileLog()
-{
-    char buf[0x400];
-    memset(buf, 0, 0x400);
-    for (int i = 1; i <= 0x140; i++)
-        sprintf(buf, "\t%d(%d)", buf, i, m_counts[i]);
-    CMyFileLog log("WriteFileLog", 0x68);
-    log("./log/QueryCount", "%s", buf);
-}
 void CQueryCounter::WriteDBLog(CDBManager& db)
 {
     m_interval--;
@@ -65,7 +56,7 @@ void CQueryCounter::WriteDBLog(CDBManager& db)
         {
             if (m_counts[idx] != 0)
             {
-                CMyFileLog log("WriteDBLog", 0x76);
+                CMyFileLog log(__FUNCTION__, 0x76);
                 log("./log/QueryCount",
                     "Count DB Insert Fail! id(%d), count(%d), time(%d)", q,
                     m_counts[idx], time);
@@ -76,7 +67,7 @@ void CQueryCounter::WriteDBLog(CDBManager& db)
             if (m_counts[idx] != 0)
             {
                 int avg = time / m_counts[idx];
-                CMyFileLog log("WriteDBLog", 0x7a);
+                CMyFileLog log(__FUNCTION__, 0x7a);
                 log("./log/QueryCount",
                     "Count DB Insert Success! id(%d), count(%d), time(%d), compute(%4.2f)",
                     q, m_counts[idx], time, avg);
@@ -107,7 +98,7 @@ void CQueryCounter::SetResponseTime(unsigned int ms)
     m_responseTimes[i] = interval + m_responseTimes[i];
     if (interval > 500.0)
     {
-        CMyFileLog log("SetResponseTime", 0x5d);
+        CMyFileLog log(__FUNCTION__, 0x5d);
         log("./log/SlowQuery", "type(%d)interval(%d)", ms, interval);
     }
 }
@@ -123,9 +114,4 @@ int CQueryCounter::LoadQueryIdTable(int queryId)
         }
     }
     return 0;
-}
-CQueryCounter* CQueryCounterInstance()
-{
-    static CQueryCounter instance;
-    return &instance;
 }

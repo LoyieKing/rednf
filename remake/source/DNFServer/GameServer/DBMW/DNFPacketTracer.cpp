@@ -39,7 +39,7 @@ void CPacketTracer::WriteLog()
 {
     if (m_field0 % 30 == 0)
     {
-        CMyFileLog log("WriteLog", 0x37);
+        CMyFileLog log(__FUNCTION__, 0x37);
         log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
         ResetLog();
     }
@@ -53,7 +53,7 @@ void CPacketTracer::AddLog(int type, int len)
 }
 void CPacketTracer::AbsoluteWriteLog()
 {
-    CMyFileLog log("AbsoluteWriteLog", 0x3f);
+    CMyFileLog log(__FUNCTION__, 0x3f);
     log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
     ResetLog();
 }
@@ -93,7 +93,7 @@ void CPacketTracer::WritePacketProcessLog()
         {
             if (it->second.m_count != 0)
             {
-                CMyFileLog log("WritePacketProcessLog", 0x6f);
+                CMyFileLog log(__FUNCTION__, 0x6f);
                 log("./log/PacketProcess",
                     "id(%d), acc count(%d), acc time(%.4f ms), average time(%4.4f ms)",
                     it->first, it->second.m_count, it->second.m_accTime,

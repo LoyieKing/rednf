@@ -28,6 +28,8 @@ bool Token::get_token(char* str, int size)
     }
 
     char* temp = new char[size + 1];
+    // ORIG __LINE__ 实测 0x20=32（point/auction 同源一致）
+#line 32
     assert(temp);
     memset(temp, 0, size + 1);
     strncpy(temp, str, size);
@@ -53,12 +55,16 @@ bool Token::get_token(char* str, int size)
 
 char* Token::get_context(int idx0)
 {
+    // ORIG __LINE__ 实测 0x42=66（point/auction 同源一致）
+#line 66
     assert(idx0>=0 && idx0<MAX_TOKEN);
     return m_token[idx0];
 }
 
 void Token::free_token(int idx0)
 {
+    // ORIG __LINE__ 实测 0x48=72（point/auction 同源一致）
+#line 72
     assert(idx0>=0 && idx0<MAX_TOKEN);
     if (m_token[idx0] != NULL)
     {

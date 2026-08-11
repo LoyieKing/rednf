@@ -180,14 +180,18 @@ void CUser::req_remove_buddy(char param_server_id, char const *param_user_id_wha
     // copied from server, never used
     __attribute__((unused)) int user_m_id = removingBuddy->user_m_id;
     char server_id = removingBuddy->server_id;
-    int charac_no = removingBuddy->charac_no;
+    // 原始：unsigned int 局部（ORIG db_delete_buddy 实参先求值 server_id 再 charac_no，
+    // 2026-08-11 实测 int 类型会翻转求值顺序）
+    unsigned int charac_no = removingBuddy->charac_no;
     if (!buddyManager.del_buddy(param_server_id, param_user_id_what)) {
         // 3 not means buddy not found???
         notice_remove_buddy_fail(3);
     } else {
         CUser* user = g_user_manager.find_user(param_server_id, param_user_id_what);
         if (user != NULL) {
-            user->get_buddy_manager()->del_buddy(user->stGameUserInfo.server_id, stGameUserInfo.buddy_n_user_id_what);
+            // 原始（ORIG 二进制实测）：del_buddy 第一实参为 this->stGameUserInfo.server_id
+            // （movzbl 0x4(%eax),eax 中 eax=this），不是 user->...（2026-08-11 修正）
+            user->get_buddy_manager()->del_buddy(stGameUserInfo.server_id, stGameUserInfo.buddy_n_user_id_what);
         }
         db_delete_buddy(server_id, charac_no);
         notice_remove_buddy_success(param_server_id, param_user_id_what);
@@ -216,11 +220,11 @@ void CUser::send_buddy_list() {
     packet.charac_no = stGameUserInfo.charac_no;
     packet.sTGameUserInfo_what3_0x05 = stGameUserInfo.what_0x5;
     packet.buddyCount = buddyManager.get_size();
+    // 原始：i = 0 初始化在 begin() 调用之前（ORIG movl $0x0,-0x14 先于 begin call）；
+    // iBuddy 为 copy-init（iterator iBuddy = begin()），避免默认构造调用。
     int i = 0;
-    // 原始：while (iBuddy != end) { if (i > 31) break; ... }（直接分支，无 && 物化）
     std::vector<STPvPBuddyDBInfo>::iterator iBuddy = buddyManager.buddies.begin();
-    std::vector<STPvPBuddyDBInfo>::iterator iEnd = buddyManager.buddies.end();
-    while (iBuddy != iEnd) {
+    while (iBuddy != buddyManager.buddies.end()) {
         if (i > 31) {
             break;
         }
@@ -234,15 +238,18 @@ void CUser::send_buddy_list() {
             packet.buddies[i].channel_no = -1;
         }
         STPvPBuddyDBInfo buddy = *iBuddy;
-        packet.buddies[i].server_id = buddy.server_id;
-        packet.buddies[i].charac_no = buddy.charac_no;
-        packet.buddies[i].variable_what1 = buddy.variable_what1;
-        packet.buddies[i].buddy_n_user_what2 = buddy.buddy_n_user_what2;
-        packet.buddies[i].variable_what2 = buddy.variable_what2;
-        packet.buddies[i].buddy_n_user_what3 = buddy.buddy_n_user_what3;
-        memcpy(packet.buddies[i].buddy_n_user_id_what, buddy.buddy_n_user_id_what, 0x1d);
-        ++iBuddy;
+        // 原始：Ghidra 还原出 local_10 = &local_43 的指针形态（-0xc 槽），
+        // 字段访问经指针重载（mov -0xc,%eax; movzbl (%eax)），非直接栈槽偏移。
+        STPvPBuddyDBInfo *buddyPtr = &buddy;
+        packet.buddies[i].server_id = buddyPtr->server_id;
+        packet.buddies[i].charac_no = buddyPtr->charac_no;
+        packet.buddies[i].variable_what1 = buddyPtr->variable_what1;
+        packet.buddies[i].buddy_n_user_what2 = buddyPtr->buddy_n_user_what2;
+        packet.buddies[i].variable_what2 = buddyPtr->variable_what2;
+        packet.buddies[i].buddy_n_user_what3 = buddyPtr->buddy_n_user_what3;
+        memcpy(packet.buddies[i].buddy_n_user_id_what, buddyPtr->buddy_n_user_id_what, 0x1d);
         i++;
+        ++iBuddy;
     }
     networkSession->Send((char *)&packet, packet.packetSize);
 }
@@ -269,8 +276,11 @@ void CUser::send_other_channel_chat_hyper_link(Packet_Monitor_Other_Channel_Chat
     packet.what_0x16f = chat->what_0x173;
     memcpy(packet.what_0x170, chat->what_0x174, chat->what_0x173);
     packet.what_0x36 = chat->what_0x3a;
+    // 原始：直接成员访问（what_0x37=0x37/ what_0x3b=0x3b，GCC 4.4 把成员偏移拆成
+    // add $0x30 + lea/add 余量：ORIG add $0x30; add chat; lea 0xb → edx 形态）；
+    // 不能用平铺 (char*)chat + 0x30 + i*0x68 + 0xb（常量折叠为 0x3b）。
     for (int i = 0; i < chat->what_0x3a; i++) {
-        memcpy(packet.what_0x37 + i * 0x68, chat->what_0x3b + i * 0x68, 0x68);
+        memcpy(&packet.what_0x37[i * 0x68], &chat->what_0x3b[i * 0x68], 0x68);
     }
     networkSession->Send((char *)&packet, packet.packetSize);
 }
@@ -297,8 +307,9 @@ void CUser::send_other_channel_chat_result_hyper_link(Packet_Monitor_Other_Chann
     packet.what_0x16f = chat->what_0x173;
     memcpy(packet.what_0x170, chat->what_0x174, chat->what_0x173);
     packet.what_0x36 = chat->what_0x3a;
+    // 原始：同 send_other_channel_chat_hyper_link 的直接成员访问形态
     for (int i = 0; i < chat->what_0x3a; i++) {
-        memcpy(packet.what_0x37 + i * 0x68, chat->what_0x3b + i * 0x68, 0x68);
+        memcpy(&packet.what_0x37[i * 0x68], &chat->what_0x3b[i * 0x68], 0x68);
     }
     networkSession->Send((char *)&packet, packet.packetSize);
 }

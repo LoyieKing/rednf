@@ -97,52 +97,47 @@ bool STPowerWarCharacInfo::Compare(const STPowerWarCharacInfo* a, const STPowerW
 
 std::vector<STPowerWarCharacInfo*>* CPowerWarCharacInfo::GetCharacInfoVector()
 {
-    return (std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18);
+    return &m_vec;
 }
 
 CPowerWarCharacInfo::CPowerWarCharacInfo()
 {
-    new (m_data + 0) std::map<unsigned int, STPowerWarCharacInfo*>();       // class +4
-    new (m_data + 0x18) std::vector<STPowerWarCharacInfo*>();               // class +0x1c
 }
 
 CPowerWarCharacInfo::~CPowerWarCharacInfo()
 {
-    ((std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18))->~vector();
-    ((std::map<unsigned int, STPowerWarCharacInfo*>*)(m_data + 0))->~map();
 }
 
 void CPowerWarCharacInfo::Initialize()
 {
-    ((std::map<unsigned int, STPowerWarCharacInfo*>*)m_data)->clear();
-    ((std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18))->clear();
-    ((std::list<STUserPoint>*)(m_data + 0x24))->clear();
+    m_map.clear();
+    m_vec.clear();
+    m_list.clear();
 }
 
 void CPowerWarCharacInfo::Clean()
 {
-    std::vector<STPowerWarCharacInfo*>* chars =
-        (std::vector<STPowerWarCharacInfo*>*)((char*)this + 0x1c);
+    std::vector<STPowerWarCharacInfo*>* chars = &m_vec;
     for (std::vector<STPowerWarCharacInfo*>::iterator it = chars->begin();
          it != chars->end(); ++it)
     {
         delete *it;
     }
     chars->clear();
-    ((std::map<unsigned int, STPowerWarCharacInfo*>*)m_data)->clear();
+    m_map.clear();
 }
 
 STPowerWarCharacInfo* CPowerWarCharacInfo::CreatePowerwarCharac()
 {
-    STPowerWarCharacInfo* info = new STPowerWarCharacInfo;
+    STPowerWarCharacInfo* info = 0;
+    info = new STPowerWarCharacInfo;
     memset(info, 0, 4);
     return info;
 }
 
 STPowerWarCharacInfo* CPowerWarCharacInfo::FindPowerwarCharac(unsigned int charNo)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map =
-        (std::map<unsigned int, STPowerWarCharacInfo*>*)(m_data + 0);
+    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
     std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = map->find(charNo);
     if (it == map->end())
     {
@@ -153,10 +148,9 @@ STPowerWarCharacInfo* CPowerWarCharacInfo::FindPowerwarCharac(unsigned int charN
 
 int CPowerWarCharacInfo::InsertPowerwarCharac(unsigned int charNo, STPowerWarCharacInfo* info)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map =
-        (std::map<unsigned int, STPowerWarCharacInfo*>*)(m_data + 0);
+    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
     map->insert(std::make_pair(charNo, info));
-    ((std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18))->push_back(info);
+    m_vec.push_back(info);
     return 0;
 }
 
@@ -179,15 +173,13 @@ void CPowerWarCharacInfo::UpdatePowerwarCharacInfo(unsigned int charNo, unsigned
 
 void CPowerWarCharacInfo::CalcAllUserRanking()
 {
-    std::vector<STPowerWarCharacInfo*>* vec =
-        (std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18);
+    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
     std::sort(vec->begin(), vec->end(), STPowerWarCharacInfo::Compare);
 }
 
 unsigned int CPowerWarCharacInfo::GetUserRanking(unsigned int charNo)
 {
-    std::vector<STPowerWarCharacInfo*>* vec =
-        (std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18);
+    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
     unsigned int rank = 1;
     for (std::vector<STPowerWarCharacInfo*>::iterator it = vec->begin(); it != vec->end(); ++it)
     {
@@ -202,8 +194,7 @@ unsigned int CPowerWarCharacInfo::GetUserRanking(unsigned int charNo)
 
 unsigned int CPowerWarCharacInfo::GetUserPowerWarPoint(unsigned int charNo)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map =
-        (std::map<unsigned int, STPowerWarCharacInfo*>*)(m_data + 0);
+    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
     std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = map->find(charNo);
     if (it == map->end())
     {
@@ -215,8 +206,7 @@ unsigned int CPowerWarCharacInfo::GetUserPowerWarPoint(unsigned int charNo)
 void CPowerWarCharacInfo::GetAllUserRankingInfo(unsigned int& count, STUserRank* rank)
 {
     unsigned int n = 0;
-    std::vector<STPowerWarCharacInfo*>* vec =
-        (std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18);
+    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
     for (std::vector<STPowerWarCharacInfo*>::iterator it = vec->begin();
          it != vec->end() && n < 500; ++it)
     {
@@ -251,15 +241,14 @@ void CPowerWarCharacInfo::GetStatueRankingUsers(std::vector<STPowerWarCharacInfo
 
 void CPowerWarCharacInfo::PrintDebugInfo()
 {
-    CMyFileLog log1("PrintDebugInfo", 0xee);
+    CMyFileLog log1(__FUNCTION__, 0xee);
     log1("./log/PowerResult",
          "------ POWER WAR CHARAC DEBUG INFO START --------------------------------------------------------");
-    CMyFileLog log2("PrintDebugInfo", 0xef);
+    CMyFileLog log2(__FUNCTION__, 0xef);
     log2("./log/PowerResult",
          "------ ALL USER RANKING -------------------------------------------------------------------------");
     int rank = 1;
-    std::vector<STPowerWarCharacInfo*>* vec =
-        (std::vector<STPowerWarCharacInfo*>*)(m_data + 0x18);
+    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
     for (std::vector<STPowerWarCharacInfo*>::iterator it = vec->begin(); it != vec->end(); ++it)
     {
         STPowerWarCharacInfo* info = *it;
@@ -267,25 +256,22 @@ void CPowerWarCharacInfo::PrintDebugInfo()
             *(unsigned int*)info->m_data, *(unsigned int*)(info->m_data + 4));
         rank++;
     }
-    CMyFileLog log3("PrintDebugInfo", 0x100);
+    CMyFileLog log3(__FUNCTION__, 0x100);
     log3("./log/PowerResult",
          "------ POWER WAR CHARAC DEBUG INFO END   --------------------------------------------------------");
 }
 
 int CPowerWarCharacInfo::IsExistCharac(unsigned int charNo)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map =
-        (std::map<unsigned int, STPowerWarCharacInfo*>*)(m_data + 0);
+    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
     std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = map->find(charNo);
     return it != map->end();
 }
 
 void CPowerWarCharacInfo::CalcBonus()
 {
-    std::vector<STPowerWarCharacInfo*>* chars =
-        (std::vector<STPowerWarCharacInfo*>*)((char*)this + 0x1c);
-    std::list<STUserPoint>* points =
-        (std::list<STUserPoint>*)((char*)this + 0x28);
+    std::vector<STPowerWarCharacInfo*>* chars = &m_vec;
+    std::list<STUserPoint>* points = &m_list;
     for (std::vector<STPowerWarCharacInfo*>::iterator it = chars->begin();
          it != chars->end(); ++it)
     {
@@ -299,8 +285,7 @@ void CPowerWarCharacInfo::CalcBonus()
 
 int CPowerWarCharacInfo::GetBonus(Packet_DB_Save_Power_War_Bonus_Point& pkt)
 {
-    std::list<STUserPoint>* points =
-        (std::list<STUserPoint>*)((char*)this + 0x28);
+    std::list<STUserPoint>* points = &m_list;
     int i = 0;
     std::list<STUserPoint>::iterator it = points->begin();
     while (it != points->end() && i <= 0xf9)
@@ -343,4 +328,3 @@ STPowerWarCharacInfo::STPowerWarCharacInfo()
 {
     memset(m_data, 0, sizeof(m_data));
 }
-

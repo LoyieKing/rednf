@@ -26,7 +26,7 @@ public:
     UdpRecvQueue* m_udpQueue;  // +0xc
     CMutex* m_udpQLock;        // +0x10
     CMutex* m_udpBLock;        // +0x14
-    char m_table[0xa018 - 0x18];  // +0x18（0x3e8..0x27ff 表项）
+    void (*m_table[0x2800])(PacketHeader*);  // +0x18（0x3e8..0x27ff 表项，0xa000 字节）
 };
 
 CPacketDecoder* CPacketDecoderInstance();

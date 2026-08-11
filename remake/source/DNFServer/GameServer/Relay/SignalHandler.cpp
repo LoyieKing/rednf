@@ -133,6 +133,8 @@ bool Neof_sendTerminateSignal()
     puts("called Neof_sendTerminateSignal");
     char path[30] = {0};
     char buf[30];
+    int r;
+    int pid;
     snprintf(path, 0x1e, "pid/%s.pid",
              LinuxService::getInstance()->getPIDFileName());
     FILE* f = fopen(path, "r");
@@ -142,14 +144,14 @@ bool Neof_sendTerminateSignal()
         return false;
     }
     fgets(buf, 0x1e, f);
-    int pid = atoi(buf);
+    pid = atoi(buf);
     if (pid < 1)
     {
         fclose(f);
         printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
         return false;
     }
-    int r = kill(pid, 0xf);
+    r = kill(pid, 0xf);
     if (r < 0)
     {
         fclose(f);
@@ -164,6 +166,8 @@ void Neof_sendSuspendSignal()
 {
     char path[30] = {0};
     char buf[30];
+    int r;
+    int pid;
     snprintf(path, 0x1e, "pid/%s",
              LinuxService::getInstance()->getPIDFileName());
     FILE* f = fopen(path, "r");
@@ -173,14 +177,14 @@ void Neof_sendSuspendSignal()
         return;
     }
     fgets(buf, 0x1e, f);
-    int pid = atoi(buf);
+    pid = atoi(buf);
     if (pid < 1)
     {
         fclose(f);
         printf("%d\xb9\xf8\xc0\xc7 \xc0\xdf\xb8\xf8\xb5\xc8 process id\n", pid);
         return;
     }
-    int r = kill(pid, 10);
+    r = kill(pid, 10);
     if (r < 0)
     {
         fclose(f);

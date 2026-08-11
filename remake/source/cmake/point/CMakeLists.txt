@@ -104,7 +104,7 @@ dnf_service(point
         -I${AUCTIONGD} -I${AUCTIONAUCTION} -I${AUCTIONDICT} -I${AUCTIONSRC}
         -I${DNF_SRC}/shared -I${DNF_SRC}/shared/common/include -I${DNF_SRC}/shared/packet/include
     DEFINES
-        -D_GNU_SOURCE -DPOINT_SERVER -std=gnu++0x -pthread -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS
+        -D_GNU_SOURCE -DPOINT_SERVER -std=gnu++0x -pthread -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS -DDNF_SVC_POINT
     SRC_OPTS
         "${SERVERCOMMON}/tinyxml.cpp|-O3 -std=gnu++98 -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS"
         "${SERVERCOMMON}/tinyxmlerror.cpp|-O3 -std=gnu++98 -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS"
@@ -115,6 +115,20 @@ dnf_service(point
     LINK_FLAGS
         -no-pie -static-libgcc -lpthread -ldl ${DF_ZLIB32}/lib/libz.a -lm
 )
+
+# __FILE__ 覆盖：复刻 ORIG 的 assert 路径字符串（见 point_filepath_override.h）。
+# 仅影响 point 构建；与 auction 同源（ORIG 路径字符串一致）。
+set(_POINT_FILEPATH_H "${CMAKE_CURRENT_LIST_DIR}/point_filepath_override.h")
+set_source_files_properties(${CORE}/SecureStdio.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_POINT_FILEPATH_H};-DPOINT_FILEPATH_SECURESTDIO")
+set_source_files_properties(${BASIC}/RecvBuffer.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_POINT_FILEPATH_H};-DPOINT_FILEPATH_RECVBUFFER")
+set_source_files_properties(${COMMON}/CommonDataPool.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_POINT_FILEPATH_H};-DPOINT_FILEPATH_COMMONDATAPOOL")
+set_source_files_properties(${BASIC}/Token.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_POINT_FILEPATH_H};-DPOINT_FILEPATH_TOKEN")
+set_source_files_properties(${COMMON}/LogSendThread.cpp PROPERTIES COMPILE_OPTIONS
+    "-include;${_POINT_FILEPATH_H};-DPOINT_FILEPATH_LOGSENDTHREAD")
 
 # 链接用宿主 g++（与 build-point.sh 一致：-m32 -no-pie -static-libgcc）。
 find_program(DNF_HOST_GXX NAMES g++ PATHS /usr/bin /usr/local/bin NO_DEFAULT_PATH)

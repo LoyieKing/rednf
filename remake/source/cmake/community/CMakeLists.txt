@@ -54,12 +54,19 @@ dnf_service(community
         -isystem${DNF_SRC}/Library3rd/Boost/Include
         -I${SHARED} -I${SHARED}/common/include -I${SHARED}/packet/include
     DEFINES
-        -D_GNU_SOURCE -std=gnu++0x -pthread -DBOOST_DISABLE_ASSERTS
+        -D_GNU_SOURCE -std=gnu++0x -pthread -DBOOST_DISABLE_ASSERTS -DDNF_SVC_COMMUNITY
     SRC_OPTS
         "${COMMUNITY}/ArchiveLog.cpp|-fno-exceptions"
         "${SERVERCOMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
+    LIBS
+        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a
+        ${DF_C6ROOT}/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libgcc_eh.a
+        ${DF_C5R52I}/usr/lib/gcc/i386-redhat-linux/4.1.1/libstdc++.a
+        ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
+        ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
+        -lpthread -ldl -lm
     LINK_FLAGS
-        -no-pie -static-libgcc -lpthread -lrt -lm
+        -m32 -no-pie
 )
 
 # 链接用宿主 g++（同 build-channel.sh / build-auction.sh：-m32 -no-pie -static-libgcc）。

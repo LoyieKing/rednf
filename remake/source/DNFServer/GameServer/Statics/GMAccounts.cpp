@@ -83,13 +83,13 @@ void stDisjointAvatarInfoTotal::clear()
         {
             for (int k = 0; k < 2; k++)
             {
-                *(int*)(m_data + ((i * 9 + j) * 2 + k) * 4) = 0;
+                m_data[(i * 9 + j) * 2 + k] = 0;
             }
-            *(int*)(m_data + (i * 9 + j + 0x34) * 4 + 8) = 0;
+            m_data[i * 9 + j + 0x34 + 2] = 0;
         }
     }
 }
-int stDisjointAvatarInfoTotal::checkCondition(int a, int b, int c)
+bool stDisjointAvatarInfoTotal::checkCondition(int a, int b, int c)
 {
     if (a < 0 || 2 < a) return 0;
     if (b < 0 || 8 < b) return 0;
@@ -98,10 +98,10 @@ int stDisjointAvatarInfoTotal::checkCondition(int a, int b, int c)
 }
 void stDisjointAvatarInfoTotal::incCount(int a, int b, int c, int d)
 {
-    if (checkCondition(a, b, c) != 0)
+    if (checkCondition(a, b, c))
     {
-        *(int*)(m_data + ((a * 9 + b) * 2 + c) * 4) += 1;
-        *(int*)(m_data + (a * 9 + b + 0x34) * 4 + 8) += d;
+        m_data[(a * 9 + b) * 2 + c] += 1;
+        m_data[a * 9 + b + 0x34 + 2] += d;
     }
 }
 Packet_Avater_Disjoint_Statistic_DB::Packet_Avater_Disjoint_Statistic_DB()
@@ -114,10 +114,10 @@ Packet_Randombox_statistic_DB::Packet_Randombox_statistic_DB()
 }
 void stCreateEmblemStatistic::increaseCount(int idx)
 {
-    if (-1 < idx && idx < 7)
-    {
-        m_data[idx] += 1;
-    }
+    // ORIG 0x807579a：两段独立早退（js/jg 各自跳向带 nop 的返回路径）。
+    if (idx < 0) return;
+    if (6 < idx) return;
+    m_data[idx]++;
 }
 void stCreateEmblemStatistic::clear()
 {
@@ -516,9 +516,9 @@ stP2PStatistics::stP2PStatistics()
 }
 void stP2PStatistics::Init()
 {
-    memset(m_data, 0, 0x48);
-    *(unsigned short*)(m_data + 10) = 0x7fff;
-    *(unsigned short*)(m_data + 0x28) = 0x7fff;
+    memset(this, 0, 0x48);
+    m_fieldA = 0x7fff;
+    m_fieldB = 0x7fff;
 }
 namespace WongWork
 {
@@ -547,7 +547,7 @@ void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
     info.m_field1 = flag;
     m_list.push_back(info);
     char* mid = NumberToString(id, 0);
-    DNF_LOG_SCOPE_AT("AppendGM_Sys", 0xcd, "./log/Init", "GM List Add mid:%s", mid);
+    DNF_LOG_SCOPE_LINE(0xcd, "./log/Init", "GM List Add mid:%s", mid);
 }
 
 bool CGMAccounts::loadGMAccounts(const char* path)
@@ -565,14 +565,23 @@ int CGMAccounts::isGM(unsigned int id)
     return it != m_list.end();
 }
 
-void CGMAccounts::appendGM(unsigned int id, unsigned int value)
+int CGMAccounts::appendGM(unsigned int id, unsigned int value)
 {
-    return;
+    // ORIG 实测：返回 0，帧 0x10（两个未用局部变量槽）
+    int l0;
+    int l1;
+    return 0;
 }
 
-void CGMAccounts::removeGM(unsigned int id, unsigned int value)
+int CGMAccounts::removeGM(unsigned int id, unsigned int value)
 {
-    return;
+    // ORIG 实测：返回 0，帧 0x20（五个未用局部变量槽）
+    int l0;
+    int l1;
+    int l2;
+    int l3;
+    int l4;
+    return 0;
 }
 
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
@@ -794,21 +803,12 @@ bool STPacketOverflowKey::operator<(const STPacketOverflowKey& other) const
 }
 bool STAssertManagerKey::operator<(const STAssertManagerKey& other) const
 {
-    int r = strcmp(m_str0, other.m_str0);
-    if (r == 0)
-    {
-        if (m_field100 < other.m_field100)
-        {
-            return true;
-        }
-        r = strcmp(m_str2, other.m_str2);
-        if (r == 0)
-        {
-            return false;
-        }
-        return true;
-    }
-    return true;
+    // ORIG 0x80743c2 实测：平铺链（strcmp != 0 → true；m_field100 < → true；
+    // strcmp2 != 0 → true；否则 false），分支极性/布局与 ORIG 对齐。
+    if (strcmp(m_str0, other.m_str0) != 0) return true;
+    if (m_field100 < other.m_field100) return true;
+    if (strcmp(m_str2, other.m_str2) != 0) return true;
+    return false;
 }
 bool STUserTingTimeCheckKey::operator<(const STUserTingTimeCheckKey& other) const
 {
@@ -817,25 +817,19 @@ bool STUserTingTimeCheckKey::operator<(const STUserTingTimeCheckKey& other) cons
 }
 bool STHellPartyStatisticItemKey::operator<(const STHellPartyStatisticItemKey& other) const
 {
-    if ((unsigned char)m_field0 < (unsigned char)other.m_field0) return true;
-    if (m_field0 == other.m_field0)
-    {
-        if (m_field4 < other.m_field4) return true;
-        if (m_field4 == other.m_field4)
-        {
-            if (m_field8 < other.m_field8) return true;
-            if (m_field8 == other.m_field8)
-            {
-                if (m_field9 < other.m_field9) return true;
-                if (m_field9 == other.m_field9)
-                {
-                    if (m_fielda < other.m_fielda) return true;
-                    if (m_fielda == other.m_fielda &&
-                        (unsigned char)m_fielda < (unsigned char)other.m_fielda) return true;
-                }
-            }
-        }
-    }
+    // ORIG 0x80768b8 实测：m_field0 / m_field4 / m_field8 / m_field9 / m_field9
+    // / m_fielda 比较链（m_field9 在 ORIG 中被比较两次）。
+    if (m_field0 < other.m_field0) return true;
+    if (m_field0 != other.m_field0) return false;
+    if (m_field4 < other.m_field4) return true;
+    if (m_field4 != other.m_field4) return false;
+    if (m_field8 < other.m_field8) return true;
+    if (m_field8 != other.m_field8) return false;
+    if (m_field9 < other.m_field9) return true;
+    if (m_field9 != other.m_field9) return false;
+    if (m_field9 < other.m_field9) return true;
+    if (m_fielda != other.m_fielda) return false;
+    if (m_fielda < other.m_fielda) return true;
     return false;
 }
 void HellPartyItenmData::operator+=(const HellPartyItenmData& other)

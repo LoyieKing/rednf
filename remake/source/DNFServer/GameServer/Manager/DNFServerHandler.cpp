@@ -24,7 +24,8 @@ void CServerHandler::SetMonitorServerIpPort(unsigned char idx, unsigned int ip, 
 
 void CServerHandler::SendToMonitorServer(char* buf, int len, unsigned char idx)
 {
-    ((CMonitorServer*)this + idx)->SendToServer(buf, len);
+    CMonitorServer* p = &m_monitorServers[idx];
+    p->SendToServer(buf, len);
 }
 
 void CServerHandler::Load(ST_ServerInfo* infos)
@@ -64,25 +65,33 @@ CTcpServer* CServerHandler::GetTcpServer(unsigned char idx)
 CMonitorServer* CServerHandler::GetMonitorServer(int idx)
 {
     if (idx <= 0x64 && m_monitorServers[idx].IsValidMonitorServer())
-        return &m_monitorServers[idx];
-    CMyFileLog log("CServerHandler::GetMonitorServer", 0xc7);
-    log("./log/ServerHandler", "GetMonitorServer(%d) fail", idx);
+        return (CMonitorServer*)((char*)this + idx * 0x14);
+    CMyFileLog log(__FUNCTION__, 0xc7);
+    log("./log/Server.log", "Server Index Over Index : %d!\n", idx);
     return 0;
 }
 
 void CServerHandler::Process()
 {
     CMonitorServer* p = m_monitorServers;
-    for (int i = 0x65; i != 0; i--, p++)
+    int i = 0x65;
+    while (i-- != 0)
     {
         if (!p->IsValidMonitorServer())
-            continue;
-        if (p->IsConnected() && p->IsHeartBeatTimeOver())
         {
-            p->OnDisconnect();
-            CMyFileLog log("CServerHandler::Process", 0x55);
-            log("./log/ServerHandler", "MonitorServer(%d) disconnect", 0x66 - i);
+            p++;
+            continue;
         }
+        if (p->IsConnected())
+        {
+            if (p->IsHeartBeatTimeOver())
+            {
+                p->OnDisconnect();
+                CMyFileLog log(__FUNCTION__, 0x55);
+                log("./log/MonitorDown", "CServerHandler::Process() Index : %d!\n", 0x66 - i);
+            }
+        }
+        p++;
     }
     CheckTcpServerHeartbeat();
 }
@@ -158,8 +167,8 @@ void CServerHandler::SetConnectFlag(unsigned char idx, bool flag)
         m_monitorServers[idx].SetConnFlag(flag);
         return;
     }
-    CMyFileLog log("CServerHandler::SetConnectFlag", 0xa7);
-    log("./log/ServerHandler", "SetConnectFlag(%d) fail", idx);
+    CMyFileLog log(__FUNCTION__, 0xa7);
+    log("./log/Server.log", "Monitor Server Index Over Index : %d!\n", idx);
 }
 
 int CServerHandler::GetAlivedMonitorServer()
@@ -181,8 +190,8 @@ char CServerHandler::IsConnectedMonitorServer(unsigned char idx)
 {
     if (idx <= 0x64 && m_monitorServers[idx].IsValidMonitorServer())
         return m_monitorServers[idx].IsConnected();
-    CMyFileLog log("CServerHandler::IsConnectedMonitorServer", 0x91);
-    log("./log/ServerHandler", "IsConnectedMonitorServer(%d) fail", idx);
+    CMyFileLog log(__FUNCTION__, 0x91);
+    log("./log/Server.log", "Server Index Over Index : %d!\n", idx);
     return 0;
 }
 
@@ -193,8 +202,8 @@ void CServerHandler::ResetHeartBeat(unsigned char idx)
         m_monitorServers[idx].ResetHeartBeat();
         return;
     }
-    CMyFileLog log("CServerHandler::ResetHeartBeat", 0x70);
-    log("./log/ServerHandler", "ResetHeartBeat(%d) fail", idx);
+    CMyFileLog log(__FUNCTION__, 0x70);
+    log("./log/Server.log", "Server Index Over Index : %d!\n", idx);
 }
 
 void CServerHandler::SendToTcpServer(PacketHeader* header, unsigned char idx)
@@ -210,15 +219,15 @@ void CServerHandler::SendToTcpServer(PacketHeader* header, unsigned char idx)
 void CServerHandler::SendToTcpServer(char* buf, int len, unsigned char idx)
 {
     CTcpServer* server = GetTcpServer(idx);
-    if (!server)
-        return;
-    server->SendToServer(buf);
+    if (server)
+        server->SendToServer(buf);
 }
 
 void CServerHandler::SendAllToMonitorServer(char* buf, int len)
 {
     CMonitorServer* p = m_monitorServers;
-    for (int i = 0x65; i != 0; i--)
+    int i = 0x65;
+    while (i-- != 0)
     {
         if (p->IsValidMonitorServer() && p->IsConnected())
             p->SendToServer(buf, len);

@@ -103,6 +103,9 @@ bool EpollReactor<TSession, TSendSocket, TRecvSocket>::handleEvents(
         getManager()->makeLog();
         if (n == 0)
         {
+            // 还原 ORIG 布局：n==0 分支经 goto 汇合到 post_loop（生成 je→nop 落地 +
+            // 循环出口 jmp 形态，与 ORIG 4.4.6-3 -O0 一致）
+            goto post_loop;
         }
         else if (n < 0)
         {
@@ -110,7 +113,7 @@ bool EpollReactor<TSession, TSendSocket, TRecvSocket>::handleEvents(
         }
         else
         {
-            for (int i = 0; i < n; i++)
+            for (register int i = 0; i < n; i++)
             {
                 if (events_[i].data.ptr == (void*)listenSocket.getHandle())
                 {
@@ -202,6 +205,8 @@ bool EpollReactor<TSession, TSendSocket, TRecvSocket>::handleEvents(
                 }
             }
         }
+post_loop:
+        ;
         m_lock.lock();
         bool bAll = true;
         if (m_users.size() != 0)

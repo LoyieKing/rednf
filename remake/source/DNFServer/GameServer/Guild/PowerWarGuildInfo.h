@@ -60,7 +60,9 @@ public:
     void MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Point_Reward* pkt);
     int GetPowerWarPointDBSaveCount();
     void GetAllGuildRankingInfo(int& count, STGuildRank* rank);
-    char m_data[0x30];   // vptr@0 + map@+4(0x14) + vector@+0x1c(0xc) + vector@+0x28(0xc) = 0x34
+    std::map<unsigned int, STPowerWarGuildInfo*> m_map;   // +4（vptr@0）
+    std::vector<STPowerWarGuildInfo*> m_vec;              // +0x1c
+    std::vector<STDBSavePowerWarPoint*> m_vec2;           // +0x28
 };
 
 #endif

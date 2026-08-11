@@ -53,12 +53,12 @@ void CSignalTranslator::init(CApplication* app)
     }
     catch (CDNFException& e)
     {
-        printf("CSignalTranslator::init() Exception : %s\n", e.what());
+        printf("CSignalTranslator Exception Break : %s\n", e.what());
         throw;
     }
     catch (...)
     {
-        puts("CSignalTranslator::init() Exception");
+        puts("CSignalTranslator Exception Break");
         throw;
     }
 }
@@ -97,92 +97,89 @@ void CSignalTranslator::init_signal()
 
 void CSignalTranslator::init_handler(CApplication* app)
 {
-    void** table = (void**)this;
-    CTerminateSig* term = new CTerminateSig;
-    table[0xf] = term;
-    term->attachApp(app);
-    for (int i = 0; i < 0x1a; i++)
+    m_data[0xf] = new CTerminateSig;
+    m_data[0xf]->attachApp(app);
+    for (int i = 0; i <= 0x19; i++)
     {
-        table[i] = term;
+        m_data[i] = m_data[0xf];
     }
-    CSegmentationFaultSig* segv = new CSegmentationFaultSig;
-    table[0x6] = segv;
-    segv->attachApp(app);
-    table[0xb] = segv;
-    table[0x8] = segv;
-    table[0x2] = segv;
-    CUser1Sig* u1 = new CUser1Sig;
-    table[0xa] = u1;
-    u1->attachApp(app);
-    CUser2Sig* u2 = new CUser2Sig;
-    table[0xc] = u2;
-    u2->attachApp(app);
-    CSystemFailSig* fail = new CSystemFailSig;
-    table[0x4] = fail;
-    fail->attachApp(app);
-    table[0x7] = fail;
-    table[0x17] = fail;
-    table[0x10] = fail;
-    table[0x18] = fail;
-    table[0x19] = fail;
-    table[0x1f] = fail;
+    m_data[0x6] = new CSegmentationFaultSig;
+    m_data[0x6]->attachApp(app);
+    m_data[0xb] = m_data[0x6];
+    m_data[0x8] = m_data[0x6];
+    m_data[0x2] = m_data[0x6];
+    m_data[0xa] = new CUser1Sig;
+    m_data[0xa]->attachApp(app);
+    m_data[0xc] = new CUser2Sig;
+    m_data[0xc]->attachApp(app);
+    m_data[0x4] = new CSystemFailSig;
+    m_data[0x4]->attachApp(app);
+    m_data[0x7] = m_data[0x4];
+    m_data[0x17] = m_data[0x4];
+    m_data[0x10] = m_data[0x4];
+    m_data[0x18] = m_data[0x4];
+    m_data[0x19] = m_data[0x4];
+    m_data[0x1f] = m_data[0x4];
 }
 
 bool CSignalTranslator::regist_signal(int sig, void (*handler)(int))
 {
     struct sigaction sa;
     struct sigaction old;
-    sigset_t mask;
     sa.sa_handler = handler;
-    sigemptyset(&mask);
-    int flags = (sig == 0xe) ? 0x20000000 : 0x10000000;
-    int r = sigaction(sig, &sa, &old);
-    if (r < 0)
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0;
+    if (sig == 0xe)
     {
-        printf("regist signal error %d\n", sig);
+        sa.sa_flags |= 0x20000000;
     }
-    return r >= 0;
+    else
+    {
+        sa.sa_flags |= 0x10000000;
+    }
+    if (sigaction(sig, &sa, &old) < 0)
+    {
+        printf("%d\xb9\xf8 signal \xb5\xee\xb7\xcf \xbd\xc7\xc6\xd0\n", sig);
+        return 0;
+    }
+    return 1;
 }
 
-void* CSignalTranslator::getSignal(int sig) const
+CSignal* CSignalTranslator::getSignal(int sig) const
 {
-    return *(void**)((char*)this + sig * 4);
+    return m_data[sig];
 }
 
 void CSignalTranslator::clear()
 {
-    void** table = (void**)this;
-    if (table[0x4] != 0)
+    if (m_data[0x4] != 0)
     {
-        (*(void(**)(void*))(*(void**)table[0x4] + 8))(table[0x4]);
-        table[0x4] = 0;
+        delete m_data[0x4];
+        m_data[0x4] = 0;
     }
-    if (table[0xa] != 0)
+    if (m_data[0xa] != 0)
     {
-        (*(void(**)(void*))(*(void**)table[0xa] + 8))(table[0xa]);
-        table[0xa] = 0;
+        delete m_data[0xa];
+        m_data[0xa] = 0;
     }
-    if (table[0xc] != 0)
+    if (m_data[0xc] != 0)
     {
-        (*(void(**)(void*))(*(void**)table[0xc] + 8))(table[0xc]);
-        table[0xc] = 0;
+        delete m_data[0xc];
+        m_data[0xc] = 0;
     }
-    if (table[0x6] != 0)
+    if (m_data[0x6] != 0)
     {
-        (*(void(**)(void*))(*(void**)table[0x6] + 8))(table[0x6]);
-        table[0x6] = 0;
+        delete m_data[0x6];
+        m_data[0x6] = 0;
     }
-    if (table[0xf] != 0)
+    if (m_data[0xf] != 0)
     {
-        (*(void(**)(void*))(*(void**)table[0xf] + 8))(table[0xf]);
-        table[0xf] = 0;
+        delete m_data[0xf];
+        m_data[0xf] = 0;
     }
 }
 
 void signal_handler(int sig)
 {
-    CSignalTranslator* st = CSignalTranslatorInstance();
-    void* sigObj = st->getSignal(sig);
-    void (**fn)(void*, int) = *(void(***)(void*, int))sigObj;
-    fn[0](sigObj, sig);
+    CSignalTranslatorInstance()->getSignal(sig)->handle(sig);
 }

@@ -48,40 +48,40 @@ public:
             if ((unsigned int)n < avail)
             {
                 m_nPushIndex += n;
-                return 0;
             }
-            if ((unsigned int)n == avail)
+            else if ((unsigned int)n == avail)
             {
-                if (m_nPopIndex != 0)
+                if (m_nPopIndex == 0)
                 {
-                    m_nPushIndex = 0;
-                    return 0;
+                    return -2;
                 }
-                return -2;
+                m_nPushIndex = 0;
             }
-            if (m_nPopIndex == 0)
+            else
             {
-                return -3;
+                if (m_nPopIndex == 0)
+                {
+                    return -3;
+                }
+                // ORIG 形态：直接写 m_nEndIndex = m_nPushIndex + n（不先写 m_nPushIndex）
+                m_nEndIndex = m_nPushIndex + n;
+                m_nPushIndex = 0;
             }
-            m_nPushIndex += n;
-            m_nEndIndex = m_nPushIndex;
-            m_nPushIndex = 0;
-            return 0;
-        }
-        unsigned int len;
-        if (m_nPopIndex <= (unsigned int)N - 1)
-        {
-            len = m_nPopIndex - m_nPushIndex;
         }
         else
         {
-            len = N - m_nPushIndex;
+            unsigned int len = (m_nPopIndex <= (unsigned int)N - 1)
+                                   ? (m_nPopIndex - m_nPushIndex)
+                                   : (N - m_nPushIndex);
+            if ((unsigned int)n < len)
+            {
+                m_nPushIndex += n;
+            }
+            else
+            {
+                return -4;
+            }
         }
-        if ((unsigned int)n >= len)
-        {
-            return -4;
-        }
-        m_nPushIndex += n;
         return 0;
     }
     bool isPopStraight(int n)
@@ -92,19 +92,17 @@ public:
         }
         if (m_nPopIndex <= m_nPushIndex)
         {
-            unsigned int len = m_nPushIndex - m_nPopIndex;
-            if ((unsigned int)n > len)
+            if ((unsigned int)n <= (unsigned int)(m_nPushIndex - m_nPopIndex))
             {
-                return false;
+                return true;
             }
-            return true;
-        }
-        unsigned int len = m_nEndIndex - m_nPopIndex;
-        if ((unsigned int)n > len)
-        {
             return false;
         }
-        return true;
+        if ((unsigned int)n <= (unsigned int)(m_nEndIndex - m_nPopIndex))
+        {
+            return true;
+        }
+        return false;
     }
     char* peekPop()
     {
@@ -126,18 +124,19 @@ public:
             return 0;
         }
         unsigned int len = m_nEndIndex - m_nPopIndex;
-        if ((int)len < n)
+        if ((int)len >= n)
         {
-            m_nPopIndex = n - len;
-            m_nEndIndex = N;
+            m_nPopIndex += n;
+            if (m_nPopIndex == m_nEndIndex)
+            {
+                m_nEndIndex = N;
+                m_nPopIndex = 0;
+            }
             return 0;
         }
-        m_nPopIndex += n;
-        if (m_nPopIndex == m_nEndIndex)
-        {
-            m_nEndIndex = N;
-            m_nPopIndex = 0;
-        }
+        m_nEndIndex = N;
+        // ORIG 舞步：n-(int)len 触发 GCC 4.1 式 5 条 MINUS 展开（round-7）
+        m_nPopIndex = n - (int)len;
         return 0;
     }
     unsigned int getPushedLength() const
@@ -173,9 +172,9 @@ public:
             return true;
         }
         memcpy(out, m_buffer + m_nPopIndex, len);
-        memcpy(out + len, m_buffer, n - len);
+        memcpy(out + len, m_buffer, n - (int)len);
         m_nEndIndex = N;
-        m_nPopIndex = n - len;
+        m_nPopIndex = n - (int)len;
         return true;
     }
     bool peekCopy(int n, char* out)
@@ -196,10 +195,10 @@ public:
             return true;
         }
         memcpy(out, m_buffer + m_nPopIndex, len);
-        memcpy(out + len, m_buffer, n - len);
+        memcpy(out + len, m_buffer, n - (int)len);
         return true;
     }
-    bool isEmpty() const
+    int isEmpty() const
     {
         return getPushedLength() == 0;
     }
@@ -224,43 +223,43 @@ public:
             {
                 memcpy(m_buffer + m_nPushIndex, data, n);
                 m_nPushIndex += n;
-                return 0;
             }
-            if ((unsigned int)n == avail)
+            else if ((unsigned int)n == avail)
             {
-                if (m_nPopIndex != 0)
+                if (m_nPopIndex == 0)
                 {
-                    memcpy(m_buffer + m_nPushIndex, data, n);
-                    m_nPushIndex = 0;
-                    return 0;
+                    return -2;
                 }
-                return -2;
+                memcpy(m_buffer + m_nPushIndex, data, n);
+                m_nPushIndex = 0;
             }
-            if (m_nPopIndex == 0)
+            else
             {
-                return -3;
+                if (m_nPopIndex == 0)
+                {
+                    return -3;
+                }
+                memcpy(m_buffer + m_nPushIndex, data, n);
+                // ORIG 形态：直接写 m_nEndIndex = m_nPushIndex + n
+                m_nEndIndex = m_nPushIndex + n;
+                m_nPushIndex = 0;
             }
-            memcpy(m_buffer + m_nPushIndex, data, n);
-            m_nPushIndex += n;
-            m_nEndIndex = m_nPushIndex;
-            m_nPushIndex = 0;
-            return 0;
-        }
-        unsigned int len;
-        if (m_nPopIndex <= (unsigned int)N - 1)
-        {
-            len = m_nPopIndex - m_nPushIndex;
         }
         else
         {
-            len = N - m_nPushIndex;
+            unsigned int len = (m_nPopIndex <= (unsigned int)N - 1)
+                                   ? (m_nPopIndex - m_nPushIndex)
+                                   : (N - m_nPushIndex);
+            if ((unsigned int)n < len)
+            {
+                memcpy(m_buffer + m_nPushIndex, data, n);
+                m_nPushIndex += n;
+            }
+            else
+            {
+                return -4;
+            }
         }
-        if ((unsigned int)n >= len)
-        {
-            return -4;
-        }
-        memcpy(m_buffer + m_nPushIndex, data, n);
-        m_nPushIndex += n;
         return 0;
     }
 

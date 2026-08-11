@@ -63,7 +63,10 @@ public:
 #define DNF_LOG_SCOPE_LINE(line, ...) CMyFileLog(__FUNCTION__, line)(__VA_ARGS__)
 
 // 全手动版本：函数名与行号都显式传入（用于名字不是函数短名的少数调用点）。
-#define DNF_LOG_SCOPE_AT(name, line, ...) CMyFileLog log(name, line); log(__VA_ARGS__)
+// ORIG 实测（coserver UdpHandler）：单表达式临时对象形式 —— 带数据实参的调用
+// 在构造前先求值实参（进入 callee-saved 寄存器）；两句式会在构造后求值。
+// 语义等价，仅影响代码生成形态。
+#define DNF_LOG_SCOPE_AT(name, line, ...) CMyFileLog(name, line)(__VA_ARGS__)
 
 // 通用 try/catch 冗余：log 家族（CDNFException + catch-all 都写 Except 日志）。
 // msg 为共享消息前缀（如 "Xxx() Exception Break"），展开与手写逐 token 相同。

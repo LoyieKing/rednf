@@ -41,9 +41,9 @@ public:
     virtual char* escape_string(char* dst, char const* src) { return 0; }
     virtual const char* get_quest_str() const { return 0; }
     // 以下为原版非虚成员
-    char init_db_handle();
-    char set_compress_option();
-    char set_read_default_grp_option();
+    bool init_db_handle();
+    bool set_compress_option();
+    bool set_read_default_grp_option();
     char is_valid_col(int col);
     int exec_query();
 };
@@ -57,7 +57,7 @@ public:
     char open(const char* host, const char* user, const char* pass, const char* db);
     char open(const char* host, unsigned int port, const char* user, const char* pass, const char* db);
     void close();
-    char init_db_handle();  // 非虚
+    bool init_db_handle();  // 非虚
     int exec_query();       // 非虚
     bool set_query(unsigned int q, char* fmt, ...);
     bool exec(unsigned int q);
@@ -86,10 +86,10 @@ public:
     char* escape_string(char* dst, char const* src);
     bool get_ulonglong(int col, unsigned long long& v);
     char is_valid_col(int col); // 非虚
-    char set_compress_option(); // 非虚
-    char set_read_default_grp_option(); // 非虚
-    char set_charset_name_option(); // 非虚
-    char set_reconnect_option();    // 非虚
+    bool set_compress_option(); // 非虚
+    bool set_read_default_grp_option(); // 非虚
+    bool set_charset_name_option(); // 非虚
+    bool set_reconnect_option();    // 非虚
     char ping();        // 虚（虚表 vptr+0x14）
     // dbmw 布局（init/open/exec_query 反推）
     MYSQL* m_mysql;   // +4

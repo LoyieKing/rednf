@@ -3,6 +3,9 @@ project(bridge CXX)
 
 # c6446r 变体：c6root g++ 4.4.7 驱动 + cc1plus 4.4.6（等价 /tmp/c6-g++-446r 的 -B）。
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -B ${DF_CC1P446}/")
+# ORIG 项目 TU 为 i586 目标形态（无 CMOV；常量除法用 sar/shr/lea 展开），
+# 第三方静态库（mysql/zlib/yaSSL）为 i686（含 cmov）。mtune=i686 保留 imul。
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=i586 -mtune=i686")
 
 set(DNF_SRC "${CMAKE_CURRENT_LIST_DIR}/../..")
 include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")

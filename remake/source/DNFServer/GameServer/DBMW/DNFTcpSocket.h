@@ -9,16 +9,16 @@ class TCPSocket
 public:
     TCPSocket();
     ~TCPSocket();
-    char open();
-    char connect(const char* ip, unsigned short port);
+    bool open();
+    bool connect(const char* ip, unsigned short port);
     char setOptNonBlock();
-    char bind(unsigned short port, bool flag);
-    char listen(int backlog);
-    char pollReadEvent() const;
+    bool bind(unsigned short port, bool flag);
+    bool listen(int backlog);
+    bool pollReadEvent() const;
     char pollWriteEvent() const;
     char pollErrorEvent() const;
     int pollReadWriteErrEvent() const;
-    char accept(TCPSocket& sock);
+    bool accept(TCPSocket& sock);
     int getHandle() const;
     int send(char* buf, int len);
     int recv(char* buf, int len);

@@ -236,7 +236,7 @@ bool EpollReactor<TSession>::handleEvents(unsigned int milisec, bool turn_of_idl
     }
     if (turn_of_idle)
     {
-        typename std::map<TSession*, unsigned int>::iterator iter = map_.begin();
+        register typename std::map<TSession*, unsigned int>::iterator iter = map_.begin();
         while (iter != map_.end())
         {
             if (iter->first == NULL)

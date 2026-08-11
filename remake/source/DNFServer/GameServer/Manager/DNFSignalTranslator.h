@@ -10,7 +10,9 @@ class CSignalTranslator
 public:
     CSignalTranslator();
     ~CSignalTranslator();
-    char regist_signal(int sig, void (*handler)(int));
+    // ORIG 返回类型为 bool：init_signal 中 !regist_signal(...) 编译为
+    // xor $1,%eax（4.4.6-3/4.4.7 对 char 返回会做 sete 物化，与 ORIG 不符）。
+    bool regist_signal(int sig, void (*handler)(int));
     void clear();
     void init_signal();
     void init_handler(CApplication* app);

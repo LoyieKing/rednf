@@ -1,5 +1,6 @@
 // df_monitor_r — DNFMember（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,6 +32,12 @@
 #include "DNFServerInterface.h"
 #include "DNFUser.h"
 
+// ORIG 此处调用全局版本（_Z26CheckDailyScheduleTimeOveril /
+// _Z28CheckDayHourScheduleTimeOveriil，定义于 Scheduler.cpp），
+// 而非本类成员方法；声明见 VillageAttackedManager.h。
+bool CheckDailyScheduleTimeOver(int day, long time);
+bool CheckDayHourScheduleTimeOver(int day, int hour, long time);
+
 void CMember::operator delete(void* p) { ::operator delete(p); }
 
 void CMember::operator delete(void* p, unsigned int size) { ::operator delete(p); }
@@ -38,9 +45,8 @@ void CMember::operator delete(void* p, unsigned int size) { ::operator delete(p)
 void* CMember::operator new(unsigned int size) { return ::operator new(size); }
 
 CMember::CMember(unsigned int key, CMemberManager* mgr)
+    : m_key(key), m_flag(0)
 {
-    m_key = key;
-    m_flag = 0;
     m_memberManager = mgr;
     m_state1b8 = 1;
     m_registerTime = 0;
@@ -64,7 +70,7 @@ void CMember::QueryMember(CServerHandler* handler)
     m_flag |= 2;
 }
 
-unsigned int* CMember::GetMemberDBInfoW() { return 0; }
+unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)((char*)this + 6); }
 
 void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
 {
@@ -148,10 +154,10 @@ char CMember::CheckDayHourScheduleTimeOver(int day, int hour, long time)
 
 void CMember::SetMemberRegisterFlag(bool flag)
 {
-    m_state1b8 = flag ? 1 : 0;
+    m_state1b8 = flag;
 }
 
-char CMember::IsAbleToRegisterMember()
+bool CMember::IsAbleToRegisterMember()
 {
     return m_state1b8;
 }
@@ -163,11 +169,11 @@ unsigned int CMember::GetMemberKey()
 
 void CMember::CheckMemberRegisterFlag()
 {
-    bool flag = CheckDailyScheduleTimeOver(6, m_registerTime);
+    bool flag = ::CheckDailyScheduleTimeOver(6, m_registerTime);
     SetMemberRegisterFlag(flag);
     if (IsAbleToRegisterMember())
     {
-        flag = CheckDayHourScheduleTimeOver(3, 6, m_dayHourTime);
+        flag = ::CheckDayHourScheduleTimeOver(3, 6, m_dayHourTime);
         SetMemberRegisterFlag(flag);
     }
     if (!IsAbleToRegisterMember())
@@ -289,7 +295,7 @@ void CMember::LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsi
     }
 }
 
-int CMember::IsThereUpper() const { return *(int*)((char*)this + 6) != 0; }
+bool CMember::IsThereUpper() const { return m_dbInfo.m_member.m_field0 != 0; }
 
 int CMember::GetUpperMember_CharId() const
 {
@@ -301,7 +307,7 @@ int CMember::GetUpperMember_CharId() const
     {
         return 0xffffffff;
     }
-    return *(int*)((char*)this + 6);
+    return ((RA_INT<6>*)this)->v;
 }
 
 int CMember::FindLowerMember(unsigned int charNo) const
@@ -325,7 +331,7 @@ int CMember::FindLowerMember(unsigned int charNo) const
 
 unsigned int CMember::GetLowerMemberCount() const
 {
-    return (unsigned int)*(unsigned char*)((char*)this + 0x2d);
+    return m_dbInfo.m_count27;
 }
 
 unsigned int* CMember::GetLowerMember_Proxy() const
@@ -335,13 +341,13 @@ unsigned int* CMember::GetLowerMember_Proxy() const
 
 int CMember::IncConnUpperMemberExp(unsigned int maxExp)
 {
-    *(int*)((char*)this + 0x29) = *(int*)((char*)this + 0x29) + 1;
-    if (maxExp < *(unsigned int*)((char*)this + 0x29))
+    m_dbInfo.m_member.m_field23 = m_dbInfo.m_member.m_field23 + 1;
+    if (maxExp < m_dbInfo.m_member.m_field23)
     {
-        *(int*)((char*)this + 0x29) = *(int*)((char*)this + 0x29) - 1;
+        m_dbInfo.m_member.m_field23 = m_dbInfo.m_member.m_field23 - 1;
         return 0;
     }
-    return *(int*)((char*)this + 0x29);
+    return m_dbInfo.m_member.m_field23;
 }
 
 int CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
@@ -366,7 +372,7 @@ int CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
 
 int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int maxExp)
 {
-    if (index < (int)(unsigned int)(unsigned char)*(char*)((char*)this + 0x2d))
+    if (index < (int)(unsigned int)(unsigned char)((RA_S8<45>*)this)->v)
     {
         unsigned int* proxy = (unsigned int*)((char*)this + index * 0x27 + 0x2e);
         if (*proxy == uCharNo)
@@ -395,14 +401,14 @@ int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int
         DNF_LOG_SCOPE_LINE(0x284,"./log/Member2Except",
             "CMember::IncConnLowerMemberExp  ,  index(%d) >= "
             "m_stMemberDBInfo.m_lowerCnt(%d)",
-            index, (unsigned int)(unsigned char)*(char*)((char*)this + 0x2d));
+            index, (unsigned int)(unsigned char)((RA_S8<45>*)this)->v);
         return 0;
     }
 }
 
 void CMember::NoticeLevelUpToLowers(unsigned int level)
 {
-    unsigned char lowerCnt = *(unsigned char*)((char*)this + 0x2d);
+    unsigned char lowerCnt = ((RA_U8<45>*)this)->v;
     if (lowerCnt != 0)
     {
         Packet_Monitor_Notice_MemberExp_LevelUp pkt;
@@ -428,7 +434,7 @@ unsigned int* CMember::GetUpperMember_Proxy()
 
 unsigned int* CMember::GetUpperMember_Proxy() const
 {
-    if ((*(unsigned short*)((char*)this + 4) & 4) && IsThereUpper())
+    if ((((RA_U16<4>*)this)->v & 4) && IsThereUpper())
     {
         return (unsigned int*)((char*)this + 6);
     }
@@ -447,11 +453,7 @@ unsigned short CMember::GetMemberDBFlag() { return m_flag; }
 
 unsigned int CMember::GetUpperMemberExpLevel()
 {
-    if (m_memberManager != 0)
-    {
-        m_memberManager->GetMemberExpLevel(*(unsigned int*)((char*)this + 0x29));
-    }
-    return 0;
+    return m_memberManager->GetMemberExpLevel(m_dbInfo.m_member.m_field23);
 }
 
 int CMember::GetConnLowerMemberCnt()
@@ -476,8 +478,8 @@ int CMember::InsertUpperMember(unsigned int charNo, unsigned char level, const c
 {
     if (IsThereUpper() == 0)
     {
-        *(unsigned char*)((char*)this + 0xa) = level;
-        *(unsigned int*)((char*)this + 6) = charNo;
+        ((RA_U8<10>*)this)->v = level;
+        ((RA_UINT<6>*)this)->v = charNo;
         memcpy((char*)this + 0xb, name, 0x1d);
         if (flag)
         {
@@ -604,4 +606,3 @@ void ST_MemberProxy::Reset()
     memset(m_name, 0, 0x1e);
     m_field23 = 0;
 }
-

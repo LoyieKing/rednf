@@ -17,7 +17,7 @@ public:
     void Init(ENUM_DB_KIND kind, CApplication* app);
     void Close();
     CDBHandle* GetDBHandle(ENUM_DB_HANDLE_IDX idx);
-    char UpdateQueryCount(unsigned int idx, int count, int time);
+    bool UpdateQueryCount(unsigned int idx, int count, int time);  // ORIG 返回 bool（调用方 xor $1 取反）
     char SelectTest();
     CDBHandle* m_handles[0x10];  // +0
     char m_pad40[4];        // +0x40

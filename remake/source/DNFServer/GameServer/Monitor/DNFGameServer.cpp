@@ -1,5 +1,6 @@
 // df_monitor_r — DNFGameServer（从 MonitorTypes/App/Table 拆分）
 #include <stdio.h>
+#include "RawAccess.h"
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -73,35 +74,47 @@ CTcpGameServer::CTcpGameServer()
     m_channelType = 0;
 }
 
-CTcpGameServer::~CTcpGameServer() {}
+CTcpGameServer::~CTcpGameServer()
+{
+    m_net = 0;
+    m_channelNo = 0;
+}
 
 char* CTcpGameServer::makePacketHeader(unsigned short id, unsigned short size)
 {
-    if (m_net == 0)
+    struct __attribute__((packed)) HeaderBuf
     {
-        return 0;
+        unsigned short id;
+        unsigned short size;
+        unsigned short pad;
+        unsigned int sock;
+    };
+    char* buf;
+    HeaderBuf* puVar1;
+    if (m_net != 0)
+    {
+        buf = (char*)m_net->Acquire_TcpSendBuffer();
+        puVar1 = (HeaderBuf*)buf;
+        puVar1->id = id;
+        puVar1->size = size;
+        puVar1->sock = (unsigned int)m_sock;
+        return (char*)puVar1;
     }
-    char* buf = (char*)m_net->Acquire_TcpSendBuffer();
-    *(unsigned short*)buf = id;
-    *(unsigned short*)(buf + 2) = size;
-    *(unsigned int*)(buf + 6) = (unsigned int)m_sock;
-    return buf;
+    return 0;
 }
 
 void CTcpGameServer::SendToGameServer(char* buf)
 {
-    if (m_net != 0)
-    {
-        m_net->PushTcpSendPacketQ(buf);
-    }
+    // ORIG：无空指针检查，直接 PushTcpSendPacketQ
+    m_net->PushTcpSendPacketQ(buf);
 }
 
 void CTcpGameServer::SendToGameServer(PacketHeader* pkt)
 {
-    char* buf = makePacketHeader(*(unsigned short*)pkt, *(unsigned short*)((char*)pkt + 2));
+    char* buf = makePacketHeader(*(unsigned short*)pkt, ((RA_U16<2>*)pkt)->v);
     if (buf != 0)
     {
-        memcpy(buf + 10, (char*)pkt + 10, *(unsigned short*)((char*)pkt + 2) - 10);
+        memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
         SendToGameServer(buf);
     }
 }

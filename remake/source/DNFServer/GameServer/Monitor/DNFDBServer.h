@@ -262,7 +262,7 @@ public:
     std::string m_ip;      // +0
     unsigned short m_port; // +4
     int m_sock;            // +8
-    void* m_net;           // +0xc
+    CTcpNetSystem* m_net;  // +0xc
 };
 
 class CDBServer : public CServerInterface

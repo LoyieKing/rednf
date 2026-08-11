@@ -49,6 +49,7 @@ public:
                 m_p = new T;
             }
             sync.unlock();
+#line 52 "GlobalInstance.h"
             assert(m_p);
         }
         else

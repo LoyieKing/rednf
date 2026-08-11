@@ -70,7 +70,7 @@ void ShowLogo()
 
 int main(int argc, char** argv)
 {
-    CAppBase* app = CApplicationInstance();
+    CApplication* app = CApplicationInstance();
     try
     {
         app->Create(argc, argv);
@@ -269,8 +269,7 @@ void CApplication::Process()
         catch (CDNFException& e)
         {
             printf("CApplication::Process() Exception Break : %s\n", e.what());
-            const char* msg = e.what();
-            DNF_LOG_SCOPE_LINE(0x1ec, "./log/process", "CApplication::Process() Exception Break : %s\n", msg);
+            DNF_LOG_SCOPE_LINE(0x1ec, "./log/process", "CApplication::Process() Exception Break : %s\n", e.what());
         }
         catch (...)
         {
@@ -409,8 +408,8 @@ void CApplication::TranslateSignal()
     m_killUsrConfig->Clear_Table();
     m_killUsrConfig->Load_Table("./script/kill_user_config.tbl");
     std::vector<ST_KillUSRConfig*>* v = m_killUsrConfig->GetInfo();
-    register bool b = v->empty();
-    (void)b;
+    if (v->empty())
+        return;
 }
 
 std::queue<CUdpRecvBuffer*>* CApplication::Get_QPacket()

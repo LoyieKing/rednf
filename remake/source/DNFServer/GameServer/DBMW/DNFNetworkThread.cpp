@@ -75,7 +75,7 @@ void CNetworkThread::dispatch(void* param)
             }
             if (((PacketHeader*)buf)->packetSize != size)
             {
-                CMyFileLog log("dispatch", 0x6c);
+                CMyFileLog log(__FUNCTION__, 0x6c);
                 log("./log/recvErr",
                     "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                     ((PacketHeader*)buf)->packetSize, size,
@@ -88,7 +88,7 @@ void CNetworkThread::dispatch(void* param)
             }
             if (((PacketHeader*)buf)->packetSize > 0x17ff)
             {
-                CMyFileLog log("dispatch", 0x77);
+                CMyFileLog log(__FUNCTION__, 0x77);
                 log("./log/recvErr",
                     "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                     ((PacketHeader*)buf)->packetSize, size,
@@ -101,7 +101,7 @@ void CNetworkThread::dispatch(void* param)
             }
             if (size > 0x1800)
             {
-                CMyFileLog log("dispatch", 0x83);
+                CMyFileLog log(__FUNCTION__, 0x83);
                 log("./log/recvErr",
                     "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                     ((PacketHeader*)buf)->packetSize, size,

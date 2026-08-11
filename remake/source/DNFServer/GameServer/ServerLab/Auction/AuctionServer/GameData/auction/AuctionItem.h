@@ -70,7 +70,10 @@ struct RandomOption
 
     bool change_option(ENUM_RANDOM_OPTION_NUMBER optionNumber)
     {
-        return (modify_option_.empty() == false) && ((modify_seed_.seed_ & 3) == optionNumber);
+        // ORIG：直接读 2 位位域 option_give_type_（字节加载 + and $3 形态），
+        // 而非 seed_ & 3（int 提升后 and，形态不同）。
+        return (modify_option_.empty() == false) &&
+               (modify_seed_.option_give_type_ == optionNumber);
     }
 
     unsigned char get_option_index(ENUM_RANDOM_OPTION_NUMBER optionNumber)
@@ -304,6 +307,11 @@ struct DnfItemInfo
     unsigned long item_id;
     union
     {
+        struct
+        {
+            unsigned char btUpgrade : 5;
+            unsigned char btSealCount : 3;
+        };
         unsigned char uniItemAttr;
     };
     int add_info;

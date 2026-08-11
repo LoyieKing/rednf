@@ -4,11 +4,6 @@
 #include <stdio.h>
 #include <pthread.h>
 
-static void* thread_proxy(void* param)
-{
-    return ((CThreadInterface*)param)->dispatch_proxy(param);
-}
-
 CThreadInterface::CThreadInterface()
 {
     m_thread = 0;
@@ -17,9 +12,12 @@ CThreadInterface::CThreadInterface()
 
 CThreadInterface::~CThreadInterface() {}
 
-char CThreadInterface::begin()
+bool CThreadInterface::begin()
 {
-    int ret = pthread_create(&m_thread, 0, thread_proxy, this);
+    // ORIG 直接传成员函数地址（&CThreadInterface::dispatch_proxy，pthread 以
+    // param 作为 this 调用，与 thread_proxy 包装等价）。
+    int ret = pthread_create(&this->m_thread, 0,
+                             (void* (*)(void*))&CThreadInterface::dispatch_proxy, (void*)this);
     if (ret < 0)
     {
         puts("[ThreadInterface::begin] Can't begin thread");
@@ -30,7 +28,9 @@ char CThreadInterface::begin()
 
 void* CThreadInterface::dispatch_proxy(void* param)
 {
-    return dispatch(param);
+    CThreadInterface* t = (CThreadInterface*)param;
+    t->dispatch(param);
+    return 0;
 }
 
 void CThreadInterface::join()

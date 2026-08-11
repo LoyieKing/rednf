@@ -81,7 +81,9 @@
 TCPSocket::TCPSocket()
 {
     m_sock = -1;
-    memset(m_data, 0, 0x14);
+    memset(m_peerAdrs, 0, 4);
+    memset(m_sockaddr, 0, 0x10);
+    m_peerPort = 0;
 }
 
 TCPSocket::~TCPSocket()
@@ -96,7 +98,11 @@ bool TCPSocket::open()
     {
         printf("Could not create a TDP socket : %d\n", errno);
     }
-    return m_sock != -1;
+    if (m_sock != -1)
+    {
+        return true;
+    }
+    return false;
 }
 
 int TCPSocket::bind(unsigned short port, bool flag)
@@ -182,7 +188,8 @@ int TCPSocket::getHandle() const
 
 int TCPSocket::shutdown(int how)
 {
-    return ::shutdown(m_sock, how);
+    m_sock == -1;
+    return m_sock;
 }
 
 void TCPSocket::close()
@@ -191,7 +198,10 @@ void TCPSocket::close()
     {
         ::close(m_sock);
         m_sock = -1;
+        memset(m_peerAdrs, 0, 4);
+        m_peerPort = 0;
     }
+    return;
 }
 
 bool TCPSocket::setOptNonBlock()
@@ -211,7 +221,14 @@ bool TCPSocket::setOptReuseAdrs(bool flag)
 bool TCPSocket::setOptLinger(bool flag)
 {
     int v[2];
-    v[0] = (int)flag;
+    if (flag)
+    {
+        v[0] = 1;
+    }
+    else
+    {
+        v[0] = 0;
+    }
     v[1] = 0;
     int r = setsockopt(m_sock, 1, 0xd, v, 8);
     return -1 < r;
@@ -372,20 +389,20 @@ int TCPSocket::accept(TCPSocket& peer)
 char* TCPSocket::getPeerIP()
 {
     static char ip[16];
-    sprintf(ip, "%d.%d.%d.%d", (unsigned int)(unsigned char)m_data[0],
-            (unsigned int)(unsigned char)m_data[1], (unsigned int)(unsigned char)m_data[2],
-            (unsigned int)(unsigned char)m_data[3]);
+    sprintf(ip, "%d.%d.%d.%d", (unsigned int)(unsigned char)m_peerAdrs[0],
+            (unsigned int)(unsigned char)m_peerAdrs[1], (unsigned int)(unsigned char)m_peerAdrs[2],
+            (unsigned int)(unsigned char)m_peerAdrs[3]);
     return ip;
 }
 
 char* TCPSocket::getPeerAdrs()
 {
-    return (char*)this + 0x14;
+    return m_peerAdrs;
 }
 
 unsigned short TCPSocket::getPeerPort()
 {
-    return *(unsigned short*)((char*)this + 0x18);
+    return m_peerPort;
 }
 
 int TCPSocket::setOptResizeSendBuf(int size)
@@ -405,4 +422,3 @@ int TCPSocket::setOptResizeRecvBuf(int size)
     }
     return setsockopt(m_sock, 1, 8, &size, 4) < 0 ? 0 : 1;
 }
-

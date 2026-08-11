@@ -303,12 +303,7 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
 
 int CTcpNetSystem::WaitForEvent()
 {
-    CTcpHandler* h = (CTcpHandler*)*(void**)m_data;
-    if (h != 0)
-    {
-        return h->WaitForEvent();
-    }
-    return -1;
+    return ((CTcpHandler*)*(void**)m_data)->WaitForEvent();
 }
 
 void* CTcpNetSystem::Acquire_TcpSendBuffer(unsigned int size)
@@ -546,7 +541,7 @@ CMutex* CTcpNetSystem::Get_TcpRecvBLock()
 
 unsigned short CTcpNetSystem::Get_TcpServerPort()
 {
-    return *(unsigned short*)(m_data + 0x15c);
+    return m_tcpServerPort;
 }
 
 void* CTcpNetSystem::Get_TcpHandler()
@@ -568,4 +563,3 @@ CMutex* CTcpNetSystem::Get_TcpSendBLock()
 {
     return (CMutex*)(m_data + 0x100);
 }
-

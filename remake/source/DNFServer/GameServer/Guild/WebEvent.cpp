@@ -82,10 +82,10 @@ static CEvent g_dummyCEvent;
 
 CEvent::CEvent()
 {
-    *(int*)((char*)this + 4) = 0;
+    m_field4 = 0;
 }
 
 CEvent::~CEvent()
 {
+    m_field4 = 0;
 }
-

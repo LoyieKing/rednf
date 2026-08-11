@@ -97,7 +97,7 @@ CGameServer* CServerHandler::GetGameServer(int idx)
 {
     if (idx <= 0xfe && m_gameServers[idx].IsValidGameServer())
         return &m_gameServers[idx];
-    CMyFileLog log("GetGameServer", 0xec);
+    CMyFileLog log(__FUNCTION__, 0xec);
     log("./log/GameServer.log", "Game Server Index Over Index : %d!\n", idx);
     return 0;
 }
@@ -117,7 +117,7 @@ char CServerHandler::CreateTcpServer(unsigned char idx, unsigned int port)
     delete server;
     return 0;
 }
-char CServerHandler::DeleteTcpServer(unsigned char idx)
+bool CServerHandler::DeleteTcpServer(unsigned char idx)
 {
     std::map<unsigned char, CTcpServer*>::iterator it = m_tcpServers.find(idx);
     if (it != m_tcpServers.end())
@@ -126,7 +126,7 @@ char CServerHandler::DeleteTcpServer(unsigned char idx)
         if (server)
             delete server;
         m_tcpServers.erase(it);
-        CMyFileLog log("DeleteTcpServer", 0x130);
+        CMyFileLog log(__FUNCTION__, 0x130);
         log("./log/TcpServer", "TcpServer(%d) Deleted", idx);
         return 1;
     }

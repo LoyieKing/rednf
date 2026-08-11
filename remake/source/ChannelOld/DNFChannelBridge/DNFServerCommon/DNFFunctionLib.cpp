@@ -9,7 +9,9 @@
 
 void Char2Hex(unsigned char ch, char* szHex)
 {
-    static const char saucHex[] = "0123456789abcdef";
+    // ORIG DWARF: saucHex = unsigned char[] (non-const, .data); const 会改变
+    // GCC 4.4 -O0 的寄存器分配（edx 直接装载 vs eax->edx 拷贝），须保持非 const。
+    static unsigned char saucHex[] = "0123456789abcdef";
     *szHex = saucHex[(int)(unsigned int)ch >> 4];
     szHex[1] = saucHex[ch & 0xf];
     szHex[2] = '\0';
@@ -157,30 +159,32 @@ int DNFFLib::get_rand_int(int divide)
     {
         return 0;
     }
-    if (0 == divide)
+    switch (divide)
     {
+    case 0:
         return rand();
+    default:
+        break;
     }
-    int seed = rand();
-    if (seed > divide)
+    int r = rand();
+    if (r > divide)
     {
         return rand() % divide;
     }
-    unsigned int result;
-    seed = seed * 0x41c64e6d;
-    seed = seed + 0x3039;
-    result = (int)(((unsigned int)(seed >> 0x1f) >> 0x10) + seed) >> 0x10 & 0x7ff;
-    seed = seed * 0x41c64e6d;
-    seed = seed + 0x3039;
-    result = result << 10;
-    result = result ^ (int)(((unsigned int)(seed >> 0x1f) >> 0x10) + seed) >> 0x10 & 0x3ff;
-    seed = seed * 0x41c64e6d;
-    seed = seed + 0x3039;
-    result = result << 10;
-    result = result ^ (int)(((unsigned int)(seed >> 0x1f) >> 0x10) + seed) >> 0x10 & 0x3ff;
-    if ((unsigned int)divide < result)
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    unsigned int result = (r / 65536) & 0x7ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    r *= 0x41c64e6d;
+    r += 0x3039;
+    result <<= 10;
+    result ^= (r / 65536) & 0x3ff;
+    if (result > (unsigned int)divide)
     {
-        return result % (unsigned int)divide;
+        return result % divide;
     }
     return result;
 }

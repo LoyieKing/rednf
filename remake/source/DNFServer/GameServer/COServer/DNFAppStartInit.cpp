@@ -14,15 +14,19 @@
 #include "DNFKillUserConfig.h"
 #include "DNFServerConfig.h"
 
+// ORIG 实测（0x8051e8c/0x8051ea8）：CAppStartInit 构造函数栈帧为 0x18，
+// 而本 TU 中其它函数（含 CAppInit 构造）在其之前定义时，4.4.6-3 只给
+// 0x4。A/B 验证：把本构造函数放在 TU 首位（.text 第一函数）可复现 0x18
+// （GCC 4.4 O0 对 TU 首函数的帧分配形态）。保持与 ORIG 一致的排放。
+CAppStartInit::CAppStartInit()
+{
+}
+
 CAppInit::CAppInit()
 {
 }
 
 CAppInit::~CAppInit()
-{
-}
-
-CAppStartInit::CAppStartInit()
 {
 }
 

@@ -63,7 +63,7 @@ int CAppConfig::GetServerGroup()
 {
     return m_serverGroup;
 }
-int CAppConfig::DecryptValue(const char* value, char* dst)
+bool CAppConfig::DecryptValue(const char* value, char* dst)
 {
     char buf1[0x40] = {0};
     char buf2[0x40] = {0};

@@ -254,8 +254,8 @@ public:
     void CountNumOfOccupations(ENUM_LOGIN_LOGOUT type, int value);
     CApplication* m_app;                                     // +0
     std::map<unsigned char, struct stLoginLogout> m_maps[7]; // +4
-    unsigned int m_fieldac;                                  // +0xac
-    unsigned int m_fieldb0;                                  // +0xb0
+    int m_fieldac;                                           // +0xac
+    int m_fieldb0;                                           // +0xb0
     int m_fieldb4;                                           // +0xb4
     int m_fieldb8;                                           // +0xb8
 };

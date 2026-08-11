@@ -83,6 +83,7 @@ CSourceVersionMgr::CSourceVersionMgr()
 {
     InsertSourceVersion(".", 0x19daa);
     InsertSourceVersion("../ServerCommon", 0x19daa);
+    InsertSourceVersion("../../DNFShared", 0x19daa);
 }
 
 CVersionMgr::CVersionMgr(int _Major, int _Minor, int _Release, int _Build)
@@ -114,4 +115,3 @@ void CSourceVersionMgr::InsertSourceVersion(char* source_file_name, int version)
 {
     source_version_list_.push_back(SourceVersion(source_file_name, version));
 }
-

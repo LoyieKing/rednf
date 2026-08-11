@@ -20,6 +20,8 @@ RecvBuffer::RecvBuffer(int queueSize, int maxPacketSize)
     mParseStatus = 0;
     mQueue = new char[queueSize];
     mQueueSize = queueSize;
+    // ORIG __LINE__ 实测 0x16=22（point/auction 同源一致）
+#line 22
     assert(mQueueSize > maxPacketSize && "Queue size smaller than MAX_PACKET");
     mPartialQueueSize = mQueueSize - maxPacketSize;
     mMaxPacketSize = maxPacketSize;
@@ -68,6 +70,8 @@ int RecvBuffer::AvailableSize()
         {
             PACKET_HEADER* pHeader = (PACKET_HEADER*)(mQueue + mParseIdx);
             int msgSize = pHeader->getSize();
+            // ORIG __LINE__ 实测 0x4c=76（point/auction 同源一致）
+#line 76
             assert(mRearIdx >= mParseIdx);
             if (mRearIdx > mParseIdx)
             {
@@ -164,6 +168,8 @@ bool RecvBuffer::Parse(TCPUser* pUser)
             {
                 puts("wtf");
             }
+            // ORIG __LINE__ 实测 0xf9=249（point/auction 同源一致）
+#line 249
             assert(mParseIdx == mRearIdx);
             if (mFrontIdx != 0)
             {
@@ -190,9 +196,9 @@ bool RecvBuffer::ClearUsedMsgs()
                 unsigned int b2 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[2];
                 unsigned int b1 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[1];
                 unsigned int b0 = (unsigned int)pTcpUserTmp->pSock_->getPeerAdrs()[0];
-                // ORIG：idLo/idHi/sz 常驻 ebx/esi/edi（register 局部）
-                register unsigned int idLo = *(unsigned int*)&Message::ident;
-                register unsigned int idHi = *((unsigned int*)&Message::ident + 1);
+                // ORIG：idLo/idHi/sz 常驻 ebx/esi/edi（register 局部，直接双字装载）
+                register unsigned int idLo = (unsigned int)Message::ident;
+                register unsigned int idHi = (unsigned int)(Message::ident >> 32);
                 register unsigned int sz = (unsigned int)mRecvMsgs.size();
                 G_TraceLog()->sysLog(5, "force delete activeclose size(%d) ident(%d) ip(%d.%d.%d.%d)",
                                      sz, idLo, idHi, b0, b1, b2, b3);

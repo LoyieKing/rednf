@@ -291,8 +291,8 @@ public:
     virtual ~EventAction() {}
     virtual void onStartAction(EventParam& param);
     virtual void onEndAction();
-    char isRunning() { return m_running; }
-    char m_running;  // +8
+    bool isRunning() { return m_running; }
+    bool m_running;  // +8
     char m_pad[3];   // +9
 };
 

@@ -78,6 +78,15 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
+struct PowerManagerLayout
+{
+    char pad0[4];
+    CApplication* m_app;   // +4
+    char rest[0x184 - 8];
+    char m_winnerSide;     // +0x184
+    char rest2[0x198 - 0x185];
+};
+
 void CPowerManager::Process()
 {
 }
@@ -87,36 +96,27 @@ void CPowerManager::SetPowerDBFlag(unsigned short flag)
     *(unsigned short*)((char*)this + 0x18a) |= flag;
 }
 
-int CPowerManager::IsPowerWarOn()
+unsigned char CPowerManager::IsPowerWarOn()
 {
     return ((const CPowerWar*)((char*)this + 0x14c))->IsPowerWarOn();
 }
 
 CPowerManager::CPowerManager()
+    : m_field4(0)
 {
-    for (int i = 0; i < 3; i++)
-    {
-        new ((char*)this + 8 + i * 0x6c) CPower();
-    }
-    new ((char*)this + 0x14c) CPowerWar();
-    *(char*)((char*)this + 0x184) = 0;
-    *(unsigned short*)((char*)this + 0x186) = 0x3c;
-    *(char*)((char*)this + 0x188) = 3;
-    *(unsigned short*)((char*)this + 0x18a) = 0;
+    m_winnerSide = 0;
+    m_powerWarEndKillPoint = 0x3c;
+    m_sideCount = 3;
+    m_field18a = 0;
 }
 
 CPowerManager::~CPowerManager()
 {
-    ((CPowerWar*)((char*)this + 0x14c))->CPowerWar::~CPowerWar();
-    for (int i = 2; i >= 0; i--)
-    {
-        ((CPower*)((char*)this + 8 + i * 0x6c))->~CPower();
-    }
 }
 
 void CPowerManager::InitPowerManager(char* path, CApplication* app)
 {
-    *(CApplication**)((char*)this + 4) = app;
+    ((PowerManagerLayout*)this)->m_app = app;
     LoadPowerWarCfg(path);
 }
 
@@ -217,7 +217,7 @@ int CPowerManager::ComputeWinnerSide()
 
 void CPowerManager::EndPowerWarEvent()
 {
-    CMyFileLog logTop("EndPowerWarEvent", 0xd5);
+    CMyFileLog logTop(__FUNCTION__, 0xd5);
     logTop("./log/Power", "CPowerManager::EndPowerWarEvent TOP");
     SetWinnerSide(ComputeWinnerSide());
     RewardBonusPoint();
@@ -230,7 +230,7 @@ void CPowerManager::EndPowerWarEvent()
     SendPowerWarEndInfo();
     CleanPowerWar();
     ((CPowerWar*)((char*)this + 0x14c))->CPowerWar::resetEvent();
-    CMyFileLog logBottom("EndPowerWarEvent", 0xfd);
+    CMyFileLog logBottom(__FUNCTION__, 0xfd);
     logBottom("./log/Power", "CPowerManager::EndPowerWarEvent BOTTOM");
 }
 
@@ -267,7 +267,7 @@ void CPowerManager::CalcPowerWarRank(bool flag)
 
 void CPowerManager::RewardGuildPowerWarPoint()
 {
-    CMyFileLog logTop("RewardGuildPowerWarPoint", 0x198);
+    CMyFileLog logTop(__FUNCTION__, 0x198);
     logTop("./log/PowerResult", "CPowerManager::RewardGuildPowerWarPoint");
     char winnerSide = *(char*)((char*)this + 0x184);
     if (winnerSide == 0 || winnerSide > 2)
@@ -300,7 +300,7 @@ void CPowerManager::SaveDBPowerWarRank()
     char winnerSide = *(char*)((char*)this + 0x184);
     if (winnerSide != 0 && winnerSide < 3)
     {
-        CMyFileLog logStart("SaveDBPowerWarRank", 0x1b6);
+        CMyFileLog logStart(__FUNCTION__, 0x1b6);
         logStart("./log/PowerResult", "POWER WAR RESULT DB SAVE START");
         CApplication* app = *(CApplication**)((char*)this + 4);
         Packet_DB_Save_Power_War_User_Rank userPkt;
@@ -531,10 +531,10 @@ unsigned int CPowerManager::GetUserRankingInPower(ENUM_POWER_SIDE_TYPE side, uns
 
 void CPowerManager::PrintDebugInfo()
 {
-    CMyFileLog logA("PrintDebugInfo", 0x3c9);
+    CMyFileLog logA(__FUNCTION__, 0x3c9);
     logA("./log/PowerResult", "----- POWER A");
     ((CPower*)((char*)this + 0x74))->GetPowerWarGuildInfo()->PrintDebugInfo();
-    CMyFileLog logB("PrintDebugInfo", 0x3cf);
+    CMyFileLog logB(__FUNCTION__, 0x3cf);
     logB("./log/PowerResult", "----- POWER B");
     ((CPower*)((char*)this + 0xe0))->GetPowerWarGuildInfo()->PrintDebugInfo();
 }
@@ -604,7 +604,7 @@ void CPowerManager::SendPowerWarEndInfo()
     DNF_LOG_SCOPE_LINE(0x419, "./log/PowerResult", "SEND POWER WAR END INFO START");
     SendPowerWarEndInfoInSpecificPower(1);
     SendPowerWarEndInfoInSpecificPower(2);
-    CMyFileLog log2("SendPowerWarEndInfo", 0x41f);
+    CMyFileLog log2(__FUNCTION__, 0x41f);
     log2("./log/PowerResult", "SEND POWER WAR END INFO END");
 }
 
@@ -614,8 +614,8 @@ void CPowerManager::SendPowerWarEndInfoInSpecificPower(char side)
     unsigned int charNo = 0;
     CGuild* guild = 0;
     unsigned char isWinner = 0;
-    unsigned int userRank = 1;
     unsigned int guildRank = 0;
+    unsigned int userRank = 1;
     unsigned int guildKey = 0;
     STPowerWarCharacInfo* characInfo = 0;
     STPowerWarGuildInfo* guildInfo = 0;
@@ -838,7 +838,7 @@ Packet_Notice_Power_War_Info::Packet_Notice_Power_War_Info()
 Packet_Notice_Power_War_Rank::Packet_Notice_Power_War_Rank()
     : PacketHeader(0x6d8, 0x16)
 {
-    memset((char*)this + 0x10, 0, 0xc);
+    memset((char*)this + 0xa, 0, 0xc);
 }
 
 #pragma pack(push,1)
@@ -891,10 +891,10 @@ Packet_Reply_Power_War_Score::Packet_Reply_Power_War_Score()
 
 char CPowerManager::GetWinnerSide()
 {
-    return *(char*)((char*)this + 0x184);
+    return ((PowerManagerLayout*)this)->m_winnerSide;
 }
 
 void CPowerManager::SetWinnerSide(char side)
 {
-    *(char*)((char*)this + 0x184) = side;
+    ((PowerManagerLayout*)this)->m_winnerSide = side;
 }

@@ -33,30 +33,9 @@ include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 set(SRC_ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(RELAY    ${SRC_ROOT}/DNFServer/GameServer/Relay)
 
-# ---- C5 组：c5root g++ 4.1.2 预编译 .o（同 build-relay.sh COMMON_FLAGS/C5ROOT）----
-set(C5_CXX   ${DF_C5ROOT}/usr/bin/g++)
-set(C5_FLAGS
-    -m32 -O0 -D_GNU_SOURCE -fno-enforce-eh-specs
-    -fno-builtin-memset -fno-builtin-strlen -fno-builtin-strcmp -nostdinc
-    -isystem ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.2/include
-    -isystem ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.2/include-fixed
-    -isystem ${DF_C5R52T}/usr/include/c++/4.1.2
-    -isystem ${DF_C5R52T}/usr/include/c++/4.1.2/x86_64-redhat-linux
-    -isystem ${DF_C5R52T}/usr/include/c++/4.1.2/backward
-    -isystem ${DF_C5R52T}/usr/include
-    -I${RELAY})
-
-file(MAKE_DIRECTORY ${CMAKE_BINARY_DIR}/c5)
-
-foreach(c5src Helper Service LinuxService PIDHelper SignalHandler)
-    add_custom_command(
-        OUTPUT ${CMAKE_BINARY_DIR}/c5/${c5src}.o
-        COMMAND ${C5_CXX} ${C5_FLAGS} -c ${RELAY}/${c5src}.cpp
-                -o ${CMAKE_BINARY_DIR}/c5/${c5src}.o
-        DEPENDS ${RELAY}/${c5src}.cpp
-        COMMENT "CC5 ${c5src}.cpp (4.1.2)"
-    )
-endforeach()
+# 2026-08-11 第二轮回归：A/B 试编译证实原版这 5 个 TU 的函数形态为
+# 4.4.6-3 + gnu++0x（get_ms_tick/make_dir/setInfo/stopPending 等 C6 下 strict 全等，
+# C5 4.1.2-52 为 DIFF），并入 C6 组编译。原 C5 预编译段移除。
 
 dnf_service(relay
     SOURCES
@@ -64,16 +43,16 @@ dnf_service(relay
         ${RELAY}/DNFRelayServer.cpp
         ${RELAY}/Exception.cpp
         ${RELAY}/Globals.cpp
-        ${CMAKE_BINARY_DIR}/c5/Helper.o
-        ${CMAKE_BINARY_DIR}/c5/LinuxService.o
-        ${CMAKE_BINARY_DIR}/c5/PIDHelper.o
+        ${RELAY}/Helper.cpp
+        ${RELAY}/LinuxService.cpp
+        ${RELAY}/PIDHelper.cpp
         ${RELAY}/Reactor.cpp
         ${RELAY}/RelayService.cpp
         ${RELAY}/Script.cpp
         ${RELAY}/ScriptData.cpp
         ${RELAY}/ScriptRawData.cpp
-        ${CMAKE_BINARY_DIR}/c5/Service.o
-        ${CMAKE_BINARY_DIR}/c5/SignalHandler.o
+        ${RELAY}/Service.cpp
+        ${RELAY}/SignalHandler.cpp
         ${RELAY}/Socket.cpp
         ${RELAY}/SocketSystem.cpp
         ${RELAY}/System.cpp
@@ -115,21 +94,21 @@ string(SUBSTRING ${_relay_abs} 1 -1 _relay_rel)
 set(RELAY_OBJ_PREFIX ${RELAY_OBJ_ROOT}/${_relay_rel})
 
 add_custom_command(TARGET relay POST_BUILD
-    COMMAND g++ -m32 -no-pie -o ${CMAKE_BINARY_DIR}/relay/df_relay_r
+    COMMAND g++ -m32 -no-pie -o ${CMAKE_BINARY_DIR}/df_relay_r
         ${RELAY_OBJ_PREFIX}/UserPool.cpp.o
         ${RELAY_OBJ_PREFIX}/DNFRelayServer.cpp.o
         ${RELAY_OBJ_PREFIX}/Exception.cpp.o
         ${RELAY_OBJ_PREFIX}/Globals.cpp.o
-        ${CMAKE_BINARY_DIR}/c5/Helper.o
-        ${CMAKE_BINARY_DIR}/c5/LinuxService.o
-        ${CMAKE_BINARY_DIR}/c5/PIDHelper.o
+        ${RELAY_OBJ_PREFIX}/Helper.cpp.o
+        ${RELAY_OBJ_PREFIX}/LinuxService.cpp.o
+        ${RELAY_OBJ_PREFIX}/PIDHelper.cpp.o
         ${RELAY_OBJ_PREFIX}/Reactor.cpp.o
         ${RELAY_OBJ_PREFIX}/RelayService.cpp.o
         ${RELAY_OBJ_PREFIX}/Script.cpp.o
         ${RELAY_OBJ_PREFIX}/ScriptData.cpp.o
         ${RELAY_OBJ_PREFIX}/ScriptRawData.cpp.o
-        ${CMAKE_BINARY_DIR}/c5/Service.o
-        ${CMAKE_BINARY_DIR}/c5/SignalHandler.o
+        ${RELAY_OBJ_PREFIX}/Service.cpp.o
+        ${RELAY_OBJ_PREFIX}/SignalHandler.cpp.o
         ${RELAY_OBJ_PREFIX}/Socket.cpp.o
         ${RELAY_OBJ_PREFIX}/SocketSystem.cpp.o
         ${RELAY_OBJ_PREFIX}/System.cpp.o

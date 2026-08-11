@@ -82,7 +82,10 @@ void WorkThread::PushTransaction(IMessageStruct* pMessage)
         u->IncPendingWorkNum();
         u->SetWorking(true);
         orderQueue.push(pMessage);
-        G_TraceLog()->sysLog(4, "RECV PUSH USER=%x, ID=%d, msg=%d", u, u->mUserId, (int)Message::ident, (int)(Message::ident >> 32));
+        // ORIG: idLo/idHi 常驻 ebx/esi（register 局部，直接双字装载，无 shift 机器码）
+        register unsigned int idLo = (unsigned int)Message::ident;
+        register unsigned int idHi = (unsigned int)(Message::ident >> 32);
+        G_TraceLog()->sysLog(4, "RECV PUSH USER=%x, ID=%d, msg=%d", u, u->mUserId, (int)idLo, (int)idHi);
     }
     mQueueSize = mQueueSize + 1;
     pthread_cond_signal(&isEmpty);
@@ -98,11 +101,13 @@ IMessageStruct* WorkThread::PopTransaction()
     }
     Message* msg = (Message*)orderQueue.front();
     orderQueue.pop();
-    // ORIG: jbe skip; Dec; jmp join; nop; join: mQueueSize--
-    if ((unsigned int)((int)msg->mMsgType - 1) > 2)
+    // ORIG: jbe join(nop); Dec; jmp join+1; nop; join: mQueueSize--  (goto 复现空块/nop)
+    if ((unsigned int)((int)msg->mMsgType - 1) <= 2)
     {
-        msg->getUserFromMessage()->DecPendingWorkNum();
+        goto join;
     }
+    msg->getUserFromMessage()->DecPendingWorkNum();
+join:
     mQueueSize = mQueueSize - 1;
     pthread_mutex_unlock(&workerLock);
     return (IMessageStruct*)msg;
@@ -133,17 +138,26 @@ void WorkThread::loop(void* temp)
     G_TraceLog()->sysLog(8, "Start up WorkThread");
     // proxyLoop passes Thread* as temp (== this); ORIG loads arg@0xc for GetThreadId
     tlsThreadId = ((WorkThread*)temp)->GetThreadId();
+    // ORIG 局部声明序（DWARF decl_line 375/377/378/380/382/383/390/393/398/404/405/411/413/414）
+    IMessageStruct* recvMessage;
+    ITimeEntity* teMsg;
+    Message* pkMsg;
+    Message* pMsg;
+    TCPUser* pUser;
+    CMsgCell* recvMsg;
     TCPDispatcher* handlerTCP = pApp->super_Dispatchers.getTCPDispatcher();
     InterDispatcher* pInterHandler = pApp->super_Dispatchers.GetInterDispatcher();
     TimerThread* timerThread = pApp->super_Threads.getTimerThread();
+    TCPUser::ENUM_DATA_TYPE DataType;
     int CompressLen = 0x3c00;
     TMsgCell<524288> tmpBuffer;
     CMsgCell* encMsg = GetMessageBuffer(0x80000);
     CMsgCell* zipMsg = GetMessageBuffer(0x80000);
-    do
+    while (true)
     {
-        IMessageStruct* recvMessage = PopTransaction();
-        // ORIG: cmpl/jne process; nop; jmp re-pop  (null => continue without increment)
+    RETRY_MSG:
+        recvMessage = PopTransaction();
+        // ORIG: cmpl/jne process; nop; jmp top（while(true)+continue 复现；null 不递增 mTransactionCntPerSec）
         if (recvMessage == NULL)
         {
             continue;
@@ -154,7 +168,7 @@ void WorkThread::loop(void* temp)
         {
         case 1:
         {
-            Message* pMsg = (Message*)recvMessage;
+            pMsg = (Message*)recvMessage;
             INTERNALMSG_HEADER* pInterMsg = pMsg->getCellFromMessage()->GetInternalMsg();
             if (!pInterMsg->bWillDelete)
             {
@@ -172,7 +186,7 @@ void WorkThread::loop(void* temp)
         }
         case 2:
         {
-            ITimeEntity* teMsg = (ITimeEntity*)recvMessage;
+            teMsg = (ITimeEntity*)recvMessage;
             if (!teMsg->isTerminated())
             {
                 return_code = teMsg->operator()();
@@ -181,16 +195,16 @@ void WorkThread::loop(void* temp)
                     G_TraceLog()->sysLog(7, "Fail: TIME : failed to handle '%d', error_code('%d').",
                                          teMsg->proc_id, return_code);
                 }
-                Message* pkMsg = (Message*)recvMessage;
-                if (pkMsg->acUser != NULL)
+                // ORIG：acUser 检查直接复用 teMsg（无独立 pkMsg 槽）
+                if (((Message*)teMsg)->acUser != NULL)
                 {
-                    if (pkMsg->mBufferType != BUFFER_TYPE_NOT_SETTED)
+                    if (((Message*)teMsg)->mBufferType != BUFFER_TYPE_NOT_SETTED)
                     {
                         // acUser is a refcount stored in a pointer-sized field (integer -1, not element ptr arith)
-                        pkMsg->acUser = (TCPUser*)((char*)pkMsg->acUser - 1);
-                        if (pkMsg->acUser == NULL)
+                        ((Message*)teMsg)->acUser = (TCPUser*)((char*)((Message*)teMsg)->acUser - 1);
+                        if (((Message*)teMsg)->acUser == NULL)
                         {
-                            *(char*)&pkMsg->mpSendBuffer = 0;
+                            *(char*)&((Message*)teMsg)->mpSendBuffer = 0;
                             timerThread->PushTimeReqEvent(teMsg);
                         }
                     }
@@ -199,7 +213,7 @@ void WorkThread::loop(void* temp)
             else
             {
                 // virtual destroyTimeEntity — leave as direct call for vtable *%reg form
-                pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyTimeEntity(recvMessage);
+                pApp->super_DataPools.getCommonDataPool(tlsThreadId)->destroyTimeEntity(teMsg);
             }
             break;
         }
@@ -207,33 +221,33 @@ void WorkThread::loop(void* temp)
             break;
         default:
         {
-            Message* pMsg = (Message*)recvMessage;
-            TCPUser* pUser = pMsg->getUserFromMessage();
+            pkMsg = (Message*)recvMessage;
+            pUser = pkMsg->getUserFromMessage();
             if (pUser->isAboutToDisconnect() || pUser->isDisconnected())
             {
                 pUser->SetWorking(false);
-                G_TraceLog()->sysLog(7, "\xb2\xf7\xb1\xe4 \xc0\xaf\xc0\xfa\xb0\xa1 worker\xb7\xce \xb5\xe9\xbe\xee\xbf\xd4\xb4\xd9. msg-%d", (int)Message::ident, (int)(Message::ident >> 32));
-                pMsg->setUse(false);
+                register unsigned int idLo = (unsigned int)Message::ident;
+                register unsigned int idHi = (unsigned int)(Message::ident >> 32);
+                G_TraceLog()->sysLog(7, "\xb2\xf7\xb1\xe4 \xc0\xaf\xc0\xfa\xb0\xa1 worker\xb7\xce \xb5\xe9\xbe\xee\xbf\xd4\xb4\xd9. msg-%d", (int)idLo, (int)idHi);
+                pkMsg->setUse(false);
                 pUser->setActiveSyncByWorker(true);
                 G_ActiveNetClose()->pushActiveClose(pUser);
                 // ORIG: disconnect path skips mTransactionCntPerSec++ and re-pops
-                continue;
+                goto RETRY_MSG;
             }
             else
             {
-                CMsgCell* recvMsg = pMsg->getCellFromMessage();
-                TCPUser::ENUM_DATA_TYPE DataType = pUser->getRecvDataType();
-                PACKET_HEADER* pHeader = recvMsg->GetPacket();
-                G_TraceLog()->sysLog(4, "RECV PCK ct    =%d", pHeader->getCategory());
-                pHeader = recvMsg->GetPacket();
-                G_TraceLog()->sysLog(4, "RECV PCK id    =%d", pHeader->getPacketID());
-                pHeader = recvMsg->GetPacket();
-                G_TraceLog()->sysLog(4, "RECV PCK seq   =%u", pHeader->sequence);
+                recvMsg = pkMsg->getCellFromMessage();
+                DataType = pUser->getRecvDataType();
+                // ORIG：GetPacket() 结果直用，无 pHeader 局部（避免多一个栈槽）
+                G_TraceLog()->sysLog(4, "RECV PCK ct    =%d", recvMsg->GetPacket()->getCategory());
+                G_TraceLog()->sysLog(4, "RECV PCK id    =%d", recvMsg->GetPacket()->getPacketID());
+                G_TraceLog()->sysLog(4, "RECV PCK seq   =%u", recvMsg->GetPacket()->sequence);
                 recvMsg->GetPacket();
                 if (DataType == TCPUser::RECV_DATA_NORMAL)
                 {
-                    handlerTCP->dispatch(pUser, pMsg);
-                    pMsg->setUse(false);
+                    handlerTCP->dispatch(pUser, pkMsg);
+                    pkMsg->setUse(false);
                     if (pUser->GetPendingWorkNum() == 0)
                     {
                         pUser->SetWorking(false);
@@ -242,13 +256,15 @@ void WorkThread::loop(void* temp)
                 zipMsg->Clear();
                 encMsg->Clear();
                 CompressLen = 0x3c00;
-                G_TraceLog()->sysLog(8, "work ended id=%d", (int)Message::ident, (int)(Message::ident >> 32));
+                register unsigned int idLo = (unsigned int)Message::ident;
+                register unsigned int idHi = (unsigned int)(Message::ident >> 32);
+                G_TraceLog()->sysLog(8, "work ended id=%d", (int)idLo, (int)idHi);
             }
             break;
         }
         }
         mTransactionCntPerSec = mTransactionCntPerSec + 1;
-    } while (true);
+    }
 }
 
 } // namespace nsl
