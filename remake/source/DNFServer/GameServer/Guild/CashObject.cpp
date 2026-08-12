@@ -92,8 +92,11 @@ CCashObject::~CCashObject()
 
 bool CCashObject::IsLifeTimeOut()
 {
-    m_lifeTime -= 1;
-    return m_lifeTime == 0;
+    if (--m_lifeTime == 0)
+    {
+        return true;
+    }
+    return false;
 }
 
 void CCashObject::SetBlackUsersObject(std::map<unsigned int, CBlackUser*>& blackUsers)

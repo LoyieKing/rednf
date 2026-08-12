@@ -68,8 +68,8 @@ void CGMAccounts::AppendGM_Sys(unsigned int dbid, char level)
     info.m_dbid = dbid;
     info.m_field4 = (int)level;
     m_list.push_back(info);
-    CMyFileLog log(__FUNCTION__, 0xcd);
     register char* mid = NumberToString(dbid, 0);
+    CMyFileLog log(__FUNCTION__, 0xcd);
     log("./log/Init", "GM List Add mid:%s", mid);
 }
 

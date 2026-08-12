@@ -133,7 +133,8 @@ bool CUdpHandler::RecvFromClient(char* buf, int* len, unsigned int* ip,
     }
     sockaddr_in from;
     socklen_t slen = 0x10;
-    *len = recvfrom(m_sock, buf, *len, 0, (sockaddr*)&from, &slen);
+    register socklen_t* ps = &slen;
+    *len = recvfrom(m_sock, buf, *len, 0, (sockaddr*)&from, ps);
     if (*len == -1)
     {
         int err = getErrno();
@@ -242,10 +243,10 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, char cons
         DNF_LOG_SCOPE_LINE(0x128, "./log/UdpErr", "no data sent in send\n");
         return 0;
     }
-    if (sent != len)
+    if (len != sent)
     {
         printf("Only %s out of %d bytes sent\n", sent, len);
-        DNF_LOG_SCOPE_LINE(0x133, "./log/UdpErr", "Only %s out of %d bytes sent\n", len, sent);
+        DNF_LOG_SCOPE_LINE(0x133, "./log/UdpErr", "Only %s out of %d bytes sent\n", sent, len);
         return 0;
     }
     return 1;
@@ -260,7 +261,8 @@ int CUdpHandler::RecvFromServer(char* buf, int* len, unsigned int* ip,
     }
     sockaddr_in from;
     socklen_t slen = 0x10;
-    *len = recvfrom(m_clientSock, buf, *len, 0, (sockaddr*)&from, &slen);
+    register socklen_t* ps = &slen;
+    *len = recvfrom(m_clientSock, buf, *len, 0, (sockaddr*)&from, ps);
     if (*len == -1)
     {
         int err = getErrno();
@@ -317,7 +319,8 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
     else
     {
         sockaddr_in to;
-        memset(&to, 0, 0x10);
+        register void* pto = &to;
+        memset(pto, 0, 0x10);
         to.sin_family = 2;
         to.sin_port = htons(port);
         to.sin_addr.s_addr = inet_addr(ip);
@@ -355,9 +358,9 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
         DNF_LOG_SCOPE_LINE(0x1c7, "./log/UdpErr", "no data sent in send\n");
         return 0;
     }
-    if (sent != len)
+    if (len != sent)
     {
-        DNF_LOG_SCOPE_LINE(0x1ce, "./log/UdpErr", "Only %d out of %d bytes sent\n", len, sent);
+        DNF_LOG_SCOPE_LINE(0x1ce, "./log/UdpErr", "Only %d out of %d bytes sent\n", sent, len);
         return 0;
     }
     return 1;

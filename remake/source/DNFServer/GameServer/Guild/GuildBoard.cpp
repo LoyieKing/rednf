@@ -153,19 +153,16 @@ void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guil
     for (int i = 0; i < c; i++)
     {
         STGuildBoardDBInfo entry;
-        *(unsigned int*)((char*)&entry + 0x7c) =
-            *(unsigned int*)((char*)info + i * 0xa5 + 0x7c);
-        *(unsigned int*)((char*)&entry + 0x78) =
-            *(unsigned int*)((char*)info + i * 0xa5 + 0x78);
-        memcpy(&entry, (char*)info + i * 0xa5, 0x78);
-        *(unsigned int*)((char*)&entry + 0x80) =
-            *(unsigned int*)((char*)info + i * 0xa5 + 0x80);
-        memcpy((char*)&entry + 0x84, (char*)info + i * 0xa5 + 0x84, 0x21);
-        if (guild->IsGuildMaster(*(unsigned int*)((char*)&entry + 0x80)) != 0)
+        entry.m_field7c = info[i].m_field7c;
+        entry.m_field78 = info[i].m_field78;
+        memcpy(&entry, &info[i], 0x78);
+        entry.m_field80 = info[i].m_field80;
+        memcpy(&entry.m_char, &info[i].m_char, 0x21);
+        if (guild->IsGuildMaster(entry.m_field80) != 0)
         {
-            *(unsigned char*)((char*)&entry + 0x86) = 1;
+            entry.m_char.m_data[2] = 1;
         }
-        m_board.insert(std::make_pair(*(unsigned int*)((char*)&entry + 0x7c), entry));
+        m_board.insert(std::make_pair(entry.m_field7c, entry));
     }
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5f, "./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, COUNT:%u", a, b, c);
 }
@@ -252,7 +249,9 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
 
 void CGuildBoard::deleteGuildBoardData(unsigned int a, unsigned int b, unsigned int c)
 {
-    if (m_board.find(a) != m_board.end())
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
+        m_board.find(a);
+    if (it != m_board.end())
     {
         m_board.erase(a);
         DNF_LOG_SCOPE_LINE(0xdc, "./log/GuildBoard", "DELETE SUCCESS - GUILD:%u, CHARAC:%u, NO:%u", b, c, a);

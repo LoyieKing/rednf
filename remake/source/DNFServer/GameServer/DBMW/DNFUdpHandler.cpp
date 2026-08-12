@@ -88,14 +88,17 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const cha
     if (m_clientSock == -1)
         return 0;
     int n;
-    if (port == 0 && ip == 0)
+    if (port == 0)
     {
-        n = send(m_clientSock, buf, len, 0);
+        if (ip == 0)
+        {
+            n = send(m_clientSock, buf, len, 0);
+        }
     }
     else
     {
         struct sockaddr_in addr;
-        memset(&addr, 0, 0x10);
+        memset((char*)&addr, 0, 0x10);
         addr.sin_family = AF_INET;
         addr.sin_port = htons(port);
         addr.sin_addr.s_addr = inet_addr(ip);
@@ -146,9 +149,12 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
     if (m_sock == -1)
         return 0;
     int n;
-    if (port == 0 && addr == 0)
+    if (port == 0)
     {
-        n = send(m_sock, buf, len, 0);
+        if (addr == 0)
+        {
+            n = send(m_sock, buf, len, 0);
+        }
     }
     else
     {
@@ -192,9 +198,9 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
     }
     if (len != n)
     {
-        printf("Only %s out of %d bytes sent\n", (const char*)n, len);
+        printf("Only %s out of %d bytes sent\n", (char*)n, len);
         CMyFileLog(__FUNCTION__, 0x133)("./log/UdpErr",
-            "Only %s out of %d bytes sent\n", (const char*)n, len);
+            "Only %s out of %d bytes sent\n", (char*)n, len);
         return 0;
     }
     return 1;
@@ -205,8 +211,9 @@ bool CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
     if (m_sock == -1)
         return 0;
     struct sockaddr_in from;
-    socklen_t len = 0x10;
-    *size = recvfrom(m_sock, buf, *size, 0, (struct sockaddr*)&from, &len);
+    int fromLen = 0x10;
+    *size = recvfrom(m_sock, buf, *size, 0, (struct sockaddr*)&from,
+                     (socklen_t*)&fromLen);
     if (*size == -1)
     {
         int e = getErrno();
@@ -253,8 +260,9 @@ char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
     if (m_clientSock == -1)
         return 0;
     struct sockaddr_in from;
-    socklen_t len = 0x10;
-    *size = recvfrom(m_clientSock, buf, *size, 0, (struct sockaddr*)&from, &len);
+    int fromLen = 0x10;
+    *size = recvfrom(m_clientSock, buf, *size, 0, (struct sockaddr*)&from,
+                     (socklen_t*)&fromLen);
     if (*size == -1)
     {
         int e = getErrno();

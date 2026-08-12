@@ -268,7 +268,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                         nu->SetSex(pb->m_sex);
                         nu->SetSsn(pb->m_ssn);
                         nu->SetTcpGameServer(tgs);
-                        if (m_pclApp->Get_MemoryCashManager()->QueryCashMemoryBlackList(nu) != 1)
+                        if (!m_pclApp->Get_MemoryCashManager()->QueryCashMemoryBlackList(nu))
                         {
                             RequestBlackListToDBMW(pb->m_serverNo);
                         }
@@ -1636,99 +1636,104 @@ void CPacketTranslater::OnCallGuildInvite(PacketHeader* pkt)
 {
     try
     {
-    THROW_IF_NO_APP("CPacketTranslater::OnMonitorSendGuildLetter : 0 == m_pclApp");
-    Packet_Guild_Call_Guild_Invite_To_Caller callerPkt;
-    unsigned int guildKey = *(unsigned int*)((char*)pkt + 0xe);
-    unsigned int charNo = *(unsigned int*)((char*)pkt + 0xa);
-    if (guildKey == 0)
-    {
-        throw CDNFException("CPacketTranslater::OnCallGuildInvite : packet->m_uGuildKey == 0");
-    }
-    CUser* caller;
-    if ((caller = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x8db,"./log/Except",
-            "CPacketTranslater::OnCallGuildInvite : 0 == pclCaller, Char Key = %d", charNo);
-        return;
-    }
-    *(unsigned int*)((char*)&callerPkt + 0xa) = charNo;
-    *(unsigned int*)((char*)&callerPkt + 0xe) = caller->GetIdByChannel();
-    CGuild* guild;
-    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x8e4,"./log/GuildModify",
-            "CPacketTranslater::OnCallGuildInvite : 0 == pclGuild, Guild Key = %d", guildKey);
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 0x22;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-        return;
-    }
-    if (guild->IsSetGuildDBFlag(4) != 1)
-    {
-        DNF_LOG_SCOPE_LINE(0x8eb,"./log/GuildModify",
-            "CPacketTranslater::OnCallGuildInvite : !( m_eGuildDBFlag & GUILD_DB_LOAD_STATE ), Guild Key = %d",
-            guildKey);
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 0x22;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-        return;
-    }
-    if (!guild->IsGuildMaster(charNo) && !guild->IsSubGuildMaster(charNo) &&
-        *(char*)((char*)caller->GetGuildMemDBInfo() + 0x15) != 0x03)
-    {
-        DNF_LOG_SCOPE_LINE(0x8f4,"./log/GuildModify",
-            "CPacketTranslater::OnCallGuildInvite : IsGuildMaster or IsSubGuildMaster, g(%d), c(%d)",
-            guildKey, charNo);
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 0x24;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-        return;
-    }
-    if (300 < (guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff) + 1)
-    {
-        DNF_LOG_SCOPE_LINE(0x8fd,"./log/GuildModify",
-            "CPacketTranslater::OnCallGuildInvite : cnt(%d), Guild Key = %d",
-            guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff, guildKey);
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 0x26;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-        return;
-    }
-    CUser* invited =
-        (&m_pclApp->m_userManager)->FindUser_CharName(std::string((char*)pkt + 0x12));
-    if (invited == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x905,"./log/GuildModify",
-            "CPacketTranslater::OnCallGuildInvite : 0 == pclInvitedUser, Char Key = %d", charNo);
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 3;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-        return;
-    }
-    if (caller->IsBlackUser(invited->GetUniqCharNo()) != 0 ||
-        invited->IsBlackUser(caller->GetUniqCharNo()) != 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x90d,"./log/GuildModify",
-            "CPacketTranslater::OnCallGuildInvite : 0 == pclInvitedUser, Char Key = %d", charNo);
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 0x4d;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-        return;
-    }
-    if (invited->GetGuildKey() == 0)
-    {
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 0;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-        invited->SetGuildInviteFact(guild->GetGuildKey(), caller->GetUniqCharNo(), 1);
-        Packet_Guild_Call_Guild_Invite_To_Invited invitedPkt;
-        *(unsigned int*)((char*)&invitedPkt + 0xa) = invited->GetUniqCharNo();
-        *(unsigned int*)((char*)&invitedPkt + 0xe) = invited->GetIdByChannel();
-        memcpy((char*)&invitedPkt + 0x12, caller->GetCharName(), 0x1d);
-        memcpy((char*)&invitedPkt + 0x2f, guild->GetGuildName(), 0x16);
-        invited->SendToGameserver((char*)&invitedPkt, 0x47);
-    }
-    else
-    {
-        DNF_LOG_SCOPE_LINE(0x916,"./log/GuildModify",
-            "CPacketTranslater::OnCallGuildInvite : 0 != pclInvitedUser.GetGuildKey(), Char Key = %d",
-            charNo);
-        *(unsigned int*)((char*)&callerPkt + 0x12) = 0x27;
-        caller->SendToGameserver((char*)&callerPkt, 0x16);
-    }
+        THROW_IF_NO_APP("CPacketTranslater::OnCallGuildInvite : 0 == m_pclApp");
+        char* pb = (char*)pkt;
+        Packet_Guild_Call_Guild_Invite_To_Caller callerPkt;
+        if (*(unsigned int*)(pb + 0xe) == 0)
+        {
+            throw CDNFException("CPacketTranslater::OnCallGuildInvite : packet->m_uGuildKey == 0");
+        }
+        CUserManager* um = &m_pclApp->m_userManager;
+        CUser* caller;
+        if ((caller = um->FindUser_CharNo(*(unsigned int*)(pb + 0xa))) == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x8db,"./log/Except",
+                "CPacketTranslater::OnCallGuildInvite : 0 == pclCaller, Char Key = %d",
+                *(unsigned int*)(pb + 0xa));
+            return;
+        }
+        *(unsigned int*)((char*)&callerPkt + 0xa) = *(unsigned int*)(pb + 0xa);
+        *(unsigned int*)((char*)&callerPkt + 0xe) = caller->GetIdByChannel();
+        CGuild* guild;
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(*(unsigned int*)(pb + 0xe))) == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x8e4,"./log/GuildModify",
+                "CPacketTranslater::OnCallGuildInvite : 0 == pclGuild, Guild Key = %d",
+                *(unsigned int*)(pb + 0xe));
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 0x22;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+            return;
+        }
+        if (guild->IsSetGuildDBFlag(4) != 1)
+        {
+            DNF_LOG_SCOPE_LINE(0x8eb,"./log/GuildModify",
+                "CPacketTranslater::OnCallGuildInvite : !( m_eGuildDBFlag & GUILD_DB_LOAD_STATE ), Guild Key = %d",
+                *(unsigned int*)(pb + 0xe));
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 0x22;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+            return;
+        }
+        if (!guild->IsGuildMaster(*(unsigned int*)(pb + 0xa)) &&
+            !guild->IsSubGuildMaster(*(unsigned int*)(pb + 0xa)) &&
+            *(char*)((char*)caller->GetGuildMemDBInfo() + 0x15) != 0x03)
+        {
+            DNF_LOG_SCOPE_LINE(0x8f4,"./log/GuildModify",
+                "CPacketTranslater::OnCallGuildInvite : IsGuildMaster or IsSubGuildMaster, g(%d), c(%d)",
+                *(unsigned int*)(pb + 0xe), *(unsigned int*)(pb + 0xa));
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 0x24;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+            return;
+        }
+        if (300 < (guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff) + 1)
+        {
+            DNF_LOG_SCOPE_LINE(0x8fd,"./log/GuildModify",
+                "CPacketTranslater::OnCallGuildInvite : cnt(%d), Guild Key = %d",
+                guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff, *(unsigned int*)(pb + 0xe));
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 0x26;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+            return;
+        }
+        CUser* invited =
+            um->FindUser_CharName(std::string(pb + 0x12));
+        if (invited == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x905,"./log/GuildModify",
+                "CPacketTranslater::OnCallGuildInvite : 0 == pclInvitedUser, Char Key = %d",
+                *(unsigned int*)(pb + 0xa));
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 3;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+            return;
+        }
+        if (caller->IsBlackUser(invited->GetUniqCharNo()) != 0 ||
+            invited->IsBlackUser(caller->GetUniqCharNo()) != 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x90d,"./log/GuildModify",
+                "CPacketTranslater::OnCallGuildInvite : 0 == pclInvitedUser, Char Key = %d",
+                *(unsigned int*)(pb + 0xa));
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 0x4d;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+            return;
+        }
+        if (invited->GetGuildKey() == 0)
+        {
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 0;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+            invited->SetGuildInviteFact(guild->GetGuildKey(), caller->GetUniqCharNo(), 1);
+            Packet_Guild_Call_Guild_Invite_To_Invited invitedPkt;
+            *(unsigned int*)((char*)&invitedPkt + 0xa) = invited->GetUniqCharNo();
+            *(unsigned int*)((char*)&invitedPkt + 0xe) = invited->GetIdByChannel();
+            memcpy((char*)&invitedPkt + 0x12, caller->GetCharName(), 0x1d);
+            memcpy((char*)&invitedPkt + 0x2f, guild->GetGuildName(), 0x16);
+            invited->SendToGameserver((char*)&invitedPkt, 0x47);
+        }
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0x916,"./log/GuildModify",
+                "CPacketTranslater::OnCallGuildInvite : 0 != pclInvitedUser.GetGuildKey(), Char Key = %d",
+                *(unsigned int*)(pb + 0xa));
+            *(unsigned int*)((char*)&callerPkt + 0x12) = 0x27;
+            caller->SendToGameserver((char*)&callerPkt, 0x16);
+        }
     }
     catch (CDNFException& e)
     {

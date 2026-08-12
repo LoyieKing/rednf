@@ -272,7 +272,6 @@ void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic
         char m_f11;
         char m_f12;
         unsigned int m_f13;
-        char m_pad[3];
         char m_f17;
         char m_f18;
         int m_f19;
@@ -607,7 +606,7 @@ void StatisticManager::WriteAssertManagerStatistic(Packet_Assert_Manager_Info* p
     {
         char m_hdr[0xa];
         unsigned int m_f0a;
-        char m_pad[0x104];
+        char m_pad[0x100];
         unsigned short m_f10e;
         int m_f110;
     };
@@ -1174,10 +1173,15 @@ void StatisticManager::SendDBFatigueBattery(CServerHandler* handler)
         return;
     }
     Packet_DBMW_Fatigue_Battery_Money_Statistic pkt;
+    struct FatigueBatteryWire
+    {
+        int m_field0;
+        int m_field4;
+    };
     struct __attribute__((packed)) Wire
     {
         char m_hdr[0xa];
-        STFatigueBattery m_items[0x65];
+        FatigueBatteryWire m_items[0x65];  // POD 镜像，packed 生效：m_items@+0xa，元素 8 字节
     };
     for (std::map<unsigned char, STFatigueBattery>::iterator it = m_fatigue.begin();
          it != m_fatigue.end(); ++it)

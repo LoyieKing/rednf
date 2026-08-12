@@ -78,6 +78,19 @@
 #include "Scheduler.h"
 #include "ServerLoadChecker.h"
 #include "ServerXml.h"
+#include <new>
+
+// 局部布局视图（仅 DNFGuild.cpp 内部使用，不改共享头；用于按 ORIG 字段偏移生成直接位移访问）
+struct __attribute__((packed)) GuildNoticeInfoFull
+{
+    char m_raw0[0xa];
+    unsigned int m_fieldA;   // +0xa
+    unsigned int m_fieldE;   // +0xe
+    unsigned int m_field12;  // +0x12
+    char m_body[0xbd];       // +0x16
+    char m_padD3;            // +0xd3
+    char m_rest[0x65];       // +0xd4
+};
 #include "SystemTimeHandler.h"
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
@@ -747,19 +760,19 @@ void CGuild::AddGuildExpUntilLimit(unsigned int exp, unsigned int limit)
     if ((m_field1c & 4) != 0)
     {
         m_field4d96 = 1;
-        unsigned int old = *(unsigned int*)((char*)this + 0x49);
-        *(unsigned int*)((char*)this + 0x49) += exp;
-        if (limit < *(unsigned int*)((char*)this + 0x49))
+        unsigned int old = m_dbInfo.m_info.m_guildExp;
+        m_dbInfo.m_info.m_guildExp += exp;
+        if (limit < m_dbInfo.m_info.m_guildExp)
         {
-            *(unsigned int*)((char*)this + 0x49) = limit;
+            m_dbInfo.m_info.m_guildExp = limit;
         }
-        if (*(unsigned int*)((char*)this + 0x49) < old)
+        if (m_dbInfo.m_info.m_guildExp < old)
         {
-            *(unsigned int*)((char*)this + 0x49) = old;
+            m_dbInfo.m_info.m_guildExp = old;
         }
         DNF_LOG_SCOPE_LINE(0x246,"./log/Guild",
             "GUILD EXP UNTIL LIMIT : guild key(%d), old exp(%d), add exp(%d), guild exp(%d), exp_limit(%d)",
-            GetGuildKey(), old, exp, *(unsigned int*)((char*)this + 0x49), limit);
+            GetGuildKey(), old, exp, m_dbInfo.m_info.m_guildExp, limit);
     }
 }
 
@@ -889,15 +902,23 @@ void CGuild::SendGuildNameChangeToMembers()
 
 void CGuild::SendGuildInfoToMemberOnly(CUser* user)
 {
-    if ((*(unsigned short*)((char*)this + 0x1c) & 4) != 0)
+    if ((m_field1c & 4) != 0)
     {
-        Packet_Monitor_Notice_Guild_Info pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = user->GetIdByChannel();
-        *(unsigned int*)((char*)&pkt + 0xe) = user->GetUniqCharNo();
-        *(unsigned int*)((char*)&pkt + 0x12) = m_guildKey;
-        memcpy((char*)&pkt + 0x16, (char*)this + 0x20, 0xbd);
-        size_t len = strlen((char*)this + 0x4d0a);
-        memcpy((char*)&pkt + 0xd4, (char*)this + 0x4d0a, len < 0x65 ? len : 100);
+        GuildNoticeInfoFull pkt;
+        new (&pkt) Packet_Monitor_Notice_Guild_Info();
+        pkt.m_field12 = m_guildKey;
+        memcpy(pkt.m_body, (char*)this + 0x20, 0xbd);
+        pkt.m_fieldA = user->GetIdByChannel();
+        pkt.m_fieldE = user->GetUniqCharNo();
+        int len = strlen((char*)this + 0x4d0a);
+        if (len <= 100)
+        {
+            memcpy(pkt.m_rest, (char*)this + 0x4d0a, len);
+        }
+        else
+        {
+            memcpy(pkt.m_rest, (char*)this + 0x4d0a, 100);
+        }
         user->SendToGameserver((char*)&pkt, 0x139);
     }
 }

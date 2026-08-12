@@ -57,7 +57,7 @@ void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char pa
              it != pMap->end(); ++it)
         {
             const STSpecStatic* pSpec = &it->first;
-            memcpy((char*)&pkt + 0x11 + count * 0xe, (const void*)pSpec, 0xc);
+            memcpy((char*)&pkt + count * 0xe + 0x11, (const void*)pSpec, 0xc);
             pkt.m_items[count].m_field0 = (short)it->second;
             if (0x1b3U < (++count))
             {
