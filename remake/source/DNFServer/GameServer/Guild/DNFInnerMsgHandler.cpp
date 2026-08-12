@@ -67,7 +67,7 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-CInnerMsgHandler::CInnerMsgHandler()
+CInnerMsgHandler::CInnerMsgHandler() throw()
 {
 }
 

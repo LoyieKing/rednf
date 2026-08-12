@@ -111,12 +111,12 @@ void CSignalTranslator::clear()
     }
 }
 
-int CSignalTranslator::init(CApplication* app)
+void CSignalTranslator::init(CApplication* app)
 {
     try
     {
         init_signal();
-        return init_handler(app);
+        init_handler(app);
     }
     catch (CDNFException& e)
     {
@@ -190,7 +190,7 @@ void CSignalTranslator::init_signal()
     }
 }
 
-int CSignalTranslator::init_handler(CApplication* app)
+void CSignalTranslator::init_handler(CApplication* app)
 {
     m_handlers[0x3c / 4] = new CTerminateSig;
     m_handlers[0x3c / 4]->attachApp(app);
@@ -215,22 +215,29 @@ int CSignalTranslator::init_handler(CApplication* app)
     m_handlers[0x60 / 4] = m_handlers[0x10 / 4];
     m_handlers[100 / 4] = m_handlers[0x10 / 4];
     m_handlers[0x7c / 4] = m_handlers[0x10 / 4];
-    return 0;
 }
 
-int CSignalTranslator::regist_signal(int sig, void (*handler)(int))
+bool CSignalTranslator::regist_signal(int sig, void (*handler)(int))
 {
     struct sigaction sa;
     struct sigaction old;
     sa.sa_handler = (__sighandler_t)handler;
     sigemptyset(&sa.sa_mask);
-    sa.sa_flags = (sig == 0xe) ? 0x20000000 : 0x10000000;
-    int r = sigaction(sig, &sa, &old);
-    if (-1 >= r)
+    sa.sa_flags = 0;
+    if (sig == 0xe)
+    {
+        sa.sa_flags |= 0x20000000;
+    }
+    else
+    {
+        sa.sa_flags |= 0x10000000;
+    }
+    if (sigaction(sig, &sa, &old) < 0)
     {
         printf("%d\xb9\xf8 signal \xb5\xee\xb7\xcf \xbd\xc7\xc6\xd0\n", sig);
+        return false;
     }
-    return -1 < r;
+    return true;
 }
 
 int CSignalTranslator::getSignal(int sig) const

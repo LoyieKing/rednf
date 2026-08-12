@@ -84,12 +84,10 @@ int CArchiveLog::WriteLog(const char *log) {
             return 0;
         }
     }
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）：
-    // 仅复制 7 字节（year..sec）；ORIG 的寄存器复用/指令序无法用纯 C++
-    // 逐字节复现，按规矩归入 caliber_issues.csv（REMAIN）。
-    if (&this->time != &now) {
-        memcpy(&this->time, &now, 7);
-    }
+    // 与 ORIG 完全一致的形态（2026-08-12 实测）：DateTime 有用户声明构造，
+    // GCC 4.4 为隐式拷贝赋值生成自赋值守卫（cmp/je）+ memcpy(...,7)，
+    // 与 ORIG 的寄存器复用块逐条一致；显式 if+memcpy 反而会重算地址。
+    this->time = now;
     fprintf(this->logFile, "[%02d:%02d:%02d] %s\r\n", (int)now.hour, (int)now.min, (int)now.sec, log);
     printf("[%02d:%02d:%02d] %s\r\n", (int)now.hour, (int)now.min, (int)now.sec, log);
     fflush(this->logFile);

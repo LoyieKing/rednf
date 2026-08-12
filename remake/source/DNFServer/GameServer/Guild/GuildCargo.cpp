@@ -356,12 +356,12 @@ void CGuildCargo::SetGuildCargoDBInfo(STGuildCargoDBInfo& info)
 
 void CGuildCargo::SetGuildCargoHistory(unsigned int idx, STGuildCargoLog* log)
 {
-    int c = (int)idx;
+    unsigned int c = idx;
     if (c > 0x32)
     {
         c = 0x32;
     }
-    for (int i = 0; i < c; i++)
+    for (int i = 0; i < (int)c; i++)
     {
         m_history.push_front(log[i]);
     }

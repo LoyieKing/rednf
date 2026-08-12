@@ -15,7 +15,7 @@ struct Packet_Server_Queue_Load_Statistic;
 class CInnerMsgHandler
 {
 public:
-    CInnerMsgHandler();
+    CInnerMsgHandler() throw();
     ~CInnerMsgHandler();
     void SendStopNetworkThread();
 };

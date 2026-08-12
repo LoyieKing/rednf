@@ -93,7 +93,7 @@ CCashObject::~CCashObject()
 bool CCashObject::IsLifeTimeOut()
 {
     m_lifeTime -= 1;
-    register bool flag = (m_lifeTime == 0);
+    bool flag = (m_lifeTime == 0);
     if (flag)
     {
         return true;

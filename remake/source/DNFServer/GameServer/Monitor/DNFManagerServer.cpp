@@ -67,36 +67,41 @@ unsigned int CExchangeServer::GetExchangeServerChannelNo()
 void CExchangeServer::SetExchageServer(unsigned int ip, short port, int code, bool& result)
 {
     time_t now = time(0);
+    in_addr ipLocal;
+    ipLocal.s_addr = ip;
     in_addr oldIp;
     oldIp.s_addr = ((RA_UINT<8>*)this)->v;
     result = false;
-    if (m_active == 0)
+    if (m_active != 0)
     {
-        DNF_LOG_SCOPE_LINE(0xe2c,"./log/ExchangeServer", "insert new(%s,%d,%d,%d)", inet_ntoa(*(in_addr*)&ip), port,
+        if (m_ip == ip && m_port == port && m_code == code)
+        {
+            if (now - m_time < 0x1f)
+            {
+                result = true;
+            }
+            m_time = now;
+        }
+        else if (0x1e < now - m_time)
+        {
+            DNF_LOG_SCOPE_LINE(0xe21,"./log/ExchangeServer",
+                "timeout : new(%s,%d,%d,%d) old(%s,%d,%d,%d)", inet_ntoa(ipLocal), port,
+                code, now, inet_ntoa(oldIp), m_port, m_code, (int)m_time);
+            m_ip = ip;
+            m_port = port;
+            m_code = code;
+            m_time = now;
+        }
+    }
+    else
+    {
+        DNF_LOG_SCOPE_LINE(0xe2c,"./log/ExchangeServer", "insert new(%s,%d,%d,%d)", inet_ntoa(ipLocal), port,
             code, now);
         m_ip = ip;
         m_port = port;
         m_code = code;
         m_time = now;
         m_active = 1;
-    }
-    else if (m_ip == ip && m_port == port && m_code == code)
-    {
-        if (now - m_time < 0x1f)
-        {
-            result = true;
-        }
-        m_time = now;
-    }
-    else if (0x1e < now - m_time)
-    {
-        DNF_LOG_SCOPE_LINE(0xe21,"./log/ExchangeServer",
-            "timeout : new(%s,%d,%d,%d) old(%s,%d,%d,%d)", inet_ntoa(*(in_addr*)&ip), port,
-            code, now, inet_ntoa(oldIp), m_port, m_code, (int)m_time);
-        m_ip = ip;
-        m_port = port;
-        m_code = code;
-        m_time = now;
     }
 }
 

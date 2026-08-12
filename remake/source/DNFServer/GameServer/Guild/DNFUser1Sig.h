@@ -12,7 +12,7 @@ class CUser2Sig;
 class CUser1Sig : public CSignal
 {
 public:
-    CUser1Sig();
+    CUser1Sig() throw();
     virtual ~CUser1Sig();
     virtual void handle(int sig);
 };
@@ -21,7 +21,7 @@ public:
 class CUser2Sig : public CSignal
 {
 public:
-    CUser2Sig();
+    CUser2Sig() throw();
     virtual ~CUser2Sig();
     virtual void handle(int sig);
 };

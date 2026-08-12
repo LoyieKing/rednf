@@ -430,66 +430,59 @@ void CPowerManager::RewardBonusPoint()
 
 void CPowerManager::SaveDBPowerWarBonusPoint()
 {
-    char winnerSide = *(char*)((char*)this + 0x184);
-    if (winnerSide == 0 || winnerSide > 2)
+    if (m_winnerSide == 0 || m_winnerSide > 2)
     {
         return;
     }
     Packet_DB_Save_Power_War_Bonus_Point pkt;
-    CPowerWarCharacInfo* info =
-        ((CPower*)((char*)this + winnerSide * 0x6c + 8))->GetPowerWarCharacInfo();
+    CPowerWarCharacInfo* info = m_power[m_winnerSide].GetPowerWarCharacInfo();
     info->GetBonus(pkt);
-    if (*(int*)((char*)&pkt + 0xa) != 0)
+    if (pkt.m_bonus != 0)
     {
-        CApplication* app = *(CApplication**)((char*)this + 4);
-        app->Get_ServerHandler()->SendToDB(&pkt);
+        ((CApplication*)m_field4)->Get_ServerHandler()->SendToDB(&pkt);
     }
 }
 
 void CPowerManager::SaveDBPowerWarPointReward()
 {
-    char winnerSide = *(char*)((char*)this + 0x184);
-    if (winnerSide == 0 || winnerSide > 2)
+    if (m_winnerSide == 0 || m_winnerSide > 2)
     {
-        DNF_LOG_SCOPE_LINE(0x357, "./log/Power", "invalid winner side income(%d)", (int)winnerSide);
+        DNF_LOG_SCOPE_LINE(0x357, "./log/Power", "invalid winner side income(%d)", (int)m_winnerSide);
         return;
     }
-    CApplication* app = *(CApplication**)((char*)this + 4);
     for (int side = 1; side < 3; side++)
     {
-        CPowerWarGuildInfo* info =
-            ((CPower*)((char*)this + side * 0x6c + 8))->GetPowerWarGuildInfo();
+        CPowerWarGuildInfo* info = m_power[side].GetPowerWarGuildInfo();
         int count = info->GetPowerWarPointDBSaveCount();
         if (count != 0)
         {
             Packet_DB_Save_Power_War_Point_Reward pkt;
-            *(unsigned char*)((char*)&pkt + 0xa) =
-                app->Get_ServerHandler()->GetServerGroupNo();
+            pkt.m_a = ((CApplication*)m_field4)->Get_ServerHandler()->GetServerGroupNo();
             info->MakePacketDBPowerWarPoint(&pkt);
-            app->Get_ServerHandler()->SendToDB(&pkt);
+            ((CApplication*)m_field4)->Get_ServerHandler()->SendToDB(&pkt);
         }
     }
 }
 
 void CPowerManager::UpdatePowerWarInfo(bool flag, ENUM_POWER_SIDE_TYPE side, int score, unsigned int* p)
 {
-    if (*(CApplication**)((char*)this + 4) == 0)
+    if (m_field4 == 0)
     {
         return;
     }
     for (int i = 0; i <= 3; i++)
     {
-        if (p[i] != 0)
+        if (p[i] == 0)
         {
-            CUser* user = (*(CApplication**)((char*)this + 4))
-                              ->Get_UserManager()
-                              ->FindUser_CharNo(p[i]);
-            if (user != 0)
-            {
-                ((CPower*)((char*)this + (int)side * 0x6c + 8))
-                    ->UpdatePowerWarInfo(score, p[i], user->GetGuildKey());
-            }
+            continue;
         }
+        CUser* user = ((CApplication*)m_field4)->Get_UserManager()->FindUser_CharNo(p[i]);
+        if (user == 0)
+        {
+            continue;
+        }
+        unsigned int guildKey = user->GetGuildKey();
+        m_power[side].UpdatePowerWarInfo(score, p[i], guildKey);
     }
 }
 
@@ -533,8 +526,8 @@ void CPowerManager::PrintDebugInfo()
 
 void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
 {
-    CApplication* app = *(CApplication**)((char*)this + 4);
-    CUser* user = app->Get_UserManager()->FindUser_CharNo(charNo);
+    CUser* user =
+        ((CApplication*)m_field4)->Get_UserManager()->FindUser_CharNo(charNo);
     if (user == 0)
     {
         DNF_LOG_SCOPE_LINE(0x3e2,"./log/Power", "CPacketTranslater::SendPowerWarProcessInfo : 0 == pclUser(%d)",
@@ -542,7 +535,7 @@ void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
         return;
     }
     unsigned int guildKey = user->GetGuildKey();
-    CGuild* guild = app->Get_GuildManager()->FindGuild(guildKey);
+    CGuild* guild = ((CApplication*)m_field4)->Get_GuildManager()->FindGuild(guildKey);
     if (guild == 0)
     {
         DNF_LOG_SCOPE_LINE(0x3ea,"./log/Power",
@@ -551,11 +544,11 @@ void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
         return;
     }
     Packet_Channel_Power_War_Process_Info pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = user->GetIdByChannel();
-    *(unsigned int*)((char*)&pkt + 0xe) = charNo;
-    *(unsigned int*)((char*)&pkt + 0x12) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
-    *(unsigned int*)((char*)&pkt + 0x16) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
-    unsigned int side = (unsigned int)guild->GetPowerSide() & 0xff;
+    pkt.m_idByChannel = user->GetIdByChannel();
+    pkt.m_charNo = charNo;
+    pkt.m_scoreA = GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
+    pkt.m_scoreB = GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
+    int side = (int)(unsigned char)guild->GetPowerSide();
     if (side == 3)
     {
         side = 1;
@@ -567,22 +560,19 @@ void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
     else if (side == 0 || 4 < side)
     {
         DNF_LOG_SCOPE_LINE(0x3fd,"./log/Power", "CPacketTranslater::SendPowerWarProcessInfo : Invalid Power Side(%d)",
-            (unsigned int)guild->GetPowerSide() & 0xff);
+            (int)(unsigned char)guild->GetPowerSide());
         return;
     }
-    *(unsigned int*)((char*)&pkt + 0x1a) =
-        GetUserPowerWarPoint((ENUM_POWER_SIDE_TYPE)side, charNo);
-    if (IsPowerWarOn() == 0)
+    pkt.m_userPoint = GetUserPowerWarPoint((ENUM_POWER_SIDE_TYPE)side, charNo);
+    if (IsPowerWarOn())
     {
-        *(unsigned int*)((char*)&pkt + 0x1e) = 0;
-        *(unsigned int*)((char*)&pkt + 0x22) = 0;
+        pkt.m_guildRank = GetGuildRankingInPower((ENUM_POWER_SIDE_TYPE)side, guildKey);
+        pkt.m_userRank = GetUserRankingInPower((ENUM_POWER_SIDE_TYPE)side, charNo);
     }
     else
     {
-        *(unsigned int*)((char*)&pkt + 0x1e) =
-            GetGuildRankingInPower((ENUM_POWER_SIDE_TYPE)side, guildKey);
-        *(unsigned int*)((char*)&pkt + 0x22) =
-            GetUserRankingInPower((ENUM_POWER_SIDE_TYPE)side, charNo);
+        pkt.m_guildRank = 0;
+        pkt.m_userRank = 0;
     }
     user->SendToGameserver((char*)&pkt, 0x26);
 }
@@ -671,16 +661,15 @@ void CPowerManager::SendPowerWarEndInfoToSpecificUser(CUser* user, unsigned int 
                                                      unsigned int g, unsigned int h)
 {
     Packet_Notice_Power_war_End_Info pkt;
-    CApplication* app = *(CApplication**)((char*)this + 4);
-    (void)app->GetPowerManager();
-    *(unsigned int*)((char*)&pkt + 0xa) = user->GetIdByChannel();
-    *(unsigned int*)((char*)&pkt + 0xe) = b;
-    *(unsigned char*)((char*)&pkt + 0x12) = c;
-    *(unsigned int*)((char*)&pkt + 0x13) = d;
-    *(unsigned int*)((char*)&pkt + 0x17) = e;
-    *(unsigned int*)((char*)&pkt + 0x1b) = f;
-    *(unsigned int*)((char*)&pkt + 0x1f) = g;
-    *(unsigned int*)((char*)&pkt + 0x23) = h;
+    CPowerManager* powerManager = ((CApplication*)m_field4)->GetPowerManager();
+    pkt.m_idByChannel = user->GetIdByChannel();
+    pkt.m_b = b;
+    pkt.m_c = c;
+    pkt.m_d = d;
+    pkt.m_e = e;
+    pkt.m_f = f;
+    pkt.m_g = g;
+    pkt.m_h = h;
     user->SendToGameserver((char*)&pkt, 0x27);
 }
 

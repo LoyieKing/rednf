@@ -102,11 +102,19 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Channel_Power_War_Process_Info : public PacketHeader {
 public:
     Packet_Channel_Power_War_Process_Info();
-    char m_data[0x1c];
+    unsigned int m_idByChannel;  // +0xa
+    unsigned int m_charNo;       // +0xe
+    int m_scoreA;                // +0x12
+    int m_scoreB;                // +0x16
+    unsigned int m_userPoint;    // +0x1a
+    unsigned int m_guildRank;    // +0x1e
+    unsigned int m_userRank;     // +0x22
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 #pragma pack(push,1)
@@ -204,11 +212,20 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Notice_Power_war_End_Info : public PacketHeader {
 public:
     Packet_Notice_Power_war_End_Info();
-    char m_data[0x1d];
+    unsigned int m_idByChannel;  // +0xa
+    unsigned int m_b;            // +0xe
+    unsigned char m_c;           // +0x12
+    unsigned int m_d;            // +0x13
+    unsigned int m_e;            // +0x17
+    unsigned int m_f;            // +0x1b
+    unsigned int m_g;            // +0x1f
+    unsigned int m_h;            // +0x23
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 #pragma pack(push,1)

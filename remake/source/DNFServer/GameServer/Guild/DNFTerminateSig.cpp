@@ -68,7 +68,7 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-CTerminateSig::CTerminateSig()
+CTerminateSig::CTerminateSig() throw()
 {
 }
 
@@ -84,4 +84,3 @@ void CTerminateSig::handle(int sig)
 CTerminateSig::~CTerminateSig()
 {
 }
-

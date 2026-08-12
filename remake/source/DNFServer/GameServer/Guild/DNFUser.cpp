@@ -208,8 +208,7 @@ void CUser::LoadGuildMember(unsigned int guildKey, STGuildMemerDBInfo& info)
 void CUser::AddGuildMemberPoint(unsigned int point)
 {
     unsigned int old = ((CUserGuildPointLayout*)this)->m_guildPoint;
-    ((CUserGuildPointLayout*)this)->m_guildPoint =
-        ((CUserGuildPointLayout*)this)->m_guildPoint + point;
+    ((CUserGuildPointLayout*)this)->m_guildPoint += point;
     SetGuildMemFlag(0x10);
     if (((CUserGuildPointLayout*)this)->m_guildPoint < old)
     {
@@ -479,7 +478,7 @@ void CUser::GuildInviteProcess()
 {
     if (m_field7e < 2)
     {
-        m_field7e = (char)(m_field7e - 1);
+        --m_field7e;
         bool bVar = (m_field7e == 0 || m_field7e > 1);
         if (bVar)
         {

@@ -188,8 +188,14 @@ int TCPSocket::getHandle() const
 
 int TCPSocket::shutdown(int how)
 {
-    m_sock == -1;
-    return m_sock;
+    (void)how;
+    switch (m_sock == -1)
+    {
+    case 0:
+        break;
+    case 1:
+        break;
+    }
 }
 
 void TCPSocket::close()
@@ -379,40 +385,45 @@ int TCPSocket::pollReadWriteErrEvent() const
     fd_set rfds;
     fd_set wfds;
     fd_set efds;
-    fd_set* rp = &rfds;
-    for (unsigned int i = 0; i < 0x20; i++)
-    {
-        rp->fds_bits[i] = 0;
-    }
-    fd_set* wp = &wfds;
-    for (unsigned int i = 0; i < 0x20; i++)
-    {
-        wp->fds_bits[i] = 0;
-    }
-    fd_set* ep = &efds;
-    for (unsigned int i = 0; i < 0x20; i++)
-    {
-        ep->fds_bits[i] = 0;
-    }
-    unsigned int rbits = rfds.fds_bits[(unsigned int)m_sock >> 5];
-    unsigned int rmask = (1 << ((unsigned int)m_sock & 0x1f));
-    rfds.fds_bits[(unsigned int)m_sock >> 5] = rmask | rbits;
-    unsigned int wbits = wfds.fds_bits[(unsigned int)m_sock >> 5];
-    unsigned int wmask = (1 << ((unsigned int)m_sock & 0x1f));
-    wfds.fds_bits[(unsigned int)m_sock >> 5] = wmask | wbits;
-    unsigned int ebits = efds.fds_bits[(unsigned int)m_sock >> 5];
-    unsigned int emask = (1 << ((unsigned int)m_sock & 0x1f));
-    efds.fds_bits[(unsigned int)m_sock >> 5] = emask | ebits;
     timeval tv;
+    int r;
+    int result;
+    unsigned int i1;
+    fd_set* rp;
+    unsigned int i2;
+    fd_set* wp;
+    unsigned int i3;
+    fd_set* ep;
+    rp = &rfds;
+    for (i1 = 0; i1 < 0x20; i1++)
+    {
+        rp->fds_bits[i1] = 0;
+    }
+    wp = &wfds;
+    for (i2 = 0; i2 < 0x20; i2++)
+    {
+        wp->fds_bits[i2] = 0;
+    }
+    ep = &efds;
+    for (i3 = 0; i3 < 0x20; i3++)
+    {
+        ep->fds_bits[i3] = 0;
+    }
+    rfds.fds_bits[(unsigned int)m_sock >> 5] =
+        rfds.fds_bits[(unsigned int)m_sock >> 5] | (1 << ((unsigned int)m_sock & 0x1f));
+    wfds.fds_bits[(unsigned int)m_sock >> 5] =
+        wfds.fds_bits[(unsigned int)m_sock >> 5] | (1 << ((unsigned int)m_sock & 0x1f));
+    efds.fds_bits[(unsigned int)m_sock >> 5] =
+        efds.fds_bits[(unsigned int)m_sock >> 5] | (1 << ((unsigned int)m_sock & 0x1f));
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int r = select(2, &rfds, &wfds, &efds, &tv);
-    if (r < 0)
+    r = 0;
+    result = 0;
+    if ((unsigned)(r = select(2, &rfds, &wfds, &efds, &tv)) >> 31)
     {
         printf("pollReadWriteErrEvent(%s)", strerror(errno));
         return r;
     }
-    int result = 0;
     if ((rfds.fds_bits[(unsigned int)m_sock >> 5] >> ((unsigned int)m_sock & 0x1f) & 1U) != 0)
     {
         result = 1;

@@ -11,7 +11,7 @@ class CSystemFailSig;
 class CSystemFailSig : public CSignal
 {
 public:
-    CSystemFailSig();
+    CSystemFailSig() throw();
     virtual ~CSystemFailSig();
     virtual void handle(int sig);
 };

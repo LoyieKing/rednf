@@ -248,7 +248,7 @@ public:
     unsigned int GetExchangeServerChannelNo();
     char m_active;         // +0
     char m_pad1[3];        // +1
-    unsigned int m_time;   // +4（ORIG 4 字节 time_t，非 long long）
+    long m_time;           // +4（ORIG 4 字节 signed time_t，比较用 jg/jle）
     unsigned int m_ip;     // +8
     short m_port;          // +0xc
     int m_code;            // +0x10

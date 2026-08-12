@@ -68,11 +68,11 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-CUser1Sig::CUser1Sig()
+CUser1Sig::CUser1Sig() throw()
 {
 }
 
-CUser2Sig::CUser2Sig()
+CUser2Sig::CUser2Sig() throw()
 {
 }
 
@@ -101,4 +101,3 @@ CUser2Sig::~CUser2Sig()
 CUser1Sig::~CUser1Sig()
 {
 }
-

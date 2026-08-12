@@ -1949,8 +1949,8 @@ void CPacketTranslater::OnNoticeMessage(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnNoticeMessage : 0 == m_pclApp");
     }
-    DNF_LOG_SCOPE_LINE(0xf8e, "./log/GM_msg", "CPacketTranslater::OnNoticeMessage()%s\n", (char*)pkt + 0xb);
     PacketHeader* lpkt = pkt;
+    DNF_LOG_SCOPE_LINE(0xf8e, "./log/GM_msg", "CPacketTranslater::OnNoticeMessage()%s\n", (char*)pkt + 0xb);
     m_pclApp->m_serverHandler2->SendAllToGameServer((char*)lpkt, 0x10b);
 
 

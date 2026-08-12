@@ -11,7 +11,7 @@ class CTerminateSig;
 class CTerminateSig : public CSignal
 {
 public:
-    CTerminateSig();
+    CTerminateSig() throw();
     virtual ~CTerminateSig();
     virtual void handle(int sig);
 };

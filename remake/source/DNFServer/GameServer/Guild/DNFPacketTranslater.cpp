@@ -236,14 +236,21 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
             }
             else
             {
-                CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(pb->m_connNo);
-                if (tgs != 0)
+                CServerInterface* cs;
+                CUser* user;
+                CTcpGameServer* tgs;
+                CUserManager* um;
+                CUser* nu;
+                if ((tgs = m_pclApp->FindTcpGameServer(pb->m_connNo)) == 0)
                 {
-                    CUserManager* um = &m_pclApp->m_userManager;
-                    CUser* user;
+                    return;
+                }
+                else
+                {
+                    um = &m_pclApp->m_userManager;
                     if ((user = um->FindUser(pb->m_serverNo)) != 0)
                     {
-                        CServerInterface* cs = user->GetGameServer();
+                        cs = user->GetGameServer();
                         DNF_LOG_SCOPE_LINE(0x70, "./log/User",
                             "DOUBLE CONNECTED : Already User DB ID(%s)\tChannel(%d)\tCurrent Connect User DB ID(%s)\tChannel(%d)\n",
                             NumberToString(user->GetDBID(), 0),
@@ -253,8 +260,8 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                     }
                     else
                     {
-                        CUser* nu = um->CreateUser(pb->m_serverNo, 0, "",
-                                                   pb->m_guildKey, gs);
+                        nu = um->CreateUser(pb->m_serverNo, 0, "",
+                                            pb->m_guildKey, gs);
                         DNF_LOG_SCOPE_LINE(0x76, "./log/User",
                             "Current user count : %d\tConnected User DB ID : %s\n",
                             um->Size(), NumberToString(pb->m_serverNo, 0));
@@ -416,25 +423,24 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
 {
     try
     {
-    char* pb = (char*)pkt;
     {
         DNF_LOG_SCOPE_LINE(0x150,"./log/Reboot", "[GAME SERVER] Channel No : %d\n",
-            (unsigned int)(unsigned char)pb[0xb]);
+            (unsigned int)(unsigned char)((char*)pkt)[0xb]);
     }
     THROW_IF_NO_APP("CPacketTranslater::OnReplyUserInfo : m_pclApp == 0");
     CGameServer* gs;
-    if ((gs = m_pclApp->FindGameServer((int)(unsigned char)pb[0xb])) == 0)
+    if ((gs = m_pclApp->FindGameServer((int)(unsigned char)((char*)pkt)[0xb])) == 0)
     {
         throw CDNFException("CPacketTranslater::OnReplyUserInfo : pclGameServer == 0");
     }
-    CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(*(unsigned int*)(pb + 6));
+    CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(*(unsigned int*)((char*)pkt + 6));
     if (tgs != 0)
     {
         CUserManager* um = &m_pclApp->m_userManager;
-        int count = (int)(unsigned char)pb[10];
+        int count = (int)(unsigned char)((char*)pkt)[10];
         for (int i = 0; i < count; i++)
         {
-            char* rec = pb + i * 0x4e + 0xc;
+            char* rec = (char*)pkt + i * 0x4e + 0xc;
             unsigned int dbid = *(unsigned int*)(rec + 0);
             CUser* user = um->FindUser(dbid);
             if (user == 0)
@@ -2054,8 +2060,8 @@ void CPacketTranslater::SendPacketGuildMail(unsigned char group, unsigned int ch
                                             unsigned int param)
 {
     Packet_DBMW_Send_Guild_Mail pkt;
+    pkt.m_group = (unsigned char)group;
     pkt.m_charNo = charNo;
-    pkt.m_group = group;
     pkt.m_guildKey = guildKey;
     int contentLen = strlen(content);
     if (contentLen <= 0xff)

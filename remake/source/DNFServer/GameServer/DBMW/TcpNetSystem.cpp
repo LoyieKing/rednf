@@ -174,7 +174,53 @@ int CTcpNetSystem::SendPacket()
     }
     if (flag && buf != NULL)
     {
-        result = 7;
+        std::map<unsigned int, CPeer*>::iterator it =
+            m_peerMap.find(*(unsigned int*)((char*)buf + 6));
+        if (it == m_peerMap.end())
+        {
+            CMyFileLog log(__FUNCTION__, 0xba);
+            log("./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
+                ((unsigned short*)buf)[0], ((unsigned short*)buf)[1],
+                *(unsigned int*)((char*)buf + 6));
+            PopDeleteTcpSendPacketQ(buf);
+            result = 0;
+        }
+        else
+        {
+            CPeer* peer = it->second;
+            bool bad = true;
+            if (peer != NULL &&
+                *(unsigned int*)((char*)buf + 6) ==
+                    peer->GetTcpSocket()->getHandle())
+                bad = false;
+            if (bad)
+            {
+                CMyFileLog log(__FUNCTION__, 0xc3);
+                log("./log/TcpSend",
+                    "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
+                    ((unsigned short*)buf)[0], ((unsigned short*)buf)[1],
+                    *(unsigned int*)((char*)buf + 6));
+                PopDeleteTcpSendPacketQ(buf);
+                result = 0;
+            }
+            else
+            {
+                result = peer->send_packet((char*)buf,
+                                           ((unsigned short*)buf)[1]);
+                if (result < 1)
+                {
+                    CMyFileLog log(__FUNCTION__, 0xd5);
+                    log("./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
+                        ((unsigned short*)buf)[0], ((unsigned short*)buf)[1],
+                        *(unsigned int*)((char*)buf + 6),
+                        m_sendQueue.size());
+                }
+                else
+                {
+                    PopDeleteTcpSendPacketQ(buf);
+                }
+            }
+        }
     }
     return result;
 }

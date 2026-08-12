@@ -82,7 +82,6 @@ CSegmentationFaultSig::~CSegmentationFaultSig()
 {
 }
 
-CSegmentationFaultSig::CSegmentationFaultSig()
+CSegmentationFaultSig::CSegmentationFaultSig() throw()
 {
 }
-

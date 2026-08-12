@@ -159,11 +159,9 @@ void CApplication::Load(int argc, char** argv)
     m_userManager.Init(this);
     m_appConfig->Load_Table(argv[1]);
     m_powerManager.InitPowerManager((char*)"./script/power_war_event.tbl", this);
-    m_frameCount.InitFrameCountInfo(this, (unsigned int)this,
-                                    m_appConfig->Get_FrameCountValue());
+    m_frameCount.InitFrameCountInfo(this, m_appConfig->Get_FrameCountValue(), 1000);
     m_udpHandler = new CUdpHandler;
-    unsigned short port = m_appConfig->Get_ServerUdpPort();
-    if (m_udpHandler->InitServerSocket(port) == -1)
+    if (m_udpHandler->InitServerSocket(m_appConfig->Get_ServerUdpPort()) == -1)
     {
         throw CDNFException("CApplication::Load() Init UDP Server Socket Exception Break!");
     }
@@ -183,12 +181,7 @@ void CApplication::Load(int argc, char** argv)
     const char* dbIp = m_appConfig->Get_DBMWTcpIP();
     unsigned short dbPort = m_appConfig->Get_DBMWTcpPort();
     CTcpDBServer* db = m_serverHandler->GetTcpDBServer();
-    if (*dbIp == '\0' || dbPort == 0)
-    {
-        puts("Application TCP cfg empty!");
-        DNF_LOG_SCOPE_LINE(0x180, "./log/TcpServer", "Application TCP cfg empty!");
-    }
-    else
+    if (*dbIp != '\0' && dbPort != 0)
     {
         db->Init(&m_tcpNetSystem, &m_guildManager);
         db->SetIP(std::string(dbIp));
@@ -206,11 +199,21 @@ void CApplication::Load(int argc, char** argv)
                 "Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!",
                 db->GetSock(), dbIp, (unsigned int)dbPort);
             printf("Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!\n",
-                   db->GetSock(), dbIp, (unsigned int)dbPort);
+                db->GetSock(), dbIp, (unsigned int)dbPort);
         }
     }
+    else
+    {
+        puts("Application TCP cfg empty!");
+        DNF_LOG_SCOPE_LINE(0x180, "./log/TcpServer", "Application TCP cfg empty!");
+    }
     Packet_DB_Query_On_Guild_Booting pkt;
-    *(unsigned char*)((char*)&pkt + 0xa) = Get_ServerGroup();
+    struct BootingFields
+    {
+        char pad[0xa];
+        unsigned char group;
+    };
+    ((BootingFields*)&pkt)->group = Get_ServerGroup();
     m_serverHandler->SendToDB(&pkt);
     m_powerManager.SetPowerDBFlag(2);
     typedef std::queue<CTcpRecvBuffer*> TcpRecvQueue;
@@ -299,12 +302,12 @@ void CApplication::Process()
         try
         {
             CFrameCountHandler* f = m_frameCount.GetFrameCountInfo();
-            if (f->m_field24 != 0 && 1 < (unsigned char)f->m_field24)
+            if (f->m_field24 != 0 && 1 < f->m_field24)
             {
                 m_serverHandler->Process();
-                if ((unsigned char)f->m_field24 == 3)
+                if (f->m_field24 == 3)
                 {
-                    f->SaveProcess();
+                    m_frameCount.SaveProcess();
                     m_guildManager.DBGuildProcess(m_serverHandler, false);
                     m_guildManager.ProcessByMinute();
                     m_userManager.ProcessByMinute();
@@ -314,19 +317,20 @@ void CApplication::Process()
             }
             SwitchQueueTCP();
             SwitchQueueUDP();
-            CPacketDecoder* dec = CPacketDecoderInstance();
-            dec->Process();
+            CPacketDecoderInstance()->Process();
             DNFFLib::Sleep_Ext(0, 1);
         }
         catch (CDNFException& e)
         {
-            printf("%s\n", e.what());
-            DNF_LOG_SCOPE_LINE(0x248, "./log/process", "%s\n", e.what());
+            printf("CApplication::Process() Exception Break : %s\n", e.what());
+            DNF_LOG_SCOPE_LINE(0x248, "./log/process",
+                "CApplication::Process() Exception Break : %s\n", e.what());
         }
         catch (...)
         {
             puts("CApplication::Process() Exception Break");
-            DNF_LOG_SCOPE_LINE(0x24d, "./log/process", "CApplication::Process() Exception Break");
+            DNF_LOG_SCOPE_LINE(0x24d, "./log/process",
+                "CApplication::Process() Exception Break\n");
         }
     }
     puts("CApplication::Process() Exit");
@@ -455,14 +459,21 @@ void CApplication::TranslateSignal()
         switch ((*it)->m_field0)
         {
         case 1:
-            m_guildManager.DBGuildProcess(Get_ServerHandler(), true);
+            Get_GuildManager()->DBGuildProcess(Get_ServerHandler(), true);
             break;
             case 3:
             {
                 Packet_Monitor_Send_Guild_Mail mail;
-                *(unsigned int*)((char*)&mail + 0xa) = (unsigned int)(*it)->m_field1;
-                *(unsigned int*)((char*)&mail + 0xe) = (unsigned int)(*it)->m_field2;
-                memcpy((char*)&mail + 0x12,
+                struct MailFields
+                {
+                    char pad[0xa];
+                    unsigned int f1;
+                    unsigned int f2;
+                    char msg[0x17];
+                };
+                ((MailFields*)&mail)->f1 = (unsigned int)(*it)->m_field1;
+                ((MailFields*)&mail)->f2 = (unsigned int)(*it)->m_field2;
+                memcpy(((MailFields*)&mail)->msg,
                        "\xc5\xc2\xbd\xba\xc6\xae \xb1\xe6\xb5\xe5\xb8\xde\xc0\xcf\xc0\xd4\xb4\xcf\xb4\xd9.",
                        0x17);
                 CPacketTranslater::OnMonitorSendGuildLetter(&mail);
@@ -474,10 +485,18 @@ void CApplication::TranslateSignal()
             case 7:
             {
                 Packet_Monitor_Notice_Guild_Enter enter;
-                *(unsigned int*)((char*)&enter + 0xa) = (unsigned int)(*it)->m_field1;
-                *(unsigned int*)((char*)&enter + 0xe) = (unsigned int)(*it)->m_field2;
-                *(unsigned int*)((char*)&enter + 0x12) = (unsigned int)(*it)->m_field3;
-                memcpy((char*)&enter + 0x16,
+                struct EnterFields
+                {
+                    char pad[0xa];
+                    unsigned int f1;
+                    unsigned int f2;
+                    unsigned int f3;
+                    char msg[0x16];
+                };
+                ((EnterFields*)&enter)->f1 = (unsigned int)(*it)->m_field1;
+                ((EnterFields*)&enter)->f2 = (unsigned int)(*it)->m_field2;
+                ((EnterFields*)&enter)->f3 = (unsigned int)(*it)->m_field3;
+                memcpy(((EnterFields*)&enter)->msg,
                        "\xb4\xab\xbb\xe7\xb6\xf7\x00\xb0\xde\xdf\xb8\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
                        0x16);
                 CPacketTranslater::OnNoticeGuildEnter(&enter);
@@ -486,20 +505,36 @@ void CApplication::TranslateSignal()
             case 8:
             {
                 Packet_Monitor_Set_GuildMember_Grade_FromWeb grade;
-                *(unsigned int*)((char*)&grade + 0x12) = 2;
-                *(unsigned int*)((char*)&grade + 0xa) = (unsigned int)(*it)->m_field1;
-                *(unsigned int*)((char*)&grade + 0xe) = (unsigned int)(*it)->m_field2;
-                *(unsigned char*)((char*)&grade + 0x16) = (unsigned char)(*it)->m_field3;
+                struct GradeFields
+                {
+                    char pad[0xa];
+                    unsigned int f1;
+                    unsigned int f2;
+                    unsigned int grade;
+                    unsigned char f3;
+                };
+                ((GradeFields*)&grade)->grade = 2;
+                ((GradeFields*)&grade)->f1 = (unsigned int)(*it)->m_field1;
+                ((GradeFields*)&grade)->f2 = (unsigned int)(*it)->m_field2;
+                ((GradeFields*)&grade)->f3 = (unsigned char)(*it)->m_field3;
                 CPacketTranslater::OnSetGuildMemberGradeFromWeb(&grade);
                 break;
             }
             case 9:
             {
                 Packet_Guild_Master_Delegate_FromWeb delegate;
-                *(unsigned int*)((char*)&delegate + 0xa) = (unsigned int)(*it)->m_field1;
-                *(unsigned int*)((char*)&delegate + 0xe) = (unsigned int)(*it)->m_field2;
-                *(unsigned int*)((char*)&delegate + 0x12) = (unsigned int)(*it)->m_field3;
-                memcpy((char*)&delegate + 0x16, "\xb0\xde\xdf\xb8", 4);
+                struct DelegateFields
+                {
+                    char pad[0xa];
+                    unsigned int f1;
+                    unsigned int f2;
+                    unsigned int f3;
+                    char msg[4];
+                };
+                ((DelegateFields*)&delegate)->f1 = (unsigned int)(*it)->m_field1;
+                ((DelegateFields*)&delegate)->f2 = (unsigned int)(*it)->m_field2;
+                ((DelegateFields*)&delegate)->f3 = (unsigned int)(*it)->m_field3;
+                memcpy(((DelegateFields*)&delegate)->msg, "\xb0\xde\xdf\xb8", 4);
                 CPacketTranslater::OnGuildMasterDelegateFromWeb(&delegate);
                 break;
             }
@@ -510,7 +545,7 @@ void CApplication::TranslateSignal()
                 m_powerManager.StartPowerWarEvent();
                 {
                     Packet_Monitor_Event_Start start;
-                    *(unsigned int*)((char*)&start + 0xa) = 0x1e;
+                    start.m_fieldA = 0x1e;
                     m_serverHandler->SendAllTcpGameServer(&start);
                 }
                 break;
@@ -519,12 +554,12 @@ void CApplication::TranslateSignal()
                 m_powerManager.EndPowerWarEvent();
                 {
                     Packet_Monitor_Event_End end;
-                    *(unsigned int*)((char*)&end + 0xa) = 0x1e;
+                    end.m_fieldA = 0x1e;
                     m_serverHandler->SendAllTcpGameServer(&end);
                 }
                 break;
             case 0xe:
-                m_tcpNetSystem.CleanTcpSendPacketQ();
+                Get_TcpNetSystem()->CleanTcpSendPacketQ();
                 break;
             case 0xf:
                 m_guildManager.CargoLock();

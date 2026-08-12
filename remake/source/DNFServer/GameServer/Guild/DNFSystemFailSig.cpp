@@ -68,7 +68,7 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-CSystemFailSig::CSystemFailSig()
+CSystemFailSig::CSystemFailSig() throw()
 {
 }
 
@@ -87,4 +87,3 @@ void CSystemFailSig::handle(int sig)
 CSystemFailSig::~CSystemFailSig()
 {
 }
-

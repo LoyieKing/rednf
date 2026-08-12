@@ -432,28 +432,42 @@ void CGuild::EnableDBSaveFlag()
 
 void CGuild::SetTodayGuildMember(STTodayGuildMember& member)
 {
-    *(unsigned int*)&m_board.m_rest[0] = *(unsigned int*)(member.m_data + 0);
-    *(unsigned int*)&m_board.m_rest[4] = *(unsigned int*)(member.m_data + 4);
-    *(unsigned int*)&m_board.m_rest[8] = *(unsigned int*)(member.m_data + 8);
-    *(unsigned int*)&m_board.m_rest[0xc] = *(unsigned int*)(member.m_data + 0xc);
-    *(unsigned int*)&m_board.m_rest[0x10] = *(unsigned int*)(member.m_data + 0x10);
-    *(unsigned int*)&m_board.m_rest[0x14] = *(unsigned int*)(member.m_data + 0x14);
-    *(unsigned int*)&m_board.m_rest[0x18] = *(unsigned int*)(member.m_data + 0x18);
-    *(unsigned int*)&m_board.m_rest[0x1c] = *(unsigned int*)(member.m_data + 0x1c);
-    *(unsigned int*)&m_board.m_rest[0x20] = *(unsigned int*)(member.m_data + 0x20);
-    *(unsigned short*)&m_board.m_rest[0x24] = *(unsigned short*)(member.m_data + 0x24);
-    *(char*)&m_board.m_rest[0x26] = *(char*)(member.m_data + 0x26);
+    struct _TmFull
+    {
+        unsigned int f0;
+        unsigned int f4;
+        unsigned int f8;
+        unsigned int fc;
+        unsigned int f10;
+        unsigned int f14;
+        unsigned int f18;
+        unsigned int f1c;
+        unsigned int f20;
+        unsigned short f24;
+        unsigned char f26;
+    } __attribute__((packed));
+    struct _TmOverlay
+    {
+        char pad[0x66ec];
+        _TmFull tm;
+    } __attribute__((packed));
+    ((_TmOverlay*)this)->tm = *((const _TmFull*)member.m_data);
 }
 
 CGuild::CGuild(unsigned int guildKey)
+    : m_guildKey(guildKey),
+      m_field1c(0),
+      m_field1e(0),
+      m_dbInfo(),
+      m_agitInfo(),
+      m_field4d92(0),
+      m_field4d94(0),
+      m_field4d96(0),
+      m_changable(),
+      m_field4db0(0),
+      m_cargo(),
+      m_board()
 {
-    m_guildKey = guildKey;
-    m_field1c = 0;
-    m_field1e = 0;
-    m_field4d92 = 0;
-    m_field4d94 = 0;
-    m_field4d96 = 0;
-    m_field4db0 = 0;
     m_field4d70 = 300;
     m_field4d72 = 300;
     m_field4d74 = 300;
@@ -483,14 +497,14 @@ int CGuild::InsertGuildMember(unsigned int charNo, CUser* user)
     user->AttachGuild(this);
     std::pair<std::map<unsigned int, CUser*>::iterator, bool> r =
         m_members.insert(std::make_pair(charNo, user));
-    if (!r.second)
+    if (r.second != 0)
     {
-        DNF_LOG_SCOPE_LINE(0x7b,"./log/GuildMember",
-            "[INSERT_ERR]\tAlready Exist : Guild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
-            GetGuildKey(), charNo, user->GetCharName(), (int)m_members.size());
-        return 0;
+        return 1;
     }
-    return 1;
+    DNF_LOG_SCOPE_LINE(0x7b,"./log/GuildMember",
+        "[INSERT_ERR]\tAlready Exist : Guild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
+        GetGuildKey(), charNo, user->GetCharName(), m_members.size());
+    return 0;
 }
 
 int CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)
@@ -513,11 +527,11 @@ int CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)
     }
     // ORIG：erase 失败时先 find，仅当成员仍存在才打日志
     std::map<unsigned int, CUser*>::iterator it = m_members.find(charNo);
-    if (it != m_members.end())
+    if (it == m_members.end())
     {
         DNF_LOG_SCOPE_LINE(0xaf,"./log/Except",
             "CGuild::DeleteGuildMember\tException Break Possible! Or Check Using Function FindUser() or FindUser_CharNo()\tGuild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
-            GetGuildKey(), charNo, user->GetCharName(), (int)m_members.size());
+            GetGuildKey(), charNo, user->GetCharName(), m_members.size());
     }
     return 0;
 }
@@ -1389,8 +1403,8 @@ void CGuild::QueryGuildAllMembersProxy(CServerHandler* handler, unsigned int cha
 void CGuild::QueryUnconnGuildMemberProxy(CServerHandler* handler, unsigned int charNo)
 {
     Packet_DB_Call_Unconn_Guild_Member pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = m_guildKey;
-    *(unsigned int*)((char*)&pkt + 0xe) = charNo;
+    pkt.ma = m_guildKey;
+    pkt.me = charNo;
     handler->SendToDB(&pkt);
 }
 
