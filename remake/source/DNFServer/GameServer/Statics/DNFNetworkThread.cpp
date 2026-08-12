@@ -48,16 +48,16 @@ void CNetworkThread::dispatch(void* param)
         DNFFLib::Sleep_Ext(5, 0);
         puts("Network Thread Start!");
         m_running = 1;
-        while (m_running != 0)
+        while (m_running)
         {
             CUdpRecvBuffer* buf;
-            int len = 0x1800;
-            unsigned short port = 0;
-            unsigned int ip = 0;
             {
                 CGuard<CMutex> g((CMutex*)m_bLock);
                 buf = (CUdpRecvBuffer*)CUdpRecvBuffer::operator new(0x1804);
             }
+            int len = 0x1800;
+            unsigned short port = 0;
+            unsigned int ip = 0;
             if (!((CUdpHandler*)m_udp)->RecvFromClient((char*)buf, &len, &ip, &port))
             {
                 CGuard<CMutex> g((CMutex*)m_bLock);
@@ -90,7 +90,7 @@ void CNetworkThread::dispatch(void* param)
                     }
                     else
                     {
-                        if (len >= 0x1801)
+                        if ((unsigned int)len >= 0x1801)
                         {
                             DNF_LOG_SCOPE_LINE(0x8d,"./log/recvErr",
                                 "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",

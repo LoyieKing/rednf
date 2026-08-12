@@ -256,7 +256,7 @@ public:
     CTcpNetSystem* m_net;  // +4
     int m_channelType;     // +8
     unsigned char m_channelNo;  // +0xc
-    char m_data[0xf];      // +0xd
+    char m_data[3];        // +0xd
 };
 
 class CGameServer : public CServerInterface

@@ -19,7 +19,7 @@ public:
         struct
         {
             int m0;                  // +0
-            char m_padTime[4];       // +4
+            time_t m_time;           // +4
             int m_a1[0x2418];        // +8
             int m_a3[0x2418];        // +0x9068
             char m_b[0x2418];        // +0x120c8

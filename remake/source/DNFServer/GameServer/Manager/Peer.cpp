@@ -112,8 +112,7 @@ int CPeer::send_packet()
     {
         if (m_remainSendLen > ret)
         {
-            char* base = (char*)this + 0x183c;
-            m_recvBuf = base + ret;
+            m_recvBuf = (char*)this + 0x183c + ret;
             m_remainSendLen -= ret;
             if (m_remainSendLen > 0x96000u)
             {

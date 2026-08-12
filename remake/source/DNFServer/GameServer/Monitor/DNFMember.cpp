@@ -75,14 +75,13 @@ unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)((char*)this +
 void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
 {
     bool invalid = (user == 0 || user->GetGameServer() == 0);
-    if (!invalid && (m_flag & 4) != 0)
+    if (invalid == 0 && (m_flag & 4) != 0)
     {
         Packet_Monitor_Notice_Member_Member_Login_out pkt;
         CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
         if (member != 0)
         {
-            member->GetUniqCharNo();
-            if (user->IsBlackUser(0) != 1)
+            if (user->IsBlackUser(member->GetUniqCharNo()) != 1)
             {
                 pkt.m_flag = flag;
                 pkt.m_idByChannel = member->GetIdByChannel();
@@ -96,16 +95,20 @@ void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
             }
             if (flag == 1)
             {
-                member->GetUniqCharNo();
-                if (user->IsBlackUser(0) != 1)
+                if (user->IsBlackUser(member->GetUniqCharNo()) != 1)
                 {
                     pkt.m_flag = flag;
                     pkt.m_idByChannel = user->GetIdByChannel();
                     pkt.m_uniqCharNo = user->GetUniqCharNo();
-                    pkt.m_channelNo =
-                        (member->GetGameServer() != 0)
-                            ? ((CServerInterface*)member->GetGameServer())->GetChannelNo()
-                            : 0xff;
+                    if (member->GetGameServer() != 0)
+                    {
+                        pkt.m_channelNo =
+                            ((CServerInterface*)member->GetGameServer())->GetChannelNo();
+                    }
+                    else
+                    {
+                        pkt.m_channelNo = 0xff;
+                    }
                     pkt.m_type = 1;
                     memcpy(pkt.m_charName, member->GetCharName(), 0x1d);
                     pkt.m_expLevel = user->GetUpperMemberExpLevel();
@@ -114,28 +117,28 @@ void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
                 }
             }
         }
-        unsigned int count = (unsigned int)m_dbInfo.m_count27;
+        int count = (int)m_dbInfo.m_count27;
         if (count != 0)
         {
-            for (unsigned int i = 0; i < count; i++)
+            for (int i = 0; i < count; i++)
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
-                if (m != 0)
+                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+                if (m == 0)
                 {
-                    m->GetUniqCharNo();
-                    if (user->IsBlackUser(0) != 1)
-                    {
-                        pkt.m_flag = flag;
-                        pkt.m_idByChannel = m->GetIdByChannel();
-                        pkt.m_uniqCharNo = m->GetUniqCharNo();
-                        pkt.m_channelNo =
-                            ((CServerInterface*)user->GetGameServer())->GetChannelNo();
-                        pkt.m_type = 1;
-                        memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
-                        pkt.m_expLevel = m->GetUpperMemberExpLevel();
-                        pkt.m_uniqCharNo2 = user->GetUniqCharNo();
-                        m->SendTcpGameserver(&pkt);
-                    }
+                    continue;
+                }
+                if (user->IsBlackUser(m->GetUniqCharNo()) != 1)
+                {
+                    pkt.m_flag = flag;
+                    pkt.m_idByChannel = m->GetIdByChannel();
+                    pkt.m_uniqCharNo = m->GetUniqCharNo();
+                    pkt.m_channelNo =
+                        ((CServerInterface*)user->GetGameServer())->GetChannelNo();
+                    pkt.m_type = 1;
+                    memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
+                    pkt.m_expLevel = m->GetUpperMemberExpLevel();
+                    pkt.m_uniqCharNo2 = user->GetUniqCharNo();
+                    m->SendTcpGameserver(&pkt);
                 }
             }
         }
@@ -169,25 +172,20 @@ unsigned int CMember::GetMemberKey()
 
 void CMember::CheckMemberRegisterFlag()
 {
-    bool flag = ::CheckDailyScheduleTimeOver(6, m_registerTime);
-    SetMemberRegisterFlag(flag);
+    SetMemberRegisterFlag(::CheckDailyScheduleTimeOver(6, m_registerTime));
     if (IsAbleToRegisterMember())
     {
-        flag = ::CheckDayHourScheduleTimeOver(3, 6, m_dayHourTime);
-        SetMemberRegisterFlag(flag);
+        SetMemberRegisterFlag(::CheckDayHourScheduleTimeOver(3, 6, m_dayHourTime));
     }
     if (!IsAbleToRegisterMember())
     {
-        tm* t1 = localtime((time_t*)&m_registerTime);
-        int sec1 = t1->tm_sec, min1 = t1->tm_min, hour1 = t1->tm_hour;
-        int mday1 = t1->tm_mday, mon1 = t1->tm_mon, year1 = t1->tm_year;
-        tm* t2 = localtime((time_t*)&m_dayHourTime);
-        int sec2 = t2->tm_sec, min2 = t2->tm_min, hour2 = t2->tm_hour;
-        int mday2 = t2->tm_mday, mon2 = t2->tm_mon, year2 = t2->tm_year;
+        tm t1 = *localtime((time_t*)&m_registerTime);
+        tm t2 = *localtime((time_t*)&m_dayHourTime);
         DNF_LOG_SCOPE_LINE(0x336,"./log/MemberModify",
             "MKey(%d)\tRF(0)\tRT(%04d.%02d.%02d %02d:%02d:%02d)\tDT(%04d.%02d.%02d %02d:%02d:%02d)",
-            GetMemberKey(), year1 + 0x76c, mon1 + 1, mday1, hour1, min1, sec1, year2 + 0x76c,
-            mon2 + 1, mday2, hour2, min2, sec2);
+            GetMemberKey(), t1.tm_year + 0x76c, t1.tm_mon + 1, t1.tm_mday, t1.tm_hour,
+            t1.tm_min, t1.tm_sec, t2.tm_year + 0x76c, t2.tm_mon + 1, t2.tm_mday,
+            t2.tm_hour, t2.tm_min, t2.tm_sec);
     }
 }
 
@@ -203,7 +201,7 @@ char CMember::IsEmpty()
 void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned char count,
                                                     const hyperlink_item_info* items, CUser* user)
 {
-    if (len < 0x100 && (m_flag & 4) != 0 && !IsEmpty())
+    if (len < 0x100 && (m_flag & 4) != 0 && IsEmpty() == 0)
     {
         Packet_Monitor_Member_Chat_ToUser_Hyper_Link pkt;
         memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
@@ -214,28 +212,28 @@ void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned
         {
             memcpy(pkt.m_items + i * 0x68, (char*)items + i * 0x68, 0x68);
         }
-        unsigned short totalSize = (unsigned short)len + 0x16a;
+        pkt.packetSize = (unsigned short)len + 0x16a;
         CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
         if (member != 0)
         {
             pkt.m_idByChannel = member->GetIdByChannel();
             pkt.m_uniqCharNo = member->GetUniqCharNo();
-            member->SendToGameserver((char*)&pkt, totalSize);
+            member->SendToGameserver((char*)&pkt, pkt.packetSize);
         }
         pkt.m_idByChannel = user->GetIdByChannel();
         pkt.m_uniqCharNo = user->GetUniqCharNo();
-        user->SendToGameserver((char*)&pkt, totalSize);
-        unsigned int count2 = (unsigned int)m_dbInfo.m_count27;
-        if (count2 != 0)
+        user->SendToGameserver((char*)&pkt, pkt.packetSize);
+        int count2 = (int)m_dbInfo.m_count27;
+        if (count2 > 0)
         {
-            for (unsigned int i = 0; i < count2; i++)
+            for (int i = 0; i < count2; i++)
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
+                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
                 if (m != 0)
                 {
                     pkt.m_idByChannel = m->GetIdByChannel();
                     pkt.m_uniqCharNo = m->GetUniqCharNo();
-                    m->SendToGameserver((char*)&pkt, totalSize);
+                    m->SendToGameserver((char*)&pkt, pkt.packetSize);
                 }
             }
         }
@@ -244,34 +242,34 @@ void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned
 
 void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)
 {
-    if (len < 0x100 && (m_flag & 4) != 0 && !IsEmpty())
+    if (len < 0x100 && (m_flag & 4) != 0 && IsEmpty() == 0)
     {
         Packet_Monitor_Member_Chat_ToUser pkt;
         memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
         pkt.m_msgLen = (unsigned char)len;
         memcpy(pkt.m_msg, msg, len);
-        unsigned short totalSize = (unsigned short)len + 0x31;
+        pkt.packetSize = (unsigned short)len + 0x31;
         CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
         if (member != 0)
         {
             pkt.m_idByChannel = member->GetIdByChannel();
             pkt.m_uniqCharNo = member->GetUniqCharNo();
-            member->SendToGameserver((char*)&pkt, totalSize);
+            member->SendToGameserver((char*)&pkt, pkt.packetSize);
         }
         pkt.m_idByChannel = user->GetIdByChannel();
         pkt.m_uniqCharNo = user->GetUniqCharNo();
-        user->SendToGameserver((char*)&pkt, totalSize);
-        unsigned int count = (unsigned int)m_dbInfo.m_count27;
-        if (count != 0)
+        user->SendToGameserver((char*)&pkt, pkt.packetSize);
+        int count = (int)m_dbInfo.m_count27;
+        if (count > 0)
         {
-            for (unsigned int i = 0; i < count; i++)
+            for (int i = 0; i < count; i++)
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
+                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
                 if (m != 0)
                 {
                     pkt.m_idByChannel = m->GetIdByChannel();
                     pkt.m_uniqCharNo = m->GetUniqCharNo();
-                    m->SendToGameserver((char*)&pkt, totalSize);
+                    m->SendToGameserver((char*)&pkt, pkt.packetSize);
                 }
             }
         }
@@ -283,11 +281,12 @@ void CMember::LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsi
     if ((m_flag & 2) != 0)
     {
         unsigned int limit = m_memberManager->GetLowerMemberEnterLimit(level);
-        if ((unsigned int)info.m_count27 > limit)
+        if ((int)(unsigned int)info.m_count27 > (int)limit)
         {
             info.m_count27 = (unsigned char)limit;
         }
-        memcpy((char*)this + 6, &info, (unsigned int)info.m_count27 * 0x27 + 0x28);
+        unsigned int size = (unsigned int)info.m_count27 * 0x27 + 0x28;
+        memcpy((char*)this + 6, &info, size);
         m_flag |= 4;
         SetMemberRegisterTime(a);
         SetMemberDeleteTime(b);
@@ -348,49 +347,44 @@ int CMember::IncConnUpperMemberExp(unsigned int maxExp)
     return m_dbInfo.m_member.m_field23;
 }
 
-int CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
+void CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
 {
     for (int i = 0; i <= 9; i++)
     {
-        unsigned int* proxy = (unsigned int*)((char*)this + i * 0x27 + 0x2e);
-        if (*proxy == uCharNo)
+        ST_MemberProxy* proxy = &m_dbInfo.m_lowers[i];
+        if (proxy->m_field0 == uCharNo)
         {
-            *(int*)((char*)this + i * 0x27 + 0x51) =
-                *(int*)((char*)this + i * 0x27 + 0x51) + 1;
-            if (maxExp < *(unsigned int*)((char*)this + i * 0x27 + 0x51))
+            proxy->m_field23 = proxy->m_field23 + 1;
+            if (maxExp < proxy->m_field23)
             {
-                *(int*)((char*)this + i * 0x27 + 0x51) =
-                    *(int*)((char*)this + i * 0x27 + 0x51) - 1;
+                proxy->m_field23 = proxy->m_field23 - 1;
             }
-            return 0;
+            return;
         }
     }
-    return 0;
 }
 
 int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int maxExp)
 {
     if (index < (int)(unsigned int)(unsigned char)((RA_S8<45>*)this)->v)
     {
-        unsigned int* proxy = (unsigned int*)((char*)this + index * 0x27 + 0x2e);
-        if (*proxy == uCharNo)
+        ST_MemberProxy* proxy = (ST_MemberProxy*)((char*)this + index * 0x27 + 0x2e);
+        if (proxy->m_field0 == uCharNo)
         {
-            *(int*)((char*)this + index * 0x27 + 0x51) =
-                *(int*)((char*)this + index * 0x27 + 0x51) + 1;
-            if (maxExp < *(unsigned int*)((char*)this + index * 0x27 + 0x51))
+            proxy->m_field23 = proxy->m_field23 + 1;
+            if (maxExp < proxy->m_field23)
             {
-                *(int*)((char*)this + index * 0x27 + 0x51) =
-                    *(int*)((char*)this + index * 0x27 + 0x51) - 1;
+                proxy->m_field23 = proxy->m_field23 - 1;
                 return 0;
             }
-            return *(int*)((char*)this + index * 0x27 + 0x51);
+            return proxy->m_field23;
         }
         else
         {
             DNF_LOG_SCOPE_LINE(0x28c,"./log/Member2Except",
                 "CMember::IncConnLowerMemberExp  ,  stMemberLowerProxy.m_uCharId(%d) != "
                 "uCharNo(%d)",
-                *proxy, uCharNo);
+                proxy->m_field0, uCharNo);
             return 0;
         }
     }
@@ -406,14 +400,13 @@ int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int
 
 void CMember::NoticeLevelUpToLowers(unsigned int level)
 {
-    unsigned char lowerCnt = ((RA_U8<45>*)this)->v;
-    if (lowerCnt != 0)
+    int count = (int)m_dbInfo.m_count27;
+    if (count != 0)
     {
         Packet_Monitor_Notice_MemberExp_LevelUp pkt;
-        for (int i = 0; i < lowerCnt; i++)
+        for (int i = 0; i < count; i++)
         {
-            unsigned int charId = *(unsigned int*)((char*)this + i * 0x27 + 0x2e);
-            CUser* user = m_memberManager->FindMemberUser(charId);
+            CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
             if (user != 0)
             {
                 pkt.m_idByChannel = user->GetIdByChannel();
@@ -461,25 +454,26 @@ unsigned int CMember::GetUpperMemberExpLevel()
 int CMember::GetConnLowerMemberCnt()
 {
     int count = (int)m_dbInfo.m_count27;
-    if (count != 0)
+    if (count == 0)
     {
-        int cnt = 0;
-        int i = 0;
-        for (i = 0; i < count; i++)
-        {
-            CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
-            if (user == 0)
-            {
-                ;
-            }
-            else
-            {
-                cnt++;
-            }
-        }
-        return cnt;
+        return 0;
     }
-    return 0;
+    int cnt = 0;
+    int i = 0;
+    while (i < count)
+    {
+        CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+        if (user == 0)
+        {
+            ;
+        }
+        else
+        {
+            cnt++;
+        }
+        i++;
+    }
+    return cnt;
 }
 
 int CMember::InsertUpperMember(unsigned int charNo, unsigned char level, const char* name,
@@ -549,7 +543,7 @@ void CMember::DeleteLowerMember(unsigned int charNo, bool flag)
     {
         char* p = (char*)this + 0x2e;
         unsigned char idx = 0;
-        do
+        while (count-- != 0)
         {
             if (*(unsigned int*)p == charNo)
             {
@@ -563,7 +557,7 @@ void CMember::DeleteLowerMember(unsigned int charNo, bool flag)
             }
             p += 0x27;
             idx++;
-        } while (count-- != 0);
+        }
         DebugPrintMemberMember("DELETE_LOWER_MEMBER");
     }
 }
@@ -575,36 +569,35 @@ unsigned char* CMember::GetMemberDBInfo() const
 
 int CMember::DeleteMemberByName(char* name, unsigned int& outKey)
 {
-    unsigned int* proxy = GetUpperMember_Proxy();
+    unsigned int* proxy = ((const CMember*)this)->GetUpperMember_Proxy();
     if (proxy != 0 && strcmp((char*)proxy + 5, name) == 0)
     {
         outKey = *proxy;
-        memset((char*)this + 6, 0, 0x27);
+        m_dbInfo.m_member.Reset();
         SetMemberDeleteTime(time(0));
         return 1;
     }
     char* p = (char*)this + 0x2e;
-    int idx = 0;
-    unsigned int count = (unsigned int)m_dbInfo.m_count27;
-    if (count == 0)
+    unsigned char idx = 0;
+    int count = (int)m_dbInfo.m_count27;
+    if (count > 0)
     {
-        return 0;
-    }
-    while (count != 0)
-    {
-        count--;
-        if (strcmp(p + 5, name) == 0)
+        while (count-- != 0)
         {
-            outKey = *(unsigned int*)p;
-            memcpy(p, p + 0x27, (unsigned int)(~(unsigned char)idx) * 0x27 + 0x186);
-            m_dbInfo.m_count27--;
-            SetMemberDeleteTime(time(0));
-            return 2;
+            if (strcmp(p + 5, name) == 0)
+            {
+                outKey = *(unsigned int*)p;
+                memcpy(p, p + 0x27, (unsigned int)(~(unsigned char)idx) * 0x27 + 0x186);
+                m_dbInfo.m_count27--;
+                SetMemberDeleteTime(time(0));
+                return 2;
+            }
+            p += 0x27;
+            idx++;
         }
-        p += 0x27;
-        idx++;
+        return 3;
     }
-    return 3;
+    return 0;
 }
 
 STMemberDBInfo::STMemberDBInfo() : m_count27(0) {}

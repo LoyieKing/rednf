@@ -248,7 +248,7 @@ void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Pa
     key.m_fieldb = ((Wire*)pkt)->m_f13;
     key.m_fieldc = ((Wire*)pkt)->m_f14;
     key.m_fieldd = ((Wire*)pkt)->m_f15;
-    key.m_field10 = (STPartyJobKeyField10)((Wire*)pkt)->m_f16;
+    key.m_field10 = (STPartyJobStatisticKey::STPartyJobKeyField10)((Wire*)pkt)->m_f16;
     key.m_field14 = ((Wire*)pkt)->m_f1a;
     PartyJobStatistic value;
     value.m_data[1] = ((Wire*)pkt)->m_f1b;
@@ -295,7 +295,7 @@ void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic
     key.m_field8 = ((Wire*)pkt)->m_f10;
     key.m_field9 = ((Wire*)pkt)->m_f11;
     key.m_fielda = ((Wire*)pkt)->m_f12;
-    key.m_fieldc = (STPartyCharacKeyFieldC)((Wire*)pkt)->m_f13;
+    key.m_fieldc = (STPartyCharacKey::STPartyCharacKeyFieldC)((Wire*)pkt)->m_f13;
     key.m_field10 = ((Wire*)pkt)->m_f17;
     key.m_field11 = ((Wire*)pkt)->m_f18;
     PartyCharacStatistic value;

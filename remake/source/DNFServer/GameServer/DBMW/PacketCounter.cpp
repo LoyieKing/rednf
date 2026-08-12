@@ -27,14 +27,14 @@ template<int Lo, int Hi>
 CPacketCounter<Lo, Hi>::CPacketCounter(char* dir, char* name)
 {
     Reset();
-    *(time_t*)(m_data + 4) = time(0);
-    if (dir == 0)
+    m_time = time(0);
+    if (dir != 0)
     {
-        sprintf(m_name, "./log/%s", name);
+        sprintf(m_name, "./log/%s/%s", dir, name);
     }
     else
     {
-        sprintf(m_name, "./log/%s/%s", dir, name);
+        sprintf(m_name, "./log/%s", name);
     }
     m_flag = true;
 }
@@ -61,15 +61,16 @@ void CPacketCounter<Lo, Hi>::Reset()
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
 {
-    if (id < 0x2800 && 999 < id)
+    if (id > 0x27ff)
+        return;
+    if (id <= 0x3e7)
+        return;
+    if (!m_flag)
     {
-        if (!m_flag)
-        {
-            if ((unsigned int)m_a1[id - 1000] >= 0xb)
-                return;
-        }
-        m_a1[id - 1000] = m_a1[id - 1000] + 1;
+        if ((unsigned int)m_a1[id - 1000] >= 0xb)
+            return;
     }
+    m_a1[id - 1000]++;
 }
 
 template<int Lo, int Hi>
@@ -86,34 +87,34 @@ void CPacketCounter<Lo, Hi>::BeforeProcess()
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::AfterProcess(int id)
 {
-    if (id <= 0x27ff && 999 < id)
+    if (id > 0x27ff)
+        return;
+    if (id <= 0x3e7)
+        return;
+    if (!m_flag)
     {
-        if (!m_flag)
+        if ((unsigned int)m_a1[id - 1000] >= 0xb)
+            return;
+    }
+    int prev = m0;
+    if (prev == -1)
+    {
+        prev = 0;
+    }
+    else
+    {
+        int delta;
+        if (m_flag != 0)
         {
-            if ((unsigned int)m_a1[id - 1000] >= 0xb)
-                return;
-        }
-        int prev = m0;
-        bool neg = (prev == -1);
-        if (neg)
-        {
-            prev = 0;
+            delta = prev - m_a3[0];
         }
         else
         {
-            int delta;
-            if (m_flag != 0)
-            {
-                delta = prev - m_a3[0];
-            }
-            else
-            {
-                delta = prev - m_a3[id - 1000];
-                m_a1[id - 1000] += 1;
-                m_b[id - 1000] = 0;
-            }
-            m_a2[id - 1000] += delta;
+            delta = prev - m_a3[id - 1000];
+            m_a1[id - 1000]++;
+            m_b[id - 1000] = 0;
         }
+        m_a2[id - 1000] = m_a2[id - 1000] + delta;
     }
 }
 

@@ -30,12 +30,6 @@
 
 CMemberConfig::CMemberConfig()
 {
-    for (int i = 0; i < 10; i++)
-    {
-        m_table[i].m_a = 0;
-        m_table[i].m_b = 0;
-        m_table[i].m_c = 0;
-    }
 }
 
 CMemberConfig::~CMemberConfig() {}
@@ -91,7 +85,7 @@ bool CMemberExpTbl::Parse_Table(char* line, int idx)
         return 0;
     }
     char* tokens[2];
-    register bool ok = DNFFLib::ExplodeString(line, "\t\"", tokens, 1) == 1 && tokens[1] == 0;
+    bool ok = DNFFLib::ExplodeString(line, "\t\"", tokens, 1) == 1 && tokens[1] == 0;
     if (ok && idx < 0xb)
     {
         m_table[idx] = atoi(tokens[0]);
@@ -102,9 +96,14 @@ bool CMemberExpTbl::Parse_Table(char* line, int idx)
 
 int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
 {
+    char* p = (char*)this + 8;
     int local_c = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
     int local_8 = 1;
-    if (exp < *(unsigned int*)((char*)this + local_c * 4 + 8))
+    if (exp >= (unsigned int)m_table[local_c])
+    {
+        local_8 = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
+    }
+    else
     {
         if (exp == 0)
         {
@@ -112,23 +111,13 @@ int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
         }
         else
         {
-            char* p = (char*)this + 8;
-            while (true)
+            while (local_c-- != 0 &&
+                   (exp <= *(unsigned int*)p || *(unsigned int*)(p + 4) < exp))
             {
-                bool b = local_c != 0;
-                local_c = local_c - 1;
-                if (!b || !(exp <= *(unsigned int*)p || *(unsigned int*)(p + 4) < exp))
-                {
-                    break;
-                }
                 local_8 = local_8 + 1;
                 p = p + 4;
             }
         }
-    }
-    else
-    {
-        local_8 = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
     }
     return local_8;
 }
@@ -140,53 +129,53 @@ unsigned int CMemberExpTbl::GetMaxMemberExp()
 
 unsigned char CMemberExpTbl::IsMemberExpLevelUp(unsigned int exp)
 {
+    char* p = (char*)this + 8;
     unsigned int count = (unsigned int)(unsigned char)((RA_S8<4>*)this)->v;
     if (exp == 1)
     {
         return 0;
     }
-    if (exp < *(unsigned int*)((char*)this + (count - 1) * 4 + 8))
+    if (exp >= (unsigned int)m_table[count - 1])
     {
-        char* p = (char*)this + 0xc;
-        while (count = count - 1, count != 0)
-        {
-            if (exp - 1 == *(unsigned int*)p)
-            {
-                return 1;
-            }
-            if (exp < *(unsigned int*)p)
-            {
-                break;
-            }
-            p = p + 4;
-        }
-        return 0;
+        return 1;
     }
-    return 1;
+    p = p + 4;
+    while (count = count - 1, count != 0)
+    {
+        if (exp - 1 == *(unsigned int*)p)
+        {
+            return 1;
+        }
+        if (exp < *(unsigned int*)p)
+        {
+            break;
+        }
+        p = p + 4;
+    }
+    return 0;
 }
 
 void CMemberExpTbl::GetMemberExpLevel(unsigned int exp, unsigned int& lo, unsigned int& hi,
                                       unsigned char& lv)
 {
     char* p = (char*)this + 8;
-    unsigned char count = ((RA_U8<4>*)this)->v;
-    unsigned char l = 1;
+    int local_c = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
+    int l = 1;
     if (exp == 0)
     {
         lo = *(unsigned int*)p;
-        hi = ((RA_UINT<12>*)this)->v;
-        lv = 1;
+        hi = *(unsigned int*)(p + 4);
+        lv = (unsigned char)l;
     }
     else
     {
-        while (count != 0)
+        while (local_c-- != 0)
         {
-            count--;
             if (*(unsigned int*)p < exp && exp <= *(unsigned int*)(p + 4))
             {
                 lo = *(unsigned int*)p;
                 hi = *(unsigned int*)(p + 4);
-                lv = l;
+                lv = (unsigned char)l;
                 return;
             }
             l++;

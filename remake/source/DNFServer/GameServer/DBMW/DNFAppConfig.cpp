@@ -35,7 +35,7 @@ CAppConfig::CAppConfig()
 CAppConfig::~CAppConfig() {}
 STDBConnInfo::STDBConnInfo()
 {
-    memset(this, 0, 0x11);
+    memset(m_host, 0, 0x11);
     memset(m_user, 0, 0x15);
     memset(m_pass, 0, 0x15);
     memset(m_db, 0, 0x1f);

@@ -74,14 +74,13 @@ void* MemPool<T>::alloc()
     }
     else
     {
-        void* block = ::operator new((unsigned int)m_count * (unsigned int)m_size);
+        MemPoolSlot<T>* block = (MemPoolSlot<T>*)::operator new((unsigned int)m_count * (unsigned int)m_size);
         for (unsigned int i = 0; i < (unsigned int)m_count - 1; i++)
         {
-            ((MemPoolSlot<T>*)(i * sizeof(T) + (unsigned int)block))->next =
-                (void*)((i + 1) * sizeof(T) + (unsigned int)block);
+            block[i].next = (void*)&block[i + 1];
         }
-        ((MemPoolSlot<T>*)(((unsigned int)m_count - 1) * sizeof(T) + (unsigned int)block))->next = 0;
-        head = block;
+        block[(unsigned int)m_count - 1].next = 0;
+        head = (void*)block;
         headOfFreeList_ = (void*)((char*)block + sizeof(T));
         m_blocks.push_back((void*)block);
         DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_size,

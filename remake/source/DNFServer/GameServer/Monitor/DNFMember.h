@@ -308,7 +308,7 @@ public:
     unsigned int GetLowerMemberCount() const;
     unsigned int* GetLowerMember_Proxy() const;
     int IncConnUpperMemberExp(unsigned int maxExp);
-    int IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp);
+    void IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp);
     int IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int maxExp);
     void NoticeLevelUpToLowers(unsigned int level);
     void LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsigned int b);

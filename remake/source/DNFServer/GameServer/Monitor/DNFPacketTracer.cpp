@@ -39,7 +39,7 @@ void CPacketTracer::AddLog(int a, int b)
     time_t t;
     time(&t);
     struct tm st = *localtime(&t);
-    char buf[32];
+    char buf[32] = {0};
     sprintf(buf, "(%02d:%02d:%02d/%d/%d)", st.tm_hour, st.tm_min, st.tm_sec, b, a);
     m_str += buf;
     m_count = m_count + 1;
@@ -47,7 +47,7 @@ void CPacketTracer::AddLog(int a, int b)
 
 void CPacketTracer::WriteLog()
 {
-    if (m_count == (m_count / 0x1e) * 0x1e)
+    if (m_count % 0x1e == 0)
     {
         DNF_LOG_SCOPE_LINE(0x2e, "./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_str.c_str());
         ResetLog();

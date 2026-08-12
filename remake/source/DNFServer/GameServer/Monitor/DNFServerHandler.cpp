@@ -315,18 +315,14 @@ CTcpGameServer* CServerHandler::CreateTcpGameServer(unsigned int id)
 int CServerHandler::DeleteTcpGameServer(unsigned int id)
 {
     std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.find(id);
-    if (it == m_tcpGameServers.end())
+    if (it != m_tcpGameServers.end())
     {
-        return 0;
+        delete it->second;
+        m_tcpGameServers.erase(it);
+        DNF_LOG_SCOPE_LINE(0x35f, "./log/Tcp", "TcpGameServer Delete !");
+        return 1;
     }
-    CTcpGameServer* tcp = it->second;
-    if (tcp != 0)
-    {
-        delete tcp;
-    }
-    m_tcpGameServers.erase(it);
-    DNF_LOG_SCOPE_LINE(0x35f, "./log/Tcp", "TcpGameServer Delete !");
-    return 1;
+    return 0;
 }
 
 int CServerHandler::UnregistGameServer(unsigned int channel)
@@ -336,13 +332,10 @@ int CServerHandler::UnregistGameServer(unsigned int channel)
     {
         return 0;
     }
-    CGameServer* gs = it->second;
-    if (gs != 0)
-    {
-        delete gs;
-    }
+    delete it->second;
     m_gameServers.erase(it);
-    DNF_LOG_SCOPE_LINE(0x412, "./log/GameServer", "Game server unregist. Channel: %d", channel);
+    DNF_LOG_SCOPE_LINE(0x412, "./log/GameServer",
+        "Game server unregist. Channel: %d", channel);
     return 1;
 }
 
@@ -457,23 +450,30 @@ void CServerHandler::ResetHeartBeat(unsigned char channel)
 {
     std::map<unsigned int, CGameServer*>::iterator it =
         m_gameServers.find((unsigned int)channel);
-    if (it != m_gameServers.end() && it->second != 0 &&
-        ((CServerInterface*)it->second)->IsValidServer() != 0)
+    if (it != m_gameServers.end())
     {
-        ((CServerInterface*)it->second)->ResetHeartBeat();
+        CServerInterface* gs = (CServerInterface*)it->second;
+        if (channel != 0xff && gs->IsValidServer() != 0)
+        {
+            gs->ResetHeartBeat();
+            return;
+        }
     }
+    DNF_LOG_SCOPE_LINE(0x162, "./log/GameServer",
+        "CServerHandler::ResetHeartBeat\tGame Server Index Over Index : %d!\n", channel);
 }
 
 bool CServerHandler::IsConnectedGameServer(unsigned char channel)
 {
-    unsigned int ch = (unsigned int)channel;
-    std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.find(ch);
+    std::map<unsigned int, CGameServer*>::iterator it =
+        m_gameServers.find((unsigned int)channel);
     if (it != m_gameServers.end())
     {
         return ((CServerInterface*)it->second)->IsConnected();
     }
-    CMyFileLog log(__FUNCTION__, 0x19e);
-    log("./log/GameServer", "Game Server Index Over Index : %d!\n", channel);
+    DNF_LOG_SCOPE_LINE(0x19e, "./log/GameServer",
+        "CServerHandler::IsConnectedGameServer\tGame Server Index Over Index : %d!\n",
+        channel);
     return 0;
 }
 
@@ -487,8 +487,7 @@ void CServerHandler::SetConnectFlag(unsigned char channel, bool flag)
     }
     else
     {
-        CMyFileLog log(__FUNCTION__, 0x1f8);
-        log("./log/GameServer",
+        DNF_LOG_SCOPE_LINE(0x1f8, "./log/GameServer",
             "CServerHandler::SetConnectFlag\tGame Server Index Over Index : %d!\n",
             channel);
     }

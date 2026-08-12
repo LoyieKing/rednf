@@ -262,7 +262,7 @@ void CTcpManagerServer::SendTcpPacket(PacketHeader* pkt)
     char* buf = makePacketHeader(*(unsigned short*)pkt, ((RA_U16<2>*)pkt)->v);
     if (buf != 0)
     {
-        memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
+        memcpy(buf + 10, (char*)pkt + 10, (int)(((RA_U16<2>*)pkt)->v - 10));
         SendToServer(buf);
     }
 }

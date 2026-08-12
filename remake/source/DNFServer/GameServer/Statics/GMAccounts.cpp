@@ -83,9 +83,7 @@ void stDisjointAvatarInfoTotal::clear()
         {
             for (int k = 0; k < 2; k++)
             {
-                register int jr = j;
-                register int kr = k;
-                m_data[(i * 9 + jr) * 2 + kr] = 0;
+                m_data[(i * 9 + j) * 2 + k] = 0;
             }
             m_data[i * 9 + j + 0x34 + 2] = 0;
         }

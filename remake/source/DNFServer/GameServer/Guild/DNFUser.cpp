@@ -128,17 +128,17 @@ struct NoticeGuildMemberInfoLayout
 
 void* CUser::operator new(unsigned int size)
 {
-    return m_UserMemPool_.alloc();
+    return m_UsermemPool_.alloc();
 }
 
 void CUser::operator delete(void* p)
 {
-    m_UserMemPool_.free(p);
+    m_UsermemPool_.free(p);
 }
 
 void CUser::operator delete(void* p, unsigned int size)
 {
-    m_UserMemPool_.free(p, size);
+    m_UsermemPool_.free(p, size);
 }
 
 MemPool<CUser> CUser::m_UsermemPool_(28000);

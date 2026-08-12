@@ -92,9 +92,11 @@ CAppStartInit::~CAppStartInit()
 void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));
-    app->m_appConfig = new CAppConfig;
+    CAppConfig* pConfig = new CAppConfig;
+    app->m_appConfig = pConfig;
     app->m_appConfig->Check_FileName(std::string(argv[1]));
-    app->m_serverConfig = new CServerConfig;
+    CServerConfig* pServer = new CServerConfig;
+    app->m_serverConfig = pServer;
     app->m_killConfig = new CKillUSRConfig;
     if (Init_Daemon(argc, argv) == -1)
     {
@@ -120,9 +122,13 @@ int CAppStartInit::Init_Daemon(int argc, char** argv)
         chdir("./");
         umask(0);
     }
-    std::allocator<char> alloc;
-    std::string fn(argv[1], alloc);
-    if (Save_pid(fn) == false) return -1;
+    register bool failed;
+    {
+        std::allocator<char> alloc;
+        std::string fn(argv[1], alloc);
+        failed = !Save_pid(fn);
+    }
+    if (failed) return -1;
     return 0;
 }
 

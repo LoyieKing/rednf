@@ -246,7 +246,7 @@ public:
     void WriteLog();
     void AbsoluteWriteLog();
     void ResetLog();
-    int m_count;         // +0
+    unsigned int m_count;   // +0
     std::string m_str;   // +4
 };
 

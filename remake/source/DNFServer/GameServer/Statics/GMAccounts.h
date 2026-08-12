@@ -204,7 +204,7 @@ struct STHellPartyStatisticItemKey
     STHellPartyStatisticItemKey();
     ~STHellPartyStatisticItemKey();
     bool operator<(const STHellPartyStatisticItemKey& other) const;
-    unsigned char m_field0;  // +0
+    bool m_field0;           // +0（ORIG 汇编为 bool 提升比较，双零扩展+32 位 cmp）
     int m_field4;            // +4
     char m_field8;           // +8
     char m_field9;           // +9
