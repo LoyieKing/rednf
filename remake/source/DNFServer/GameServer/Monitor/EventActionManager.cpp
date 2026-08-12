@@ -88,20 +88,22 @@ void COnTimeEventAction::onStartAction(EventParam& param)
     DNF_LOG_SCOPE_LINE(0xa7,"./log/OnTimeEvent", "Test Event Action : On Start On Time Event Action %d,%d",
         (unsigned int)param.m_a, (unsigned int)param.m_b);
     COnTimeEventManager* mgr = ((CApplication*)CApplicationInstance())->GetOnTimeEventManager();
-    if (mgr != 0)
+    if (mgr == 0)
     {
-        mgr->GetCurEventItemByDBMW((unsigned int)param.m_a, (unsigned int)param.m_b);
+        return;
     }
+    mgr->GetCurEventItemByDBMW((unsigned int)param.m_a, (unsigned int)param.m_b);
 }
 
 void COnTimeEventAction::onEndAction()
 {
     DNF_LOG_SCOPE_LINE(0xc2, "./log/OnTimeEvent", "Test Event Action : On End On Time Event Action");
     COnTimeEventManager* mgr = ((CApplication*)CApplicationInstance())->GetOnTimeEventManager();
-    if (mgr != 0)
+    if (mgr == 0)
     {
-        mgr->EndEvent();
+        return;
     }
+    mgr->EndEvent();
 }
 
 CEventActionManager::CEventActionManager()
@@ -125,8 +127,7 @@ void CEventActionManager::init()
     COnTimeEventAction* ot = new COnTimeEventAction;
     ot->SetEventID(0x33);
     m_actions[0x33] = ot;
-    momiji_event::EventAction* ma = new momiji_event::EventAction;
-    m_actions[0x9b] = ma;
+    m_actions[0x9b] = new momiji_event::EventAction;
 }
 
 void CEventActionManager::destroy()
@@ -146,7 +147,7 @@ void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
     if (code < 0xa6)
     {
         unsigned int param = ((RA_UINT<14>*)pkt)->v;
-        m_actions[code]->OnStartEvent(*(EventParam*)&param);
+        m_actions[code]->OnStartEvent((EventParam&)param);
         ((RA_UINT<14>*)pkt)->v = param;
     }
     return;

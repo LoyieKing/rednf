@@ -5,8 +5,7 @@ int main(int argc, char** argv)
 {
     CAppBase* app = CApplicationInstance();
     app->Create(argc, argv);
-    void (**vtab)(void*) = (void(**)(void*))(*(void**)app);
-    vtab[2](app);
+    app->Process();
     app->Clear();
     return 1;
 }

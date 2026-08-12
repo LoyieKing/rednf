@@ -38,7 +38,7 @@ int LimitNpcBuyItemManager::sellNpcLimitBuyItem(LimitNpcBuyItemInfo* info)
     {
         return 0x11;
     }
-    if (it->second.m_itemId == 0)
+    if (it->first == 0)
     {
         return 0x11;
     }
@@ -114,11 +114,12 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemCount(unsigned int itemId,
                                                      LimitNpcBuyItemChangeInfo& out)
 {
     std::map<unsigned int, NpcBuyLimitItem>::iterator it = m_items.find(itemId);
-    if (it != m_items.end())
+    if (it == m_items.end())
     {
-        out.m_itemId = itemId;
-        out.m_fieldE = (int)it->second.m_maxCount - (int)it->second.m_sellCount;
+        return;
     }
+    out.m_itemId = itemId;
+    out.m_fieldE = (int)it->second.m_maxCount - (int)it->second.m_sellCount;
 }
 
 LimitNpcBuyItemChangeInfo::LimitNpcBuyItemChangeInfo() : PacketHeader(0x27db, 0x12)

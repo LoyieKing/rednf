@@ -47,9 +47,9 @@ void COnTimeEventManager::AttachApp(CApplication* app)
     m_app = app;
     m_field38 = 0;
     m_field3c = 0;
-    unsigned int t = (unsigned int)time(0);
-    COnTimeEventIdxLoad* task = new COnTimeEventIdxLoad(t + 10, 0, this);
-    app->GetTaskScheduler()->AddTask(task);
+    time_t t = time(0);
+    register CTaskScheduler::CTask* task = new COnTimeEventIdxLoad(t + 10, 0, this);
+    m_app->GetTaskScheduler()->AddTask(task);
 }
 
 bool COnTimeEventManager::IsCurState(ENUM_ONTIME_EVENT_STATE state)
@@ -139,17 +139,18 @@ void COnTimeEventManager::StartEvent()
 
 void COnTimeEventManager::StartEvent(unsigned int a, unsigned int b)
 {
-    if (b < a)
+    if (b >= a)
     {
-        unsigned int t = (unsigned int)time(0);
-        m_field24 = (int)a;
-        m_field28 = (int)b;
-        m_field1c = (int)t;
-        ChangeState(ONTIME_EVENT_STATE_START);
-        COnTimeEventRewardStartTrigger* task =
-            new COnTimeEventRewardStartTrigger(t, 0, this);
-        m_app->GetTaskScheduler()->AddTask(task);
+        return;
     }
+    unsigned int t = (unsigned int)time(0);
+    m_field24 = (int)a;
+    m_field28 = (int)b;
+    m_field1c = (int)t;
+    ChangeState(ONTIME_EVENT_STATE_START);
+    register CTaskScheduler::CTask* task =
+        new COnTimeEventRewardStartTrigger(t, 0, this);
+    m_app->GetTaskScheduler()->AddTask(task);
 }
 
 void COnTimeEventManager::EndEvent()
@@ -169,13 +170,14 @@ void COnTimeEventManager::GetCurEventItemByDBMW(unsigned int a, unsigned int b)
     Packet_Req_Ontime_Event_Item pkt;
     if (m_app != 0)
     {
-        CServerHandler* handler = m_app->Get_ServerHandler();
-        CTcpDBServer* db = handler->GetTcpDBServer();
-        if (db != 0)
+        CTcpDBServer* db = m_app->Get_ServerHandler()->GetTcpDBServer();
+        if (db == 0)
         {
-            char* buf = db->makePacketHeader(0x2345, 10);
-            db->SendToServer(buf);
+            return;
         }
+        char* buf = db->makePacketHeader(0x2345, 10);
+        char* buf2 = buf;
+        db->SendToServer(buf2);
     }
 }
 
@@ -183,80 +185,84 @@ void COnTimeEventManager::SendEventIdxToDBMW()
 {
     if (m_app != 0)
     {
-        CServerHandler* handler = m_app->Get_ServerHandler();
-        CTcpDBServer* db = handler->GetTcpDBServer();
+        CTcpDBServer* db = m_app->Get_ServerHandler()->GetTcpDBServer();
         if (db != 0)
         {
             char* buf = db->makePacketHeader(0x2347, 0x16);
-            *(unsigned int*)(buf + 0x12) = (unsigned int)m_field30;
-            *(unsigned int*)(buf + 10) = m_field38;
-            *(unsigned int*)(buf + 0xe) = m_field3c;
-            db->SendToServer(buf);
+            char* buf2 = buf;
+            *(unsigned int*)(buf2 + 0x12) = (unsigned int)m_field30;
+            *(unsigned int*)(buf2 + 10) = m_field38;
+            *(unsigned int*)(buf2 + 0xe) = m_field3c;
+            db->SendToServer(buf2);
         }
     }
 }
 
 int COnTimeEventManager::GetCurIdxByDBMW()
 {
-    if (m_field34 == 0)
+    if (m_field34 != 0)
     {
-        if (m_app == 0)
-        {
-            return -1;
-        }
+        return 1;
+    }
+    if (m_app != 0)
+    {
         Packet_Req_Ontime_Event_Idx pkt;
         m_app->Get_ServerHandler()->SendToDB(&pkt);
         DNF_LOG_SCOPE_LINE(0x164, "./log/OnTimeEvent", "Get_ServerHandler()->SendToDB(packet);");
-        unsigned int t = (unsigned int)time(0);
-        COnTimeEventIdxLoad* task = new COnTimeEventIdxLoad(t + 10, 0, this);
+        time_t t = time(0);
+        register CTaskScheduler::CTask* task = new COnTimeEventIdxLoad(t + 10, 0, this);
         m_app->GetTaskScheduler()->AddTask(task);
         return 1;
     }
-    return 0;
+    return -1;
 }
 
 void COnTimeEventManager::OnRewardStart()
 {
-    time_t now = time(0);
-    DNF_LOG_SCOPE_LINE(0x82, "./log/OnTimeEvent", "On Time Event : On Reward Start Trigger On(%d)", now);
+    CMyFileLog log(__FUNCTION__, 0x82);
+    log("./log/OnTimeEvent", "On Time Event : On Reward Start Trigger On(%d)", time(0));
     if (IsCurState(ONTIME_EVENT_STATE_REWARD))
     {
         puts("On Time Event : Event Off Trigger");
         Clear();
     }
-    else if (!IsCurState(ONTIME_EVENT_STATE_NONE))
+    else
     {
-        ChangeState(ONTIME_EVENT_STATE_NONE);
-        UpdateEventIdx();
-        int t = (int)time(0);
-        m_field20 = t;
-        COnTimeEventRewardEndTrigger* task =
-            new COnTimeEventRewardEndTrigger((unsigned int)(m_field28 * 0x3c + t), 0, this);
-        m_app->GetTaskScheduler()->AddTask(task);
-        unsigned int idx = GetEvent_Idx();
-        CMyFileLog log2(__FUNCTION__, 0xa7);
-        log2("./log/OnTimeEvent",
-             "On Time Event : On Reward Start Trigger Process Success curidx(%d)", idx);
+        if (IsCurState(ONTIME_EVENT_STATE_NONE) == 0)
+        {
+            ChangeState(ONTIME_EVENT_STATE_NONE);
+            UpdateEventIdx();
+            int t = (int)time(0);
+            m_field20 = t;
+            register CTaskScheduler::CTask* task =
+                new COnTimeEventRewardEndTrigger((unsigned int)(m_field28 * 0x3c + t), 0, this);
+            m_app->GetTaskScheduler()->AddTask(task);
+            CMyFileLog log2(__FUNCTION__, 0xa7);
+            log2("./log/OnTimeEvent",
+                 "On Time Event : On Reward Start Trigger Process Success curidx(%d)", GetEvent_Idx());
+        }
     }
 }
 
 void COnTimeEventManager::OnRewardEnd()
 {
-    time_t now = time(0);
     CMyFileLog log(__FUNCTION__, 0xae);
-    log("./log/OnTimeEvent", "On Time Event : On Reward End Trigger On(%d)\n", now);
+    log("./log/OnTimeEvent", "On Time Event : On Reward End Trigger On(%d)\n", time(0));
     if (IsCurState(ONTIME_EVENT_STATE_REWARD))
     {
         puts("On Time Event : Event Off Trigger");
         Clear();
     }
-    else if (!IsCurState(ONTIME_EVENT_STATE_START))
+    else
     {
-        ChangeState(ONTIME_EVENT_STATE_START);
-        Packet_MTG_OntimeEvent_RewardEnd pkt;
-        m_app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
-        CMyFileLog log2(__FUNCTION__, 0xd9);
-        log2("./log/OnTimeEvent", "On Time Event : On Reward End Trigger Process Success");
+        if (IsCurState(ONTIME_EVENT_STATE_START) == 0)
+        {
+            ChangeState(ONTIME_EVENT_STATE_START);
+            Packet_MTG_OntimeEvent_RewardEnd pkt;
+            m_app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
+            CMyFileLog log2(__FUNCTION__, 0xd9);
+            log2("./log/OnTimeEvent", "On Time Event : On Reward End Trigger Process Success");
+        }
     }
 }
 

@@ -56,38 +56,36 @@ stTowerRankElement_t::stTowerRankElement_t(unsigned char job, unsigned short sco
 void CTowerRank::registCharacRank(unsigned int floor, const char* name, unsigned int job,
                                   unsigned int score)
 {
-    std::multimap<std::string, stTowerRankElement_t>& mm = m_ranks[floor - 1];
-    std::multimap<std::string, stTowerRankElement_t>::iterator lo = mm.lower_bound(name);
-    std::multimap<std::string, stTowerRankElement_t>::iterator up = mm.upper_bound(name);
-    do
+    std::multimap<std::string, stTowerRankElement_t>::iterator lo =
+        m_ranks[floor - 1].lower_bound(name);
+    std::multimap<std::string, stTowerRankElement_t>::iterator up =
+        m_ranks[floor - 1].upper_bound(name);
+    while (lo != up)
     {
-        if (lo == up)
+        if (lo->second.m_job == job)
         {
-            goto INSERT;
-        }
-        if (lo->second.m_job == (unsigned char)job)
-        {
-            if (score <= (unsigned int)lo->second.m_score)
+            if (score > (unsigned int)lo->second.m_score)
             {
-                return;
+                m_ranks[floor - 1].erase(lo);
+                goto INSERT;
             }
-            mm.erase(lo);
-            goto INSERT;
+            return;
         }
         ++lo;
-    } while (true);
+    }
 INSERT:
     stTowerRankElement_t elem((unsigned char)job, (unsigned short)score);
-    mm.insert(std::pair<const std::string, stTowerRankElement_t>(name, elem));
+    m_ranks[floor - 1].insert(std::make_pair(name, elem));
 }
 
 unsigned int CTowerRank::getRankData(unsigned int floor, const char* name, unsigned int maxCount,
                                      stTowerRankElement_t* out)
 {
     unsigned int count = 0;
-    std::multimap<std::string, stTowerRankElement_t>& mm = m_ranks[floor - 1];
-    std::multimap<std::string, stTowerRankElement_t>::const_iterator lo = mm.lower_bound(name);
-    std::multimap<std::string, stTowerRankElement_t>::const_iterator up = mm.upper_bound(name);
+    std::multimap<std::string, stTowerRankElement_t>::const_iterator lo =
+        m_ranks[floor - 1].lower_bound(name);
+    std::multimap<std::string, stTowerRankElement_t>::const_iterator up =
+        m_ranks[floor - 1].upper_bound(name);
     while (lo != up)
     {
         out[count] = lo->second;
@@ -103,9 +101,11 @@ unsigned int CTowerRank::getRankData(unsigned int floor, const char* name, unsig
 
 void CTowerRank::reset()
 {
-    for (unsigned int i = 0; i <= 3; i++)
+    unsigned int i = 0;
+    while (i <= 3)
     {
         m_ranks[i].clear();
+        i++;
     }
 }
 

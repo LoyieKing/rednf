@@ -197,11 +197,11 @@ int CTcpNetSystem::SendPacket()
     // buf(-0x2c) 用于 PopDelete、b2(-0x28) 副本用于字段访问。
     register int ret;
     register int flag;
-    CTcpSendBuffer* buf;
     CTcpSendBuffer* b2;
-    CPeer* peer;
     int result;
     int cnt;
+    CPeer* peer;
+    CTcpSendBuffer* buf;
     {
         CGuard<CMutex> guard(&m_mutexE8);
         if (m_sendQueue.empty())
@@ -223,40 +223,38 @@ int CTcpNetSystem::SendPacket()
             goto done;
         }
         b2 = buf;
+        std::map<unsigned int, CPeer*>::iterator it = m_peerMap.find(*(unsigned int*)((char*)b2 + 6));
+        if (it == m_peerMap.end())
         {
-            std::map<unsigned int, CPeer*>::iterator it = m_peerMap.find(*(unsigned int*)((char*)b2 + 6));
-            if (it == m_peerMap.end())
+            DNF_LOG_SCOPE_LINE(0xba, "./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
+                b2->m_id, b2->m_size, b2->m_ip);
+            PopDeleteTcpSendPacketQ(buf);
+            ret = 0;
+        }
+        else
+        {
+            peer = it->second;
+            if (peer == 0 || b2->m_ip != peer->GetTcpSocket()->getHandle())
             {
-                DNF_LOG_SCOPE_LINE(0xba, "./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
-                    b2->m_id, b2->m_size, b2->m_ip);
+                DNF_LOG_SCOPE_LINE(0xc3, "./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
+                    peer, b2->m_id, b2->m_size, b2->m_ip);
                 PopDeleteTcpSendPacketQ(buf);
                 ret = 0;
             }
             else
             {
-                peer = it->second;
-                if (peer == 0 || b2->m_ip != peer->GetTcpSocket()->getHandle())
+                result = peer->send_packet((char*)b2, b2->m_size);
+                if (result > 0)
                 {
-                    DNF_LOG_SCOPE_LINE(0xc3, "./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
-                        peer, b2->m_id, b2->m_size, b2->m_ip);
                     PopDeleteTcpSendPacketQ(buf);
-                    ret = 0;
                 }
                 else
                 {
-                    result = peer->send_packet((char*)b2, b2->m_size);
-                    if (result > 0)
-                    {
-                        PopDeleteTcpSendPacketQ(buf);
-                    }
-                    else
-                    {
-                        cnt = (int)m_sendQueue.size();
-                        DNF_LOG_SCOPE_LINE(0xd5, "./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
-                            b2->m_id, b2->m_size, b2->m_ip, cnt);
-                    }
-                    ret = result;
+                    cnt = (int)m_sendQueue.size();
+                    DNF_LOG_SCOPE_LINE(0xd5, "./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
+                        b2->m_id, b2->m_size, b2->m_ip, cnt);
                 }
+                ret = result;
             }
         }
     }

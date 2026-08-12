@@ -48,17 +48,18 @@ int CTaskScheduler::AddTask(CTask* task)
 
 void CTaskScheduler::ProcessTask(unsigned int tick)
 {
-    if (!m_queue.empty())
+    if (m_queue.empty())
+        return;
+    CTaskProxy proxy = m_queue.top();
+    if (proxy.GetDeliveryTime() <= tick)
     {
-        CTaskProxy proxy = m_queue.top();
-        if (proxy.GetDeliveryTime() <= tick)
-        {
-            m_queue.pop();
-            printf("m_queTask pop size(%d)\n", (unsigned int)m_queue.size());
-            proxy.DoExcute();
-            proxy.Destroy();
-        }
+        m_queue.pop();
+        printf("m_queTask pop size(%d)\n", (unsigned int)m_queue.size());
+        proxy.DoExcute();
+        proxy.Destroy();
     }
+    else
+        return;
 }
 
 int CTaskScheduler::RemoveTask(unsigned int taskID)
@@ -71,4 +72,3 @@ int CTaskScheduler::RemoveTask(CTask* task)
     RemoveTask(task->GetTaskID());
     return 1;
 }
-

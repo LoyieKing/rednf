@@ -228,7 +228,7 @@ bool CPeer::parsing(int len)
             buf = new CTcpRecvBuffer;
         }
         memcpy(buf, m_sendBuf, size);
-        *(int*)((char*)buf + 6) = getHandle();
+        buf->m_addr = getHandle();
         {
             CGuard<CMutex> guard(m_sendQLock);
             m_recvQ->push(buf);
@@ -249,15 +249,15 @@ bool CPeer::parsing(int len)
 out:
     if (parsinglength > 0)
     {
-        if (parsinglength > 0x1800)
-        {
-            DNF_LOG_SCOPE_LINE(0x10e, "./log/TcpRecv",
-                "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
-                parsinglength);
-            return 0;
-        }
         try
         {
+            if (parsinglength > 0x1800)
+            {
+                DNF_LOG_SCOPE_LINE(0x10e, "./log/TcpRecv",
+                    "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
+                    parsinglength);
+                return 0;
+            }
             memmove((char*)this + 0x1c, m_sendBuf, parsinglength);
             m_recvLen = parsinglength;
             m_sendBuf = (char*)this + 0x1c + parsinglength;

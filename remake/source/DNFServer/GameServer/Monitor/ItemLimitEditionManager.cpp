@@ -38,13 +38,13 @@ void CItemLimitEditionMgr::makeItemLimitEditionUpdatePacket(
     Packet_Item_Limit_Edition_Update& pkt) const
 {
     int idx = 0;
-    for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin();
-         it != m_items.end(); ++it)
+    for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin(),
+             endIt = m_items.end(); it != endIt; ++it)
     {
         CItemLimitEdition* item = it->second;
-        *(unsigned int*)((char*)&pkt + idx * 9 + 0x12) = item->getIPGNO();
-        *(unsigned int*)((char*)&pkt + idx * 9 + 0x16) = item->getSellNum();
-        *(char*)((char*)&pkt + idx * 9 + 0x1a) = (char)item->isSellComplete();
+        ((RA_UINT<2>*)(idx * 9 + (char*)&pkt + 0x10))->v = item->getIPGNO();
+        ((RA_UINT<6>*)(idx * 9 + (char*)&pkt + 0x10))->v = item->getSellNum();
+        *(idx * 9 + (char*)&pkt + 0x1a) = item->isSellComplete();
         idx++;
     }
     ((RA_INT<14>*)&pkt)->v = idx;
@@ -54,10 +54,11 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
     Packet_Item_Limit_Edition_Sell_Start& pkt) const
 {
     int idx = 0;
-    for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin();
-         it != m_items.end(); ++it)
+    for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin(),
+             endIt = m_items.end(); it != endIt; ++it)
     {
-        it->second->makeItemInfo(*(stItemLimitEditionItemInfo_t*)((char*)&pkt + idx * 0x48 + 0xf));
+        CItemLimitEdition* item = it->second;
+        item->makeItemInfo(*(stItemLimitEditionItemInfo_t*)(idx * 0x48 + (char*)&pkt + 0xf));
         idx++;
     }
     ((RA_INT<11>*)&pkt)->v = idx;
@@ -65,27 +66,25 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
 
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
 {
-    register bool error = false;
     std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(*(unsigned int*)&info);
-    if (it == m_items.end() && 0x1b < m_items.size())
+    std::map<unsigned int, CItemLimitEdition*>::iterator it2;
+    CItemLimitEdition* item;
+    std::map<unsigned int, CItemLimitEdition*>::iterator end = m_items.end();
+    if (it == end && 0x1b < m_items.size())
     {
-        error = true;
+        return;
     }
-    if (!error)
+    item = new CItemLimitEdition(info);
+    unsigned int ipgno = item->getIPGNO();
+    it2 = m_items.find(ipgno);
+    std::map<unsigned int, CItemLimitEdition*>::iterator end2 = m_items.end();
+    if (it2 != end2)
     {
-        CItemLimitEdition* item = new CItemLimitEdition(info);
-        unsigned int ipgno = item->getIPGNO();
-        std::map<unsigned int, CItemLimitEdition*>::iterator it2 = m_items.find(ipgno);
-        if (it2 != m_items.end())
-        {
-            if (it2->second != 0)
-            {
-                delete it2->second;
-            }
-            m_items.erase(it2);
-        }
-        m_items.insert(std::pair<const unsigned int, CItemLimitEdition*>(item->getIPGNO(), item));
+        register CItemLimitEdition* item2 = it2->second;
+        delete item2;
+        m_items.erase(it2);
     }
+    m_items.insert(std::make_pair(item->getIPGNO(), item));
 }
 
 void CItemLimitEditionMgr::removeItem(unsigned int ipgno)
@@ -127,13 +126,11 @@ char CItemLimitEditionMgr::isEmpty() const
 
 void CItemLimitEditionMgr::clear()
 {
-    for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin();
-         it != m_items.end(); ++it)
+    for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin(),
+             endIt = m_items.end(); it != endIt; ++it)
     {
-        if (it->second != 0)
-        {
-            delete it->second;
-        }
+        register CItemLimitEdition* item = it->second;
+        delete item;
     }
     m_items.clear();
 }
@@ -210,7 +207,7 @@ char CItemLimitEdition::isSellComplete() const
 
 void CItemLimitEdition::makeItemInfo(stItemLimitEditionItemInfo_t& info) const
 {
-    *((stItemLimitEditionItemInfo_t*)&info) = *((const stItemLimitEditionItemInfo_t*)this);
+    info = *((const stItemLimitEditionItemInfo_t*)this);
     ((RA_UINT<24>*)&info)->v = getSellNum();
 }
 

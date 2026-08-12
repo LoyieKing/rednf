@@ -64,10 +64,10 @@ void CLoginLogoutStatistics::ProcessByMinute()
 
 void CLoginLogoutStatistics::LoginLogout(ENUM_LOGIN_LOGOUT type, unsigned char channel)
 {
-    std::map<unsigned char, stLoginLogout>::iterator it = m_maps[(int)type].find(channel);
-    if (it != m_maps[(int)type].end())
+    std::map<unsigned char, stLoginLogout>::iterator it = m_maps[type].find(channel);
+    if (it != m_maps[type].end())
     {
-        it->second.m_count = it->second.m_count + 1;
+        ++it->second.m_field0;
     }
     else
     {
@@ -75,9 +75,7 @@ void CLoginLogoutStatistics::LoginLogout(ENUM_LOGIN_LOGOUT type, unsigned char c
         {
             stLoginLogout st;
             st.m_field0 = 0;
-            st.m_count = 0;
-            st.m_field8 = 0;
-            m_maps[i].insert(std::pair<const unsigned char, stLoginLogout>(channel, st));
+            m_maps[i].insert(std::make_pair(channel, st));
         }
         LoginLogout(type, channel);
     }

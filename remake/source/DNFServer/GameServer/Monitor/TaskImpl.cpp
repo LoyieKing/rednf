@@ -36,22 +36,24 @@ int CTask_ChristmasEvent::DecideEventTime()
         0, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22,
         23, 24, 1, 2, 3, 4, 5
     };
-    unsigned int weight[25] = {
+    int weight[25] = {
         0, 1449, 2898, 4348, 7246, 10145, 13043, 17391, 23188, 28985,
         34782, 42029, 49275, 56521, 63768, 69565, 75362, 81159, 85507,
         89855, 92753, 95652, 97101, 98550, 100000
     };
-    unsigned int r = get_rand_int(100000);
+    int result = 0;
+    int r = (int)get_rand_int(100000);
     int i = 1;
     while (i <= 24)
     {
-        if (r < (unsigned int)weight[i] && (unsigned int)weight[i - 1] < r)
+        if (r < weight[i] && weight[i - 1] < r)
         {
+            result = hours[i];
             break;
         }
         i++;
     }
-    return hours[i];
+    return result;
 }
 
 unsigned int CTask_ChristmasEvent::getEventStartTime() { return 0x47698650; }

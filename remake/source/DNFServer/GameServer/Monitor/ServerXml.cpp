@@ -166,15 +166,15 @@ void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
         std::string s(str);
         if (type == STRING_TYPE_1)
         {
-            m_map70.insert(std::pair<const int, std::string>(idx, s));
+            m_map70.insert(std::make_pair(idx, s));
         }
         else if (type == STRING_TYPE_2)
         {
-            m_map88.insert(std::pair<const int, std::string>(idx, s));
+            m_map88.insert(std::make_pair(idx, s));
         }
         else if (type == STRING_TYPE_0)
         {
-            m_map58.insert(std::pair<const int, std::string>(idx, s));
+            m_map58.insert(std::make_pair(idx, s));
         }
     }
 }
@@ -182,20 +182,21 @@ void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
 std::string CServerXml::GetServerString(int idx, bool* ok) const
 {
     std::string s("");
-    std::map<int, std::string>::const_iterator it = m_map58.find(idx);
-    if (it == m_map58.end())
+    std::map<int, std::string>::const_iterator it;
+    it = m_map58.find(idx);
+    if (it != m_map58.end())
     {
         if (ok != 0)
         {
-            *ok = 0;
+            *ok = 1;
         }
-        return s;
+        return it->second;
     }
     if (ok != 0)
     {
-        *ok = 1;
+        *ok = 0;
     }
-    return it->second;
+    return s;
 }
 
 unsigned int CServerXml::GetEventRGBA(int idx) const

@@ -69,11 +69,9 @@ void CKillUSRConfig::Clear_Table()
         for (std::vector<ST_KillUSRConfig*>::iterator it = m_vec.begin();
              it != m_vec.end(); ++it)
         {
-            if (*it != 0)
-            {
-                ::operator delete(*it);
-                *it = 0;
-            }
+            ST_KillUSRConfig* p = *it;
+            ::operator delete(p);
+            p = 0;
         }
         m_vec.clear();
     }

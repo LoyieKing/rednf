@@ -105,9 +105,9 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 
 void CFrameCountHandler::SaveProcess()
 {
-    m_field28++;
-    register bool isPrint = (m_field28 != 0);
-    if (isPrint)
+    ++m_field28;
+    register bool b = m_field28 != 0;
+    if (b)
     {
         DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_field18, m_field4);
         m_field28 = 0;
@@ -116,9 +116,9 @@ void CFrameCountHandler::SaveProcess()
 
 void CFrameCountHandler::SaveProcess(int threadNo)
 {
-    m_field28++;
-    register bool isPrint = (m_field28 != 0);
-    if (isPrint)
+    ++m_field28;
+    register bool b = m_field28 != 0;
+    if (b)
     {
         DNF_LOG_SCOPE_LINE(0xb8,"./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", threadNo, m_field18,
             m_field4);

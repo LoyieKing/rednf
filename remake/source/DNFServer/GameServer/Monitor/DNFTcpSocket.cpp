@@ -54,23 +54,21 @@ char TCPSocket::open()
 
 char TCPSocket::connect(const char* ip, unsigned short port)
 {
-    sockaddr addr;
+    sockaddr_in addr;
     memset(&addr, 0, 0x10);
-    addr.sa_family = 2;
-    ((RA_UINT<4>*)&addr)->v = inet_addr(ip);
-    ((RA_U16<2>*)&addr)->v = htons(port);
-    int r = ::connect(m_fd, &addr, 0x10);
-    if (r >= 0)
-    {
-        memcpy((char*)this + 0x14, (char*)&addr + 4, 4);
-        ((RA_U16<24>*)this)->v = ((RA_U16<2>*)&addr)->v;
-    }
-    else
+    addr.sin_family = 2;
+    addr.sin_addr.s_addr = inet_addr(ip);
+    addr.sin_port = htons(port);
+    int len = 0x10;
+    if (::connect(m_fd, (sockaddr*)&addr, len) < 0)
     {
         printf("CONNECTION FAIL IP =%s, PORT =%d, reason =%s", ip, (unsigned int)port,
                strerror(errno));
+        return 0;
     }
-    return (char)(r >= 0);
+    memcpy((void*)((char*)this + 0x14), (void*)((char*)&addr + 4), 4);
+    ((RA_U16<24>*)this)->v = addr.sin_port;
+    return 1;
 }
 
 char TCPSocket::setOptNonBlock()
@@ -87,12 +85,12 @@ char TCPSocket::setOptNonBlock()
 char TCPSocket::bind(unsigned short port, bool flag)
 {
     setOptReuseAdrs(true);
-    sockaddr addr;
+    sockaddr_in addr;
     memset(&addr, 0, 0x10);
-    addr.sa_family = 2;
-    ((RA_U16<2>*)&addr)->v = htons(port);
-    int r = ::bind(m_fd, &addr, 0x10);
-    if (r < 0)
+    addr.sin_family = 2;
+    addr.sin_port = htons(port);
+    addr.sin_addr.s_addr = 0;
+    if (::bind(m_fd, (sockaddr*)&addr, 0x10) < 0)
     {
         close();
         return 0;
@@ -232,8 +230,7 @@ int TCPSocket::pollReadWriteErrEvent() const
 char TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
-    int fd = ::accept(m_fd, (sockaddr*)((char*)&sock + 4), &len);
-    sock.m_fd = fd;
+    sock.m_fd = ::accept(m_fd, (sockaddr*)((char*)&sock + 4), &len);
     if (sock.m_fd == 0)
     {
         FILE* f = fopen("log.txt", "a+");
@@ -254,7 +251,7 @@ char TCPSocket::accept(TCPSocket& sock)
         return 0;
     }
     memcpy((char*)&sock + 0x14, (char*)&sock + 8, 4);
-    ((RA_U16<24>*)&sock)->v = ((RA_U16<6>*)&sock)->v;
+    sock.m_peerPort = ((RA_U16<6>*)&sock)->v;
     sock.setOptNonBlock();
     return 1;
 }
@@ -271,14 +268,14 @@ int TCPSocket::send(char* buf, int len)
     int n = write(m_fd, buf, len);
     if (n < 1)
     {
-        if (errno != EAGAIN && errno != EINTR && errno != 0)
+        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
         {
-            printf("tcp send fail=\'%d\', error =\'%s\'", n, strerror(errno));
-            return -1;
+            printf("\xbf\xa9\xb1\xe2 \xb0\xc9\xb8\xae\xb8\xe9\xbc\xad errno \xb0\xa1 0 \xc0\xcc\xb8\xe9 \xb9\xae\xc1\xa6 \xb9\xdf\xbb\xfd \xc7\xd1\xb4\xd9 !!!! \xb2\xc0 \xc8\xae\xc0\xce!!!");
+            printf("tcp send retry=\'%d\', error =\'%s\'", n, strerror(errno));
+            return 0;
         }
-        printf("");
-        printf("tcp send retry=\'%d\', error =\'%s\'", n, strerror(errno));
-        return 0;
+        printf("tcp send fail=\'%d\', error =\'%s\'", n, strerror(errno));
+        return -1;
     }
     printf("1.tcp send=\'%d\', error =\'%s\'", n, strerror(errno));
     return n;

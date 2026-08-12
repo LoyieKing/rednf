@@ -34,15 +34,10 @@ CGMAccounts::~CGMAccounts() {}
 
 bool CGMAccounts::isGM(unsigned int dbid)
 {
-    stGMInfo_t key;
-    key.m_dbid = dbid;
+    stGMInfo_t key = {};
     key.m_field4 = 3;
-    std::list<stGMInfo_t>::iterator it = std::find(m_list.begin(), m_list.end(), key);
-    if (it != m_list.end())
-    {
-        return true;
-    }
-    return false;
+    key.m_dbid = dbid;
+    return std::find(m_list.begin(), m_list.end(), key) != m_list.end();
 }
 
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int dbid) const
@@ -50,9 +45,9 @@ CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int dbid) const
     stGMInfo_t out;
     out.m_dbid = 0;
     out.m_field4 = 3;
-    stGMInfo_t key;
-    key.m_dbid = dbid;
+    stGMInfo_t key = {};
     key.m_field4 = 3;
+    key.m_dbid = dbid;
     std::list<stGMInfo_t>::const_iterator it =
         std::find(m_list.begin(), m_list.end(), key);
     if (it != m_list.end())
@@ -71,7 +66,7 @@ void CGMAccounts::AppendGM_Sys(unsigned int dbid, char level)
 {
     stGMInfo_t info = {};
     info.m_dbid = dbid;
-    info.m_field4 = (unsigned int)level;
+    info.m_field4 = (int)level;
     m_list.push_back(info);
     char* mid = NumberToString(dbid, 0);
     CMyFileLog log(__FUNCTION__, 0xcd);

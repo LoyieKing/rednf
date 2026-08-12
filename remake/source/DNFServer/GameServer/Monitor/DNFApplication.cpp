@@ -76,8 +76,8 @@ void CPeriodicMessageMgr::OnProcess(CServerHandler* handler)
 {
     time_t t = time(0);
     struct tm st = *localtime(&t);
-    if (st.tm_min == 0 && m_startHour <= st.tm_hour && m_endHour >= st.tm_hour &&
-        st.tm_hour != 0)
+    int h = st.tm_hour;
+    if (st.tm_min == 0 && m_startHour <= h && m_endHour >= h && h != 0)
     {
         OnTimerSendData(handler);
     }
@@ -188,11 +188,9 @@ bool CInitAccusationListMgr::setSchedule(bool const& flag)
     time_t next = mktime(lt);
     if (flag)
     {
-        next += 0x15180;
+        next = next + 0x15180;
     }
-    // ORIG：无 EH 清理（placement new 形态），GetTaskScheduler 直接读 *this
-    void* mem = operator new(0x14);
-    CInitAccusationList* list = new (mem) CInitAccusationList(next, 0, this);
+    CInitAccusationList* list = new CInitAccusationList(next, 0, this);
     (*(CApplication**)this)->GetTaskScheduler()->AddTask(list);
     return true;
 }
@@ -249,29 +247,28 @@ void CAppBase::Clear()
 }
 
 CApplication::CApplication()
+    : m_loaded(false),
+      m_reserved8(0),
+      m_appInit(0),
+      m_appConfig(0),
+      m_field90(0),
+      m_memberConfig(0),
+      m_memberExpTbl(0),
+      m_serverHandler(0),
+      m_serverHandler2(0),
+      m_innerMsgHandler(0),
+      m_udpHandler(0),
+      m_udpThread(0),
+      m_taskScheduler(0),
+      m_field2cc(0),
+      m_memoryCash(0),
+      m_towerRank(0),
+      m_ipCounter(0),
+      m_field330(0),
+      m_periodicMsg(0),
+      m_limitNpc(0),
+      m_field388(0)
 {
-    m_loaded = false;
-    m_reserved8 = 0;
-    m_appInit = 0;
-    m_appConfig = 0;
-    m_field90 = 0;
-    m_memberConfig = 0;
-    m_memberExpTbl = 0;
-    m_serverHandler = 0;
-    m_serverHandler2 = 0;
-    m_innerMsgHandler = 0;
-    m_udpHandler = 0;
-    m_udpThread = 0;
-    m_taskScheduler = 0;
-    m_field2cc = 0;
-    m_memoryCash = 0;
-    m_towerRank = 0;
-    m_itemLimitMgr = 0;
-    m_ipCounter = 0;
-    m_field330 = 0;
-    m_periodicMsg = 0;
-    m_limitNpc = 0;
-    m_field388 = 0;
     SetMiniCraneRandomSeed();
 }
 
@@ -949,39 +946,46 @@ void CApplication::TranslateSignal()
     m_serverHandler->Clear_Table();
     m_serverHandler->Load_Table("./script/kill_user_config.tbl");
     const std::vector<ST_KillUSRConfig*>* vec = m_serverHandler->GetInfo();
-    if (!vec->empty())
+    if (vec->empty())
     {
-        for (std::vector<ST_KillUSRConfig*>::const_iterator it = vec->begin(); it != vec->end();
-             ++it)
+        return;
+    }
+    for (std::vector<ST_KillUSRConfig*>::const_iterator it = vec->begin(); it != vec->end();
+         ++it)
+    {
+        switch ((*it)->m_type)
         {
-            ST_KillUSRConfig* cfg = *it;
-            if (cfg->m_type == 3)
-            {
-                Packet_Monitor_Event_End pkt;
-                pkt.m_fieldA = cfg->m_val;
-                CPacketTranslater::OnEventEnd(&pkt);
-            }
-            else if (cfg->m_type == 2)
-            {
-                Packet_Monitor_Event_Start pkt;
-                pkt.m_fieldA = cfg->m_val;
-                pkt.m_fieldB = (unsigned short)cfg->m_b;
-                pkt.m_fieldC = (unsigned short)cfg->m_c;
-                CPacketTranslater::OnEventStart(&pkt);
-            }
-            else if (cfg->m_type == 4)
-            {
-                m_serverHandler2->Load(m_appConfig->GetServerInfoMap());
-                m_memberConfig->Load_Table("./script/member_cnt_config.tbl");
-                m_memberExpTbl->Load_Table("./script/member_exp.tbl");
-            }
-            else if (cfg->m_type == 7)
-            {
-                Packet_Monitor_Take_Screen_Shot pkt;
-                pkt.m_fieldA = 0xff;
-                pkt.m_fieldB = (unsigned int)time(0);
-                CPacketTranslater::OnTakeScreenShot(&pkt);
-            }
+        case 3:
+        {
+            Packet_Monitor_Event_End pkt;
+            pkt.m_fieldA = (*it)->m_val;
+            CPacketTranslater::OnEventEnd(&pkt);
+            break;
+        }
+        case 2:
+        {
+            Packet_Monitor_Event_Start pkt;
+            pkt.m_fieldA = (*it)->m_val;
+            pkt.m_fieldB = (unsigned short)(*it)->m_b;
+            pkt.m_fieldC = (unsigned short)(*it)->m_c;
+            CPacketTranslater::OnEventStart(&pkt);
+            break;
+        }
+        case 4:
+        {
+            m_serverHandler2->Load(m_appConfig->GetServerInfoMap());
+            m_memberConfig->Load_Table("./script/member_cnt_config.tbl");
+            m_memberExpTbl->Load_Table("./script/member_exp.tbl");
+            break;
+        }
+        case 7:
+        {
+            Packet_Monitor_Take_Screen_Shot pkt;
+            pkt.m_fieldA = 0xff;
+            pkt.m_fieldB = (unsigned int)time(0);
+            CPacketTranslater::OnTakeScreenShot(&pkt);
+            break;
+        }
         }
     }
 }

@@ -420,7 +420,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
         }
         if (idx != 0)
         {
-            *(unsigned int*)((char*)&pkt + 0xa) = idx;
+            pkt.m_count = idx;
             handler->SendToDB((PacketHeader*)&pkt);
             DNF_LOG_SCOPE_LINE(0x1bd, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
         }
@@ -1169,18 +1169,23 @@ void StatisticManager::ResetFatigueBattery()
 }
 void StatisticManager::SendDBFatigueBattery(CServerHandler* handler)
 {
-    if (!m_fatigue.empty())
+    if (m_fatigue.empty())
     {
-        Packet_DBMW_Fatigue_Battery_Money_Statistic pkt;
-        for (std::map<unsigned char, STFatigueBattery>::iterator it = m_fatigue.begin();
-             it != m_fatigue.end(); ++it)
-        {
-            unsigned int idx = (unsigned int)it->first;
-            *(unsigned int*)((char*)&pkt + 0xa + idx * 8) = it->second.m_field0;
-            *(unsigned int*)((char*)&pkt + 0xa + idx * 8 + 4) = it->second.m_field4;
-        }
-        handler->SendToDB((PacketHeader*)&pkt);
+        return;
     }
+    Packet_DBMW_Fatigue_Battery_Money_Statistic pkt;
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        STFatigueBattery m_items[0x65];
+    };
+    for (std::map<unsigned char, STFatigueBattery>::iterator it = m_fatigue.begin();
+         it != m_fatigue.end(); ++it)
+    {
+        ((Wire*)&pkt)->m_items[(unsigned int)it->first].m_field0 = it->second.m_field0;
+        ((Wire*)&pkt)->m_items[(unsigned int)it->first].m_field4 = it->second.m_field4;
+    }
+    handler->SendToDB((PacketHeader*)&pkt);
 }
 void StatisticManager::AddBloodDungeonStatistics(Packet_Blood_dungeon_statistic* pkt)
 {
@@ -1236,14 +1241,13 @@ void StatisticManager::AddReasonCrashDownData(Packet_Reason_Crash_Down_Info* pkt
                                               CServerHandler* handler)
 {
     Packet_DBMW_Reason_Crash_Down_Query query;
-    char sql[256];
-    memset(sql, 0, 0x100);
-    snprintf(sql, 0xff,
+    memset((char*)&query + 0xa, 0, 0x100);
+    snprintf((char*)&query + 0xa, 0xff,
              "inSert into log_client_ting_stat (occ_time,channel_no,reason,cnt) values (from_unixtime(%d),%d,%d,%d)",
              *(unsigned int*)((char*)pkt + 10), *(unsigned int*)((char*)pkt + 0xe),
              *(unsigned int*)((char*)pkt + 0x12), *(unsigned int*)((char*)pkt + 0x16));
     handler->SendToDB((PacketHeader*)&query);
-    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5b8, "./log/ReasonCrashDown", "%s", sql);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5b8, "./log/ReasonCrashDown", "%s", (char*)&query + 0xa);
 }
 void StatisticManager::AddDisjointAvatarInfo(Packet_Avater_Disjoint_Statistic* pkt)
 {
@@ -1406,51 +1410,43 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
 void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeStr)
 {
     Packet_DBMW_TechnicalReport_Common_Query pkt;
-    char sql[1024];
     for (int i = 0; i < 8; i++)
     {
         if (0 < m_modules[i].m_data[3])
         {
-            memset(sql, 0, 0x400);
-            int d1 = m_modules[i].m_data[2];
-            int d2 = m_modules[i].m_data[3];
-            unsigned int a = m_modules[i].m_data[1];
-            unsigned int b = m_modules[i].m_data[3];
-            unsigned int c = m_modules[i].m_data[0];
-            unsigned int d = m_modules[i].m_data[3];
-            unsigned int group = handler->GetServerGroupNo();
-            snprintf(sql, 0x400,
+            memset((char*)&pkt + 0xa, 0, 0x400);
+            snprintf((char*)&pkt + 0xa, 0x400,
                 "inSert into lag_stat_module (occ_time, server_id, module, average, deviation, count) values ('%s', %d, %d, %d, %d, %d)",
-                timeStr, group & 0xff, i, c / d, a / b, d1 / d2);
-            DNF_LOG_SCOPE_LINE(0x6a1, "./log/LagStatistics", "%s", sql);
+                timeStr, handler->GetServerGroupNo() & 0xff, i,
+                m_modules[i].m_data[2] / m_modules[i].m_data[3],
+                (unsigned int)m_modules[i].m_data[1] / (unsigned int)m_modules[i].m_data[3],
+                (unsigned int)m_modules[i].m_data[0] / (unsigned int)m_modules[i].m_data[3]);
+            DNF_LOG_SCOPE_LINE(0x6a1, "./log/LagStatistics", "%s", (char*)&pkt + 0xa);
             handler->SendToDB((PacketHeader*)&pkt);
             m_modules[i].Reset();
         }
     }
-    if (!m_dungeonLag.empty())
+    if (m_dungeonLag.empty())
     {
-        for (std::map<unsigned short, STDungeonLagStatistics>::iterator it = m_dungeonLag.begin();
-             it != m_dungeonLag.end(); ++it)
-        {
-            memset(sql, 0, 0x400);
-            int d1 = it->second.m_data[6];
-            int d2 = it->second.m_data[7];
-            unsigned int a = it->second.m_data[5];
-            unsigned int b = it->second.m_data[7];
-            unsigned int c = it->second.m_data[4];
-            unsigned int d = it->second.m_data[7];
-            unsigned int e = it->second.m_data[2];
-            int f = it->second.m_data[3];
-            unsigned int g = it->second.m_data[1];
-            unsigned int group = handler->GetServerGroupNo();
-            snprintf(sql, 0x400,
-                "inSert into lag_stat_dungeon (occ_time, server_id, dungeon_idx, first_average, first_deviation, first_count, boss_average, boss_deviation, boss_count) values ('%s', %d, %d, %d, %d, %d, %d, %d, %d)",
-                timeStr, group & 0xff, it->first, c / d, a / b, d1 / d2, e, f, g);
-            DNF_LOG_SCOPE_LINE(0x6b8, "./log/LagStatistics", "%s", sql);
-            handler->SendToDB((PacketHeader*)&pkt);
-        }
-        m_dungeonLag.clear();
+        return;
     }
+    for (std::map<unsigned short, STDungeonLagStatistics>::iterator it = m_dungeonLag.begin();
+         it != m_dungeonLag.end(); ++it)
+    {
+        memset((char*)&pkt + 0xa, 0, 0x400);
+        snprintf((char*)&pkt + 0xa, 0x400,
+            "inSert into lag_stat_dungeon (occ_time, server_id, dungeon_idx, first_average, first_deviation, first_count, boss_average, boss_deviation, boss_count) values ('%s', %d, %d, %d, %d, %d, %d, %d, %d)",
+            timeStr, handler->GetServerGroupNo() & 0xff, it->first,
+            it->second.m_data[6] / it->second.m_data[7],
+            (unsigned int)it->second.m_data[5] / (unsigned int)it->second.m_data[7],
+            (unsigned int)it->second.m_data[4] / (unsigned int)it->second.m_data[7],
+            it->second.m_data[2] / it->second.m_data[3],
+            (unsigned int)it->second.m_data[1] / (unsigned int)it->second.m_data[3],
+            (unsigned int)it->second.m_data[0] / (unsigned int)it->second.m_data[3]);
+        DNF_LOG_SCOPE_LINE(0x6b8, "./log/LagStatistics", "%s", (char*)&pkt + 0xa);
+        handler->SendToDB((PacketHeader*)&pkt);
+    }
+    m_dungeonLag.clear();
 }
 void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
 {
@@ -1544,14 +1540,16 @@ void StatisticManager::ResetCirculationStatistic()
 }
 void StatisticManager::SendDBCirculationStatistic(CServerHandler* handler)
 {
-    if (!m_circ.empty())
+    if (m_circ.empty())
     {
-        Packet_DBMW_Query_String pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = 0x4ef6;
-        time_t now = time(0);
-        for (std::map<int, CirculationStatisticData>::iterator it = m_circ.begin();
-             it != m_circ.end(); ++it)
-        {
+        return;
+    }
+    Packet_DBMW_Query_String pkt;
+    pkt.m_queryId = 0x4ef6;
+    time_t now = time(0);
+    for (std::map<int, CirculationStatisticData>::iterator it = m_circ.begin();
+         it != m_circ.end(); ++it)
+    {
             int key = it->first;
             CirculationStatisticData* v = &it->second;
             memset((char*)&pkt + 0xe, 0, 0x1001);
@@ -1570,7 +1568,6 @@ void StatisticManager::SendDBCirculationStatistic(CServerHandler* handler)
                 v->m_data[45], v->m_data[46], v->m_data[47]);
             handler->SendToDB((PacketHeader*)&pkt);
         }
-    }
 }
 void StatisticManager::AddServerMatchData(Packet_Server_Match_data* pkt)
 {
@@ -1627,23 +1624,24 @@ void StatisticManager::AddSecretShopStatistic(Packet_Secret_Shop_Statistic* pkt)
 void StatisticManager::SendDBSecretShopStatistic(CServerHandler* handler)
 {
     Packet_Secret_Shop_Statistic pkt;
-    if (!m_secretShop[0].empty() || !m_secretShop[1].empty() || !m_secretShop[2].empty())
+    if (m_secretShop[0].empty() && m_secretShop[1].empty() && m_secretShop[2].empty())
     {
-        for (int s = 0; s < 3; s++)
+        return;
+    }
+    for (int s = 0; s < 3; s++)
+    {
+        for (std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it = m_secretShop[s].begin();
+             it != m_secretShop[s].end(); ++it)
         {
-            for (std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it = m_secretShop[s].begin();
-                 it != m_secretShop[s].end(); ++it)
+            *(int*)((char*)&pkt + 0xe + it->first * 0x14 + 0) = it->first;
+            for (int k = 0; k < 4; k++)
             {
-                *(int*)((char*)&pkt + 0xe + it->first * 0x14 + 0) = it->first;
-                for (int k = 0; k < 4; k++)
-                {
-                    *(int*)((char*)&pkt + 0xe + it->first * 0x14 + 4 + k * 4) =
-                        it->second.m_data[k + 1];
-                }
+                *(int*)((char*)&pkt + 0xe + it->first * 0x14 + 4 + k * 4) =
+                    it->second.m_data[k + 1];
             }
         }
-        handler->SendToDB((PacketHeader*)&pkt);
     }
+    handler->SendToDB((PacketHeader*)&pkt);
 }
 void StatisticManager::ResetSecretShopStatistic()
 {

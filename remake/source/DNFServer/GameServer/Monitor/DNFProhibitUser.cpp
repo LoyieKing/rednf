@@ -57,11 +57,8 @@ unsigned short CDNFProhibitUser::GetProhibitRemainTime()
 
 bool CDNFProhibitUser::IsTimeOutConnectable()
 {
-    if ((short)(--((RA_U16<4>*)this)->v) <= 0)
-    {
-        return 1;
-    }
-    return 0;
+    m_remain = m_remain - 1;
+    return (short)m_remain <= 0;
 }
 
 char CDNFProhibitUser::GetChannelNo() { return m_channel; }
