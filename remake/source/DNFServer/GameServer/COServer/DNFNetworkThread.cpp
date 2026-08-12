@@ -57,55 +57,53 @@ void CNetworkThread::dispatch(void* param)
             {
                 CGuard<CMutex> g((CMutex*)m_bLock);
                 CUdpRecvBuffer::operator delete(buf);
+                continue;
+            }
+            PacketHeader* ph = (PacketHeader*)buf;
+            if (ph->packetSize != len)
+            {
+                DNF_LOG_SCOPE_LINE(0x6f,"./log/recvErr",
+                    "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                    ph->packetSize, len, ph->packetId);
+                {
+                    CGuard<CMutex> g((CMutex*)m_bLock);
+                    CUdpRecvBuffer::operator delete(buf);
+                }
+            }
+            else if (ph->packetSize >= 0x200)
+            {
+                DNF_LOG_SCOPE_LINE(0x7a,"./log/recvErr",
+                    "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                    ph->packetSize, len, ph->packetId);
+                {
+                    CGuard<CMutex> g((CMutex*)m_bLock);
+                    CUdpRecvBuffer::operator delete(buf);
+                }
+            }
+            else if ((unsigned int)len > 0x200)
+            {
+                DNF_LOG_SCOPE_LINE(0x86,"./log/recvErr",
+                    "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                    ph->packetSize, len, ph->packetId);
+                {
+                    CGuard<CMutex> g((CMutex*)m_bLock);
+                    CUdpRecvBuffer::operator delete(buf);
+                }
             }
             else
             {
-                PacketHeader* ph = (PacketHeader*)buf;
-                if (ph->packetSize != len)
+                if (ph->reversed2 == 0)
                 {
-                    DNF_LOG_SCOPE_LINE(0x6f,"./log/recvErr",
-                        "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        ph->packetSize, len, ph->packetId);
-                    {
-                        CGuard<CMutex> g((CMutex*)m_bLock);
-                        CUdpRecvBuffer::operator delete(buf);
-                    }
+                    printf("id(%d), m_id(%d)", ph->packetId, ph->reversed2);
                 }
-                else if (ph->packetSize >= 0x200)
+                int idx = ph->reversed2 % 10;
                 {
-                    DNF_LOG_SCOPE_LINE(0x7a,"./log/recvErr",
-                        "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        ph->packetSize, len, ph->packetId);
+                    CGuard<CMutex> g((CMutex*)m_locks[idx]);
+                    ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->push(buf);
+                    if (100 < ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size())
                     {
-                        CGuard<CMutex> g((CMutex*)m_bLock);
-                        CUdpRecvBuffer::operator delete(buf);
-                    }
-                }
-                else if ((unsigned int)len > 0x200)
-                {
-                    DNF_LOG_SCOPE_LINE(0x86,"./log/recvErr",
-                        "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        ph->packetSize, len, ph->packetId);
-                    {
-                        CGuard<CMutex> g((CMutex*)m_bLock);
-                        CUdpRecvBuffer::operator delete(buf);
-                    }
-                }
-                else
-                {
-                    if (ph->reversed2 == 0)
-                    {
-                        printf("id(%d), m_id(%d)", ph->packetId, ph->reversed2);
-                    }
-                    int idx = ph->reversed2 % 10;
-                    {
-                        CGuard<CMutex> g((CMutex*)m_locks[idx]);
-                        ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->push(buf);
-                        if (100 < ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size())
-                        {
-                            DNF_LOG_SCOPE_LINE(0xa3,"./log/recv", "idx(%d) cnt(%d)", idx,
-                                ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size());
-                        }
+                        DNF_LOG_SCOPE_LINE(0xa3,"./log/recv", "idx(%d) cnt(%d)", idx,
+                            ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->size());
                     }
                 }
             }
@@ -122,7 +120,6 @@ void CNetworkThread::dispatch(void* param)
         throw CDNFException("CNetworkThread::dispatch() Recv  Socket Exception Break!");
     }
 }
-
 void CNetworkThread::attach(CApplication* app, int idx)
 {
     if (app != 0)

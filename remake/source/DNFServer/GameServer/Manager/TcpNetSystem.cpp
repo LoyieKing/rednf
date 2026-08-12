@@ -195,28 +195,28 @@ int CTcpNetSystem::SendPacket()
 {
     // R14：ORIG 形态——queue 访问在 guard 内层作用域，flag(esi)/ret(ebx) 寄存器变量，
     // buf(-0x2c) 用于 PopDelete、b2(-0x28) 副本用于字段访问。
-    register int ret;
-    register int flag;
-    CTcpSendBuffer* buf;
-    CTcpSendBuffer* b2;
-    CPeer* peer;
-    int result;
-    int cnt;
     {
-        CGuard<CMutex> guard(&m_mutexE8);
-        if (m_sendQueue.empty())
+        register int ret;
+        register int flag;
+        CTcpSendBuffer* buf;
+        CTcpSendBuffer* b2;
+        CPeer* peer;
+        int result;
+        int cnt;
         {
-            ret = 0;
-            flag = 0;
+            CGuard<CMutex> guard(&m_mutexE8);
+            if (m_sendQueue.empty())
+            {
+                ret = 0;
+                flag = 0;
+            }
+            else
+            {
+                buf = m_sendQueue.front();
+                flag = 1;
+            }
         }
-        else
-        {
-            buf = m_sendQueue.front();
-            flag = 1;
-        }
-    }
-    if (flag)
-    {
+        if (flag)
         {
             if (!buf)
             {
@@ -259,9 +259,9 @@ int CTcpNetSystem::SendPacket()
                 }
             }
         }
+    done:
+        return ret;
     }
-done:
-    return ret;
 }
 void CTcpNetSystem::PopDeleteTcpSendPacketQ(CTcpSendBuffer* buf)
 {

@@ -598,9 +598,10 @@ public:
 class Packet_Request_Result_BlackList : public PacketHeader {
 public:
     Packet_Request_Result_BlackList();
-    char m_pad[5];                      // +0xa
+    unsigned int m_fieldA;              // +0xa
+    unsigned char m_count;              // +0xe
     STBlackUserDBType m_items[10];      // +0xf
-};
+} __attribute__((packed));
 
 // from GuildPackets.h
 class Packet_Tcp_Server_Connect : public PacketHeader {

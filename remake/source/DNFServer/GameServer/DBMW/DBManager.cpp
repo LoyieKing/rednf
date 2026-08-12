@@ -1992,9 +1992,15 @@ int CDBManager::FindCharProxyInArray(ST_MemberProxy* proxies, unsigned int chara
 {
     for (int i = 0; i < maxIdx; i++)
     {
-        if (proxies[i].m_no != 0 && (unsigned int)proxies[i].m_no == characNo)
-            return i;
-        __asm__ __volatile__("nop");
+        if (proxies[i].m_no != 0)
+        {
+            if ((unsigned int)proxies[i].m_no == characNo)
+                return i;
+        }
+        else
+        {
+            __asm__ __volatile__("nop");
+        }
     }
     return -1;
 }
@@ -3087,9 +3093,15 @@ int CDBManager::FindCharIdInArray(unsigned int* arr, unsigned int characNo,
     int i = 0;
     while (i < (int)maxIdx)
     {
-        if (arr[i] != 0 && arr[i] == characNo)
-            return i;
-        __asm__ __volatile__("nop");
+        if (arr[i] != 0)
+        {
+            if (arr[i] == characNo)
+                return i;
+        }
+        else
+        {
+            __asm__ __volatile__("nop");
+        }
         i++;
     }
     return -1;
@@ -4268,12 +4280,13 @@ bool CDBManager::DeleteJoinListByInvite(unsigned int guildId,
 }
 char CDBManager::OnUpgradeGuildCargo(Packet_DB_Guild_Cargo_Upgrade* packet)
 {
+    bool ret;
     CDBHandle* h = m_handles[8];    // guild db
     h->set_query(0x4edc,
                  "upDate guild_agit set cargo_capacity=%d where guild_id=%d",
                  ((GuildCargoUpgradeView*)packet)->m_field12,
                  ((GuildCargoUpgradeView*)packet)->m_fieldA);
-    bool ret = h->exec(0x4edc);
+    ret = h->exec(0x4edc);
     if (!ret)
     {
         register unsigned int c =
@@ -6277,6 +6290,7 @@ char CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
                                         unsigned int guildId,
                                         unsigned char grade, char* name)
 {
+    bool ret;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e5b,
                       "upDate guild_member set grade = %d where guild_id = %d and server_id = %d and  charac_name = '%s' and member_flag = 1",
@@ -6287,7 +6301,7 @@ char CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
             guildId, name);
         return 0;
     }
-    bool ret = h->exec(0x4e5b);
+    ret = h->exec(0x4e5b);
     if (!ret)
     {
         CMyFileLog(__FUNCTION__, 0xe26)("./log/DBQueryErr",

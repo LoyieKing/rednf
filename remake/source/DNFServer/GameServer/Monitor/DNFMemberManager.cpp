@@ -101,24 +101,27 @@ int CMemberManager::DeleteMember(unsigned int key, bool cash)
     {
         return 0;
     }
-    std::map<unsigned int, CMember*>::iterator it = m_members.find(key);
-    if (it != m_members.end())
     {
-        if (cash && it->second != 0)
+        std::map<unsigned int, CMember*>::iterator it = m_members.find(key);
+        if (it != m_members.end())
         {
-            delete it->second;
+            if (cash && it->second != 0)
+            {
+                delete it->second;
+            }
+            if (m_app != 0)
+            {
+                m_app->Call_ResetUserMemberInfo(key);
+            }
+            m_members.erase(it);
+            return 1;
         }
-        if (m_app != 0)
-        {
-            m_app->Call_ResetUserMemberInfo(key);
-        }
-        m_members.erase(it);
-        return 1;
     }
     if (cash)
     {
+        register unsigned int nKey = key;
         CMyFileLog log(__FUNCTION__, 0xbb);
-        log("./log/Member", "[DELETE_CASH_PROCESS] Member Key : %d", key);
+        log("./log/Member", "[DELETE_CASH_PROCESS] Member Key : %d", nKey);
     }
     return 0;
 }
@@ -264,13 +267,15 @@ int CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned 
 
 CMember* CMemberManager::FindMember(unsigned int key)
 {
-    if (!m_members.empty())
+    std::map<unsigned int, CMember*>::iterator it;
+    if (m_members.empty())
     {
-        std::map<unsigned int, CMember*>::iterator it = m_members.find(key);
-        if (it != m_members.end())
-        {
-            return it->second;
-        }
+        return 0;
+    }
+    it = m_members.find(key);
+    if (m_members.end() != it)
+    {
+        return it->second;
     }
     return 0;
 }
@@ -286,14 +291,18 @@ CUser* CMemberManager::FindMemberUser(unsigned int key)
 
 char CMemberManager::IsEmptyMember(unsigned int key)
 {
+    std::map<unsigned int, CMember*>::iterator it;
     if (m_members.empty())
     {
         return 1;
     }
-    std::map<unsigned int, CMember*>::iterator it = m_members.find(key);
-    if (it != m_members.end() && it->second != 0)
+    it = m_members.find(key);
+    if (m_members.end() != it)
     {
-        return it->second->IsEmpty();
+        if (it->second != 0)
+        {
+            return it->second->IsEmpty();
+        }
     }
     return 0;
 }

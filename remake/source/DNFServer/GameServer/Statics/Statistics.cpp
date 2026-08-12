@@ -1009,39 +1009,37 @@ void StatisticManager::SendDBPowerwarLagReport(CServerHandler* handler)
 }
 void StatisticManager::DBSaveProcess(CServerHandler* handler)
 {
-    time_t now = time(0);
-    tm* pt = localtime(&now);
-    int min = pt->tm_min;
-    int hour = pt->tm_hour;
-    int mday = pt->tm_mday;
-    int mon = pt->tm_mon;
-    int year = pt->tm_year;
-    printf("---Time : %d, %d ----\n", hour, min);
+    time_t now;
+    tm t;
     char ts[20];
-    snprintf(ts, 0x13, "%d-%d-%d %d:%d:0", year + 0x76c, mon + 1, mday, hour, min);
+    char ts2[20];
+    now = time(0);
+    t = *localtime(&now);
+    printf("---Time : %d, %d ----\n", t.tm_hour, t.tm_min);
+    snprintf(ts, 0x13, "%d-%d-%d %d:%d:0", t.tm_year + 0x76c, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min);
     SendDBP2PStatistic(handler);
     ResetP2PStatistic();
-    if (hour == 5 && min == 0)
+    if (t.tm_hour == 5 && t.tm_min == 0)
     {
         SendDBHellPartyStatisticItem(handler);
         ResetHellPartyStatisticItemMap();
     }
-    if (hour == 5 && min == 0)
+    if (t.tm_hour == 5 && t.tm_min == 0)
     {
         SendDBFatigueBattery(handler);
         ResetFatigueBattery();
     }
-    if (hour == 5 && min == 0)
+    if (t.tm_hour == 5 && t.tm_min == 0)
     {
         SendDBDisjointAvatarInfoTotal(handler);
         ResetDisjointAvatarInfoTotal();
     }
-    if (hour == 5 && min == 0)
+    if (t.tm_hour == 5 && t.tm_min == 0)
     {
         SendDBCreateEmblemInfo(handler);
         ResetCreateEmblemInfo();
     }
-    if (hour == 5 && min == 0)
+    if (t.tm_hour == 5 && t.tm_min == 0)
     {
         SendDBRandomboxStatistic(handler);
         ResetRandomboxStatistic();
@@ -1050,97 +1048,95 @@ void StatisticManager::DBSaveProcess(CServerHandler* handler)
     ResetTingUserTimeCheckMap();
     SendDBPowerwarLoadingTimeReport(handler);
     SendDBPowerwarLagReport(handler);
-    if (min % 10 == 0)
+    if (t.tm_min % 10 == 0)
     {
         SendDBServerMatchData(handler);
         ResetServerMatchData();
     }
-    if (min == 0 || min == 0x1e)
+    if (t.tm_min == 0 || t.tm_min == 0x1e)
     {
-        snprintf(ts, 0x13, "%d-%d-%d %d:%d:0", year + 0x76c, mon + 1, mday, hour, min);
+        snprintf(ts2, 0x13, "%d-%d-%d %d:%d:0", t.tm_year + 0x76c, t.tm_mon + 1, t.tm_mday, t.tm_hour, t.tm_min);
         SendDBPacketOverflowStatistic(handler);
         ResetPacketOverflowMap();
         SendDBAssertManagerStatistic(handler);
         ResetAssertManagerMap();
         SendDBUserTingTimeCheckStatistic(handler);
         ResetUserTIngTimeCheckMap();
-        SendDBLagStatistics(handler, ts);
+        SendDBLagStatistics(handler, ts2);
         statistc_proxy::sendDBStatisticProxy();
         statistc_proxy::resetStatisticProxy();
     }
-    if (hour % 3 == 0 && min == 0)
+    if (t.tm_hour % 3 == 0 && t.tm_min == 0)
     {
         SendDBLoadingTimeReport(handler);
     }
-    if (hour == 5)
+    if (t.tm_hour == 5)
     {
-        if (min == 10)
+        if (t.tm_min == 10)
         {
             SendDBPartyStatistic(handler);
             ResetPartyMap();
         }
-        if (min == 0xf)
+        if (t.tm_min == 0xf)
         {
             SendDBPartyJobStatistic(handler);
             ResetPartyJobMap();
         }
-        if (min == 0x14)
+        if (t.tm_min == 0x14)
         {
             SendDBPartyCharacStatistic(handler);
             ResetPartyCharacMap();
         }
-        if (min == 0x19)
+        if (t.tm_min == 0x19)
         {
             SendDBDeathTowerValueStatistic(handler);
             ResetDeathTowerValueMap();
         }
-        if (min == 0x1e)
+        if (t.tm_min == 0x1e)
         {
             SendDBDeathTowerPlayDataJobStatistic(handler);
             ResetDeathTowerPlayDataJobMap();
         }
-        if (min == 0x23)
+        if (t.tm_min == 0x23)
         {
             SendDBDeathTowerPlayDataPartyStatistic(handler);
             ResetDeathTowerPlayDataPartyMap();
         }
-        if (min == 0x28)
+        if (t.tm_min == 0x28)
         {
             SendDBBloodDungeonStatistic(handler);
             ResetBloodDungeon();
         }
-        if (min == 0x2d)
+        if (t.tm_min == 0x2d)
         {
             SendDBValueStatistic(handler);
             ResetValueStatistic();
         }
-        if (min == 0x32)
+        if (t.tm_min == 0x32)
         {
             SendDBCirculationStatistic(handler);
             ResetCirculationStatistic();
         }
     }
-    if (hour == 6 && min == 0)
+    if (t.tm_hour == 6 && t.tm_min == 0)
     {
         SendDBSecretShopStatistic(handler);
         ResetSecretShopStatistic();
     }
-    if (hour == 6 && min == 0)
+    if (t.tm_hour == 6 && t.tm_min == 0)
     {
         SendDBTowerOfDespairStatistic(handler);
         ResetTowerOfDespair();
     }
-    if (hour == 5 && min == 0)
+    if (t.tm_hour == 5 && t.tm_min == 0)
     {
         SendDBGoldcardEventStatistic(handler);
         ResetGoldcardEventStatistic();
     }
-    if (hour == 6)
+    if (t.tm_hour == 6)
     {
-        CCubeStatistic* cube = (CCubeStatistic*)getCubeStatisticObject();
-        cube->sendStatisticData(handler);
-        cube = (CCubeStatistic*)getCubeStatisticObject();
-        cube->resetStatisticData();
+        ((CCubeStatistic*)getCubeStatisticObject())->sendStatisticData(handler);
+        ((CCubeStatistic*)getCubeStatisticObject())->resetStatisticData();
     }
 }
 void StatisticManager::AddFatigueBatteryStatistics(Packet_Fatigue_Battery_Money_Statistic* pkt)
@@ -1262,27 +1258,30 @@ void StatisticManager::SendDBDisjointAvatarInfoTotal(CServerHandler* handler)
     handler->SendToDB((PacketHeader*)&pkt);
     DNF_LOG_SCOPE_LINE(0x5fa, "./log/statistic", "Packet_Avater_Disjoint_Statistic_DB");
 }
+namespace
+{
+union __attribute__((packed)) EmblemCreateWire
+{
+    struct
+    {
+        char m_hdr[2];
+        int m_arrA[0x100];
+    } a;
+    struct
+    {
+        char m_hdr2[0xa];
+        int m_count;
+        int m_arrB[0x100];
+    } b;
+};
+}
 void StatisticManager::AddCreateEmblemInfo(Packet_Emblem_Create_Statistic* pkt)
 {
-    union __attribute__((packed)) Wire
+    for (int i = 0; i < ((EmblemCreateWire*)pkt)->b.m_count; i++)
     {
-        struct __attribute__((packed))
+        for (int j = 0; j < ((EmblemCreateWire*)pkt)->a.m_arrA[i + 8]; j++)
         {
-            char m_hdr[2];
-            int m_arrA[0x100];
-        } a;
-        struct __attribute__((packed))
-        {
-            char m_hdr2[0xa];
-            int m_count;
-            int m_arrB[0x100];
-        } b;
-    };
-    for (int i = 0; i < ((Wire*)pkt)->b.m_count; i++)
-    {
-        for (int j = 0; j < ((Wire*)pkt)->a.m_arrA[i + 8]; j++)
-        {
-            m_createEmblem.increaseCount(((Wire*)pkt)->b.m_arrB[i]);
+            m_createEmblem.increaseCount(((EmblemCreateWire*)pkt)->b.m_arrB[i]);
         }
     }
 }

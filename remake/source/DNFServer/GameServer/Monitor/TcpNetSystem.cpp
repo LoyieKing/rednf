@@ -81,8 +81,8 @@ int EpollHandler::SetEpoll(void* peer, int fd, bool flag)
     }
     m_peer = peer;
     CGuard<CMutex> guard(&m_mutex);
-    int r = epoll_ctl(m_epollFd, 1, fd, (epoll_event*)((char*)this + 4));
-    if (r < 0)
+    register int r;
+    if (epoll_ctl(m_epollFd, 1, fd, (epoll_event*)((char*)this + 4)) < 0)
     {
         r = errno;
     }
@@ -98,8 +98,8 @@ int EpollHandler::ResetEpoll(int fd)
     memset((char*)this + 4, 0, 0xc);
     ((RA_INT<4>*)this)->v = 1;
     CGuard<CMutex> guard(&m_mutex);
-    register int r = epoll_ctl(m_epollFd, 2, fd, (epoll_event*)((char*)this + 4));
-    if (r < 0)
+    register int r;
+    if (epoll_ctl(m_epollFd, 2, fd, (epoll_event*)((char*)this + 4)) < 0)
     {
         r = errno;
     }
@@ -138,10 +138,8 @@ void* EpollHandler::GetEventPtr(int idx)
 }
 
 CTcpNetSystem::CTcpNetSystem()
+    : m_handler(0), m_networkThread(0), m_acceptThread(0), m_port(0)
 {
-    m_handler = 0;
-    m_networkThread = 0;
-    m_acceptThread = 0;
 }
 
 CTcpNetSystem::~CTcpNetSystem()
@@ -154,32 +152,14 @@ CTcpNetSystem::~CTcpNetSystem()
     }
     if (m_acceptThread != 0)
     {
-        void* h = (void*)m_acceptThread;
-        if (h != 0)
-        {
-            void (**vt)(void*) = *(void(***)(void*))h;
-            vt[0](h);
-        }
-        if (m_acceptThread != 0)
-        {
-            void (**vt)(void*) = *(void(***)(void*))(void*)m_acceptThread;
-            vt[3]((void*)m_acceptThread);
-        }
+        m_acceptThread->stop();
+        delete m_acceptThread;
         m_acceptThread = 0;
     }
     if (m_networkThread != 0)
     {
-        void* h = (void*)m_networkThread;
-        if (h != 0)
-        {
-            void (**vt)(void*) = *(void(***)(void*))h;
-            vt[0](h);
-        }
-        if (m_networkThread != 0)
-        {
-            void (**vt)(void*) = *(void(***)(void*))(void*)m_networkThread;
-            vt[3]((void*)m_networkThread);
-        }
+        m_networkThread->stop();
+        delete m_networkThread;
         m_networkThread = 0;
     }
 }
@@ -206,42 +186,40 @@ bool CTcpNetSystem::OpenTcpService(int& sockRef, const char* ip, unsigned short 
 {
     CPeer* peer = CreatePeer();
     TCPSocket* sock = peer->GetTcpSocket();
-    if (sock->open())
+    if (!sock->open())
     {
-        if (sock->connect(ip, port))
-        {
-            sock->setOptNonBlock();
-            CMutex* b = Get_TcpRecvBLock();
-            CMutex* q = Get_TcpRecvQLock();
-            void* recvQ = Get_TcpSwapQPacket()->GetRecvQ();
-            peer->InitPeer((std::queue<CTcpRecvBuffer*>*)recvQ, q, b);
-            peer->ConnSig();
-            SetEpollConnectedPeer(peer);
-            sockRef = sock->getHandle();
-            return 1;
-        }
+        puts("tcpSock.open() Fail!");
+        DNF_LOG_SCOPE_LINE(0x118, "./log/TcpServer", "tcpSock.open() Fail!");
+        DeletePeer(peer);
+        return 0;
+    }
+    if (!sock->connect(ip, port))
+    {
         puts("tcpSock.connect Fail!");
         DNF_LOG_SCOPE_LINE(0x123, "./log/TcpServer", "tcpSock.connect(%s, %d) Fail!", ip, (unsigned int)port);
         DeletePeer(peer);
         return 0;
     }
-    puts("tcpSock.open() Fail!");
-    DNF_LOG_SCOPE_LINE(0x118, "./log/TcpServer", "tcpSock.open() Fail!");
-    DeletePeer(peer);
-    return 0;
+    sock->setOptNonBlock();
+    CMutex* b = Get_TcpRecvBLock();
+    CMutex* q = Get_TcpRecvQLock();
+    void* recvQ = Get_TcpSwapQPacket()->GetRecvQ();
+    peer->InitPeer((std::queue<CTcpRecvBuffer*>*)recvQ, q, b);
+    peer->ConnSig();
+    SetEpollConnectedPeer(peer);
+    sockRef = sock->getHandle();
+    return 1;
 }
 
 void CTcpNetSystem::CleanPeers()
 {
-    for (std::map<unsigned int, CPeer*>::iterator it = m_peers.begin(); it != m_peers.end(); ++it)
+    std::map<unsigned int, CPeer*>::iterator it = m_peers.begin();
+    while (it != m_peers.end())
     {
-        {
-            CGuard<CMutex> guard(&m_mutex78);
-            if (it->second != 0)
-            {
-                delete it->second;
-            }
-        }
+        CGuard<CMutex> guard(&m_mutex78);
+        register CPeer* p = it->second;
+        delete p;
+        ++it;
     }
     m_peers.clear();
 }
@@ -329,17 +307,14 @@ int CTcpNetSystem::WaitForEvent()
 
 void CTcpNetSystem::DeletePeer(CPeer* peer)
 {
-    int fd = peer->GetTcpSocket()->getHandle();
-    std::map<unsigned int, CPeer*>::iterator it = m_peers.find((unsigned int)fd);
+    unsigned int fd = peer->GetTcpSocket()->getHandle();
+    std::map<unsigned int, CPeer*>::iterator it = m_peers.find(fd);
     if (it != m_peers.end())
     {
         m_peers.erase(it);
     }
     CGuard<CMutex> guard(&m_mutex78);
-    if (peer != 0)
-    {
-        delete peer;
-    }
+    delete peer;
 }
 
 CPeer* CTcpNetSystem::CreatePeer()
@@ -366,33 +341,43 @@ CPeer* CTcpNetSystem::GetPeer(unsigned int id)
 
 void CTcpNetSystem::PopDeleteTcpSendPacketQ(CTcpSendBuffer* buf)
 {
-    CGuard<CMutex> guard1(&m_mutexe8);
-    m_sendQ.pop();
-    CGuard<CMutex> guard2(&m_mutex100);
-    delete buf;
+    {
+        CGuard<CMutex> guard1(&m_mutexe8);
+        m_sendQ.pop();
+    }
+    {
+        CGuard<CMutex> guard2(&m_mutex100);
+        delete buf;
+    }
 }
 
 void CTcpNetSystem::CleanTcpSendPacketQ()
 {
     while (true)
     {
-        CTcpSendBuffer* buf = 0;
-        bool empty;
+        register CTcpSendBuffer* buf;
+        register int flag;
         {
             CGuard<CMutex> guard1(&m_mutexe8);
-            empty = m_sendQ.empty();
-            if (!empty)
+            if (m_sendQ.empty())
+            {
+                flag = 0;
+            }
+            else
             {
                 buf = m_sendQ.front();
                 m_sendQ.pop();
+                flag = 1;
             }
         }
-        if (empty)
+        if (!flag)
         {
             break;
         }
-        CGuard<CMutex> guard2(&m_mutex100);
-        delete buf;
+        {
+            CGuard<CMutex> guard2(&m_mutex100);
+            delete buf;
+        }
     }
     DNF_LOG_SCOPE_LINE(0x16b, "./log/TcpSend", "Clean Tcp Send Queue Complete !");
 }

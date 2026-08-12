@@ -45,18 +45,15 @@ void StartEffectTask::_DoExecute()
 {
     if (m_flag != 0)
     {
-        time_t now = time(0);
-        EventManager* em = EventManager::Get();
-        unsigned int end = (unsigned int)now + em->GetDurationTime();
-        EndEffectTask* task = new EndEffectTask(end, 0);
+        time_t end = time(0) + (time_t)EventManager::Get()->GetDurationTime();
+        EndEffectTask* task = new EndEffectTask((unsigned int)end, 0);
         ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
         tm* t = localtime((time_t*)&end);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0xb0,"./log/AradOnly", "[Momiji] start event. next endEffect %02dh:%02dm:%02ds",
             t->tm_hour, t->tm_min, t->tm_sec);
-        em->sendApplyEffect(end);
+        EventManager::Get()->sendApplyEffect((unsigned int)end);
     }
-    EventManager* em = EventManager::Get();
-    em->SetStartEffectTask(0);
+    EventManager::Get()->SetStartEffectTask(0);
 }
 
 EndEffectTask::EndEffectTask(unsigned int time, unsigned int flag)
@@ -72,11 +69,10 @@ void EndEffectTask::_DoExecute()
 {
     if (((RA_S8<16>*)this)->v != 0)
     {
-        time_t now = time(0);
-        EventManager* em = EventManager::Get();
-        unsigned int next = (unsigned int)now +
-                            (em->GetIntervalTime() - em->GetDurationTime());
-        StartEffectTask* task = new StartEffectTask(next, 0);
+        time_t next = time(0) +
+                      (EventManager::Get()->GetIntervalTime() -
+                       EventManager::Get()->GetDurationTime());
+        StartEffectTask* task = new StartEffectTask((unsigned int)next, 0);
         ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
         tm* t = localtime((time_t*)&next);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 200,"./log/AradOnly", "[Momiji] start event. next startEffect %02dh:%02dm:%02ds",
@@ -134,39 +130,36 @@ void EventManager::sendApplyEffect(unsigned int time)
 void EventManager::StartEvent(unsigned char startHour, unsigned char interval,
                               unsigned char duration)
 {
-    if (duration < interval)
-    {
-        if (startHour < 0x18)
-        {
-            m_interval = (unsigned int)interval * 0x3c;
-            m_duration = (unsigned int)duration * 0x3c;
-            m_startHour = startHour;
-            time_t now = time(0);
-            tm* t = localtime(&now);
-            t->tm_hour = startHour;
-            t->tm_min = 0;
-            t->tm_sec = 0;
-            time_t first = mktime(t);
-            while ((int)first <= (int)now)
-            {
-                first = (unsigned int)interval * 0x3c + first;
-            }
-            StartEffectTask* task = new StartEffectTask((unsigned int)first, 0);
-            ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
-            tm* t2 = localtime((time_t*)&first);
-            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x6e,"./log/AradOnly", "[Momiji] start event. first time %02dh:%02dm:%02ds",
-                t2->tm_hour, t2->tm_min, t2->tm_sec);
-        }
-        else
-        {
-            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x51, "./log/AradOnly", "[Momiji] (startTime(%d) >= 24)", (unsigned int)startHour);
-        }
-    }
-    else
+    if (duration >= interval)
     {
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x4b,"./log/AradOnly", "[Momiji] (durationTime(%d) >= intervalTime(%d))",
             (unsigned int)duration, (unsigned int)interval);
+        return;
     }
+    if (startHour >= 0x18)
+    {
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x51, "./log/AradOnly", "[Momiji] (startTime(%d) >= 24)", (unsigned int)startHour);
+        return;
+    }
+    m_interval = (unsigned int)(interval * 0x3c);
+    m_duration = (unsigned int)(duration * 0x3c);
+    m_startHour = startHour;
+    unsigned char h = startHour;
+    time_t now = time(0);
+    tm* t = localtime(&now);
+    t->tm_hour = startHour;
+    t->tm_min = 0;
+    t->tm_sec = 0;
+    time_t first = mktime(t);
+    while ((int)first <= (int)now)
+    {
+        first = (unsigned int)interval * 0x3c + first;
+    }
+    StartEffectTask* task = new StartEffectTask((unsigned int)first, 0);
+    ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
+    tm* t2 = localtime((time_t*)&first);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x6e,"./log/AradOnly", "[Momiji] start event. first time %02dh:%02dm:%02ds",
+        t2->tm_hour, t2->tm_min, t2->tm_sec);
 }
 
 void EventManager::sendDeleteEffect()
@@ -200,14 +193,13 @@ void EventAction::onStartAction(EventParam& param)
     if (isRunning() != 1)
     {
         m_running = 1;
-        DNF_LOG_SCOPE_AT("onStartAction", 0x17,"./log/AradOnly", "[Momiji] onStartAction(%d,%d,%d)",
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x17,"./log/AradOnly", "[Momiji] onStartAction(%d,%d,%d)",
             (unsigned int)(unsigned char)((RA_S8<0>*)&param)->v,
             (unsigned int)(unsigned char)((RA_S8<1>*)&param)->v,
             (unsigned int)(unsigned char)((RA_S8<2>*)&param)->v);
-        EventManager* em = EventManager::Get();
-        em->StartEvent(((RA_U8<0>*)&param)->v,
-                       ((RA_U8<1>*)&param)->v,
-                       ((RA_U8<2>*)&param)->v);
+        EventManager::Get()->StartEvent(((RA_U8<0>*)&param)->v,
+                                        ((RA_U8<1>*)&param)->v,
+                                        ((RA_U8<2>*)&param)->v);
     }
 }
 

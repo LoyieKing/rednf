@@ -48,10 +48,9 @@ void CBaseEventAction::sendEventAckUpdate(int flag)
     Packet_Manager_Event_Trigger_Ack pkt;
     pkt.m_eventId = (unsigned int)m_eventId;
     pkt.m_flag = (unsigned int)flag;
-    CApplication* app = (CApplication*)CApplicationInstance();
-    CServerHandler* handler = app->Get_ServerHandler();
-    pkt.m_group = (unsigned int)handler->GetServerGroupNo() & 0xff;
-    handler->SendToDB(&pkt);
+    pkt.m_group =
+        (unsigned int)((CApplication*)CApplicationInstance())->Get_ServerHandler()->GetServerGroupNo() & 0xff;
+    ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendToDB(&pkt);
 }
 
 void CBaseEventAction::OnStartEvent(EventParam& param)
@@ -88,8 +87,7 @@ void COnTimeEventAction::onStartAction(EventParam& param)
 {
     DNF_LOG_SCOPE_LINE(0xa7,"./log/OnTimeEvent", "Test Event Action : On Start On Time Event Action %d,%d",
         (unsigned int)param.m_a, (unsigned int)param.m_b);
-    CApplication* app = (CApplication*)CApplicationInstance();
-    COnTimeEventManager* mgr = app->GetOnTimeEventManager();
+    COnTimeEventManager* mgr = ((CApplication*)CApplicationInstance())->GetOnTimeEventManager();
     if (mgr != 0)
     {
         mgr->GetCurEventItemByDBMW((unsigned int)param.m_a, (unsigned int)param.m_b);
@@ -99,8 +97,7 @@ void COnTimeEventAction::onStartAction(EventParam& param)
 void COnTimeEventAction::onEndAction()
 {
     DNF_LOG_SCOPE_LINE(0xc2, "./log/OnTimeEvent", "Test Event Action : On End On Time Event Action");
-    CApplication* app = (CApplication*)CApplicationInstance();
-    COnTimeEventManager* mgr = app->GetOnTimeEventManager();
+    COnTimeEventManager* mgr = ((CApplication*)CApplicationInstance())->GetOnTimeEventManager();
     if (mgr != 0)
     {
         mgr->EndEvent();
@@ -149,8 +146,7 @@ void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
     if (code < 0xa6)
     {
         unsigned int param = ((RA_UINT<14>*)pkt)->v;
-        CBaseEventAction* action = m_actions[code];
-        action->OnStartEvent(*(EventParam*)&param);
+        m_actions[code]->OnStartEvent(*(EventParam*)&param);
         ((RA_UINT<14>*)pkt)->v = param;
     }
     return;

@@ -285,7 +285,7 @@ class CInitAccusationListMgr
 public:
     CInitAccusationListMgr(CApplication& app);
     ~CInitAccusationListMgr();
-    void setSchedule(bool const& flag);
+    bool setSchedule(bool const& flag);
     CApplication* getApp() const;
     char m_data[4];
 };

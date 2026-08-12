@@ -42,7 +42,8 @@ namespace village_attacked
 int village_attacked_scheduler[18];
 int MAX_SCHEDULER_COUNT;
 int HUNTING_POINT_WEIGTH_CONST;
-int HuntingPointMultiplier[0x12] = {0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static int HuntingPointMultiplier[0x12] = {0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static const int tRealConfig[7] = {2, 4, 3600, 600, 600, 300, 60};
 int REWARD_BUFF_TIME;
 int REWARD_PENALTY_TIME;
 int COUNTDOWN_FIRST_TIME;
@@ -94,13 +95,13 @@ void SetRealConfig()
     village_attacked_scheduler[15] = -1;
     village_attacked_scheduler[16] = -1;
     village_attacked_scheduler[17] = -1;
-    MAX_SCHEDULER_COUNT = 2;
-    HUNTING_POINT_WEIGTH_CONST = 4;
-    REWARD_BUFF_TIME = 3600;
-    REWARD_PENALTY_TIME = 600;
-    COUNTDOWN_FIRST_TIME = 600;
-    COUNTDOWN_SECOND_TIME = 300;
-    COUNTDOWN_THIRD_TIME = 60;
+    MAX_SCHEDULER_COUNT = tRealConfig[0];
+    HUNTING_POINT_WEIGTH_CONST = tRealConfig[1];
+    REWARD_BUFF_TIME = tRealConfig[2];
+    REWARD_PENALTY_TIME = tRealConfig[3];
+    COUNTDOWN_FIRST_TIME = tRealConfig[4];
+    COUNTDOWN_SECOND_TIME = tRealConfig[5];
+    COUNTDOWN_THIRD_TIME = tRealConfig[6];
 }
 
 void SetGMConfig(unsigned int a, unsigned int b, unsigned int c)
@@ -241,9 +242,9 @@ void CVillageAttackedManager::RequestEventEnd(bool flag)
 {
     if (flag)
     {
-        m_field1c = m_field20;
+        m_field1c = (int)m_field20;
     }
-    else if ((unsigned int)m_field20 <= (unsigned int)m_field1c)
+    else if ((unsigned int)m_field1c >= (unsigned int)m_field20)
     {
         m_field1c = m_field1c - 1;
     }
@@ -252,7 +253,7 @@ void CVillageAttackedManager::RequestEventEnd(bool flag)
 
 int CVillageAttackedManager::GetMaxHuntingPoint()
 {
-    unsigned int group = (unsigned int)m_app->Get_ServerGroup() & 0xff;
+    int group = (unsigned char)m_app->Get_ServerGroup();
     if (0 < group && group <= 0x11)
     {
         return m_app->Get_UserManager()->Size() * HuntingPointMultiplier[group];
@@ -333,7 +334,7 @@ void CVillageAttackedManager::Reset()
 {
     m_huntingPoints.clear();
     m_field1c = 0;
-    m_field20 = GetMaxHuntingPoint();
+    this->m_field20 = GetMaxHuntingPoint();
     m_state24 = 0;
     m_field28 = 0;
     m_field2c = 0;
@@ -372,7 +373,9 @@ void CVillageAttackedManager::OnEndVillageAttacked()
 void CVillageAttackedManager::OnRewardVillageAttacked()
 {
     Packet_VillageAttackedRewardServer pkt;
-    m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, 0xe);
+    pkt.m_fieldA = 0;
+    m_app->Get_ServerHandler()->SendAllToGameServer(
+        (char*)&pkt, (unsigned int)pkt.packetSize);
     m_field30 = 0;
 }
 
@@ -431,8 +434,8 @@ void CVillageAttackedManager::SendVillageAttackedReward(CUser* user, int rewardT
     Packet_VillageAttackedReward pkt;
     pkt.m_idByChannel = user->GetIdByChannel();
     pkt.m_uniqCharNo = user->GetUniqCharNo();
-    pkt.m_rewardType = rewardType;
-    user->SendToGameserver((char*)&pkt, 0x1a);
+    pkt.m_count = rewardType;
+    user->SendToGameserver((char*)&pkt, (unsigned int)pkt.packetSize);
 }
 
 void CVillageAttackedManager::OnCharacLogin(CUser* user)
@@ -462,9 +465,9 @@ void CVillageAttackedManager::SendVillageAttackedRewardJpn(CUser* user, int coun
     Packet_VillageAttackedReward pkt;
     pkt.m_idByChannel = user->GetIdByChannel();
     pkt.m_uniqCharNo = user->GetUniqCharNo();
-    pkt.m_rewardType = 5;
-    pkt.m_count = count;
-    user->SendToGameserver((char*)&pkt, 0x1a);
+    pkt.m_count = 5;
+    pkt.m_rewardType = count;
+    user->SendToGameserver((char*)&pkt, (unsigned int)pkt.packetSize);
 }
 
 void CVillageAttackedManager::SendMinTime()
@@ -712,9 +715,10 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
 
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
-    char* p = pkt;
-    ((RA_UINT<10>*)p)->v = m_field30;
-    ((RA_UINT<14>*)p)->v = GetDungeonRemainTime();
+    RA_UINT<10>* p10 = (RA_UINT<10>*)pkt;
+    p10->v = m_field30;
+    RA_UINT<14>* p14 = (RA_UINT<14>*)pkt;
+    p14->v = GetDungeonRemainTime();
 }
 
 void CVillageAttackedManager::ProcessByMinute()

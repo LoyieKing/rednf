@@ -302,7 +302,7 @@ public:
     void NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned char count,
                                                const hyperlink_item_info* items, CUser* user);
     void NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user);
-    bool IsThereUpper() const;
+    bool IsThereUpper() const { return m_dbInfo.m_member.m_field0 != 0; }
     int GetUpperMember_CharId() const;
     int FindLowerMember(unsigned int charNo) const;
     unsigned int GetLowerMemberCount() const;

@@ -314,8 +314,8 @@ public:
     void Reset();
     CApplication* m_app;                       // +0
     std::map<unsigned int, stHuntingPoint> m_huntingPoints;  // +4
-    int m_field1c;                             // +0x1c
-    int m_field20;                             // +0x20
+    unsigned int m_field1c;                    // +0x1c
+    unsigned int m_field20;                    // +0x20
     unsigned char m_state24;                   // +0x24
     char m_pad25[3];                           // +0x25
     int m_field28;                             // +0x28

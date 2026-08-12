@@ -178,7 +178,7 @@ CInitAccusationListMgr::CInitAccusationListMgr(CApplication& app)
 
 CInitAccusationListMgr::~CInitAccusationListMgr() {}
 
-void CInitAccusationListMgr::setSchedule(bool const& flag)
+bool CInitAccusationListMgr::setSchedule(bool const& flag)
 {
     time_t t = GetNowTime();
     struct tm* lt = localtime(&t);
@@ -190,8 +190,11 @@ void CInitAccusationListMgr::setSchedule(bool const& flag)
     {
         next += 0x15180;
     }
-    CInitAccusationList* list = new CInitAccusationList(next, 0, this);
-    getApp()->GetTaskScheduler()->AddTask(list);
+    // ORIG：无 EH 清理（placement new 形态），GetTaskScheduler 直接读 *this
+    void* mem = operator new(0x14);
+    CInitAccusationList* list = new (mem) CInitAccusationList(next, 0, this);
+    (*(CApplication**)this)->GetTaskScheduler()->AddTask(list);
+    return true;
 }
 
 CApplication* CInitAccusationListMgr::getApp() const
@@ -826,7 +829,9 @@ char CApplication::isAbleUserChatWithGM(unsigned int channel, unsigned int charN
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
     if (it != m_map368.end())
     {
-        if (std::find(it->second.begin(), it->second.end(), charNo) != it->second.end())
+        // ORIG：比较写成 end() != std::find(...)（GCC -O0 先求值右侧 find；
+        // find 参数求值顺序为 end() 在前 begin() 在后，栈槽 -0x14/-0x10）
+        if (it->second.end() != std::find(it->second.begin(), it->second.end(), charNo))
         {
             return 1;
         }
@@ -1029,11 +1034,12 @@ void CApplication::ClearAccusationList()
 
 void CApplication::Add_GM_id(unsigned int id)
 {
-    std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(id);
-    if (it == m_map368.end())
+    // ORIG：单表达式 find(id)==end()（右先求值：end() 在前），make_pair 走 rvalue 形态
+    if (m_map368.find(id) == m_map368.end())
     {
         std::list<unsigned int> l;
-        m_map368.insert(std::make_pair(id, l));
+        // ORIG：make_pair 显式模板实参 <uint,list>（直接取 id/l 地址，无 move 调用）
+        m_map368.insert(std::make_pair<unsigned int, std::list<unsigned int> >(id, l));
     }
 }
 
@@ -1133,16 +1139,22 @@ void CApplication::ProcessTimeSync()
 {
     time_t now = time(0);
     tm t = *localtime(&now);
-    int hour = t.tm_hour;
-    int min = t.tm_min;
-    if (hour != m_timeSyncHour && hour >= 0 && hour < 0x18 && min >= 0 && min < 0x3c)
+    // ORIG：无独立 hour/min 局部变量（栈槽复用 struct tm 字段），
+    // 且各范围检查为 goto 形态（ORIG 尾部为 4×`nop; jmp` 汇合 stub）
+    if (t.tm_hour != m_timeSyncHour)
     {
+        if (t.tm_hour < 0) goto end;
+        if (t.tm_hour > 0x17) goto end;
+        if (t.tm_min < 0) goto end;
+        if (t.tm_min > 0x3b) goto end;
         Packet_Send_Time_Sync pkt;
-        pkt.m_fieldA = (unsigned short)hour;
-        pkt.m_fieldC = (unsigned short)min;
+        pkt.m_fieldA = (unsigned short)t.tm_hour;
+        pkt.m_fieldC = (unsigned short)t.tm_min;
         m_serverHandler2->SendAllTcpGameServer(&pkt);
-        m_timeSyncHour = (short)hour;
+        m_timeSyncHour = (short)t.tm_hour;
     }
+end:
+    ;
 }
 
 void CApplication::UpdateCollectItems()
@@ -1151,17 +1163,17 @@ void CApplication::UpdateCollectItems()
     tm t = *localtime(&now);
     if ((t.tm_min & 1U) == 0)
     {
-        CollectItms* items = (CollectItms*)m_field388;
+        // ORIG：不设局部指针，每次直接读成员 m_field388
         Packet_CollectItemsUpdate pkt;
-        pkt.m_fieldA = ((RA_UINT<4>*)items)->v;
-        pkt.m_fieldF = ((RA_UINT<8>*)items)->v;
+        pkt.m_fieldA = ((RA_UINT<4>*)(CollectItms*)m_field388)->v;
+        pkt.m_fieldF = ((RA_UINT<8>*)(CollectItms*)m_field388)->v;
         pkt.m_fieldE = Get_ServerGroup();
-        pkt.m_field13 = ((RA_U8<12>*)items)->v;
+        pkt.m_field13 = ((RA_U8<12>*)(CollectItms*)m_field388)->v;
         m_serverHandler2->SendToDB(&pkt);
         Packet_CollectItemsResult pkt2;
-        pkt2.m_fieldE = ((RA_UINT<4>*)items)->v;
-        pkt2.m_fieldA = ((RA_UINT<0>*)items)->v;
-        pkt2.m_field12 = ((RA_UINT<8>*)items)->v;
+        pkt2.m_fieldE = ((RA_UINT<4>*)(CollectItms*)m_field388)->v;
+        pkt2.m_fieldA = ((RA_UINT<0>*)(CollectItms*)m_field388)->v;
+        pkt2.m_field12 = ((RA_UINT<8>*)(CollectItms*)m_field388)->v;
         m_serverHandler2->SendAllTcpGameServer(&pkt2);
     }
 }

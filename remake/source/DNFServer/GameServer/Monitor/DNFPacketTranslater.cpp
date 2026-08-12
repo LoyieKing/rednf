@@ -38,6 +38,30 @@
 #include "DNFAppConfig.h"
 #include "DNFApplication.h"
 #include "DNFBuddy.h"
+
+// 与 ORIG 逐指令对齐用的本地报文布局（handler 直改 pkt 字节时的成员形态）
+struct __attribute__((packed)) MonitorMegaPhonePkt
+{
+    char m_pad0[2];
+    unsigned short m_sz;   // +0x2
+    char m_pad1[6];
+    signed char m_sg;      // +0xa
+};
+
+struct __attribute__((packed)) MonitorCollectGmPkt
+{
+    char m_pad0[2];
+    unsigned short m_sz;   // +0x2
+    char m_pad1[6];
+    unsigned char m_sg;    // +0xa
+};
+
+struct __attribute__((packed)) MonitorMailPkt
+{
+    char m_pad0[10];
+    unsigned int m_charNo;      // +0xa
+    int m_idByChannel;          // +0xe
+};
 #include "DNFChannelWaitingUser.h"
 #include "DNFGameServer.h"
 #include "DNFManagerServer.h"
@@ -1810,13 +1834,13 @@ void CPacketTranslater::OnEventStart(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        printf("CPacketTranslater::OnEventStart() 예외 발생 : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0xa3b, "./log/Except", "CPacketTranslater::OnEventStart() 예외 발생 : %s\n", e.what());
+        printf("CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0xa3b, "./log/Except", "CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd : %s\n", e.what());
     }
     catch (...)
     {
-        puts("CPacketTranslater::OnEventStart() 예외 발생");
-        DNF_LOG_SCOPE_LINE(0xa41, "./log/Except", "CPacketTranslater::OnEventStart() 예외 발생\n");
+        puts("CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd");
+        DNF_LOG_SCOPE_LINE(0xa41, "./log/Except", "CPacketTranslater::OnEventStart() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd\n");
     }
 }
 
@@ -1829,20 +1853,20 @@ void CPacketTranslater::OnEventEnd(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::OnEventEnd : 0 == m_pclApp");
         }
         PacketHeader* rpkt = pkt;
-        unsigned int code = ((RA_UINT<10>*)pkt)->v;
-        DNF_LOG_SCOPE_LINE(0xa66, "./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n", code);
-        ((CEventActionManager*)((RA_INT<796>*)m_pclApp)->v)->OnEndAction(code);
+        DNF_LOG_SCOPE_LINE(0xa66, "./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n",
+            ((RA_UINT<10>*)rpkt)->v);
+        ((CEventActionManager*)((RA_INT<796>*)m_pclApp)->v)->OnEndAction(((RA_UINT<10>*)rpkt)->v);
         m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(pkt);
     }
     catch (CDNFException& e)
     {
-        printf("CPacketTranslater::OnEventEnd() 예외 발생 : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0xa73, "./log/Except", "CPacketTranslater::OnEventEnd() 예외 발생 : %s\n", e.what());
+        printf("CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0xa73, "./log/Except", "CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd : %s\n", e.what());
     }
     catch (...)
     {
-        puts("CPacketTranslater::OnEventEnd() 예외 발생");
-        DNF_LOG_SCOPE_LINE(0xa79, "./log/Except", "CPacketTranslater::OnEventEnd() 예외 발생\n");
+        puts("CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd");
+        DNF_LOG_SCOPE_LINE(0xa79, "./log/Except", "CPacketTranslater::OnEventEnd() \xbf\xb9\xbf\xdc\x20\xb9\xdf\xbb\xfd\n");
     }
 }
 
@@ -1850,12 +1874,12 @@ void CPacketTranslater::OnNotifyNewMail(PacketHeader* pkt)
 {
     try
     {
-        PacketHeader* pkt2 = pkt;
+        MonitorMailPkt* pkt2 = (MonitorMailPkt*)pkt;
+        CUser* user;
         CUserManager* mgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CUser* user = mgr->FindUser_CharNo(((RA_UINT<10>*)pkt2)->v);
-        if (user != 0)
+        if ((user = mgr->FindUser_CharNo(pkt2->m_charNo)) != 0)
         {
-            ((RA_UINT<14>*)pkt2)->v = user->GetIdByChannel();
+            pkt2->m_idByChannel = user->GetIdByChannel();
             user->SendToGameserver((char*)pkt2, 0x12);
         }
     }
@@ -2119,9 +2143,9 @@ void CPacketTranslater::OnMonitorManagerConnectOK(PacketHeader* pkt)
 
 void CPacketTranslater::OnMonitorMegaPhoneMsg(PacketHeader* pkt)
 {
-    ((RA_S8<10>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
+    MonitorMegaPhonePkt* pkt2 = (MonitorMegaPhonePkt*)pkt;
+    pkt2->m_sg = m_pclApp->Get_ServerGroup();
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, pkt2->m_sz);
 }
 
 void CPacketTranslater::OnRegisterGM_mid(PacketHeader* pkt)
@@ -2675,10 +2699,10 @@ void CPacketTranslater::OnWebNoticeSingle(PacketHeader* pkt)
         }
         else
         {
-            CServerHandler* handler = m_pclApp->m_serverHandler2;
-            handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
-            DNF_LOG_SCOPE_LINE(0xf6f,"./log/WebNotice", "OnWebNoticeSingle : (%s,%d)\n", (char*)pkt + 0xb,
-                (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v);
+            PacketHeader* pkt2 = pkt;
+            m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt2)->v);
+            DNF_LOG_SCOPE_LINE(0xf6f,"./log/WebNotice", "OnWebNoticeSingle : (%s,%d)\n", (char*)pkt2 + 0xb,
+                (unsigned int)(unsigned char)((RA_S8<10>*)pkt2)->v);
         }
     }
     catch (CDNFException& e)
@@ -3143,8 +3167,7 @@ void CPacketTranslater::onWebReqReloadAutoPunishRule(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0xb);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 0xb);
 
 
     }
@@ -3429,13 +3452,13 @@ void CPacketTranslater::OnNotifyAuctionMail(PacketHeader* pkt)
 {
     try
     {
-        PacketHeader* pkt2 = pkt;
+        MonitorMailPkt* pkt2 = (MonitorMailPkt*)pkt;
         CUser* user =
             ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                ((RA_UINT<10>*)pkt2)->v);
+                pkt2->m_charNo);
         if (user != 0)
         {
-            ((RA_UINT<14>*)pkt2)->v = user->GetIdByChannel();
+            pkt2->m_idByChannel = user->GetIdByChannel();
             user->SendToGameserver((char*)pkt2, 0x26);
         }
     }
@@ -4150,11 +4173,8 @@ void CPacketTranslater::OnVillageAttackedRank(PacketHeader* pkt)
 
 void CPacketTranslater::OnMonitorFullLevelBroadCast(PacketHeader* pkt)
 {
-    if (m_pclApp != 0)
-    {
-        CServerHandler* handler = m_pclApp->m_serverHandler2;
-        handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
-    }
+    PacketHeader* pkt2 = pkt;
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt2)->v);
 }
 
 void CPacketTranslater::OnSetARSInfo(PacketHeader* pkt)
@@ -4166,9 +4186,9 @@ void CPacketTranslater::OnSetARSInfo(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnSetARSInfo : 0 == m_pclApp");
     }
+    PacketHeader* pkt2 = pkt;
     DNF_LOG_SCOPE_LINE(0x183d, "./log/Secu", "[ARS_INFO] DBMW -> Monitor -> GameSvr");
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0x4bf);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 0x4bf);
 
 
     }
@@ -4405,8 +4425,8 @@ void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendToDB(pkt);
+    PacketHeader* pkt2 = pkt;
+    m_pclApp->m_serverHandler2->SendToDB(pkt);
     DNF_LOG_SCOPE_LINE(0x19e0, "./log/PeriodicMessage", "Web Request is Arrived and Send Request DBMW");
 
 
@@ -4949,9 +4969,9 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
 
 void CPacketTranslater::OnMonitorMegaPhoneMsgHyperLink(PacketHeader* pkt)
 {
-    PacketHeader* local_pkt = pkt;
-    ((RA_S8<10>*)local_pkt)->v = (char)m_pclApp->Get_ServerGroup();
-    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)local_pkt)->v);
+    MonitorMegaPhonePkt* local_pkt = (MonitorMegaPhonePkt*)pkt;
+    local_pkt->m_sg = m_pclApp->Get_ServerGroup();
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, local_pkt->m_sz);
 }
 
 void CPacketTranslater::onSocialEventRewardItemRequest(PacketHeader* pkt)
@@ -5340,9 +5360,9 @@ void CPacketTranslater::onCollectItemsGm(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::onCollectItemsGm");
     }
-    ((RA_S8<10>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
-    PacketHeader* local_pkt = pkt;
-    m_pclApp->m_serverHandler2->SendToDB(local_pkt);
+    MonitorCollectGmPkt* local_pkt = (MonitorCollectGmPkt*)pkt;
+    local_pkt->m_sg = m_pclApp->Get_ServerGroup();
+    m_pclApp->m_serverHandler2->SendToDB((PacketHeader*)local_pkt);
 
 
     }

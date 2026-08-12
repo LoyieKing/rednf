@@ -295,36 +295,34 @@ void CMember::LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsi
     }
 }
 
-bool CMember::IsThereUpper() const { return m_dbInfo.m_member.m_field0 != 0; }
-
 int CMember::GetUpperMember_CharId() const
 {
-    if ((m_flag & 4) == 0)
+    if ((m_flag & 4) != 0)
     {
-        return 0;
-    }
-    if (!IsThereUpper())
-    {
+        if (IsThereUpper() != 0)
+        {
+            return ((RA_INT<6>*)this)->v;
+        }
         return 0xffffffff;
     }
-    return ((RA_INT<6>*)this)->v;
+    return 0;
 }
 
 int CMember::FindLowerMember(unsigned int charNo) const
 {
     unsigned int count = (unsigned int)m_dbInfo.m_count27;
-    if (count != 0)
+    if (count == 0)
     {
-        const char* p = (const char*)this + 0x2e;
-        while (count != 0)
+        return 0;
+    }
+    const char* p = (const char*)this + 0x2e;
+    while (count-- != 0)
+    {
+        if (*(unsigned int*)p == charNo)
         {
-            count--;
-            if (*(unsigned int*)p == charNo)
-            {
-                return 1;
-            }
-            p += 0x27;
+            return (int)p;
         }
+        p += 0x27;
     }
     return 0;
 }
@@ -434,9 +432,13 @@ unsigned int* CMember::GetUpperMember_Proxy()
 
 unsigned int* CMember::GetUpperMember_Proxy() const
 {
-    if ((((RA_U16<4>*)this)->v & 4) && IsThereUpper())
+    if ((((RA_U16<4>*)this)->v & 4) != 0)
     {
-        return (unsigned int*)((char*)this + 6);
+        if (IsThereUpper() != 0)
+        {
+            return (unsigned int*)((char*)this + 6);
+        }
+        return 0;
     }
     return 0;
 }
@@ -458,64 +460,76 @@ unsigned int CMember::GetUpperMemberExpLevel()
 
 int CMember::GetConnLowerMemberCnt()
 {
-    int cnt = 0;
-    if (m_dbInfo.m_count27 != 0)
+    int count = (int)m_dbInfo.m_count27;
+    if (count != 0)
     {
-        for (int i = 0; i < (int)(unsigned int)m_dbInfo.m_count27; i++)
+        int cnt = 0;
+        int i = 0;
+        for (i = 0; i < count; i++)
         {
-            if (m_memberManager->FindMemberUser(
-                    *(unsigned int*)((char*)this + 0x2e + i * 0x27)) != 0)
+            CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+            if (user == 0)
+            {
+                ;
+            }
+            else
             {
                 cnt++;
             }
         }
+        return cnt;
     }
-    return cnt;
+    return 0;
 }
 
 int CMember::InsertUpperMember(unsigned int charNo, unsigned char level, const char* name,
                                bool flag)
 {
-    if (IsThereUpper() == 0)
+    if (IsThereUpper() != 0)
     {
-        ((RA_U8<10>*)this)->v = level;
-        ((RA_UINT<6>*)this)->v = charNo;
-        memcpy((char*)this + 0xb, name, 0x1d);
-        if (flag)
-        {
-            SetMemberRegisterTime((unsigned int)time(0));
-        }
-        return 1;
+        return 0;
     }
-    return 0;
+    ((RA_U8<10>*)this)->v = level;
+    ((RA_UINT<6>*)this)->v = charNo;
+    memcpy((char*)this + 0xb, name, 0x1d);
+    if (flag)
+    {
+        SetMemberRegisterTime((unsigned int)time(0));
+    }
+    return 1;
 }
 
 int CMember::InsertLowerMember(unsigned int charNo, unsigned char level, const char* name,
                                bool flag)
 {
-    unsigned int n = (unsigned int)m_dbInfo.m_count27;
-    if (n + 1 < 0xb)
+    int n = (int)m_dbInfo.m_count27;
+    if (n + 1 > 0xa)
     {
-        *(unsigned char*)((char*)this + n * 0x27 + 0x32) = level;
-        *(unsigned int*)((char*)this + n * 0x27 + 0x2e) = charNo;
-        memcpy((char*)this + n * 0x27 + 0x33, name, 0x1d);
-        if (flag)
-        {
-            SetMemberRegisterTime((unsigned int)time(0));
-        }
-        m_dbInfo.m_count27++;
-        return 1;
+        return 0;
     }
-    return 0;
+    ST_MemberProxy* p = &m_dbInfo.m_lowers[n];
+    p->m_flag4 = level;
+    p->m_field0 = charNo;
+    memcpy(p->m_name, name, 0x1d);
+    if (flag)
+    {
+        SetMemberRegisterTime((unsigned int)time(0));
+    }
+    m_dbInfo.m_count27++;
+    return 1;
 }
 
 char CMember::IsAlreadyMemberMember(unsigned int charNo) const
 {
-    if (GetUpperMember_CharId() == (int)charNo)
+    if ((unsigned int)GetUpperMember_CharId() == charNo)
     {
         return 1;
     }
-    return FindLowerMember(charNo) != 0;
+    if (FindLowerMember(charNo) != 0)
+    {
+        return 1;
+    }
+    return 0;
 }
 
 void CMember::DeleteUpperMember(unsigned int charNo, bool flag)
