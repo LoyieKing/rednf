@@ -65,7 +65,7 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
 
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
 {
-    bool error = false;
+    register bool error = false;
     std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(*(unsigned int*)&info);
     if (it == m_items.end() && 0x1b < m_items.size())
     {
@@ -93,11 +93,8 @@ void CItemLimitEditionMgr::removeItem(unsigned int ipgno)
     std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(ipgno);
     if (it != m_items.end())
     {
-        CItemLimitEdition* item = it->second;
-        if (item != 0)
-        {
-            delete item;
-        }
+        register CItemLimitEdition* item = it->second;
+        delete item;
         m_items.erase(it);
     }
 }
@@ -105,22 +102,22 @@ void CItemLimitEditionMgr::removeItem(unsigned int ipgno)
 bool CItemLimitEditionMgr::updateItem(unsigned int ipgno, unsigned int sellNum)
 {
     std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(ipgno);
-    if (it != m_items.end())
+    if (it == m_items.end())
     {
-        it->second->updateSellNum(sellNum);
-        return true;
+        return false;
     }
-    return false;
+    it->second->updateSellNum(sellNum);
+    return true;
 }
 
 CItemLimitEdition* CItemLimitEditionMgr::getItemInfo(unsigned int ipgno) const
 {
     std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.find(ipgno);
-    if (it != m_items.end())
+    if (it == m_items.end())
     {
-        return it->second;
+        return 0;
     }
-    return 0;
+    return it->second;
 }
 
 char CItemLimitEditionMgr::isEmpty() const

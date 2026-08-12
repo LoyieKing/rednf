@@ -12,7 +12,7 @@ struct STBuddyDBInfo
     char m_growType;          // +0x21
     unsigned int m_characNo;  // +0x22
     char m_sex;               // +0x26
-};
+} __attribute__((packed));
 
 class Packet_DBMW_Statistic_Login_Logout : public PacketHeader
 {
@@ -513,7 +513,7 @@ class Packet_DBMW_Add_Buddy_Reply : public PacketHeader
 public:
     Packet_DBMW_Add_Buddy_Reply();
     int m_fieldA;          // +0xa
-    char m_padE[0x27];     // +0xe（STBuddyDBInfo 区）
+    STBuddyDBInfo m_info;  // +0xe（STBuddyDBInfo 区）
     char m_field35;        // +0x35（ORIG ctor size 0x36）
 } __attribute__((packed));
 

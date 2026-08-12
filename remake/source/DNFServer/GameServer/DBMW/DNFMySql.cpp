@@ -57,14 +57,15 @@ char* CMySql::blob_to_str(int col, void* buf, int len)
         return 0;
     if (buf == 0 && len > 0x5fff)
         return 0;
-    ((char*)(col * 0x6001 + (unsigned int)this + 0x6070))[0x9] = 0;
+    char* base = (char*)this + col * 0x6001 + 0x6070;
+    base[9] = 0;
     if (len > 0)
     {
-        char* dst = (char*)(col * 0x6001 + 0x6070 + (unsigned int)this + 0x9);
+        char* dst = base + 9;
         dst += mysql_real_escape_string(m_mysql, dst, (const char*)buf, len);
         *dst++ = 0;
     }
-    return (char*)(col * 0x6001 + 0x6070 + (unsigned int)this + 0x9);
+    return base + 9;
 }
 bool CMySql::set_compress_option()
 {
@@ -130,13 +131,12 @@ int CMySql::exec_query()
             int ping = mysql_ping(m_mysql);
             if (ping != 0)
             {
-                int e = mysql_errno(m_mysql);
-                if (e == 0x7d6)
+                if (mysql_errno(m_mysql) == 0x7d6)
                 {
                     if (!mysql_real_connect(m_mysql, m_host, m_pass, m_db,
                                             m_user, 0xcea, 0, 0x400))
                     {
-                        int e2 = mysql_errno(m_mysql);
+                        register int e2 = mysql_errno(m_mysql);
                         CMyFileLog log(__FUNCTION__, 0x118);
                         log("./log/MysqlErr.log",
                             "DB reconnection fail. err_no(%d)\n", e2);
@@ -153,15 +153,16 @@ int CMySql::exec_query()
         }
         if (m_lastErrno != 0x426)
         {
+            register char* q = m_query;
+            register int err = m_lastErrno;
             CMyFileLog log(__FUNCTION__, 0x12a);
             log("./log/MysqlErr.log",
-                "DB error occured (%d) Query('%s')\n", m_lastErrno, m_query);
+                "DB error occured (%d) Query('%s')\n", err, q);
             if (m_lastErrno == 0x7d6)
             {
-            CMyFileLog log2(__FUNCTION__, 300);
+                CMyFileLog log2(__FUNCTION__, 300);
                 log2("./log/MysqlErr.log",
-                     "CMySql::open() Function Error!\tCheck Connection First, Must Be Not Connected!\n",
-                     m_lastErrno, m_query);
+                     "CMySql::open() Function Error!\tCheck Connection First, Must Be Not Connected!\n");
             }
         }
         return 1;
@@ -176,17 +177,20 @@ bool CMySql::exec(unsigned int q)
         ret = exec_query();
         if (ret == 1)
         {
-            CQueryCounterInstance()->SetResponseTime(q);
+            CQueryCounter* p = CQueryCounterInstance();
+            p->SetResponseTime(q);
+            register char* qs = m_query;
             CMyFileLog log(__FUNCTION__, 0x14e);
             log("./log/MysqlErr.log",
                 "Database query error. The last query('%s') has been lost. iret == R_FAIL",
-                m_query);
+                qs);
             return 0;
         }
         if (ret == 0)
             break;
     }
-    CQueryCounterInstance()->SetResponseTime(q);
+    CQueryCounter* p = CQueryCounterInstance();
+    p->SetResponseTime(q);
     if (ret == 0)
     {
         m_result = mysql_store_result(m_mysql);
@@ -202,9 +206,10 @@ bool CMySql::exec(unsigned int q)
         }
         return 1;
     }
+    register char* qs = m_query;
     CMyFileLog log(__FUNCTION__, 0x16e);
     log("./log/MysqlErr.log",
-        "Database query error. The last query('%s') has been lost.", m_query);
+        "Database query error. The last query('%s') has been lost.", qs);
     return 0;
 }
 bool CMySql::fetch()

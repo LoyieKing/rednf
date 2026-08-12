@@ -18,7 +18,7 @@ public:
     CGMAccounts();
     ~CGMAccounts();
     int loadGMAccounts(char const* path);
-    unsigned int isGM(unsigned int id);
+    bool isGM(unsigned int id);
     stGMInfo_t getGMInfo(unsigned int id) const;
     int appendGM(unsigned int id, unsigned int flag);
     int removeGM(unsigned int id, unsigned int flag);

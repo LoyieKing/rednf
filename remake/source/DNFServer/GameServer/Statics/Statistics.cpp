@@ -1214,20 +1214,18 @@ void StatisticManager::SendDBBloodDungeonStatistic(CServerHandler* handler)
 {
     if (m_blood.empty())
     {
+        return;
     }
-    else
+    Packet_DBMW_Query_String pkt;
+    pkt.m_queryId = 0x4ed3;
+    for (std::map<unsigned int, STBloodDungeonStatistic>::iterator it = m_blood.begin();
+         it != m_blood.end(); ++it)
     {
-        Packet_DBMW_Query_String pkt;
-        pkt.m_queryId = 0x4ed3;
-        for (std::map<unsigned int, STBloodDungeonStatistic>::iterator it = m_blood.begin();
-             it != m_blood.end(); ++it)
-        {
-            memset((char*)&pkt + 0xe, 0, 0x1001);
-            snprintf((char*)&pkt + 0xe, 0x400,
-                "inSert into log_blood_dungeon(occ_date,level,try_count,clear_count) values (now(),%d,%d,%d)",
-                it->first, it->second.m_field0, it->second.m_field4);
-            handler->SendToDB((PacketHeader*)&pkt);
-        }
+        memset((char*)&pkt + 0xe, 0, 0x1001);
+        snprintf((char*)&pkt + 0xe, 0x400,
+            "inSert into log_blood_dungeon(occ_date,level,try_count,clear_count) values (now(),%d,%d,%d)",
+            it->first, it->second.m_field0, it->second.m_field4);
+        handler->SendToDB((PacketHeader*)&pkt);
     }
 }
 void StatisticManager::ResetReasonCrashDownInfoMap()
@@ -1272,12 +1270,12 @@ namespace
 {
 union __attribute__((packed)) EmblemCreateWire
 {
-    struct
+    struct __attribute__((packed))
     {
         char m_hdr[2];
         int m_arrA[0x100];
     } a;
-    struct
+    struct __attribute__((packed))
     {
         char m_hdr2[0xa];
         int m_count;

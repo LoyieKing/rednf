@@ -10,7 +10,7 @@ public:
     CAppConfig();
     virtual ~CAppConfig();
     virtual int Load_Table(const std::string& fileName);
-    virtual int Parse_Table(char* data, int size);
+    virtual bool Parse_Table(char* data, int size);
     int Check_FileName(const std::string& fileName);
     int Get_ServerUdpPort();
     int Get_ServerTcpPort();

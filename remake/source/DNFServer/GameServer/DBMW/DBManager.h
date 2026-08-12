@@ -14,7 +14,7 @@ public:
     void Init(ENUM_DB_KIND kind, CApplication* app);
     void Close();
     CDBHandle* GetDBHandle(ENUM_DB_HANDLE_IDX idx);
-    char UpdateQueryCount(unsigned int idx, int count, int time);
+    bool UpdateQueryCount(unsigned int idx, int count, int time);
     char SelectTest();
     char QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm);
     char AwardGuildTitleByMail(int guildId, unsigned int characNo, unsigned int itemId,
@@ -128,7 +128,7 @@ public:
                          Packet_DB_Reply_Query_Guild& reply);
     char QueryOnTimeEventIdxUpdate(Packet_Req_Ontime_Event_Idx_Update* packet);
     char QueryOnTimeEventItem(Packet_Result_Ontime_Event_Item& reply);
-    char QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
+    bool QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
                         unsigned char& count);
     char GetCoinEventPerDay(int serverId, int add, int& out1, int& out2);
     bool QueryCharacNoByName(char* name, unsigned int& characNo, int* result);

@@ -149,8 +149,8 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
 
 void CServerHandler::Process()
 {
-    register bool doHb;
-    register int old;
+    bool doHb;
+    int old;
     if (m_managerServer == 0 || (old = m_heartbeat, m_heartbeat = old + 1, old < 4))
     {
         doHb = false;
@@ -168,25 +168,16 @@ void CServerHandler::Process()
          it != m_gameServers.end(); it++)
     {
         CGameServer* gs = it->second;
-        if (!gs->IsValidServer())
+        if (gs->IsValidServer() && gs->IsConnected() && gs->IsHeartBeatTimeOver())
         {
-            continue;
+            if (gs->GetChannelNo() < 0xbe)
+            {
+                m_app->OnGameServerDown(gs);
+            }
+            gs->OnDisconnect();
         }
-        if (gs->IsConnected() == 0)
-        {
-            continue;
-        }
-        if (gs->IsHeartBeatTimeOver() == 0)
-        {
-            continue;
-        }
-        if (gs->GetChannelNo() < 0xbe)
-        {
-            m_app->OnGameServerDown(gs);
-        }
-        gs->OnDisconnect();
     }
-    register bool dbOk;
+    bool dbOk;
     if (m_dbServer == 0 || !m_dbServer->IsValidServer())
     {
         dbOk = true;
@@ -206,7 +197,7 @@ void CServerHandler::Process()
     }
     if (!m_tcpDbServer.IsValidServer())
     {
-        register bool canConnect;
+        bool canConnect;
         if (*m_tcpDbServer.GetIP() != '\0' && m_tcpDbServer.GetPort() != 0)
         {
             canConnect = true;
@@ -224,8 +215,8 @@ void CServerHandler::Process()
                 (unsigned int)m_tcpDbServer.GetPort());
         }
     }
-    register int hbOld = m_field58;
-    register bool hb = hbOld > 3;
+    int hbOld = m_field58;
+    bool hb = hbOld > 3;
     m_field58 = hbOld + 1;
     if (hb)
     {
@@ -359,10 +350,11 @@ void CServerHandler::SendAllTcpGameServer(PacketHeader* pkt)
         if (tgs->IsValidServer())
         {
             buf = tgs->makePacketHeader(pkt->packetId, pkt->packetSize);
-            memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
+            memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 0xaU);
             tgs->SendToGameServer(buf);
         }
     }
+    __asm__ __volatile__("nop");
 }
 
 void CServerHandler::SendTcpGameServerFirst(PacketHeader* pkt)
@@ -377,10 +369,11 @@ void CServerHandler::SendTcpGameServerFirst(PacketHeader* pkt)
     if (tgs->IsValidServer())
     {
         buf = tgs->makePacketHeader(pkt->packetId, pkt->packetSize);
-        memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
+        memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 0xaU);
         tgs->SendToGameServer(buf);
         return;
     }
+    return;
 }
 
 void CServerHandler::QueryGuildMember(unsigned char group, unsigned int characNo)
@@ -426,9 +419,7 @@ CTcpGameServer* CServerHandler::CreateTcpGameServer(unsigned int group)
 {
     CTcpGameServer* server = new CTcpGameServer();
     server->Init(group, m_app->Get_TcpNetSystem());
-    std::pair<std::map<unsigned int, CTcpGameServer*>::iterator, bool> result =
-        m_tcpGameServers.insert(std::make_pair(group, server));
-    if (result.second)
+    if (m_tcpGameServers.insert(std::make_pair(group, server)).second)
     {
         return server;
     }

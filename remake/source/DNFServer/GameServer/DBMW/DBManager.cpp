@@ -5248,13 +5248,18 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
                           STBuddyDBInfo& info, int& result)
 {
     result = 3;
+    char buf[0x3b] = {0};
+    unsigned int m_id = 0;
+    bool r;
     CDBHandle* h = m_handles[2];    // game db
-    memcpy(&info, name, 0x1d);
-    char buf[0x3c] = {0};
+    int n;
+    void* gm;
+    memcpy((char*)&info, name, 0x1d);
     h->escape_string(buf, name);
-    if (!h->set_query(0x4e50,
-                      "seLect charac_no, lev, job, grow_type, sex, m_id, charac_name from charac_info where charac_name = '%s' and delete_flag = 0",
-                      buf))
+    r = h->set_query(0x4e50,
+                     "seLect charac_no, lev, job, grow_type, sex, m_id, charac_name from charac_info where charac_name = '%s' and delete_flag = 0",
+                     buf);
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0xb8a);
         log("./log/DBQueryErr",
@@ -5262,9 +5267,10 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
             buf);
         return 0;
     }
-    if (!h->exec(0x4e50))
+    r = h->exec(0x4e50);
+    if (!r)
         return 0;
-    int n = h->get_n_rows();
+    n = h->get_n_rows();
     if (n == 0)
         return 0;
     if (n > 1)
@@ -5273,33 +5279,43 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
         log("./log/DBQueryErr",
             "CDBManager::AddBuddy() : n_data != 1( %d ) \n", n);
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
         return 0;
-    if (!h->get_uint(0, info.m_characNo))
+    r = h->get_uint(0, *(unsigned int*)((char*)&info + 0x22));
+    if (!r)
         return 0;
-    if (!h->get_short(1, info.m_lev))
+    r = h->get_short(1, *(short*)((char*)&info + 0x1e));
+    if (!r)
         return 0;
-    if (!h->get_byte(2, info.m_job))
+    r = h->get_byte(2, *(char*)((char*)&info + 0x20));
+    if (!r)
         return 0;
-    if (!h->get_byte(3, info.m_growType))
+    r = h->get_byte(3, *(char*)((char*)&info + 0x21));
+    if (!r)
         return 0;
-    if (!h->get_byte(4, info.m_sex))
+    r = h->get_byte(4, *(char*)((char*)&info + 0x26));
+    if (!r)
         return 0;
-    unsigned int m_id = 0;
-    if (!h->get_uint(5, m_id))
+    r = h->get_uint(5, m_id);
+    if (!r)
         return 0;
-    void* gm = m_app->GetGMAccounts();
-    if (gm && ((WongWork::CGMAccounts*)gm)->isGM(m_id))
+    gm = m_app->GetGMAccounts();
+    if (gm)
     {
-        result = 0x5a;
-        return 0;
+        if (((WongWork::CGMAccounts*)gm)->isGM(m_id))
+        {
+            result = 0x5a;
+            return 0;
+        }
     }
-    if (!h->get_str(6, (char*)&info, 0x1e))
+    r = h->get_str(6, (char*)&info, 0x1e);
+    if (!r)
         return 0;
-    if (!h->set_query(0x4e51, "inSert into charac_friends values (%d, %d)",
-                      characNo, info.m_characNo))
-        return 0;
-    if (!h->exec(0x4e51))
+    h->set_query(0x4e51, "inSert into charac_friends values (%d, %d)",
+                 characNo, info.m_characNo);
+    r = h->exec(0x4e51);
+    if (!r)
         return 0;
     result = 0;
     return 1;
@@ -5956,7 +5972,7 @@ char CDBManager::QueryOnTimeEventItem(Packet_Result_Ontime_Event_Item& reply)
         return 0;
     return 1;
 }
-char CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
+bool CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
                                 unsigned char& count)
 {
     CDBHandle* h = m_handles[2];    // game db
@@ -5978,17 +5994,17 @@ char CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
         if (!h->fetch())
             return 1;
         STBuddyDBInfo& b = buddies[i];
-        if (!h->get_uint(0, b.m_characNo))
+        if (!h->get_uint(0, *(unsigned int*)((char*)&b + 0x22)))
             return 0;
         if (!h->get_str(1, b.m_name, 0x1e))
             return 0;
-        if (!h->get_short(2, b.m_lev))
+        if (!h->get_short(2, *(short*)((char*)&b + 0x1e)))
             return 0;
-        if (!h->get_byte(3, b.m_job))
+        if (!h->get_byte(3, *(char*)((char*)&b + 0x20)))
             return 0;
-        if (!h->get_byte(4, b.m_growType))
+        if (!h->get_byte(4, *(char*)((char*)&b + 0x21)))
             return 0;
-        if (!h->get_byte(5, b.m_sex))
+        if (!h->get_byte(5, *(char*)((char*)&b + 0x26)))
             return 0;
     }
     return 1;

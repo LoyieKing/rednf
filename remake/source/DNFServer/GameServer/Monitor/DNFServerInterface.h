@@ -260,7 +260,7 @@ public:
     stServerInfo* m_info;  // +4
     bool m_connected;      // +8
     unsigned char m_heart; // +9
-    char m_padA[2];        // +0xa
+    unsigned char m_padA[2]; // +0xa
     void* m_udpHandler;    // +0xc
 };
 

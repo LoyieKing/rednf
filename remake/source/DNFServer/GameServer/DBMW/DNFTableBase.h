@@ -20,7 +20,7 @@ public:
     CTableBase();
     virtual ~CTableBase();
     virtual int Load_Table(const std::string& fileName) = 0;   // vptr+0x8
-    virtual int Parse_Table(char* data, int size) = 0;         // vptr+0xc
+    virtual bool Parse_Table(char* data, int size) = 0;        // vptr+0xc（ORIG 返回 bool）
     int Load_Txt_Table_Data(const char* fileName, int idx);    // 非虚
 };
 

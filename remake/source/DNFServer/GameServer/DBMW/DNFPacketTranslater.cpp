@@ -1990,8 +1990,7 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* header)
         reply.m_fieldA = pkt->m_mid;
         int result = 0;
         m_pclApp->m_dbManager.AddBuddy(pkt->m_mid, pkt->m_name,
-                                       *(STBuddyDBInfo*)((char*)&reply + 0xe),
-                                       result);
+                                       reply.m_info, result);
         reply.m_field35 = (char)result;
         CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
         ms->SendToServer((char*)&reply, reply.packetSize);
@@ -2399,13 +2398,14 @@ void CPacketTranslater::OnQueryBuddyInfo(PacketHeader* header)
         Packet_DBMW_Query_Buddy* pkt = (Packet_DBMW_Query_Buddy*)header;
         Packet_DBMW_Query_Buddy_Info_Reply reply;
         reply.m_fieldA = pkt->m_characNo;
-        if (!m_pclApp->m_dbManager.QueryBuddyInfo(
+        if (m_pclApp->m_dbManager.QueryBuddyInfo(
                 pkt->m_characNo,
                 (STBuddyDBInfo*)((char*)&reply + 0xf),
-                reply.m_fieldE))
-            return;
-        CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
-        ms->SendToServer((char*)&reply, reply.packetSize);
+                *(unsigned char*)((char*)&reply + 0xe)))
+        {
+            CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+            ms->SendToServer((char*)&reply, reply.packetSize);
+        }
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnQueryBuddyInfo() Exception Break",

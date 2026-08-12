@@ -32,7 +32,7 @@ bool WongWork::CGMAccounts::stGMInfo_t::operator==(const stGMInfo_t& other) cons
     return m_field0 == other.m_field0;
 }
 int WongWork::CGMAccounts::loadGMAccounts(char const* path) { return 1; }
-unsigned int WongWork::CGMAccounts::isGM(unsigned int id)
+bool WongWork::CGMAccounts::isGM(unsigned int id)
 {
     stGMInfo_t key = {};
     key.m_field1 = 3;

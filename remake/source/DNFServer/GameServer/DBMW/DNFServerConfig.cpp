@@ -35,7 +35,7 @@ int CServerConfig::Load_Table(const std::string& fileName)
     log("./log/TableError.log", "Server Config Table - ReturnCode = %d\n", n);
     throw CDNFException("CServerConfig::Load_Setup_Table() Exception Break!");
 }
-int CServerConfig::Parse_Table(char* data, int size)
+bool CServerConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;

@@ -66,10 +66,10 @@ int CAppConfig::GetServerGroup()
 bool CAppConfig::DecryptValue(const char* value, char* dst)
 {
     char buf1[0x40] = {0};
-    char buf2[0x40] = {0};
-    if (!DNFFLib::Hex2Binary(value, (unsigned char*)buf2, 0x18))
+    unsigned char buf2[0x40] = {0};
+    if (!DNFFLib::Hex2Binary(value, buf2, 0x18))
         return 0;
-    m_cipher.Decrypt(buf2, buf1, 0x18);
+    m_cipher.Decrypt((const char*)buf2, buf1, 0x18);
     strncpy(dst, buf1, 0x14);
     return 1;
 }
@@ -80,7 +80,7 @@ bool CAppConfig::DecryptValue(const char* value, char* dst)
         m_cipher.Decrypt(b2, b1, 0x18); \
         memcpy(m_dbConnInfo[i].m_pass, b1, strlen(b1)); }
 
-int CAppConfig::Parse_Table(char* data, int size)
+bool CAppConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;
