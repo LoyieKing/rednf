@@ -74,7 +74,7 @@ ST_ServerInfo* CServerConfig::GetServerInfo()
     return m_info;
 }
 
-int CServerConfig::Parse_Table(char* line, int idx)
+bool CServerConfig::Parse_Table(char* line, int idx)
 {
     if (*line == '#')
     {

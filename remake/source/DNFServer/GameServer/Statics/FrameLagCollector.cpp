@@ -199,23 +199,23 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
 int FrameLagCollector::PopMonitoringSpecData(Packet_Frame_Lag_Spec_Delete_Notify* pkt)
 {
     std::map<int, MonitoringSpecCase>::iterator it;
-    char again = 1;
-    char erased = 0;
+    bool again = true;
+    bool erased = false;
     while (again)
     {
-        again = 0;
+        again = false;
         it = m_monitor.begin();
         for (; it != m_monitor.end(); ++it)
         {
             if (((PairView*)it.operator->())->m_f0 == ((PktView*)pkt)->m_a)
             {
                 m_monitor.erase(it);
-                again = 1;
-                erased = 1;
+                again = true;
+                erased = true;
             }
         }
     }
-    if (erased != 0)
+    if (erased)
     {
         m_data.erase(*(int*)((char*)pkt + 10));
     }

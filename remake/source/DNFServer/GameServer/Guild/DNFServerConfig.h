@@ -41,7 +41,7 @@ public:
     CServerConfig();
     virtual ~CServerConfig();
     virtual void Load_Table(const std::string& path);
-    virtual int Parse_Table(char* line, int idx);
+    virtual bool Parse_Table(char* line, int idx);
     ST_ServerInfo* GetServerInfo();
     ST_ServerInfo m_info[255];   // +4
 };

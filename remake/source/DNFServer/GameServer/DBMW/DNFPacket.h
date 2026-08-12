@@ -616,7 +616,7 @@ public:
     Packet_DBMW_Query_Buddy_Info_Reply();
     int m_fieldA;             // +0xa
     unsigned char m_fieldE;   // +0xe
-    char m_rest[0x4e0];       // +0xf（ORIG ctor size 0x4ef）
+    STBuddyDBInfo m_rest[32]; // +0xf（ORIG ctor size 0x4ef；0x27*32=0x4e0）
 } __attribute__((packed));
 
 class Packet_DB_Upgrade_Guild_Agit_Reply : public PacketHeader

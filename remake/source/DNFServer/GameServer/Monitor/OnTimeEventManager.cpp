@@ -176,18 +176,16 @@ void COnTimeEventManager::GetCurEventItemByDBMW(unsigned int a, unsigned int b)
     m_field24 = (int)a;
     m_field28 = (int)b;
     Packet_Req_Ontime_Event_Item pkt;
-    if (m_app == 0)
+    if (m_app != 0)
     {
-        return;
+        CTcpDBServer* db = m_app->Get_ServerHandler()->GetTcpDBServer();
+        if (db != 0)
+        {
+            char* buf = db->makePacketHeader(0x2345, 10);
+            char* buf2 = buf;
+            db->SendToServer(buf2);
+        }
     }
-    CTcpDBServer* db = m_app->Get_ServerHandler()->GetTcpDBServer();
-    if (db == 0)
-    {
-        return;
-    }
-    char* buf = db->makePacketHeader(0x2345, 10);
-    char* buf2 = buf;
-    db->SendToServer(buf2);
 }
 
 void COnTimeEventManager::SendEventIdxToDBMW()

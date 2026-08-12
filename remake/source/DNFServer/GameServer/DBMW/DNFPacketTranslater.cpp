@@ -25,6 +25,16 @@ int getErrno();
 int parse_string(std::vector<std::string>& v, std::string& s, char c);
 int get_day_interval(struct tm* a, struct tm* b);
 
+// 本文件私有视图：Packet_DBMW_Collect_Items_Gm 的字段类型以调用签名
+// updateCollectItemsGm(uchar,int,int,uint) 为准（布局不变）。
+struct Packet_DBMW_Collect_Items_Gm_View : PacketHeader
+{
+    unsigned char m_serverInfo;  // +0xa
+    int m_fieldB;      // +0xb
+    int m_fieldF;      // +0xf
+    unsigned int m_field13;  // +0x13
+} __attribute__((packed));
+
 // ---- CGuildManager / WongWork ----
 Packet_Monitor_Notify_New_Mail::Packet_Monitor_Notify_New_Mail()
     : PacketHeader(0x514, 0x12)
@@ -1459,14 +1469,14 @@ void CPacketTranslater::onCollectItemsGm(PacketHeader* header)
         return;
     try
     {
-        Packet_DBMW_Collect_Items_Gm* pkt =
-            (Packet_DBMW_Collect_Items_Gm*)header;
+        Packet_DBMW_Collect_Items_Gm_View* pkt =
+            (Packet_DBMW_Collect_Items_Gm_View*)header;
         m_pclApp->m_dbManager.updateCollectItemsGm(
-            (unsigned char)pkt->m_serverInfo, (unsigned int)pkt->m_fieldF,
-            (int)pkt->m_fieldB, (int)pkt->m_field13);
+            pkt->m_serverInfo, pkt->m_fieldF,
+            pkt->m_fieldB, pkt->m_field13);
         Packet_CollectItemsResult reply;
-        reply.m_fieldA = pkt->m_fieldB;
         reply.m_fieldE = pkt->m_fieldF;
+        reply.m_fieldA = pkt->m_fieldB;
         reply.m_field12 = pkt->m_field13;
         m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
             (char*)&reply, reply.packetSize);
@@ -2400,8 +2410,8 @@ void CPacketTranslater::OnQueryBuddyInfo(PacketHeader* header)
         reply.m_fieldA = pkt->m_characNo;
         if (m_pclApp->m_dbManager.QueryBuddyInfo(
                 pkt->m_characNo,
-                (STBuddyDBInfo*)((char*)&reply + 0xf),
-                *(unsigned char*)((char*)&reply + 0xe)))
+                reply.m_rest,
+                reply.m_fieldE))
         {
             CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
             ms->SendToServer((char*)&reply, reply.packetSize);

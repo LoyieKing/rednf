@@ -90,7 +90,7 @@ void CKillUSRConfig::Clear_Table()
     }
 }
 
-int CKillUSRConfig::Parse_Table(char* line, int idx)
+bool CKillUSRConfig::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
     {

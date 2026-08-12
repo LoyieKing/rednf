@@ -91,8 +91,8 @@ CTableBase::~CTableBase()
 int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
 {
     int count = 0;
-    FILE* f = fopen(path, "rb");
-    if (f == 0)
+    FILE* f;
+    if ((f = fopen(path, "rb")) == 0)
     {
         return -1;
     }

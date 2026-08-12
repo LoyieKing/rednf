@@ -113,7 +113,7 @@ struct PTL_LoginPkt
 {
     char m_base[0x6];
     unsigned int m_connNo;    // +0x6
-    unsigned int m_guildKey;  // +0xa
+    int m_guildKey;           // +0xa
     unsigned int m_serverNo;  // +0xe
     unsigned char m_channel;  // +0x12
     char m_pad[0x10];         // +0x13
@@ -163,6 +163,14 @@ struct PTL_InnerPacketPkt
 {
     char m_base[0x6];
     unsigned int m_group;           // +0x6
+} __attribute__((packed));
+
+struct PTL_LoadGuildCargoHistoryPkt
+{
+    char m_base[0xa];
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_count;     // +0xe
+    char m_logData;           // +0x12
 } __attribute__((packed));
 
 struct PTL_CharLoginPkt
@@ -3731,7 +3739,6 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
 
 void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x149e, "./log/Except", "CPacketTranslater::OnInnerPacketLogout : 0 == m_pclApp");
@@ -3739,22 +3746,21 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
     }
     try
     {
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        if (handler->GetTcpDBServer()->GetSock() == *(int*)(pb + 6))
+        PTL_InnerPacketPkt* pb = (PTL_InnerPacketPkt*)pkt;
+        if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == pb->m_group)
         {
-            handler->GetTcpDBServer()->DisConnected();
+            m_pclApp->Get_ServerHandler()->GetTcpDBServer()->DisConnected();
         }
         else
         {
-            unsigned int group = *(unsigned int*)(pb + 6);
-            CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(group);
+            CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(pb->m_group);
             m_pclApp->OnTcpGameServerDown(tgs);
             unsigned char ch = tgs->GetChannelNo();
             if (ch != 0)
             {
                 m_pclApp->Get_ServerHandler()->UnregistGameServer((unsigned int)ch);
             }
-            m_pclApp->Get_ServerHandler()->DeleteTcpGameServer(group);
+            m_pclApp->Get_ServerHandler()->DeleteTcpGameServer(pb->m_group);
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnInnerPacketLogout Exception Break", 0x14be, 0x14c3);
@@ -4363,23 +4369,22 @@ void CPacketTranslater::OnLoadGuildCargoHistory(PacketHeader* pkt)
 {
     try
     {
-        char* pb = (char*)pkt;
+        PTL_LoadGuildCargoHistoryPkt* pb = (PTL_LoadGuildCargoHistoryPkt*)pkt;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1861,"./log/GuildCargo",
                 "CPacketTranslater::OnLoadGuildCargoHistory : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = *(unsigned int*)(pb + 0xa);
         CGuild* guild;
-        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1868,"./log/GuildCargo",
                 "CPacketTranslater::OnLoadGuildCargoHistory : 0 == pclGuild");
             return;
         }
-        guild->GetGuildCargo()->SetGuildCargoHistory(*(unsigned int*)(pb + 0xe),
-                                                     (STGuildCargoLog*)(pb + 0x12));
+        guild->GetGuildCargo()->SetGuildCargoHistory(pb->m_count,
+                                                     (STGuildCargoLog*)&pb->m_logData);
     }
     catch (CDNFException& e)
     {

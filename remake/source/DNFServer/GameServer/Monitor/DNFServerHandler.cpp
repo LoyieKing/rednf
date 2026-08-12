@@ -304,9 +304,7 @@ CTcpGameServer* CServerHandler::CreateTcpGameServer(unsigned int id)
 {
     CTcpGameServer* tcp = new CTcpGameServer;
     tcp->Init(id, m_app->Get_TcpNetSystem());
-    std::pair<std::map<unsigned int, CTcpGameServer*>::iterator, bool> r =
-        m_tcpGameServers.insert(std::make_pair(id, tcp));
-    if (r.second)
+    if (m_tcpGameServers.insert(std::make_pair(id, tcp)).second)
     {
         return tcp;
     }

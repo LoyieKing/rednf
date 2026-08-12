@@ -23,7 +23,7 @@ public:
     CPowerWarConfig();
     virtual ~CPowerWarConfig();
     virtual void Load_Table(const std::string& path);
-    virtual int Parse_Table(char* line, int idx);
+    virtual bool Parse_Table(char* line, int idx);
     void Clear_Table();
     ST_PowerWarEventStartTimeConfig* GetInfo() const;
     ST_PowerWarEventStartTimeConfig m_info;  // +4

@@ -828,11 +828,11 @@ bool CApplication::isGM_regFromChannel(unsigned int channel)
 bool CApplication::isAbleUserChatWithGM(unsigned int channel, unsigned int charNo)
 {
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
-    if (it != m_map368.end())
+    if (m_map368.end() != it)
     {
-        // ORIG：比较写成 end() != std::find(...)（GCC -O0 先求值右侧 find；
-        // find 参数求值顺序为 end() 在前 begin() 在后，栈槽 -0x14/-0x10）
-        if (it->second.end() != std::find(it->second.begin(), it->second.end(), charNo))
+        std::list<unsigned int>::iterator found =
+            std::find(it->second.begin(), it->second.end(), charNo);
+        if (it->second.end() != found)
         {
             return 1;
         }

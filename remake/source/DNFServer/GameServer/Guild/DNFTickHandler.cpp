@@ -76,7 +76,6 @@ CFrameCountHandler::CFrameCountHandler()
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int value,
                                             unsigned short tick)
 {
-    unsigned short t = tick;
     if (value != 0)
     {
         m_field2c = (int)app;

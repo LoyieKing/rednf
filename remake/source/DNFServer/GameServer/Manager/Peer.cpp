@@ -193,8 +193,7 @@ bool CPeer::parsing(int len)
     // GCC 4.4 按反声明序分配简单局部，hdr 为带 ctor 的 12 字节对象独立落在 -0x5a）。
     PacketHeader hdr(0, 0);
     int qsize;
-    int parsinglength = m_recvLen;
-    parsinglength += len;
+    int parsinglength = m_recvLen + len;
     unsigned int size;
     int headerSize = 10;
     if (parsinglength <= 9)
@@ -231,7 +230,8 @@ bool CPeer::parsing(int len)
             buf = new CTcpRecvBuffer;
         }
         memcpy(buf, m_sendBuf, size);
-        buf->m_addr = getHandle();
+        struct RAInt6 { char p[6]; int v; } __attribute__((packed));
+        ((RAInt6*)buf)->v = getHandle();
         {
             CGuard<CMutex> guard(m_sendQLock);
             m_recvQ->push(buf);
@@ -246,8 +246,9 @@ bool CPeer::parsing(int len)
             goto out;
         }
         if (parsinglength <= 9)
-            break;
+            goto f8_block;
     }
+f8_block:
     DNF_LOG_SCOPE_LINE(0xf8, "./log/TcpRecv",
         "need more data (parsinglength < HEADER_SIZE): body=%d !!",
         parsinglength);
@@ -270,7 +271,7 @@ out:
             }
             memmove((char*)this + 0x1c, m_sendBuf, parsinglength);
             m_recvLen = parsinglength;
-            m_sendBuf = (char*)this + 0x1c + parsinglength;
+            m_sendBuf = m_sendData + parsinglength;
         }
         catch (...)
         {

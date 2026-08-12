@@ -28,7 +28,7 @@ public:
     bool RecvPacket();
     char m_sendData[0x1800];    // +0x1c（内联收发缓冲，m_sendBuf 指向此处）
     char* m_sendBuf;        // +0x181c
-    int m_recvLen;          // +0x1820
+    unsigned int m_recvLen; // +0x1820
     int m_sendLen;          // +0x1824
     TcpRecvQueue* m_recvQ;  // +0x1828
     CMutex* m_sendBLock;    // +0x182c

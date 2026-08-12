@@ -127,6 +127,41 @@ struct __attribute__((packed)) CGuildSubMasterView
     unsigned int m_subGuildMaster[5]; // +0x4e
 };
 
+// 成员记录数组视图（2026-08-12 R43：与 ORIG 代码生成形态逐字节对齐）。
+// ORIG 以「成员数组 + 字段位移」形式访问（基址 0xd0/0xf0，步长 0x41）：
+//   - 主视图 0xd0：charNo@+0xd、name@+0x11
+//   - 附加视图 0xf0：job@+0xf、growth@+0x10、level@+0x11、sex@+0x13、
+//     grade@+0x14、changableTime@+0x15、memo@+0x19
+struct __attribute__((packed)) CGuildMemberMainRec
+{
+    char m_pad[0xd];
+    unsigned int m_charNo;      // +0xd
+    char m_name[0x1d];          // +0x11
+    char m_pad2[0x41 - 0x2e];   // +0x2e .. 0x40
+};
+struct CGuildMemberMainArray
+{
+    char m_pad[0xd0];
+    CGuildMemberMainRec m_members[300];
+};
+struct __attribute__((packed)) CGuildMemberExtraRec
+{
+    char m_pad0[0xf];
+    char m_job;                 // +0xf
+    char m_growth;              // +0x10
+    unsigned short m_level;     // +0x11
+    char m_sex;                 // +0x13
+    unsigned char m_grade;      // +0x14
+    unsigned int m_changableTime; // +0x15
+    char m_memo[0x14];          // +0x19
+    char m_pad1[0x41 - 0x2d];   // +0x2d .. 0x40
+};
+struct CGuildMemberExtraArray
+{
+    char m_pad[0xf0];
+    CGuildMemberExtraRec m_members[300];
+};
+
 int g_guildDBProcessDay = 0;
 
 void* CGuild::operator new(unsigned int size)
@@ -1602,8 +1637,8 @@ void CGuild::LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char f
         }
         else
         {
-            memcpy((char*)this + (unsigned int)m_field1e * 0x41 + 0xdd, proxy,
-                   (size_t)param * 0x41);
+            memcpy(&((CGuildMemberMainArray*)this)->m_members[m_field1e].m_charNo,
+                   proxy, (size_t)param * 0x41);
             m_field1e = (unsigned short)(m_field1e + param);
         }
     }
@@ -1618,12 +1653,14 @@ int CGuild::LoadGuildOneMemberProxy(CUser* user)
     if (m_field1e <= 0x12b)
     {
         unsigned short idx = m_field1e;
-        *(unsigned int*)((char*)this + idx * 0x40 + 0xdd) = user->GetUniqCharNo();
-        memcpy((char*)this + idx * 0x40 + 0xe1, user->GetCharName(), 0x1d);
-        *(char*)((char*)this + idx * 0x40 + 0xff) = (char)user->GetJob();
-        *(char*)((char*)this + idx * 0x40 + 0x100) = (char)user->GetGrowthType();
-        *(char*)((char*)this + idx * 0x40 + 0x103) = (char)user->GetSex();
-        *(unsigned short*)((char*)this + idx * 0x40 + 0x101) = (unsigned short)user->GetLevel();
+        ((CGuildMemberMainArray*)this)->m_members[idx].m_charNo = user->GetUniqCharNo();
+        memcpy((char*)&((CGuildMemberMainArray*)this)->m_members[idx] + 0x11,
+               user->GetCharName(), 0x1d);
+        ((CGuildMemberExtraArray*)this)->m_members[idx].m_job = (char)user->GetJob();
+        ((CGuildMemberExtraArray*)this)->m_members[idx].m_growth = (char)user->GetGrowthType();
+        ((CGuildMemberExtraArray*)this)->m_members[idx].m_sex = (char)user->GetSex();
+        ((CGuildMemberExtraArray*)this)->m_members[idx].m_level =
+            (unsigned short)user->GetLevel();
         m_field1e++;
     }
     if (m_field1e > 0x12b)
@@ -1648,7 +1685,7 @@ int CGuild::LoadGuildOneMemberProxy(STGuildMemberProxy& proxy)
     }
     if (m_field1e <= 0x12b)
     {
-        memcpy((char*)this + (unsigned int)m_field1e * 0x40 + 0xdd, &proxy, 0x41);
+        memcpy(&((CGuildMemberMainArray*)this)->m_members[m_field1e].m_charNo, &proxy, 0x41);
         m_field1e++;
     }
     if (m_field1e > 0x12b)
@@ -1763,10 +1800,9 @@ void CGuild::ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade)
     {
         for (int i = 0; i < m_field1e; i++)
         {
-            if (((CGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_charNo ==
-                charNo)
+            if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
             {
-                ((CGuildMemberGradeView*)((char*)this + i * 0x41 + 0xf0))->m_grade =
+                ((CGuildMemberExtraArray*)this)->m_members[i].m_grade =
                     (unsigned char)grade;
                 return;
             }
@@ -1782,10 +1818,9 @@ char* CGuild::getUnconnectedGuildMemberName(unsigned int charNo)
         {
             for (int i = 0; i < m_field1e; i++)
             {
-                if (((CGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_charNo ==
-                    charNo)
+                if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
                 {
-                    return ((CGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_name;
+                    return (char*)&((CGuildMemberMainArray*)this)->m_members[i] + 0x11;
                 }
             }
         }
@@ -1935,12 +1970,13 @@ int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
     }
     std::map<unsigned int, STGuildMemberChangableInfo>::const_iterator it =
         m_changable.find(charNo);
-    if (it == m_changable.end())
+    if (it != m_changable.end())
     {
-        return 0;
+        // ORIG：仅拷贝 map 值的首 dword（其余字段 ORIG 未初始化/不使用）
+        *(unsigned int*)&info = *(unsigned int*)&it->second;
+        return 1;
     }
-    info = it->second;
-    return 1;
+    return 0;
 }
 
 void CGuild::UpdateChangableInfoProcess()
@@ -1954,9 +1990,10 @@ void CGuild::UpdateChangableInfoProcess()
             {
                 STGuildMemberChangableInfo info;
                 if (PopGuildMemberChanglableInfo(
-                        *(unsigned int*)((char*)this + i * 0x40 + 0xdd), info) != 0)
+                        ((CGuildMemberMainArray*)this)->m_members[i].m_charNo,
+                        info) != 0)
                 {
-                    *(unsigned int*)((char*)this + i * 0x40 + 0x105) =
+                    ((CGuildMemberExtraArray*)this)->m_members[i].m_changableTime =
                         *(unsigned int*)info.m_data;
                 }
             }
@@ -1982,16 +2019,12 @@ int CGuild::ChangeGuildMemberCharName(unsigned int charNo, char* name)
     {
         for (int i = 0; i <= 299; i++)
         {
-            struct __attribute__((packed)) STGuildMemberNameView
+            if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
             {
-                char m_pad[0xd];
-                unsigned int m_charNo;   // +0xd
-                char m_name[0x1e];       // +0x11
-            };
-            if (((STGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_charNo == charNo)
-            {
-                memset(((STGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_name, 0, 0x1e);
-                memcpy(((STGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_name, name, 0x1d);
+                memset((char*)&((CGuildMemberMainArray*)this)->m_members[i] + 0x11,
+                       0, 0x1e);
+                memcpy((char*)&((CGuildMemberMainArray*)this)->m_members[i] + 0x11,
+                       name, 0x1d);
                 result = true;
             }
         }
@@ -2036,10 +2069,13 @@ void CGuild::WriteGuildMemberMemo(CUser* user, const char* memo)
     {
         for (int i = 0; i < 300; i++)
         {
-            if (*(int*)((char*)this + i * 0x41 + 0xdd) == (int)user->GetUniqCharNo())
+            if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo ==
+                (unsigned int)user->GetUniqCharNo())
             {
-                memset((char*)this + i * 0x41 + 0x109, 0, 0x15);
-                memcpy((char*)this + i * 0x41 + 0x109, memo, 0x14);
+                memset((char*)&((CGuildMemberExtraArray*)this)->m_members[i] + 0x19,
+                       0, 0x15);
+                memcpy((char*)&((CGuildMemberExtraArray*)this)->m_members[i] + 0x19,
+                       memo, 0x14);
                 return;
             }
         }

@@ -86,7 +86,6 @@ namespace np_server_xml
 {
 CServerXml::CServerXml()
 {
-    new (m_doc) TiXmlDocument;
     InitString();
 }
 
@@ -114,7 +113,7 @@ void CServerXml::StrLoading(std::string path)
 {
     InitString();
     m_path = path;
-    TiXmlDocument* doc = (TiXmlDocument*)m_doc;
+    TiXmlDocument* doc = &m_doc;
     doc->Clear();
     if (doc->LoadFile(m_path.c_str(), TIXML_ENCODING_UNKNOWN))
     {

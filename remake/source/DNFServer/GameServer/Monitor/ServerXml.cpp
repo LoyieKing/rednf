@@ -63,6 +63,7 @@ void CServerXml::StrLoading(std::string path)
     {
         printf("[CServerXml] Load Fail File : %s\n", "server_str.xml");
     }
+    __asm__ __volatile__("nop");
 }
 
 void CServerXml::InitString()
@@ -179,7 +180,6 @@ void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
             break;
         }
     }
-    __asm__ __volatile__("nop");
 }
 
 std::string CServerXml::GetServerString(int idx, bool* ok) const

@@ -377,32 +377,32 @@ int CPeer::send_packet()
 
 void CPeer::DisConnSig()
 {
-    int fd = getHandle();
     Packet_InnerPakcet_Logout pkt;
+    pkt.reversed2 = (unsigned int)getHandle();
     CTcpRecvBuffer* buf;
     {
-        CGuard<CMutex> guard(*(CMutex**)&m_bLock);
+        CGuard<CMutex> guard((CMutex*)m_bLock);
         buf = new CTcpRecvBuffer;
     }
     memcpy(buf, &pkt, pkt.packetSize);
     {
-        CGuard<CMutex> guard(*(CMutex**)&m_qLock);
+        CGuard<CMutex> guard((CMutex*)m_qLock);
         ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
     }
 }
 
 void CPeer::ConnSig()
 {
-    int fd = getHandle();
     Packet_InnerPakcet_Login pkt;
+    pkt.reversed2 = (unsigned int)getHandle();
     CTcpRecvBuffer* buf;
     {
-        CGuard<CMutex> guard(*(CMutex**)&m_bLock);
+        CGuard<CMutex> guard((CMutex*)m_bLock);
         buf = new CTcpRecvBuffer;
     }
     memcpy(buf, &pkt, pkt.packetSize);
     {
-        CGuard<CMutex> guard(*(CMutex**)&m_qLock);
+        CGuard<CMutex> guard((CMutex*)m_qLock);
         ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);
     }
 }

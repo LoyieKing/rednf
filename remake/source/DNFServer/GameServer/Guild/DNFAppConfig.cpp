@@ -74,7 +74,7 @@ CAppConfig::~CAppConfig()
     clearServerInfoMap();
 }
 
-int CAppConfig::Parse_Table(char* line, int idx)
+bool CAppConfig::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
     {
@@ -181,7 +181,7 @@ void CAppConfig::clearServerInfoMap()
     m_serverInfo.clear();
 }
 
-unsigned int CAppConfig::Get_FrameCountValue()
+unsigned short CAppConfig::Get_FrameCountValue()
 {
     return m_frameCount;
 }

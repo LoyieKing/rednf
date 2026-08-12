@@ -152,8 +152,7 @@ void CGuildWar::GetGuildWarInfo(unsigned int* a, unsigned int* b, unsigned short
         {
             a[idx] = it->second->m_guildKey;
             b[idx] = it->second->m_point;
-            c[idx] = (unsigned short)(idx + 1);
-            idx++;
+            c[idx] = (unsigned short)++idx;  // ORIG: addr 用旧 idx，值 = 新 idx（++ 先落槽）
         }
     }
 }
@@ -170,26 +169,26 @@ void CGuildWar::GetGuildWarInfo(ST_Guild_War_Rank_Info* info)
     {
         if (it->second != 0)
         {
-            *(unsigned int*)((char*)info + count * 0x21 + 0) = it->second->m_guildKey;
-            *(unsigned int*)((char*)info + count * 0x21 + 4) = it->second->m_point;
-            memcpy((char*)info + count * 0x21 + 10, it->second->m_data, 0x16);
-            count++;
-            *(short*)((char*)info + count * 0x21 + 8) = (short)count;
+            *(unsigned int*)(count * 0x21 + (char*)info) = it->second->m_guildKey;
+            *(unsigned int*)(count * 0x21 + (char*)info + 4) = it->second->m_point;
+            memcpy(count * 0x21 + (char*)info + 10, it->second->m_data, 0x16);
+            // ORIG: count 字段写在“本条目”（旧 count 索引），值是 ++count
+            *(short*)(count * 0x21 + (char*)info + 8) = (short)++count;
         }
     }
 }
 
 void CGuildWar::Insert_GuildWarInfo(STGuildWarInfo* info)
 {
-    if (info == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x95, "./log/GuildWar", "[INSERT_ERR]info == 0\n");
-    }
-    else
+    if (info != 0)
     {
         DNF_LOG_SCOPE_LINE(0x90,"./log/GuildWar", "[INSERT]\tGuild Key : %d\tGuild Point : %d\n",
             info->m_guildKey, info->m_point);
         m_vtGuildWarInfo.push_back(std::make_pair(info->m_point, info));
+    }
+    else
+    {
+        DNF_LOG_SCOPE_LINE(0x95, "./log/GuildWar", "[INSERT_ERR]info == 0\n");
     }
 }
 
@@ -281,7 +280,7 @@ int CGuildWar::SameRankWork()
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it2;
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxItTmp;
         it2 = m_vtGuildWarInfo.begin();
-        maxIt = it2;
+        memcpy(&maxIt, &it2, sizeof(maxIt));
         if ((*maxIt).second == 0)
         {
             return 0;
@@ -365,7 +364,7 @@ void CGuildWar::DBSaveProcess(CApplication* app)
         return;
     }
     m_bSaveCnt++;
-    register bool bZero = (m_bSaveCnt == 0);
+    bool bZero = (m_bSaveCnt == 0);
     if (bZero)
     {
         return;

@@ -91,7 +91,7 @@ void CPowerWarConfig::Clear_Table()
     m_info.m_schedule.clear();
 }
 
-int CPowerWarConfig::Parse_Table(char* line, int idx)
+bool CPowerWarConfig::Parse_Table(char* line, int idx)
 {
     if (*line == '#')
     {

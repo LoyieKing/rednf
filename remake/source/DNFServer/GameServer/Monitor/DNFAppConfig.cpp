@@ -115,7 +115,7 @@ bool CAppConfig::Parse_Table(char* line, int idx)
             si->m_field2 = (unsigned char)atoi(tokens[1]);
             si->m_field0 = (unsigned char)atoi(tokens[2]);
             si->m_field1 = (unsigned char)atoi(tokens[3]);
-            strncpy(si->m_name, tokens[4], 0x10);
+            strncpy((char*)si + 3, tokens[4], 0x10);
             si->m_port = (unsigned short)atoi(tokens[5]);
             m_serverInfo.insert(std::pair<const unsigned int, stServerInfo*>(si->m_field2, si));
             return 1;

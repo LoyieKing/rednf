@@ -342,10 +342,11 @@ int CUserManager::DeleteUser_CharNo(unsigned int charNo)
         return 1;
     }
     register int nSize = m_charNoUsers.size();
+    register unsigned int nCharNo = charNo;
     CMyFileLog log(__FUNCTION__, 0x17e);
     log("./log/User",
         "[EXCEPT]CUserManager::DeleteUser_CharNo() : Erase Fail!\tChar No : %d\tChar_No Map Count : %d\n",
-        charNo, nSize);
+        nCharNo, nSize);
     return 0;
 }
 
