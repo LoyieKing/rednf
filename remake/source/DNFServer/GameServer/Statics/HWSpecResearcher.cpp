@@ -50,16 +50,16 @@ void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char pa
     Packet_DBMW_Save_Client_Spec_Statistic pkt;
     std::map<STSpecStatic, unsigned int>* pMap = &m_spec[param];
     pkt.m_fieldA = (char)param;
-    unsigned int count = 0;
+    int count = 0;
     if (!pMap->empty())
     {
         for (std::map<STSpecStatic, unsigned int>::iterator it = pMap->begin();
              it != pMap->end(); ++it)
         {
             const STSpecStatic* pSpec = &it->first;
-            memcpy((char*)&pkt + 0xf + count * 0xe + 2, pSpec, 0xc);
-            *(short*)((char*)&pkt + 0xf + count * 0xe) = (short)it->second;
-            if (0x1b3 < (++count))
+            memcpy((char*)&pkt + 0x11 + count * 0xe, (const void*)pSpec, 0xc);
+            pkt.m_items[count].m_field0 = (short)it->second;
+            if (0x1b3U < (++count))
             {
                 pkt.m_fieldB = 0x1b4;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -112,16 +112,16 @@ void CHWSpecResearcher::WriteErrorLineStatics(unsigned short param, int value)
 void CHWSpecResearcher::SendDBMWErrorLine(CServerHandler* handler)
 {
     Packet_DBMW_Save_Error_Line_Statistic pkt;
-    unsigned int count = 0;
+    int count = 0;
     if (!m_errorSpec.empty())
     {
         for (std::map<STErrorStatic, unsigned int>::iterator it = m_errorSpec.begin();
              it != m_errorSpec.end(); ++it)
         {
             pkt.m_items[count].m_field4 = it->first.m_field0;
-            pkt.m_items[count].m_field0 = it->first.m_field4;
+            pkt.m_items[count].m_field0 = (unsigned int)it->first.m_field4;
             pkt.m_items[count].m_field6 = (int)it->second;
-            if (0x263 < (++count))
+            if (0x263U < (++count))
             {
                 pkt.m_count = 0x264;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -131,7 +131,7 @@ void CHWSpecResearcher::SendDBMWErrorLine(CServerHandler* handler)
         if (count != 0)
         {
             pkt.m_count = count;
-            pkt.packetSize = (unsigned short)(((count << 2) + count) * 2 + 0xe);
+            pkt.packetSize = (unsigned short)(count * 10 + 0xe);
             handler->SendToDB((PacketHeader*)&pkt);
         }
     }

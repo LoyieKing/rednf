@@ -72,60 +72,62 @@ void FrameLagCollector::RenewToday()
         break;
     }
 }
-void FrameLagCollector::LoadSpec(CServerHandler* handler)
+int FrameLagCollector::LoadSpec(CServerHandler* handler)
 {
-    if (m_field4 == 2)
+    if (m_field4 != 2)
     {
-        return;
-    }
-    char needLoad = 0;
-    if (m_field4 == 0)
-    {
-        needLoad = 1;
-    }
-    else if (m_field4 == 1)
-    {
-        m_field8++;
-        if (m_field8 == 0x3c)
+        char needLoad = 0;
+        if (m_field4 == 0)
         {
-            m_field8 = 0;
             needLoad = 1;
         }
-    }
-    if (needLoad != 0)
-    {
-        m_field4 = 1;
-        m_field18++;
-        if (m_field18 == 0x7f)
+        else if (m_field4 == 1)
         {
-            m_field18 = 1;
-        }
-        Packet_Frame_Lag_Statistic_Load_Spec pkt;
-        *(char*)((char*)&pkt + 10) = m_field18;
-        m_map1c.clear();
-        handler->SendToDB((PacketHeader*)&pkt);
-    }
-}
-void FrameLagCollector::ReLoadSpec(CServerHandler* handler)
-{
-    if (m_field4 == 2)
-    {
-        m_field14++;
-        if (m_field14 == 5)
-        {
-            m_field14 = 0;
-            m_field19++;
-            if (m_field19 == 0x7f)
+            m_field8++;
+            if (m_field8 == 0x3c)
             {
-                m_field19 = 1;
+                m_field8 = 0;
+                needLoad = 1;
             }
-            m_map34.clear();
-            Packet_Frame_Lag_Statistic_Reload_Spec pkt;
-            *(char*)((char*)&pkt + 10) = m_field19;
-            *(int*)((char*)&pkt + 0xc) = m_field50;
+        }
+        if (needLoad != 0)
+        {
+            m_field4 = 1;
+            m_field18++;
+            if (m_field18 == 0x7f)
+            {
+                m_field18 = 1;
+            }
+            Packet_Frame_Lag_Statistic_Load_Spec pkt;
+            pkt.m_fieldA = m_field18;
+            m_map1c.clear();
             handler->SendToDB((PacketHeader*)&pkt);
         }
     }
+    return 0;
+}
+int FrameLagCollector::ReLoadSpec(CServerHandler* handler)
+{
+    if (m_field4 != 2)
+    {
+        return 2;
+    }
+    m_field14++;
+    if (m_field14 == 5)
+    {
+        m_field14 = 0;
+        m_field19++;
+        if (m_field19 == 0x7f)
+        {
+            m_field19 = 1;
+        }
+        m_map34.clear();
+        Packet_Frame_Lag_Statistic_Reload_Spec pkt;
+        pkt.m_fieldA = m_field19;
+        pkt.m_fieldB = m_field4c;
+        handler->SendToDB((PacketHeader*)&pkt);
+    }
+    return 0;
 }
 int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
 {

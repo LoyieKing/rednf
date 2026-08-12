@@ -92,14 +92,10 @@ CAppStartInit::~CAppStartInit()
 void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));
-    CAppConfig* config = new CAppConfig;
-    app->m_appConfig = config;
-    std::string fn(argv[1]);
-    config->Check_FileName(fn);
-    CServerConfig* serverConfig = new CServerConfig;
-    app->m_serverConfig = serverConfig;
-    CKillUSRConfig* killConfig = new CKillUSRConfig;
-    app->m_killConfig = killConfig;
+    app->m_appConfig = new CAppConfig;
+    app->m_appConfig->Check_FileName(std::string(argv[1]));
+    app->m_serverConfig = new CServerConfig;
+    app->m_killConfig = new CKillUSRConfig;
     if (Init_Daemon(argc, argv) == -1)
     {
         throw CDNFException("CAppStartInit::Init() Demon Init Exception Break!");
@@ -108,7 +104,8 @@ void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 
 int CAppStartInit::Init_Daemon(int argc, char** argv)
 {
-    if (argv[2] != 0 && strcmp(argv[2], "start") == 0)
+    char* arg2 = argv[2];
+    if (strcmp(arg2, "start") == 0)
     {
         pid_t pid = fork();
         if (pid < 0)
@@ -123,8 +120,10 @@ int CAppStartInit::Init_Daemon(int argc, char** argv)
         chdir("./");
         umask(0);
     }
-    std::string fn(argv[1]);
-    return Save_pid(fn) ? 0 : -1;
+    std::allocator<char> alloc;
+    std::string fn(argv[1], alloc);
+    if (Save_pid(fn) == false) return -1;
+    return 0;
 }
 
 bool CAppStartInit::Save_pid(const std::string& name)
@@ -151,4 +150,3 @@ CAppInit::~CAppInit()
 CAppInit::CAppInit()
 {
 }
-

@@ -115,7 +115,7 @@ public:
     bool SendGuildCoinByMail(int guildId, unsigned int serverGroup,
                              unsigned int itemId, unsigned int endurance,
                              int addInfo, char* subject, char* content);
-    char InsertPostal(unsigned int receiveCharacNo, unsigned int sendCharacNo,
+    bool InsertPostal(unsigned int receiveCharacNo, unsigned int sendCharacNo,
                       int sealFlag, unsigned int itemId, int addInfo,
                       unsigned int endurance, int upgrade, char* name,
                       long occTime, int letterId);

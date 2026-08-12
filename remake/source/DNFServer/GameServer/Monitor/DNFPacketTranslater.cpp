@@ -2694,6 +2694,9 @@ void CPacketTranslater::OnWebNoticeSingle(PacketHeader* pkt)
 
 void CPacketTranslater::OnAddBuddy(PacketHeader* pkt)
 {
+    CUser* user;
+    PacketHeader* p = pkt;
+    CUserManager* userMgr;
     try
     {
         if (m_pclApp == 0)
@@ -2702,26 +2705,22 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* pkt)
         }
         else
         {
-            CUser* user =
-                ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                    ((RA_UINT<10>*)pkt)->v);
-            if (user == 0)
+            userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
+            if ((user = userMgr->FindUser_CharNo(((RA_UINT<10>*)p)->v)) != 0)
             {
-                DNF_LOG_SCOPE_LINE(0x1012, "./log/buddy", "CPacketTranslater::OnAddBuddy\t pclUser is NULL");
-            }
-            else
-            {
-                CServerHandler* handler = m_pclApp->Get_ServerHandler();
-                int r = user->AddBuddyDB(handler, (char*)pkt + 0x12);
+                int r = user->AddBuddyDB(m_pclApp->Get_ServerHandler(), (char*)p + 0x12);
                 if (r != 0)
                 {
                     Packet_Monitor_Add_Buddy_Reply reply;
-                    reply.m_charNo = ((RA_UINT<10>*)pkt)->v;
-                    reply.m_idByChannel = ((RA_UINT<14>*)pkt)->v;
+                    reply.m_charNo = ((RA_UINT<10>*)p)->v;
+                    reply.m_idByChannel = ((RA_UINT<14>*)p)->v;
                     reply.m_result = (unsigned char)r;
-                    user->SendToGameserver((char*)&reply,
-                                           ((RA_U16<2>*)&reply)->v);
+                    user->SendToGameserver((char*)&reply, reply.packetSize);
                 }
+            }
+            else
+            {
+                DNF_LOG_SCOPE_LINE(0x1012, "./log/buddy", "CPacketTranslater::OnAddBuddy\t pclUser is NULL");
             }
         }
     }
@@ -2806,6 +2805,9 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
 
 void CPacketTranslater::OnDelBuddy(PacketHeader* pkt)
 {
+    CUser* user;
+    PacketHeader* p = pkt;
+    CUserManager* userMgr;
     try
     {
         if (m_pclApp == 0)
@@ -2814,27 +2816,23 @@ void CPacketTranslater::OnDelBuddy(PacketHeader* pkt)
         }
         else
         {
-            CUser* user =
-                ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharNo(
-                    ((RA_UINT<10>*)pkt)->v);
-            if (user == 0)
+            userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
+            if ((user = userMgr->FindUser_CharNo(((RA_UINT<10>*)p)->v)) != 0)
             {
-                DNF_LOG_SCOPE_LINE(0x1092, "./log/buddy", "CPacketTranslater::OnDelBuddy\t pclUser is NULL");
-            }
-            else
-            {
-                CServerHandler* handler = m_pclApp->Get_ServerHandler();
-                int r = user->DelBuddyDB(handler, (char*)pkt + 0x12);
+                int r = user->DelBuddyDB(m_pclApp->Get_ServerHandler(), (char*)p + 0x12);
                 if (r != 0)
                 {
                     Packet_Monitor_Del_Buddy_Reply reply;
-                    reply.m_charNo = ((RA_UINT<10>*)pkt)->v;
-                    reply.m_idByChannel = ((RA_UINT<14>*)pkt)->v;
-                    memcpy(reply.m_name, (char*)pkt + 0x12, 0x1d);
+                    reply.m_charNo = ((RA_UINT<10>*)p)->v;
+                    reply.m_idByChannel = ((RA_UINT<14>*)p)->v;
+                    memcpy(reply.m_name, (char*)p + 0x12, 0x1d);
                     reply.m_result = (unsigned char)r;
-                    user->SendToGameserver((char*)&reply,
-                                           ((RA_U16<2>*)&reply)->v);
+                    user->SendToGameserver((char*)&reply, reply.packetSize);
                 }
+            }
+            else
+            {
+                DNF_LOG_SCOPE_LINE(0x1092, "./log/buddy", "CPacketTranslater::OnDelBuddy\t pclUser is NULL");
             }
         }
     }
@@ -3515,26 +3513,26 @@ void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
 
 void CPacketTranslater::OnChannelType(PacketHeader* pkt)
 {
+    CGameServer* gs;
+    CTcpGameServer* tcpGs;
     PacketHeader* p = pkt;
     if (m_pclApp != 0)
     {
         try
         {
-            CGameServer* gs = (CGameServer*)m_pclApp->FindGameServer((int)((RA_UINT<10>*)p)->v);
-            if (gs == 0)
+            if ((gs = (CGameServer*)m_pclApp->FindGameServer((int)((RA_UINT<10>*)p)->v)) == 0)
             {
                 throw CDNFException("CPacketTranslater::OnChannelType : pclGameServer == 0");
             }
-            CTcpGameServer* tcpGs =
-                (CTcpGameServer*)m_pclApp->FindTcpGameServer(((RA_UINT<6>*)p)->v);
-            if (tcpGs != 0)
+            if ((tcpGs = (CTcpGameServer*)m_pclApp->FindTcpGameServer(((RA_UINT<6>*)p)->v)) == 0)
             {
-                tcpGs->SetChannelType(((RA_INT<14>*)p)->v);
+                return;
             }
+            tcpGs->SetChannelType(((RA_INT<14>*)p)->v);
         }
-        catch (CDNFException& e)
+        catch (...)
         {
-            DNF_LOG_SCOPE_LINE(0x13f4, "./log/Except", "%s Exception Break\n", e.what());
+            DNF_LOG_SCOPE_LINE(0x13f4, "./log/Except", "%s Exception Break\n", __FUNCTION__);
         }
     }
 }

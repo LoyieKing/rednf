@@ -83,7 +83,9 @@ void stDisjointAvatarInfoTotal::clear()
         {
             for (int k = 0; k < 2; k++)
             {
-                m_data[(i * 9 + j) * 2 + k] = 0;
+                register int jr = j;
+                register int kr = k;
+                m_data[(i * 9 + jr) * 2 + kr] = 0;
             }
             m_data[i * 9 + j + 0x34 + 2] = 0;
         }
@@ -832,8 +834,10 @@ bool STHellPartyStatisticItemKey::operator<(const STHellPartyStatisticItemKey& o
                 if (m_field9 == other.m_field9)
                 {
                     if (m_field9 < other.m_field9) return true;
-                    if (m_fielda != other.m_fielda) return false;
-                    if (m_fielda < other.m_fielda) return true;
+                    if (m_fielda == other.m_fielda)
+                    {
+                        if (m_fielda < other.m_fielda) return true;
+                    }
                 }
             }
         }

@@ -23,6 +23,7 @@ class Packet_Frame_Lag_Statistic_Load_Spec : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Statistic_Load_Spec();
+    unsigned char m_fieldA;  // +0xa
 };
 #pragma pack(pop)
 
@@ -60,7 +61,7 @@ public:
 
     FrameLagCollector();
     ~FrameLagCollector();
-    void ReLoadSpec(CServerHandler* handler);
+    int ReLoadSpec(CServerHandler* handler);
     void RenewToday();
     void SaveUsedMemory(CServerHandler* handler);
     int SaveDailyBadSpec(CServerHandler* handler);
@@ -74,7 +75,7 @@ public:
     int is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add* pkt);
     int SaveCollectedDirectxVersion(CServerHandler* handler);
     bool Init();
-    void LoadSpec(CServerHandler* handler);
+    int LoadSpec(CServerHandler* handler);
     void accFrameLagStruct(FrameLagDataStruct& data, FrameLagStruct* pkt);
 
     unsigned char m_field0;             // +0

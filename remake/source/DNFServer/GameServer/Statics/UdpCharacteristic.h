@@ -16,6 +16,8 @@ class Packet_Frame_Lag_Statistic_Reload_Spec : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Statistic_Reload_Spec();
+    unsigned char m_fieldA;  // +0xa
+    int m_fieldB;            // +0xb
 };
 
 class Packet_Frame_Lag_Statistic_Write_Lag_Index : public PacketHeader

@@ -47,8 +47,6 @@ void ActiveConManager::CheckTheConnection(ConInterface* conInfo)
 
 TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
 {
-    register int iVar4;
-    register TCPUser* pUserRet;
     {
         TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockInCon);
         queueRequestConnect.push(conInfo);
@@ -61,7 +59,7 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
         {
             if (conInfo->mIsRejected != false)
             {
-                goto L_RET0;
+                break;
             }
             TSystem<LinuxSystem>::sleep(10);
             continue;
@@ -72,45 +70,24 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
             {
                 bConnectedInQueue = false;
                 TSystem<LinuxSystem>::sleep(10);
-                iVar4 = 0;
-            }
-            else
-            {
-                for (TCPUserConnectMap::iterator iter = mapConnectedUser_.begin();
-                     iter != mapConnectedUser_.end(); iter++)
-                {
-                    rConInfo = iter->second;
-                    printf("rConInfo->getId-%d\n", rConInfo->getId());
-                    if (conInfo->getId() == rConInfo->getId())
-                    {
-                        conInfo->setTCPUser(rConInfo->getTCPUser());
-                        mapConnectedUser_.erase(iter);
-                        pUserRet = conInfo->getTCPUser();
-                        iVar4 = 1;
-                        goto DONE;
-                    }
-                }
-                iVar4 = 2;
-            }
-        }
-    DONE:
-        if (iVar4 != 0)
-        {
-            if (iVar4 != 1)
-            {
-                TSystem<LinuxSystem>::sleep(100);
                 continue;
             }
-            else
+            for (TCPUserConnectMap::iterator iter = mapConnectedUser_.begin();
+                 iter != mapConnectedUser_.end(); iter++)
             {
-                goto L_RET;
+                rConInfo = iter->second;
+                printf("rConInfo->getId-%d\n", rConInfo->getId());
+                if (conInfo->getId() == rConInfo->getId())
+                {
+                    conInfo->setTCPUser(rConInfo->getTCPUser());
+                    mapConnectedUser_.erase(iter);
+                    return conInfo->getTCPUser();
+                }
             }
         }
+        TSystem<LinuxSystem>::sleep(100);
     }
-L_RET0:
-    pUserRet = NULL;
-L_RET:
-    return pUserRet;
+    return NULL;
 }
 
 bool ActiveConManager::PopRequestConnect(TCPUser*& outConnectedUser)

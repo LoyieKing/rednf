@@ -100,12 +100,11 @@ void CGMAccounts::clearGmList()
 
 void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
 {
-    stGMInfo_t info;
+    stGMInfo_t info = {};
     info.m_field0 = id;
     info.m_field1 = (unsigned int)flag;
     m_list.push_back(info);
-    char* mid = NumberToString(id, 0);
-    DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcd, "./log/Init", "GM List Add mid:%s", mid);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcd, "./log/Init", "GM List Add mid:%s", NumberToString(id, 0));
 }
 
 int CGMAccounts::loadGMAccounts(const char* path)
@@ -115,11 +114,13 @@ int CGMAccounts::loadGMAccounts(const char* path)
 
 int CGMAccounts::isGM(unsigned int id)
 {
-    stGMInfo_t key;
+    stGMInfo_t key = {};
     key.m_field1 = 3;
     key.m_field0 = id;
+    const std::list<stGMInfo_t>::iterator end = m_list.end();
     std::list<stGMInfo_t>::iterator it = std::find(m_list.begin(), m_list.end(), key);
-    return it != m_list.end();
+    if (it != end) return 1;
+    return 0;
 }
 
 int CGMAccounts::appendGM(unsigned int id, unsigned int value)
@@ -142,16 +143,16 @@ int CGMAccounts::removeGM(unsigned int id, unsigned int value)
 
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
 {
-    stGMInfo_t key;
-    key.m_field0 = id;
-    key.m_field1 = 3;
     stGMInfo_t result;
     result.m_field0 = 0;
     result.m_field1 = 3;
+    stGMInfo_t key = {};
+    key.m_field1 = 3;
+    key.m_field0 = id;
     std::list<stGMInfo_t>::const_iterator it = std::find(m_list.begin(), m_list.end(), key);
     if (it != m_list.end())
     {
-        result = *it;
+        return *it;
     }
     return result;
 }
