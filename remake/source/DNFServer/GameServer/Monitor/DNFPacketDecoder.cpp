@@ -181,16 +181,13 @@ void CPacketDecoder::Attach(CApplication* app)
 {
     if (app != 0)
     {
-        *(std::queue<CUdpRecvBuffer*, std::deque<CUdpRecvBuffer*,
-            std::allocator<CUdpRecvBuffer*> > >**)((char*)this + 0) =
-            app->Get_UdpPacketParseQ();
-        *(void**)((char*)this + 0xc) =
-            app->Get_TcpNetSystem()->Get_TcpSwapQPacket()->GetParseQ();
-        *(void**)((char*)this + 4) = app->Get_UdpQLock();
-        *(void**)((char*)this + 8) = app->Get_UdpBLock();
-        *(void**)((char*)this + 0x10) = app->Get_TcpNetSystem()->Get_TcpRecvQLock();
-        *(void**)((char*)this + 0x14) = app->Get_TcpNetSystem()->Get_TcpRecvBLock();
-        *(void**)((char*)this + 0x18) = app->Get_ServerHandler();
+        m_field0 = app->Get_UdpPacketParseQ();
+        m_net.m_parseQ = app->Get_TcpNetSystem()->Get_TcpSwapQPacket()->GetParseQ();
+        m_field4 = app->Get_UdpQLock();
+        m_net.m_udpBLock = app->Get_UdpBLock();
+        m_net.m_recvQ = app->Get_TcpNetSystem()->Get_TcpRecvQLock();
+        m_net.m_bLock = app->Get_TcpNetSystem()->Get_TcpRecvBLock();
+        m_net.m_handler = app->Get_ServerHandler();
     }
 }
 

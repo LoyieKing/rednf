@@ -55,17 +55,6 @@ unsigned short CDNFProhibitUser::GetProhibitRemainTime()
     return m_remain;
 }
 
-bool CDNFProhibitUser::IsTimeOutConnectable()
-{
-    m_remain = m_remain - 1;
-    register bool b = ((short)m_remain <= 0);
-    if (b)
-    {
-        return true;
-    }
-    return false;
-}
-
 char CDNFProhibitUser::GetChannelNo() { return m_channel; }
 
 char CDNFProhibitUser::fromWeb() { return m_flag; }

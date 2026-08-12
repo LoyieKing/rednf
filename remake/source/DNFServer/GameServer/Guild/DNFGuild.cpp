@@ -1820,7 +1820,7 @@ char* CGuild::getUnconnectedGuildMemberName(unsigned int charNo)
             {
                 if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
                 {
-                    return (char*)&((CGuildMemberMainArray*)this)->m_members[i] + 0x11;
+                    return (char*)(i * 0x41 + 0xd0 + (char*)this + 0x11);
                 }
             }
         }

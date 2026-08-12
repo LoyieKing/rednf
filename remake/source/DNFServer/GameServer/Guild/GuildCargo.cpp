@@ -321,7 +321,10 @@ int CGuildCargo::MoveItem(DnfItemInfo& from, DnfItemInfo& to, int fromSlot, int 
         toSlot, m_info.m_items[toSlot].m_itemId);
     from = m_info.m_items[fromSlot];
     to = m_info.m_items[toSlot];
-    if (from.m_itemId == fromItemId && to.m_itemId == toItemId)
+    if (from.m_itemId != fromItemId || to.m_itemId != toItemId)
+    {
+        return 0xca;
+    }
     {
         DnfItemInfo tmp;
         tmp = m_info.m_items[fromSlot];
@@ -449,10 +452,11 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     log.count = count;
     log.behavior = (unsigned char)behavior;
     log.param = param;
-    log.opt0 = option->m_field0;
-    log.opt1 = option->m_field4;
-    log.opt2 = option->m_field8;
-    log.opt3 = option->m_fieldc;
+    register const RandomOption* o = option;
+    log.opt0 = o->m_field0;
+    log.opt1 = o->m_field4;
+    log.opt2 = o->m_field8;
+    log.opt3 = o->m_fieldc;
     time_t t;
     time(&t);
     log.time = t;

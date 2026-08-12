@@ -243,7 +243,7 @@ void COnTimeEventManager::OnRewardStart()
         {
             ChangeState(ONTIME_EVENT_STATE_NONE);
             UpdateEventIdx();
-            int t = (int)time(0);
+            register int t = (int)time(0);
             m_field20 = t;
             register CTaskScheduler::CTask* task =
                 new COnTimeEventRewardEndTrigger((unsigned int)(m_field28 * 0x3c + t), 0, this);

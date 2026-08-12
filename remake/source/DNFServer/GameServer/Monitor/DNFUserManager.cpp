@@ -591,35 +591,33 @@ void CUserManager::AddSchoolNo(unsigned int schoolNo, unsigned char channel)
 {
     std::map<const unsigned int, std::map<unsigned char, unsigned int> >::iterator it =
         m_mapSchools.find(schoolNo);
-    if (it != m_mapSchools.end())
+    if (it == m_mapSchools.end())
+    {
+        std::map<unsigned char, unsigned int> newInner;
+        newInner.insert(std::make_pair(channel, 1));
+        m_mapSchools.insert(std::make_pair(schoolNo, newInner));
+        DNF_LOG_SCOPE_LINE(0x3e9, "./log/School",
+            "1) AddSchoolNo(%d, %d), mapSchoolChannel.size(%u), m_mapSchools.size(%u)",
+            schoolNo, channel, newInner.size(), m_mapSchools.size());
+    }
+    else
     {
         std::map<unsigned char, unsigned int>* inner = &it->second;
         std::map<unsigned char, unsigned int>::iterator c = inner->find(channel);
-        if (c != inner->end())
+        if (c == inner->end())
         {
-            c->second++;
-            DNF_LOG_SCOPE_LINE(0x3f9,"./log/School",
-                "3) AddSchoolNo(%d, %d), mapSchoolChannel.size(%u), m_mapSchools.size(%u)",
-                schoolNo, channel, inner->size(), m_mapSchools.size());
-        }
-        else
-        {
-            inner->insert(std::pair<unsigned char, unsigned int>(channel, 1));
+            inner->insert(std::make_pair(channel, 1));
             DNF_LOG_SCOPE_LINE(0x3f3, "./log/School",
                 "2) AddSchoolNo(%d, %d), mapSchoolChannel.size(%u), m_mapSchools.size(%u)",
                 schoolNo, channel, inner->size(), m_mapSchools.size());
         }
-    }
-    else
-    {
-        std::map<unsigned char, unsigned int> newInner;
-        newInner.insert(std::pair<unsigned char, unsigned int>(channel, 1));
-        m_mapSchools.insert(
-            std::pair<const unsigned int, std::map<unsigned char, unsigned int> >(schoolNo,
-                                                                                 newInner));
-        DNF_LOG_SCOPE_LINE(0x3ed, "./log/School",
-            "1) AddSchoolNo(%d, %d), mapSchoolChannel.size(%u), m_mapSchools.size(%u)",
-            schoolNo, channel, newInner.size(), m_mapSchools.size());
+        else
+        {
+            c->second = c->second + 1;
+            DNF_LOG_SCOPE_LINE(0x3f9,"./log/School",
+                "3) AddSchoolNo(%d, %d), mapSchoolChannel.size(%u), m_mapSchools.size(%u)",
+                schoolNo, channel, inner->size(), m_mapSchools.size());
+        }
     }
 }
 
@@ -694,7 +692,7 @@ void CUserManager::DelSchoolNo(unsigned int schoolNo, unsigned char channel)
         std::map<unsigned char, unsigned int>::iterator c = inner->find(channel);
         if (c != inner->end())
         {
-            c->second--;
+            c->second = c->second - 1;
             if (c->second == 0)
             {
                 inner->erase(c);
@@ -703,11 +701,9 @@ void CUserManager::DelSchoolNo(unsigned int schoolNo, unsigned char channel)
                     m_mapSchools.erase(it);
                 }
             }
-            unsigned int outerSize = m_mapSchools.size();
-            unsigned int innerSize = inner->size();
             DNF_LOG_SCOPE_LINE(0x40f,"./log/School",
                 "DelSchoolNo(%d, %d), mapSchoolChannel.size(%u), m_mapSchools.size(%u)",
-                schoolNo, channel, innerSize, outerSize);
+                schoolNo, channel, inner->size(), m_mapSchools.size());
         }
     }
 }

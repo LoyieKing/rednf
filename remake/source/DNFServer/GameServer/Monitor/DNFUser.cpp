@@ -499,18 +499,14 @@ char CUser::RegisterToBlackList(unsigned int charNo, char* name)
     }
     CBlackUser* user = new CBlackUser;
     user->SetBlackUser(name, (unsigned int)time(0));
-    std::pair<std::map<unsigned int, CBlackUser*>::iterator, bool> r =
-        m_blackList.insert(std::make_pair(charNo, user));
-    return r.second;
+    return m_blackList.insert(std::make_pair(charNo, user)).second;
 }
 
 char CUser::RegisterToBlackList(unsigned int charNo, char* name, unsigned int time)
 {
     CBlackUser* user = new CBlackUser;
     user->SetBlackUser(name, time);
-    std::pair<std::map<unsigned int, CBlackUser*>::iterator, bool> r =
-        m_blackList.insert(std::make_pair(charNo, user));
-    return r.second;
+    return m_blackList.insert(std::make_pair(charNo, user)).second;
 }
 
 int CUser::DeleteToBlackList(unsigned int charNo)

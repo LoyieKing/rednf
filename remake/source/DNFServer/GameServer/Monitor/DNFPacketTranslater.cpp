@@ -895,7 +895,8 @@ void CPacketTranslater::OnCeraUpdate(PacketHeader* pkt)
 {try
 {
 
-    PacketHeader* pkt2 = pkt;
+    PacketHeader* pkt2;
+    pkt2 = pkt;
     CUser* user =
         ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
             ((RA_UINT<10>*)pkt2)->v);
@@ -1765,18 +1766,22 @@ void CPacketTranslater::OnUserRepel(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnUserRepel : 0 == m_pclApp");
     }
-    char* dbid = NumberToString(((RA_UINT<10>*)pkt)->v, 0);
-    DNF_LOG_SCOPE_LINE(0x954,"./log/Web", "CPacketTranslater::OnUserRepel m_id(%s) , charNo(%d)\n", dbid,
-        ((RA_UINT<14>*)pkt)->v);
+    CUser* user;
+    unsigned int id;
+    PacketHeader* pkt2 = pkt;
+    DNF_LOG_SCOPE_LINE(0x954,"./log/Web", "CPacketTranslater::OnUserRepel m_id(%s) , charNo(%d)\n",
+        NumberToString(((RA_UINT<10>*)pkt2)->v, 0), ((RA_UINT<14>*)pkt2)->v);
     CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-    CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
-    if (user != 0 &&
-        (((RA_UINT<14>*)pkt)->v == 0 ||
-         (user = userMgr->FindUser_CharNo(((RA_UINT<14>*)pkt)->v)) != 0))
+    if ((user = userMgr->FindUser(((RA_UINT<10>*)pkt2)->v)) == 0) goto onend;
+    if (((RA_UINT<14>*)pkt2)->v != 0)
     {
-        ((RA_UINT<10>*)pkt)->v = user->GetIdByChannel();
-        user->SendToGameserver((char*)pkt, 0x12);
+        if ((user = userMgr->FindUser_CharNo(((RA_UINT<14>*)pkt2)->v)) == 0) goto onend;
     }
+    id = user->GetIdByChannel();
+    ((RA_UINT<10>*)pkt2)->v = id;
+    user->SendToGameserver((char*)pkt2, 0x12);
+onend:
+    ;
 
 
     }
@@ -2009,10 +2014,10 @@ void CPacketTranslater::OnForbidChat(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnForbidChat : 0 == m_pclApp");
     }
-    DNF_LOG_SCOPE_LINE(0xfdd,"./log/GM_msg", "CPacketTranslater::OnForbidChat() %s for %d secs\n", (char*)pkt + 0x12,
-        ((RA_UINT<10>*)pkt)->v);
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0x30);
+    PacketHeader* pkt2 = pkt;
+    DNF_LOG_SCOPE_LINE(0xfdd,"./log/GM_msg", "CPacketTranslater::OnForbidChat() %s for %d secs\n", (char*)pkt2 + 0x12,
+        ((RA_UINT<10>*)pkt2)->v);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt2, 0x30);
 
 
     }
@@ -3160,7 +3165,7 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
 void CPacketTranslater::onRequestReloadTowerRanker(PacketHeader* pkt)
 {
     register CServerHandler* handler = m_pclApp->m_serverHandler2;
-    register CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
+    CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
     try
     {
         tower->processReloadRanking(handler, true, 5);
@@ -3597,9 +3602,9 @@ void CPacketTranslater::OnRequestReloadPowerWarRanker(PacketHeader* pkt)
 {
 
 
+    PacketHeader* pkt2 = pkt;
     DNF_LOG_SCOPE_LINE(0x1418, "./log/ServerEvent", "Packet_Request_Reload_Power_War_Ranker");
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 10);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt2, 10);
 
 
     }
@@ -4033,11 +4038,11 @@ void CPacketTranslater::OnResponseIPCounterList(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnResponseIPCounterList : 0 == m_pclApp");
     }
+    PacketHeader* pkt2 = pkt;
     DNF_LOG_SCOPE_LINE(0x16c8,"./log/Secu", "[IP Counter] DataStats : %d, DataSize : %d ",
-        (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
-        (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
+        (unsigned int)(unsigned char)((RA_S8<10>*)pkt2)->v,
+        (unsigned int)(unsigned char)((RA_S8<11>*)pkt2)->v);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt2, ((RA_U16<2>*)pkt2)->v);
 
 
     }
@@ -4062,11 +4067,11 @@ void CPacketTranslater::OnResponseFullIPCounterList(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnResponseFullIPCounterList : 0 == m_pclApp");
     }
+    PacketHeader* pkt2 = pkt;
     DNF_LOG_SCOPE_LINE(0x16e8,"./log/Secu", "[D_IP Counter] DataStats : %d, DataSize : %d ",
-        (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
-        (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
+        (unsigned int)(unsigned char)((RA_S8<10>*)pkt2)->v,
+        (unsigned int)(unsigned char)((RA_S8<11>*)pkt2)->v);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt2, ((RA_U16<2>*)pkt2)->v);
 
 
     }
@@ -5503,7 +5508,7 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* pkt)
     }
     Packet_Monitor_Event_Start epkt;
     epkt.m_fieldA = ((RA_UINT<10>*)p)->v;
-    *(unsigned int*)((char*)&epkt + 14) = ((RA_UINT<22>*)p)->v;
+    *(unsigned int*)&epkt.m_fieldB = ((RA_UINT<22>*)p)->v;
     m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(&epkt);
     DNF_LOG_SCOPE_LINE(0x22f2,"./log/AradOnly", "[Server Event] start event. (event:%d, param:%d,%d)",
         ((RA_UINT<10>*)p)->v, ((RA_U16<22>*)p)->v,

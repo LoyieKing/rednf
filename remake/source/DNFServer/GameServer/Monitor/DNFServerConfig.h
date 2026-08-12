@@ -240,9 +240,12 @@ struct stUserHuntingPoint;
 
 struct ST_ServerInfo
 {
-    int m_field0;       // +0
+    char m_field0;      // +0
+    char m_field1;      // +1
+    char m_field2;      // +2
+    char m_pad;         // +3
     std::string m_str;  // +4
-    int m_field8;       // +8
+    unsigned short m_field8;  // +8
 };
 
 class CServerConfig : public CTableBase

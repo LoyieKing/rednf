@@ -48,7 +48,7 @@ unsigned int CBlackUser::GetOccurTime() { return m_occurTime; }
 
 void CBlackUser::operator delete(void* p) { ::operator delete(p); }
 
-CBlackUser::CBlackUser()
+CBlackUser::CBlackUser() throw()
 {
     m_occurTime = 0;
     memset(m_name, 0, 0x1e);

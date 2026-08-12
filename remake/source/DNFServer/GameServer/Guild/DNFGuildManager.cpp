@@ -812,7 +812,7 @@ int CGuildManager::GetAttendanceExp(unsigned int guildKey, int phase)
     {
         unsigned int cnt = it->second.size();
         register int p = phase;
-        return guild_att_exp[(p + (p << 4)) + (guild->GetGuildLevel() & 0xff)];
+        return guild_att_exp[(guild->GetGuildLevel() & 0xff) + (p + (p << 4))];
     }
     return 0;
 }

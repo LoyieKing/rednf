@@ -460,16 +460,15 @@ int CMember::GetConnLowerMemberCnt()
         return 0;
     }
     int cnt = 0;
-    int i = 0;
-    while (i < count)
+    for (int i = 0; i < count; i++)
     {
         user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
-        register bool b = user != 0;
+        register bool b = (user == 0);
         if (b)
         {
-            cnt++;
+            continue;
         }
-        i++;
+        cnt++;
     }
     return cnt;
 }

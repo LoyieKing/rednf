@@ -3056,8 +3056,7 @@ char CDBManager::InsertDailyBadSpecStatistics(
 char CDBManager::RegisterQueryIdTable(int queryId, const char* query)
 {
     CDBHandle* h = m_handles[6];    // sso db
-    char buf[0x6002];
-    memset(buf, 0, 0x6002);
+    char buf[0x6002] = {0};
     h->escape_string(buf, query);
     h->set_query(0x4f61,
                  "inSert into log_query_dbmw_ref(q_id,query,query_hash) values(%d,'%s',password('%s'))",

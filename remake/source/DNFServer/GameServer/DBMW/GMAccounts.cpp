@@ -81,10 +81,12 @@ void WongWork::CGMAccounts::LoadGmList(unsigned int idx, int flag)
 }
 void WongWork::CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
 {
-    stGMInfo_t info = {};
-    info.m_field0 = (int)id;
-    info.m_field1 = (int)flag;
-    m_list.push_back(info);
+    {
+        stGMInfo_t info = {};
+        info.m_field0 = (int)id;
+        info.m_field1 = (int)flag;
+        m_list.push_back(info);
+    }
     register char* mid = NumberToString(id, 0);
     CMyFileLog log(__FUNCTION__, 0xcd);
     log("./log/Init", "GM List Add mid:%s", mid);

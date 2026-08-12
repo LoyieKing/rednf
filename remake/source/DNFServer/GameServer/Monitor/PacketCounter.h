@@ -311,9 +311,9 @@ void CPacketCounter<A, B>::AfterProcess(int id)
 {
     if (id > 0x27ff) return;
     if (id < 0x3e8) return;
-    if (!m_flagInit && m_packetCount[id - 0x3e8] > 10) return;
-    int v = m_totalCount;
-    if (v == -1)
+    if (m_flagInit == 0 && m_packetCount[id - 0x3e8] > 10) return;
+    int v;
+    if ((v = m_totalCount) == -1)
     {
         v = 0;
         return;

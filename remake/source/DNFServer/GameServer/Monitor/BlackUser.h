@@ -240,7 +240,7 @@ struct stUserHuntingPoint;
 class CBlackUser
 {
 public:
-    CBlackUser();
+    CBlackUser() throw();
     void SetBlackUser(char* name, unsigned int time);
     void ChangeCharName(char* name);
     char* GetName();

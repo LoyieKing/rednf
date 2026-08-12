@@ -146,10 +146,10 @@ void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
     unsigned int code = ((RA_UINT<10>*)pkt)->v;
     if (code < 0xa6)
     {
-        unsigned int param = ((RA_UINT<14>*)pkt)->v;
-        CBaseEventAction* act = m_actions[code];
-        act->OnStartEvent((EventParam&)param);
-        ((RA_UINT<14>*)pkt)->v = param;
+        union { unsigned int u; EventParam e; } param;
+        param.u = ((RA_UINT<14>*)pkt)->v;
+        m_actions[code]->OnStartEvent(param.e);
+        ((RA_UINT<14>*)pkt)->v = param.u;
     }
     return;
 }

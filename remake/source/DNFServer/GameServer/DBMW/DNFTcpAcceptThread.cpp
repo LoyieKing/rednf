@@ -67,7 +67,7 @@ void CTcpAcceptThread::dispatch(void* param)
             if (!m_sock.pollReadEvent())
                 continue;
             CPeer* peer = m_net->CreatePeer();
-            if (!peer->GetTcpSocket()->accept(m_sock))
+            if (!m_sock.accept(*peer->GetTcpSocket()))
                 printf("Accept GameServer Fail(Port : %d)\n",
                        peer->GetTcpSocket()->getHandle());
             printf("Accept GameServer(Port : %d)\n",

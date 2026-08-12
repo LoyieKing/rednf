@@ -44,6 +44,7 @@ int MAX_SCHEDULER_COUNT;
 int HUNTING_POINT_WEIGTH_CONST;
 static int HuntingPointMultiplier[0x12] = {0, 4, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 static const int tRealConfig[7] = {2, 4, 3600, 600, 600, 300, 60};
+static int tGMConfig[7] = {1, 600, 600, 30, 20, 10, 0};
 int REWARD_BUFF_TIME;
 int REWARD_PENALTY_TIME;
 int COUNTDOWN_FIRST_TIME;
@@ -116,7 +117,7 @@ void SetGMConfig(unsigned int a, unsigned int b, unsigned int c)
     }
     if (b == 0)
     {
-        b = 600;
+        b = (unsigned int)tGMConfig[2];
     }
     else
     {
@@ -124,7 +125,7 @@ void SetGMConfig(unsigned int a, unsigned int b, unsigned int c)
     }
     if (c == 0)
     {
-        c = 600;
+        c = (unsigned int)tGMConfig[3];
     }
     else
     {
@@ -143,13 +144,13 @@ void SetGMConfig(unsigned int a, unsigned int b, unsigned int c)
     village_attacked_scheduler[15] = t2.tm_wday;
     village_attacked_scheduler[16] = t2.tm_hour;
     village_attacked_scheduler[17] = t2.tm_min;
-    MAX_SCHEDULER_COUNT = 1;
-    HUNTING_POINT_WEIGTH_CONST = 1;
+    MAX_SCHEDULER_COUNT = tGMConfig[0];
+    HUNTING_POINT_WEIGTH_CONST = tGMConfig[1];
     REWARD_BUFF_TIME = b;
     REWARD_PENALTY_TIME = c;
-    COUNTDOWN_FIRST_TIME = 30;
-    COUNTDOWN_SECOND_TIME = 20;
-    COUNTDOWN_THIRD_TIME = 10;
+    COUNTDOWN_FIRST_TIME = tGMConfig[4];
+    COUNTDOWN_SECOND_TIME = tGMConfig[5];
+    COUNTDOWN_THIRD_TIME = tGMConfig[6];
 }
 
 CVillageAttackedManager::CVillageAttackedManager(CApplication* app)
@@ -224,17 +225,17 @@ void CVillageAttackedManager::OnSchedule()
 
 void CVillageAttackedManager::SetRewardCloseTime(ENUM_VILLAGE_ATTACKED_REWARD rewardType)
 {
-    if (rewardType == ENUM_VILLAGE_ATTACKED_REWARD_BUFF)
+    switch (rewardType)
     {
+    case ENUM_VILLAGE_ATTACKED_REWARD_BUFF:
         m_field34 = (int)GetNowTime() + REWARD_BUFF_TIME;
-    }
-    else if (rewardType == ENUM_VILLAGE_ATTACKED_REWARD_PENALTY)
-    {
+        break;
+    case ENUM_VILLAGE_ATTACKED_REWARD_PENALTY:
         m_field34 = (int)GetNowTime() + REWARD_PENALTY_TIME;
-    }
-    else
-    {
+        break;
+    default:
         m_field34 = 0;
+        break;
     }
 }
 
@@ -271,9 +272,12 @@ void CVillageAttackedManager::OnStartVillageAttacked()
     m_state24 = 1;
     ClearDungeonCloseTime();
     Packet_VillageAttackedStart pkt;
-    ((RA_UINT<10>*)&pkt)->v = (unsigned int)GetRemainTime();
-    ((RA_UINT<14>*)&pkt)->v = (unsigned int)m_field1c;
-    ((RA_UINT<18>*)&pkt)->v = (unsigned int)m_field20;
+    unsigned int remain = (unsigned int)GetRemainTime();
+    unsigned int f1c = (unsigned int)m_field1c;
+    unsigned int f20 = (unsigned int)m_field20;
+    ((RA_UINT<10>*)&pkt)->v = remain;
+    ((RA_UINT<14>*)&pkt)->v = f1c;
+    ((RA_UINT<18>*)&pkt)->v = f20;
     m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, 0x16);
 }
 
@@ -409,23 +413,24 @@ void CVillageAttackedManager::OnUpdateVillageAttacked()
 void CVillageAttackedManager::SendVillageAttackedScore(CUser* user)
 {
     Packet_VillageAttackedScore pkt;
-    pkt.m_idByChannel = user->GetIdByChannel();
-    pkt.m_uniqCharNo = user->GetUniqCharNo();
+    pkt.m_idByChannel = (unsigned int)user->GetIdByChannel();
+    pkt.m_uniqCharNo = (unsigned int)user->GetUniqCharNo();
     pkt.m_remainTime = (unsigned int)GetRemainTime();
     pkt.m_field16 = (unsigned int)m_field1c;
     pkt.m_field1a = (unsigned int)m_field20;
-    user->GetUniqCharNo();
     int* hp = GetHuntingPoint(user->GetUniqCharNo());
-    int cur = 0;
-    int max = 0;
+    user->GetUniqCharNo();
     if (hp != 0)
     {
-        cur = *hp;
-        max = *hp + hp[1];
+        pkt.m_cur = *hp;
+        pkt.m_max = *hp + hp[1];
     }
-    pkt.m_cur = cur;
-    pkt.m_max = max;
-    user->SendToGameserver((char*)&pkt, 0x26);
+    else
+    {
+        pkt.m_cur = 0;
+        pkt.m_max = 0;
+    }
+    user->SendToGameserver((char*)&pkt, pkt.packetSize);
 }
 
 void CVillageAttackedManager::SendVillageAttackedReward(CUser* user, int rewardType)

@@ -251,9 +251,18 @@ public:
     void SetTCPQueue(std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*,
                     std::allocator<CTcpRecvBuffer*> > >* q);
     char MsgDecode(PacketHeader* pkt);
-    unsigned int m_field0;                  // +0
-    unsigned int m_field4;                  // +4
-    char m_header[0x14];                    // +8（recvQ@0xc/parseQ@0x10/bLock@0x14/handler@0x18）
+    void* m_field0;                         // +0
+    void* m_field4;                         // +4
+    union {
+        char m_header[0x14];                // +8
+        struct {
+            void* m_udpBLock;   // +8
+            void* m_parseQ;     // +0xc
+            void* m_recvQ;      // +0x10
+            void* m_bLock;      // +0x14
+            void* m_handler;    // +0x18
+        } m_net;
+    };
     void* m_handlers[(0xa020 - 0x1c) / 4];  // +0x1c
 };
 

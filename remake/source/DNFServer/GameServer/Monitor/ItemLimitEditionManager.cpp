@@ -42,8 +42,8 @@ void CItemLimitEditionMgr::makeItemLimitEditionUpdatePacket(
              endIt = m_items.end(); it != endIt; ++it)
     {
         CItemLimitEdition* item = it->second;
-        ((RA_UINT<2>*)(idx * 9 + (char*)&pkt + 0x10))->v = item->getIPGNO();
-        ((RA_UINT<6>*)(idx * 9 + (char*)&pkt + 0x10))->v = item->getSellNum();
+        *(unsigned int*)(idx * 9 + (char*)&pkt + 0x12) = item->getIPGNO();
+        *(unsigned int*)(idx * 9 + (char*)&pkt + 0x16) = item->getSellNum();
         *(idx * 9 + (char*)&pkt + 0x1a) = item->isSellComplete();
         idx++;
     }

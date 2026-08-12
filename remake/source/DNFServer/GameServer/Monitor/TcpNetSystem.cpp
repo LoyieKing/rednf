@@ -227,17 +227,17 @@ void CTcpNetSystem::CleanPeers()
 void CTcpNetSystem::SetEpollAcceptedPeers()
 {
     CGuard<CMutex> guard(&m_mutex60);
+    CPeer* peer = 0;
     while (!m_peerQ.empty())
     {
-        CPeer* peer = m_peerQ.front();
-        int result = m_handler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), false);
-        if (result != 0)
+        peer = m_peerQ.front();
+        int result = 0;
+        if ((result = m_handler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), false)) != 0)
         {
             printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
                    peer->GetTcpSocket()->getHandle(), result, strerror(result));
         }
-        int fd = peer->GetTcpSocket()->getHandle();
-        m_peers.insert(std::make_pair((unsigned int)fd, peer));
+        m_peers.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
         m_peerQ.pop();
     }
 }
@@ -387,15 +387,12 @@ void CTcpNetSystem::SetEpollConnectedPeer(CPeer* peer)
     {
         CGuard<CMutex> guard(&m_mutex78);
         int rc = 0;
-        int fd = peer->GetTcpSocket()->getHandle();
-        rc = m_handler->SetPeer(peer, fd, false);
-        if (rc != 0)
+        if ((rc = m_handler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), false)) != 0)
         {
             printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
                    peer->GetTcpSocket()->getHandle(), rc, strerror(rc));
         }
-        int key = peer->GetTcpSocket()->getHandle();
-        m_peers.insert(std::pair<const unsigned int, CPeer*>(key, peer));
+        m_peers.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
     }
 }
 

@@ -103,19 +103,16 @@ void CCashObject::DeleteMemberObject()
 int CCashObject::GetBuddysObject(CBuddy** buddies)
 {
     int i = 0;
-    for (;;)
+    buddies[i] = m_buddys[i];
+    while (buddies[i] != 0)
     {
-        buddies[i] = m_buddys[i];
-        if (buddies[i] != 0)
+        i++;
+        if (i > 0x1f)
         {
-            i++;
-            if (i <= 0x1f)
-            {
-                continue;
-            }
             i = 0x20;
+            break;
         }
-        break;
+        buddies[i] = m_buddys[i];
     }
     ClearBuddys();
     return i;

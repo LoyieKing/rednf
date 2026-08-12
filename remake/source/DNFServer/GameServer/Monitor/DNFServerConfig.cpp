@@ -48,20 +48,20 @@ bool CServerConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
+    char* pad;
     char* tokens[5];
-    if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 5) != 5)
+    if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 5) == 5)
     {
-        return 0;
+        if (idx <= 0xfe)
+        {
+            ST_ServerInfo* entry = &m_table[idx];
+            entry->m_field0 = (char)atoi(tokens[0]);
+            entry->m_field1 = (char)atoi(tokens[1]);
+            entry->m_field2 = (char)atoi(tokens[2]);
+            entry->m_str = tokens[3];
+            entry->m_field8 = (unsigned short)atoi(tokens[4]);
+            return 1;
+        }
     }
-    if (idx > 0xfe)
-    {
-        return 0;
-    }
-    ST_ServerInfo* entry = &m_table[idx];
-    ((RA_S8<0>*)entry)->v = (char)atoi(tokens[0]);
-    ((RA_S8<1>*)entry)->v = (char)atoi(tokens[1]);
-    ((RA_S8<2>*)entry)->v = (char)atoi(tokens[2]);
-    entry->m_str = tokens[3];
-    ((RA_U16<8>*)entry)->v = (unsigned short)atoi(tokens[4]);
-    return 1;
+    return 0;
 }

@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project(monitor CXX)
 
+set(CMAKE_CXX_COMPILER ${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_monitor_cxx.sh)
+
 # ============================================================
 # df_monitor_r CMake 构建（2026-08-10，替代 source/toolchain/build-monitor.sh）
 # 口径与原脚本完全一致（源顺序/按文件 flags/include/链接），参见 manager 说明。
@@ -49,6 +51,7 @@ dnf_service(monitor
         ${SVC_DIR}/DNFPacketTracer.cpp
         ${SVC_DIR}/DNFPacketTranslater.cpp
         ${SVC_DIR}/DNFProhibitUser.cpp
+        ${SVC_DIR}/DNFProhibitUserC5.cpp
         ${SVC_DIR}/DNFSegmentationFaultSig.cpp
         ${SVC_DIR}/DNFServerConfig.cpp
         ${SVC_DIR}/DNFServerHandler.cpp
@@ -76,6 +79,7 @@ dnf_service(monitor
         ${SVC_DIR}/LimitNpcBuyItem.cpp
         ${SVC_DIR}/LoginLogoutStatistics.cpp
         ${SVC_DIR}/MemoryCashManager.cpp
+        ${SVC_DIR}/MemoryCashManagerC5.cpp
         ${SVC_DIR}/OnTimeEventManager.cpp
         ${SVC_DIR}/PacketCounter.cpp
         ${PACKET}/src/PacketHeader.cpp

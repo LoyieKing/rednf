@@ -195,13 +195,12 @@ bool CServerHandler::RegistGameServer(stServerInfo* info)
 {
     unsigned int group = (unsigned int)info->m_field1;
     std::map<unsigned int, CGameServer*>::iterator found = m_gameServers.find(group);
-    if (found == m_gameServers.end())
-    {
-        CGameServer* gs = new CGameServer(info);
-        gs->Initialize();
-        m_gameServers.insert(std::pair<const unsigned int, CGameServer*>(info->m_field1, gs));
-    }
-    return found == m_gameServers.end();
+    if (found != m_gameServers.end())
+        return false;
+    CGameServer* gs = new CGameServer(info);
+    gs->Initialize();
+    m_gameServers.insert(std::pair<const unsigned int, CGameServer*>(info->m_field1, gs));
+    return true;
 }
 
 CGameServer* CServerHandler::GetGameServer(unsigned int id)

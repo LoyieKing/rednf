@@ -95,8 +95,7 @@ int CMemberManager::DeleteMember(unsigned int key, bool cash)
         return 0;
     }
     std::map<unsigned int, CMember*>::iterator it = m_members.find(key);
-    std::map<unsigned int, CMember*>::iterator end = m_members.end();
-    if (it != end)
+    if (it != m_members.end())
     {
         if (cash && it->second != 0)
         {
