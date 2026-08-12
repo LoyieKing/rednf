@@ -992,32 +992,30 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
 void CPacketTranslater::OnReplyQueryMember(PacketHeader* pkt)
 {try
 {
+    PacketHeader* p = pkt;
 
 
-    if (((RA_S8<10>*)pkt)->v == 1)
+    if (((RA_S8<10>*)p)->v == 1)
     {
         CServerHandler* handler = m_pclApp->m_serverHandler2;
-        if (handler != 0)
+        if (handler == 0) goto end;
+        if (!((CMemberManager*)((char*)m_pclApp + 0x2d0))
+                ->LoadMember(((RA_UINT<11>*)p)->v,
+                             *(STMemberDBInfo*)((char*)p + 0x17),
+                             ((RA_UINT<15>*)p)->v,
+                             ((RA_UINT<19>*)p)->v, handler))
         {
-            char ok = ((CMemberManager*)((char*)m_pclApp + 0x2d0))
-                          ->LoadMember(((RA_UINT<11>*)pkt)->v,
-                                       *(STMemberDBInfo*)((char*)pkt + 0x17),
-                                       ((RA_UINT<15>*)pkt)->v,
-                                       ((RA_UINT<19>*)pkt)->v, handler);
-            if (ok != 1)
-            {
-                DNF_LOG_SCOPE_LINE(0x4e5,"./log/MemberMember",
-                    "CHECK MEMBER ID: CPacketTranslater::OnReplyQueryMember()\t"
-                    "m_clMemberManager.LoadMember()\tmember id(%d)",
-                    ((RA_UINT<11>*)pkt)->v);
-            }
+            DNF_LOG_SCOPE_LINE(0x4e5,"./log/MemberMember",
+                "CHECK MEMBER ID: CPacketTranslater::OnReplyQueryMember()\t"
+                "m_clMemberManager.LoadMember()\tmember id(%d)",
+                ((RA_UINT<11>*)p)->v);
         }
     }
     else
     {
         DNF_LOG_SCOPE_LINE(0x4eb,"./log/Except",
             "[DB ERROR]CPacketTranslater::OnReplyQueryMember() packet->bSuccess : %d\n",
-            (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v);
+            (unsigned int)(unsigned char)((RA_S8<10>*)p)->v);
     }
 
 
@@ -1032,6 +1030,8 @@ void CPacketTranslater::OnReplyQueryMember(PacketHeader* pkt)
         puts("CPacketTranslater::OnReplyQueryMember() Exception Break");
         DNF_LOG_SCOPE_LINE(0x4f7, "./log/Except", "CPacketTranslater::OnReplyQueryMember() Exception Break\n");
     }
+end:
+    ;
 }
 
 void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
@@ -3020,23 +3020,26 @@ void CPacketTranslater::OnGMRequestMid(PacketHeader* pkt)
     }
     else
     {
+        PacketHeader* p = pkt;
+        CUser* user = 0;
+        CUser* target = 0;
         CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
-        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
-        if (user != 0)
+        user = userMgr->FindUser(((RA_UINT<14>*)p)->v);
+        if (user == 0) goto end;
+        Packet_GM_Request_Mid reply;
+        ((RA_UINT<10>*)&reply)->v = ((RA_UINT<10>*)p)->v;
+        memcpy((char*)&reply + 0x16, (char*)p + 0x16, 0x1d);
+        std::string name((char*)p + 0x16);
+        target = userMgr->FindUser_CharName(name);
+        if (target == 0)
         {
-            Packet_GM_Request_Mid reply;
-            ((RA_UINT<10>*)&reply)->v = ((RA_UINT<10>*)pkt)->v;
-            memcpy((char*)&reply + 0x16, (char*)pkt + 0x16, 0x1d);
-            CUser* target = userMgr->FindUser_CharName((char*)pkt + 0x16);
-            if (target == 0)
-            {
-                ((RA_UINT<14>*)&reply)->v = 0xffffffff;
-            }
-            else
-            {
-                ((RA_UINT<18>*)&reply)->v = target->GetUniqCharNo();
-                ((RA_UINT<14>*)&reply)->v = target->GetDBID();
-            }
+            ((RA_UINT<14>*)&reply)->v = 0xffffffff;
+            user->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
+        }
+        else
+        {
+            ((RA_UINT<18>*)&reply)->v = target->GetUniqCharNo();
+            ((RA_UINT<14>*)&reply)->v = target->GetDBID();
             user->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
         }
     }
@@ -3051,6 +3054,8 @@ void CPacketTranslater::OnGMRequestMid(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x1166, "./log/Except", "CPacketTranslater::OnQueryBuddyInfoDBReply Exception Break\n");
     }
+end:
+    ;
 }
 
 void CPacketTranslater::OnUserRepelByCharName(PacketHeader* pkt)

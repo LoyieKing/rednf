@@ -353,15 +353,16 @@ int CServerHandler::UnregistManagerServer()
 
 void CServerHandler::SendAllTcpGameServer(PacketHeader* pkt)
 {
+    CTcpGameServer* tcp = 0;
+    char* buf = 0;
     for (std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.begin();
          it != m_tcpGameServers.end(); ++it)
     {
-        CTcpGameServer* tcp = it->second;
-        if (tcp->IsValidServer())
+        tcp = it->second;
+        if (tcp->IsValidServer() != 0)
         {
-            char* buf = tcp->makePacketHeader(*(unsigned short*)pkt,
-                                              ((RA_U16<2>*)pkt)->v);
-            memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
+            buf = tcp->makePacketHeader(pkt->packetId, pkt->packetSize);
+            memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
             tcp->SendToGameServer(buf);
         }
     }
@@ -370,15 +371,16 @@ void CServerHandler::SendAllTcpGameServer(PacketHeader* pkt)
 int CServerHandler::SendAllTcpGameServer(PacketHeader* pkt, int channel)
 {
     int count = 0;
+    CTcpGameServer* tcp = 0;
+    char* buf = 0;
     for (std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.begin();
          it != m_tcpGameServers.end(); ++it)
     {
-        CTcpGameServer* tcp = it->second;
+        tcp = it->second;
         if (tcp->IsValidServer() && tcp->GetChannelType() == channel)
         {
-            char* buf = tcp->makePacketHeader(*(unsigned short*)pkt,
-                                              ((RA_U16<2>*)pkt)->v);
-            memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
+            buf = tcp->makePacketHeader(pkt->packetId, pkt->packetSize);
+            memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
             tcp->SendToGameServer(buf);
             count++;
         }

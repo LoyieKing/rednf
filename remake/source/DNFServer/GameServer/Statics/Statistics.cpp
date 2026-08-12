@@ -1313,7 +1313,7 @@ void StatisticManager::AddCreateEmblemInfo(Packet_Emblem_Create_Statistic* pkt)
 {
     for (int i = 0; i < pkt->m_count; i++)
     {
-        for (int j = 0; j < pkt->m_arrA[i + 8]; j++)
+        for (int j = 0; j < pkt->m_arrA[i]; j++)
         {
             m_createEmblem.increaseCount(pkt->m_arrB[i]);
         }
@@ -1361,12 +1361,10 @@ void StatisticManager::SendDBRandomboxStatistic(CServerHandler* handler)
 }
 void StatisticManager::ResetRandomboxStatistic()
 {
-    struct RBoxView1 { int m_pad[2]; int m_b[0xd8]; };
-    struct RBoxView2 { int m_pad[3]; int m_b[0xd8]; };
     for (int i = 0; i < 5; i++)
     {
-        ((RBoxView1*)this)->m_b[i + 0xd0] = 0;
-        ((RBoxView2*)this)->m_b[i + 0xd4] = 0;
+        m_randomboxA[i] = 0;
+        m_randomboxB[i] = 0;
     }
 }
 void StatisticManager::AddUserCountStatistics(CServerHandler* handler,

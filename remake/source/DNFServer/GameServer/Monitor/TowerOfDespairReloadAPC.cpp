@@ -59,7 +59,7 @@ void TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC()
 }
 
 TowerOfDespairWaitGameServerResponse_Task::TowerOfDespairWaitGameServerResponse_Task(
-    unsigned int a, unsigned int b)
+    unsigned int a, unsigned int b) throw()
     : CTaskScheduler::CTask(a, b)
 {
 }
@@ -73,9 +73,8 @@ void TowerOfDespairWaitGameServerResponse_Task::_DoExecute()
     {
         TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC();
         unsigned int t = (unsigned int)time(0);
-        TowerOfDespairWaitGameServerResponse_Task* task =
-            new TowerOfDespairWaitGameServerResponse_Task(t + 0x3c, 0);
-        ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(task);
+        ((CApplication*)CApplicationInstance())->GetTaskScheduler()->AddTask(
+            new TowerOfDespairWaitGameServerResponse_Task(t + 0x3c, 0));
     }
 }
 

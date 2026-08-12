@@ -12,6 +12,9 @@
 #include "UdpCharacteristic.h"
 #include "Packet_Frame_Lag_Statistic_Add.h"
 
+struct PairView { int m_key; int m_f0; char m_rest[0x1c]; };
+struct PktView { char m_pad[0xa]; int m_a; } __attribute__((packed));
+
 int FrameLagCollector::GetCollectInterval()
 {
     return m_collectInterval;
@@ -195,20 +198,20 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
 }
 int FrameLagCollector::PopMonitoringSpecData(Packet_Frame_Lag_Spec_Delete_Notify* pkt)
 {
-    char erased = 0;
+    std::map<int, MonitoringSpecCase>::iterator it;
     char again = 1;
-    while (again != 0)
+    char erased = 0;
+    while (again)
     {
         again = 0;
-        for (std::map<int, MonitoringSpecCase>::iterator it = m_monitor.begin();
-             it != m_monitor.end(); ++it)
+        it = m_monitor.begin();
+        for (; it != m_monitor.end(); ++it)
         {
-            if (*(int*)((char*)&it->second + 0x8) == *(int*)((char*)pkt + 10))
+            if (((PairView*)it.operator->())->m_f0 == ((PktView*)pkt)->m_a)
             {
                 m_monitor.erase(it);
                 again = 1;
                 erased = 1;
-                break;
             }
         }
     }

@@ -145,7 +145,7 @@ unsigned char CTcpGameServer::GetChannelNo()
     return m_channelNo;
 }
 
-char CTcpGameServer::IsValidServer()
+bool CTcpGameServer::IsValidServer()
 {
     if (m_sock != 0 && m_net != 0)
     {

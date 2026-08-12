@@ -185,11 +185,13 @@ void CUser::MemberEnterProcess()
         return;
     }
     m_field1a--;
-    if (m_field1a <= 0)
+    register bool b = m_field1a <= 0;
+    if (b)
     {
         m_memberEnterCallerId = 0;
         m_field1a = 0;
     }
+    return;
 }
 
 void CUser::SetBuddyCharName(int dbid, const std::string& name)

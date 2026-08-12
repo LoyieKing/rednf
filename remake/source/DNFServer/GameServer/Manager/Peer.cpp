@@ -193,12 +193,13 @@ bool CPeer::parsing(int len)
     // GCC 4.4 按反声明序分配简单局部，hdr 为带 ctor 的 12 字节对象独立落在 -0x5a）。
     PacketHeader hdr(0, 0);
     int qsize;
-    int parsinglength = m_recvLen + len;
+    int parsinglength = m_recvLen;
+    parsinglength += len;
     unsigned int size;
     int headerSize = 10;
     if (parsinglength <= 9)
     {
-        m_recvLen += len;
+        m_recvLen = m_recvLen + len;
         m_sendBuf += len;
         DNF_LOG_SCOPE_LINE(0xbb, "./log/TcpRecv",
             "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
@@ -260,7 +261,7 @@ out:
     {
         try
         {
-            if (parsinglength > 0x1800)
+            if ((unsigned int)parsinglength > 0x1800)
             {
                 DNF_LOG_SCOPE_LINE(0x10e, "./log/TcpRecv",
                     "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",

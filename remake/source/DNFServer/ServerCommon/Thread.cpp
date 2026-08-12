@@ -14,10 +14,6 @@ CMutex::CMutex() throw() {
     pthread_mutex_init(&mutex, NULL);
 }
 
-CMutex::~CMutex() throw() {
-    pthread_mutex_destroy(&mutex);
-}
-
 void CMutex::lock() {
     pthread_mutex_lock(&mutex);
 }

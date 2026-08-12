@@ -366,10 +366,7 @@ void CMemoryCashManager::DeleteCashObjecct(unsigned int dbid)
     std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.find(dbid);
     if (it != m_cashObjects.end())
     {
-        if (it->second != 0)
-        {
-            delete it->second;
-        }
+        delete it->second;
         m_cashObjects.erase(it);
     }
 }

@@ -12,11 +12,16 @@
 #   TcpNetSystem：CTcpNetSystem D1/D2 的虚调用（fn->%edx 形态）与 c6444r
 #   逐条一致（第 30 轮验证，NEAR→IDENTICAL；同 TU 其余函数 c6/c6444r 均
 #   identical，含 Init 在 begin() 返回 bool 后 IDENTICAL）
-# - DNFTableBase：c6 编译但去掉 -fno-enforce-eh-specs。ORIG 该 TU 的
+# - DNFTableBase：c6444r 编译但去掉 -fno-enforce-eh-specs。R42 验证：
+#   Load_Txt_Table_Data 虚调用（fn->%edx 形态）与 fopen 赋值条件
+#   （(f=fopen())==0 → sete %al;test %al,%al;je）均与 ORIG 逐条一致；
+#   Parse_Table 全族改为 bool 返回（ORIG 调用点 test %al 直接消费）。
+#   原 c6 形态：fn->%eax + jne 折叠 + int→bool setne，无法对齐。
+#   ORIG 该 TU 的
 #   CDNFException what/D1/D2 带 __cxa_call_unexpected landing pad（throw()
 #   异常规范强制代码），带该 flag 会丢失 pad 导致 DIFF；去掉后
-#   what/D1/D2 全部 IDENTICAL_AE（第 40 轮验证，同 TU CTableBase 均为
-#   MISSING_ORIG 不统计，无回归）
+#   what/D1/D2 全部 IDENTICAL_AE（第 40 轮 c6 验证；R42 在 c6444r 下复验无回归，
+#   同 TU CTableBase 均为 MISSING_ORIG 不统计，无回归）
 ROOT=/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake
 C6="$ROOT/dnf_c6_gxx.sh"
 C6444R="$ROOT/dnf_c6444r_gxx.sh"
@@ -39,7 +44,7 @@ case "$(basename "$src" .cpp)" in
             filtered="$filtered $a"
         done
         # shellcheck disable=SC2086
-        exec "$C6" $filtered ;;
+        exec "$C6444R" $filtered ;;
     DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface|DNFTcpAcceptThread|TcpNetSystem|DNFAppStopInit|DNFAppStartInit|DNFServerHandler|PowerWar)
         exec "$C6444R" "$@" ;;
     *)

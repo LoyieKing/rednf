@@ -274,8 +274,6 @@ void CTcpManagerServer::SendTcpPacket(PacketHeader* pkt)
 
 namespace exchange_server
 {
-CCacheCharacterMgr* g_instance = 0;
-
 CCacheCharacterMgr::CCacheCharacterMgr()
 {
 }
@@ -286,24 +284,28 @@ int CCacheCharacterMgr::CacheCharacter(unsigned int dbid, CACHE_CHARACTER_TYPE* 
 {
     type->m_field8 = (long)time(0);
     std::pair<std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator, bool> r =
-        m_cache.insert(std::pair<const unsigned int, CACHE_CHARACTER_TYPE>(dbid, *type));
-    if (!r.second)
-    {
-        r.first->second = *type;
-    }
-    else
+        m_cache.insert(std::make_pair(dbid, *type));
+    if (r.second)
     {
         if (m_cache.size() > 49999)
         {
-            CollectGarbage();
+            if (!CollectGarbage())
+            {
+                return 0;
+            }
         }
-        else
-        {
-            CCacheCharacterTime t;
-            t.m_time = (int)type->m_field8;
-            t.m_charNo = (int)dbid;
-            m_timeQueue.push(t);
-        }
+    }
+    else
+    {
+        r.first->second = *type;
+    }
+    CCacheCharacterTime t;
+    t.m_time = (int)type->m_field8;
+    t.m_charNo = (int)dbid;
+    m_timeQueue.push(t);
+    if (m_timeQueue.size() > 49999)
+    {
+        CollectGarbage();
     }
     return 1;
 }
@@ -327,21 +329,21 @@ bool CCacheCharacterMgr::GetCacheCharacter(unsigned int dbid, CACHE_CHARACTER_TY
     }
 }
 
-char CCacheCharacterMgr::CollectGarbage()
+bool CCacheCharacterMgr::CollectGarbage()
 {
-    char result = 0;
-    CCacheCharacterTime t;
+    bool result = 0;
+    CCacheCharacterTime top;
     time_t now = time(0);
     while (!m_timeQueue.empty())
     {
-        CCacheCharacterTime top = m_timeQueue.top();
-        if ((long long)now - top.m_time < 0x1e)
+        top = m_timeQueue.top();
+        if (now - top.m_time <= 0x1d)
         {
-            break;
+            return result;
         }
         std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator it =
             m_cache.find((unsigned int)top.m_charNo);
-        if (it != m_cache.end() && 0x1d < now - ((RA_INT<12>*)&it->second)->v)
+        if (it != m_cache.end() && 0x1d < now - it->second.m_field8)
         {
             m_cache.erase(it);
             result = 1;
@@ -362,10 +364,7 @@ void CCacheCharacterMgr::Reset()
 
 CCacheCharacterMgr* GetInstanceCacheCharacterMgr()
 {
-    if (g_instance == 0)
-    {
-        g_instance = new CCacheCharacterMgr;
-    }
-    return g_instance;
+    static CCacheCharacterMgr instance;
+    return &instance;
 }
 }

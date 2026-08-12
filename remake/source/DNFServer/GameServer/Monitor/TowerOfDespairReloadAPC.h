@@ -252,7 +252,7 @@ public:
 class TowerOfDespairWaitGameServerResponse_Task : public CTaskScheduler::CTask
 {
 public:
-    TowerOfDespairWaitGameServerResponse_Task(unsigned int a, unsigned int b);
+    TowerOfDespairWaitGameServerResponse_Task(unsigned int a, unsigned int b) throw();
     ~TowerOfDespairWaitGameServerResponse_Task();
     void _DoExecute();
 };

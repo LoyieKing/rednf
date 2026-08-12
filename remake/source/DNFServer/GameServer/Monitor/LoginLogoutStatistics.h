@@ -264,8 +264,6 @@ struct stLoginLogout
 {
     stLoginLogout();
     int m_field0;   // +0
-    int m_count;    // +4
-    int m_field8;   // +8
 };
 
 struct stLoginLogoutVariable

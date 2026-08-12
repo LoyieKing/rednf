@@ -7,7 +7,7 @@
 class CMutex {
 public:
     CMutex() throw();
-    ~CMutex() throw();
+    ~CMutex() throw() { pthread_mutex_destroy(&mutex); }
     void lock();
     void unlock();
 private:

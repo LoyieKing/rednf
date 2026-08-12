@@ -251,7 +251,7 @@ public:
     void Init(unsigned int sock, class CTcpNetSystem* net);
     void SetChannelNo(unsigned char channel);
     unsigned char GetChannelNo();
-    char IsValidServer();
+    bool IsValidServer();
     unsigned int m_sock;  // +0
     CTcpNetSystem* m_net;  // +4
     int m_channelType;     // +8

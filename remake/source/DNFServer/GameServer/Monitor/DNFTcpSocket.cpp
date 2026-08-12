@@ -230,7 +230,7 @@ int TCPSocket::pollReadWriteErrEvent() const
 char TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
-    sock.m_fd = ::accept(m_fd, (sockaddr*)((char*)&sock + 4), &len);
+    sock.m_fd = ::accept(m_fd, (sockaddr*)sock.m_data, &len);
     if (sock.m_fd == 0)
     {
         FILE* f = fopen("log.txt", "a+");

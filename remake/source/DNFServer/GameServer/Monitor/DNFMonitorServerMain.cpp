@@ -3,7 +3,7 @@
 
 int main(int argc, char** argv)
 {
-    register CAppBase* app = CApplicationInstance();
+    CApplication* app = (CApplication*)CApplicationInstance();
     app->Create(argc, argv);
     app->Process();
     app->Clear();

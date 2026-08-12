@@ -320,7 +320,7 @@ public:
     ~CCacheCharacterMgr();
     int CacheCharacter(unsigned int dbid, CACHE_CHARACTER_TYPE* type);
     bool GetCacheCharacter(unsigned int dbid, CACHE_CHARACTER_TYPE* out);
-    char CollectGarbage();
+    bool CollectGarbage();
     void Reset();
     std::map<unsigned int, CACHE_CHARACTER_TYPE> m_cache;  // +0
     std::priority_queue<CCacheCharacterTime> m_timeQueue;  // +0x18

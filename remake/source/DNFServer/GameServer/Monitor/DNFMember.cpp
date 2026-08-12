@@ -464,7 +464,8 @@ int CMember::GetConnLowerMemberCnt()
     while (i < count)
     {
         user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
-        if (user != 0)
+        register bool b = user != 0;
+        if (b)
         {
             cnt++;
         }
@@ -536,27 +537,28 @@ void CMember::DeleteUpperMember(unsigned int charNo, bool flag)
 void CMember::DeleteLowerMember(unsigned int charNo, bool flag)
 {
     int count = (int)m_dbInfo.m_count27;
-    if (count > 0)
+    if (count <= 0)
     {
-        char* p = (char*)this + 0x2e;
-        unsigned char idx = 0;
-        while (count-- != 0)
-        {
-            if (*(unsigned int*)p == charNo)
-            {
-                memcpy(p, p + 0x27, (unsigned int)(~(unsigned char)idx) * 0x27 + 0x186);
-                m_dbInfo.m_count27--;
-                if (flag)
-                {
-                    SetMemberDeleteTime(time(0));
-                }
-                break;
-            }
-            p += 0x27;
-            idx++;
-        }
-        DebugPrintMemberMember("DELETE_LOWER_MEMBER");
+        return;
     }
+    char* p = (char*)this + 0x2e;
+    unsigned char idx = 0;
+    while (count-- != 0)
+    {
+        if (*(unsigned int*)p == charNo)
+        {
+            memcpy(p, p + 0x27, (unsigned int)(~(unsigned char)idx) * 0x27 + 0x186);
+            m_dbInfo.m_count27--;
+            if (flag)
+            {
+                SetMemberDeleteTime(time(0));
+            }
+            break;
+        }
+        p += 0x27;
+        idx++;
+    }
+    DebugPrintMemberMember("DELETE_LOWER_MEMBER");
 }
 
 unsigned char* CMember::GetMemberDBInfo() const
