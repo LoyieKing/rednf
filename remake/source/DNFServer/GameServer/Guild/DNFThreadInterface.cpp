@@ -77,7 +77,7 @@ CThreadInterface::~CThreadInterface()
 {
 }
 
-int CThreadInterface::begin()
+bool CThreadInterface::begin()
 {
     int r = pthread_create(&m_thread, 0, dispatch_proxy, this);
     if (r < 0)

@@ -132,9 +132,10 @@ void CTcpNetSystem::SetEpollConnectedPeer(CPeer* peer)
     int ret = m_tcpHandler->SetPeer(peer, fd, 0);
     if (ret != 0)
     {
-        printf("Epoll SetPeer fail(fd:%d, error:%d, %s)", fd, ret, strerror(ret));
+        printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
+               peer->GetTcpSocket()->getHandle(), ret, strerror(ret));
     }
-    m_peerMap.insert(std::make_pair(fd, peer));
+    m_peerMap.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
 }
 void CTcpNetSystem::SetEpollAcceptedPeers()
 {
@@ -196,8 +197,7 @@ CTcpSendBuffer* CTcpNetSystem::Acquire_TcpSendBuffer()
 void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
 {
     CGuard<CMutex> guard(&m_mutexE8);
-    CTcpSendBuffer* p = (CTcpSendBuffer*)buf;
-    m_sendQueue.push(p);
+    m_sendQueue.push((CTcpSendBuffer*)buf);
     int n = m_sendQueue.size();
     if (n > 0xa)
     {

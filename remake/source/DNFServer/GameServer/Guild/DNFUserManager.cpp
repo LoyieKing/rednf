@@ -145,21 +145,17 @@ int CUserManager::DeleteUser(CUser* user)
     {
         return 0;
     }
-    if (user == 0)
+    if (user != 0)
     {
-        return 0;
-    }
-    if (user->GetGameServer() == 0)
-    {
-        return 0;
-    }
-    unsigned int dbid = user->GetDBID();
-    if (m_users.erase(dbid) == 1)
-    {
-        char* mid = NumberToString(dbid, 0);
-        DNF_LOG_SCOPE_LINE(0x7d, "./log/User", "[USER LOGOUT] Disconnected User DB ID : %s\n", mid);
-        if (user != 0)
+        if (user->GetGameServer() == 0)
         {
+            return 0;
+        }
+        unsigned int dbid = user->GetDBID();
+        if (m_users.erase(dbid) == 1)
+        {
+            register char* mid = NumberToString(dbid, 0);
+            DNF_LOG_SCOPE_LINE(0x7d, "./log/User", "[USER LOGOUT] Disconnected User DB ID : %s\n", mid);
             delete user;
             return 1;
         }
@@ -291,7 +287,7 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     user->SetGameServer(server);
     if (InsertUser(dbid, user) != 1)
     {
-        char* mid = NumberToString(dbid, 0);
+        register char* mid = NumberToString(dbid, 0);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x13c,"./log/LoginErr",
             "uDBID(%s) uCharNo(%d) is already exist at m_mapUsers!", mid, charNo);
     }
@@ -300,13 +296,13 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     {
         if (InsertUser_CharNo(charNo, user) != 1)
         {
-            char* mid = NumberToString(dbid, 0);
+            register char* mid = NumberToString(dbid, 0);
             DNF_LOG_SCOPE_AT(__FUNCTION__, 0x146,"./log/LoginErr",
                 "uDBID(%s) uCharNo(%d) is already exist at m_mapCharNoUsers!", mid, charNo);
         }
         if (InsertUser_CharName(charName, user) != 1)
         {
-            char* mid = NumberToString(dbid, 0);
+            register char* mid = NumberToString(dbid, 0);
             DNF_LOG_SCOPE_AT(__FUNCTION__, 0x14a,"./log/LoginErr",
                 "uDBID(%s) uCharName(%s) is already exist at m_mapCharNameUsers!", mid, charName);
         }
@@ -321,17 +317,18 @@ bool CUserManager::InsertUser_CharNo(unsigned int charNo, CUser* user)
     {
         return 0;
     }
-    if (!m_charNoUsers.insert(std::make_pair(charNo, user)).second)
+    if (m_charNoUsers.insert(std::make_pair(charNo, user)).second)
     {
-        char* name = user->GetCharName();
-        unsigned int dbid = user->GetDBID();
-        CMyFileLog log(__FUNCTION__, 0x163);
-        log("./log/Except",
-            "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s\n",
-            charNo, dbid, name);
-        return 0;
+        return 1;
     }
-    return 1;
+    register char* name = user->GetCharName();
+    register unsigned int dbid = user->GetDBID();
+    register unsigned int nCharNo = charNo;
+    CMyFileLog log(__FUNCTION__, 0x163);
+    log("./log/Except",
+        "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s\n",
+        nCharNo, dbid, name);
+    return 0;
 }
 
 int CUserManager::DeleteUser_CharNo(unsigned int charNo)
@@ -344,7 +341,7 @@ int CUserManager::DeleteUser_CharNo(unsigned int charNo)
     {
         return 1;
     }
-    int nSize = m_charNoUsers.size();
+    register int nSize = m_charNoUsers.size();
     CMyFileLog log(__FUNCTION__, 0x17e);
     log("./log/User",
         "[EXCEPT]CUserManager::DeleteUser_CharNo() : Erase Fail!\tChar No : %d\tChar_No Map Count : %d\n",
@@ -364,15 +361,16 @@ bool CUserManager::InsertUser_CharName(char* name, CUser* user)
     {
         return 0;
     }
-    if (!m_charNameUsers.insert(std::pair<const std::string, CUser*>(name, user)).second)
+    if (m_charNameUsers.insert(std::pair<const std::string, CUser*>(name, user)).second)
     {
-        unsigned int dbid = user->GetDBID();
-        CMyFileLog log(__FUNCTION__, 0x1a6);
-        log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
-            name, dbid);
-        return 0;
+        return 1;
     }
-    return 1;
+    register unsigned int dbid = user->GetDBID();
+    register char* nName = name;
+    CMyFileLog log(__FUNCTION__, 0x1a6);
+    log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
+        nName, dbid);
+    return 0;
 }
 
 int CUserManager::DeleteUser_CharName(std::string name)

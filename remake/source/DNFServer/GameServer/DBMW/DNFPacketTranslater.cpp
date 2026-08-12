@@ -367,7 +367,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
             Packet_Notify_New_Group_Mail notice;
             int n = characNos.size() > 0x12b ? 0x12c : characNos.size();
             for (int i = 0; i < n; i++)
-                *(int*)((char*)&notice + 0xe + i * 4) = characNos[i];
+                *(int*)((char*)&notice + 0xe + i * 4) = characNos.at(i);
             m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
                 (char*)&notice, notice.packetSize);
             characNos.clear();

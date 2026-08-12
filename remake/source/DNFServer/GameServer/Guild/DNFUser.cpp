@@ -207,12 +207,13 @@ void CUser::LoadGuildMember(unsigned int guildKey, STGuildMemerDBInfo& info)
 
 void CUser::AddGuildMemberPoint(unsigned int point)
 {
-    unsigned int old = *(unsigned int*)((char*)this + 0x60);
-    *(unsigned int*)((char*)this + 0x60) = old + point;
+    unsigned int old = ((CUserGuildPointLayout*)this)->m_guildPoint;
+    ((CUserGuildPointLayout*)this)->m_guildPoint =
+        ((CUserGuildPointLayout*)this)->m_guildPoint + point;
     SetGuildMemFlag(0x10);
-    if (*(unsigned int*)((char*)this + 0x60) < old)
+    if (((CUserGuildPointLayout*)this)->m_guildPoint < old)
     {
-        *(unsigned int*)((char*)this + 0x60) = old;
+        ((CUserGuildPointLayout*)this)->m_guildPoint = old;
     }
 }
 
@@ -407,7 +408,6 @@ void CUser::ResetBlackList()
         return;
     }
     m_blackList.clear();
-    return;
 }
 
 void CUser::GetBlackList(unsigned char& count, STBlackUserDBType* list)

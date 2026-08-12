@@ -150,22 +150,22 @@ void CGuildBoard::clearGuildBoardData()
 void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guild, int c,
                                     STGuildBoardDBInfo* info)
 {
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
     for (int i = 0; i < c; i++)
     {
         STGuildBoardDBInfo entry;
-        char* src = (char*)info + i * 0xa5;
-        memcpy(&entry, src, 0x78);
-        *(unsigned int*)((char*)&entry + 0x78) = *(unsigned int*)(src + 0x78);
-        unsigned int key = *(unsigned int*)(src + 0x7c);
-        *(unsigned int*)((char*)&entry + 0x7c) = key;
-        *(unsigned int*)((char*)&entry + 0x80) = *(unsigned int*)(src + 0x80);
-        memcpy((char*)&entry + 0x84, src + 0x84, 0x21);
-        if (guild->IsGuildMaster(*(unsigned int*)(src + 0x80)) != 0)
+        *(unsigned int*)((char*)&entry + 0x7c) =
+            *(unsigned int*)((char*)info + i * 0xa5 + 0x7c);
+        *(unsigned int*)((char*)&entry + 0x78) =
+            *(unsigned int*)((char*)info + i * 0xa5 + 0x78);
+        memcpy(&entry, (char*)info + i * 0xa5, 0x78);
+        *(unsigned int*)((char*)&entry + 0x80) =
+            *(unsigned int*)((char*)info + i * 0xa5 + 0x80);
+        memcpy((char*)&entry + 0x84, (char*)info + i * 0xa5 + 0x84, 0x21);
+        if (guild->IsGuildMaster(*(unsigned int*)((char*)&entry + 0x80)) != 0)
         {
             *(unsigned char*)((char*)&entry + 0x86) = 1;
         }
-        map->insert(std::make_pair(key, entry));
+        m_board.insert(std::make_pair(*(unsigned int*)((char*)&entry + 0x7c), entry));
     }
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5f, "./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, COUNT:%u", a, b, c);
 }
@@ -177,17 +177,16 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     {
         return;
     }
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
-    int total = (int)map->size();
+    int total = (int)m_board.size();
     unsigned short codeType = (unsigned short)c;
     if (total == 0)
     {
         Packet_Guild_Reply_Guild_Board reply;
-        *(unsigned short*)((char*)&reply + 0xc) = codeType;
-        *(unsigned int*)((char*)&reply + 0xf) = user->GetIdByChannel();
-        *(unsigned int*)((char*)&reply + 0x13) = user->GetUniqCharNo();
-        *(unsigned char*)((char*)&reply + 0xe) = 0;
-        *(unsigned char*)((char*)&reply + 0x17) = 0;
+        reply.m_c = codeType;
+        reply.m_f = user->GetIdByChannel();
+        reply.m_13 = user->GetUniqCharNo();
+        reply.m_e = 0;
+        reply.m_17 = 0;
         user->SendTcpGameserver(&reply);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x77,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, 0);
@@ -200,24 +199,24 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     int fullPages = total / 10;
     int remainder = total % 10;
     std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
-        map->begin();
+        m_board.begin();
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator endit =
+        m_board.end();
     for (int page = 0; page < fullPages; page++)
     {
         Packet_Guild_Reply_Guild_Board reply;
-        *(unsigned short*)((char*)&reply + 0xc) = codeType;
-        *(unsigned int*)((char*)&reply + 0xf) = user->GetIdByChannel();
-        *(unsigned int*)((char*)&reply + 0x13) = user->GetUniqCharNo();
-        *(unsigned char*)((char*)&reply + 0xe) = (unsigned char)total;
-        *(unsigned char*)((char*)&reply + 0x17) = 10;
+        reply.m_c = codeType;
+        reply.m_f = user->GetIdByChannel();
+        reply.m_13 = user->GetUniqCharNo();
+        reply.m_e = (unsigned char)total;
+        reply.m_17 = 10;
         for (int i = 0; i < 10; i++)
         {
-            char* out = (char*)&reply + 0x18 + i * 0xa5;
-            char* stored = (char*)&it->second;
-            memcpy(out, stored + 4, 0x78);
-            *(unsigned int*)(out + 0x78) = *(unsigned int*)(stored + 0x7c);
-            *(unsigned int*)(out + 0x7c) = it->first;
-            *(unsigned int*)(out + 0x80) = *(unsigned int*)(stored + 0x84);
-            memcpy(out + 0x84, stored + 0x88, 0x21);
+            reply.m_boards[i].m_field7c = it->first;
+            memcpy(&reply.m_boards[i], (char*)&it->second, 0x78);
+            reply.m_boards[i].m_field78 = it->second.m_field78;
+            reply.m_boards[i].m_field80 = it->second.m_field80;
+            memcpy(&reply.m_boards[i].m_char, (char*)&it->second + 0x84, 0x21);
             ++it;
         }
         user->SendTcpGameserver(&reply);
@@ -227,21 +226,23 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     if (remainder != 0)
     {
         Packet_Guild_Reply_Guild_Board reply;
-        *(unsigned short*)((char*)&reply + 0xc) = codeType;
-        *(unsigned int*)((char*)&reply + 0xf) = user->GetIdByChannel();
-        *(unsigned int*)((char*)&reply + 0x13) = user->GetUniqCharNo();
-        *(unsigned char*)((char*)&reply + 0xe) = (unsigned char)total;
-        *(unsigned char*)((char*)&reply + 0x17) = (unsigned char)remainder;
+        reply.m_c = codeType;
+        reply.m_f = user->GetIdByChannel();
+        reply.m_13 = user->GetUniqCharNo();
+        reply.m_e = (unsigned char)total;
+        reply.m_17 = (unsigned char)remainder;
         for (int i = 0; i < remainder; i++)
         {
-            char* out = (char*)&reply + 0x18 + i * 0xa5;
-            char* stored = (char*)&it->second;
-            memcpy(out, stored + 4, 0x78);
-            *(unsigned int*)(out + 0x78) = *(unsigned int*)(stored + 0x7c);
-            *(unsigned int*)(out + 0x7c) = it->first;
-            *(unsigned int*)(out + 0x80) = *(unsigned int*)(stored + 0x84);
-            memcpy(out + 0x84, stored + 0x88, 0x21);
+            reply.m_boards[i].m_field7c = it->first;
+            memcpy(&reply.m_boards[i], (char*)&it->second, 0x78);
+            reply.m_boards[i].m_field78 = it->second.m_field78;
+            reply.m_boards[i].m_field80 = it->second.m_field80;
+            memcpy(&reply.m_boards[i].m_char, (char*)&it->second + 0x84, 0x21);
             ++it;
+            if (it != endit)
+            {
+                break;
+            }
         }
         user->SendTcpGameserver(&reply);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcb,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
@@ -251,30 +252,26 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
 
 void CGuildBoard::deleteGuildBoardData(unsigned int a, unsigned int b, unsigned int c)
 {
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
-        map->find(a);
-    if (it == map->end())
+    if (m_board.find(a) != m_board.end())
     {
-        DNF_LOG_SCOPE_LINE(0xe3, "./log/GuildBoard", "DELETE FAIL - GUILD:%u, CHARAC:%u, NO:%u", b, c, a);
+        m_board.erase(a);
+        DNF_LOG_SCOPE_LINE(0xdc, "./log/GuildBoard", "DELETE SUCCESS - GUILD:%u, CHARAC:%u, NO:%u", b, c, a);
     }
     else
     {
-        map->erase(it);
-        DNF_LOG_SCOPE_LINE(0xdc, "./log/GuildBoard", "DELETE SUCCESS - GUILD:%u, CHARAC:%u, NO:%u", b, c, a);
+        DNF_LOG_SCOPE_LINE(0xe3, "./log/GuildBoard", "DELETE FAIL - GUILD:%u, CHARAC:%u, NO:%u", b, c, a);
     }
 }
 
 void CGuildBoard::sendMessageToDBMW_GuildLevelUP(CServerHandler* handler, int level,
                                                  CUser* user)
 {
-    char buf[255];
-    std::string msg;
     Packet_DB_Load_Request_Guild_Board_Write pkt;
-    *(unsigned int*)((char*)&pkt + 0xb) = user->GetGuildKey();
-    *(unsigned int*)((char*)&pkt + 0x13) = user->GetUniqCharNo();
-    msg = g_ServerString_.GetServerString(0x3ee, 0);
+    unsigned int guildKey = user->GetGuildKey();
+    unsigned int characNo = user->GetUniqCharNo();
+    std::string msg = g_ServerString_.GetServerString(0x3ee, 0);
     std::string str = g_ServerString_.GetServerString(0x3ef, 0);
+    char buf[255] = {0};
     sprintf(buf, "%d", level + 1);
     msg += buf;
     msg += str;
@@ -283,8 +280,7 @@ void CGuildBoard::sendMessageToDBMW_GuildLevelUP(CServerHandler* handler, int le
         memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
         handler->SendToDB(&pkt);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x107,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, LEVEL:%u",
-            *(unsigned int*)((char*)&pkt + 0xb), *(unsigned int*)((char*)&pkt + 0x13),
-            level + 1);
+            guildKey, characNo, level + 1);
     }
 }
 
@@ -295,15 +291,15 @@ void CGuildBoard::sendMessageToDBMW_GuildAttendance(CServerHandler* handler, int
 
 void CGuildBoard::sendMessageToDBMW_GuildFund(CServerHandler* handler, int fund, CUser* user)
 {
-    char buf[255];
-    char buf2[255];
-    std::string msg;
     Packet_DB_Load_Request_Guild_Board_Write pkt;
-    *(unsigned int*)((char*)&pkt + 0xb) = user->GetGuildKey();
-    *(unsigned int*)((char*)&pkt + 0x13) = user->GetUniqCharNo();
+    unsigned int guildKey = user->GetGuildKey();
+    unsigned int characNo = user->GetUniqCharNo();
+    std::string msg;
     std::string str1 = g_ServerString_.GetServerString(0x3f0, 0);
-    std::string str2 = g_ServerString_.GetServerString(0x3e8, 0);
-    sprintf(buf, "%s %s ", user->GetCharName(), str2.c_str());
+    char buf[255] = {0};
+    char buf2[255] = {0};
+    sprintf(buf, "%s %s ", user->GetCharName(),
+            g_ServerString_.GetServerString(0x3e8, 0).c_str());
     msg += buf;
     sprintf(buf2, "%d ", fund);
     msg += buf2;
@@ -313,7 +309,7 @@ void CGuildBoard::sendMessageToDBMW_GuildFund(CServerHandler* handler, int fund,
         memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
         handler->SendToDB(&pkt);
         DNF_LOG_SCOPE_LINE(0x15d,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, gold :%d",
-            *(unsigned int*)((char*)&pkt + 0xb), *(unsigned int*)((char*)&pkt + 0x13), fund);
+            guildKey, characNo, fund);
     }
 }
 
@@ -321,9 +317,9 @@ void CGuildBoard::sendMessageToDBMW_GuildMasterChanging(CServerHandler* handler,
                                                         const char* name)
 {
     Packet_DB_Load_Request_Guild_Board_Write pkt;
-    *(unsigned int*)((char*)&pkt + 0xb) = user->GetGuildKey();
-    *(unsigned int*)((char*)&pkt + 0x13) = user->GetUniqCharNo();
-    std::string msg = name;
+    unsigned int guildKey = user->GetGuildKey();
+    unsigned int characNo = user->GetUniqCharNo();
+    std::string msg(name);
     std::string str = g_ServerString_.GetServerString(0x3f1, 0);
     msg += str;
     if (msg.length() < 0x78)
@@ -331,19 +327,22 @@ void CGuildBoard::sendMessageToDBMW_GuildMasterChanging(CServerHandler* handler,
         memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
         handler->SendToDB(&pkt);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x17b,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u",
-            *(unsigned int*)((char*)&pkt + 0xb), *(unsigned int*)((char*)&pkt + 0x13));
+            guildKey, characNo);
     }
 }
 
 void CGuildBoard::printGuildBoard()
 {
-    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >* map = &m_board;
-    for (std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
-             map->begin();
-         it != map->end(); ++it)
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator it =
+        m_board.begin();
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator endit =
+        m_board.end();
+    std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> >::iterator cur = it;
+    while (cur != endit)
     {
         DNF_LOG_SCOPE_LINE(0x188,"./log/GuildBoard", "\n*%d* %d %s\n",
-            it->first, *(unsigned int*)((char*)&it->second + 0x7c),
-            (char*)&it->second + 4);
+            cur->first, cur->second.m_field78,
+            cur->second.m_data);
+        ++cur;
     }
 }

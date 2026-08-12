@@ -38,12 +38,13 @@ CNetworkThread::~CNetworkThread()
 }
 void CNetworkThread::attach(CApplication* app)
 {
-    if (!app)
-        return;
-    m_udpQueue = app->Get_UdpPacketRecvQ();
-    m_udpHandler = app->Get_UdpHandler();
-    m_udpQLock = app->Get_QLock();
-    m_udpBLock = app->Get_BLock();
+    if (app)
+    {
+        m_udpQueue = app->Get_UdpPacketRecvQ();
+        m_udpHandler = app->Get_UdpHandler();
+        m_udpQLock = app->Get_QLock();
+        m_udpBLock = app->Get_BLock();
+    }
 }
 void CNetworkThread::dispatch(void* param)
 {
