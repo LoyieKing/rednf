@@ -170,8 +170,7 @@ char CCashObject::IsLifeTimeOut()
     {
         return 0;
     }
-    m_lifeTime = m_lifeTime - 1;
-    if (m_lifeTime == 0)
+    if (--m_lifeTime == 0)
     {
         return 1;
     }

@@ -26,8 +26,6 @@ int getErrno();
 // ============================================================
 // CSignal 家族
 // ============================================================
-CTerminateSig::CTerminateSig() {}
-CTerminateSig::~CTerminateSig() {}
 void CTerminateSig::handle(int sig)
 {
     puts("Recv SIGTERM signal");

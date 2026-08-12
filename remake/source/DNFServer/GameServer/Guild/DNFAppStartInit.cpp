@@ -92,11 +92,9 @@ CAppStartInit::~CAppStartInit()
 void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));
-    CAppConfig* pConfig = new CAppConfig;
-    app->m_appConfig = pConfig;
+    app->m_appConfig = new CAppConfig;
     app->m_appConfig->Check_FileName(std::string(argv[1]));
-    CServerConfig* pServer = new CServerConfig;
-    app->m_serverConfig = pServer;
+    app->m_serverConfig = new CServerConfig;
     app->m_killConfig = new CKillUSRConfig;
     if (Init_Daemon(argc, argv) == -1)
     {

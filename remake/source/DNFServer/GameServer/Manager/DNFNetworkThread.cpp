@@ -59,6 +59,10 @@ void* CUdpNetworkThread::dispatch(void* param)
             while (m_stop)
             {
                 fd_set readfds;
+                CUdpRecvBuffer* buf;
+                int size;
+                unsigned short port;
+                unsigned int addr;
                 // ORIG：FD_ZERO 展开为 32 次循环清零（老 glibc 宏形态：
                 // 指针局部 + 无符号索引；4.4.7 头是 rep stos，需显式复现）。
                 {
@@ -77,14 +81,13 @@ void* CUdpNetworkThread::dispatch(void* param)
                     continue;
                 if (!FD_ISSET((unsigned int)sock, &readfds))
                     continue;
-                CUdpRecvBuffer* buf;
                 {
                     CGuard<CMutex> guard(m_udpBLock);
                     buf = new CUdpRecvBuffer;
                 }
-                int size = 0x1800;
-                unsigned short port = 0;
-                unsigned int addr = 0;
+                size = 0x1800;
+                port = 0;
+                addr = 0;
                 if (!((CUdpHandler*)m_udpHandler)->RecvFromClient((char*)buf, &size, &addr, &port))
                 {
                     CGuard<CMutex> guard(m_udpBLock);
@@ -92,24 +95,22 @@ void* CUdpNetworkThread::dispatch(void* param)
                     continue;
                 }
                 CUdpRecvBuffer* pBuf = buf;
-                if (*(unsigned short*)((char*)pBuf + 2) != size)
+                if (pBuf->m_size != size)
                 {
-                    CMyFileLog log(__FUNCTION__, 0xb5);
-                    log("./log/recvErr",
+                    DNF_LOG_SCOPE_LINE(0xb5, "./log/recvErr",
                         "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        *(unsigned short*)((char*)pBuf + 2), size, *(unsigned short*)pBuf);
+                        pBuf->m_size, size, pBuf->m_id);
                     {
                         CGuard<CMutex> guard(m_udpBLock);
                         delete buf;
                     }
                     continue;
                 }
-                if (*(unsigned short*)((char*)pBuf + 2) > 0x17ff)
+                if (pBuf->m_size > 0x17ff)
                 {
-                    CMyFileLog log(__FUNCTION__, 0xc0);
-                    log("./log/recvErr",
+                    DNF_LOG_SCOPE_LINE(0xc0, "./log/recvErr",
                         "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        *(unsigned short*)((char*)pBuf + 2), size, *(unsigned short*)pBuf);
+                        pBuf->m_size, size, pBuf->m_id);
                     {
                         CGuard<CMutex> guard(m_udpBLock);
                         delete buf;
@@ -118,28 +119,25 @@ void* CUdpNetworkThread::dispatch(void* param)
                 }
                 if ((unsigned int)size > 0x1800)
                 {
-                    CMyFileLog log(__FUNCTION__, 0xcc);
-                    log("./log/recvErr",
+                    DNF_LOG_SCOPE_LINE(0xcc, "./log/recvErr",
                         "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        *(unsigned short*)((char*)pBuf + 2), size, *(unsigned short*)pBuf);
+                        pBuf->m_size, size, pBuf->m_id);
                     {
                         CGuard<CMutex> guard(m_udpBLock);
                         delete buf;
                     }
                     continue;
                 }
-                *(unsigned int*)((char*)pBuf + 6) = addr;
-                *(unsigned short*)((char*)pBuf + 4) = port;
+                pBuf->m_addr = (int)addr;
+                pBuf->m_port = port;
                 {
                     CGuard<CMutex> guard(m_udpQLock);
                     m_udpQueue->push(buf);
                     if (m_udpQueue->size() > 0x64)
                     {
-                        CMyFileLog log(__FUNCTION__, 0xe0);
-                        log("./log/recv",
+                        DNF_LOG_SCOPE_LINE(0xe0, "./log/recv",
                             "buffer(%d) ,id(%d), size(%d) \n",
-                            m_udpQueue->size(), *(unsigned short*)pBuf,
-                            *(unsigned short*)((char*)pBuf + 2));
+                            m_udpQueue->size(), pBuf->m_id, pBuf->m_size);
                     }
                 }
             }

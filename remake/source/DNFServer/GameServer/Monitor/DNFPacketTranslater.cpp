@@ -1950,8 +1950,8 @@ void CPacketTranslater::OnNoticeMessage(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnNoticeMessage : 0 == m_pclApp");
     }
     DNF_LOG_SCOPE_LINE(0xf8e, "./log/GM_msg", "CPacketTranslater::OnNoticeMessage()%s\n", (char*)pkt + 0xb);
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0x10b);
+    PacketHeader* lpkt = pkt;
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)lpkt, 0x10b);
 
 
     }
@@ -3334,8 +3334,8 @@ void CPacketTranslater::OnNoticeSlang(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnNoticeSlang : 0 == m_pclApp");
     }
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0x3d);
+    PacketHeader* lpkt = pkt;
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)lpkt, 0x3d);
 
 
     }
@@ -3578,9 +3578,9 @@ void CPacketTranslater::OnServerMessageInfo(PacketHeader* pkt)
 {
 
 
+    PacketHeader* lpkt = pkt;
     DNF_LOG_SCOPE_LINE(0x1402, "./log/ServerEvent", "Packet_Monitor_Server_Message_Info");
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0x5f);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)lpkt, 0x5f);
 
 
     }
@@ -4998,8 +4998,8 @@ void CPacketTranslater::onSocialEventRewardItemRequest(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::onSocialEventRewardItemRequest");
     }
-    PacketHeader* local_pkt = pkt;
-    m_pclApp->m_serverHandler2->SendToDB(local_pkt);
+    char* local_pkt = (char*)pkt;
+    m_pclApp->m_serverHandler2->SendToDB((PacketHeader*)local_pkt);
 
 
     }
@@ -5400,8 +5400,8 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnPcRoomPlayTimeReward");
     }
-    PacketHeader* rpkt = pkt;
-    m_pclApp->m_serverHandler2->SendToDB(rpkt);
+    char* rpkt = (char*)pkt;
+    m_pclApp->m_serverHandler2->SendToDB((PacketHeader*)rpkt);
 
 
     }

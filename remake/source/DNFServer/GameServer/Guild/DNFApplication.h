@@ -67,7 +67,7 @@ public:
     virtual void Load(int argc, char** argv);
     virtual void Free();
     void CheckArgv(int argc, char** argv);
-    int Send_Term_Signal(const std::string& name);
+    bool Send_Term_Signal(const std::string& name);
     void Send_Suspend_Signal(const std::string& name);
     void App_Stop();
     void SendTestPacket_1();

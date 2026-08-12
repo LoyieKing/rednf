@@ -35,11 +35,8 @@
 #include "DNFUserManager.h"
 
 CMemberManager::CMemberManager()
+    : m_app(0), m_userMgr(0), m_memberConfig(0), m_memberExpTbl(0)
 {
-    m_app = 0;
-    m_userMgr = 0;
-    m_memberConfig = 0;
-    m_memberExpTbl = 0;
     m_scheduler.SetSpecialHour(6);
 }
 
@@ -81,18 +78,14 @@ void CMemberManager::MemberRegisterFlagProcess()
 
 char CMemberManager::LoadMemberFromCash(CUser* user, CMember* member)
 {
-    if (member == 0)
+    if (member == 0 || user == 0)
     {
         return 0;
     }
-    if (user != 0)
-    {
-        InsertMember(member->GetMemberKey(), member);
-        user->AttachMember(member);
-        member->NoticeMemberLogin_Out(user, 1);
-        return 1;
-    }
-    return 0;
+    InsertMember(member->GetMemberKey(), member);
+    user->AttachMember(member);
+    member->NoticeMemberLogin_Out(user, 1);
+    return 1;
 }
 
 int CMemberManager::DeleteMember(unsigned int key, bool cash)
@@ -176,11 +169,12 @@ void CMemberManager::SendToDBMemberUpdateCharInfo(CServerHandler* handler, unsig
 unsigned int CMemberManager::GetLowerMemberEnterLimit(unsigned int level)
 {
     ST_MemberConfig* info = m_memberConfig->GetMemberInfo();
-    if (level / 10 < 0xb)
+    int idx = level / 10;
+    if (idx > 0xa)
     {
-        return (unsigned int)info[level / 10].m_c;
+        return 0;
     }
-    return 0;
+    return (unsigned int)info[idx].m_c;
 }
 
 int CMemberManager::IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember* m2,
@@ -523,14 +517,10 @@ void CMemberManager::GetMemberExpNextLevelNeedExpLevel(unsigned int& exp,
                                                        unsigned int& expNext,
                                                        unsigned char& level)
 {
-    unsigned int lo[3];
-    CMemberExpTbl* tbl = *(CMemberExpTbl**)((char*)this + 0x24);
-    if (tbl != 0)
-    {
-        tbl->GetMemberExpLevel(exp, lo[0], expNext, level);
-    }
-    exp = exp - lo[0];
-    expNext = expNext - lo[0];
+    unsigned int needExp;
+    m_memberExpTbl->GetMemberExpLevel(exp, needExp, expNext, level);
+    exp = exp - needExp;
+    expNext = expNext - needExp;
 }
 
 int CMemberManager::MemerMemLogin(unsigned int key, CUser* user)

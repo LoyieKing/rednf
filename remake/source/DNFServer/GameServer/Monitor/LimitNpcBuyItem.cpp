@@ -38,34 +38,39 @@ int LimitNpcBuyItemManager::sellNpcLimitBuyItem(LimitNpcBuyItemInfo* info)
     {
         return 0x11;
     }
-    NpcBuyLimitItem* item = &it->second;
-    if (item->m_itemId == 0)
+    if (it->second.m_itemId == 0)
     {
         return 0x11;
     }
-    if (item->m_sellCount < item->m_maxCount)
+    if (it->second.m_sellCount >= it->second.m_maxCount)
     {
-        item->m_sellCount += info->m_count;
-        unsigned int total = item->m_sellCount;
-        DNF_LOG_SCOPE_LINE(0x23,"./log/NpcBuyLimitItem",
-            "Sell-> characNo: %u, itemId: %u, buyCount: %u, maxCount: %u, totalSellCount: %u)",
-            info->m_charNo, info->m_itemId, info->m_count, item->m_maxCount, total);
-        return 0;
+        return 0x5f;
     }
-    return 0x5f;
+    it->second.m_sellCount += info->m_count;
+    unsigned int total = it->second.m_sellCount;
+    unsigned int maxCount = it->second.m_maxCount;
+    DNF_LOG_SCOPE_LINE(0x23, "./log/NpcBuyLimitItem",
+        "Sell-> characNo: %u, itemId: %u, buyCount: %u, maxCount: %u, totalSellCount: %u)",
+        info->m_charNo, info->m_itemId, info->m_count, maxCount, total);
+    return 0;
 }
 
 void LimitNpcBuyItemManager::undoNpcLimitBuyItem(LimitNpcBuyItemUpdate* info)
 {
     std::map<unsigned int, NpcBuyLimitItem>::iterator it = m_items.find(info->m_itemId);
-    if (it != m_items.end() && info->m_cancelCount <= it->second.m_sellCount)
+    if (it == m_items.end())
     {
-        it->second.m_sellCount -= info->m_cancelCount;
-        DNF_LOG_SCOPE_LINE(0x34, "./log/NpcBuyLimitItem",
-            "Undo-> characNo: %u, errorNo: %u, itemId: %u, cancelCount: %u, maxCount: %u, totalSellCount: %u)",
-            info->m_charNo, info->m_errorNo, info->m_itemId, info->m_cancelCount,
-            it->second.m_maxCount, it->second.m_sellCount);
+        return;
     }
+    if (it->second.m_sellCount < info->m_cancelCount)
+    {
+        return;
+    }
+    it->second.m_sellCount -= info->m_cancelCount;
+    DNF_LOG_SCOPE_LINE(0x34, "./log/NpcBuyLimitItem",
+        "Undo-> characNo: %u, errorNo: %u, itemId: %u, cancelCount: %u, maxCount: %u, totalSellCount: %u)",
+        info->m_charNo, info->m_errorNo, info->m_itemId, info->m_cancelCount,
+        it->second.m_maxCount, it->second.m_sellCount);
 }
 
 void LimitNpcBuyItemManager::registItem(NpcBuyLimitItem& item)
@@ -123,4 +128,3 @@ LimitNpcBuyItemChangeInfo::LimitNpcBuyItemChangeInfo() : PacketHeader(0x27db, 0x
 }
 
 LimitNpcBuyItemRequestInfo::LimitNpcBuyItemRequestInfo() : PacketHeader(0x27d8, 10) {}
-

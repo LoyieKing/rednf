@@ -103,7 +103,7 @@ unsigned int CTowerRank::getRankData(unsigned int floor, const char* name, unsig
 
 void CTowerRank::reset()
 {
-    for (unsigned int i = 0; i < 4; i++)
+    for (unsigned int i = 0; i <= 3; i++)
     {
         m_ranks[i].clear();
     }

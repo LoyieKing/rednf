@@ -358,7 +358,7 @@ void CApplication::CheckArgv(int argc, char** argv)
     }
 }
 
-int CApplication::Send_Term_Signal(const std::string& name)
+bool CApplication::Send_Term_Signal(const std::string& name)
 {
     return 0;
 }

@@ -8,8 +8,8 @@
 class CTerminateSig : public CSignal
 {
 public:
-    CTerminateSig();
-    virtual ~CTerminateSig();
+    CTerminateSig() {}
+    virtual ~CTerminateSig() {}
     virtual void handle(int sig);
 };
 

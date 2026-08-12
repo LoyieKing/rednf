@@ -26,8 +26,6 @@ int getErrno();
 // ============================================================
 // CSignal 家族
 // ============================================================
-CSystemFailSig::CSystemFailSig() {}
-CSystemFailSig::~CSystemFailSig() {}
 void CSystemFailSig::handle(int sig)
 {
     puts("Recv SIGSYS signal");

@@ -162,7 +162,7 @@ int CPeer::send_packet(char* buf, int len)
         return -1;
     }
     if (m_recvBuf < (char*)this + 0x183c ||
-        m_recvBuf >= (char*)((unsigned int)((char*)this + 0x183c) + 0x96000))
+        (unsigned int)m_recvBuf >= (unsigned int)((char*)this + 0x183c) + 0x96000u)
     {
         DNF_LOG_SCOPE_LINE(0x13b, "./log/TcpErr",
             "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",

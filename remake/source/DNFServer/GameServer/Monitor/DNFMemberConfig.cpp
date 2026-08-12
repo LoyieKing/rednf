@@ -47,18 +47,21 @@ void CMemberConfig::Load_Table(const std::string& path)
 
 bool CMemberConfig::Parse_Table(char* line, int idx)
 {
+    char* tokens[4];
     if (line[0] == '#')
     {
         return 0;
     }
-    char* tokens[3];
-    if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 3) == 3 && idx < 10)
+    if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 3) == 3)
     {
-        ST_MemberConfig* info = &m_table[idx];
-        info->m_a = atoi(tokens[0]);
-        info->m_b = atoi(tokens[1]);
-        info->m_c = atoi(tokens[2]);
-        return 1;
+        if (idx < 10)
+        {
+            ST_MemberConfig* info = &m_table[idx];
+            info->m_a = atoi(tokens[0]);
+            info->m_b = atoi(tokens[1]);
+            info->m_c = atoi(tokens[2]);
+            return 1;
+        }
     }
     return 0;
 }
@@ -85,11 +88,13 @@ bool CMemberExpTbl::Parse_Table(char* line, int idx)
         return 0;
     }
     char* tokens[2];
-    bool ok = DNFFLib::ExplodeString(line, "\t\"", tokens, 1) == 1 && tokens[1] == 0;
-    if (ok && idx < 0xb)
+    if (DNFFLib::ExplodeString(line, "\t\"", tokens, 1) == 1 && tokens[1] == 0)
     {
-        m_table[idx] = atoi(tokens[0]);
-        return 1;
+        if (idx < 0xb)
+        {
+            m_table[idx] = atoi(tokens[0]);
+            return 1;
+        }
     }
     return 0;
 }
@@ -135,12 +140,13 @@ unsigned char CMemberExpTbl::IsMemberExpLevelUp(unsigned int exp)
     {
         return 0;
     }
-    if (exp >= (unsigned int)m_table[count - 1])
+    if (exp >= (unsigned int)m_table[((unsigned int)(unsigned char)((RA_S8<4>*)this)->v) - 1])
     {
         return 1;
     }
+    count = count - 1;
     p = p + 4;
-    while (count = count - 1, count != 0)
+    while (count-- != 0)
     {
         if (exp - 1 == *(unsigned int*)p)
         {

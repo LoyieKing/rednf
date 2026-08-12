@@ -453,6 +453,7 @@ unsigned int CMember::GetUpperMemberExpLevel()
 
 int CMember::GetConnLowerMemberCnt()
 {
+    CUser* user;
     int count = (int)m_dbInfo.m_count27;
     if (count == 0)
     {
@@ -462,12 +463,8 @@ int CMember::GetConnLowerMemberCnt()
     int i = 0;
     while (i < count)
     {
-        CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
-        if (user == 0)
-        {
-            ;
-        }
-        else
+        user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+        if (user != 0)
         {
             cnt++;
         }

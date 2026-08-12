@@ -7,9 +7,9 @@
 class CSignal
 {
 public:
-    CSignal();
+    CSignal() { m_app = 0; }
     virtual void handle(int sig) = 0;
-    virtual ~CSignal();
+    virtual ~CSignal() {}
     void attachApp(CApplication* app);
     void dump_core_file();
     CApplication* m_app;  // +4

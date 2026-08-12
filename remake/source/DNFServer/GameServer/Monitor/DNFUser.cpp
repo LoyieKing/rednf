@@ -192,14 +192,15 @@ void CUser::GetChannelUserCount(STPvPChannelInfo* out, unsigned char& count)
 
 void CUser::MemberEnterProcess()
 {
-    if (m_memberEnterCallerId != 0)
+    if (m_memberEnterCallerId == 0)
     {
-        m_field1a = m_field1a - 1;
-        if (m_field1a <= 0)
-        {
-            m_memberEnterCallerId = 0;
-            m_field1a = 0;
-        }
+        return;
+    }
+    m_field1a--;
+    if (m_field1a <= 0)
+    {
+        m_memberEnterCallerId = 0;
+        m_field1a = 0;
     }
 }
 

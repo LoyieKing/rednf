@@ -43,10 +43,12 @@ bool CKillUSRConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;
+    int dummy;
     char* fields[4];
+    ST_KillUSRConfig* kc;
     if (DNFFLib::ExplodeString(data, " \t\r\n\"", fields, 4) == 4)
     {
-        ST_KillUSRConfig* kc = new (std::nothrow) ST_KillUSRConfig;
+        kc = new (std::nothrow) ST_KillUSRConfig;
         if (kc)
         {
             kc->m_type = atoi(fields[0]);

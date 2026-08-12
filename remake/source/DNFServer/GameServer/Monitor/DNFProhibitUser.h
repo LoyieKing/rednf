@@ -254,7 +254,7 @@ public:
     unsigned int m_dbid;        // +0
     unsigned short m_remain;    // +4
     char m_channel;             // +6
-    char m_flag;                // +7
+    bool m_flag;                // +7
     char m_data[4];             // +8
 };
 

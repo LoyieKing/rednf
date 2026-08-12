@@ -25,7 +25,7 @@ for a in "$@"; do
     prev="$a"
 done
 case "$(basename "$src" .cpp)" in
-    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface|DNFTcpAcceptThread|TcpNetSystem)
+    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface|DNFTcpAcceptThread|TcpNetSystem|DNFAppStopInit|DNFAppStartInit)
         exec "$C6444R" "$@" ;;
     *)
         exec "$C6" "$@" ;;

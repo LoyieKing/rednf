@@ -244,6 +244,7 @@ struct NpcBuyLimitItem
     unsigned int m_sellCount;  // +8
 };
 
+#pragma pack(push, 1)
 struct LimitNpcBuyItemInfo
 {
     char m_data[0x12];
@@ -267,7 +268,9 @@ struct LimitNpcBuyItemInfoAll
     int m_count;        // +0x16
     char m_data2[0x1c8];
 };
+#pragma pack(pop)
 
+#pragma pack(push, 1)
 class LimitNpcBuyItemChangeInfo : public PacketHeader
 {
 public:
@@ -275,6 +278,7 @@ public:
     unsigned int m_itemId;  // +10
     int m_fieldE;           // +14
 };
+#pragma pack(pop)
 
 class LimitNpcBuyItemManager
 {

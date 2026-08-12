@@ -26,8 +26,6 @@ int getErrno();
 // ============================================================
 // CSignal 家族
 // ============================================================
-CSegmentationFaultSig::CSegmentationFaultSig() {}
-CSegmentationFaultSig::~CSegmentationFaultSig() {}
 void CSegmentationFaultSig::handle(int sig)
 {
     puts("Recv SIGSEGV signal --> make Dump Core file.");

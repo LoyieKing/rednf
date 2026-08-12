@@ -2956,7 +2956,7 @@ void CDBManager::Close()
             m_handles[i]->close();
     }
 }
-char CDBManager::UpdateQueryCount(unsigned int idx, int count, int time)
+bool CDBManager::UpdateQueryCount(unsigned int idx, int count, int time)
 {
     bool ret;
     CDBHandle* h = m_handles[4];

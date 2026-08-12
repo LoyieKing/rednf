@@ -7,8 +7,8 @@
 class CSegmentationFaultSig : public CSignal
 {
 public:
-    CSegmentationFaultSig();
-    virtual ~CSegmentationFaultSig();
+    CSegmentationFaultSig() {}
+    virtual ~CSegmentationFaultSig() {}
     virtual void handle(int sig);
 };
 

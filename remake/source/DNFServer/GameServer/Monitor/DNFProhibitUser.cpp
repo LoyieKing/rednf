@@ -57,9 +57,7 @@ unsigned short CDNFProhibitUser::GetProhibitRemainTime()
 
 bool CDNFProhibitUser::IsTimeOutConnectable()
 {
-    ((RA_U16<4>*)this)->v =
-        (unsigned short)(((RA_U16<4>*)this)->v - 1);
-    if ((short)(((RA_U16<4>*)this)->v) <= 0)
+    if ((short)(--((RA_U16<4>*)this)->v) <= 0)
     {
         return 1;
     }
@@ -73,7 +71,7 @@ char CDNFProhibitUser::fromWeb() { return m_flag; }
 void CDNFProhibitUser::SetUserConnectableTime(unsigned int dbid, short time, char channel,
                                               bool flag)
 {
-    if (((RA_S8<7>*)this)->v != 1)
+    if (!m_flag)
     {
         ((RA_S16<4>*)this)->v = time;
         *(unsigned int*)this = dbid;

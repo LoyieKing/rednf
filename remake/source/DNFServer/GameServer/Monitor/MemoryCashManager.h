@@ -265,7 +265,7 @@ public:
     std::map<unsigned int, std::string> m_names;        // +0
     std::map<unsigned int, class CCashObject*> m_cashObjects;  // +0x18
     CApplication* m_app;                                // +0x30
-    unsigned char m_cashCnt34;                          // +0x34
+    char m_cashCnt34;                                   // +0x34
     char m_pad35[3];                                    // +0x35
     int m_buddyCashCnt;                                 // +0x38
     int m_memberCashCnt;                                // +0x3c

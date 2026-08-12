@@ -7,8 +7,8 @@
 class CSystemFailSig : public CSignal
 {
 public:
-    CSystemFailSig();
-    virtual ~CSystemFailSig();
+    CSystemFailSig() {}
+    virtual ~CSystemFailSig() {}
     virtual void handle(int sig);
 };
 

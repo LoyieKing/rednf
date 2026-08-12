@@ -28,11 +28,6 @@ CSignalTranslator* CSignalTranslatorInstance();
 // ============================================================
 // CSignal 家族
 // ============================================================
-CSignal::CSignal()
-{
-    m_app = 0;
-}
-CSignal::~CSignal() {}
 void CSignal::dump_core_file()
 {
     CPacketTracerInstance()->AbsoluteWriteLog();
