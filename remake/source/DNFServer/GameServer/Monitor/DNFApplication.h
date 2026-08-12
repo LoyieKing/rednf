@@ -373,8 +373,8 @@ public:
     void* GetLoginLogoutStatistics();
     void* GetPeriodicMessageManager();
     void Remove_GM_id(unsigned int id);
-    char isGM_regFromChannel(unsigned int channel);
-    char isAbleUserChatWithGM(unsigned int channel, unsigned int charNo);
+    bool isGM_regFromChannel(unsigned int channel);
+    bool isAbleUserChatWithGM(unsigned int channel, unsigned int charNo);
     void AddChattableUserWithGM(unsigned int channel, unsigned int charNo);
     void DisableChatUserWithGM(unsigned int channel, unsigned int charNo);
 

@@ -129,8 +129,7 @@ void CTcpNetSystem::SetEpollConnectedPeer(CPeer* peer)
 {
     CGuard<CMutex> guard(&m_mutex78);
     int ret = 0;
-    ret = m_tcpHandler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), 0);
-    if (ret != 0)
+    if ((ret = m_tcpHandler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), 0)) != 0)
     {
         printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
                peer->GetTcpSocket()->getHandle(), ret, strerror(ret));

@@ -159,7 +159,7 @@ bool EpollHandler::IsSetOutEvent(int idx)
     return (m_events[idx].events & 4) != 0;
 }
 
-unsigned int EpollHandler::IsSetInEvent(int idx)
+bool EpollHandler::IsSetInEvent(int idx)
 {
     return m_events[idx].events & 1;
 }
@@ -229,7 +229,7 @@ bool CTcpHandler::IsSetOutEvent(int idx)
     return m_epoll->IsSetOutEvent(idx);
 }
 
-unsigned int CTcpHandler::IsSetInEvent(int idx)
+bool CTcpHandler::IsSetInEvent(int idx)
 {
     if (m_epoll == 0)
     {

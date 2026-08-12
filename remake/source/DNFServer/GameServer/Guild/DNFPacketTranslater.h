@@ -455,15 +455,20 @@ public:
 class Packet_Guild_Reply_Guild_Invite_To_Caller : public PacketHeader {
 public:
     Packet_Guild_Reply_Guild_Invite_To_Caller();
-    char m_data[0x2a];
-};
+    unsigned int m_a;   // +0xa
+    unsigned int m_e;   // +0xe
+    unsigned int m_12;  // +0x12
+    char m_rest[0x1e];  // +0x16
+} __attribute__((packed));
 
 // from GuildPackets.h
 class Packet_Guild_Reply_Guild_Invite_To_Invited : public PacketHeader {
 public:
     Packet_Guild_Reply_Guild_Invite_To_Invited();
-    char m_data[0xc];
-};
+    unsigned int m_a;   // +0xa
+    unsigned int m_e;   // +0xe
+    unsigned int m_12;  // +0x12
+} __attribute__((packed));
 
 // from GuildPackets.h
 class Packet_Guild_Reply_Guild_Master_Delegate : public PacketHeader {

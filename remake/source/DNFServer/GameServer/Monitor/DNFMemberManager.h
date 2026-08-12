@@ -257,8 +257,8 @@ public:
     int IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember* m2, int mode);
     unsigned int GetLowerMemberEnterLimit(unsigned int level);
     int IsThereUpperMember(unsigned int charNo);
-    int LoadMember(unsigned int key, STMemberDBInfo& info, unsigned int a, unsigned int b,
-                   CServerHandler* handler);
+    bool LoadMember(unsigned int key, STMemberDBInfo& info, unsigned int a, unsigned int b,
+                    CServerHandler* handler);
     void SendToDBMemberUpdateCharInfo(CServerHandler* handler, unsigned int key,
                                       unsigned char flag);
     void SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUser* u2, unsigned char flag);

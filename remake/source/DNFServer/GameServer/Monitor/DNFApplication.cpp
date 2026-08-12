@@ -76,10 +76,14 @@ void CPeriodicMessageMgr::OnProcess(CServerHandler* handler)
 {
     time_t t = time(0);
     struct tm st = *localtime(&t);
-    int h = st.tm_hour;
-    if (st.tm_min == 0 && m_startHour <= h && m_endHour >= h && h != 0)
+    int h;
+    if (st.tm_min == 0)
     {
-        OnTimerSendData(handler);
+        h = st.tm_hour;
+        if (m_startHour <= h && m_endHour >= h && h != 0)
+        {
+            OnTimerSendData(handler);
+        }
     }
     if (st.tm_hour == 0 && st.tm_min == 10)
     {
@@ -816,12 +820,12 @@ void CApplication::Remove_GM_id(unsigned int id)
     }
 }
 
-char CApplication::isGM_regFromChannel(unsigned int channel)
+bool CApplication::isGM_regFromChannel(unsigned int channel)
 {
     return m_map368.find(channel) != m_map368.end();
 }
 
-char CApplication::isAbleUserChatWithGM(unsigned int channel, unsigned int charNo)
+bool CApplication::isAbleUserChatWithGM(unsigned int channel, unsigned int charNo)
 {
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
     if (it != m_map368.end())

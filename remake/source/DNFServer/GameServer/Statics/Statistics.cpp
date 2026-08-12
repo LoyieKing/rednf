@@ -1286,6 +1286,22 @@ union __attribute__((packed)) EmblemCreateWire
         int m_arrB[0x100];
     } b;
 };
+struct __attribute__((packed)) LagModuleWire
+{
+    union
+    {
+        int m_int;    // +0
+        float m_float;
+    } m_u;
+    float m_field4;  // +4
+    unsigned short m_field8;  // +8（0xa 字节记录）
+};
+struct __attribute__((packed)) LagWire
+{
+    char m_hdr[0xb];
+    LagModuleWire m_mods[8];   // +0xb，10 字节步长
+    char m_tail[0x8d];
+};
 }
 void StatisticManager::AddCreateEmblemInfo(Packet_Emblem_Create_Statistic* pkt)
 {
@@ -1354,7 +1370,7 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
 {
     for (int i = 0; i < 8; i++)
     {
-        if (*(int*)((char*)pkt + i * 10 + 0xb) != 0)
+        if (((LagWire*)pkt)->m_mods[i].m_u.m_int != 0)
         {
             float avg_f = *(float*)((char*)pkt + i * 10 + 0xb);
             float dev_f = *(float*)((char*)pkt + i * 10 + 0xf);

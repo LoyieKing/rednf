@@ -220,8 +220,8 @@ int CMemberManager::IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMe
     return 0;
 }
 
-int CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned int a,
-                               unsigned int b, CServerHandler* handler)
+bool CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned int a,
+                                unsigned int b, CServerHandler* handler)
 {
     CMember* member = FindMember(key);
     if (member == 0)

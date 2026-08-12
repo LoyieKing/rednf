@@ -29,7 +29,7 @@ public:
     int WaitForEvent();
     bool IsSetErrEvent(int idx);
     bool IsSetOutEvent(int idx);
-    unsigned int IsSetInEvent(int idx);
+    bool IsSetInEvent(int idx);
     void* GetEventPtr(int idx);
     EpollHandler* m_epoll;  // +0
 };
@@ -47,7 +47,7 @@ public:
     virtual int WaitForEvent() = 0;
     virtual bool IsSetErrEvent(int idx) = 0;
     virtual bool IsSetOutEvent(int idx) = 0;
-    virtual unsigned int IsSetInEvent(int idx) = 0;
+    virtual bool IsSetInEvent(int idx) = 0;
     virtual void* GetEventPtr(int idx) = 0;
 };
 
@@ -64,7 +64,7 @@ public:
     virtual int WaitForEvent();
     virtual bool IsSetErrEvent(int idx);
     virtual bool IsSetOutEvent(int idx);
-    virtual unsigned int IsSetInEvent(int idx);
+    virtual bool IsSetInEvent(int idx);
     virtual void* GetEventPtr(int idx);
     int GetEpollFD();
     void* GetEpollEvents();
