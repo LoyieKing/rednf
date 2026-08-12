@@ -304,12 +304,12 @@ CTcpGameServer* CServerHandler::CreateTcpGameServer(unsigned int id)
     tcp->Init(id, m_app->Get_TcpNetSystem());
     std::pair<std::map<unsigned int, CTcpGameServer*>::iterator, bool> r =
         m_tcpGameServers.insert(std::make_pair(id, tcp));
-    if (!r.second)
+    if (r.second)
     {
-        delete tcp;
-        tcp = 0;
+        return tcp;
     }
-    return tcp;
+    delete tcp;
+    return 0;
 }
 
 int CServerHandler::DeleteTcpGameServer(unsigned int id)

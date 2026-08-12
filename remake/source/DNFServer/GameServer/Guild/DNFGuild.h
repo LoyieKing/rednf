@@ -252,7 +252,7 @@ public:
     void MakeGameServerSendUserInfoPacket(CUser* user, unsigned int guildKey);
     void DBGuildMemberSave(CUser* user, unsigned char flag, CServerHandler* handler,
                        unsigned char param);
-    void InsertGuildMemberChanglableInfo(unsigned int charNo);
+    bool InsertGuildMemberChanglableInfo(unsigned int charNo);
     void SendToGuild(PacketHeader* pkt);
     void SendToGuildForMail();
     void NotifyMessageToGuildMember();

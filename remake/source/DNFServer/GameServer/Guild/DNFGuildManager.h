@@ -27,9 +27,11 @@ struct ST_Notice_Guild_Enter;
 struct ST_Notice_Guild_Secede;
 
 // from GuildDomain.h
+// ORIG 二进制实测（CGuild::SetTodayGuildMember 拷贝 0x27 字节：9×dword+word+byte）
+// 结构体总大小 0x28；与 DBMW DNFPacket.h 字段布局一致（charac_no + name[0x1e] + 5 uchar）。
 struct STTodayGuildMember
 {
-    char m_data[0x30];
+    char m_data[0x28];
 };
 
 // from GuildDomain.h

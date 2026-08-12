@@ -2065,7 +2065,7 @@ void CPacketTranslater::SendPacketGuildMail(unsigned char group, unsigned int ch
                                             unsigned int param)
 {
     Packet_DBMW_Send_Guild_Mail pkt;
-    pkt.m_group = (unsigned char)group;
+    pkt.m_group = group;
     pkt.m_charNo = charNo;
     pkt.m_guildKey = guildKey;
     int contentLen = strlen(content);

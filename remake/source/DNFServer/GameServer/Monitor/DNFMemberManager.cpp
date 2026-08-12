@@ -474,7 +474,7 @@ int CMemberManager::CheckMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember*
     {
         return IsPossableMemberEnter(u2, m2, u1, m1, 2);
     }
-    if (u2->GetLevel() < u1->GetLevel())
+    if (u1->GetLevel() > u2->GetLevel())
     {
         return IsPossableMemberEnter(u1, m1, u2, m2, 1);
     }
@@ -483,17 +483,16 @@ int CMemberManager::CheckMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember*
 
 char CMemberManager::CheckEmptyMember(CMember* member, CUser* user)
 {
-    bool empty = user != 0 && member != 0 && member->IsEmpty() != 0;
-    if (empty)
+    if (user != 0 && member != 0 && member->IsEmpty() != 0)
     {
         Packet_Monitor_Notice_Delete_Member_Id pkt;
         pkt.m_idByChannel = user->GetIdByChannel();
         pkt.m_uniqCharNo = user->GetUniqCharNo();
         user->SendToGameserver((char*)&pkt, 0x12);
-        unsigned int charNo = user->GetUniqCharNo();
-        DeleteMember(charNo, true);
+        DeleteMember(user->GetUniqCharNo(), true);
+        return 1;
     }
-    return empty ? 1 : 0;
+    return 0;
 }
 
 char CMemberManager::IsAlreadyMemberMember(unsigned int key, unsigned int charNo)

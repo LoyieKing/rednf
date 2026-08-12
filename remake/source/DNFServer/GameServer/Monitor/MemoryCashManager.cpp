@@ -278,24 +278,28 @@ void CMemoryCashManager::incBlackListCashCnt()
 char CMemoryCashManager::IsRightObject(CUser* user, CMember* member, bool& flag1, bool& flag2,
                                        bool& flag3)
 {
+    char ret = 0;
     flag1 = false;
     flag3 = false;
     flag2 = false;
-    char ret = 0;
     std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.find(user->GetDBID());
-    if (it == m_cashObjects.end())
+    if (it != m_cashObjects.end())
     {
-        if ((user->GetBuddyDBFlag() & 4) != 0)
-        {
-            flag1 = true;
-            ret = 1;
-        }
-        if ((user->GetBlackListDBFlag() & 4) != 0)
-        {
-            flag3 = true;
-            ret = 1;
-        }
-        if (user->GetMemberKey() != 0 && (user->GetMemberDBFlag() & 4) != 0)
+        return 0;
+    }
+    if ((user->GetBuddyDBFlag() & 4) != 0)
+    {
+        flag1 = true;
+        ret = 1;
+    }
+    if ((user->GetBlackListDBFlag() & 4) != 0)
+    {
+        flag3 = true;
+        ret = 1;
+    }
+    if (user->GetMemberKey() != 0)
+    {
+        if ((user->GetMemberDBFlag() & 4) != 0)
         {
             if (member != 0 && member->IsAbleToRegisterMember() != 0)
             {
@@ -303,9 +307,8 @@ char CMemoryCashManager::IsRightObject(CUser* user, CMember* member, bool& flag1
                 ret = 1;
             }
         }
-        return ret;
     }
-    return 0;
+    return ret;
 }
 
 int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user, CMember* member,

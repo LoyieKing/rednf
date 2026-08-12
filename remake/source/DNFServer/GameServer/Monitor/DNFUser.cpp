@@ -38,22 +38,10 @@
 void CUser::operator delete(void* p, unsigned int size) { ::operator delete(p); }
 
 CUser::CUser()
+    : m_dbid(0), m_uniqCharNo(0), m_gameServer(0), m_tcpGameServer(0), m_posState(0),
+      m_member(0), m_field18(0), m_field1a(0), m_memberEnterCallerId(0), m_idByChannel(-1),
+      m_job(0xff), m_growthType(0xff), m_level(0xffff), m_sex(1), m_field68(0)
 {
-    ((RA_UINT<0>*)this)->v = 0;
-    ((RA_UINT<4>*)this)->v = 0;
-    ((RA_UINT<8>*)this)->v = 0;
-    ((RA_UINT<12>*)this)->v = 0;
-    ((RA_S8<16>*)this)->v = 0;
-    ((RA_UINT<20>*)this)->v = 0;
-    ((RA_U16<24>*)this)->v = 0;
-    ((RA_S8<26>*)this)->v = 0;
-    ((RA_UINT<28>*)this)->v = 0;
-    ((RA_UINT<32>*)this)->v = 0xffffffff;
-    ((RA_S8<66>*)this)->v = 0xff;
-    ((RA_S8<67>*)this)->v = 0xff;
-    ((RA_U16<68>*)this)->v = 0xffff;
-    ((RA_S8<70>*)this)->v = 1;
-    m_field68 = 0;
     ((RA_S8<176>*)this)->v = 0;
     ((RA_UINT<180>*)this)->v = 0;
     memset((char*)this + 0x24, 0, 0x1e);

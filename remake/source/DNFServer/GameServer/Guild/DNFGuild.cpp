@@ -1918,12 +1918,12 @@ void CGuild::DecTotalCnt_Of_GuildDBInfo()
     }
 }
 
-void CGuild::InsertGuildMemberChanglableInfo(unsigned int charNo)
+bool CGuild::InsertGuildMemberChanglableInfo(unsigned int charNo)
 {
     STGuildMemberChangableInfo info;
     // ORIG：仅写首 dword = time(0)，其余字段保持未初始化；insert 不覆盖已存在项
     *(unsigned int*)((char*)&info + 0) = time(0);
-    m_changable.insert(std::make_pair(charNo, info));
+    return m_changable.insert(std::make_pair(charNo, info)).second;
 }
 
 int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,

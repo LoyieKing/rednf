@@ -1950,7 +1950,7 @@ void CPacketTranslater::OnNoticeMessage(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnNoticeMessage : 0 == m_pclApp");
     }
     PacketHeader* lpkt = pkt;
-    DNF_LOG_SCOPE_LINE(0xf8e, "./log/GM_msg", "CPacketTranslater::OnNoticeMessage()%s\n", (char*)pkt + 0xb);
+    DNF_LOG_SCOPE_LINE(0xf8e, "./log/GM_msg", "CPacketTranslater::OnNoticeMessage()%s\n", (char*)lpkt + 0xb);
     m_pclApp->m_serverHandler2->SendAllToGameServer((char*)lpkt, 0x10b);
 
 
@@ -2474,8 +2474,7 @@ void CPacketTranslater::RequestBlackListToDBMW(unsigned int charNo)
     Packet_DBMW_Request_BlackList pkt;
     pkt.m_charNo = charNo;
     pkt.m_flag = 0xc9;
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendToDB(&pkt);
+    m_pclApp->m_serverHandler2->SendToDB(&pkt);
 
 
     }
@@ -3158,10 +3157,9 @@ void CPacketTranslater::onRequestReloadTowerRanker(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
     CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
-    tower->processReloadRanking(handler, true, 5);
-    handler->SendAllToGameServer((char*)pkt, 10);
+    tower->processReloadRanking(m_pclApp->m_serverHandler2, true, 5);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 10);
 
 
     }
@@ -3355,8 +3353,7 @@ void CPacketTranslater::onLoadCleanPadPoint(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x12e0, "./log/Cleanpad", "CleanPad Point");
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 10);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 10);
 
 
     }
@@ -3378,8 +3375,7 @@ void CPacketTranslater::onLoadBlackIPMonitorPartLoad(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x1307, "./log/BlackIP", "BlackIP Monitor Part Load");
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 10);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 10);
 
 
     }
@@ -3399,8 +3395,7 @@ void CPacketTranslater::onLoadBlackIPMonitorDeleteIP(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x131a, "./log/BlackIP", "BlackIP Monitor Delete IP");
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0x19e);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 0x19e);
 
 
     }
@@ -3621,8 +3616,7 @@ void CPacketTranslater::onLoadPunishUserReq(PacketHeader* pkt)
 
 
     DNF_LOG_SCOPE_LINE(0x142d, "./log/Secu", "Punish User Request");
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, 0x4bd);
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 0x4bd);
 
 
     }
@@ -3645,11 +3639,11 @@ void CPacketTranslater::onIPCounterControl(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::onIPCounterControl : 0 == m_pclApp");
     }
+    PacketHeader* lpkt = pkt;
     DNF_LOG_SCOPE_LINE(0x1448,"./log/Secu", "IPCounterControl - type : %d, value : %d ",
-        (unsigned int)(unsigned char)((RA_S8<10>*)pkt)->v,
-        (unsigned int)(unsigned char)((RA_S8<11>*)pkt)->v);
-    CIPCounter* counter = (CIPCounter*)m_pclApp->getIPCounter();
-    counter->setOption(((RA_U8<10>*)pkt)->v, ((RA_U8<11>*)pkt)->v);
+        (unsigned int)(unsigned char)((RA_S8<10>*)lpkt)->v,
+        (unsigned int)(unsigned char)((RA_S8<11>*)lpkt)->v);
+    ((CIPCounter*)m_pclApp->getIPCounter())->setOption(((RA_U8<10>*)lpkt)->v, ((RA_U8<11>*)lpkt)->v);
 
 
     }
@@ -4490,13 +4484,12 @@ void CPacketTranslater::OnRegisterEventIdx(PacketHeader* pkt)
 {try
 {
 
-
-    unsigned int idx = ((RA_UINT<10>*)pkt)->v;
+    PacketHeader* pkt2 = pkt;
     DNF_LOG_SCOPE_LINE(0x1a15,"./log/OnTimeEvent", "OnRegisterEventIdx:result =%d, Eventidx =%d",
-        (unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v, idx);
-    if (((RA_S8<14>*)pkt)->v != 0)
+        (unsigned int)(unsigned char)((RA_S8<14>*)pkt2)->v, ((RA_UINT<10>*)pkt2)->v);
+    if (((RA_S8<14>*)pkt2)->v != 0)
     {
-        ((COnTimeEventManager*)*(void**)((char*)m_pclApp + 800))->SetEventIdx(idx);
+        m_pclApp->m_onTimeEventMgr->SetEventIdx(((RA_UINT<10>*)pkt2)->v);
     }
 
 
@@ -5554,8 +5547,7 @@ void CPacketTranslater::onReloadCountryCode(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllTcpGameServer(pkt);
+    m_pclApp->m_serverHandler2->SendAllTcpGameServer(pkt);
     DNF_LOG_SCOPE_LINE(0x2344, "./log/Web", "CPacketTranslater::onReloadCountryCode()\n");
 
 
@@ -5575,8 +5567,7 @@ void CPacketTranslater::onReloadSecurityRestrictPolicy(PacketHeader* pkt)
 {
 
 
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllTcpGameServer(pkt);
+    m_pclApp->m_serverHandler2->SendAllTcpGameServer(pkt);
     DNF_LOG_SCOPE_LINE(0x2359, "./log/Web", "CPacketTranslater::onReloadSecurityRestrictPolicy()\n");
 
     }

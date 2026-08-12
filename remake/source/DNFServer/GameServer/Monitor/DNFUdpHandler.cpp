@@ -79,15 +79,16 @@ int CUdpHandler::InitServerSocket(int port)
 
 int CUdpHandler::InitClientSocket()
 {
-    int fd = socket(AF_INET, SOCK_DGRAM, 0x11);
-    m_clientSock = fd;
+    m_clientSock = socket(AF_INET, SOCK_DGRAM, 0x11);
     if (m_clientSock == -1)
     {
-        printf("Could not create a UDP socket : %d\n", getErrno());
+        int err = getErrno();
+        printf("Could not create a UDP socket : %d\n", err);
         return -1;
     }
+    register int sock = m_clientSock;
     CMyFileLog log(__FUNCTION__, 0x8f);
-    log("./log/Udp", "Opened port with fd %d\n", m_clientSock);
+    log("./log/Udp", "Opened port with fd %d\n", sock);
     return m_clientSock;
 }
 
