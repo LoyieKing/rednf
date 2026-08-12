@@ -75,14 +75,14 @@ CPacketTracer* CPacketTracerInstance()
 
 void CPacketTracer::AddLog(int p1, int p2)
 {
-    time_t now = time(0);
-    tm* pt = localtime(&now);
-    char buf[32];
-    memset(buf, 0, sizeof(buf));
+    time_t t;
+    time(&t);
+    tm lt = *localtime(&t);
+    char buf[32] = {0};
     sprintf(buf, "(%02d:%02d:%02d/%d/%d)",
-            pt->tm_hour, pt->tm_min, pt->tm_sec, p2, p1);
-    *(std::string*)((char*)this + 4) += buf;
-    *(int*)this += 1;
+            lt.tm_hour, lt.tm_min, lt.tm_sec, p2, p1);
+    m_strLog += buf;
+    m_nCount++;
 }
 
 void CPacketTracer::ResetLog()
@@ -92,10 +92,10 @@ void CPacketTracer::ResetLog()
 
 void CPacketTracer::WriteLog()
 {
-    if (*(unsigned int*)this == (*(unsigned int*)this / 0x1e) * 0x1e)
+    if (m_nCount % 0x1e == 0)
     {
         DNF_LOG_SCOPE_LINE(0x2a,"./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n",
-            ((std::string*)((char*)this + 4))->c_str());
+            m_strLog.c_str());
         ResetLog();
     }
 }
@@ -114,4 +114,3 @@ CPacketTracer::CPacketTracer() : m_nCount(0)
 CPacketTracer::~CPacketTracer()
 {
 }
-

@@ -51,7 +51,6 @@ private:
 class TextOutputDevice_stdout : public ITextOutputDevice
 {
 public:
-    TextOutputDevice_stdout();
     virtual void serialize(char* s);
     virtual void flush();
 };
@@ -126,7 +125,11 @@ public:
             {
                 try
                 {
-                    m_p = new T;
+                    // ORIG 模板体为 value-initialization：new T()。
+                    // stdout 无用户构造函数 -> operator new + memset（清零）+
+                    // 隐式 C1（置 vptr），与 ORIG 二进制逐条一致；FILE 有用户
+                    // 构造函数 -> operator new + C1（不零初始化），与 ORIG 一致。
+                    m_p = new T();
                 }
                 catch (...)
                 {
@@ -155,8 +158,5 @@ public:
 private:
     T* m_p;
 };
-
-template <>
-void TGlobalInstance<TextOutputDevice_stdout>::create();
 
 #endif // DEBUGLOG_H_

@@ -118,10 +118,18 @@ ssize_t TCPSocket::recv(char* buf, int len)
 
 int TCPSocket::shutdown(int how)
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
+    // 逐字节还原（纯 C++，无 asm）：ORIG 13 字节 = mov;mov;cmp;pop;ret，
+    // 是 int 函数末尾滑落形态——比较 sock_==-1 后不显式 return，eax 即装载值。
+    // 裸 `sock_ == -1;` 会被 4.4.6-3 在 gimplify 阶段折叠；switch 双空 case
+    // 形态保留死比较（同 auction/point ServerLab 先例），无分支无 setcc。
     (void)how;
-    sock_ == -1;
-    return *(int*)this;
+    switch (sock_ == -1)
+    {
+    case 0:
+        break;
+    case 1:
+        break;
+    }
 }
 
 void TCPSocket::close()

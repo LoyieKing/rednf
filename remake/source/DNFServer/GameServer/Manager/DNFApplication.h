@@ -17,6 +17,7 @@ class CKillUSRConfig;
 class CMonitorServer;
 class CServerConfig;
 class CServerHandler;
+class CTableBase;
 class CTcpServer;
 class CUdpNetworkThread;
 
@@ -103,15 +104,17 @@ public:
     char m_pad5[3];                     // +5
     int m_field8;                       // +8
     CAppInit* m_appInitor;              // +0xc
-    CAppConfig* m_appConfig;            // +0x10
-    CServerConfig* m_serverConfig;      // +0x14
+    // R14: ORIG 为基类指针 CTableBase*（coserver 同款布局；CAppStartInit::Init
+    // 中 new 赋值为 upcast，产生 `mov %ebx,%eax; mov %eax,%edx` 物化形态）。
+    CTableBase* m_appConfig;            // +0x10
+    CTableBase* m_serverConfig;         // +0x14
     CServerHandler* m_serverHandler;    // +0x18
     CFrameCountHandler m_frameCount;    // +0x1c
     CUserManager m_userManager;         // +0x4c
     CKillUSRConfig* m_killUsrConfig;    // +0x68
     CSwapQueue<UdpRecvQueue, 2> m_udpSwapQueue;  // +0x6c
     void* m_udpHandler;                 // +0xc4
-    CUdpNetworkThread* m_udpNetworkThread;  // +0xc8
+    CThreadInterface* m_udpNetworkThread;   // +0xc8（ORIG 赋值 upcast 形态：ebx→eax→edx）
     CTcpNetSystem m_tcpNetSystem;       // +0xcc
     CMutex m_mutex22c;                  // +0x22c
     CMutex m_mutex244;                  // +0x244

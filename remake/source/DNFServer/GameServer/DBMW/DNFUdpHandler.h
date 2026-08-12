@@ -8,7 +8,6 @@ class CUdpHandler
 {
 public:
     CUdpHandler();
-    ~CUdpHandler();
     unsigned int InetAddr(const char* ip) const;
     int InitServerSocket(int port);
     int InitClientSocket();
@@ -20,7 +19,6 @@ public:
     int GetServerSocket();
     int m_sock;         // +0
     int m_clientSock;   // +4
-    char m_data8[8];    // +8
 };
 
 #endif  // DBMW_DNFUDPHANDLER_H_

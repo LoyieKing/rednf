@@ -79,47 +79,48 @@ void CPacketTranslater::attach(CApplication* app)
 
 void CPacketTranslater::OnHeartBeat(PacketHeader* header)
 {
-    try
+    PacketHeader* hdr = header;
+    if (m_pclApp != 0)
     {
-        PacketHeader* hdr = header;
-        if (!m_pclApp)
-            return;
         CServerHandler* handler = m_pclApp->m_serverHandler;
         if (!handler)
             return;
-        // R10: ORIG 布局为 if(idx<=0x64){body}else{throw}（ja 跳 throw 置尾，
-        // throw 临时槽在 body log 之后分配）
         unsigned char idx = ((TcpServerPacket*)hdr)->m_byType;
-        if (idx <= 0x64)
+        try
         {
-            handler->ResetHeartBeat(idx);
-            if (!handler->IsConnectedMonitorServer(idx))
+            // R10: ORIG 布局为 if(idx<=0x64){body}else{throw}（ja 跳 throw 置尾，
+            // throw 临时槽在 body log 之后分配）
+            if (idx <= 0x64)
             {
-                handler->SetConnectFlag(idx, 1);
-                Packet_Monitor_Manager_Connect_OK pkt;
-                handler->SendToTcpServer(&pkt, idx);
-                printf("First Heart Beat Arrived From %d Group Monitor!\n", idx);
-                DNF_LOG_SCOPE_LINE(0x43, "./log/Monitor",
-                    "First Heart Beat Arrived From %d Group Monitor!", idx);
+                handler->ResetHeartBeat(idx);
+                if (!handler->IsConnectedMonitorServer(idx))
+                {
+                    handler->SetConnectFlag(idx, 1);
+                    Packet_Monitor_Manager_Connect_OK pkt;
+                    handler->SendToTcpServer(&pkt, idx);
+                    printf("First Heart Beat Arrived From %d Group Monitor!\n", idx);
+                    DNF_LOG_SCOPE_LINE(0x43, "./log/Monitor",
+                        "First Heart Beat Arrived From %d Group Monitor!", idx);
+                }
+            }
+            else
+            {
+                throw CDNFException(
+                    "CPacketTranslater::OnHeartBeat() \xc3\xa4\xb3\xce \xc0\xce\xb5\xa6\xbd\xba \xbf\xc0\xb7\xf9\n");
             }
         }
-        else
+        catch (CDNFException& e)
         {
-            throw CDNFException(
-                "CPacketTranslater::OnHeartBeat() \xc3\xa4\xb3\xce \xc0\xce\xb5\xa6\xbd\xba \xbf\xc0\xb7\xf9\n");
+            printf("CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
+            DNF_LOG_SCOPE_LINE(0x52, "./log/Except",
+                "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
         }
-    }
-    catch (CDNFException& e)
-    {
-        printf("CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x52, "./log/Except",
-            "CPacketTranslater::OnHeartBeat() Exception Break : %s\n", e.what());
-    }
-    catch (...)
-    {
-        puts("CPacketTranslater::OnHeartBeat() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x58, "./log/Except",
-            "CPacketTranslater::OnHeartBeat() Exception Break\n");
+        catch (...)
+        {
+            puts("CPacketTranslater::OnHeartBeat() Exception Break");
+            DNF_LOG_SCOPE_LINE(0x58, "./log/Except",
+                "CPacketTranslater::OnHeartBeat() Exception Break\n");
+        }
     }
 }
 
@@ -444,7 +445,8 @@ void CPacketTranslater::OnWebNoticeBroadcast(PacketHeader* header)
         if (m_pclApp)
         {
             CServerHandler* handler = m_pclApp->m_serverHandler;
-            if (handler)
+            if (!handler)
+                return;
             {
                 // R10: ORIG string 构造形态：s(ptr) 无长度、tok 默认构造 + operator=
                 std::vector<std::string> parts;
@@ -520,8 +522,8 @@ void CPacketTranslater::OnWebNoticeProhibitConnectUser(PacketHeader* header)
         }
         else
         {
-            CDNFProhibitUser* pu = um->FindProhibitUser(((ProhibitUserPacket*)hdr)->m_nFieldA);
-            if (pu == 0)
+            CDNFProhibitUser* pu;
+            if ((pu = um->FindProhibitUser(((ProhibitUserPacket*)hdr)->m_nFieldA)) == 0)
             {
                 pu = new CDNFProhibitUser;
                 pu->SetMonitorWaitTime(((ProhibitUserPacket*)hdr)->m_nFieldA, 2);
@@ -566,17 +568,17 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
         if (!m_pclApp)
             throw CDNFException(
                 "CPacketTranslater::OnMonitorNoticeProhibitConnectUser : 0 == m_pclApp");
+        // R10: ORIG local_2c@-0x28 / local_28@-0x24；key/flag/time 直接内联读取
+        PacketHeader* hdr = header;
         CUserManager* um = &m_pclApp->m_userManager;
-        int key = *(int*)((char*)header + 0xa);
-        char flag = ((char*)header)[0xe];
-        short time = *(short*)((char*)header + 0xf);
-        CDNFProhibitUser* pu = um->FindProhibitUser(key);
-        if (!pu)
+        CDNFProhibitUser* pu;
+        if ((pu = um->FindProhibitUser(((ProhibitUserPacket*)hdr)->m_nFieldA)) == 0)
         {
-            CMyFileLog log(__FUNCTION__, 0x138);
-            log("./log/ProhibitUser",
+            DNF_LOG_SCOPE_LINE(0x138, "./log/ProhibitUser",
                 "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Time Out, m_id : %d, flag( %d ), time( %d )\n",
-                key, flag, time);
+                ((ProhibitUserPacket*)hdr)->m_nFieldA,
+                ((ProhibitUserPacket*)hdr)->m_chFieldE,
+                ((ProhibitUserPacket*)hdr)->m_sFieldF);
             return;
         }
         unsigned int uip;
@@ -584,36 +586,45 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
         pu->GetIpPort(uip, uport);
         if (uip == 0 && uport == 0)
             return;
-        if (flag == 2)
+        if (((ProhibitUserPacket*)hdr)->m_chFieldE == 2)
         {
-            *(unsigned short*)((char*)header) = 0x4c8;
-            ((char*)header)[0x11] = 2;
-            *(unsigned short*)((char*)header + 2) = 0x12;
-            CMyFileLog log(__FUNCTION__, 0x14a);
-            log("./log/ProhibitUser",
+            ((ProhibitUserPacket*)hdr)->m_wPacketId = 0x4c8;
+            ((ProhibitUserPacket*)hdr)->m_chField11 = 2;
+            ((ProhibitUserPacket*)hdr)->m_wPacketSize = 0x12;
+            DNF_LOG_SCOPE_LINE(0x14a, "./log/ProhibitUser",
                 "CPacketTranslater::OnMonitorNoticeProhibitConnectUser SendToClient, m_id : %d, ip( %d ), port( %d ), m_bIsConnect(%d), m_bProhibitConnect(%d)\n",
-                key, uip, uport, ((char*)header)[0x11], ((char*)header)[0xe]);
+                ((ProhibitUserPacket*)hdr)->m_nFieldA,
+                uip,
+                uport,
+                ((ProhibitUserPacket*)hdr)->m_chField11,
+                ((ProhibitUserPacket*)hdr)->m_chFieldE);
             if (!((CUdpHandler*)m_pclApp->Get_UdpHandler())
-                     ->SendToClient((char*)header, 0x12, uport, 0, uip))
+                     ->SendToClient((char*)hdr, 0x12, uport, 0, uip))
                 throw CDNFException(strerror(errno));
             return;
         }
         pu->IncreMonitorRetPacket();
-        pu->SetProhibitUserInfo(((char*)header)[0x11]);
-        CMyFileLog log(__FUNCTION__, 0x157);
-        log("./log/ProhibitUser",
+        pu->SetProhibitUserInfo(((ProhibitUserPacket*)hdr)->m_chField11);
+        DNF_LOG_SCOPE_LINE(0x157, "./log/ProhibitUser",
             "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Check IP Port, m_id : %d, server group(%d), cnt(%d), m_bIsConnect(%d)",
-            key, ((char*)header)[0x12], pu->GetMonitorRetPacketCnt(), ((char*)header)[0x11]);
-        if (pu->GetMonitorRetPacketCnt() >= m_pclApp->m_serverHandler->GetAlivedMonitorServer())
+            ((ProhibitUserPacket*)hdr)->m_nFieldA,
+            (unsigned char)((ProhibitUserPacket*)hdr)->m_chField12,
+            (char)pu->GetMonitorRetPacketCnt(),
+            ((ProhibitUserPacket*)hdr)->m_chField11);
+        if ((char)pu->GetMonitorRetPacketCnt() >= m_pclApp->m_serverHandler->GetAlivedMonitorServer())
         {
             Packet_Web_Prohibit_User_Connect pkt;
-            ((char*)&pkt)[0xe] = 0x7f;
-            *(unsigned short*)((char*)&pkt + 0xf) = 0;
-            ((char*)&pkt)[0x11] = pu->GetConnectFlag();
-            CMyFileLog log2("OnMonitorNoticeProhibitConnectUser", 0x165);
-            log2("./log/ProhibitUser",
+            pkt.m_field11 = pu->GetConnectFlag();
+            pkt.m_fieldF = 0;
+            pkt.m_fieldE = 0x7f;
+            DNF_LOG_SCOPE_LINE(0x165, "./log/ProhibitUser",
                 "CPacketTranslater::OnMonitorNoticeProhibitConnectUser SendToClient, m_id : %d, ip( %d ), port( %d ), m_bIsConnect(%d)\n",
-                key, uip, uport, pu->GetConnectFlag());
+                ((ProhibitUserPacket*)hdr)->m_nFieldA,
+                uip,
+                uport,
+                pkt.m_field11);
+            pkt.m_fieldA = ((ProhibitUserPacket*)hdr)->m_nFieldA;
+            pkt.packetSize = 0x12;
             if (!((CUdpHandler*)m_pclApp->Get_UdpHandler())
                      ->SendToClient((char*)&pkt, 0x12, uport, 0, uip))
                 throw CDNFException(strerror(errno));
@@ -621,15 +632,13 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log(__FUNCTION__, 0x180);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x180, "./log/Except",
             "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Exception Break : %s\n",
             e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x185);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x185, "./log/Except",
             "CPacketTranslater::OnMonitorNoticeProhibitConnectUser Exception Break\n");
     }
 }

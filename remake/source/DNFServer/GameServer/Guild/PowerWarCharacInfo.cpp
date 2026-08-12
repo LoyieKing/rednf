@@ -92,7 +92,9 @@ void STPowerWarCharacInfo::operator delete(void* p, unsigned int size) { m_Power
 
 bool STPowerWarCharacInfo::Compare(const STPowerWarCharacInfo* a, const STPowerWarCharacInfo* b)
 {
-    return *(unsigned int*)(b->m_data + 4) < *(unsigned int*)(a->m_data + 4);
+    if (a->m_field[1] > b->m_field[1])
+        return true;
+    return false;
 }
 
 std::vector<STPowerWarCharacInfo*>* CPowerWarCharacInfo::GetCharacInfoVector()
@@ -117,13 +119,12 @@ void CPowerWarCharacInfo::Initialize()
 
 void CPowerWarCharacInfo::Clean()
 {
-    std::vector<STPowerWarCharacInfo*>* chars = &m_vec;
-    for (std::vector<STPowerWarCharacInfo*>::iterator it = chars->begin();
-         it != chars->end(); ++it)
+    for (std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin();
+         it != m_vec.end(); ++it)
     {
         delete *it;
     }
-    chars->clear();
+    m_vec.clear();
     m_map.clear();
 }
 
@@ -137,19 +138,17 @@ STPowerWarCharacInfo* CPowerWarCharacInfo::CreatePowerwarCharac()
 
 STPowerWarCharacInfo* CPowerWarCharacInfo::FindPowerwarCharac(unsigned int charNo)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
-    std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = map->find(charNo);
-    if (it == map->end())
+    std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = m_map.find(charNo);
+    if (it != m_map.end())
     {
-        return 0;
+        return it->second;
     }
-    return it->second;
+    return 0;
 }
 
 int CPowerWarCharacInfo::InsertPowerwarCharac(unsigned int charNo, STPowerWarCharacInfo* info)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
-    map->insert(std::make_pair(charNo, info));
+    m_map.insert(std::make_pair(charNo, info));
     m_vec.push_back(info);
     return 0;
 }
@@ -157,33 +156,32 @@ int CPowerWarCharacInfo::InsertPowerwarCharac(unsigned int charNo, STPowerWarCha
 void CPowerWarCharacInfo::UpdatePowerwarCharacInfo(unsigned int charNo, unsigned short point)
 {
     STPowerWarCharacInfo* info = FindPowerwarCharac(charNo);
-    if (info == 0)
+    if (info != 0)
     {
-        info = CreatePowerwarCharac();
-        *(unsigned int*)info->m_data = charNo;
-        *(unsigned int*)(info->m_data + 4) = point;
-        InsertPowerwarCharac(charNo, info);
+        info->m_field[1] = info->m_field[1] + point;
     }
     else
     {
-        *(unsigned int*)(info->m_data + 4) =
-            *(unsigned int*)(info->m_data + 4) + point;
+        info = CreatePowerwarCharac();
+        info->m_field[0] = charNo;
+        info->m_field[1] = point;
+        InsertPowerwarCharac(charNo, info);
     }
 }
 
 void CPowerWarCharacInfo::CalcAllUserRanking()
 {
-    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
-    std::sort(vec->begin(), vec->end(), STPowerWarCharacInfo::Compare);
+    std::sort(m_vec.begin(), m_vec.end(), STPowerWarCharacInfo::Compare);
 }
 
 unsigned int CPowerWarCharacInfo::GetUserRanking(unsigned int charNo)
 {
-    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
+    std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin();
     unsigned int rank = 1;
-    for (std::vector<STPowerWarCharacInfo*>::iterator it = vec->begin(); it != vec->end(); ++it)
+    for (; it != m_vec.end(); ++it)
     {
-        if (*(unsigned int*)(*it)->m_data == charNo)
+        STPowerWarCharacInfo* info = *it;
+        if (info->m_field[0] == charNo)
         {
             return rank;
         }
@@ -194,31 +192,28 @@ unsigned int CPowerWarCharacInfo::GetUserRanking(unsigned int charNo)
 
 unsigned int CPowerWarCharacInfo::GetUserPowerWarPoint(unsigned int charNo)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
-    std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = map->find(charNo);
-    if (it == map->end())
+    std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = m_map.find(charNo);
+    if (it != m_map.end())
     {
-        return 0;
+        return it->second->m_field[1];
     }
-    return *(unsigned int*)(it->second->m_data + 4);
+    return 0;
 }
 
 void CPowerWarCharacInfo::GetAllUserRankingInfo(unsigned int& count, STUserRank* rank)
 {
     unsigned int n = 0;
-    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
-    for (std::vector<STPowerWarCharacInfo*>::iterator it = vec->begin();
-         it != vec->end() && n < 500; ++it)
+    for (std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin();
+         it != m_vec.end() && n < 500; ++it)
     {
         STPowerWarCharacInfo* info = *it;
         if (info != 0)
         {
-            unsigned int charNo = *(unsigned int*)info->m_data;
-            unsigned int point = *(unsigned int*)(info->m_data + 4);
-            *(unsigned int*)(rank + n * 8) = charNo;
-            *(unsigned int*)(rank + n * 8 + 4) = point;
+            *(unsigned int*)((char*)rank + n * 8) = info->m_field[0];
+            *(unsigned int*)((char*)rank + n * 8 + 4) = info->m_field[1];
             n++;
-            DNF_LOG_SCOPE_LINE(0xcc, "./log/Power", "Rank:%7d, Charac No:%d, PowerWarPoint:%d", n, charNo, point);
+            DNF_LOG_SCOPE_LINE(0xcc, "./log/Power", "Rank:%7d, Charac No:%d, PowerWarPoint:%d", n,
+                info->m_field[0], info->m_field[1]);
         }
     }
     count = n;
@@ -248,12 +243,11 @@ void CPowerWarCharacInfo::PrintDebugInfo()
     log2("./log/PowerResult",
          "------ ALL USER RANKING -------------------------------------------------------------------------");
     int rank = 1;
-    std::vector<STPowerWarCharacInfo*>* vec = &m_vec;
-    for (std::vector<STPowerWarCharacInfo*>::iterator it = vec->begin(); it != vec->end(); ++it)
+    for (std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin(); it != m_vec.end(); ++it)
     {
         STPowerWarCharacInfo* info = *it;
         DNF_LOG_SCOPE_LINE(0xf9,"./log/PowerResult", "RANK:%d, USER:%d, POWER WAR POINT:%d", rank,
-            *(unsigned int*)info->m_data, *(unsigned int*)(info->m_data + 4));
+            info->m_field[0], info->m_field[1]);
         rank++;
     }
     CMyFileLog log3(__FUNCTION__, 0x100);
@@ -263,39 +257,38 @@ void CPowerWarCharacInfo::PrintDebugInfo()
 
 int CPowerWarCharacInfo::IsExistCharac(unsigned int charNo)
 {
-    std::map<unsigned int, STPowerWarCharacInfo*>* map = &m_map;
-    std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = map->find(charNo);
-    return it != map->end();
+    std::map<unsigned int, STPowerWarCharacInfo*>::iterator it = m_map.find(charNo);
+    if (it != m_map.end())
+    {
+        return 1;
+    }
+    return 0;
 }
 
 void CPowerWarCharacInfo::CalcBonus()
 {
-    std::vector<STPowerWarCharacInfo*>* chars = &m_vec;
-    std::list<STUserPoint>* points = &m_list;
-    for (std::vector<STPowerWarCharacInfo*>::iterator it = chars->begin();
-         it != chars->end(); ++it)
+    std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin();
+    for (; it != m_vec.end(); ++it)
     {
         STUserPoint pt;
-        *(unsigned int*)((char*)&pt + 0) = *(unsigned int*)(*it)->m_data;
-        *(unsigned int*)((char*)&pt + 4) =
-            (unsigned int)GetBonus(*(int*)((*it)->m_data + 4));
-        points->push_back(pt);
+        pt.m0 = (*it)->m_field[0];
+        pt.m4 = (unsigned int)GetBonus((int)(*it)->m_field[1]);
+        m_list.push_back(pt);
     }
 }
 
 int CPowerWarCharacInfo::GetBonus(Packet_DB_Save_Power_War_Bonus_Point& pkt)
 {
-    std::list<STUserPoint>* points = &m_list;
+    std::list<STUserPoint>::iterator it = m_list.begin();
     int i = 0;
-    std::list<STUserPoint>::iterator it = points->begin();
-    while (it != points->end() && i <= 0xf9)
+    for (; it != m_list.end() && i <= 0xf9; )
     {
-        *(unsigned int*)((char*)&pkt + 0xe + i * 8) = *(unsigned int*)((char*)&(*it) + 0);
-        *(unsigned int*)((char*)&pkt + 0x12 + i * 8) = *(unsigned int*)((char*)&(*it) + 4);
+        pkt.m_points[i].m0 = it->m0;
+        pkt.m_points[i].m4 = it->m4;
         i++;
-        it = points->erase(it);
+        it = m_list.erase(it);
     }
-    *(unsigned int*)((char*)&pkt + 0xa) = (unsigned int)i;
+    pkt.m_bonus = i;
     return 0;
 }
 
@@ -326,5 +319,6 @@ int CPowerWarCharacInfo::GetBonus(int idx)
 
 STPowerWarCharacInfo::STPowerWarCharacInfo()
 {
-    memset(m_data, 0, sizeof(m_data));
+    m_field[0] = 0;
+    m_field[1] = 0;
 }

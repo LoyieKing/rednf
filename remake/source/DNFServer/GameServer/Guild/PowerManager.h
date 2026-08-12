@@ -95,7 +95,10 @@ public:
     char m_sideCount;            // +0x188
     char m_pad189;
     unsigned short m_field18a;   // +0x18a
-    char m_rest[0x19c - 0x18c];  // +0x18c
+    int m_reward1;               // +0x18c
+    int m_reward2;               // +0x190
+    int m_reward3;               // +0x194
+    int m_reward4;               // +0x198
 };
 
 // from GuildPackets.h
@@ -106,32 +109,49 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_DB_Save_Power_War_Bonus_Point : public PacketHeader {
 public:
     Packet_DB_Save_Power_War_Bonus_Point();
-    char m_data[0x7d4];
+    int m_bonus;                 // +0xa
+    STUserPoint m_points[0xfa];  // +0xe
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_DB_Save_Power_War_Guild_Rank : public PacketHeader {
 public:
     Packet_DB_Save_Power_War_Guild_Rank();
-    char m_data[0x326];
+    unsigned char m_a;           // +0xa
+    unsigned char m_b;           // +0xb
+    unsigned int m_c;            // +0xc
+    STGuildRank m_ranks[0x64];   // +0x10
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_DB_Save_Power_War_Point : public PacketHeader {
 public:
     Packet_DB_Save_Power_War_Point();
-    char m_data[0xa];
+    unsigned char m_group;   // +0xa
+    char m_winner;           // +0xb
+    int m_scoreA;            // +0xc
+    int m_scoreB;            // +0x10
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_DB_Save_Power_War_Point_Reward : public PacketHeader {
 public:
     Packet_DB_Save_Power_War_Point_Reward();
-    char m_data[0x7d5];
+    unsigned char m_a;           // +0xa
+    unsigned int m_b;            // +0xb
+    STPowerWarPointInfo m_points[0xfa];  // +0xf
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_DB_Save_Power_War_Statue_Ranker : public PacketHeader {
@@ -141,25 +161,40 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_DB_Save_Power_War_User_Rank : public PacketHeader {
 public:
     Packet_DB_Save_Power_War_User_Rank();
-    char m_data[0x7db];
+    unsigned char m_a;           // +0xa
+    unsigned char m_b;           // +0xb
+    unsigned char m_c;           // +0xc
+    unsigned int m_d;            // +0xd
+    unsigned int m_e;            // +0x11
+    STUserRank m_ranks[0xfa];    // +0x15
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Notice_Power_War_End_Time : public PacketHeader {
 public:
     Packet_Notice_Power_War_End_Time();
-    char m_data[0x9];
+    unsigned char m_time;    // +0xa
+    int m_scoreA;            // +0xb
+    int m_scoreB;            // +0xf
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Notice_Power_War_Info : public PacketHeader {
 public:
     Packet_Notice_Power_War_Info();
-    char m_data[0x9];
+    int m_scoreA;    // +0xa
+    int m_scoreB;    // +0xe
+    char m_winner;   // +0x12
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_Notice_Power_War_Rank : public PacketHeader {
@@ -176,10 +211,13 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Reply_Power_War_Score : public PacketHeader {
 public:
     Packet_Reply_Power_War_Score();
-    char m_data[8];
+    int m_scoreA;   // +0xa
+    int m_scoreB;   // +0xe
 };
+#pragma pack(pop)
 
 #endif

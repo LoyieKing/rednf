@@ -28,7 +28,7 @@ int getErrno();
 CQueryCounter::CQueryCounter()
 {
     m_interval = 0x1e;
-    m_timer = new CUnixTimer;
+    m_timer = new CUnixTimer();
     ResetQueryCount();
 }
 CQueryCounter::~CQueryCounter()
@@ -103,17 +103,9 @@ void CQueryCounter::SetResponseTime(unsigned int ms)
 }
 int CQueryCounter::LoadQueryIdTable(int queryId)
 {
-    if (queryId > 0x4e20 && queryId <= 0x4f60)
-    {
-        int i = queryId - 0x4e20;
-        m_used[i] = 1;
-        return 1;
-    }
-    return 0;
+    if (queryId <= 0x4e20 || queryId > 0x4f60)
+        return 0;
+    int i = queryId - 0x4e20;
+    m_used[i] = 1;
+    return 1;
 }
-
-// force rebuild
-
-// y
-
-// z

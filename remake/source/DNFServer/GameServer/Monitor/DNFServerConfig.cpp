@@ -42,7 +42,7 @@ void CServerConfig::Load_Table(const std::string& path)
     throw CDNFException("CServerConfig::Load_Setup_Table() Exception Break!");
 }
 
-int CServerConfig::Parse_Table(char* line, int idx)
+bool CServerConfig::Parse_Table(char* line, int idx)
 {
     if (*(char*)line == '#')
     {
@@ -65,4 +65,3 @@ int CServerConfig::Parse_Table(char* line, int idx)
     ((RA_U16<8>*)entry)->v = (unsigned short)atoi(tokens[4]);
     return 1;
 }
-

@@ -323,11 +323,28 @@ struct stP2PStatistics
 {
     stP2PStatistics();
     void Init();
-    char m_data[10];           // +0x0
-    unsigned short m_fieldA;   // +0xa（ORIG Init 以命名成员访问，movw 0xa(%eax)）
-    char m_pad[0x1c];          // +0xc..+0x27
+    int m_field0;              // +0x0
+    int m_field4;              // +0x4
+    unsigned char m_field8;    // +0x8
+    unsigned short m_fieldA;   // +0xa
+    unsigned short m_fieldC;   // +0xc
+    unsigned short m_fieldE;   // +0xe
+    int m_field10;             // +0x10
+    int m_field14;             // +0x14
+    int m_field18;             // +0x18
+    int m_field1c;             // +0x1c
+    int m_field20;             // +0x20
+    int m_field24;             // +0x24
     unsigned short m_fieldB;   // +0x28
-    char m_tail[0x1e];         // +0x2a..+0x47
+    unsigned short m_field2a;  // +0x2a
+    unsigned short m_field2c;  // +0x2c
+    unsigned short m_field2e;  // +0x2e
+    int m_field30;             // +0x30
+    int m_field34;             // +0x34
+    int m_field38;             // +0x38
+    int m_field3c;             // +0x3c
+    int m_field40;             // +0x40
+    int m_field44;             // +0x44
 };
 
 // ---- stDisjointAvatarInfoTotal：0x144 ----

@@ -13,7 +13,7 @@
 
 CServerHandler::CServerHandler() : m_app(0)
 {
-    *(unsigned int*)m_pad = 0;
+    m_pad = 0;
 }
 CServerHandler::~CServerHandler() {}
 
@@ -33,11 +33,13 @@ void CServerHandler::SendToMonitorServer(char* buf, int len, unsigned char idx)
 
 void CServerHandler::Load(ST_ServerInfo* infos)
 {
-    for (int i = 0; i <= 0x64; i++)
+    unsigned char idx;
+    int i;
+    for (i = 0; i <= 0x64; i++)
     {
         if (infos[i].m_type == 3)
         {
-            unsigned char idx = infos[i].m_index;
+            idx = infos[i].m_index;
             if (idx > 0x64)
                 throw CDNFException("CServerHandler::Load() Server Table Exception Break!");
             m_monitorServers[idx].Init(infos[i].m_name, infos[i].m_port, idx);
@@ -100,32 +102,26 @@ void CServerHandler::Process()
     CheckTcpServerHeartbeat();
 }
 
-char CServerHandler::CreateTcpServer(unsigned char idx, unsigned int port)
+int CServerHandler::CreateTcpServer(unsigned char idx, unsigned int port)
 {
     CTcpServer* server = new CTcpServer;
     server->Init(port, m_app->Get_TcpNetSystem());
     server->SetServerIndex(idx);
-    std::pair<std::map<unsigned int, CTcpServer*>::iterator, bool> pr =
-        m_tcpServers.insert(std::make_pair(idx, server));
-    if (pr.second)
+    if (m_tcpServers.insert(std::make_pair(idx, server)).second)
         return (int)server;
     delete server;
     return 0;
 }
 
-char CServerHandler::DeleteTcpServer(unsigned char idx)
+bool CServerHandler::DeleteTcpServer(unsigned char idx)
 {
+    std::map<unsigned int, CTcpServer*>::iterator it = m_tcpServers.find(idx);
+    if (it != m_tcpServers.end())
     {
-        std::map<unsigned int, CTcpServer*>::iterator it = m_tcpServers.find(idx);
-        std::map<unsigned int, CTcpServer*>::iterator end = m_tcpServers.end();
-        if (it != end)
-        {
-            delete it->second;
-            m_tcpServers.erase(it);
-            CMyFileLog log(__FUNCTION__, 0x113);
-            log("./log/Tcp", "TcpMonitorServer Delete !");
-            return 1;
-        }
+        delete it->second;
+        m_tcpServers.erase(it);
+        CMyFileLog(__FUNCTION__, 0x113)("./log/Tcp", "TcpMonitorServer Delete !");
+        return 1;
     }
     return 0;
 }
@@ -152,18 +148,20 @@ void CServerHandler::CheckTcpServerHeartbeat()
 
 void CServerHandler::SendAllTcpServer(PacketHeader* header)
 {
+    CTcpServer* server = 0;
+    char* buf = 0;
     for (std::map<unsigned int, CTcpServer*>::iterator it = m_tcpServers.begin();
          it != m_tcpServers.end(); ++it)
     {
-        CTcpServer* server = it->second;
+        server = it->second;
         if (server->IsValidServer())
         {
-            char* buf = 0;
-            buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
-            memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
+            buf = server->makePacketHeader(header->packetId, header->packetSize);
+            memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xaU);
             server->SendToServer(buf);
         }
     }
+    __asm__ __volatile__("nop");
 }
 
 void CServerHandler::SetConnectFlag(unsigned char idx, bool flag)
@@ -193,7 +191,7 @@ int CServerHandler::GetAlivedMonitorServer()
     return count;
 }
 
-char CServerHandler::IsConnectedMonitorServer(unsigned char idx)
+bool CServerHandler::IsConnectedMonitorServer(unsigned char idx)
 {
     if (idx <= 0x64 && m_monitorServers[idx].IsValidMonitorServer())
         return m_monitorServers[idx].IsConnected();
@@ -218,12 +216,13 @@ void CServerHandler::ResetHeartBeat(unsigned char idx)
 void CServerHandler::SendToTcpServer(PacketHeader* header, unsigned char idx)
 {
     CTcpServer* server = GetTcpServer(idx);
-    if (!server)
-        return;
     char* buf = 0;
-    buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
-    memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
-    server->SendToServer(buf);
+    if (server)
+    {
+        buf = server->makePacketHeader(header->packetId, header->packetSize);
+        memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xaU);
+        server->SendToServer(buf);
+    }
 }
 
 void CServerHandler::SendToTcpServer(char* buf, int len, unsigned char idx)

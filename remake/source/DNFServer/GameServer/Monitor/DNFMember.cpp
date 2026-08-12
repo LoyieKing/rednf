@@ -594,9 +594,17 @@ int CMember::DeleteMemberByName(char* name, unsigned int& outKey)
 
 STMemberDBInfo::STMemberDBInfo() : m_count27(0) {}
 
-STMemberListInfo::STMemberListInfo()
+STMemberListInfo::STMemberListInfo() : m_count(0) {}
+
+ST_MemberInfo::ST_MemberInfo()
 {
-    m_count = 0;
+    m_field0 = 0;
+    m_field1 = 0;
+    m_field20 = 0;
+    m_field21 = 0;
+    m_field22 = 0;
+    m_field26 = 0;
+    memset(m_name, 0, 0x1e);
 }
 
 void ST_MemberProxy::Reset()

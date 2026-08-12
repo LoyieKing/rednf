@@ -6,25 +6,29 @@
 struct STGuildRank
 {
     STGuildRank();
-    char m_data[8];   // {guildKey@0, point@4}
+    unsigned int m0;  // guildKey@0
+    unsigned int m4;  // point@4
 };
 
 struct STUserRank
 {
     STUserRank();
-    char m_data[8];   // {charNo@0, point@4}
+    unsigned int m0;  // charNo@0
+    unsigned int m4;  // point@4
 };
 
 struct STUserPoint
 {
     STUserPoint();
-    char m_data[8];
+    unsigned int m0;
+    unsigned int m4;
 };
 
 struct STPowerWarPointInfo
 {
     STPowerWarPointInfo();
-    char m_data[8];
+    unsigned int m0;
+    unsigned int m4;
 };
 
 #endif

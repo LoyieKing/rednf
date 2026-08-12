@@ -318,15 +318,14 @@ void CVillageAttackedManager::SendFirstRankerReward(unsigned int charNo)
 void CVillageAttackedManager::SendMaxHuntingPoint()
 {
     Packet_DBMW_Query_Msg pkt;
+    char sql[0x1001];
     pkt.m_fieldB = 6;
     pkt.m_fieldA = 0x4ee2;
-    unsigned int hp = (unsigned int)m_field1c;
-    unsigned int now = GetNowTime();
-    unsigned int group = (unsigned int)m_app->Get_ServerGroup();
-    char sql[0x1001];
+    register unsigned int hp = (unsigned int)m_field1c;
+    register unsigned int now = GetNowTime();
     sprintf(sql,
             "inSert into village_attacked_server_point_rank(server_info, occ_date, hunting_point) values(%d,cast(from_unixtime(%d) as date),%u)",
-            group & 0xff, now, hp);
+            (unsigned int)m_app->Get_ServerGroup() & 0xff, now, hp);
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 
@@ -334,7 +333,7 @@ void CVillageAttackedManager::Reset()
 {
     m_huntingPoints.clear();
     m_field1c = 0;
-    m_field20 = (int)GetMaxHuntingPoint();
+    m_field20 = GetMaxHuntingPoint();
     m_state24 = 0;
     m_field28 = 0;
     m_field2c = 0;
@@ -342,31 +341,32 @@ void CVillageAttackedManager::Reset()
 
 void CVillageAttackedManager::OnEndVillageAttacked()
 {
-    if (m_state24 == 1)
+    if (!m_state24)
     {
-        int now = (int)GetNowTime();
-        if ((unsigned int)m_field1c < (unsigned int)m_field20)
-        {
-            m_field30 = 2;
-            CVillageAttackedReward* task =
-                new CVillageAttackedReward(REWARD_PENALTY_TIME + now, 0, this);
-            m_app->GetTaskScheduler()->AddTask(task);
-        }
-        else
-        {
-            m_field30 = 1;
-            CVillageAttackedReward* task =
-                new CVillageAttackedReward(REWARD_BUFF_TIME + now, 0, this);
-            m_app->GetTaskScheduler()->AddTask(task);
-        }
-        m_state24 = 0;
-        SetRewardCloseTime((ENUM_VILLAGE_ATTACKED_REWARD)m_field30);
-        SendVillageAttackedEnd();
-        SendCharacRank();
-        SendMaxHuntingPoint();
-        Reset();
-        OnSchedule();
+        return;
     }
+    int now = (int)GetNowTime();
+    if ((unsigned int)m_field1c >= (unsigned int)m_field20)
+    {
+        m_field30 = 1;
+        CVillageAttackedReward* task =
+            new CVillageAttackedReward(REWARD_BUFF_TIME + now, 0, this);
+        m_app->GetTaskScheduler()->AddTask(task);
+    }
+    else
+    {
+        m_field30 = 2;
+        CVillageAttackedReward* task =
+            new CVillageAttackedReward(REWARD_PENALTY_TIME + now, 0, this);
+        m_app->GetTaskScheduler()->AddTask(task);
+    }
+    m_state24 = 0;
+    SetRewardCloseTime((ENUM_VILLAGE_ATTACKED_REWARD)m_field30);
+    SendVillageAttackedEnd();
+    SendCharacRank();
+    SendMaxHuntingPoint();
+    Reset();
+    OnSchedule();
 }
 
 void CVillageAttackedManager::OnRewardVillageAttacked()
@@ -472,9 +472,9 @@ void CVillageAttackedManager::SendMinTime()
     Packet_DBMW_Query_Msg pkt;
     pkt.m_fieldB = 6;
     pkt.m_fieldA = 0x4ee3;
-    unsigned int elapse = GetElapseTime();
-    unsigned int now = GetNowTime();
-    unsigned int group = (unsigned int)m_app->Get_ServerGroup();
+    register unsigned int elapse = GetElapseTime();
+    register unsigned int now = GetNowTime();
+    register unsigned int group = (unsigned int)m_app->Get_ServerGroup();
     char sql[0x1001];
     sprintf(sql,
             "inSert into village_attacked_server_time_rank(server_info, occ_date, clear_time) values(%d,cast(from_unixtime(%d) as date),%u)",

@@ -57,7 +57,7 @@ int CAppConfig::Load_Table(const std::string& fileName)
 }
 STDBConnInfo* CAppConfig::GetDBConnInfo(ENUM_DB_HANDLE_IDX idx)
 {
-    return (STDBConnInfo*)((char*)this + ((int)idx * 0x168 + 0x60));
+    return &m_dbConnInfo[idx];
 }
 int CAppConfig::GetServerGroup()
 {

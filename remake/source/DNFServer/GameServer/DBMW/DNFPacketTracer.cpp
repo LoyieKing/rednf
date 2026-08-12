@@ -24,23 +24,22 @@
 int getErrno();
 
 CPacketTracer::CPacketTracer()
+    : m_field0(0), m_timer(0), m_processCount(0)
 {
-    m_field0 = 0;
-    m_timer = 0;
-    m_processCount = 0;
     m_timer = new CUnixTimer;
     ResetPacketProcessLog();
 }
 CPacketTracer::~CPacketTracer()
 {
-    delete m_timer;
+    ::operator delete(m_timer);
 }
 void CPacketTracer::WriteLog()
 {
-    if (m_field0 % 30 == 0)
+    if (*(unsigned int*)&m_field0 % 30 == 0)
     {
+        register const char* p = m_log.c_str();
         CMyFileLog log(__FUNCTION__, 0x37);
-        log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
+        log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", p);
         ResetLog();
     }
 }
@@ -53,8 +52,9 @@ void CPacketTracer::AddLog(int type, int len)
 }
 void CPacketTracer::AbsoluteWriteLog()
 {
+    register const char* p = m_log.c_str();
     CMyFileLog log(__FUNCTION__, 0x3f);
-    log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", m_log.c_str());
+    log("./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n", p);
     ResetLog();
 }
 CPacketTracer* CPacketTracerInstance() { static CPacketTracer instance; return &instance; }
@@ -67,8 +67,8 @@ void CPacketTracer::StartPacketProcessLog(unsigned int id)
     if (it == m_processMap.end())
     {
         stPacketProcess p;
-        p.m_accTime = 0.0;
         p.m_count = 0;
+        p.m_accTime = 0.0;
         m_processMap.insert(std::make_pair(id, p));
     }
 }
@@ -85,23 +85,28 @@ void CPacketTracer::EndPacketProcessLog(unsigned int id)
 void CPacketTracer::WritePacketProcessLog()
 {
     m_processCount -= 1;
-    if (m_processCount < 1)
+    for (; m_processCount > 0;)
+        return;
+    std::map<unsigned int, stPacketProcess>::iterator it =
+        m_processMap.begin();
+    std::map<unsigned int, stPacketProcess>::iterator end =
+        m_processMap.end();
+    for (; it != end; ++it)
     {
-        for (std::map<unsigned int, stPacketProcess>::iterator it =
-                 m_processMap.begin();
-             it != m_processMap.end(); ++it)
+        if (it->second.m_count != 0)
         {
-            if (it->second.m_count != 0)
-            {
-                CMyFileLog log(__FUNCTION__, 0x6f);
-                log("./log/PacketProcess",
-                    "id(%d), acc count(%d), acc time(%.4f ms), average time(%4.4f ms)",
-                    it->first, it->second.m_count, it->second.m_accTime,
-                    it->second.m_accTime / (double)it->second.m_count);
-            }
+            double avg =
+                it->second.m_accTime / (double)it->second.m_count;
+            double acc = it->second.m_accTime;
+            register unsigned int cnt = it->second.m_count;
+            register unsigned int id = it->first;
+            CMyFileLog(__FUNCTION__, 0x6f).operator()(
+                "./log/PacketProcess",
+                "id(%d), acc count(%d), acc time(%.4f ms), average time(%4.4f ms)",
+                id, cnt, acc, avg);
         }
-        ResetPacketProcessLog();
     }
+    ResetPacketProcessLog();
 }
 void CPacketTracer::ResetPacketProcessLog()
 {

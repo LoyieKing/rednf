@@ -134,7 +134,7 @@ IQueue<T>& IQueue<T>::Get()
     return instance;
 }
 template<class T>
-char IQueue<T>::SwitchQueue()
+bool IQueue<T>::SwitchQueue()
 {
     if (m_recv->empty())
         return 0;

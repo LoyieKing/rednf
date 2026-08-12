@@ -32,7 +32,7 @@ public:
     TCPSocket* GetTcpSocket();
     int get_remain_sendlen();
     void InitPeer(std::queue<CTcpRecvBuffer*>* q, CMutex* lock1, CMutex* lock2);
-    int RecvPacket();
+    bool RecvPacket();
     int recv_packet();
     int parsing(int len);
     int send_packet(char* buf, int len);

@@ -25,7 +25,7 @@ public:
     bool parsing(int len);
     void ConnSig();
     void DisConnSig();
-    char RecvPacket();
+    bool RecvPacket();
     char m_sendData[0x1800];    // +0x1c（内联收发缓冲，m_sendBuf 指向此处）
     char* m_sendBuf;        // +0x181c
     int m_recvLen;          // +0x1820

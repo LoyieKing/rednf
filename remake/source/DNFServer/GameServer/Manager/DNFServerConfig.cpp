@@ -45,4 +45,4 @@ bool CServerConfig::Parse_Table(char* data, int size)
     return 0;
 }
 
-void* CServerConfig::GetServerInfo() { return &m_servers; }
+ST_ServerInfo* CServerConfig::GetServerInfo() { return m_servers; }

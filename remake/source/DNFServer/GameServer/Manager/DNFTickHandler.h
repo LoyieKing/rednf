@@ -15,17 +15,17 @@ public:
     char m_field0[4];   // +0
     unsigned int m_field4;   // +4
     unsigned int m_field8;   // +8
-    unsigned int m_fieldC;   // +0xc
-    int m_field10;      // +0x10
+    volatile unsigned int m_fieldC;   // +0xc
+    volatile unsigned int m_field10;   // +0x10（ORIG：==-1 用 cmp $0xffffffff 无符号比较）
     unsigned int m_field14;  // +0x14
     unsigned int m_field18;  // +0x18
     char m_pad1C[4];    // +0x1c
     unsigned int m_field20;  // +0x20
     unsigned char m_field24; // +0x24
-    unsigned char m_field25; // +0x25
-    unsigned char m_field26; // +0x26
+    volatile unsigned char m_field25; // +0x25
+    volatile unsigned char m_field26; // +0x26
     char m_pad27;       // +0x27
-    unsigned char m_field28; // +0x28
+    volatile unsigned char m_field28; // +0x28（ORIG：比较前 setne/test，volatile 语义）
     char m_pad29[3];    // +0x29
     CApplication* m_app;  // +0x2c
 };

@@ -47,24 +47,24 @@ void CCubeStatistic::sendStatisticData(CServerHandler* handler)
         for (std::map<STCubeStatisticKey, int>::iterator it = m_data.begin();
              it != m_data.end(); ++it)
         {
-            *(short*)((char*)&pkt + count * 0xd + 0xe) = (short)it->first.m_field0;
-            *(int*)((char*)&pkt + count * 0xd + 0x12) = (int)it->first.m_field4;
-            *(short*)((char*)&pkt + count * 0xd + 0x10) = (short)it->first.m_field8;
-            *(char*)((char*)&pkt + count * 0xd + 0x1a) = it->first.m_fieldc;
-            *(int*)((char*)&pkt + count * 0xd + 0x16) = it->second;
-            count++;
-            if (0x1d5 < count)
+            pkt.m_items[count].m_field0 = it->first.m_field0;
+            pkt.m_items[count].m_field4 = (int)it->first.m_field4;
+            pkt.m_items[count].m_field8 = it->first.m_field8;
+            pkt.m_items[count].m_fieldc = it->first.m_fieldc;
+            pkt.m_items[count].m_value = (int)it->second;
+            count = count + 1;
+            if (0x1d5U < count)
             {
-                *(unsigned int*)((char*)&pkt + 10) = 0x1d6;
+                pkt.m_count = 0x1d6;
                 handler->SendToDB((PacketHeader*)&pkt);
                 count = 0;
                 DNF_LOG_SCOPE_LINE(0x40, "./log/statistic", "CCubeStatistic::sendStatisticData : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", 0x1d6);
             }
         }
-        if (0 < (int)count)
+        if ((int)count > 0)
         {
-            *(unsigned int*)((char*)&pkt + 10) = count;
-            *(unsigned short*)((char*)&pkt + 2) = (unsigned short)(count * 0xd + 0xe);
+            pkt.m_count = count;
+            pkt.packetSize = (unsigned short)(count * 0xd + 0xe);
             handler->SendToDB((PacketHeader*)&pkt);
             DNF_LOG_SCOPE_LINE(0x49, "./log/statistic", "CCubeStatistic::sendStatisticData : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", count);
         }
@@ -88,7 +88,7 @@ Packet_DBMW_Cube_Statistic::Packet_DBMW_Cube_Statistic()
     : PacketHeader(0xc34, 0x17ec)
 {
     m_count = 0;
-    memset(m_rest, 0, sizeof(m_rest));
+    memset(m_items, 0, sizeof(m_items));
 }
 CCubeStatistic::CCubeStatistic()
 {

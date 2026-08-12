@@ -12,11 +12,11 @@ public:
     CMonitorServer();
     ~CMonitorServer();
     void ResetHeartBeat();
-    char IsConnected();
+    bool IsConnected();
     void SetConnFlag(bool flag);
     void OnDisconnect();
-    char IsValidMonitorServer();
-    char IsHeartBeatTimeOver();
+    bool IsValidMonitorServer();
+    bool IsHeartBeatTimeOver();
     void Init(std::string& name, unsigned short port, unsigned char flag);
     void SendToServer(char* buf, int len);
     unsigned char m_index;  // +0

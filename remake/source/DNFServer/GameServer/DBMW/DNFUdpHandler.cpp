@@ -28,7 +28,6 @@ CUdpHandler::CUdpHandler()
     m_sock = -1;
     m_clientSock = -1;
 }
-CUdpHandler::~CUdpHandler() {}
 int CUdpHandler::InitServerSocket(int port)
 {
     m_sock = socket(AF_INET, SOCK_DGRAM, 0x11);

@@ -23,7 +23,7 @@ public:
     void* m_sendQ;          // +0x20
     CMutex* m_sendQLock;    // +0x24
     CMutex* m_sendBLock;    // +0x28
-    char m_runningFlag;     // +0x2c
+    bool m_runningFlag;     // +0x2c
 };
 
 #endif  // DNF_TCP_NETWORK_THREAD_H_

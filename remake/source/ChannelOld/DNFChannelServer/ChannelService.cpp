@@ -359,39 +359,6 @@ template class TMsgCell<358400>;
 template class TMsgCell<389120>;
 template class TMsgCell<409600>;
 
-template <>
-void TGlobalInstance<TextOutputDevice_stdout>::create()
-{
-    if (m_p == 0)
-    {
-        if (m_p == 0)
-        {
-            try
-            {
-                register void* pvMem = operator new(sizeof(TextOutputDevice_stdout));
-                register void* p2 = pvMem;
-                // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
-                // ORIG 的 memset/ctor 指令形态（寄存器装载、无 _ZnwjPv+null test）
-                // 纯 C++ 无法逐字节复现，按规矩归入 caliber_issues.csv（REMAIN）。
-                memset(pvMem, 0, sizeof(TextOutputDevice_stdout));
-                new (pvMem) TextOutputDevice_stdout();
-                m_p = (TextOutputDevice_stdout*)pvMem;
-            }
-            catch (...)
-            {
-                printf("cannot allocate memory in TGlobalInstance.! cannot continue");
-                exit(-1);
-            }
-        }
-    }
-    else
-    {
-        // ORIG: first `m_p == 0` false-path lands on a lone nop before the
-        // epilogue (GCC 4.4 empty-block layout artifact); force it explicitly.
-        __asm__ __volatile__("nop");
-    }
-}
-
 ChannelServiceApp::ChannelService::ChannelService()
 {
     Mode_ = UDP2TCP;
@@ -1209,10 +1176,6 @@ template class TSerializer<tServerGroupInfo>;
 TextOutputDevice_FILE::TextOutputDevice_FILE()
 {
     fp_ = NULL;
-}
-
-TextOutputDevice_stdout::TextOutputDevice_stdout()
-{
 }
 
 bool TextOutputDevice_FILE::open(const TCHAR* s)

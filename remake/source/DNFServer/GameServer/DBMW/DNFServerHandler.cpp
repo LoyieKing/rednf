@@ -23,20 +23,19 @@
 
 int getErrno();
 
-CServerHandler::CServerHandler()
+// ORIG 顺序：显式初始化成员(m_app/m_tickCount)先落值，随后才构造
+// m_statisticsServer（GCC 4.4 对 init-list 显式项先于隐式默认构造）。
+CServerHandler::CServerHandler() : m_app(0), m_tickCount(0)
 {
-    m_app = 0;
-    m_tickCount = 0;
 }
 CServerHandler::~CServerHandler()
 {
     for (std::map<unsigned char, CTcpServer*>::iterator it = m_tcpServers.begin();
          it != m_tcpServers.end(); ++it)
     {
-        CTcpServer* server = it->second;
-        if (server)
+        if (it->second != NULL)
         {
-            delete server;
+            delete it->second;
             it->second = 0;
         }
     }
@@ -61,7 +60,7 @@ void CServerHandler::Load(ST_ServerInfo* infos)
             if (idx == 0xff || idx != 0xc9)
                 throw CDNFException("CServerHandler::Load() Monitor Server Table Exception Break!");
             m_monitorServer.Init(infos[i].m_flag, infos[i].m_name,
-                                 infos[i].m_port, 0xc9);
+                                 infos[i].m_port, idx);
         }
         if (infos[i].m_type == 5)
         {
@@ -69,7 +68,7 @@ void CServerHandler::Load(ST_ServerInfo* infos)
             if (idx == 0xff || idx != 0xcb)
                 throw CDNFException("CServerHandler::Load() Guild Server Table Exception Break!");
             m_guildServer.Init(infos[i].m_flag, infos[i].m_name,
-                               infos[i].m_port, 0xcb);
+                               infos[i].m_port, idx);
         }
         if (infos[i].m_type == 7)
         {
@@ -77,7 +76,7 @@ void CServerHandler::Load(ST_ServerInfo* infos)
             if (idx != 0xcd)
                 throw CDNFException("CServerHandler::Load() Statistics Server Table Exception Break!");
             m_statisticsServer.Init(infos[i].m_flag, infos[i].m_name,
-                                    infos[i].m_port, 0xcd);
+                                    infos[i].m_port, idx);
         }
     }
 }
@@ -100,7 +99,7 @@ void CServerHandler::Attach(CApplication* app)
 CGameServer* CServerHandler::GetGameServer(int idx)
 {
     if (idx <= 0xfe && m_gameServers[idx].IsValidGameServer())
-        return &m_gameServers[idx];
+        return m_gameServers + idx;
     CMyFileLog log(__FUNCTION__, 0xec);
     log("./log/GameServer.log", "Game Server Index Over Index : %d!\n", idx);
     return 0;
@@ -108,16 +107,16 @@ CGameServer* CServerHandler::GetGameServer(int idx)
 void CServerHandler::SendAllToGameServer(char* buf, int len)
 {
     CGameServer* p = m_gameServers;
-    for (int i = 0xff; i != 0; i--, p++)
+    for (int i = 0xff; i-- != 0; p++)
         p->SendToServer(buf, len);
 }
-char CServerHandler::CreateTcpServer(unsigned char idx, unsigned int port)
+CTcpServer* CServerHandler::CreateTcpServer(unsigned char idx, unsigned int port)
 {
     CTcpServer* server = new CTcpServer;
     server->Init(port, m_app->Get_TcpNetSystem());
     server->SetServerType(idx);
     if (m_tcpServers.insert(std::make_pair(idx, server)).second)
-        return 1;
+        return server;
     delete server;
     return 0;
 }
@@ -126,12 +125,9 @@ bool CServerHandler::DeleteTcpServer(unsigned char idx)
     std::map<unsigned char, CTcpServer*>::iterator it = m_tcpServers.find(idx);
     if (it != m_tcpServers.end())
     {
-        CTcpServer* server = it->second;
-        if (server)
-            delete server;
+        delete it->second;
         m_tcpServers.erase(it);
-        CMyFileLog log(__FUNCTION__, 0x130);
-        log("./log/TcpServer", "TcpServer(%d) Deleted", idx);
+        CMyFileLog(__FUNCTION__, 0x130)("./log/TcpServer", "TcpServer(%d) Deleted", idx);
         return 1;
     }
     return 0;
@@ -156,14 +152,16 @@ CTcpServer* CServerHandler::GetTcpServer(unsigned int socket)
 }
 void CServerHandler::SendAllTcpServer(PacketHeader* header)
 {
+    CTcpServer* server = 0;
+    char* buf = 0;
     for (std::map<unsigned char, CTcpServer*>::iterator it = m_tcpServers.begin();
          it != m_tcpServers.end(); ++it)
     {
-        CTcpServer* server = it->second;
+        server = it->second;
         if (server->IsValidServer())
         {
-            char* buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
-            memcpy(buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
+            buf = (char*)server->makePacketHeader(header->packetId, header->packetSize);
+            memcpy((char*)buf + 0xa, (char*)header + 0xa, header->packetSize - 0xa);
             server->SendToServer(buf);
         }
     }

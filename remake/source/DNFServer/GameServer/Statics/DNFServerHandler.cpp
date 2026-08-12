@@ -19,11 +19,16 @@ CServerHandler::~CServerHandler()
 }
 void CServerHandler::Load(ST_ServerInfo* info)
 {
-    for (int i = 0; i < 0xff; i++)
+    // ORIG 实测槽位：index@-0x1d / i@-0x1c（声明序 先 index、后 i；
+    // GCC 4.4 O0 按声明序分配，先声明者取低地址）。循环变量声明在
+    // index 之后才能复现该布局；index 三处共用同一槽位。
+    unsigned char index;
+    int i;
+    for (i = 0; i < 0xff; i++)
     {
         if (info[i].m_field0 == 1)
         {
-            unsigned char index = info[i].m_field2;
+            index = info[i].m_field2;
             if (index == 0xff)
             {
                 throw CDNFException("CServerHandler::Load() Server Table Exception Break!");
@@ -32,7 +37,7 @@ void CServerHandler::Load(ST_ServerInfo* info)
         }
         if (info[i].m_field0 == 2)
         {
-            unsigned char index = info[i].m_field2;
+            index = info[i].m_field2;
             if (index == 0xff || index != 0xc8)
             {
                 printf("*******%d", index);
@@ -42,7 +47,7 @@ void CServerHandler::Load(ST_ServerInfo* info)
         }
         if (info[i].m_field0 == 4)
         {
-            unsigned char index = info[i].m_field2;
+            index = info[i].m_field2;
             if (index == 0xff || index != 0xca)
             {
                 throw CDNFException("CServerHandler::Load() Manager Server Table Exception Break!");
@@ -80,20 +85,20 @@ void CServerHandler::Process()
         }
         p++;
     }
-    for (;;)
+    if (m_dbServer.IsValidServer() == false)
     {
-        if (!m_dbServer.IsValidServer())
-            break;
-        if (m_dbServer.IsConnected())
-        {
-            if (m_dbServer.IsHeartBeatTimeOver())
-            {
-                m_dbServer.OnDisconnect();
-                DNF_LOG_SCOPE_LINE(0x9e, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
-            }
-        }
-        break;
+        goto db_end;
     }
+    else if (m_dbServer.IsConnected())
+    {
+        if (m_dbServer.IsHeartBeatTimeOver())
+        {
+            m_dbServer.OnDisconnect();
+            DNF_LOG_SCOPE_LINE(0x9e, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+        }
+    }
+db_end:
+    ;
 }
 void CServerHandler::ResetHeartBeat(unsigned char index)
 {

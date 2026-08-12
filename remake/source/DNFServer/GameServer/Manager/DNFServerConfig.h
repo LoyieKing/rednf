@@ -27,7 +27,7 @@ public:
     virtual ~CServerConfig();
     virtual int Load_Table(const std::string& fileName);
     virtual bool Parse_Table(char* data, int size);
-    void* GetServerInfo();
+    ST_ServerInfo* GetServerInfo();
     ST_ServerInfo m_servers[0x65];  // +4（101 × 0xc = 0x4bc；ORIG C1/D1 循环计数 101；sizeof=0x4c0）
 };
 

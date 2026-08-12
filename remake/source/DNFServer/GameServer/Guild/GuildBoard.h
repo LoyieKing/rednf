@@ -21,12 +21,25 @@ struct STGuildBoardDBInfo;
 // from GuildDomain.h
 enum ENUM_DB_LOAD_STATE {};
 
-// from GuildDomain.h
+// from GuildDomain.h（自 DNFGuild.h 移入，供 STGuildBoardDBInfo 使用真实成员；
+// DNFGuild.h 在包含本头文件后再用该类型，定义顺序满足）
+struct STGuildMemberCharacData
+{
+    STGuildMemberCharacData();
+    char m_data[0x21];
+};
+
+#pragma pack(push,1)
 struct STGuildBoardDBInfo
 {
     STGuildBoardDBInfo();
-    char m_data[0xa5];
+    char m_data[0x78];            // +0
+    unsigned int m_field78;       // +0x78
+    unsigned int m_field7c;       // +0x7c
+    unsigned int m_field80;       // +0x80
+    STGuildMemberCharacData m_char; // +0x84（0x21 字节）
 };
+#pragma pack(pop)
 
 // from GuildDomain.h
 class CGuildBoard

@@ -67,50 +67,38 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-CFrameCountHandler::~CFrameCountHandler()
-{
-}
-
 CFrameCountHandler::CFrameCountHandler()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_fieldc = 0;
-    m_field10 = 0;
-    m_field14 = 0;
-    m_field18 = 0;
-    m_field1c = 0;
-    m_field20 = 0;
-    m_field24 = 0;
     m_field28 = 0;
     m_field2c = 0;
 }
 
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int value,
-                                            unsigned short frameCount)
+                                            unsigned short tick)
 {
-    if (frameCount == 0)
+    unsigned short t = tick;
+    if (value != 0)
+    {
+        m_field2c = (int)app;
+        memset(this, 0, 0x28);
+        m_field4 = (int)value;
+        m_field8 = 100 / value;
+    }
+    else
     {
         throw CDNFException("CFrameCountHandler::InitFrameCountInfo() Exception Break!");
     }
-    m_field2c = (int)value;
-    memset(this, 0, 0x28);
-    m_field4 = (int)frameCount;
-    m_field8 = 100 / frameCount;
 }
 
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
     struct tms t;
-    clock_t c;
     *(unsigned char*)((char*)this + 0x24) = 0;
     if (*(unsigned char*)this == 0)
     {
         *(unsigned char*)this = 1;
         m_field14 = 0;
-        c = times(&t);
-        m_fieldc = (int)c;
+        m_fieldc = (int)times(&t);
         if (m_fieldc == -1)
         {
             throw CDNFException(
@@ -119,8 +107,7 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
     }
     else
     {
-        c = times(&t);
-        m_field10 = (int)c;
+        m_field10 = (int)times(&t);
         if (m_field10 == -1)
         {
             throw CDNFException(
@@ -181,4 +168,3 @@ void CFrameCountHandler::SaveProcess(int interval)
         m_field28 = 0;
     }
 }
-

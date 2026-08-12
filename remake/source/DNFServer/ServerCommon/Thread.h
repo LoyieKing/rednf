@@ -17,8 +17,8 @@ private:
 template<class T>
 class CGuard {
 public:
-    CGuard(T* mutex);
-    ~CGuard();
+    CGuard(T* mutex) throw();
+    ~CGuard() throw();
 private:
     T* m_mutex;
 };

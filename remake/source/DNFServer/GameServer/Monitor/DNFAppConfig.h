@@ -253,7 +253,7 @@ public:
     CAppConfig();
     virtual ~CAppConfig();
     virtual void Load_Table(const std::string& path);
-    virtual int Parse_Table(char* line, int idx);
+    virtual bool Parse_Table(char* line, int idx);
     void Check_FileName(const std::string& filename);
     void clearServerInfoMap();
     unsigned short Get_FrameCountValue();    // +4

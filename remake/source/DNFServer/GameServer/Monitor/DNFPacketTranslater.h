@@ -11,6 +11,7 @@
 #include "PacketHeader.h"
 #include "Thread.h"
 #include "tinyxml.h"
+#include "DNFMember.h"
 #include "Arad_BirthdayEvent.h"
 #include "BlackUser.h"
 #include "LoginLogoutStatistics.h"
@@ -827,7 +828,6 @@ class Packet_DBMW_Query_Buddy_Info : public PacketHeader
 {
 public:
     Packet_DBMW_Query_Buddy_Info();
-    unsigned int m_uniqCharNo;  // +10
 } __attribute__((packed));
 
 class Packet_Request_Charac_Tower_Ranking : public PacketHeader
@@ -1103,15 +1103,7 @@ public:
     Packet_Monitor_Call_Member_List_ToUser();
     unsigned int m_idByChannel;     // +10
     unsigned int m_uniqCharNo;      // +14
-    unsigned char m_upperChannel;   // +18
-    unsigned char m_upperLevel;     // +19
-    char m_upperName[0x1e];         // +20
-    unsigned char m_upperBlack;     // +50
-    unsigned char m_upperExpLevel;  // +51
-    unsigned int m_upperExp;        // +52
-    unsigned int m_upperExpNext;    // +56
-    unsigned char m_lowerCount;     // +60
-    char m_lowers[10][0x2a];        // +61
+    STMemberListInfo m_memberList;  // +18 (0x12)
 } __attribute__((packed));
 
 class Packet_Punish_Cancel : public PacketHeader

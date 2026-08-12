@@ -19,7 +19,7 @@ public:
     void NotifyHeartbeat();
     char IsHeartbeatTimeOver();
     void SendToServer(char* buf);
-    unsigned short makePacketHeader(unsigned short type, unsigned short size);
+    char* makePacketHeader(unsigned short type, unsigned short size);
     unsigned char m_index;  // +0
     char m_pad1[3];
     unsigned int m_socket;  // +4（原版为无符号整型套接字句柄）

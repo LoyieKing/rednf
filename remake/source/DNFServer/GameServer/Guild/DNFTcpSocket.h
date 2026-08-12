@@ -21,7 +21,7 @@ public:
     TCPSocket();
     ~TCPSocket();
     bool open();
-    int bind(unsigned short port, bool flag);
+    bool bind(unsigned short port, bool flag);
     bool listen(int backlog);
     int send(char* buf, int len);
     int recv(char* buf, int len);
@@ -36,7 +36,7 @@ public:
     bool setOptReuseAdrs(bool flag);
     bool setOptLinger(bool flag);
     bool connect(const char* ip, unsigned short port);
-    int accept(TCPSocket& peer);
+    bool accept(TCPSocket& peer);
     char* getPeerIP();
     char* getPeerAdrs();
     unsigned short getPeerPort();

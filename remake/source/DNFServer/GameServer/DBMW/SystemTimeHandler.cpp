@@ -1,6 +1,4 @@
 // df_dbmw_r - SystemTimeHandler (ORIG SystemTimeHandler.cpp)
-#include "DBMWCommon.h"
-
 #include <errno.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,6 +16,7 @@
 #include <sys/stat.h>
 #include <sys/times.h>
 
+#include "DBMWCommon.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 

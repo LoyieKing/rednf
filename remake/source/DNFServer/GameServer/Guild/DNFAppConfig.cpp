@@ -82,9 +82,9 @@ int CAppConfig::Parse_Table(char* line, int idx)
     }
     if (idx < 6)
     {
-        char* tokens[3];
-        int n = DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 2);
-        if (n == 2)
+        char pad_if[4];
+        char* tokens[2];
+        if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 2) == 2)
         {
             switch (idx)
             {
@@ -92,19 +92,19 @@ int CAppConfig::Parse_Table(char* line, int idx)
                 m_frameCount = (unsigned char)atoi(tokens[1]);
                 break;
             case 1:
-                *(short*)((char*)this + 6) = (short)atoi(tokens[1]);
+                m_udpPort = (unsigned short)atoi(tokens[1]);
                 break;
             case 2:
-                *(char*)((char*)this + 10) = (char)atoi(tokens[1]);
+                m_group = (char)atoi(tokens[1]);
                 break;
             case 3:
-                *(short*)((char*)this + 8) = (short)atoi(tokens[1]);
+                m_tcpPort = (unsigned short)atoi(tokens[1]);
                 break;
             case 4:
                 m_name = std::string(tokens[1]);
                 break;
             case 5:
-                *(short*)((char*)this + 0x10) = (short)atoi(tokens[1]);
+                m_dbmwTcpPort = (unsigned short)atoi(tokens[1]);
                 break;
             default:
                 return 0;
@@ -114,17 +114,17 @@ int CAppConfig::Parse_Table(char* line, int idx)
     }
     else
     {
-        char* tokens[7];
-        int n = DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 6);
-        if (n == 6)
+        char pad_else[4];
+        char* tokens[6];
+        if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 6) == 6)
         {
             stServerInfo* si = (stServerInfo*)operator new(0x16);
             si->m_field2 = (unsigned char)atoi(tokens[1]);
             si->m_group = (unsigned char)atoi(tokens[2]);
             si->m_field1 = (unsigned char)atoi(tokens[3]);
-            strncpy(si->m_name, tokens[4], 0x10);
+            strncpy((char*)((int)si + 3), tokens[4], 0x10);
             si->m_port = (unsigned short)atoi(tokens[5]);
-            m_serverInfo.insert(std::make_pair(si->m_group, si));
+            m_serverInfo.insert(std::pair<const unsigned int, stServerInfo*>(si->m_field2, si));
             return 1;
         }
     }
@@ -170,9 +170,13 @@ std::multimap<unsigned int, stServerInfo*>* CAppConfig::GetServerInfoMap()
 void CAppConfig::clearServerInfoMap()
 {
     for (std::multimap<unsigned int, stServerInfo*>::iterator it = m_serverInfo.begin();
-         it != m_serverInfo.end(); ++it)
+         it != m_serverInfo.end(); it++)
     {
-        delete it->second;
+        if (it->second != 0)
+        {
+            delete it->second;
+        }
+        it->second = 0;
     }
     m_serverInfo.clear();
 }
@@ -208,7 +212,6 @@ unsigned short CAppConfig::Get_DBMWTcpPort()
 }
 
 CAppConfig::CAppConfig()
-    : m_name("")
+    : m_name(""), m_dbmwTcpPort(0)
 {
-    m_dbmwTcpPort = 0;
 }

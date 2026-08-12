@@ -86,6 +86,22 @@ unsigned int CGuildManager::m_ExpTable[17] = {
 unsigned int CGuildManager::m_uGuildExpMax1 = 10000;
 unsigned int CGuildManager::m_uGuildExpMax2 = 20000;
 
+static const int guild_att_phase[] = {
+    5, 10, 20, 35, 60, 100, 150, 220, 300,
+};
+
+static const int guild_att_exp[] = {
+    1,3,4,8,10,18,29,46,70,77,112,158,218,236,307,386,0,
+    1,4,4,9,11,18,29,46,70,78,113,159,219,236,307,387,0,
+    2,6,8,17,21,36,59,91,140,155,224,316,437,472,614,773,0,
+    2,10,12,25,31,53,88,138,209,232,337,475,655,708,920,1159,0,
+    5,16,21,42,52,90,146,229,348,387,561,792,1093,1179,1534,1933,0,
+    7,26,32,67,83,143,234,367,557,620,899,1266,1748,1888,2454,3092,0,
+    9,33,41,84,104,179,292,458,697,774,1122,1583,2184,2360,3067,3865,0,
+    13,46,56,117,145,251,409,642,975,1084,1572,2217,3059,3303,4295,5411,0,
+    14,52,65,135,166,286,468,734,1115,1239,1797,2533,3496,3775,4907,6184,0,
+};
+
 void CGuildManager::LoadGuildAgit(unsigned int guildKey, CServerHandler* handler)
 {
     CGuild* guild = FindGuild(guildKey);
@@ -185,75 +201,99 @@ bool CGuildManager::InsertGuild(unsigned int guildKey, CGuild* guild)
     return 0;
 }
 
-void CGuildManager::DeleteGuild(unsigned int guildKey)
+int CGuildManager::DeleteGuild(unsigned int guildKey)
 {
     if (m_guilds.empty())
     {
-        return;
-    }
-    std::map<unsigned int, CGuild*>::iterator it = m_guilds.find(guildKey);
-    if (it == m_guilds.end())
-    {
-        DNF_LOG_SCOPE_LINE(0xcd,"./log/Guild",
-            "[DELETE_ERR]  Guild Key : %d\tCurr Guild Load Cnt : %d\n",
-            guildKey, (int)m_guilds.size());
-        return;
-    }
-    DNF_LOG_SCOPE_LINE(0xc4,"./log/Guild",
-        "[DELETE]  Guild Key : %d\tGuild Name : %s\tGuild State:%d\tCurr Guild Load Cnt : %d\n",
-        guildKey, it->second->GetGuildName(),
-        it->second->GetGuildDBFlag() & 0xffff, (int)m_guilds.size() - 1);
-    delete it->second;
-    m_guilds.erase(it);
-}
-
-void CGuildManager::DeleteGuild(CGuild* guild)
-{
-    if (m_guilds.empty() || guild == 0)
-    {
-        return;
-    }
-    if (m_guilds.erase(guild->GetGuildKey()) == 1)
-    {
-        DNF_LOG_SCOPE_LINE(0xe0,"./log/Guild",
-            "[DELETE]  Guild Key : %d\tGuild Name : %s\tCurr Guild Load Cnt : %d\n",
-            guild->GetGuildKey(), guild->GetGuildName(), (int)m_guilds.size());
-        delete guild;
+        return 0;
     }
     else
     {
-        DNF_LOG_SCOPE_LINE(0xe7,"./log/Guild",
-            "[DELETE_ERR]  Guild Key : %d\tCurr Guild Load Cnt : %d\n",
-            guild->GetGuildKey(), (int)m_guilds.size());
+        std::map<unsigned int, CGuild*>::iterator it = m_guilds.find(guildKey);
+        if (it != m_guilds.end())
+        {
+            DNF_LOG_SCOPE_LINE(0xc4,"./log/Guild",
+                "[DELETE]  Guild Key : %d\tGuild Name : %s\tGuild State:%d\tCurr Guild Load Cnt : %d\n",
+                guildKey, it->second->GetGuildName(),
+                it->second->GetGuildDBFlag() & 0xffff, (int)m_guilds.size() - 1);
+            delete it->second;
+            m_guilds.erase(it);
+            return 1;
+        }
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0xcd,"./log/Guild",
+                "[DELETE_ERR]  Guild Key : %d\tCurr Guild Load Cnt : %d\n",
+                guildKey, m_guilds.size());
+            return 0;
+        }
+    }
+}
+
+int CGuildManager::DeleteGuild(CGuild* guild)
+{
+    if (m_guilds.empty() || guild == 0)
+    {
+        return 0;
+    }
+    else
+    {
+        if (m_guilds.erase(guild->GetGuildKey()) == 1)
+        {
+            DNF_LOG_SCOPE_LINE(0xe0,"./log/Guild",
+                "[DELETE]  Guild Key : %d\tGuild Name : %s\tCurr Guild Load Cnt : %d\n",
+                guild->GetGuildKey(), guild->GetGuildName(), (int)m_guilds.size());
+            delete guild;
+            return 1;
+        }
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0xe7,"./log/Guild",
+                "[DELETE_ERR]  Guild Key : %d\tCurr Guild Load Cnt : %d\n",
+                guild->GetGuildKey(), (int)m_guilds.size());
+            return 0;
+        }
     }
 }
 
 CGuild* CGuildManager::FindGuild(unsigned int guildKey)
 {
+    std::map<unsigned int, CGuild*>::iterator it;
     if (m_guilds.empty())
     {
         return 0;
     }
-    std::map<unsigned int, CGuild*>::iterator it = m_guilds.find(guildKey);
-    return it == m_guilds.end() ? 0 : it->second;
+    else
+    {
+        it = m_guilds.find(guildKey);
+        if (m_guilds.end() != it)
+        {
+            return it->second;
+        }
+        return 0;
+    }
 }
 
 bool CGuildManager::IsEmptyGuild(unsigned int guildKey)
 {
+    std::map<unsigned int, CGuild*>::iterator it;
+    CGuild* guild;
     if (m_guilds.empty())
     {
+        return 1;
+    }
+    else
+    {
+        it = m_guilds.find(guildKey);
+        if (m_guilds.end() != it)
+        {
+            if ((guild = it->second) != 0)
+            {
+                return guild->IsEmpty();
+            }
+        }
         return 0;
     }
-    std::map<unsigned int, CGuild*>::iterator it = m_guilds.find(guildKey);
-    if (it != m_guilds.end())
-    {
-        CGuild* guild = it->second;
-        if (guild != 0)
-        {
-            return guild->IsEmpty();
-        }
-    }
-    return 0;
 }
 
 CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
@@ -480,9 +520,11 @@ void CGuildManager::SendGuildInfoToMembers(unsigned int guildKey, bool flag)
     if (guild != 0)
     {
         guild->SendGuildInfoToMembers(flag);
-        return;
     }
-    throw CDNFException(std::string("CGuildManager::SendGuildInfoToMembers() pclGuild == NULL\n"));
+    else
+    {
+        throw CDNFException(std::string("CGuildManager::SendGuildInfoToMembers() pclGuild == NULL\n"));
+    }
 }
 
 void CGuildManager::DBGuildProcess(CServerHandler* handler, bool flag)
@@ -491,9 +533,12 @@ void CGuildManager::DBGuildProcess(CServerHandler* handler, bool flag)
     {
         return;
     }
-    time_t now = time(0);
-    tm* t = localtime(&now);
-    int onTime = m_scheduler.IsOnTimeSpecialDayHour(t->tm_mday, t->tm_hour, t->tm_min);
+    static unsigned int save_order = 0;
+    time_t now;
+    tm* t;
+    time(&now);
+    t = localtime(&now);
+    char onTime = m_scheduler.IsOnTimeSpecialDayHour(t->tm_mday, t->tm_hour, t->tm_min);
     unsigned char groupNo = m_app->Get_ServerGroup();
     for (std::map<unsigned int, CGuild*>::iterator it = m_guilds.begin();
          it != m_guilds.end(); ++it)
@@ -502,16 +547,17 @@ void CGuildManager::DBGuildProcess(CServerHandler* handler, bool flag)
         if (guild != 0)
         {
             unsigned int key = guild->GetGuildKey();
-            if (key % 10 == (unsigned int)g_guildDBProcessDay)
+            key = key % 10;
+            if (key == save_order)
             {
                 guild->DBGuildSaveProcess(handler);
             }
         }
     }
-    g_guildDBProcessDay++;
-    if (g_guildDBProcessDay > 9)
+    save_order++;
+    if (save_order > 9)
     {
-        g_guildDBProcessDay = 0;
+        save_order = 0;
     }
 }
 
@@ -556,21 +602,30 @@ bool CGuildManager::IsGuildWarEventOn(unsigned char group)
 
 bool CGuildManager::IsGuildWarEnterableChar(unsigned char group, unsigned int charNo)
 {
-    if (group == 6)
+    if (group != 6)
     {
-        if (IsGuildWarEventOn(group) == 1)
-        {
-            return m_guildWar.IsGuildWarEnterableGuild(charNo) == 1;
-        }
-        return 0;
+        return 1;
     }
-    return 1;
+    else
+    {
+        if (!IsGuildWarEventOn(group))
+        {
+            return 0;
+        }
+        else
+        {
+            return m_guildWar.IsGuildWarEnterableGuild(charNo);
+        }
+    }
 }
 
 void CGuildManager::ProcessByMinute()
 {
     m_guildWar.DBSaveProcess(m_app);
-    if (!m_guilds.empty())
+    if (m_guilds.empty())
+    {
+    }
+    else
     {
         for (std::map<unsigned int, CGuild*>::iterator it = m_guilds.begin();
              it != m_guilds.end(); ++it)
@@ -591,9 +646,9 @@ void CGuildManager::ProcessBySecond()
 
 void CGuildManager::SetGuildExpTable(unsigned int* table)
 {
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 17; i++)
     {
-        *(unsigned int*)((char*)this + i * 4 + 0x70) = table[i];
+        m_ExpTable[i] = table[i];
     }
 }
 
@@ -608,20 +663,19 @@ unsigned int CGuildManager::GetGuildExpWithLevel(unsigned char level)
 
 int CGuildManager::GetGuildLevelWithExp(unsigned int exp)
 {
-    static const unsigned int g_guildExpLevelTable[17] = {
-        0x546, 0x131e, 0x2f76, 0x6257, 0xb692, 0x13aa3, 0x201d9, 0x325db,
-        0x4c89a, 0x716e2, 0xa4794, 0xe7e87, 0x140087, 0x1b00b6, 0x231a87,
-        0x2c3b06, 0x3513a1,
-    };
-    if (exp < g_guildExpLevelTable[0x10])
+    int level;
+    if (exp < m_ExpTable[0x10])
     {
+        level = 0;
         for (int i = 0; i <= 0x10; i++)
         {
-            if (g_guildExpLevelTable[i] > exp)
+            if (m_ExpTable[i] > exp)
             {
-                return i;
+                level = i;
+                break;
             }
         }
+        return level;
     }
     return 0x10;
 }
@@ -651,23 +705,24 @@ STTodayGuildMember* CGuildManager::GetTodayMember(unsigned int guildKey)
 
 void CGuildManager::RefreshTodayMember(bool flag)
 {
-    time_t now = time(0);
-    tm* t = localtime(&now);
-    if (!flag && *(unsigned int*)((char*)this + 0x7c) == (unsigned int)t->tm_mday &&
-        t->tm_hour != 6)
+    time_t now;
+    tm* t;
+    time(&now);
+    t = localtime(&now);
+    if (flag || *(unsigned int*)((char*)this + 0x7c) != (unsigned int)t->tm_mday &&
+        t->tm_hour == 6)
     {
-        return;
-    }
-    m_todayMembers.clear();
-    for (std::map<unsigned int, CGuild*>::iterator it = m_guilds.begin();
-         it != m_guilds.end(); ++it)
-    {
-        if (it->second != 0)
+        m_todayMembers.clear();
+        for (std::map<unsigned int, CGuild*>::iterator it = m_guilds.begin();
+             it != m_guilds.end(); ++it)
         {
-            it->second->QueryTodayGuildMember(m_app->Get_ServerHandler());
+            if (it->second != 0)
+            {
+                it->second->QueryTodayGuildMember(m_app->Get_ServerHandler());
+            }
         }
+        *(tm*)((char*)this + 0x70) = *t;
     }
-    *(tm*)((char*)this + 0x70) = *t;
 }
 
 void CGuildManager::AttendGuild(unsigned int guildKey, unsigned int charNo)
@@ -675,20 +730,22 @@ void CGuildManager::AttendGuild(unsigned int guildKey, unsigned int charNo)
     bool attended = false;
     std::map<unsigned int, std::vector<unsigned int> >::iterator it =
         m_attendance.find(guildKey);
-    if (it != m_attendance.end())
-    {
-        if (std::find(it->second.begin(), it->second.end(), charNo) == it->second.end())
-        {
-            it->second.push_back(charNo);
-            attended = true;
-        }
-    }
-    else
+    if (it == m_attendance.end())
     {
         std::vector<unsigned int> vec;
         vec.push_back(charNo);
         m_attendance.insert(std::make_pair(guildKey, vec));
         attended = true;
+    }
+    else
+    {
+        std::vector<unsigned int>::iterator found =
+            std::find(it->second.begin(), it->second.end(), charNo);
+        if (found == it->second.end())
+        {
+            it->second.push_back(charNo);
+            attended = true;
+        }
     }
     if (attended)
     {
@@ -706,10 +763,9 @@ int CGuildManager::CheckAchieveAttendance(unsigned int guildKey)
         m_attendance.find(guildKey);
     if (it != m_attendance.end())
     {
-        static const int guild_att_phase[9] = { 5, 10, 20, 35, 60, 100, 150, 220, 300 };
         for (int phase = 8; phase >= 0; phase--)
         {
-            if ((int)it->second.size() == guild_att_phase[phase])
+            if (it->second.size() == guild_att_phase[phase])
             {
                 return phase;
             }
@@ -722,26 +778,21 @@ int CGuildManager::GetAttendancePhase(unsigned int guildKey)
 {
     std::map<unsigned int, std::vector<unsigned int> >::iterator it =
         m_attendance.find(guildKey);
-    if (it == m_attendance.end())
+    if (it != m_attendance.end())
     {
-        return 0;
+        for (int phase = 8; phase >= 0; phase--)
+        {
+            if (it->second.size() >= guild_att_phase[phase])
+            {
+                return phase;
+            }
+        }
     }
-    return (int)it->second.size();
+    return -1;
 }
 
 int CGuildManager::GetAttendanceExp(unsigned int guildKey, int phase)
 {
-    static const int guild_att_exp_tbl[153] = {
-        1,3,4,8,10,18,29,46,70,77,112,158,218,236,307,386,0,
-        1,4,4,9,11,18,29,46,70,78,113,159,219,236,307,387,0,
-        2,6,8,17,21,36,59,91,140,155,224,316,437,472,614,773,0,
-        2,10,12,25,31,53,88,138,209,232,337,475,655,708,920,1159,0,
-        5,16,21,42,52,90,146,229,348,387,561,792,1093,1179,1534,1933,0,
-        7,26,32,67,83,143,234,367,557,620,899,1266,1748,1888,2454,3092,0,
-        9,33,41,84,104,179,292,458,697,774,1122,1583,2184,2360,3067,3865,0,
-        13,46,56,117,145,251,409,642,975,1084,1572,2217,3059,3303,4295,5411,0,
-        14,52,65,135,166,286,468,734,1115,1239,1797,2533,3496,3775,4907,6184,0,
-    };
     CGuild* guild = FindGuild(guildKey);
     if (guild == 0)
     {
@@ -749,53 +800,40 @@ int CGuildManager::GetAttendanceExp(unsigned int guildKey, int phase)
     }
     std::map<unsigned int, std::vector<unsigned int> >::iterator it =
         m_attendance.find(guildKey);
-    if (it == m_attendance.end())
+    if (it != m_attendance.end())
     {
-        return 0;
+        unsigned int cnt = it->second.size();
+        return guild_att_exp[(guild->GetGuildLevel() & 0xff) + phase * 0x11];
     }
-    return guild_att_exp_tbl[phase * 0x11 + (guild->GetGuildLevel() & 0xff)];
+    return 0;
 }
 
 void CGuildManager::GetAttendanceInfo(unsigned int guildKey, STAttendanceInfo& info)
 {
-    static const int guild_att_phase_tbl[9] = { 5, 10, 20, 35, 60, 100, 150, 220, 300 };
-    static const int guild_att_exp_tbl[153] = {
-        1,3,4,8,10,18,29,46,70,77,112,158,218,236,307,386,0,
-        1,4,4,9,11,18,29,46,70,78,113,159,219,236,307,387,0,
-        2,6,8,17,21,36,59,91,140,155,224,316,437,472,614,773,0,
-        2,10,12,25,31,53,88,138,209,232,337,475,655,708,920,1159,0,
-        5,16,21,42,52,90,146,229,348,387,561,792,1093,1179,1534,1933,0,
-        7,26,32,67,83,143,234,367,557,620,899,1266,1748,1888,2454,3092,0,
-        9,33,41,84,104,179,292,458,697,774,1122,1583,2184,2360,3067,3865,0,
-        13,46,56,117,145,251,409,642,975,1084,1572,2217,3059,3303,4295,5411,0,
-        14,52,65,135,166,286,468,734,1115,1239,1797,2533,3496,3775,4907,6184,0,
-    };
     CGuild* guild = FindGuild(guildKey);
     if (guild != 0)
     {
-        *(unsigned int*)((char*)&info + 4) =
+        ((unsigned int*)&info)[1] =
             (unsigned int)guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff;
         std::map<unsigned int, std::vector<unsigned int> >::iterator it =
             m_attendance.find(guildKey);
         if (it != m_attendance.end())
         {
-            *(unsigned int*)&info = (unsigned int)it->second.size();
+            ((unsigned int*)&info)[0] = (unsigned int)it->second.size();
             int phase = GetAttendancePhase(guildKey);
-            *(int*)((char*)&info + 0x18) = phase;
+            ((int*)&info)[6] = phase;
             if (phase >= 0 && phase < 9)
             {
-                *(unsigned int*)((char*)&info + 0x10) = guild_att_phase_tbl[phase];
-                unsigned int level = guild->GetGuildLevel();
-                *(unsigned int*)((char*)&info + 0x14) =
-                    guild_att_exp_tbl[phase * 0x11 + (level & 0xff)];
+                ((unsigned int*)&info)[4] = guild_att_phase[phase];
+                ((unsigned int*)&info)[5] =
+                    guild_att_exp[(guild->GetGuildLevel() & 0xff) + phase * 0x11];
             }
-            int next = phase + 1;
-            if (next >= 0 && next < 9)
+            phase++;
+            if (phase >= 0 && phase < 9)
             {
-                *(unsigned int*)((char*)&info + 8) = guild_att_phase_tbl[next];
-                unsigned int level = guild->GetGuildLevel();
-                *(unsigned int*)((char*)&info + 0xc) =
-                    guild_att_exp_tbl[next * 0x11 + (level & 0xff)];
+                ((unsigned int*)&info)[2] = guild_att_phase[phase];
+                ((unsigned int*)&info)[3] =
+                    guild_att_exp[(guild->GetGuildLevel() & 0xff) + phase * 0x11];
             }
         }
     }
@@ -803,16 +841,17 @@ void CGuildManager::GetAttendanceInfo(unsigned int guildKey, STAttendanceInfo& i
 
 void CGuildManager::RefreshAttendanceInfo(bool flag)
 {
-    time_t now = time(0);
-    tm* t = localtime(&now);
-    if (!flag && *(unsigned int*)((char*)this + 0xc0) == (unsigned int)t->tm_mday &&
-        t->tm_hour != 6)
+    time_t now;
+    tm* t;
+    time(&now);
+    t = localtime(&now);
+    if (flag || *(unsigned int*)((char*)this + 0xc0) != (unsigned int)t->tm_mday &&
+        t->tm_hour == 6)
     {
-        return;
+        m_attendance.clear();
+        m_app->Get_UserManager()->RefreshGuildAttendanceInfo();
+        *(tm*)((char*)this + 0xb4) = *t;
     }
-    m_attendance.clear();
-    m_app->Get_UserManager()->RefreshGuildAttendanceInfo();
-    *(tm*)((char*)this + 0xb4) = *t;
 }
 
 void CGuildManager::RewardAttendance(unsigned int guildKey, unsigned int charNo, int flag)
@@ -820,14 +859,14 @@ void CGuildManager::RewardAttendance(unsigned int guildKey, unsigned int charNo,
 {
     if ((int)flag != -1 && (int)flag < 9)
     {
-        int exp = GetAttendanceExp(guildKey, flag);
+        unsigned int exp = GetAttendanceExp(guildKey, flag);
         if (exp != 0)
         {
             CGuild* guild = FindGuild(guildKey);
             if (guild != 0)
             {
-                guild->AddGuildExp((unsigned int)exp);
-                guild->NotifyAllAchieveAttendance(charNo, (unsigned int)exp);
+                guild->AddGuildExp(exp);
+                guild->NotifyAllAchieveAttendance(guild_att_phase[flag], exp);
             }
         }
     }

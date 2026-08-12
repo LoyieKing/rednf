@@ -27,14 +27,20 @@ struct STPowerWarGuildInfo
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
-    char m_data[0x14];
+    union {
+        char m_data[0x14];
+        unsigned int m_field[5];
+    };
 };
 
 // from GuildDomain.h
 struct STDBSavePowerWarPoint
 {
     STDBSavePowerWarPoint();
-    char m_data[8];   // {guildKey@0, point@4}
+    union {
+        char m_data[8];   // {guildKey@0, point@4}
+        unsigned int m_field[2];
+    };
 };
 
 // from GuildDomain.h

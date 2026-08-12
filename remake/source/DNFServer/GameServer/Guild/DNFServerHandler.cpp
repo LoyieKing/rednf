@@ -72,23 +72,25 @@ CTcpDBServer* CServerHandler::GetTcpDBServer()
 }
 
 CServerHandler::CServerHandler()
+    : m_dbServer(0),
+      m_managerServer(0),
+      m_app(0),
+      m_heartbeat(0),
+      m_field58(0)
 {
-    m_dbServer = 0;
-    m_managerServer = 0;
-    m_app = 0;
-    m_heartbeat = 0;
-    m_field58 = 0;
 }
 
 CServerHandler::~CServerHandler()
 {
     if (m_dbServer != 0)
     {
+        ((CServerInterface*)m_dbServer)->Destroy();
         delete m_dbServer;
         m_dbServer = 0;
     }
     if (m_managerServer != 0)
     {
+        ((CServerInterface*)m_managerServer)->Destroy();
         delete m_managerServer;
         m_managerServer = 0;
     }
@@ -147,12 +149,15 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
 
 void CServerHandler::Process()
 {
-    bool doHb = false;
-    if (m_managerServer != 0)
+    register bool doHb;
+    int old = 0;
+    if (m_managerServer == 0 || (old = m_heartbeat, m_heartbeat = old + 1, old < 4))
     {
-        int old = m_heartbeat;
-        m_heartbeat = old + 1;
-        doHb = old >= 4;
+        doHb = false;
+    }
+    else
+    {
+        doHb = true;
     }
     if (doHb)
     {
@@ -160,41 +165,69 @@ void CServerHandler::Process()
         m_heartbeat = 0;
     }
     for (std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.begin();
-         it != m_gameServers.end(); ++it)
+         it != m_gameServers.end(); it++)
     {
         CGameServer* gs = it->second;
-        if (gs->IsValidServer() && gs->IsConnected() && gs->IsHeartBeatTimeOver())
+        if (!gs->IsValidServer())
         {
-            if (gs->GetChannelNo() < 0xbe)
-            {
-                m_app->OnGameServerDown(gs);
-            }
-            gs->OnDisconnect();
+            continue;
         }
-    }
-    if (m_dbServer != 0 && m_dbServer->IsValidServer())
-    {
-        if (m_dbServer->IsConnected() && m_dbServer->IsHeartBeatTimeOver())
+        if (!gs->IsConnected())
         {
-            m_dbServer->OnDisconnect();
-            DNF_LOG_SCOPE_LINE(0xea, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+            continue;
         }
-    }
-    if (m_tcpDbServer.IsValidServer() != 1)
-    {
-        const char* ip = m_tcpDbServer.GetIP();
-        if (*ip != '\0' && m_tcpDbServer.GetPort() != 0)
+        if (!gs->IsHeartBeatTimeOver())
         {
-            int sockRef = 0;
+            continue;
+        }
+        if (gs->GetChannelNo() < 0xbe)
+        {
+            m_app->OnGameServerDown(gs);
+        }
+        gs->OnDisconnect();
+    }
+    register bool dbOk;
+    if (m_dbServer == 0 || !m_dbServer->IsValidServer())
+    {
+        dbOk = true;
+    }
+    else
+    {
+        dbOk = false;
+    }
+    if (dbOk)
+    {
+        return;
+    }
+    if (m_dbServer->IsConnected() && m_dbServer->IsHeartBeatTimeOver())
+    {
+        m_dbServer->OnDisconnect();
+        DNF_LOG_SCOPE_LINE(0xea, "./log/DBServerErr", "CServerHandler::Process() DB Server Down!\n");
+    }
+    if (!m_tcpDbServer.IsValidServer())
+    {
+        register bool canConnect;
+        if (*m_tcpDbServer.GetIP() != '\0' && m_tcpDbServer.GetPort() != 0)
+        {
+            canConnect = true;
+        }
+        else
+        {
+            canConnect = false;
+        }
+        if (canConnect)
+        {
             m_app->Get_TcpNetSystem()->OpenTcpService(
-                *m_tcpDbServer.GetSockRef(), ip, m_tcpDbServer.GetPort());
-            DNF_LOG_SCOPE_LINE(0x135,"./log/TcpServer", "try connect to DBMW(%s, %d)", ip,
+                m_tcpDbServer.GetSockRef(), m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
+            DNF_LOG_SCOPE_LINE(0x135, "./log/TcpServer", "try connect to DBMW(%s, %d)",
+                m_tcpDbServer.GetIP(),
                 (unsigned int)m_tcpDbServer.GetPort());
         }
     }
-    int old = m_field58;
-    m_field58 = old + 1;
-    if (old > 3)
+    int hbOld = m_field58;
+    register bool hb = hbOld > 3;
+    m_field58 = hbOld + 1;
+    if (hb)
     {
         m_tcpDbServer.SendHeartbeat();
         m_field58 = 0;

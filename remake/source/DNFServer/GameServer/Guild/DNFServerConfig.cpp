@@ -121,8 +121,4 @@ ST_ServerInfo::ST_ServerInfo()
 
 CServerConfig::CServerConfig()
 {
-    for (int i = 0; i < 255; i++)
-    {
-        new ((void*)&m_info[i]) ST_ServerInfo;
-    }
 }

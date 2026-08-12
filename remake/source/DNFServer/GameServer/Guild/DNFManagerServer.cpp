@@ -103,21 +103,14 @@ void CManagerServer::SendHeartBeat(int group)
     if (GetUdpHandler() != 0)
     {
         Packet_Monitor_UDP_HeartBeat pkt;
-        *(unsigned char*)((char*)&pkt + 0xa) = (unsigned char)group;
+        pkt.m_fieldA = (unsigned char)group;
         ((CUdpHandler*)GetUdpHandler())->SendToServer((char*)&pkt, 0xb,
             GetServerInfo()->m_port, GetServerInfo()->m_name);
     }
 }
 
-#pragma pack(push,1)
-struct Packet_Monitor_UDP_HeartBeat_Layout
-{
-    char pad0x0[0xa];
-    unsigned char ma;
-};
-#pragma pack(pop)
 Packet_Monitor_UDP_HeartBeat::Packet_Monitor_UDP_HeartBeat()
     : PacketHeader(0x3ec, 0xb)
 {
-    ((Packet_Monitor_UDP_HeartBeat_Layout*)this)->ma = 255;
+    m_fieldA = 255;
 }

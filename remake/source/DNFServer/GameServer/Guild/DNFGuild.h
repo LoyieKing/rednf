@@ -86,7 +86,9 @@ struct __attribute__((packed)) STGuildDBInfoOnly
     char m_pad0[0x17];             // +0
     unsigned int m_masterId;       // +0x17
     unsigned char m_guildLevel;    // +0x1b
-    unsigned char m_flags;         // +0x1c
+    unsigned char m_flag0 : 1;     // +0x1c bit0
+    unsigned char m_flag1 : 1;     // +0x1c bit1
+    unsigned char m_flagPad : 6;   // +0x1c bits2-7
     char m_pad1d;                  // +0x1d
     unsigned int m_field1e;        // +0x1e
     unsigned short m_totalCnt;     // +0x22
@@ -134,72 +136,10 @@ struct STGuildMemberChangableInfo
 };
 
 // from GuildDomain.h
-struct RandomOptionField
-{
-    void reset();
-    char m_data[3];
-};
-
-// from GuildDomain.h
-struct RandomOptionSeed
-{
-    void reset();
-    char m_data[1];
-};
-
-// from GuildDomain.h
-struct RandomOption
-{
-    void reset();
-    char m_data[0xe];
-};
-
-// from GuildDomain.h
-struct UpgradeSeparateInfo
-{
-    UpgradeSeparateInfo();
-    void reset();
-    unsigned char GetUpgradeSeparate() const;
-    char m_data[1];
-};
-
-// from GuildDomain.h
-#pragma pack(push,1)
-struct ReservedCapacity
-{
-    ReservedCapacity();
-    void reset();
-    unsigned int m_field0;   // +0
-    unsigned int m_field4;   // +4
-    unsigned char m_field8;  // +8
-};
-#pragma pack(pop)
-
-// from GuildDomain.h
-struct STGuildMemberCharacData
-{
-    STGuildMemberCharacData();
-    char m_data[0x21];
-};
-
-// from GuildDomain.h
 struct hyperlink_item_info
 {
     char m_data[0x40];
 };
-
-// from GuildDomain.h
-#pragma pack(push,1)
-class DnfItemInfo
-{
-public:
-    DnfItemInfo();
-    void reset();
-    char m_data[0x2b];
-    UpgradeSeparateInfo m_up;      // +0x2b
-    ReservedCapacity m_res;        // +0x2c
-};
-#pragma pack(pop)
 
 // from GuildPackets.h
 #pragma pack(push,1)
@@ -224,6 +164,7 @@ struct STGuildMemberWebConnInfo
 };
 
 // from GuildDomain.h
+#pragma pack(push,1)
 struct STGuildCallInfo
 {
     STGuildCallInfo();
@@ -232,6 +173,7 @@ struct STGuildCallInfo
     unsigned char m_field5;     // +5
     char m_data[0x1d - 6];
 };
+#pragma pack(pop)
 
 // from GuildDomain.h
 struct ST_GuildCreateFromWeb
@@ -333,7 +275,7 @@ public:
     unsigned char GetCurSubGuildMasterCnt();
     unsigned short GetTotalCnt_Of_GuildDBInfo();
     void DecTotalCnt_Of_GuildDBInfo();
-    int CheckPowerSecedeTime();
+    bool CheckPowerSecedeTime();
     int ChangeGuildMemberCharName(unsigned int charNo, char* name);
     void AddGuildPoint(unsigned short point);
     void SetGuildAgitInfo(STGuildAgitDBInfo& info);
@@ -439,7 +381,8 @@ public:
 class Packet_DBMW_Save_Power_Secede_Time : public PacketHeader {
 public:
     Packet_DBMW_Save_Power_Secede_Time();
-    char m_data[0x5];
+    unsigned char m_flag;        // +0xa
+    unsigned int m_key;          // +0xb
 };
 
 // from GuildPackets.h
@@ -595,7 +538,7 @@ public:
     unsigned char m_flag;          // +0xa
     unsigned int m_b;              // +0xb
     STGuildDBInfoOnly m_info;      // +0xf
-    char m_pad[4];                 // +0xcc
+    unsigned int m_param;          // +0xcc
 };
 #pragma pack(pop)
 

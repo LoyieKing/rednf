@@ -6,6 +6,7 @@
 
 #include "PacketHeader.h"
 #include "DNFThreadInterface.h"
+#include "DNFTcpSocket.h"
 
 class CTcpAcceptThread;
 class CTcpNetSystem;
@@ -22,7 +23,7 @@ public:
     CTcpNetSystem* m_net;      // +0xc
     void* m_recvQLock;         // +0x10
     void* m_recvBLock;         // +0x14
-    char m_sock[0x1c];         // +0x18 TCPSocket
+    TCPSocket m_sock;          // +0x18 (0x1c)
     unsigned short m_port;     // +0x34
     char m_pad[2];             // +0x36
 };

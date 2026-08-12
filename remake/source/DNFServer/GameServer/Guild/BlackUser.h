@@ -19,7 +19,9 @@ struct STBlackUserDBType;
 struct STBlackUserDBType
 {
     STBlackUserDBType();
-    char m_data[0x28];
+    int m_field0;       // +0
+    char m_name[0x20];  // +4
+    int m_occurTime;    // +0x24（总大小 0x28）
 };
 
 // from GuildDomain.h

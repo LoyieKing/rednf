@@ -32,7 +32,7 @@ CKillUSRConfig::~CKillUSRConfig() { Clear_Table(); }
 
 void CKillUSRConfig::Load_Table(const std::string& path) {}
 
-int CKillUSRConfig::Parse_Table(char* line, int idx)
+bool CKillUSRConfig::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
     {

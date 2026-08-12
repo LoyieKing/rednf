@@ -130,8 +130,7 @@ char CGuildManager::InitGuildWarPointList()
          it != m_warRankList.end(); ++it)
     {
         it->second->m_field4 = 0x3e8;
-        count++;
-        if (count > 0xa)
+        if (++count > 0xa)
             break;
     }
     return 1;
@@ -146,7 +145,8 @@ char CGuildManager::rank()
              m_rankList.begin();
          it != m_rankList.end(); ++it)
     {
-        (*it).second->m_field8 = ++r;
+        STGuildRankInfo* p = (*it).second;
+        p->m_field8 = ++r;
     }
     return 1;
 }
@@ -161,7 +161,8 @@ char CGuildManager::rankGuildWar()
              m_warRankList.begin();
          it != m_warRankList.end(); ++it)
     {
-        (*it).second->m_field8 = ++r;
+        STGuildWarRankInfo* p = (*it).second;
+        p->m_field8 = ++r;
     }
     return 1;
 }
@@ -183,11 +184,21 @@ void CGuildManager::printGuildWarRank()
              m_warRankList.begin();
          it != m_warRankList.end(); ++it)
     {
-        CMyFileLog log(__FUNCTION__, 0x10a);
-        log("./log/GuildWar", "GuildKey : %d,  GuildWarPoint : %d, Guild Rank : %d",
-            it->first, it->second->m_field4, it->second->m_field8);
+        std::pair<unsigned int, STGuildWarRankInfo*> p = *it;
+        CMyFileLog(__FUNCTION__, 0x10a)("./log/GuildWar",
+            "GuildKey : %d,  GuildWarPoint : %d, Guild Rank : %d",
+            p.second->m_field0, p.second->m_field4, p.second->m_field8);
     }
 }
+// ORIG 将 info 视为 0x23 字节记录的数组（字段 +0/+4/+8[0x16]/+0x1f，packed）。
+struct ST_Guild_War_Info {
+    unsigned int m_field0;
+    unsigned int m_field4;
+    char m_field8[0x16];
+    char m_pad1e;
+    unsigned int m_field1f;
+} __attribute__((packed));
+
 void CGuildManager::GetGuildWarEnterableRank(ST_Guild_War_Info* info)
 {
     if (m_warRankList.empty())
@@ -197,13 +208,11 @@ void CGuildManager::GetGuildWarEnterableRank(ST_Guild_War_Info* info)
              m_warRankList.begin();
          it != m_warRankList.end(); ++it)
     {
-        char* dst = (char*)info + i * 0x23;
-        *(unsigned int*)(dst + 0) = it->second->m_field0;
-        *(unsigned int*)(dst + 0x4) = it->second->m_field4;
-        memcpy(dst + 0x8, (char*)it->second + 0xc, 0x16);
-        *(unsigned int*)(dst + 0x1f) = it->second->m_field24;
-        i++;
-        if (i > 9)
+        info[i].m_field0 = it->second->m_field0;
+        info[i].m_field4 = it->second->m_field4;
+        memcpy(info[i].m_field8, (char*)it->second + 0xc, 0x16);
+        info[i].m_field1f = it->second->m_field24;
+        if (++i > 9)
             break;
     }
     printGuildWarRank();

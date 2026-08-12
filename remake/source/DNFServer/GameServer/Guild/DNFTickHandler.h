@@ -14,7 +14,6 @@ class CFrameCountHandler
 {
 public:
     CFrameCountHandler();
-    ~CFrameCountHandler();
     void InitFrameCountInfo(CApplication* app, unsigned int frameCount, unsigned short tick);
     CFrameCountHandler* GetFrameCountInfo();
     void SaveProcess();
@@ -29,7 +28,7 @@ public:
     int m_field1c;    // +0x1c
     int m_field20;    // +0x20
     int m_field24;    // +0x24
-    int m_field28;    // +0x28
+    char m_field28;   // +0x28
     int m_field2c;    // +0x2c
 };
 

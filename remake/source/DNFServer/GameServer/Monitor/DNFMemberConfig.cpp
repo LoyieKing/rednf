@@ -51,7 +51,7 @@ void CMemberConfig::Load_Table(const std::string& path)
     throw CDNFException("CMemberConfig::Load_Table() Exception Break!");
 }
 
-int CMemberConfig::Parse_Table(char* line, int idx)
+bool CMemberConfig::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
     {
@@ -84,22 +84,17 @@ CMemberExpTbl::~CMemberExpTbl() {}
 
 void CMemberExpTbl::Load_Table(const std::string& path) {}
 
-int CMemberExpTbl::Parse_Table(char* line, int idx)
+bool CMemberExpTbl::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
     {
         return 0;
     }
-    char* token = 0;
-    bool ok = false;
-    int tmp = 0;
-    if (DNFFLib::ExplodeString(line, "\t\"", &token, 1) == 1 && tmp == 0)
-    {
-        ok = true;
-    }
+    char* tokens[2];
+    register bool ok = DNFFLib::ExplodeString(line, "\t\"", tokens, 1) == 1 && tokens[1] == 0;
     if (ok && idx < 0xb)
     {
-        *(int*)((char*)this + idx * 4 + 8) = atoi(token);
+        m_table[idx] = atoi(tokens[0]);
         return 1;
     }
     return 0;

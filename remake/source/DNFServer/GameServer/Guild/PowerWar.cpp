@@ -78,142 +78,123 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-// 按 ORIG 布局的字段覆盖视图
-struct PowerWarLayout
-{
-    char pad0[4];
-    bool m_on;                  // +4
-    char pad1[3];
-    int m_field8;               // +8
-    unsigned short m_endKillPoint; // +0xc
-    char rest[0x34 - 0xe];
-};
-
 ST_PowerWarEventStartTimeConfig::~ST_PowerWarEventStartTimeConfig()
 {
 }
 
 bool CPowerWar::IsPowerWarOn() const
 {
-    return ((PowerWarLayout*)this)->m_on;
+    return m_field4 != 0;
 }
 
 unsigned short CPowerWar::getPowerWarEndKillPoint()
 {
-    return ((PowerWarLayout*)this)->m_endKillPoint;
+    return m_endKillPoint;
 }
 
 unsigned short CPowerWar::getPowerWarEndKillPoint() const
 {
-    return ((PowerWarLayout*)this)->m_endKillPoint;
+    return m_endKillPoint;
 }
 
 CPowerWar::CPowerWar()
+    : m_field8(-1), m_endKillPoint(0xffff), m_config(0)
 {
-    new (m_data) CEvent();
-    *(int*)((char*)this + 8) = -1;
-    *(unsigned short*)((char*)this + 0xc) = 0xffff;
-    *(int*)((char*)this + 0x10) = 0;
-    new ((char*)this + 0x14) CScheduler();
-    *(CPowerWarConfig**)((char*)this + 0x10) = new CPowerWarConfig;
+    m_config = new CPowerWarConfig;
     resetEvent();
 }
 
 CPowerWar::~CPowerWar()
 {
-    if (*(CPowerWarConfig**)((char*)this + 0x10) != 0)
+    if (m_config != 0)
     {
-        delete *(CPowerWarConfig**)((char*)this + 0x10);
-        *(CPowerWarConfig**)((char*)this + 0x10) = 0;
+        delete m_config;
+        m_config = 0;
     }
     puts("Power War Config Free Success!");
-    ((CScheduler*)((char*)this + 0x14))->~CScheduler();
-    ((CEvent*)m_data)->CEvent::~CEvent();
 }
 
 void CPowerWar::setEvent()
 {
-    *(unsigned char*)((char*)this + 4) = 1;
+    m_field4 = 1;
     time_t now = time(0);
     tm* t = localtime(&now);
-    *(int*)((char*)this + 8) =
-        ((CScheduler*)((char*)this + 0x14))->GetSpecificDayScheduleHour(t->tm_wday);
+    m_field8 = m_scheduler.GetSpecificDayScheduleHour(t->tm_wday);
 }
 
 void CPowerWar::setProlongTime()
 {
-    *(unsigned char*)((char*)this + 4) = 1;
-    *(int*)((char*)this + 8) += 10;
+    m_field4 = 1;
+    m_field8 = m_field8 + 10;
 }
 
 void CPowerWar::resetEvent()
 {
-    *(unsigned char*)((char*)this + 4) = 0;
-    *(int*)((char*)this + 8) = -1;
-    *(unsigned short*)((char*)this + 0xc) = 0xffff;
+    m_field4 = 0;
+    m_field8 = -1;
+    m_endKillPoint = 0xffff;
 }
 
 void CPowerWar::setPowerWarEndKillPoint(unsigned short point)
 {
-    if (((PowerWarLayout*)this)->m_endKillPoint == 0xffff)
+    if (m_endKillPoint == 0xffff)
     {
-        ((PowerWarLayout*)this)->m_endKillPoint = point;
+        m_endKillPoint = point;
     }
 }
 
 int CPowerWar::ProcessByMinuteStartEvent()
 {
-    if (*(char*)((char*)this + 4) == 0)
+    if (m_field4 != 0)
     {
-        time_t now = time(0);
-        tm* pt = localtime(&now);
-        int r = ((CScheduler*)((char*)this + 0x14))->IsOnTimeSpecialWeekDayHour(
-            pt->tm_wday, pt->tm_hour, pt->tm_min);
-        return r;
+        return 0;
     }
-    return 0;
+    time_t now = time(0);
+    tm* pt = localtime(&now);
+    return m_scheduler.IsOnTimeSpecialWeekDayHour(pt->tm_wday, pt->tm_hour, pt->tm_min);
 }
 
 int CPowerWar::ProcessByMinuteEndEvent()
 {
-    if (*(int*)((char*)this + 8) == -1 || *(char*)((char*)this + 4) == 0)
+    if (m_field8 == -1 || m_field4 == 0)
     {
         return -1;
     }
-    *(int*)((char*)this + 8) -= 1;
-    if (*(int*)((char*)this + 8) > 0)
+    m_field8 = m_field8 - 1;
+    if (m_field8 <= 0)
     {
-        return *(int*)((char*)this + 8);
+        return 0;
     }
-    return 0;
+    return m_field8;
 }
 
 void CPowerWar::LoadPowerWarTableFile(char* path)
 {
     DNF_LOG_SCOPE_LINE(0x9e, "./log/Power", "LoadPowerWarTableFile filename(%s)\n", path);
-    CPowerWarConfig* config = *(CPowerWarConfig**)((char*)this + 0x10);
-    config->Load_Table(std::string(path));
-    ((CScheduler*)((char*)this + 0x14))->Clear();
-    ST_PowerWarEventStartTimeConfig* info = config->GetInfo();
-    std::vector<STPowerWarScheduleTime> schedule = *(std::vector<STPowerWarScheduleTime>*)((char*)info + 8);
-    ((CScheduler*)((char*)this + 0x14))->SetSpecialWeekDayHour(schedule);
+    m_config->Load_Table(std::string(path));
+    m_scheduler.Clear();
+    m_scheduler.SetSpecialWeekDayHour(
+        *(std::vector<STPowerWarScheduleTime>*)((char*)m_config->GetInfo() + 8));
 }
 
 void CPowerWar::GetPowerWarConfigTbl(unsigned char& a, unsigned char& b, unsigned char& c,
                                      unsigned char& d)
 {
-    tm* p = (tm*)((CScheduler*)((char*)this + 0x14))->GetNextScheduleTime(c, d);
+    tm* p = (tm*)m_scheduler.GetNextScheduleTime(c, d);
     a = (unsigned char)(p->tm_mon + 1);
     b = (unsigned char)p->tm_mday;
 }
 
 int CPowerWar::GetPowerWarRankingUpdateTime()
 {
-    if (*(int*)((char*)this + 0x10) == 0)
+    if (m_config != 0)
+    {
+        return m_config->GetInfo()->m_field4;
+    }
+    else
     {
         return 0;
     }
-    return *(int*)((char*)((*(CPowerWarConfig**)((char*)this + 0x10))->GetInfo()) + 4);
 }
 
 ST_PowerWarEventStartTimeConfig::ST_PowerWarEventStartTimeConfig()

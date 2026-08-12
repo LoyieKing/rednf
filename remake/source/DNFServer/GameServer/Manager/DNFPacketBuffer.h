@@ -35,14 +35,23 @@ public:
     char m_data[0x1804];
 };
 
+#pragma pack(push, 1)
 class CTcpSendBuffer
 {
 public:
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
-    char m_data[0x1804];
+    // R14: ORIG 反汇编实测字段（id@0/size@2/ip@6，+4 为 pad，与
+    // DNFTcpServerInterface.cpp 的 TcpPacketFields packed 布局一致）；
+    // sizeof 保持 0x1804 不变（MemPool 池大小依赖）。
+    unsigned short m_id;                     // +0
+    unsigned short m_size;                   // +2
+    unsigned short m_pad;                    // +4
+    int m_ip;                                // +6
+    char m_data[0x1804 - 0xa];               // +0xa
 };
+#pragma pack(pop)
 
 class CPacketBuffer
 {

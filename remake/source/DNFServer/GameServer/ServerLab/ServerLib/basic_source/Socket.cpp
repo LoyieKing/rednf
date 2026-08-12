@@ -163,7 +163,15 @@ void TCPSocket::shutdown(int opt)
 {
     // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     (void)opt;
-    sock_ == -1;
+    // ORIG 4.4.6-3 保留该丢弃比较（mov;mov;cmp;pop;ret，13 字节）；裸表达式会被
+    // 本工具链在 gimplify 阶段折叠，switch 双空 case 形态可复现逐字节一致。
+    switch (sock_ == -1)
+    {
+    case 0:
+        break;
+    case 1:
+        break;
+    }
 }
 
 void TCPSocket::close()
@@ -333,7 +341,9 @@ bool TCPSocket::connect_nonb(const char* ip, unsigned short port, timeval tval)
         {
             socklen_t lon = 4;
             int valopt;
-            if (getsockopt(sock_, 1, 4, &valopt, &lon) < 0)
+            // ORIG（二进制实测）：&valopt 先入 edx，再载 sock_，&lon 最后（lea ecx）。
+            // (char*)&valopt 强转让 GCC 提前物化地址，复现 ORIG 的求值顺序。
+            if (getsockopt(sock_, 1, 4, (char*)&valopt, &lon) < 0)
             {
                 return false;
             }

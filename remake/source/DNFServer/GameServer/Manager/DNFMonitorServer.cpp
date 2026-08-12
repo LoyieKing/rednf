@@ -14,7 +14,7 @@ CMonitorServer::CMonitorServer() : m_index(0xff), m_name()
 
 CMonitorServer::~CMonitorServer() {}
 
-char CMonitorServer::IsValidMonitorServer()
+bool CMonitorServer::IsValidMonitorServer()
 {
     if (m_index == 0xff)
         return 0;
@@ -37,10 +37,10 @@ void CMonitorServer::Init(std::string& name, unsigned short port, unsigned char 
 }
 
 void CMonitorServer::ResetHeartBeat() { m_heartBeat = 0x14; m_fieldC = 0; }
-char CMonitorServer::IsConnected() { return m_connected; }
+bool CMonitorServer::IsConnected() { return m_connected; }
 void CMonitorServer::SetConnFlag(bool flag) { m_connected = flag; }
 void CMonitorServer::OnDisconnect() { m_connected = 0; ResetHeartBeat(); }
-char CMonitorServer::IsHeartBeatTimeOver()
+bool CMonitorServer::IsHeartBeatTimeOver()
 {
     if (--m_heartBeat == 0)
     {

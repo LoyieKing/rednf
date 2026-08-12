@@ -87,9 +87,9 @@ int CTcpDBServer::GetSock()
     return m_sock;
 }
 
-int* CTcpDBServer::GetSockRef()
+int& CTcpDBServer::GetSockRef()
 {
-    return &m_sock;
+    return m_sock;
 }
 
 CDBServer::CDBServer()
@@ -221,15 +221,16 @@ bool CTcpDBServer::IsValidServer()
 
 char* CTcpDBServer::makePacketHeader(unsigned short id, unsigned short size)
 {
-    if (m_net == 0)
+    if (m_net != 0)
     {
-        return 0;
+        void* p = m_net->Acquire_TcpSendBuffer();
+        PacketHeader* pkt = (PacketHeader*)p;
+        pkt->packetId = id;
+        pkt->packetSize = size;
+        pkt->reversed2 = m_sock;
+        return (char*)pkt;
     }
-    char* buf = (char*)m_net->Acquire_TcpSendBuffer();
-    *(unsigned short*)buf = id;
-    *(unsigned short*)(buf + 2) = size;
-    *(unsigned int*)(buf + 0xc) = *(unsigned int*)((char*)this + 8);
-    return buf;
+    return 0;
 }
 
 char* CTcpDBServer::GetIP()

@@ -81,7 +81,6 @@
 CPowerWarConfig::~CPowerWarConfig()
 {
     Clear_Table();
-    m_info.~ST_PowerWarEventStartTimeConfig();
 }
 
 void CPowerWarConfig::Clear_Table()
@@ -98,10 +97,13 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
+    int x;  // ORIG 帧布局对齐（第 22 轮回归）
     char* tokens[4];
     int n = DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 4);
     if (n == 4 || n == 2)
     {
+        bool bFlag = 0;
+        STPowerWarScheduleTime st;
         switch (idx)
         {
         case 0:
@@ -117,9 +119,9 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
             m_info.m_field4 = atoi(tokens[1]);
             break;
         case 4:
-            if (atoi(tokens[1]) != 0)
+            bFlag = atoi(tokens[1]) != 0;
+            if (bFlag)
             {
-                STPowerWarScheduleTime st;
                 st.m_data[0] = 0;
                 st.m_data[1] = (char)atoi(tokens[2]);
                 st.m_data[2] = (char)atoi(tokens[3]);
@@ -127,9 +129,9 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
             }
             break;
         case 5:
-            if (atoi(tokens[1]) != 0)
+            bFlag = atoi(tokens[1]) != 0;
+            if (bFlag)
             {
-                STPowerWarScheduleTime st;
                 st.m_data[0] = 1;
                 st.m_data[1] = (char)atoi(tokens[2]);
                 st.m_data[2] = (char)atoi(tokens[3]);
@@ -137,9 +139,9 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
             }
             break;
         case 6:
-            if (atoi(tokens[1]) != 0)
+            bFlag = atoi(tokens[1]) != 0;
+            if (bFlag)
             {
-                STPowerWarScheduleTime st;
                 st.m_data[0] = 2;
                 st.m_data[1] = (char)atoi(tokens[2]);
                 st.m_data[2] = (char)atoi(tokens[3]);
@@ -147,9 +149,9 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
             }
             break;
         case 7:
-            if (atoi(tokens[1]) != 0)
+            bFlag = atoi(tokens[1]) != 0;
+            if (bFlag)
             {
-                STPowerWarScheduleTime st;
                 st.m_data[0] = 3;
                 st.m_data[1] = (char)atoi(tokens[2]);
                 st.m_data[2] = (char)atoi(tokens[3]);
@@ -157,9 +159,9 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
             }
             break;
         case 8:
-            if (atoi(tokens[1]) != 0)
+            bFlag = atoi(tokens[1]) != 0;
+            if (bFlag)
             {
-                STPowerWarScheduleTime st;
                 st.m_data[0] = 4;
                 st.m_data[1] = (char)atoi(tokens[2]);
                 st.m_data[2] = (char)atoi(tokens[3]);
@@ -167,9 +169,9 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
             }
             break;
         case 9:
-            if (atoi(tokens[1]) != 0)
+            bFlag = atoi(tokens[1]) != 0;
+            if (bFlag)
             {
-                STPowerWarScheduleTime st;
                 st.m_data[0] = 5;
                 st.m_data[1] = (char)atoi(tokens[2]);
                 st.m_data[2] = (char)atoi(tokens[3]);
@@ -177,9 +179,9 @@ int CPowerWarConfig::Parse_Table(char* line, int idx)
             }
             break;
         case 10:
-            if (atoi(tokens[1]) != 0)
+            bFlag = atoi(tokens[1]) != 0;
+            if (bFlag)
             {
-                STPowerWarScheduleTime st;
                 st.m_data[0] = 6;
                 st.m_data[1] = (char)atoi(tokens[2]);
                 st.m_data[2] = (char)atoi(tokens[3]);
@@ -213,4 +215,3 @@ ST_PowerWarEventStartTimeConfig* CPowerWarConfig::GetInfo() const
 {
     return (ST_PowerWarEventStartTimeConfig*)((char*)this + 4);
 }
-

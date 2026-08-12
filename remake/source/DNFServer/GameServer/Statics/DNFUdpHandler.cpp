@@ -84,29 +84,29 @@ bool CUdpHandler::RecvFromClient(char* buf, int* len, unsigned int* ip,
     {
         return 0;
     }
-    socklen_t slen = 0x10;
     sockaddr_in from;
-    ssize_t r = recvfrom(m_sock, buf, *len, 0, (sockaddr*)&from, &slen);
-    *len = r;
-    if (r == -1)
+    int slen = 0x10;
+    *len = recvfrom(m_sock, buf, *len, 0, (sockaddr*)&from, (socklen_t*)&slen);
+    if (*len == -1)
     {
         int err = getErrno();
-        if (err == 0x58)
+        switch (err)
         {
+        case 0x58:
             puts("Error fd not a socket");
             DNF_LOG_SCOPE_LINE(0xc6, "./log/UdpErr", "Error fd not a socket\n");
-        }
-        else if (err == 0x68)
-        {
+            break;
+        case 0x68:
             puts("Error connection reset - host not reachable");
             DNF_LOG_SCOPE_LINE(0xcd, "./log/UdpErr", "Error connection reset - host not reachable\n");
+            break;
         }
         return 0;
     }
-    if (r < 1)
+    if (*len < 1)
     {
-        printf("Socket closed? Recv size = %d\n", r);
-        DNF_LOG_SCOPE_LINE(0xdd, "./log/UdpErr", "Socket closed? Recv size = %d\n", r);
+        printf("Socket closed? Recv size = %d\n", *len);
+        DNF_LOG_SCOPE_LINE(0xdd, "./log/UdpErr", "Socket closed? Recv size = %d\n", *len);
         return 0;
     }
     *port = ntohs(from.sin_port);
@@ -149,20 +149,20 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, char cons
     if (n == -1)
     {
         int err = getErrno();
-        if (err == 0x61)
+        switch (err)
         {
-            puts("err EAFNOSUPPORT in send");
-            DNF_LOG_SCOPE_LINE(0x132, "./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", err);
-        }
-        else if (err < 0x61 || 2 < err - 0x6fU)
-        {
+        case 0x6f ... 0x71:
             printf("Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", err);
             DNF_LOG_SCOPE_LINE(0x12c, "./log/UdpErr", "Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", err);
-        }
-        else
-        {
+            break;
+        case 0x61:
+            puts("err EAFNOSUPPORT in send");
+            DNF_LOG_SCOPE_LINE(0x132, "./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", err);
+            break;
+        default:
             printf("err = %d , strerror = %s in send\n", err, strerror(err));
             DNF_LOG_SCOPE_LINE(0x138, "./log/UdpErr", "err = %d , strerror = %s in send\n", err, strerror(err));
+            break;
         }
         return 0;
     }
@@ -172,13 +172,13 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, char cons
         DNF_LOG_SCOPE_LINE(0x141, "./log/UdpErr", "no data sent in send\n");
         return 0;
     }
-    if (len == n)
+    if (len != n)
     {
-        return 1;
+        printf("Only %d out of %d bytes sent\n", n, len);
+        DNF_LOG_SCOPE_LINE(0x148, "./log/UdpErr", "Only %d out of %d bytes sent\n", n, len);
+        return 0;
     }
-    printf("Only %d out of %d bytes sent\n", n, len);
-    DNF_LOG_SCOPE_LINE(0x148, "./log/UdpErr", "Only %d out of %d bytes sent\n", n, len);
-    return 0;
+    return 1;
 }
 bool CUdpHandler::RecvFromServer(char* buf, int* len, unsigned int* ip,
                                 unsigned short* port) const
@@ -187,33 +187,32 @@ bool CUdpHandler::RecvFromServer(char* buf, int* len, unsigned int* ip,
     {
         return 0;
     }
-    socklen_t slen = 0x10;
     sockaddr_in from;
-    ssize_t r = recvfrom(m_clientSock, buf, *len, 0, (sockaddr*)&from, &slen);
-    *len = r;
-    if (r == -1)
+    int slen = 0x10;
+    *len = recvfrom(m_clientSock, buf, *len, 0, (sockaddr*)&from, (socklen_t*)&slen);
+    if (*len == -1)
     {
         int err = getErrno();
-        if (err == 0x58)
+        switch (err)
         {
+        case 0x58:
             puts("Error fd not a socket");
             DNF_LOG_SCOPE_LINE(0x16d, "./log/UdpErr", "Error fd not a socket\n");
-        }
-        else if (err == 0x68)
-        {
+            break;
+        case 0x68:
             puts("Error connection reset - host not reachable");
             DNF_LOG_SCOPE_LINE(0x174, "./log/UdpErr", "Error connection reset - host not reachable\n");
-        }
-        else
-        {
+            break;
+        default:
             printf("Hm! Time out Or Socket Error = %d\n", err);
+            break;
         }
         return 0;
     }
-    if (r < 1)
+    if (*len < 1)
     {
-        printf("Socket closed? Recv size = %d\n", r);
-        DNF_LOG_SCOPE_LINE(0x184, "./log/UdpErr", "Socket closed? Recv size = %d\n", r);
+        printf("Socket closed? Recv size = %d\n", *len);
+        DNF_LOG_SCOPE_LINE(0x184, "./log/UdpErr", "Socket closed? Recv size = %d\n", *len);
         return 0;
     }
     *port = ntohs(from.sin_port);
@@ -238,7 +237,7 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
     else
     {
         sockaddr_in to;
-        memset(&to, 0, 0x10);
+        memset((char*)&to, 0, 0x10);
         to.sin_family = 2;
         to.sin_port = htons(port);
         to.sin_addr.s_addr = inet_addr(ip);
@@ -247,17 +246,17 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
     if (n == -1)
     {
         int err = getErrno();
-        if (err == 0x61)
+        switch (err)
         {
+        case 0x6f ... 0x71:
             DNF_LOG_SCOPE_LINE(0x1cb, "./log/UdpErr", "Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", err);
-        }
-        else if (err < 0x61 || 2 < err - 0x6fU)
-        {
-            DNF_LOG_SCOPE_LINE(0x1d7, "./log/UdpErr", "err = %d , strerror = %s in send\n", err, strerror(err));
-        }
-        else
-        {
+            break;
+        case 0x61:
             DNF_LOG_SCOPE_LINE(0x1d1, "./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", err);
+            break;
+        default:
+            DNF_LOG_SCOPE_LINE(0x1d7, "./log/UdpErr", "err = %d , strerror = %s in send\n", err, strerror(err));
+            break;
         }
         return 0;
     }
@@ -266,12 +265,12 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
         DNF_LOG_SCOPE_LINE(0x1e0, "./log/UdpErr", "no data sent in send\n");
         return 0;
     }
-    if (len == n)
+    if (len != n)
     {
-        return 1;
+        DNF_LOG_SCOPE_LINE(0x1e7, "./log/UdpErr", "Only %d out of %d bytes sent\n", n, len);
+        return 0;
     }
-    DNF_LOG_SCOPE_LINE(0x1e7, "./log/UdpErr", "Only %d out of %d bytes sent\n", n, len);
-    return 0;
+    return 1;
 }
 void CUdpHandler::InetAddr(char const* ip) const
 {

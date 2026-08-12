@@ -119,29 +119,29 @@ void CApplication::Load(int argc, char** argv)
         puts("Application App Config Load_Table() Success!");
         m_serverConfig->Load_Table(std::string("./table/server_config.tbl"));
         puts("Application Server Config Load_Table() Success!");
-        m_frameCount.InitFrameCountInfo(this, m_appConfig->Get_FrameCountValue(), 0x3e8);
+        m_frameCount.InitFrameCountInfo(this, (unsigned short)((CAppConfig*)m_appConfig)->Get_FrameCountValue(), 0x3e8);
         puts("Application Init Frame Count() Success!");
         m_udpHandler = new CUdpHandler;
-        if (((CUdpHandler*)m_udpHandler)->InitServerSocket(m_appConfig->Get_ServerUdpPort()) == -1)
+        if (((CUdpHandler*)m_udpHandler)->InitServerSocket((unsigned short)((CAppConfig*)m_appConfig)->Get_ServerUdpPort()) == -1)
             throw CDNFException("CApplication::Load() Init Server Socket Exception Break!");
         puts("Application UDP Handler Create() Success!");
         m_serverHandler = new CServerHandler;
         m_serverHandler->Attach(this);
-        m_serverHandler->Load((ST_ServerInfo*)m_serverConfig->GetServerInfo());
+        m_serverHandler->Load(((CServerConfig*)m_serverConfig)->GetServerInfo());
         puts("Application Server Handler Create() Success!");
         CPacketTranslater::attach(this);
         puts("Application Packet Translater Attach() Success!");
         CPacketDecoderInstance()->Attach(this);
         puts("Application Packet Decoder Attach() Success!");
         m_udpNetworkThread = new CUdpNetworkThread;
-        m_udpNetworkThread->attach(this);
+        ((CUdpNetworkThread*)m_udpNetworkThread)->attach(this);
         if (!m_udpNetworkThread->CThreadInterface::begin())
             throw;
         puts("Application Network Thread Begin() Success!");
         IQueue<TcpRecvQueue>::Get().InitQueue(
-            m_tcpNetSystem.Get_TcpSwapQPacket()->GetParseQ(),
-            m_tcpNetSystem.Get_TcpSwapQPacket()->GetRecvQ());
-        m_tcpNetSystem.Init(m_appConfig->Get_ServerTcpPort());
+            m_tcpNetSystem.Get_TcpSwapQPacket()->GetRecvQ(),
+            m_tcpNetSystem.Get_TcpSwapQPacket()->GetParseQ());
+        m_tcpNetSystem.Init(((CAppConfig*)m_appConfig)->Get_ServerTcpPort());
         m_userManager.Init(this);
         puts("Application Load() Success!");
         m_loaded = 1;
@@ -270,7 +270,7 @@ void CApplication::SwitchQueueUDP()
     else
     {
         m_udpSwapQueue.SwapQ();
-        m_udpNetworkThread->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
+        ((CUdpNetworkThread*)m_udpNetworkThread)->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
         CPacketDecoderInstance()->SetUdpQueue(m_udpSwapQueue.GetParseQ());
     }
 }
@@ -346,6 +346,10 @@ void CApplication::TranslateSignal()
     {
         switch ((*it)->m_type)
         {
+        case 4:
+            m_serverConfig->Load_Table(std::string("./table/server_config.tbl"));
+            m_serverHandler->Load(((CServerConfig*)m_serverConfig)->GetServerInfo());
+            break;
         case 2:
         {
             Packet_Monitor_Event_Start pkt;
@@ -357,19 +361,11 @@ void CApplication::TranslateSignal()
         }
         case 3:
         {
-            // ORIG 布局：Packet_Monitor_Event_End 含 +0xa 的 int（总 0xe 字节）；
-            // 共享头未还原该成员，用本地 packed 派生结构复现布局与直写形态。
-            struct __attribute__((packed)) EventEndFull : Packet_Monitor_Event_End {
-                int m_fieldA;  // +0xa
-            } pkt;
+            Packet_Monitor_Event_End pkt;
             pkt.m_fieldA = (*it)->m_field4;
             CPacketTranslater::OnEventEnd((PacketHeader*)&pkt);
             break;
         }
-        case 4:
-            m_serverConfig->Load_Table(std::string("./table/server_config.tbl"));
-            m_serverHandler->Load((ST_ServerInfo*)m_serverConfig->GetServerInfo());
-            break;
         case 5:
         {
             Packet_Web_Prohibit_User_Connect pkt;

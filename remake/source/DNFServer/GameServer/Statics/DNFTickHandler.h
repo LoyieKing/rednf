@@ -18,14 +18,15 @@ public:
     unsigned int m_endTime;    // +0x10
     unsigned int m_frameCount; // +0x14
     unsigned int m_fps;        // +0x18
-    char m_pad[0x8];           // +0x1c
+    char m_pad[0x4];           // +0x1c
+    unsigned int m_pad20;      // +0x20
     char m_state;              // +0x24
     char m_counter1;           // +0x25
     char m_counter2;           // +0x26
     char m_pad2;               // +0x27
     char m_writeTick;          // +0x28
     char m_pad3[3];            // +0x29
-    unsigned int m_value;      // +0x2c
+    CApplication* m_pApp;      // +0x2c
 };
 
 #endif // DNF_TICK_HANDLER_H_

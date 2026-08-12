@@ -89,7 +89,7 @@ STGuildBoardDBInfo::STGuildBoardDBInfo()
 
 void CGuildBoard::setWebGuildBoardAction(bool flag)
 {
-    m_webAction = flag ? 1 : 0;
+    m_webAction = flag;
 }
 
 unsigned char CGuildBoard::isWebGuildBoardAction()
@@ -129,7 +129,12 @@ void CGuildBoard::reset()
 
 bool CGuildBoard::isGuildBoardDBAccess()
 {
-    return 5 < (unsigned int)(time(0) - m_dbAccessTime);
+    unsigned int t = (unsigned int)time(0);
+    if (5 < (t - m_dbAccessTime))
+    {
+        return true;
+    }
+    return false;
 }
 
 void CGuildBoard::setGuildBoardDBAccess()

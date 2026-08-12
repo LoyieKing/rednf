@@ -107,13 +107,12 @@ void CPowerWarGuildInfo::Initialize()
 
 void CPowerWarGuildInfo::Clean()
 {
-    std::vector<STPowerWarGuildInfo*>* guilds = &m_vec;
-    for (std::vector<STPowerWarGuildInfo*>::iterator it = guilds->begin();
-         it != guilds->end(); ++it)
+    for (std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin();
+         it != m_vec.end(); ++it)
     {
         delete *it;
     }
-    guilds->clear();
+    m_vec.clear();
     m_map.clear();
 }
 
@@ -135,19 +134,17 @@ void CPowerWarGuildInfo::DeletePowerWarGuild(STPowerWarGuildInfo* info)
 
 STPowerWarGuildInfo* CPowerWarGuildInfo::FindPowerwarGuild(unsigned int guildKey)
 {
-    std::map<unsigned int, STPowerWarGuildInfo*>* map = &m_map;
-    std::map<unsigned int, STPowerWarGuildInfo*>::iterator it = map->find(guildKey);
-    if (it == map->end())
+    std::map<unsigned int, STPowerWarGuildInfo*>::iterator it = m_map.find(guildKey);
+    if (it != m_map.end())
     {
-        return 0;
+        return it->second;
     }
-    return it->second;
+    return 0;
 }
 
 int CPowerWarGuildInfo::InsertPowerwarGuild(unsigned int guildKey, STPowerWarGuildInfo* info)
 {
-    std::map<unsigned int, STPowerWarGuildInfo*>* map = &m_map;
-    map->insert(std::make_pair(guildKey, info));
+    m_map.insert(std::make_pair(guildKey, info));
     m_vec.push_back(info);
     return 0;
 }
@@ -155,33 +152,32 @@ int CPowerWarGuildInfo::InsertPowerwarGuild(unsigned int guildKey, STPowerWarGui
 void CPowerWarGuildInfo::UpdateGuildPowerwarInfo(unsigned int guildKey, unsigned short point)
 {
     STPowerWarGuildInfo* info = FindPowerwarGuild(guildKey);
-    if (info == 0)
+    if (info != 0)
     {
-        info = CreatePowerwarGuild();
-        *(unsigned int*)info->m_data = guildKey;
-        *(unsigned int*)(info->m_data + 4) = point;
-        InsertPowerwarGuild(guildKey, info);
+        info->m_field[1] = info->m_field[1] + point;
     }
     else
     {
-        *(unsigned int*)(info->m_data + 4) =
-            *(unsigned int*)(info->m_data + 4) + point;
+        info = CreatePowerwarGuild();
+        info->m_field[0] = guildKey;
+        info->m_field[1] = point;
+        InsertPowerwarGuild(guildKey, info);
     }
 }
 
 void CPowerWarGuildInfo::CalcAllGuildRanking()
 {
-    std::vector<STPowerWarGuildInfo*>* vec = &m_vec;
-    std::sort(vec->begin(), vec->end(), STPowerWarGuildInfo::Compare);
+    std::sort(m_vec.begin(), m_vec.end(), STPowerWarGuildInfo::Compare);
 }
 
 unsigned int CPowerWarGuildInfo::GetGuildRanking(unsigned int guildKey)
 {
-    std::vector<STPowerWarGuildInfo*>* vec = &m_vec;
+    std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin();
     unsigned int rank = 1;
-    for (std::vector<STPowerWarGuildInfo*>::iterator it = vec->begin(); it != vec->end(); ++it)
+    for (; it != m_vec.end(); ++it)
     {
-        if (*(unsigned int*)(*it)->m_data == guildKey)
+        STPowerWarGuildInfo* info = *it;
+        if (info->m_field[0] == guildKey)
         {
             return rank;
         }
@@ -192,27 +188,25 @@ unsigned int CPowerWarGuildInfo::GetGuildRanking(unsigned int guildKey)
 
 STPowerWarGuildInfo* CPowerWarGuildInfo::GetSpecificGuildInfo(unsigned int guildKey)
 {
-    std::map<unsigned int, STPowerWarGuildInfo*>* map = &m_map;
-    std::map<unsigned int, STPowerWarGuildInfo*>::iterator it = map->find(guildKey);
-    if (it == map->end())
+    std::map<unsigned int, STPowerWarGuildInfo*>::iterator it = m_map.find(guildKey);
+    if (it != m_map.end())
     {
-        return 0;
+        return it->second;
     }
-    return it->second;
+    return 0;
 }
 
 void CPowerWarGuildInfo::GetAllGuildRankingInfo(int& count, STGuildRank* rank)
 {
     unsigned int n = 0;
-    std::vector<STPowerWarGuildInfo*>* vec = &m_vec;
-    for (std::vector<STPowerWarGuildInfo*>::iterator it = vec->begin();
-         it != vec->end() && n < 100; ++it)
+    for (std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin();
+         it != m_vec.end() && n < 100; ++it)
     {
         STPowerWarGuildInfo* info = *it;
         if (info != 0)
         {
-            *(unsigned int*)(rank + n * 8) = *(unsigned int*)info->m_data;
-            *(unsigned int*)(rank + n * 8 + 4) = *(unsigned int*)(info->m_data + 0xc);
+            *(unsigned int*)((char*)rank + n * 8) = info->m_field[0];
+            *(unsigned int*)((char*)rank + n * 8 + 4) = info->m_field[3];
             n++;
         }
     }
@@ -227,40 +221,40 @@ void CPowerWarGuildInfo::RewardGuildPowerWarPoint(CGuildManager& gm, bool a, int
     int decrease = d;
     int maxGrade = e;
     int rankIdx = 0;
-    std::vector<STPowerWarGuildInfo*>* vec = &m_vec;
-    unsigned int count = (unsigned int)vec->size();
+    unsigned int point = 0;
+    unsigned int count = (unsigned int)m_vec.size();
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0xec,"./log/PowerResult",
         "Basic:%d, First:%d, Decrease:%d, MaxGrade:%d, DomainCount:%d", basic, firstBonus,
         decrease, maxGrade, count);
-    for (std::vector<STPowerWarGuildInfo*>::iterator it = vec->begin(); it != vec->end(); ++it)
+    for (std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin(); it != m_vec.end(); ++it)
     {
         STPowerWarGuildInfo* info = *it;
-        unsigned int point = 0;
+        point = 0;
         if (a)
         {
-            point = (unsigned int)basic;
+            point = basic;
         }
-        point += *(unsigned int*)(info->m_data + 4);
-        if (*(unsigned int*)(info->m_data + 4) != 0 && rankIdx < maxGrade)
+        point += info->m_field[1];
+        if (info->m_field[1] != 0 && rankIdx < maxGrade)
         {
-            unsigned int v = (unsigned int)(firstBonus - decrease * rankIdx);
-            *(unsigned int*)(info->m_data + 8) = (unsigned int)(~(int)(v >> 31) & v);
-            point += *(unsigned int*)(info->m_data + 8);
-            *(unsigned int*)(info->m_data + 0xc) = point;
+            int v = firstBonus - decrease * rankIdx;
+            info->m_field[2] = (unsigned int)(~(int)(v >> 31) & v);
+            point += info->m_field[2];
+            info->m_field[3] = point;
         }
-        unsigned int guildKey = *(unsigned int*)info->m_data;
+        unsigned int guildKey = info->m_field[0];
         CGuild* guild = gm.FindGuild(guildKey);
         if (guild == 0)
         {
             STDBSavePowerWarPoint* p = CreateDBSavePowerWarPoint();
             if (p != 0)
             {
-                *(unsigned int*)p = guildKey;
-                *(unsigned int*)((char*)p + 4) = *(unsigned int*)(info->m_data + 0xc);
+                p->m_field[0] = guildKey;
+                p->m_field[1] = info->m_field[3];
                 m_vec2.push_back(p);
-                DNF_LOG_SCOPE_AT("RewardGuildPowerWarPoint", 0x120,"./log/PowerResult",
+                DNF_LOG_SCOPE_AT(__FUNCTION__, 0x120,"./log/PowerResult",
                     "Additional Save(GRADE:%d, Guild ID:%d, PowerWarPoint:%d)", rankIdx,
-                    guildKey, *(unsigned int*)((char*)p + 4));
+                    p->m_field[0], p->m_field[1]);
             }
         }
         else
@@ -274,7 +268,8 @@ void CPowerWarGuildInfo::RewardGuildPowerWarPoint(CGuildManager& gm, bool a, int
 
 STDBSavePowerWarPoint* CPowerWarGuildInfo::CreateDBSavePowerWarPoint()
 {
-    STDBSavePowerWarPoint* p = new (std::nothrow) STDBSavePowerWarPoint();
+    STDBSavePowerWarPoint* p = 0;
+    p = new (std::nothrow) STDBSavePowerWarPoint();
     if (p != 0)
     {
         memset(p, 0, 4);
@@ -293,27 +288,33 @@ void CPowerWarGuildInfo::DeleteDBSavePowerWarPoint(STDBSavePowerWarPoint* p)
 
 void CPowerWarGuildInfo::MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Point_Reward* pkt)
 {
-    std::vector<STDBSavePowerWarPoint*>* vec = &m_vec2;
-    size_t n = vec->size();
+    size_t n = m_vec2.size();
     int count = 0;
+    int i = 0;
     if (n != 0)
     {
-        count = n < 0xfb ? (int)n : 0xfa;
+        if (n <= 0xfa)
+        {
+            count = (int)n;
+        }
+        else
+        {
+            count = 0xfa;
+        }
         char* out = (char*)pkt + 0xf;
-        int i = 0;
-        for (std::vector<STDBSavePowerWarPoint*>::iterator it = vec->begin();
-             it != vec->end() && i < count; )
+        for (std::vector<STDBSavePowerWarPoint*>::iterator it = m_vec2.begin();
+             it != m_vec2.end() && i <= count; )
         {
             STDBSavePowerWarPoint* p = *it;
-            *(unsigned int*)(out + i * 8) = *(unsigned int*)p;
-            *(unsigned int*)(out + i * 8 + 4) = *(unsigned int*)((char*)p + 4);
+            *(unsigned int*)(out + i * 8) = p->m_field[0];
+            *(unsigned int*)(out + i * 8 + 4) = p->m_field[1];
             DNF_LOG_SCOPE_LINE(0x16b,"./log/Power", "INTERVAL SAVE - GUILD:%d, POINT:%d",
-                *(unsigned int*)p, *(unsigned int*)((char*)p + 4));
+                p->m_field[0], p->m_field[1]);
             DeleteDBSavePowerWarPoint(p);
-            it = vec->erase(it);
+            it = m_vec2.erase(it);
             i++;
         }
-        *(unsigned int*)((char*)pkt + 0xb) = (unsigned int)count;
+        pkt->m_b = (unsigned int)count;
     }
 }
 
@@ -327,17 +328,16 @@ void CPowerWarGuildInfo::PrintDebugInfo()
     CMyFileLog log1(__FUNCTION__, 0x187);
     log1("./log/Power",
          "------ POWER WAR GUILD DEBUG INFO START ----------------------------------------------------------");
-    CMyFileLog log2("PrintDebugInfo", 0x188);
+    CMyFileLog log2(__FUNCTION__, 0x188);
     log2("./log/Power",
          "------ ALL GUILD RANKING -------------------------------------------------------------------------");
     int rank = 1;
-    std::vector<STPowerWarGuildInfo*>* vec = &m_vec;
-    for (std::vector<STPowerWarGuildInfo*>::iterator it = vec->begin(); it != vec->end(); ++it)
+    for (std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin(); it != m_vec.end(); ++it)
     {
         STPowerWarGuildInfo* info = *it;
         DNF_LOG_SCOPE_LINE(0x192,"./log/Power", "RANK:%d, GUILD:%d, POINT:%d, TOTOAL:%d, BONUS:%d", rank,
-            *(unsigned int*)info->m_data, *(unsigned int*)(info->m_data + 4),
-            *(unsigned int*)(info->m_data + 0xc), *(unsigned int*)(info->m_data + 8));
+            info->m_field[0], info->m_field[1],
+            info->m_field[3], info->m_field[2]);
         rank++;
     }
     CMyFileLog log3(__FUNCTION__, 0x199);
@@ -347,17 +347,23 @@ void CPowerWarGuildInfo::PrintDebugInfo()
 
 STPowerWarGuildInfo::STPowerWarGuildInfo()
 {
-    memset(m_data, 0, sizeof(m_data));
+    m_field[0] = 0;
+    m_field[1] = 0;
+    m_field[2] = 0;
+    m_field[3] = 0;
 }
 
 bool STPowerWarGuildInfo::Compare(const STPowerWarGuildInfo* a, const STPowerWarGuildInfo* b)
 {
-    return *(unsigned int*)(b->m_data + 4) < *(unsigned int*)(a->m_data + 4);
+    if (a->m_field[1] > b->m_field[1])
+        return true;
+    return false;
 }
 
 STDBSavePowerWarPoint::STDBSavePowerWarPoint()
 {
-    memset(m_data, 0, sizeof(m_data));
+    m_field[0] = 0;
+    m_field[1] = 0;
 }
 
 template std::allocator<std::_List_node<STUserPoint> >::allocator();

@@ -12,9 +12,11 @@
 
 #include "PacketHeader.h"
 #include "Scheduler.h"
+#include "WebEvent.h"
 
 class CPowerWar;
 struct ST_PowerWarEventStartTimeConfig;
+class CPowerWarConfig;
 
 // from GuildDomain.h
 struct ST_PowerWarEventStartTimeConfig
@@ -30,7 +32,7 @@ struct ST_PowerWarEventStartTimeConfig
 };
 
 // from GuildDomain.h
-class CPowerWar
+class CPowerWar : public CEvent
 {
 public:
     CPowerWar();
@@ -48,7 +50,11 @@ public:
     int ProcessByMinuteEndEvent();
     int ProcessByMinuteStartEvent();
     int GetPowerWarRankingUpdateTime();
-    char m_data[0x34];
+    int m_field8;                   // +8
+    unsigned short m_endKillPoint;  // +0xc
+    char m_pad2[2];                 // +0xe
+    CPowerWarConfig* m_config;      // +0x10
+    CScheduler m_scheduler;         // +0x14
 };
 
 #endif

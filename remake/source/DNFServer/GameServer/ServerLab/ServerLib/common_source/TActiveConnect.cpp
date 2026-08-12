@@ -47,6 +47,8 @@ void ActiveConManager::CheckTheConnection(ConInterface* conInfo)
 
 TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
 {
+    register int iVar4;
+    register TCPUser* pUserRet;
     {
         TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockInCon);
         queueRequestConnect.push(conInfo);
@@ -54,16 +56,16 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
     }
     while (true)
     {
-        while (bConnectedInQueue != true)
+        ConInterface* rConInfo;
+        if (bConnectedInQueue != true)
         {
             if (conInfo->mIsRejected != false)
             {
-                return NULL;
+                goto L_RET0;
             }
             TSystem<LinuxSystem>::sleep(10);
+            continue;
         }
-        int iVar4;
-        TCPUser* pUserRet = NULL;
         {
             TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockOutCon);
             if (mapConnectedUser_.empty())
@@ -77,43 +79,48 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
                 for (TCPUserConnectMap::iterator iter = mapConnectedUser_.begin();
                      iter != mapConnectedUser_.end(); iter++)
                 {
-                    ConInterface* rConInfo = iter->second;
+                    rConInfo = iter->second;
                     printf("rConInfo->getId-%d\n", rConInfo->getId());
-                    if (rConInfo->getId() == conInfo->getId())
+                    if (conInfo->getId() == rConInfo->getId())
                     {
-                        TCPUser* pUser = rConInfo->getTCPUser();
-                        conInfo->setTCPUser(pUser);
+                        conInfo->setTCPUser(rConInfo->getTCPUser());
                         mapConnectedUser_.erase(iter);
                         pUserRet = conInfo->getTCPUser();
                         iVar4 = 1;
-                        goto done;
+                        goto DONE;
                     }
                 }
                 iVar4 = 2;
             }
         }
-    done:
+    DONE:
         if (iVar4 != 0)
         {
             if (iVar4 == 1)
             {
-                return pUserRet;
+                goto L_RET;
             }
             TSystem<LinuxSystem>::sleep(100);
         }
     }
+L_RET0:
+    pUserRet = NULL;
+L_RET:
+    return pUserRet;
 }
 
 bool ActiveConManager::PopRequestConnect(TCPUser*& outConnectedUser)
 {
     ConInterface* conInfo;
-    int bExist;
+    timeval tv;
+    register bool bRet;
+    register int bExist;
     {
         TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockInCon);
-        // ORIG: if (empty()) { bRequestInQueue=false; esi=0 } else { pop; esi=1 }
         if (queueRequestConnect.empty())
         {
             bRequestInQueue = false;
+            bRet = false;
             bExist = 0;
         }
         else
@@ -123,64 +130,67 @@ bool ActiveConManager::PopRequestConnect(TCPUser*& outConnectedUser)
             bExist = 1;
         }
     }
-    if (bExist == 0)
+    if (bExist)
     {
-        return false;
+        TCPSocket* sTCP = pApp->super_DataPools.getDataPool()->createTCPSocket();
+        if (sTCP->open() == false)
+        {
+            puts("failed to open UDP socket port");
+            pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
+            bRet = false;
+            goto END;
+        }
+        printf("try to connect-%s, %d\n", conInfo->getIp(), conInfo->getPort());
+        tv.tv_sec = 3;
+        tv.tv_usec = 0;
+        // ORIG: fail branch first via xor $1 on connect result
+        if (sTCP->connect_nonb(conInfo->getIp(), (unsigned short)conInfo->getPort(), tv) == false)
+        {
+            G_TraceLog()->sysLog(7, "failed to connect remote server-ip=%s, port=%d", conInfo->getIp(), conInfo->getPort());
+            sTCP->close();
+            pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
+            conInfo->mIsRejected = true;
+            bRet = false;
+            goto END;
+        }
+        conInfo->SetConnected(true);
+        printf("connection success!!-%s, %d\n", conInfo->getIp(), conInfo->getPort());
+        TCPUser* acUser = pApp->super_DataPools.getDataPool()->createTCPUser();
+        if (acUser == NULL)
+        {
+            sTCP->close();
+            pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
+            puts("cannot create TCP USER");
+            bRet = false;
+            goto END;
+        }
+        acUser->initialize();
+        acUser->startupAfterSetSocket();
+        acUser->setSocket(sTCP);
+        acUser->setLastAccessTime();
+        acUser->setNeedReconnect(conInfo->getNeedRecon());
+        acUser->setSendDataType(conInfo->getSendType());
+        acUser->setRecvDataType(conInfo->getRecvType());
+        G_TraceLog()->sysLog(8, "Active Connected TCPUser id=[%d]", acUser->mUserId);
+        TCPReactor* r = pApp->super_Reactor.getReactor();
+        if (r->registHandle(acUser, 5) == false)
+        {
+            puts("register handle fail");
+            bRet = false;
+            goto END;
+        }
+        conInfo->setTCPUser(acUser);
+        {
+            TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockOutCon);
+            mapConnectedUser_[conInfo->getId()] = conInfo;
+            bConnectedInQueue = true;
+            printf("con map size-%d\n", (int)mapConnectedUser_.size());
+        }
+        outConnectedUser = acUser;
+        bRet = true;
     }
-
-    TCPSocket* sTCP = pApp->super_DataPools.getDataPool()->createTCPSocket();
-    if (sTCP->open() == false)
-    {
-        puts("failed to open UDP socket port");
-        pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
-        return false;
-    }
-    printf("try to connect-%s, %d\n", conInfo->getIp(), conInfo->getPort());
-    timeval tv;
-    tv.tv_sec = 3;
-    tv.tv_usec = 0;
-    // ORIG: fail branch first via xor $1 on connect result
-    if (sTCP->connect_nonb(conInfo->getIp(), (unsigned short)conInfo->getPort(), tv) == false)
-    {
-        G_TraceLog()->sysLog(7, "failed to connect remote server-ip=%s, port=%d", conInfo->getIp(), conInfo->getPort());
-        sTCP->close();
-        pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
-        conInfo->mIsRejected = true;
-        return false;
-    }
-    conInfo->SetConnected(true);
-    printf("connection success!!-%s, %d\n", conInfo->getIp(), conInfo->getPort());
-    TCPUser* acUser = pApp->super_DataPools.getDataPool()->createTCPUser();
-    if (acUser == NULL)
-    {
-        sTCP->close();
-        pApp->super_DataPools.getDataPool()->destroyTCPSocket(sTCP);
-        puts("cannot create TCP USER");
-        return false;
-    }
-    acUser->initialize();
-    acUser->startupAfterSetSocket();
-    acUser->setSocket(sTCP);
-    acUser->setLastAccessTime();
-    acUser->setNeedReconnect(conInfo->getNeedRecon());
-    acUser->setSendDataType(conInfo->getSendType());
-    acUser->setRecvDataType(conInfo->getRecvType());
-    G_TraceLog()->sysLog(8, "Active Connected TCPUser id=[%d]", acUser->mUserId);
-    TCPReactor* r = pApp->super_Reactor.getReactor();
-    if (r->registHandle(acUser, 5) == false)
-    {
-        puts("register handle fail");
-        return false;
-    }
-    conInfo->setTCPUser(acUser);
-    {
-        TScopedLock<TThreadLock<ThreadLock_linux> > slock(LockOutCon);
-        mapConnectedUser_[conInfo->getId()] = conInfo;
-        bConnectedInQueue = true;
-        printf("con map size-%d\n", (int)mapConnectedUser_.size());
-    }
-    outConnectedUser = acUser;
-    return true;
+END:
+    return bRet;
 }
 
 } // namespace nsl

@@ -25,7 +25,10 @@ struct STGuildWarInfo
 {
     unsigned int m_guildKey;  // +0
     unsigned int m_point;     // +4
-    char m_data[0x1c];        // +8 .. +0x23（总 0x24，Swap<STGuildWarInfo> 反编译验证）
+    union {
+        char m_data[0x1c];        // +8 .. +0x23（总 0x24，Swap<STGuildWarInfo> 反编译验证）
+        unsigned int m_field[7];  // m_field[6] @ +0x20
+    };
 };
 
 // from GuildDomain.h
@@ -46,7 +49,7 @@ public:
     int SameRankWork();
     void printGuildWarRank();
     void GetGuildWarInfo(unsigned int* a, unsigned int* b, unsigned short* c);
-    int GetGuildWarInfo(ST_Guild_War_Rank_Info* info);
+    void GetGuildWarInfo(ST_Guild_War_Rank_Info* info);
     int Find_GuildWarInfo(unsigned int guildId);
     void Insert_GuildWarInfo(STGuildWarInfo* info);
     int GetGuildWarInfoDBSave(unsigned int* a, unsigned int* b);

@@ -90,13 +90,13 @@ CServerInterface::~CServerInterface()
 
 bool CServerInterface::Initialize()
 {
-    int old = m_sock;
-    if (old == 0)
+    if (m_sock == 0)
     {
         m_sock = (int)new CUdpHandler;
         ((CUdpHandler*)m_sock)->InitClientSocket();
+        return true;
     }
-    return old == 0;
+    return false;
 }
 
 bool CServerInterface::Destroy()
@@ -112,14 +112,17 @@ int CServerInterface::SendToServer(char* buf, int len)
 {
     if (m_sock != 0)
     {
-        return ((CUdpHandler*)m_sock)->SendToServer(buf, len, m_info->m_port, m_info->m_name);
+        return ((CUdpHandler*)m_sock)->SendToServer(
+            buf, len, m_info->m_port, (const char*)((unsigned int)m_info + 3));
     }
     return 0;
 }
 
 bool CServerInterface::IsValidServer()
 {
-    return m_info != 0 && m_info->m_group != 0xff;
+    if (m_info->m_group == 0xff)
+        return 0;
+    return 1;
 }
 
 bool CServerInterface::IsConnected()
@@ -141,11 +144,9 @@ void CServerInterface::OnDisconnect()
 
 int CServerInterface::IsHeartBeatTimeOver()
 {
-    m_field9 = (char)(m_field9 - 1);
-    if (m_field9 == 0)
+    if (--m_field9 == 0)
     {
-        m_fielda = (char)(m_fielda + 1);
-        if (0x14 < (unsigned char)m_fielda)
+        if (0x14 < (unsigned char)++m_fielda)
         {
             return 1;
         }
@@ -177,7 +178,7 @@ void* CServerInterface::GetUdpHandler()
 
 unsigned char CServerInterface::GetChannelNo()
 {
-    return m_info ? *(unsigned char*)((char*)m_info + 1) : 0;
+    return m_info->m_field1;
 }
 
 unsigned char CServerInterface::GetGroupNo()

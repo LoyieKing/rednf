@@ -133,7 +133,7 @@ void CPeer::InitPeer(std::queue<CTcpRecvBuffer*>* q, CMutex* lock1, CMutex* lock
     *(int*)((char*)this + 0x1834) = 0;
 }
 
-int CPeer::RecvPacket()
+bool CPeer::RecvPacket()
 {
     int ret = recv_packet();
     if (ret > 0)

@@ -47,16 +47,19 @@ CLoginLogoutStatistics::~CLoginLogoutStatistics()
 
 void CLoginLogoutStatistics::ProcessByMinute()
 {
+    char stack_pad[8]; // 对齐 ORIG pkt 栈槽 -0x630 与 cnt -0x10
     Packet_DBMW_Statistic_Login_Logout pkt;
-    int v0, v1, v2, v3;
     int cnt = 0;
-    v0 = m_fieldac;
-    v1 = m_fieldb0;
-    v2 = m_fieldb4;
-    v3 = m_fieldb8;
+    char dummy;
+    pkt.m_field608 = m_fieldac;
+    pkt.m_field60c = m_fieldb0;
+    pkt.m_field610 = m_fieldb4;
+    pkt.m_field614 = m_fieldb8;
     m_fieldb4 = 0;
     m_fieldb8 = 0;
     m_app->Get_ServerHandler()->GetDBServer()->SendToServer((char*)&pkt, 0x618);
+    (void)stack_pad;
+    (void)dummy;
 }
 
 void CLoginLogoutStatistics::LoginLogout(ENUM_LOGIN_LOGOUT type, unsigned char channel)

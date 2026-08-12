@@ -21,6 +21,23 @@
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 
+// ORIG 用 glibc 2.5 头编译：FD_ZERO 展开为循环（0x20 次 dword 清零），
+// __NFDBITS 为无符号（shr/and 形态）；c6root glibc 2.12 的 FD_ZERO 为
+// inline asm（rep stos）且带 (int) 强转（sar 形态），按 2.5 形态复现
+// （同 manager 先例）。
+#define DBMW_NFDBITS (8 * sizeof(__fd_mask))
+#define DBMW_FD_ZERO(fdsetp) \
+    do { \
+        unsigned int __dbmw_i; \
+        fd_set* __dbmw_arr = (fdsetp); \
+        for (__dbmw_i = 0; __dbmw_i < sizeof(fd_set) / sizeof(__fd_mask); ++__dbmw_i) \
+            __FDS_BITS(__dbmw_arr)[__dbmw_i] = 0; \
+    } while (0)
+#define DBMW_FD_SET(d, fdsetp) \
+    (__FDS_BITS((fdsetp))[(d) / DBMW_NFDBITS] |= (__fd_mask)1 << ((d) % DBMW_NFDBITS))
+#define DBMW_FD_ISSET(d, fdsetp) \
+    ((__FDS_BITS((fdsetp))[(d) / DBMW_NFDBITS] & (__fd_mask)1 << ((d) % DBMW_NFDBITS)) != 0)
+
 int getErrno();
 
 TCPSocket::TCPSocket()
@@ -56,8 +73,15 @@ void TCPSocket::close()
 }
 int TCPSocket::shutdown(int how)
 {
+    // ORIG = mov;mov;cmp;pop;ret：switch 双空 case 保留死比较（同 manager 先例）
     (void)how;
-    return m_fd == -1 ? m_fd : m_fd;
+    switch (m_fd == -1)
+    {
+    case 0:
+        break;
+    case 1:
+        break;
+    }
 }
 int TCPSocket::send(char* buf, int len)
 {
@@ -182,60 +206,79 @@ char* TCPSocket::getPeerIP()
 }
 char TCPSocket::pollWriteEvent() const
 {
-    fd_set writefds;
-    FD_ZERO(&writefds);
-    FD_SET(m_fd, &writefds);
+    fd_set fds;
     struct timeval tv;
+    int ret;
+    unsigned int i;
+    fd_set* p = &fds;
+    for (i = 0; i < 0x20; i++)
+    {
+        p->fds_bits[i] = 0;
+    }
+    fds.fds_bits[(unsigned int)m_fd >> 5] =
+        fds.fds_bits[(unsigned int)m_fd >> 5] | (1 << ((unsigned int)m_fd & 0x1f));
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int ret = select(2, 0, &writefds, 0, &tv);
-    if (ret < 0)
+    ret = 0;
+    if ((unsigned)(ret = select(2, 0, &fds, 0, &tv)) >> 31)
     {
         printf("pollWriteEvent(%s)", strerror(errno));
         return 0;
     }
-    return FD_ISSET(m_fd, &writefds) ? 1 : 0;
+    return (fds.fds_bits[(unsigned int)m_fd >> 5] >> ((unsigned int)m_fd & 0x1f)) & 1;
 }
 char TCPSocket::pollErrorEvent() const
 {
-    fd_set exceptfds;
-    FD_ZERO(&exceptfds);
-    FD_SET(m_fd, &exceptfds);
+    fd_set fds;
     struct timeval tv;
+    int ret;
+    unsigned int i;
+    fd_set* p = &fds;
+    for (i = 0; i < 0x20; i++)
+    {
+        p->fds_bits[i] = 0;
+    }
+    fds.fds_bits[(unsigned int)m_fd >> 5] =
+        fds.fds_bits[(unsigned int)m_fd >> 5] | (1 << ((unsigned int)m_fd & 0x1f));
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int ret = select(2, 0, 0, &exceptfds, &tv);
-    if (ret < 0)
+    ret = 0;
+    if ((unsigned)(ret = select(2, 0, 0, &fds, &tv)) >> 31)
     {
         printf("pollErrorEvent(%s)", strerror(errno));
         return 0;
     }
-    return FD_ISSET(m_fd, &exceptfds) ? 1 : 0;
+    return (fds.fds_bits[(unsigned int)m_fd >> 5] >> ((unsigned int)m_fd & 0x1f)) & 1;
 }
 int TCPSocket::pollReadWriteErrEvent() const
 {
     fd_set readfds, writefds, exceptfds;
-    FD_ZERO(&readfds);
-    FD_ZERO(&writefds);
-    FD_ZERO(&exceptfds);
-    FD_SET(m_fd, &readfds);
-    FD_SET(m_fd, &writefds);
-    FD_SET(m_fd, &exceptfds);
     struct timeval tv;
+    int ret;
+    int result;
+    DBMW_FD_ZERO(&readfds);
+    DBMW_FD_ZERO(&writefds);
+    DBMW_FD_ZERO(&exceptfds);
+    readfds.fds_bits[(unsigned int)m_fd >> 5] =
+        readfds.fds_bits[(unsigned int)m_fd >> 5] | (1 << ((unsigned int)m_fd & 0x1f));
+    writefds.fds_bits[(unsigned int)m_fd >> 5] =
+        writefds.fds_bits[(unsigned int)m_fd >> 5] | (1 << ((unsigned int)m_fd & 0x1f));
+    exceptfds.fds_bits[(unsigned int)m_fd >> 5] =
+        exceptfds.fds_bits[(unsigned int)m_fd >> 5] | (1 << ((unsigned int)m_fd & 0x1f));
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int ret = select(2, &readfds, &writefds, &exceptfds, &tv);
-    if (ret < 0)
+    ret = 0;
+    result = 0;
+    if ((unsigned)(ret = select(2, &readfds, &writefds, &exceptfds, &tv)) >> 31)
     {
         printf("pollReadWriteErrEvent(%s)", strerror(errno));
         return ret;
     }
-    int result = 0;
-    if (FD_ISSET(m_fd, &readfds))
+    if ((readfds.fds_bits[(unsigned int)m_fd >> 5] >> ((unsigned int)m_fd & 0x1f)) & 1)
         result = 1;
-    else if (FD_ISSET(m_fd, &writefds))
+    else if ((writefds.fds_bits[(unsigned int)m_fd >> 5] >> ((unsigned int)m_fd & 0x1f)) & 1)
         result = 2;
-    else if (FD_ISSET(m_fd, &exceptfds))
+    else if ((exceptfds.fds_bits[(unsigned int)m_fd >> 5] >> ((unsigned int)m_fd & 0x1f)) & 1)
         result = 3;
     return result;
 }
@@ -268,24 +311,31 @@ bool TCPSocket::listen(int backlog)
 }
 bool TCPSocket::pollReadEvent() const
 {
-    fd_set readfds;
-    FD_ZERO(&readfds);
-    FD_SET(m_fd, &readfds);
+    fd_set fds;
     struct timeval tv;
+    int n;
+    unsigned int i;
+    fd_set* p = &fds;
+    for (i = 0; i < 0x20; i++)
+    {
+        p->fds_bits[i] = 0;
+    }
+    fds.fds_bits[(unsigned int)m_fd >> 5] =
+        fds.fds_bits[(unsigned int)m_fd >> 5] | (1 << ((unsigned int)m_fd & 0x1f));
     tv.tv_sec = 5;
     tv.tv_usec = 0;
-    int ret = select(m_fd + 1, &readfds, 0, 0, &tv);
-    if (ret < 0)
+    n = 0;
+    if ((unsigned)(n = select(m_fd + 1, &fds, 0, 0, &tv)) >> 31)
     {
         printf("pollReadEvent(%s)", strerror(errno));
         return 0;
     }
-    return FD_ISSET(m_fd, &readfds) ? 1 : 0;
+    return (fds.fds_bits[(unsigned int)m_fd >> 5] >> ((unsigned int)m_fd & 0x1f)) & 1;
 }
 bool TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
-    sock.m_fd = ::accept(m_fd, (struct sockaddr*)((char*)&sock + 4), &len);
+    sock.m_fd = ::accept(m_fd, (struct sockaddr*)&sock.m_data4, &len);
     if (sock.m_fd == 0)
     {
         FILE* f = fopen("log.txt", "a+");
@@ -295,7 +345,7 @@ bool TCPSocket::accept(TCPSocket& sock)
             fclose(f);
         }
     }
-    if (sock.m_fd < 0)
+    if (sock.m_fd < 0 || sock.m_fd == -1)
     {
         FILE* f = fopen("log.txt", "a+");
         if (f)
@@ -303,11 +353,10 @@ bool TCPSocket::accept(TCPSocket& sock)
             fprintf(f, "[TCPSocket::Accept] Accept fail[%d]\n", sock.m_fd);
             fclose(f);
         }
-    }
-    if (sock.m_fd == -1)
         return 0;
+    }
     memcpy((char*)&sock + 0x14, (char*)&sock + 8, 4);
-    sock.m_port = *(unsigned short*)((char*)&sock + 6);
+    sock.m_port = sock.m_data4.sin_port;
     sock.setOptNonBlock();
     return 1;
 }

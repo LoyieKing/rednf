@@ -137,6 +137,17 @@ unsigned int CGuild::GetGuildKey()
     return m_guildKey;
 }
 
+void RandomOption::reset()
+{
+    // ORIG 帧 sub $0x18
+    ((RandomOptionField*)this)->reset();
+    ((RandomOptionField*)((char*)this + 3))->reset();
+    ((RandomOptionField*)((char*)this + 6))->reset();
+    ((RandomOptionSeed*)((char*)this + 9))->reset();
+    ((RandomOptionField*)((char*)this + 10))->reset();
+    ((RandomOptionSeed*)((char*)this + 0xd))->reset();
+}
+
 void RandomOptionField::reset()
 {
     m_data[0] = 0;
@@ -149,17 +160,38 @@ void RandomOptionSeed::reset()
     m_data[0] = 0;
 }
 
-void RandomOption::reset()
+#pragma pack(push,1)
+struct DnfItemInfoResetLayout
 {
-    // ORIG 帧 sub $0x18；本编译器对 ≥0x11 的 char 数组做 32 字节对齐，
-    // 无法精确复现（REMAIN：栈帧形态，语义等价）
-    char pad[0x10];
-    ((RandomOptionField*)this)->reset();
-    ((RandomOptionField*)((char*)this + 3))->reset();
-    ((RandomOptionField*)((char*)this + 6))->reset();
-    ((RandomOptionSeed*)((char*)this + 9))->reset();
-    ((RandomOptionField*)((char*)this + 10))->reset();
-    ((RandomOptionSeed*)((char*)this + 0xd))->reset();
+    unsigned char m0;            // +0x0
+    unsigned int m1;             // +0x1
+    unsigned char m5;            // +0x5
+    unsigned int m6;             // +0x6
+    unsigned short m10;          // +0xa
+    unsigned int m12;            // +0xc
+    unsigned char m16;           // +0x10
+    unsigned short m17;          // +0x11
+};
+#pragma pack(pop)
+
+void DnfItemInfo::reset()
+{
+    ((DnfItemInfoResetLayout*)this)->m0 = 0;
+    ((DnfItemInfoResetLayout*)this)->m1 = 0;
+    ((DnfItemInfoResetLayout*)this)->m5 = 0;
+    ((DnfItemInfoResetLayout*)this)->m6 = 0;
+    ((DnfItemInfoResetLayout*)this)->m10 = 0;
+    ((DnfItemInfoResetLayout*)this)->m12 = 0;
+    ((DnfItemInfoResetLayout*)this)->m16 = 0;
+    ((DnfItemInfoResetLayout*)this)->m17 = 0;
+    ((RandomOption*)((char*)this + 0x1d))->reset();
+    m_up.reset();
+    m_res.reset();
+}
+
+DnfItemInfo::DnfItemInfo()
+{
+    reset();
 }
 
 UpgradeSeparateInfo::UpgradeSeparateInfo()
@@ -169,9 +201,10 @@ UpgradeSeparateInfo::UpgradeSeparateInfo()
 
 void UpgradeSeparateInfo::reset()
 {
-    m_data[0] = (unsigned char)(m_data[0] & 0xe0);
-    m_data[0] = (unsigned char)(m_data[0] & 0xdf);
-    m_data[0] = (unsigned char)(m_data[0] & 0x3f);
+    struct Bits { unsigned char a:5, b:1, c:2; };
+    reinterpret_cast<Bits*>(m_data)->a = 0;
+    reinterpret_cast<Bits*>(m_data)->b = 0;
+    reinterpret_cast<Bits*>(m_data)->c = 0;
 }
 
 ReservedCapacity::ReservedCapacity()
@@ -186,24 +219,13 @@ void ReservedCapacity::reset()
     m_field8 = 0;
 }
 
-void DnfItemInfo::reset()
+void CGuild::SetPowerSide(unsigned char side)
 {
-    m_data[0] = 0;
-    *(unsigned int*)(m_data + 1) = 0;
-    m_data[5] = 0;
-    *(unsigned int*)(m_data + 6) = 0;
-    *(unsigned short*)(m_data + 10) = 0;
-    *(unsigned int*)(m_data + 0xc) = 0;
-    m_data[0x10] = 0;
-    *(unsigned short*)(m_data + 0x11) = 0;
-    ((RandomOption*)(m_data + 0x1d))->reset();
-    m_up.reset();
-    m_res.reset();
-}
-
-DnfItemInfo::DnfItemInfo()
-{
-    reset();
+    if (IsSetGuildDBFlag(4))
+    {
+        m_field4d96 = 1;
+        m_dbInfo.m_info.m_powerSide = side;
+    }
 }
 
 STGuildMemberProxy::STGuildMemberProxy()
@@ -388,17 +410,17 @@ void CGuild::EnableDBSaveFlag()
 
 void CGuild::SetTodayGuildMember(STTodayGuildMember& member)
 {
-    *(unsigned int*)((char*)this + 0x66ec) = *(unsigned int*)(member.m_data + 0);
-    *(unsigned int*)((char*)this + 0x66f0) = *(unsigned int*)(member.m_data + 4);
-    *(unsigned int*)((char*)this + 0x66f4) = *(unsigned int*)(member.m_data + 8);
-    *(unsigned int*)((char*)this + 0x66f8) = *(unsigned int*)(member.m_data + 0xc);
-    *(unsigned int*)((char*)this + 0x66fc) = *(unsigned int*)(member.m_data + 0x10);
-    *(unsigned int*)((char*)this + 0x6700) = *(unsigned int*)(member.m_data + 0x14);
-    *(unsigned int*)((char*)this + 0x6704) = *(unsigned int*)(member.m_data + 0x18);
-    *(unsigned int*)((char*)this + 0x6708) = *(unsigned int*)(member.m_data + 0x1c);
-    *(unsigned int*)((char*)this + 0x670c) = *(unsigned int*)(member.m_data + 0x20);
-    *(unsigned short*)((char*)this + 0x6710) = *(unsigned short*)(member.m_data + 0x24);
-    *(char*)((char*)this + 0x6712) = *(char*)(member.m_data + 0x26);
+    *(unsigned int*)&m_board.m_rest[0] = *(unsigned int*)(member.m_data + 0);
+    *(unsigned int*)&m_board.m_rest[4] = *(unsigned int*)(member.m_data + 4);
+    *(unsigned int*)&m_board.m_rest[8] = *(unsigned int*)(member.m_data + 8);
+    *(unsigned int*)&m_board.m_rest[0xc] = *(unsigned int*)(member.m_data + 0xc);
+    *(unsigned int*)&m_board.m_rest[0x10] = *(unsigned int*)(member.m_data + 0x10);
+    *(unsigned int*)&m_board.m_rest[0x14] = *(unsigned int*)(member.m_data + 0x14);
+    *(unsigned int*)&m_board.m_rest[0x18] = *(unsigned int*)(member.m_data + 0x18);
+    *(unsigned int*)&m_board.m_rest[0x1c] = *(unsigned int*)(member.m_data + 0x1c);
+    *(unsigned int*)&m_board.m_rest[0x20] = *(unsigned int*)(member.m_data + 0x20);
+    *(unsigned short*)&m_board.m_rest[0x24] = *(unsigned short*)(member.m_data + 0x24);
+    *(char*)&m_board.m_rest[0x26] = *(char*)(member.m_data + 0x26);
 }
 
 CGuild::CGuild(unsigned int guildKey)
@@ -540,16 +562,15 @@ void CGuild::LoadGuild(STGuildDBInfoOnly& info, char* name)
 
 void CGuild::SaveGuild(unsigned char flag, CServerHandler* handler, unsigned int param)
 {
-    if ((m_field1c & 4) == 0)
+    if ((m_field1c & 4) != 0)
     {
-        return;
+        Packet_Monitor_SAVE_Guild pkt;
+        pkt.m_flag = flag;
+        pkt.m_b = m_guildKey;
+        pkt.m_param = param;
+        memcpy((char*)&pkt + 0xf, (char*)this + 0x20, 0xbd);
+        handler->SendToDB(&pkt);
     }
-    Packet_Monitor_SAVE_Guild pkt;
-    *(unsigned int*)((char*)&pkt + 0xb) = m_guildKey;
-    *(unsigned int*)((char*)&pkt + 0x12) = param;
-    *(unsigned char*)((char*)&pkt + 0xa) = flag;
-    memcpy((char*)&pkt + 0xf, (char*)this + 0x20, 0xbd);
-    handler->SendToDB(&pkt);
 }
 
 void CGuild::DBGuildSaveProcess(CServerHandler* handler)
@@ -609,15 +630,21 @@ void CGuild::ResetGuildPointRank()
 
 void CGuild::DBGuildSave(unsigned char flag, CServerHandler* handler, unsigned int param)
 {
-    if (m_field4d96 != 0 && (m_field1c & 4) != 0)
+    if (m_field4d96 != 0)
     {
-        DNF_LOG_SCOPE_LINE(0x1ba,"./log/Guild", "GUILD EXP   Guild Key : %d, Guild Exp : %d",
-            m_guildKey, GetGuildExp());
-        SaveGuild(flag, handler, param);
-        m_field4d94 = 0;
-        m_field4d96 = 0;
+        if ((m_field1c & 4) != 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x1ba,"./log/Guild", "GUILD EXP   Guild Key : %d, Guild Exp : %d",
+                m_guildKey, GetGuildExp());
+            SaveGuild(flag, handler, param);
+            m_field4d94 = 0;
+            m_field4d96 = 0;
+        }
     }
-    return;
+    else
+    {
+        return;
+    }
 }
 
 void CGuild::DBSavePowerSecedeTime(unsigned char flag, CServerHandler* handler)
@@ -625,8 +652,8 @@ void CGuild::DBSavePowerSecedeTime(unsigned char flag, CServerHandler* handler)
     if ((m_field1c & 4) != 0)
     {
         Packet_DBMW_Save_Power_Secede_Time pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = m_guildKey;
-        *(unsigned char*)((char*)&pkt + 0xe) = flag;
+        pkt.m_flag = flag;
+        pkt.m_key = m_guildKey;
         handler->SendToDB(&pkt);
     }
 }
@@ -887,11 +914,11 @@ void CGuild::GuildSkillPointUp(unsigned short point)
 {
     if ((m_field1c & 4) != 0)
     {
-        unsigned short old = *(unsigned short*)((char*)this + 0x62);
-        *(unsigned short*)((char*)this + 0x62) += point;
-        if (*(unsigned short*)((char*)this + 0x62) < old)
+        unsigned short old = m_dbInfo.m_info.m_field42;
+        m_dbInfo.m_info.m_field42 += point;
+        if (m_dbInfo.m_info.m_field42 < old)
         {
-            *(unsigned short*)((char*)this + 0x62) = old;
+            m_dbInfo.m_info.m_field42 = old;
         }
     }
 }
@@ -1012,10 +1039,9 @@ void CGuild::SendToGuild(PacketHeader* pkt)
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        if (it->second != 0)
-        {
-            it->second->SendToGameserver((char*)pkt, *(unsigned short*)((char*)pkt + 2));
-        }
+        CUser* pUser;
+        if ((pUser = it->second) == 0) { continue; }
+        pUser->SendToGameserver((char*)pkt, pkt->packetSize);
     }
 }
 
@@ -1324,8 +1350,8 @@ void CGuild::ReplyGuildMembers(CUser* user)
 void CGuild::QueryGuildAllMembersProxy(CServerHandler* handler, unsigned int charNo)
 {
     Packet_DB_Call_Guild_All_Members pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = m_guildKey;
-    *(unsigned int*)((char*)&pkt + 0xe) = charNo;
+    pkt.ma = m_guildKey;
+    pkt.me = charNo;
     handler->SendToDB(&pkt);
     m_field1c |= 8;
 }
@@ -1657,13 +1683,13 @@ int CGuild::ChangeGuildMaster(CServerHandler* handler, CUser* user, unsigned int
 
 bool CGuild::ChangeGuildName(char* name, int flag)
 {
-    bool ok = (m_field1c & 4) != 0;
-    if (ok)
+    if ((m_field1c & 4) != 0)
     {
         strcpy((char*)this + 0x20, name);
         m_field4d96 = (unsigned char)flag;
+        return true;
     }
-    return ok;
+    return false;
 }
 
 void CGuild::ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade)
@@ -1684,15 +1710,17 @@ void CGuild::ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade)
 
 char* CGuild::getUnconnectedGuildMemberName(unsigned int charNo)
 {
-    if ((m_field1c & 4) == 0 || (m_field1c & 0x10) == 0)
+    if ((m_field1c & 4) != 0)
     {
-        return 0;
-    }
-    for (int i = 0; i < m_field1e; i++)
-    {
-        if (*(unsigned int*)((char*)this + i * 0x40 + 0xdd) == charNo)
+        if ((m_field1c & 0x10) != 0)
         {
-            return (char*)this + i * 0x40 + 0xe1;
+            for (int i = 0; i < m_field1e; i++)
+            {
+                if (*(unsigned int*)((char*)this + i * 0x41 + 0xdd) == charNo)
+                {
+                    return (char*)this + i * 0x41 + 0xe1;
+                }
+            }
         }
     }
     return 0;
@@ -1702,7 +1730,7 @@ bool CGuild::IsSubGuildMaster(unsigned int dbid)
 {
     for (int i = 0; i < m_dbInfo.m_info.m_subMasterCnt; i++)
     {
-        if (*(unsigned int*)((char*)this + 0x4e + i * 4) == dbid)
+        if (*(unsigned int*)((char*)this + (i + 0x10) * 4 + 0xe) == dbid)
         {
             return true;
         }
@@ -1860,22 +1888,13 @@ void CGuild::UpdateChangableInfoProcess()
     }
 }
 
-void CGuild::SetPowerSide(unsigned char side)
+bool CGuild::CheckPowerSecedeTime()
 {
     if (IsSetGuildDBFlag(4))
     {
-        m_field4d96 = 1;
-        m_dbInfo.m_info.m_powerSide = side;
+        return CheckDayScheduleTimeOver(0x1e, m_dbInfo.m_info.m_powerSecedeTime);
     }
-}
-
-int CGuild::CheckPowerSecedeTime()
-{
-    if (!IsSetGuildDBFlag(4))
-    {
-        return 0;
-    }
-    return CheckDayScheduleTimeOver(0x1e, *(long long*)((char*)this + 0xb6));
+    return 0;
 }
 
 int CGuild::ChangeGuildMemberCharName(unsigned int charNo, char* name)
@@ -1921,8 +1940,8 @@ void CGuild::DBSaveGuildMemberUnChangableInfo(CServerHandler* handler, unsigned 
     if (IsSetGuildDBFlag(4))
     {
         Packet_UnChangable_GuildInfo_Save pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = a;
-        *(unsigned int*)((char*)&pkt + 0xe) = b;
+        pkt.ma = a;
+        pkt.me = b;
         memcpy((char*)&pkt + 0x12, name, 0x1d);
         handler->SendToDB(&pkt);
     }
@@ -1983,8 +2002,8 @@ void CGuild::CreateGuildAgit(CServerHandler* handler, unsigned int a, unsigned i
         SubPowerWarPoint(c);
         SendGuildInfoToMembers(false);
         Packet_DB_Create_Guild_Agit pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = a;
-        *(unsigned int*)((char*)&pkt + 0xe) = b;
+        pkt.m0xa = a;
+        pkt.m0xe = b;
         handler->SendToDB(&pkt);
     }
 }
@@ -1994,8 +2013,8 @@ void CGuild::DeleteGuildAgit(CServerHandler* handler, unsigned int a, unsigned i
     if ((m_field1c & 4) != 0)
     {
         Packet_DB_Delete_Guild_Agit pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = a;
-        *(unsigned int*)((char*)&pkt + 0xe) = b;
+        pkt.ma = a;
+        pkt.me = b;
         handler->SendToDB(&pkt);
     }
 }
@@ -2086,8 +2105,8 @@ void CGuild::UpgradeGuildAgit(CServerHandler* handler, unsigned int a, unsigned 
         SubPowerWarPoint(c);
         SendGuildInfoToMembers(false);
         Packet_DB_Upgrade_Guild_Agit pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = a;
-        *(unsigned int*)((char*)&pkt + 0xe) = b;
+        pkt.ma = a;
+        pkt.me = b;
         handler->SendToDB(&pkt);
     }
 }
@@ -2117,12 +2136,13 @@ bool CGuild::IsCompleteGuildFund()
 {
     if ((m_field1c & 4) != 0)
     {
-        if (m_dbInfo.m_info.m_guildLevel > 0xf &&
-            m_dbInfo.m_info.m_guildFund > 0x98967f)
+        unsigned int* fundPtr = &m_dbInfo.m_info.m_guildFund;
+        unsigned char* levelPtr = &m_dbInfo.m_info.m_guildLevel;
+        if (*levelPtr > 0xf && *fundPtr > 0x98967f)
         {
             return true;
         }
-        if (m_dbInfo.m_info.m_guildFund > 0x1312cff)
+        if (*fundPtr > 0x1312cff)
         {
             return true;
         }
@@ -2132,60 +2152,66 @@ bool CGuild::IsCompleteGuildFund()
 
 void CGuild::AddGuildFund(unsigned int fund)
 {
-    if ((m_field1c & 4) == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0xb06,"./log/GuildFund",
-            "CPacketTranslater::AddGuildFund() Error!! : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u), STATE (%d), CONNECTING_GUILD_MEMBER_CNT (%d)\n",
-            GetGuildKey(), *(unsigned int*)((char*)this + 0xc0), fund,
-            (unsigned int)m_field1c, (int)m_members.size());
-    }
-    else
+    if ((m_field1c & 4) != 0)
     {
         m_field4d96 = 1;
-        unsigned int* fundPtr = (unsigned int*)((char*)this + 0xc0);
+        unsigned int* fundPtr = &m_dbInfo.m_info.m_guildFund;
+        unsigned char* levelPtr = &m_dbInfo.m_info.m_guildLevel;
         *fundPtr += fund;
-        if ((unsigned char)*(char*)((char*)this + 0x3b) < 0x10 || *fundPtr < 0x989681)
+        if (*levelPtr > 0xf && *fundPtr > 0x989680)
         {
-            if (20000000 < *fundPtr)
-            {
-                *fundPtr = 20000000;
-            }
+            *fundPtr = 0x989680;
         }
         else
         {
-            *fundPtr = 10000000;
+            if (*fundPtr > 0x1312d00)
+            {
+                *fundPtr = 0x1312d00;
+            }
         }
         DNF_LOG_SCOPE_LINE(0xb0a,"./log/GuildFund",
             "CPacketTranslater::AddGuildFund() : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u)\n",
-            GetGuildKey(), *fundPtr, fund);
+            GetGuildKey(), m_dbInfo.m_info.m_guildFund, fund);
+    }
+    else
+    {
+        DNF_LOG_SCOPE_LINE(0xb06,"./log/GuildFund",
+            "CPacketTranslater::AddGuildFund() Error!! : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u), STATE (%d), CONNECTING_GUILD_MEMBER_CNT (%d)\n",
+            GetGuildKey(), m_dbInfo.m_info.m_guildFund, fund,
+            m_field1c, m_members.size());
     }
 }
 
 void CGuild::SubGuildFund(unsigned int fund)
 {
-    if ((m_field1c & 4) == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0xb24,"./log/GuildFund",
-            "CPacketTranslater::SubGuildFund() Error!! : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u), STATE (%d), CONNECTING_GUILD_MEMBER_CNT (%d)\n",
-            GetGuildKey(), *(unsigned int*)((char*)this + 0xc0), fund,
-            (unsigned int)m_field1c, (int)m_members.size());
-    }
-    else
+    if ((m_field1c & 4) != 0)
     {
         m_field4d96 = 1;
         unsigned int* fundPtr = (unsigned int*)((char*)this + 0xc0);
-        if (fund < *fundPtr)
-        {
-            *fundPtr -= fund;
-        }
-        else
+        if (fund >= *fundPtr)
         {
             *fundPtr = 0;
         }
-        DNF_LOG_SCOPE_LINE(0xb28,"./log/GuildFund",
-            "CPacketTranslater::SubGuildFund() : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u)\n",
-            GetGuildKey(), *fundPtr, fund);
+        else
+        {
+            *fundPtr -= fund;
+        }
+        goto L_success;
     }
+    else
+    {
+        DNF_LOG_SCOPE_LINE(0xb24,"./log/GuildFund",
+            "CPacketTranslater::SubGuildFund() Error!! : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u), STATE (%d), CONNECTING_GUILD_MEMBER_CNT (%d)\n",
+            GetGuildKey(), m_dbInfo.m_info.m_guildFund, fund,
+            m_field1c, m_members.size());
+        goto L_end;
+    }
+L_success:
+    DNF_LOG_SCOPE_LINE(0xb28,"./log/GuildFund",
+        "CPacketTranslater::SubGuildFund() : GUILD_ID (%u), GUILD_FUND (%u), GOLD (%u)\n",
+        GetGuildKey(), m_dbInfo.m_info.m_guildFund, fund);
+L_end:
+    ;
 }
 
 unsigned int CGuild::IsAddableGuildFund(unsigned int fund)
@@ -2251,9 +2277,7 @@ void CGuild::NotifyTodayGuildMember(CUser* user)
 void CGuild::QueryTodayGuildMember(CServerHandler* handler)
 {
     Packet_Query_Today_Guild_Member pkt;
-    // ORIG：仅把 m_guildKey 写入局部变量（Ghidra 反编译证实未写包字段）
-    unsigned int guildKey = m_guildKey;
-    (void)guildKey;
+    pkt.ma = m_guildKey;
     handler->SendToDB(&pkt);
 }
 
@@ -2294,19 +2318,16 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_fieldB9 = 0;
     memset(m_pad2e, 0, 0x14);
     memset(m_pad0, 0, 0x17);
-    m_flags |= 1;
-    m_flags &= ~2;
+    m_flag0 = 1;
+    m_flag1 = 0;
     memset((char*)m_skills, 0, 0x50);
     memset(m_pada4, 0, 0x15);
 }
 
 STGuildDBInfo::STGuildDBInfo()
 {
-    memset((void*)&m_info, 0, sizeof(m_info));
-    for (int i = 0; i < 300; i++)
-    {
-        memset((void*)&m_members[i], 0, sizeof(m_members[i]));
-    }
+    // 成员 m_info / m_members[] 由编译器自动构造（STGuildDBInfoOnly ctor +
+    // 300× STGuildMemberProxy ctor），与 ORIG 一致；不要再 memset 覆盖。
 }
 
 STGuildAgitDBInfo::STGuildAgitDBInfo()

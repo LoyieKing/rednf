@@ -264,25 +264,23 @@ struct STMemberDBInfo
 
 struct ST_MemberInfo
 {
-    ST_MemberInfo()
-    {
-        ((RA_S8<0>*)this)->v = 0;
-        ((RA_S8<1>*)this)->v = 0;
-        ((RA_S8<32>*)this)->v = 0;
-        ((RA_S8<33>*)this)->v = 0;
-        ((RA_UINT<34>*)this)->v = 0;
-        ((RA_UINT<38>*)this)->v = 0;
-        memset((char*)this + 2, 0, 0x1e);
-    }
-};
+    ST_MemberInfo();
+    unsigned char m_field0;    // +0
+    unsigned char m_field1;    // +1
+    char m_name[0x1e];         // +2
+    unsigned char m_field20;   // +0x20
+    unsigned char m_field21;   // +0x21
+    unsigned int m_field22;    // +0x22
+    unsigned int m_field26;    // +0x26
+} __attribute__((packed));
 
 struct STMemberListInfo
 {
     STMemberListInfo();
     ST_MemberInfo m_info;       // +0
     unsigned char m_count;      // +0x2a
-    ST_MemberInfo m_members[9]; // +0x2b
-};
+    ST_MemberInfo m_members[10]; // +0x2b
+} __attribute__((packed));
 
 struct STBuddyDBInfo
 {

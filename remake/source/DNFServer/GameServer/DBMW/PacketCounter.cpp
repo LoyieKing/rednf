@@ -30,13 +30,13 @@ CPacketCounter<Lo, Hi>::CPacketCounter(char* dir, char* name)
     *(time_t*)(m_data + 4) = time(0);
     if (dir == 0)
     {
-        sprintf(m_data + 0x1d540, "./log/%s", name);
+        sprintf(m_name, "./log/%s", name);
     }
     else
     {
-        sprintf(m_data + 0x1d540, "./log/%s/%s", dir, name);
+        sprintf(m_name, "./log/%s/%s", dir, name);
     }
-    *(unsigned char*)(m_data + 0x1d640) = 1;
+    m_flag = true;
 }
 
 template<int Lo, int Hi>
@@ -49,56 +49,71 @@ void CPacketCounter<Lo, Hi>::Reset()
 {
     for (int i = 0; i < 0x2418; i++)
     {
-        *(int*)(m_data + i * 4 + 8) = 0;
-        *(int*)(m_data + (i + 0x5138) * 4) = 0;
-        *(int*)(m_data + (i + 0x2418) * 4 + 8) = 0;
-        m_data[i + 0x120c8] = 0;
+        m_a1[i] = 0;
+        m_a2[i] = 0;
+        m_a3[i] = 0;
+        m_b[i] = 0;
     }
-    *(int*)m_data = 0;
-    m_data[0x1d641] = 0;
+    m0 = 0;
+    m_tail = 0;
 }
 
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
 {
-    if (id < 0x2800 && 999 < id &&
-        (m_data[0x1d640] == 1 ||
-         *(unsigned int*)(m_data + 8 + (id - 1000) * 4) < 0xb))
+    if (id < 0x2800 && 999 < id)
     {
-        *(int*)(m_data + 8 + (id - 1000) * 4) =
-            *(int*)(m_data + 8 + (id - 1000) * 4) + 1;
+        if (!m_flag)
+        {
+            if ((unsigned int)m_a1[id - 1000] >= 0xb)
+                return;
+        }
+        m_a1[id - 1000] = m_a1[id - 1000] + 1;
     }
 }
 
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::BeforeProcess()
 {
-    *(int*)(m_data + 0x9068) = *(int*)m_data;
-    if (*(int*)(m_data + 0x9068) == -1)
-        *(int*)(m_data + 0x9068) = 0;
+    m_a3[0] = m0;
+    while (m_a3[0] == -1)
+    {
+        m_a3[0] = 0;
+        break;
+    }
 }
 
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::AfterProcess(int id)
 {
-    if (id < 0x2800 && 999 < id &&
-        (m_data[0x1d640] == 1 ||
-         *(unsigned int*)(m_data + 8 + (id - 1000) * 4) < 0xb) &&
-        *(int*)m_data != -1)
+    if (id <= 0x27ff && 999 < id)
     {
-        int prev;
-        if (m_data[0x1d640] == 0)
+        if (!m_flag)
         {
-            prev = *(int*)(m_data + 0x9068 + (id - 1000) * 4);
-            *(int*)(m_data + 8 + (id - 1000) * 4) += 1;
-            m_data[0x11ce0 + id] = 0;
+            if ((unsigned int)m_a1[id - 1000] >= 0xb)
+                return;
+        }
+        int prev = m0;
+        bool neg = (prev == -1);
+        if (neg)
+        {
+            prev = 0;
         }
         else
         {
-            prev = *(int*)(m_data + 0x9068);
+            int delta;
+            if (m_flag != 0)
+            {
+                delta = prev - m_a3[0];
+            }
+            else
+            {
+                delta = prev - m_a3[id - 1000];
+                m_a1[id - 1000] += 1;
+                m_b[id - 1000] = 0;
+            }
+            m_a2[id - 1000] += delta;
         }
-        int diff = *(int*)m_data - prev;
-        *(int*)(m_data + (id + 0x4d50) * 4) += diff;
     }
 }
 

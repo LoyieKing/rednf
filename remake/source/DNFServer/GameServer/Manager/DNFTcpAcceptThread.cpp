@@ -32,17 +32,17 @@ void* CTcpAcceptThread::dispatch(void* param)
     if (!m_sock.open())
     {
         printf("Tcp Accept Socket Open Err");
-        return 0;
+        goto end;
     }
     if (!m_sock.bind(m_port, true))
     {
         printf("Tcp Accept Socket Bind Err");
-        return 0;
+        goto end;
     }
     if (!m_sock.listen(5))
     {
         printf("Tcp Accept Socket Listen Err");
-        return 0;
+        goto end;
     }
     m_stop = 1;
     DNFFLib::Sleep_Ext(5, 0);
@@ -53,7 +53,7 @@ void* CTcpAcceptThread::dispatch(void* param)
             if (!m_sock.pollReadEvent())
                 continue;
             CPeer* peer = m_net->CreatePeer();
-            if (!peer->GetTcpSocket()->accept(m_sock))
+            if (!m_sock.accept(*peer->GetTcpSocket()))
                 printf("Accept GameServer Fail(Port : %d)\n",
                        peer->GetTcpSocket()->getHandle());
             printf("Accept GameServer(Port : %d)\n",
@@ -74,5 +74,6 @@ void* CTcpAcceptThread::dispatch(void* param)
         puts("CTcpNetworkThread::dispatch() Except Break");
         throw CDNFException("CTcpNetworkThread::dispatch() Recv  Socket Exception Break!");
     }
-    return 0;
+end:
+    ;
 }

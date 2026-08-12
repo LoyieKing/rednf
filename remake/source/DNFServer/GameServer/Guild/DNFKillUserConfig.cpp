@@ -82,7 +82,9 @@ void CKillUSRConfig::Clear_Table()
         for (std::vector<ST_KillUSRConfig*>::iterator it = m_infos.begin(); it != m_infos.end();
              ++it)
         {
-            ::operator delete(*it);
+            ST_KillUSRConfig* p = *it;
+            delete p;
+            p = 0;
         }
         m_infos.clear();
     }
@@ -94,20 +96,18 @@ int CKillUSRConfig::Parse_Table(char* line, int idx)
     {
         return 0;
     }
-    char* tok0 = 0;
-    char* tok1 = 0;
-    char* tok2 = 0;
-    char* tok3 = 0;
-    int n = DNFFLib::ExplodeString(line, " \t\r\n\"", &tok0, 4);
-    if (n == 4)
+    char* tok[4];
+    ST_KillUSRConfig* p;
+    int x;  // ORIG 帧布局对齐（第 22 轮回归）
+    if (DNFFLib::ExplodeString(line, " \t\r\n\"", tok, 4) == 4)
     {
-        ST_KillUSRConfig* p = new (std::nothrow) ST_KillUSRConfig;
+        p = new (std::nothrow) ST_KillUSRConfig;
         if (p != 0)
         {
-            p->m_field0 = atoi(tok0);
-            p->m_field1 = atoi(tok1);
-            p->m_field2 = atoi(tok2);
-            p->m_field3 = atoi(tok3);
+            p->m_field0 = atoi(tok[0]);
+            p->m_field1 = atoi(tok[1]);
+            p->m_field2 = atoi(tok[2]);
+            p->m_field3 = atoi(tok[3]);
             m_infos.push_back(p);
             return 1;
         }
@@ -134,12 +134,11 @@ ST_KillUSRConfig::ST_KillUSRConfig()
     m_field3 = 0;
 }
 
-std::vector<ST_KillUSRConfig*>* CKillUSRConfig::GetInfo() const
+const std::vector<ST_KillUSRConfig*>* CKillUSRConfig::GetInfo() const
 {
-    return const_cast<std::vector<ST_KillUSRConfig*>*>(&m_infos);
+    return &m_infos;
 }
 
 CKillUSRConfig::CKillUSRConfig()
 {
 }
-

@@ -3,7 +3,7 @@
 
 #include "DNFInnerMsgHandler.h"
 
-CInnerMsgHandler::CInnerMsgHandler()
+CInnerMsgHandler::CInnerMsgHandler() throw()
 {
 }
 CInnerMsgHandler::~CInnerMsgHandler()

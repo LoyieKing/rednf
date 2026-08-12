@@ -23,8 +23,8 @@ public:
     void SendToTcpServer(char* buf, int len, unsigned char idx);
     void SendAllTcpServer(PacketHeader* header);
     void SendAllToMonitorServer(char* buf, int len);
-    char CreateTcpServer(unsigned char idx, unsigned int port);
-    char DeleteTcpServer(unsigned char idx);
+    int CreateTcpServer(unsigned char idx, unsigned int port);
+    bool DeleteTcpServer(unsigned char idx);
     void Process();
     void Load(ST_ServerInfo* info);
     CTcpServer* GetTcpServer(unsigned int idx);
@@ -32,13 +32,13 @@ public:
     CMonitorServer* GetMonitorServer(int idx);
     int GetAlivedMonitorServer();
     void ResetHeartBeat(unsigned char idx);
-    char IsConnectedMonitorServer(unsigned char idx);
+    bool IsConnectedMonitorServer(unsigned char idx);
     void CheckTcpServerHeartbeat();
     void SetConnectFlag(unsigned char idx, bool flag);
     CMonitorServer m_monitorServers[0x65];  // +0（101 × 0x14 = 0x7e4）
     CApplication* m_app;  // +0x7e4
     std::map<unsigned int, CTcpServer*> m_tcpServers;  // +0x7e8
-    char m_pad[4];        // +0x800（sizeof=0x804）
+    int m_pad;            // +0x800（sizeof=0x804）
 };
 
 #endif  // DNF_SERVER_HANDLER_H_

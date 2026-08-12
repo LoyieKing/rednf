@@ -171,10 +171,12 @@ void EventManager::StartEvent(unsigned char startHour, unsigned char interval,
 
 void EventManager::sendDeleteEffect()
 {
+    char stack_pad[8]; // 对齐 ORIG 中 pkt 的栈槽（-0x22），与 CMyFileLog 临时对象不重叠
     Packet_Arad_DeleteEffect pkt(
         (int)(unsigned char)((CApplication*)CApplicationInstance())->Get_ServerGroup(), 2);
     ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x9e, "./log/AradOnly", "[Momiji] delete effect. (code:%u)", 2);
+    (void)stack_pad;
 }
 
 void EventManager::EndEvent()

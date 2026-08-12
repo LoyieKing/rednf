@@ -33,11 +33,12 @@ void CHWSpecResearcher::WriteSpecStatics(unsigned char param, const HWSpec& spec
             (unsigned int)param);
         return;
     }
+    std::map<STSpecStatic, unsigned int>* pMap = &m_spec[param];
     STSpecStatic key(spec);
-    std::map<STSpecStatic, unsigned int>::iterator it = m_spec[param].find(key);
-    if (m_spec[param].empty() || it == m_spec[param].end())
+    std::map<STSpecStatic, unsigned int>::iterator it = pMap->find(key);
+    if (pMap->empty() || it == pMap->end())
     {
-        m_spec[param].insert(std::make_pair(key, 1));
+        pMap->insert(std::make_pair(key, 1));
     }
     else
     {
@@ -47,17 +48,18 @@ void CHWSpecResearcher::WriteSpecStatics(unsigned char param, const HWSpec& spec
 void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char param)
 {
     Packet_DBMW_Save_Client_Spec_Statistic pkt;
-    unsigned int count = 0;
+    std::map<STSpecStatic, unsigned int>* pMap = &m_spec[param];
     pkt.m_fieldA = (char)param;
-    if (!m_spec[param].empty())
+    unsigned int count = 0;
+    if (!pMap->empty())
     {
-        for (std::map<STSpecStatic, unsigned int>::iterator it = m_spec[param].begin();
-             it != m_spec[param].end(); ++it)
+        for (std::map<STSpecStatic, unsigned int>::iterator it = pMap->begin();
+             it != pMap->end(); ++it)
         {
-            memcpy((char*)&pkt + 0xf + count * 0xe + 2, &it->first, 0xc);
+            const STSpecStatic* pSpec = &it->first;
+            memcpy((char*)&pkt + 0xf + count * 0xe + 2, pSpec, 0xc);
             *(short*)((char*)&pkt + 0xf + count * 0xe) = (short)it->second;
-            count++;
-            if (0x1b3 < count)
+            if (0x1b3 < (++count))
             {
                 pkt.m_fieldB = 0x1b4;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -67,15 +69,14 @@ void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char pa
         if (count != 0)
         {
             pkt.m_fieldB = count;
-            *(short*)((char*)&pkt + 8) = (short)(count * 0xe + 0xf);
+            pkt.packetSize = (unsigned short)(count * 0xe + 0xf);
             handler->SendToDB((PacketHeader*)&pkt);
         }
     }
 }
 void CHWSpecResearcher::DBSaveProcess(CServerHandler* handler)
 {
-    m_field48++;
-    if (0x1d < (unsigned char)m_field48)
+    if ((++m_field48) > 0x1d)
     {
         m_field48 = 0;
         for (int i = 0; i < 3; i++)
@@ -84,8 +85,7 @@ void CHWSpecResearcher::DBSaveProcess(CServerHandler* handler)
         }
         ResetSpec();
     }
-    m_field68++;
-    if (0x2c < (unsigned char)m_field68)
+    if ((++m_field68) > 0x2c)
     {
         m_field68 = 0xf;
         SendDBMWErrorLine(handler);
@@ -118,21 +118,20 @@ void CHWSpecResearcher::SendDBMWErrorLine(CServerHandler* handler)
         for (std::map<STErrorStatic, unsigned int>::iterator it = m_errorSpec.begin();
              it != m_errorSpec.end(); ++it)
         {
-            *(unsigned short*)((char*)&pkt + 0xe + count * 10) = it->first.m_field0;
-            *(int*)((char*)&pkt + 0xe + count * 10 + 4) = it->first.m_field4;
-            *(int*)((char*)&pkt + 0xe + count * 10 + 8) = (int)it->second;
-            count++;
-            if (0x263 < count)
+            pkt.m_items[count].m_field4 = it->first.m_field0;
+            pkt.m_items[count].m_field0 = it->first.m_field4;
+            pkt.m_items[count].m_field6 = (int)it->second;
+            if (0x263 < (++count))
             {
-                *(int*)((char*)&pkt + 0xa) = 0x264;
+                pkt.m_count = 0x264;
                 handler->SendToDB((PacketHeader*)&pkt);
                 count = 0;
             }
         }
         if (count != 0)
         {
-            *(int*)((char*)&pkt + 0xa) = count;
-            *(short*)((char*)&pkt + 8) = (short)(((count << 2) + count) * 2 + 0xe);
+            pkt.m_count = count;
+            pkt.packetSize = (unsigned short)(((count << 2) + count) * 2 + 0xe);
             handler->SendToDB((PacketHeader*)&pkt);
         }
     }

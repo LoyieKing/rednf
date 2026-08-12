@@ -30,7 +30,7 @@ public:
     virtual void Load_Table(const std::string& path);
     virtual int Parse_Table(char* line, int idx);
     void Clear_Table();
-    std::vector<ST_KillUSRConfig*>* GetInfo() const;
+    const std::vector<ST_KillUSRConfig*>* GetInfo() const;
     std::vector<ST_KillUSRConfig*> m_infos;  // +4
 };
 

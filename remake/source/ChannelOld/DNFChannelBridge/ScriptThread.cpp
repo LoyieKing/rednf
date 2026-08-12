@@ -161,9 +161,17 @@ RELOAD_SCRIPT:
                 DBMgr_.Mysql_query(query);
             }
             row = *DBMgr_.Mysql_fetch(row, res);
-            // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）：
-            // ORIG 的 row != NULL 死比较无法用纯 C++ 复现，按规矩归入
-            // caliber_issues.csv（REMAIN），不再用内联 asm 强制。
+            // 第 14 轮纯 C++ 修复：ORIG 在此保留 row != NULL 死比较
+            // （mov row; test %eax,%eax; mov row）。switch 空分支
+            // （case 0/1 均 break 汇合）令 GCC -O0 保留 test 而不产生跳转，
+            // 逐指令复现 ORIG，无需内联 asm。
+            switch (row != NULL)
+            {
+            case 0:
+                break;
+            case 1:
+                break;
+            }
             if (strcmp(G_ScriptData()->channel_script_version, row[0]) != 0)
             {
                 GLOG(gFileLogInfo, "Script Reload : cur=" << row[0]

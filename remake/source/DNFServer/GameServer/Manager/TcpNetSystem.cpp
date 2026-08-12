@@ -60,31 +60,26 @@ int CTcpNetSystem::OpenTcpService(int& serverCount, const char* ip, unsigned sho
     if (!sock->open())
     {
         puts("tcpSock.open() Fail!");
-        CMyFileLog log(__FUNCTION__, 0x118);
-        log("./log/TcpServer", "tcpSock.open() Fail!");
+        DNF_LOG_SCOPE_LINE(0x118, "./log/TcpServer", "tcpSock.open() Fail!");
         DeletePeer(peer);
         return 0;
     }
-    else if (!sock->connect(ip, port))  // R10: else-if 结构变体
+    else if (!sock->connect(ip, port))
     {
         // ORIG 实测：puts 文案 "tcpSock.connect Fail!"，日志文案
         // "tcpSock.connect(%s, %d) Fail!"。
         puts("tcpSock.connect Fail!");
         register int nPort = port;  // R10: register 局部变体（对齐 ORIG ctor 前 ebx 预装载）
-        CMyFileLog log(__FUNCTION__, 0x123);
-        log("./log/TcpServer", "tcpSock.connect(%s, %d) Fail!", ip, nPort);
+        DNF_LOG_SCOPE_LINE(0x123, "./log/TcpServer", "tcpSock.connect(%s, %d) Fail!", ip, nPort);
         DeletePeer(peer);
         return 0;
     }
-    else
-    {
-        sock->setOptNonBlock();
-        peer->InitPeer(Get_TcpSwapQPacket()->GetRecvQ(), Get_TcpRecvQLock(), Get_TcpRecvBLock());
-        peer->ConnSig();
-        SetEpollConnectedPeer(peer);
-        serverCount = sock->getHandle();
-        return 1;
-    }
+    sock->setOptNonBlock();
+    peer->InitPeer(Get_TcpSwapQPacket()->GetRecvQ(), Get_TcpRecvQLock(), Get_TcpRecvBLock());
+    peer->ConnSig();
+    SetEpollConnectedPeer(peer);
+    serverCount = sock->getHandle();
+    return 1;
 }
 
 int CTcpNetSystem::WaitForEvent()
@@ -99,12 +94,10 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
     int n = m_sendQueue.size();
     if (n > 0xa)
     {
-        // ORIG：三个字段在 CMyFileLog ctor 前预装载到 edi/esi/ebx（register 形态）
-        register int ip = *(int*)((char*)buf + 6);
-        register unsigned short size = *(unsigned short*)((char*)buf + 2);
-        register unsigned short id = *(unsigned short*)((char*)buf);
-        CMyFileLog log(__FUNCTION__, 0x91);
-        log("./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", n, id, size, ip);
+        // ORIG 形态：临时对象宏（实参在 ctor 前从右到左求值入 edi/esi/ebx）
+        DNF_LOG_SCOPE_LINE(0x91, "./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)",
+            n, ((CTcpSendBuffer*)buf)->m_id, ((CTcpSendBuffer*)buf)->m_size,
+            ((CTcpSendBuffer*)buf)->m_ip);
     }
 }
 
@@ -200,52 +193,72 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
 }
 int CTcpNetSystem::SendPacket()
 {
-    CGuard<CMutex> guard(&m_mutexE8);
-    if (m_sendQueue.empty())
-        return 0;
-    CTcpSendBuffer* buf = m_sendQueue.front();
-    if (!buf)
-        return 0;
-    std::map<unsigned int, CPeer*>::iterator it =
-        m_peerMap.find(*(unsigned int*)((char*)buf + 6));
-    if (it == m_peerMap.end())
+    // R14：ORIG 形态——queue 访问在 guard 内层作用域，flag(esi)/ret(ebx) 寄存器变量，
+    // buf(-0x2c) 用于 PopDelete、b2(-0x28) 副本用于字段访问。
+    register int ret;
+    register int flag;
+    CTcpSendBuffer* buf;
+    CTcpSendBuffer* b2;
+    CPeer* peer;
+    int result;
+    int cnt;
     {
-        register int ip = *(int*)((char*)buf + 6);
-        register unsigned short size = *(unsigned short*)((char*)buf + 2);
-        register unsigned short id = *(unsigned short*)((char*)buf);
-        CMyFileLog log(__FUNCTION__, 0xba);
-        log("./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
-            id, size, ip);
-        PopDeleteTcpSendPacketQ(buf);
-        return 0;
+        CGuard<CMutex> guard(&m_mutexE8);
+        if (m_sendQueue.empty())
+        {
+            ret = 0;
+            flag = 0;
+        }
+        else
+        {
+            buf = m_sendQueue.front();
+            flag = 1;
+        }
     }
-    CPeer* peer = it->second;
-    if (peer == 0 || peer->GetTcpSocket()->getHandle() != *(int*)((char*)buf + 6))
+    if (flag)
     {
-        register int ip = *(int*)((char*)buf + 6);
-        register unsigned short size = *(unsigned short*)((char*)buf + 2);
-        register unsigned short id = *(unsigned short*)((char*)buf);
-        CMyFileLog log(__FUNCTION__, 0xc3);
-        log("./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
-            peer, id, size, ip);
-        PopDeleteTcpSendPacketQ(buf);
-        return 0;
+        if (!buf)
+        {
+            ret = 0;
+            goto done;
+        }
+        b2 = buf;
+        std::map<unsigned int, CPeer*>::iterator it = m_peerMap.find(*(unsigned int*)((char*)b2 + 6));
+        if (it == m_peerMap.end())
+        {
+            DNF_LOG_SCOPE_LINE(0xba, "./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
+                b2->m_id, b2->m_size, b2->m_ip);
+            PopDeleteTcpSendPacketQ(buf);
+            ret = 0;
+        }
+        else
+        {
+            peer = it->second;
+            if (peer == 0 || b2->m_ip != peer->GetTcpSocket()->getHandle())
+            {
+                DNF_LOG_SCOPE_LINE(0xc3, "./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
+                    peer, b2->m_id, b2->m_size, b2->m_ip);
+                PopDeleteTcpSendPacketQ(buf);
+                ret = 0;
+            }
+            else
+            {
+                result = peer->send_packet((char*)b2, b2->m_size);
+                if (result > 0)
+                {
+                    PopDeleteTcpSendPacketQ(buf);
+                }
+                else
+                {
+                    cnt = (int)m_sendQueue.size();
+                    DNF_LOG_SCOPE_LINE(0xd5, "./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
+                        b2->m_id, b2->m_size, b2->m_ip, cnt);
+                }
+                ret = result;
+            }
+        }
     }
-    int ret = peer->send_packet((char*)buf, *(unsigned short*)((char*)buf + 2));
-    if (ret > 0)
-    {
-        PopDeleteTcpSendPacketQ(buf);
-    }
-    else
-    {
-        register int cnt = (int)m_sendQueue.size();
-        register int ip = *(int*)((char*)buf + 6);
-        register unsigned short size = *(unsigned short*)((char*)buf + 2);
-        register unsigned short id = *(unsigned short*)((char*)buf);
-        CMyFileLog log(__FUNCTION__, 0xd5);
-        log("./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
-            cnt, id, size, ip);
-    }
+done:
     return ret;
 }
 void CTcpNetSystem::PopDeleteTcpSendPacketQ(CTcpSendBuffer* buf)

@@ -5,7 +5,7 @@
 class CInnerMsgHandler
 {
 public:
-    CInnerMsgHandler();
+    CInnerMsgHandler() throw();
     ~CInnerMsgHandler();
     void SendStopNetworkThread();
 };

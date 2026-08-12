@@ -27,14 +27,14 @@ void CMutex::unlock() {
 }
 
 template<class T>
-CGuard<T>::CGuard(T* mutex) {
+CGuard<T>::CGuard(T* mutex) throw() {
     // 原始：先 lock（直接对参数调用），再保存成员
     mutex->lock();
     m_mutex = mutex;
 }
 
 template<class T>
-CGuard<T>::~CGuard() {
+CGuard<T>::~CGuard() throw() {
     m_mutex->unlock();
 }
 

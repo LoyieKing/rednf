@@ -13,7 +13,7 @@
 
 namespace nsl {
 
-DBDispatcher::DBDispatcher()
+DBDispatcher::DBDispatcher() throw()
 {
 }
 

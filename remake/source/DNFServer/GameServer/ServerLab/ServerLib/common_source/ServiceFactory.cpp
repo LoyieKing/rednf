@@ -25,15 +25,6 @@
 
 namespace nsl {
 
-/*
- * ORIG startup() constructs these with operator new + C1 and no EH landing pads
- * (ctors are trivial / non-throwing). Calling via throw()-spec aliases prevents
- * gcc from emitting _ZdlPv/_Unwind_Resume around the construction.
- */
-void call_TCPDispatcher_ctor(TCPDispatcher* p) throw() asm("_ZN3nsl13TCPDispatcherC1Ev");
-void call_InterDispatcher_ctor(InterDispatcher* p) throw() asm("_ZN3nsl15InterDispatcherC1Ev");
-void call_DBDispatcher_ctor(DBDispatcher* p) throw() asm("_ZN3nsl12DBDispatcherC1Ev");
-
 char configpath[256];
 
 Threads::Threads()
@@ -192,20 +183,13 @@ int ServiceFactory::startup()
     puts("NSLDBThread \xb0\xb4\xc3\xbc \xbb\xfd\xbc\xba...");
     super_Threads.threadDB_[0] = new NSLDBThread;
     puts("NSLDBThread \xb0\xb4\xc3\xbc \xbf\xcf\xb7\xe1...");
-    /* ORIG: operator new + C1（ebx 临时），无 EH pads（throw()-spec ctor aliases）。 */
-    register TCPDispatcher* pTCPDispatcher =
-        (TCPDispatcher*)::operator new(sizeof(TCPDispatcher));
-    call_TCPDispatcher_ctor(pTCPDispatcher);
-    super_Dispatchers.dispatcherTCP = pTCPDispatcher;
+    // ORIG：plain `new`（ctor 体无调用不可抛 → 无 EH pads），
+    // ebx→eax 传参、ebx→edx 存成员（v5 形态）。
+    super_Dispatchers.dispatcherTCP = new TCPDispatcher;
     puts("TCPDispatcher has been created...");
-    register InterDispatcher* pInterDispatcher =
-        (InterDispatcher*)::operator new(sizeof(InterDispatcher));
-    call_InterDispatcher_ctor(pInterDispatcher);
-    super_Dispatchers.mpInterDispatcher = pInterDispatcher;
+    super_Dispatchers.mpInterDispatcher = new InterDispatcher;
     puts("InterDispatcher has been created...");
-    register DBDispatcher* pDBDispatcher = (DBDispatcher*)::operator new(sizeof(DBDispatcher));
-    call_DBDispatcher_ctor(pDBDispatcher);
-    super_Dispatchers.dispatcherDB = pDBDispatcher;
+    super_Dispatchers.dispatcherDB = new DBDispatcher;
     puts("DBDispatcher \xb0\xb4\xc3\xbc \xbf\xcf\xb7\xe1...");
     puts("\xbc\xad\xba\xf1\xbd\xba \xbe\xb2\xb7\xb9\xb5\xe5 \xb1\xb8\xb5\xbf \xbd\xc3\xc0\xdb");
     G_TraceLog()->sysLog(0, "\xbc\xad\xba\xf1\xbd\xba \xbe\xb2\xb7\xb9\xb5\xe5 \xb1\xb8\xb5\xbf \xbd\xc3\xc0\xdb");

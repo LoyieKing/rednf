@@ -96,24 +96,22 @@ bool TCPSocket::open()
     m_sock = socket(2, 1, 0);
     if (m_sock == -1)
     {
-        printf("Could not create a TDP socket : %d\n", errno);
+        int err = errno;
+        printf("Could not create a TDP socket : %d\n", err);
+        return 0;
     }
-    if (m_sock != -1)
-    {
-        return true;
-    }
-    return false;
+    return 1;
 }
 
-int TCPSocket::bind(unsigned short port, bool flag)
+bool TCPSocket::bind(unsigned short port, bool flag)
 {
     setOptReuseAdrs(true);
-    sockaddr local;
+    sockaddr_in local;
     memset(&local, 0, 0x10);
-    local.sa_family = 2;
-    *(unsigned short*)local.sa_data = htons(port);
-    int r = ::bind(m_sock, &local, 0x10);
-    if (r < 0)
+    local.sin_family = 2;
+    local.sin_port = htons(port);
+    local.sin_addr.s_addr = 0;
+    if ((unsigned)::bind(m_sock, (sockaddr*)&local, 0x10) >> 31)
     {
         close();
         return 0;
@@ -128,12 +126,12 @@ int TCPSocket::bind(unsigned short port, bool flag)
 
 bool TCPSocket::listen(int backlog)
 {
-    int r = ::listen(m_sock, backlog);
-    if (-1 >= r)
+    if ((unsigned)::listen(m_sock, backlog) >> 31)
     {
         close();
+        return 0;
     }
-    return -1 < r;
+    return 1;
 }
 
 int TCPSocket::send(char* buf, int len)
@@ -146,13 +144,14 @@ int TCPSocket::send(char* buf, int len)
     int r = write(m_sock, buf, len);
     if (r < 1)
     {
-        if (errno != EAGAIN && errno != EINTR && errno != 0)
+        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
         {
-            printf("tcp send fail='%d', error ='%s'", r, strerror(errno));
-            return -1;
+            printf("\xbf\xa9\xb1\xe2 \xb0\xc9\xb8\xae\xb8\xe9\xbc\xad errno \xb0\xa1 0 \xc0\xcc\xb8\xe9 \xb9\xae\xc1\xa6 \xb9\xdf\xbb\xfd \xc7\xd1\xb4\xd9 !!!! \xb2\xc0 \xc8\xae\xc0\xce!!!");
+            printf("tcp send retry='%d', error ='%s'", r, strerror(errno));
+            return 0;
         }
-        printf("tcp send retry='%d', error ='%s'", r, strerror(errno));
-        return 0;
+        printf("tcp send fail='%d', error ='%s'", r, strerror(errno));
+        return -1;
     }
     printf("1.tcp send='%d', error ='%s'", r, strerror(errno));
     return r;
@@ -168,7 +167,7 @@ int TCPSocket::recv(char* buf, int len)
     int r = read(m_sock, buf, len);
     if (r < 0)
     {
-        if (errno == EAGAIN || errno == EINTR || errno == 0)
+        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
         {
             return 0;
         }
@@ -178,6 +177,7 @@ int TCPSocket::recv(char* buf, int len)
         printf("tcp recv : FIN recv, %s", strerror(errno));
         return -1;
     }
+    printf("tcp recv ='%d'", r);
     return r;
 }
 
@@ -188,9 +188,8 @@ int TCPSocket::getHandle() const
 
 int TCPSocket::shutdown(int how)
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。ORIG 不调用 ::shutdown(2)；
-    // 纯 C++ 形态无法逐字节复现，按规矩归入 caliber_issues.csv（REMAIN）。
-    return ::shutdown(m_sock, how);
+    m_sock == -1;
+    return m_sock;
 }
 
 void TCPSocket::close()
@@ -208,68 +207,64 @@ void TCPSocket::close()
 bool TCPSocket::setOptNonBlock()
 {
     int flags = fcntl(m_sock, 3, 0);
-    int r = fcntl(m_sock, 4, flags | 0x800);
-    return -1 < r;
+    flags |= 0x800;
+    if ((unsigned)fcntl(m_sock, 4, flags) >> 31) return 0;
+    return 1;
 }
 
 bool TCPSocket::setOptReuseAdrs(bool flag)
 {
-    int v = (int)flag;
-    int r = setsockopt(m_sock, 1, 2, &v, 4);
-    return -1 < r;
+    int v = 0;
+    if (flag) v = 1; else v = 0;
+    if ((unsigned)setsockopt(m_sock, 1, 2, &v, 4) >> 31) return 0;
+    return 1;
 }
 
 bool TCPSocket::setOptLinger(bool flag)
 {
     int v[2];
-    if (flag)
-    {
-        v[0] = 1;
-    }
-    else
-    {
-        v[0] = 0;
-    }
+    v[0] = flag ? 1 : 0;
     v[1] = 0;
-    int r = setsockopt(m_sock, 1, 0xd, v, 8);
-    return -1 < r;
+    if ((unsigned)setsockopt(m_sock, 1, 0xd, v, 8) >> 31) return 0;
+    return 1;
 }
 
 bool TCPSocket::connect(const char* ip, unsigned short port)
 {
-    sockaddr local;
+    sockaddr_in local;
     memset(&local, 0, 0x10);
-    local.sa_family = 2;
-    *(unsigned int*)(local.sa_data + 2) = inet_addr(ip);
-    *(unsigned short*)local.sa_data = htons(port);
-    int r = ::connect(m_sock, &local, 0x10);
-    if (-1 < r)
-    {
-        memcpy((char*)this + 0x14, local.sa_data + 2, 4);
-        *(unsigned short*)((char*)this + 0x18) = *(unsigned short*)local.sa_data;
-    }
-    else
+    local.sin_family = 2;
+    local.sin_addr.s_addr = inet_addr(ip);
+    local.sin_port = htons(port);
+    int len = 0x10;
+    if ((unsigned)::connect(m_sock, (sockaddr*)&local, len) >> 31)
     {
         printf("CONNECTION FAIL IP =%s, PORT =%d, reason =%s", ip, (unsigned int)port,
                strerror(errno));
+        return 0;
     }
-    return -1 < r;
+    memcpy(m_peerAdrs, &local.sin_addr, 4);
+    m_peerPort = local.sin_port;
+    return 1;
 }
 
 bool TCPSocket::pollReadEvent() const
 {
     fd_set fds;
-    for (unsigned int i = 0; i < 0x20; i++)
+    timeval tv;
+    int n;
+    unsigned int i;
+    fd_set* p = &fds;
+    for (i = 0; i < 0x20; i++)
     {
-        fds.fds_bits[i] = 0;
+        p->fds_bits[i] = 0;
     }
     fds.fds_bits[(unsigned int)m_sock >> 5] =
-        (1 << ((unsigned int)m_sock & 0x1f)) | fds.fds_bits[(unsigned int)m_sock >> 5];
-    timeval tv;
+        fds.fds_bits[(unsigned int)m_sock >> 5] | (1 << ((unsigned int)m_sock & 0x1f));
     tv.tv_sec = 5;
     tv.tv_usec = 0;
-    int r = select(m_sock + 1, &fds, 0, 0, &tv);
-    if (r < 0)
+    n = 0;
+    if ((unsigned)(n = select(m_sock + 1, &fds, 0, 0, &tv)) >> 31)
     {
         printf("pollReadEvent(%s)", strerror(errno));
         return 0;
@@ -280,17 +275,20 @@ bool TCPSocket::pollReadEvent() const
 bool TCPSocket::pollWriteEvent() const
 {
     fd_set fds;
-    for (unsigned int i = 0; i < 0x20; i++)
+    timeval tv;
+    int n;
+    unsigned int i;
+    fd_set* p = &fds;
+    for (i = 0; i < 0x20; i++)
     {
-        fds.fds_bits[i] = 0;
+        p->fds_bits[i] = 0;
     }
     fds.fds_bits[(unsigned int)m_sock >> 5] =
-        (1 << ((unsigned int)m_sock & 0x1f)) | fds.fds_bits[(unsigned int)m_sock >> 5];
-    timeval tv;
+        fds.fds_bits[(unsigned int)m_sock >> 5] | (1 << ((unsigned int)m_sock & 0x1f));
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int r = select(2, 0, &fds, 0, &tv);
-    if (r < 0)
+    n = 0;
+    if ((unsigned)(n = select(2, 0, &fds, 0, &tv)) >> 31)
     {
         printf("pollWriteEvent(%s)", strerror(errno));
         return 0;
@@ -301,22 +299,79 @@ bool TCPSocket::pollWriteEvent() const
 bool TCPSocket::pollErrorEvent() const
 {
     fd_set fds;
-    for (unsigned int i = 0; i < 0x20; i++)
+    timeval tv;
+    int n;
+    unsigned int i;
+    fd_set* p = &fds;
+    for (i = 0; i < 0x20; i++)
     {
-        fds.fds_bits[i] = 0;
+        p->fds_bits[i] = 0;
     }
     fds.fds_bits[(unsigned int)m_sock >> 5] =
-        (1 << ((unsigned int)m_sock & 0x1f)) | fds.fds_bits[(unsigned int)m_sock >> 5];
-    timeval tv;
+        fds.fds_bits[(unsigned int)m_sock >> 5] | (1 << ((unsigned int)m_sock & 0x1f));
     tv.tv_sec = 1;
     tv.tv_usec = 0;
-    int r = select(2, 0, 0, &fds, &tv);
-    if (r < 0)
+    n = 0;
+    if ((unsigned)(n = select(2, 0, 0, &fds, &tv)) >> 31)
     {
         printf("pollErrorEvent(%s)", strerror(errno));
         return 0;
     }
     return (fds.fds_bits[(unsigned int)m_sock >> 5] >> ((unsigned int)m_sock & 0x1f)) & 1;
+}
+
+bool TCPSocket::accept(TCPSocket& peer)
+{
+    socklen_t slen = 0x10;
+    peer.m_sock = ::accept(m_sock, (sockaddr*)peer.m_sockaddr, &slen);
+    if (peer.m_sock == 0)
+    {
+        FILE* f = fopen("log.txt", "a+");
+        if (f != 0)
+        {
+            fprintf(f, "[TCPSocket::Accept] Accept fail[%d]\n", peer.m_sock);
+            fclose(f);
+        }
+    }
+    if (peer.m_sock < 0 || peer.m_sock == -1)
+    {
+        FILE* f = fopen("log.txt", "a+");
+        if (f != 0)
+        {
+            fprintf(f, "[TCPSocket::Accept] Accept fail[%d]\n", peer.m_sock);
+            fclose(f);
+        }
+        return 0;
+    }
+    memcpy(peer.m_peerAdrs, (char*)&peer + 8, 4);
+    peer.m_peerPort = *(unsigned short*)((char*)&peer + 6);
+    peer.setOptNonBlock();
+    return 1;
+}
+
+int TCPSocket::setOptResizeSendBuf(int size)
+{
+    if (size < 1)
+    {
+        return 0;
+    }
+    int b, a;
+    a = 0;
+    b = 4;
+    int r = setsockopt(m_sock, 1, 7, &size, 4);
+    if (r >> 31) return 0;
+    return 1;
+}
+
+int TCPSocket::setOptResizeRecvBuf(int size)
+{
+    if (size < 1)
+    {
+        return 0;
+    }
+    int r = setsockopt(m_sock, 1, 8, &size, 4);
+    if (r >> 31) return 0;
+    return 1;
 }
 
 int TCPSocket::pollReadWriteErrEvent() const
@@ -366,27 +421,6 @@ int TCPSocket::pollReadWriteErrEvent() const
     return result;
 }
 
-int TCPSocket::accept(TCPSocket& peer)
-{
-    socklen_t slen = 0x10;
-    int fd = ::accept(m_sock, (sockaddr*)((char*)&peer + 4), &slen);
-    peer.m_sock = fd;
-    if (fd == 0 || fd == -1)
-    {
-        FILE* f = fopen("log.txt", "a+");
-        if (f != 0)
-        {
-            fprintf(f, "[TCPSocket::Accept] Accept fail[%d]\n", peer.m_sock);
-            fclose(f);
-        }
-        return 0;
-    }
-    memcpy((char*)&peer + 0x14, (char*)&peer + 8, 4);
-    *(unsigned short*)((char*)&peer + 0x18) = *(unsigned short*)((char*)&peer + 6);
-    peer.setOptNonBlock();
-    return 1;
-}
-
 char* TCPSocket::getPeerIP()
 {
     static char ip[16];
@@ -404,22 +438,4 @@ char* TCPSocket::getPeerAdrs()
 unsigned short TCPSocket::getPeerPort()
 {
     return m_peerPort;
-}
-
-int TCPSocket::setOptResizeSendBuf(int size)
-{
-    if (size < 1)
-    {
-        return 0;
-    }
-    return setsockopt(m_sock, 1, 7, &size, 4) < 0 ? 0 : 1;
-}
-
-int TCPSocket::setOptResizeRecvBuf(int size)
-{
-    if (size < 1)
-    {
-        return 0;
-    }
-    return setsockopt(m_sock, 1, 8, &size, 4) < 0 ? 0 : 1;
 }

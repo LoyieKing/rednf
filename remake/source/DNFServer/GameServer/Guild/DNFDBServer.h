@@ -38,7 +38,7 @@ public:
     bool IsValidServer();
     char* GetIP();
     unsigned short GetPort();
-    int* GetSockRef();
+    int& GetSockRef();
     int GetSock();
     void Clear();
     void SendLogin();

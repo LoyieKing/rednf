@@ -312,8 +312,8 @@ public:
     CRewardUserList m_rewardList;  // +4
     int m_field1c;             // +0x1c
     int m_field20;             // +0x20
-    int m_field24;             // +0x24
-    int m_field28;             // +0x28
+    unsigned int m_field24;    // +0x24
+    unsigned int m_field28;    // +0x28
     ENUM_ONTIME_EVENT_STATE m_state2c;  // +0x2c（枚举成员：enum 比较才出 ORIG 的 eax 形态）
     unsigned int m_field30;             // +0x30（无符号：赋值先载 this 的 ORIG 形态）
     unsigned char m_field34;   // +0x34

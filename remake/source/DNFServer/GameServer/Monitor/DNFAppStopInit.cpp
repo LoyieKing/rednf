@@ -38,8 +38,8 @@ void CAppStopInit::Init(CApplication* app, int argc, char** argv)
     app->Clear();
     {
         std::string pidFile(argv[1]);
-        char ok = app->Send_Term_Signal(pidFile);
-        if (ok != 1)
+        bool fail = !app->Send_Term_Signal(pidFile);
+        if (fail)
         {
             throw CDNFException(
                 "CAppStopInit::Init()\xbf\xa1 \xc0\xc7\xc7\xd8 \xb0\xad\xc1\xa6\xb7\xce \xc1\xbe\xb7\xe1\xb5\xc7\xbe\xfa\xc0\xbd!");

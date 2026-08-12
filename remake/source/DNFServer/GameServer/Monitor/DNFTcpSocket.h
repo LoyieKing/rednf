@@ -256,7 +256,7 @@ public:
     int send(char* buf, int len);
     int recv(char* buf, int len);
     void close();
-    int shutdown(int how);
+    void shutdown(int how);
     char* getPeerIP();
     char setOptResizeSendBuf(int size);
     char setOptResizeRecvBuf(int size);

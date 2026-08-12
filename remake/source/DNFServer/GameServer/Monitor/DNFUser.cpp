@@ -198,7 +198,8 @@ void CUser::MemberEnterProcess()
     if (((RA_INT<28>*)this)->v != 0)
     {
         ((RA_S8<26>*)this)->v = ((RA_S8<26>*)this)->v - 1;
-        if ((signed char)((RA_S8<26>*)this)->v <= 0)
+        bool done = (signed char)((RA_S8<26>*)this)->v <= 0;
+        if (done)
         {
             ((RA_INT<28>*)this)->v = 0;
             ((RA_S8<26>*)this)->v = 0;
@@ -344,7 +345,7 @@ void CUser::SetTcpGameServer(CTcpGameServer* server)
 void CUser::QueryBuddyInfo(CServerHandler* handler)
 {
     Packet_DBMW_Query_Buddy_Info pkt;
-    ((RA_UINT<10>*)&pkt)->v = GetUniqCharNo();
+    unsigned int v = GetUniqCharNo();
     handler->SendToDB(&pkt);
 }
 
@@ -575,13 +576,10 @@ void CUser::ResetRequestMemberEnter()
 
 char CUser::RecordCallMemberEnter(unsigned int callerId, unsigned short count)
 {
-    char old = ((RA_S8<26>*)this)->v;
-    if (old == 0)
-    {
-        ((RA_UINT<28>*)this)->v = callerId;
-        ((RA_S8<26>*)this)->v = (char)count;
-    }
-    return old == 0;
+    if (m_field1a != 0) return 0;
+    m_memberEnterCallerId = callerId;
+    m_field1a = (char)(unsigned int)count;
+    return 1;
 }
 
 unsigned short CUser::GetMemberDBFlag()

@@ -99,46 +99,55 @@ void CTcpNetworkThread::dispatch(void* param)
     DNFFLib::Sleep_Ext(5, 0);
     try
     {
-        while (m_runningFlag)
+        for (;;)
         {
-            errno = 0;
-            DNFFLib::Sleep_Ext(0, 5);
-            if (m_net == 0)
+            do
             {
-                continue;
-            }
-            m_net->SetEpollAcceptedPeers();
-            m_net->SendPacket();
-            eventCount = m_net->WaitForEvent();
-            if (eventCount == 0)
-            {
-                continue;
-            }
+                do
+                {
+                    if (m_runningFlag == 0)
+                    {
+                        DNF_LOG_SCOPE_LINE(0xae, "./log/TcpRecv", "RecvThread Terminate");
+                        return;
+                    }
+                    errno = 0;
+                    DNFFLib::Sleep_Ext(0, 5);
+                } while (m_net == 0);
+                m_net->SetEpollAcceptedPeers();
+                m_net->SendPacket();
+                eventCount = m_net->WaitForEvent();
+            } while (eventCount == 0);
             if (eventCount < 0 && errno != EINTR && errno != 0)
             {
                 break;
             }
             for (int i = 0; i < eventCount; i++)
             {
-                CTcpHandler* handler = (CTcpHandler*)m_handler;
-                CPeer* p = (CPeer*)handler->GetEventPtr(i);
-                bool isIn = p != 0 && handler->IsSetInEvent(i);
-                if (isIn && p->RecvPacket() != 1)
+                peer = (CPeer*)((CTcpHandler*)m_handler)->GetEventPtr(i);
+                bool isIn = false;
+                if (peer != 0 && ((CTcpHandler*)m_handler)->IsSetInEvent(i))
                 {
-                    p->DisConnSig();
-                    m_net->DeletePeer(p);
-                    p = 0;
+                    isIn = true;
                 }
-                bool isOut = p != 0 && p->get_remain_sendlen() != 0 &&
-                             handler->IsSetOutEvent(i);
-                if (isOut && p->get_remain_sendlen() < 0x1801)
+                if (isIn && peer->RecvPacket() != 1)
                 {
-                    p->send_packet();
+                    peer->DisConnSig();
+                    m_net->DeletePeer(peer);
+                    peer = 0;
                 }
-                handler->IsSetErrEvent(i);
+                bool isOut = false;
+                if (peer != 0 && peer->get_remain_sendlen() != 0 &&
+                    ((CTcpHandler*)m_handler)->IsSetOutEvent(i))
+                {
+                    isOut = true;
+                }
+                if (isOut && (unsigned int)peer->get_remain_sendlen() < 0x1801)
+                {
+                    peer->send_packet();
+                }
+                ((CTcpHandler*)m_handler)->IsSetErrEvent(i);
             }
         }
-        DNF_LOG_SCOPE_LINE(0xae, "./log/TcpRecv", "RecvThread Terminate");
     }
     catch (CDNFException& e)
     {

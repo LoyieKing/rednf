@@ -135,14 +135,15 @@ public:
 class Packet_Monitor_Event_End : public PacketHeader {
 public:
     Packet_Monitor_Event_End();
-    char m_data[0x4];
+    unsigned int m_fieldA;      // +0xa
 };
 
 // from GuildPackets.h
 class Packet_Monitor_Event_Start : public PacketHeader {
 public:
     Packet_Monitor_Event_Start();
-    char m_data[0x8];
+    unsigned int m_fieldA;      // +0xa
+    char m_data[0x4];
 };
 
 // from GuildPackets.h

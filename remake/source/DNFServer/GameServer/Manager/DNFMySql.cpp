@@ -254,14 +254,16 @@ char* CMySql::blob_to_str(int col, void* buf, int len)
 {
     if (col < 0 || col > 9 || (buf == 0 && len > 0xfff))
         return 0;
-    ((char*)this + col * 0x1001 + 0x1010)[0xd] = 0;
+    // 成员访问形态：m_blob@+0x101d 被 GCC 拆为 add $0x1010 + 0xd 位移，
+    // 与 ORIG 逐条一致（add $0x1010; add this; add $0xd 形态）。
+    m_blob[col][0] = 0;
     if (len > 0)
     {
-        char* dst = (char*)this + col * 0x1001 + 0x1010 + 0xd;
+        char* dst = m_blob[col];
         dst += mysql_real_escape_string(m_mysql, dst, (const char*)buf, len);
         *dst++ = 0;
     }
-    return (char*)this + col * 0x1001 + 0x1010 + 0xd;
+    return m_blob[col];
 }
 
 bool CMySql::set_compress_option()

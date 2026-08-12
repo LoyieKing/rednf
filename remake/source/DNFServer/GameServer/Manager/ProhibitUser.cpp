@@ -56,7 +56,7 @@ short CDNFProhibitUser::GetProhibitRemainTime() { return m_remainTime; }
 unsigned char CDNFProhibitUser::GetMonitorRetPacketCnt() { return m_retPacketCnt; }
 char CDNFProhibitUser::GetConnectFlag() { return m_connectFlag; }
 void CDNFProhibitUser::IncreMonitorRetPacket() { m_retPacketCnt++; }
-char CDNFProhibitUser::IsTimeOutWaitMonitor()
+bool CDNFProhibitUser::IsTimeOutWaitMonitor()
 {
     if (--m_remainTime <= 0)
         return 1;

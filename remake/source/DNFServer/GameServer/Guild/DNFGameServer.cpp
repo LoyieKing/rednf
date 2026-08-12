@@ -136,20 +136,21 @@ void CTcpGameServer::SendToGameServer(char* buf)
 
 bool CTcpGameServer::IsValidServer()
 {
-    return m_group != 0;
+    return m_group != 0 && m_net != 0;
 }
 
 char* CTcpGameServer::makePacketHeader(unsigned short id, unsigned short size)
 {
-    if (m_net == 0)
+    if (m_net != 0)
     {
-        return 0;
+        void* p = m_net->Acquire_TcpSendBuffer();
+        PacketHeader* pkt = (PacketHeader*)p;
+        pkt->packetId = id;
+        pkt->packetSize = size;
+        pkt->reversed2 = m_group;
+        return (char*)pkt;
     }
-    char* pkt = (char*)m_net->Acquire_TcpSendBuffer();
-    *(unsigned short*)pkt = id;
-    *(unsigned short*)(pkt + 2) = size;
-    *(unsigned int*)(pkt + 0xc) = *(unsigned int*)this;
-    return pkt;
+    return 0;
 }
 
 void CTcpGameServer::SetChannelNo(unsigned char channel)

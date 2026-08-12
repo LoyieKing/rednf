@@ -252,7 +252,7 @@ public:
     CMemberConfig();
     virtual ~CMemberConfig();
     virtual void Load_Table(const std::string& path);
-    virtual int Parse_Table(char* line, int idx);
+    virtual bool Parse_Table(char* line, int idx);
     ST_MemberConfig* GetMemberInfo();
     ST_MemberConfig m_table[10];  // +4
 };
@@ -263,7 +263,7 @@ public:
     CMemberExpTbl();
     virtual ~CMemberExpTbl();
     virtual void Load_Table(const std::string& path);
-    virtual int Parse_Table(char* line, int idx);
+    virtual bool Parse_Table(char* line, int idx);
     int GetMemberExpLevel(unsigned int exp);
     void GetMemberExpLevel(unsigned int exp, unsigned int& lo, unsigned int& hi,
                            unsigned char& lv);
@@ -271,7 +271,7 @@ public:
     unsigned char IsMemberExpLevelUp(unsigned int exp);
     unsigned char m_count; // +4（vptr@0）
     char m_pad4[3];        // +5
-    int m_table[10];       // +8
+    int m_table[11];       // +8（ORIG Parse_Table 接受 idx 0..10，new 尺寸 0x34）
 };
 
 #endif  // MONITOR_DNFMEMBERCONFIG_H_

@@ -76,9 +76,9 @@ void COnTimeEventManager::SendContinueTimeToGS()
     {
         Packet_MTG_OntimeEvent_RewardStart pkt;
         pkt.m_eventIdx = (unsigned int)m_field30;
-        pkt.m_fieldE = m_field38;
-        pkt.m_field12 = m_field3c;
-        pkt.m_field16 = m_field28 * 0x3c;
+        pkt.m_field12 = m_field38;
+        pkt.m_field16 = m_field3c;
+        pkt.m_fieldE = m_field28 * 0x3c;
         m_app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
     }
 }
@@ -129,7 +129,7 @@ void COnTimeEventManager::SetEventItem(unsigned int idx, unsigned int cnt)
 
 void COnTimeEventManager::StartEvent()
 {
-    StartEvent((unsigned int)m_field24, (unsigned int)m_field28);
+    StartEvent(m_field24, m_field28);
 }
 
 void COnTimeEventManager::StartEvent(unsigned int a, unsigned int b)

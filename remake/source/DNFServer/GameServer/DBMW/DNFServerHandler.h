@@ -18,7 +18,7 @@ public:
     CGuildServer* GetGuildServer();
     CMonitorServer* GetMonitorServer();
     CStatisticsServer* GetStatisticsServerPtr();
-    char CreateTcpServer(unsigned char idx, unsigned int port);
+    CTcpServer* CreateTcpServer(unsigned char idx, unsigned int port);
     bool DeleteTcpServer(unsigned char idx);
     void SendAllTcpServer(PacketHeader* header);
     void SendAllToGameServer(char* buf, int len);

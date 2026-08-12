@@ -53,7 +53,7 @@ unsigned char CTcpServer::GetServerIndex() { return m_index; }
 void* CTcpServer::GetSocket() { return (void*)m_socket; }
 void CTcpServer::NotifyHeartbeat() { time(&m_heartbeat); }
 
-unsigned short CTcpServer::makePacketHeader(unsigned short type, unsigned short size)
+char* CTcpServer::makePacketHeader(unsigned short type, unsigned short size)
 {
     struct __attribute__((packed)) TcpPacketFields
     {
@@ -69,7 +69,7 @@ unsigned short CTcpServer::makePacketHeader(unsigned short type, unsigned short 
         f->type = type;
         f->size = size;
         f->socket = (unsigned int)m_socket;
-        return (unsigned short)(unsigned int)f;
+        return (char*)f;
     }
     return 0;
 }

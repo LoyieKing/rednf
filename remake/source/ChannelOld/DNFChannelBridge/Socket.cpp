@@ -147,12 +147,17 @@ void TCPSocket::close()
     port_ = 0;
 }
 
-int TCPSocket::shutdown(int opt)
+void TCPSocket::shutdown(int opt)
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
+    // 第 14 轮纯 C++ 修复：ORIG 体仅为 sock_ == -1 的死比较
+    // （mov sock_; cmp $0xffffffff）。`if (sock_ == -1) return;`
+    // 两条路径均汇合于函数尾声，GCC -O0 保留 cmp 但折叠分支，
+    // 逐指令复现 ORIG，无需内联 asm。
     (void)opt;
-    sock_ == -1;
-    return sock_;
+    if (sock_ == -1)
+    {
+        return;
+    }
 }
 
 bool TCPSocket::accept(TCPSocket& accepted)

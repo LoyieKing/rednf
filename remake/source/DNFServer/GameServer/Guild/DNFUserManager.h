@@ -34,9 +34,9 @@ public:
     int DeleteUser(CUser* user);
     int DeleteUser_CharNo(unsigned int charNo);
     int DeleteUser_CharName(std::string name);
-    int InsertUser(unsigned int dbid, CUser* user);
-    int InsertUser_CharNo(unsigned int charNo, CUser* user);
-    int InsertUser_CharName(char* name, CUser* user);
+    bool InsertUser(unsigned int dbid, CUser* user);
+    bool InsertUser_CharNo(unsigned int charNo, CUser* user);
+    bool InsertUser_CharName(char* name, CUser* user);
     CUser* FindUser(unsigned int dbid) const;
     CUser* FindUser_CharNo(unsigned int charNo) const;
     CUser* FindUser_CharName(std::string name) const;

@@ -9,18 +9,18 @@ class TCPSocket
 public:
     TCPSocket();
     ~TCPSocket();
-    // ORIG 返回类型 bool：调用方 !open()/!connect() 编译为 xor $1
-    // （char 返回会 sete 物化）。
+    // ORIG 返回类型 bool：调用方 !open()/!bind()/!listen()/!pollReadEvent()/
+    // !accept()/!connect() 编译为 xor $1（char 返回会 sete 物化）。
     bool open();
     bool connect(const char* ip, unsigned short port);
     char setOptNonBlock();
-    char bind(unsigned short port, bool flag);
-    char listen(int backlog);
-    char pollReadEvent() const;
+    bool bind(unsigned short port, bool flag);
+    bool listen(int backlog);
+    bool pollReadEvent() const;
     char pollWriteEvent() const;
     char pollErrorEvent() const;
     int pollReadWriteErrEvent() const;
-    char accept(TCPSocket& sock);
+    bool accept(TCPSocket& sock);
     int getHandle() const;
     int send(char* buf, int len);
     int recv(char* buf, int len);

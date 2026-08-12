@@ -319,11 +319,10 @@ void TCPSocket::close()
     return;
 }
 
-int TCPSocket::shutdown(int how)
+void TCPSocket::shutdown(int how)
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     (void)how;
-    return m_fd;
+    if (m_fd == -1) return;
 }
 
 char TCPSocket::setOptReuseAdrs(bool flag)
@@ -376,8 +375,9 @@ char TCPSocket::setOptResizeSendBuf(int size)
     {
         return 0;
     }
-    int optlen = 4;
+    int optlen;
     int opt = 0;
+    optlen = 4;
     int r = setsockopt(m_fd, 1, 7, &size, 4);
     if (r < 0)
     {

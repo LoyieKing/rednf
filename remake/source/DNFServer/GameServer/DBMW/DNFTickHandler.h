@@ -8,7 +8,6 @@ class CFrameCountHandler
 {
 public:
     CFrameCountHandler();
-    ~CFrameCountHandler();
     void InitFrameCountInfo(CApplication* app, unsigned int a, unsigned short b);
     void SaveProcess();
     void SaveProcess(int n);

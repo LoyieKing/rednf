@@ -322,11 +322,6 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
 {
     int error_code = 0;
     int price = 0;
-    // ORIG：commission/item_type/category 声明提前（DWARF decl 1554/局部槽序），
-    // 顶层标量按声明序分配槽位（-0x80/-0x7c/-0x78），后置声明会导致槽位整体漂移。
-    int commission;
-    int item_type;
-    int category;
     if ((!isInstantBuying) && (pAucDicData->buyer_id != -1))
     {
         error_code = mBidderDic.SubAuctionId(pAucDicData->buyer_id, auctionId);
@@ -342,53 +337,65 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
         {
             mBidderDic.AddAuctionId(pAucDicData->buyer_id, auctionId);
         }
+        return error_code;
     }
-    else
     {
+        tagAUCTION_DB_DELETE_ITEM dbtr_delete_item;
+        dbtr_delete_item.auction_id = auctionId;
+        Message* pMsg =
+            pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
+        CMsgCell* pNewCell = pMsg->getCellFromMessage();
+        *pNewCell << &dbtr_delete_item;
+        pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
+    }
+    // ORIG：commission 在 dbtr_delete_item 块之后声明（DWARF decl 1554）
+    int commission = 0;
+    // Original lays out the "has buyer" branch first (IsPrivateStoreOpen /
+    // commission path before GetRandomOptionName expire-no-buyer path).
+    if (pAucDicData->buyer_id != -1)
+    {
+        int money = isInstantBuying ? pAucDicData->instant_price : pAucDicData->price;
+        if (mpAuction->IsPrivateStoreOpen(pAucDicData->owner_id))
         {
-            tagAUCTION_DB_DELETE_ITEM dbtr_delete_item;
-            dbtr_delete_item.auction_id = auctionId;
-            Message* pMsg =
-                pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
-            CMsgCell* pNewCell = pMsg->getCellFromMessage();
-            *pNewCell << &dbtr_delete_item;
-            pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
-        }
-        commission = 0;
-        // Original lays out the "has buyer" branch first (IsPrivateStoreOpen /
-        // commission path before GetRandomOptionName expire-no-buyer path).
-        if (pAucDicData->buyer_id != -1)
-        {
-            int money = isInstantBuying ? pAucDicData->instant_price : pAucDicData->price;
-            int send_money = 0;
-            unsigned int category;
-            if (mpAuction->IsPrivateStoreOpen(pAucDicData->owner_id))
+            // ORIG：owner_type 分支为 if/else 两转换块（非三元）
+            if (pAucDicData->owner_type == '\x01')
             {
-                // ORIG：owner_type 分支为 if/else 两转换块（非三元）
-                if (pAucDicData->owner_type == '\x01')
-                {
-                    commission = (int)(((double)money / 100.0) *
-                                       mpAuction->GetVIPCommission());
-                }
-                else
-                {
-                    commission = (int)(((double)money / 100.0) *
-                                       mpAuction->GetCommission());
-                }
+                commission = (int)(((double)money / 100.0) *
+                                   mpAuction->GetVIPCommission());
             }
             else
             {
-                if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
+                commission = (int)(((double)money / 100.0) *
+                                   mpAuction->GetCommission());
+            }
+        }
+        else
+        {
+            if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
+            {
+                double BasicCommission = 5.0;
+                double VipCommission = 2.0;
+                int AvePrice = 0;
+                ROI_AverageKey roiAverageKey;
+                char itemRefineValue = 0;
+                GetAveragePrice(pAucDicData->item_info.GetItemId(),
+                                pAucDicData->item_info.GetUpgradeValue(),
+                                roiAverageKey, itemRefineValue, &AvePrice);
+                if (AvePrice == 0)
                 {
-                    double BasicCommission = 5.0;
-                    double VipCommission = 2.0;
-                    int AvePrice = 0;
-                    ROI_AverageKey roiAverageKey;
-                    char itemRefineValue = 0;
-                    GetAveragePrice(pAucDicData->item_info.GetItemId(),
-                                    pAucDicData->item_info.GetUpgradeValue(),
-                                    roiAverageKey, itemRefineValue, &AvePrice);
-                    if (AvePrice == 0)
+                    if (pAucDicData->owner_type == '\x01')
+                    {
+                        commission = (int)VipCommission;
+                    }
+                    else
+                    {
+                        commission = (int)BasicCommission;
+                    }
+                }
+                else
+                {
+                    double PriceRate = (double)money / (double)AvePrice;
+                    if (PriceRate < 1.5)
                     {
                         if (pAucDicData->owner_type == '\x01')
                         {
@@ -399,71 +406,56 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
                             commission = (int)BasicCommission;
                         }
                     }
+                    // ORIG：扁平 else-if 链——(>=1.5&&<1.6)/(>=1.6&&<1.7)/
+                    // (>=1.7&&<1.8)/else，NaN 路径逐级落到 else=0x50
+                    else if ((PriceRate >= 1.5) && (PriceRate < 1.6))
+                    {
+                        commission = 0x32;
+                    }
+                    else if ((PriceRate >= 1.6) && (PriceRate < 1.7))
+                    {
+                        commission = 0x32;
+                    }
+                    else if ((PriceRate >= 1.7) && (PriceRate < 1.8))
+                    {
+                        commission = 0x32;
+                    }
                     else
                     {
-                        double PriceRate = (double)money / (double)AvePrice;
-                        if (PriceRate < 1.5)
-                        {
-                            if (pAucDicData->owner_type == '\x01')
-                            {
-                                commission = (int)VipCommission;
-                            }
-                            else
-                            {
-                                commission = (int)BasicCommission;
-                            }
-                        }
-                        else
-                        {
-                            // ORIG：else 里冗余重检 >= 1.5（fxch/setae 形态，NaN 分支）
-                            if (PriceRate >= 1.5)
-                            {
-                                if (PriceRate < 1.6)
-                                {
-                                    commission = 0x32;
-                                }
-                                else if ((PriceRate >= 1.6) &&
-                                         (PriceRate < 1.7))
-                                {
-                                    commission = 0x32;
-                                }
-                                else if ((PriceRate >= 1.7) &&
-                                         (PriceRate < 1.8))
-                                {
-                                    commission = 0x32;
-                                }
-                                else
-                                {
-                                    commission = 0x50;
-                                }
-                                // ORIG：转换紧随阶梯（0x50 分支落入共享 cw 设置）
-                                commission =
-                                    (int)(((double)money / 100.0) *
-                                          (double)commission);
-                            }
-                        }
+                        commission = 0x50;
                     }
                 }
-                else if (pAucDicData->owner_type == '\x01')
-                {
-                    // ORIG：rate 先算存临时（-0x7d0），再乘调用结果
-                    commission = (int)(((double)money / 100.0) *
-                                       mpAuction->GetVIPCommission());
-                }
-                else
-                {
-                    commission = (int)(((double)money / 100.0) *
-                                       mpAuction->GetCommission());
-                }
+                // ORIG（二进制实测 0x8053544）：该转换对 PAY_TYPE_POINT 分支所有
+                // 路径无条件执行——(int)Vip/(int)Basic 路径各自完整 cw 舞步后
+                // jmp 到共享转换块；阶梯路径只设截断 cw（fnstcw/mov $0xc,%ah/
+                // mov %ax,-0x7b8）后落入共享块（fldcw -0x7b8; fistpl; fldcw 还原）。
+                commission =
+                    (int)(((double)money / 100.0) * (double)commission);
             }
-            if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
+            else if (pAucDicData->owner_type == '\x01')
             {
-                send_money = money - commission;
+                // ORIG：rate 先算存临时（-0x7d0），再乘调用结果
+                commission = (int)(((double)money / 100.0) *
+                                   mpAuction->GetVIPCommission());
             }
             else
             {
-                send_money = (money - commission) + 10000;
+                commission = (int)(((double)money / 100.0) *
+                                   mpAuction->GetCommission());
             }
+        }
+        int send_money = 0;
+        if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
+        {
+            send_money = money - commission;
+        }
+        else
+        {
+            send_money = (money - commission) + 10000;
+        }
+        {
+            // ORIG：letter 块（_itemName/dbtr_expire_package/item_category/
+            // pNewMsg/pNewCell 独立嵌套作用域，DWARF 0x805364c）
             char _itemName[128];
             if (pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0)
             {
@@ -478,15 +470,16 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             dbtr_expire_package.send_to_buyer.receiver = pAucDicData->buyer_id;
             dbtr_expire_package.send_to_buyer.money = 0;
             dbtr_expire_package.send_to_buyer.item_info = pAucDicData->item_info;
-            unsigned int item_category = (unsigned int)
+            int item_category =
                 mpAuction->GetItemInfo(pAucDicData->item_info.item_id)->category_;
             if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
             {
                 snprintf(dbtr_expire_package.send_to_buyer.letter_text, 0xff,
                          LETTER_TEXT[2],
-                         mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
+                         mpAuction->GetItemInfo(
+                             dbtr_expire_package.send_to_buyer.item_info.item_id)
                              ->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(
                                    dbtr_expire_package.send_to_buyer.item_info.add_info)
                              : LETTER_TEXT[7]);
@@ -498,14 +491,15 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
                          pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
-                                   pAucDicData->item_info.item_id)->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                                   dbtr_expire_package.send_to_buyer.item_info.item_id)
+                                   ->sName_.c_str(),
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(
                                    dbtr_expire_package.send_to_buyer.item_info.add_info)
                              : LETTER_TEXT[7]);
             }
             dbtr_expire_package.send_to_buyer.temp_item_id =
-                pAucDicData->item_info.item_id;
+                dbtr_expire_package.send_to_buyer.item_info.item_id;
             dbtr_expire_package.send_to_buyer.letter_text_length =
                 (unsigned short)strlen(dbtr_expire_package.send_to_buyer.letter_text);
             dbtr_expire_package.send_to_owner.owner_id = pAucDicData->owner_id;
@@ -539,13 +533,13 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
                          LETTER_TEXT[8],
                          (char*)mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
                              ->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(pAucDicData->item_info.add_info)
                              : LETTER_TEXT[7],
                          money, commission,
                          (char*)mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
                              ->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(pAucDicData->item_info.add_info)
                              : LETTER_TEXT[7],
                          send_money);
@@ -559,7 +553,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
                                    pAucDicData->item_info.item_id)->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(pAucDicData->item_info.add_info)
                              : LETTER_TEXT[7],
                          money, 10000, commission,
@@ -567,7 +561,7 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
                                    pAucDicData->item_info.item_id)->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(pAucDicData->item_info.add_info)
                              : LETTER_TEXT[7],
                          send_money);
@@ -581,48 +575,51 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             CMsgCell* pNewCell = pNewMsg->getCellFromMessage();
             *pNewCell << &dbtr_expire_package;
             pApp->super_Threads.getDBThread(0)->PushTransaction(pNewMsg);
-            price = isInstantBuying
-                ? pAucDicData->instant_price
-                : pAucDicData->price;
-            category = (unsigned int)
-                mpAuction->GetItemInfo(pAucDicData->item_info.item_id)->category_;
-            if (mpAuction->IsStackableCategory((unsigned short)category))
-            {
-                if (pAucDicData->item_info.add_info != 0)
-                {
-                    price = price / pAucDicData->item_info.add_info;
-                }
-                if (price < 1)
-                {
-                    price = 1;
-                }
-            }
-            ROI_AverageKey _temp_roi_average_key;
-            _temp_roi_average_key.baseItem_index = pAucDicData->item_info.GetItemId();
-            // ORIG：整结构赋值
-            _temp_roi_average_key.option_category =
-                pAucDicData->_reg_roi_category_key;
-            for (int i = 0; i < 3; i = i + 1)
-            {
-                _temp_roi_average_key._oiv.option_index_value[i] =
-                    (short)pAucDicData->item_info.random_option_.option_[i].option_index_;
-            }
-            std::sort((short*)&_temp_roi_average_key.option_index_key,
-                      (short*)((char*)&_temp_roi_average_key.option_index_key + 6));
-            error_code = mpAuction->AddItemAveragePrice(
-                pAucDicData->item_info.GetItemId(),
-                pAucDicData->item_info.GetUpgradeValue(),
-                price, 0, _temp_roi_average_key,
-                pAucDicData->item_info.separate_info.GetUpgradeSeparate(), false);
         }
-        else
+        price = isInstantBuying
+            ? pAucDicData->instant_price
+            : pAucDicData->price;
+        // ORIG：category 在 letter 块之后声明（DWARF decl 2086）
+        int category =
+            mpAuction->GetItemInfo(pAucDicData->item_info.item_id)->category_;
+        if (mpAuction->IsStackableCategory((unsigned short)category))
         {
-            // No buyer: return item to owner (expire letter LETTER_TEXT[3]).
-            char _itemName[128];
-            if (pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0)
+            if (pAucDicData->item_info.add_info != 0)
             {
-                GetRandomOptionName(&pAucDicData->item_info, _itemName, 0x7f);
+                price = price / pAucDicData->item_info.add_info;
             }
+            if (price < 1)
+            {
+                price = 1;
+            }
+        }
+        ROI_AverageKey _temp_roi_average_key;
+        _temp_roi_average_key.baseItem_index = pAucDicData->item_info.GetItemId();
+        // ORIG：整结构赋值
+        _temp_roi_average_key.option_category =
+            pAucDicData->_reg_roi_category_key;
+        for (int i = 0; i < 3; i = i + 1)
+        {
+            _temp_roi_average_key._oiv.option_index_value[i] =
+                (short)pAucDicData->item_info.random_option_.option_[i].option_index_;
+        }
+        std::sort((short*)&_temp_roi_average_key.option_index_key,
+                  (short*)((char*)&_temp_roi_average_key.option_index_key + 6));
+        error_code = mpAuction->AddItemAveragePrice(
+            pAucDicData->item_info.GetItemId(),
+            pAucDicData->item_info.GetUpgradeValue(),
+            price, 0, _temp_roi_average_key,
+            pAucDicData->item_info.separate_info.GetUpgradeSeparate(), false);
+    }
+    else
+    {
+        // No buyer: return item to owner (expire letter LETTER_TEXT[3]).
+        char _itemName[128];
+        if (pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0)
+        {
+            GetRandomOptionName(&pAucDicData->item_info, _itemName, 0x7f);
+        }
+        {
             tagGAME_DB_SEND_PACKAGE_BY_EXPIRE dbtr_expire_package;
             // ORIG：auction_id 最先赋
             dbtr_expire_package.send_to_owner.auction_id = auctionId;
@@ -632,15 +629,16 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             dbtr_expire_package.send_to_owner.receiver = pAucDicData->owner_id;
             dbtr_expire_package.send_to_owner.money = 10000;
             dbtr_expire_package.send_to_owner.item_info = pAucDicData->item_info;
-            unsigned int item_category = (unsigned int)
+            int item_category =
                 mpAuction->GetItemInfo(pAucDicData->item_info.item_id)->category_;
             if (G_Auction()->GetPayType() == PAY_TYPE_POINT)
             {
                 snprintf(dbtr_expire_package.send_to_owner.letter_text, 0xff,
                          LETTER_TEXT[3],
-                         mpAuction->GetItemInfo(pAucDicData->item_info.item_id)
+                         mpAuction->GetItemInfo(
+                             dbtr_expire_package.send_to_owner.item_info.item_id)
                              ->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(
                                    dbtr_expire_package.send_to_buyer.item_info.add_info)
                              : LETTER_TEXT[7]);
@@ -652,14 +650,15 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
                          pAucDicData->_reg_roi_category_key.field_0._high_category_key != 0
                              ? _itemName
                              : (char*)mpAuction->GetItemInfo(
-                                   pAucDicData->item_info.item_id)->sName_.c_str(),
-                         mpAuction->IsAvatarCategory(item_category)
+                                   dbtr_expire_package.send_to_owner.item_info.item_id)
+                                   ->sName_.c_str(),
+                         this->mpAuction->IsAvatarCategory(item_category)
                              ? mpAuction->GetAvatarColorName(
                                    dbtr_expire_package.send_to_buyer.item_info.add_info)
                              : LETTER_TEXT[7]);
             }
             dbtr_expire_package.send_to_owner.temp_item_id =
-                pAucDicData->item_info.item_id;
+                dbtr_expire_package.send_to_owner.item_info.item_id;
             dbtr_expire_package.send_to_owner.letter_text_length =
                 (unsigned short)strlen(dbtr_expire_package.send_to_owner.letter_text);
             // ORIG：嵌套 if（== 物化 sete，范围检查直跳 jbe/ja）
@@ -685,6 +684,8 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
             *pNewCell << &dbtr_expire_package;
             pApp->super_Threads.getDBThread(0)->PushTransaction(pNewMsg);
         }
+    }
+    {
         tagAUCTION_DB_EXPIRE_HISTORY dbtr_history;
         // ORIG：auction_id 最先赋；event_type 用三元物化（mov $1/mov $0）
         dbtr_history.auction_id = auctionId;
@@ -705,64 +706,56 @@ __attribute__((target("arch=i586"))) int AuctionDictionary::makeSuccessfulBid(
         }
         dbtr_history.owner_postal_id = 0;
         dbtr_history.buyer_postal_id = 0;
-        {
-            Message* pMsg =
-                pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
-            CMsgCell* pNewCell = pMsg->getCellFromMessage();
-            *pNewCell << &dbtr_history;
-            pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
-        }
-        error_code = mpAuction->mSearch.Delete(auctionId);
-        G_TraceLog()->sysLog(5, "Delete at Search module result:%s, auction_id:%llu",
-                             GetErrorStr(error_code), auctionId);
-        // Original places the error branch first in the binary (call order).
-        if (error_code != 0)
-        {
-            G_TraceLog()->sysLog(
-                7, "Error occured while delete auction info from search module, %s",
-                GetErrorStr(error_code));
-        }
-        else
-        {
-            if (mAuctionDicTable.erase(auctionId) == 0)
-            {
-                error_code = 0xb;
-            }
-            else
-            {
-                G_TraceLog()->sysLog(
-                    5, "makeSuccessfulBid, Auction ID : %llu, Item ID : %hu is deleted.",
-                    auctionId, pAucDicData->item_info.item_id);
-                item_type = mpAuction->CheckItemType(pAucDicData->item_info.item_id);
-                // ORIG：switch（case 序 PLAIN/CREATURE/AVATAR，反序发射 2/3/1）
-                switch (item_type)
-                {
-                case AUCTION_ITEM_TYPE_PLAIN:
-                    break;
-                case AUCTION_ITEM_TYPE_CREATURE:
-                    mpAuction->UnregistChkMapForAvatarCreature(
-                        false, pAucDicData->item_info.add_info);
-                    break;
-                case AUCTION_ITEM_TYPE_AVATAR:
-                    mpAuction->UnregistChkMapForAvatarCreature(
-                        true, pAucDicData->item_info.add_info);
-                    break;
-                default:
-                    break;
-                }
-                category = (int)
-                    mpAuction->GetItemInfo(pAucDicData->item_info.item_id)->category_;
-                if (mpAuction->IsAvatarCategory(category))
-                {
-                    mpAuction->SubAvatarEmblemInfo(pAucDicData->item_info.add_info);
-                    mpAuction->SubAvatarExpansionInfo(pAucDicData->item_info.add_info);
-                }
-                mAuctionDicDataPool.free(pAucDicData);
-                error_code = 0;
-            }
-        }
+        Message* pMsg =
+            pApp->super_DataPools.getCommonDataPool(nsl::tlsThreadId)->createMessage(3);
+        CMsgCell* pNewCell = pMsg->getCellFromMessage();
+        *pNewCell << &dbtr_history;
+        pApp->super_Threads.getDBThread(0)->PushTransaction(pMsg);
     }
-    return error_code;
+    error_code = mpAuction->mSearch.Delete(auctionId);
+    G_TraceLog()->sysLog(5, "Delete at Search module result:%s, auction_id:%llu",
+                         GetErrorStr(error_code), auctionId);
+    // Original places the error branch first in the binary (call order).
+    if (error_code != 0)
+    {
+        G_TraceLog()->sysLog(
+            7, "Error occured while delete auction info from search module, %s",
+            GetErrorStr(error_code));
+        return error_code;
+    }
+    if (mAuctionDicTable.erase(auctionId) == 0)
+    {
+        return 0xb;
+    }
+    G_TraceLog()->sysLog(
+        5, "makeSuccessfulBid, Auction ID : %llu, Item ID : %hu is deleted.",
+        auctionId, pAucDicData->item_info.item_id);
+    int item_type = mpAuction->CheckItemType(pAucDicData->item_info.item_id);
+    // ORIG：switch（case 序 PLAIN/CREATURE/AVATAR，反序发射 2/3/1）
+    switch (item_type)
+    {
+    case AUCTION_ITEM_TYPE_PLAIN:
+        break;
+    case AUCTION_ITEM_TYPE_CREATURE:
+        mpAuction->UnregistChkMapForAvatarCreature(
+            false, pAucDicData->item_info.add_info);
+        break;
+    case AUCTION_ITEM_TYPE_AVATAR:
+        mpAuction->UnregistChkMapForAvatarCreature(
+            true, pAucDicData->item_info.add_info);
+        break;
+    default:
+        break;
+    }
+    int item_category = (int)
+        mpAuction->GetItemInfo(pAucDicData->item_info.item_id)->category_;
+    if (mpAuction->IsAvatarCategory(item_category))
+    {
+        mpAuction->SubAvatarEmblemInfo(pAucDicData->item_info.add_info);
+        mpAuction->SubAvatarExpansionInfo(pAucDicData->item_info.add_info);
+    }
+    mAuctionDicDataPool.free(pAucDicData);
+    return 0;
 }
 
 int AuctionDictionary::ProcessMostRecentExpireItem(bool& one_processing, int auction_type)

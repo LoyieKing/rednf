@@ -42,7 +42,7 @@ CDNFProhibitUser* CUserManager::FindProhibitUser(unsigned int dbid) const
     return it->second;
 }
 
-char CUserManager::DeleteProhibitUser(unsigned int dbid)
+bool CUserManager::DeleteProhibitUser(unsigned int dbid)
 {
     if (m_prohibitUsers.empty())
         return 0;

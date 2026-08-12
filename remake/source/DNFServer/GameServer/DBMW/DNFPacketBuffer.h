@@ -65,7 +65,7 @@ public:
     static IQueue& Get();
     char InitQueue(T* recv, T* parse) { m_recv = recv; m_parse = parse; return 1; }
     T* GetParseQueue() { return m_parse; }
-    char SwitchQueue();
+    bool SwitchQueue();
     T* m_recv;   // +0
     T* m_parse;  // +4
 };

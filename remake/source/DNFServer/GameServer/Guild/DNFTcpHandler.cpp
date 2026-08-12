@@ -113,31 +113,40 @@ int EpollHandler::Init()
 
 int EpollHandler::SetEpoll(void* ptr, int fd, bool flag)
 {
-    m_field4 = flag ? 0x8000001d : 0x1d;
+    if (flag)
+    {
+        m_field4 = 0x8000001d;
+    }
+    else
+    {
+        m_field4 = 0x1d;
+    }
     m_ptr = ptr;
     CGuard<CMutex> g(&m_mutex);
-    epoll_event ev;
-    ev.events = (unsigned int)m_field4;
-    ev.data.ptr = ptr;
-    int r = epoll_ctl(m_epollFd, 1, fd, &ev);
-    return r < 0 ? errno : 0;
+    if (epoll_ctl(m_epollFd, 1, fd, (epoll_event*)((char*)this + 4)) < 0)
+    {
+        return errno;
+    }
+    return 0;
 }
 
 int EpollHandler::ResetEpoll(int fd)
 {
-    memset((char*)this, 0, 0xc);
-    *(int*)((char*)this + 4) = 1;
+    memset((char*)this + 4, 0, 0xc);
+    m_field4 = 1;
     CGuard<CMutex> g(&m_mutex);
-    epoll_event ev;
-    ev.events = 1;
-    ev.data.ptr = m_ptr;
-    int r = epoll_ctl(m_epollFd, 2, fd, &ev);
-    return r < 0 ? errno : 0;
+    if (epoll_ctl(m_epollFd, 2, fd, (epoll_event*)((char*)this + 4)) < 0)
+    {
+        return errno;
+    }
+    return 0;
 }
 
 int EpollHandler::WaitForEvent()
 {
-    return epoll_wait(GetEpollFD(), (epoll_event*)GetEpollEvents(), 1000, 100);
+    epoll_event* events = (epoll_event*)GetEpollEvents();
+    int epfd = GetEpollFD();
+    return epoll_wait(epfd, events, 1000, 100);
 }
 
 bool EpollHandler::IsSetErrEvent(int idx)

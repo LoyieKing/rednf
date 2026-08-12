@@ -28,7 +28,6 @@ CFrameCountHandler::CFrameCountHandler()
     m_field28 = 0;
     m_app = 0;
 }
-CFrameCountHandler::~CFrameCountHandler() {}
 void CFrameCountHandler::SaveProcess()
 {
     m_field28++;

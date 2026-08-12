@@ -436,23 +436,31 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
         for (std::map<STPartyCharacKey, PartyCharacStatistic>::iterator it = m_partyCharac.begin();
              it != m_partyCharac.end(); ++it)
         {
-            char* slot = (char*)&pkt + 0xe + idx * 0x38;
-            *(unsigned short*)(slot + 0) = it->first.m_field0;
-            *(unsigned int*)(slot + 4) = it->first.m_field4;
-            slot[8] = it->first.m_field8;
-            slot[9] = it->first.m_field9;
-            slot[10] = it->first.m_fielda;
-            *(unsigned int*)(slot + 0xc) = it->first.m_fieldc;
-            slot[0x10] = it->first.m_field10;
-            slot[0x11] = it->first.m_field11;
-            for (int k = 0; k < 12; k++)
-            {
-                *(int*)(slot + 0x12 + k * 4) = it->second.m_data[k];
-            }
+            *(unsigned short*)((char*)&pkt + 0xe + idx * 0x43 + 0) = it->first.m_field0;
+            *(unsigned int*)((char*)&pkt + 0xe + idx * 0x43 + 2) = it->first.m_field4;
+            *((char*)&pkt + 0xe + idx * 0x43 + 6) = it->first.m_field8;
+            *((char*)&pkt + 0xe + idx * 0x43 + 7) = it->first.m_field9;
+            *((char*)&pkt + 0xe + idx * 0x43 + 8) = it->first.m_fielda;
+            *(unsigned int*)((char*)&pkt + 0xe + idx * 0x43 + 9) = it->first.m_fieldc;
+            *((char*)&pkt + 0xe + idx * 0x43 + 0xd) = it->first.m_field10;
+            *((char*)&pkt + 0xe + idx * 0x43 + 0xe) = it->first.m_field11;
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 0 * 4) = it->second.m_data[0];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 1 * 4) = it->second.m_data[1];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 2 * 4) = it->second.m_data[2];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 3 * 4) = it->second.m_data[3];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 4 * 4) = it->second.m_data[4];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 5 * 4) = it->second.m_data[5];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 6 * 4) = it->second.m_data[6];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 7 * 4) = it->second.m_data[7];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 8 * 4) = it->second.m_data[8];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 9 * 4) = it->second.m_data[9];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 10 * 4) = it->second.m_data[10];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 11 * 4) = it->second.m_data[11];
+            *(int*)((char*)&pkt + 0xe + idx * 0x43 + 0xf + 12 * 4) = it->second.m_data[12];
             idx++;
-            if (99 < idx)
+            if (0x58 < idx)
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = 100;
+                *(unsigned int*)((char*)&pkt + 0xa) = 0x59;
                 handler->SendToDB((PacketHeader*)&pkt);
                 DNF_LOG_SCOPE_LINE(0x1f0, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party_Charac : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
@@ -1214,7 +1222,6 @@ void StatisticManager::SendDBBloodDungeonStatistic(CServerHandler* handler)
                 "inSert into log_blood_dungeon(occ_date,level,try_count,clear_count) values (now(),%d,%d,%d)",
                 it->first, it->second.m_field0, it->second.m_field4);
             handler->SendToDB((PacketHeader*)&pkt);
-            continue;
         }
     }
 }
@@ -1645,11 +1652,11 @@ void StatisticManager::AddGoldcardEventStatistic(Packet_Goldcard_Event_Statistic
         int m_f0b;
         int m_f0f;
     };
-    unsigned int idx = (unsigned int)(unsigned char)((Wire*)pkt)->m_f0a;
-    if (idx < 100)
+    int idx = (unsigned char)((Wire*)pkt)->m_f0a;
+    if (0 <= idx && idx < 100)
     {
-        *(int*)((char*)this + idx * 9 + 0x48d) += ((Wire*)pkt)->m_f0b;
-        *(int*)((char*)this + idx * 9 + 0x491) += ((Wire*)pkt)->m_f0f;
+        m_goldcard[idx].m_field1 += ((Wire*)pkt)->m_f0b;
+        m_goldcard[idx].m_field5 += ((Wire*)pkt)->m_f0f;
     }
 }
 void StatisticManager::SendDBGoldcardEventStatistic(CServerHandler* handler)
@@ -1810,64 +1817,64 @@ void StatisticManager::avgPing(int& a, int& b, short& c)
 }
 void StatisticManager::AddP2PStatistic(Packet_P2P_Statistics* pkt)
 {
-    *(int*)((char*)&m_p2p + 0) += *(int*)((char*)pkt + 10);
-    *(int*)((char*)&m_p2p + 4) += *(int*)((char*)pkt + 0xe);
-    *(char*)((char*)&m_p2p + 8) = *(char*)((char*)pkt + 0x12);
-    minPing(*(short*)((char*)&m_p2p + 0xa), *(short*)((char*)pkt + 0x13));
-    maxPing(*(short*)((char*)&m_p2p + 0xc), *(short*)((char*)pkt + 0x15));
-    sumPing(*(int*)((char*)&m_p2p + 0x10), *(short*)((char*)pkt + 0x17),
-            *(int*)((char*)&m_p2p + 0x14));
-    *(int*)((char*)&m_p2p + 0x18) += *(int*)((char*)pkt + 0x19);
-    *(int*)((char*)&m_p2p + 0x1c) += *(int*)((char*)pkt + 0x1d);
-    *(int*)((char*)&m_p2p + 0x20) += *(int*)((char*)pkt + 0x21);
-    *(int*)((char*)&m_p2p + 0x24) += *(int*)((char*)pkt + 0x25);
-    minPing(*(short*)((char*)&m_p2p + 0x28), *(short*)((char*)pkt + 0x29));
-    maxPing(*(short*)((char*)&m_p2p + 0x2a), *(short*)((char*)pkt + 0x2b));
-    sumPing(*(int*)((char*)&m_p2p + 0x30), *(short*)((char*)pkt + 0x2d),
-            *(int*)((char*)&m_p2p + 0x34));
-    *(int*)((char*)&m_p2p + 0x38) += *(int*)((char*)pkt + 0x2f);
-    *(int*)((char*)&m_p2p + 0x3c) += *(int*)((char*)pkt + 0x33);
-    *(int*)((char*)&m_p2p + 0x40) += *(int*)((char*)pkt + 0x37);
-    *(int*)((char*)&m_p2p + 0x44) += *(int*)((char*)pkt + 0x3b);
+    m_p2p.m_field0 += pkt->m_fieldA;
+    m_p2p.m_field4 += pkt->m_fieldB;
+    m_p2p.m_field8 = pkt->m_fieldC;
+    minPing(*(short*)((char*)this + 0xb3a), *(short*)((char*)pkt + 0x13));
+    maxPing(*(short*)((char*)this + 0xb3c), *(short*)((char*)pkt + 0x15));
+    sumPing(*(int*)((char*)this + 0xb40), *(short*)((char*)pkt + 0x17),
+            *(int*)((char*)this + 0xb44));
+    m_p2p.m_field18 += pkt->m_fieldG;
+    m_p2p.m_field1c += pkt->m_fieldH;
+    m_p2p.m_field20 += pkt->m_fieldI;
+    m_p2p.m_field24 += pkt->m_fieldJ;
+    minPing(*(short*)((char*)this + 0xb58), *(short*)((char*)pkt + 0x29));
+    maxPing(*(short*)((char*)this + 0xb5a), *(short*)((char*)pkt + 0x2b));
+    sumPing(*(int*)((char*)this + 0xb60), *(short*)((char*)pkt + 0x2d),
+            *(int*)((char*)this + 0xb64));
+    m_p2p.m_field38 += pkt->m_fieldN;
+    m_p2p.m_field3c += pkt->m_fieldO;
+    m_p2p.m_field40 += pkt->m_fieldP;
+    m_p2p.m_field44 += pkt->m_fieldQ;
 }
 void StatisticManager::SendDBP2PStatistic(CServerHandler* handler)
 {
     Packet_P2P_Statistics pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = *(unsigned int*)((char*)&m_p2p + 0);
-    *(char*)((char*)&pkt + 0xe) = *(char*)((char*)&m_p2p + 8);
-    if (*(short*)((char*)&m_p2p + 0xa) == 0x7fff)
+    pkt.m_fieldC = m_p2p.m_field8;
+    pkt.m_fieldA = m_p2p.m_field0;
+    if (m_p2p.m_fieldA == 0x7fff)
     {
-        *(short*)((char*)&pkt + 0xf) = 0;
+        pkt.m_fieldD = 0;
     }
     else
     {
-        *(short*)((char*)&pkt + 0xf) = *(short*)((char*)&m_p2p + 0xa);
+        pkt.m_fieldD = m_p2p.m_fieldA;
     }
-    avgPing(*(int*)((char*)&m_p2p + 0x10), *(int*)((char*)&m_p2p + 0x14),
-            *(short*)((char*)&m_p2p + 0xe));
-    *(short*)((char*)&pkt + 0x11) = *(short*)((char*)&m_p2p + 0xc);
-    *(short*)((char*)&pkt + 0x13) = *(short*)((char*)&m_p2p + 0xe);
-    *(int*)((char*)&pkt + 0x15) = *(int*)((char*)&m_p2p + 0x18);
-    *(int*)((char*)&pkt + 0x19) = *(int*)((char*)&m_p2p + 0x1c);
-    *(int*)((char*)&pkt + 0x1d) = *(int*)((char*)&m_p2p + 0x20);
-    *(int*)((char*)&pkt + 0x21) = *(int*)((char*)&m_p2p + 0x24);
-    *(int*)((char*)&pkt + 0x25) = *(int*)((char*)&m_p2p + 4);
-    if (*(short*)((char*)&m_p2p + 0x28) == 0x7fff)
+    avgPing(*(int*)((char*)this + 0xb40), *(int*)((char*)this + 0xb44),
+            *(short*)((char*)this + 0xb3e));
+    pkt.m_fieldE = m_p2p.m_fieldC;
+    pkt.m_fieldF = m_p2p.m_fieldE;
+    pkt.m_fieldG = m_p2p.m_field18;
+    pkt.m_fieldH = m_p2p.m_field1c;
+    pkt.m_fieldI = m_p2p.m_field20;
+    pkt.m_fieldJ = m_p2p.m_field24;
+    pkt.m_fieldB = m_p2p.m_field4;
+    if (m_p2p.m_fieldB == 0x7fff)
     {
-        *(short*)((char*)&pkt + 0x29) = 0;
+        pkt.m_fieldK = 0;
     }
     else
     {
-        *(short*)((char*)&pkt + 0x29) = *(short*)((char*)&m_p2p + 0x28);
+        pkt.m_fieldK = m_p2p.m_fieldB;
     }
-    avgPing(*(int*)((char*)&m_p2p + 0x30), *(int*)((char*)&m_p2p + 0x34),
-            *(short*)((char*)&m_p2p + 0x2e));
-    *(short*)((char*)&pkt + 0x2b) = *(short*)((char*)&m_p2p + 0x2a);
-    *(short*)((char*)&pkt + 0x2d) = *(short*)((char*)&m_p2p + 0x2e);
-    *(int*)((char*)&pkt + 0x2f) = *(int*)((char*)&m_p2p + 0x38);
-    *(int*)((char*)&pkt + 0x33) = *(int*)((char*)&m_p2p + 0x3c);
-    *(int*)((char*)&pkt + 0x37) = *(int*)((char*)&m_p2p + 0x40);
-    *(int*)((char*)&pkt + 0x3b) = *(int*)((char*)&m_p2p + 0x44);
+    avgPing(*(int*)((char*)this + 0xb60), *(int*)((char*)this + 0xb64),
+            *(short*)((char*)this + 0xb5c));
+    pkt.m_fieldL = m_p2p.m_field2a;
+    pkt.m_fieldM = m_p2p.m_field2c;
+    pkt.m_fieldN = m_p2p.m_field38;
+    pkt.m_fieldO = m_p2p.m_field3c;
+    pkt.m_fieldP = m_p2p.m_field40;
+    pkt.m_fieldQ = m_p2p.m_field44;
     handler->SendToDB((PacketHeader*)&pkt);
 }
 void StatisticManager::ResetP2PStatistic()

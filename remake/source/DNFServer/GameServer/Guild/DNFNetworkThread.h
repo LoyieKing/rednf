@@ -20,8 +20,8 @@ public:
     void attach(CApplication* app);
     void SetUDPQueue(std::queue<CUdpRecvBuffer*>* q);
     void dispatch(void* param);
-    CApplication* m_app;   // +0xc
-    void* m_queue;         // +0x10
+    void* m_queue;         // +0xc
+    void* m_handler;       // +0x10
     void* m_lock;          // +0x14
     void* m_bLock;         // +0x18
 };

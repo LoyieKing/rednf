@@ -84,12 +84,11 @@ void CUserManager::ProcessByMinute()
 {
     if (!m_prohibitUsers.empty())
     {
-        for (std::map<const unsigned int, CDNFProhibitUser*>::iterator it = m_prohibitUsers.begin();
-             it != m_prohibitUsers.end(); )
+        std::map<const unsigned int, CDNFProhibitUser*>::iterator it = m_prohibitUsers.begin();
+        while (it != m_prohibitUsers.end())
         {
-            CDNFProhibitUser* pu = (*it).second;
-            register bool hasUser = (pu != 0);
-            if (hasUser)
+            CDNFProhibitUser* pu;
+            if ((pu = (*it).second) != 0)
             {
                 if (pu->IsTimeOutConnectable())
                 {
@@ -394,9 +393,8 @@ int CUserManager::DeleteProhibitUser(unsigned int dbid, char channel)
     {
         return 0;
     }
-    CDNFProhibitUser* pu = FindProhibitUser(dbid);
-    register bool hasPu = pu != 0;
-    if (hasPu)
+    CDNFProhibitUser* pu;
+    if ((pu = FindProhibitUser(dbid)) != 0)
     {
         if (pu->GetChannelNo() != -1 && pu->GetChannelNo() != channel)
         {
@@ -530,9 +528,8 @@ int CUserManager::DeleteUser(unsigned int dbid)
     {
         return 0;
     }
-    CUser* user = FindUser(dbid);
-    register bool hasUser = user != 0;
-    if (hasUser)
+    CUser* user;
+    if ((user = FindUser(dbid)) != 0)
     {
         if (user->GetGameServer() == 0)
         {

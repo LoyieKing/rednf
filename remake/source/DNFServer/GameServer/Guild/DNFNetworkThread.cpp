@@ -69,22 +69,22 @@
 
 CUdpNetworkThread::CUdpNetworkThread()
 {
-    m_app = 0;
     m_queue = 0;
+    m_handler = 0;
     m_lock = 0;
     m_bLock = 0;
 }
 
 CUdpNetworkThread::~CUdpNetworkThread()
 {
-    m_app = 0;
     m_queue = 0;
+    m_handler = 0;
     m_lock = 0;
 }
 
 void CUdpNetworkThread::dispatch(void* param)
 {
-    if (m_queue != 0 && m_app != 0 && m_lock != 0)
+    if (m_queue != 0 && m_handler != 0 && m_lock != 0)
     {
         DNFFLib::Sleep_Ext(5, 0);
         puts("Network Thread Start!");
@@ -99,59 +99,55 @@ void CUdpNetworkThread::dispatch(void* param)
             int len = 0x1800;
             unsigned short port = 0;
             unsigned int ip = 0;
-            if (m_app->Get_UdpHandler()->RecvFromClient((char*)buf, &len, &ip, &port) == 1)
+            if (((CUdpHandler*)m_handler)->RecvFromClient((char*)buf, &len, &ip, &port) != 1)
             {
-                if (*(unsigned short*)((char*)buf + 2) == len)
+                CUdpRecvBuffer* buf2 = buf;
+                if (*(unsigned short*)((char*)buf2 + 2) == len)
                 {
-                    if (*(unsigned short*)((char*)buf + 2) < 0x1800)
+                    if (*(unsigned short*)((char*)buf2 + 2) < 0x1800)
                     {
                         if (len < 0x1801)
                         {
-                            *(unsigned int*)((char*)buf + 6) = ip;
-                            *(unsigned short*)((char*)buf + 4) = port;
+                            *(unsigned int*)((char*)buf2 + 6) = ip;
+                            *(unsigned short*)((char*)buf2 + 4) = port;
                             {
                                 CGuard<CMutex> g((CMutex*)m_lock);
-                                ((std::queue<CUdpRecvBuffer*>*)m_queue)->push(buf);
+                                ((std::queue<CUdpRecvBuffer*>*)m_queue)->push(buf2);
                                 unsigned int qsize =
                                     ((std::queue<CUdpRecvBuffer*>*)m_queue)->size();
-                                if (100 < qsize)
-                                {
-                                    DNF_LOG_SCOPE_LINE(0xb2,"./log/recv", "cnt(%d)\n",
-                                        ((std::queue<CUdpRecvBuffer*>*)m_queue)->size());
-                                }
                             }
                         }
                         else
                         {
                             DNF_LOG_SCOPE_LINE(0x7d,"./log/recvErr",
                                 "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                                *(unsigned short*)((char*)buf + 2), len, *(unsigned short*)buf);
+                                *(unsigned short*)((char*)buf2 + 2), len, *(unsigned short*)buf2);
                             CGuard<CMutex> g((CMutex*)m_bLock);
-                            CUdpRecvBuffer::operator delete(buf, 0x1804);
+                            CUdpRecvBuffer::operator delete(buf2);
                         }
                     }
                     else
                     {
                         DNF_LOG_SCOPE_LINE(0x71,"./log/recvErr",
                             "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                            *(unsigned short*)((char*)buf + 2), len, *(unsigned short*)buf);
+                            *(unsigned short*)((char*)buf2 + 2), len, *(unsigned short*)buf2);
                         CGuard<CMutex> g((CMutex*)m_bLock);
-                        CUdpRecvBuffer::operator delete(buf, 0x1804);
+                        CUdpRecvBuffer::operator delete(buf2);
                     }
                 }
                 else
                 {
                     DNF_LOG_SCOPE_LINE(0x66,"./log/recvErr",
                         "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                        *(unsigned short*)((char*)buf + 2), len, *(unsigned short*)buf);
+                        *(unsigned short*)((char*)buf2 + 2), len, *(unsigned short*)buf2);
                     CGuard<CMutex> g((CMutex*)m_bLock);
-                    CUdpRecvBuffer::operator delete(buf, 0x1804);
+                    CUdpRecvBuffer::operator delete(buf2);
                 }
             }
             else
             {
                 CGuard<CMutex> g((CMutex*)m_bLock);
-                CUdpRecvBuffer::operator delete(buf, 0x1804);
+                CUdpRecvBuffer::operator delete(buf);
             }
         }
         return;
@@ -163,8 +159,8 @@ void CUdpNetworkThread::attach(CApplication* app)
 {
     if (app != 0)
     {
-        m_app = app;
         m_queue = app->Get_UdpPacketRecvQ();
+        m_handler = app->Get_UdpHandler();
         m_lock = app->Get_UdpQLock();
         m_bLock = app->Get_UdpBLock();
     }
@@ -174,4 +170,3 @@ void CUdpNetworkThread::SetUDPQueue(std::queue<CUdpRecvBuffer*>* q)
 {
     m_queue = q;
 }
-

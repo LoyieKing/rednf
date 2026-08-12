@@ -157,14 +157,17 @@ void TCPSocket::close()
     port_ = 0;
 }
 
-int TCPSocket::shutdown(int opt)
+void TCPSocket::shutdown(int opt)
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
-    // ORIG 不调用 ::shutdown(2)，仅装载 sock_ 并与 -1 比较；纯 C++ 形态下该死比较
-    // 被 -O0 折叠，无法逐字节复现——按规矩归入 caliber_issues.csv（REMAIN）。
+    // ORIG 不调用 ::shutdown(2)，仅装载 sock_ 并与 -1 比较（load+cmp，无分支）。
+    // GCC 4.4 -O0 对普通死比较语句（`sock_ == -1;`）整体消除；但 `if (sock_ == -1)
+    // return;` 置于 void 函数尾部时，比较被保留、两路径同汇尾声使分支被折叠，
+    // 逐条复现 ORIG 的 push/mov/mov/cmp/pop/ret 形态（scratch 实测逐字节一致）。
     (void)opt;
-    sock_ == -1;
-    return sock_;
+    if (sock_ == -1)
+    {
+        return;
+    }
 }
 
 bool TCPSocket::accept(TCPSocket& accepted)

@@ -97,8 +97,8 @@ public:
     void ChangeGuildMemberGrade(unsigned char grade);
     void SendSetGuildKeyToUser(unsigned int guildKey, unsigned int grade);
     void MakeGameServerSendUserInfoPacket(unsigned int charNo);
-    int RegisterToBlackList(unsigned int charNo, char* name);
-    int RegisterToBlackList(unsigned int charNo, char* name, unsigned int param);
+    bool RegisterToBlackList(unsigned int charNo, char* name);
+    bool RegisterToBlackList(unsigned int charNo, char* name, unsigned int param);
     int DeleteToBlackList(unsigned int charNo);
     void ResetBlackList();
     int IsBlackUser(unsigned int charNo);
@@ -147,7 +147,7 @@ public:
     Packet_Monitor_SAVE_Guild_Member();
     unsigned char m_flag;          // +0xa
     unsigned int m_b;              // +0xb
-    char m_pad[4];                 // +0xf
+    unsigned int m_charNo;         // +0xf
     STGuildMemerDBInfo m_info;     // +0x13
     char m_pad2d;                  // +0x2d
 };

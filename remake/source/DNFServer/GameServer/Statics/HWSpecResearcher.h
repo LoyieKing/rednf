@@ -51,10 +51,10 @@ public:
     void WriteErrorLineStatics(unsigned short param, int value);
     void ResetSpec();
     std::map<STSpecStatic, unsigned int> m_spec[3];      // +0x0/0x18/0x30
-    char m_field48;                                      // +0x48
+    unsigned char m_field48;                             // +0x48
     int m_field4c;                                       // +0x4c
     std::map<STErrorStatic, unsigned int> m_errorSpec;   // +0x50
-    char m_field68;                                      // +0x68
+    unsigned char m_field68;                             // +0x68
 };
 
 #endif // HW_SPEC_RESEARCHER_H_

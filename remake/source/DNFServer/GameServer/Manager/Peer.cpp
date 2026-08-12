@@ -8,9 +8,33 @@
 
 #include "DNFFileLog.h"
 #include "DNFTcpSocket.h"
-#include "Packet_InnerPakcet_Login.h"
-#include "Packet_InnerPakcet_Logout.h"
+#include "PacketHeader.h"
 #include "Thread.h"
+
+// ORIG 二进制证据：ConnSig/DisConnSig 的 pkt 局部槽为 6 字节（packetId+packetSize+
+// reversed1），而 ctor 仍写满 10 字节（尾部 4 字节越界到 fd 槽，随后被 fd 覆盖）。
+// 共享头文件中 Packet_InnerPakcet_* 为 10 字节内联 ctor（禁止改头），故 cpp 内
+// 以 6 字节局部结构 + 直接声明调用原版 ctor 符号（extern "C" 保持符号不重修饰）。
+// 原版二进制含弱符号 _ZN24Packet_InnerPakcet_LoginC1Ev / _ZN25Packet_InnerPakcet_LogoutC1Ev
+// （地址 0x805772a / 0x805774e，W），本 TU 出库定义同形 ctor 供链接解析；
+// 这两个符号不在 compare scope（targets.txt 无），不会新增 md。
+extern "C" void _ZN24Packet_InnerPakcet_LoginC1Ev(void*);
+extern "C" void _ZN25Packet_InnerPakcet_LogoutC1Ev(void*);
+
+class Packet_InnerPakcet_Login : public PacketHeader
+{
+public:
+    Packet_InnerPakcet_Login();
+} __attribute__((packed));
+
+class Packet_InnerPakcet_Logout : public PacketHeader
+{
+public:
+    Packet_InnerPakcet_Logout();
+} __attribute__((packed));
+
+Packet_InnerPakcet_Login::Packet_InnerPakcet_Login() : PacketHeader(0xfa0, 0xa) {}
+Packet_InnerPakcet_Logout::Packet_InnerPakcet_Logout() : PacketHeader(0xfa1, 0xa) {}
 
 void* CPeer::operator new(unsigned int size) { return g_peerPool.alloc(); }
 void CPeer::operator delete(void* ptr) { g_peerPool.free(ptr); }
@@ -42,30 +66,25 @@ int CPeer::recv_packet()
     if (getHandle() < 0)
         return 0;
     errno = 0;
-    int remaining = ((char*)this + 0x1c + 0x1800) - m_sendBuf;
+    int remaining = (char*)this + 0x1c - m_sendBuf + 0x1800;
     if (remaining == 0)
     {
         m_sendBuf = (char*)this + 0x1c;
         m_recvLen = 0;
         remaining = 0x1800;
     }
-    int n = read(getHandle(), m_sendBuf, remaining);
-    if (n < 0)
+    int n;
+    if ((n = read(getHandle(), m_sendBuf, remaining)) < 0)
     {
-        if (errno == EAGAIN || errno == EINTR)
+        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 0;
-        if (errno != 0)
-        {
-            printf("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
-                   getHandle(), errno, strerror(errno));
-            return -1;
-        }
-        return 0;
+        printf("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
+               getHandle(), errno, strerror(errno));
+        return -1;
     }
     if (n == 0)
     {
-        CMyFileLog log(__FUNCTION__, 0xa4);
-        log("./log/TcpRecv", "Recv ERROR = 0 (%d) : %s, MaxRead(%d) nRead(%d)",
+        DNF_LOG_SCOPE_LINE(0xa4, "./log/TcpRecv", "Recv ERROR = 0 (%d) : %s, MaxRead(%d) nRead(%d)",
             errno, strerror(errno), remaining, n);
         return -1;
     }
@@ -74,45 +93,51 @@ int CPeer::recv_packet()
 
 int CPeer::send_packet()
 {
+    int ret = 0;
     if (m_remainSendLen == 0)
         return 1;
-    int ret = write(getHandle(), (char*)this + 0x183c, m_remainSendLen);
-    if (ret <= 0)
+    register int n = m_remainSendLen;
+    if ((ret = write(getHandle(), (char*)this + 0x183c, n)) <= 0)
     {
-        if (errno == EAGAIN || errno == EINTR)
+        if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 1;
-        if (errno != 0)
+        else
         {
             printf("SEND ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
                    getHandle(), errno, strerror(errno));
             return 1;
         }
-        return ret;
     }
-    if (m_remainSendLen <= ret)
+    if (ret > 0)
     {
-        if (m_remainSendLen < ret)
+        if (m_remainSendLen > ret)
+        {
+            m_recvBuf = (char*)this + 0x183c + ret;
+            m_remainSendLen -= ret;
+            if (m_remainSendLen > 0x96000u)
+            {
+                CMyFileLog log(__FUNCTION__, 0x17e);
+                log("./log/TcpErr",
+                    "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
+                    m_remainSendLen);
+                m_recvBuf = (char*)this + 0x183c;
+                m_remainSendLen = 0;
+                return 1;
+            }
+            memmove((char*)this + 0x183c, m_recvBuf, m_remainSendLen);
+            m_recvBuf = (char*)this + 0x183c + m_remainSendLen;
+        }
+        else if (m_remainSendLen < ret)
         {
             printf("offset error[Remain_Data: %d Send:%d]", m_remainSendLen, ret);
             return -1;
         }
-        m_recvBuf = (char*)this + 0x183c;
-        m_remainSendLen = 0;
-        return ret;
+        else
+        {
+            m_recvBuf = (char*)this + 0x183c;
+            m_remainSendLen = 0;
+        }
     }
-    m_recvBuf = (char*)this + 0x183c + ret;
-    m_remainSendLen -= ret;
-    if (m_remainSendLen > 0x96000)
-    {
-        CMyFileLog log(__FUNCTION__, 0x17e);
-        log("./log/TcpErr", "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
-            m_remainSendLen);
-        m_recvBuf = (char*)this + 0x183c;
-        m_remainSendLen = 0;
-        return 1;
-    }
-    memmove((char*)this + 0x183c, m_recvBuf, m_remainSendLen);
-    m_recvBuf = (char*)this + 0x183c + m_remainSendLen;
     return ret;
 }
 
@@ -127,20 +152,20 @@ int CPeer::send_packet(char* buf, int len)
     }
     errno = 0;
     m_remainSendLen += len;
-    if (m_remainSendLen > 0x96000)
+    if ((unsigned int)m_remainSendLen > 0x96000)
     {
-        CMyFileLog log(__FUNCTION__, 0x133);
-        log("./log/TcpErr", "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
+        DNF_LOG_SCOPE_LINE(0x133, "./log/TcpErr",
+            "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
         m_recvBuf = (char*)this + 0x183c;
         m_remainSendLen = 0;
         return -1;
     }
     if (m_recvBuf < (char*)this + 0x183c ||
-        m_recvBuf >= (char*)this + 0x183c + 0x96000)
+        m_recvBuf >= (char*)((unsigned int)((char*)this + 0x183c) + 0x96000))
     {
-        CMyFileLog log(__FUNCTION__, 0x13b);
-        log("./log/TcpErr", "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
+        DNF_LOG_SCOPE_LINE(0x13b, "./log/TcpErr",
+            "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
         m_recvBuf = (char*)this + 0x183c;
         m_remainSendLen = 0;
@@ -163,27 +188,27 @@ void CPeer::InitPeer(TcpRecvQueue* recvQ, CMutex* qLock, CMutex* bLock)
 }
 bool CPeer::parsing(int len)
 {
+    PacketHeader hdr(0, 0);
     int parsinglength = m_recvLen + len;
+    int headerSize = 10;
     if (parsinglength <= 9)
     {
         m_recvLen += len;
         m_sendBuf += len;
-        CMyFileLog log(__FUNCTION__, 0xbb);
-        log("./log/TcpRecv", "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
-            (char*)this + 0x1c, m_sendBuf, m_recvLen, len);
+        DNF_LOG_SCOPE_LINE(0xbb, "./log/TcpRecv",
+            "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
+            m_sendBuf, (char*)this + 0x1c, m_recvLen, len);
         return 1;
     }
-    for (;;)
+    do
     {
         if (m_recvLen != 0)
             m_sendBuf -= m_recvLen;
-        PacketHeader hdr(0, 0);
         memcpy(&hdr, m_sendBuf, 10);
-        int size = hdr.packetSize;
+        unsigned int size = hdr.packetSize;
         if (size <= 9 || size > 0x1800)
         {
-            CMyFileLog log(__FUNCTION__, 0xd0);
-            log("./log/TcpRecv",
+            DNF_LOG_SCOPE_LINE(0xd0, "./log/TcpRecv",
                 "Recv Size[%d], Parsing Packet Size[%d] is Too Large, offset:%x, buf:%x, alreadyRead:%d",
                 len, size, m_sendBuf, (char*)this + 0x1c, m_sendLen);
             m_sendBuf = (char*)this + 0x1c;
@@ -192,11 +217,10 @@ bool CPeer::parsing(int len)
         }
         if (parsinglength < size)
         {
-            CMyFileLog log(__FUNCTION__, 0x100);
-            log("./log/TcpRecv",
+            DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
                 "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
                 parsinglength);
-            break;
+            goto out;
         }
         CTcpRecvBuffer* buf;
         {
@@ -208,6 +232,7 @@ bool CPeer::parsing(int len)
         {
             CGuard<CMutex> guard(m_sendQLock);
             m_recvQ->push(buf);
+            int qsize = m_recvQ->size();
         }
         parsinglength -= size;
         m_sendBuf += size;
@@ -215,23 +240,18 @@ bool CPeer::parsing(int len)
         if (parsinglength == 0)
         {
             m_sendBuf = (char*)this + 0x1c;
-            break;
+            goto out;
         }
-        if (parsinglength <= 9)
-        {
-            CMyFileLog log(__FUNCTION__, 0xf8);
-            log("./log/TcpRecv",
-                "need more data (parsinglength < HEADER_SIZE): body=%d !!",
-                parsinglength);
-            break;
-        }
-    }
+    } while (parsinglength > 9);
+    DNF_LOG_SCOPE_LINE(0xf8, "./log/TcpRecv",
+        "need more data (parsinglength < HEADER_SIZE): body=%d !!",
+        parsinglength);
+out:
     if (parsinglength > 0)
     {
         if (parsinglength > 0x1800)
         {
-            CMyFileLog log(__FUNCTION__, 0x10e);
-            log("./log/TcpRecv",
+            DNF_LOG_SCOPE_LINE(0x10e, "./log/TcpRecv",
                 "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
                 parsinglength);
             return 0;
@@ -252,7 +272,15 @@ bool CPeer::parsing(int len)
 }
 void CPeer::ConnSig()
 {
-    Packet_InnerPakcet_Login pkt;
+    // ORIG 二进制证据：pkt 局部槽 6 字节（packetId+packetSize+reversed1），
+    // ctor 仍写满 10 字节（尾部 4 字节越界到 fd 槽，随后被 fd 覆盖，与 ORIG 一致）。
+    struct PktLocal {
+        unsigned short packetId;
+        unsigned short packetSize;
+        unsigned short reversed1;
+    } __attribute__((packed));
+    PktLocal pkt;
+    _ZN24Packet_InnerPakcet_LoginC1Ev(&pkt);
     int fd = getHandle();
     CTcpRecvBuffer* buf;
     {
@@ -267,7 +295,15 @@ void CPeer::ConnSig()
 }
 void CPeer::DisConnSig()
 {
-    Packet_InnerPakcet_Logout pkt;
+    // ORIG 二进制证据：pkt 局部槽 6 字节（packetId+packetSize+reversed1），
+    // ctor 仍写满 10 字节（尾部 4 字节越界到 fd 槽，随后被 fd 覆盖，与 ORIG 一致）。
+    struct PktLocal {
+        unsigned short packetId;
+        unsigned short packetSize;
+        unsigned short reversed1;
+    } __attribute__((packed));
+    PktLocal pkt;
+    _ZN25Packet_InnerPakcet_LogoutC1Ev(&pkt);
     int fd = getHandle();
     CTcpRecvBuffer* buf;
     {
@@ -280,16 +316,15 @@ void CPeer::DisConnSig()
         m_recvQ->push(buf);
     }
 }
-char CPeer::RecvPacket()
+bool CPeer::RecvPacket()
 {
     int ret = recv_packet();
     if (ret > 0)
     {
         if (!parsing(ret))
         {
-            CMyFileLog log(__FUNCTION__, 0x4d);
             // ORIG 实测：日志文案无结尾 \n（printf 有 \n）。
-            log("./log/TcpRecv", "CPeer::Recv (false == parsing( size:%d ) )", ret);
+            DNF_LOG_SCOPE_LINE(0x4d, "./log/TcpRecv", "CPeer::Recv (false == parsing( size:%d ) )", ret);
             printf("CPeer::Recv (false == parsing( size:%d ) )\n", ret);
             return 1;
         }
@@ -302,15 +337,13 @@ char CPeer::RecvPacket()
         register int p = GetTcpSocket()->getPeerPort();
         register char* a = GetTcpSocket()->getPeerAdrs();
         register int h = GetTcpSocket()->getHandle();
-        CMyFileLog log(__FUNCTION__, 0x59);
-        log("./log/TcpRecv",
+        DNF_LOG_SCOPE_LINE(0x59, "./log/TcpRecv",
             "Maybe Peer is disconnect!(%d), socket no(%d), addr(%s), port(%d)",
             ret, h, a, p);
         printf("CPeer::Recv (size(%d) < 0)\n", ret);
         return 0;
     }
-    CMyFileLog log(__FUNCTION__, 0x63);
-    log("./log/TcpRecv", "Maybe Peer is disconnect!(size == 0)");
+    DNF_LOG_SCOPE_LINE(0x63, "./log/TcpRecv", "Maybe Peer is disconnect!(size == 0)");
     puts("CPeer::Recv (size == 0)");
     return 1;
 }

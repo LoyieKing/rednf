@@ -129,8 +129,8 @@ public:
 class Packet_DBMW_Request_Guild_Notify_Message : public PacketHeader
 {
 public:
-    int m_guildId;       // +0xa
-    unsigned char m_id;  // +0xe（ORIG movzbl，单字节）
+    unsigned int m_id;   // +0xa（ORIG 传参 0x8 槽，dword）
+    unsigned char m_guildId;  // +0xe（ORIG 传参 0x4 槽，movzbl 单字节）
     char m_msg[0x1000];  // +0xf
 } __attribute__((packed));
 
@@ -736,8 +736,8 @@ class Packet_Server_Queue_Load_Statistic : public PacketHeader
 {
 public:
     Packet_Server_Queue_Load_Statistic();
-    char m_fieldA;       // +0xa
-    char m_fieldB;       // +0xb
+    unsigned char m_fieldA;       // +0xa
+    unsigned char m_fieldB;       // +0xb
     unsigned short m_fieldC;  // +0xc
 } __attribute__((packed));
 
@@ -822,7 +822,7 @@ struct STGuildRankInfo
     STGuildRankInfo();
     int m_field0;    // +0
     unsigned int m_field4;    // +4
-    int m_field8;    // +8（rank）
+    unsigned int m_field8;    // +8（rank）
 };
 
 struct STGuildWarRankInfo

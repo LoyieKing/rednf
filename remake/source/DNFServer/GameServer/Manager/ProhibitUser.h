@@ -19,7 +19,7 @@ public:
     void SetMonitorWaitTime(unsigned int dbid, short time);
     void SetProhibitUserInfo(char flag);
     void IncreMonitorRetPacket();
-    char IsTimeOutWaitMonitor();
+    bool IsTimeOutWaitMonitor();
     unsigned int m_dbid;        // +0
     short m_remainTime;  // +4（ORIG setle 有符号比较）
     unsigned char m_retPacketCnt; // +6

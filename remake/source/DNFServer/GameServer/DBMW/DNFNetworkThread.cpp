@@ -47,13 +47,13 @@ void CNetworkThread::attach(CApplication* app)
 }
 void CNetworkThread::dispatch(void* param)
 {
-    if (!m_udpQueue || !m_udpHandler || !m_udpQLock)
-        throw CDNFException("NetworkThread is Not Ready!\n");
-    DNFFLib::Sleep_Ext(5, 0);
-    puts("Network Thread Start!");
-    m_stop = 1;
     try
     {
+        if (!m_udpQueue || !m_udpHandler || !m_udpQLock)
+            throw CDNFException("NetworkThread is Not Ready!\n");
+        DNFFLib::Sleep_Ext(5, 0);
+        puts("Network Thread Start!");
+        m_stop = 1;
         while (m_stop)
         {
             CUdpRecvBuffer* buf;
@@ -62,8 +62,8 @@ void CNetworkThread::dispatch(void* param)
                 buf = new CUdpRecvBuffer;
             }
             int size = 0x1800;
-            unsigned int addr = 0;
             unsigned short port = 0;
+            unsigned int addr = 0;
             if (((CUdpHandler*)m_udpHandler)->RecvFromClient(
                     (char*)buf, &size, &addr, &port) != 1)
             {
@@ -73,39 +73,37 @@ void CNetworkThread::dispatch(void* param)
                 }
                 continue;
             }
-            if (((PacketHeader*)buf)->packetSize != size)
+            CUdpRecvBuffer* pBuf = buf;
+            if (((PacketHeader*)pBuf)->packetSize != size)
             {
-                CMyFileLog log(__FUNCTION__, 0x6c);
-                log("./log/recvErr",
+                CMyFileLog(__FUNCTION__, 0x6c)("./log/recvErr",
                     "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                    ((PacketHeader*)buf)->packetSize, size,
-                    ((PacketHeader*)buf)->packetId);
+                    ((PacketHeader*)pBuf)->packetSize, size,
+                    ((PacketHeader*)pBuf)->packetId);
                 {
                     CGuard<CMutex> guard(m_udpBLock);
                     delete buf;
                 }
                 continue;
             }
-            if (((PacketHeader*)buf)->packetSize > 0x17ff)
+            if (((PacketHeader*)pBuf)->packetSize > 0x17ff)
             {
-                CMyFileLog log(__FUNCTION__, 0x77);
-                log("./log/recvErr",
+                CMyFileLog(__FUNCTION__, 0x77)("./log/recvErr",
                     "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                    ((PacketHeader*)buf)->packetSize, size,
-                    ((PacketHeader*)buf)->packetId);
+                    ((PacketHeader*)pBuf)->packetSize, size,
+                    ((PacketHeader*)pBuf)->packetId);
                 {
                     CGuard<CMutex> guard(m_udpBLock);
                     delete buf;
                 }
                 continue;
             }
-            if (size > 0x1800)
+            if (size > 0x1800u)
             {
-                CMyFileLog log(__FUNCTION__, 0x83);
-                log("./log/recvErr",
+                CMyFileLog(__FUNCTION__, 0x83)("./log/recvErr",
                     "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                    ((PacketHeader*)buf)->packetSize, size,
-                    ((PacketHeader*)buf)->packetId);
+                    ((PacketHeader*)pBuf)->packetSize, size,
+                    ((PacketHeader*)pBuf)->packetId);
                 {
                     CGuard<CMutex> guard(m_udpBLock);
                     delete buf;

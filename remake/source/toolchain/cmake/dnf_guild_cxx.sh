@@ -1,9 +1,11 @@
 #!/bin/sh
 # guild 逐 TU 编译器分发（2026-08-11 第 9 轮集成用）：
 # - 默认 c6（c6root 4.4.7 纯驱动），与 ORIG 4.4.7-1 TU 对齐
-# - 以下 4 个 TU 保留 c6444r（4.4.7 驱动 + 4.4.4-13 cc1plus）：
-#   A/B 全量实测 c6 会使这 4 个 TU 的 13 个已 identical 函数回归为 NEAR
+# - 以下 5 个 TU 保留 c6444r（4.4.7 驱动 + 4.4.4-13 cc1plus）：
+#   A/B 全量实测 c6 会使这些 TU 的已 identical 函数回归为 NEAR
 #   （DNFTcpHandler 9、DNFSignalTranslator 2、DNFApplication 1、main 1）
+#   DNFPacketTranslater：ORIG .comment 以 4.4.4-13 为主（8 项），该 TU 的
+#   e.what() 虚调用寄存器形态（fn->%edx）与 c6444r 逐条一致（第 14 轮验证）
 ROOT=/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake
 C6="$ROOT/dnf_c6_gxx.sh"
 C6444R="$ROOT/dnf_c6444r_gxx.sh"
@@ -17,7 +19,7 @@ for a in "$@"; do
     prev="$a"
 done
 case "$(basename "$src" .cpp)" in
-    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain)
+    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface)
         exec "$C6444R" "$@" ;;
     *)
         exec "$C6" "$@" ;;

@@ -26,7 +26,10 @@ struct STPowerWarCharacInfo
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
-    char m_data[0xc];
+    union {
+        char m_data[0xc];
+        unsigned int m_field[3];
+    };
 };
 
 // from GuildDomain.h

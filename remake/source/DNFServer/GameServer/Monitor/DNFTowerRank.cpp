@@ -112,7 +112,7 @@ void CTowerRank::reset()
 void CTowerRank::registRank(unsigned int floor, unsigned int job, unsigned int score,
                             const stDeathTowerRecordMemberInfo_t* records)
 {
-    for (unsigned int i = 0; i < floor; i++)
+    for (int i = 0; i < (int)floor; i++)
     {
         registCharacRank(floor, records[i].m_name, job, score);
     }

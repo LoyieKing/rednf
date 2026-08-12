@@ -9,7 +9,9 @@
 // 仅比较首字段（推断为时间）。
 struct STGuildCargoLog {
     STGuildCargoLog();
+#ifndef DNF_GUILD_ODR_TRIVIAL_CARGOLOG_DTOR
     ~STGuildCargoLog();
+#endif
     int time;  // offset 0
     char m_rest[0x2c];
 } __attribute__((packed));

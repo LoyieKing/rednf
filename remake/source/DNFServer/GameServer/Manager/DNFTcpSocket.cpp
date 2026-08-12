@@ -66,10 +66,17 @@ void TCPSocket::close()
 
 int TCPSocket::shutdown(int how)
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
+    // ORIG 13 字节 = mov;mov;cmp;pop;ret（int 函数末尾滑落，eax 即装载值）。
+    // 裸 `m_fd == -1;` 会被 4.4.7 在 gimplify 阶段折叠；switch 双空 case
+    // 形态保留死比较（同 relay/auction/point 先例），无分支无 setcc。
     (void)how;
-    m_fd == -1;
-    return m_fd;
+    switch (m_fd == -1)
+    {
+    case 0:
+        break;
+    case 1:
+        break;
+    }
 }
 
 int TCPSocket::send(char* buf, int len)
@@ -264,7 +271,7 @@ int TCPSocket::pollReadWriteErrEvent() const
     return result;
 }
 
-char TCPSocket::bind(unsigned short port, bool flag)
+bool TCPSocket::bind(unsigned short port, bool flag)
 {
     setOptReuseAdrs(true);
     struct sockaddr_in addr;
@@ -283,7 +290,7 @@ char TCPSocket::bind(unsigned short port, bool flag)
     return 1;
 }
 
-char TCPSocket::listen(int backlog)
+bool TCPSocket::listen(int backlog)
 {
     if (::listen(m_fd, backlog) < 0)
     {
@@ -293,7 +300,7 @@ char TCPSocket::listen(int backlog)
     return 1;
 }
 
-char TCPSocket::pollReadEvent() const
+bool TCPSocket::pollReadEvent() const
 {
     fd_set readfds;
     MGR_FD_ZERO(&readfds);
@@ -310,7 +317,7 @@ char TCPSocket::pollReadEvent() const
     return MGR_FD_ISSET(m_fd, &readfds);
 }
 
-char TCPSocket::accept(TCPSocket& sock)
+bool TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
     // (int) 强转：复现 ORIG 的 add $0x4 + mov 形态（纯指针算术会被折叠成 lea）。

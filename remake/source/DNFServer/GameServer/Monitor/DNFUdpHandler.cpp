@@ -228,30 +228,34 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const cha
     if (sent == -1)
     {
         int err = getErrno();
-        if (err == 0x61)
+        switch (err)
         {
-            DNF_LOG_SCOPE_LINE(0x1b8, "./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", err);
-        }
-        else if (err < 0x61 || 2 < (unsigned int)(err - 0x6f))
-        {
-            printf("err = %d , strerror = %s in send\n", err, strerror(err));
-            DNF_LOG_SCOPE_LINE(0x1be, "./log/UdpErr", "err = %d , strerror = %s in send\n", err, strerror(err));
-        }
-        else
-        {
-            printf("Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", err);
+        case 0x6f:
+        case 0x70:
+        case 0x71:
             DNF_LOG_SCOPE_LINE(0x1b2,"./log/UdpErr",
                 "Error( ECONNREFUSED, EHOSTDOWN, EHOSTUNREACH ) = %d\n", err);
+            break;
+        case 0x61:
+            DNF_LOG_SCOPE_LINE(0x1b8, "./log/UdpErr", "Error( EAFNOSUPPORT ) in send = %d\n", err);
+            break;
+        default:
+            DNF_LOG_SCOPE_LINE(0x1be, "./log/UdpErr", "err = %d , strerror = %s in send\n", err, strerror(err));
+            break;
         }
         return 0;
     }
-    if (sent == len)
+    if (sent == 0)
     {
-        return 1;
+        DNF_LOG_SCOPE_LINE(0x1c7, "./log/UdpErr", "no data sent in send\n");
+        return 0;
     }
-    printf("Only %d out of %d bytes sent\n", sent, len);
-    DNF_LOG_SCOPE_LINE(0x1d2, "./log/UdpErr", "Only %d out of %d bytes sent\n", sent, len);
-    return 0;
+    if (len != sent)
+    {
+        DNF_LOG_SCOPE_LINE(0x1ce, "./log/UdpErr", "Only %d out of %d bytes sent\n", sent, len);
+        return 0;
+    }
+    return 1;
 }
 
 char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,

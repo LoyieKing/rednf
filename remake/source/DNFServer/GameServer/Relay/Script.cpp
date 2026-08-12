@@ -160,77 +160,97 @@ void Script::destroy_raw_script()
 
 bool Script::get_server_section()
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
-    // ORIG 的交错 ret0 块布局/寄存器序无法用纯 C++ 逐字节复现，
-    // 按规矩归入 caliber_issues.csv（REMAIN）。
     char* v = 0;
     v = data->get_data("[server]", "max_client");
-    if (v == 0)
+    if (v != 0)
     {
-        return 0;
-    }
-    G_ScriptData()->mRelayNum = atoi(v);
-    v = data->get_data("[server]", "this_ip");
-    if (v == 0)
-    {
-        return 0;
-    }
-    strncpy(G_ScriptData()->mServerIpA, v, 0x10);
-    G_ScriptData()->mServerIpA[16] = 0;
-    v = data->get_data("[server]", "this_tcp_port");
-    if (v == 0)
-    {
-        return 0;
-    }
-    G_ScriptData()->mPortTcp = (unsigned short)atoi(v);
-    v = data->get_data("[server]", "this_udp_port");
-    if (v == 0)
-    {
-        return 0;
-    }
-    G_ScriptData()->mPortUdp = (unsigned short)atoi(v);
-    v = data->get_data("[server]", "this_pvp_channel");
-    if (v == 0)
-    {
-        G_ScriptData()->mReservedA = 0;
+        G_ScriptData()->mRelayNum = atoi(v);
     }
     else
     {
+        return 0;
+    }
+    v = data->get_data("[server]", "this_ip");
+    if (v != 0)
+    {
+        strncpy(G_ScriptData()->mServerIpA, v, 0x10);
+        G_ScriptData()->mServerIpA[16] = 0;
+    }
+    else
+    {
+        return 0;
+    }
+    v = data->get_data("[server]", "this_tcp_port");
+    if (v != 0)
+    {
+        G_ScriptData()->mPortTcp = (unsigned short)atoi(v);
+    }
+    else
+    {
+        return 0;
+    }
+    v = data->get_data("[server]", "this_udp_port");
+    if (v != 0)
+    {
+        G_ScriptData()->mPortUdp = (unsigned short)atoi(v);
+    }
+    else
+    {
+        return 0;
+    }
+    v = data->get_data("[server]", "this_pvp_channel");
+    if (v != 0)
+    {
         G_ScriptData()->mReservedA = (unsigned short)atoi(v);
+    }
+    else
+    {
+        G_ScriptData()->mReservedA = 0;
     }
     return 1;
 }
 
 bool Script::get_aradauth_section()
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）。
     char* v = 0;
     v = data->get_data("[aradauth]", "udp_port_to_monitor");
-    if (v == 0)
+    if (v != 0)
+    {
+        G_ScriptData()->mReservedB = (unsigned short)atoi(v);
+    }
+    else
     {
         return 0;
     }
-    G_ScriptData()->mReservedB = (unsigned short)atoi(v);
     v = data->get_data("[aradauth]", "monitor_ip");
-    if (v == 0)
+    if (v != 0)
+    {
+        strncpy(G_ScriptData()->mServerIpB, v, 0x10);
+        G_ScriptData()->mServerIpB[16] = 0;
+    }
+    else
     {
         return 0;
     }
-    strncpy(G_ScriptData()->mServerIpB, v, 0x10);
-    G_ScriptData()->mServerIpB[16] = 0;
     v = data->get_data("[aradauth]", "monitor_port");
-    if (v == 0)
+    if (v != 0)
+    {
+        G_ScriptData()->mReservedC = (unsigned short)atoi(v);
+    }
+    else
     {
         return 0;
     }
-    G_ScriptData()->mReservedC = (unsigned short)atoi(v);
     v = data->get_data("[aradauth]", "relay_index");
-    if (v == 0)
+    if (v != 0)
+    {
+        G_ScriptData()->mReservedD = (unsigned short)atoi(v);
+        return 1;
+    }
+    else
     {
         return 0;
     }
-    G_ScriptData()->mReservedD = (unsigned short)atoi(v);
-    return 1;
 }
 
 bool Script::parse_channel_script()

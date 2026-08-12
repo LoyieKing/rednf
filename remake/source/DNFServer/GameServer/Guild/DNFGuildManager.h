@@ -57,8 +57,8 @@ public:
     CGuild* GuildSecede(unsigned int guildKey, ST_Notice_Guild_Secede& info);
     CGuild* CreateGuild(unsigned int guildKey, CServerHandler* handler,
                         unsigned int masterId);
-    void DeleteGuild(unsigned int guildKey);
-    void DeleteGuild(CGuild* guild);
+    int DeleteGuild(unsigned int guildKey);
+    int DeleteGuild(CGuild* guild);
     void GuildDismiss(CGuild* guild);
     bool InsertGuild(unsigned int guildKey, CGuild* guild);
     CGuild* FindGuild(unsigned int guildKey);

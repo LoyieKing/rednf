@@ -134,44 +134,39 @@ void CGuildWar::GetGuildWarInfo(unsigned int* a, unsigned int* b, unsigned short
 {
     if (a != 0 && b != 0 && c != 0)
     {
-        std::vector<std::pair<unsigned int, STGuildWarInfo*> >* vec = &m_vtGuildWarInfo;
         int idx = 0;
-        for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it = vec->begin();
-             it != vec->end(); ++it)
+        for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it =
+                 m_vtGuildWarInfo.begin(); it != m_vtGuildWarInfo.end(); ++it)
         {
             if (it->second != 0)
             {
-                a[idx] = *(unsigned int*)it->second;
-                b[idx] = *(unsigned int*)((char*)it->second + 4);
-                idx++;
-                c[idx - 1] = (unsigned short)idx;
+                a[idx] = it->second->m_guildKey;
+                b[idx] = it->second->m_point;
+                c[idx++] = (unsigned short)idx;
             }
         }
     }
 }
 
-int CGuildWar::GetGuildWarInfo(ST_Guild_War_Rank_Info* info)
+void CGuildWar::GetGuildWarInfo(ST_Guild_War_Rank_Info* info)
 {
     if (info == 0)
     {
-        return 0;
+        return;
     }
-    std::vector<std::pair<unsigned int, STGuildWarInfo*> >* vec = &m_vtGuildWarInfo;
     int count = 0;
-    for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it = vec->begin();
-         it != vec->end(); ++it)
+    for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it =
+             m_vtGuildWarInfo.begin(); it != m_vtGuildWarInfo.end(); ++it)
     {
         if (it->second != 0)
         {
-            char* out = (char*)info + count * 0x21;
-            *(unsigned int*)(out + 0) = *(unsigned int*)((char*)it->second + 0);
-            *(unsigned int*)(out + 4) = *(unsigned int*)((char*)it->second + 4);
-            memcpy(out + 10, (char*)it->second + 8, 0x16);
+            *(unsigned int*)((char*)info + count * 0x21 + 0) = it->second->m_guildKey;
+            *(unsigned int*)((char*)info + count * 0x21 + 4) = it->second->m_point;
+            memcpy((char*)info + count * 0x21 + 10, it->second->m_data, 0x16);
             count++;
-            *(short*)(out + 8) = (short)count;
+            *(short*)((char*)info + count * 0x21 + 8) = (short)count;
         }
     }
-    return 0;
 }
 
 void CGuildWar::Insert_GuildWarInfo(STGuildWarInfo* info)
@@ -179,11 +174,13 @@ void CGuildWar::Insert_GuildWarInfo(STGuildWarInfo* info)
     if (info == 0)
     {
         DNF_LOG_SCOPE_LINE(0x95, "./log/GuildWar", "[INSERT_ERR]info == 0\n");
-        return;
     }
-    DNF_LOG_SCOPE_LINE(0x90,"./log/GuildWar", "[INSERT]\tGuild Key : %d\tGuild Point : %d\n",
-        *(unsigned int*)info, *(unsigned int*)((char*)info + 4));
-    m_vtGuildWarInfo.push_back(std::make_pair(*(unsigned int*)info, info));
+    else
+    {
+        DNF_LOG_SCOPE_LINE(0x90,"./log/GuildWar", "[INSERT]\tGuild Key : %d\tGuild Point : %d\n",
+            info->m_guildKey, info->m_point);
+        m_vtGuildWarInfo.push_back(std::make_pair(info->m_point, info));
+    }
 }
 
 int CGuildWar::Find_GuildWarInfo(unsigned int guildId)
@@ -241,24 +238,26 @@ int CGuildWar::Rank()
 
 int CGuildWar::SameRankWork()
 {
-    std::vector<std::pair<unsigned int, STGuildWarInfo*> >* vec = &m_vtGuildWarInfo;
-    if (vec->empty())
+    if (m_vtGuildWarInfo.empty())
     {
         return 0;
     }
-    STGuildWarInfo* first = vec->front().second;
+    std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it0 =
+        m_vtGuildWarInfo.begin();
+    STGuildWarInfo* first = it0->second;
     if (first == 0)
     {
         return 0;
     }
-    int field4 = *(int*)((char*)first + 4);
+    int field4 = first->m_point;
     int count = 0;
-    std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it = vec->begin();
-    for (; it != vec->end(); ++it)
+    std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it =
+        m_vtGuildWarInfo.begin();
+    for (; it != m_vtGuildWarInfo.end(); ++it)
     {
         if (it->second != 0)
         {
-            if (field4 != *(int*)((char*)it->second + 4))
+            if (field4 != it->second->m_point)
             {
                 break;
             }
@@ -267,21 +266,28 @@ int CGuildWar::SameRankWork()
     }
     if (1 < count)
     {
-        std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxIt = vec->begin();
-        unsigned int maxVal = *(unsigned int*)((char*)maxIt->second + 0x20);
-        std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it2 = vec->begin();
+        std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxIt;
+        std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it2;
+        std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxItTmp;
+        it2 = m_vtGuildWarInfo.begin();
+        maxIt = it2;
+        if (maxIt->second == 0)
+        {
+            return 0;
+        }
+        unsigned int maxVal = maxIt->second->m_field[6];
         for (int i = 1; i < count; i++)
         {
             ++it2;
-            if (maxVal < *(unsigned int*)((char*)it2->second + 0x20))
+            if (maxVal < it2->second->m_field[6])
             {
-                maxVal = *(unsigned int*)((char*)it2->second + 0x20);
-                maxIt = it2;
+                maxVal = it2->second->m_field[6];
+                maxItTmp = it2;
             }
         }
-        if (*(unsigned int*)((char*)vec->front().second + 0x20) != maxVal)
+        if (maxIt->second->m_field[6] != maxVal)
         {
-            DNFFLib::Swap<STGuildWarInfo>(vec->front().second, maxIt->second);
+            DNFFLib::Swap<STGuildWarInfo>(maxIt->second, maxItTmp->second);
         }
     }
     return 1;
@@ -318,29 +324,35 @@ void CGuildWar::AddGuildWarPoint(unsigned int guildId, int point)
 
 void CGuildWar::RankProcess()
 {
-    if (IsGuildWarEventOn() == 1 && *(unsigned char*)((char*)this + 0x10) != 0)
-    {
-        *(unsigned char*)((char*)this + 0xd) += 1;
-        if (1 < *(unsigned char*)((char*)this + 0xd))
-        {
-            if (Rank() != 1)
-            {
-                throw CDNFException(
-                    "CGuildWar::RankProcess : false == Rank() : May be m_vtGuildWarInfo is empty!");
-            }
-            *(unsigned char*)((char*)this + 0xd) = 0;
-            *(unsigned char*)((char*)this + 0x10) = 0;
-        }
-    }
-}
-
-void CGuildWar::DBSaveProcess(CApplication* app)
-{
     if (!IsGuildWarEventOn())
     {
         return;
     }
-    m_bSaveCnt = (char)(m_bSaveCnt + 1);
+    if (m_bRankWorked == 0)
+    {
+        return;
+    }
+    m_bRankCnt++;
+    if (m_bRankCnt <= 1)
+    {
+        return;
+    }
+    if (Rank() != 1)
+    {
+        throw CDNFException(
+            "CGuildWar::RankProcess : false == Rank() : May be m_vtGuildWarInfo is empty!");
+    }
+    m_bRankCnt = 0;
+    m_bRankWorked = 0;
+}
+
+void CGuildWar::DBSaveProcess(CApplication* app)
+{
+    if (IsGuildWarEventOn() == 0)
+    {
+        return;
+    }
+    m_bSaveCnt++;
     if (m_bSaveCnt == 0)
     {
         return;
@@ -357,22 +369,22 @@ void CGuildWar::DBSaveProcess(CApplication* app)
 
 void CGuildWar::printGuildWarRank()
 {
-    std::vector<std::pair<unsigned int, STGuildWarInfo*> >* vec = &m_vtGuildWarInfo;
-    if (!vec->empty())
+    if (m_vtGuildWarInfo.empty())
     {
-        int rank = 0;
-        for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it = vec->begin();
-             it != vec->end(); ++it)
+        return;
+    }
+    int rank = 0;
+    for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it =
+             m_vtGuildWarInfo.begin(); it != m_vtGuildWarInfo.end(); ++it)
+    {
+        std::pair<unsigned int, STGuildWarInfo*> p = *it;
+        if (p.second != 0)
         {
-            STGuildWarInfo* info = it->second;
-            if (info != 0)
-            {
-                rank++;
-                DNF_LOG_SCOPE_LINE(0x192,"./log/GuildWar",
-                    "GuildKey : %d(%s),  GuildWarPoint : %d, GuildWarRank : %d",
-                    *(unsigned int*)info->m_data, info->m_data + 8,
-                    *(unsigned int*)(info->m_data + 4), rank);
-            }
+            rank++;
+            DNF_LOG_SCOPE_LINE(0x192,"./log/GuildWar",
+                "GuildKey : %d(%s),  GuildWarPoint : %d, GuildWarRank : %d",
+                p.second->m_guildKey, p.second->m_data,
+                p.second->m_point, rank);
         }
     }
 }
@@ -385,4 +397,3 @@ Packet_Notice_DB_Save_Guild_War_Point::Packet_Notice_DB_Save_Guild_War_Point()
 }
 
 template void DNFFLib::Swap<STGuildWarInfo>(STGuildWarInfo*, STGuildWarInfo*);
-

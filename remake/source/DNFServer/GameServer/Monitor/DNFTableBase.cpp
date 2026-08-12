@@ -52,38 +52,28 @@ void CTableBase::Load_Table(const std::string& path)
 
 int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
 {
-    FILE* f = fopen(path, "rb");
     int count = 0;
-    if (f == 0)
+    FILE* f;
+    if ((f = fopen(path, "rb")) == 0)
     {
-        count = -1;
+        return -1;
     }
-    else
+    char line[1024];
+    while (!feof(f) && fgets(line, 0x400, f) != 0)
     {
-        char line[1024];
-        while (true)
+        if (line[0] == '#')
         {
-            if (!feof(f) && fgets(line, 0x400, f) != 0)
-            {
-                if (line[0] != '#')
-                {
-                    if (maxCount <= count)
-                    {
-                        fclose(f);
-                        return -2;
-                    }
-                    if (Parse_Table(line, count) != 0)
-                    {
-                        count++;
-                    }
-                }
-            }
-            else
-            {
-                break;
-            }
+            continue;
         }
-        fclose(f);
+        if (count >= maxCount)
+        {
+            return -2;
+        }
+        if (Parse_Table(line, count))
+        {
+            count++;
+        }
     }
+    fclose(f);
     return count;
 }

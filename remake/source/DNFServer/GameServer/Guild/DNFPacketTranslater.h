@@ -9,6 +9,7 @@
 #include "PacketHeader.h"
 #include "DNFGuild.h"
 #include "GuildCargo.h"
+#include "BlackUser.h"
 
 class CApplication;
 class CGuild;
@@ -327,7 +328,8 @@ public:
 class Packet_DBMW_Request_BlackList : public PacketHeader {
 public:
     Packet_DBMW_Request_BlackList();
-    char m_data[0x5];
+    unsigned int m_charNo;      // +0xa
+    unsigned char m_type;       // +0xe
 };
 
 // from GuildPackets.h
@@ -348,7 +350,12 @@ public:
 class Packet_DBMW_Send_Guild_Mail : public PacketHeader {
 public:
     Packet_DBMW_Send_Guild_Mail();
-    char m_data[0x11f];
+    unsigned int m_charNo;    // +0xa
+    unsigned char m_group;    // +0xe
+    unsigned int m_guildKey;  // +0xf
+    char m_content[0x100];    // +0x13
+    char m_title[0x11];       // +0x113
+    unsigned int m_param;     // +0x124
 };
 
 // from GuildPackets.h
@@ -416,7 +423,9 @@ public:
 class Packet_Guild_Cargo_History_Response : public PacketHeader {
 public:
     Packet_Guild_Cargo_History_Response();
-    char m_data[0x968];
+    unsigned int ma;                // +0xa
+    unsigned int me;                // +0xe
+    STGuildCargoLog m_log[0x32];    // +0x12
 };
 
 // from GuildPackets.h
@@ -474,7 +483,10 @@ public:
 class Packet_Monitor_Call_Guild_Info_Reply : public PacketHeader {
 public:
     Packet_Monitor_Call_Guild_Info_Reply();
-    char m_data[0xacc];
+    unsigned int ma;                    // +0xa
+    unsigned int me;                    // +0xe
+    unsigned char m12;                  // +0x12
+    STGuildCallInfo m_infos[0x5f];      // +0x13
 };
 
 // from GuildPackets.h
@@ -499,7 +511,8 @@ public:
 class Packet_Monitor_Notify_New_Mail : public PacketHeader {
 public:
     Packet_Monitor_Notify_New_Mail();
-    char m_data[0x8];
+    unsigned int ma;    // +0xa
+    unsigned int me;    // +0xe
 };
 
 // from GuildPackets.h
@@ -585,7 +598,8 @@ public:
 class Packet_Request_Result_BlackList : public PacketHeader {
 public:
     Packet_Request_Result_BlackList();
-    char m_data[0x195];
+    char m_pad[5];                      // +0xa
+    STBlackUserDBType m_items[10];      // +0xf
 };
 
 // from GuildPackets.h
@@ -599,7 +613,10 @@ public:
 class Packet_UnChangable_GuildInfo_Save : public PacketHeader {
 public:
     Packet_UnChangable_GuildInfo_Save();
-    char m_data[0x26];
+    unsigned int ma;               // +0xa
+    unsigned int me;               // +0xe
+    char m_name[0x1d];             // +0x12
+    char m_pad;                    // +0x2f
 };
 
 // from GuildPackets.h

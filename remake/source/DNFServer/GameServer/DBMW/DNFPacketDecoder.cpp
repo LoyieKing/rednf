@@ -173,9 +173,10 @@ void CPacketDecoder::TcpProcess()
 {
     if (!m_tcpQueue || !m_tcpRecvQLock)
         throw CDNFException("CPacketDecoder is Not Ready!\n");
+    CTcpRecvBuffer* buf = 0;
     while (!m_tcpQueue->empty())
     {
-        CTcpRecvBuffer* buf = m_tcpQueue->front();
+        buf = m_tcpQueue->front();
         m_tcpQueue->pop();
         if (!buf)
             continue;
@@ -206,9 +207,10 @@ void CPacketDecoder::UdpProcess()
 {
     if (!m_udpQueue || !m_udpQLock)
         throw CDNFException("CPacketDecoder is Not Ready!\n");
+    CUdpRecvBuffer* buf = 0;
     while (!m_udpQueue->empty())
     {
-        CUdpRecvBuffer* buf = m_udpQueue->front();
+        buf = m_udpQueue->front();
         m_udpQueue->pop();
         if (!buf)
             continue;
@@ -253,23 +255,25 @@ bool CPacketDecoder::MsgDecode(PacketHeader* header)
         return 1;
     }
     printf("Game Message with identifier %i has arrived.\n", header->packetId);
+    register unsigned int id = header->packetId;
     CMyFileLog log(__FUNCTION__, 0x1da);
     log("./log/Decoder.log",
         "CPacketDecoder::MsgDecode() Game Message with identifier %i has arrived.\n",
-        header->packetId);
+        id);
     return 0;
 }
 void CPacketDecoder::Attach(CApplication* app)
 {
-    if (!app)
-        return;
-    m_udpQueue = app->Get_UdpPacketParseQ();
-    m_tcpQueue = app->Get_TcpNetSystem()->Get_TcpSwapQPacket()->GetParseQ();
-    m_udpQLock = app->Get_QLock();
-    m_udpBLock = app->Get_BLock();
-    m_tcpRecvQLock = app->Get_TcpNetSystem()->Get_TcpRecvQLock();
-    m_tcpRecvBLock = app->Get_TcpNetSystem()->Get_TcpRecvBLock();
-    m_serverHandler = app->Get_ServerHandler();
+    if (app)
+    {
+        m_udpQueue = app->Get_UdpPacketParseQ();
+        m_tcpQueue = app->Get_TcpNetSystem()->Get_TcpSwapQPacket()->GetParseQ();
+        m_udpQLock = app->Get_QLock();
+        m_udpBLock = app->Get_BLock();
+        m_tcpRecvQLock = app->Get_TcpNetSystem()->Get_TcpRecvQLock();
+        m_tcpRecvBLock = app->Get_TcpNetSystem()->Get_TcpRecvBLock();
+        m_serverHandler = app->Get_ServerHandler();
+    }
 }
 void CPacketDecoder::Process() { UdpProcess(); TcpProcess(); }
 void CPacketDecoder::SetTCPQueue(TcpRecvQueue* q) { m_tcpQueue = q; }

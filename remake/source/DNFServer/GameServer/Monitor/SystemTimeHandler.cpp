@@ -32,19 +32,19 @@ void CommonTime::SetCurTime()
     time_t t;
     time(&t);
     tm* p = localtime(&t);
-    m_field0 = (unsigned char)((char)p->tm_year + -100);
-    m_field1 = (unsigned char)((char)p->tm_mon + 1);
-    m_field2 = (unsigned char)((char)p->tm_mday);
-    m_field3 = (unsigned char)((char)p->tm_hour);
-    m_field4 = (unsigned char)((char)p->tm_min);
-    m_field5 = (unsigned char)((char)p->tm_wday);
+    m_field0 = (unsigned char)(p->tm_year - 100);
+    m_field1 = (unsigned char)(p->tm_mon + 1);
+    m_field2 = (unsigned char)(p->tm_mday);
+    m_field3 = (unsigned char)(p->tm_hour);
+    m_field4 = (unsigned char)(p->tm_min);
+    m_field5 = (unsigned char)(p->tm_wday);
 }
 
 CSystemTime::CSystemTime()
 {
-    gettimeofday((timeval*)((char*)this + 8), 0);
-    ((RA_UINT<16>*)this)->v = ((RA_UINT<8>*)this)->v;
-    ((RA_INT<4>*)this)->v = ((RA_INT<12>*)this)->v / 1000;
+    gettimeofday((timeval*)&m_tv_sec, 0);
+    m_field16 = m_tv_sec;
+    m_field4 = m_tv_usec / 1000;
 }
 
 CSystemTimeHandler::CSystemTimeHandler() {}

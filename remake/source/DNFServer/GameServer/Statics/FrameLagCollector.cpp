@@ -17,27 +17,17 @@ int FrameLagCollector::GetCollectInterval()
     return m_collectInterval;
 }
 FrameLagCollector::FrameLagCollector()
+    : m_field0(0), m_field4(0), m_field8(0), m_fieldc(0), m_field10(0), m_field14(0),
+      m_field18(0), m_field19(0), m_map1c(), m_map34(), m_field4c(0), m_field50(0),
+      m_monitor(), m_field6c(0), m_data(), m_collectInterval(0x1e)
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_fieldc = 0;
-    m_field10 = 0;
-    m_field14 = 0;
-    m_field18 = 0;
-    m_field19 = 0;
-    m_field4c = 0;
-    m_field50 = 0;
-    m_field6c = 0;
-    m_collectInterval = 0x1e;
-    m_field8c = 0;
-    m_field90 = 0;
-    m_field94 = 0;
     m_map1c.clear();
     m_map34.clear();
     m_monitor.clear();
     m_data.clear();
-    m_field1e4 = 0;
+    m_field8c = 0;
+    m_field90 = 0;
+    m_field94 = 0;
     Init();
     m_directx.init();
     m_renewCnt = 0;
@@ -46,6 +36,7 @@ FrameLagCollector::FrameLagCollector()
     {
         m_memory[i].init();
     }
+    m_field1e4 = 0;
 }
 FrameLagCollector::~FrameLagCollector()
 {

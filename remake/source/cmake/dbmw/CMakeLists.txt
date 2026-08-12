@@ -153,6 +153,11 @@ dnf_service(dbmw
         "${SVC_DIR}/DNFTcpAcceptThread.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFTcpNetworkThread.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFTableBase.cpp|-B${DF_CC1P446}"
+        # 2026-08-12 第 21 轮：ORIG 该 TU 带 -fenforce-eh-specs（CDNFException 的
+        # __cxa_call_unexpected / EH cleanup 序列在 ORIG 存在、默认 -fno-enforce-eh-specs
+        # 会丢掉）；DNFTableBase.cpp 加回该 flag 后 CDNFException D1/D2/what 三函数
+        # IDENTICAL_AE（scratch A/B 验证）。
+        "${SVC_DIR}/DNFTableBase.cpp|-fenforce-eh-specs"
         "${SVC_DIR}/TcpNetSystem.cpp|-B${DF_CC1P446}"
     LIBS
         ${SRC_ROOT}/../build/manager/mysqlclient/libmysqlclient.a

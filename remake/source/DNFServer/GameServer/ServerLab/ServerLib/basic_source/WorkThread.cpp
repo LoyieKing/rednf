@@ -196,18 +196,16 @@ void WorkThread::loop(void* temp)
                     G_TraceLog()->sysLog(7, "Fail: TIME : failed to handle '%d', error_code('%d').",
                                          teMsg->proc_id, return_code);
                 }
-                // ORIG：acUser 检查直接复用 teMsg（无独立 pkMsg 槽）
-                if (((Message*)teMsg)->acUser != NULL)
+                // ORIG：直接以 ITimeEntity 成员访问（proc_count@0x10/check_period@0xc/
+                // bWillDelete@0x14 与 Message 布局重叠；直成员访问产出 lea/位移形态，
+                // Message 强转访问会退化成 sub/指针物化形态）
+                if (teMsg->proc_count != 0 && teMsg->check_period != 0)
                 {
-                    if (((Message*)teMsg)->mBufferType != BUFFER_TYPE_NOT_SETTED)
+                    teMsg->proc_count = teMsg->proc_count - 1;
+                    if (teMsg->proc_count == 0)
                     {
-                        // acUser is a refcount stored in a pointer-sized field (integer -1, not element ptr arith)
-                        ((Message*)teMsg)->acUser = (TCPUser*)((char*)((Message*)teMsg)->acUser - 1);
-                        if (((Message*)teMsg)->acUser == NULL)
-                        {
-                            *(char*)&((Message*)teMsg)->mpSendBuffer = 0;
-                            timerThread->PushTimeReqEvent(teMsg);
-                        }
+                        teMsg->bWillDelete = false;
+                        timerThread->PushTimeReqEvent(teMsg);
                     }
                 }
             }

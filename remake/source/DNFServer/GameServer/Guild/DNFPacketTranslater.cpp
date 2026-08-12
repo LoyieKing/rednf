@@ -80,10 +80,139 @@ struct GuildPacketBodyView
     char m_base[0xa];
     unsigned char m_field_a;
     unsigned char m_field_b;
+    unsigned int m_gmIds[0x14];  // 0xc
+    char m_gmNames[0x100];       // 0x5c
 };
+
+struct GuildEventBodyView
+{
+    char m_base[0xa];
+    unsigned int m_eventCode;      // 0xa
+    unsigned short m_eventParam1;  // 0xe
+    unsigned short m_eventParam2;  // 0x10
+} __attribute__((packed));
+
+struct PTL_GuildBootingPkt
+{
+    char m_base[0xa];
+    unsigned int m_a;      // +0xa
+    unsigned int m_e;      // +0xe
+    char m_12;             // +0x12
+} __attribute__((packed));
+
+struct PTL_GuildDebugPkt
+{
+    char m_base[0xa];
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_charNo;    // +0xe
+    int m_mode;               // +0x12
+} __attribute__((packed));
+
+struct PTL_LoginPkt
+{
+    char m_base[0x6];
+    unsigned int m_connNo;    // +0x6
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_serverNo;  // +0xe
+    unsigned char m_channel;  // +0x12
+    char m_pad[0x10];         // +0x13
+    unsigned char m_sex;      // +0x23
+    char m_pad2[0x8];         // +0x24
+    char m_ssn[0x100];        // +0x2c
+} __attribute__((packed));
+
+struct PTL_PowerWarProcessPkt
+{
+    char m_base[0xa];
+    unsigned int m_a;      // +0xa
+} __attribute__((packed));
+
+struct PTL_NotifyNewGroupMailPkt
+{
+    char m_base[0xa];
+    unsigned int m_count;        // +0xa
+    unsigned int m_charNos[1];   // +0xe
+} __attribute__((packed));
+
+struct PTL_PowerWarCfgPkt
+{
+    char m_base[0xa];
+    unsigned short m_endKillPoint;   // +0xa
+    int m_basic;                     // +0xc
+    int m_first;                     // +0x10
+    int m_decrease;                  // +0x14
+    int m_ranking;                   // +0x18
+} __attribute__((packed));
+
+struct PTL_TodayGuildMemberPkt
+{
+    char m_base[0xa];
+    unsigned int m_guildKey;        // +0xa
+    STTodayGuildMember m_member;    // +0xe
+} __attribute__((packed));
+
+struct PTL_GuildCargoLoadPkt
+{
+    char m_base[0xa];
+    unsigned int m_guildId;         // +0xa
+    STGuildCargoDBInfo m_cargo;     // +0xe
+} __attribute__((packed));
+
+struct PTL_InnerPacketPkt
+{
+    char m_base[0x6];
+    unsigned int m_group;           // +0x6
+} __attribute__((packed));
+
+struct PTL_CharLoginPkt
+{
+    char m_base[0xa];
+    unsigned int m_serverNo;        // +0xa
+    unsigned char m_channel;        // +0xe
+    unsigned int m_charKey;         // +0xf
+    unsigned int m_guildKey;        // +0x13
+    unsigned char m_job;            // +0x17
+    unsigned char m_pvp;            // +0x18
+    unsigned short m_level;         // +0x19
+    unsigned int m_memberKey;       // +0x1b
+    char m_name[0x1e];              // +0x1f
+    unsigned char m_war;            // +0x3d
+} __attribute__((packed));
+
+struct PTL_AddGuildFundPkt
+{
+    char m_base[0xa];
+    unsigned char m_mode;           // +0xa
+    unsigned int m_fund;            // +0xb
+    unsigned int m_charNo;          // +0xf
+    unsigned int m_guildKey;        // +0x13
+} __attribute__((packed));
+
+struct PTL_BuyGuildSkillPkt
+{
+    char m_base[0xa];
+    unsigned int m_charNo;          // +0xa
+    unsigned int m_guildKey;        // +0xe
+    int m_field12;                  // +0x12
+    int m_field16;                  // +0x16
+    unsigned short m_field1a;       // +0x1a
+    unsigned int m_field1c;         // +0x1c
+} __attribute__((packed));
 
 #define STUB_HANDLER(name) \
     void CPacketTranslater::name(PacketHeader* pkt) {}
+
+// ORIG 中 STGuildCargoLog ctor/dtor 为头文件内联弱符号（本 TU 可见定义，
+// 仅 memset / 空体），GCC 据此判定 nothrow，数组成员构造不发 EH 清理块。
+// 在 GuildCargo.cpp 有强符号定义，链接时优先取强符号，符号内容一致。
+inline STGuildCargoLog::STGuildCargoLog()
+{
+    memset(this, 0, sizeof(STGuildCargoLog));
+}
+
+inline STGuildCargoLog::~STGuildCargoLog()
+{
+}
 
 void CPacketTranslater::attach(CApplication* app)
 {
@@ -94,61 +223,62 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
 {
     try
     {
-    char* pb = (char*)pkt;
-    if (m_pclApp != 0)
-    {
-        CGameServer* gs;
-        if ((gs = m_pclApp->FindGameServer(*(int*)(pb + 0xe))) == 0)
+        PTL_LoginPkt* pb = (PTL_LoginPkt*)pkt;
+        if (m_pclApp != 0)
         {
-            char* mid = NumberToString(*(unsigned int*)(pb + 0xe), 0);
-            DNF_LOG_SCOPE_LINE(0x65,"./log/Channel", "Not Found M_ID(%s) Channel No(%d)", mid,
-                (unsigned int)(unsigned char)pb[0x12]);
-        }
-        else
-        {
-            CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(*(unsigned int*)(pb + 0xe));
-            if (tgs != 0)
+            CGameServer* gs;
+            if ((gs = m_pclApp->FindGameServer((unsigned char)pb->m_channel)) == 0)
             {
-                CUserManager* um = &m_pclApp->m_userManager;
-                CUser* user = um->FindUser(*(unsigned int*)(pb + 0xe));
-                if (user == 0)
+                DNF_LOG_SCOPE_LINE(0x65, "./log/Channel",
+                    "Not Found M_ID(%s) Channel No(%d)",
+                    NumberToString(pb->m_serverNo, 0),
+                    (unsigned int)(unsigned char)pb->m_channel);
+            }
+            else
+            {
+                CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(pb->m_connNo);
+                if (tgs != 0)
                 {
-                    CUser* nu = um->CreateUser(*(unsigned int*)(pb + 0xe), 0, "",
-                                               *(int*)(pb + 10), gs);
-                    char* mid = NumberToString(*(unsigned int*)(pb + 0xe), 0);
-                    DNF_LOG_SCOPE_LINE(0x76,"./log/User", "Current user count : %d\tConnected User DB ID : %s\n",
-                        um->Size(), mid);
-                    nu->SetSex((unsigned char)pb[0x23]);
-                    nu->SetSsn(pb + 0x2c);
-                    nu->SetTcpGameServer(tgs);
-                    CMemoryCashManager* mc = m_pclApp->Get_MemoryCashManager();
-                    if (mc->QueryCashMemoryBlackList(nu) != 1)
+                    CUserManager* um = &m_pclApp->m_userManager;
+                    CUser* user;
+                    if ((user = um->FindUser(pb->m_serverNo)) != 0)
                     {
-                        RequestBlackListToDBMW(*(unsigned int*)(pb + 0xe));
+                        CServerInterface* cs = user->GetGameServer();
+                        DNF_LOG_SCOPE_LINE(0x70, "./log/User",
+                            "DOUBLE CONNECTED : Already User DB ID(%s)\tChannel(%d)\tCurrent Connect User DB ID(%s)\tChannel(%d)\n",
+                            NumberToString(user->GetDBID(), 0),
+                            (unsigned int)cs->GetChannelNo(),
+                            NumberToString(pb->m_serverNo, 1),
+                            (unsigned int)gs->GetChannelNo());
                     }
-                }
-                else
-                {
-                    char* mid = NumberToString(user->GetDBID(), 0);
-                    DNF_LOG_SCOPE_LINE(0x70,"./log/User",
-                        "DOUBLE CONNECTED : Already User DB ID(%s)\tChannel(%d)\tCurrent Connect User DB ID(%s)\tChannel(%d)\n",
-                        mid, (unsigned int)user->GetGameServer()->GetChannelNo(),
-                        NumberToString(*(unsigned int*)(pb + 0xe), 1),
-                        (unsigned int)gs->GetChannelNo());
+                    else
+                    {
+                        CUser* nu = um->CreateUser(pb->m_serverNo, 0, "",
+                                                   pb->m_guildKey, gs);
+                        DNF_LOG_SCOPE_LINE(0x76, "./log/User",
+                            "Current user count : %d\tConnected User DB ID : %s\n",
+                            um->Size(), NumberToString(pb->m_serverNo, 0));
+                        nu->SetSex(pb->m_sex);
+                        nu->SetSsn(pb->m_ssn);
+                        nu->SetTcpGameServer(tgs);
+                        if (m_pclApp->Get_MemoryCashManager()->QueryCashMemoryBlackList(nu) != 1)
+                        {
+                            RequestBlackListToDBMW(pb->m_serverNo);
+                        }
+                    }
                 }
             }
         }
     }
-}
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnLogin", 0x85);
-        log("./log/Except", "CPacketTranslater::OnLogin() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x85, "./log/Except",
+            "CPacketTranslater::OnLogin() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x8a);
-        log("./log/Except", "CPacketTranslater::OnLogin() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x8a, "./log/Except",
+            "CPacketTranslater::OnLogin() Exception Break\n");
     }
 }
 
@@ -247,8 +377,8 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                         handler->SetConnectFlag(idx, true);
                         Packet_Tcp_Server_Connect connectPkt;
                         connectPkt.m_field_a = 0xcb;
-                        CServerInterface* gs = handler->GetGameServer((unsigned int)idx);
-                        if (gs != 0)
+                        CServerInterface* gs;
+                        if ((gs = handler->GetGameServer((unsigned int)idx)) != 0)
                         {
                             gs->SendToServer((char*)&connectPkt, 0xb);
                         }
@@ -263,7 +393,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                 else
                 {
                     DNF_LOG_SCOPE_LINE(0x130,"./log/Except", "[ERROR - HEART BEAT] Channel Index(%d) Over.",
-                        (unsigned int)idx);
+                        (unsigned int)((GuildPacketBodyView*)pb)->m_field_a);
                 }
             }
         }
@@ -348,64 +478,60 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
 
 void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
     try
     {
         if (m_pclApp == 0)
         {
             return;
         }
+        CUser* user;
+        CGuild* guild;
+        PTL_CharLoginPkt* pb = (PTL_CharLoginPkt*)pkt;
+        CUserManager* um;
         if ((&m_pclApp->m_guildManager)->IsGuildWarEnterableChar(
-                (unsigned char)pb[0x3d], *(unsigned int*)(pb + 0x13)) != true)
+                pb->m_war, pb->m_guildKey) != true)
         {
             Packet_Monitor_UDP_User_Getout pktGetout;
-            *(unsigned int*)((char*)&pktGetout + 0xa) = *(unsigned int*)(pb + 0xa);
-            m_pclApp->Get_ServerHandler()->SendToGameServer((unsigned char)pb[0xe], &pktGetout);
+            pktGetout.ma = pb->m_serverNo;
+            m_pclApp->Get_ServerHandler()->SendToGameServer(pb->m_channel, &pktGetout);
         }
-        CUserManager* um = &m_pclApp->m_userManager;
-        CUser* user = um->FindUser(*(unsigned int*)(pb + 10));
-        if (user == 0)
+        um = &m_pclApp->m_userManager;
+        if ((user = um->FindUser(pb->m_serverNo)) != 0)
         {
-            char* mid = NumberToString(*(unsigned int*)(pb + 10), 0);
-            DNF_LOG_SCOPE_LINE(0x1d9,"./log/User",
-                "[CHAR_LOGIN_ERR]\tDB ID : %s\tChar Key : %d\tGuild Key : %d\tJob : %d\tname : %s\n",
-                mid, *(unsigned int*)(pb + 0xf), *(unsigned int*)(pb + 0x13),
-                (int)(char)pb[0x17], pb + 0x1f);
-            return;
-        }
-        user->SetUserInfo_CharNo((char)pb[0x17], (char)pb[0x18],
-                                 *(short*)(pb + 0x19), *(unsigned int*)(pb + 0xf), pb + 0x1f);
-        char* mid = NumberToString(*(unsigned int*)(pb + 10), 0);
-        DNF_LOG_SCOPE_LINE(0x1b1,"./log/User",
-            "[CHAR_LOGIN]\tDB ID(%s)\tChar Key(%d)\tGuild K(%d)\tMember K(%d)\tJob(%d)\tname(%s)\tCh No(%d)\tpvp(%d)\n",
-            mid, *(unsigned int*)(pb + 0xf), *(unsigned int*)(pb + 0x13),
-            *(unsigned int*)(pb + 0x1b), (int)(char)pb[0x17], pb + 0x1f,
-            (unsigned int)(unsigned char)pb[0xe], 0);
-        user->SetUserPosState(3);
-        if (*(unsigned int*)(pb + 0x13) != 0)
-        {
-            CGuild* guild = (&m_pclApp->m_guildManager)->GuildMemLogin(
-                *(unsigned int*)(pb + 0x13), user);
-            if (guild != 0)
+            user->SetUserInfo_CharNo((char)pb->m_job, (char)pb->m_pvp, (short)pb->m_level,
+                                     pb->m_charKey, pb->m_name);
+            DNF_LOG_SCOPE_LINE(0x1b1,"./log/User",
+                "[CHAR_LOGIN]\tDB ID(%s)\tChar Key(%d)\tGuild K(%d)\tMember K(%d)\tJob(%d)\tname(%s)\tCh No(%d)\tpvp(%d)\n",
+                NumberToString(pb->m_serverNo, 0), pb->m_charKey, pb->m_guildKey,
+                pb->m_memberKey, (int)(char)pb->m_job, pb->m_name,
+                (unsigned int)pb->m_channel);
+            user->SetUserPosState(3);
+            if (pb->m_guildKey != 0)
             {
+                guild = (&m_pclApp->m_guildManager)->GuildMemLogin(pb->m_guildKey, user);
                 guild->NoticeGuildMemberLogin_Out(user, 1);
             }
+            if (um->InsertUser_CharName(pb->m_name, user) != 1)
+            {
+                DNF_LOG_SCOPE_LINE(0x1ce,"./log/Except",
+                    "uDBID(%s) uCharName(%s) is already exist at m_mapCharNameUsers!",
+                    NumberToString(pb->m_serverNo, 0), pb->m_name);
+            }
+            if (um->InsertUser_CharNo(pb->m_charKey, user) != 1)
+            {
+                DNF_LOG_SCOPE_LINE(0x1d2,"./log/Except",
+                    "Insert Fail!\tChar ID : %d\t\xc4\xb3\xb8\xaf\xc5\xcd \xc0\xcc\xb8\xa7:%s\n",
+                    pb->m_charKey, pb->m_name);
+            }
+            m_pclApp->Get_MemoryCashManager()->DeleteCashObjecct(user->GetDBID());
         }
-        if (um->InsertUser_CharName(pb + 0x1f, user) != 1)
+        else
         {
-            char* mid2 = NumberToString(*(unsigned int*)(pb + 10), 0);
-            CMyFileLog log2("OnCharLogin", 0x1ce);
-            log2("./log/Except",
-                 "uDBID(%s) uCharName(%s) is already exist at m_mapCharNameUsers!", mid2, pb + 0x1f);
+            DNF_LOG_SCOPE_LINE(0x1d9,"./log/User",
+                "[CHAR_LOGIN_ERR]\tDB ID : %s\tChar Key : %d\tGuild Key : %d\tJob : %d\tname : %s\n",
+                NumberToString(pb->m_serverNo, 0), pb->m_charKey, pb->m_guildKey,
+                (int)(char)pb->m_job, pb->m_name);
         }
-        if (um->InsertUser_CharNo(*(unsigned int*)(pb + 0xf), user) != 1)
-        {
-            CMyFileLog log("OnCharLogin", 0x1d2);
-            log("./log/Except",
-                "Insert Fail!\tChar ID : %d\t\xc4\xb3\xb8\xaf\xc5\xcd \xc0\xcc\xb8\xa7:%s\n",
-                *(unsigned int*)(pb + 0xf), pb + 0x1f);
-        }
-        m_pclApp->Get_MemoryCashManager()->DeleteCashObjecct(user->GetDBID());
     }
     catch (std::exception& e)
     {
@@ -850,52 +976,53 @@ void CPacketTranslater::OnBuyGuildSkill(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnBuyGuildSkill : 0 == m_pclApp");
-        unsigned int charNo = *(unsigned int*)((char*)pkt + 0xa);
         CUser* user;
-        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) == 0)
+        CGuild* guild;
+        PTL_BuyGuildSkillPkt* pb = (PTL_BuyGuildSkillPkt*)pkt;
+        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
         {
             throw CDNFException("CPacketTranslater::OnBuyGuildSkill : 0 == pclUser");
         }
-        unsigned int guildKey = *(unsigned int*)((char*)pkt + 0xe);
-        if (guildKey == 0)
+        if (pb->m_guildKey != 0)
+        {
+            if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) != 0)
+            {
+                if (guild->IsGuildMaster(pb->m_charNo) || guild->IsSubGuildMaster(pb->m_charNo))
+                {
+                    if (guild->BuyGuildSkill((int)pb->m_field12, (int)pb->m_field16,
+                                             (short)pb->m_field1a, pb->m_field1c))
+                    {
+                        char saveFlag = (char)guild->GetDBSaveFlag();
+                        guild->SendGuildInfoToMembers(false);
+                        guild->DBGuildSave(user->GetGameServer()->GetGroupNo(),
+                                           m_pclApp->Get_ServerHandler(), 1);
+                        if (saveFlag != 0)
+                        {
+                            guild->EnableDBSaveFlag();
+                            guild->DBGuildSave(user->GetGameServer()->GetGroupNo(),
+                                               m_pclApp->Get_ServerHandler(), 0);
+                        }
+                    }
+                }
+            }
+        }
+        else
         {
             throw CDNFException(
                 "CPacketTranslater::OnBuyGuildSkill : packet->m_uCharID && packet->m_uGuildKey && packet->m_msgLen");
-        }
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-        if (guild != 0)
-        {
-            bool isMaster = guild->IsGuildMaster(charNo) || guild->IsSubGuildMaster(charNo);
-            if (isMaster &&
-                guild->BuyGuildSkill(*(int*)((char*)pkt + 0x12), *(int*)((char*)pkt + 0x16),
-                                     *(short*)((char*)pkt + 0x1a),
-                                     *(unsigned int*)((char*)pkt + 0x1c)))
-            {
-                char saveFlag = (char)guild->GetDBSaveFlag();
-                guild->SendGuildInfoToMembers(false);
-                unsigned char group =
-                    user->GetGameServer() != 0 ? user->GetGameServer()->GetGroupNo() : 0;
-                guild->DBGuildSave(group, m_pclApp->Get_ServerHandler(), 1);
-                if (saveFlag != 0)
-                {
-                    guild->EnableDBSaveFlag();
-                    guild->DBGuildSave(group, m_pclApp->Get_ServerHandler(), 0);
-                }
-            }
         }
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnBuyGuildSkill() Exception Break : %s\n", e.what());
-        CMyFileLog log("OnBuyGuildSkill", 0x4f0);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x4f0, "./log/Except",
             "CPacketTranslater::OnBuyGuildSkill() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnBuyGuildSkill() Exception Break");
-        CMyFileLog log(__FUNCTION__, 0x4f6);
-        log("./log/Except", "CPacketTranslater::OnBuyGuildSkill() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x4f6, "./log/Except",
+            "CPacketTranslater::OnBuyGuildSkill() Exception Break\n");
     }
 }
 
@@ -1927,14 +2054,28 @@ void CPacketTranslater::SendPacketGuildMail(unsigned char group, unsigned int ch
                                             unsigned int param)
 {
     Packet_DBMW_Send_Guild_Mail pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = charNo;
-    *(unsigned int*)((char*)&pkt + 0xf) = guildKey;
-    *(unsigned char*)((char*)&pkt + 0x12) = group;
-    size_t len = strlen(content);
-    memcpy((char*)&pkt + 0x13, content, len < 0x100 ? len : 0xff);
-    len = strlen(title);
-    memcpy((char*)&pkt + 0x113, title, len < 0x11 ? len : 0x10);
-    *(unsigned int*)((char*)&pkt + 0x124) = param;
+    pkt.m_charNo = charNo;
+    pkt.m_group = group;
+    pkt.m_guildKey = guildKey;
+    int contentLen = strlen(content);
+    if (contentLen <= 0xff)
+    {
+        memcpy(pkt.m_content, content, contentLen);
+    }
+    else
+    {
+        memcpy(pkt.m_content, content, 0xff);
+    }
+    int titleLen = strlen(title);
+    if (titleLen <= 0x10)
+    {
+        memcpy(pkt.m_title, title, titleLen);
+    }
+    else
+    {
+        memcpy(pkt.m_title, title, 0x10);
+    }
+    pkt.m_param = param;
     m_pclApp->m_serverHandler->SendToDB(&pkt);
 }
 
@@ -2638,13 +2779,27 @@ void CPacketTranslater::OnMonitorManagerConnectOK(PacketHeader* pkt)
 
 void CPacketTranslater::OnEventStart(PacketHeader* pkt)
 {
-    THROW_IF_NO_APP("CPacketTranslater::OnEventStart : 0 == m_pclApp");
-    char* pb = (char*)pkt;
-    DNF_LOG_SCOPE_LINE(0xe4c,"./log/Web",
-        "CPacketTranslater::OnEventStart() eventCode(%d), eventParam1(%d), eventParam2(%d)\n",
-        *(unsigned int*)(pb + 0xa), (unsigned int)*(unsigned short*)(pb + 0xe),
-        (unsigned int)*(unsigned short*)(pb + 0x10));
-    m_pclApp->m_serverHandler->SendAllTcpGameServer(pkt);
+    try
+    {
+        THROW_IF_NO_APP("CPacketTranslater::OnEventStart : 0 == m_pclApp");
+        PacketHeader* pb = pkt;
+        DNF_LOG_SCOPE_LINE(0xe4c,"./log/Web",
+            "CPacketTranslater::OnEventStart() eventCode(%d), eventParam1(%d), eventParam2(%d)\n",
+            ((GuildEventBodyView*)pb)->m_eventCode,
+            (unsigned int)((GuildEventBodyView*)pb)->m_eventParam1,
+            (unsigned int)((GuildEventBodyView*)pb)->m_eventParam2);
+        m_pclApp->m_serverHandler->SendAllTcpGameServer(pkt);
+    }
+    catch (CDNFException& e)
+    {
+        printf("CPacketTranslater::OnEventStart() \277\271\277\334 \271\337\273\375 : %s\n", ((std::exception&)e).what());
+        DNF_LOG_SCOPE_LINE(0xe53, "./log/Except", "CPacketTranslater::OnEventStart() \277\271\277\334 \271\337\273\375 : %s\n", ((std::exception&)e).what());
+    }
+    catch (...)
+    {
+        puts("CPacketTranslater::OnEventStart() \277\271\277\334 \271\337\273\375");
+        DNF_LOG_SCOPE_LINE(0xe59, "./log/Except", "CPacketTranslater::OnEventStart() \277\271\277\334 \271\337\273\375\n");
+    }
 }
 
 void CPacketTranslater::OnEventEnd(PacketHeader* pkt)
@@ -2652,22 +2807,20 @@ void CPacketTranslater::OnEventEnd(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnEventEnd : 0 == m_pclApp");
-    char* pb = (char*)pkt;
-    unsigned int eventCode = *(unsigned int*)(pb + 10);
-    DNF_LOG_SCOPE_LINE(0xe6b, "./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n", eventCode);
+    PacketHeader* pb = pkt;
+    DNF_LOG_SCOPE_LINE(0xe6b, "./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n",
+        ((GuildEventBodyView*)pb)->m_eventCode);
     m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(pkt);
     }
     catch (CDNFException& e)
     {
-        printf("CPacketTranslater::OnEventEnd() 예외 발생 : %s\n", e.what());
-        CMyFileLog log("OnEventEnd", 0xe72);
-        log("./log/Except", "CPacketTranslater::OnEventEnd() 예외 발생 : %s\n", e.what());
+        printf("CPacketTranslater::OnEventEnd() \277\271\277\334 \271\337\273\375 : %s\n", ((std::exception&)e).what());
+        DNF_LOG_SCOPE_LINE(0xe72, "./log/Except", "CPacketTranslater::OnEventEnd() \277\271\277\334 \271\337\273\375 : %s\n", ((std::exception&)e).what());
     }
     catch (...)
     {
-        puts("CPacketTranslater::OnEventEnd() 예외 발생");
-        CMyFileLog log(__FUNCTION__, 0xe78);
-        log("./log/Except", "CPacketTranslater::OnEventEnd() 예외 발생\n");
+        puts("CPacketTranslater::OnEventEnd() \277\271\277\334 \271\337\273\375");
+        DNF_LOG_SCOPE_LINE(0xe78, "./log/Except", "CPacketTranslater::OnEventEnd() \277\271\277\334 \271\337\273\375\n");
     }
 }
 
@@ -2905,20 +3058,19 @@ void CPacketTranslater::RequestBlackListToDBMW(unsigned int charNo)
     try
     {
         Packet_DBMW_Request_BlackList pkt;
-        *(unsigned int*)((char*)&pkt + 0xa) = charNo;
-        *(unsigned char*)((char*)&pkt + 0xb) = 0xcb;
+        pkt.m_charNo = charNo;
+        pkt.m_type = 0xcb;
         m_pclApp->m_serverHandler->SendToDB(&pkt);
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("RequestBlackListToDBMW", 0xfe7);
-        log("./log/Except",
+        CMyFileLog(__FUNCTION__, 0xfe7)("./log/Except",
             "CPacketTranslater::RequestBlackListToDBMW Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0xfec);
-        log("./log/Except", "CPacketTranslater::RequestBlackListToDBMW Exception Break\n");
+        CMyFileLog(__FUNCTION__, 0xfec)("./log/Except",
+            "CPacketTranslater::RequestBlackListToDBMW Exception Break\n");
     }
 }
 
@@ -3426,7 +3578,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
 
 void CPacketTranslater::OnSetPowerWarCfg(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    PTL_PowerWarCfgPkt* pb = (PTL_PowerWarCfgPkt*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1317, "./log/Power", "CPacketTranslater::OnSetPowerWarCfg : 0 == m_pclApp");
@@ -3435,20 +3587,20 @@ void CPacketTranslater::OnSetPowerWarCfg(PacketHeader* pkt)
     try
     {
         CPowerManager* pm = m_pclApp->GetPowerManager();
-        pm->SetPowerWarEndKillPoint(*(unsigned short*)(pb + 0xa));
-        pm->SetPowerWarRewardInfo(*(int*)(pb + 0xc), *(int*)(pb + 0x10), *(int*)(pb + 0x14),
-                                  *(int*)(pb + 0x18));
+        pm->SetPowerWarEndKillPoint(pb->m_endKillPoint);
+        pm->SetPowerWarRewardInfo(pb->m_basic, pb->m_first, pb->m_decrease,
+                                  pb->m_ranking);
         DNF_LOG_SCOPE_LINE(0x1321,"./log/Power",
             "CPacketTranslater::OnSetPowerWarCfg EndKillPoint:%d, BasicPowerWarPoint:%d, FirstGradeBonusPowerWarPoint:%d, BonusDecreasePoint:%d, RankingBonusGrade:%d",
-            (unsigned int)*(unsigned short*)(pb + 0xa), *(int*)(pb + 0xc), *(int*)(pb + 0x10),
-            *(int*)(pb + 0x14), *(int*)(pb + 0x18));
+            (unsigned int)pb->m_endKillPoint, pb->m_basic, pb->m_first,
+            pb->m_decrease, pb->m_ranking);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPacketSecedePower Exception Break", 0x132b, 0x1330);
 }
 
 void CPacketTranslater::OnLoadFromDBOnGuildBooting(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    PTL_GuildBootingPkt* pb = (PTL_GuildBootingPkt*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1343,"./log/Power",
@@ -3458,7 +3610,7 @@ void CPacketTranslater::OnLoadFromDBOnGuildBooting(PacketHeader* pkt)
     try
     {
         CPowerManager* pm = m_pclApp->GetPowerManager();
-        pm->SetPowerInfo((char)pb[0x12], *(int*)(pb + 0xa), *(int*)(pb + 0xe));
+        pm->SetPowerInfo((char)pb->m_12, (int)pb->m_a, (int)pb->m_e);
         pm->SendPowerWarInfo();
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPacketSecedePower Exception Break", 0x134f, 0x1354);
@@ -3466,7 +3618,6 @@ void CPacketTranslater::OnLoadFromDBOnGuildBooting(PacketHeader* pkt)
 
 void CPacketTranslater::OnGMPowerWarStart(PacketHeader* pkt)
 {
-    (void)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x13f9, "./log/Power", "CPacketTranslater::OnGMPowerWarStart : 0 == m_pclApp");
@@ -3474,27 +3625,27 @@ void CPacketTranslater::OnGMPowerWarStart(PacketHeader* pkt)
     }
     try
     {
+        CServerHandler* handler;
         CPowerManager* pm = m_pclApp->GetPowerManager();
-        if (pm->IsPowerWarOn() == 0)
+        if (pm->IsPowerWarOn())
         {
-            pm->StartPowerWarEvent();
-            Packet_Monitor_Event_Start start;
-            *(unsigned int*)((char*)&start + 0xa) = 0x1e;
-            CServerHandler* handler;
-            if ((handler = m_pclApp->Get_ServerHandler()) == 0)
-            {
-                throw CDNFException(
-                    "CGuildManager::OnGMPowerWarStart() pclServerHandler == NULL\n");
-            }
-            handler->SendAllTcpGameServer(&start);
+            return;
         }
+        pm->StartPowerWarEvent();
+        Packet_Monitor_Event_Start start;
+        start.m_fieldA = 0x1e;
+        if ((handler = m_pclApp->Get_ServerHandler()) == 0)
+        {
+            throw CDNFException(
+                "CGuildManager::OnGMPowerWarStart() pclServerHandler == NULL\n");
+        }
+        handler->SendAllTcpGameServer(&start);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGMPowerWarStart Exception Break", 0x140e, 0x1413);
 }
 
 void CPacketTranslater::OnGMPowerWarEnd(PacketHeader* pkt)
 {
-    (void)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1426, "./log/Power", "CPacketTranslater::OnGMPowerWarEnd : 0 == m_pclApp");
@@ -3502,21 +3653,22 @@ void CPacketTranslater::OnGMPowerWarEnd(PacketHeader* pkt)
     }
     try
     {
+        CServerHandler* handler;
         CPowerManager* pm = m_pclApp->GetPowerManager();
-        if (pm->IsPowerWarOn() == 1)
+        if (!pm->IsPowerWarOn())
         {
-            pm->SendPowerWarScore();
-            pm->EndPowerWarEvent();
-            Packet_Monitor_Event_End end;
-            *(unsigned int*)((char*)&end + 0xa) = 0x1e;
-            CServerHandler* handler;
-            if ((handler = m_pclApp->Get_ServerHandler()) == 0)
-            {
-                throw CDNFException(
-                    "CGuildManager::OnGMPowerWarStart() pclServerHandler == NULL\n");
-            }
-            handler->SendAllTcpGameServer(&end);
+            return;
         }
+        pm->SendPowerWarScore();
+        pm->EndPowerWarEvent();
+        Packet_Monitor_Event_End end;
+        end.m_fieldA = 0x1e;
+        if ((handler = m_pclApp->Get_ServerHandler()) == 0)
+        {
+            throw CDNFException(
+                "CGuildManager::OnGMPowerWarStart() pclServerHandler == NULL\n");
+        }
+        handler->SendAllTcpGameServer(&end);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGMPowerWarEnd Exception Break", 0x143d, 0x1442);
 }
@@ -3987,7 +4139,8 @@ void CPacketTranslater::OnDBDeleteGuildAgit(PacketHeader* pkt)
 
 void CPacketTranslater::OnPowerWarProcessInfo(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    int uVar1 = 0;
+    int uVar2 = 0;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1717, "./log/Except", "CPacketTranslater::OnPowerWarProcessInfo : 0 == m_pclApp");
@@ -3995,7 +4148,9 @@ void CPacketTranslater::OnPowerWarProcessInfo(PacketHeader* pkt)
     }
     try
     {
-        m_pclApp->GetPowerManager()->SendPowerWarProcessInfo(*(unsigned int*)(pb + 0xa));
+        char* pb = (char*)pkt;
+        CPowerManager* pm = m_pclApp->GetPowerManager();
+        pm->SendPowerWarProcessInfo(((PTL_PowerWarProcessPkt*)pb)->m_a);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPowerWarProcessInfo Exception Break", 0x1722, 0x1727);
 }
@@ -4156,20 +4311,35 @@ void CPacketTranslater::OnWriteGuildMemberMemo(PacketHeader* pkt)
 
 void CPacketTranslater::OnLoadGuildCargo(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
-    if (m_pclApp == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x1831, "./log/GuildCargo", "CPacketTranslater::OnLoadGuildCargo : 0 == m_pclApp");
-        return;
-    }
-    unsigned int guildKey = *(unsigned int*)(pb + 0xa);
     CGuild* guild;
-    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
+    PTL_GuildCargoLoadPkt* pb = (PTL_GuildCargoLoadPkt*)pkt;
+    try
     {
-        DNF_LOG_SCOPE_LINE(0x1838, "./log/GuildCargo", "CPacketTranslater::OnLoadGuildCargo : 0 == pclGuild");
-        return;
+        if (m_pclApp == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x1831, "./log/GuildCargo", "CPacketTranslater::OnLoadGuildCargo : 0 == m_pclApp");
+        }
+        else
+        {
+            if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildId)) == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0x1838, "./log/GuildCargo", "CPacketTranslater::OnLoadGuildCargo : 0 == pclGuild");
+            }
+            else
+            {
+                guild->GetGuildCargo()->SetGuildCargoDBInfo(
+                    *(STGuildCargoDBInfo*)((char*)pb + 0xe));
+            }
+        }
     }
-    guild->GetGuildCargo()->SetGuildCargoDBInfo(*(STGuildCargoDBInfo*)(pb + 0xe));
+    catch (CDNFException& e)
+    {
+        DNF_LOG_SCOPE_LINE(0x1849, "./log/Except", "CPacketTranslater::OnLoadGuildCargo Exception Break : %s\n", e.what());
+    }
+    catch (...)
+    {
+        DNF_LOG_SCOPE_LINE(0x184e, "./log/Except", "CPacketTranslater::OnLoadGuildCargo Exception Break\n");
+    }
 }
 
 void CPacketTranslater::OnLoadGuildCargoHistory(PacketHeader* pkt)
@@ -5223,33 +5393,25 @@ void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
 
 void CPacketTranslater::OnNotifyNewGroupMail(PacketHeader* pkt)
 {
+    PTL_NotifyNewGroupMailPkt* pb = (PTL_NotifyNewGroupMailPkt*)pkt;
+    CUserManager* um = &m_pclApp->m_userManager;
+    CUser* user = 0;
+    Packet_Monitor_Notify_New_Mail mail;
     try
     {
-        char* pb = (char*)pkt;
-        CUser* user = 0;
-        Packet_Monitor_Notify_New_Mail mail;
-        for (int i = 0; i < *(int*)(pb + 0xa); i++)
+        for (int i = 0; i < (int)pb->m_count; i++)
         {
-            user = (&m_pclApp->m_userManager)->FindUser_CharNo(*(unsigned int*)(pb + i * 4 + 0xe));
+            user = um->FindUser_CharNo(pb->m_charNos[i]);
             if (user != 0)
             {
-                *(unsigned int*)((char*)&mail + 0xa) = *(unsigned int*)(pb + i * 4 + 0xe);
-                *(unsigned int*)((char*)&mail + 0xe) = user->GetIdByChannel();
+                mail.ma = pb->m_charNos[i];
+                mail.me = user->GetIdByChannel();
                 user->SendToGameserver((char*)&mail, 0x12);
             }
         }
     }
-    catch (CDNFException& e)
-    {
-        CMyFileLog log("OnNotifyNewGroupMail", 0x1e9f);
-        log("./log/Except",
-            "CPacketTranslater::OnNotifyNewGroupMail() Exception Break : %s\n", e.what());
-    }
-    catch (...)
-    {
-        CMyFileLog log(__FUNCTION__, 0x1ea4);
-        log("./log/Except", "CPacketTranslater::OnNotifyNewGroupMail() Exception Break\n");
-    }
+    DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnNotifyNewGroupMail() Exception Break",
+                  0x1e9f, 0x1ea4);
 }
 
 void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
@@ -5298,48 +5460,61 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
 
 void CPacketTranslater::OnAddGuildFund(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    PTL_AddGuildFundPkt* pb = (PTL_AddGuildFundPkt*)pkt;
+    CGuild* guild = 0;
+    CUser* user = 0;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1f03, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == m_pclApp");
         return;
     }
-    CUser* user;
-    if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(*(unsigned int*)(pb + 0xa))) == 0)
+    try
     {
-        DNF_LOG_SCOPE_LINE(0x1f09, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pUser");
-        return;
-    }
-    CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(*(unsigned int*)(pb + 0xe));
-    if (guild == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x1f0f, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pGuild");
-        return;
-    }
-    if ((unsigned char)pb[10] == 1)
-    {
-        int result = guild->IsAddableGuildFund(*(unsigned int*)(pb + 0xb)) ? 1 : 0;
-        if (result == 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
         {
-            guild->AddGuildFund(*(unsigned int*)(pb + 0xb));
-            guild->GetGuildBoard()->sendMessageToDBMW_GuildFund(m_pclApp->Get_ServerHandler(),
-                                                                *(int*)(pb + 0xb), user);
+            DNF_LOG_SCOPE_LINE(0x1f09, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pUser");
+            return;
         }
-        Packet_Add_Guild_Fund_Result reply;
-        *(unsigned char*)((char*)&reply + 0xa) = (unsigned char)result;
-        *(unsigned int*)((char*)&reply + 0xb) = *(unsigned int*)(pb + 0xf);
-        *(unsigned int*)((char*)&reply + 0xf) = user->GetIdByChannel();
-        user->SendToGameserver((char*)&reply, 0x17);
-        guild->SendGuildInfoToManagers();
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x1f0f, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pGuild");
+            return;
+        }
+        if (pb->m_mode == 1)
+        {
+            int result = guild->IsAddableGuildFund(pb->m_fund);
+            if (result == 0)
+            {
+                guild->AddGuildFund(pb->m_fund);
+                guild->GetGuildBoard()->sendMessageToDBMW_GuildFund(m_pclApp->Get_ServerHandler(),
+                                                                    (int)pb->m_fund, user);
+            }
+            Packet_Add_Guild_Fund_Result reply;
+            reply.mf = user->GetIdByChannel();
+            reply.mb = pb->m_charNo;
+            reply.ma = (unsigned char)result;
+            user->SendToGameserver((char*)&reply, 0x17);
+            guild->SendGuildInfoToManagers();
+        }
+        else if (pb->m_mode == 2)
+        {
+            guild->GetGuildDBInfo()->m_info.m_guildFund = pb->m_fund;
+            guild->SendGuildInfoToMemberOnly(user);
+        }
+        else
+        {
+            guild->AddGuildFund(pb->m_fund);
+        }
     }
-    else if ((unsigned char)pb[10] == 2)
+    catch (std::exception& e)
     {
-        *(unsigned int*)((char*)guild->GetGuildDBInfo() + 0xa0) = *(unsigned int*)(pb + 0xb);
-        guild->SendGuildInfoToMemberOnly(user);
+        DNF_LOG_SCOPE_LINE(0x1f36, "./log/Except",
+            "CPacketTranslater::OnAddGuildFund Exception Break : %s\n", e.what());
     }
-    else
+    catch (...)
     {
-        guild->AddGuildFund(*(unsigned int*)(pb + 0xb));
+        DNF_LOG_SCOPE_LINE(0x1f3b, "./log/Except",
+            "CPacketTranslater::OnAddGuildFund Exception Break\n");
     }
 }
 
@@ -5368,7 +5543,7 @@ void CPacketTranslater::OnRefreshGuildInfo(PacketHeader* pkt)
 
 void CPacketTranslater::OnReplyTodayGuildMember(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    PTL_TodayGuildMemberPkt* pb = (PTL_TodayGuildMemberPkt*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1f75, "./log/Guild", "CPacketTranslater::OnReplyTodayGuildMember : 0 == m_pclApp");
@@ -5376,16 +5551,14 @@ void CPacketTranslater::OnReplyTodayGuildMember(PacketHeader* pkt)
     }
     try
     {
-        unsigned int guildKey = *(unsigned int*)(pb + 0xa);
         CGuild* guild;
-        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f7b, "./log/Guild", "CPacketTranslater::OnReplyTodayGuildMember : 0 == pGuild");
             return;
         }
-        m_pclApp->Get_GuildManager()->InsertTodayMember(guildKey,
-                                                       *(STTodayGuildMember*)(pb + 0xe));
-        guild->SetTodayGuildMember(*(STTodayGuildMember*)(pb + 0xe));
+        m_pclApp->Get_GuildManager()->InsertTodayMember(pb->m_guildKey, pb->m_member);
+        guild->SetTodayGuildMember(pb->m_member);
         guild->NotifyAllTodayGuildMember();
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnReplyTodayGuildMember Exception Break", 0x1f8a, 0x1f8f);
@@ -5510,48 +5683,67 @@ void CPacketTranslater::OnGuildAttendanceInfo(PacketHeader* pkt)
 
 void CPacketTranslater::OnGuildDebug(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
-    if (m_pclApp == 0)
+    try
     {
-        DNF_LOG_SCOPE_LINE(0x2040, "./log/Guild", "CPacketTranslater::OnGuildDebug : 0 == m_pclApp");
-        return;
+        PTL_GuildDebugPkt* pb = (PTL_GuildDebugPkt*)pkt;
+        CUser* user = 0;
+        CGuild* guild = 0;
+        if (m_pclApp == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x2040, "./log/Guild", "CPacketTranslater::OnGuildDebug : 0 == m_pclApp");
+        }
+        else
+        {
+            if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0x2046, "./log/Guild", "CPacketTranslater::OnGuildDebug : 0 == pGuild");
+            }
+            else
+            {
+                if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
+                {
+                    DNF_LOG_SCOPE_LINE(0x204c, "./log/Guild", "CPacketTranslater::OnGuildDebug : 0 == pUser");
+                }
+                else
+                {
+                    switch (pb->m_mode)
+                    {
+                    case 0:
+                        m_pclApp->Get_GuildManager()->RefreshAttendanceInfo(true);
+                        break;
+                    case 1:
+                        m_pclApp->Get_GuildManager()->RefreshTodayMember(true);
+                        break;
+                    }
+                }
+            }
+        }
     }
-    unsigned int guildKey = *(unsigned int*)(pb + 0xa);
-    CGuild* guild;
-    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
+    catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x2046, "./log/Guild", "CPacketTranslater::OnGuildDebug : 0 == pGuild");
-        return;
+        DNF_LOG_SCOPE_LINE(0x2061, "./log/Except",
+            "CPacketTranslater::OnGuildDebug Exception Break : %s\n", e.what());
     }
-    unsigned int charNo = *(unsigned int*)(pb + 0xe);
-    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
-    if (user == 0)
+    catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x204c, "./log/Guild", "CPacketTranslater::OnGuildDebug : 0 == pUser");
-    }
-    else if (*(int*)(pb + 0x12) == 0)
-    {
-        m_pclApp->Get_GuildManager()->RefreshAttendanceInfo(true);
-    }
-    else if (*(int*)(pb + 0x12) == 1)
-    {
-        m_pclApp->Get_GuildManager()->RefreshTodayMember(true);
+        DNF_LOG_SCOPE_LINE(0x2066, "./log/Except",
+            "CPacketTranslater::OnGuildDebug Exception Break\n");
     }
 }
 
 void CPacketTranslater::OnRenew_GM_List(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    GuildPacketBodyView* pb = (GuildPacketBodyView*)pkt;
     WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_pclApp->GetGMAccounts();
     if (gm != 0 && pb != 0)
     {
-        if (((GuildPacketBodyView*)pb)->m_field_a == 0)
+        if (pb->m_field_a == 0)
         {
             gm->clearGmList();
         }
-        for (int i = 0; i < (char)((GuildPacketBodyView*)pb)->m_field_b; i++)
+        for (int i = 0; i < (char)pb->m_field_b; i++)
         {
-            gm->AppendGM_Sys(*(unsigned int*)(pb + i * 4 + 0xc), (char)pb[i + 0x5c]);
+            gm->AppendGM_Sys(pb->m_gmIds[i], (char)pb->m_gmNames[i]);
         }
     }
 }
@@ -5581,12 +5773,8 @@ Packet_Monitor_Notice_Guild_Create_ToUser::Packet_Monitor_Notice_Guild_Create_To
 }
 
 Packet_Monitor_Call_Guild_Info_Reply::Packet_Monitor_Call_Guild_Info_Reply()
-    : PacketHeader(0x40d, 0xad6)
+    : PacketHeader(0x40d, 0xad6), ma(0), me(0), m12(0)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    *(unsigned char*)((char*)this + 0x12) = 0x0;
-    for (int i = 0; i < 0x5f; i++) { new ((char*)this + 0x13 + i * 0x1d) STGuildCallInfo; }
 }
 
 #pragma pack(push,1)
@@ -5746,8 +5934,6 @@ Packet_Delete_To_BlackList_Result::Packet_Delete_To_BlackList_Result()
 Packet_Request_Result_BlackList::Packet_Request_Result_BlackList()
     : PacketHeader(0x5e0, 0x19f)
 {
-    for (int i = 0; i < 9; ++i)
-        new ((char*)this + 0xf + i * 0x28) STBlackUserDBType;
 }
 
 #pragma pack(push,1)
@@ -5964,12 +6150,9 @@ Packet_Guild_Cargo_Response::Packet_Guild_Cargo_Response()
 }
 
 Packet_Guild_Cargo_History_Response::Packet_Guild_Cargo_History_Response()
-    : PacketHeader(0x70b, 0x972)
+    : PacketHeader(0x70b, 0x972), ma(0xffffffff), me(0)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0xffffffff;
-    *(unsigned int*)((char*)this + 0xe) = 0;
-    for (int i = 0; i < 0x32; i++) { new ((char*)this + 0x12 + i * 0x30) STGuildCargoLog; }
-    memset((char*)this + 0x12, 0, 0x960);
+    memset(m_log, 0, 0x960);
 }
 
 #pragma pack(push,1)

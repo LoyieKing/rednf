@@ -135,7 +135,7 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const cha
     return 1;
 }
 
-int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const char* ip,
+bool CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const char* ip,
                               unsigned int addr) const
 {
     if (!ip && !addr)

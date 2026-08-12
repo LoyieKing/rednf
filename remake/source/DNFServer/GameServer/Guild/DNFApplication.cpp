@@ -80,6 +80,7 @@ void CAppBase::Create(int argc, char** argv)
 
 void CAppBase::Clear()
 {
+    Free();
 }
 
 CApplication* CApplicationInstance()
@@ -89,18 +90,17 @@ CApplication* CApplicationInstance()
 }
 
 CApplication::CApplication()
+    : m_loaded(false),
+      m_reserved8(0),
+      m_appInit(0),
+      m_appConfig(0),
+      m_serverConfig(0),
+      m_killConfig(0),
+      m_serverHandler(0),
+      m_innerMsgHandler(0),
+      m_udpHandler(0),
+      m_udpThread(0)
 {
-    m_loaded = false;
-    m_reserved8 = 0;
-    m_appInit = 0;
-    m_appConfig = 0;
-    m_serverConfig = 0;
-    m_killConfig = 0;
-    m_serverHandler = 0;
-    m_innerMsgHandler = 0;
-    m_udpHandler = 0;
-    m_udpThread = 0;
-    m_memoryCash = 0;
 }
 
 CApplication::~CApplication()
@@ -127,50 +127,49 @@ void ShowLogo()
 
 void CApplication::Init(int argc, char** argv)
 {
+    try
+    {
     ShowLogo();
     g_ServerString_.StrLoading();
     CheckArgv(argc, argv);
-    CSignalTranslator* st = CSignalTranslatorInstance();
-    st->init(this);
+    CSignalTranslatorInstance()->init(this);
     AttachAppInitor(argv);
-    if (m_appInit != 0)
-    {
         m_appInit->Init(this, argc, argv);
-    }
     puts("Application Init() Success!");
+    }
+    catch (CDNFException& e)
+    {
+        printf("CApplication::Init() Exception Break : %s\n", e.what());
+        throw;
+    }
+    catch (...)
+    {
+        puts("CApplication::Init() Exception Break");
+        throw;
+    }
 }
 
 void CApplication::Load(int argc, char** argv)
 {
+    try
+    {
     m_memoryCash = new CMemoryCashManager;
     m_memoryCash->Init(this);
     m_guildManager.Init(this);
     m_userManager.Init(this);
-    if (m_appConfig != 0)
-    {
-        m_appConfig->Load_Table(argv[1]);
-    }
+    m_appConfig->Load_Table(argv[1]);
     m_powerManager.InitPowerManager((char*)"./script/power_war_event.tbl", this);
-    if (m_appConfig != 0)
-    {
-        m_frameCount.InitFrameCountInfo(this, (unsigned int)this,
-                                        m_appConfig->Get_FrameCountValue());
-    }
+    m_frameCount.InitFrameCountInfo(this, (unsigned int)this,
+                                    m_appConfig->Get_FrameCountValue());
     m_udpHandler = new CUdpHandler;
-    if (m_appConfig != 0)
+    unsigned short port = m_appConfig->Get_ServerUdpPort();
+    if (m_udpHandler->InitServerSocket(port) == -1)
     {
-        unsigned short port = m_appConfig->Get_ServerUdpPort();
-        if (m_udpHandler->InitServerSocket(port) == -1)
-        {
-            throw CDNFException("CApplication::Load() Init UDP Server Socket Exception Break!");
-        }
+        throw CDNFException("CApplication::Load() Init UDP Server Socket Exception Break!");
     }
     m_serverHandler = new CServerHandler;
     m_serverHandler->Attach(this);
-    if (m_appConfig != 0)
-    {
-        m_serverHandler->Load(m_appConfig->GetServerInfoMap());
-    }
+    m_serverHandler->Load(m_appConfig->GetServerInfoMap());
     CPacketTranslater::attach(this);
     m_innerMsgHandler = new CInnerMsgHandler;
     CPacketDecoderInstance()->Attach(this);
@@ -178,43 +177,36 @@ void CApplication::Load(int argc, char** argv)
     m_udpThread->attach(this);
     if (!((CThreadInterface*)m_udpThread)->begin())
     {
-        throw CDNFException("CApplication::Load() UdpThread begin Fail!");
+        throw;
     }
-    if (m_appConfig != 0)
+    m_tcpNetSystem.Init(m_appConfig->Get_ServerTcpPort());
+    const char* dbIp = m_appConfig->Get_DBMWTcpIP();
+    unsigned short dbPort = m_appConfig->Get_DBMWTcpPort();
+    CTcpDBServer* db = m_serverHandler->GetTcpDBServer();
+    if (*dbIp == '\0' || dbPort == 0)
     {
-        m_tcpNetSystem.Init(m_appConfig->Get_ServerTcpPort());
+        puts("Application TCP cfg empty!");
+        DNF_LOG_SCOPE_LINE(0x180, "./log/TcpServer", "Application TCP cfg empty!");
     }
-    if (m_appConfig != 0)
+    else
     {
-        const char* dbIp = m_appConfig->Get_DBMWTcpIP();
-        unsigned short dbPort = m_appConfig->Get_DBMWTcpPort();
-        CTcpDBServer* db = m_serverHandler->GetTcpDBServer();
-        if (*dbIp == '\0' || dbPort == 0)
+        db->Init(&m_tcpNetSystem, &m_guildManager);
+        db->SetIP(std::string(dbIp));
+        db->SetPort(dbPort);
+        if (!m_tcpNetSystem.OpenTcpService(db->GetSockRef(), dbIp, dbPort))
         {
-            puts("Application TCP cfg empty!");
-            DNF_LOG_SCOPE_LINE(0x180, "./log/TcpServer", "Application TCP cfg empty!");
+            printf("Application OpenTcpService(%s, %d) Fail!\n", dbIp,
+                   (unsigned int)dbPort);
+            DNF_LOG_SCOPE_LINE(0x175,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
+                dbIp, (unsigned int)dbPort, db->GetSock());
         }
         else
         {
-            db->Init(&m_tcpNetSystem, &m_guildManager);
-            db->SetIP(std::string(dbIp));
-            db->SetPort(dbPort);
-            int sock = 0;
-            if (m_tcpNetSystem.OpenTcpService(sock, dbIp, dbPort))
-            {
-                printf("Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!\n",
-                       db->GetSock(), dbIp, (unsigned int)dbPort);
-                DNF_LOG_SCOPE_LINE(0x179,"./log/TcpServer",
-                    "Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!",
-                    db->GetSock(), dbIp, (unsigned int)dbPort);
-            }
-            else
-            {
-                printf("Application OpenTcpService(%s, %d) Fail!\n", dbIp,
-                       (unsigned int)dbPort);
-                DNF_LOG_SCOPE_LINE(0x175,"./log/TcpServer", "Application OpenTcpService(%s, %d, %d) Fail!",
-                    dbIp, (unsigned int)dbPort, db->GetSock());
-            }
+            DNF_LOG_SCOPE_LINE(0x179,"./log/TcpServer",
+                "Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!",
+                db->GetSock(), dbIp, (unsigned int)dbPort);
+            printf("Application OpenTcpService(fd:%d,ip:%s,port:%d) Success!\n",
+                   db->GetSock(), dbIp, (unsigned int)dbPort);
         }
     }
     Packet_DB_Query_On_Guild_Booting pkt;
@@ -225,8 +217,19 @@ void CApplication::Load(int argc, char** argv)
     IQueue<TcpRecvQueue>::Get()->InitQueue(
         ((CSwapQueue<TcpRecvQueue, 2>*)m_tcpNetSystem.Get_TcpSwapQPacket())->GetRecvQ(),
         ((CSwapQueue<TcpRecvQueue, 2>*)m_tcpNetSystem.Get_TcpSwapQPacket())->GetParseQ());
-    m_loaded = true;
     puts("Application Load() Success!");
+    m_loaded = true;
+    }
+    catch (CDNFException& e)
+    {
+        printf("CApplication::Load() Exception Break : %s\n", e.what());
+        throw;
+    }
+    catch (...)
+    {
+        puts("CApplication::Load() Exception Break");
+        throw;
+    }
 }
 
 void CApplication::Free()
@@ -234,16 +237,12 @@ void CApplication::Free()
     try
     {
     puts("Application Free Start!");
-    CServerHandler* handler = Get_ServerHandler();
-    m_guildManager.DBGuildAndGuildMemberSave(handler);
+    m_guildManager.DBGuildAndGuildMemberSave(Get_ServerHandler());
     puts("Guild And Guild Member DB Save Success!");
     if (m_udpThread != 0)
     {
         m_udpThread->stop();
-        if (m_udpThread != 0)
-        {
-            delete m_udpThread;
-        }
+        delete m_udpThread;
         m_udpThread = 0;
     }
     puts("Udp Thread Free Success!");
@@ -265,8 +264,7 @@ void CApplication::Free()
         m_udpHandler = 0;
     }
     puts("UDP Handler Free Success!");
-    CSignalTranslator* st = CSignalTranslatorInstance();
-    st->clear();
+    CSignalTranslatorInstance()->clear();
     puts("Signal Translater Free Success!");
     if (m_appConfig != 0)
     {
@@ -280,6 +278,7 @@ void CApplication::Free()
         m_appInit = 0;
     }
     puts("Application Initor Free Success!");
+    puts("Application \xc1\xbe\xb7\xe1!");
     }
     catch (CDNFException& e)
     {
@@ -336,21 +335,18 @@ void CApplication::Process()
 
 void CApplication::AttachAppInitor(char** argv)
 {
-    if (argv[2] == 0)
-    {
-        throw CDNFException("CApplication::AttachAppInitor() invalid argv[2]!");
-    }
-    if (strcmp(argv[2], "start") == 0 || strcmp(argv[2], "nofork") == 0)
+    char* argv2 = argv[2];
+    if (strcmp(argv2, "start") == 0 || strcmp(argv2, "nofork") == 0)
     {
         m_appInit = new CAppStartInit;
         return;
     }
-    if (strcmp(argv[2], "stop") == 0)
+    if (strcmp(argv2, "stop") == 0)
     {
         m_appInit = new CAppStopInit;
         return;
     }
-    throw CDNFException("CApplication::AttachAppInitor() invalid mode!");
+    throw CDNFException("CApplication::AttachAppInitor() \xbd\xc7\xc7\xe0 \xbe\xc6\xb1\xd4\xb8\xd5\xc6\xae \xbf\xc0\xb7\xf9\n");
 }
 
 void CApplication::CheckArgv(int argc, char** argv)
@@ -449,22 +445,23 @@ void CApplication::TranslateSignal()
 {
     m_killConfig->Clear_Table();
     m_killConfig->Load_Table("./script/kill_user_config.tbl");
-    std::vector<ST_KillUSRConfig*>* vec = m_killConfig->GetInfo();
-    if (!vec->empty())
+    const std::vector<ST_KillUSRConfig*>* vec = m_killConfig->GetInfo();
+    if (vec->empty())
     {
-        for (std::vector<ST_KillUSRConfig*>::iterator it = vec->begin(); it != vec->end(); ++it)
+        return;
+    }
+    for (std::vector<ST_KillUSRConfig*>::const_iterator it = vec->begin(); it != vec->end(); ++it)
+    {
+        switch ((*it)->m_field0)
         {
-            ST_KillUSRConfig* cfg = *it;
-            switch (cfg->m_field0)
-            {
-            case 1:
-                m_guildManager.DBGuildProcess(Get_ServerHandler(), (bool)Get_ServerHandler());
-                break;
+        case 1:
+            m_guildManager.DBGuildProcess(Get_ServerHandler(), true);
+            break;
             case 3:
             {
                 Packet_Monitor_Send_Guild_Mail mail;
-                *(unsigned int*)((char*)&mail + 0xa) = (unsigned int)cfg->m_field1;
-                *(unsigned int*)((char*)&mail + 0xe) = (unsigned int)cfg->m_field2;
+                *(unsigned int*)((char*)&mail + 0xa) = (unsigned int)(*it)->m_field1;
+                *(unsigned int*)((char*)&mail + 0xe) = (unsigned int)(*it)->m_field2;
                 memcpy((char*)&mail + 0x12,
                        "\xc5\xc2\xbd\xba\xc6\xae \xb1\xe6\xb5\xe5\xb8\xde\xc0\xcf\xc0\xd4\xb4\xcf\xb4\xd9.",
                        0x17);
@@ -477,9 +474,9 @@ void CApplication::TranslateSignal()
             case 7:
             {
                 Packet_Monitor_Notice_Guild_Enter enter;
-                *(unsigned int*)((char*)&enter + 0xa) = (unsigned int)cfg->m_field1;
-                *(unsigned int*)((char*)&enter + 0xe) = (unsigned int)cfg->m_field2;
-                *(unsigned int*)((char*)&enter + 0x12) = (unsigned int)cfg->m_field3;
+                *(unsigned int*)((char*)&enter + 0xa) = (unsigned int)(*it)->m_field1;
+                *(unsigned int*)((char*)&enter + 0xe) = (unsigned int)(*it)->m_field2;
+                *(unsigned int*)((char*)&enter + 0x12) = (unsigned int)(*it)->m_field3;
                 memcpy((char*)&enter + 0x16,
                        "\xb4\xab\xbb\xe7\xb6\xf7\x00\xb0\xde\xdf\xb8\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
                        0x16);
@@ -490,18 +487,18 @@ void CApplication::TranslateSignal()
             {
                 Packet_Monitor_Set_GuildMember_Grade_FromWeb grade;
                 *(unsigned int*)((char*)&grade + 0x12) = 2;
-                *(unsigned int*)((char*)&grade + 0xa) = (unsigned int)cfg->m_field1;
-                *(unsigned int*)((char*)&grade + 0xe) = (unsigned int)cfg->m_field2;
-                *(unsigned char*)((char*)&grade + 0x16) = (unsigned char)cfg->m_field3;
+                *(unsigned int*)((char*)&grade + 0xa) = (unsigned int)(*it)->m_field1;
+                *(unsigned int*)((char*)&grade + 0xe) = (unsigned int)(*it)->m_field2;
+                *(unsigned char*)((char*)&grade + 0x16) = (unsigned char)(*it)->m_field3;
                 CPacketTranslater::OnSetGuildMemberGradeFromWeb(&grade);
                 break;
             }
             case 9:
             {
                 Packet_Guild_Master_Delegate_FromWeb delegate;
-                *(unsigned int*)((char*)&delegate + 0xa) = (unsigned int)cfg->m_field1;
-                *(unsigned int*)((char*)&delegate + 0xe) = (unsigned int)cfg->m_field2;
-                *(unsigned int*)((char*)&delegate + 0x12) = (unsigned int)cfg->m_field3;
+                *(unsigned int*)((char*)&delegate + 0xa) = (unsigned int)(*it)->m_field1;
+                *(unsigned int*)((char*)&delegate + 0xe) = (unsigned int)(*it)->m_field2;
+                *(unsigned int*)((char*)&delegate + 0x12) = (unsigned int)(*it)->m_field3;
                 memcpy((char*)&delegate + 0x16, "\xb0\xde\xdf\xb8", 4);
                 CPacketTranslater::OnGuildMasterDelegateFromWeb(&delegate);
                 break;
@@ -540,33 +537,28 @@ void CApplication::TranslateSignal()
             }
         }
     }
-}
 
 void CApplication::SwitchQueueTCP()
 {
     CGuard<CMutex> guard(m_tcpNetSystem.Get_TcpRecvQLock());
     typedef std::queue<CTcpRecvBuffer*> TcpRecvQueue;
-    IQueue<TcpRecvQueue>* q = IQueue<TcpRecvQueue>::Get();
-    if (q->SwitchQueue())
-    {
-        CPacketDecoder* dec = CPacketDecoderInstance();
-        dec->SetTCPQueue(q->GetParseQueue());
-    }
+    if (!IQueue<TcpRecvQueue>::Get()->SwitchQueue())
+        return;
+    CPacketDecoderInstance()->SetTCPQueue(
+        IQueue<TcpRecvQueue>::Get()->GetParseQueue());
 }
 
 void CApplication::SwitchQueueUDP()
 {
     CGuard<CMutex> guard(&m_udpQLock);
     typedef std::queue<CUdpRecvBuffer*> UdpRecvQueue;
-    CSwapQueue<UdpRecvQueue, 2>* sq = (CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0);
-    UdpRecvQueue* recvQueue = sq->GetRecvQ();
-    if (!recvQueue->empty())
-    {
-        sq->SwapQ();
-        m_udpThread->SetUDPQueue(sq->GetRecvQ());
-        CPacketDecoder* dec = CPacketDecoderInstance();
-        dec->SetUdpQueue(sq->GetParseQ());
-    }
+    if (((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->GetRecvQ()->empty())
+        return;
+    ((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->SwapQ();
+    m_udpThread->SetUDPQueue(
+        ((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->GetRecvQ());
+    CPacketDecoderInstance()->SetUdpQueue(
+        ((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->GetParseQ());
 }
 
 CAppBase::~CAppBase()

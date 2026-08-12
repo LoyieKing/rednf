@@ -10,7 +10,7 @@
 
 namespace nsl {
 
-InterDispatcher::InterDispatcher()
+InterDispatcher::InterDispatcher() throw()
 {
 }
 

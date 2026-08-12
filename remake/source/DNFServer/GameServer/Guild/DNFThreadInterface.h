@@ -13,9 +13,9 @@ class CThreadInterface
 {
 public:
     CThreadInterface();
-    virtual ~CThreadInterface();
     virtual void stop();
     virtual void join();
+    virtual ~CThreadInterface();
     virtual void dispatch(void* param) = 0;
     int begin();
     static void* dispatch_proxy(void* temp);

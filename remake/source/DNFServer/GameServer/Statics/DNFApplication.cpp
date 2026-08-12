@@ -369,10 +369,8 @@ void CApplication::App_Stop()
     sm->ResetFatigueBattery();
     sm->SendDBBloodDungeonStatistic(m_serverHandler);
     sm->ResetBloodDungeon();
-    CCubeStatistic* cube = (CCubeStatistic*)sm->getCubeStatisticObject();
-    cube->sendStatisticData(m_serverHandler);
-    cube = (CCubeStatistic*)sm->getCubeStatisticObject();
-    cube->resetStatisticData();
+    ((CCubeStatistic*)sm->getCubeStatisticObject())->sendStatisticData(m_serverHandler);
+    ((CCubeStatistic*)sm->getCubeStatisticObject())->resetStatisticData();
     sm->SendDBValueStatistic(m_serverHandler);
     sm->ResetValueStatistic();
     sm->SendDBCirculationStatistic(m_serverHandler);
@@ -401,8 +399,7 @@ void CApplication::SendTestPacket_2()
 void CApplication::SendTestPacket_1()
 {
     Packet_Monitor_Event_End end;
-    int x = 9;
-    (void)x;
+    end.m_fieldA = 9;
     CPacketTranslater::OnEventEnd((PacketHeader*)&end);
     Packet_Monitor_Event_Start start;
     start.m_fieldA = 9;

@@ -244,7 +244,7 @@ public:
     CKillUSRConfig();
     virtual ~CKillUSRConfig();
     virtual void Load_Table(const std::string& path);
-    virtual int Parse_Table(char* line, int idx);
+    virtual bool Parse_Table(char* line, int idx);
     void Clear_Table();
     std::vector<struct ST_KillUSRConfig*>* GetInfo() const;
     std::vector<struct ST_KillUSRConfig*> m_vec;  // +4

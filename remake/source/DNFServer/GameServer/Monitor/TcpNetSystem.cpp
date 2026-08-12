@@ -112,9 +112,9 @@ int EpollHandler::ResetEpoll(int fd)
 
 int EpollHandler::WaitForEvent()
 {
-    void* events = GetEpollEvents();
+    epoll_event* events = (epoll_event*)GetEpollEvents();
     int fd = GetEpollFD();
-    return epoll_wait(fd, (epoll_event*)events, 1000, 100);
+    return epoll_wait(fd, events, 1000, 100);
 }
 
 char EpollHandler::IsSetErrEvent(int idx)
@@ -425,8 +425,7 @@ void* CTcpNetSystem::Acquire_TcpSendBuffer()
 void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
 {
     CGuard<CMutex> guard(&m_mutexe8);
-    CTcpSendBuffer* p = (CTcpSendBuffer*)buf;
-    m_sendQ.push(p);
+    m_sendQ.push((CTcpSendBuffer*)buf);
     int size = (int)m_sendQ.size();
     if (10 < size)
     {

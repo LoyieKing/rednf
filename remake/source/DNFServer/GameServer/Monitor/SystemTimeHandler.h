@@ -254,7 +254,11 @@ class CSystemTime
 public:
     CSystemTime();
     ~CSystemTime() {}
-    char m_data[0x14];
+    unsigned int m_pad;     // +0
+    unsigned int m_field4;  // +4
+    unsigned int m_tv_sec;  // +8
+    int m_tv_usec;          // +0xc
+    unsigned int m_field16; // +0x10
 };
 
 class CSystemTimeHandler : public CSystemTime

@@ -42,27 +42,18 @@ void CAppBase::Process() {}
 void CAppBase::Create(int argc, char** argv)
 {
     Init(argc, argv);
-    if (strcmp(argv[2], "stop") == 0)
-        return;
-    Load(argc, argv);
+    if (strcmp(argv[2], "stop") != 0)
+        Load(argc, argv);
 }
 void CAppBase::Clear()
 {
     Free();
 }
 CApplication::CApplication()
+    : m_loaded(0), m_field8(0), m_appInitor(0), m_appConfig(0),
+      m_serverConfig(0), m_serverHandler(0), m_killUsrConfig(0),
+      m_udpHandler(0), m_networkThread(0), m_guildManager(0)
 {
-    m_loaded = 0;
-    m_field8 = 0;
-    m_appInitor = 0;
-    m_appConfig = 0;
-    m_serverConfig = 0;
-    m_serverHandler = 0;
-    m_killUsrConfig = 0;
-    m_udpHandler = 0;
-    m_networkThread = 0;
-    m_guildManager = 0;
-    m_gmAccounts = 0;
 }
 CApplication::~CApplication()
 {
@@ -196,9 +187,11 @@ bool CApplication::InitDB()
     for (std::map<ENUM_DB_HANDLE_IDX, std::string>::iterator it = dbMap.begin();
          it != dbMap.end(); ++it)
     {
-        if (QueryConnInfo(it->first,
-                          (ENUM_SERVER_GROUP)((CAppConfig*)m_appConfig)->GetServerGroup(),
-                          *((CAppConfig*)m_appConfig)->GetDBConnInfo(it->first)) != 1)
+        register STDBConnInfo* dbConnInfo =
+            ((CAppConfig*)m_appConfig)->GetDBConnInfo(it->first);
+        register ENUM_SERVER_GROUP serverGroup =
+            (ENUM_SERVER_GROUP)((CAppConfig*)m_appConfig)->GetServerGroup();
+        if (QueryConnInfo(it->first, serverGroup, *dbConnInfo) != 1)
             return 0;
         if (OpenDB(it->first, it->second) != 1)
             return 0;
@@ -343,19 +336,19 @@ CMonitorServer* CApplication::FindMonitorServer(int idx)
 void CApplication::SwitchQueueTCP()
 {
     CGuard<CMutex> guard(m_tcpNetSystem.Get_TcpRecvQLock());
-    IQueue<TcpRecvQueue>* q = &IQueue<TcpRecvQueue>::Get();
-    if (q->SwitchQueue())
-        CPacketDecoderInstance()->SetTCPQueue(q->GetParseQueue());
+    if (!IQueue<TcpRecvQueue>::Get().SwitchQueue())
+        return;
+    CPacketDecoderInstance()->SetTCPQueue(
+        IQueue<TcpRecvQueue>::Get().GetParseQueue());
 }
 void CApplication::SwitchQueueUDP()
 {
     CGuard<CMutex> guard(&m_mutexF8);
-    if (!m_udpSwapQueue.GetRecvQ()->empty())
-    {
-        m_udpSwapQueue.SwapQ();
-        m_networkThread->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
-        CPacketDecoderInstance()->SetUdpQueue(m_udpSwapQueue.GetParseQ());
-    }
+    if (m_udpSwapQueue.GetRecvQ()->empty())
+        return;
+    m_udpSwapQueue.SwapQ();
+    m_networkThread->SetUDPQueue(m_udpSwapQueue.GetRecvQ());
+    CPacketDecoderInstance()->SetUdpQueue(m_udpSwapQueue.GetParseQ());
 }
 void CApplication::Free()
 {

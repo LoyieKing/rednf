@@ -71,7 +71,7 @@ void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));
     app->m_appConfig = new CAppConfig;
-    app->m_appConfig->Check_FileName(std::string(argv[1]));
+    static_cast<CAppConfig*>(app->m_appConfig)->Check_FileName(std::string(argv[1]));
     app->m_serverConfig = new CServerConfig;
     app->m_killUsrConfig = new CKillUSRConfig;
     if (Init_Daemon(argc, argv) == -1)

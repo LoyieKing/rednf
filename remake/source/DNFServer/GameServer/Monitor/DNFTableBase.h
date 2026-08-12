@@ -253,7 +253,7 @@ public:
     CTableBase();
     virtual ~CTableBase();
     virtual void Load_Table(const std::string& path);
-    virtual int Parse_Table(char* line, int idx) = 0;
+    virtual bool Parse_Table(char* line, int idx) = 0;
     int Load_Txt_Table_Data(const char* path, int maxCount);
 };
 

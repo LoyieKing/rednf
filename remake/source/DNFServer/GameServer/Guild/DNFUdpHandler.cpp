@@ -179,8 +179,8 @@ int CUdpHandler::InitClientSocket()
     return m_clientSock;
 }
 
-int CUdpHandler::RecvFromClient(char* buf, int* len, unsigned int* ip,
-                                unsigned short* port) const
+bool CUdpHandler::RecvFromClient(char* buf, int* len, unsigned int* ip,
+                                 unsigned short* port) const
 {
     if (m_sock == -1)
     {
@@ -417,4 +417,3 @@ void CUdpHandler::InetAddr(char const* ip) const
 {
     inet_addr(ip);
 }
-

@@ -1444,36 +1444,36 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
                     CUser* upperUser = userMgr->FindUser_CharNo(*(unsigned int*)db);
                     if (upperUser == 0)
                     {
-                        rpkt.m_upperChannel = 0xff;
+                        rpkt.m_memberList.m_info.m_field0 = 0xff;
                     }
                     else if (upperUser->GetGameServer() == 0)
                     {
-                        rpkt.m_upperChannel = 0xff;
+                        rpkt.m_memberList.m_info.m_field0 = 0xff;
                     }
                     else
                     {
                         if (upperUser->IsBlackUser(user->GetUniqCharNo()) != 0)
                         {
-                            rpkt.m_upperBlack = 1;
+                            rpkt.m_memberList.m_info.m_field20 = 1;
                         }
-                        rpkt.m_upperChannel =
+                        rpkt.m_memberList.m_info.m_field0 =
                             ((CServerInterface*)upperUser->GetGameServer())->GetChannelNo();
                     }
-                    rpkt.m_upperLevel = *(unsigned char*)(db + 4);
-                    memcpy(rpkt.m_upperName, db + 5, 0x1d);
-                    rpkt.m_upperExp = *(unsigned int*)(db + 0x23);
-                    unsigned int upperExp = rpkt.m_upperExp;
-                    unsigned int upperExpNext = rpkt.m_upperExpNext;
-                    unsigned char upperExpLevel = rpkt.m_upperExpLevel;
+                    rpkt.m_memberList.m_info.m_field1 = *(unsigned char*)(db + 4);
+                    memcpy(rpkt.m_memberList.m_info.m_name, db + 5, 0x1d);
+                    rpkt.m_memberList.m_info.m_field22 = *(unsigned int*)(db + 0x23);
+                    unsigned int upperExp = rpkt.m_memberList.m_info.m_field22;
+                    unsigned int upperExpNext = rpkt.m_memberList.m_info.m_field26;
+                    unsigned char upperExpLevel = rpkt.m_memberList.m_info.m_field21;
                     memberMgr->GetMemberExpNextLevelNeedExpLevel(
                         upperExp, upperExpNext, upperExpLevel);
-                    rpkt.m_upperExp = upperExp;
-                    rpkt.m_upperExpNext = upperExpNext;
-                    rpkt.m_upperExpLevel = upperExpLevel;
-                    rpkt.m_lowerCount = *(unsigned char*)(db + 0x27);
+                    rpkt.m_memberList.m_info.m_field22 = upperExp;
+                    rpkt.m_memberList.m_info.m_field26 = upperExpNext;
+                    rpkt.m_memberList.m_info.m_field21 = upperExpLevel;
+                    rpkt.m_memberList.m_count = *(unsigned char*)(db + 0x27);
                     for (int i = 0; i < (int)(unsigned int)*(unsigned char*)(db + 0x27); i++)
                     {
-                        char* entry = rpkt.m_lowers[i];
+                        char* entry = (char*)&rpkt.m_memberList.m_members[i];
                         unsigned int lowerCharNo = *(unsigned int*)(db + i * 0x27 + 0x28);
                         CUser* lowerUser = userMgr->FindUser_CharNo(lowerCharNo);
                         if (lowerUser == 0)
@@ -4378,20 +4378,27 @@ void CPacketTranslater::OnFindCharacName_useUID(PacketHeader* pkt)
 
 void CPacketTranslater::OnRenew_GM_List(PacketHeader* pkt)
 {
-    WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_pclApp->GetGMAccounts();
-    if (gm != 0 && pkt != 0)
+    struct RenewGMListPkt
     {
-        if (((RA_S8<10>*)pkt)->v == 0)
+        char pad_a[10];
+        char m_flag;
+        char m_count;
+        unsigned int m_ids[20];
+        char m_levels[0x14];
+    } __attribute__((packed));
+    RenewGMListPkt* p = (RenewGMListPkt*)pkt;
+    WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_pclApp->GetGMAccounts();
+    if (gm != 0 && p != 0)
+    {
+        if (p->m_flag == 0)
         {
             gm->clearGmList();
         }
-        for (int i = 0; i < (int)(char)((RA_S8<11>*)pkt)->v; i++)
+        for (int i = 0; i < (int)(char)p->m_count; i++)
         {
-            gm->AppendGM_Sys(*(unsigned int*)((char*)pkt + i * 4 + 0xc),
-                             *(char*)((char*)pkt + i + 0x5c));
+            gm->AppendGM_Sys(p->m_ids[i], p->m_levels[i]);
         }
-        CServerHandler* handler = m_pclApp->m_serverHandler2;
-        handler->SendToDB(pkt);
+        m_pclApp->m_serverHandler2->SendToDB((PacketHeader*)p);
     }
 }
 
@@ -4944,9 +4951,9 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
 
 void CPacketTranslater::OnMonitorMegaPhoneMsgHyperLink(PacketHeader* pkt)
 {
-    ((RA_S8<10>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
+    PacketHeader* local_pkt = pkt;
+    ((RA_S8<10>*)local_pkt)->v = (char)m_pclApp->Get_ServerGroup();
+    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)local_pkt)->v);
 }
 
 void CPacketTranslater::onSocialEventRewardItemRequest(PacketHeader* pkt)
@@ -4958,8 +4965,8 @@ void CPacketTranslater::onSocialEventRewardItemRequest(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::onSocialEventRewardItemRequest");
     }
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendToDB(pkt);
+    PacketHeader* local_pkt = pkt;
+    m_pclApp->m_serverHandler2->SendToDB(local_pkt);
 
 
     }
@@ -5336,8 +5343,8 @@ void CPacketTranslater::onCollectItemsGm(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::onCollectItemsGm");
     }
     ((RA_S8<10>*)pkt)->v = (char)m_pclApp->Get_ServerGroup();
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendToDB(pkt);
+    PacketHeader* local_pkt = pkt;
+    m_pclApp->m_serverHandler2->SendToDB(local_pkt);
 
 
     }
@@ -5425,28 +5432,28 @@ void CPacketTranslater::OnUpdateMiniCraneSeed(PacketHeader* pkt)
 {
     try
     {
+        PacketHeader* local_pkt = pkt;
         m_pclApp->SetMiniCraneRandomSeed();
-        ((RA_UINT<10>*)pkt)->v = (unsigned int)m_pclApp->getMiniCraneSeed();
-        if (pkt == 0)
+        ((RA_UINT<10>*)local_pkt)->v = (unsigned int)m_pclApp->getMiniCraneSeed();
+        if (local_pkt == 0)
         {
             throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed, packet is null");
         }
         if (m_pclApp != 0 && ((RA_INT<160>*)m_pclApp)->v != 0)
         {
-            CServerHandler* handler = m_pclApp->m_serverHandler2;
-            handler->SendAllToGameServer((char*)pkt, ((RA_U16<2>*)pkt)->v);
+            m_pclApp->m_serverHandler2->SendAllToGameServer((char*)local_pkt, ((RA_U16<2>*)local_pkt)->v);
             return;
         }
-        throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed, m_pclApp == 0");
+        throw CDNFException("CPacketTranslater::OnUpdateMiniCraneSeed m_pclApp or m_pclServerHandler is null");
     }
     catch (CDNFException& e)
     {
-        DNF_LOG_SCOPE_LINE(0x1b82,"./log/Except",
+        DNF_LOG_SCOPE_LINE(0x222b,"./log/Except",
             "CPacketTranslater::OnUpdateMiniCraneSeed Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        DNF_LOG_SCOPE_LINE(0x1b87, "./log/Except",
+        DNF_LOG_SCOPE_LINE(0x2230, "./log/Except",
             "CPakcetTranslater::OnUpdateMiniCraneSeed Exception Break\n");
     }
 }
@@ -5893,15 +5900,14 @@ Packet_DB_InsertMail::Packet_DB_InsertMail() : PacketHeader(0x177c, 0x133)
     m_fieldC = 0;
     m_fieldD = 0;
     m_field12f = 0;
-    unsigned i = 0;
-    for (i = 0; i <= 0x14; i++)
+    int i = 0;
+    for (i = 0; (unsigned)i <= 0x14; i++)
     {
         m_title[i] = 0;
     }
-    int i2 = 0;
-    for (i2 = 0; i2 <= 0xff; i2++)
+    for (i = 0; i <= 0xff; i++)
     {
-        m_body[i2] = 0;
+        m_body[i] = 0;
     }
 }
 
@@ -5917,11 +5923,8 @@ Packet_DBMW_Statistic_Login_Logout::Packet_DBMW_Statistic_Login_Logout()
 }
 
 Packet_Monitor_Call_Member_List_ToUser::Packet_Monitor_Call_Member_List_ToUser()
-    : PacketHeader(0x4be, 0x1e1)
+    : PacketHeader(0x4be, 0x1e1), m_memberList()
 {
-    // ORIG：lea 0x12(%eax) + call STMemberListInfo::STMemberListInfo()
-    // （GCC 4.4.x 不接受 ->Type::Type() 形式，用 placement new 等价展开）
-    new ((void*)((char*)this + 0x12)) STMemberListInfo;
 }
 
 Packet_Punish_Cancel::Packet_Punish_Cancel() : PacketHeader(0xb64, 0x12)

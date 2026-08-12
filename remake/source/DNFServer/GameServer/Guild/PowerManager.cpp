@@ -134,43 +134,40 @@ void CPowerManager::SetPowerInfo(char side, int score1, int score2)
 void CPowerManager::SendPowerWarInfo()
 {
     Packet_Notice_Power_War_Info pkt;
-    *(unsigned char*)((char*)&pkt + 0x12) = *(unsigned char*)((char*)this + 0x184);
-    *(int*)((char*)&pkt + 0xa) = ((CPower*)((char*)this + 0x74))->GetScore();
-    *(int*)((char*)&pkt + 0xe) = ((CPower*)((char*)this + 0xe0))->GetScore();
-    (*(CApplication**)((char*)this + 4))->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
+    pkt.m_winner = m_winnerSide;
+    pkt.m_scoreA = m_power[1].GetScore();
+    pkt.m_scoreB = m_power[2].GetScore();
+    ((CApplication*)m_field4)->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
 }
 
 void CPowerManager::SendPowerWarScore()
 {
-    CApplication* app = *(CApplication**)((char*)this + 4);
-    CServerHandler* handler = app->Get_ServerHandler();
-    if (handler == 0)
+    CServerHandler* handler;
+    if ((handler = ((CApplication*)m_field4)->Get_ServerHandler()) == 0)
     {
         throw CDNFException(
             "CGuildManager::OnChangePowerWarScore() pclServerHandler == NULL\n");
     }
     Packet_Reply_Power_War_Score pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
-    *(unsigned int*)((char*)&pkt + 0xe) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
+    pkt.m_scoreA = GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
+    pkt.m_scoreB = GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
     handler->SendAllTcpGameServer(&pkt);
     DNF_LOG_SCOPE_LINE(0x75,"./log/Power", "Power Point : A(%d)  B(%d)",
-        (int)GetPowerScore((ENUM_POWER_SIDE_TYPE)1),
-        (int)GetPowerScore((ENUM_POWER_SIDE_TYPE)2));
+        pkt.m_scoreA, pkt.m_scoreB);
 }
 
 void CPowerManager::SendPowerWarEndTime(int time)
 {
-    CApplication* app = *(CApplication**)((char*)this + 4);
-    CServerHandler* handler = app->Get_ServerHandler();
-    if (handler == 0)
+    CServerHandler* handler;
+    if ((handler = ((CApplication*)m_field4)->Get_ServerHandler()) == 0)
     {
         throw CDNFException(
             "CGuildManager::OnChangePowerWarScore() pclServerHandler == NULL\n");
     }
     Packet_Notice_Power_War_End_Time pkt;
-    *(unsigned char*)((char*)&pkt + 0xa) = (unsigned char)time;
-    *(unsigned int*)((char*)&pkt + 0xb) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
-    *(unsigned int*)((char*)&pkt + 0xf) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
+    pkt.m_time = (unsigned char)time;
+    pkt.m_scoreA = GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
+    pkt.m_scoreB = GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
     handler->SendAllUdpGameServer((char*)&pkt, 0x13);
 }
 
@@ -193,22 +190,18 @@ void CPowerManager::StartPowerWarEvent()
     ((CPowerWar*)((char*)this + 0x14c))->CPowerWar::setEvent();
     for (int i = 0; i < 3; i++)
     {
-        ((CPower*)((char*)this + i * 0x6c + 8))->InitPower();
+        m_power[i].InitPower();
     }
     DNF_LOG_SCOPE_LINE(0xb9, "./log/Power", "CPowerManager::StartPowerWarEvent");
 }
 
 int CPowerManager::ComputeWinnerSide()
 {
-    int a = GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
-    int b = GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
-    if (b < a)
+    if (GetPowerScore((ENUM_POWER_SIDE_TYPE)1) > GetPowerScore((ENUM_POWER_SIDE_TYPE)2))
     {
         return 1;
     }
-    a = GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
-    b = GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
-    if (a < b)
+    if (GetPowerScore((ENUM_POWER_SIDE_TYPE)1) < GetPowerScore((ENUM_POWER_SIDE_TYPE)2))
     {
         return 2;
     }
@@ -217,8 +210,10 @@ int CPowerManager::ComputeWinnerSide()
 
 void CPowerManager::EndPowerWarEvent()
 {
-    CMyFileLog logTop(__FUNCTION__, 0xd5);
-    logTop("./log/Power", "CPowerManager::EndPowerWarEvent TOP");
+    {
+        CMyFileLog logTop(__FUNCTION__, 0xd5);
+        logTop("./log/Power", "CPowerManager::EndPowerWarEvent TOP");
+    }
     SetWinnerSide(ComputeWinnerSide());
     RewardBonusPoint();
     SaveDBPowerWarPoint();
@@ -238,30 +233,28 @@ void CPowerManager::CleanPowerWar()
 {
     for (int i = 0; i < 3; i++)
     {
-        ((CPower*)((char*)this + i * 0x6c + 8))->CleanPower();
+        m_power[i].CleanPower();
     }
     DNF_LOG_SCOPE_LINE(0x170, "./log/Power", "CleanPower");
 }
 
 void CPowerManager::CalcPowerWarRank(bool flag)
 {
-    const char* s = flag ? "All" : "Winner";
-    DNF_LOG_SCOPE_LINE(0x17c, "./log/Power", "CPowerManager::CalcPowerWarRank(%s)", s);
+    DNF_LOG_SCOPE_LINE(0x17c, "./log/Power", "CPowerManager::CalcPowerWarRank(%s)",
+        flag ? "All" : "Winner");
     if (flag)
     {
-        ((CPower*)((char*)this + 0x74))->CalcPowerWarRank();
-        ((CPower*)((char*)this + 0xe0))->CalcPowerWarRank();
+        m_power[1].CalcPowerWarRank();
+        m_power[2].CalcPowerWarRank();
     }
-    else if (*(char*)((char*)this + 0x184) == 0 ||
-             *(char*)((char*)this + 0x184) > 2)
+    else if (m_winnerSide == 0 || m_winnerSide > 2)
     {
         DNF_LOG_SCOPE_LINE(0x187,"./log/Power", "invalid winner side income(%d)",
-            (int)*(char*)((char*)this + 0x184));
+            (int)m_winnerSide);
     }
     else
     {
-        ((CPower*)((char*)this + (unsigned char)*(char*)((char*)this + 0x184) * 0x6c + 8))
-            ->CalcPowerWarRank();
+        m_power[m_winnerSide].CalcPowerWarRank();
     }
 }
 
@@ -396,17 +389,14 @@ void CPowerManager::SaveDBPowerWarRank()
 
 void CPowerManager::SaveDBPowerWarPoint()
 {
-    CApplication* app = *(CApplication**)((char*)this + 4);
     Packet_DB_Save_Power_War_Point pkt;
-    *(char*)((char*)&pkt + 0xb) = GetWinnerSide();
-    *(unsigned int*)((char*)&pkt + 0xc) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
-    *(unsigned int*)((char*)&pkt + 0x10) = (unsigned int)GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
-    *(unsigned char*)((char*)&pkt + 0xa) = app->Get_ServerGroup();
-    app->Get_ServerHandler()->SendToDB(&pkt);
+    pkt.m_winner = GetWinnerSide();
+    pkt.m_scoreA = GetPowerScore((ENUM_POWER_SIDE_TYPE)1);
+    pkt.m_scoreB = GetPowerScore((ENUM_POWER_SIDE_TYPE)2);
+    pkt.m_group = ((CApplication*)m_field4)->Get_ServerGroup();
+    ((CApplication*)m_field4)->Get_ServerHandler()->SendToDB(&pkt);
     DNF_LOG_SCOPE_LINE(0x28e,"./log/Power", "winner:%d, A:%d, B:%d, svr group:%d",
-        (int)GetWinnerSide(), (int)GetPowerScore((ENUM_POWER_SIDE_TYPE)1),
-        (int)GetPowerScore((ENUM_POWER_SIDE_TYPE)2),
-        (unsigned int)app->Get_ServerGroup());
+        pkt.m_winner, pkt.m_scoreA, pkt.m_scoreB, (unsigned int)pkt.m_group);
 }
 
 void CPowerManager::LoadPowerWarCfg(char* path)
@@ -430,12 +420,12 @@ void CPowerManager::ProcessByMinute()
 
 void CPowerManager::RewardBonusPoint()
 {
-    char winnerSide = *(char*)((char*)this + 0x184);
-    if (winnerSide != 0 && winnerSide < 3)
+    if (m_winnerSide == 0 || m_winnerSide > 2)
     {
-        ((CPower*)((char*)this + (unsigned char)winnerSide * 0x6c + 8))
-            ->GetPowerWarCharacInfo()->CalcBonus();
+        return;
     }
+    CPowerWarCharacInfo* info = m_power[m_winnerSide].GetPowerWarCharacInfo();
+    info->CalcBonus();
 }
 
 void CPowerManager::SaveDBPowerWarBonusPoint()
@@ -505,10 +495,10 @@ void CPowerManager::UpdatePowerWarInfo(bool flag, ENUM_POWER_SIDE_TYPE side, int
 
 void CPowerManager::SetPowerWarRewardInfo(int a, int b, int c, int d)
 {
-    *(int*)((char*)this + 0x18c) = a;
-    *(int*)((char*)this + 0x190) = b;
-    *(int*)((char*)this + 0x194) = c;
-    *(int*)((char*)this + 0x198) = d;
+    m_reward1 = a;
+    m_reward2 = b;
+    m_reward3 = c;
+    m_reward4 = d;
 }
 
 unsigned int CPowerManager::GetUserPowerWarPoint(ENUM_POWER_SIDE_TYPE side, unsigned int charNo)
@@ -536,10 +526,8 @@ void CPowerManager::PrintDebugInfo()
         logA("./log/PowerResult", "----- POWER A");
     }
     ((CPower*)((char*)this + 0x74))->GetPowerWarGuildInfo()->PrintDebugInfo();
-    {
-        CMyFileLog logB(__FUNCTION__, 0x3cf);
-        logB("./log/PowerResult", "----- POWER B");
-    }
+    CMyFileLog logB(__FUNCTION__, 0x3cf);
+    logB("./log/PowerResult", "----- POWER B");
     ((CPower*)((char*)this + 0xe0))->GetPowerWarGuildInfo()->PrintDebugInfo();
 }
 
@@ -608,8 +596,7 @@ void CPowerManager::SendPowerWarEndInfo()
     DNF_LOG_SCOPE_LINE(0x419, "./log/PowerResult", "SEND POWER WAR END INFO START");
     SendPowerWarEndInfoInSpecificPower(1);
     SendPowerWarEndInfoInSpecificPower(2);
-    CMyFileLog log2(__FUNCTION__, 0x41f);
-    log2("./log/PowerResult", "SEND POWER WAR END INFO END");
+    DNF_LOG_SCOPE_LINE(0x41f, "./log/PowerResult", "SEND POWER WAR END INFO END");
 }
 
 void CPowerManager::SendPowerWarEndInfoInSpecificPower(char side)
@@ -697,25 +684,15 @@ void CPowerManager::SendPowerWarEndInfoToSpecificUser(CUser* user, unsigned int 
     user->SendToGameserver((char*)&pkt, 0x27);
 }
 
-#pragma pack(push,1)
-struct STUserPoint_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-};
-#pragma pack(pop)
 STUserPoint::STUserPoint()
+    : m0(0), m4(0)
 {
-    ((STUserPoint_Layout*)this)->m0 = 0;
-    ((STUserPoint_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_Bonus_Point::Packet_DB_Save_Power_War_Bonus_Point()
-    : PacketHeader(0x6f4, 0x7de)
+    : PacketHeader(0x6f4, 0x7de), m_bonus(0)
 {
-    *(unsigned int*)((char*)this + 0x10) = 0;
-    for (int i = 0; i < 0xfa; i++) { new ((char*)this + 0xe + i * 0x8) STUserPoint; }
-    memset((char*)this + 0xe, 0, 2000);
+    memset(m_points, 0, sizeof(m_points));
 }
 
 Packet_DB_Save_Power_War_Point::Packet_DB_Save_Power_War_Point()
@@ -724,52 +701,26 @@ Packet_DB_Save_Power_War_Point::Packet_DB_Save_Power_War_Point()
     (void)0;
 }
 
-#pragma pack(push,1)
-struct STGuildRank_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-};
-#pragma pack(pop)
 STGuildRank::STGuildRank()
+    : m0(0), m4(0)
 {
-    ((STGuildRank_Layout*)this)->m0 = 0;
-    ((STGuildRank_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_Guild_Rank::Packet_DB_Save_Power_War_Guild_Rank()
-    : PacketHeader(0x6d6, 0x330)
+    : PacketHeader(0x6d6, 0x330), m_a(0), m_b(0), m_c(0)
 {
-    *(unsigned char*)((char*)this + 0x10) = 0x0;
-    *(unsigned char*)((char*)this + 0xb) = 0x0;
-    *(unsigned int*)((char*)this + 0xc) = 0;
-    for (int i = 0; i < 0x64; i++) { new ((char*)this + 0x10 + i * 0x8) STGuildRank; }
-    memset((char*)this + 0x10, 0, 800);
+    memset(m_ranks, 0, sizeof(m_ranks));
 }
 
-#pragma pack(push,1)
-struct STUserRank_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-};
-#pragma pack(pop)
 STUserRank::STUserRank()
+    : m0(0), m4(0)
 {
-    ((STUserRank_Layout*)this)->m0 = 0;
-    ((STUserRank_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_User_Rank::Packet_DB_Save_Power_War_User_Rank()
-    : PacketHeader(0x6d7, 0x7e5)
+    : PacketHeader(0x6d7, 0x7e5), m_a(0), m_b(0), m_c(0), m_d(0), m_e(0)
 {
-    *(unsigned char*)((char*)this + 0x10) = 0x0;
-    *(unsigned char*)((char*)this + 0xb) = 0x0;
-    *(unsigned char*)((char*)this + 0xc) = 0x0;
-    *(unsigned int*)((char*)this + 0xd) = 0;
-    *(unsigned int*)((char*)this + 0x11) = 0;
-    for (int i = 0; i < 0xfa; i++) { new ((char*)this + 0x15 + i * 0x8) STUserRank; }
-    memset((char*)this + 0x15, 0, 2000);
+    memset(m_ranks, 0, sizeof(m_ranks));
 }
 
 #pragma pack(push,1)
@@ -786,26 +737,15 @@ Packet_DB_Save_Power_War_Statue_Ranker::Packet_DB_Save_Power_War_Statue_Ranker()
     memset((char*)this + 0xb, 0, 0xc);
 }
 
-#pragma pack(push,1)
-struct STPowerWarPointInfo_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-};
-#pragma pack(pop)
 STPowerWarPointInfo::STPowerWarPointInfo()
+    : m0(0), m4(0)
 {
-    ((STPowerWarPointInfo_Layout*)this)->m0 = 0;
-    ((STPowerWarPointInfo_Layout*)this)->m4 = 0;
 }
 
 Packet_DB_Save_Power_War_Point_Reward::Packet_DB_Save_Power_War_Point_Reward()
-    : PacketHeader(0x6d9, 0x7df)
+    : PacketHeader(0x6d9, 0x7df), m_a(0), m_b(0)
 {
-    *(unsigned char*)((char*)this + 0x10) = 0x0;
-    *(unsigned int*)((char*)this + 0xb) = 0;
-    for (int i = 0; i < 0xfa; i++) { new ((char*)this + 0xf + i * 0x8) STPowerWarPointInfo; }
-    memset((char*)this + 0xf, 0, 2000);
+    memset(m_points, 0, sizeof(m_points));
 }
 
 #pragma pack(push,1)

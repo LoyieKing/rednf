@@ -546,7 +546,7 @@ void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
     info.m_field0 = id;
     info.m_field1 = flag;
     m_list.push_back(info);
-    char* mid = NumberToString(id, 0);
+    register char* mid = NumberToString(id, 0);
     DNF_LOG_SCOPE_LINE(0xcd, "./log/Init", "GM List Add mid:%s", mid);
 }
 
@@ -817,19 +817,27 @@ bool STUserTingTimeCheckKey::operator<(const STUserTingTimeCheckKey& other) cons
 }
 bool STHellPartyStatisticItemKey::operator<(const STHellPartyStatisticItemKey& other) const
 {
-    // ORIG 0x80768b8 实测：m_field0 / m_field4 / m_field8 / m_field9 / m_field9
-    // / m_fielda 比较链（m_field9 在 ORIG 中被比较两次）。
+    // ORIG 0x80768b8 实测：嵌套 == 链；m_field0 / m_field4 / m_field8 / m_field9
+    // / m_field9（重复）/ m_fielda 比较链（m_field9 在 ORIG 中被比较两次）。
     if (m_field0 < other.m_field0) return true;
-    if (m_field0 != other.m_field0) return false;
-    if (m_field4 < other.m_field4) return true;
-    if (m_field4 != other.m_field4) return false;
-    if (m_field8 < other.m_field8) return true;
-    if (m_field8 != other.m_field8) return false;
-    if (m_field9 < other.m_field9) return true;
-    if (m_field9 != other.m_field9) return false;
-    if (m_field9 < other.m_field9) return true;
-    if (m_fielda != other.m_fielda) return false;
-    if (m_fielda < other.m_fielda) return true;
+    if (m_field0 == other.m_field0)
+    {
+        if (m_field4 < other.m_field4) return true;
+        if (m_field4 == other.m_field4)
+        {
+            if (m_field8 < other.m_field8) return true;
+            if (m_field8 == other.m_field8)
+            {
+                if (m_field9 < other.m_field9) return true;
+                if (m_field9 == other.m_field9)
+                {
+                    if (m_field9 < other.m_field9) return true;
+                    if (m_fielda != other.m_fielda) return false;
+                    if (m_fielda < other.m_fielda) return true;
+                }
+            }
+        }
+    }
     return false;
 }
 void HellPartyItenmData::operator+=(const HellPartyItenmData& other)

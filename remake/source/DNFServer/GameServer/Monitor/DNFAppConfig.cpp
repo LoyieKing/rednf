@@ -61,7 +61,7 @@ void CAppConfig::Load_Table(const std::string& path)
     throw CDNFException("CAppConfig::Load_Setup_Table() Exception Break!");
 }
 
-int CAppConfig::Parse_Table(char* line, int idx)
+bool CAppConfig::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
     {
@@ -69,6 +69,7 @@ int CAppConfig::Parse_Table(char* line, int idx)
     }
     if (idx < 8)
     {
+        char pad_if[4];
         char* tokens[2];
         if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 2) == 2)
         {
@@ -106,6 +107,7 @@ int CAppConfig::Parse_Table(char* line, int idx)
     }
     else
     {
+        char pad_else[4];
         char* tokens[6];
         if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 6) == 6)
         {
@@ -184,4 +186,3 @@ unsigned short CAppConfig::Get_ServerTcpPort()
 {
     return m_serverTcpPort;
 }
-

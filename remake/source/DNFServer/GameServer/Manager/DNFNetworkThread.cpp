@@ -48,96 +48,102 @@ void* CUdpNetworkThread::dispatch(void* param)
         DNFFLib::Sleep_Ext(5, 0);
         puts("Network Thread Start!");
         m_stop = 1;
-        // ORIG：FD_SET/FD_ISSET 中 sock/32 为无符号 shr（sock 为 unsigned）。
-        unsigned int sock = ((CUdpHandler*)m_udpHandler)->GetServerSocket();
+        int sock = ((CUdpHandler*)m_udpHandler)->GetServerSocket();
+        int ret;
         int flags = fcntl(sock, F_GETFL, 0);
-        flags |= O_NONBLOCK;
-        if (fcntl(sock, F_SETFL, flags) < 0)
-        {
+        ret = fcntl(sock, F_SETFL, flags | O_NONBLOCK);
+        if (ret < 0)
             puts("fcntl error!");
-            return 0;
-        }
-        while (m_stop)
+        else
         {
-            fd_set readfds;
-            // ORIG：FD_ZERO 展开为 32 次循环清零（老 glibc 宏形态；
-            // 4.4.7 头是 memset/rep stos，需显式循环复现）。
-            for (int i = 0; i < 0x20; i++)
-                readfds.fds_bits[i] = 0;
-            FD_SET(sock, &readfds);
-            struct timeval tv;
-            tv.tv_sec = 1;
-            tv.tv_usec = 0;
-            if (select(sock + 1, &readfds, 0, 0, &tv) < 0)
-                continue;
-            if (!FD_ISSET(sock, &readfds))
-                continue;
-            CUdpRecvBuffer* buf;
+            while (m_stop)
             {
-                CGuard<CMutex> guard(m_udpBLock);
-                buf = new CUdpRecvBuffer;
-            }
-            int size = 0x1800;
-            unsigned int addr = 0;
-            unsigned short port = 0;
-            if (!((CUdpHandler*)m_udpHandler)->RecvFromClient((char*)buf, &size, &addr, &port))
-            {
-                CGuard<CMutex> guard(m_udpBLock);
-                delete buf;
-                continue;
-            }
-            unsigned short code = *(unsigned short*)((char*)buf + 2);
-            if (code != (unsigned short)size)
-            {
-                CMyFileLog log(__FUNCTION__, 0xb5);
-                log("./log/recvErr",
-                    "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                    *(unsigned short*)buf, size, code);
+                fd_set readfds;
+                // ORIG：FD_ZERO 展开为 32 次循环清零（老 glibc 宏形态：
+                // 指针局部 + 无符号索引；4.4.7 头是 rep stos，需显式复现）。
+                {
+                    unsigned int i;
+                    fd_set* pfd = &readfds;
+                    for (i = 0; i < 0x20; i++)
+                        pfd->fds_bits[i] = 0;
+                }
+                struct timeval tv;
+                tv.tv_sec = 1;
+                tv.tv_usec = 0;
+                FD_SET((unsigned int)sock, &readfds);
+                int nfds = sock + 1;
+                ret = select(nfds, &readfds, 0, 0, &tv);
+                if (ret < 0)
+                    continue;
+                if (!FD_ISSET((unsigned int)sock, &readfds))
+                    continue;
+                CUdpRecvBuffer* buf;
+                {
+                    CGuard<CMutex> guard(m_udpBLock);
+                    buf = new CUdpRecvBuffer;
+                }
+                int size = 0x1800;
+                unsigned short port = 0;
+                unsigned int addr = 0;
+                if (!((CUdpHandler*)m_udpHandler)->RecvFromClient((char*)buf, &size, &addr, &port))
                 {
                     CGuard<CMutex> guard(m_udpBLock);
                     delete buf;
+                    continue;
                 }
-                continue;
-            }
-            if (code > 0x17ff)
-            {
-                CMyFileLog log(__FUNCTION__, 0xc0);
-                log("./log/recvErr",
-                    "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                    *(unsigned short*)buf, size, code);
+                CUdpRecvBuffer* pBuf = buf;
+                if (*(unsigned short*)((char*)pBuf + 2) != size)
                 {
-                    CGuard<CMutex> guard(m_udpBLock);
-                    delete buf;
+                    CMyFileLog log(__FUNCTION__, 0xb5);
+                    log("./log/recvErr",
+                        "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                        *(unsigned short*)((char*)pBuf + 2), size, *(unsigned short*)pBuf);
+                    {
+                        CGuard<CMutex> guard(m_udpBLock);
+                        delete buf;
+                    }
+                    continue;
                 }
-                continue;
-            }
-            if (size > 0x1800)
-            {
-                CMyFileLog log(__FUNCTION__, 0xcc);
-                log("./log/recvErr",
-                    "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                    *(unsigned short*)buf, size, code);
+                if (*(unsigned short*)((char*)pBuf + 2) > 0x17ff)
                 {
-                    CGuard<CMutex> guard(m_udpBLock);
-                    delete buf;
+                    CMyFileLog log(__FUNCTION__, 0xc0);
+                    log("./log/recvErr",
+                        "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                        *(unsigned short*)((char*)pBuf + 2), size, *(unsigned short*)pBuf);
+                    {
+                        CGuard<CMutex> guard(m_udpBLock);
+                        delete buf;
+                    }
+                    continue;
                 }
-                continue;
-            }
-            *(unsigned int*)((char*)buf + 6) = addr;
-            *(unsigned short*)((char*)buf + 4) = port;
-            {
-                CGuard<CMutex> guard(m_udpQLock);
-                m_udpQueue->push(buf);
-                if (m_udpQueue->size() > 0x64)
+                if ((unsigned int)size > 0x1800)
                 {
-                    CMyFileLog log(__FUNCTION__, 0xe0);
-                    log("./log/recv",
-                        "buffer(%d) ,id(%d), size(%d) \n",
-                        m_udpQueue->size(), *(unsigned short*)buf, code);
+                    CMyFileLog log(__FUNCTION__, 0xcc);
+                    log("./log/recvErr",
+                        "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                        *(unsigned short*)((char*)pBuf + 2), size, *(unsigned short*)pBuf);
+                    {
+                        CGuard<CMutex> guard(m_udpBLock);
+                        delete buf;
+                    }
+                    continue;
+                }
+                *(unsigned int*)((char*)pBuf + 6) = addr;
+                *(unsigned short*)((char*)pBuf + 4) = port;
+                {
+                    CGuard<CMutex> guard(m_udpQLock);
+                    m_udpQueue->push(buf);
+                    if (m_udpQueue->size() > 0x64)
+                    {
+                        CMyFileLog log(__FUNCTION__, 0xe0);
+                        log("./log/recv",
+                            "buffer(%d) ,id(%d), size(%d) \n",
+                            m_udpQueue->size(), *(unsigned short*)pBuf,
+                            *(unsigned short*)((char*)pBuf + 2));
+                    }
                 }
             }
         }
-        return 0;
     }
     catch (CDNFException& e)
     {

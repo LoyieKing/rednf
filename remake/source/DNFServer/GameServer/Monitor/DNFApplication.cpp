@@ -93,7 +93,7 @@ void CPeriodicMessageMgr::OnTimerSendData(CServerHandler* handler)
     if (m_msg[0] != 0)
     {
         Packet_Send_Periodic_Message pkt;
-        size_t len = strlen(m_msg);
+        int len = strlen(m_msg);
         strncpy((char*)&pkt + 0xa, m_msg, len);
         handler->SendAllTcpGameServer(&pkt);
     }
@@ -838,9 +838,11 @@ char CApplication::isAbleUserChatWithGM(unsigned int channel, unsigned int charN
 void CApplication::AddChattableUserWithGM(unsigned int channel, unsigned int charNo)
 {
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
-    if (it != m_map368.end())
+    if (m_map368.end() != it)
     {
-        if (std::find(it->second.begin(), it->second.end(), charNo) == it->second.end())
+        std::list<unsigned int>::iterator found =
+            std::find(it->second.begin(), it->second.end(), charNo);
+        if (it->second.end() == found)
         {
             it->second.push_back(charNo);
         }
@@ -850,9 +852,14 @@ void CApplication::AddChattableUserWithGM(unsigned int channel, unsigned int cha
 void CApplication::DisableChatUserWithGM(unsigned int channel, unsigned int charNo)
 {
     std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
-    if (it != m_map368.end())
+    if (m_map368.end() != it)
     {
-        it->second.remove(charNo);
+        std::list<unsigned int>::iterator found =
+            std::find(it->second.begin(), it->second.end(), charNo);
+        if (it->second.end() != found)
+        {
+            it->second.remove(charNo);
+        }
     }
 }
 
@@ -1115,8 +1122,8 @@ void CApplication::SendMiniCraneRandomSeed()
 void CApplication::UpdateMiniCraneSeed()
 {
     time_t now = time(0);
-    tm* pt = localtime(&now);
-    if (pt->tm_hour == 6)
+    tm t = *localtime(&now);
+    if (t.tm_hour == 6)
     {
         SetMiniCraneRandomSeed();
         SendMiniCraneRandomSeed();

@@ -37,9 +37,9 @@ void CSignal::dump_core_file()
 {
     CPacketTracerInstance()->AbsoluteWriteLog();
     struct rlimit rl;
-    getrlimit(RLIMIT_CORE, &rl);
+    (void)getrlimit(RLIMIT_CORE, &rl);
     rl.rlim_cur = -1;
-    setrlimit(RLIMIT_CORE, &rl);
+    (void)setrlimit(RLIMIT_CORE, &rl);
     abort();
 }
 void CSignal::attachApp(CApplication* app) { m_app = app; }
