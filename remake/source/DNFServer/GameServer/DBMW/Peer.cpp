@@ -33,22 +33,21 @@ extern MemPool<CPeer> g_peerPool;
 extern "C" void _ZN24Packet_InnerPakcet_LoginC1Ev(void*);
 extern "C" void _ZN25Packet_InnerPakcet_LogoutC1Ev(void*);
 
+// ORIG 两个 ctor 实体 = 直接 call PacketHeader(ushort,ushort) 基类构造；
+// 用 asm label 绑定符号名（仅改名，非内联 asm），生成普通直接调用。
+extern void hdr_ctor_login(void*, unsigned short, unsigned short)
+    __asm__("_ZN12PacketHeaderC1Ett");
+extern void hdr_ctor_logout(void*, unsigned short, unsigned short)
+    __asm__("_ZN12PacketHeaderC1Ett");
+
 extern "C" void _ZN24Packet_InnerPakcet_LoginC1Ev(void* p)
 {
-    unsigned short* h = (unsigned short*)p;
-    h[0] = 0xfa0;
-    h[1] = 0xa;
-    h[2] = 0;
-    *(unsigned int*)((char*)p + 6) = 0;
+    hdr_ctor_login(p, 0xfa0, 0xa);
 }
 
 extern "C" void _ZN25Packet_InnerPakcet_LogoutC1Ev(void* p)
 {
-    unsigned short* h = (unsigned short*)p;
-    h[0] = 0xfa1;
-    h[1] = 0xa;
-    h[2] = 0;
-    *(unsigned int*)((char*)p + 6) = 0;
+    hdr_ctor_logout(p, 0xfa1, 0xa);
 }
 
 CPeer::CPeer()
@@ -221,7 +220,7 @@ int CPeer::send_packet(char* buf, int len)
         return -1;
     }
     if (m_recvBuf < (char*)this + 0x183c ||
-        m_recvBuf >= (char*)((unsigned int)((char*)this + 0x183c) + 0x96000))
+        (unsigned int)m_recvBuf >= (unsigned int)((char*)this + 0x183c) + 0x96000)
     {
         DNF_LOG_SCOPE_LINE(0x13b, "./log/TcpErr",
             "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",

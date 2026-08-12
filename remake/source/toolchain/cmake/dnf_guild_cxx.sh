@@ -6,6 +6,9 @@
 #   （DNFTcpHandler 9、DNFSignalTranslator 2、DNFApplication 1、main 1）
 #   DNFPacketTranslater：ORIG .comment 以 4.4.4-13 为主（8 项），该 TU 的
 #   e.what() 虚调用寄存器形态（fn->%edx）与 c6444r 逐条一致（第 14 轮验证）
+#   DNFTcpAcceptThread：CTcpAcceptThread::dispatch 的 e.what() 虚调用寄存器
+#   形态同样与 c6444r 逐条一致（第 23 轮验证，NEAR→IDENTICAL_AE，同 TU 其余
+#   6 函数 c6/c6444r 均 identical）
 ROOT=/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake
 C6="$ROOT/dnf_c6_gxx.sh"
 C6444R="$ROOT/dnf_c6444r_gxx.sh"
@@ -19,7 +22,7 @@ for a in "$@"; do
     prev="$a"
 done
 case "$(basename "$src" .cpp)" in
-    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface)
+    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface|DNFTcpAcceptThread)
         exec "$C6444R" "$@" ;;
     *)
         exec "$C6" "$@" ;;

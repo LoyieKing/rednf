@@ -43,7 +43,15 @@ public:
     int setOptResizeSendBuf(int size);
     int setOptResizeRecvBuf(int size);
     int m_sock;      // +0
-    char m_sockaddr[0x10];  // +4
+    union {
+        char m_sockaddr[0x10];     // +4
+        struct {
+            unsigned short m_sin_family; // +4
+            unsigned short m_sin_port;   // +6
+            char m_sin_addr[4];          // +8
+            char m_sin_zero[8];          // +0xc
+        };
+    };
     char m_peerAdrs[4];     // +0x14
     unsigned short m_peerPort; // +0x18
     char m_pad[2];          // +0x1a

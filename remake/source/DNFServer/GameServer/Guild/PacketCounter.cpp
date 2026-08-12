@@ -71,16 +71,16 @@ template<int Lo, int Hi>
 CPacketCounter<Lo, Hi>::CPacketCounter(char* name, char* title)
 {
     Reset();
-    *(time_t*)(m_data + 4) = time(0);
-    if (name == 0)
+    m_t = time(0);
+    if (name != 0)
     {
-        sprintf(m_data + 0x1d540, "./log/%s", title);
+        sprintf(m_path, "./log/%s/%s", name, title);
     }
     else
     {
-        sprintf(m_data + 0x1d540, "./log/%s/%s", name, title);
+        sprintf(m_path, "./log/%s", title);
     }
-    *(unsigned char*)(m_data + 0x1d640) = 1;
+    m_bProcess = 1;
 }
 
 template<int Lo, int Hi>
@@ -91,46 +91,47 @@ CPacketCounter<Lo, Hi>::~CPacketCounter()
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::IncrementPacketCount(int id)
 {
-    if (id < 0x2800 && 999 < id &&
-        (m_data[0x1d640] == 1 ||
-         *(unsigned int*)(m_data + 8 + (id - 1000) * 4) < 0xb))
-    {
-        *(unsigned int*)(m_data + 8 + (id - 1000) * 4) += 1;
-    }
+    if (id >= 0x2800) return;
+    if (id <= 999) return;
+    if (!m_bProcess && m_counts[id - 1000] >= 0xb) return;
+    ++m_counts[id - 1000];
 }
 
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::BeforeProcess()
 {
-    *(int*)(m_data + 0x9068) = *(int*)m_data;
-    if (*(int*)(m_data + 0x9068) == -1)
+    m_snapshot[0] = m_count;
+    while ((int)m_snapshot[0] == -1)
     {
-        *(int*)(m_data + 0x9068) = 0;
+        m_snapshot[0] = 0;
+        break;
     }
 }
 
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::AfterProcess(int id)
 {
-    if (id < 0x2800 && 999 < id &&
-        (m_data[0x1d640] == 1 ||
-         *(unsigned int*)(m_data + 8 + (id - 1000) * 4) < 0xb) &&
-        *(int*)m_data != -1)
+    if (id >= 0x2800) return;
+    if (id <= 999) return;
+    if (!m_bProcess && m_counts[id - 1000] >= 0xb) return;
+    int diff = (int)m_count;
+    while (diff == -1)
     {
-        int prev;
-        if (m_data[0x1d640] == 0)
-        {
-            prev = *(int*)(m_data + 0x9068);
-            *(int*)(m_data + 8 + (id - 1000) * 4) += 1;
-            m_data[0x11ce0 + id] = 0;
-        }
-        else
-        {
-            prev = *(int*)(m_data + 0x9068);
-        }
-        int diff = *(int*)m_data - prev;
-        *(int*)(m_data + (id + 0x4d50) * 4) += diff;
+        diff = 0;
+        return;
     }
+    int diff2;
+    if (m_bProcess)
+    {
+        diff2 = diff - (int)m_snapshot[0];
+    }
+    else
+    {
+        diff2 = diff - (int)m_snapshot[id - 1000];
+        ++m_counts[id - 1000];
+        m_pending[id - 1000] = 0;
+    }
+    m_diffs[id - 1000] += diff2;
 }
 
 template<int Lo, int Hi>
@@ -141,7 +142,15 @@ void CPacketCounter<Lo, Hi>::WriteLog()
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::Reset()
 {
-    memset(m_data, 0, sizeof(m_data));
+    for (int i = 0; i < 0x2418; i++)
+    {
+        m_counts[i] = 0;
+        m_diffs[i] = 0;
+        m_snapshot[i] = 0;
+        m_pending[i] = 0;
+    }
+    m_count = 0;
+    m_bInit = 0;
 }
 
 template class CPacketCounter<1000, 10240>;
@@ -173,15 +182,13 @@ Packet_Guild_Attendance_Info_Reply::Packet_Guild_Attendance_Info_Reply()
 Packet_Guild_Reply_Guild_Board::Packet_Guild_Reply_Guild_Board()
     : PacketHeader(0x2328, 0x68a)
 {
-    for (int i = 0; i < 9; ++i)
-        new ((char*)this + 0x18 + i * 0xa5) STGuildBoardDBInfo;
-    *(unsigned short*)((char*)this + 0xa) = 0;
-    *(unsigned short*)((char*)this + 0xc) = 0;
-    *(unsigned char*)((char*)this + 0xe) = 0x0;
-    *(unsigned int*)((char*)this + 0xf) = 0;
-    *(unsigned int*)((char*)this + 0x13) = 0;
-    *(unsigned char*)((char*)this + 0x17) = 0x0;
-    memset((char*)this + 0x18, 0, 0x672);
+    m_a = 0;
+    m_c = 0;
+    m_e = 0x0;
+    m_f = 0;
+    m_13 = 0;
+    m_17 = 0x0;
+    memset(m_boards, 0, 0x672);
 }
 
 #pragma pack(push,1)

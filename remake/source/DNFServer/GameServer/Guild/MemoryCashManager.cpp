@@ -85,12 +85,6 @@ CMemoryCashManager::CMemoryCashManager()
 
 CMemoryCashManager::~CMemoryCashManager()
 {
-    for (std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.begin();
-         it != m_cashObjects.end(); ++it)
-    {
-        delete it->second;
-    }
-    m_cashObjects.clear();
 }
 
 void CMemoryCashManager::Init(CApplication* app)
@@ -109,19 +103,20 @@ bool CMemoryCashManager::IsRightObject(CUser* user)
 
 int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user)
 {
-    if (!IsRightObject(user))
+    CCashObject* obj;
+    if (IsRightObject(user))
     {
-        return 0;
-    }
-    CCashObject* obj = new CCashObject;
-    obj->SetCharacNo(user->GetUniqCharNo());
-    std::pair<std::map<unsigned int, CCashObject*>::iterator, bool> r =
-        m_cashObjects.insert(std::make_pair(user->GetDBID(), obj));
-    if (r.second)
-    {
+        obj = new CCashObject;
+        obj->SetCharacNo(user->GetUniqCharNo());
+        std::pair<std::map<unsigned int, CCashObject*>::iterator, bool> r =
+            m_cashObjects.insert(std::make_pair(user->GetDBID(), obj));
+        if (!r.second)
+        {
+            delete obj;
+            return 0;
+        }
         return 1;
     }
-    delete obj;
     return 0;
 }
 
@@ -133,30 +128,30 @@ bool CMemoryCashManager::SetUserObject(CUser* user)
     {
         CCashObject* obj = it->second;
         obj->SetBlackUsersObject(*(std::map<unsigned int, CBlackUser*>*)user->GetMapBlackList());
+        return true;
     }
-    return it != m_cashObjects.end();
+    return false;
 }
 
 void CMemoryCashManager::ProcessLifeTimeOut()
 {
-    if (m_app != 0)
+    if (m_app == 0)
     {
-        for (std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.begin();
-             it != m_cashObjects.end(); )
+        return;
+    }
+    for (std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.begin();
+         it != m_cashObjects.end(); )
+    {
+        CCashObject* obj = it->second;
+        if (obj->IsLifeTimeOut())
         {
-            CCashObject* obj = it->second;
-            if (obj->IsLifeTimeOut())
-            {
-                obj->ClearBlackUsers();
-                std::map<unsigned int, CCashObject*>::iterator cur = it;
-                ++it;
-                m_cashObjects.erase(cur);
-                delete obj;
-            }
-            else
-            {
-                ++it;
-            }
+            obj->ClearBlackUsers();
+            m_cashObjects.erase(it++);
+            delete obj;
+        }
+        else
+        {
+            ++it;
         }
     }
 }
@@ -170,8 +165,9 @@ int CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
         CCashObject* obj = it->second;
         user->RegisterToCashBlackList(*obj->GetBlackUsersObject());
         user->SetBlackListDBFlag(4);
+        return true;
     }
-    return it != m_cashObjects.end();
+    return false;
 }
 
 void CMemoryCashManager::DeleteCashObjecct(unsigned int dbid)

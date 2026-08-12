@@ -39,7 +39,7 @@ int CServerConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')
         return 0;
-    char* fields[5];
+    char* fields[6];
     if (DNFFLib::ExplodeString(data, " \t\r\n\"", fields, 5) == 5)
     {
         if (size <= 0xfe)

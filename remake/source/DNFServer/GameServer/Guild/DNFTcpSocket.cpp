@@ -344,7 +344,7 @@ bool TCPSocket::accept(TCPSocket& peer)
         return 0;
     }
     memcpy(peer.m_peerAdrs, (char*)&peer + 8, 4);
-    peer.m_peerPort = *(unsigned short*)((char*)&peer + 6);
+    peer.m_peerPort = peer.m_sin_port;
     peer.setOptNonBlock();
     return 1;
 }

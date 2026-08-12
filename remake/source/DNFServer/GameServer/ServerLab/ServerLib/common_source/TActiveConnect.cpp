@@ -98,14 +98,13 @@ TCPUser* ActiveConManager::RequestConnect(ConInterface* conInfo)
         {
             if (iVar4 == 1)
             {
-                goto L_RET;
+                return pUserRet;
             }
             TSystem<LinuxSystem>::sleep(100);
         }
     }
 L_RET0:
     pUserRet = NULL;
-L_RET:
     return pUserRet;
 }
 

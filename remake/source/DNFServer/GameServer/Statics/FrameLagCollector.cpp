@@ -568,31 +568,45 @@ FrameLagCollector::FrameLagDataStruct::FrameLagDataStruct()
 {
     init();
 }
+struct FrameLagDataLayout
+{
+    int m0;          // +0x00
+    int m_a[2];      // +0x04 (view; accessed up to [5])
+    short m_b[16];   // +0x0c
+    int m_c[3];      // +0x2c
+    int m_d[6];      // +0x38
+    int m_e[6];      // +0x50
+    int m_f[6];      // +0x68
+    int m_g[6];      // +0x80
+    int m_h[6][4];   // +0x98
+    int m_i[41][2];  // +0x100
+};
+
 void FrameLagCollector::FrameLagDataStruct::init()
 {
-    *(int*)((char*)this + 0) = 0;
+    ((FrameLagDataLayout*)this)->m0 = 0;
     for (int i = 0; i < 8; i++)
     {
-        *(short*)((char*)this + 0xc + (i + 8) * 2) = 0;
+        ((FrameLagDataLayout*)this)->m_b[i + 8] = 0;
     }
-    *(int*)((char*)this + 0x2c) = 0;
-    *(int*)((char*)this + 0x30) = 0;
-    *(int*)((char*)this + 0x34) = 0;
+    ((FrameLagDataLayout*)this)->m_c[0] = 0;
+    ((FrameLagDataLayout*)this)->m_c[1] = 0;
+    ((FrameLagDataLayout*)this)->m_c[2] = 0;
     for (int i = 0; i < 6; i++)
     {
-        *(int*)((char*)this + i * 4 + 4) = 0;
-        *(int*)((char*)this + (i + 0xc) * 4 + 8) = 0;
-        *(int*)((char*)this + (i + 0x14) * 4) = 0;
-        *(int*)((char*)this + (i + 0x18) * 4 + 8) = 0;
-        *(int*)((char*)this + (i + 0x20) * 4) = 0;
-        *(int*)((char*)this + (i + 9) * 0x10 + 8) = 0;
-        *(int*)((char*)this + i * 0x10 + 0x9c) = 0;
-        *(int*)((char*)this + i * 0x10 + 0xa0) = 0;
-        *(int*)((char*)this + i * 0x10 + 0xa4) = 0;
+        ((FrameLagDataLayout*)this)->m_a[i] = 0;
+        ((FrameLagDataLayout*)this)->m_d[i] = 0;
+        ((FrameLagDataLayout*)this)->m_e[i] = 0;
+        ((FrameLagDataLayout*)this)->m_f[i] = 0;
+        ((FrameLagDataLayout*)this)->m_g[i] = 0;
+        ((FrameLagDataLayout*)this)->m_h[i][0] = 0;
+        ((FrameLagDataLayout*)this)->m_h[i][1] = 0;
+        ((FrameLagDataLayout*)this)->m_h[i][2] = 0;
+        ((FrameLagDataLayout*)this)->m_h[i][3] = 0;
         for (int j = 0; j < 6; j++)
         {
-            *(int*)((char*)this + (i * 7 + j + 0x1e) * 8 + 0x10) = 0;
-            *(int*)((char*)this + (i * 7 + j + 0x1e) * 8 + 0x14) = 0;
+            ((FrameLagDataLayout*)this)->m_i[i * 7 + j][0] = 0;
+            ((FrameLagDataLayout*)this)->m_i[i * 7 + j][1] = 0;
         }
     }
 }
@@ -630,15 +644,15 @@ void FrameLagCollector::DirectxVersionStruct::add_cnt(unsigned int version)
     {
         m_data[5] += 1;
     }
-    else if (version > 0x9ffff && version <= 0xaffff)
+    else if (version > 0x9ffff || version <= 0xaffff)
     {
         m_data[6] += 1;
     }
-    else if (version > 0xaffff && version <= 0xbffff)
+    else if (version > 0xaffff || version <= 0xbffff)
     {
         m_data[7] += 1;
     }
-    else
+    else if (version > 0xbffff)
     {
         m_data[0] += 1;
     }
@@ -649,9 +663,10 @@ void FrameLagCollector::UsedMemoryStruct::init()
 }
 void FrameLagCollector::UsedMemoryStruct::SetUsedMemory(char idx, short value)
 {
-    if (idx < 6)
+    if (idx >= 6)
     {
-        *(int*)((char*)this + (idx + 4) * 4 + 8) += (int)value;
-        *(int*)((char*)this + idx * 4) += 1;
+        return;
     }
+    m_sums[idx] += value;
+    m_counts[idx]++;
 }

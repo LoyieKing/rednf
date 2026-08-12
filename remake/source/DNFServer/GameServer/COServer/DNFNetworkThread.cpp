@@ -45,15 +45,20 @@ void CNetworkThread::dispatch(void* param)
         m_running = 1;
         while (m_running != 0)
         {
-            int len = 0x200;
-            unsigned short port = 0;
-            unsigned int ip = 0;
             CUdpRecvBuffer* buf;
             {
                 CGuard<CMutex> g((CMutex*)m_bLock);
                 buf = (CUdpRecvBuffer*)CUdpRecvBuffer::operator new(0x204);
             }
-            if (((CUdpHandler*)m_udp)->RecvFromClient((char*)buf, &len, &ip, &port))
+            int len = 0x200;
+            unsigned short port = 0;
+            unsigned int ip = 0;
+            if (!((CUdpHandler*)m_udp)->RecvFromClient((char*)buf, &len, &ip, &port))
+            {
+                CGuard<CMutex> g((CMutex*)m_bLock);
+                CUdpRecvBuffer::operator delete(buf);
+            }
+            else
             {
                 PacketHeader* ph = (PacketHeader*)buf;
                 if (ph->packetSize != len)
@@ -103,11 +108,6 @@ void CNetworkThread::dispatch(void* param)
                         }
                     }
                 }
-            }
-            else
-            {
-                CGuard<CMutex> g((CMutex*)m_bLock);
-                CUdpRecvBuffer::operator delete(buf);
             }
         }
     }
