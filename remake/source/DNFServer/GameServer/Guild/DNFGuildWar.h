@@ -44,7 +44,7 @@ public:
     void InitGuildWarInfo();
     void Clear_VtGuildWarInfo();
     void AddGuildWarPoint(unsigned int guildId, int point);
-    int Rank();
+    bool Rank();
     void RankProcess();
     int SameRankWork();
     void printGuildWarRank();
@@ -52,7 +52,7 @@ public:
     void GetGuildWarInfo(ST_Guild_War_Rank_Info* info);
     int Find_GuildWarInfo(unsigned int guildId);
     void Insert_GuildWarInfo(STGuildWarInfo* info);
-    int GetGuildWarInfoDBSave(unsigned int* a, unsigned int* b);
+    bool GetGuildWarInfoDBSave(unsigned int* a, unsigned int* b);
     std::vector<std::pair<unsigned int, STGuildWarInfo*> > m_vtGuildWarInfo;  // +0（0xc）
     bool m_bEventOn;           // +0xc
     char m_bRankCnt;           // +0xd

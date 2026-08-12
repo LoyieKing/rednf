@@ -253,7 +253,7 @@ public:
     CRewardUserList() {}
     ~CRewardUserList() {}
     int Insert(unsigned int key);
-    char isExist(unsigned int key);
+    bool isExist(unsigned int key);
     void Clear();
     std::map<unsigned int, int> m_map;  // +0
 };

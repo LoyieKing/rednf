@@ -42,13 +42,14 @@ TCPSocket::~TCPSocket()
 
 char TCPSocket::open()
 {
-    int fd = socket(2, 1, 0);
-    m_fd = fd;
+    m_fd = socket(2, 1, 0);
     if (m_fd == -1)
     {
-        printf("Could not create a TDP socket : %d\n", errno);
+        int err = errno;
+        printf("Could not create a TDP socket : %d\n", err);
+        return 0;
     }
-    return (char)(m_fd != -1);
+    return 1;
 }
 
 char TCPSocket::connect(const char* ip, unsigned short port)

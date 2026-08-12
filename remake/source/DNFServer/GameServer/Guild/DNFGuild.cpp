@@ -92,6 +92,28 @@ struct STGuildMemberProxyLayout
     char rest[0x41 - 0x2c];
 };
 
+// CGuild 布局镜像（仅本 TU 使用，字节级对齐 DNFGuild.h 中 CGuild 布局；
+// 供按真实成员形态还原 ORIG 代码生成用）
+struct __attribute__((packed)) CGuildMemberNameView
+{
+    char m_pad[0xd];
+    unsigned int m_charNo;      // +0xd（绝对偏移 = 基址 + 0xdd）
+    char m_name[0x1e];          // +0x11
+};
+
+struct __attribute__((packed)) CGuildMemberGradeView
+{
+    char m_pad[0x14];
+    unsigned char m_grade;      // +0x14
+};
+
+struct __attribute__((packed)) CGuildSubMasterView
+{
+    char m_pad[0x4d];
+    unsigned char m_cnt;             // +0x4d（= m_dbInfo.m_info.m_subMasterCnt）
+    unsigned int m_subGuildMaster[5]; // +0x4e
+};
+
 int g_guildDBProcessDay = 0;
 
 void* CGuild::operator new(unsigned int size)
@@ -1696,12 +1718,13 @@ void CGuild::ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade)
 {
     if ((m_field1c & 4) != 0 && (m_field1c & 0x10) != 0)
     {
-        unsigned short cnt = *(unsigned short*)((char*)this + 0x1e);
-        for (int i = 0; i < (int)cnt; i++)
+        for (int i = 0; i < m_field1e; i++)
         {
-            if (*(unsigned int*)((char*)this + i * 0x41 + 0xdd) == charNo)
+            if (((CGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_charNo ==
+                charNo)
             {
-                *(unsigned char*)((char*)this + i * 0x41 + 0x104) = (unsigned char)grade;
+                ((CGuildMemberGradeView*)((char*)this + i * 0x41 + 0xf0))->m_grade =
+                    (unsigned char)grade;
                 return;
             }
         }
@@ -1716,9 +1739,10 @@ char* CGuild::getUnconnectedGuildMemberName(unsigned int charNo)
         {
             for (int i = 0; i < m_field1e; i++)
             {
-                if (*(unsigned int*)((char*)this + i * 0x41 + 0xdd) == charNo)
+                if (((CGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_charNo ==
+                    charNo)
                 {
-                    return (char*)this + i * 0x41 + 0xe1;
+                    return ((CGuildMemberNameView*)((char*)this + i * 0x41 + 0xd0))->m_name;
                 }
             }
         }
@@ -1730,7 +1754,7 @@ bool CGuild::IsSubGuildMaster(unsigned int dbid)
 {
     for (int i = 0; i < m_dbInfo.m_info.m_subMasterCnt; i++)
     {
-        if (*(unsigned int*)((char*)this + (i + 0x10) * 4 + 0xe) == dbid)
+        if (((CGuildSubMasterView*)this)->m_subGuildMaster[i] == dbid)
         {
             return true;
         }
@@ -2218,20 +2242,24 @@ unsigned int CGuild::IsAddableGuildFund(unsigned int fund)
 {
     if ((m_field1c & 4) != 0)
     {
-        int* p = (int*)((char*)this + 0xc0);
-        if ((unsigned char)*(char*)((char*)this + 0x3b) < 0x10)
+        unsigned int* p = &m_dbInfo.m_info.m_guildFund;
+        if (m_dbInfo.m_info.m_guildLevel > 0xf)
         {
-            if (20000000 < *p + (int)fund)
+            if (*p + fund > 0x989680)
             {
                 return 0x5f;
             }
         }
-        else if (10000000 < *p + (int)fund)
+        else
         {
-            return 0x5f;
+            if (*p + fund > 0x1312d00)
+            {
+                return 0x5f;
+            }
         }
+        return 0;
     }
-    return 0;
+    return 0x5f;
 }
 
 void CGuild::NotifyAllTodayGuildMember()

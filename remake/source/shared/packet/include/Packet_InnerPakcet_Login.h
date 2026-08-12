@@ -9,7 +9,7 @@
 
 class Packet_InnerPakcet_Login : public PacketHeader {
 public:
-    Packet_InnerPakcet_Login() : PacketHeader(0xfa0, 0xa){};
+    Packet_InnerPakcet_Login();
 } __attribute__((packed));
 
 #endif  // PACKET_INNERPAKCET_LOGIN_H

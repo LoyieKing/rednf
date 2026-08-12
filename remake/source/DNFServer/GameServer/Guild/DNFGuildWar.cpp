@@ -110,7 +110,7 @@ void CGuildWar::InitGuildWarInfo()
     Clear_VtGuildWarInfo();
 }
 
-int CGuildWar::GetGuildWarInfoDBSave(unsigned int* a, unsigned int* b)
+bool CGuildWar::GetGuildWarInfoDBSave(unsigned int* a, unsigned int* b)
 {
     if (a == 0 || b == 0)
     {
@@ -132,18 +132,28 @@ int CGuildWar::GetGuildWarInfoDBSave(unsigned int* a, unsigned int* b)
 
 void CGuildWar::GetGuildWarInfo(unsigned int* a, unsigned int* b, unsigned short* c)
 {
-    if (a != 0 && b != 0 && c != 0)
+    if (a == 0)
     {
-        int idx = 0;
-        for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it =
-                 m_vtGuildWarInfo.begin(); it != m_vtGuildWarInfo.end(); ++it)
+        return;
+    }
+    if (b == 0)
+    {
+        return;
+    }
+    if (c == 0)
+    {
+        return;
+    }
+    int idx = 0;
+    for (std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it =
+             m_vtGuildWarInfo.begin(); it != m_vtGuildWarInfo.end(); ++it)
+    {
+        if (it->second != 0)
         {
-            if (it->second != 0)
-            {
-                a[idx] = it->second->m_guildKey;
-                b[idx] = it->second->m_point;
-                c[idx++] = (unsigned short)idx;
-            }
+            a[idx] = it->second->m_guildKey;
+            b[idx] = it->second->m_point;
+            c[idx] = (unsigned short)(idx + 1);
+            idx++;
         }
     }
 }
@@ -220,7 +230,7 @@ bool GuildWarPairDataCompare(const std::pair<unsigned int, STGuildWarInfo*>& a,
     return *(unsigned int*)((char*)b.second + 4) < *(unsigned int*)((char*)a.second + 4);
 }
 
-int CGuildWar::Rank()
+bool CGuildWar::Rank()
 {
     if (m_vtGuildWarInfo.empty())
     {
@@ -255,14 +265,15 @@ int CGuildWar::SameRankWork()
         m_vtGuildWarInfo.begin();
     for (; it != m_vtGuildWarInfo.end(); ++it)
     {
-        if (it->second != 0)
+        if ((*it).second == 0)
         {
-            if (field4 != it->second->m_point)
-            {
-                break;
-            }
-            count++;
+            continue;
         }
+        if (field4 != (*it).second->m_point)
+        {
+            break;
+        }
+        count++;
     }
     if (1 < count)
     {
@@ -333,11 +344,12 @@ void CGuildWar::RankProcess()
         return;
     }
     m_bRankCnt++;
-    if (m_bRankCnt <= 1)
+    register bool bRanked = ((unsigned char)m_bRankCnt <= 1);
+    if (bRanked)
     {
         return;
     }
-    if (Rank() != 1)
+    if (!Rank())
     {
         throw CDNFException(
             "CGuildWar::RankProcess : false == Rank() : May be m_vtGuildWarInfo is empty!");
@@ -348,12 +360,13 @@ void CGuildWar::RankProcess()
 
 void CGuildWar::DBSaveProcess(CApplication* app)
 {
-    if (IsGuildWarEventOn() == 0)
+    if (!IsGuildWarEventOn())
     {
         return;
     }
     m_bSaveCnt++;
-    if (m_bSaveCnt == 0)
+    register bool bZero = (m_bSaveCnt == 0);
+    if (bZero)
     {
         return;
     }
@@ -361,7 +374,7 @@ void CGuildWar::DBSaveProcess(CApplication* app)
     if (GetGuildWarInfoDBSave((unsigned int*)((char*)&pkt + 0xb),
                               (unsigned int*)((char*)&pkt + 0x33)))
     {
-        *(unsigned char*)((char*)&pkt + 0xa) = app->Get_ServerGroup();
+        pkt.m_data[0] = app->Get_ServerGroup();
         app->Get_ServerHandler()->SendToDB(&pkt);
     }
     m_bSaveCnt = 0;

@@ -16,14 +16,21 @@ typedef std::queue<CUdpRecvBuffer*, std::deque<CUdpRecvBuffer*, std::allocator<C
 typedef std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*, std::allocator<CTcpRecvBuffer*> > > TcpRecvQueue;
 typedef std::queue<CTcpSendBuffer*, std::deque<CTcpSendBuffer*, std::allocator<CTcpSendBuffer*> > > CTcpSendQueue;
 
+#pragma pack(push, 1)
 // ---- CUdpRecvBuffer / CTcpRecvBuffer / CTcpSendBuffer / CPacketBuffer：0x1804 ----
+// 字段布局（ORIG 反汇编实测）：id@0/size@2/port@4/addr@6，m_data 从 +0xa，
+// sizeof 保持 0x1804 不变（MemPool 池大小依赖）。
 class CUdpRecvBuffer
 {
 public:
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
-    char m_data[0x1804];
+    unsigned short m_id;                     // +0
+    unsigned short m_size;                   // +2
+    unsigned short m_port;                   // +4
+    int m_addr;                              // +6
+    char m_data[0x1804 - 0xa];               // +0xa
 };
 
 class CTcpRecvBuffer
@@ -32,10 +39,13 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
-    char m_data[0x1804];
+    unsigned short m_id;                     // +0
+    unsigned short m_size;                   // +2
+    unsigned short m_port;                   // +4
+    int m_addr;                              // +6
+    char m_data[0x1804 - 0xa];               // +0xa
 };
 
-#pragma pack(push, 1)
 class CTcpSendBuffer
 {
 public:

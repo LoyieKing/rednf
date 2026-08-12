@@ -80,11 +80,10 @@
 
 STGuildBoardDBInfo::STGuildBoardDBInfo()
 {
-    new ((char*)this + 0x84) STGuildMemberCharacData;
-    *(unsigned int*)((char*)this + 0x78) = 0;
-    *(unsigned int*)((char*)this + 0x7c) = 0;
-    *(unsigned int*)((char*)this + 0x80) = 0;
-    memset((char*)this, 0, 0x78);
+    m_field78 = 0;
+    m_field7c = 0;
+    m_field80 = 0;
+    memset(m_data, 0, 0x78);
 }
 
 void CGuildBoard::setWebGuildBoardAction(bool flag)

@@ -1053,6 +1053,8 @@ class Packet_Request_Load_Tower_Full_Rank : public PacketHeader
 public:
     // ORIG：仅调用 PacketHeader ctor，不置零（+0xa/+0xe 保持未初始化）
     Packet_Request_Load_Tower_Full_Rank() : PacketHeader(0x4cc, 0x12) {}
+    int m_rankNo;          // +0xa
+    unsigned int m_channel;// +0xe
 } __attribute__((packed));
 
 class Packet_Request_IPCounterList : public PacketHeader

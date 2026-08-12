@@ -16,7 +16,7 @@ public:
     char IsSetInEvent(int idx);
     char IsSetOutEvent(int idx);
     char IsSetErrEvent(int idx);
-    EpollHandler* m_epoll;  // +0
+    CProtocol* m_epoll;     // +0（ORIG：基类指针赋值产生 mov ebx,eax;mov eax,edx 形态）
 };
 
 #endif  // DBMW_DNFTCPHANDLER_H_

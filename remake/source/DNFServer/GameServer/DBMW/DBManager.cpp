@@ -5775,7 +5775,7 @@ bool CDBManager::SendGuildCoinByMail(int guildId, unsigned int serverGroup,
     }
     return 1;
 }
-char CDBManager::InsertPostal(unsigned int receiveCharacNo,
+bool CDBManager::InsertPostal(unsigned int receiveCharacNo,
                               unsigned int sendCharacNo, int sealFlag,
                               unsigned int itemId, int addInfo,
                               unsigned int endurance, int upgrade, char* name,

@@ -36,10 +36,11 @@ CSignal::~CSignal() {}
 void CSignal::dump_core_file()
 {
     CPacketTracerInstance()->AbsoluteWriteLog();
+    int ret;
     struct rlimit rl;
-    (void)getrlimit(RLIMIT_CORE, &rl);
+    ret = getrlimit(RLIMIT_CORE, &rl);
     rl.rlim_cur = -1;
-    (void)setrlimit(RLIMIT_CORE, &rl);
+    ret = setrlimit(RLIMIT_CORE, &rl);
     abort();
 }
 void CSignal::attachApp(CApplication* app) { m_app = app; }

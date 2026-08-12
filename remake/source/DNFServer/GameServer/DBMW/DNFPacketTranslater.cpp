@@ -3052,6 +3052,15 @@ void CPacketTranslater::OnWriteQueryStatistics(PacketHeader* header)
 }
 void CPacketTranslater::OnInsertDailyBadSpecStatistics(PacketHeader* header)
 {
+    if (m_pclApp)
+    {
+        char buf[0x14];
+        PacketHeader* p = header;
+    }
+    else
+    {
+        return;
+    }
 }
 void CPacketTranslater::OnInsertUsedMemoryStatistic(PacketHeader* header)
 {

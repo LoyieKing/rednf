@@ -28,7 +28,7 @@ int getErrno();
 CQueryCounter::CQueryCounter()
 {
     m_interval = 0x1e;
-    m_timer = new CUnixTimer();
+    m_timer = new CUnixTimer;
     ResetQueryCount();
 }
 CQueryCounter::~CQueryCounter()

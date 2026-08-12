@@ -103,17 +103,22 @@ void COnTimeEventManager::Clear()
 
 int CRewardUserList::Insert(unsigned int key)
 {
-    if (isExist(key) == 1)
+    if (!isExist(key))
     {
-        return -1;
+        m_map.insert(std::make_pair(key, 0));
+        return 1;
     }
-    m_map.insert(std::make_pair(key, 0));
-    return 1;
+    return -1;
 }
 
-char CRewardUserList::isExist(unsigned int key)
+bool CRewardUserList::isExist(unsigned int key)
 {
-    return (char)(m_map.find(key) != m_map.end());
+    std::map<unsigned int, int>::const_iterator it = m_map.find(key);
+    if (it == m_map.end())
+    {
+        return 0;
+    }
+    return 1;
 }
 
 void CRewardUserList::Clear()

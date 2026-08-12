@@ -207,11 +207,11 @@ bool CServerHandler::RegistGameServer(stServerInfo* info)
 CGameServer* CServerHandler::GetGameServer(unsigned int id)
 {
     std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.find(id);
-    if (it != m_gameServers.end())
+    if (it == m_gameServers.end())
     {
-        return it->second;
+        return 0;
     }
-    return 0;
+    return it->second;
 }
 
 void* CServerHandler::GetTcpGameServer(unsigned int id)
@@ -240,11 +240,11 @@ CTcpGameServer* CServerHandler::GetTcpGameServerByCh(unsigned char channel)
 
 void CServerHandler::queryReloadTowerRank(unsigned int channel)
 {
-    for (int i = 0; i <= 4; i++)
+    for (unsigned int i = 0; i <= 4; i++)
     {
         Packet_Request_Load_Tower_Full_Rank pkt;
-        ((RA_INT<10>*)&pkt)->v = i;
-        ((RA_UINT<14>*)&pkt)->v = channel;
+        pkt.m_rankNo = i;
+        pkt.m_channel = channel;
         SendToDB(&pkt);
     }
 }

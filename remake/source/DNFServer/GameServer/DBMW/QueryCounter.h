@@ -20,7 +20,8 @@ public:
     unsigned int m_counts[0x141];     // +0x148（0x504 字节）
     double m_responseTimes[0x141];    // +0x64c（0xa08 字节）
     int m_interval;                   // +0x1054
-    CUnixTimer* m_timer;              // +0x1058
+    CDnFTimer* m_timer;               // +0x1058（ORIG：基类指针，赋值产生
+                                      // mov ebx,eax; mov eax,edx 形态）
 };
 
 #endif  // DBMW_QUERYCOUNTER_H_

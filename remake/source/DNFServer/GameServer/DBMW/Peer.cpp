@@ -27,27 +27,19 @@ extern MemPool<CPeer> g_peerPool;
 
 // ORIG 二进制证据（弱符号 0x805ab8a / 0x805abae）：ConnSig/DisConnSig 的 pkt 局部槽
 // 为 6 字节（packetId+packetSize+reversed1），ctor 仍写满 10 字节（尾部 4 字节越界
-// 到 fd 槽，随后被 fd 覆盖，与 ORIG 一致）。共享头 Packet_InnerPakcet_* 为 10 字节
-// （禁止改头），故本 TU 以 6 字节局部结构承接，并用同名强符号提供 ctor 实体
-// （这两个符号不在 compare scope，不产生 md）。
+// 到 fd 槽，随后被 fd 覆盖，与 ORIG 一致）。本 TU 以 6 字节局部结构承接，
+// ctor 实体按真实类构造出库定义（C1/C2 弱符号，与 ORIG 同形）。
 extern "C" void _ZN24Packet_InnerPakcet_LoginC1Ev(void*);
 extern "C" void _ZN25Packet_InnerPakcet_LogoutC1Ev(void*);
 
-// ORIG 两个 ctor 实体 = 直接 call PacketHeader(ushort,ushort) 基类构造；
-// 用 asm label 绑定符号名（仅改名，非内联 asm），生成普通直接调用。
-extern void hdr_ctor_login(void*, unsigned short, unsigned short)
-    __asm__("_ZN12PacketHeaderC1Ett");
-extern void hdr_ctor_logout(void*, unsigned short, unsigned short)
-    __asm__("_ZN12PacketHeaderC1Ett");
-
-extern "C" void _ZN24Packet_InnerPakcet_LoginC1Ev(void* p)
+Packet_InnerPakcet_Login::Packet_InnerPakcet_Login()
+    : PacketHeader(0xfa0, 0xa)
 {
-    hdr_ctor_login(p, 0xfa0, 0xa);
 }
 
-extern "C" void _ZN25Packet_InnerPakcet_LogoutC1Ev(void* p)
+Packet_InnerPakcet_Logout::Packet_InnerPakcet_Logout()
+    : PacketHeader(0xfa1, 0xa)
 {
-    hdr_ctor_logout(p, 0xfa1, 0xa);
 }
 
 CPeer::CPeer()

@@ -303,7 +303,7 @@ int CMember::GetUpperMember_CharId() const
     {
         return 0;
     }
-    if (IsThereUpper() == 0)
+    if (!IsThereUpper())
     {
         return 0xffffffff;
     }
@@ -520,11 +520,12 @@ char CMember::IsAlreadyMemberMember(unsigned int charNo) const
 
 void CMember::DeleteUpperMember(unsigned int charNo, bool flag)
 {
-    memset((char*)this + 6, 0, 0x27);
+    m_dbInfo.m_member.Reset();
     if (flag)
     {
         SetMemberDeleteTime(time(0));
     }
+    DebugPrintMemberMember("DELETE_UPPER_MEMBER");
 }
 
 void CMember::DeleteLowerMember(unsigned int charNo, bool flag)

@@ -818,8 +818,7 @@ void CApplication::Remove_GM_id(unsigned int id)
 
 char CApplication::isGM_regFromChannel(unsigned int channel)
 {
-    std::map<unsigned int, std::list<unsigned int> >::iterator it = m_map368.find(channel);
-    return it != m_map368.end();
+    return m_map368.find(channel) != m_map368.end();
 }
 
 char CApplication::isAbleUserChatWithGM(unsigned int channel, unsigned int charNo)

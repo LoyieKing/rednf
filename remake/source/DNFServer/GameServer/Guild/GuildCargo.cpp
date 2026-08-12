@@ -251,7 +251,7 @@ int CGuildCargo::CheckInsertItem(int itemId, int count, int slot, unsigned char 
         int existingSlot = GetSpecificItemSlot(itemId);
         if (existingSlot != -1)
         {
-            if (maxStack < m_info.m_items[existingSlot].m_addInfo + count)
+            if ((int)m_info.m_items[existingSlot].m_addInfo + count > maxStack)
             {
                 return 200;
             }
@@ -343,7 +343,7 @@ int CGuildCargo::MoveItem(DnfItemInfo& from, DnfItemInfo& to, int fromSlot, int 
 
 int CGuildCargo::GetSpecificItemSlot(int itemId)
 {
-    for (int i = 0; i < m_info.m_capacity; i++)
+    for (int i = 0; (int)m_info.m_capacity > i; i++)
     {
         if (m_info.m_items[i].m_itemId == itemId)
         {
@@ -361,12 +361,12 @@ void CGuildCargo::SetGuildCargoDBInfo(STGuildCargoDBInfo& info)
 
 void CGuildCargo::SetGuildCargoHistory(unsigned int idx, STGuildCargoLog* log)
 {
-    unsigned int c = idx;
-    if (0x32 < c)
+    if (idx > 0x32)
     {
-        c = 0x32;
+        idx = 0x32;
     }
-    for (unsigned int i = 0; i < c; i++)
+    int c = (int)idx;
+    for (int i = 0; i < c; i++)
     {
         m_history.push_front(log[i]);
     }
@@ -381,7 +381,7 @@ void CGuildCargo::SendGuildCargo(CUser* user)
     Packet_Notice_Guild_Cargo pkt;
     pkt.m_a = user->GetIdByChannel();
     pkt.m_b = user->GetUniqCharNo();
-    memcpy((char*)&pkt + 0x12, this, 0x18dc);
+    memcpy(&pkt.m_cargo, this, 0x18dc);
     user->SendTcpGameserver(&pkt);
 }
 
@@ -424,15 +424,16 @@ void CGuildCargo::SendGuildCargoToDBMW(CServerHandler* handler, int slot)
 {
     CTcpDBServer* db = handler->GetTcpDBServer();
     char* pkt = db->makePacketHeader(0x710, 0x18ea);
-    *(unsigned int*)(pkt + 0xa) = *(unsigned int*)((char*)this + 0x18e0);
-    *(int*)(pkt + 0xe) = slot;
-    memcpy(pkt + 0x12, this, 0x18d8);
-    db->SendToServer(pkt);
+    char* p = pkt;
+    *(unsigned int*)(p + 0xa) = m_guildKey;
+    *(int*)(p + 0xe) = slot;
+    memcpy(p + 0x12, this, 0x18d8);
+    db->SendToServer(p);
 }
 
 int CGuildCargo::IsEmpty()
 {
-    for (int i = 0; i < m_info.m_capacity; i++)
+    for (int i = 0; (int)m_info.m_capacity > i; i++)
     {
         if (m_info.m_items[i].m_itemId != 0)
         {
@@ -470,11 +471,17 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
 
 void CGuildCargo::GetHistory(STGuildCargoLog* out)
 {
+    std::deque<STGuildCargoLog>::iterator it = m_history.begin();
     int i = 0;
-    for (std::deque<STGuildCargoLog>::iterator it = m_history.begin();
-         it != m_history.end() && i < 0x33; ++it, ++i)
+    while (it != m_history.end())
     {
-        memcpy((char*)out + i * 0x30, &(*it), 0x30);
+        memcpy(out + i, &(*it), 0x30);
+        ++it;
+        ++i;
+        if (i > 0x32)
+        {
+            break;
+        }
     }
 }
 

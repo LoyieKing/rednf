@@ -39,7 +39,7 @@ CBuddyRegisterManager::~CBuddyRegisterManager()
 
 void CBuddyRegisterManager::addBuddyRegister(unsigned int key, unsigned int value)
 {
-    m_map.insert(std::pair<const unsigned int, unsigned int>(key, value));
+    m_map.insert(std::make_pair(key, value));
 }
 
 int CBuddyRegisterManager::delBuddyRegister(unsigned int key, unsigned int value)
@@ -86,4 +86,3 @@ void CBuddyRegisterManager::printBuddyRegister(char* name, unsigned int flag)
         DNF_LOG_SCOPE_LINE(0x68, "./log/buddyRegister", "[%s] rcharNo(%d)", flag, it->second);
     }
 }
-

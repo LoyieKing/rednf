@@ -17,6 +17,7 @@ public:
     virtual bool IsSetErrEvent(int idx) = 0;
     virtual bool IsSetOutEvent(int idx) = 0;
     virtual bool IsSetInEvent(int idx) = 0;
+    virtual void* GetEventPtr(int idx) = 0;  // ORIG vtable +0x28（经 CProtocol* 调用）
 };
 
 class EpollHandler : public CProtocol

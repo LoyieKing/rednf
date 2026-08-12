@@ -398,22 +398,21 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
         for (std::map<STPartyJobStatisticKey, PartyJobStatistic>::iterator it = m_partyJob.begin();
              it != m_partyJob.end(); ++it)
         {
-            char* slot = (char*)&pkt + 0xe + idx * 0x19;
-            *(unsigned short*)(slot + 0) = it->first.m_field0;
-            *(unsigned int*)(slot + 4) = it->first.m_field4;
-            slot[8] = it->first.m_field8;
-            slot[9] = it->first.m_field9;
-            slot[10] = it->first.m_fielda;
-            slot[11] = it->first.m_fieldb;
-            slot[12] = it->first.m_fieldc;
-            slot[13] = it->first.m_fieldd;
-            *(unsigned int*)(slot + 0x10) = it->first.m_field10;
-            slot[0x14] = it->first.m_field14;
-            *(int*)(slot + 0x15) = it->second.m_data[1];
+            pkt.m_items[idx].m_field0 = it->first.m_field0;
+            pkt.m_items[idx].m_field4 = it->first.m_field4;
+            pkt.m_items[idx].m_field8 = it->first.m_field8;
+            pkt.m_items[idx].m_field9 = it->first.m_field9;
+            pkt.m_items[idx].m_fielda = it->first.m_fielda;
+            pkt.m_items[idx].m_fieldb = it->first.m_fieldb;
+            pkt.m_items[idx].m_fieldc = it->first.m_fieldc;
+            pkt.m_items[idx].m_fieldd = it->first.m_fieldd;
+            pkt.m_items[idx].m_field10 = it->first.m_field10;
+            pkt.m_items[idx].m_field14 = it->first.m_field14;
+            pkt.m_items[idx].m_data = it->second.m_data[1];
             idx++;
-            if (99 < idx)
+            if (0xf2 < idx)
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = 100;
+                pkt.m_count = 0xf3;
                 handler->SendToDB((PacketHeader*)&pkt);
                 DNF_LOG_SCOPE_LINE(0x1b3, "./log/statistic", "Packet_DBMW_Dungeon_Statistic_Party_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
@@ -1346,8 +1345,8 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
         {
             float avg_f = *(float*)((char*)pkt + i * 10 + 0xb);
             float dev_f = *(float*)((char*)pkt + i * 10 + 0xf);
-            m_modules[i].m_data[0] += (int)(long long)(avg_f + 0.5);
-            m_modules[i].m_data[1] += (int)(long long)(dev_f + 0.5);
+            m_modules[i].m_data[0] += (int)(long long)avg_f;
+            m_modules[i].m_data[1] += (int)(long long)dev_f;
             m_modules[i].m_data[2] +=
                 (unsigned int)*(unsigned short*)((char*)pkt + i * 10 + 0x13);
             m_modules[i].m_data[3] += 1;
@@ -1369,25 +1368,25 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
             if (isNew)
             {
                 STDungeonLagStatistics v;
-                v.m_data[0] = (int)(long long)(a + 0.5);
-                v.m_data[1] = (int)(long long)(b + 0.5);
+                v.m_data[0] = (int)(long long)a;
+                v.m_data[1] = (int)(long long)b;
                 v.m_data[2] = (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x67);
                 v.m_data[3] = 1;
-                v.m_data[4] = (int)(long long)(c + 0.5);
-                v.m_data[5] = (int)(long long)(d + 0.5);
+                v.m_data[4] = (int)(long long)c;
+                v.m_data[5] = (int)(long long)d;
                 v.m_data[6] = (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x72);
                 v.m_data[7] = 1;
                 m_dungeonLag.insert(std::make_pair(key, v));
             }
             else
             {
-                it->second.m_data[0] += (int)(long long)(a + 0.5);
-                it->second.m_data[1] += (int)(long long)(b + 0.5);
+                it->second.m_data[0] += (int)(long long)a;
+                it->second.m_data[1] += (int)(long long)b;
                 it->second.m_data[2] +=
                     (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x67);
                 it->second.m_data[3] += 1;
-                it->second.m_data[4] += (int)(long long)(c + 0.5);
-                it->second.m_data[5] += (int)(long long)(d + 0.5);
+                it->second.m_data[4] += (int)(long long)c;
+                it->second.m_data[5] += (int)(long long)d;
                 it->second.m_data[6] +=
                     (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x72);
                 it->second.m_data[7] += 1;

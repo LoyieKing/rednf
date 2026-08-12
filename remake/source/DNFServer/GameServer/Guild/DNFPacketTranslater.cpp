@@ -377,7 +377,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                         handler->SetConnectFlag(idx, true);
                         Packet_Tcp_Server_Connect connectPkt;
                         connectPkt.m_field_a = 0xcb;
-                        CServerInterface* gs;
+                        CGameServer* gs;
                         if ((gs = handler->GetGameServer((unsigned int)idx)) != 0)
                         {
                             gs->SendToServer((char*)&connectPkt, 0xb);
@@ -5544,6 +5544,7 @@ void CPacketTranslater::OnRefreshGuildInfo(PacketHeader* pkt)
 void CPacketTranslater::OnReplyTodayGuildMember(PacketHeader* pkt)
 {
     PTL_TodayGuildMemberPkt* pb = (PTL_TodayGuildMemberPkt*)pkt;
+    CGuild* guild = 0;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1f75, "./log/Guild", "CPacketTranslater::OnReplyTodayGuildMember : 0 == m_pclApp");
@@ -5551,7 +5552,6 @@ void CPacketTranslater::OnReplyTodayGuildMember(PacketHeader* pkt)
     }
     try
     {
-        CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f7b, "./log/Guild", "CPacketTranslater::OnReplyTodayGuildMember : 0 == pGuild");

@@ -456,11 +456,28 @@ public:
     STPartyStatisticWire m_elem[100];     // +0xe（100 * 0x3c）
 } __attribute__((packed));
 
+struct STPartyJobWireItem
+{
+    unsigned short m_field0;   // +0
+    int m_field4;              // +2
+    char m_field8;             // +6
+    unsigned char m_field9;    // +7
+    unsigned char m_fielda;    // +8
+    unsigned char m_fieldb;    // +9
+    unsigned char m_fieldc;    // +a
+    char m_fieldd;             // +b
+    int m_field10;             // +c
+    char m_field14;            // +0x10
+    int m_data;                // +0x11
+    char m_tail[4];            // +0x15（0x19 项长）
+};
+
 class Packet_DBMW_Dungeon_Statistic_Party_Job : public PacketHeader
 {
 public:
     Packet_DBMW_Dungeon_Statistic_Party_Job();
-    char m_data[0x17bf];
+    unsigned int m_count;                  // +0xa
+    STPartyJobWireItem m_items[0xf3];      // +0xe（0xf3 * 0x19）
 } __attribute__((packed));
 
 class Packet_DBMW_Dungeon_Statistic_Party_Charac : public PacketHeader

@@ -10,7 +10,7 @@ public:
     CSystemTime();
     ~CSystemTime() {}
     int m_field0;       // +0
-    int m_field4;       // +4
+    unsigned int m_field4;  // +4（ORIG 为无符号：除 1000 后隐式转换产生 eax 物化形态）
     struct timeval m_tv;  // +8
     int m_field10;      // +0x10
 };
