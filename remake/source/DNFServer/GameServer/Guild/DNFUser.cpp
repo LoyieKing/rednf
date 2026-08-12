@@ -141,7 +141,7 @@ void CUser::operator delete(void* p, unsigned int size)
     m_UserMemPool_.free(p, size);
 }
 
-MemPool<CUser> m_UserMemPool_(28000);
+MemPool<CUser> CUser::m_UsermemPool_(28000);
 
 CUser::CUser()
     : m_dbid(0), m_charNo(0), m_gameServer(0), m_tcpGameServer(0), m_posState(0),
@@ -207,12 +207,12 @@ void CUser::LoadGuildMember(unsigned int guildKey, STGuildMemerDBInfo& info)
 
 void CUser::AddGuildMemberPoint(unsigned int point)
 {
-    unsigned int old = ((CUserGuildPointLayout*)this)->m_guildPoint;
-    ((CUserGuildPointLayout*)this)->m_guildPoint += point;
+    unsigned int old = *(unsigned int*)((char*)this + 0x60);
+    *(unsigned int*)((char*)this + 0x60) = old + point;
     SetGuildMemFlag(0x10);
-    if ((unsigned int)((CUserGuildPointLayout*)this)->m_guildPoint < old)
+    if (*(unsigned int*)((char*)this + 0x60) < old)
     {
-        ((CUserGuildPointLayout*)this)->m_guildPoint = old;
+        *(unsigned int*)((char*)this + 0x60) = old;
     }
 }
 
@@ -231,7 +231,7 @@ void CUser::SaveGuildMember(unsigned char type, unsigned int value, CServerHandl
     pkt.m_flag = type;
     pkt.m_b = value;
     pkt.m_charNo = GetUniqCharNo();
-    memcpy((char*)&pkt + 0x13, (char*)this + 0x4a, 0x1a);
+    memcpy(&pkt.m_info, &m_guildDBInfo, 0x1a);
     pkt.m_pad2d = flag;
     handler->SendToDB(&pkt);
     ResetGuildMemFlag(0x10);
@@ -311,17 +311,17 @@ unsigned short CUser::GetGuildMemFlag()
 void CUser::SendSetGuildKeyToUser(unsigned int guildKey, unsigned int grade)
 {
     Packet_Monitor_Set_Guild_Key pkt;
-    ((PktSetGuildKeyLayout*)&pkt)->m_channel = m_channel;
-    ((PktSetGuildKeyLayout*)&pkt)->m_grade = grade;
-    ((PktSetGuildKeyLayout*)&pkt)->m_guildKey = guildKey;
+    pkt.m_channel = m_channel;
+    pkt.m_grade = grade;
+    pkt.m_guildKey = guildKey;
     SendTcpGameserver(&pkt);
 }
 
 void CUser::SetGuildMemberMemo(const char* memo)
 {
     memset((char*)this + 0x4a, 0, 0x15);
-    size_t n = strlen(memo);
-    if ((int)n < 0x15)
+    int n = (int)strlen(memo);
+    if (n <= 0x14)
     {
         memcpy((char*)this + 0x4a, memo, n);
     }
@@ -352,10 +352,10 @@ void CUser::SendGuildMemberDBInfo(STGuildMemerDBInfo& info)
     else
     {
         Packet_Monitor_Notice_Guild_Member_Info pkt;
-        memcpy((char*)&pkt + 0x12, &info, 0x1a);
-        ((NoticeGuildMemberInfoLayout*)&pkt)->m_channel = GetIdByChannel();
-        ((NoticeGuildMemberInfoLayout*)&pkt)->m_charNo = GetUniqCharNo();
-        SendToGameserver((char*)&pkt, ((NoticeGuildMemberInfoLayout*)&pkt)->m_packetSize);
+        memcpy(&pkt.m_info, &info, 0x1a);
+        pkt.m_channel = GetIdByChannel();
+        pkt.m_charNo = GetUniqCharNo();
+        SendToGameserver((char*)&pkt, pkt.packetSize);
     }
 }
 
@@ -379,10 +379,6 @@ bool CUser::RegisterToBlackList(unsigned int charNo, char* name)
 
 bool CUser::RegisterToBlackList(unsigned int charNo, char* name, unsigned int param)
 {
-    if (name == 0 || charNo == 0)
-    {
-        return 0;
-    }
     CBlackUser* bu = new CBlackUser;
     bu->SetBlackUser(name, param);
     return m_blackList.insert(std::make_pair(charNo, bu)).second;
@@ -484,7 +480,8 @@ void CUser::GuildInviteProcess()
     if (m_field7e < 2)
     {
         m_field7e = (char)(m_field7e - 1);
-        if (m_field7e == 0 || m_field7e > 1)
+        bool bVar = (m_field7e == 0 || m_field7e > 1);
+        if (bVar)
         {
             SetGuildInviteFact(0, 0, 0xff);
         }
@@ -503,9 +500,9 @@ void CUser::ChangeCharName(char* name)
 void CUser::MakeGameServerSendUserInfoPacket(unsigned int guildKey)
 {
     Packet_Send_All_User_Info_Minimum_For_Guild_System pkt;
-    ((PktSendAllUserInfoLayout*)&pkt)->m_guildKey = guildKey;
-    ((PktSendAllUserInfoLayout*)&pkt)->m_charNo = GetUniqCharNo();
-    ((PktSendAllUserInfoLayout*)&pkt)->m_channel = GetIdByChannel();
+    pkt.m_guildKey = guildKey;
+    pkt.m_charNo = GetUniqCharNo();
+    pkt.m_channel = GetIdByChannel();
     SendTcpGameserver(&pkt);
 }
 

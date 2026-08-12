@@ -282,23 +282,23 @@ int CGuildWar::SameRankWork()
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxItTmp;
         it2 = m_vtGuildWarInfo.begin();
         maxIt = it2;
-        if (maxIt->second == 0)
+        if ((*maxIt).second == 0)
         {
             return 0;
         }
-        unsigned int maxVal = maxIt->second->m_field[6];
+        unsigned int maxVal = (*maxIt).second->m_field[6];
         for (int i = 1; i < count; i++)
         {
             ++it2;
-            if (maxVal < it2->second->m_field[6])
+            if (maxVal < (*it2).second->m_field[6])
             {
-                maxVal = it2->second->m_field[6];
+                maxVal = (*it2).second->m_field[6];
                 maxItTmp = it2;
             }
         }
-        if (maxIt->second->m_field[6] != maxVal)
+        if ((*maxIt).second->m_field[6] != maxVal)
         {
-            DNFFLib::Swap<STGuildWarInfo>(maxIt->second, maxItTmp->second);
+            DNFFLib::Swap<STGuildWarInfo>((*maxIt).second, (*maxItTmp).second);
         }
     }
     return 1;

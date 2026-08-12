@@ -66,7 +66,8 @@ int CTcpHandler::ResetEpoll(int flag)
 
 CTcpHandler::CTcpHandler()
 {
-    m_epoll = new EpollHandler;
+    register EpollHandler* p = new EpollHandler;
+    m_epoll = p;
 }
 
 CTcpHandler::~CTcpHandler()

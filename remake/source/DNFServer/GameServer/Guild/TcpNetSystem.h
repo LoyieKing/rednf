@@ -20,6 +20,7 @@ class CTcpHandler;
 class CTcpAcceptThread;
 class CTcpNetworkThread;
 class CTcpRecvBuffer;
+class CThreadInterface;
 
 // from GuildThread.h
 class CSwapQueueBase
@@ -79,7 +80,7 @@ public:
     void SetEpollAcceptedPeers();
     void SetEpollConnectedPeer(CPeer* peer);
     CTcpHandler* m_tcpHandler;              // +0
-    CTcpNetworkThread* m_tcpNetworkThread;  // +4
+    CThreadInterface* m_tcpNetworkThread;   // +4
     CSwapQueue<std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*> >, 2> m_recvQ; // +8 (0x58)
     CMutex m_mutex60;                       // +0x60
     CMutex m_mutex78;                       // +0x78
@@ -88,7 +89,7 @@ public:
     std::queue<CTcpSendBuffer*, std::deque<CTcpSendBuffer*> > m_sendQ; // +0xc0 (0x28)
     CMutex m_mutexe8;                       // +0xe8
     CMutex m_mutex100;                      // +0x100
-    CTcpAcceptThread* m_acceptThread;       // +0x118
+    CThreadInterface* m_acceptThread;       // +0x118
     std::queue<CPeer*, std::deque<CPeer*> > m_peerQ; // +0x11c (0x28)
     std::map<unsigned int, CPeer*> m_peers; // +0x144 (0x18)
     unsigned short m_tcpServerPort;         // +0x15c

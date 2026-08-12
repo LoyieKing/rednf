@@ -31,10 +31,10 @@ struct STPartyStatisticKey
     unsigned short m_field0;  // +0
     int m_field4;             // +4
     char m_field8;            // +8
-    unsigned char m_field9;   // +9
-    unsigned char m_fielda;   // +0xa
-    unsigned char m_fieldb;   // +0xb
-    unsigned char m_fieldc;   // +0xc
+    bool m_field9;            // +9（ORIG 汇编为 bool 提升比较）
+    bool m_fielda;            // +0xa
+    bool m_fieldb;            // +0xb
+    bool m_fieldc;            // +0xc
     char m_fieldd;            // +0xd
 };
 
@@ -57,12 +57,12 @@ struct STPartyJobStatisticKey
     unsigned short m_field0;  // +0
     int m_field4;             // +4
     char m_field8;            // +8
-    unsigned char m_field9;   // +9
-    unsigned char m_fielda;   // +0xa
-    unsigned char m_fieldb;   // +0xb
-    unsigned char m_fieldc;   // +0xc
+    bool m_field9;            // +9（ORIG 汇编为 bool 提升比较）
+    bool m_fielda;            // +0xa
+    bool m_fieldb;            // +0xb
+    bool m_fieldc;            // +0xc
     char m_fieldd;            // +0xd
-    int m_field10;            // +0x10
+    enum STPartyJobKeyField10 { ST_PARTY_JOB_KEY_FIELD10_0 = 0 } m_field10;  // +0x10（ORIG 汇编 enum 形态）
     char m_field14;           // +0x14
 };
 
@@ -85,9 +85,9 @@ struct STPartyCharacKey
     unsigned short m_field0;  // +0
     int m_field4;             // +4
     char m_field8;            // +8
-    unsigned char m_field9;   // +9
-    unsigned char m_fielda;   // +0xa
-    int m_fieldc;             // +0xc
+    bool m_field9;            // +9（ORIG 汇编为 bool 提升比较）
+    bool m_fielda;            // +0xa
+    enum STPartyCharacKeyFieldC { ST_PARTY_CHARAC_KEY_FIELDC_0 = 0 } m_fieldc;  // +0xc（ORIG 汇编 enum 形态）
     char m_field10;           // +0x10
     char m_field11;           // +0x11
 };
@@ -172,7 +172,7 @@ struct STPacketOverflowKey
     ~STPacketOverflowKey();
     void Reset();
     bool operator<(const STPacketOverflowKey& other) const;
-    unsigned char m_field0;  // +0
+    bool m_field0;            // +0（ORIG 汇编为 bool 提升比较）
     unsigned short m_field2; // +2
 };
 

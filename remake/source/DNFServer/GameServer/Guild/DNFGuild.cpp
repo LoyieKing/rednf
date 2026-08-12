@@ -1754,7 +1754,7 @@ bool CGuild::IsSubGuildMaster(unsigned int dbid)
 {
     for (int i = 0; i < m_dbInfo.m_info.m_subMasterCnt; i++)
     {
-        if (((CGuildSubMasterView*)this)->m_subGuildMaster[i] == dbid)
+        if (m_dbInfo.m_info.m_subGuildMaster[i] == dbid)
         {
             return true;
         }
@@ -1766,24 +1766,24 @@ void CGuild::SetSubGuildMaster(unsigned int charNo, bool flag)
 {
     if (flag)
     {
-        unsigned char cnt = *(unsigned char*)((char*)this + 0x4d);
-        if (cnt + 1 < 6)
+        if (m_dbInfo.m_info.m_subMasterCnt + 1 < 6)
         {
-            *(unsigned int*)((char*)this + ((unsigned int)cnt + 0x10) * 4 + 0xe) = charNo;
-            *(unsigned char*)((char*)this + 0x4d) = cnt + 1;
+            m_dbInfo.m_info.m_subGuildMaster[m_dbInfo.m_info.m_subMasterCnt++] = charNo;
         }
     }
     else
     {
-        unsigned char* cnt = (unsigned char*)((char*)this + 0x4d);
-        for (unsigned int i = 0; i < (unsigned int)*cnt; i++)
+        unsigned char* cnt = &m_dbInfo.m_info.m_subMasterCnt;
+        for (int i = 0; i < (int)*cnt; i++)
         {
-            if (*(unsigned int*)((char*)this + (i + 0x10) * 4 + 0xe) == charNo)
+            if (m_dbInfo.m_info.m_subGuildMaster[i] == charNo)
             {
-                memcpy((char*)this + i * 4 + 0x4e, (char*)this + (i + 1) * 4 + 0x4e,
+                memcpy(m_dbInfo.m_info.m_subGuildMaster + i,
+                       m_dbInfo.m_info.m_subGuildMaster + i + 1,
                        ((unsigned int)*cnt + ~i) * 4);
                 *cnt = (unsigned char)((int)*cnt - 1);
-                if (5 < (unsigned char)*cnt)
+                register bool over = 5 < (unsigned char)*cnt;
+                if (over)
                 {
                     *cnt = 0;
                 }
@@ -2344,7 +2344,7 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_field9f = 0;
     m_guildFund = 0;
     m_fieldB9 = 0;
-    memset(m_pad2e, 0, 0x14);
+    memset(m_subGuildMaster, 0, 0x14);
     memset(m_pad0, 0, 0x17);
     m_flag0 = 1;
     m_flag1 = 0;

@@ -52,7 +52,7 @@ public:
     void GetAllUserRankingInfo(unsigned int& count, STUserRank* rank);
     void GetStatueRankingUsers(std::vector<STPowerWarCharacInfo*>& vec);
     void UpdatePowerwarCharacInfo(unsigned int charNo, unsigned short point);
-    int GetBonus(Packet_DB_Save_Power_War_Bonus_Point& pkt);
+    void GetBonus(Packet_DB_Save_Power_War_Bonus_Point& pkt);
     int GetBonus(int idx);
     void CalcBonus();
     std::map<unsigned int, STPowerWarCharacInfo*> m_map;   // +4（vptr@0）

@@ -41,6 +41,7 @@ class CUser
 public:
     CUser();
     ~CUser();
+    static MemPool<CUser> m_UsermemPool_;
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
@@ -133,12 +134,15 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_Notice_Guild_Member_Info : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Member_Info();
-    char m_pad[8];
+    int m_channel;          // +0xa
+    unsigned int m_charNo;  // +0xe
     STGuildMemerDBInfo m_info;   // +0x12
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 #pragma pack(push,1)
@@ -154,17 +158,25 @@ public:
 #pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_Set_Guild_Key : public PacketHeader {
 public:
     Packet_Monitor_Set_Guild_Key();
-    char m_data[0xc];
+    int m_channel;           // +0xa
+    unsigned int m_grade;    // +0xe
+    unsigned int m_guildKey; // +0x12
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Send_All_User_Info_Minimum_For_Guild_System : public PacketHeader {
 public:
     Packet_Send_All_User_Info_Minimum_For_Guild_System();
-    char m_data[0xc];
+    unsigned int m_guildKey; // +0xa
+    unsigned int m_charNo;   // +0xe
+    int m_channel;           // +0x12
 };
+#pragma pack(pop)
 
 #endif

@@ -208,8 +208,8 @@ void CPowerWarCharacInfo::GetAllUserRankingInfo(unsigned int& count, STUserRank*
         STPowerWarCharacInfo* info = *it;
         if (info != 0)
         {
-            *(unsigned int*)((char*)rank + n * 8) = info->m_field[0];
-            *(unsigned int*)((char*)rank + n * 8 + 4) = info->m_field[1];
+            rank[n].m0 = info->m_field[0];
+            rank[n].m4 = info->m_field[1];
             n++;
             DNF_LOG_SCOPE_LINE(0xcc, "./log/Power", "Rank:%7d, Charac No:%d, PowerWarPoint:%d", n,
                 info->m_field[0], info->m_field[1]);
@@ -241,8 +241,9 @@ void CPowerWarCharacInfo::PrintDebugInfo()
     CMyFileLog log2(__FUNCTION__, 0xef);
     log2("./log/PowerResult",
          "------ ALL USER RANKING -------------------------------------------------------------------------");
+    std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin();
     int rank = 1;
-    for (std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin(); it != m_vec.end(); ++it)
+    for (; it != m_vec.end(); ++it)
     {
         STPowerWarCharacInfo* info = *it;
         DNF_LOG_SCOPE_LINE(0xf9,"./log/PowerResult", "RANK:%d, USER:%d, POWER WAR POINT:%d", rank,
@@ -276,19 +277,18 @@ void CPowerWarCharacInfo::CalcBonus()
     }
 }
 
-int CPowerWarCharacInfo::GetBonus(Packet_DB_Save_Power_War_Bonus_Point& pkt)
+void CPowerWarCharacInfo::GetBonus(Packet_DB_Save_Power_War_Bonus_Point& pkt)
 {
     std::list<STUserPoint>::iterator it = m_list.begin();
     int i = 0;
-    for (; it != m_list.end() && i <= 0xf9; )
+    for (; it != m_list.end() && i <= 0xf9U; )
     {
-        pkt.m_points[i].m0 = it->m0;
-        pkt.m_points[i].m4 = it->m4;
+        pkt.m_points[i].m0 = (*it).m0;
+        pkt.m_points[i].m4 = (*it).m4;
         i++;
         it = m_list.erase(it);
     }
     pkt.m_bonus = i;
-    return 0;
 }
 
 int CPowerWarCharacInfo::GetBonus(int idx)

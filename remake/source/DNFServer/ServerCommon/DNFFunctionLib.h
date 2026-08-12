@@ -12,8 +12,15 @@ struct STGuildCargoLog {
 #ifndef DNF_GUILD_ODR_TRIVIAL_CARGOLOG_DTOR
     ~STGuildCargoLog();
 #endif
-    int time;  // offset 0
-    char m_rest[0x2c];
+    int time;                 // +0
+    unsigned char behavior;   // +4
+    char name[0x15];          // +5
+    int count;                // +0x1a
+    int param;                // +0x1e
+    unsigned int opt0;        // +0x22
+    unsigned int opt1;        // +0x26
+    unsigned int opt2;        // +0x2a
+    unsigned short opt3;      // +0x2e
 } __attribute__((packed));
 
 // 原始 comp_by_time 为头文件内 static 函数（_ZL12comp_by_timeRK15STGuildCargoLogS1_），

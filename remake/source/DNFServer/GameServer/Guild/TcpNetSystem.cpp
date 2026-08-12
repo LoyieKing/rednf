@@ -84,6 +84,19 @@ void CTcpNetSystem::Process()
 {
 }
 
+// ORIG 反汇编实测 TcpSendBuffer 头部字段（id@0/size@2/pad@4/ip@6），
+// 与 Manager DNFPacketBuffer.h 的 CTcpSendBuffer 布局一致；仅本 TU 使用，
+// 避免改动共享 DNFPacketBuffer.h 影响其它 TU 的 m_data 基址。
+#pragma pack(push, 1)
+struct TcpPacketFields
+{
+    unsigned short m_id;   // +0
+    unsigned short m_size; // +2
+    unsigned short m_pad;  // +4
+    int m_ip;              // +6
+};
+#pragma pack(pop)
+
 CSwapQueueBase::CSwapQueueBase()
 {
     memset(m_data, 0, sizeof(m_data));
@@ -208,36 +221,38 @@ CTcpNetSystem::CTcpNetSystem()
 CTcpNetSystem::~CTcpNetSystem()
 {
     CleanPeers();
-    if (m_tcpHandler != 0)
+    if (m_tcpHandler)
     {
         delete m_tcpHandler;
+        m_tcpHandler = 0;
     }
-    m_tcpHandler = 0;
-    if (m_acceptThread != 0)
+    if (m_acceptThread)
     {
+        m_acceptThread->stop();
         delete m_acceptThread;
+        m_acceptThread = 0;
     }
-    m_acceptThread = 0;
-    if (m_tcpNetworkThread != 0)
+    if (m_tcpNetworkThread)
     {
+        m_tcpNetworkThread->stop();
         delete m_tcpNetworkThread;
+        m_tcpNetworkThread = 0;
     }
-    m_tcpNetworkThread = 0;
 }
 
 void CTcpNetSystem::Init(unsigned short port)
 {
     m_tcpServerPort = port;
     m_tcpHandler = new CTcpHandler;
-    m_acceptThread = new CTcpAcceptThread;
-    m_acceptThread->attach(this);
-    if (!((CThreadInterface*)m_acceptThread)->begin())
+    m_acceptThread = new CTcpAcceptThread;  // 成员为基类指针，隐式转换复现 ORIG 双 mov
+    ((CTcpAcceptThread*)m_acceptThread)->attach(this);
+    if (!((CTcpAcceptThread*)m_acceptThread)->CThreadInterface::begin())
     {
         throw;
     }
-    m_tcpNetworkThread = new CTcpNetworkThread;
-    m_tcpNetworkThread->attach(this);
-    if (!((CThreadInterface*)m_tcpNetworkThread)->begin())
+    m_tcpNetworkThread = new CTcpNetworkThread;  // 双 mov
+    ((CTcpNetworkThread*)m_tcpNetworkThread)->attach(this);
+    if (!((CTcpNetworkThread*)m_tcpNetworkThread)->CThreadInterface::begin())
     {
         throw;
     }
@@ -252,22 +267,20 @@ void CTcpNetSystem::InsertAcceptedPeer(CPeer* peer)
 void CTcpNetSystem::SetEpollAcceptedPeers()
 {
     CGuard<CMutex> g(&m_mutex60);
-    if (!m_peerQ.empty())
+    if (m_peerQ.empty())
+        return;
+    CPeer* peer = 0;
+    while (!m_peerQ.empty())
     {
-        while (!m_peerQ.empty())
+        peer = m_peerQ.front();
+        int r = 0;
+        if ((r = m_tcpHandler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), false)) != 0)
         {
-            CPeer* peer = m_peerQ.front();
-            int r = 0;
-            TCPSocket* tcp = peer->GetTcpSocket();
-            r = m_tcpHandler->SetPeer(peer, tcp->getHandle(), false);
-            if (r != 0)
-            {
-                printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
-                       peer->GetTcpSocket()->getHandle(), r, strerror(r));
-            }
-            m_peers.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
-            m_peerQ.pop();
+            printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
+                   peer->GetTcpSocket()->getHandle(), r, strerror(r));
         }
+        m_peers.insert(std::make_pair((int)peer->GetTcpSocket()->getHandle(), peer));
+        m_peerQ.pop();
     }
 }
 
@@ -295,78 +308,90 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
 {
     CGuard<CMutex> g(&m_mutexe8);
     m_sendQ.push((CTcpSendBuffer*)buf);
-    int cnt = (int)m_sendQ.size();
-    if (cnt > 10)
+    int n = (int)m_sendQ.size();
+    if (n > 0xa)
     {
         DNF_LOG_SCOPE_LINE(0x91, "./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)",
-            cnt, (int)*(unsigned short*)buf, (int)*(unsigned short*)((char*)buf + 2),
-            *(unsigned int*)((char*)buf + 6));
+            n, ((TcpPacketFields*)buf)->m_id, ((TcpPacketFields*)buf)->m_size,
+            ((TcpPacketFields*)buf)->m_ip);
     }
 }
 
 int CTcpNetSystem::SendPacket()
 {
-    CTcpSendBuffer* buf = 0;
-    bool have = false;
-    int result = 0;
+    // R14：ORIG 形态——queue 访问在 guard 内层作用域，flag(esi)/ret(ebx) 寄存器变量，
+    // buf(-0x2c) 用于 PopDelete、b2(-0x28) 副本用于字段访问。
     {
-        CGuard<CMutex> g(&m_mutexe8);
-        if (!m_sendQ.empty())
+        register int ret;
+        register int flag;
+        CTcpSendBuffer* buf;
+        CTcpSendBuffer* b2;
+        CPeer* peer;
+        int result;
+        int cnt;
         {
-            buf = m_sendQ.front();
-            have = true;
+            CGuard<CMutex> g(&m_mutexe8);
+            if (m_sendQ.empty())
+            {
+                ret = 0;
+                flag = 0;
+            }
+            else
+            {
+                buf = m_sendQ.front();
+                flag = 1;
+            }
         }
-        else
+        std::map<unsigned int, CPeer*>::iterator it;
+        if (flag)
         {
-            have = false;
-            result = 0;
+            if (!buf)
+            {
+                ret = 0;
+                goto done;
+            }
+            b2 = buf;
+            it = m_peers.find(*(unsigned int*)((char*)b2 + 6));
+            if (it == m_peers.end())
+            {
+                DNF_LOG_SCOPE_LINE(0xba, "./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
+                    ((TcpPacketFields*)b2)->m_id, ((TcpPacketFields*)b2)->m_size,
+                    ((TcpPacketFields*)b2)->m_ip);
+                PopDeleteTcpSendPacketQ(buf);
+                ret = 0;
+            }
+            else
+            {
+                peer = it->second;
+                if (peer == 0 || ((TcpPacketFields*)b2)->m_ip != peer->GetTcpSocket()->getHandle())
+                {
+                    DNF_LOG_SCOPE_LINE(0xc3, "./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
+                        peer, ((TcpPacketFields*)b2)->m_id, ((TcpPacketFields*)b2)->m_size,
+                        ((TcpPacketFields*)b2)->m_ip);
+                    PopDeleteTcpSendPacketQ(buf);
+                    ret = 0;
+                }
+                else
+                {
+                    result = peer->send_packet((char*)b2, ((TcpPacketFields*)b2)->m_size);
+                    if (result > 0)
+                    {
+                        PopDeleteTcpSendPacketQ(buf);
+                    }
+                    else
+                    {
+                        cnt = (int)m_sendQ.size();
+                        DNF_LOG_SCOPE_LINE(0xd5, "./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
+                            ((TcpPacketFields*)b2)->m_id, ((TcpPacketFields*)b2)->m_size,
+                            ((TcpPacketFields*)b2)->m_ip, cnt);
+                    }
+                    ret = result;
+                }
+            }
         }
+    done:
+        return ret;
     }
-    if (!have)
-    {
-        return result;
-    }
-    if (buf == 0)
-    {
-        return 0;
-    }
-    std::map<unsigned int, CPeer*>::iterator it =
-        m_peers.find(*(unsigned int*)((char*)buf + 6));
-    if (it == m_peers.end())
-    {
-        DNF_LOG_SCOPE_LINE(0xba,"./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
-            (unsigned int)*(unsigned short*)buf, (unsigned int)*(unsigned short*)((char*)buf + 2),
-            *(unsigned int*)((char*)buf + 6));
-        PopDeleteTcpSendPacketQ(buf);
-        return 0;
-    }
-    CPeer* peer = it->second;
-    bool invalid = true;
-    if (peer != 0 &&
-        *(int*)((char*)buf + 6) == peer->GetTcpSocket()->getHandle())
-    {
-        invalid = false;
-    }
-    if (invalid)
-    {
-        DNF_LOG_SCOPE_LINE(0xc3,"./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
-            (unsigned int)*(unsigned short*)buf, (unsigned int)*(unsigned short*)((char*)buf + 2),
-            *(unsigned int*)((char*)buf + 6));
-        PopDeleteTcpSendPacketQ(buf);
-        return 0;
-    }
-    int r = peer->send_packet((char*)buf, (int)*(unsigned short*)((char*)buf + 2));
-    if (r < 1)
-    {
-        DNF_LOG_SCOPE_LINE(0xd5,"./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
-            (unsigned int)*(unsigned short*)buf, (unsigned int)*(unsigned short*)((char*)buf + 2),
-            *(unsigned int*)((char*)buf + 6), (unsigned int)m_sendQ.size());
-    }
-    else
-    {
-        PopDeleteTcpSendPacketQ(buf);
-    }
-    return r;
 }
 
 void CTcpNetSystem::PopDeleteTcpSendPacketQ(CTcpSendBuffer* buf)
@@ -389,64 +414,77 @@ CPeer* CTcpNetSystem::CreatePeer()
 
 void CTcpNetSystem::DeletePeer(CPeer* peer)
 {
-    TCPSocket* tcp = peer->GetTcpSocket();
-    unsigned int handle = tcp->getHandle();
+    unsigned int handle = peer->GetTcpSocket()->getHandle();
     std::map<unsigned int, CPeer*>::iterator it = m_peers.find(handle);
     if (it != m_peers.end())
     {
         m_peers.erase(it);
     }
     CGuard<CMutex> g(&m_mutex78);
-    if (peer != 0)
-    {
-        delete peer;
-    }
+    delete peer;
 }
 
 bool CTcpNetSystem::OpenTcpService(int& sock, const char* ip, unsigned short port)
 {
     CPeer* peer = CreatePeer();
     TCPSocket* tcp = peer->GetTcpSocket();
-    if (tcp->open())
-    {
-        if (tcp->connect(ip, port))
-        {
-            tcp->setOptNonBlock();
-            peer->InitPeer(
-                ((CSwapQueue<std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*> >, 2>*)
-                    Get_TcpSwapQPacket())->GetRecvQ(),
-                           Get_TcpRecvQLock(), Get_TcpRecvBLock());
-            peer->ConnSig();
-            SetEpollConnectedPeer(peer);
-            sock = tcp->getHandle();
-            return true;
-        }
-        puts("tcpSock.connect Fail!");
-        DNF_LOG_SCOPE_LINE(0x123, "./log/TcpServer", "tcpSock.connect(%s, %d) Fail!", ip, (unsigned int)port);
-        DeletePeer(peer);
-        return false;
-    }
-    else
+    if (!tcp->open())
     {
         puts("tcpSock.open() Fail!");
         DNF_LOG_SCOPE_LINE(0x118, "./log/TcpServer", "tcpSock.open() Fail!");
         DeletePeer(peer);
         return false;
     }
+    else if (!tcp->connect(ip, port))
+    {
+        puts("tcpSock.connect Fail!");
+        register int nPort = port;  // R10: register 局部变体（对齐 ORIG ctor 前 ebx 预装载）
+        DNF_LOG_SCOPE_LINE(0x123, "./log/TcpServer", "tcpSock.connect(%s, %d) Fail!", ip, nPort);
+        DeletePeer(peer);
+        return false;
+    }
+    tcp->setOptNonBlock();
+    peer->InitPeer(
+        ((CSwapQueue<std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*> >, 2>*)
+            Get_TcpSwapQPacket())->GetRecvQ(),
+        Get_TcpRecvQLock(), Get_TcpRecvBLock());
+    peer->ConnSig();
+    SetEpollConnectedPeer(peer);
+    sock = tcp->getHandle();
+    return true;
 }
 
 void CTcpNetSystem::SetEpollConnectedPeer(CPeer* peer)
 {
     CGuard<CMutex> g(&m_mutex78);
-    TCPSocket* tcp = peer->GetTcpSocket();
     int r = 0;
-    r = m_tcpHandler->SetPeer(peer, tcp->getHandle(), false);
-    if (r != 0)
+    if ((r = m_tcpHandler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), 0)) != 0)
     {
         printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
                peer->GetTcpSocket()->getHandle(), r, strerror(r));
     }
-    m_peers.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
+    m_peers.insert(std::make_pair((int)peer->GetTcpSocket()->getHandle(), peer));
+}
+
+void CTcpNetSystem::CleanTcpSendPacketQ()
+{
+    while (true)
+    {
+        CTcpSendBuffer* p;
+        {
+            CGuard<CMutex> g(&m_mutexe8);
+            if (m_sendQ.empty())
+                break;
+            p = m_sendQ.front();
+            m_sendQ.pop();
+        }
+        {
+            CGuard<CMutex> g2(&m_mutex100);
+            delete p;
+        }
+    }
+    CMyFileLog log(__FUNCTION__, 0x16b);
+    log("./log/TcpSend", "Clean Tcp Send Queue Complete !");
 }
 
 void CTcpNetSystem::CleanPeers()
@@ -459,33 +497,6 @@ void CTcpNetSystem::CleanPeers()
         ++it;
     }
     m_peers.clear();
-}
-
-void CTcpNetSystem::CleanTcpSendPacketQ()
-{
-    CTcpSendBuffer* buf = 0;
-    for (;;)
-    {
-        bool empty;
-        {
-            CGuard<CMutex> g(&m_mutexe8);
-            empty = m_sendQ.empty();
-            if (!empty)
-            {
-                buf = m_sendQ.front();
-                m_sendQ.pop();
-            }
-        }
-        if (empty)
-        {
-            break;
-        }
-        {
-            CGuard<CMutex> g2(&m_mutex100);
-            delete buf;
-        }
-    }
-    DNF_LOG_SCOPE_LINE(0x16b, "./log/TcpSend", "Clean Tcp Send Queue Complete !");
 }
 
 CPeer* CTcpNetSystem::GetPeer(unsigned int id)

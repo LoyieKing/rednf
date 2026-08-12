@@ -3610,7 +3610,7 @@ void CPacketTranslater::OnLoadFromDBOnGuildBooting(PacketHeader* pkt)
     try
     {
         CPowerManager* pm = m_pclApp->GetPowerManager();
-        pm->SetPowerInfo((char)pb->m_12, (int)pb->m_a, (int)pb->m_e);
+        pm->SetPowerInfo(pb->m_12, pb->m_a, pb->m_e);
         pm->SendPowerWarInfo();
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPacketSecedePower Exception Break", 0x134f, 0x1354);

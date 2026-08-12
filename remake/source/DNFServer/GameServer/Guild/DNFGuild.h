@@ -96,7 +96,7 @@ struct __attribute__((packed)) STGuildDBInfoOnly
     unsigned char m_guildRank;     // +0x28
     unsigned int m_guildExp;       // +0x29
     unsigned char m_subMasterCnt;  // +0x2d
-    char m_pad2e[0x42 - 0x2e];     // +0x2e
+    unsigned int m_subGuildMaster[5]; // +0x2e（5×4B，跨度 0x2e..0x42，与原 m_pad2e 同跨度）
     unsigned short m_field42;      // +0x42
     unsigned char m_field44;       // +0x44
     STGuildSkill m_skills[16];     // +0x45（自动构造）

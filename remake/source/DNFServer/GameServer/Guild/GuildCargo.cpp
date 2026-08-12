@@ -220,7 +220,7 @@ int CGuildCargo::InsertItem(DnfItemInfo& info, int& slot, int count, unsigned ch
             if (oldCount + addCount <= count)
             {
                 m_info.m_items[existingSlot].m_addInfo =
-                    m_info.m_items[existingSlot].m_addInfo + addCount;
+                    m_info.m_items[existingSlot].m_addInfo + info.m_addInfo;
                 DNF_LOG_SCOPE_LINE(0x89,"./log/GuildCargo",
                     "InsertItem STACKABLE ADD SUCCESS - GUILD:%d, CHARAC:%d, ITEM:%d, OLD:%d, ADD:%d, CURR:%d",
                     m_guildKey, b, info.m_itemId,
@@ -236,7 +236,8 @@ int CGuildCargo::InsertItem(DnfItemInfo& info, int& slot, int count, unsigned ch
             return 200;
         }
     }
-    return AddItem(info, slot, b);
+    int ret = AddItem(info, slot, b);
+    return ret;
 }
 
 int CGuildCargo::CheckInsertItem(int itemId, int count, int slot, unsigned char stackable,
@@ -272,14 +273,14 @@ int CGuildCargo::DeleteItem(DnfItemInfo& info, int slot, int count, unsigned cha
         return 0xc4;
     }
     if (m_info.m_items[slot].m_itemId == 0 ||
-        m_info.m_items[slot].m_itemId != b)
+        m_info.m_items[slot].m_itemId != count)
     {
         return 0xca;
     }
     info = m_info.m_items[slot];
     if (a == 1)
     {
-        info.m_addInfo = count;
+        info.m_addInfo = b;
         int oldCount = m_info.m_items[slot].m_addInfo;
         int subCount = info.m_addInfo;
         if (oldCount < subCount)
@@ -287,7 +288,7 @@ int CGuildCargo::DeleteItem(DnfItemInfo& info, int slot, int count, unsigned cha
             return 199;
         }
         m_info.m_items[slot].m_addInfo =
-            m_info.m_items[slot].m_addInfo - subCount;
+            m_info.m_items[slot].m_addInfo - info.m_addInfo;
         if (m_info.m_items[slot].m_addInfo == 0)
         {
             m_info.m_items[slot].reset();
@@ -314,28 +315,22 @@ int CGuildCargo::MoveItem(DnfItemInfo& from, DnfItemInfo& to, int fromSlot, int 
     {
         return 0xc4;
     }
-    int guildKey = m_guildKey;
-    int fromId = m_info.m_items[fromSlot].m_itemId;
-    int toId = m_info.m_items[toSlot].m_itemId;
-    {
-        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x115,"./log/GuildCargo",
-            "Before MoveItem - GUILD:%d, CHARAC:%d, SLOT1:(%d,%d), SLOT2:(%d,%d)",
-            guildKey, charNo, fromSlot, fromId, toSlot, toId);
-    }
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x115,"./log/GuildCargo",
+        "Before MoveItem - GUILD:%d, CHARAC:%d, SLOT1:(%d,%d), SLOT2:(%d,%d)",
+        m_guildKey, charNo, fromSlot, m_info.m_items[fromSlot].m_itemId,
+        toSlot, m_info.m_items[toSlot].m_itemId);
     from = m_info.m_items[fromSlot];
     to = m_info.m_items[toSlot];
     if (from.m_itemId == fromItemId && to.m_itemId == toItemId)
     {
-        DnfItemInfo tmp = from;
+        DnfItemInfo tmp;
+        tmp = m_info.m_items[fromSlot];
         m_info.m_items[fromSlot] = m_info.m_items[toSlot];
         m_info.m_items[toSlot] = tmp;
-        int newFromId = m_info.m_items[fromSlot].m_itemId;
-        int newToId = m_info.m_items[toSlot].m_itemId;
-        {
-            DNF_LOG_SCOPE_AT(__FUNCTION__, 0x131,"./log/GuildCargo",
-                "After MoveItem - GUILD:%d, CHARAC:%d, SLOT1:(%d,%d), SLOT2:(%d,%d)",
-                guildKey, charNo, fromSlot, newFromId, toSlot, newToId);
-        }
+        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x131,"./log/GuildCargo",
+            "After MoveItem - GUILD:%d, CHARAC:%d, SLOT1:(%d,%d), SLOT2:(%d,%d)",
+            m_guildKey, charNo, fromSlot, m_info.m_items[fromSlot].m_itemId,
+            toSlot, m_info.m_items[toSlot].m_itemId);
         return 0xc1;
     }
     return 0xca;
@@ -361,11 +356,11 @@ void CGuildCargo::SetGuildCargoDBInfo(STGuildCargoDBInfo& info)
 
 void CGuildCargo::SetGuildCargoHistory(unsigned int idx, STGuildCargoLog* log)
 {
-    if (idx > 0x32)
-    {
-        idx = 0x32;
-    }
     int c = (int)idx;
+    if (c > 0x32)
+    {
+        c = 0x32;
+    }
     for (int i = 0; i < c; i++)
     {
         m_history.push_front(log[i]);
@@ -387,16 +382,14 @@ void CGuildCargo::SendGuildCargo(CUser* user)
 
 void CGuildCargo::PrintCargo(ENUM_GUILD_CARGO_BEHAVIOR behavior)
 {
-    CMyFileLog log0(__FUNCTION__, 0x18d);
-    log0("./log/GuildCargo", "CARGO - g:%d,capa:%d,behavior:%d",
-         m_guildKey, m_info.m_capacity,
-         (int)behavior);
-    for (int i = 0; i < m_info.m_capacity; i++)
+    DNF_LOG_SCOPE_LINE(0x18d, "./log/GuildCargo", "CARGO - g:%d,capa:%d,behavior:%d",
+         m_guildKey, m_info.m_capacity, (int)behavior);
+    for (int i = 0; (int)m_info.m_capacity > i; i++)
     {
         if (m_info.m_items[i].m_itemId != 0)
         {
-            const char* itemDesc = PrintDnfItemInfo(m_info.m_items[i]);
-            DNF_LOG_SCOPE_LINE(0x195, "./log/GuildCargo", "SLOT - %d,%s", i, itemDesc);
+            DNF_LOG_SCOPE_LINE(0x195, "./log/GuildCargo", "SLOT - %d,%s",
+                i, PrintDnfItemInfo(m_info.m_items[i]));
         }
     }
 }
@@ -447,22 +440,21 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
                                 int param, const RandomOption* option)
 {
     STGuildCargoLog log;
-    strncpy((char*)&log + 5, name, 0x14);
-    *(int*)((char*)&log + 0x1a) = count;
-    *(char*)((char*)&log + 4) = (char)behavior;
-    *(int*)((char*)&log + 0x1e) = param;
-    *(int*)((char*)&log + 0x22) = *(int*)((char*)option + 0);
-    *(int*)((char*)&log + 0x26) = *(int*)((char*)option + 4);
-    *(int*)((char*)&log + 0x2a) = *(int*)((char*)option + 8);
-    *(short*)((char*)&log + 0x2e) = *(short*)((char*)option + 0xc);
+    strncpy(log.name, name, 0x14);
+    log.count = count;
+    log.behavior = (unsigned char)behavior;
+    log.param = param;
+    log.opt0 = option->m_field0;
+    log.opt1 = option->m_field4;
+    log.opt2 = option->m_field8;
+    log.opt3 = option->m_fieldc;
     time_t t;
     time(&t);
     log.time = t;
     m_history.push_back(log);
-    CMyFileLog fileLog(__FUNCTION__, 0x202);
-    fileLog("./log/GuildCargo",
+    DNF_LOG_SCOPE_LINE(0x202, "./log/GuildCargo",
             "InsertLog - GUILD:%d, CHARAC:%d, ITEM:%d, BEHAVIOR:%d, ETC:%d",
-            m_guildKey, slot, count, (int)behavior, param);
+            m_guildKey, slot, count, (int)(char)behavior, param);
     if (0x32 < m_history.size())
     {
         m_history.pop_front();
@@ -496,7 +488,7 @@ void CGuildCargo::SendHistoryToDBMW(CServerHandler* handler, ENUM_GUILD_CARGO_BE
     pkt.m_f = param;
     pkt.m_a = handler->GetServerGroupNo();
     strncpy(pkt.m_pad, name, 0x14);
-    pkt.m_item = info;
+    memcpy(&pkt.m_item, &info, 0x35);
     handler->SendToDB(&pkt);
 }
 

@@ -31,8 +31,10 @@ public:
 class Packet_DB_Query_Guild : public PacketHeader {
 public:
     Packet_DB_Query_Guild();
-    char m_data[0x9];
-};
+    unsigned char m_data;     // +0xa
+    unsigned int m_group;     // +0xb
+    unsigned int m_guildId;   // +0xf
+} __attribute__((packed));
 
 // from GuildPackets.h
 class Packet_DB_Query_Guild_Member : public PacketHeader {
@@ -79,9 +81,9 @@ public:
     bool RegistMonitorServer(CMonitorServer* server);
     bool UnregistMonitorServer();
     bool RegistGameServer(stServerInfo* info);
-    void UnregistGameServer(unsigned int group);
+    bool UnregistGameServer(unsigned int group);
     CTcpGameServer* CreateTcpGameServer(unsigned int group);
-    void DeleteTcpGameServer(unsigned int group);
+    bool DeleteTcpGameServer(unsigned int group);
     void SetGameServerIpPort(unsigned char group, unsigned int port, unsigned short tcpPort);
     void QueryGuild(unsigned int group, unsigned int guildId);
     void QueryGuildMember(unsigned char group, unsigned int characNo);

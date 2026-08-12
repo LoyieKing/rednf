@@ -110,17 +110,15 @@ void* MemPool<T>::alloc()
     }
     else
     {
-        void* block = ::operator new(m_count * m_classSize);
+        MemPoolFreeLink<T>* base = (MemPoolFreeLink<T>*)::operator new(m_count * m_classSize);
         for (unsigned int i = 0; i < m_count - 1U; i++)
         {
-            ((MemPoolFreeLink<T>*)((i * sizeof(T)) + (unsigned int)block))->next =
-                (void*)(((i + 1) * sizeof(T)) + (unsigned int)block);
+            base[i].next = (void*)&base[i + 1];
         }
-        ((MemPoolFreeLink<T>*)(sizeof(T) * ((unsigned int)m_count - 1) +
-            (unsigned int)block))->next = 0;
-        result = block;
-        headOfFreeList_ = (void*)((char*)block + sizeof(T));
-        m_chunks.push_back((void*)block);
+        base[m_count - 1U].next = 0;
+        result = base;
+        headOfFreeList_ = (void*)((char*)base + sizeof(T));
+        m_chunks.push_back((void*)base);
         DNF_LOG_SCOPE_LINE(0x7d, "./log/Mempool", "class size(%d) cnt(%d)", m_classSize,
             m_count * (int)m_chunks.size());
     }
