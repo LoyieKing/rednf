@@ -30,18 +30,14 @@ void CCubeStatistic::addStatisticData(Packet_Cube_Statistic* pkt)
     int value = ((const CubePkt*)pkt)->m_d;
     std::map<STCubeStatisticKey, int>::iterator it = m_data.find(key);
     if (it != m_data.end())
-    {
         it->second += value;
-    }
     else
-    {
         m_data.insert(std::make_pair(key, value));
-    }
 }
 void CCubeStatistic::sendStatisticData(CServerHandler* handler)
 {
     Packet_DBMW_Cube_Statistic pkt;
-    unsigned int count = 0;
+    int count = 0;
     if (!m_data.empty())
     {
         for (std::map<STCubeStatisticKey, int>::iterator it = m_data.begin();
@@ -61,7 +57,7 @@ void CCubeStatistic::sendStatisticData(CServerHandler* handler)
                 DNF_LOG_SCOPE_LINE(0x40, "./log/statistic", "CCubeStatistic::sendStatisticData : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", 0x1d6);
             }
         }
-        if ((int)count > 0)
+        if (count > 0)
         {
             pkt.m_count = count;
             pkt.packetSize = (unsigned short)(count * 0xd + 0xe);

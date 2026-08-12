@@ -94,27 +94,25 @@ int CMemberManager::DeleteMember(unsigned int key, bool cash)
     {
         return 0;
     }
+    std::map<unsigned int, CMember*>::iterator it = m_members.find(key);
+    std::map<unsigned int, CMember*>::iterator end = m_members.end();
+    if (it != end)
     {
-        std::map<unsigned int, CMember*>::iterator it = m_members.find(key);
-        if (it != m_members.end())
+        if (cash && it->second != 0)
         {
-            if (cash && it->second != 0)
-            {
-                delete it->second;
-            }
-            if (m_app != 0)
-            {
-                m_app->Call_ResetUserMemberInfo(key);
-            }
-            m_members.erase(it);
-            return 1;
+            delete it->second;
         }
+        if (m_app != 0)
+        {
+            m_app->Call_ResetUserMemberInfo(key);
+        }
+        m_members.erase(it);
+        return 1;
     }
     if (cash)
     {
-        register unsigned int nKey = key;
         CMyFileLog log(__FUNCTION__, 0xbb);
-        log("./log/Member", "[DELETE_CASH_PROCESS] Member Key : %d", nKey);
+        log("./log/Member", "[DELETE_CASH_PROCESS] Member Key : %d", key);
     }
     return 0;
 }

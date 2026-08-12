@@ -119,7 +119,7 @@ void CHWSpecResearcher::SendDBMWErrorLine(CServerHandler* handler)
              it != m_errorSpec.end(); ++it)
         {
             pkt.m_items[count].m_field4 = it->first.m_field0;
-            pkt.m_items[count].m_field0 = (unsigned int)it->first.m_field4;
+            pkt.m_items[count].m_field0 = it->first.ErrorValue::m_field4;
             pkt.m_items[count].m_field6 = (int)it->second;
             if (0x263U < (++count))
             {

@@ -33,6 +33,8 @@ LimitNpcBuyItemManager::~LimitNpcBuyItemManager() {}
 
 int LimitNpcBuyItemManager::sellNpcLimitBuyItem(LimitNpcBuyItemInfo* info)
 {
+    register unsigned int total;
+    register unsigned int maxCount;
     std::map<unsigned int, NpcBuyLimitItem>::iterator it = m_items.find(info->m_itemId);
     if (it == m_items.end())
     {
@@ -47,8 +49,8 @@ int LimitNpcBuyItemManager::sellNpcLimitBuyItem(LimitNpcBuyItemInfo* info)
         return 0x5f;
     }
     it->second.m_sellCount += info->m_count;
-    unsigned int total = it->second.m_sellCount;
-    unsigned int maxCount = it->second.m_maxCount;
+    total = it->second.m_sellCount;
+    maxCount = it->second.m_maxCount;
     DNF_LOG_SCOPE_LINE(0x23, "./log/NpcBuyLimitItem",
         "Sell-> characNo: %u, itemId: %u, buyCount: %u, maxCount: %u, totalSellCount: %u)",
         info->m_charNo, info->m_itemId, info->m_count, maxCount, total);

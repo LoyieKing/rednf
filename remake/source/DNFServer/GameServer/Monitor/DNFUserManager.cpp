@@ -82,9 +82,10 @@ void CUserManager::MemberEnterProcess()
 
 void CUserManager::ProcessByMinute()
 {
+    std::map<const unsigned int, CDNFProhibitUser*>::iterator it;
     if (!m_prohibitUsers.empty())
     {
-        std::map<const unsigned int, CDNFProhibitUser*>::iterator it = m_prohibitUsers.begin();
+        it = m_prohibitUsers.begin();
         while (it != m_prohibitUsers.end())
         {
             CDNFProhibitUser* pu;
@@ -92,8 +93,8 @@ void CUserManager::ProcessByMinute()
             {
                 if (pu->IsTimeOutConnectable())
                 {
-                    register int remain = (short)pu->GetProhibitRemainTime();
-                    register unsigned int dbid = pu->GetDBID();
+                    int remain = (short)pu->GetProhibitRemainTime();
+                    unsigned int dbid = pu->GetDBID();
                     CMyFileLog log(__FUNCTION__, 0x292);
                     log("./log/User",
                         "[PROHIBIT CONNECT USER TIME_OUT] Prohibit User DB ID : %d\t Remain time(%d)\n",

@@ -34,7 +34,7 @@ public:
     CMutex* Get_TcpSendBLock();
     CTcpSendQueue* Get_TcpSendQPacket();
     CTcpHandler* m_tcpHandler;      // +0
-    void* m_field4;                 // +4
+    CThreadInterface* m_field4;     // +4
     CSwapQueue<TcpRecvQueue, 2> m_recvSwapQueue;  // +8
     CMutex m_mutex60;               // +0x60
     CMutex m_mutex78;               // +0x78
@@ -43,7 +43,7 @@ public:
     CTcpSendQueue m_sendQueue;      // +0xc0
     CMutex m_mutexE8;               // +0xe8
     CMutex m_mutex100;              // +0x100
-    CTcpAcceptThread* m_acceptThread;  // +0x118
+    CThreadInterface* m_acceptThread;  // +0x118
     std::queue<CPeer*> m_peerQueue;    // +0x11c
     std::map<unsigned int, CPeer*> m_peerMap;  // +0x144
     unsigned short m_serverPort;    // +0x15c
