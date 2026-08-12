@@ -38,7 +38,7 @@ public:
     CGuildWar();
     ~CGuildWar();
     void DBSaveProcess(CApplication* app);
-    int IsGuildWarEnterableGuild(unsigned int guildId);
+    bool IsGuildWarEnterableGuild(unsigned int guildId);
     void SetGuildWarEvent(bool flag, unsigned char param);
     bool IsGuildWarEventOn();
     void InitGuildWarInfo();

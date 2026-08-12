@@ -49,7 +49,7 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int a, u
     if (a == 0)
         goto InitFrameCountInfo_throw;
     m_app = app;
-    memset(this, 0, 0x28);
+    memset((char*)this, 0, 0x28);
     m_field4 = a;
     m_field8 = 100 / a;
     return;

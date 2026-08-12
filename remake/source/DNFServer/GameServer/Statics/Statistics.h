@@ -171,7 +171,8 @@ public:
     std::map<unsigned int, STBloodDungeonStatistic> m_blood;  // +0x1d0
     stDisjointAvatarInfoTotal m_disjoint;  // +0x1e8
     stCreateEmblemStatistic m_createEmblem; // +0x32c
-    char m_randombox[0x28];                // +0x348
+    int m_randomboxA[5];                   // +0x348
+    int m_randomboxB[5];                   // +0x35c
     STModuleLagStatistics m_modules[8];    // +0x370
     std::map<unsigned short, STDungeonLagStatistics> m_dungeonLag;  // +0x3f0
     std::map<int, ValueStatisticData> m_value;       // +0x408

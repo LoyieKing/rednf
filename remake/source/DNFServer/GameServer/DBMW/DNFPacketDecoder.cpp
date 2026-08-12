@@ -178,28 +178,29 @@ void CPacketDecoder::TcpProcess()
     {
         buf = m_tcpQueue->front();
         m_tcpQueue->pop();
-        if (!buf)
-            continue;
-        PacketHeader* p = (PacketHeader*)buf;
-        int size = m_tcpQueue->size();
-        if (CAppLoadCheckerInstance()->CheckTcpRecvQ(size))
+        if (buf)
         {
-            CAppLoadCheckerInstance()->RequestDB(m_serverHandler, 1, size);
-        }
-        if (!MsgDecode(p))
-        {
+            PacketHeader* p = (PacketHeader*)buf;
+            int size = m_tcpQueue->size();
+            if (CAppLoadCheckerInstance()->CheckTcpRecvQ(size))
+            {
+                CAppLoadCheckerInstance()->RequestDB(m_serverHandler, 1, size);
+            }
+            if (!MsgDecode(p))
+            {
+                {
+                    CGuard<CMutex> guard(m_tcpRecvBLock);
+                    delete buf;
+                }
+                printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
+                       p, p->packetId);
+                throw CDNFException(
+                    "CPacketDecode::MsgDecode() Undefined Packet Arrived Exception Break!");
+            }
             {
                 CGuard<CMutex> guard(m_tcpRecvBLock);
                 delete buf;
             }
-            printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
-                   p, p->packetId);
-            throw CDNFException(
-                "CPacketDecode::MsgDecode() Undefined Packet Arrived Exception Break!");
-        }
-        {
-            CGuard<CMutex> guard(m_tcpRecvBLock);
-            delete buf;
         }
     }
 }
@@ -212,28 +213,29 @@ void CPacketDecoder::UdpProcess()
     {
         buf = m_udpQueue->front();
         m_udpQueue->pop();
-        if (!buf)
-            continue;
-        PacketHeader* p = (PacketHeader*)buf;
-        int size = m_udpQueue->size();
-        if (CAppLoadCheckerInstance()->CheckUdpRecvQ(size))
+        if (buf)
         {
-            CAppLoadCheckerInstance()->RequestDB(m_serverHandler, 2, size);
-        }
-        if (!MsgDecode(p))
-        {
+            PacketHeader* p = (PacketHeader*)buf;
+            int size = m_udpQueue->size();
+            if (CAppLoadCheckerInstance()->CheckUdpRecvQ(size))
+            {
+                CAppLoadCheckerInstance()->RequestDB(m_serverHandler, 2, size);
+            }
+            if (!MsgDecode(p))
+            {
+                {
+                    CGuard<CMutex> guard(m_udpBLock);
+                    delete buf;
+                }
+                printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
+                       p, p->packetId);
+                throw CDNFException(
+                    "CPacketDecoder::MsgDecode() Undefined Packet Arrive Exception Break!");
+            }
             {
                 CGuard<CMutex> guard(m_udpBLock);
                 delete buf;
             }
-            printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n",
-                   p, p->packetId);
-            throw CDNFException(
-                "CPacketDecoder::MsgDecode() Undefined Packet Arrive Exception Break!");
-        }
-        {
-            CGuard<CMutex> guard(m_udpBLock);
-            delete buf;
         }
     }
 }

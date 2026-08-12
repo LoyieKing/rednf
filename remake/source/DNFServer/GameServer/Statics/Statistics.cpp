@@ -10,6 +10,9 @@
 #include "StatisticProxy.h"
 #include "Packet_P2P_Statistics.h"
 #include "Packet_Server_Match_data.h"
+#include "Packet_Value_Statistic.h"
+#include "Packet_Circulation_Statistic.h"
+#include "Packet_Emblem_Create_Statistic.h"
 
 void StatisticManager::ResetDisjointAvatarInfoTotal()
 {
@@ -577,9 +580,9 @@ void StatisticManager::SendDBPacketOverflowStatistic(CServerHandler* handler)
         for (std::map<STPacketOverflowKey, int>::iterator it = m_packetOverflow.begin();
              it != m_packetOverflow.end(); ++it)
         {
-            *(char*)((char*)&pkt + 0xa) = it->first.m_field0;
-            *(unsigned short*)((char*)&pkt + 0xb) = it->first.m_field2;
-            *(unsigned int*)((char*)&pkt + 0xd) = it->second;
+            pkt.m_typed.m_field0 = it->first.m_field0;
+            pkt.m_typed.m_field2 = it->first.m_field2;
+            pkt.m_typed.m_field4 = it->second;
             handler->SendToDB((PacketHeader*)&pkt);
             count++;
         }
@@ -722,12 +725,13 @@ void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
         for (std::map<unsigned int, int>::iterator it = m_field110.begin();
              it != m_field110.end(); ++it)
         {
-            *(unsigned int*)((char*)&pkt + 0xe + idx * 8) = it->first;
-            *(int*)((char*)&pkt + 0xe + idx * 8 + 4) = it->second;
+            pkt.m_typed.m_items[idx].m_field0 = it->first;
+            pkt.m_typed.m_items[idx].m_field4 = it->second;
             idx++;
-            if (99 < idx)
+            bool over = (idx > 0x2fd);
+            if (over)
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = 100;
+                pkt.m_typed.m_count = 0x2fe;
                 handler->SendToDB((PacketHeader*)&pkt);
                 DNF_LOG_SCOPE_LINE(0x327, "./log/Statistic", "Packet_DBMW_Ting_User_TimeCheck_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
                 idx = 0;
@@ -735,7 +739,7 @@ void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
         }
         if (idx != 0)
         {
-            *(unsigned int*)((char*)&pkt + 0xa) = idx;
+            pkt.m_typed.m_count = idx;
             handler->SendToDB((PacketHeader*)&pkt);
             DNF_LOG_SCOPE_LINE(0x331, "./log/Statistic", "Packet_DBMW_Ting_User_TimeCheck_Write_Query : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb", idx);
         }
@@ -1173,21 +1177,11 @@ void StatisticManager::SendDBFatigueBattery(CServerHandler* handler)
         return;
     }
     Packet_DBMW_Fatigue_Battery_Money_Statistic pkt;
-    struct FatigueBatteryWire
-    {
-        int m_field0;
-        int m_field4;
-    };
-    struct __attribute__((packed)) Wire
-    {
-        char m_hdr[0xa];
-        FatigueBatteryWire m_items[0x65];  // POD 镜像，packed 生效：m_items@+0xa，元素 8 字节
-    };
     for (std::map<unsigned char, STFatigueBattery>::iterator it = m_fatigue.begin();
          it != m_fatigue.end(); ++it)
     {
-        ((Wire*)&pkt)->m_items[(unsigned int)it->first].m_field0 = it->second.m_field0;
-        ((Wire*)&pkt)->m_items[(unsigned int)it->first].m_field4 = it->second.m_field4;
+        pkt.m_typed.m_items[(unsigned int)it->first].m_field0 = it->second.m_field0;
+        pkt.m_typed.m_items[(unsigned int)it->first].m_field4 = it->second.m_field4;
     }
     handler->SendToDB((PacketHeader*)&pkt);
 }
@@ -1317,11 +1311,11 @@ struct __attribute__((packed)) LagWire
 }
 void StatisticManager::AddCreateEmblemInfo(Packet_Emblem_Create_Statistic* pkt)
 {
-    for (int i = 0; i < ((EmblemCreateWire*)pkt)->b.m_count; i++)
+    for (int i = 0; i < pkt->m_count; i++)
     {
-        for (int j = 0; j < ((EmblemCreateWire*)pkt)->a.m_arrA[i + 8]; j++)
+        for (int j = 0; j < pkt->m_arrA[i + 8]; j++)
         {
-            m_createEmblem.increaseCount(((EmblemCreateWire*)pkt)->b.m_arrB[i]);
+            m_createEmblem.increaseCount(pkt->m_arrB[i]);
         }
     }
 }
@@ -1356,12 +1350,12 @@ void StatisticManager::AddRandomboxStatistic(Packet_Randombox_statistic* pkt)
 void StatisticManager::SendDBRandomboxStatistic(CServerHandler* handler)
 {
     Packet_Randombox_statistic_DB pkt;
+    struct RBoxView1 { int m_pad[2]; int m_b[0xd8]; };
+    struct RBoxView2 { int m_pad[3]; int m_b[0xd8]; };
     for (int i = 0; i < 5; i++)
     {
-        *(unsigned int*)((char*)&pkt + 0xa + i * 4) =
-            *(unsigned int*)((char*)this + (i + 0xd0) * 4 + 8);
-        *(unsigned int*)((char*)&pkt + 0x1e + i * 4) =
-            *(unsigned int*)((char*)this + (i + 0xd4) * 4 + 0xc);
+        pkt.m_typed.m_a[i] = m_randomboxA[i];
+        pkt.m_typed.m_b[i] = m_randomboxB[i];
     }
     handler->SendToDB((PacketHeader*)&pkt);
 }
@@ -1480,18 +1474,12 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
 }
 void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
 {
-    struct __attribute__((packed)) Wire
-    {
-        char m_hdr[0xa];
-        int m_f0a;
-        int m_data[0x1e];
-    };
     std::map<int, ValueStatisticData>::iterator it = m_value.find(*(int*)((char*)pkt + 10));
     if (it != m_value.end())
     {
         for (int i = 0; i < 0x1e; i++)
         {
-            it->second.m_data[i] += ((Wire*)pkt)->m_data[i];
+            it->second.m_data[i] += pkt->m_data[i];
         }
     }
     else
@@ -1499,7 +1487,7 @@ void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
         ValueStatisticData v;
         for (int i = 0; i < 0x1e; i++)
         {
-            v.m_data[i] = ((Wire*)pkt)->m_data[i];
+            v.m_data[i] = pkt->m_data[i];
         }
         m_value.insert(std::make_pair(*(int*)((char*)pkt + 10), v));
     }
@@ -1539,18 +1527,12 @@ void StatisticManager::SendDBValueStatistic(CServerHandler* handler)
 }
 void StatisticManager::AddCirculationStatistics(Packet_Circulation_Statistic* pkt)
 {
-    struct __attribute__((packed)) Wire
-    {
-        char m_hdr[0xa];
-        int m_f0a;
-        int m_data[0x30];
-    };
     std::map<int, CirculationStatisticData>::iterator it = m_circ.find(*(int*)((char*)pkt + 10));
     if (it != m_circ.end())
     {
         for (int i = 0; i < 0x30; i++)
         {
-            it->second.m_data[i] += ((Wire*)pkt)->m_data[i];
+            it->second.m_data[i] += pkt->m_data[i];
         }
     }
     else
@@ -1558,7 +1540,7 @@ void StatisticManager::AddCirculationStatistics(Packet_Circulation_Statistic* pk
         CirculationStatisticData v;
         for (int i = 0; i < 0x30; i++)
         {
-            v.m_data[i] = ((Wire*)pkt)->m_data[i];
+            v.m_data[i] = pkt->m_data[i];
         }
         m_circ.insert(std::make_pair(*(int*)((char*)pkt + 10), v));
     }

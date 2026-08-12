@@ -111,7 +111,7 @@ int CPeer::send_packet()
     {
         if ((int)m_remainSendLen > ret)
         {
-            m_recvBuf = (char*)this + 0x183c + ret;
+            m_recvBuf = m_data183c + ret;
             m_remainSendLen -= ret;
             if (m_remainSendLen > 0x96000u)
             {
@@ -120,12 +120,13 @@ int CPeer::send_packet()
                 log("./log/TcpErr",
                     "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
                     remain);
+                char pad[16];
                 m_recvBuf = (char*)this + 0x183c;
                 m_remainSendLen = 0;
                 return 1;
             }
             memmove((char*)this + 0x183c, m_recvBuf, m_remainSendLen);
-            m_recvBuf = (char*)this + 0x183c + m_remainSendLen;
+            m_recvBuf = m_data183c + m_remainSendLen;
         }
         else if ((int)m_remainSendLen < ret)
         {

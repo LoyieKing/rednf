@@ -491,7 +491,16 @@ class Packet_DBMW_Packet_Overflow_Statistic : public PacketHeader
 {
 public:
     Packet_DBMW_Packet_Overflow_Statistic();
-    char m_data[0x7];
+    union
+    {
+        char m_data[0x7];
+        struct __attribute__((packed))
+        {
+            char m_field0;            // +0xa
+            unsigned short m_field2;  // +0xb
+            unsigned int m_field4;    // +0xd
+        } m_typed;
+    };
 } __attribute__((packed));
 
 class Packet_Avater_Disjoint_Statistic_DB : public PacketHeader
@@ -512,7 +521,15 @@ class Packet_Randombox_statistic_DB : public PacketHeader
 {
 public:
     Packet_Randombox_statistic_DB();
-    char m_data[0x28];
+    union
+    {
+        char m_data[0x28];
+        struct __attribute__((packed))
+        {
+            unsigned int m_a[5];   // +0xa
+            unsigned int m_b[5];   // +0x1e
+        } m_typed;
+    };
 } __attribute__((packed));
 
 class Packet_Server_Match_data_DBMW : public PacketHeader
@@ -543,7 +560,19 @@ class Packet_DBMW_Fatigue_Battery_Money_Statistic : public PacketHeader
 {
 public:
     Packet_DBMW_Fatigue_Battery_Money_Statistic();
-    char m_data[0x328];
+    struct FatigueBatteryItem
+    {
+        int m_field0;
+        int m_field4;
+    };
+    union
+    {
+        char m_data[0x328];
+        struct __attribute__((packed))
+        {
+            FatigueBatteryItem m_items[0x65];
+        } m_typed;
+    };
 } __attribute__((packed));
 
 class Packet_DBMW_User_Ting_TimeCheck_Write_Query : public PacketHeader
@@ -595,7 +624,20 @@ class Packet_DBMW_Ting_User_TimeCheck_Write_Query : public PacketHeader
 {
 public:
     Packet_DBMW_Ting_User_TimeCheck_Write_Query();
-    char m_data[0x17f4];
+    struct TingItem
+    {
+        unsigned int m_field0;
+        int m_field4;
+    };
+    union
+    {
+        char m_data[0x17f4];
+        struct __attribute__((packed))
+        {
+            unsigned int m_count;        // +0xa
+            TingItem m_items[0x2fe];     // +0xe
+        } m_typed;
+    };
 } __attribute__((packed));
 
 class Packet_DBMW_Powerwar_Loading_Time_Report : public PacketHeader

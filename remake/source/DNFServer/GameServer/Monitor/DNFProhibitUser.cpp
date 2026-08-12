@@ -58,7 +58,8 @@ unsigned short CDNFProhibitUser::GetProhibitRemainTime()
 bool CDNFProhibitUser::IsTimeOutConnectable()
 {
     m_remain = m_remain - 1;
-    if ((short)m_remain <= 0)
+    register bool b = ((short)m_remain <= 0);
+    if (b)
     {
         return true;
     }

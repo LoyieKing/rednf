@@ -416,12 +416,17 @@ const char* CGuildCargo::PrintDnfItemInfo(DnfItemInfo& info)
 void CGuildCargo::SendGuildCargoToDBMW(CServerHandler* handler, int slot)
 {
     CTcpDBServer* db = handler->GetTcpDBServer();
-    char* pkt = db->makePacketHeader(0x710, 0x18ea);
-    char* p = pkt;
-    *(unsigned int*)(p + 0xa) = m_guildKey;
-    *(int*)(p + 0xe) = slot;
-    memcpy(p + 0x12, this, 0x18d8);
-    db->SendToServer(p);
+    struct GuildCargoToDBMWPkt {
+        char hdr[0xa];
+        unsigned int guildKey;
+        int slot;
+        char cargo[0x18d8];
+    } __attribute__((packed));
+    GuildCargoToDBMWPkt* p = (GuildCargoToDBMWPkt*)db->makePacketHeader(0x710, 0x18ea);
+    p->guildKey = m_guildKey;
+    p->slot = slot;
+    memcpy(p->cargo, this, 0x18d8);
+    db->SendToServer((char*)p);
 }
 
 int CGuildCargo::IsEmpty()

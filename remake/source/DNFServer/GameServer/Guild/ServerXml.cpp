@@ -292,7 +292,6 @@ void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
             break;
         }
     }
-    __asm__ __volatile__("nop");
 }
 
 std::string CServerXml::GetServerString(int idx, bool* ok) const

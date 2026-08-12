@@ -304,7 +304,7 @@ int CGuildWar::SameRankWork()
     return 1;
 }
 
-int CGuildWar::IsGuildWarEnterableGuild(unsigned int guildId)
+bool CGuildWar::IsGuildWarEnterableGuild(unsigned int guildId)
 {
     if (guildId == 0)
     {

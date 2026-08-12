@@ -91,10 +91,12 @@ bool CServerInterface::IsConnected() { return m_connected; }
 char CServerInterface::IsHeartBeatTimeOver()
 {
     m_heart = m_heart - 1;
-    if (m_heart == 0)
+    register bool b = (m_heart == 0);
+    if (b)
     {
         ++m_padA[0];
-        if (m_padA[0] > 0x14)
+        register bool b2 = (m_padA[0] > 0x14);
+        if (b2)
         {
             return 1;
         }
