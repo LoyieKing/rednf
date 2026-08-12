@@ -1452,12 +1452,13 @@ void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
         int m_f0a;
         int m_data[0x1e];
     };
+    register Wire* w = (Wire*)pkt;
     std::map<int, ValueStatisticData>::iterator it = m_value.find(*(int*)((char*)pkt + 10));
     if (it != m_value.end())
     {
         for (int i = 0; i < 0x1e; i++)
         {
-            it->second.m_data[i] += ((Wire*)pkt)->m_data[i];
+            it->second.m_data[i] += w->m_data[i];
         }
     }
     else
@@ -1465,7 +1466,7 @@ void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
         ValueStatisticData v;
         for (int i = 0; i < 0x1e; i++)
         {
-            v.m_data[i] = ((Wire*)pkt)->m_data[i];
+            v.m_data[i] = w->m_data[i];
         }
         m_value.insert(std::make_pair(*(int*)((char*)pkt + 10), v));
     }

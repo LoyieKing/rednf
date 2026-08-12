@@ -67,7 +67,7 @@ public:
     void sendMessageToDBMW_GuildMasterChanging(CServerHandler* handler, CUser* user,
                                                const char* name);
     unsigned int m_field0;   // +0
-    unsigned char m_webAction;   // +4
+    bool m_webAction;            // +4
     char m_pad5[3];
     int m_loadState;         // +8
     std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> > m_board;  // +0xc

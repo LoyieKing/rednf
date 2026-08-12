@@ -146,7 +146,6 @@ int CPowerWarGuildInfo::InsertPowerwarGuild(unsigned int guildKey, STPowerWarGui
 {
     m_map.insert(std::make_pair(guildKey, info));
     m_vec.push_back(info);
-    return 0;
 }
 
 void CPowerWarGuildInfo::UpdateGuildPowerwarInfo(unsigned int guildKey, unsigned short point)

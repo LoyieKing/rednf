@@ -32,7 +32,7 @@ struct STGuildMemerDBInfo;
 struct STGuildMemerDBInfo
 {
     STGuildMemerDBInfo();
-    char m_data[0x1a];
+    unsigned char m_data[0x1a];
 };
 
 // from GuildDomain.h

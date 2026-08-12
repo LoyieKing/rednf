@@ -30,32 +30,37 @@ CFrameCountHandler::CFrameCountHandler()
 }
 void CFrameCountHandler::SaveProcess()
 {
-    m_field28++;
-    if (m_field28 != 0)
+    register bool b;
+    ++m_field28;
+    b = m_field28 != 0;
+    if (b)
     {
-        CMyFileLog log(__FUNCTION__, 0xa8);
-        log("./log/frame", "FPS(%02d) / DFC(%02d)\n", m_field18, m_field4);
+        DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_field18, m_field4);
         m_field28 = 0;
     }
 }
 void CFrameCountHandler::SaveProcess(int n)
 {
-    m_field28++;
-    if (m_field28 != 0)
+    register bool b;
+    ++m_field28;
+    b = m_field28 != 0;
+    if (b)
     {
-        CMyFileLog log(__FUNCTION__, 0xb8);
-        log("./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", n, m_field18, m_field4);
+        DNF_LOG_SCOPE_LINE(0xb8, "./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", n, m_field18, m_field4);
         m_field28 = 0;
     }
 }
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int a, unsigned short b)
 {
-    if (!a)
-        throw CDNFException("CFrameCountHandler::InitFrameCountInfo() Exception Break!");
+    if (a == 0)
+        goto InitFrameCountInfo_throw;
     m_app = app;
     memset(this, 0, 0x28);
     m_field4 = a;
     m_field8 = 100 / a;
+    return;
+InitFrameCountInfo_throw:
+    throw CDNFException("CFrameCountHandler::InitFrameCountInfo() Exception Break!");
 }
 void* CFrameCountHandler::GetFrameCountInfo()
 {

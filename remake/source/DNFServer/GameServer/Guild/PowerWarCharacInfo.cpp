@@ -150,7 +150,6 @@ int CPowerWarCharacInfo::InsertPowerwarCharac(unsigned int charNo, STPowerWarCha
 {
     m_map.insert(std::make_pair(charNo, info));
     m_vec.push_back(info);
-    return 0;
 }
 
 void CPowerWarCharacInfo::UpdatePowerwarCharacInfo(unsigned int charNo, unsigned short point)
