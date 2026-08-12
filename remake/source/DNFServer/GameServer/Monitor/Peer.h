@@ -255,7 +255,7 @@ public:
     int send_packet(char* buf, int len);
     void InitPeer(std::queue<CTcpRecvBuffer*>* recvQ, CMutex* recvQLock, CMutex* recvBLock);
     void ConnSig();
-    int parsing(int recvLen);
+    bool parsing(int recvLen);
     char m_data[0x1800];   // +0x1c..+0x181b
     char* m_buf;           // +0x181c
     int m_remainLen;       // +0x1820

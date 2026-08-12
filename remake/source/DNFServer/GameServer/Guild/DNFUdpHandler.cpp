@@ -319,8 +319,7 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char cons
     else
     {
         sockaddr_in to;
-        register void* pto = &to;
-        memset(pto, 0, 0x10);
+        memset(&to, 0, 0x10);
         to.sin_family = 2;
         to.sin_port = htons(port);
         to.sin_addr.s_addr = inet_addr(ip);

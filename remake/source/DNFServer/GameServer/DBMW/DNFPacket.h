@@ -1062,7 +1062,15 @@ struct STGuildDBInfoOnly
     char m_guildName[0x17];       // +0
     int m_masterNo;               // +0x17
     unsigned char m_lev;          // +0x1b
-    unsigned short m_ability;     // +0x1c（bit 标志）
+    union
+    {
+        unsigned short m_ability; // +0x1c（bit 标志）
+        struct
+        {
+            unsigned char b0;
+            unsigned char b1;
+        };
+    };
     int m_field1E;                // +0x1e..0x21
     unsigned short m_memberCount; // +0x22
     int m_guildPoint;             // +0x24

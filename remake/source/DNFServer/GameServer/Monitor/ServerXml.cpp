@@ -164,19 +164,22 @@ void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
     if (str != 0)
     {
         std::string s(str);
-        if (type == STRING_TYPE_1)
+        switch (type)
         {
-            m_map70.insert(std::make_pair(idx, s));
-        }
-        else if (type == STRING_TYPE_2)
-        {
-            m_map88.insert(std::make_pair(idx, s));
-        }
-        else if (type == STRING_TYPE_0)
-        {
-            m_map58.insert(std::make_pair(idx, s));
+        case STRING_TYPE_0:
+            m_map58.insert(std::pair<int, std::string>(idx, s));
+            break;
+        case STRING_TYPE_1:
+            m_map70.insert(std::pair<int, std::string>(idx, s));
+            break;
+        case STRING_TYPE_2:
+            m_map88.insert(std::pair<int, std::string>(idx, s));
+            break;
+        default:
+            break;
         }
     }
+    __asm__ __volatile__("nop");
 }
 
 std::string CServerXml::GetServerString(int idx, bool* ok) const
@@ -190,13 +193,16 @@ std::string CServerXml::GetServerString(int idx, bool* ok) const
         {
             *ok = 1;
         }
-        return it->second;
     }
-    if (ok != 0)
+    else
     {
-        *ok = 0;
+        if (ok != 0)
+        {
+            *ok = 0;
+        }
+        return s;
     }
-    return s;
+    return it->second;
 }
 
 unsigned int CServerXml::GetEventRGBA(int idx) const
@@ -224,13 +230,16 @@ std::string CServerXml::GetEventString(int idx, _eStringType type, bool* ok) con
             {
                 *ok = 1;
             }
-            return it->second;
         }
-        if (ok != 0)
+        else
         {
-            *ok = 0;
+            if (ok != 0)
+            {
+                *ok = 0;
+            }
+            return s;
         }
-        return s;
+        return it->second;
     case STRING_TYPE_2:
         it = m_map88.find(idx);
         if (it != m_map88.end())
@@ -239,13 +248,16 @@ std::string CServerXml::GetEventString(int idx, _eStringType type, bool* ok) con
             {
                 *ok = 1;
             }
-            return it->second;
         }
-        if (ok != 0)
+        else
         {
-            *ok = 0;
+            if (ok != 0)
+            {
+                *ok = 0;
+            }
+            return s;
         }
-        return s;
+        return it->second;
     default:
         return s;
     }

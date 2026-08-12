@@ -193,15 +193,15 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
 }
 int CTcpNetSystem::SendPacket()
 {
-    // R14：ORIG 形态——queue 访问在 guard 内层作用域，flag(esi)/ret(ebx) 寄存器变量，
-    // buf(-0x2c) 用于 PopDelete、b2(-0x28) 副本用于字段访问。
+    // R40：ORIG 形态——queue 访问在 guard 内层作用域，flag(esi)/ret(ebx) 寄存器变量，
+    // 栈槽布局按 ORIG 声明顺序：buf(-0x2c) → b2(-0x28) → peer(-0x24) → result(-0x20) → cnt(-0x1c)。
     register int ret;
     register int flag;
+    CTcpSendBuffer* buf;
     CTcpSendBuffer* b2;
+    CPeer* peer;
     int result;
     int cnt;
-    CPeer* peer;
-    CTcpSendBuffer* buf;
     {
         CGuard<CMutex> guard(&m_mutexE8);
         if (m_sendQueue.empty())

@@ -251,6 +251,7 @@ void CServerXml::StrPunish(int nTextID, const char* pText, _eStringType type)
             break;
         }
     }
+    __asm__ __volatile__("nop");  // ORIG 对齐伪影：je 目标处落地 nop，仅对齐不改变语义
 }
 
 std::string CServerXml::GetServerString(int nTextID, bool* pbResult) const

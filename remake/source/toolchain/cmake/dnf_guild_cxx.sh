@@ -12,6 +12,11 @@
 #   TcpNetSystem：CTcpNetSystem D1/D2 的虚调用（fn->%edx 形态）与 c6444r
 #   逐条一致（第 30 轮验证，NEAR→IDENTICAL；同 TU 其余函数 c6/c6444r 均
 #   identical，含 Init 在 begin() 返回 bool 后 IDENTICAL）
+# - DNFTableBase：c6 编译但去掉 -fno-enforce-eh-specs。ORIG 该 TU 的
+#   CDNFException what/D1/D2 带 __cxa_call_unexpected landing pad（throw()
+#   异常规范强制代码），带该 flag 会丢失 pad 导致 DIFF；去掉后
+#   what/D1/D2 全部 IDENTICAL_AE（第 40 轮验证，同 TU CTableBase 均为
+#   MISSING_ORIG 不统计，无回归）
 ROOT=/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake
 C6="$ROOT/dnf_c6_gxx.sh"
 C6444R="$ROOT/dnf_c6444r_gxx.sh"
@@ -25,6 +30,16 @@ for a in "$@"; do
     prev="$a"
 done
 case "$(basename "$src" .cpp)" in
+    DNFTableBase)
+        filtered=""
+        for a in "$@"; do
+            if [ "$a" = "-fno-enforce-eh-specs" ]; then
+                continue
+            fi
+            filtered="$filtered $a"
+        done
+        # shellcheck disable=SC2086
+        exec "$C6" $filtered ;;
     DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface|DNFTcpAcceptThread|TcpNetSystem|DNFAppStopInit|DNFAppStartInit|DNFServerHandler|PowerWar)
         exec "$C6444R" "$@" ;;
     *)

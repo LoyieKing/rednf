@@ -45,8 +45,7 @@ void CBuddyRegisterManager::addBuddyRegister(unsigned int key, unsigned int valu
 int CBuddyRegisterManager::delBuddyRegister(unsigned int key, unsigned int value)
 {
     std::multimap<unsigned int, unsigned int>::iterator it = m_map.lower_bound(key);
-    std::multimap<unsigned int, unsigned int>::iterator end = m_map.upper_bound(key);
-    for (; it != end; ++it)
+    for (; it != m_map.upper_bound(key); ++it)
     {
         if (it->second == value)
         {
@@ -60,8 +59,7 @@ int CBuddyRegisterManager::delBuddyRegister(unsigned int key, unsigned int value
 void CBuddyRegisterManager::delBuddyRegister(unsigned int key)
 {
     std::multimap<unsigned int, unsigned int>::iterator it = m_map.lower_bound(key);
-    std::multimap<unsigned int, unsigned int>::iterator end = m_map.upper_bound(key);
-    while (it != end)
+    while (it != m_map.upper_bound(key))
     {
         m_map.erase(it++);
     }
@@ -79,10 +77,9 @@ void CBuddyRegisterManager::findBuddyRegister(unsigned int key, std::vector<unsi
 
 void CBuddyRegisterManager::printBuddyRegister(char* name, unsigned int flag)
 {
-    unsigned int key = *(unsigned int*)name;
-    for (std::multimap<unsigned int, unsigned int>::iterator it = m_map.lower_bound(key);
-         it != m_map.upper_bound(key); ++it)
+    for (std::multimap<unsigned int, unsigned int>::iterator it = m_map.lower_bound(flag);
+         it != m_map.upper_bound(flag); ++it)
     {
-        DNF_LOG_SCOPE_LINE(0x68, "./log/buddyRegister", "[%s] rcharNo(%d)", flag, it->second);
+        DNF_LOG_SCOPE_LINE(0x68, "./log/buddyRegister", "[%s] rcharNo(%d)", name, it->second);
     }
 }

@@ -321,14 +321,12 @@ unsigned char CMemberManager::IsMemberExpLevelUp(unsigned int exp)
 
 void CMemberManager::NoticeLevelUpToLowers(unsigned int upperCharId, unsigned int exp)
 {
-    CMember* upper = FindMember(upperCharId);
-    if (upper != 0)
+    CMember* upper;
+    if ((upper = FindMember(upperCharId)) != 0)
     {
-        unsigned char level = (unsigned char)m_memberExpTbl->GetMemberExpLevel(exp);
-        upper->NoticeLevelUpToLowers(level);
-        unsigned char level2 = (unsigned char)m_memberExpTbl->GetMemberExpLevel(exp);
+        upper->NoticeLevelUpToLowers((unsigned char)m_memberExpTbl->GetMemberExpLevel(exp));
         DNF_LOG_SCOPE_LINE(0x180,"./log/MemberModify", "Member Level Up! Char Id(%d), Exp(%d), Level(%d)",
-            upperCharId, exp, (unsigned int)level2);
+            upperCharId, exp, (unsigned int)(unsigned char)m_memberExpTbl->GetMemberExpLevel(exp));
     }
 }
 

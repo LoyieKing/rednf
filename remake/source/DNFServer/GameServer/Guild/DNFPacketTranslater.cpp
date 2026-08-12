@@ -3,6 +3,7 @@
 #include <string.h>
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
+#include "Packet_Request_Power_War_Start_Info.h"
 #include "Packet_Guild_Change_Power_War_Point.h"
 
 #include "DNFPacketTranslater.h"
@@ -738,12 +739,16 @@ void CPacketTranslater::OnNoticeGuildMarkChange(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildMarkChange : 0 == m_pclApp")
-    char* pb = (char*)pkt;
-    CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(*(unsigned int*)(pb + 10));
+    Packet_Guild_Mark_Change_Notice* pbinfo = (Packet_Guild_Mark_Change_Notice*)pkt;
+    DNF_LOG_SCOPE_LINE(0x328, "./log/Web",
+        "[GUILD MARK CHANGE] Recv from web server. (guildkey:%d)\n", pbinfo->m_guildKey);
+    CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(pbinfo->m_guildKey);
     if (guild != 0)
     {
-        guild->NoticeMarkChangeToGuildMember(*(unsigned int*)(pb + 0xe));
+        guild->NoticeMarkChangeToGuildMember(pbinfo->m_guildKey);
     }
+    DNF_LOG_SCOPE_LINE(0x331, "./log/Web",
+        "[GUILD MARK CHANGE] Not exist guild. (guildkey:%d)\n", pbinfo->m_guildKey);
     }
     catch (CDNFException& e)
     {
@@ -2065,6 +2070,7 @@ void CPacketTranslater::SendPacketGuildMail(unsigned char group, unsigned int ch
                                             unsigned int param)
 {
     Packet_DBMW_Send_Guild_Mail pkt;
+    char gap[0x1];
     pkt.m_group = group;
     pkt.m_charNo = charNo;
     pkt.m_guildKey = guildKey;
@@ -3362,7 +3368,8 @@ void CPacketTranslater::OnDBReplyGuildCreate(PacketHeader* pkt)
 
 void CPacketTranslater::OnPowerWarStartInfo(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    Packet_Request_Power_War_Start_Info* pbinfo =
+        (Packet_Request_Power_War_Start_Info*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x118a, "./log/Power", "CPacketTranslater::OnPowerWarStartInfo : 0 == m_pclApp");
@@ -3374,13 +3381,12 @@ void CPacketTranslater::OnPowerWarStartInfo(PacketHeader* pkt)
         if (pm->IsPowerWarOn() != 0)
         {
             Packet_Monitor_Event_Start start;
-            *(unsigned int*)((char*)&start + 0xa) = 0x1e;
-            m_pclApp->Get_ServerHandler()->SendToGameServer((unsigned char)*(unsigned int*)(pb + 0xa),
+            start.m_fieldA = 0x1e;
+            m_pclApp->Get_ServerHandler()->SendToGameServer((unsigned char)pbinfo->m_field,
                                                             &start);
         }
-        const char* state = pm->IsPowerWarOn() == 0 ? "END!" : "START!";
-        DNF_LOG_SCOPE_LINE(0x119a,"./log/Power", "OnPowerWarStartInfo(%d) - power war %s ", *(unsigned int*)(pb + 0xa),
-            state);
+        DNF_LOG_SCOPE_LINE(0x119a,"./log/Power", "OnPowerWarStartInfo(%d) - power war %s ", pbinfo->m_field,
+            pm->IsPowerWarOn() ? "START!" : "END!");
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPowerWarStartInfo Exception Break", 0x119e, 0x11a3);
 }

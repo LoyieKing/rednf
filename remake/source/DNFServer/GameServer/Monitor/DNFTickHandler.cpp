@@ -42,7 +42,7 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int fram
     {
         m_app = app;
         memset((char*)this, 0, 0x28);
-        reinterpret_cast<int&>(m_field4) = (int)frameCount;
+        m_field4 = frameCount;
         m_field8 = 100 / frameCount;
     }
     else

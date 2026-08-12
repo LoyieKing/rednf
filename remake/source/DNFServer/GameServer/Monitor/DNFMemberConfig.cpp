@@ -106,22 +106,22 @@ int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
     int local_8 = 1;
     if (exp >= (unsigned int)m_table[local_c])
     {
-        local_8 = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
+        return m_count - 1;
     }
-    else
+    if (exp == 0)
     {
-        if (exp == 0)
+        return local_8;
+    }
+    while (local_c-- != 0)
+    {
+        if (exp <= *(unsigned int*)p || *(unsigned int*)(p + 4) < exp)
         {
-            local_8 = 1;
+            local_8 = local_8 + 1;
+            p = p + 4;
         }
         else
         {
-            while (local_c-- != 0 &&
-                   (exp <= *(unsigned int*)p || *(unsigned int*)(p + 4) < exp))
-            {
-                local_8 = local_8 + 1;
-                p = p + 4;
-            }
+            break;
         }
     }
     return local_8;

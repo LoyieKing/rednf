@@ -33,7 +33,7 @@ void* CTcpHandler::GetEventPtr(int idx)
     {
         return 0;
     }
-    return m_epoll->GetEventPtr(idx);
+    return ((EpollHandler*)m_epoll)->GetEventPtr(idx);
 }
 
 int CTcpHandler::SetPeer(void* peer, int fd, bool flag)
@@ -42,7 +42,7 @@ int CTcpHandler::SetPeer(void* peer, int fd, bool flag)
     {
         return -1;
     }
-    return m_epoll->SetEpoll(peer, fd, flag);
+    return ((EpollHandler*)m_epoll)->SetEpoll(peer, fd, flag);
 }
 
 int CTcpHandler::WaitForEvent()
@@ -60,11 +60,11 @@ int CTcpHandler::ResetEpoll(int flag)
     {
         return -1;
     }
-    int ret = m_epoll->ResetEpoll(flag);
+    int ret = ((EpollHandler*)m_epoll)->ResetEpoll(flag);
     return ret;
 }
 
-CTcpHandler::CTcpHandler() : m_epoll(new EpollHandler)
+CTcpHandler::CTcpHandler() : m_epoll(new EpollHandler())
 {
 }
 
@@ -72,7 +72,7 @@ CTcpHandler::~CTcpHandler()
 {
     if (m_epoll)
     {
-        delete m_epoll;
+        delete (EpollHandler*)m_epoll;
         m_epoll = 0;
     }
 }
@@ -83,7 +83,7 @@ char CTcpHandler::IsSetInEvent(int idx)
     {
         return 0;
     }
-    return m_epoll->IsSetInEvent(idx);
+    return ((EpollHandler*)m_epoll)->IsSetInEvent(idx);
 }
 
 char CTcpHandler::IsSetOutEvent(int idx)
@@ -92,7 +92,7 @@ char CTcpHandler::IsSetOutEvent(int idx)
     {
         return 0;
     }
-    return m_epoll->IsSetOutEvent(idx);
+    return ((EpollHandler*)m_epoll)->IsSetOutEvent(idx);
 }
 
 char CTcpHandler::IsSetErrEvent(int idx)
@@ -101,5 +101,5 @@ char CTcpHandler::IsSetErrEvent(int idx)
     {
         return 0;
     }
-    return m_epoll->IsSetErrEvent(idx);
+    return ((EpollHandler*)m_epoll)->IsSetErrEvent(idx);
 }

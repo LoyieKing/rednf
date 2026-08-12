@@ -356,8 +356,9 @@ bool CMemoryCashManager::SetUserObject(CUser* user)
         obj->SetBlackUsersObject(*user->GetMapBlackList());
         incBlackListCashCnt();
         obj->SetLifeTime(5);
+        return 1;
     }
-    return it != m_cashObjects.end();
+    return 0;
 }
 
 void CMemoryCashManager::DeleteCashObjecct(unsigned int dbid)

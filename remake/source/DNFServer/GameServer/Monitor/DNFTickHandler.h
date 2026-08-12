@@ -247,7 +247,7 @@ public:
     void SaveProcess(int threadNo);
     unsigned char m_field0;    // +0
     char m_pad1[3];            // +1
-    int m_field4;              // +4
+    unsigned int m_field4;     // +4
     int m_field8;              // +8
     int m_fieldc;              // +0xc
     int m_field10;             // +0x10

@@ -249,7 +249,7 @@ public:
     char IsSetInEvent(int idx);
     char IsSetOutEvent(int idx);
     char IsSetErrEvent(int idx);
-    EpollHandler* m_epoll;  // +0
+    CProtocol* m_epoll;     // +0
 };
 
 #endif  // MONITOR_DNFTCPHANDLER_H_

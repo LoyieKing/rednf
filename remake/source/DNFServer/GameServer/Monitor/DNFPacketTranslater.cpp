@@ -586,12 +586,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                         DNF_LOG_SCOPE_LINE(0x318, "./log/DBHeartBeat", "DB Server Connection Complete!");
                     }
                 }
-                else if (channel == 0 || 0xbe < channel)
-                {
-                    DNF_LOG_SCOPE_LINE(0x341,"./log/Except", "[ERROR - HEART BEAT] Channel Index(%d) Over.",
-                        (unsigned int)((RA_U8<10>*)p)->v);
-                }
-                else
+                else if (channel != 0 && channel <= 0xbe)
                 {
                     handler->ResetHeartBeat(channel);
                     if (!handler->IsConnectedGameServer(channel))
@@ -599,18 +594,23 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                         handler->SetConnectFlag(channel, true);
                         Packet_Tcp_Server_Connect pkt2;
                         pkt2.m_channel = 0xc9;
-                        CServerInterface* gs = handler->GetGameServer((unsigned int)channel);
-                        if (gs == 0)
+                        CServerInterface* gs;
+                        if ((gs = handler->GetGameServer((unsigned int)channel)) != 0)
+                        {
+                            gs->SendToServer((char*)&pkt2, 0xb);
+                        }
+                        else
                         {
                             DNF_LOG_SCOPE_LINE(0x337,"./log/Except",
                                 "CPacketTranslater::OnHeartBeat() => Channel Index : %d\n",
                                 (unsigned int)channel);
                         }
-                        else
-                        {
-                            gs->SendToServer((char*)&pkt2, 0xb);
-                        }
                     }
+                }
+                else
+                {
+                    DNF_LOG_SCOPE_LINE(0x341,"./log/Except", "[ERROR - HEART BEAT] Channel Index(%d) Over.",
+                        (unsigned int)((RA_U8<10>*)p)->v);
                 }
             }
             catch (CDNFException& e)
@@ -3153,15 +3153,13 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
 }
 
 void CPacketTranslater::onRequestReloadTowerRanker(PacketHeader* pkt)
-{try
 {
-
-
-    CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
-    tower->processReloadRanking(m_pclApp->m_serverHandler2, true, 5);
-    m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 10);
-
-
+    register CServerHandler* handler = m_pclApp->m_serverHandler2;
+    register CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
+    try
+    {
+        tower->processReloadRanking(handler, true, 5);
+        m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 10);
     }
     catch (CDNFException& e)
     {

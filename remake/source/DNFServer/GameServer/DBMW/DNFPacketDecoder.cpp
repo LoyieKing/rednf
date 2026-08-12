@@ -252,6 +252,7 @@ bool CPacketDecoder::MsgDecode(PacketHeader* header)
         m_table[header->packetId](header);
         CPacketTracerInstance()->EndPacketProcessLog(header->packetId);
         packet_counter.AfterProcess(header->packetId);
+        __asm__ __volatile__("nop");
         return 1;
     }
     printf("Game Message with identifier %i has arrived.\n", header->packetId);

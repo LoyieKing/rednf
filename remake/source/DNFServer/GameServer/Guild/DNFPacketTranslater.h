@@ -650,5 +650,13 @@ public:
 
 };
 
+// from GuildPackets.h
+class Packet_Guild_Mark_Change_Notice : public PacketHeader {
+public:
+    Packet_Guild_Mark_Change_Notice() : PacketHeader(0x403, 0x12) {};
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_fieldE;    // +0xe
+};
+
 #pragma pack(pop)
 #endif

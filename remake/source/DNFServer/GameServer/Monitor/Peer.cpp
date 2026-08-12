@@ -33,28 +33,26 @@ void CPeer::operator delete(void* p, unsigned int size) { ::operator delete(p); 
 
 int CPeer::recv_packet()
 {
-    int fd = getHandle();
-    if (fd < 0)
+    if (getHandle() < 0)
     {
         return 0;
     }
     errno = 0;
-    int remaining = (int)((char*)this + 0x181c - m_buf);
+    int remaining = (char*)this + 0x1c - m_buf + 0x1800;
     if (remaining == 0)
     {
         m_buf = (char*)this + 0x1c;
         m_remainLen = 0;
         remaining = 0x1800;
     }
-    int n = read(fd, m_buf, (size_t)(unsigned int)remaining);
-    if (n < 0)
+    int n = read(getHandle(), m_buf, remaining);
+    if ((char)((unsigned int)n >> 31))
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
         {
             return 0;
         }
-        printf("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)", getHandle(), errno,
-               strerror(errno));
+        printf("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)", getHandle(), errno, strerror(errno));
         return -1;
     }
     if (n == 0)
@@ -89,35 +87,34 @@ int CPeer::send_packet()
     int result = 0;
     if (m_sendRemain == 0)
     {
-        result = 1;
+        return 1;
     }
     else
     {
-        size_t n = (size_t)m_sendRemain;
-        result = write(getHandle(), m_sendBuf, n);
+        result = write(getHandle(), m_sendBuf, m_sendRemain);
         if (result < 1)
         {
             if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             {
-                result = 1;
+                return 1;
             }
             else
             {
                 printf("SEND ERROR DISCONNNECT NOW FD[%d] : %d(%s)", getHandle(), errno,
                        strerror(errno));
-                result = 1;
+                return 1;
             }
         }
-        else if (0 < result)
+        if (0 < result)
         {
             if (result < m_sendRemain)
             {
-                m_sendPtr = (char*)this + result + 0x183c;
+                m_sendPtr = (char*)this + 0x183c + result;
                 m_sendRemain = m_sendRemain - result;
                 if ((unsigned int)m_sendRemain < 0x96001)
                 {
-                    memmove(m_sendBuf, m_sendPtr, (size_t)m_sendRemain);
-                    m_sendPtr = (char*)this + m_sendRemain + 0x183c;
+                    memmove(m_sendBuf, m_sendPtr, m_sendRemain);
+                    m_sendPtr = (char*)this + 0x183c + m_sendRemain;
                 }
                 else
                 {
@@ -126,7 +123,7 @@ int CPeer::send_packet()
                         m_sendRemain);
                     m_sendPtr = (char*)this + 0x183c;
                     m_sendRemain = 0;
-                    result = 1;
+                    return 1;
                 }
             }
             else if (m_sendRemain < result)
@@ -150,20 +147,28 @@ int CPeer::send_packet(char* buf, int len)
     {
         return -1;
     }
-    if (len < 1)
+    if (len <= 0)
     {
         printf("!!!Send Packet[(%d,%d) Size(%d) Error\n", *buf, buf[1], len);
         return -1;
     }
     errno = 0;
     m_sendRemain = m_sendRemain + len;
-    if ((unsigned int)m_sendRemain < 0x96001)
+    if ((unsigned int)m_sendRemain > 0x96000)
     {
-        if (m_sendPtr < (char*)this + 0x183c || (char*)this + 0x9783c <= m_sendPtr)
+        DNF_LOG_SCOPE_LINE(0x133,"./log/TcpErr", "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
+            (char)buf[1], m_sendRemain, len);
+        m_sendPtr = (char*)this + 0x183c;
+        m_sendRemain = 0;
+        return -1;
+    }
+    else
+    {
+        if (m_sendPtr < m_sendBuf || m_sendPtr >= m_sendBuf + 0x96000)
         {
             DNF_LOG_SCOPE_LINE(0x13b,"./log/TcpErr",
-                "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
-                (unsigned char)buf[1], m_sendRemain, len);
+                "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
+                (char)buf[1], m_sendRemain, len);
             m_sendPtr = (char*)this + 0x183c;
             m_sendRemain = 0;
             return -1;
@@ -172,11 +177,6 @@ int CPeer::send_packet(char* buf, int len)
         m_sendPtr = m_sendPtr + len;
         return send_packet();
     }
-    DNF_LOG_SCOPE_LINE(0x133,"./log/TcpErr", "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
-        (unsigned char)buf[1], m_sendRemain, len);
-    m_sendPtr = (char*)this + 0x183c;
-    m_sendRemain = 0;
-    return -1;
 }
 
 TCPSocket* CPeer::GetTcpSocket() { return this; }
@@ -196,28 +196,27 @@ void CPeer::InitPeer(std::queue<CTcpRecvBuffer*>* recvQ, CMutex* recvQLock, CMut
 int CPeer::RecvPacket()
 {
     int n = recv_packet();
-    if (n < 1)
+    if (n > 0)
     {
-        if (n < 0)
+        if (!parsing(n))
         {
-            DNF_LOG_SCOPE_LINE(0x59,"./log/TcpRecv",
-                "Maybe Peer is disconnect!(%d), socket no(%d), addr(%s), port(%d)", n,
-                GetTcpSocket()->getHandle(), GetTcpSocket()->getPeerAdrs(),
-                (unsigned int)GetTcpSocket()->getPeerPort() & 0xffff);
-            printf("CPeer::Recv (size(%d) < 0)\n", n);
-            return 0;
+            DNF_LOG_SCOPE_LINE(0x4d, "./log/TcpRecv", "CPeer::Recv (false == parsing( size:%d ) )", n);
+            printf("CPeer::Recv (false == parsing( size:%d ) )\n", n);
+            return 1;
         }
-        DNF_LOG_SCOPE_LINE(99, "./log/TcpRecv", "Maybe Peer is disconnect!(size == 0)");
-        puts("CPeer::Recv (size == 0)");
         return 1;
     }
-    char ok = (char)parsing(n);
-    if (ok == 1)
+    if (n < 0)
     {
-        return 1;
+        DNF_LOG_SCOPE_LINE(0x59,"./log/TcpRecv",
+            "Maybe Peer is disconnect!(%d), socket no(%d), addr(%s), port(%d)", n,
+            GetTcpSocket()->getHandle(), GetTcpSocket()->getPeerAdrs(),
+            (unsigned int)GetTcpSocket()->getPeerPort() & 0xffff);
+        printf("CPeer::Recv (size(%d) < 0)\n", n);
+        return 0;
     }
-    DNF_LOG_SCOPE_LINE(0x4d, "./log/TcpRecv", "CPeer::Recv (false == parsing( size:%d ) )", n);
-    printf("CPeer::Recv (false == parsing( size:%d ) )\n", n);
+    DNF_LOG_SCOPE_LINE(99, "./log/TcpRecv", "Maybe Peer is disconnect!(size == 0)");
+    puts("CPeer::Recv (size == 0)");
     return 1;
 }
 
@@ -237,7 +236,7 @@ void CPeer::ConnSig()
     }
 }
 
-int CPeer::parsing(int recvLen)
+bool CPeer::parsing(int recvLen)
 {
     PacketHeader header(0, 0);
     unsigned int totalLen = (unsigned int)(m_remainLen + recvLen);

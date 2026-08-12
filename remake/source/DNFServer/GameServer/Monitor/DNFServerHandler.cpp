@@ -240,12 +240,14 @@ CTcpGameServer* CServerHandler::GetTcpGameServerByCh(unsigned char channel)
 
 void CServerHandler::queryReloadTowerRank(unsigned int channel)
 {
-    for (unsigned int i = 0; i <= 4; i++)
+    int i = 0;
+    while ((unsigned int)i <= 4)
     {
         Packet_Request_Load_Tower_Full_Rank pkt;
         pkt.m_rankNo = i;
         pkt.m_channel = channel;
         SendToDB(&pkt);
+        i++;
     }
 }
 

@@ -1092,29 +1092,30 @@ bool CDBManager::QueryUpdateChannelOccNum(Packet_User_Count_Statistic* packet)
 }
 char CDBManager::OnMemberDeleteAsCharDelete(unsigned int characNo)
 {
+    char r;
     CDBHandle* h = m_handles[2];    // game db
     CDBHandle* h2 = m_handles[3];   // game2nd db
     h->set_query(0x4e2d,
                  "deLete from charac_members where charac_no=%d", characNo);
-    h->exec(0x4e2d);
+    r = h->exec(0x4e2d);
     h->set_query(0x4e2e,
                  "upDate charac_members set master_no = 0 where master_no=%d",
                  characNo);
-    h->exec(0x4e2e);
+    r = h->exec(0x4e2e);
     h2->set_query(0x4e7e,
                   "deLete from charac_black_list where charac_no=%d",
                   characNo);
-    h2->exec(0x4e7e);
+    r = h2->exec(0x4e7e);
     h2->set_query(0x4e7f,
                   "deLete from charac_black_info where charac_no=%d",
                   characNo);
-    h2->exec(0x4e7f);
+    r = h2->exec(0x4e7f);
     h->set_query(0x4ea3,
                  "deLete from charac_friends where charac_no=%d", characNo);
-    h->exec(0x4ea3);
+    r = h->exec(0x4ea3);
     h->set_query(0x4ea4,
                  "deLete from charac_friends where friend_no=%d", characNo);
-    h->exec(0x4ea4);
+    r = h->exec(0x4ea4);
     return 1;
 }
 bool CDBManager::UpdateMemberKeyInCharacInfo(unsigned char serverId,
@@ -3275,11 +3276,13 @@ char CDBManager::OnDeleteGuildAgit(Packet_DB_Delete_Guild_Agit* req,
 char CDBManager::OnUpgradeGuildAgit(Packet_DB_Upgrade_Guild_Agit* req,
                                     Packet_DB_Upgrade_Guild_Agit_Reply& reply)
 {
+    bool ret;
     CDBHandle* h = m_handles[8];    // guild db
     h->set_query(0x4eb6,
                  "UpDate guild_agit set upgrade = upgrade + 1 where guild_id = %d",
-                 *(unsigned int*)((char*)req + 0xa));
-    if (!h->exec(0x4eb6))
+                 req->m_guildId);
+    ret = h->exec(0x4eb6);
+    if (!ret)
     {
         reply.m_result = 2;
         CMyFileLog log(__FUNCTION__, 0x19ea);
@@ -3937,8 +3940,8 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_fieldB9 = 0;
     memset(m_pad2E, 0, 0x14);
     memset((char*)this, 0, 0x17);
-    *(unsigned char*)&m_ability |= 0x1;
-    *(unsigned char*)&m_ability &= ~0x2;
+    b0 = b0 | 0x1;
+    b0 = b0 & ~0x2;
     memset((char*)this + 0x45, 0, 0x50);
     memset((char*)this + 0xa4, 0, 0x15);
 }

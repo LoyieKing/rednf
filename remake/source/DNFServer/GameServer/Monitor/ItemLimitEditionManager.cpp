@@ -58,7 +58,7 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
              endIt = m_items.end(); it != endIt; ++it)
     {
         CItemLimitEdition* item = it->second;
-        item->makeItemInfo(*(stItemLimitEditionItemInfo_t*)(idx * 0x48 + (char*)&pkt + 0xf));
+        item->makeItemInfo(*(stItemLimitEditionItemInfo_t*)((char*)&pkt + (idx * 0x48 + 0xf)));
         idx++;
     }
     ((RA_INT<11>*)&pkt)->v = idx;

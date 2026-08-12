@@ -148,7 +148,7 @@ int CPeer::send_packet()
     int ret = 0;
     if (m_remainSendLen == 0)
         return 1;
-    register int n = m_remainSendLen;
+    int n = m_remainSendLen;
     if ((ret = write(getHandle(), (char*)this + 0x183c, n)) <= 0)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
@@ -162,7 +162,7 @@ int CPeer::send_packet()
     }
     if (ret > 0)
     {
-        if (m_remainSendLen > ret)
+        if ((int)m_remainSendLen > ret)
         {
             m_recvBuf = (char*)this + 0x183c + ret;
             m_remainSendLen -= ret;
@@ -178,7 +178,7 @@ int CPeer::send_packet()
             memmove((char*)this + 0x183c, m_recvBuf, m_remainSendLen);
             m_recvBuf = (char*)this + 0x183c + m_remainSendLen;
         }
-        else if (m_remainSendLen < ret)
+        else if ((int)m_remainSendLen < ret)
         {
             printf("offset error[Remain_Data: %d Send:%d]", m_remainSendLen, ret);
             return -1;

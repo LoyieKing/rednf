@@ -188,8 +188,12 @@ void CPeer::InitPeer(TcpRecvQueue* recvQ, CMutex* qLock, CMutex* bLock)
 }
 bool CPeer::parsing(int len)
 {
+    // R40：栈槽声明顺序按 ORIG 布局（qsize -0x28 / parsinglength -0x24 / size -0x20 / headerSize -0x1c；
+    // GCC 4.4 按反声明序分配简单局部，hdr 为带 ctor 的 12 字节对象独立落在 -0x5a）。
     PacketHeader hdr(0, 0);
+    int qsize;
     int parsinglength = m_recvLen + len;
+    unsigned int size;
     int headerSize = 10;
     if (parsinglength <= 9)
     {
@@ -200,12 +204,14 @@ bool CPeer::parsing(int len)
             m_sendBuf, (char*)this + 0x1c, m_recvLen, len);
         return 1;
     }
-    do
+    // R40：ORIG 控制流形态——need_more(0x100) 日志块置于函数尾部（goto 标签），
+    // 循环用 for(;;)+if(<=9)break 使回边生成直接 jg（4.4.x 下 do-while 会物化 setg）。
+    for (;;)
     {
         if (m_recvLen != 0)
             m_sendBuf -= m_recvLen;
         memcpy(&hdr, m_sendBuf, 10);
-        unsigned int size = hdr.packetSize;
+        size = hdr.packetSize;
         if (size <= 9 || size > 0x1800)
         {
             DNF_LOG_SCOPE_LINE(0xd0, "./log/TcpRecv",
@@ -216,12 +222,7 @@ bool CPeer::parsing(int len)
             return 0;
         }
         if (parsinglength < size)
-        {
-            DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
-                "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
-                parsinglength);
-            goto out;
-        }
+            goto need_more;
         CTcpRecvBuffer* buf;
         {
             CGuard<CMutex> guard(m_sendBLock);
@@ -232,7 +233,7 @@ bool CPeer::parsing(int len)
         {
             CGuard<CMutex> guard(m_sendQLock);
             m_recvQ->push(buf);
-            int qsize = m_recvQ->size();
+            qsize = m_recvQ->size();
         }
         parsinglength -= size;
         m_sendBuf += size;
@@ -242,9 +243,16 @@ bool CPeer::parsing(int len)
             m_sendBuf = (char*)this + 0x1c;
             goto out;
         }
-    } while (parsinglength > 9);
+        if (parsinglength <= 9)
+            break;
+    }
     DNF_LOG_SCOPE_LINE(0xf8, "./log/TcpRecv",
         "need more data (parsinglength < HEADER_SIZE): body=%d !!",
+        parsinglength);
+    goto out;
+need_more:
+    DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
+        "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
         parsinglength);
 out:
     if (parsinglength > 0)

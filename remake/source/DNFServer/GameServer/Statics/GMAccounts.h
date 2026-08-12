@@ -229,8 +229,8 @@ struct LoadingTimeReport
     ~LoadingTimeReport();
     void Reset();
     // ORIG：两个 9 元素数组（m_data2 编译为 add $8 + 0x4(%eax,%edx,4) 形态）
-    int m_data[9];   // +0
-    int m_data2[9];  // +0x24
+    unsigned int m_data[9];   // +0
+    unsigned int m_data2[9];  // +0x24
 };
 
 // ---- STPowerwarFightLoadingKey：0x6 ----

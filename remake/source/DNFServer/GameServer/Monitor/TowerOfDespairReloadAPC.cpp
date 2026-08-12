@@ -46,16 +46,16 @@ bool TowerOfDespairReloadAPC_Task::isReturnedMessage()
 void TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC()
 {
     DNF_LOG_SCOPE_LINE(0x37, "./log/GameServer", "TOD : order to RandomSelect main GameServer\n");
-    if (!isReturnedMessage())
-    {
-        Packet_TOD_DoRandomSelect pkt;
-        CApplication* app = (CApplication*)CApplicationInstance();
-        CServerHandler* handler = app->Get_ServerHandler();
-        unsigned int first = handler->getfirstLinkedServer();
-        CMyFileLog log2(__FUNCTION__, 0x40);
-        log2("./log/GameServer", "TOD : main GameServerChannel %u\n", first);
-        handler->SendToGameServer((unsigned char)first, &pkt);
-    }
+    if (isReturnedMessage())
+        return;
+    CServerHandler* handler;
+    unsigned int first;
+    Packet_TOD_DoRandomSelect pkt;
+    handler = static_cast<CApplication*>(CApplicationInstance())->Get_ServerHandler();
+    first = handler->getfirstLinkedServer();
+    CMyFileLog log2(__FUNCTION__, 0x40);
+    log2("./log/GameServer", "TOD : main GameServerChannel %u\n", first);
+    handler->SendToGameServer((unsigned char)first, &pkt);
 }
 
 TowerOfDespairWaitGameServerResponse_Task::TowerOfDespairWaitGameServerResponse_Task(

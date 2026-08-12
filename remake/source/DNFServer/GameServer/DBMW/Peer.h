@@ -29,7 +29,7 @@ public:
     TcpRecvQueue* m_recvQ;  // +0x1828
     CMutex* m_sendBLock;    // +0x182c
     CMutex* m_sendQLock;    // +0x1830
-    int m_remainSendLen;    // +0x1834
+    unsigned int m_remainSendLen;   // +0x1834（ORIG 为 unsigned：+= int 时生成 edx=mem;eax=len;add 序列）
     char* m_recvBuf;        // +0x1838
     char m_data183c[0x96004];  // +0x183c（sizeof(CPeer)=0x97840，与 MemPool 池大小一致）
 };

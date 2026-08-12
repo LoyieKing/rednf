@@ -1244,12 +1244,20 @@ void StatisticManager::ResetReasonCrashDownInfoMap()
 void StatisticManager::AddReasonCrashDownData(Packet_Reason_Crash_Down_Info* pkt,
                                               CServerHandler* handler)
 {
+    struct __attribute__((packed)) Wire
+    {
+        char m_hdr[0xa];
+        unsigned int m_f0a;
+        unsigned int m_f0e;
+        unsigned int m_f12;
+        unsigned int m_f16;
+    };
     Packet_DBMW_Reason_Crash_Down_Query query;
     memset((char*)&query + 0xa, 0, 0x100);
     snprintf((char*)&query + 0xa, 0xff,
              "inSert into log_client_ting_stat (occ_time,channel_no,reason,cnt) values (from_unixtime(%d),%d,%d,%d)",
-             *(unsigned int*)((char*)pkt + 10), *(unsigned int*)((char*)pkt + 0xe),
-             *(unsigned int*)((char*)pkt + 0x12), *(unsigned int*)((char*)pkt + 0x16));
+             ((Wire*)pkt)->m_f0a, ((Wire*)pkt)->m_f0e, ((Wire*)pkt)->m_f12,
+             ((Wire*)pkt)->m_f16);
     handler->SendToDB((PacketHeader*)&query);
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5b8, "./log/ReasonCrashDown", "%s", (char*)&query + 0xa);
 }
@@ -1359,10 +1367,12 @@ void StatisticManager::SendDBRandomboxStatistic(CServerHandler* handler)
 }
 void StatisticManager::ResetRandomboxStatistic()
 {
+    struct RBoxView1 { int m_pad[2]; int m_b[0xd8]; };
+    struct RBoxView2 { int m_pad[3]; int m_b[0xd8]; };
     for (int i = 0; i < 5; i++)
     {
-        *(unsigned int*)((char*)this + (i + 0xd0) * 4 + 8) = 0;
-        *(unsigned int*)((char*)this + (i + 0xd4) * 4 + 0xc) = 0;
+        ((RBoxView1*)this)->m_b[i + 0xd0] = 0;
+        ((RBoxView2*)this)->m_b[i + 0xd4] = 0;
     }
 }
 void StatisticManager::AddUserCountStatistics(CServerHandler* handler,
@@ -1476,13 +1486,12 @@ void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
         int m_f0a;
         int m_data[0x1e];
     };
-    register Wire* w = (Wire*)pkt;
     std::map<int, ValueStatisticData>::iterator it = m_value.find(*(int*)((char*)pkt + 10));
     if (it != m_value.end())
     {
         for (int i = 0; i < 0x1e; i++)
         {
-            it->second.m_data[i] += w->m_data[i];
+            it->second.m_data[i] += ((Wire*)pkt)->m_data[i];
         }
     }
     else
@@ -1490,7 +1499,7 @@ void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
         ValueStatisticData v;
         for (int i = 0; i < 0x1e; i++)
         {
-            v.m_data[i] = w->m_data[i];
+            v.m_data[i] = ((Wire*)pkt)->m_data[i];
         }
         m_value.insert(std::make_pair(*(int*)((char*)pkt + 10), v));
     }

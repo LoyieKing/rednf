@@ -103,8 +103,8 @@ unsigned int CTowerRank::getRankData(unsigned int floor, const char* name, unsig
 
 void CTowerRank::reset()
 {
-    unsigned int i = 0;
-    while (i <= 3)
+    int i = 0;
+    while ((unsigned int)i <= 3)
     {
         m_ranks[i].clear();
         i++;

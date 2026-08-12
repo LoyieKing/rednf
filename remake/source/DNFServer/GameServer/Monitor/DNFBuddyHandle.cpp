@@ -31,6 +31,16 @@
 #include "DNFServerHandler.h"
 #include "DNFUser.h"
 
+struct MonitorBuddyDBInfo
+{
+    char m_name[0x1e];
+    short m_lev;
+    char m_job;
+    char m_growType;
+    unsigned int m_characNo;
+    char m_sex;
+} __attribute__((packed));
+
 CBuddyHandle::CBuddyHandle()
 {
     m_prUser = 0;
@@ -139,13 +149,14 @@ int CBuddyHandle::getBuddysCharNo(unsigned int* out)
         return 0;
     }
     int count = 0;
-    for (std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
-         it != m_buddies.end(); ++it)
+    std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
+    std::map<std::string, CBuddy*>::iterator end = m_buddies.end();
+    for (; it != end; ++it)
     {
         CBuddy* b = it->second;
         if (b != 0)
         {
-            out[count] = *(unsigned int*)((char*)b->getBuddyDBInfo() + 0x22);
+            out[count] = ((MonitorBuddyDBInfo*)b->getBuddyDBInfo())->m_characNo;
         }
         count++;
         if (0x20 < count)
@@ -165,8 +176,9 @@ int CBuddyHandle::getBuddys(CBuddy** out)
         return 0;
     }
     int count = 0;
-    for (std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
-         it != m_buddies.end(); ++it)
+    std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
+    std::map<std::string, CBuddy*>::iterator end = m_buddies.end();
+    for (; it != end; ++it)
     {
         out[count] = it->second;
         count++;
@@ -197,22 +209,23 @@ int CBuddyHandle::del(std::string name)
 
 int CBuddyHandle::addFromCash(CBuddy* buddy)
 {
-    if (m_buddies.size() > 0x1f)
+    if (m_buddies.size() < 0x20)
     {
-        return 0;
+        return m_buddies.insert(
+                   std::make_pair(((MonitorBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name,
+                                  buddy))
+            .second;
     }
-    m_buddies.insert(std::make_pair(std::string((char*)buddy->getBuddyDBInfo()), buddy));
-    return 1;
+    return 0;
 }
 
 int CBuddyHandle::insert(CBuddy* buddy)
 {
-    if (m_buddies.size() > 0x1f)
+    if (m_buddies.size() < 0x20)
     {
-        return 0;
+        m_buddies.insert(
+            std::make_pair(((MonitorBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name, buddy));
     }
-    m_buddies.insert(std::make_pair(std::string((char*)buddy->getBuddyDBInfo()), buddy));
-    return 1;
 }
 
 CBuddy* CBuddyHandle::findBuddy(std::string name)
@@ -231,14 +244,15 @@ CBuddy* CBuddyHandle::findBuddy(std::string name)
 
 CBuddy* CBuddyHandle::findBuddyByCharNo(unsigned int charNo)
 {
-    for (std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
-         it != m_buddies.end(); ++it)
+    std::map<std::string, CBuddy*>::iterator it;
+    std::map<std::string, CBuddy*>::iterator it2 = m_buddies.begin();
+    for (; it2 != m_buddies.end(); ++it2)
     {
-        CBuddy* buddy = it->second;
+        CBuddy* buddy = it2->second;
         if (buddy != 0 &&
-            *(unsigned int*)((char*)buddy->getBuddyDBInfo() + 0x22) == charNo)
+            ((MonitorBuddyDBInfo*)buddy->getBuddyDBInfo())->m_characNo == charNo)
         {
-            return buddy;
+            return it2->second;
         }
     }
     return 0;
