@@ -524,12 +524,17 @@ int CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)
 
 CUser* CGuild::FindGuildMember(unsigned int charNo)
 {
+    std::map<unsigned int, CUser*>::iterator it;
     if (m_members.empty())
     {
         return 0;
     }
-    std::map<unsigned int, CUser*>::iterator it = m_members.find(charNo);
-    return it == m_members.end() ? 0 : it->second;
+    it = m_members.find(charNo);
+    if (m_members.end() != it)
+    {
+        return it->second;
+    }
+    return 0;
 }
 
 bool CGuild::IsEmpty()
@@ -638,15 +643,18 @@ void CGuild::DBGuildSaveProcess(CServerHandler* handler)
 
 void CGuild::ResetGuildPointRank()
 {
-    *(unsigned short*)((char*)this + 0x48) = 0;
-    *(unsigned int*)((char*)this + 0x44) = 0;
+    m_dbInfo.m_info.m_guildRank = 0;
+    m_dbInfo.m_info.m_guildPoint = 0;
+    if (m_members.empty())
+    {
+        return;
+    }
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        if (it->second != 0)
-        {
-            it->second->ResetGuildPoint();
-        }
+        CUser* user;
+        if ((user = it->second) == 0) { continue; }
+        user->ResetGuildPoint();
     }
 }
 
@@ -1797,19 +1805,19 @@ void CGuild::SetSubGuildMaster(unsigned int charNo, bool flag)
 
 void CGuild::CheckGuildSkill()
 {
-    if (*(unsigned char*)((char*)this + 0x3b) != 0 &&
-        *(short*)((char*)this + 0x62) == 0 && *(char*)((char*)this + 100) == 0)
+    STGuildDBInfo* p = &m_dbInfo;
+    if (p->m_info.m_guildLevel != 0 && p->m_info.m_field42 == 0 && p->m_info.m_field44 == 0)
     {
         DNF_LOG_SCOPE_LINE(0x85c,"./log/GuildSkill", "Err : key(%d), lev(%d), gsp(0), cnt(0)",
-            GetGuildKey(), (unsigned int)*(unsigned char*)((char*)this + 0x3b));
+            GetGuildKey(), (unsigned int)p->m_info.m_guildLevel);
     }
 }
 
 void CGuild::SetGuildMessage(char* msg)
 {
     memset((char*)this + 0x4d0a, 0, 0x65);
-    size_t n = strlen(msg);
-    if ((int)n < 0x65)
+    int n = strlen(msg);
+    if (n <= 100)
     {
         memcpy((char*)this + 0x4d0a, msg, n);
     }
@@ -1821,19 +1829,30 @@ void CGuild::SetGuildMessage(char* msg)
 
 void CGuild::NotifyMessageToGuildMember()
 {
-    if ((*(unsigned short*)((char*)this + 0x1c) & 4) != 0 && !m_members.empty())
+    if ((m_field1c & 4) != 0)
     {
-        Packet_Guild_Notify_Message_To_Guild_Mem pkt;
-        size_t len = strlen((char*)this + 0x4d0a);
-        memcpy((char*)&pkt + 0x12, (char*)this + 0x4d0a, len < 0x65 ? len : 100);
-        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-             it != m_members.end(); ++it)
+        if (m_members.empty())
         {
-            CUser* u = it->second;
-            if (u != 0)
+        }
+        else
+        {
+            Packet_Guild_Notify_Message_To_Guild_Mem pkt;
+            int len = strlen((char*)this + 0x4d0a);
+            if (len <= 100)
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = u->GetIdByChannel();
-                *(unsigned int*)((char*)&pkt + 0xe) = u->GetUniqCharNo();
+                memcpy((char*)&pkt + 0x12, (char*)this + 0x4d0a, len);
+            }
+            else
+            {
+                memcpy((char*)&pkt + 0x12, (char*)this + 0x4d0a, 100);
+            }
+            for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
+                 it != m_members.end(); ++it)
+            {
+                CUser* u;
+                if ((u = it->second) == 0) { continue; }
+                *(unsigned int*)&pkt.m_data[0] = u->GetIdByChannel();
+                *(unsigned int*)&pkt.m_data[4] = u->GetUniqCharNo();
                 u->SendToGameserver((char*)&pkt, 0x77);
             }
         }
@@ -2137,18 +2156,17 @@ void CGuild::UpgradeGuildAgit(CServerHandler* handler, unsigned int a, unsigned 
 
 void CGuild::IncPowerJoinCount()
 {
-    if ((m_field1c & 4) == 0)
+    if ((m_field1c & 4) != 0)
     {
-        return;
+        m_field4d96 = 1;
+        m_dbInfo.m_info.m_field9f = (char)(m_dbInfo.m_info.m_field9f + 1);
+        if (0x80 < (unsigned char)m_dbInfo.m_info.m_field9f)
+        {
+            m_dbInfo.m_info.m_field9f = (char)0x80;
+        }
+        DNF_LOG_SCOPE_LINE(0xacf,"./log/Guild", "IncPowerJoinCount Guild(%d), JoinCount(%d)",
+            GetGuildKey(), (unsigned int)(unsigned char)m_dbInfo.m_info.m_field9f);
     }
-    m_field4d96 = 1;
-    *(char*)((char*)this + 0xbf) = (char)(*(char*)((char*)this + 0xbf) + 1);
-    if (0x80 < (unsigned char)*(char*)((char*)this + 0xbf))
-    {
-        *(char*)((char*)this + 0xbf) = (char)0x80;
-    }
-    DNF_LOG_SCOPE_LINE(0xacf,"./log/Guild", "IncPowerJoinCount Guild(%d), JoinCount(%d)",
-        GetGuildKey(), (unsigned int)(unsigned char)*(char*)((char*)this + 0xbf));
 }
 
 unsigned int CGuild::GetGuildFund()

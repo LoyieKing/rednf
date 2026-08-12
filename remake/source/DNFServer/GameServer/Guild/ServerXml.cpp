@@ -86,22 +86,13 @@ namespace np_server_xml
 {
 CServerXml::CServerXml()
 {
-    memset(m_data, 0, sizeof(m_data));
     new (m_doc) TiXmlDocument;
-    m_field50 = 0;
-    m_path = std::string();
     InitString();
 }
 
 CServerXml::~CServerXml()
 {
     InitString();
-    m_rgba.~map();
-    m_str3.~map();
-    m_str2.~map();
-    m_str1.~map();
-    m_path.~basic_string();
-    ((TiXmlDocument*)m_doc)->~TiXmlDocument();
 }
 
 void CServerXml::InitString()
@@ -286,75 +277,103 @@ void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
     if (str != 0)
     {
         std::string s = str;
-        if ((int)type == 1)
+        switch (type)
         {
-            m_str2.insert(std::make_pair(idx, s));
-        }
-        else if ((int)type == 2)
-        {
-            m_str3.insert(std::make_pair(idx, s));
-        }
-        else if ((int)type == 0)
-        {
-            m_str1.insert(std::make_pair(idx, s));
+        case 0:
+            m_str1.insert(std::pair<int, std::string>(idx, s));
+            break;
+        case 1:
+            m_str2.insert(std::pair<int, std::string>(idx, s));
+            break;
+        case 2:
+            m_str3.insert(std::pair<int, std::string>(idx, s));
+            break;
+        default:
+            break;
         }
     }
+    __asm__ __volatile__("nop");
 }
 
 std::string CServerXml::GetServerString(int idx, bool* ok) const
 {
     std::string ret("");
-    std::map<int, std::string>::const_iterator it = m_str1.find(idx);
+    std::map<int, std::string>::const_iterator it;
+    it = m_str1.find(idx);
     if (it != m_str1.end())
     {
         if (ok != 0)
         {
             *ok = 1;
         }
-        return it->second;
     }
-    if (ok != 0)
-    {
-        *ok = 0;
-    }
-    return ret;
-}
-
-unsigned int CServerXml::GetEventRGBA(int idx) const
-{
-    std::map<int, int>::const_iterator it = m_rgba.find(idx);
-    if (it == m_rgba.end())
-    {
-        return 0;
-    }
-    return (unsigned int)it->second;
-}
-
-std::string CServerXml::GetEventString(int idx, _eStringType type, bool* ok) const
-{
-    const std::map<int, std::string>* m = &m_str1;
-    if ((int)type == 1)
-    {
-        m = &m_str2;
-    }
-    else if ((int)type == 2)
-    {
-        m = &m_str3;
-    }
-    std::map<int, std::string>::const_iterator it = m->find(idx);
-    if (it == m->end())
+    else
     {
         if (ok != 0)
         {
             *ok = 0;
         }
-        return "";
-    }
-    if (ok != 0)
-    {
-        *ok = 1;
+        return ret;
     }
     return it->second;
+}
+
+unsigned int CServerXml::GetEventRGBA(int idx) const
+{
+    std::map<int, int>::const_iterator it;
+    it = m_rgba.find(idx);
+    if (it != m_rgba.end())
+    {
+        return (unsigned int)it->second;
+    }
+    return 0;
+}
+
+std::string CServerXml::GetEventString(int idx, _eStringType type, bool* ok) const
+{
+    std::string ret("");
+    std::map<int, std::string>::const_iterator it;
+    switch (type)
+    {
+    case 1:
+        it = m_str2.find(idx);
+        if (it != m_str2.end())
+        {
+            if (ok != 0)
+            {
+                *ok = 1;
+            }
+        }
+        else
+        {
+            if (ok != 0)
+            {
+                *ok = 0;
+            }
+            return ret;
+        }
+        return it->second;
+    case 2:
+        it = m_str3.find(idx);
+        if (it != m_str3.end())
+        {
+            if (ok != 0)
+            {
+                *ok = 1;
+            }
+        }
+        else
+        {
+            if (ok != 0)
+            {
+                *ok = 0;
+            }
+            return ret;
+        }
+        return it->second;
+    default:
+        return ret;
+    }
 }
 }
 

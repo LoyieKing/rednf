@@ -90,42 +90,32 @@ CTableBase::~CTableBase()
 
 int CTableBase::Load_Txt_Table_Data(const char* path, int maxCount)
 {
-    FILE* f = fopen(path, "rb");
     int count = 0;
+    FILE* f = fopen(path, "rb");
     if (f == 0)
     {
-        count = -1;
+        return -1;
     }
-    else
+    char line[1024];
+    while (!feof(f) && fgets(line, 0x400, f) != 0)
     {
-        char line[1024];
-        while (true)
+        if (line[0] == '#')
         {
-            if (!feof(f) && fgets(line, 0x400, f) != 0)
-            {
-                if (line[0] != '#')
-                {
-                    if (maxCount <= count)
-                    {
-                        return -2;
-                    }
-                    if (Parse_Table(line, count) != 0)
-                    {
-                        count++;
-                    }
-                }
-            }
-            else
-            {
-                break;
-            }
+            continue;
         }
-        fclose(f);
+        if (count >= maxCount)
+        {
+            return -2;
+        }
+        if (Parse_Table(line, count))
+        {
+            count++;
+        }
     }
+    fclose(f);
     return count;
 }
 
 CTableBase::CTableBase()
 {
 }
-

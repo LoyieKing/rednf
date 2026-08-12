@@ -21,7 +21,6 @@
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 #include "DNFMember.h"
-#include "Packet_Monitor_Member_Secede.h"
 #include "Packet_GM_Request_Mid.h"
 #include "Packet_PvPChannelInfo.h"
 #include "Packet_PvPChannelUserCount.h"
@@ -61,6 +60,21 @@ struct __attribute__((packed)) MonitorMailPkt
     char m_pad0[10];
     unsigned int m_charNo;      // +0xa
     int m_idByChannel;          // +0xe
+};
+
+// Packet_Monitor_Member_Secede 完整布局（原头缺失成员数据，按 ORIG 反汇编补齐；
+// 本 TU 局部定义，符号名与 ORIG 一致）
+class __attribute__((packed)) Packet_Monitor_Member_Secede : public PacketHeader
+{
+public:
+    Packet_Monitor_Member_Secede() : PacketHeader(0x4bb, 0x31)
+    {
+        memset((char*)this + 0x13, 0, 0x1e);
+    }
+    unsigned int m_idByChannel;  // +0xa
+    unsigned int m_uniqCharNo;   // +0xe
+    unsigned char m_type;        // +0x12
+    char m_name[0x1e];           // +0x13
 };
 #include "DNFChannelWaitingUser.h"
 #include "DNFGameServer.h"
@@ -125,7 +139,7 @@ void CPacketTranslater::SendNoticeMemberEnterPacketReply(CUser* user, CUser* oth
     Packet_Monitor_Member_Enter_Reply_ToResponser pkt;
     if (a == 2)
     {
-        pkt.m_fieldB = 3;
+        pkt.m_fieldB = a + 1;
     }
     else
     {
@@ -149,10 +163,10 @@ void CPacketTranslater::SendRequestMemberDeleteResult(CUser* user, unsigned char
                                                       const char* name)
 {
     Packet_Monitor_Member_Secede pkt;
-    ((RA_UINT<10>*)&pkt)->v = user->GetIdByChannel();
-    ((RA_UINT<14>*)&pkt)->v = user->GetUniqCharNo();
-    ((RA_U8<18>*)&pkt)->v = result;
-    memcpy((char*)&pkt + 0x13, name, 0x1d);
+    pkt.m_idByChannel = user->GetIdByChannel();
+    pkt.m_uniqCharNo = user->GetUniqCharNo();
+    pkt.m_type = result;
+    memcpy(pkt.m_name, name, 0x1d);
     user->SendTcpGameserver(&pkt);
 }
 
@@ -2479,9 +2493,8 @@ void CPacketTranslater::SendColletItemsReward(unsigned int charNo, int itemId,
                                               const char* itemName, int nameLen,
                                               TimeGateRewardType::T type)
 {
-    CUser* user =
-        ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(charNo);
-    if (user != 0)
+    CUser* user;
+    if ((user = ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(charNo)) != 0)
     {
         Packet_CollectItemsReward pkt;
         pkt.m_idByChannel = user->GetIdByChannel();
@@ -2495,8 +2508,7 @@ void CPacketTranslater::SendColletItemsReward(unsigned int charNo, int itemId,
         bpkt.m_type = (unsigned char)type;
         bpkt.m_nameLen = (unsigned char)nameLen;
         strncpy(bpkt.m_name, itemName, (unsigned int)nameLen);
-        CServerHandler* handler = m_pclApp->m_serverHandler2;
-        handler->SendAllTcpGameServer(&bpkt);
+        m_pclApp->m_serverHandler2->SendAllTcpGameServer(&bpkt);
     }
 }
 
@@ -2977,23 +2989,24 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
 
 void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
 {
+    PacketHeader* pktLocal = pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1127, "./log/hack", "CPacketTranslater::OnWebChangeUserHandicap : 0 == m_pclApp");
     }
     else
     {
-        CUser* user =
-            ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-                ((RA_UINT<10>*)pkt)->v);
-        if (user != 0)
+        CUser* user = 0;
+        CUserManager* mgr = (CUserManager*)((char*)m_pclApp + 0x10);
+        if ((user = mgr->FindUser(((RA_UINT<10>*)pktLocal)->v)) == 0)
         {
-            Packet_Change_User_Handicap reply;
-            reply.m_fieldA = ((RA_UINT<10>*)pkt)->v;
-            reply.m_fieldE = ((RA_UINT<14>*)pkt)->v;
-            reply.m_field12 = ((RA_UINT<18>*)pkt)->v;
-            user->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
+            return;
         }
+        Packet_Change_User_Handicap reply;
+        reply.m_fieldA = ((RA_UINT<10>*)pktLocal)->v;
+        reply.m_fieldE = ((RA_UINT<14>*)pktLocal)->v;
+        reply.m_field12 = ((RA_UINT<18>*)pktLocal)->v;
+        user->SendToGameserver((char*)&reply, reply.packetSize);
     }
 }
 
@@ -4340,16 +4353,18 @@ void CPacketTranslater::OnNoCache(PacketHeader* pkt)
 
 void CPacketTranslater::OnDisableUserOneToOneChat_GM(PacketHeader* pkt)
 {
+    PacketHeader* pktLocal = pkt;
     if (m_pclApp != 0)
     {
-        unsigned int channel = ((RA_UINT<10>*)pkt)->v;
-        if (m_pclApp->isGM_regFromChannel(channel) != 0)
+        if (m_pclApp->isGM_regFromChannel(((RA_UINT<10>*)pktLocal)->v))
         {
             CUser* target =
-                ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharName((char*)pkt + 0x12);
+                ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser_CharName(
+                    (char*)pktLocal + 0x12);
             if (target != 0)
             {
-                m_pclApp->DisableChatUserWithGM(channel, target->GetUniqCharNo());
+                m_pclApp->DisableChatUserWithGM(
+                    ((RA_UINT<10>*)pktLocal)->v, target->GetUniqCharNo());
             }
         }
     }

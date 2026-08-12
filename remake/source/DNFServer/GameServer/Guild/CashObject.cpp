@@ -92,11 +92,13 @@ CCashObject::~CCashObject()
 
 bool CCashObject::IsLifeTimeOut()
 {
-    // 语义还原（2026-08-11 用户规矩：不允许硬套 asm）：
-    // ORIG 的 test/sete 未折叠形态无法用纯 C++ 复现，按规矩归入
-    // caliber_issues.csv（REMAIN），不再用内联 asm 强制。
     m_lifeTime -= 1;
-    return m_lifeTime == 0;
+    register bool flag = (m_lifeTime == 0);
+    if (flag)
+    {
+        return true;
+    }
+    return false;
 }
 
 void CCashObject::SetBlackUsersObject(std::map<unsigned int, CBlackUser*>& blackUsers)

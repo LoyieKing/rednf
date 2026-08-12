@@ -1150,16 +1150,17 @@ void StatisticManager::AddFatigueBatteryStatistics(Packet_Fatigue_Battery_Money_
     };
     STFatigueBattery value;
     value.m_field0 = ((Wire*)pkt)->m_f0b;
-    value.m_field4 = (unsigned int)((Wire*)pkt)->m_f0f;
-    std::map<unsigned char, STFatigueBattery>::iterator it = m_fatigue.find(*(char*)((char*)pkt + 10));
-    if (it == m_fatigue.end())
+    value.m_field4 = ((Wire*)pkt)->m_f0f;
+    std::map<unsigned char, STFatigueBattery>::iterator it =
+        m_fatigue.find(*(unsigned char*)((char*)pkt + 10));
+    if (it != m_fatigue.end())
     {
-        m_fatigue.insert(std::make_pair(*(char*)((char*)pkt + 10), value));
+        it->second.m_field0 += ((Wire*)pkt)->m_f0b;
+        it->second.m_field4 += ((Wire*)pkt)->m_f0f;
     }
     else
     {
-        it->second.m_field0 += ((Wire*)pkt)->m_f0b;
-        it->second.m_field4 += (unsigned int)((Wire*)pkt)->m_f0f;
+        m_fatigue.insert(std::make_pair(*(unsigned char*)((char*)pkt + 10), value));
     }
 }
 void StatisticManager::ResetFatigueBattery()
@@ -1183,17 +1184,26 @@ void StatisticManager::SendDBFatigueBattery(CServerHandler* handler)
 }
 void StatisticManager::AddBloodDungeonStatistics(Packet_Blood_dungeon_statistic* pkt)
 {
-    std::map<unsigned int, STBloodDungeonStatistic>::iterator it =
-        m_blood.find(*(unsigned int*)((char*)pkt + 10));
-    if (it == m_blood.end())
+    struct __attribute__((packed)) Wire
     {
-        m_blood.insert(std::make_pair(*(unsigned int*)((char*)pkt + 10),
-                                      *(STBloodDungeonStatistic*)((char*)pkt + 0xe)));
+        char m_hdr[0xe];
+        unsigned int m_key;
+        unsigned char m_f0;
+        unsigned char m_f1;
+    };
+    STBloodDungeonStatistic v;
+    std::map<unsigned int, STBloodDungeonStatistic>::iterator it =
+        m_blood.find(*(unsigned int*)((char*)pkt + 0xe));
+    if (it != m_blood.end())
+    {
+        it->second.m_field0 += ((Wire*)pkt)->m_f0;
+        it->second.m_field4 += ((Wire*)pkt)->m_f1;
     }
     else
     {
-        it->second.m_field0 += (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x12);
-        it->second.m_field4 += (unsigned int)(unsigned char)*(char*)((char*)pkt + 0x13);
+        v.m_field0 = ((Wire*)pkt)->m_f0;
+        v.m_field4 = ((Wire*)pkt)->m_f1;
+        m_blood.insert(std::make_pair(*(unsigned int*)((char*)pkt + 0xe), v));
     }
 }
 void StatisticManager::ResetBloodDungeon()
@@ -1299,15 +1309,17 @@ void StatisticManager::AddRandomboxStatistic(Packet_Randombox_statistic* pkt)
         char m_f0a;
         char m_f0b;
     };
+    struct RBoxView1 { int m_pad[2]; int m_b[0xd8]; };
+    struct RBoxView2 { int m_pad[3]; int m_b[0xd8]; };
     if ((char)((Wire*)pkt)->m_f0a < 5 && -1 < (char)((Wire*)pkt)->m_f0a)
     {
         if (((Wire*)pkt)->m_f0b == 0)
         {
-            *(int*)((char*)this + ((char)((Wire*)pkt)->m_f0a + 0xd0) * 4 + 8) += 1;
+            ((RBoxView1*)this)->m_b[0xd0 + (char)((Wire*)pkt)->m_f0a] += 1;
         }
         else if (((Wire*)pkt)->m_f0b == 1)
         {
-            *(int*)((char*)this + ((char)((Wire*)pkt)->m_f0a + 0xd4) * 4 + 0xc) += 1;
+            ((RBoxView2*)this)->m_b[0xd4 + (char)((Wire*)pkt)->m_f0a] += 1;
         }
     }
 }

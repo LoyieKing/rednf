@@ -32,8 +32,10 @@ void CommonTime::SetCurTime()
     time_t t;
     time(&t);
     tm* p = localtime(&t);
-    m_field0 = (unsigned char)(p->tm_year - 100);
-    m_field1 = (unsigned char)(p->tm_mon + 1);
+    register unsigned char v0 = (unsigned char)(p->tm_year - 100);
+    register unsigned char v1 = (unsigned char)(p->tm_mon + 1);
+    m_field0 = v0;
+    m_field1 = v1;
     m_field2 = (unsigned char)(p->tm_mday);
     m_field3 = (unsigned char)(p->tm_hour);
     m_field4 = (unsigned char)(p->tm_min);

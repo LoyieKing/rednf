@@ -101,6 +101,7 @@ dnf_service(monitor
         -DTIXML_USE_STL -DBOOST_DISABLE_ASSERTS -DDNF_SVC_MONITOR
     SRC_OPTS
         "${COMMON}/CFileLogWriterBase.cpp|-fno-exceptions"
+        "${SVC_DIR}/DNFTableBase.cpp|-std=gnu++98 -fenforce-eh-specs"
         "${COMMON}/tinyxml.cpp|-O3 -std=gnu++98"
         "${COMMON}/tinyxmlerror.cpp|-O3 -std=gnu++98"
         "${COMMON}/tinyxmlparser.cpp|-O3 -std=gnu++98"

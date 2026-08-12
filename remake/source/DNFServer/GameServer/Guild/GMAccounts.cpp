@@ -114,11 +114,13 @@ int CGMAccounts::loadGMAccounts(const char* path)
 
 int CGMAccounts::isGM(unsigned int id)
 {
+    std::list<stGMInfo_t>::iterator it;
+    std::list<stGMInfo_t>::iterator end;
     stGMInfo_t key = {};
     key.m_field1 = 3;
     key.m_field0 = id;
-    const std::list<stGMInfo_t>::iterator end = m_list.end();
-    std::list<stGMInfo_t>::iterator it = std::find(m_list.begin(), m_list.end(), key);
+    end = m_list.end();
+    it = std::find(m_list.begin(), m_list.end(), key);
     if (it != end) return 1;
     return 0;
 }

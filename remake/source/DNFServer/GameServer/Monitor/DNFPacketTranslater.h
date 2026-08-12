@@ -902,7 +902,7 @@ public:
     unsigned int m_charNo;       // +14
     unsigned char m_type;        // +18
     unsigned char m_nameLen;     // +19
-    char m_name[0x1d];           // +20
+    char m_name[0x1e];           // +20（ORIG ctor memset 0x1e，包大小 0x32）
 } __attribute__((packed));
 
 class Packet_CollectItemsRewardBroadcast : public PacketHeader
