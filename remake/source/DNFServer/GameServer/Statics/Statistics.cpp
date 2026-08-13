@@ -216,7 +216,7 @@ void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party
     value.m_data[7] = ((Wire*)pkt)->m_data[7];
     value.m_data[8] = ((Wire*)pkt)->m_data[8];
     value.m_data[9] = ((Wire*)pkt)->m_data[9];
-    value.m_data[11] = ((Wire*)pkt)->m_last;
+    value.m_data[10] = ((Wire*)pkt)->m_last;
     std::map<STPartyStatisticKey, PartyStatistic>::iterator it = m_party.find(key);
     if (m_party.empty() || it == m_party.end())
     {
@@ -831,20 +831,24 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
         for (std::map<STHellPartyStatisticItemKey, HellPartyItenmData>::iterator it =
                  m_hellParty.begin(); it != m_hellParty.end(); ++it)
         {
-            *((char*)&pkt + 0xe + idx * 0x24 + 0) = it->first.m_field0;
-            *(unsigned int*)((char*)&pkt + 0xe + idx * 0x24 + 1) = it->first.m_field4;
-            *((char*)&pkt + 0xe + idx * 0x24 + 5) = it->first.m_field8;
-            *((char*)&pkt + 0xe + idx * 0x24 + 6) = it->first.m_field9;
-            *((char*)&pkt + 0xe + idx * 0x24 + 7) = it->first.m_fielda;
-            *(int*)((char*)&pkt + 0xe + idx * 0x24 + 8) = it->second.m_count;
-            for (int k = 0; k < 6; k++)
-            {
-                *(int*)((char*)&pkt + 0xe + idx * 0x24 + 0xc + k * 4) = it->second.m_data[k];
-            }
+            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_field0 =
+                it->first.m_field0;
+            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_field4 =
+                it->first.m_field4;
+            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_field8 =
+                it->first.m_field8;
+            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_field9 =
+                it->first.m_field9;
+            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_fielda =
+                it->first.m_fielda;
+            memcpy(((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_data,
+                   it->second.m_data, 0x18);
+            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_count =
+                it->second.m_count;
             idx++;
             if (0xa7 < idx)
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = 0xa8;
+                pkt.m_count = 0xa8;
                 handler->SendToDB((PacketHeader*)&pkt);
                 DNF_LOG_SCOPE_LINE(0x391, "./log/statistic", "Packet_DBMW_HellParty_Statistic_Item : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
                 idx = 0;
@@ -852,7 +856,7 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
         }
         if (idx != 0)
         {
-            *(unsigned int*)((char*)&pkt + 0xa) = idx;
+            pkt.m_count = idx;
             DNF_LOG_SCOPE_LINE(0x39a, "./log/statistic", "Packet_DBMW_HellParty_Statistic_Item : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n", idx);
             handler->SendToDB((PacketHeader*)&pkt);
         }
@@ -1721,6 +1725,7 @@ void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statisti
         char m_hdr[0xe];
         int m_f0e;
         char m_f12;
+        unsigned int m_f13;
     };
     if (pkt == 0)
     {
@@ -1741,7 +1746,7 @@ void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statisti
     else
     {
         *(int*)((char*)this + (((Wire*)pkt)->m_f0e + 0x100) * 8 + 0xb) += 1;
-        m_serverList.insert(((Wire*)pkt)->m_f0e);
+        m_serverList.insert(((Wire*)pkt)->m_f13);
     }
 }
 void StatisticManager::SendDBTowerOfDespairStatistic(CServerHandler* handler)

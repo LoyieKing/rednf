@@ -47,11 +47,27 @@ class CApplication;
 
 // ---- HellParty 统计上报包（ORIG Statistics.cpp 发射）----
 #pragma pack(push, 1)
+// SendDBHellPartyStatisticItem 的 item 视图：以 packet+idx*0x24 为基址，
+// 字段从 +0xe 开始（前 0xe 字节对应 PacketHeader 0xa + 包级 count 0x4，
+// 对 idx>0 的 item 则与前一 item 的 m_data 尾部重叠，仅作位移视图）。
+struct STHellPartyStatisticItemWire
+{
+    char         m_pad[0xe];   // +0
+    char         m_field0;     // +0xe（STHellPartyStatisticItemKey::m_field0）
+    unsigned int m_field4;     // +0xf（m_field4）
+    char         m_field8;     // +0x13（m_field8）
+    char         m_field9;     // +0x14（m_field9）
+    char         m_fielda;     // +0x15（m_fielda）
+    int          m_count;      // +0x16（HellPartyItenmData::m_count）
+    int          m_data[6];    // +0x1a（HellPartyItenmData::m_data[6]）
+};                              // 步长 0x24
+
 class Packet_DBMW_HellParty_Statistic_Item : public PacketHeader
 {
 public:
     Packet_DBMW_HellParty_Statistic_Item();
-    char m_data[0x17a4];
+    unsigned int m_count;        // +0xa（本包内 item 数量）
+    char         m_data[0x17a0]; // +0xe（0xa8 个 item，各 0x24 字节）
 } __attribute__((packed));
 #pragma pack(pop)
 
