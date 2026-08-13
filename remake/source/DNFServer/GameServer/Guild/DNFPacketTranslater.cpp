@@ -2414,8 +2414,8 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
                 *(unsigned int*)((char*)&noCache + 0x12) = 2;
                 m_pclApp->Get_ServerHandler()->SendTcpGameServerFirst(&noCache);
                 Packet_DBMW_Query_Msg query;
-                *(unsigned int*)((char*)&query + 0xa) = 2;
-                *(unsigned int*)((char*)&query + 0xe) = 0x4f00;
+                *(unsigned int*)((char*)&query + 0xa) = 0x4f00;
+                *(unsigned int*)((char*)&query + 0xe) = 2;
                 char sql[4097];
                 sprintf(sql, "upDate charac_info set guild_secede = 1 where charac_no = %u",
                         targetCharNo);
@@ -2433,12 +2433,11 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
             }
         }
         ST_Notice_Guild_Secede notice;
-        memset(&notice, 0, sizeof(notice));
         *(unsigned int*)((char*)&notice + 0) = guildKey;
-        *(unsigned int*)((char*)&notice + 4) = targetCharNo;
-        *(unsigned short*)((char*)&notice + 8) = (unsigned short)(signed char)secedeFlag;
-        memcpy((char*)&notice + 0xe, (char*)pkt + 0x1f, 0x1d);
-        memcpy((char*)&notice + 0x2b, guild->GetGuildName(), 0x16);
+        *(unsigned int*)((char*)&notice + 8) = targetCharNo;
+        *(unsigned short*)((char*)&notice + 0xc) = (unsigned short)(signed char)secedeFlag;
+        memcpy((char*)&notice + 0x25, (char*)pkt + 0x1f, 0x1d);
+        memcpy((char*)&notice + 0xe, guild->GetGuildName(), 0x16);
         guild->NoticeSecedeToGuildMember((char*)&notice);
         (&m_pclApp->m_guildManager)->GuildSecede(guildKey, notice);
         guild->SendGuildInfoToMembers(false);
