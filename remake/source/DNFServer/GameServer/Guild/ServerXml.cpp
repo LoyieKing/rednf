@@ -158,23 +158,23 @@ void CServerXml::CharsetInit(TiXmlNode* node)
     }
     if (strcmp(type, "kor") == 0)
     {
-        *(unsigned int*)((char*)this + 0x50) = 0;
+        m_field50 = 0;
     }
     else if (strcmp(type, "chn") == 0)
     {
-        *(unsigned int*)((char*)this + 0x50) = 1;
+        m_field50 = 1;
     }
     else if (strcmp(type, "jpn") == 0)
     {
-        *(unsigned int*)((char*)this + 0x50) = 2;
+        m_field50 = 2;
     }
     else if (strcmp(type, "usa") == 0)
     {
-        *(unsigned int*)((char*)this + 0x50) = 3;
+        m_field50 = 3;
     }
     else if (strcmp(type, "twn") == 0)
     {
-        *(unsigned int*)((char*)this + 0x50) = 4;
+        m_field50 = 4;
     }
     else
     {

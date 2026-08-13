@@ -92,7 +92,7 @@ struct __attribute__((packed)) STGuildMemberProxy
 struct __attribute__((packed)) STGuildDBInfoOnly
 {
     STGuildDBInfoOnly();
-    char m_pad0[0x17];             // +0
+    char m_guildName[0x17];        // +0
     unsigned int m_masterId;       // +0x17
     unsigned char m_guildLevel;    // +0x1b
     unsigned char m_flag0 : 1;     // +0x1c bit0
@@ -115,7 +115,7 @@ struct __attribute__((packed)) STGuildDBInfoOnly
     unsigned char m_agitFlag;      // +0x9e
     unsigned char m_field9f;       // +0x9f
     unsigned int m_guildFund;      // +0xa0
-    char m_pada4[0xb9 - 0xa4];     // +0xa4
+    char m_masterName[0x15];       // +0xa4
     unsigned int m_fieldB9;        // +0xb9
 };
 
@@ -380,7 +380,10 @@ public:
 class Packet_Achieve_Guild_Attendance : public PacketHeader {
 public:
     Packet_Achieve_Guild_Attendance();
-    char m_data[0x10];
+    unsigned int m_charNo;     // +0xa
+    unsigned int m_phase;      // +0xe
+    unsigned int m_channel;    // +0x12
+    unsigned int m_charNo2;    // +0x16
 };
 
 // from GuildPackets.h
@@ -469,42 +472,64 @@ public:
 class Packet_Guild_Notice_Guild_Master_Delegate : public PacketHeader {
 public:
     Packet_Guild_Notice_Guild_Master_Delegate();
-    char m_data[0x26];
+    unsigned int m_charNo;   // +0xa
+    int m_channel;           // +0xe
+    char m_name[0x1d];       // +0x12
 };
 
 // from GuildPackets.h
 class Packet_Guild_Notice_Guild_Name_Change : public PacketHeader {
 public:
     Packet_Guild_Notice_Guild_Name_Change();
-    char m_data[0x23];
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_charNo;    // +0xe
+    unsigned int m_channel;   // +0x12
+    char m_name[0x17];        // +0x16
 };
 
 // from GuildPackets.h
 class Packet_Guild_Notify_Guild_Member_Memo : public PacketHeader {
 public:
     Packet_Guild_Notify_Guild_Member_Memo();
-    char m_data[0x3b];
+    int m_fieldA;             // +0xa
+    unsigned int m_fieldE;    // +0xe
+    char m_name[0x1d];        // +0x12
+    char m_memo[0x14];        // +0x30
 };
 
 // from GuildPackets.h
 class Packet_Guild_Notify_Message_To_Guild_Mem : public PacketHeader {
 public:
     Packet_Guild_Notify_Message_To_Guild_Mem();
-    char m_data[0x6d];
+    unsigned int m_fieldA;    // +0xa
+    unsigned int m_fieldE;    // +0xe
+    char m_msg[0x65];         // +0x12
 };
 
 // from GuildPackets.h
 class Packet_Monitor_Guild_Chat_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Guild_Chat_ToUser();
-    char m_data[0x127];
+    unsigned int m_fieldA;    // +0xa
+    unsigned int m_fieldE;    // +0xe
+    char m_name[0x1d];        // +0x12
+    unsigned char m_len;      // +0x2f
+    char m_msg[1];            // +0x30
+    char m_pad[0x100];        // +0x31
 };
 
 // from GuildPackets.h
 class Packet_Monitor_Guild_Chat_ToUser_Hyper_Link : public PacketHeader {
 public:
     Packet_Monitor_Guild_Chat_ToUser_Hyper_Link();
-    char m_data[0x260];
+    unsigned int m_fieldA;    // +0xa
+    unsigned int m_fieldE;    // +0xe
+    char m_name[0x1d];        // +0x12
+    unsigned char m_type;     // +0x2f
+    char m_items[0x128];      // +0x30
+    char m_len;               // +0x158
+    char m_msg[1];            // +0x159
+    char m_pad[0x110];        // +0x15a
 };
 
 // from GuildPackets.h
@@ -523,7 +548,7 @@ public:
     Packet_Monitor_Notice_Guild_Enter_ToUser();
     unsigned int m_a;              // +0xa
     unsigned int m_b;              // +0xe
-    char m_pad12[2];               // +0x12
+    unsigned short m_totalCnt;     // +0x12
     ST_Notice_Guild_Enter m_info;  // +0x14
     char m_pad55[5];               // +0x55
 };
@@ -533,7 +558,8 @@ public:
 class Packet_Monitor_Notice_Guild_Info : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Info();
-    char m_pad[8];
+    unsigned int m_fieldA;          // +0xa
+    unsigned int m_fieldE;          // +0xe
     unsigned int m_field12;          // +0x12
     STGuildDBInfoOnly m_info;        // +0x16
     char m_padD3;                    // +0xd3（ORIG 布局：m_info 后 1 字节间隙）
@@ -544,7 +570,12 @@ public:
 class Packet_Monitor_Notice_Guild_Member_Login_out : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Member_Login_out();
-    char m_data[0x28];
+    char m_flag;               // +0xa
+    int m_channel;             // +0xb
+    unsigned int m_charNo;     // +0xf
+    char m_channelNo;          // +0x13
+    char m_name[0x1d];         // +0x14
+    char m_pad;                // +0x31
 };
 
 // from GuildPackets.h
@@ -574,7 +605,20 @@ public:
 class Packet_Notify_Today_Guild_Member : public PacketHeader {
 public:
     Packet_Notify_Today_Guild_Member();
-    char m_data[0x33];
+    unsigned int m_guildKey;   // +0xa
+    unsigned int m_charNo;     // +0xe
+    unsigned int m_channel;    // +0x12
+    unsigned int m_member0;    // +0x16
+    unsigned int m_member1;    // +0x1a
+    unsigned int m_member2;    // +0x1e
+    unsigned int m_member3;    // +0x22
+    unsigned int m_member4;    // +0x26
+    unsigned int m_member5;    // +0x2a
+    unsigned int m_member6;    // +0x2e
+    unsigned int m_member7;    // +0x32
+    unsigned int m_member8;    // +0x36
+    unsigned short m_memberA;  // +0x3a
+    char m_memberC;            // +0x3c
 };
 
 // from GuildPackets.h
@@ -589,7 +633,9 @@ public:
 class Packet_Monitor_Notice_Guild_Mark_Change_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Mark_Change_ToUser();
-    char m_data[0xc];
+    int m_fieldA;              // +0xa
+    unsigned int m_fieldE;     // +0xe
+    unsigned int m_field12;    // +0x12
 };
 
 #pragma pack(pop)

@@ -226,7 +226,7 @@ void CGuildWar::Clear_VtGuildWarInfo()
 bool GuildWarPairDataCompare(const std::pair<unsigned int, STGuildWarInfo*>& a,
                              const std::pair<unsigned int, STGuildWarInfo*>& b)
 {
-    return *(unsigned int*)((char*)b.second + 4) < *(unsigned int*)((char*)a.second + 4);
+    return b.second->m_point < a.second->m_point;
 }
 
 bool CGuildWar::Rank()

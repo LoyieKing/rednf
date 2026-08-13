@@ -422,7 +422,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
             Packet_Notify_New_Group_Mail notice;
             int n = characNos.size() > 0x12b ? 0x12c : characNos.size();
             for (int i = 0; i < n; i++)
-                *(int*)((char*)&notice + 0xe + i * 4) = characNos.at(i);
+                notice.m_characNos[i] = characNos.at(i);
             m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
                 (char*)&notice, notice.packetSize);
             characNos.clear();
@@ -947,8 +947,7 @@ void CPacketTranslater::OnSavePowerWarBonusPoint(PacketHeader* header)
             if (n > 0x12c)
                 n = 0x12c;
             for (int i = 0; i < n; i++)
-                *(int*)((char*)&notice + 0xe + i * 4) =
-                    pkt->m_entries[i].m_characNo;
+                notice.m_characNos[i] = pkt->m_entries[i].m_characNo;
             CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
             gs->SendToServer((char*)&notice, notice.packetSize);
         }
@@ -1806,8 +1805,8 @@ void CPacketTranslater::onCollectItemsUpdate(PacketHeader* header)
         unsigned char flag = 0;
         m_pclApp->m_dbManager.selectCollectItems(
             pkt->m_serverInfo,
-            *(int*)((char*)&reply + 0xe), *(int*)((char*)&reply + 0xa),
-            *(unsigned int*)((char*)&reply + 0x12), flag);
+            *(int*)&reply.m_fieldE, *(int*)&reply.m_fieldA,
+            *(unsigned int*)&reply.m_field12, flag);
         int diff = pkt->m_fieldA - reply.m_fieldE;
         m_pclApp->m_dbManager.updateCollectItems(
             pkt->m_serverInfo, diff,

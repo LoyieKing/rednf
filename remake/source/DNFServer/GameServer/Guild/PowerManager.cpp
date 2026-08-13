@@ -187,7 +187,7 @@ int CPowerManager::GetPowerScore(ENUM_POWER_SIDE_TYPE side)
 
 void CPowerManager::StartPowerWarEvent()
 {
-    ((CPowerWar*)((char*)this + 0x14c))->CPowerWar::setEvent();
+    m_powerWar.CPowerWar::setEvent();
     for (int i = 0; i < 3; i++)
     {
         m_power[i].InitPower();
@@ -224,7 +224,7 @@ void CPowerManager::EndPowerWarEvent()
     SendPowerWarInfo();
     SendPowerWarEndInfo();
     CleanPowerWar();
-    ((CPowerWar*)((char*)this + 0x14c))->CPowerWar::resetEvent();
+    m_powerWar.CPowerWar::resetEvent();
     CMyFileLog logBottom(__FUNCTION__, 0xfd);
     logBottom("./log/Power", "CPowerManager::EndPowerWarEvent BOTTOM");
 }
@@ -286,22 +286,22 @@ void CPowerManager::RewardGuildPowerWarPoint()
 
 void CPowerManager::SaveDBPowerWarRank()
 {
-    char winnerSide = *(char*)((char*)this + 0x184);
+    char winnerSide = m_winnerSide;
     if (winnerSide != 0 && winnerSide < 3)
     {
         CMyFileLog logStart(__FUNCTION__, 0x1b6);
         logStart("./log/PowerResult", "POWER WAR RESULT DB SAVE START");
-        CApplication* app = *(CApplication**)((char*)this + 4);
+        CApplication* app = *(CApplication**)&m_field4;
         Packet_DB_Save_Power_War_User_Rank userPkt;
         unsigned char group = app->Get_ServerHandler()->GetServerGroupNo();
-        *(unsigned char*)((char*)&userPkt + 0xb) = group;
+        userPkt.m_b = group;
         STUserRank userRanks[500];
         for (int side = 1; side < 3; side++)
         {
             memset(userRanks, 0, 4000);
-            *(unsigned char*)((char*)&userPkt + 0xc) = (unsigned char)side;
+            userPkt.m_c = (unsigned char)side;
             CPowerWarCharacInfo* characInfo =
-                ((CPower*)((char*)this + side * 0x6c + 8))->GetPowerWarCharacInfo();
+                m_power[side].GetPowerWarCharacInfo();
             unsigned int count = 0;
             characInfo->GetAllUserRankingInfo(count, userRanks);
             {
@@ -315,33 +315,33 @@ void CPowerManager::SaveDBPowerWarRank()
             }
             else if (count < 0xfb)
             {
-                *(unsigned char*)((char*)&userPkt + 0xa) = 1;
-                *(unsigned int*)((char*)&userPkt + 0x11) = count;
-                memcpy((char*)&userPkt + 0x15, userRanks, count << 3);
+                userPkt.m_a = 1;
+                userPkt.m_e = count;
+                memcpy(userPkt.m_ranks, userRanks, count << 3);
                 app->Get_ServerHandler()->SendToDB(&userPkt);
             }
             else
             {
-                *(unsigned char*)((char*)&userPkt + 0xa) = (unsigned char)(side == 1);
-                *(unsigned int*)((char*)&userPkt + 0x11) = 0xfa;
-                memcpy((char*)&userPkt + 0x15, userRanks, 2000);
+                userPkt.m_a = (unsigned char)(side == 1);
+                userPkt.m_e = 0xfa;
+                memcpy(userPkt.m_ranks, userRanks, 2000);
                 app->Get_ServerHandler()->SendToDB(&userPkt);
-                *(unsigned char*)((char*)&userPkt + 0xc) = 0xfb;
-                *(unsigned char*)((char*)&userPkt + 0xa) = 0;
-                *(unsigned int*)((char*)&userPkt + 0x11) = count - 0xfa;
-                memcpy((char*)&userPkt + 0x15, (char*)userRanks + 2000, (count - 0xfa) * 8);
+                userPkt.m_c = 0xfb;
+                userPkt.m_a = 0;
+                userPkt.m_e = count - 0xfa;
+                memcpy(userPkt.m_ranks, (char*)userRanks + 2000, (count - 0xfa) * 8);
                 app->Get_ServerHandler()->SendToDB(&userPkt);
             }
         }
         Packet_DB_Save_Power_War_Guild_Rank guildPkt;
-        *(unsigned char*)((char*)&guildPkt + 0xa) = app->Get_ServerHandler()->GetServerGroupNo();
+        guildPkt.m_a = app->Get_ServerHandler()->GetServerGroupNo();
         for (int side = 1; side < 3; side++)
         {
-            *(unsigned char*)((char*)&guildPkt + 0xb) = (unsigned char)side;
-            *(unsigned int*)((char*)&guildPkt + 0xc) = 0;
-            memset((char*)&guildPkt + 0x10, 0, 800);
+            guildPkt.m_b = (unsigned char)side;
+            guildPkt.m_c = 0;
+            memset(guildPkt.m_ranks, 0, 800);
             CPowerWarGuildInfo* guildInfo =
-                ((CPower*)((char*)this + side * 0x6c + 8))->GetPowerWarGuildInfo();
+                m_power[side].GetPowerWarGuildInfo();
             int count = 0;
             guildInfo->GetAllGuildRankingInfo(count, (STGuildRank*)((char*)&guildPkt + 0x10));
             app->Get_ServerHandler()->SendToDB(&guildPkt);
@@ -355,10 +355,8 @@ void CPowerManager::SaveDBPowerWarRank()
         (void)noticePkt;
         statuePkt.m_group = app->Get_ServerHandler()->GetServerGroupNo();
         std::vector<STPowerWarCharacInfo*> users;
-        CPowerWarCharacInfo* s1 =
-            ((CPower*)((char*)this + 0x74))->GetPowerWarCharacInfo();
-        CPowerWarCharacInfo* s2 =
-            ((CPower*)((char*)this + 0xe0))->GetPowerWarCharacInfo();
+        CPowerWarCharacInfo* s1 = m_power[1].GetPowerWarCharacInfo();
+        CPowerWarCharacInfo* s2 = m_power[2].GetPowerWarCharacInfo();
         s1->GetStatueRankingUsers(users);
         s2->GetStatueRankingUsers(users);
         std::sort(users.begin(), users.end(), STPowerWarCharacInfo::Compare);
@@ -396,7 +394,7 @@ void CPowerManager::SaveDBPowerWarPoint()
 
 void CPowerManager::LoadPowerWarCfg(char* path)
 {
-    ((CPowerWar*)((char*)this + 0x14c))->LoadPowerWarTableFile(path);
+    m_powerWar.LoadPowerWarTableFile(path);
 }
 
 void CPowerManager::SetPowerWarEndKillPoint(unsigned short point)
@@ -513,10 +511,10 @@ void CPowerManager::PrintDebugInfo()
         CMyFileLog logA(__FUNCTION__, 0x3c9);
         logA("./log/PowerResult", "----- POWER A");
     }
-    ((CPower*)((char*)this + 0x74))->GetPowerWarGuildInfo()->PrintDebugInfo();
+    m_power[1].GetPowerWarGuildInfo()->PrintDebugInfo();
     CMyFileLog logB(__FUNCTION__, 0x3cf);
     logB("./log/PowerResult", "----- POWER B");
-    ((CPower*)((char*)this + 0xe0))->GetPowerWarGuildInfo()->PrintDebugInfo();
+    m_power[2].GetPowerWarGuildInfo()->PrintDebugInfo();
 }
 
 void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
@@ -596,7 +594,7 @@ void CPowerManager::SendPowerWarEndInfoInSpecificPower(char side)
     STPowerWarCharacInfo* characInfo = 0;
     STPowerWarGuildInfo* guildInfo = 0;
     std::vector<STPowerWarCharacInfo*>* vec =
-        ((CPower*)((char*)this + side * 0x6c + 8))->GetPowerWarCharacInfo()
+        m_power[side].GetPowerWarCharacInfo()
             ->GetCharacInfoVector();
     std::vector<STPowerWarCharacInfo*>::iterator it = vec->begin();
     {
@@ -612,18 +610,18 @@ void CPowerManager::SendPowerWarEndInfoInSpecificPower(char side)
         }
         else
         {
-            CUser* user = (*(CApplication**)((char*)this + 4))->Get_UserManager()
+            CUser* user = (*(CApplication**)&m_field4)->Get_UserManager()
                 ->FindUser_CharNo(*(unsigned int*)characInfo->m_data);
             if (user != 0)
             {
-                guild = (*(CApplication**)((char*)this + 4))->Get_GuildManager()
+                guild = (*(CApplication**)&m_field4)->Get_GuildManager()
                     ->FindGuild(user->GetGuildKey());
                 if (guild != 0)
                 {
                     charNo = user->GetUniqCharNo();
                     guildKey = user->GetGuildKey();
                     isWinner = (guild->GetPowerSide() == GetWinnerSide()) ? 1 : 0;
-                    CPower* power = (CPower*)((char*)this + side * 0x6c + 8);
+                    CPower* power = &m_power[side];
                     guildRank = power->GetPowerWarGuildInfo()->GetGuildRanking(guildKey);
                     guildInfo = power->GetPowerWarGuildInfo()->GetSpecificGuildInfo(guildKey);
                     if (guildInfo != 0)

@@ -501,7 +501,7 @@ public:
     Packet_Guild_Exp_Book_Delete();
     unsigned int ma;                 // +0xa
     unsigned int me;                 // +0xe
-    char pad0x12[0x4];                 // +0x12
+    int m_field12;                   // +0x12
     unsigned int m16;                 // +0x16
 
 };
@@ -572,7 +572,8 @@ public:
 class Packet_Monitor_Notify_GuildMemberGrade : public PacketHeader {
 public:
     Packet_Monitor_Notify_GuildMemberGrade();
-    char pad0xa[0x8];                 // +0xa .. +0x11
+    unsigned int m_fieldA;            // +0xa
+    unsigned int m_fieldE;            // +0xe
     unsigned char m12;                // +0x12
 
 };
@@ -669,7 +670,7 @@ class Packet_Reply_Change_Guild_Name : public PacketHeader {
 public:
     Packet_Reply_Change_Guild_Name();
     unsigned int m_a;                 // +0xa
-    char m_padE[0x4];                 // +0xe
+    unsigned int m_fieldE;            // +0xe
     unsigned int m_12;                // +0x12
     unsigned char m_16;               // +0x16
     char m_name[0x17];                // +0x17
@@ -735,7 +736,10 @@ public:
     Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade();
     unsigned char ma;                 // +0xa
     unsigned int mb;                 // +0xb
-    char pad0xf[0x23];                 // +0xf
+    unsigned char m_f;               // +0xf
+    unsigned int m_10;               // +0x10
+    unsigned char m_14;              // +0x14
+    char m_name[0x1d];               // +0x15
     unsigned char m32;                 // +0x32
 
 };

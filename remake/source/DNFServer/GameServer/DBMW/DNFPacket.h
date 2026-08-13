@@ -518,7 +518,20 @@ class Packet_Frame_Lag_Statistic_Result_Load_Spec : public PacketHeader
 public:
     Packet_Frame_Lag_Statistic_Result_Load_Spec();
     unsigned char m_fieldA;  // +0xa
-    char m_pad[0xda];  // 数据区（ORIG ctor size 0xe5）
+    int m_batchIndex;                    // +0xb（每 6 条发送后自增）
+    int m_count;                         // +0xf
+    int m_uniqueId[6];                   // +0x13
+    unsigned int m_modifyTime[6];        // +0x2b
+    int m_specId[6];                     // +0x43
+    unsigned char m_cpuVendor[6];        // +0x5b
+    unsigned char m_cpuProcessorNum[6];  // +0x61
+    int m_aboveCpuClock[6];              // +0x67
+    int m_belowCpuClock[6];              // +0x7f
+    unsigned short m_ram[6];             // +0x97
+    int m_videocardVendor[6];            // +0xa3
+    int m_videocardDevice[6];            // +0xbb
+    unsigned short m_videocardTextureMem[6]; // +0xd3
+    unsigned char m_osVersion[6];        // +0xdf（总大小 0xe5）
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Statistic_Load_Spec : public PacketHeader
@@ -531,7 +544,7 @@ class Packet_Frame_Lag_Spec_Delete_Notify : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Spec_Delete_Notify();
-    char m_pad[0x4];  // 数据区（ORIG ctor size 0xe）
+    int m_specId;  // +0xa（ORIG ctor size 0xe）
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Statistic_Write_Lag_Index : public PacketHeader
@@ -583,7 +596,8 @@ class Packet_Notify_New_Group_Mail : public PacketHeader
 {
 public:
     Packet_Notify_New_Group_Mail();
-    char m_pad[0x4b4];  // 数据区（ORIG ctor size 0x4be）
+    char m_pad[4];            // +0xa..0xd
+    int m_characNos[0x12c];   // +0xe（ORIG ctor size 0x4be）
 } __attribute__((packed));
 
 class Packet_Response_IPCounterList : public PacketHeader

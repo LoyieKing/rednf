@@ -80,7 +80,7 @@
 
 void CScheduler::SetSpecificDayScheduleHour(int day, int hour)
 {
-    *(char*)((char*)this + day * 4 + 9) = (char)hour;
+    m_table[day].m_hour = (char)hour;
 }
 
 CScheduler::CScheduler()

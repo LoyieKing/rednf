@@ -91,6 +91,23 @@ struct __attribute__((packed)) GuildNoticeInfoFull
     char m_padD3;            // +0xd3
     char m_rest[0x65];       // +0xd4
 };
+
+// CGuild today-member 块（+0x66ec），与 SetTodayGuildMember 的 _TmFull 一致：
+// 9×uint + ushort + byte = 0x27 字节
+struct __attribute__((packed)) CGuildTodayMemberBlock
+{
+    unsigned int m_charNo;    // +0x0 (0x66ec)
+    unsigned int m_name0;     // +0x4 (0x66f0)
+    unsigned int m_name1;     // +0x8
+    unsigned int m_name2;     // +0xc
+    unsigned int m_name3;     // +0x10
+    unsigned int m_name4;     // +0x14
+    unsigned int m_name5;     // +0x18
+    unsigned int m_name6;     // +0x1c
+    unsigned int m_name7;     // +0x20
+    unsigned short m_field24; // +0x24 (0x6710)
+    unsigned char m_field26;  // +0x26 (0x6712)
+};
 #include "SystemTimeHandler.h"
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
@@ -592,18 +609,18 @@ void CGuild::LoadGuild(STGuildDBInfoOnly& info, char* name)
         int local18 = m_dbInfo.m_info.m_guildPoint;
         char local11 = 0;
         int local10 = 0;
-        while (local10 < (int)(unsigned char)((char*)&info)[0x44] &&
-               199 < *(int*)((char*)&info + local10 * 5 + 0x45) &&
-               *(int*)((char*)&info + local10 * 5 + 0x45) < 0xd1)
+        while (local10 < (int)info.m_field44 &&
+               199 < info.m_skills[local10].m0 &&
+               info.m_skills[local10].m0 < 0xd1)
         {
             local11++;
             local10++;
         }
-        if ((int)local11 != (int)(unsigned char)((char*)&info)[0x44])
+        if ((int)local11 != (int)info.m_field44)
         {
             DNF_LOG_SCOPE_LINE(0x11b,"./log/GuildSkill", "Guild Skill Learn Error(%d)(%d)",
-                (unsigned char)((char*)&info)[0x44], (int)local11);
-            ((char*)&info)[0x44] = local11;
+                (int)info.m_field44, (int)local11);
+            info.m_field44 = (unsigned char)local11;
         }
         memcpy((char*)this + 0x20, (char*)&info, 0xbd);
         SetGuildMessage(name);
@@ -623,7 +640,7 @@ void CGuild::SaveGuild(unsigned char flag, CServerHandler* handler, unsigned int
         pkt.m_flag = flag;
         pkt.m_b = m_guildKey;
         pkt.m_param = param;
-        memcpy((char*)&pkt + 0xf, (char*)this + 0x20, 0xbd);
+        memcpy(&pkt.m_info, (char*)this + 0x20, 0xbd);
         handler->SendToDB(&pkt);
     }
 }
@@ -838,7 +855,7 @@ void CGuild::NoticeGuildMasterDelegateToMembers(char* name)
         return;
     }
     Packet_Guild_Notice_Guild_Master_Delegate pkt;
-    memcpy((char*)&pkt + 0x12, name, 0x1d);
+    memcpy(pkt.m_name, name, 0x1d);
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
@@ -847,8 +864,8 @@ void CGuild::NoticeGuildMasterDelegateToMembers(char* name)
         {
             continue;
         }
-        *(int*)((char*)&pkt + 0xe) = member->GetIdByChannel();
-        *(unsigned int*)((char*)&pkt + 0xa) = member->GetUniqCharNo();
+        pkt.m_channel = member->GetIdByChannel();
+        pkt.m_charNo = member->GetUniqCharNo();
         member->SendToGameserver((char*)&pkt, 0x30);
     }
     CMyFileLog log(__FUNCTION__, 0x2bd);
@@ -860,14 +877,14 @@ void CGuild::SendGuildInfoToMembers(bool flag)
 {
     Packet_Monitor_Notice_Guild_Info pkt;
     pkt.m_field12 = m_guildKey;
-    memcpy((char*)&pkt + 0x16, (char*)this + 0x20, 0xbd);
+    memcpy(&pkt.m_info, (char*)this + 0x20, 0xbd);
     pkt.m_padD3 = (char)flag;
     size_t n = strlen((char*)this + 0x4d0a);
     if (n > 0x64)
     {
         n = 0x64;
     }
-    memcpy((char*)&pkt + 0xd4, (char*)this + 0x4d0a, n);
+    memcpy(pkt.m_rest, m_field4d0a, n);
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
@@ -876,8 +893,8 @@ void CGuild::SendGuildInfoToMembers(bool flag)
         {
             continue;
         }
-        *(int*)((char*)&pkt + 0xa) = member->GetIdByChannel();
-        *(unsigned int*)((char*)&pkt + 0xe) = member->GetUniqCharNo();
+        pkt.m_fieldA = member->GetIdByChannel();
+        pkt.m_fieldE = member->GetUniqCharNo();
         member->SendToGameserver((char*)&pkt, 0x139);
         ReplyGuildMembers(member);
     }
@@ -886,16 +903,16 @@ void CGuild::SendGuildInfoToMembers(bool flag)
 void CGuild::SendGuildNameChangeToMembers()
 {
     Packet_Guild_Notice_Guild_Name_Change pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = m_guildKey;
-    memcpy((char*)&pkt + 0x16, (char*)this + 0x20, 0x16);
+    pkt.m_guildKey = m_guildKey;
+    memcpy(pkt.m_name, m_dbInfo.m_info.m_guildName, 0x16);
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
         CUser* u = it->second;
         if (u != 0)
         {
-            *(unsigned int*)((char*)&pkt + 0x12) = u->GetIdByChannel();
-            *(unsigned int*)((char*)&pkt + 0xe) = u->GetUniqCharNo();
+            pkt.m_channel = u->GetIdByChannel();
+            pkt.m_charNo = u->GetUniqCharNo();
             u->SendToGameserver((char*)&pkt, 0x2d);
         }
     }
@@ -931,8 +948,8 @@ void CGuild::SendGuildInfoToManagers()
         Packet_Monitor_Notice_Guild_Info pkt;
         pkt.m_field12 = m_guildKey;
         pkt.m_padD3 = 1;
-        memcpy((char*)&pkt + 0x16, (char*)this + 0x20, 0xbd);
-        strncpy((char*)&pkt + 0xd4, (char*)this + 0x4d0a, 100);
+        memcpy(&pkt.m_info, &m_dbInfo.m_info, 0xbd);
+        strncpy(pkt.m_rest, m_field4d0a, 100);
         for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
              it != m_members.end(); ++it)
         {
@@ -942,8 +959,8 @@ void CGuild::SendGuildInfoToManagers()
                 if (IsGuildMaster(u->GetUniqCharNo()) == 1 ||
                     IsSubGuildMaster(u->GetUniqCharNo()) == 1)
                 {
-                    *(unsigned int*)((char*)&pkt + 0xa) = u->GetIdByChannel();
-                    *(unsigned int*)((char*)&pkt + 0xe) = u->GetUniqCharNo();
+                    pkt.m_fieldA = u->GetIdByChannel();
+                    pkt.m_fieldE = u->GetUniqCharNo();
                     u->SendToGameserver((char*)&pkt, 0x139);
                 }
             }
@@ -1118,7 +1135,7 @@ void CGuild::NoticeEnterToGuildMember(char* info)
         !m_members.empty())
     {
         Packet_Monitor_Notice_Guild_Enter_ToUser pkt;
-        memcpy((char*)&pkt + 0x14, info, 0x46);
+        memcpy(&pkt.m_info, info, 0x46);
         for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
              it != m_members.end(); ++it)
         {
@@ -1127,8 +1144,7 @@ void CGuild::NoticeEnterToGuildMember(char* info)
             {
                 pkt.m_a = u->GetIdByChannel();
                 pkt.m_b = u->GetUniqCharNo();
-                *(unsigned short*)((char*)&pkt + 0x12) =
-                    m_dbInfo.m_info.m_totalCnt;
+                pkt.m_totalCnt = m_dbInfo.m_info.m_totalCnt;
                 u->SendToGameserver((char*)&pkt, 0x5a);
             }
         }
@@ -1140,7 +1156,7 @@ void CGuild::NoticeSecedeToGuildMember(char* info)
     if ((m_field1c & 4) != 0 && !m_members.empty())
     {
         Packet_Monitor_Notice_Guild_Secede_ToUser pkt;
-        memcpy((char*)&pkt + 0x12, info, 0x43);
+        memcpy(&pkt.m_info, info, 0x43);
         for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
              it != m_members.end(); ++it)
         {
@@ -1172,9 +1188,9 @@ void CGuild::NoticeMarkChangeToGuildMember(unsigned int charNo)
         }
         int channel = member->GetIdByChannel();
         unsigned int memberNo = member->GetUniqCharNo();
-        *(int*)((char*)&pkt + 0xa) = channel;
-        *(unsigned int*)((char*)&pkt + 0xe) = memberNo;
-        *(unsigned int*)((char*)&pkt + 0x12) = charNo;
+        pkt.m_fieldA = channel;
+        pkt.m_fieldE = memberNo;
+        pkt.m_field12 = charNo;
         CMyFileLog log(__FUNCTION__, 0x4bf);
         log("./log/Web", "[GUILD MARK CHANGE] Send to game server. (channel:%d, character:%u, guildkey:%d)\n",
             channel, memberNo, charNo);
@@ -1195,12 +1211,12 @@ void CGuild::NoticeChatMsgToGuildMembers(unsigned int charNo, char* msg, int len
             CUser* u = it->second;
             if (u != 0)
             {
-                *(unsigned int*)((char*)&pkt + 0xa) = u->GetIdByChannel();
-                *(unsigned int*)((char*)&pkt + 0xe) = u->GetUniqCharNo();
-                memcpy((char*)&pkt + 0x12, name, 0x1d);
-                *(unsigned char*)((char*)&pkt + 0x2f) = (unsigned char)len;
-                memcpy((char*)&pkt + 0x30, msg, len);
-                *(unsigned short*)((char*)&pkt + 2) = (unsigned short)(len + 0x31);
+                pkt.m_fieldA = u->GetIdByChannel();
+                pkt.m_fieldE = u->GetUniqCharNo();
+                memcpy(pkt.m_name, name, 0x1d);
+                pkt.m_len = (unsigned char)len;
+                memcpy(pkt.m_msg, msg, len);
+                pkt.packetSize = (unsigned short)(len + 0x31);
                 u->SendToGameserver((char*)&pkt, (unsigned int)(unsigned short)(len + 0x31));
             }
         }
@@ -1223,17 +1239,17 @@ void CGuild::NoticeChatMsgToGuildMembersHyperLink(unsigned int charNo, char* msg
         CUser* user = it->second;
         if (user != 0)
         {
-            *(unsigned int*)((char*)&pkt + 0xa) = user->GetIdByChannel();
-            *(unsigned int*)((char*)&pkt + 0xe) = user->GetUniqCharNo();
-            memcpy((char*)&pkt + 0x12, name, 0x1d);
-            *(unsigned char*)((char*)&pkt + 0x2f) = type;
+            pkt.m_fieldA = user->GetIdByChannel();
+            pkt.m_fieldE = user->GetUniqCharNo();
+            memcpy(pkt.m_name, name, 0x1d);
+            pkt.m_type = type;
             for (int i = 0; i < (int)type; i++)
             {
-                memcpy((char*)&pkt + 0x30 + i * 0x68, (char*)link + i * 0x68, 0x68);
+                memcpy(pkt.m_items + i * 0x68, (char*)link + i * 0x68, 0x68);
             }
-            *(char*)((char*)&pkt + 0x158) = (char)len;
-            memcpy((char*)&pkt + 0x159, msg, (size_t)len);
-            *(unsigned short*)((char*)&pkt + 2) = (unsigned short)(len + 0x16a);
+            pkt.m_len = (char)len;
+            memcpy(pkt.m_msg, msg, (size_t)len);
+            pkt.packetSize = (unsigned short)(len + 0x16a);
             user->SendToGameserver((char*)&pkt, (unsigned int)(len + 0x16a));
         }
     }
@@ -1257,7 +1273,7 @@ void CGuild::DismissGuildMemberAndNotice(int group)
             Packet_Guild_Exp_Book_Delete expDel;
             expDel.ma = it->second->GetIdByChannel();
             expDel.me = it->second->GetUniqCharNo();
-            *(int*)((char*)&expDel + 0x12) = group;
+            expDel.m_field12 = group;
             expDel.m16 = it->second->GetDBID();
             it->second->SendTcpGameserver(&expDel);
             it->second->ResetGuild();
@@ -1288,11 +1304,11 @@ void CGuild::NoticeGuildMemberLogin_Out(CUser* user, char flag)
         {
             continue;
         }
-        *(char*)((char*)&pkt + 0xa) = flag;
-        *(int*)((char*)&pkt + 0xb) = member->GetIdByChannel();
-        *(unsigned int*)((char*)&pkt + 0xf) = member->GetUniqCharNo();
-        *(char*)((char*)&pkt + 0x13) = (char)user->GetGameServer()->GetChannelNo();
-        memcpy((char*)&pkt + 0x14, user->GetCharName(), 0x1d);
+        pkt.m_flag = flag;
+        pkt.m_channel = member->GetIdByChannel();
+        pkt.m_charNo = member->GetUniqCharNo();
+        pkt.m_channelNo = (char)user->GetGameServer()->GetChannelNo();
+        memcpy(pkt.m_name, user->GetCharName(), 0x1d);
         member->SendToGameserver((char*)&pkt, 0x32);
     }
 }
@@ -1620,7 +1636,7 @@ bool CGuild::LoadGuildOneMemberProxy(CUser* user)
     {
         unsigned short idx = m_field1e;
         ((CGuildMemberMainArray*)this)->m_members[idx].m_charNo = user->GetUniqCharNo();
-        memcpy((char*)&((CGuildMemberMainArray*)this)->m_members[idx] + 0x11,
+        memcpy(((CGuildMemberMainArray*)this)->m_members[idx].m_name,
                user->GetCharName(), 0x1d);
         ((CGuildMemberExtraArray*)this)->m_members[idx].m_job = (char)user->GetJob();
         ((CGuildMemberExtraArray*)this)->m_members[idx].m_growth = (char)user->GetGrowthType();
@@ -1876,19 +1892,19 @@ void CGuild::NotifyMessageToGuildMember()
             int len = strlen((char*)this + 0x4d0a);
             if (len <= 100)
             {
-                memcpy((char*)&pkt + 0x12, (char*)this + 0x4d0a, len);
+                memcpy(pkt.m_msg, m_field4d0a, len);
             }
             else
             {
-                memcpy((char*)&pkt + 0x12, (char*)this + 0x4d0a, 100);
+                memcpy(pkt.m_msg, m_field4d0a, 100);
             }
             for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
                  it != m_members.end(); ++it)
             {
                 CUser* u;
                 if ((u = it->second) == 0) { continue; }
-                *(unsigned int*)&pkt.m_data[0] = u->GetIdByChannel();
-                *(unsigned int*)&pkt.m_data[4] = u->GetUniqCharNo();
+                pkt.m_fieldA = u->GetIdByChannel();
+                pkt.m_fieldE = u->GetUniqCharNo();
                 u->SendToGameserver((char*)&pkt, 0x77);
             }
         }
@@ -1986,24 +2002,23 @@ int CGuild::ChangeGuildMemberCharName(unsigned int charNo, char* name)
         {
             if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo == charNo)
             {
-                memset((char*)&((CGuildMemberMainArray*)this)->m_members[i] + 0x11,
-                       0, 0x1e);
-                memcpy((char*)&((CGuildMemberMainArray*)this)->m_members[i] + 0x11,
-                       name, 0x1d);
+                memset(((CGuildMemberMainArray*)this)->m_members[i].m_name, 0, 0x1e);
+                memcpy(((CGuildMemberMainArray*)this)->m_members[i].m_name, name, 0x1d);
                 result = true;
             }
         }
-        if (*(unsigned int*)((char*)this + 0x66ec) == charNo)
+        CGuildTodayMemberBlock* todayBlock = (CGuildTodayMemberBlock*)((char*)this + 0x66ec);
+        if (todayBlock->m_charNo == charNo)
         {
-            memset((char*)this + 0x66f0, 0, 0x1e);
-            strncpy((char*)this + 0x66f0, name, 0x1d);
+            memset(&todayBlock->m_name0, 0, 0x1e);
+            strncpy((char*)&todayBlock->m_name0, name, 0x1d);
             result = true;
             NotifyAllTodayGuildMember();
         }
         if (m_dbInfo.m_info.m_masterId == charNo)
         {
-            memset((char*)this + 0xc4, 0, 0x15);
-            memcpy((char*)this + 0xc4, name, 0x14);
+            memset(m_dbInfo.m_info.m_masterName, 0, 0x15);
+            memcpy(m_dbInfo.m_info.m_masterName, name, 0x14);
             result = true;
         }
     }
@@ -2018,7 +2033,7 @@ void CGuild::DBSaveGuildMemberUnChangableInfo(CServerHandler* handler, unsigned 
         Packet_UnChangable_GuildInfo_Save pkt;
         pkt.ma = a;
         pkt.me = b;
-        memcpy((char*)&pkt + 0x12, name, 0x1d);
+        memcpy(pkt.m_name, name, 0x1d);
         handler->SendToDB(&pkt);
     }
 }
@@ -2037,10 +2052,8 @@ void CGuild::WriteGuildMemberMemo(CUser* user, const char* memo)
             if (((CGuildMemberMainArray*)this)->m_members[i].m_charNo ==
                 (unsigned int)user->GetUniqCharNo())
             {
-                memset((char*)&((CGuildMemberExtraArray*)this)->m_members[i] + 0x19,
-                       0, 0x15);
-                memcpy((char*)&((CGuildMemberExtraArray*)this)->m_members[i] + 0x19,
-                       memo, 0x14);
+                memset(((CGuildMemberExtraArray*)this)->m_members[i].m_memo, 0, 0x15);
+                memcpy(((CGuildMemberExtraArray*)this)->m_members[i].m_memo, memo, 0x14);
                 return;
             }
         }
@@ -2060,15 +2073,15 @@ void CGuild::NotifyMemoToGuildMember(CUser* user, const char* memo)
     {
         n = 0x1d;
     }
-    memcpy((char*)&pkt + 0x12, name, n);
+    memcpy(pkt.m_name, name, n);
     n = strlen(memo);
     if (n > 0x14)
     {
         n = 0x14;
     }
-    memcpy((char*)&pkt + 0x30, memo, n);
-    *(int*)((char*)&pkt + 0xa) = user->GetIdByChannel();
-    *(unsigned int*)((char*)&pkt + 0xe) = user->GetUniqCharNo();
+    memcpy(pkt.m_memo, memo, n);
+    pkt.m_fieldA = user->GetIdByChannel();
+    pkt.m_fieldE = user->GetUniqCharNo();
     user->SendToGameserver((char*)&pkt, 0x45);
 }
 
@@ -2369,20 +2382,21 @@ void CGuild::NotifyAllTodayGuildMember()
 void CGuild::NotifyTodayGuildMember(CUser* user)
 {
     Packet_Notify_Today_Guild_Member pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = m_guildKey;
-    *(unsigned int*)((char*)&pkt + 0x16) = *(unsigned int*)((char*)this + 0x66ec);
-    *(unsigned int*)((char*)&pkt + 0x1a) = *(unsigned int*)((char*)this + 0x66f0);
-    *(unsigned int*)((char*)&pkt + 0x1e) = *(unsigned int*)((char*)this + 0x66f4);
-    *(unsigned int*)((char*)&pkt + 0x22) = *(unsigned int*)((char*)this + 0x66f8);
-    *(unsigned int*)((char*)&pkt + 0x26) = *(unsigned int*)((char*)this + 0x66fc);
-    *(unsigned int*)((char*)&pkt + 0x2a) = *(unsigned int*)((char*)this + 0x6700);
-    *(unsigned int*)((char*)&pkt + 0x2e) = *(unsigned int*)((char*)this + 0x6704);
-    *(unsigned int*)((char*)&pkt + 0x32) = *(unsigned int*)((char*)this + 0x6708);
-    *(unsigned int*)((char*)&pkt + 0x36) = *(unsigned int*)((char*)this + 0x670c);
-    *(unsigned short*)((char*)&pkt + 0x3a) = *(unsigned short*)((char*)this + 0x6710);
-    *(char*)((char*)&pkt + 0x3c) = *(char*)((char*)this + 0x6712);
-    *(int*)((char*)&pkt + 0x12) = user->GetIdByChannel();
-    *(unsigned int*)((char*)&pkt + 0xe) = user->GetUniqCharNo();
+    CGuildTodayMemberBlock* todayBlock = (CGuildTodayMemberBlock*)((char*)this + 0x66ec);
+    pkt.m_guildKey = m_guildKey;
+    pkt.m_member0 = todayBlock->m_charNo;
+    pkt.m_member1 = todayBlock->m_name0;
+    pkt.m_member2 = todayBlock->m_name1;
+    pkt.m_member3 = todayBlock->m_name2;
+    pkt.m_member4 = todayBlock->m_name3;
+    pkt.m_member5 = todayBlock->m_name4;
+    pkt.m_member6 = todayBlock->m_name5;
+    pkt.m_member7 = todayBlock->m_name6;
+    pkt.m_member8 = todayBlock->m_name7;
+    pkt.m_memberA = todayBlock->m_field24;
+    pkt.m_memberC = (char)todayBlock->m_field26;
+    pkt.m_channel = user->GetIdByChannel();
+    pkt.m_charNo = user->GetUniqCharNo();
     user->SendToGameserver((char*)&pkt, 0x3d);
 }
 
@@ -2396,15 +2410,15 @@ void CGuild::QueryTodayGuildMember(CServerHandler* handler)
 void CGuild::NotifyAllAchieveAttendance(unsigned int charNo, unsigned int phase)
 {
     Packet_Achieve_Guild_Attendance pkt;
-    *(unsigned int*)((char*)&pkt + 0xa) = charNo;
-    *(unsigned int*)((char*)&pkt + 0xe) = phase;
+    pkt.m_charNo = charNo;
+    pkt.m_phase = phase;
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
         if (it->second != 0)
         {
-            *(unsigned int*)((char*)&pkt + 0x12) = it->second->GetIdByChannel();
-            *(unsigned int*)((char*)&pkt + 0x16) = it->second->GetUniqCharNo();
+            pkt.m_channel = it->second->GetIdByChannel();
+            pkt.m_charNo2 = it->second->GetUniqCharNo();
             it->second->SendToGameserver((char*)&pkt, 0x1a);
         }
     }
@@ -2429,11 +2443,11 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_guildFund = 0;
     m_fieldB9 = 0;
     memset(m_subGuildMaster, 0, 0x14);
-    memset(m_pad0, 0, 0x17);
+    memset(m_guildName, 0, 0x17);
     m_flag0 = 1;
     m_flag1 = 0;
     memset((char*)m_skills, 0, 0x50);
-    memset(m_pada4, 0, 0x15);
+    memset(m_masterName, 0, 0x15);
 }
 
 STGuildDBInfo::STGuildDBInfo()

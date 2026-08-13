@@ -204,8 +204,8 @@ void CPowerWarGuildInfo::GetAllGuildRankingInfo(int& count, STGuildRank* rank)
         STPowerWarGuildInfo* info = *it;
         if (info != 0)
         {
-            *(unsigned int*)((char*)rank + n * 8) = info->m_field[0];
-            *(unsigned int*)((char*)rank + n * 8 + 4) = info->m_field[3];
+            rank[n].m0 = info->m_field[0];
+            rank[n].m4 = info->m_field[3];
             n++;
         }
     }

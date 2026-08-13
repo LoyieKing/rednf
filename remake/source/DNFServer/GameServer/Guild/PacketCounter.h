@@ -56,14 +56,18 @@ public:
 class Packet_DB_Load_Request_Guild_Board_Delete : public PacketHeader {
 public:
     Packet_DB_Load_Request_Guild_Board_Delete();
-    char m_data[0xd];
+    unsigned char m_a;        // +0xa
+    unsigned int m_b;         // +0xb
+    unsigned int m_c;         // +0xf
+    unsigned int m_d;         // +0x13
 };
 
 // from GuildPackets.h
 class Packet_DB_Load_Request_Guild_Board_Open : public PacketHeader {
 public:
     Packet_DB_Load_Request_Guild_Board_Open();
-    char m_data[8];
+    unsigned int m_guildKey;   // +0xa
+    unsigned int m_charNo;     // +0xe
 };
 
 // from GuildPackets.h
@@ -83,14 +87,19 @@ public:
 class Packet_DB_Load_Request_Web_Guild_Board_Write : public PacketHeader {
 public:
     Packet_DB_Load_Request_Web_Guild_Board_Write();
-    char m_data[0xc];
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_charNo;    // +0xe
+    unsigned int m_no;        // +0x12
 };
 
 // from GuildPackets.h
 class Packet_DB_Request_Approve_Join_Guild : public PacketHeader {
 public:
     Packet_DB_Request_Approve_Join_Guild();
-    char m_data[0xd];
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_charNo;    // +0xe
+    unsigned int m_no;        // +0x12
+    unsigned char m_group;    // +0x16
 };
 
 // from GuildPackets.h
@@ -124,7 +133,9 @@ public:
 class Packet_Guild_Reply_Guild_Board_Delete : public PacketHeader {
 public:
     Packet_Guild_Reply_Guild_Board_Delete();
-    char m_data[0xa];
+    unsigned short m_result;  // +0xa
+    unsigned int m_channel;   // +0xc
+    unsigned int m_charNo;    // +0x10
 };
 
 #endif

@@ -32,6 +32,84 @@ struct FrameLagPktHeader
     short m_sum2;               // +0x22
 } __attribute__((packed));
 
+// FrameLag spec 包（Load/Reload）命名成员视图：每个视图只含一个数组，
+// 数组基址对齐 ORIG 反汇编的 displacement（mov 0xNN(%reg,%idx,N)），
+// 使 GCC -O0 生成与 ORIG 相同的折叠位移形态。
+struct FrameLagSpecInts3  { char m_pad[3];  int m[0x100]; } __attribute__((packed)); // +0x03
+struct FrameLagSpecInts7  { char m_pad[7];  int m[0x100]; } __attribute__((packed)); // +0x07
+struct FrameLagSpecIntsB  { char m_pad[0xb]; int m[0x100]; } __attribute__((packed)); // +0x0b
+struct FrameLagSpecIntsF  { char m_pad[0xf]; int m[0x100]; } __attribute__((packed)); // +0x0f
+struct FrameLagSpecShorts3 { char m_pad[3]; short m[0x100]; } __attribute__((packed)); // +0x03
+struct FrameLagSpecShorts7 { char m_pad[7]; short m[0x100]; } __attribute__((packed)); // +0x07
+struct FrameLagSpecView
+{
+    char m_hdr[0xa];    // +0x00 PacketHeader
+    char m_fieldA;      // +0x0a
+    char m_padb[0x50];  // +0x0b..0x5a
+    char m_field4[6];   // +0x5b
+    char m_field5[6];   // +0x61
+    char m_pad67[0x78]; // +0x67..0xde
+    char m_field1e[6];  // +0xdf
+} __attribute__((packed));
+
+// FrameLag Statistic_Add 包：每 0x38 字节一个 item，v0..v3 位于 item 内 +0x24..0x2a；
+// 用 (char*)pkt + i*0x38 + 0x20 的基址 + item 内 +4..0xa 成员，复现 ORIG 的
+// add $0x20 + movzwl 0x4(%eax) 拆分形态。
+struct FrameLagAddItem
+{
+    char m_pad[4];      // +0x00
+    short m_v0;         // +0x04
+    short m_v1;         // +0x06
+    short m_v2;         // +0x08
+    short m_v3;         // +0x0a
+    char m_rest[0x2e];  // 补齐至 0x38
+} __attribute__((packed));
+
+// FrameLag Statistic_Add 包：+0xc 起 8 字节步长的子项（int + float），
+// 复现 ORIG 的 mov 0xc(%ecx,%eax,8) / mov 0x10(%ecx,%eax,8) 形态。
+struct FrameLagAddSub
+{
+    char m_pad[0xc];       // +0x00
+    struct FrameLagAddSubItem { int m_i; float m_f; } m_sub[0x100];  // +0x0c，步长 8
+} __attribute__((packed));
+
+// FrameLag Statistic_Add 包尾：+0x174 起 char[6] + short[6]（used memory 上报），
+// 复现 ORIG 的 movzbl 0x174(%edx,%eax,1) 与 add $0xb8 + movzwl 0xa(%eax,%edx,2)。
+struct FrameLagMemView
+{
+    char m_pad[0x174];  // +0x00
+    char m_used[6];     // +0x174
+    short m_val[6];     // +0x17a
+} __attribute__((packed));
+
+// accFrameLagStruct 的 FrameLag item：+0..0x6 四个 short，+0x8 起 8 字节步长的
+// int+float 子项（与 is_valid_statistic_packet 的 +0x20/+0xc 视图不同，按 ORIG 反汇编单独建模）。
+struct FrameLagAccItem
+{
+    short m_v0;         // +0x00
+    short m_v1;         // +0x02
+    short m_v2;         // +0x04
+    short m_v3;         // +0x06
+    struct Sub { int m_i; float m_f; } m_sub[6];  // +0x08，步长 8
+    char m_rest[0x28];  // 补齐至 0x38
+} __attribute__((packed));
+
+// FrameLagDataStruct 的命名成员视图（与 ORIG 反汇编逐槽位核对）
+struct FrameLagDataLayout
+{
+    int m0;          // +0x00
+    int m_a[2];      // +0x04 (view; accessed up to [5])
+    short m_b[16];   // +0x0c
+    int m_c[3];      // +0x2c
+    int m_d[6];      // +0x38
+    int m_e[6];      // +0x50
+    int m_f[6];      // +0x68
+    int m_g[6];      // +0x80
+    int m_h[6][4];   // +0x98
+    int m_pad[2];    // +0xf8
+    int m_i[41][2];  // +0x100
+};
+
 int FrameLagCollector::GetCollectInterval()
 {
     return m_collectInterval;
@@ -163,8 +241,8 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
     m_directx.add_cnt(((FrameLagPktHeader*)pkt)->m_directx);
     for (int i = 0; i < 6; i++)
     {
-        m_memory[i].SetUsedMemory((char)*(char*)((char*)pkt + i + 0x174),
-                                  *(short*)((char*)pkt + (i + 0xb8) * 2 + 10));
+        m_memory[i].SetUsedMemory((char)((FrameLagMemView*)pkt)->m_used[i],
+                                  ((FrameLagMemView*)pkt)->m_val[i]);
     }
     for (std::map<int, MonitoringSpecCase>::iterator it = m_monitor.begin();
          it != m_monitor.end(); ++it)
@@ -194,17 +272,17 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
             if (fd != m_data.end())
             {
                 FrameLagDataStruct* v = &fd->second;
-                *(int*)((char*)v + 0) = *(int*)((char*)v + 0) + 1;
+                v->m_data[0] = v->m_data[0] + 1;
                 if (-1 < (char)((FrameLagPktHeader*)pkt)->m_module &&
                     (char)((FrameLagPktHeader*)pkt)->m_module < 8)
                 {
-                    *(short*)((char*)v + 0x0c + ((char)((FrameLagPktHeader*)pkt)->m_module + 8) * 2) += 1;
+                    ((FrameLagDataLayout*)v)->m_b[((char)((FrameLagPktHeader*)pkt)->m_module + 8)] += 1;
                 }
                 if (-1 < ((FrameLagPktHeader*)pkt)->m_sum1)
                 {
-                    *(int*)((char*)v + 0x30) += (int)((FrameLagPktHeader*)pkt)->m_sum1;
-                    *(int*)((char*)v + 0x34) += (int)((FrameLagPktHeader*)pkt)->m_sum2;
-                    *(int*)((char*)v + 0x2c) += 1;
+                    ((FrameLagDataLayout*)v)->m_c[1] += (int)((FrameLagPktHeader*)pkt)->m_sum1;
+                    ((FrameLagDataLayout*)v)->m_c[2] += (int)((FrameLagPktHeader*)pkt)->m_sum2;
+                    ((FrameLagDataLayout*)v)->m_c[0] += 1;
                 }
                 accFrameLagStruct(*v, (FrameLagStruct*)((char*)pkt + 0x24));
             }
@@ -243,11 +321,11 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
     {
         return 3;
     }
-    if (m_field18 != *(char*)((char*)pkt + 0xa))
+    if (m_field18 != ((FrameLagSpecView*)pkt)->m_fieldA)
     {
         return 0;
     }
-    int specId = *(int*)((char*)pkt + 0xb);
+    int specId = ((FrameLagSpecIntsB*)pkt)->m[0];
     if (m_map1c.find(specId) == m_map1c.end())
     {
         return 0;
@@ -255,32 +333,32 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
     m_map1c[specId] = 1;
     for (int i = 0; i <= 5; i++)
     {
-        int sid = *(int*)((char*)pkt + (i + 4) * 4 + 3);
+        int sid = ((FrameLagSpecInts3*)pkt)->m[i + 4];
         if (sid == -1)
         {
             break;
         }
-        int ts = *(int*)((char*)pkt + (i + 8) * 4 + 0xb);
+        int ts = ((FrameLagSpecIntsB*)pkt)->m[i + 8];
         if (m_field4c < ts)
         {
             m_field4c = ts;
         }
         MonitoringSpecCase mc;
-        mc.m_specId = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-        mc.m_field4 = *(char*)((char*)pkt + 0x5b + i);
-        mc.m_field5 = *(char*)((char*)pkt + 0x61 + i);
-        mc.m_field8 = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
-        mc.m_fieldc = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
-        mc.m_field10 = *(short*)((char*)pkt + (i + 0x48) * 2 + 7);
-        mc.m_field14 = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
-        mc.m_field18 = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-        mc.m_field1c = *(short*)((char*)pkt + (i + 0x68) * 2 + 3);
-        mc.m_field1e = *(char*)((char*)pkt + 0xdf + i);
+        mc.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
+        mc.m_field4 = ((FrameLagSpecView*)pkt)->m_field4[i];
+        mc.m_field5 = ((FrameLagSpecView*)pkt)->m_field5[i];
+        mc.m_field8 = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
+        mc.m_fieldc = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
+        mc.m_field10 = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
+        mc.m_field14 = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
+        mc.m_field18 = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
+        mc.m_field1c = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
+        mc.m_field1e = ((FrameLagSpecView*)pkt)->m_field1e[i];
         m_monitor[sid] = mc;
         FrameLagDataStruct fd;
         m_data[mc.m_specId] = fd;
     }
-    if ((int)m_map1c.size() == *(int*)((char*)pkt + 0xf))
+    if ((int)m_map1c.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
     {
         m_field4 = 2;
         puts("============FirstSpecLoad Complete!!!==========");
@@ -293,11 +371,11 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
     {
         return 2;
     }
-    if (m_field19 != *(char*)((char*)pkt + 0xa))
+    if (m_field19 != ((FrameLagSpecView*)pkt)->m_fieldA)
     {
         return 0;
     }
-    int specId = *(int*)((char*)pkt + 0xb);
+    int specId = ((FrameLagSpecIntsB*)pkt)->m[0];
     if (m_map34.find(specId) == m_map34.end())
     {
         return 0;
@@ -305,12 +383,12 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
     m_map34[specId] = 1;
     for (int i = 0; i <= 5; i++)
     {
-        int sid = *(int*)((char*)pkt + (i + 4) * 4 + 3);
+        int sid = ((FrameLagSpecInts3*)pkt)->m[i + 4];
         if (sid == -1)
         {
             break;
         }
-        int ts = *(int*)((char*)pkt + (i + 8) * 4 + 0xb);
+        int ts = ((FrameLagSpecIntsB*)pkt)->m[i + 8];
         if (m_field50 < ts)
         {
             m_field50 = ts;
@@ -319,35 +397,35 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
         if (it == m_monitor.end())
         {
             MonitoringSpecCase mc;
-            mc.m_specId = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-            mc.m_field4 = *(char*)((char*)pkt + 0x5b + i);
-            mc.m_field5 = *(char*)((char*)pkt + 0x61 + i);
-            mc.m_field8 = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
-            mc.m_fieldc = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
-            mc.m_field10 = *(short*)((char*)pkt + (i + 0x48) * 2 + 7);
-            mc.m_field14 = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
-            mc.m_field18 = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-            mc.m_field1c = *(short*)((char*)pkt + (i + 0x68) * 2 + 3);
-            mc.m_field1e = *(char*)((char*)pkt + 0xdf + i);
+            mc.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
+            mc.m_field4 = ((FrameLagSpecView*)pkt)->m_field4[i];
+            mc.m_field5 = ((FrameLagSpecView*)pkt)->m_field5[i];
+            mc.m_field8 = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
+            mc.m_fieldc = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
+            mc.m_field10 = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
+            mc.m_field14 = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
+            mc.m_field18 = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
+            mc.m_field1c = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
+            mc.m_field1e = ((FrameLagSpecView*)pkt)->m_field1e[i];
             m_monitor[sid] = mc;
         }
         else
         {
-            it->second.m_specId = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-            it->second.m_field4 = *(char*)((char*)pkt + 0x5b + i);
-            it->second.m_field5 = *(char*)((char*)pkt + 0x61 + i);
-            it->second.m_field8 = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
-            it->second.m_fieldc = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
-            it->second.m_field10 = *(short*)((char*)pkt + (i + 0x48) * 2 + 7);
-            it->second.m_field14 = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
-            it->second.m_field18 = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-            it->second.m_field1c = *(short*)((char*)pkt + (i + 0x68) * 2 + 3);
-            it->second.m_field1e = *(char*)((char*)pkt + 0xdf + i);
+            it->second.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
+            it->second.m_field4 = ((FrameLagSpecView*)pkt)->m_field4[i];
+            it->second.m_field5 = ((FrameLagSpecView*)pkt)->m_field5[i];
+            it->second.m_field8 = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
+            it->second.m_fieldc = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
+            it->second.m_field10 = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
+            it->second.m_field14 = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
+            it->second.m_field18 = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
+            it->second.m_field1c = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
+            it->second.m_field1e = ((FrameLagSpecView*)pkt)->m_field1e[i];
         }
         FrameLagDataStruct fd;
-        m_data[*(int*)((char*)pkt + (i + 0x10) * 4 + 3)] = fd;
+        m_data[((FrameLagSpecInts3*)pkt)->m[i + 0x10]] = fd;
     }
-    if ((int)m_map34.size() == *(int*)((char*)pkt + 0xf))
+    if ((int)m_map34.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
     {
         if (m_field4c < m_field50)
         {
@@ -393,12 +471,16 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
     Packet_Frame_Lag_Statistic_Write_Lag_Index pkt;
     char* pb = (char*)&pkt;
     pb[10] = (char)handler->GetServerGroupNo();
-    time_t now = time(0);
-    *(time_t*)(pb + 0xb) = now;
+    // ORIG：time(&t) 后再拷贝到 now（now 实际未用于报文，仅为复现 ORIG 代码形态）
+    time_t t;
+    time(&t);
+    time_t now = t;
     for (std::map<int, FrameLagDataStruct>::iterator it = m_data.begin();
          it != m_data.end(); ++it)
     {
-        FrameLagDataStruct* v = &it->second;
+        // ORIG 对 map value 的读写全部以 pair 基址（it.operator->()）为基准：
+        // value 在 pair+4。偏移表达式按 ORIG 反汇编逐槽位核对过。
+        char* v = (char*)it.operator->();
         *(int*)(pb + 0xb) = it->first;
         *(int*)(pb + 0xf) = *(int*)((char*)v + 4);
         for (int i = 0; i < 8; i++)
@@ -419,44 +501,44 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
         }
         for (int i = 0; i < 6; i++)
         {
-            *(short*)(pb + 0x27 + i * 0x1c + 0) = 0;
-            *(short*)(pb + 0x27 + i * 0x1c + 2) = 0;
-            *(short*)(pb + 0x27 + i * 0x1c + 4) = 0;
-            *(short*)(pb + 0x27 + i * 0x1c + 6) = 0;
+            *(short*)(pb + 0x27 + i * 0x38 + 0) = 0;
+            *(short*)(pb + 0x27 + i * 0x38 + 2) = 0;
+            *(short*)(pb + 0x27 + i * 0x38 + 4) = 0;
+            *(short*)(pb + 0x27 + i * 0x38 + 6) = 0;
             if (0 < *(int*)((char*)v + (i + 9) * 0x10 + 0xc))
             {
-                *(short*)(pb + 0x27 + i * 0x1c + 0) =
+                *(short*)(pb + 0x27 + i * 0x38 + 0) =
                     (short)(*(int*)((char*)v + 0xc + (i + 0xc) * 4) /
                             *(int*)((char*)v + (i + 9) * 0x10 + 0xc));
             }
             if (0 < *(int*)((char*)v + i * 0x10 + 0xa0))
             {
-                *(short*)(pb + 0x27 + i * 0x1c + 2) =
+                *(short*)(pb + 0x27 + i * 0x38 + 2) =
                     (short)(*(int*)((char*)v + 4 + (i + 0x14) * 4) /
                             *(int*)((char*)v + i * 0x10 + 0xa0));
             }
             if (0 < *(int*)((char*)v + i * 0x10 + 0xa4))
             {
-                *(short*)(pb + 0x27 + i * 0x1c + 4) =
+                *(short*)(pb + 0x27 + i * 0x38 + 4) =
                     (short)(*(int*)((char*)v + 0xc + (i + 0x18) * 4) /
                             *(int*)((char*)v + i * 0x10 + 0xa4));
             }
             if (0 < *(int*)((char*)v + i * 0x10 + 0xa8))
             {
-                *(short*)(pb + 0x27 + i * 0x1c + 6) =
+                *(short*)(pb + 0x27 + i * 0x38 + 6) =
                     (short)(*(int*)((char*)v + 4 + (i + 0x20) * 4) /
                             *(int*)((char*)v + i * 0x10 + 0xa8));
             }
             for (int j = 0; j < 6; j++)
             {
-                *(int*)(pb + 0x2f + (i * 7 + j + 4) * 8) =
+                *(int*)(pb + 0xf + (i * 7 + j + 4) * 8) =
                     *(int*)((char*)v + 0x14 + (i * 7 + j + 0x1e) * 8);
-                *(int*)(pb + 0x33 + (i * 7 + j + 4) * 8) =
+                *(int*)(pb + 0x13 + (i * 7 + j + 4) * 8) =
                     *(int*)((char*)v + 0x18 + (i * 7 + j + 0x1e) * 8);
             }
         }
         handler->SendToDB((PacketHeader*)&pkt);
-        v->init();
+        ((FrameLagDataStruct*)((char*)v + 4))->init();
         DNFFLib::Sleep_Ext(0, 1);
     }
     m_field6c = 0;
@@ -493,21 +575,22 @@ int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
 }
 int FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add* pkt)
 {
-    if ((char)*(char*)((char*)pkt + 0x1f) < 0 || 8 < (char)*(char*)((char*)pkt + 0x1f))
+    if ((char)((FrameLagPktHeader*)pkt)->m_module < 0 ||
+        8 < (char)((FrameLagPktHeader*)pkt)->m_module)
     {
         return 0;
     }
     for (int i = 0; i < 6; i++)
     {
-        if (*(short*)((char*)pkt + i * 0x38 + 0x24) < 0) return 0;
-        if (*(short*)((char*)pkt + i * 0x38 + 0x26) < 0) return 0;
-        if (*(short*)((char*)pkt + i * 0x38 + 0x28) < 0) return 0;
-        if (*(short*)((char*)pkt + i * 0x38 + 0x2a) < 0) return 0;
+        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v0 < 0) return 0;
+        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v1 < 0) return 0;
+        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v2 < 0) return 0;
+        if (((FrameLagAddItem*)((char*)pkt + i * 0x38 + 0x20))->m_v3 < 0) return 0;
         for (int j = 0; j < 6; j++)
         {
-            if (99999 < *(int*)((char*)pkt + (i * 7 + j + 4) * 8 + 0xc)) return 0;
-            if (*(float*)((char*)pkt + (i * 7 + j + 4) * 8 + 0x10) == 0.0 &&
-                0 < *(int*)((char*)pkt + (i * 7 + j + 4) * 8 + 0xc)) return 0;
+            if (99999 < ((FrameLagAddSub*)pkt)->m_sub[i * 7 + j + 4].m_i) return 0;
+            if (((FrameLagAddSub*)pkt)->m_sub[i * 7 + j + 4].m_f == 0.0 &&
+                0 < ((FrameLagAddSub*)pkt)->m_sub[i * 7 + j + 4].m_i) return 0;
         }
     }
     return 1;
@@ -516,48 +599,48 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
 {
     for (int i = 0; i < 6; i++)
     {
-        if (0 < *(short*)((char*)pkt + i * 0x38 + 0))
+        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0)
         {
-            *(int*)((char*)&data + (i + 0xc) * 4 + 8) +=
-                (int)*(short*)((char*)pkt + i * 0x38 + 0);
-            *(int*)((char*)&data + (i + 9) * 0x10 + 8) += 1;
+            ((FrameLagDataLayout*)&data)->m_d[i] +=
+                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0;
+            ((FrameLagDataLayout*)&data)->m_h[i][0] += 1;
         }
-        if (0 < *(short*)((char*)pkt + i * 0x38 + 2))
+        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1)
         {
-            *(int*)((char*)&data + (i + 0x14) * 4) +=
-                (int)*(short*)((char*)pkt + i * 0x38 + 2);
-            *(int*)((char*)&data + i * 0x10 + 0x9c) += 1;
+            ((FrameLagDataLayout*)&data)->m_e[i] +=
+                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1;
+            ((FrameLagDataLayout*)&data)->m_h[i][1] += 1;
         }
-        if (0 < *(short*)((char*)pkt + i * 0x38 + 4))
+        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2)
         {
-            *(int*)((char*)&data + (i + 0x18) * 4 + 8) +=
-                (int)*(short*)((char*)pkt + i * 0x38 + 4);
-            *(int*)((char*)&data + i * 0x10 + 0xa0) += 1;
+            ((FrameLagDataLayout*)&data)->m_f[i] +=
+                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2;
+            ((FrameLagDataLayout*)&data)->m_h[i][2] += 1;
         }
-        if (0 < *(short*)((char*)pkt + i * 0x38 + 6))
+        if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3)
         {
-            *(int*)((char*)&data + (i + 0x20) * 4) +=
-                (int)*(short*)((char*)pkt + i * 0x38 + 6);
-            *(int*)((char*)&data + i * 0x10 + 0xa4) += 1;
+            ((FrameLagDataLayout*)&data)->m_g[i] +=
+                (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3;
+            ((FrameLagDataLayout*)&data)->m_h[i][3] += 1;
         }
         for (int j = 0; j < 6; j++)
         {
-            *(int*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x10) =
-                *(int*)((char*)&data + i * 4 + 4) *
-                *(int*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x10);
-            *(float*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x14) =
-                (float)*(unsigned int*)((char*)&data + i * 4 + 4) *
-                *(float*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x14);
-            *(int*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x10) +=
-                *(int*)((char*)pkt + j * 8 + i * 0x38 + 8);
-            *(float*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x14) +=
-                *(float*)((char*)pkt + j * 8 + i * 0x38 + 0xc);
-            *(unsigned int*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x10) /=
-                (*(int*)((char*)&data + i * 4 + 4) + 1U);
-            *(float*)((char*)&data + (i * 7 + j + 0x1e) * 8 + 0x14) /=
-                (float)(*(int*)((char*)&data + i * 4 + 4) + 1);
+            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0] =
+                ((FrameLagDataLayout*)&data)->m_a[i] *
+                ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0];
+            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1] =
+                (float)(unsigned int)((FrameLagDataLayout*)&data)->m_a[i] *
+                ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1];
+            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0] +=
+                ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_i;
+            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1] +=
+                ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_f;
+            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0] /=
+                ((FrameLagDataLayout*)&data)->m_a[i] + 1U;
+            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1] /=
+                (float)(((FrameLagDataLayout*)&data)->m_a[i] + 1);
         }
-        *(int*)((char*)&data + i * 4 + 4) += 1;
+        ((FrameLagDataLayout*)&data)->m_a[i] += 1;
     }
 }
 void FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
@@ -571,9 +654,9 @@ void FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
         {
             for (int j = 0; j < 6; j++)
             {
-                int count = *(int*)((char*)&m_memory[i] + j * 4);
-                int sum = *(int*)((char*)&m_memory[i] + (j + 4) * 4 + 8);
-                if (count != 0)
+                int count = m_memory[i].m_counts[j];
+                int sum = m_memory[i].m_sums[j];
+                if (sum != 0)
                 {
                     unsigned int avg = (unsigned int)sum / (unsigned int)count;
                     snprintf((char*)&pkt + 10, 0x400,
@@ -594,21 +677,6 @@ FrameLagCollector::FrameLagDataStruct::FrameLagDataStruct()
 {
     init();
 }
-struct FrameLagDataLayout
-{
-    int m0;          // +0x00
-    int m_a[2];      // +0x04 (view; accessed up to [5])
-    short m_b[16];   // +0x0c
-    int m_c[3];      // +0x2c
-    int m_d[6];      // +0x38
-    int m_e[6];      // +0x50
-    int m_f[6];      // +0x68
-    int m_g[6];      // +0x80
-    int m_h[6][4];   // +0x98
-    int m_pad[2];    // +0xf8
-    int m_i[41][2];  // +0x100
-};
-
 void FrameLagCollector::FrameLagDataStruct::init()
 {
     ((FrameLagDataLayout*)this)->m0 = 0;

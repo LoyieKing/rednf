@@ -293,6 +293,146 @@ struct GoldcardEventView
     GoldcardEventEntry m_entries[0x63];  // +0xb，步长 9
 } __attribute__((packed));
 
+// ---- 以下 view 由本轮 ORIG 反汇编核验 offset 后落地 ----
+
+struct LoadingTimeReportView
+{
+    char h[0xa];
+    char m_group[9];         // +0xa
+    unsigned int m_value[9]; // +0x13（ORIG：+0xa+i 字节、+0x13+i*4 int）
+} __attribute__((packed));
+
+struct HWspecView
+{
+    char h[0xa];
+    unsigned char m_flag;   // +0xa
+    int m_count;            // +0xb
+    struct HWspecEntry
+    {
+        unsigned short m_total;    // +0
+        unsigned char m_category1; // +2
+        char m_pad3[3];            // +3
+        int m_category2;           // +6
+        int m_category3;           // +0xa
+    } __attribute__((packed)) m_entries[1];  // +0xf，步长 0xe
+} __attribute__((packed));
+
+struct CubeStatisticView
+{
+    char h[0xa];
+    int m_count;             // +0xa
+    struct CubeEntry
+    {
+        short m_channel;     // +0
+        short m_level;       // +2
+        int m_itemIndex;     // +4
+        int m_itemCount;     // +8
+        unsigned char m_type;// +0xc
+    } __attribute__((packed)) m_entries[1];  // +0xe，步长 0xd
+} __attribute__((packed));
+
+struct DeathTowerPlaydataJobView
+{
+    char h[0xa];
+    int m_count;             // +0xa
+    struct JobEntry
+    {
+        signed char m_type;  // +0
+        short m_level;       // +1
+        int m_field4;        // +3
+        signed char m_field8;// +7
+        int m_avg;           // +8
+        int m_count;         // +0xc
+    } __attribute__((packed)) m_entries[1];  // +0xe，步长 0x10
+} __attribute__((packed));
+
+struct DeathTowerPlaydataPartyView
+{
+    char h[0xa];
+    int m_count;             // +0xa
+    struct PartyEntry
+    {
+        signed char m_type;  // +0
+        signed char m_field1;// +1
+        int m_value;         // +2
+        int m_field6;        // +6
+    } __attribute__((packed)) m_entries[1];  // +0xe，步长 0xa
+} __attribute__((packed));
+
+struct AvaterDisjointPair
+{
+    int m_bindcube;   // +0（ORIG：+0xa+idx*8）
+    int m_emblem;     // +4（ORIG：+0xe+idx*8）
+};
+
+struct AvaterDisjointView
+{
+    char h[0xa];
+    AvaterDisjointPair m_pairs[27];  // +0xa..0xe2（27 × 8）
+    int m_recharge[27];              // +0xe2..0x14e（+0x12+idx*4）
+} __attribute__((packed));
+
+struct StatCompatibilityView
+{
+    char h[0xa];
+    unsigned int m_id;        // +0xa
+    unsigned char m_cpuVendor; // +0xe
+    unsigned char m_cpuNum;   // +0xf
+    int m_cpuClock;           // +0x10
+    unsigned short m_ram;     // +0x14
+    unsigned short m_videoVendor;  // +0x16
+    unsigned short m_videoDevice;  // +0x18
+    unsigned short m_videoRam;     // +0x1a
+    unsigned char m_os;       // +0x1c
+    unsigned char m_osBit;    // +0x1d
+} __attribute__((packed));
+
+struct SecretShopStatisticView
+{
+    char h[0xa];
+    int m_count;             // +0xa
+    int m_shopIdx;           // +0xe
+    int m_data[0x320];       // +0x12（200 × 5 int，步长 0x14）
+} __attribute__((packed));
+
+struct FrameLagWriteIndexView
+{
+    char h[0xa];
+    signed char m_serverGroup;       // +0xa
+    int m_specId;                    // +0xb
+    unsigned int m_shareRate;        // +0xf
+    unsigned short m_crashVillage;   // +0x13
+    unsigned short m_crashDungeon;   // +0x15
+    unsigned short m_crashChallenge; // +0x17
+    unsigned short m_crashWararea;   // +0x19
+    unsigned short m_crashFightVillage;  // +0x1b
+    unsigned short m_crashDeadTower;     // +0x1d
+    unsigned short m_crashChannel;       // +0x1f
+    unsigned short m_crashLoad;          // +0x21
+    short m_villageToDungeonLag;         // +0x23
+    short m_dungeonToVillageLag;         // +0x25
+    struct LagKind
+    {
+        short m_winFps;           // +0
+        short m_fullFps;          // +2
+        short m_fullWinFps;       // +4
+        short m_fullWinNosyncFps; // +6
+        int m_frame1;             // +8
+        float m_time1;            // +0xc
+        int m_frame2;             // +0x10
+        float m_time2;            // +0x14
+        int m_frame3;             // +0x18
+        float m_time3;            // +0x1c
+        int m_frame4;             // +0x20
+        float m_time4;            // +0x24
+        int m_frame5;             // +0x28
+        float m_time5;            // +0x2c
+        int m_frame6;             // +0x30
+        float m_time6;            // +0x34
+    } __attribute__((packed)) m_kinds[6];  // +0x27，步长 0x38
+    unsigned int m_occTime;       // +0x177
+} __attribute__((packed));
+
 // ---- CGuildManager / WongWork ----
 bool CDBManager::GuildMasterDelegate(int serverId,
                                      unsigned int guildId,
@@ -411,19 +551,19 @@ bool CDBManager::OnWriteGuildBoard(
     }
     if (!h->fetch())
         return 0;
-    if (!h->get_uint(0, *(unsigned int*)((char*)info + 0x7c)))
+    if (!h->get_uint(0, *(unsigned int*)&info->m_field7c))
         return 0;
-    if (!h->get_uint(1, *(unsigned int*)((char*)info + 0x78)))
+    if (!h->get_uint(1, *(unsigned int*)&info->m_field78))
         return 0;
     if (*(unsigned int*)(r + 0xf) == 0)
     {
-        *(int*)((char*)info + 0x80) = 0;
+        info->m_field80 = 0;
     }
     else
     {
-        *(unsigned int*)((char*)info + 0x80) = *(unsigned int*)(r + 0x13);
-        *(char*)((char*)info + 0x84) = *(char*)(r + 0x9b);
-        memcpy((char*)info + 0x87, r + 0x9e, 0x1e);
+        info->m_field80 = *(unsigned int*)(r + 0x13);
+        info->m_member.m_field0 = *(char*)(r + 0x9b);
+        memcpy(info->m_member.m_name, r + 0x9e, 0x1e);
         memcpy(info, r + 0x17, 0x78);
     }
     return 1;
@@ -445,17 +585,17 @@ bool CDBManager::OnWriteWebGuildBoard(
     }
     if (!h->fetch())
         return 0;
-    if (!h->get_uint(0, *(unsigned int*)((char*)info + 0x7c)))
+    if (!h->get_uint(0, *(unsigned int*)&info->m_field7c))
         return 0;
-    if (!h->get_uint(1, *(unsigned int*)((char*)info + 0x80)))
+    if (!h->get_uint(1, *(unsigned int*)&info->m_field80))
         return 0;
-    if (!h->get_str(2, (char*)info + 0x87, 0x1e))
+    if (!h->get_str(2, info->m_member.m_name, 0x1e))
         return 0;
     if (!h->get_str(3, (char*)info, 0x78))
         return 0;
-    if (!h->get_uint(4, *(unsigned int*)((char*)info + 0x78)))
+    if (!h->get_uint(4, *(unsigned int*)&info->m_field78))
         return 0;
-    if (!h->get_byte(5, *(char*)((char*)info + 0x84)))
+    if (!h->get_byte(5, *(char*)&info->m_member.m_field0))
         return 0;
     return 1;
 }
@@ -931,40 +1071,40 @@ bool CDBManager::QueryGuildMember(unsigned char serverId,
         CMyFileLog log(__FUNCTION__, 0x180);
         log("./log/DBQueryErr",
             "CDBManager::QueryGuildMember() Exception Break\n");
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_flag = 0;
         return 0;
     }
     if (!h->exec(0x4e24))
     {
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_flag = 0;
         return 0;
     }
     if (!h->fetch())
     {
-        *(char*)((char*)&reply + 0xa) = 2;
+        reply.m_flag = 2;
         return 0;
     }
-    if (!h->get_uint(0, *(unsigned int*)((char*)&reply + 0xb)))
+    if (!h->get_uint(0, *(unsigned int*)&reply.m_fieldB))
     {
-        *(char*)((char*)&reply + 0xa) = 3;
+        reply.m_flag = 3;
         return 0;
     }
-    if (!h->get_str(1, (char*)&reply + 0x13, 0x15))
+    if (!h->get_str(1, reply.m_info.m_pad, 0x15))
     {
-        *(char*)((char*)&reply + 0xa) = 3;
+        reply.m_flag = 3;
         return 0;
     }
-    if (!h->get_ubyte(2, *(unsigned char*)((char*)&reply + 0x28)))
+    if (!h->get_ubyte(2, *(unsigned char*)&reply.m_info.m_field15))
     {
-        *(char*)((char*)&reply + 0xa) = 3;
+        reply.m_flag = 3;
         return 0;
     }
-    if (!h->get_uint(3, *(unsigned int*)((char*)&reply + 0x29)))
+    if (!h->get_uint(3, *(unsigned int*)&reply.m_info.m_field16))
     {
-        *(char*)((char*)&reply + 0xa) = 3;
+        reply.m_flag = 3;
         return 0;
     }
-    *(char*)((char*)&reply + 0xa) = 1;
+    reply.m_flag = 1;
     return 1;
 }
 char CDBManager::OnSavePowerWarUserRank(
@@ -1396,11 +1536,11 @@ char CDBManager::QueryGuildBooting(
     {
         if (!h->fetch())
             return 0;
-        if (!h->get_int(0, *(int*)((char*)&reply + 0xa)))
+        if (!h->get_int(0, *(int*)&reply.m_fieldA))
             return 0;
-        if (!h->get_int(1, *(int*)((char*)&reply + 0xe)))
+        if (!h->get_int(1, *(int*)&reply.m_fieldE))
             return 0;
-        if (!h->get_byte(2, *(char*)((char*)&reply + 0x12)))
+        if (!h->get_byte(2, *(char*)&reply.m_field12))
             return 0;
     }
     return 1;
@@ -1935,8 +2075,8 @@ char CDBManager::OnSaveLoadingTimeReport(
         memset(buf, 0, 0x400);
         snprintf(buf, 0x400,
                  "inSert into loading_time (occ_time, server_id, type, load_sec) values (now(), %d, %d, %d)",
-                 *(unsigned char*)((char*)packet + 0xa + i), i,
-                 *(int*)((char*)packet + 0x13 + i * 4));
+                 ((LoadingTimeReportView*)packet)->m_group[i], i,
+                 (int)((LoadingTimeReportView*)packet)->m_value[i]);
         h->set_query(0x4ec4, "%s", buf);
         h->exec(0x4ec4);
         CMyFileLog log(__FUNCTION__, 0x1ae8);
@@ -2023,7 +2163,7 @@ void NpcBuyLimitItem::clear()
 }
 STGuildAgitDBInfo::STGuildAgitDBInfo()
 {
-    *(char*)((char*)this + 0) = 0;
+    m_field0 = 0;
 }
 DnfItemInfo::DnfItemInfo()
 {
@@ -2298,7 +2438,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         n = 0xb;
     if (n == 0)
     {
-        *(char*)((char*)&reply + 0x3e) = 0;
+        reply.m_master.m_count = 0;
         reply.m_flag = 1;
         return 1;
     }
@@ -2319,7 +2459,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         reply.m_flag = 3;
         return 0;
     }
-    ST_MemberProxy* proxies = (ST_MemberProxy*)((char*)&reply + 0x3f);
+    ST_MemberProxy* proxies = reply.m_master.m_lowers;
     unsigned int maxExp = 0;
     unsigned int maxIdx = 0;
     if (type == 1)
@@ -2333,8 +2473,8 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         }
         if (masterNo != 0)
         {
-            *(int*)((char*)&reply + 0x17) = masterNo;
-            cVar1 = h->get_uint(2, *(unsigned int*)((char*)&reply + 0x3a));
+            reply.m_master.m_proxy.m_no = masterNo;
+            cVar1 = h->get_uint(2, *(unsigned int*)&reply.m_master.m_proxy.m_field23);
             if (!cVar1)
             {
                 reply.m_flag = 3;
@@ -2358,8 +2498,8 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         }
         if (t > maxIdx)
             maxIdx = t;
-        *(char*)((char*)&reply + 0x3e) = (char)(n - 1);
-        sprintf(str, "%s%d,", str, *(int*)((char*)&reply + 0x17));
+        reply.m_master.m_count = (char)(n - 1);
+        sprintf(str, "%s%d,", str, reply.m_master.m_proxy.m_no);
         for (int i = 1; i < n; i++)
         {
             cVar1 = h->fetch();
@@ -2401,7 +2541,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
             reply.m_flag = 3;
             return 0;
         }
-        *(char*)((char*)&reply + 0x3e) = (char)n;
+        reply.m_master.m_count = (char)n;
         sprintf(str, "%s%d,", str, proxies[0].m_no);
         for (int i = 1; i < n; i++)
         {
@@ -4371,62 +4511,62 @@ bool CDBManager::QueryGuild(unsigned char serverGroup, unsigned int guildId,
         log("./log/DBQueryErr",
             "CDBManager::QueryGuild() select guild_name, master_no, lev, ability, member_count, guild_rank, guild_point, guild_exp from guild_info where guild_id = %d\n",
             guildId);
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_fieldA = 0;
         return 0;
     }
     if (!h->exec(0x4e22))
     {
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_fieldA = 0;
         return 0;
     }
     if (!h->fetch())
     {
-        *(char*)((char*)&reply + 0xa) = 2;
+        reply.m_fieldA = 2;
         return 0;
     }
-    char* info = (char*)&reply + 0x13;
+    STGuildDBInfoOnly* info = &reply.m_guildInfo;
 #define QG_FAIL() \
     do { \
-        *(char*)((char*)&reply + 0xa) = 3; \
+        reply.m_fieldA = 3; \
         return 0; \
     } while (0)
-    if (!h->get_str(0, info, 0x17))
+    if (!h->get_str(0, info->m_guildName, 0x17))
         QG_FAIL();
-    if (!h->get_uint(1, *(unsigned int*)(info + 0x17)))
+    if (!h->get_uint(1, *(unsigned int*)&info->m_masterNo))
         QG_FAIL();
-    if (!h->get_ubyte(2, *(unsigned char*)(info + 0x1b)))
+    if (!h->get_ubyte(2, *(unsigned char*)&info->m_lev))
         QG_FAIL();
-    if (!h->get_ushort(3, *(unsigned short*)(info + 0x1c)))
+    if (!h->get_ushort(3, *(unsigned short*)&info->m_ability))
         QG_FAIL();
-    if (!h->get_ushort(4, *(unsigned short*)(info + 0x22)))
+    if (!h->get_ushort(4, *(unsigned short*)&info->m_memberCount))
         QG_FAIL();
     unsigned int guildRank = 0;
     if (!h->get_uint(5, guildRank))
         QG_FAIL();
     if (guildRank > 0x64)
-        *(char*)(info + 0x28) = 0;
+        info->m_guildRank = 0;
     else
-        *(char*)(info + 0x28) = (char)guildRank;
-    if (!h->get_uint(6, *(unsigned int*)(info + 0x24)))
+        info->m_guildRank = (char)guildRank;
+    if (!h->get_uint(6, *(unsigned int*)&info->m_guildPoint))
         QG_FAIL();
-    if (!h->get_uint(7, *(unsigned int*)(info + 0x29)))
+    if (!h->get_uint(7, *(unsigned int*)&info->m_guildExp))
         QG_FAIL();
-    if (!h->get_ubyte(8, *(unsigned char*)(info + 0x95)))
+    if (!h->get_ubyte(8, *(unsigned char*)&info->m_powerSide))
         QG_FAIL();
-    if (!h->get_uint(9, *(unsigned int*)(info + 0x96)))
+    if (!h->get_uint(9, *(unsigned int*)&info->m_powerSecedeTime))
         QG_FAIL();
-    if (!h->get_uint(10, *(unsigned int*)(info + 0x9a)))
+    if (!h->get_uint(10, *(unsigned int*)&info->m_powerWarPoint))
         QG_FAIL();
-    if (!h->get_ubyte(11, *(unsigned char*)(info + 0x9e)))
+    if (!h->get_ubyte(11, *(unsigned char*)&info->m_guildAgitFlag))
         QG_FAIL();
-    if (!h->get_ubyte(12, *(unsigned char*)(info + 0x9f)))
+    if (!h->get_ubyte(12, *(unsigned char*)&info->m_powerJoinCount))
         QG_FAIL();
-    if (!h->get_uint(13, *(unsigned int*)(info + 0xa0)))
+    if (!h->get_uint(13, *(unsigned int*)&info->m_guildFund))
         QG_FAIL();
-    if (!h->get_str(14, info + 0xa4, 0x15))
+    if (!h->get_str(14, info->m_masterName, 0x15))
         QG_FAIL();
 #undef QG_FAIL
-    *(char*)((char*)&reply + 0xa) = 1;
+    reply.m_fieldA = 1;
     return 1;
 }
 char CDBManager::SaveServerQueueLoadStatistic(unsigned char type, int kind,
@@ -4672,7 +4812,7 @@ char CDBManager::QueryOnTimeEventIdx(Packet_Result_OnTimeEvent_Idx& rpy)
     }
     if (!h->exec(0x4f14) || !h->fetch())
         return 0;
-    if (!h->get_uint(0, *(unsigned int*)((char*)&rpy + 0xa)))
+    if (!h->get_uint(0, *(unsigned int*)&rpy.m_fieldA))
         return 0;
     return 1;
 }
@@ -4708,7 +4848,7 @@ char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
     {
         if (!h->fetch())
             return 0;
-        if (!h->get_short(0, *(short*)((char*)&pkt + 0xa)))
+        if (!h->get_short(0, *(short*)&pkt.m_fieldA))
             return 0;
     }
     else
@@ -4718,7 +4858,7 @@ char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
     stats->SendToServer((char*)&pkt, pkt.packetSize);
     h->set_query(0x4e8a,
                  "seLect unique_id,unix_timestamp(modify_time),spec_id,cpu_vendor,cpu_processor_num,above_cpu_clock,below_cpu_clock,ram,videocard_vendor,videocard_device,videocard_texture_mem,os_version from monitoring_spec where unix_timestamp(modify_time)>%d",
-                 *(int*)((char*)req + 0xb));
+                 req->m_fieldB);
     if (!h->exec(0x4e8a))
         return 0;
     int n_rows = h->get_n_rows();
@@ -4787,22 +4927,23 @@ char CDBManager::InsertFrameLagStatistics(
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
+    FrameLagWriteIndexView* v = (FrameLagWriteIndexView*)packet;
     h->set_query(0x4e8c,
                  "inSert into common_index(spec_id,occ_time,server_group,share_rate,crash_village,crash_dungeon,crash_challenge,crash_wararea,crash_fight_village,crash_dead_tower,crash_channel,crash_load,village_to_dungeon_lag,dungeon_to_village_lag) values(%d,from_unixtime(%d),%hhd,%u,%hu,%hu,%hu,%hu,%hu,%hu,%hu,%hu,%hd,%hd)",
-                 *(int*)((char*)packet + 0xb),
-                 *(unsigned int*)((char*)packet + 0x177),
-                 *(signed char*)((char*)packet + 0xa),
-                 *(unsigned int*)((char*)packet + 0xf),
-                 *(unsigned short*)((char*)packet + 0x13),
-                 *(unsigned short*)((char*)packet + 0x15),
-                 *(unsigned short*)((char*)packet + 0x17),
-                 *(unsigned short*)((char*)packet + 0x19),
-                 *(unsigned short*)((char*)packet + 0x1b),
-                 *(unsigned short*)((char*)packet + 0x1d),
-                 *(unsigned short*)((char*)packet + 0x1f),
-                 *(unsigned short*)((char*)packet + 0x21),
-                 *(short*)((char*)packet + 0x23),
-                 *(short*)((char*)packet + 0x25));
+                 v->m_specId,
+                 v->m_occTime,
+                 v->m_serverGroup,
+                 v->m_shareRate,
+                 v->m_crashVillage,
+                 v->m_crashDungeon,
+                 v->m_crashChallenge,
+                 v->m_crashWararea,
+                 v->m_crashFightVillage,
+                 v->m_crashDeadTower,
+                 v->m_crashChannel,
+                 v->m_crashLoad,
+                 v->m_villageToDungeonLag,
+                 v->m_dungeonToVillageLag);
     if (!h->exec(0x4e8c))
         return 0;
     char buf[0x20];
@@ -4835,38 +4976,38 @@ char CDBManager::InsertFrameLagStatistics(
         h->set_query(0x4e8d,
                      "inSert into %s(spec_id,occ_time,server_group,share_rate,win_fps,full_fps,full_win_fps,full_win_nosync_fps,frame1,time1,frame2,time2,frame3,time3,frame4,time4,frame5,time5,frame6,time6) values(%d,from_unixtime(%d),%hhd,%u,%hd,%hd,%hd,%hd,%d,%.3f,%d,%.3f,%d,%.3f,%d,%.3f,%d,%.3f,%d,%.3f)",
                      buf,
-                     *(int*)((char*)packet + 0xb),
-                     *(unsigned int*)((char*)packet + 0x177),
-                     *(signed char*)((char*)packet + 0xa),
-                     *(unsigned int*)((char*)packet + 0xf),
-                     *(short*)((char*)packet + kind * 0x38 + 0x27),
-                     *(short*)((char*)packet + kind * 0x38 + 0x29),
-                     *(short*)((char*)packet + kind * 0x38 + 0x2b),
-                     *(short*)((char*)packet + kind * 0x38 + 0x2d),
-                     *(int*)((char*)packet + kind * 0x38 + 0x2f),
-                     *(float*)((char*)packet + kind * 0x38 + 0x33),
-                     *(int*)((char*)packet + kind * 0x38 + 0x37),
-                     *(float*)((char*)packet + kind * 0x38 + 0x3b),
-                     *(int*)((char*)packet + kind * 0x38 + 0x3f),
-                     *(float*)((char*)packet + kind * 0x38 + 0x43),
-                     *(int*)((char*)packet + kind * 0x38 + 0x47),
-                     *(float*)((char*)packet + kind * 0x38 + 0x4b),
-                     *(int*)((char*)packet + kind * 0x38 + 0x4f),
-                     *(float*)((char*)packet + kind * 0x38 + 0x53),
-                     *(int*)((char*)packet + kind * 0x38 + 0x57),
-                     *(float*)((char*)packet + kind * 0x38 + 0x5b));
+                     v->m_specId,
+                     v->m_occTime,
+                     v->m_serverGroup,
+                     v->m_shareRate,
+                     v->m_kinds[kind].m_winFps,
+                     v->m_kinds[kind].m_fullFps,
+                     v->m_kinds[kind].m_fullWinFps,
+                     v->m_kinds[kind].m_fullWinNosyncFps,
+                     v->m_kinds[kind].m_frame1,
+                     v->m_kinds[kind].m_time1,
+                     v->m_kinds[kind].m_frame2,
+                     v->m_kinds[kind].m_time2,
+                     v->m_kinds[kind].m_frame3,
+                     v->m_kinds[kind].m_time3,
+                     v->m_kinds[kind].m_frame4,
+                     v->m_kinds[kind].m_time4,
+                     v->m_kinds[kind].m_frame5,
+                     v->m_kinds[kind].m_time5,
+                     v->m_kinds[kind].m_frame6,
+                     v->m_kinds[kind].m_time6);
         if (!h->exec(0x4e8d))
             return 0;
     }
     h->set_query(0x4e8e,
                  "select unique_id from monitoring_spec where spec_id = %d",
-                 *(int*)((char*)packet + 0xb));
+                 v->m_specId);
     if (!h->exec(0x4e8e))
         return 0;
     if (h->get_n_rows() != 0)
         return 1;
     Packet_Frame_Lag_Spec_Delete_Notify pkt;
-    *(int*)((char*)&pkt + 0xa) = *(int*)((char*)packet + 0xb);
+    pkt.m_specId = v->m_specId;
     stats->SendToServer((char*)&pkt, pkt.packetSize);
     return 1;
 }
@@ -4888,36 +5029,36 @@ char CDBManager::QueryFirstLoadSpecDb(Packet_Frame_Lag_Statistic_Load_Spec* req,
     int count = n_rows / 6;
     if (n_rows % 6 != 0)
         count++;
-    *(int*)((char*)&rp + 0xf) = count;
-    *(int*)((char*)&rp + 0xb) = 1;
+    rp.m_count = count;
+    rp.m_batchIndex = 1;
     int i = 0;
     for (int j = 0; j < n_rows; j++)
     {
         if (!h->fetch())
             return 0;
-        if (!h->get_int(0, *(int*)((char*)&rp + (i + 4) * 4 + 3)))
+        if (!h->get_int(0, rp.m_uniqueId[i]))
             return 0;
-        if (!h->get_uint(1, *(unsigned int*)((char*)&rp + (i + 8) * 4 + 0xb)))
+        if (!h->get_uint(1, rp.m_modifyTime[i]))
             return 0;
-        if (!h->get_int(2, *(int*)((char*)&rp + (i + 0x10) * 4 + 3)))
+        if (!h->get_int(2, rp.m_specId[i]))
             return 0;
-        if (!h->get_byte(3, *(char*)((char*)&rp + 0x50 + i + 0xb)))
+        if (!h->get_byte(3, (char&)rp.m_cpuVendor[i]))
             return 0;
-        if (!h->get_byte(4, *(char*)((char*)&rp + 0x60 + i + 1)))
+        if (!h->get_byte(4, (char&)rp.m_cpuProcessorNum[i]))
             return 0;
-        if (!h->get_int(5, *(int*)((char*)&rp + (i + 0x18) * 4 + 7)))
+        if (!h->get_int(5, rp.m_aboveCpuClock[i]))
             return 0;
-        if (!h->get_int(6, *(int*)((char*)&rp + (i + 0x1c) * 4 + 0xf)))
+        if (!h->get_int(6, rp.m_belowCpuClock[i]))
             return 0;
-        if (!h->get_short(7, *(short*)((char*)&rp + (i + 0x48) * 2 + 7)))
+        if (!h->get_short(7, (short&)rp.m_ram[i]))
             return 0;
-        if (!h->get_int(8, *(int*)((char*)&rp + (i + 0x28) * 4 + 3)))
+        if (!h->get_int(8, rp.m_videocardVendor[i]))
             return 0;
-        if (!h->get_int(9, *(int*)((char*)&rp + (i + 0x2c) * 4 + 0xb)))
+        if (!h->get_int(9, rp.m_videocardDevice[i]))
             return 0;
-        if (!h->get_short(10, *(short*)((char*)&rp + (i + 0x68) * 2 + 3)))
+        if (!h->get_short(10, (short&)rp.m_videocardTextureMem[i]))
             return 0;
-        if (!h->get_byte(11, *(char*)((char*)&rp + 0xd0 + i + 0xf)))
+        if (!h->get_byte(11, (char&)rp.m_osVersion[i]))
             return 0;
         i++;
         if (i % 6 == 0)
@@ -4925,14 +5066,14 @@ char CDBManager::QueryFirstLoadSpecDb(Packet_Frame_Lag_Statistic_Load_Spec* req,
             stats->SendToServer((char*)&rp, rp.packetSize);
             DNFFLib::Sleep_Ext(0, 1);
             stats->SendToServer((char*)&rp, rp.packetSize);
-            *(int*)((char*)&rp + 0xb) += 1;
+            rp.m_batchIndex += 1;
             i = 0;
         }
     }
     if (i != 0)
     {
         if (i > 0 && i <= 5)
-            *(int*)((char*)&rp + (i + 4) * 4 + 3) = -1;
+            rp.m_uniqueId[i] = -1;
         stats->SendToServer((char*)&rp, rp.packetSize);
         DNFFLib::Sleep_Ext(0, 1);
         stats->SendToServer((char*)&rp, rp.packetSize);
@@ -4993,45 +5134,50 @@ char CDBManager::QueryHWspecCreate(
 {
     time_t now = time(0);
     CDBHandle* h = m_handles[4];    // log db
-    if (*(unsigned char*)((char*)packet + 0xa) == 0)
+    HWspecView* view = (HWspecView*)packet;
+    if (view->m_flag == 0)
     {
-        int count = *(int*)((char*)packet + 0xb);
+        int count = view->m_count;
         for (int i = 0; i < count; i++)
         {
-            char* e = (char*)packet + 0xf + i * 0xe;
             h->set_query(0x4e78,
                          "upDate log_hardware_ting set total=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
-                         *(unsigned short*)(e + 0), now,
-                         *(unsigned char*)(e + 2), *(int*)(e + 6),
-                         *(int*)(e + 0xa));
+                         view->m_entries[i].m_total, now,
+                         view->m_entries[i].m_category1,
+                         view->m_entries[i].m_category2,
+                         view->m_entries[i].m_category3);
             if (h->exec(0x4e78) != 1 || h->getAffectedRowCount() == 0)
             {
                 h->set_query(0x4e79,
                              "inSert into log_hardware_ting(occ_time, category1, category2, category3, total) values(from_unixtime(%d), %d, %d, %d, %d)",
-                             now, *(unsigned char*)(e + 2), *(int*)(e + 6),
-                             *(int*)(e + 0xa), *(unsigned short*)(e + 0));
+                             now, view->m_entries[i].m_category1,
+                             view->m_entries[i].m_category2,
+                             view->m_entries[i].m_category3,
+                             view->m_entries[i].m_total);
                 if (!h->exec(0x4e79))
                     return 0;
             }
         }
     }
-    else if (*(unsigned char*)((char*)packet + 0xa) == 1)
+    else if (view->m_flag == 1)
     {
-        int count = *(int*)((char*)packet + 0xb);
+        int count = view->m_count;
         for (int i = 0; i < count; i++)
         {
-            char* e = (char*)packet + 0xf + i * 0xe;
             h->set_query(0x4e7a,
                          "upDate log_hardware_ting set ting=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
-                         *(unsigned short*)(e + 0), now,
-                         *(unsigned char*)(e + 2), *(int*)(e + 6),
-                         *(int*)(e + 0xa));
+                         view->m_entries[i].m_total, now,
+                         view->m_entries[i].m_category1,
+                         view->m_entries[i].m_category2,
+                         view->m_entries[i].m_category3);
             if (h->exec(0x4e7a) != 1 || h->getAffectedRowCount() == 0)
             {
                 h->set_query(0x4e7b,
                              "inSert into log_hardware_ting(occ_time, category1, category2, category3, ting) values(from_unixtime(%d), %d, %d, %d, %d)",
-                             now, *(unsigned char*)(e + 2), *(int*)(e + 6),
-                             *(int*)(e + 0xa), *(unsigned short*)(e + 0));
+                             now, view->m_entries[i].m_category1,
+                             view->m_entries[i].m_category2,
+                             view->m_entries[i].m_category3,
+                             view->m_entries[i].m_total);
                 if (!h->exec(0x4e7b))
                     return 0;
             }
@@ -5039,21 +5185,23 @@ char CDBManager::QueryHWspecCreate(
     }
     else
     {
-        int count = *(int*)((char*)packet + 0xb);
+        int count = view->m_count;
         for (int i = 0; i < count; i++)
         {
-            char* e = (char*)packet + 0xf + i * 0xe;
             h->set_query(0x4e7c,
                          "upDate log_hardware_ting_low set total=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
-                         *(unsigned short*)(e + 0), now,
-                         *(unsigned char*)(e + 2), *(int*)(e + 6),
-                         *(int*)(e + 0xa));
+                         view->m_entries[i].m_total, now,
+                         view->m_entries[i].m_category1,
+                         view->m_entries[i].m_category2,
+                         view->m_entries[i].m_category3);
             if (h->exec(0x4e7c) != 1 || h->getAffectedRowCount() == 0)
             {
                 h->set_query(0x4e7d,
                              "inSert into log_hardware_ting_low(occ_time, category1, category2, category3, total) values(from_unixtime(%d), %d, %d, %d, %d)",
-                             now, *(unsigned char*)(e + 2), *(int*)(e + 6),
-                             *(int*)(e + 0xa), *(unsigned short*)(e + 0));
+                             now, view->m_entries[i].m_category1,
+                             view->m_entries[i].m_category2,
+                             view->m_entries[i].m_category3,
+                             view->m_entries[i].m_total);
                 if (!h->exec(0x4e7d))
                     return 0;
             }
@@ -5076,24 +5224,24 @@ char CDBManager::OnLoadGuildCargoHistory(
         log("./log/DBQueryErr", "OnLoadGuildCargoHistory Query Error");
         return 0;
     }
-    *(int*)((char*)&reply + 0xe) = h->get_n_rows();
+    reply.m_fieldE = h->get_n_rows();
     unsigned int j = 0;
     while (j < (unsigned int)h->get_n_rows())
     {
         if (!h->fetch())
             return 0;
-        char* base = (char*)&reply + 0x12 + j * 0x30;
-        if (!h->get_int(0, *(int*)(base + 0)))
+        STGuildCargoLog* log = &reply.m_logs[j];
+        if (!h->get_int(0, *(int*)&log->time))
             return 0;
-        if (!h->get_byte(1, *(char*)(base + 4)))
+        if (!h->get_byte(1, *(char*)&log->behavior))
             return 0;
-        if (!h->get_str(2, base + 5, 0x15))
+        if (!h->get_str(2, log->name, 0x15))
             return 0;
-        if (!h->get_int(3, *(int*)(base + 0x1a)))
+        if (!h->get_int(3, *(int*)&log->count))
             return 0;
-        if (!h->get_int(4, *(int*)(base + 0x1e)))
+        if (!h->get_int(4, *(int*)&log->param))
             return 0;
-        if (!h->get_binary(5, base + 0x22, 0xe))
+        if (!h->get_binary(5, (char*)&log->opt0, 0xe))
             return 0;
         j++;
     }
@@ -5192,22 +5340,23 @@ bool CDBManager::OnLoadGuildBoard(int guildId, int& count,
         unsigned int m_id = 0;
         if (!h->fetch())
             return 0;
-        if (!h->get_uint(0, *(unsigned int*)((char*)boards + i * 0xa5 + 0x7c)))
+        STGuildBoardDBInfo* b = &boards[i];
+        if (!h->get_uint(0, *(unsigned int*)&b->m_field7c))
             return 0;
         if (!h->get_uint(1, m_id))
             return 0;
-        if (!h->get_uint(2, *(unsigned int*)((char*)boards + i * 0xa5 + 0x80)))
+        if (!h->get_uint(2, *(unsigned int*)&b->m_field80))
             return 0;
-        if (!h->get_str(3, (char*)boards + i * 0xa5 + 0x87, 0x1e))
+        if (!h->get_str(3, b->m_member.m_name, 0x1e))
             return 0;
-        if (!h->get_str(4, (char*)boards + i * 0xa5, 0x78))
+        if (!h->get_str(4, b->m_pre, 0x78))
             return 0;
-        if (!h->get_uint(5, *(unsigned int*)((char*)boards + i * 0xa5 + 0x78)))
+        if (!h->get_uint(5, *(unsigned int*)&b->m_field78))
             return 0;
-        if (!h->get_byte(6, *(char*)((char*)boards + i * 0xa5 + 0x84)))
+        if (!h->get_byte(6, *(char*)&b->m_member.m_field0))
             return 0;
         if (m_id == 0)
-            *(unsigned int*)((char*)boards + i * 0xa5 + 0x80) = 0;
+            b->m_field80 = 0;
         i++;
     }
     return 1;
@@ -5391,7 +5540,8 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = *(int*)((char*)packet + 0xa);
+    CubeStatisticView* view = (CubeStatisticView*)packet;
+    int count = view->m_count;
     CMyFileLog slog(__FUNCTION__, 0x1872);
     slog("./log/statistic",
          "CDBManager::QueryCubeStatisticCreate : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n", count);
@@ -5399,18 +5549,23 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     std::string str;
     for (int i = 0; i < count; i++)
     {
-        char* e = (char*)packet + i * 0xd;
         if (str.size() != 0)
         {
-            sprintf(buf, ",(now(),%d,%d,%d,%d,%d)", *(short*)(e + 0xe),
-                    *(short*)(e + 0x10), *(int*)(e + 0x12),
-                    *(unsigned char*)(e + 0x1a), *(int*)(e + 0x16));
+            sprintf(buf, ",(now(),%d,%d,%d,%d,%d)",
+                    view->m_entries[i].m_channel,
+                    view->m_entries[i].m_level,
+                    view->m_entries[i].m_itemIndex,
+                    view->m_entries[i].m_type,
+                    view->m_entries[i].m_itemCount);
         }
         else
         {
-            sprintf(buf, "(now(),%d,%d,%d,%d,%d)", *(short*)(e + 0xe),
-                    *(short*)(e + 0x10), *(int*)(e + 0x12),
-                    *(unsigned char*)(e + 0x1a), *(int*)(e + 0x16));
+            sprintf(buf, "(now(),%d,%d,%d,%d,%d)",
+                    view->m_entries[i].m_channel,
+                    view->m_entries[i].m_level,
+                    view->m_entries[i].m_itemIndex,
+                    view->m_entries[i].m_type,
+                    view->m_entries[i].m_itemCount);
         }
         if (str.length() + 0x800 > 0x6000)
         {
@@ -5580,19 +5735,19 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
     r = h->fetch();
     if (!r)
         return 0;
-    r = h->get_uint(0, *(unsigned int*)((char*)&info + 0x22));
+    r = h->get_uint(0, *(unsigned int*)&info.m_characNo);
     if (!r)
         return 0;
-    r = h->get_short(1, *(short*)((char*)&info + 0x1e));
+    r = h->get_short(1, *(short*)&info.m_lev);
     if (!r)
         return 0;
-    r = h->get_byte(2, *(char*)((char*)&info + 0x20));
+    r = h->get_byte(2, *(char*)&info.m_job);
     if (!r)
         return 0;
-    r = h->get_byte(3, *(char*)((char*)&info + 0x21));
+    r = h->get_byte(3, *(char*)&info.m_growType);
     if (!r)
         return 0;
-    r = h->get_byte(4, *(char*)((char*)&info + 0x26));
+    r = h->get_byte(4, *(char*)&info.m_sex);
     if (!r)
         return 0;
     r = h->get_uint(5, m_id);
@@ -5607,7 +5762,7 @@ char CDBManager::AddBuddy(unsigned int characNo, char* name,
             return 0;
         }
     }
-    r = h->get_str(6, (char*)&info, 0x1e);
+    r = h->get_str(6, info.m_name, 0x1e);
     if (!r)
         return 0;
     h->set_query(0x4e51, "inSert into charac_friends values (%d, %d)",
@@ -5696,7 +5851,8 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = *(int*)((char*)packet + 0xa);
+    DeathTowerPlaydataJobView* view = (DeathTowerPlaydataJobView*)packet;
+    int count = view->m_count;
     CMyFileLog slog(__FUNCTION__, 0x17a5);
     slog("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Playdata_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
@@ -5705,20 +5861,25 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     std::string str;
     for (int i = 0; i < count / 2; i++)
     {
-        char* e = (char*)packet + i * 0x10;
         if (str.size() != 0)
         {
-            sprintf(buf, ",(now(),%d,%d,%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(short*)(e + 0xf), *(int*)(e + 0x11),
-                    *(signed char*)(e + 0x15), *(int*)(e + 0x16),
-                    *(int*)(e + 0x1a));
+            sprintf(buf, ",(now(),%d,%d,%d,%d,%d,%d)",
+                    view->m_entries[i].m_type,
+                    view->m_entries[i].m_level,
+                    view->m_entries[i].m_field4,
+                    view->m_entries[i].m_field8,
+                    view->m_entries[i].m_avg,
+                    view->m_entries[i].m_count);
         }
         else
         {
-            sprintf(buf, "(now(),%d,%d,%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(short*)(e + 0xf), *(int*)(e + 0x11),
-                    *(signed char*)(e + 0x15), *(int*)(e + 0x16),
-                    *(int*)(e + 0x1a));
+            sprintf(buf, "(now(),%d,%d,%d,%d,%d,%d)",
+                    view->m_entries[i].m_type,
+                    view->m_entries[i].m_level,
+                    view->m_entries[i].m_field4,
+                    view->m_entries[i].m_field8,
+                    view->m_entries[i].m_avg,
+                    view->m_entries[i].m_count);
         }
         str += buf;
     }
@@ -5736,20 +5897,25 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     str.clear();
     for (int j = count / 2 + 1; j < count; j++)
     {
-        char* e = (char*)packet + j * 0x10;
         if (str.size() != 0)
         {
-            sprintf(buf, ",(now(),%d,%d,%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(short*)(e + 0xf), *(int*)(e + 0x11),
-                    *(signed char*)(e + 0x15), *(int*)(e + 0x16),
-                    *(int*)(e + 0x1a));
+            sprintf(buf, ",(now(),%d,%d,%d,%d,%d,%d)",
+                    view->m_entries[j].m_type,
+                    view->m_entries[j].m_level,
+                    view->m_entries[j].m_field4,
+                    view->m_entries[j].m_field8,
+                    view->m_entries[j].m_avg,
+                    view->m_entries[j].m_count);
         }
         else
         {
-            sprintf(buf, "(now(),%d,%d,%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(short*)(e + 0xf), *(int*)(e + 0x11),
-                    *(signed char*)(e + 0x15), *(int*)(e + 0x16),
-                    *(int*)(e + 0x1a));
+            sprintf(buf, "(now(),%d,%d,%d,%d,%d,%d)",
+                    view->m_entries[j].m_type,
+                    view->m_entries[j].m_level,
+                    view->m_entries[j].m_field4,
+                    view->m_entries[j].m_field8,
+                    view->m_entries[j].m_avg,
+                    view->m_entries[j].m_count);
         }
         str += buf;
     }
@@ -5865,6 +6031,7 @@ bool CDBManager::UpdateDisjointAvatarStatistic(
     char buf2[0x10] = {0};
     if (!h)
         return 0;
+    AvaterDisjointView* view = (AvaterDisjointView*)packet;
     for (int kind = 0; kind <= 2; kind++)
     {
         if (kind == 0)
@@ -5898,9 +6065,9 @@ bool CDBManager::UpdateDisjointAvatarStatistic(
             int idx = kind * 9 + item;
             h->set_query(0x4f47,
                          "upDate log_avatar_grind set avatar_emblem_grind=avatar_emblem_grind+%d, avatar_bindcube_grind=avatar_bindcube_grind+%d, avatar_rechargestone_grind=avatar_rechargestone_grind+%d where cur_date=CURDATE() and grade='%s' and body_part='%s' ",
-                         *(int*)((char*)packet + idx * 8 + 0xe),
-                         *(int*)((char*)packet + (idx + 0x34) * 8 + 0xa),
-                         *(int*)((char*)packet + (idx + 0x34) * 4 + 0x12),
+                         view->m_pairs[idx].m_emblem,
+                         view->m_pairs[idx].m_bindcube,
+                         view->m_recharge[idx],
                          buf1, buf2);
             if (!h->exec(0x4f47))
             {
@@ -5914,9 +6081,9 @@ bool CDBManager::UpdateDisjointAvatarStatistic(
                     0x4ee8,
                     "inSert into log_avatar_grind(cur_date, grade, body_part, avatar_emblem_grind, avatar_bindcube_grind, avatar_rechargestone_grind) values(CURDATE(), '%s', '%s', %d, %d, %d)",
                     buf1, buf2,
-                    *(int*)((char*)packet + idx * 8 + 0xe),
-                    *(int*)((char*)packet + idx * 8 + 0xa),
-                    *(int*)((char*)packet + (idx + 0x34) * 4 + 0x12));
+                    view->m_pairs[idx].m_emblem,
+                    view->m_pairs[idx].m_bindcube,
+                    view->m_recharge[idx]);
                 if (!h->exec(0x4ee8))
                 {
                     CMyFileLog log(__FUNCTION__, 0x1ebe);
@@ -5935,7 +6102,9 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = *(int*)((char*)packet + 0xa);
+    DeathTowerPlaydataPartyView* view =
+        (DeathTowerPlaydataPartyView*)packet;
+    int count = view->m_count;
     CMyFileLog slog(__FUNCTION__, 0x17f7);
     slog("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Playdata_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
@@ -5944,18 +6113,21 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     std::string str;
     for (int i = 0; i < count / 2; i++)
     {
-        char* e = (char*)packet + i * 0xa;
         if (str.size() != 0)
         {
-            sprintf(buf, ",(now(),%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(signed char*)(e + 0xf), *(int*)(e + 0x10),
-                    *(int*)(e + 0x14));
+            sprintf(buf, ",(now(),%d,%d,%d,%d)",
+                    view->m_entries[i].m_type,
+                    view->m_entries[i].m_field1,
+                    view->m_entries[i].m_value,
+                    view->m_entries[i].m_field6);
         }
         else
         {
-            sprintf(buf, "(now(),%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(signed char*)(e + 0xf), *(int*)(e + 0x10),
-                    *(int*)(e + 0x14));
+            sprintf(buf, "(now(),%d,%d,%d,%d)",
+                    view->m_entries[i].m_type,
+                    view->m_entries[i].m_field1,
+                    view->m_entries[i].m_value,
+                    view->m_entries[i].m_field6);
         }
         str += buf;
     }
@@ -5973,18 +6145,21 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     str.clear();
     for (int j = count / 2 + 1; j < count; j++)
     {
-        char* e = (char*)packet + j * 0xa;
         if (str.size() != 0)
         {
-            sprintf(buf, ",(now(),%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(signed char*)(e + 0xf), *(int*)(e + 0x10),
-                    *(int*)(e + 0x14));
+            sprintf(buf, ",(now(),%d,%d,%d,%d)",
+                    view->m_entries[j].m_type,
+                    view->m_entries[j].m_field1,
+                    view->m_entries[j].m_value,
+                    view->m_entries[j].m_field6);
         }
         else
         {
-            sprintf(buf, "(now(),%d,%d,%d,%d)", *(signed char*)(e + 0xe),
-                    *(signed char*)(e + 0xf), *(int*)(e + 0x10),
-                    *(int*)(e + 0x14));
+            sprintf(buf, "(now(),%d,%d,%d,%d)",
+                    view->m_entries[j].m_type,
+                    view->m_entries[j].m_field1,
+                    view->m_entries[j].m_value,
+                    view->m_entries[j].m_field6);
         }
         str += buf;
     }
@@ -6173,37 +6348,37 @@ bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
 {
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[2];   // game db
-    char* info = (char*)&reply + 0x13;
+    STGuildDBInfoOnly* info = &reply.m_guildInfo;
     if (!h->set_query(0x4e58,
                       "seLect charac_no from guild_member where guild_id = %d and server_id = %d and grade =  %d and member_flag = 1 limit %d",
                       guildId, serverGroup, 2, 5))
     {
         CMyFileLog log(__FUNCTION__, 0xd9d);
         log("./log/DBQueryErr", "CDBManager::QueryGuildMember() Exception Break\n");
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_fieldA = 0;
         return 0;
     }
     if (!h->exec(0x4e58))
     {
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_fieldA = 0;
         return 0;
     }
     int n = h->get_n_rows();
-    *(char*)(info + 0x2d) = (char)n;
+    info->m_field2D = (char)n;
     for (int i = 0; i < n; i++)
     {
         if (!h->fetch())
         {
-            *(char*)((char*)&reply + 0xa) = 1;
+            reply.m_fieldA = 1;
             return 1;
         }
-        if (!h->get_uint(0, *(unsigned int*)(info + 0x2e + i * 4)))
+        if (!h->get_uint(0, *(unsigned int*)&info->m_pad2E[i * 4]))
         {
-            *(char*)((char*)&reply + 0xa) = 3;
+            reply.m_fieldA = 3;
             return 0;
         }
     }
-    *(char*)((char*)&reply + 0xa) = 1;
+    reply.m_fieldA = 1;
     return 1;
 }
 char CDBManager::QueryOnTimeEventIdxUpdate(
@@ -6228,13 +6403,13 @@ char CDBManager::QueryOnTimeEventIdxUpdate(
     unsigned int maxNo = 0;
     if (!h->get_uint(0, maxNo))
         return 0;
-    if (*(unsigned int*)((char*)packet + 0x12) > maxNo)
+    if (packet->m_no > maxNo)
     {
         if (!h->set_query(0x4f19,
                           "inSert into event_1112_ontime_info(no ,item_index,item_count,time ) values(%u,%u,%u,now())",
-                          *(unsigned int*)((char*)packet + 0x12),
-                          *(unsigned int*)((char*)packet + 0xa),
-                          *(unsigned int*)((char*)packet + 0xe)))
+                          packet->m_no,
+                          packet->m_itemIndex,
+                          packet->m_itemCount))
         {
             CMyFileLog log(__FUNCTION__, 0x24ec);
             log("./log/DBQueryErr",
@@ -6246,7 +6421,7 @@ char CDBManager::QueryOnTimeEventIdxUpdate(
     }
     else
     {
-        *(unsigned int*)((char*)packet + 0x12) = maxNo;
+        packet->m_no = maxNo;
     }
     return 1;
 }
@@ -6266,9 +6441,9 @@ char CDBManager::QueryOnTimeEventItem(Packet_Result_Ontime_Event_Item& reply)
             reply.m_field12 = 2;
         return 0;
     }
-    if (!h->get_uint(0, *(unsigned int*)((char*)&reply + 0xa)))
+    if (!h->get_uint(0, *(unsigned int*)&reply.m_fieldA))
         return 0;
-    if (!h->get_uint(1, *(unsigned int*)((char*)&reply + 0xe)))
+    if (!h->get_uint(1, *(unsigned int*)&reply.m_fieldE))
         return 0;
     return 1;
 }
@@ -6294,17 +6469,17 @@ bool CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
         if (!h->fetch())
             return 1;
         STBuddyDBInfo& b = buddies[i];
-        if (!h->get_uint(0, *(unsigned int*)((char*)&b + 0x22)))
+        if (!h->get_uint(0, *(unsigned int*)&b.m_characNo))
             return 0;
         if (!h->get_str(1, b.m_name, 0x1e))
             return 0;
-        if (!h->get_short(2, *(short*)((char*)&b + 0x1e)))
+        if (!h->get_short(2, *(short*)&b.m_lev))
             return 0;
-        if (!h->get_byte(3, *(char*)((char*)&b + 0x20)))
+        if (!h->get_byte(3, *(char*)&b.m_job))
             return 0;
-        if (!h->get_byte(4, *(char*)((char*)&b + 0x21)))
+        if (!h->get_byte(4, *(char*)&b.m_growType))
             return 0;
-        if (!h->get_byte(5, *(char*)((char*)&b + 0x26)))
+        if (!h->get_byte(5, *(char*)&b.m_sex))
             return 0;
     }
     return 1;
@@ -6417,18 +6592,19 @@ bool CDBManager::updateCompatibilityIndex(
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
+    StatCompatibilityView* v = (StatCompatibilityView*)packet;
     h->set_query(0x4f4b,
                  "upDate ting_user_spec set reg_datetime=now(), cpu_vendor=%d, cpu_num=%d, cpu_clock=%d, ram=%d, video_vendor=%d, video_device=%d, video_ram=%d, os=%d, os_bit=%d where m_id=%u",
-                 *(unsigned char*)((char*)packet + 0xe),
-                 *(unsigned char*)((char*)packet + 0xf),
-                 *(int*)((char*)packet + 0x10),
-                 *(unsigned short*)((char*)packet + 0x14),
-                 *(unsigned short*)((char*)packet + 0x16),
-                 *(unsigned short*)((char*)packet + 0x18),
-                 *(unsigned short*)((char*)packet + 0x1a),
-                 *(unsigned char*)((char*)packet + 0x1c),
-                 *(unsigned char*)((char*)packet + 0x1d),
-                 *(unsigned int*)((char*)packet + 0xa));
+                 v->m_cpuVendor,
+                 v->m_cpuNum,
+                 v->m_cpuClock,
+                 v->m_ram,
+                 v->m_videoVendor,
+                 v->m_videoDevice,
+                 v->m_videoRam,
+                 v->m_os,
+                 v->m_osBit,
+                 v->m_id);
     if (!h->exec(0x4f4b))
     {
         CMyFileLog log(__FUNCTION__, 0x2916);
@@ -6440,16 +6616,16 @@ bool CDBManager::updateCompatibilityIndex(
         h->set_query(
             0x4f4a,
             "inSert into ting_user_spec (m_id, reg_datetime, cpu_vendor, cpu_num, cpu_clock, ram, video_vendor, video_device, video_ram, os, os_bit) values(%u, now(), %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-            *(unsigned int*)((char*)packet + 0xa),
-            *(unsigned char*)((char*)packet + 0xe),
-            *(unsigned char*)((char*)packet + 0xf),
-            *(int*)((char*)packet + 0x10),
-            *(unsigned short*)((char*)packet + 0x14),
-            *(unsigned short*)((char*)packet + 0x16),
-            *(unsigned short*)((char*)packet + 0x18),
-            *(unsigned short*)((char*)packet + 0x1a),
-            *(unsigned char*)((char*)packet + 0x1c),
-            *(unsigned char*)((char*)packet + 0x1d));
+            v->m_id,
+            v->m_cpuVendor,
+            v->m_cpuNum,
+            v->m_cpuClock,
+            v->m_ram,
+            v->m_videoVendor,
+            v->m_videoDevice,
+            v->m_videoRam,
+            v->m_os,
+            v->m_osBit);
         if (!h->exec(0x4f4a))
         {
             CMyFileLog log(__FUNCTION__, 0x292d);
@@ -6462,18 +6638,18 @@ bool CDBManager::updateCompatibilityIndex(
 char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
-    for (int i = 0; i < *(int*)((char*)packet + 0xa); i++)
+    SecretShopStatisticView* view = (SecretShopStatisticView*)packet;
+    for (int i = 0; i < view->m_count; i++)
     {
-        char* rec = (char*)packet + i * 0x14 + 0x10;
-        char* rec20 = (char*)packet + i * 0x14 + 0x20;
+        int* rec = &view->m_data[i * 5];
         h->set_query(0x4efc,
                      "upDate log_secret_shop set show_count=show_count+%d,show_charac_count=show_charac_count+%d,buy_count=buy_count+%d,price=price+%d where occ_date=cast(now() as date) and dungeon_idx=%d and npc_idx=%d",
-                     *(int*)(rec + 0x6),
-                     *(int*)(rec + 0xa),
-                     *(int*)(rec + 0xe),
-                     *(int*)(rec20 + 0x2),
-                     *(int*)(rec + 0x2),
-                     *(int*)((char*)packet + 0xe));
+                     rec[1],
+                     rec[2],
+                     rec[3],
+                     rec[4],
+                     rec[0],
+                     view->m_shopIdx);
         bool cVar1 = h->exec(0x4efc);
         if (!cVar1)
         {
@@ -6486,12 +6662,12 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
             h->set_query(
                 0x4efb,
                 "inSert into log_secret_shop(occ_date,npc_idx,dungeon_idx,show_count,show_charac_count,buy_count,price) values(cast(now() as date), %d, %d, %d, %d, %d, %d)",
-                *(int*)((char*)packet + 0xe),
-                *(int*)(rec + 0x2),
-                *(int*)(rec + 0x6),
-                *(int*)(rec + 0xa),
-                *(int*)(rec + 0xe),
-                *(int*)(rec20 + 0x2));
+                view->m_shopIdx,
+                rec[0],
+                rec[1],
+                rec[2],
+                rec[3],
+                rec[4]);
             cVar1 = h->exec(0x4efb);
             if (!cVar1)
             {
@@ -6724,7 +6900,7 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
 {
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[2];   // game db
-    char* info = (char*)&reply + 0x13;
+    STGuildDBInfoOnly* info = &reply.m_guildInfo;
     if (!h->set_query(0x4e56, "seLect remain_sp, used_sp, skill_slot from guild_skill where guild_id = %d",
                       guildId))
     {
@@ -6732,39 +6908,39 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
         log("./log/DBQueryErr",
             "CDBManager::QueryGuild() seLect remain_sp, skill_slot from guild_skill where guild_id = %d and server_id = %d and expire_flag = 0",
             guildId, serverGroup);
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_fieldA = 0;
         return 0;
     }
     if (!h->exec(0x4e56))
     {
-        *(char*)((char*)&reply + 0xa) = 0;
+        reply.m_fieldA = 0;
         return 0;
     }
     if (!h->fetch())
     {
-        *(char*)((char*)&reply + 0xa) = 1;
+        reply.m_fieldA = 1;
         return 1;
     }
-    if (!h->get_ushort(0, *(unsigned short*)(info + 0x42)))
+    if (!h->get_ushort(0, *(unsigned short*)&info->m_field42))
     {
-        *(char*)((char*)&reply + 0xa) = 3;
+        reply.m_fieldA = 3;
         return 1;
     }
-    if (!h->get_ubyte(1, *(unsigned char*)(info + 0x44)))
+    if (!h->get_ubyte(1, *(unsigned char*)&info->m_field44))
     {
-        *(char*)((char*)&reply + 0xa) = 3;
+        reply.m_fieldA = 3;
         return 1;
     }
-    if (*(unsigned char*)(info + 0x44) != 0)
+    if (info->m_field44 != 0)
     {
-        if (!h->get_binary(2, info + 0x45,
-                           *(unsigned char*)(info + 0x44) * 5))
+        if (!h->get_binary(2, (char*)info->m_skills,
+                           info->m_field44 * 5))
         {
-            *(char*)((char*)&reply + 0xa) = 3;
+            reply.m_fieldA = 3;
             return 1;
         }
     }
-    *(char*)((char*)&reply + 0xa) = 1;
+    reply.m_fieldA = 1;
     return 1;
 }
 void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header)

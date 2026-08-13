@@ -267,7 +267,7 @@ bool CPeer::parsing(int len)
             buf = new CTcpRecvBuffer;
         }
         memcpy(buf, m_sendBuf, size);
-        *(int*)((char*)buf + 6) = getHandle();
+        buf->m_header.reversed2 = getHandle();
         {
             CGuard<CMutex> guard(m_sendQLock);
             m_recvQ->push(buf);

@@ -245,7 +245,7 @@ bool CPeer::parsing(int len)
             buf = new CTcpRecvBuffer;
         }
         memcpy(buf, m_buf, packetSize);
-        *(int*)((char*)buf + 6) = getHandle();
+        ((PacketHeader*)buf)->reversed2 = getHandle();
         {
             CGuard<CMutex> guard(*(CMutex**)&m_qLock);
             ((std::queue<CTcpRecvBuffer*>*)m_recvQ)->push(buf);

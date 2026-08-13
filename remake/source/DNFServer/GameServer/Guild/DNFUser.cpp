@@ -341,7 +341,7 @@ void CUser::ChangeGuildMemberGrade(unsigned char grade)
             (unsigned int)(unsigned char)m_guildDBInfo.m_data[0x15], (unsigned int)grade);
     }
     m_guildDBInfo.m_data[0x15] = (char)grade;
-    SendGuildMemberDBInfo(*(STGuildMemerDBInfo*)((char*)this + 0x4a));
+    SendGuildMemberDBInfo(m_guildDBInfo);
 }
 
 void CUser::SendGuildMemberDBInfo(STGuildMemerDBInfo& info)

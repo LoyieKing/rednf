@@ -350,7 +350,8 @@ int CTcpNetSystem::SendPacket()
                 goto done;
             }
             b2 = buf;
-            std::map<unsigned int, CPeer*>::iterator it = m_peers.find(*(unsigned int*)((char*)b2 + 6));
+            std::map<unsigned int, CPeer*>::iterator it =
+                m_peers.find(*(unsigned int*)((char*)b2 + 6));
             if (it == m_peers.end())
             {
                 DNF_LOG_SCOPE_LINE(0xba, "./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",

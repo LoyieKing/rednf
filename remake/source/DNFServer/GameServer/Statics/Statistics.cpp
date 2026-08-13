@@ -14,6 +14,41 @@
 #include "Packet_Circulation_Statistic.h"
 #include "Packet_Emblem_Create_Statistic.h"
 
+// AddLoadingTimeReportStatistics 的报文视图（+0xa 的 int[9]；+0x2e 起 powerwar 段；+0x3b8 起 lag 段）
+struct __attribute__((packed)) LoadingValsWire
+{
+    char m_pad[0xa];    // +0x00
+    int m_vals[9];      // +0x0a，步长 4
+};
+struct __attribute__((packed)) LoadingPwWire
+{
+    char m_pad[0x2e];       // +0x00
+    unsigned int m_key;     // +0x2e
+    unsigned short m_count; // +0x32
+    struct __attribute__((packed)) PwItem
+    {
+        unsigned short m_key;  // +0x00
+        unsigned char m_f0;    // +0x02
+        unsigned short m_f2;   // +0x03
+        unsigned short m_f4;   // +0x05
+        unsigned short m_f6;   // +0x07
+    } m_pw[0x100];          // +0x34，步长 9
+};
+struct __attribute__((packed)) LoadingLagWire
+{
+    char m_pad[0x2e];       // +0x00
+    unsigned int m_key;     // +0x2e
+    char m_pad2[0x386];     // +0x32..0x3b7
+    unsigned short m_count; // +0x3b8
+    struct __attribute__((packed)) LagItem
+    {
+        unsigned short m_key;  // +0x00
+        unsigned char m_f0;    // +0x02
+        unsigned int m_f4;     // +0x03
+        unsigned int m_f8;     // +0x07
+    } m_lag[0x100];         // +0x3ba，步长 0xb
+};
+
 void StatisticManager::ResetDisjointAvatarInfoTotal()
 {
     m_disjoint.clear();
@@ -866,21 +901,21 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
 {
     for (int i = 0; i <= 8; i++)
     {
-        if (*(int*)((char*)pkt + i * 4 + 10) != 0)
+        if (((LoadingValsWire*)pkt)->m_vals[i] != 0)
         {
-            m_loading.m_data[i] += *(int*)((char*)pkt + i * 4 + 10);
+            m_loading.m_data[i] += ((LoadingValsWire*)pkt)->m_vals[i];
             m_loading.m_data2[i] += 1;
         }
         if (i == 7)
         {
-            unsigned short lcount = *(unsigned short*)((char*)pkt + 0x32);
+            unsigned short lcount = ((LoadingPwWire*)pkt)->m_count;
             if (lcount != 0)
             {
                 STPowerwarFightLoadingKey lkey;
-                lkey.m_field0 = *(unsigned int*)((char*)pkt + 0x2e);
+                lkey.m_field0 = ((LoadingPwWire*)pkt)->m_key;
                 for (int j = 0; j < (int)lcount; j++)
                 {
-                    lkey.m_field4 = *(unsigned short*)((char*)pkt + j * 9 + 0x34);
+                    lkey.m_field4 = ((LoadingPwWire*)pkt)->m_pw[j].m_key;
                     if (m_pwLoading.size() < 0x3e9)
                     {
                         std::map<STPowerwarFightLoadingKey, STPowerwarFightLoadingData>::iterator it =
@@ -889,10 +924,10 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                         if (isNew)
                         {
                             STPowerwarFightLoadingData v;
-                            v.m_field0 = *(char*)((char*)pkt + j * 9 + 0x36);
-                            v.m_field2 = *(unsigned short*)((char*)pkt + j * 9 + 0x37);
-                            v.m_field4 = *(unsigned short*)((char*)pkt + j * 9 + 0x39);
-                            v.m_field6 = *(unsigned short*)((char*)pkt + j * 9 + 0x3b);
+                            v.m_field0 = ((LoadingPwWire*)pkt)->m_pw[j].m_f0;
+                            v.m_field2 = ((LoadingPwWire*)pkt)->m_pw[j].m_f2;
+                            v.m_field4 = ((LoadingPwWire*)pkt)->m_pw[j].m_f4;
+                            v.m_field6 = ((LoadingPwWire*)pkt)->m_pw[j].m_f6;
                             m_pwLoading.insert(std::make_pair(lkey, v));
                         }
                     }
@@ -901,14 +936,14 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
         }
         if (i == 8)
         {
-            unsigned short gcount = *(unsigned short*)((char*)pkt + 0x3b8);
+            unsigned short gcount = ((LoadingLagWire*)pkt)->m_count;
             if (gcount != 0)
             {
                 STPowerwarFightLagKey gkey;
-                gkey.m_field0 = *(unsigned int*)((char*)pkt + 0x2e);
+                gkey.m_field0 = ((LoadingLagWire*)pkt)->m_key;
                 for (int j = 0; j < (int)gcount; j++)
                 {
-                    gkey.m_field4 = *(unsigned short*)((char*)pkt + j * 0xb + 0x3ba);
+                    gkey.m_field4 = ((LoadingLagWire*)pkt)->m_lag[j].m_key;
                     if (m_pwLag.size() < 0x3e9)
                     {
                         std::map<STPowerwarFightLagKey, STPowerwarFightLagData>::iterator it =
@@ -917,9 +952,9 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                         if (isNew)
                         {
                             STPowerwarFightLagData v;
-                            v.m_field0 = *(unsigned char*)((char*)pkt + j * 0xb + 0x3bc);
-                            v.m_field4 = *(unsigned int*)((char*)pkt + j * 0xb + 0x3bd);
-                            v.m_field8 = *(unsigned int*)((char*)pkt + j * 0xb + 0x3c1);
+                            v.m_field0 = ((LoadingLagWire*)pkt)->m_lag[j].m_f0;
+                            v.m_field4 = ((LoadingLagWire*)pkt)->m_lag[j].m_f4;
+                            v.m_field8 = ((LoadingLagWire*)pkt)->m_lag[j].m_f8;
                             m_pwLag.insert(std::make_pair(gkey, v));
                         }
                     }
@@ -1331,6 +1366,27 @@ struct __attribute__((packed)) LagWire
     LagModuleWire m_mods[8];   // +0xb，10 字节步长
     char m_tail[0x8d];
 };
+
+// AddLagStatistics 的 dungeon 段：+0x5c 起 0x18 字节步长的记录
+// （字段偏移对照 ORIG 反汇编逐槽位核对）。
+struct __attribute__((packed)) LagDungeonWire
+{
+    char m_hdr[0x5b];       // +0x00（含 +0x5b 的 dcount）
+    unsigned char m_dcount; // +0x5b
+    struct __attribute__((packed)) Dun
+    {
+        unsigned short m_key;   // +0x00
+        char m_pad1;            // +0x02
+        float m_a;              // +0x03
+        float m_b;              // +0x07
+        unsigned short m_cntA;  // +0x0b
+        char m_pad2;            // +0x0d
+        float m_c;              // +0x0e
+        float m_d;              // +0x12
+        unsigned short m_cntB;  // +0x16
+    } m_d[10];                  // +0x5c，步长 0x18
+};
+
 }
 void StatisticManager::AddCreateEmblemInfo(Packet_Emblem_Create_Statistic* pkt)
 {
@@ -1404,25 +1460,25 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
     {
         if (((LagWire*)pkt)->m_mods[i].m_u.m_int != 0)
         {
-            float avg_f = *(float*)((char*)pkt + i * 10 + 0xb);
-            float dev_f = *(float*)((char*)pkt + i * 10 + 0xf);
+            float avg_f = ((LagWire*)pkt)->m_mods[i].m_u.m_float;
+            float dev_f = ((LagWire*)pkt)->m_mods[i].m_field4;
             m_modules[i].m_data[0] += (int)(long long)avg_f;
             m_modules[i].m_data[1] += (int)(long long)dev_f;
             m_modules[i].m_data[2] +=
-                (unsigned int)*(unsigned short*)((char*)pkt + i * 10 + 0x13);
+                (unsigned int)((LagWire*)pkt)->m_mods[i].m_field8;
             m_modules[i].m_data[3] += 1;
         }
     }
-    unsigned char dcount = *(char*)((char*)pkt + 0x5b);
+    unsigned char dcount = ((LagDungeonWire*)pkt)->m_dcount;
     if (dcount != 0 && dcount < 0xb)
     {
         for (int j = 0; j < (int)dcount; j++)
         {
-            float a = *(float*)((char*)pkt + j * 0x18 + 0x5f);
-            float b = *(float*)((char*)pkt + j * 0x18 + 99);
-            float c = *(float*)((char*)pkt + j * 0x18 + 0x6a);
-            float d = *(float*)((char*)pkt + j * 0x18 + 0x6e);
-            unsigned short key = *(unsigned short*)((char*)pkt + j * 0x18 + 0x5c);
+            float a = ((LagDungeonWire*)pkt)->m_d[j].m_a;
+            float b = ((LagDungeonWire*)pkt)->m_d[j].m_b;
+            float c = ((LagDungeonWire*)pkt)->m_d[j].m_c;
+            float d = ((LagDungeonWire*)pkt)->m_d[j].m_d;
+            unsigned short key = ((LagDungeonWire*)pkt)->m_d[j].m_key;
             std::map<unsigned short, STDungeonLagStatistics>::iterator it =
                 m_dungeonLag.find(key);
             bool isNew = (m_dungeonLag.empty() || it == m_dungeonLag.end());
@@ -1431,11 +1487,11 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
                 STDungeonLagStatistics v;
                 v.m_data[0] = (int)(long long)a;
                 v.m_data[1] = (int)(long long)b;
-                v.m_data[2] = (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x67);
+                v.m_data[2] = (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntA;
                 v.m_data[3] = 1;
                 v.m_data[4] = (int)(long long)c;
                 v.m_data[5] = (int)(long long)d;
-                v.m_data[6] = (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x72);
+                v.m_data[6] = (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntB;
                 v.m_data[7] = 1;
                 m_dungeonLag.insert(std::make_pair(key, v));
             }
@@ -1444,12 +1500,12 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
                 it->second.m_data[0] += (int)(long long)a;
                 it->second.m_data[1] += (int)(long long)b;
                 it->second.m_data[2] +=
-                    (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x67);
+                    (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntA;
                 it->second.m_data[3] += 1;
                 it->second.m_data[4] += (int)(long long)c;
                 it->second.m_data[5] += (int)(long long)d;
                 it->second.m_data[6] +=
-                    (unsigned int)*(unsigned short*)((char*)pkt + j * 0x18 + 0x72);
+                    (unsigned int)((LagDungeonWire*)pkt)->m_d[j].m_cntB;
                 it->second.m_data[7] += 1;
             }
         }
