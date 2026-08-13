@@ -199,38 +199,38 @@ void CPacketDecoder::Process()
 
 void CPacketDecoder::TcpProcess()
 {
-    if (*(void**)((char*)this + 0xc) != 0 && *(void**)((char*)this + 0x10) != 0)
+    if (m_net.m_parseQ != 0 && m_net.m_recvQ != 0)
     {
         CTcpRecvBuffer* buf = 0;
         while (true)
         {
             do
             {
-                if (((std::queue<CTcpRecvBuffer*>*) * (void**)((char*)this + 0xc))->empty())
+                if (((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->empty())
                 {
                     return;
                 }
-                buf = ((std::queue<CTcpRecvBuffer*>*) * (void**)((char*)this + 0xc))->front();
-                ((std::queue<CTcpRecvBuffer*>*) * (void**)((char*)this + 0xc))->pop();
+                buf = ((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->front();
+                ((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->pop();
             } while (buf == 0);
             CTcpRecvBuffer* pkt = buf;
-            int qsize = ((std::queue<CTcpRecvBuffer*>*) * (void**)((char*)this + 0xc))->size();
+            int qsize = ((std::queue<CTcpRecvBuffer*>*)m_net.m_parseQ)->size();
             CAppLoadChecker* checker = CAppLoadCheckerInstance();
             if (checker->CheckTcpRecvQ(qsize))
             {
-                checker->RequestDB((CServerHandler*)*(void**)((char*)this + 0x18), 1, qsize);
+                checker->RequestDB((CServerHandler*)m_net.m_handler, 1, qsize);
             }
             if (MsgDecode((PacketHeader*)buf) != 1)
             {
                 break;
             }
             {
-                CGuard<CMutex> guard((CMutex*) * (void**)((char*)this + 0x14));
+                CGuard<CMutex> guard((CMutex*)m_net.m_bLock);
                 delete buf;
             }
         }
         {
-            CGuard<CMutex> guard((CMutex*) * (void**)((char*)this + 0x14));
+            CGuard<CMutex> guard((CMutex*)m_net.m_bLock);
             delete buf;
         }
         printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", buf,
@@ -243,38 +243,38 @@ void CPacketDecoder::TcpProcess()
 
 void CPacketDecoder::UdpProcess()
 {
-    if (*(void**)this != 0 && *(void**)((char*)this + 4) != 0)
+    if (m_field0 != 0 && m_field4 != 0)
     {
         CUdpRecvBuffer* buf = 0;
         while (true)
         {
             do
             {
-                if (((std::queue<CUdpRecvBuffer*>*) * (void**)this)->empty())
+                if (((std::queue<CUdpRecvBuffer*>*)m_field0)->empty())
                 {
                     return;
                 }
-                buf = ((std::queue<CUdpRecvBuffer*>*) * (void**)this)->front();
-                ((std::queue<CUdpRecvBuffer*>*) * (void**)this)->pop();
+                buf = ((std::queue<CUdpRecvBuffer*>*)m_field0)->front();
+                ((std::queue<CUdpRecvBuffer*>*)m_field0)->pop();
             } while (buf == 0);
             CUdpRecvBuffer* pkt = buf;
-            int qsize = ((std::queue<CUdpRecvBuffer*>*) * (void**)this)->size();
+            int qsize = ((std::queue<CUdpRecvBuffer*>*)m_field0)->size();
             CAppLoadChecker* checker = CAppLoadCheckerInstance();
             if (checker->CheckUdpRecvQ(qsize))
             {
-                checker->RequestDB((CServerHandler*)*(void**)((char*)this + 0x18), 2, qsize);
+                checker->RequestDB((CServerHandler*)m_net.m_handler, 2, qsize);
             }
             if (MsgDecode((PacketHeader*)pkt) != 1)
             {
                 break;
             }
             {
-                CGuard<CMutex> guard((CMutex*) * (void**)((char*)this + 8));
+                CGuard<CMutex> guard((CMutex*)m_net.m_udpBLock);
                 delete buf;
             }
         }
         {
-            CGuard<CMutex> guard((CMutex*) * (void**)((char*)this + 8));
+            CGuard<CMutex> guard((CMutex*)m_net.m_udpBLock);
             delete buf;
         }
         printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", buf,
