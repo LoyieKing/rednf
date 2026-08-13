@@ -523,9 +523,9 @@ char CDBManager::SaveGuildMember(unsigned char serverGroup,
                      serverGroup, flag);
         CMyFileLog log(__FUNCTION__, 0x2c5);
         log("./log/GuildModify",
-            "CDBManager::SaveGuildMember(SAVE_LOGOUT flag(%d), grade(%d), guildMemPoint(%d), g(%d), s(%d), c(%d))",
-            type, *(unsigned char*)((char*)&info + 0x15),
-            *(int*)((char*)&info + 0x16), guildId, serverGroup, flag);
+            "CDBManager::SaveGuildMember(GRADE_CHANGE flag(%d), grade(%d), g(%d), s(%d), c(%d))",
+            type, *(unsigned char*)((char*)&info + 0x15), guildId, serverGroup,
+            flag);
     }
     else
     {
@@ -1310,18 +1310,15 @@ char CDBManager::OnSavePacketOverflowWrite(
     sprintf(sql, "upDate packet_overflow set cnt=cnt+%d where packet_type=%d and packet_kind='%s'",
             *(int*)((char*)packet + 0xd),
             *(unsigned char*)((char*)packet + 0xa), name);
-    if (!h->set_query(0x4eba, "%s", sql))
-        return 0;
-    if (!h->exec(0x4eba))
+    h->set_query(0x4eba, "%s", sql);
+    if (!h->exec(0x4eba) || h->getAffectedRowCount() == 0)
     {
         memset(sql, 0, 0x400);
         sprintf(sql, "inSert into packet_overflow (packet_type, packet_kind, cnt) values (%d, '%s', %d)",
                 *(unsigned char*)((char*)packet + 0xa), name,
                 *(int*)((char*)packet + 0xd));
-        if (!h->set_query(0x4eb9, "%s", sql))
-            return 0;
-        if (!h->exec(0x4eb9))
-            return 0;
+        h->set_query(0x4eb9, "%s", sql);
+        h->exec(0x4eb9);
     }
     return 1;
 }
@@ -2659,7 +2656,7 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
     if (!h->exec(0x4e48) || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4e49,
-                          "inSert into charac_members set charac_no=%d, master_no=%d, exp = 0",
+                          "inSert into charac_members set charac_no=%d, master_no=%d, exp = 0, create_time = now()",
                           characNo, masterNo))
         {
             CMyFileLog log(__FUNCTION__, 0x4ae);
@@ -3751,7 +3748,7 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
         CMyFileLog log(__FUNCTION__, 0x1023);
         log("./log/DBQueryErr",
             "CDBManager::GuildSecede()upDate guild_member set member_flag = 2 where guild_id = %d and charac_no = %d and member_flag = 1",
-            characNo, req->m_guildId);
+            req->m_guildId, characNo);
         return 0;
     }
     if (!h->exec(0x4e67))
@@ -3759,7 +3756,7 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
         CMyFileLog log(__FUNCTION__, 0x102b);
         log("./log/DBQueryErr",
             "CDBManager::GuildSecede()upDate guild_member set member_flag = 2 where guild_id = %d and charac_no = %d and member_flag = 1",
-            characNo, req->m_guildId);
+            req->m_guildId, characNo);
         return 0;
     }
     if (!h->set_query(0x4e83,
@@ -3805,7 +3802,7 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
             CMyFileLog log(__FUNCTION__, 0x104e);
             log("./log/DBQueryErr",
                 "CDBManager::GuildSecede() upDate guild_info set member_count = %d where guild_id = %d seceded(%d)",
-                characNo, req->m_guildId, memberCount);
+                memberCount, req->m_guildId, characNo);
             return 0;
         }
         if (!h->exec(0x4e74))
@@ -3813,7 +3810,7 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
             CMyFileLog log(__FUNCTION__, 0x1053);
             log("./log/DBQueryErr",
                 "CDBManager::GuildSecede() upDate guild_info set member_count = %d where guild_id = %d seceded(%d)",
-                characNo, req->m_guildId, memberCount);
+                memberCount, req->m_guildId, characNo);
             return 0;
         }
     }
@@ -5217,7 +5214,7 @@ char CDBManager::OnSaveAssertManagerInfoWrite(
                 *(int*)(entry + 0x110), buf2,
                 *(unsigned short*)(entry + 0x10e), buf3);
         h->set_query(0x4eb8, "%s", buf1);
-        if (!h->exec(0x4eb8))
+        if (!h->exec(0x4eb8) || h->getAffectedRowCount() == 0)
         {
             memset(buf1, 0, 0x400);
             sprintf(buf1,
@@ -5544,9 +5541,9 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     if (!h)
         return 0;
     int count = *(int*)((char*)packet + 0xa);
-    CMyFileLog slog("QueryDeathTowerPlayDataJobStatisticCreate", 0x17a5);
+    CMyFileLog slog(__FUNCTION__, 0x17a5);
     slog("./log/statistic",
-         "Packet_DBMW_DeathTower_Statistic_Playdata_Job : (%d) °³ ÆÐÅ¶ ¼ö½Å\n",
+         "Packet_DBMW_DeathTower_Statistic_Playdata_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
          count);
     char buf[0x800] = {0};
     std::string str;
@@ -5620,9 +5617,9 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
     if (!h)
         return 0;
     int count = *(int*)((char*)packet + 0xa);
-    CMyFileLog slog("QueryDeathTowerValueStatisticCreate", 0x1760);
+    CMyFileLog slog(__FUNCTION__, 0x1760);
     slog("./log/statistic",
-         "Packet_DBMW_DeathTower_Statistic_Value : (%d) °³ ÆÐÅ¶ ¼ö½Å\n",
+         "Packet_DBMW_DeathTower_Statistic_Value : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
          count);
     for (int i = 0; i < count; i++)
     {
@@ -5630,9 +5627,11 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
         vals[*(int*)((char*)packet + i * 0xf + 0x11)] =
             *(unsigned int*)((char*)packet + i * 0xf + 0x19);
         h->set_query(0x4e9e,
-                     "upDate log_deathtower_value set try_cnt=try_cnt+%u, clear_stage=clear_stage+%u, recipeCnt=recipeCnt+%u, commonCnt=commonCnt+%u, uncommonCnt=uncommonCnt+%u, rareCnt=rareCnt+%u, uniqCnt=uniqCnt+%u, card_item_goldprice=card_item_goldprice+%u, card_gold=card_gold+%u, repair_price=repair_price+%u  where ",
+                     "upDate log_deathtower_value set try_cnt=try_cnt+%u, clear_stage=clear_stage+%u, recipeCnt=recipeCnt+%u, commonCnt=commonCnt+%u, uncommonCnt=uncommonCnt+%u, rareCnt=rareCnt+%u, uniqCnt=uniqCnt+%u, card_item_goldprice=card_item_goldprice+%u, card_gold=card_gold+%u, repair_price=repair_price+%u  where occ_date=cast(now() as date) and type=%d and level=%d",
                      vals[0], vals[1], vals[2], vals[3], vals[4], vals[5],
-                     vals[6], vals[7], vals[8], vals[9]);
+                     vals[6], vals[7], vals[8], vals[9],
+                     *(signed char*)((char*)packet + i * 0xf + 0xe),
+                     *(short*)((char*)packet + i * 0xf + 0xf));
         if (!h->exec(0x4e9e))
         {
             h->set_query(0x4e9d,
@@ -5781,9 +5780,9 @@ char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     if (!h)
         return 0;
     int count = *(int*)((char*)packet + 0xa);
-    CMyFileLog slog("QueryDeathTowerPlayDataPartyStatisticCreate", 0x17f7);
+    CMyFileLog slog(__FUNCTION__, 0x17f7);
     slog("./log/statistic",
-         "Packet_DBMW_DeathTower_Statistic_Playdata_Party : (%d) °³ ÆÐÅ¶ ¼ö½Å\n",
+         "Packet_DBMW_DeathTower_Statistic_Playdata_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
          count);
     char buf[0x800] = {0};
     std::string str;
@@ -5909,7 +5908,7 @@ bool CDBManager::SendGuildCoinByMail(int guildId, unsigned int serverGroup,
     CDBHandle* h2 = m_handles[3];   // game db
     if (!h->set_query(0x4e39,
                       "seLect charac_no from guild_member where guild_id = %d and server_id = %d and member_flag = 1",
-                      guildId, serverGroup))
+                      serverGroup, guildId))
     {
         CMyFileLog log(__FUNCTION__, 0x897);
         log("./log/DBQueryErr",
@@ -6202,13 +6201,13 @@ bool CDBManager::QueryCharacNoByName(char* name, unsigned int& characNo,
                                      int* result)
 {
     CDBHandle* h = m_handles[2];    // game db
-    if (result)
+    if (!result)
     {
         if (!h->set_query(0x4e3e,
-                          "seLect charac_no,m_id from charac_info where charac_name = '%s'",
+                          "seLect charac_no from charac_info where charac_name = '%s'",
                           name))
         {
-            CMyFileLog log(__FUNCTION__, 0xb1a);
+            CMyFileLog log(__FUNCTION__, 0xb12);
             log("./log/DBQueryErr",
                 "CDBManager::QueryCharacNoByName() seLect charac_no from charac_info where charac_name = '%s'",
                 name);
@@ -6218,10 +6217,10 @@ bool CDBManager::QueryCharacNoByName(char* name, unsigned int& characNo,
     else
     {
         if (!h->set_query(0x4e3e,
-                          "seLect charac_no from charac_info where charac_name = '%s'",
+                          "seLect charac_no,m_id from charac_info where charac_name = '%s'",
                           name))
         {
-            CMyFileLog log(__FUNCTION__, 0xb12);
+            CMyFileLog log(__FUNCTION__, 0xb1a);
             log("./log/DBQueryErr",
                 "CDBManager::QueryCharacNoByName() seLect charac_no from charac_info where charac_name = '%s'",
                 name);
@@ -6519,19 +6518,19 @@ bool CDBManager::ChangeGuildNotifyMessage(int guildId, unsigned int m_id,
     h->escape_string(buf, msg);
     if (!h->set_query(0x4e62,
                       "upDate guild_notice set notice='%s' where guild_id = %d",
-                      buf, guildId))
+                      buf, m_id))
     {
         CMyFileLog log(__FUNCTION__, 0xd3b);
         log("./log/DBQueryErr",
             "CDBManager::ChangeGuildNotifyMessage() upDate guild_notice set notice='%s' where guild_id = %d",
-            msg, guildId);
+            msg, m_id);
         return 0;
     }
     if (h->exec(0x4e62) != 1 || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4e63,
                           "inSert into guild_notice set guild_id=%d,notice='%s',acc_date=unix_timestamp(now())",
-                          guildId, buf))
+                          m_id, buf))
         {
             CMyFileLog log(__FUNCTION__, 0xd4b);
             log("./log/DBQueryErr",
