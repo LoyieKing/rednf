@@ -44,26 +44,14 @@ void TCPThread::loop(void* temp)
     r->init(6000);
     r->startup();
     TCPSendThread* tcp_send_thread = pApp->super_Threads.getTCPSendThread();
-    // ORIG declares a POD PACKET_HEADER (this TU's header view has no ctor);
-    // our shared header's ctor would emit an extra call, so mirror the 18-byte
-    // layout with a packed POD struct whose setters alias the real
-    // PACKET_HEADER methods (asm labels) — no ctor call, same call targets.
-    struct __attribute__((packed)) heart_beat_packet_t
-    {
-        char classification;
-        char msg_no;
-        unsigned int sLength;
-        unsigned int check_sum;
-        unsigned int sequence;
-        unsigned int ack;
-        void setCategory(int n) __asm__("_ZN3nsl13PACKET_HEADER11setCategoryEi");
-        void setPacketID(int n) __asm__("_ZN3nsl13PACKET_HEADER11setPacketIDEi");
-        void setSize(int n) __asm__("_ZN3nsl13PACKET_HEADER7setSizeEi");
-    } heart_beat_packet;
-    memset(&heart_beat_packet, 0, 0x12);
-    heart_beat_packet.setCategory(-1);
-    heart_beat_packet.setPacketID(0);
-    heart_beat_packet.setSize(0x12);
+    // ORIG 里是 POD 栈对象（该 TU 的头视图没有 ctor）+ memset + 三个 setter，
+    // 共享头 PACKET_HEADER 带空 ctor 会多生成一次调用，所以用 18 字节原始缓冲
+    // 并在调用处强转，避免 ctor 调用、保持相同调用目标。
+    char heart_beat_packet[0x12];
+    memset(heart_beat_packet, 0, 0x12);
+    ((nsl::PACKET_HEADER*)heart_beat_packet)->setCategory(-1);
+    ((nsl::PACKET_HEADER*)heart_beat_packet)->setPacketID(0);
+    ((nsl::PACKET_HEADER*)heart_beat_packet)->setSize(0x12);
     std::map<unsigned int, TCPUser*>::iterator client_iter_begin;
     std::map<unsigned int, TCPUser*>::iterator client_iter_end;
     std::map<unsigned int, TCPUser*>::iterator client_iter;
