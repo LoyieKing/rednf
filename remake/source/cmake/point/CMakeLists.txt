@@ -8,6 +8,7 @@ set(DNF_SRC "${CMAKE_CURRENT_LIST_DIR}/../..")
 include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
 
 set(BASIC       "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/basic_source")
+set(BASIC_HDR   "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/basic_header")
 set(COMMON      "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/common_source")
 set(AUCTIONCOMMON "${DNF_SRC}/DNFServer/GameServer/ServerLab/AppCommon/AuctionCommon")
 set(SERVERCOMMON "${DNF_SRC}/DNFServer/ServerCommon")
@@ -100,7 +101,7 @@ dnf_service(point
     INCLUDES
         -isystem${DNF_SRC}/Library3rd/Boost/Include
         -isystem${DNF_SRC}/Library3rd/MySQL/include
-        -I${BASIC} -I${COMMON} -I${AUCTIONCOMMON} -I${SERVERCOMMON} -I${DNFSSHARED} -I${CORE}
+        -I${BASIC_HDR} -I${BASIC} -I${COMMON} -I${AUCTIONCOMMON} -I${SERVERCOMMON} -I${DNFSSHARED} -I${CORE}
         -I${AUCTIONGD} -I${AUCTIONAUCTION} -I${AUCTIONDICT} -I${AUCTIONSRC}
         -I${DNF_SRC}/shared -I${DNF_SRC}/shared/common/include -I${DNF_SRC}/shared/packet/include
     DEFINES
