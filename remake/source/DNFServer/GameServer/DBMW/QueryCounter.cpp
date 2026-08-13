@@ -46,8 +46,7 @@ void CQueryCounter::ResetQueryCount()
 void CQueryCounter::WriteDBLog(CDBManager& db)
 {
     m_interval--;
-    bool b = m_interval > 0;
-    if (b)
+    if (m_interval > 0)
         return;
     for (int q = 0x4e21; q <= 0x4f60; q++)
     {
@@ -69,7 +68,7 @@ void CQueryCounter::WriteDBLog(CDBManager& db)
             if (m_counts[q - 0x4e20] != 0)
             {
                 register int avg = (int)(m_responseTimes[q - 0x4e20] * 1000.0) /
-                                   m_counts[q - 0x4e20];
+                                   (int)m_counts[q - 0x4e20];
                 register int t = (int)(m_responseTimes[q - 0x4e20] * 1000.0);
                 register int c = m_counts[q - 0x4e20];
                 CMyFileLog log(__FUNCTION__, 0x7a);

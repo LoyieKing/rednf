@@ -291,7 +291,7 @@ public:
     void OnCharacLogin(CUser* user);
     void SendVillageAttackedScore(CUser* user);
     void SendVillageAttackedReward(CUser* user, int rewardType);
-    int* GetHuntingPoint(unsigned int charNo);
+    stHuntingPoint* GetHuntingPoint(unsigned int charNo);
     void UpdateHuntingPoint(CUser** users, bool success, int* a, unsigned int* charNos);
     void SendVillageAttackedRewardJpn(CUser* user, int count);
     void SendMinTime();

@@ -96,8 +96,8 @@ struct GuildEventBodyView
 struct PTL_GuildBootingPkt
 {
     char m_base[0xa];
-    unsigned int m_a;      // +0xa
-    unsigned int m_e;      // +0xe
+    int m_a;      // +0xa
+    int m_e;      // +0xe
     char m_12;             // +0x12
 } __attribute__((packed));
 
@@ -761,14 +761,14 @@ void CPacketTranslater::OnNoticeGuildMarkChange(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnNoticeGuildMarkChange() Exception Break : %s\n", e.what());
-        CMyFileLog log("OnNoticeGuildMarkChange", 0x337);
-        log("./log/Except", "CPacketTranslater::OnNoticeGuildMarkChange() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x337, "./log/Except",
+            "CPacketTranslater::OnNoticeGuildMarkChange() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnNoticeGuildMarkChange() Exception Break");
-        CMyFileLog log(__FUNCTION__, 0x33d);
-        log("./log/Except", "CPacketTranslater::OnNoticeGuildMarkChange() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x33d, "./log/Except",
+            "CPacketTranslater::OnNoticeGuildMarkChange() Exception Break\n");
     }
 }
 
@@ -1435,21 +1435,32 @@ void CPacketTranslater::OnNoticeGuildWarEnd(PacketHeader* pkt)
 
 void CPacketTranslater::OnRequestGuildWarInfo(PacketHeader* pkt)
 {
-    THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildWarInfo : 0 == m_pclApp");
-    CGuildWar* war = (&m_pclApp->m_guildManager)->GetGuildWar();
-    char* pb = (char*)pkt;
-    CUser* user;
-    if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(*(unsigned int*)(pb + 0xe))) == 0)
+    struct PTL_RequestGuildWarInfoPkt
     {
-        DNF_LOG_SCOPE_LINE(0x78d,"./log/Except",
-            "[USER] CPacketTranslater::OnRequestGuildWarInfo : pclUser == 0!\tchar id(%d)",
-            *(unsigned int*)(pb + 0xe));
-    }
-    else
+        char m_base[0xe];
+        unsigned int m_charNo;   // +0xe
+        char m_rankInfo[0x14a];  // +0x12
+    } __attribute__((packed));
+    try
     {
-        war->GetGuildWarInfo((ST_Guild_War_Rank_Info*)(pb + 0x12));
-        user->SendToGameserver((char*)pb, 0x15c);
+        THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildWarInfo : 0 == m_pclApp");
+        CUser* user;
+        CGuildWar* war = (&m_pclApp->m_guildManager)->GetGuildWar();
+        PTL_RequestGuildWarInfoPkt* pb = (PTL_RequestGuildWarInfoPkt*)pkt;
+        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x78d,"./log/Except",
+                "[USER] CPacketTranslater::OnRequestGuildWarInfo : pclUser == 0!\tchar id(%d)",
+                pb->m_charNo);
+        }
+        else
+        {
+            war->GetGuildWarInfo((ST_Guild_War_Rank_Info*)pb->m_rankInfo);
+            user->SendToGameserver((char*)pb, 0x15c);
+        }
     }
+    DNF_CATCH_LOG("./log/Except",
+        "CPacketTranslater::OnRequestGuildWarInfo Exception Break", 0x796, 0x79b);
 }
 
 void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
@@ -2796,10 +2807,15 @@ void CPacketTranslater::OnNoticeGuildMailArrive(PacketHeader* pkt)
 void CPacketTranslater::OnMonitorManagerConnectOK(PacketHeader* pkt)
 {
     (void)pkt;
-    THROW_IF_NO_APP("CPacketTranslater::OnMonitorManagerConnectOK : 0 == m_pclApp");
-    m_pclApp->m_serverHandler->SetManagerConnectFlag(true);
-    DNF_LOG_SCOPE_LINE(0xe2d, "./log/Manager", "Manager Server Connect Success");
-    puts("** Manager Server Connect Success **");
+    try
+    {
+        THROW_IF_NO_APP("CPacketTranslater::OnMonitorManagerConnectOK : 0 == m_pclApp");
+        m_pclApp->m_serverHandler->SetManagerConnectFlag(true);
+        DNF_LOG_SCOPE_LINE(0xe2d, "./log/Manager", "Manager Server Connect Success");
+        puts("** Manager Server Connect Success **");
+    }
+    DNF_CATCH_LOG("./log/Except",
+        "CPacketTranslater::OnMonitorManagerConnectOK() Exception Break", 0xe32, 0xe37);
 }
 
 void CPacketTranslater::OnEventStart(PacketHeader* pkt)
@@ -3226,29 +3242,41 @@ void CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade(PacketHeader* pk
 
 void CPacketTranslater::OnNotifyMessageToGuild(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    struct PTL_NotifyMessageToGuildPkt
+    {
+        char m_base[0xa];
+        unsigned int m_guildKey;  // +0xa
+        unsigned char m_mode;     // +0xe
+        char m_payload[0x66];     // +0xf
+    } __attribute__((packed));
+    PTL_NotifyMessageToGuildPkt* pb = (PTL_NotifyMessageToGuildPkt*)pkt;
+    try
+    {
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x109d, "./log/Except", "CPacketTranslater::OnNotifyMessageToGuild : 0 == m_pclApp");
         return;
     }
     CGuild* guild;
-    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(*(unsigned int*)(pb + 0xa))) != 0)
+    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
     {
-        if ((unsigned char)pb[0xe] != 1)
-        {
-            if ((unsigned char)pb[0xe] != 2)
-            {
-                return;
-            }
-            Packet_Web_Notify_Message_To_Guild notify;
-            memcpy(&notify, pb, 0x74);
-            *(unsigned char*)((char*)&notify + 0xa) = m_pclApp->Get_ServerGroup();
-            m_pclApp->m_serverHandler->SendToDB(&notify);
-        }
-        guild->SetGuildMessage(pb + 0xf);
-        guild->NotifyMessageToGuildMember();
+        return;
     }
+    if (pb->m_mode != 1)
+    {
+        if (pb->m_mode != 2)
+        {
+            return;
+        }
+        Packet_Web_Notify_Message_To_Guild notify;
+        memcpy(&notify, pb, 0x74);
+        *(unsigned char*)((char*)&notify + 0xe) = m_pclApp->Get_ServerGroup();
+        m_pclApp->m_serverHandler->SendToDB(&notify);
+    }
+    guild->SetGuildMessage(pb->m_payload);
+    guild->NotifyMessageToGuildMember();
+    }
+    DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnNotifyMessageToGuild Exception Break", 0x10bf, 0x10c4);
 }
 
 void CPacketTranslater::OnRequestGuildCreate(PacketHeader* pkt)
@@ -4369,6 +4397,7 @@ void CPacketTranslater::OnLoadGuildCargoHistory(PacketHeader* pkt)
 {
     try
     {
+        CGuild* guild;
         PTL_LoadGuildCargoHistoryPkt* pb = (PTL_LoadGuildCargoHistoryPkt*)pkt;
         if (m_pclApp == 0)
         {
@@ -4376,7 +4405,6 @@ void CPacketTranslater::OnLoadGuildCargoHistory(PacketHeader* pkt)
                 "CPacketTranslater::OnLoadGuildCargoHistory : 0 == m_pclApp");
             return;
         }
-        CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1868,"./log/GuildCargo",
@@ -4384,18 +4412,17 @@ void CPacketTranslater::OnLoadGuildCargoHistory(PacketHeader* pkt)
             return;
         }
         guild->GetGuildCargo()->SetGuildCargoHistory(pb->m_count,
-                                                     (STGuildCargoLog*)&pb->m_logData);
+                                                     (STGuildCargoLog*)((char*)pb + 0x12));
     }
     catch (CDNFException& e)
     {
-        CMyFileLog log("OnLoadGuildCargoHistory", 0x1875);
-        log("./log/Except",
+        DNF_LOG_SCOPE_LINE(0x1875, "./log/Except",
             "CPacketTranslater::OnLoadGuildCargoHistory Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        CMyFileLog log(__FUNCTION__, 0x187a);
-        log("./log/Except", "CPacketTranslater::OnLoadGuildCargoHistory Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x187a, "./log/Except",
+            "CPacketTranslater::OnLoadGuildCargoHistory Exception Break\n");
     }
 }
 

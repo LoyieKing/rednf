@@ -463,8 +463,7 @@ int CMember::GetConnLowerMemberCnt()
     for (int i = 0; i < count; i++)
     {
         user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
-        register bool b = (user == 0);
-        if (b)
+        if (user == 0)
         {
             continue;
         }
@@ -546,7 +545,7 @@ void CMember::DeleteLowerMember(unsigned int charNo, bool flag)
     {
         if (*(unsigned int*)p == charNo)
         {
-            memcpy(p, p + 0x27, (unsigned int)(~(unsigned char)idx) * 0x27 + 0x186);
+            memcpy(p, p + 0x27, (int)(~(unsigned char)idx) * 0x27 + 0x186);
             m_dbInfo.m_count27--;
             if (flag)
             {
@@ -578,24 +577,24 @@ int CMember::DeleteMemberByName(char* name, unsigned int& outKey)
     char* p = (char*)this + 0x2e;
     unsigned char idx = 0;
     int count = (int)m_dbInfo.m_count27;
-    if (count > 0)
+    if (count <= 0)
     {
-        while (count-- != 0)
-        {
-            if (strcmp(p + 5, name) == 0)
-            {
-                outKey = *(unsigned int*)p;
-                memcpy(p, p + 0x27, (unsigned int)(~(unsigned char)idx) * 0x27 + 0x186);
-                m_dbInfo.m_count27--;
-                SetMemberDeleteTime(time(0));
-                return 2;
-            }
-            p += 0x27;
-            idx++;
-        }
-        return 3;
+        return 0;
     }
-    return 0;
+    while (count-- != 0)
+    {
+        if (strcmp(p + 5, name) == 0)
+        {
+            outKey = *(unsigned int*)p;
+            memcpy(p, p + 0x27, (int)(~(unsigned char)idx) * 0x27 + 0x186);
+            m_dbInfo.m_count27--;
+            SetMemberDeleteTime(time(0));
+            return 2;
+        }
+        p += 0x27;
+        idx++;
+    }
+    return 3;
 }
 
 STMemberDBInfo::STMemberDBInfo() : m_count27(0) {}

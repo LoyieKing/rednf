@@ -43,9 +43,10 @@ CServerHandler::~CServerHandler()
 }
 void CServerHandler::Load(ST_ServerInfo* infos)
 {
-    for (int i = 0; i <= 0xfe; i++)
+    unsigned char idx;
+    int i;
+    for (i = 0; i <= 0xfe; i++)
     {
-        unsigned char idx;
         if (infos[i].m_type == 1)
         {
             idx = infos[i].m_idx;

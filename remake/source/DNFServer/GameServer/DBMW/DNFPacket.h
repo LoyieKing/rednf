@@ -790,8 +790,7 @@ class Packet_Set_ARS_Info : public PacketHeader
 {
 public:
     Packet_Set_ARS_Info();
-    char m_fieldA;       // +0xa
-    char m_pad[3];       // +0xb..0xd
+    int m_fieldA;        // +0xa（ORIG 以 32 位存储 count）
     char m_fieldE;       // +0xe
     char m_rest[0x4b0];  // +0xf（ORIG ctor size 0x4bf）
 } __attribute__((packed));
@@ -800,8 +799,7 @@ class Packet_Result_Ontime_Event_Idx_Update : public PacketHeader
 {
 public:
     Packet_Result_Ontime_Event_Idx_Update();
-    int m_fieldA;        // +0xa
-    char m_pad[0x8];  // 数据区（ORIG ctor size 0x16）
+    int m_fieldA;        // +0xa（ORIG ctor 报文长 0x16，数据区仅此字段）
 } __attribute__((packed));
 
 struct STDBConnInfo
@@ -938,7 +936,7 @@ struct NpcBuyLimitItem
 struct STGuildAgitDBInfo
 {
     STGuildAgitDBInfo();
-    char m_data[0x89];
+    char m_field0;  // ORIG ctor 只写 +0，Agit 报文总长 0xf
 } __attribute__((packed));
 
 struct DnfItemInfo

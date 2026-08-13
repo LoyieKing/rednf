@@ -29,7 +29,7 @@ public:
     unsigned short m_id;                     // +0
     unsigned short m_size;                   // +2
     unsigned short m_port;                   // +4
-    int m_addr;                              // +6
+    unsigned int m_addr;                     // +6
     char m_data[0x1804 - 0xa];               // +0xa
 };
 

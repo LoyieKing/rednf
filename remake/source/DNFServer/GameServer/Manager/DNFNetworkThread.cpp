@@ -85,13 +85,18 @@ void* CUdpNetworkThread::dispatch(void* param)
                     CGuard<CMutex> guard(m_udpBLock);
                     buf = new CUdpRecvBuffer;
                 }
+after_recv_guard:
+                {
+                }
                 size = 0x1800;
                 port = 0;
                 addr = 0;
                 if (!((CUdpHandler*)m_udpHandler)->RecvFromClient((char*)buf, &size, &addr, &port))
                 {
-                    CGuard<CMutex> guard(m_udpBLock);
-                    delete buf;
+                    {
+                        CGuard<CMutex> guard(m_udpBLock);
+                        delete buf;
+                    }
                     continue;
                 }
                 CUdpRecvBuffer* pBuf = buf;
@@ -101,8 +106,10 @@ void* CUdpNetworkThread::dispatch(void* param)
                         "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                         pBuf->m_size, size, pBuf->m_id);
                     {
-                        CGuard<CMutex> guard(m_udpBLock);
-                        delete buf;
+                        {
+                            CGuard<CMutex> guard(m_udpBLock);
+                            delete buf;
+                        }
                     }
                     continue;
                 }
@@ -112,8 +119,10 @@ void* CUdpNetworkThread::dispatch(void* param)
                         "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                         pBuf->m_size, size, pBuf->m_id);
                     {
-                        CGuard<CMutex> guard(m_udpBLock);
-                        delete buf;
+                        {
+                            CGuard<CMutex> guard(m_udpBLock);
+                            delete buf;
+                        }
                     }
                     continue;
                 }
@@ -123,12 +132,14 @@ void* CUdpNetworkThread::dispatch(void* param)
                         "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                         pBuf->m_size, size, pBuf->m_id);
                     {
-                        CGuard<CMutex> guard(m_udpBLock);
-                        delete buf;
+                        {
+                            CGuard<CMutex> guard(m_udpBLock);
+                            delete buf;
+                        }
                     }
                     continue;
                 }
-                pBuf->m_addr = (int)addr;
+                pBuf->m_addr = addr;
                 pBuf->m_port = port;
                 {
                     CGuard<CMutex> guard(m_udpQLock);

@@ -11,6 +11,12 @@
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
 
+// 本地给出 CGuard<CMutex> 的模板方法定义，使本 TU 的 EH 清理块按 ORIG
+// 布局落位（先 landing pad、后正常条件分支）。此定义与 ServerCommon/Thread.cpp
+// 中的显式实例化同为弱符号，不会造成重定义。
+template<class T> CGuard<T>::CGuard(T* mutex) throw() { mutex->lock(); m_mutex = mutex; }
+template<class T> CGuard<T>::~CGuard() throw() { m_mutex->unlock(); }
+
 CNetworkThread::CNetworkThread()
 {
     m_udp = 0;

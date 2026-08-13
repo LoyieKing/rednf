@@ -370,7 +370,7 @@ void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
     {
         if (user->GetGameServer() != 0)
         {
-            guild->DBGuildMemberSave(user, user->GetGameServer()->m_field9,
+            guild->DBGuildMemberSave(user, user->GetGameServer()->GetGroupNo(),
                                      m_app->Get_ServerHandler(), 1);
         }
         if (guild->DeleteGuildMember(user->GetUniqCharNo(), user) == 1)
@@ -384,7 +384,7 @@ void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
             {
                 if (user->GetGameServer() != 0)
                 {
-                    guild->DBGuildSave(user->GetGameServer()->m_field9,
+                    guild->DBGuildSave(user->GetGameServer()->GetGroupNo(),
                                        m_app->Get_ServerHandler(), 0);
                 }
                 DeleteGuild(guildKey);

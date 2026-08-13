@@ -79,8 +79,8 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int valu
     if (value != 0)
     {
         m_field2c = (int)app;
-        memset(this, 0, 0x28);
-        m_field4 = (int)value;
+        memset((char*)this, 0, 0x28);
+        m_field4 = value;
         m_field8 = 100 / value;
     }
     else

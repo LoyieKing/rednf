@@ -1955,10 +1955,9 @@ void CGuild::DecTotalCnt_Of_GuildDBInfo()
 
 bool CGuild::InsertGuildMemberChanglableInfo(unsigned int charNo)
 {
-    STGuildMemberChangableInfo info;
-    // ORIG：仅写首 dword = time(0)，其余字段保持未初始化；insert 不覆盖已存在项
-    *(unsigned int*)((char*)&info + 0) = time(0);
-    return m_changable.insert(std::make_pair(charNo, info)).second;
+    unsigned int timeVal = time(0);
+    // ORIG：仅把 time(0) 的首 dword 当作 changable 信息传入；其余字段 ORIG 未初始化/不使用。
+    return m_changable.insert(std::make_pair(charNo, *(STGuildMemberChangableInfo*)&timeVal)).second;
 }
 
 int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
@@ -2353,21 +2352,51 @@ unsigned int CGuild::IsAddableGuildFund(unsigned int fund)
 
 void CGuild::NotifyAllTodayGuildMember()
 {
-    if ((m_field1c & 4) == 0 || m_members.empty())
+    struct __attribute__((packed)) Packet_Notify_All_Today_Guild_Member_Layout
     {
-        return;
-    }
-    char buf[0x5b];
-    memset(buf, 0, sizeof(buf));
-    *(unsigned short*)(buf + 0) = 0x1f48;
-    memcpy(buf + 0xa, (char*)this + 0x66ec, 0x27);
+        char header[0xa];
+        unsigned int ma;
+        unsigned int uniqCharNo;
+        unsigned int idByChannel;
+        unsigned int f16;
+        unsigned int f1a;
+        unsigned int f1e;
+        unsigned int f22;
+        unsigned int f26;
+        unsigned int f2a;
+        unsigned int f2e;
+        unsigned int f32;
+        unsigned int f36;
+        unsigned short f3a;
+        char f3c;
+    };
+
+    Packet_Notify_Today_Guild_Member pkt;
+    Packet_Notify_All_Today_Guild_Member_Layout* layout =
+        (Packet_Notify_All_Today_Guild_Member_Layout*)&pkt;
+    layout->ma = m_guildKey;
+    layout->f16 = *(unsigned int*)((char*)this + 0x66ec);
+    layout->f1a = *(unsigned int*)((char*)this + 0x66f0);
+    layout->f1e = *(unsigned int*)((char*)this + 0x66f4);
+    layout->f22 = *(unsigned int*)((char*)this + 0x66f8);
+    layout->f26 = *(unsigned int*)((char*)this + 0x66fc);
+    layout->f2a = *(unsigned int*)((char*)this + 0x6700);
+    layout->f2e = *(unsigned int*)((char*)this + 0x6704);
+    layout->f32 = *(unsigned int*)((char*)this + 0x6708);
+    layout->f36 = *(unsigned int*)((char*)this + 0x670c);
+    layout->f3a = *(unsigned short*)((char*)this + 0x6710);
+    layout->f3c = *(char*)((char*)this + 0x6712);
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {
-        if (it->second != 0)
+        CUser* user = it->second;
+        if (user == NULL)
         {
-            it->second->SendToGameserver(buf, 0x5b);
+            continue;
         }
+        layout->idByChannel = user->GetIdByChannel();
+        layout->uniqCharNo = user->GetUniqCharNo();
+        user->SendToGameserver((char*)&pkt, 0x3d);
     }
 }
 

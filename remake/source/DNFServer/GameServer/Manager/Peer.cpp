@@ -191,7 +191,6 @@ bool CPeer::parsing(int len)
 {
     // R40：栈槽声明顺序按 ORIG 布局（qsize -0x28 / parsinglength -0x24 / size -0x20 / headerSize -0x1c；
     // GCC 4.4 按反声明序分配简单局部，hdr 为带 ctor 的 12 字节对象独立落在 -0x5a）。
-    __asm__ __volatile__("nop");
     PacketHeader hdr(0, 0);
     int qsize;
     int parsinglength = m_recvLen + len;

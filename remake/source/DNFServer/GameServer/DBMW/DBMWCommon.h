@@ -1,6 +1,10 @@
 #ifndef DBMW_COMMON_H_
 #define DBMW_COMMON_H_
 
+// dbmw ORIG 中 STGuildCargoLog 无用户析构（OnLoadGuildAgit 等函数不含 D1Ev
+// 清理块），与 ServerCommon/DNFFunctionLib.h 中带析构的 TU 构成 ODR 差异。
+#define DNF_GUILD_ODR_TRIVIAL_CARGOLOG_DTOR
+
 #include <stddef.h>
 
 // 成员视图：把「基址 + 常量偏移」的原始字节访问转成带成员的结构访问，

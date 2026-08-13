@@ -171,7 +171,7 @@ int CMySql::exec_query()
 }
 bool CMySql::exec(unsigned int q)
 {
-    int ret = 0;
+    int ret;
     for (int i = 0; i <= 4; i++)
     {
         ret = exec_query();

@@ -1035,11 +1035,8 @@ public:
 class Packet_VillageAttackedCountdown : public PacketHeader
 {
 public:
-    Packet_VillageAttackedCountdown() : PacketHeader(0x1776, 0xe)
-    {
-        struct M { char p[0xa]; int v; } __attribute__((packed));
-        ((M*)this)->v = 0;
-    }
+    Packet_VillageAttackedCountdown() : PacketHeader(0x1776, 0xe), m_countdown(0) {}
+    int m_countdown;  // +0xa
 } __attribute__((packed));
 
 class Packet_DB_VillageAttackedRank : public PacketHeader

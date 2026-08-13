@@ -37,28 +37,23 @@ bool WongWork::CGMAccounts::isGM(unsigned int id)
     stGMInfo_t key = {};
     key.m_field1 = 3;
     key.m_field0 = (int)id;
-    std::list<stGMInfo_t>::iterator it =
-        std::find(m_list.begin(), m_list.end(), key);
-    return it != m_list.end();
+    std::list<stGMInfo_t>::iterator end = m_list.end();
+    if (std::find(m_list.begin(), m_list.end(), key) != end) return 1;
+    return 0;
 }
 WongWork::CGMAccounts::stGMInfo_t WongWork::CGMAccounts::getGMInfo(
     unsigned int id) const
 {
+    stGMInfo_t result;
+    result.m_field0 = 0;
+    result.m_field1 = 3;
     stGMInfo_t key = {};
     key.m_field1 = 3;
     key.m_field0 = (int)id;
     std::list<stGMInfo_t>::const_iterator it =
         std::find(m_list.begin(), m_list.end(), key);
-    stGMInfo_t result;
     if (it != m_list.end())
-    {
-        result = *it;
-    }
-    else
-    {
-        result.m_field0 = 0;
-        result.m_field1 = 3;
-    }
+        return *it;
     return result;
 }
 int WongWork::CGMAccounts::appendGM(unsigned int id, unsigned int flag)

@@ -35,6 +35,22 @@ struct Packet_DBMW_Collect_Items_Gm_View : PacketHeader
     unsigned int m_field13;  // +0x13
 } __attribute__((packed));
 
+struct Packet_DB_Load_Request_Guild_Board_Write_View : PacketHeader
+{
+    unsigned char m_serverId;  // +0xa
+    unsigned int m_guildId;    // +0xb
+    unsigned int m_fieldF;     // +0xf
+    unsigned int m_field13;    // +0x13
+} __attribute__((packed));
+
+struct Packet_DB_Load_Request_Guild_Board_Delete_View : PacketHeader
+{
+    unsigned char m_serverId;  // +0xa
+    unsigned int m_fieldB;     // +0xb
+    unsigned int m_fieldF;     // +0xf
+    unsigned int m_field13;    // +0x13
+} __attribute__((packed));
+
 // ---- CGuildManager / WongWork ----
 Packet_Monitor_Notify_New_Mail::Packet_Monitor_Notify_New_Mail()
     : PacketHeader(0x514, 0x12)
@@ -111,8 +127,10 @@ void CPacketTranslater::onLoadLimitNpcBuyItemInfo(PacketHeader* header)
     LimitNpcBuyItemResultInfo result;
     try
     {
+        LimitNpcBuyItemRequestInfo* pkt =
+            (LimitNpcBuyItemRequestInfo*)header;
         if (!m_pclApp->m_dbManager.loadLimitNpcBuyItemInfo(
-                (LimitNpcBuyItemRequestInfo*)header, &result))
+                pkt, &result))
         {
             DNF_LOG_SCOPE_LINE(0x132e,
                 "./log/NpcBuyLimitItem",
@@ -121,8 +139,8 @@ void CPacketTranslater::onLoadLimitNpcBuyItemInfo(PacketHeader* header)
 
             return;
         }
-        m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
-            (char*)&result, 0x176);
+        CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+        ms->SendToServer((char*)&result, 0x176);
     }
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::onLoadLimitNpcBuyItemInfo Exception Break",
@@ -134,8 +152,9 @@ void CPacketTranslater::onUpdateLimitNpcBuyItemInfo(PacketHeader* header)
         return;
     try
     {
+        LimitNpcBuyItemUpdate* pkt = (LimitNpcBuyItemUpdate*)header;
         if (!m_pclApp->m_dbManager.updateLimitNpcBuyItemInfo(
-                (LimitNpcBuyItemUpdate*)header))
+                pkt))
         {
             DNF_LOG_SCOPE_LINE(0x134c,
                 "./log/NpcBuyLimitItem",
@@ -231,8 +250,17 @@ void CPacketTranslater::OnSendGuildLetter(PacketHeader* header)
         return;
     try
     {
-        Packet_DBMW_Send_Guild_Letter* pkt =
-            (Packet_DBMW_Send_Guild_Letter*)header;
+        struct SendGuildLetterLocal
+        {
+            char m_pad[0xa];       // +0x0
+            unsigned int m_fieldA;   // +0xa
+            unsigned char m_serverId; // +0xe
+            unsigned int m_guildId;  // +0xf
+            char m_content[0x100];   // +0x13
+            char m_subject[0x11];    // +0x113
+            int m_flag;              // +0x124
+        } __attribute__((packed));
+        SendGuildLetterLocal* pkt = (SendGuildLetterLocal*)header;
         if (pkt->m_guildId == 0)
             return;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
@@ -264,12 +292,12 @@ void CPacketTranslater::OnSendGuildLetter(PacketHeader* header)
 
                 return;
             }
+            Packet_DBMW_Reply_Guild_Mail reply;
+            reply.m_fieldE = pkt->m_guildId;
+            reply.m_fieldA = pkt->m_fieldA;
+            reply.m_field12 = 0;
+            gs->SendToServer((char*)&reply, reply.packetSize);
         }
-        Packet_DBMW_Reply_Guild_Mail reply;
-        reply.m_fieldA = pkt->m_fieldA;
-        reply.m_fieldE = pkt->m_guildId;
-        reply.m_field12 = 0;
-        gs->SendToServer((char*)&reply, reply.packetSize);
         Packet_Notice_Guild_Mail_Arrived notice;
         notice.m_fieldA = 1;
         notice.m_guildId = pkt->m_guildId;
@@ -318,13 +346,13 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
         {
             DNF_LOG_SCOPE_LINE(0x56a,
                 "./log/GuildModify",
-                "OnGuildJoin Err(g:%d, c:%d, r:%d) : return false", pkt->m_guildId, pkt->m_characNo,
+                "OnGuildJoin Err(g:%d,c:%d,r:%d) : return false", pkt->m_guildId, pkt->m_characNo,
                 reply.m_field16
             );
 
             if (reply.m_field16 == 0)
                 m_pclApp->m_dbManager.DeleteJoinListByInvite(
-                    pkt->m_characNo, pkt->m_guildId);
+                    pkt->m_guildId, pkt->m_characNo);
             m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
                 (char*)&reply, reply.packetSize);
         }
@@ -347,7 +375,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
             (Packet_DBMW_Send_Mail_Coin_Guild_Event*)header;
         if (pkt->m_guildId == 0)
             return;
-        if (pkt->m_count > 0x10)
+        if (pkt->m_count < 1 || pkt->m_count > 0x10)
         {
             DNF_LOG_SCOPE_LINE(0x3d4,
                 "./log/GuildEvent",
@@ -363,7 +391,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
         characNos.clear();
         if (!m_pclApp->m_dbManager.AwardGuildCoinByMail(
                 pkt->m_serverId, pkt->m_guildId, 1, 1,
-                absCount, 0, characNos))
+                absCount, pkt->m_count, characNos))
         {
             DNF_LOG_SCOPE_LINE(0x3f5,
                 "./log/GuildEvent",
@@ -393,31 +421,32 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardWrite(PacketHeader* header)
         return;
     try
     {
-        Packet_DB_Load_Request_Guild_Board_Write* pkt =
-            (Packet_DB_Load_Request_Guild_Board_Write*)header;
+        Packet_DB_Load_Request_Guild_Board_Write_View* pkt =
+            (Packet_DB_Load_Request_Guild_Board_Write_View*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         STGuildBoardDBInfo info;
-        if (!m_pclApp->m_dbManager.OnWriteGuildBoard(
-                pkt, &info))
+        Packet_DB_Load_Reply_Guild_Board_Write reply;
+        if (m_pclApp->m_dbManager.OnWriteGuildBoard(
+                (Packet_DB_Load_Request_Guild_Board_Write*)pkt, &info))
+        {
+            reply.m_fieldC = pkt->m_guildId;
+            reply.m_field10 = pkt->m_field13;
+            memcpy((char*)&reply + 0x14, &info, 0xa5);
+            gs->SendToServer((char*)&reply, 0xb9);
+        }
+        else
         {
             DNF_LOG_SCOPE_LINE(0xfbc,
                 "./log/Except",
-                "CPacketTranslater::OnDBLoadRequestGuildBoardWrite()\tGuild Id : %d, \t Query Result : %d\n", pkt->m_guildId,
+                "CPacketTranslater::OnDBLoadRequestGuildBoardWrite()\tGuild Id : %d,\t Query Result : %d\n", pkt->m_guildId,
                 0
             );
 
-            Packet_DB_Load_Reply_Guild_Board_Write reply;
             reply.m_fieldA = 1;
             reply.m_fieldC = pkt->m_guildId;
             reply.m_field10 = pkt->m_field13;
             gs->SendToServer((char*)&reply, 0xb9);
-            return;
         }
-        Packet_DB_Load_Reply_Guild_Board_Write reply;
-        reply.m_fieldC = pkt->m_guildId;
-        reply.m_field10 = pkt->m_field13;
-        memcpy((char*)&reply + 0x14, &info, 0xa5);
-        gs->SendToServer((char*)&reply, 0xb9);
     }
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::OnDBLoadRequestGuildBoardWrite() Exception Break",
@@ -433,27 +462,28 @@ void CPacketTranslater::OnDBLoadRequestWebGuildBoardWrite(PacketHeader* header)
             (Packet_DB_Load_Request_Web_Guild_Board_Write*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         STGuildBoardDBInfo info;
-        if (!m_pclApp->m_dbManager.OnWriteWebGuildBoard(
+        Packet_DB_Load_Reply_Web_Guild_Board_Write reply;
+        if (m_pclApp->m_dbManager.OnWriteWebGuildBoard(
                 pkt, &info))
+        {
+            reply.m_fieldC = pkt->m_guildId;
+            reply.m_field10 = pkt->m_fieldE;
+            memcpy((char*)&reply + 0x14, &info, 0xa5);
+            gs->SendToServer((char*)&reply, 0xb9);
+        }
+        else
         {
             DNF_LOG_SCOPE_LINE(0x101a,
                 "./log/Except",
-                "CPacketTranslater::OnDBLoadRequestWebGuildBoardWrite()\tGuild Id : %d, \t Query Result : %d\n", pkt->m_guildId,
+                "CPacketTranslater::OnDBLoadRequestWebGuildBoardWrite()\tGuild Id : %d,\t Query Result : %d\n", pkt->m_guildId,
                 0
             );
 
-            Packet_DB_Load_Reply_Web_Guild_Board_Write reply;
             reply.m_fieldA = 1;
             reply.m_fieldC = pkt->m_guildId;
             reply.m_field10 = pkt->m_fieldE;
             gs->SendToServer((char*)&reply, 0xb9);
-            return;
         }
-        Packet_DB_Load_Reply_Web_Guild_Board_Write reply;
-        reply.m_fieldC = pkt->m_guildId;
-        reply.m_field10 = pkt->m_fieldE;
-        memcpy((char*)&reply + 0x14, &info, 0xa5);
-        gs->SendToServer((char*)&reply, 0xb9);
     }
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::OnDBLoadRequestWebGuildBoardWrite() Exception Break",
@@ -465,14 +495,23 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardDelete(PacketHeader* header)
         return;
     try
     {
-        Packet_DB_Load_Request_Guild_Board_Delete* pkt =
-            (Packet_DB_Load_Request_Guild_Board_Delete*)header;
+        Packet_DB_Load_Request_Guild_Board_Delete_View* pkt =
+            (Packet_DB_Load_Request_Guild_Board_Delete_View*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
-        if (!m_pclApp->m_dbManager.OnDeleteGuildBoard(pkt->m_fieldB))
+        if (m_pclApp->m_dbManager.OnDeleteGuildBoard(
+                pkt->m_fieldB))
+        {
+            Packet_DB_Load_Reply_Guild_Board_Delete reply;
+            reply.m_fieldC = pkt->m_fieldF;
+            reply.m_field10 = pkt->m_field13;
+            reply.m_field14 = pkt->m_fieldB;
+            gs->SendToServer((char*)&reply, 0x18);
+        }
+        else
         {
             DNF_LOG_SCOPE_LINE(0xfe9,
                 "./log/Except",
-                "CPacketTranslater::OnDBLoadRequestGuildBoardDelete()\tGuild Id : %d, \t Query Result : %d\n", pkt->m_fieldF,
+                "CPacketTranslater::OnDBLoadRequestGuildBoardDelete()\tGuild Id : %d,\t Query Result : %d\n", pkt->m_fieldF,
                 0
             );
 
@@ -481,13 +520,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardDelete(PacketHeader* header)
             reply.m_fieldC = pkt->m_fieldF;
             reply.m_field10 = pkt->m_field13;
             gs->SendToServer((char*)&reply, 0x18);
-            return;
         }
-        Packet_DB_Load_Reply_Guild_Board_Delete reply;
-        reply.m_fieldC = pkt->m_fieldF;
-        reply.m_field10 = pkt->m_field13;
-        reply.m_field14 = pkt->m_fieldB;
-        gs->SendToServer((char*)&reply, 0x18);
     }
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::OnDBLoadRequestGuildBoardDelete() Exception Break",
@@ -635,10 +668,10 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* header)
         Packet_DBMW_Request_BlackList* pkt =
             (Packet_DBMW_Request_BlackList*)header;
         CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
-        int characNo = pkt->m_characNo;
+        unsigned int characNo = (unsigned int)pkt->m_characNo;
         if (characNo == -1)
         {
-            if (!m_pclApp->m_dbManager.QueryCharacNoByName(pkt->m_name, *(unsigned int*)&characNo, 0))
+            if (!m_pclApp->m_dbManager.QueryCharacNoByName(pkt->m_name, characNo, 0))
             {
                 m_pclApp->m_dbManager.DeleteToBlackListOnly(
                     pkt->m_mid, pkt->m_name);
@@ -663,8 +696,10 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* header)
             return;
         }
         if (pkt->m_characNo == -1)
+        {
             pkt->m_characNo = characNo;
-        ms->SendToServer((char*)pkt, pkt->packetSize);
+            ms->SendToServer((char*)pkt, pkt->packetSize);
+        }
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnDeleteToBlackList() Exception Break",
@@ -680,11 +715,11 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* header)
             (Packet_DBMW_Request_BlackList*)header;
         CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
         pkt->m_result = 0;
-        int characNo = pkt->m_characNo;
+        unsigned int characNo = (unsigned int)pkt->m_characNo;
         if (characNo == -1)
         {
             if (!m_pclApp->m_dbManager.QueryCharacNoByName(
-                    pkt->m_name, *(unsigned int*)&characNo,
+                    pkt->m_name, characNo,
                     &pkt->m_result))
             {
                 DNF_LOG_SCOPE_LINE(0x251,
@@ -708,8 +743,10 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* header)
             return;
         }
         if (pkt->m_characNo == -1)
+        {
             pkt->m_characNo = characNo;
-        ms->SendToServer((char*)pkt, pkt->packetSize);
+            ms->SendToServer((char*)pkt, pkt->packetSize);
+        }
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnRegisterToBlackList() Exception Break",
@@ -852,10 +889,17 @@ void CPacketTranslater::OnSaveGuildWarInfo(PacketHeader* header)
         return;
     try
     {
-        Packet_DB_Save_Guild_War_Info* pkt =
-            (Packet_DB_Save_Guild_War_Info*)header;
+        struct SaveGuildWarInfoLocal
+        {
+            char m_pad[0xa];
+            unsigned char m_serverId;   // +0xa
+            unsigned int m_guildIds[10]; // +0xb
+            unsigned int m_points[10];   // +0x33
+        } __attribute__((packed));
+        SaveGuildWarInfoLocal* pkt = (SaveGuildWarInfoLocal*)header;
+        int serverId = pkt->m_serverId;
         if (!m_pclApp->m_dbManager.SaveGuildWarPointList(
-                pkt->m_serverId, pkt->m_guildIds, pkt->m_points))
+                serverId, pkt->m_guildIds, pkt->m_points))
         {
             DNF_LOG_SCOPE_LINE(0x201,
                 "./log/Guild",
@@ -882,12 +926,14 @@ void CPacketTranslater::OnSavePowerWarBonusPoint(PacketHeader* header)
         if (pkt->m_count > 0)
         {
             Packet_Notify_New_Group_Mail notice;
-            int n = pkt->m_count > 0x12c ? 0x12c : pkt->m_count;
+            int n = pkt->m_count;
+            if (n > 0x12c)
+                n = 0x12c;
             for (int i = 0; i < n; i++)
                 *(int*)((char*)&notice + 0xe + i * 4) =
                     pkt->m_entries[i].m_characNo;
-            m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
-                (char*)&notice, notice.packetSize);
+            CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+            gs->SendToServer((char*)&notice, notice.packetSize);
         }
     }
     DNF_CATCH_LOG("./log/Except.log",
@@ -951,11 +997,13 @@ void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* header)
     try
     {
         Packet_Result_Loading_Periodic_Message reply;
-        if (!m_pclApp->m_dbManager.OnLoadPeriodicMessage(
-                (Packet_Load_Periodic_Message*)header, &reply))
+        Packet_Load_Periodic_Message* pkt =
+            (Packet_Load_Periodic_Message*)header;
+        if (m_pclApp->m_dbManager.OnLoadPeriodicMessage(
+                pkt, &reply) == 0)
             return;
-        m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
-            (char*)&reply, 0x212);
+        CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+        ms->SendToServer((char*)&reply, 0x212);
     }
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::OnLoadPeriodicMessage() Exception Break",
@@ -968,6 +1016,7 @@ void CPacketTranslater::OnDBMWInsertMail(PacketHeader* header)
     try
     {
         Packet_DBMW_Insert_Mail* pkt = (Packet_DBMW_Insert_Mail*)header;
+        unsigned int letterNo = 0;
         if (pkt->m_delayHours != 0)
         {
             time_t now = time(0);
@@ -975,21 +1024,23 @@ void CPacketTranslater::OnDBMWInsertMail(PacketHeader* header)
             lt->tm_hour += 1;
             lt->tm_min = 0;
             lt->tm_sec = 0;
-            long nextHour = mktime(lt);
-            long occTime = nextHour + pkt->m_delayHours * 0x15180;
-            int letterNo = (occTime - 0x44a53c70) / 0x15180;
-            if (!m_pclApp->m_dbManager.InsertMail(
-                    pkt->m_characNo, pkt->m_subject, pkt->m_content,
-                    pkt->m_fieldE, letterNo, pkt->m_field12, pkt->m_field16))
-            {
-                DNF_LOG_SCOPE_LINE(0xd1e,
-                    "./log/GuildEvent",
-                    "CPacketTranslater.OnDBMWInsertMail Err(%d) : return false",
-                    pkt->m_characNo
-                );
+            time_t nextHour = mktime(lt);
+            unsigned int occTime =
+                (unsigned int)nextHour +
+                (unsigned int)pkt->m_delayHours * 0x15180U;
+            letterNo = (occTime - 0x44a53c70U) / 0x15180U;
+        }
+        if (!m_pclApp->m_dbManager.InsertMail(
+                pkt->m_characNo, pkt->m_subject, pkt->m_content,
+                pkt->m_fieldE, letterNo, pkt->m_field12, pkt->m_field16))
+        {
+            DNF_LOG_SCOPE_LINE(0xd1e,
+                "./log/GuildEvent",
+                "CPacketTranslater.OnDBMWInsertMail Err(%d) : return false",
+                pkt->m_characNo
+            );
 
-                return;
-            }
+            return;
         }
         Packet_Monitor_Notify_New_Mail notice;
         notice.m_fieldA = pkt->m_characNo;
@@ -1044,13 +1095,13 @@ void CPacketTranslater::OnQueryGuildMember(PacketHeader* header)
             {
                 DNF_LOG_SCOPE_LINE(0x98,
                     "./log/Except",
-                    "CPacketTranslater::OnQueryGuildMember() Query Error : %d, Char No : %d, Guild Id : %d", reply.m_fieldB, pkt->m_guildId,
-                    reply.m_flag
+                    "CPacketTranslater::OnQueryGuildMember() Query Error : %d, Char No : %d, Guild Id : %d", (unsigned char)reply.m_flag, pkt->m_guildId,
+                    reply.m_fieldB
                 );
-
-                m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
-                    (char*)&reply, 0x2d);
             }
+            CGuildServer* gs =
+                m_pclApp->m_serverHandler->GetGuildServer();
+            gs->SendToServer((char*)&reply, 0x2d);
         }
     }
     DNF_CATCH_LOG_PRINTF("./log/Except",
@@ -1097,9 +1148,9 @@ void CPacketTranslater::OnRequestGuildCreate(PacketHeader* header)
         DNF_LOG_SCOPE_LINE(0x65f,
             "./log/GuildModify",
             "::OnRequestGuildCreate g(%d) c(%d) r(%d)",
-            reply.m_field12,
+            reply.m_fieldE,
             pkt->m_characNo,
-            reply.m_fieldE
+            reply.m_field12
         );
 
     }
@@ -1157,17 +1208,15 @@ void CPacketTranslater::OnRequestApproveJoinGuild(PacketHeader* header)
                 reply.m_fieldA = 1;
             DNF_LOG_SCOPE_LINE(0x52a,
                 "./log/GuildModify",
-                "OnGuildJoin Err(g:%d, c:%d, r:%d) : return false", reply.m_fieldA, pkt->m_characNo,
-                pkt->m_guildId
+                "OnGuildJoin Err(g:%d,c:%d,r:%d) : return false", pkt->m_guildId, pkt->m_characNo,
+                reply.m_fieldA
             );
-
-            m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
-                (char*)&reply, reply.packetSize);
-            CMyFileLog log2(__FUNCTION__, 0x530);
-            log2("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
-                 reply.m_fieldA,
-                 pkt->m_characNo, pkt->m_guildId);
         }
+        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
+            (char*)&reply, reply.packetSize);
+        CMyFileLog log2(__FUNCTION__, 0x530);
+        log2("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
+             pkt->m_guildId, pkt->m_characNo, reply.m_fieldA);
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnRequestApproveJoinGuild() Exception Break",
@@ -1198,9 +1247,10 @@ void CPacketTranslater::OnDelBuddy(PacketHeader* header)
         reply.m_fieldA = pkt->m_mid;
         reply.m_fieldE = pkt->m_characNo;
         memcpy((char*)&reply + 0x12, pkt->m_name, 0x1d);
-        m_pclApp->m_dbManager.DelBuddy(pkt->m_mid, pkt->m_characNo);
-        m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
-            (char*)&reply, reply.packetSize);
+        reply.m_rest[0x1e] = !m_pclApp->m_dbManager.DelBuddy(
+            pkt->m_mid, pkt->m_characNo);
+        CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+        ms->SendToServer((char*)&reply, reply.packetSize);
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnDelBuddy() Exception Break",
@@ -1212,10 +1262,17 @@ void CPacketTranslater::OnEndGuildWar(PacketHeader* header)
         return;
     try
     {
-        Packet_DB_Save_Guild_War_Info* pkt =
-            (Packet_DB_Save_Guild_War_Info*)header;
+        struct SaveGuildWarInfoLocal
+        {
+            char m_pad[0xa];
+            unsigned char m_serverId;   // +0xa
+            unsigned int m_guildIds[10]; // +0xb
+            unsigned int m_points[10];   // +0x33
+        } __attribute__((packed));
+        SaveGuildWarInfoLocal* pkt = (SaveGuildWarInfoLocal*)header;
+        int serverId = pkt->m_serverId;
         if (!m_pclApp->m_dbManager.SaveGuildWarPointList(
-                pkt->m_serverId, pkt->m_guildIds, pkt->m_points))
+                serverId, pkt->m_guildIds, pkt->m_points))
         {
             DNF_LOG_SCOPE_LINE(0x223,
                 "./log/GuildWar",
@@ -1366,8 +1423,8 @@ void CPacketTranslater::OnQueryGuildBooting(PacketHeader* header)
         Packet_DB_Query_Reply_On_Guild_Booting reply;
         m_pclApp->m_dbManager.QueryGuildBooting(
             reply, pkt->m_serverId);
-        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
-            (char*)&reply, reply.packetSize);
+        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+        gs->SendToServer((char*)&reply, reply.packetSize);
         DNF_LOG_SCOPE_LINE(0x685,
             "./log/QueryGuildBooting",
             "QueryGuildBooting A_Side(%d) B_Side(%d) Winner(%d)",
@@ -1391,14 +1448,17 @@ void CPacketTranslater::OnUpdateTowerOfDespairStatistic(PacketHeader* header)
             (Packet_TowerOfDespair_Statistic_STD*)header;
         if (!m_pclApp->m_dbManager.QueryTowerOfDespairStatistic(
                 pkt))
-            return;
-        DNF_LOG_SCOPE_LINE(0x12e5, "./log/statistic", "TOD Statistic Error\nTOD uv(%d)", pkt->m_uv);
-
-        for (int i = 1; i <= 0x64; i++)
         {
-            CMyFileLog log2(__FUNCTION__, 0x12e7);
-            log2("./log/statistic", "TOD Layer(%d), enter(%d), succ(%d)", i,
-                 pkt->m_entries[i].m_fieldE, pkt->m_entries[i].m_field12);
+            if (!pkt)
+                return;
+            DNF_LOG_SCOPE_LINE(0x12e5, "./log/statistic", "TOD Statistic Error\nTOD uv(%d)", pkt->m_uv);
+
+            for (int i = 1; i <= 0x64; i++)
+            {
+                DNF_LOG_SCOPE_LINE(0x12e7, "./log/statistic",
+                    "TOD Layer(%d), enter(%d), succ(%d)", i,
+                    pkt->m_entries[i].m_field12, pkt->m_entries[i].m_fieldE);
+            }
         }
     }
     DNF_CATCH_LOG_CDNF("./log/Except.log",
@@ -1445,9 +1505,10 @@ void CPacketTranslater::onItemLimitEditionLoadDataReq(PacketHeader* header)
     try
     {
         Packet_Item_Limit_Edition_Load_Data_Rpy reply;
+        Packet_Item_Limit_Edition_Load_Data_Req* pkt =
+            (Packet_Item_Limit_Edition_Load_Data_Req*)header;
         if (!m_pclApp->m_dbManager.onItemLimitEditionLoadData(
-                (const Packet_Item_Limit_Edition_Load_Data_Req*)header,
-                &reply))
+                pkt, &reply))
         {
             DNF_LOG_SCOPE_LINE(0xaa4,
                 "./log/LimitEdition",
@@ -1456,8 +1517,8 @@ void CPacketTranslater::onItemLimitEditionLoadDataReq(PacketHeader* header)
 
             return;
         }
-        m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
-            (char*)&reply, 0x7ef);
+        CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+        ms->SendToServer((char*)&reply, 0x7ef);
     }
     DNF_CATCH_LOG("./log/Except",
                   "CPacketTranslater::onItemLimitEditionBuyableRequest Exception Break",
@@ -1489,17 +1550,20 @@ void CPacketTranslater::onInsertHolePunchingResult(PacketHeader* header)
 {
     try
     {
+        Packet_GameServer2Statisctics2DBServer* pkt =
+            (Packet_GameServer2Statisctics2DBServer*)header;
         DNF_LOG_SCOPE_LINE(0x15bd,
             "./log/AradOnly",
             "CPacketTranslater::onInsertHolePunchingResult.\n"
         );
 
         if (!m_pclApp->m_dbManager.insertHolePunchingResult(
-                (Packet_GameServer2Statisctics2DBServer*)header))
+                pkt))
         {
-            CMyFileLog log2(__FUNCTION__, 0x15c0);
-            log2("./log/AradOnly",
-                 "CPacketTranslater::insertHolePunchingResult fail\n");
+            DNF_LOG_SCOPE_LINE(0x15c0,
+                "./log/AradOnly",
+                "CPacketTranslater::insertHolePunchingResult fail\n"
+            );
             return;
         }
     }
@@ -1543,8 +1607,10 @@ void CPacketTranslater::onItemLimitEditionUpdateData(PacketHeader* header)
         return;
     try
     {
+        const Packet_Item_Limit_Edition_Update* pkt =
+            (const Packet_Item_Limit_Edition_Update*)header;
         if (!m_pclApp->m_dbManager.onItemLimitEditionUpdateData(
-                (const Packet_Item_Limit_Edition_Update*)header))
+                pkt))
         {
             DNF_LOG_SCOPE_LINE(0xac1,
                 "./log/LimitEdition",
@@ -1725,11 +1791,12 @@ void CPacketTranslater::onCollectItemsUpdate(PacketHeader* header)
             pkt->m_serverInfo,
             *(int*)((char*)&reply + 0xe), *(int*)((char*)&reply + 0xa),
             *(unsigned int*)((char*)&reply + 0x12), flag);
-        int diff = pkt->m_fieldA - reply.m_fieldA;
+        int diff = pkt->m_fieldA - reply.m_fieldE;
         m_pclApp->m_dbManager.updateCollectItems(
             pkt->m_serverInfo, diff,
             reply.m_field12, flag);
-        if (flag == 0 && pkt->m_field13 == 0 && diff < 0)
+        if (flag == 0 &&
+            *(unsigned char*)((char*)pkt + 0x13) == 0 && diff < 0)
         {
             m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
                 (char*)&reply, reply.packetSize);
@@ -1951,9 +2018,9 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
         }
         time_t now = time(0);
         tm* t = localtime(&now);
-        t->tm_mday += 1;
-        t->tm_hour = 0;
+        t->tm_hour += 1;
         t->tm_min = 0;
+        t->tm_sec = 0;
         time_t tomorrow = mktime(t);
         char str[0x100] = {0};
         sprintf(str,
@@ -1977,7 +2044,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
             return;
         }
         Packet_Monitor_Notify_New_Mail mail;
-        ((FieldViewP<0xf,int>*)&mail)->v = characNo;
+        mail.m_fieldA = characNo;
         CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
         ms->SendToServer((char*)&mail, mail.packetSize);
         CMyFileLog log2(__FUNCTION__, 0x1447);
@@ -2058,7 +2125,7 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                 ms->SendToServer((char*)&reply, sendSize);
                 DNF_LOG_SCOPE_LINE(0xbab,
                     "./log/Secu",
-                    "[IP Counter] Packet Send - Stats : %3d, Cnt : %3d", batch,
+                    "[IP Counter] Packet Send - Stats : %3d, Cnt : %3d", (int)reply.m_fieldA,
                     count
                 );
 
@@ -2068,7 +2135,8 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
         else
         {
             Packet_Response_IPCounterList reply;
-            ms->SendToServer((char*)&reply, 0xc);
+            reply.packetSize = 0xc;
+            ms->SendToServer((char*)&reply, reply.packetSize);
         }
         if (!vec2.empty() && pkt->m_fieldB != 0)
         {
@@ -2099,7 +2167,7 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                 ms->SendToServer((char*)&reply, sendSize);
                 DNF_LOG_SCOPE_LINE(0xbd8,
                     "./log/Secu",
-                    "[D_IP Counter] Packet Send - Stats : %3d, Cnt : %3d", batch,
+                    "[D_IP Counter] Packet Send - Stats : %3d, Cnt : %3d", (int)reply.m_fieldA,
                     count
                 );
 
@@ -2109,7 +2177,8 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
         else
         {
             Packet_Response_D_IPCounterList reply;
-            ms->SendToServer((char*)&reply, 0xc);
+            reply.packetSize = 0xc;
+            ms->SendToServer((char*)&reply, reply.packetSize);
         }
         return;
     }
@@ -2132,11 +2201,11 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
         CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
         Packet_Reply_Load_Tower_Full_Rank reply;
         reply.m_fieldA = 1;
-        if (*(unsigned int*)(pkt + 0xe) != 0x2710)
+        if (*(unsigned int*)((char*)pkt + 0xe) != 0x2710)
             reply.m_fieldA = 0;
         CMyFileLog log1(__FUNCTION__, 0x59b);
         log1("./log/DeathTower", "(tower_idx:%d)(rank count:%d)\n",
-             *(unsigned int*)(pkt + 0xa), ranks.size());
+             *(unsigned int*)((char*)pkt + 0xa), ranks.size());
         int i = 0;
         for (std::vector<stTowerRank_t>::const_iterator it = ranks.begin();
              it != ranks.end(); ++it)
@@ -2150,7 +2219,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
                 DNF_LOG_SCOPE_LINE(0x5a8,
                     "./log/DeathTower",
                     "(tower_idx:%d)(send count:%d)\n",
-                    *(unsigned int*)(pkt + 0xa),
+                    *(unsigned int*)((char*)pkt + 0xa),
                     i
                 );
 
@@ -2167,7 +2236,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
             DNF_LOG_SCOPE_LINE(0x5b3,
                 "./log/DeathTower",
                 "(tower_idx:%d)(send count:%d)\n",
-                *(unsigned int*)(pkt + 0xa),
+                *(unsigned int*)((char*)pkt + 0xa),
                 i
             );
 
@@ -2214,10 +2283,10 @@ void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
                 reply.m_fieldA = (char)count;
                 if (batch == 0)
                     reply.m_fieldE = 0;
-                else if (srcIdx >= size)
-                    reply.m_fieldE = 2;
-                else
+                else if (srcIdx < size)
                     reply.m_fieldE = 1;
+                else
+                    reply.m_fieldE = 2;
                 unsigned short sendSize =
                     (unsigned short)(0x4bf - (0x64 - count) * 0xc);
                 ms->SendToServer((char*)&reply, sendSize);
@@ -2256,50 +2325,41 @@ void CPacketTranslater::OnQueryGuild(PacketHeader* header)
     {
         Packet_DBMW_Query_Guild* pkt = (Packet_DBMW_Query_Guild*)header;
         unsigned int guildId = pkt->m_guildId;
-        unsigned int serverGroup = pkt->m_serverGroup;
         if (!m_pclApp->m_dbManager.QueryGuild(
                 pkt->m_serverId, guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x56,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d, \t Query Result : %d\n", guildId,
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
                 reply.m_fieldA
             );
-
-            return;
         }
         if (!m_pclApp->m_dbManager.QuerySubGuildMaster(
                 pkt->m_serverId, guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x5b,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d, \t Query Result : %d\n", guildId,
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
                 reply.m_fieldA
             );
-
-            return;
         }
         if (!m_pclApp->m_dbManager.QueryGuildSkill(
-                *(unsigned char*)(pkt + 0xa), guildId, reply))
+                *(unsigned char*)((char*)pkt + 0xa), guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x60,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d, \t Query Result : %d\n", guildId,
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
                 reply.m_fieldA
             );
-
-            return;
         }
         if (!m_pclApp->m_dbManager.QueryGuildNotiMessage(
-                *(unsigned char*)(pkt + 0xa), guildId, reply))
+                *(unsigned char*)((char*)pkt + 0xa), guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x65,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d, \t Query Result : %d\n", guildId,
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
                 reply.m_fieldA
             );
-
-            return;
         }
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         gs->SendToServer((char*)&reply, 0x135);
@@ -2310,18 +2370,19 @@ void CPacketTranslater::OnQueryGuild(PacketHeader* header)
 }
 void CPacketTranslater::OnReqOntimeEventIdx(PacketHeader* header)
 {
-    if (!m_pclApp)
-        throw CDNFException(
-            "CPacketTranslater::OnReqOntimeEventIdx() : 0 == m_pclApp");
     try
     {
+        if (!m_pclApp)
+            throw CDNFException(std::string(
+                "CPacketTranslater::OnReqOntimeEventIdx() : 0 == m_pclApp"));
         Packet_Result_OnTimeEvent_Idx reply;
-        m_pclApp->m_dbManager.QueryOnTimeEventIdx(reply);
+        reply.m_fieldE = m_pclApp->m_dbManager.QueryOnTimeEventIdx(reply);
         CTcpServer* tcp =
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* pkt = (char*)tcp->makePacketHeader(0x2341, 0xf);
+            char* tmp = (char*)tcp->makePacketHeader(0x2341, 0xf);
+            char* pkt = tmp;
             memcpy(pkt + 0xa, (char*)&reply + 0xa, 5);
             tcp->SendToServer(pkt);
         }
@@ -2339,11 +2400,11 @@ void CPacketTranslater::OnReqOntimeEventIdx(PacketHeader* header)
 }
 void CPacketTranslater::OnReqOntimeEventIdxUpdate(PacketHeader* header)
 {
-    if (!m_pclApp)
-        throw CDNFException(
-            "CPacketTranslater::OnReqOntimeEventIdxUpdate() : 0 == m_pclApp");
     try
     {
+        if (!m_pclApp)
+            throw CDNFException(std::string(
+                "CPacketTranslater::OnReqOntimeEventIdxUpdate() : 0 == m_pclApp"));
         Packet_Req_Ontime_Event_Idx_Update* pktIn =
             (Packet_Req_Ontime_Event_Idx_Update*)header;
         m_pclApp->m_dbManager.QueryOnTimeEventIdxUpdate(
@@ -2354,7 +2415,8 @@ void CPacketTranslater::OnReqOntimeEventIdxUpdate(PacketHeader* header)
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* pkt = (char*)tcp->makePacketHeader(0x2348, 0xe);
+            char* tmp = (char*)tcp->makePacketHeader(0x2348, 0xe);
+            char* pkt = tmp;
             memcpy(pkt + 0xa, (char*)&reply + 0xa, 4);
             tcp->SendToServer(pkt);
         }
@@ -2372,18 +2434,19 @@ void CPacketTranslater::OnReqOntimeEventIdxUpdate(PacketHeader* header)
 }
 void CPacketTranslater::OnReqOntimeEventItem(PacketHeader* header)
 {
-    if (!m_pclApp)
-        throw CDNFException(
-            "CPacketTranslater::OnReqOntimeEventItem() : 0 == m_pclApp");
     try
     {
+        if (!m_pclApp)
+            throw CDNFException(std::string(
+                "CPacketTranslater::OnReqOntimeEventItem() : 0 == m_pclApp"));
         Packet_Result_Ontime_Event_Item reply;
         m_pclApp->m_dbManager.QueryOnTimeEventItem(reply);
         CTcpServer* tcp =
             m_pclApp->Get_ServerHandler()->GetTcpServer((unsigned char)0xa);
         if (tcp)
         {
-            char* pkt = (char*)tcp->makePacketHeader(0x2346, 0x14);
+            char* tmp = (char*)tcp->makePacketHeader(0x2346, 0x14);
+            char* pkt = tmp;
             memcpy(pkt + 0xa, (char*)&reply + 0xa, 0xa);
             tcp->SendToServer(pkt);
         }
@@ -2427,18 +2490,18 @@ void CPacketTranslater::OnQueryUnconnGuildMemberProxy(PacketHeader* header)
     {
         if (!m_pclApp)
             return;
-        Packet_DB_Reply_Unconn_Guild_Member reply;
         Packet_DB_Call_Unconn_Guild_Member* pkt =
             (Packet_DB_Call_Unconn_Guild_Member*)header;
+        Packet_DB_Reply_Unconn_Guild_Member reply;
         reply.m_fieldA = pkt->m_fieldA;
         reply.m_fieldE = pkt->m_fieldE;
         if (!m_pclApp->m_dbManager.QueryGuildMemberProxy(
-                reply.m_fieldA, reply.m_fieldE, reply.m_proxy))
+                pkt->m_fieldA, pkt->m_fieldE, reply.m_proxy))
         {
             DNF_LOG_SCOPE_LINE(0x3ae,
                 "./log/GuildMemberErr",
-                "Query Guild Member List Error g(%d), c(%d)\n", reply.m_fieldA,
-                reply.m_fieldE
+                "Query Guild Member List Error g(%d), c(%d)\n", pkt->m_fieldA,
+                pkt->m_fieldE
             );
 
             return;
@@ -2456,20 +2519,20 @@ void CPacketTranslater::OnQueryGuildAllMembersProxy(PacketHeader* header)
     {
         if (!m_pclApp)
             return;
-        Packet_DB_Reply_Guild_All_Members reply;
         Packet_DB_Call_Guild_All_Members* pkt =
             (Packet_DB_Call_Guild_All_Members*)header;
+        Packet_DB_Reply_Guild_All_Members reply;
         reply.m_fieldA = pkt->m_fieldA;
         reply.m_fieldE = pkt->m_fieldE;
         unsigned short tot = 0;
         STGuildMemberProxy* temp = m_pclApp->m_guildManager->GetArrayTempGuildMemberList();
         memset(temp, 0, 0x4c2c);
-        if (!m_pclApp->m_dbManager.QueryGuildAllMembersProxy(reply.m_fieldA, temp, tot))
+        if (!m_pclApp->m_dbManager.QueryGuildAllMembersProxy(pkt->m_fieldA, temp, tot))
         {
             DNF_LOG_SCOPE_LINE(0x362,
                 "./log/GuildMemberErr",
-                "Query All Guild Member List Error g(%d), c(%d)\n", reply.m_fieldA,
-                reply.m_fieldE
+                "Query All Guild Member List Error g(%d), c(%d)\n", pkt->m_fieldA,
+                pkt->m_fieldE
             );
 
             return;
@@ -2496,14 +2559,13 @@ void CPacketTranslater::OnQueryGuildAllMembersProxy(PacketHeader* header)
             reply.m_count = (unsigned char)remain;
             memcpy((char*)&reply + 0x14, (char*)temp + i * 0x179d,
                    remain * 0x41);
-            *(unsigned short*)((char*)&reply + 2) =
-                (unsigned short)(remain * 0x41 + 0x14);
+            reply.packetSize = (unsigned short)(remain * 0x41 + 0x14);
             gs->SendToServer((char*)&reply, reply.packetSize);
         }
         DNF_LOG_SCOPE_LINE(0x38b,
             "./log/GuildModify",
-            "Query All Guild Member List g(%d), c(%d), tot(%d)\n", reply.m_fieldA,
-            reply.m_fieldE,
+            "Query All Guild Member List g(%d), c(%d), tot(%d)\n", pkt->m_fieldA,
+            pkt->m_fieldE,
             tot
         );
 
@@ -2717,34 +2779,31 @@ void CPacketTranslater::OnTcpServerLogout(PacketHeader* header)
         if (!m_pclApp)
             return;
         Packet_Tcp_Server_Logout* pkt = (Packet_Tcp_Server_Logout*)header;
-        unsigned char idx = pkt->m_idx;
-        int port = (int)pkt->reversed2;
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
-        if (!handler->GetTcpServer(idx))
+        if (!m_pclApp->Get_ServerHandler()->GetTcpServer(pkt->m_idx))
         {
             DNF_LOG_SCOPE_LINE(0xc74,
                 "./log/TcpServer",
-                "CPacketTranslater::OnTcpServerLogout Invalid Server Instance(TYPE:%d, sock:%d)", idx,
-                port
+                "CPacketTranslater::OnTcpServerLogout Invalid Server Instance(TYPE:%d, sock:%d)", pkt->m_idx,
+                pkt->reversed2
             );
 
             return;
         }
-        if (!handler->DeleteTcpServer(idx))
+        if (!m_pclApp->Get_ServerHandler()->DeleteTcpServer(pkt->m_idx))
         {
             DNF_LOG_SCOPE_LINE(0xc7a,
                 "./log/TcpServer",
-                "CPacketTranslater::OnTcpServerLogout DeleteTcpServer fail(TYPE:%d, sock:%d)", idx,
-                port
+                "CPacketTranslater::OnTcpServerLogout DeleteTcpServer fail(TYPE:%d, sock:%d)", pkt->m_idx,
+                pkt->reversed2
             );
 
             return;
         }
-        printf("CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", idx, port);
+        printf("CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", pkt->m_idx, pkt->reversed2);
         DNF_LOG_SCOPE_LINE(0xc7e,
             "./log/TcpServer",
-            "CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", idx,
-            port
+            "CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", pkt->m_idx,
+            pkt->reversed2
         );
 
     }

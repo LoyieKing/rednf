@@ -71,21 +71,24 @@ Packet_DBMW_Reason_Crash_Down_Query::Packet_DBMW_Reason_Crash_Down_Query()
     : PacketHeader(0xc49, 0x10a)
 {
 }
-stDisjointAvatarInfoTotal::stDisjointAvatarInfoTotal()
+stDisjointAvatarInfoTotal::stDisjointAvatarInfoTotal() throw()
 {
     clear();
 }
 void stDisjointAvatarInfoTotal::clear()
 {
-    for (int i = 0; i < 3; i++)
+    int i;
+    int j;
+    int k;
+    for (i = 0; i < 3; i++)
     {
-        for (int j = 0; j < 9; j++)
+        for (j = 0; j < 9; j++)
         {
-            for (int k = 0; k < 2; k++)
+            for (k = 0; k < 2; k++)
             {
                 m_data[(i * 9 + j) * 2 + k] = 0;
             }
-            m_data[i * 9 + j + 0x34 + 2] = 0;
+            m_data[(i * 9 + j + 0x34) + 2] = 0;
         }
     }
 }
@@ -271,23 +274,23 @@ void PartyCharacStatistic::Reset()
     m_data[11] = 1;
     m_data[12] = 0;
 }
-STDeathTowerValueStatisticKey::STDeathTowerValueStatisticKey()
+STDeathTowerValueStatisticKey::STDeathTowerValueStatisticKey() throw()
 {
     m_field0 = 0;
     m_field2 = 0;
     m_field4 = 0;
 }
-STDeathTowerValueStatisticKey::~STDeathTowerValueStatisticKey()
+STDeathTowerValueStatisticKey::~STDeathTowerValueStatisticKey() throw()
 {
 }
-ValueStatistic::ValueStatistic()
+ValueStatistic::ValueStatistic() throw()
 {
     Reset();
 }
-ValueStatistic::~ValueStatistic()
+ValueStatistic::~ValueStatistic() throw()
 {
 }
-void ValueStatistic::Reset()
+void ValueStatistic::Reset() throw()
 {
     m_data[0] = 0;
     m_data[1] = 1;
@@ -338,7 +341,7 @@ STPacketOverflowKey::STPacketOverflowKey()
 {
     Reset();
 }
-STPacketOverflowKey::~STPacketOverflowKey()
+STPacketOverflowKey::~STPacketOverflowKey() throw()
 {
 }
 void STPacketOverflowKey::Reset()
@@ -393,14 +396,14 @@ void HellPartyItenmData::Reset()
     memset(m_data, 0, 0x18);
     m_count = 1;
 }
-LoadingTimeReport::LoadingTimeReport()
+LoadingTimeReport::LoadingTimeReport() throw()
 {
     Reset();
 }
-LoadingTimeReport::~LoadingTimeReport()
+LoadingTimeReport::~LoadingTimeReport() throw()
 {
 }
-void LoadingTimeReport::Reset()
+void LoadingTimeReport::Reset() throw()
 {
     for (int i = 0; i < 9; i++)
     {
@@ -464,14 +467,14 @@ STFatigueBattery::STFatigueBattery()
     m_field0 = 0;
     m_field4 = 0;
 }
-STModuleLagStatistics::STModuleLagStatistics()
+STModuleLagStatistics::STModuleLagStatistics() throw()
 {
     Reset();
 }
-STModuleLagStatistics::~STModuleLagStatistics()
+STModuleLagStatistics::~STModuleLagStatistics() throw()
 {
 }
-void STModuleLagStatistics::Reset()
+void STModuleLagStatistics::Reset() throw()
 {
     m_data[0] = 0;
     m_data[1] = 0;
@@ -686,9 +689,6 @@ bool STPartyJobStatisticKey::operator<(const STPartyJobStatisticKey& other) cons
         }
     }
     return false;
-}
-PartyJobStatistic::~PartyJobStatistic()
-{
 }
 void PartyJobStatistic::operator+=(const PartyJobStatistic& other)
 {

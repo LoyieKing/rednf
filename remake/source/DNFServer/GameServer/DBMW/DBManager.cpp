@@ -29,7 +29,7 @@ int getCmdPacketNameCount();
 int parse_string(std::vector<std::string>& v, std::string& s, char c);
 StackBuffer_char sformat(const char* fmt, ...);
 CQueryCounter* CQueryCounterInstance();
-char isDayTimeOver(unsigned int timestamp, unsigned int days);
+bool isDayTimeOver(unsigned int timestamp, unsigned int days);
 int get_day_interval(struct tm* a, struct tm* b);
 
 // ---- 本地 view 结构（仅用于生成与 ORIG 一致的成员访问形态） ----
@@ -39,6 +39,68 @@ struct UpgradeSeparateBits
     unsigned char b1 : 1;
     unsigned char b2 : 2;
 };
+
+struct GuildAbilityView
+{
+    char h[0x1c];
+    unsigned char b0 : 1;  // +0x1c bit0
+    unsigned char b1 : 1;  // +0x1c bit1
+    unsigned char pad : 6; // +0x1c bits2-7
+} __attribute__((packed));
+
+struct ServerMatchDataView
+{
+    char h[0xa];
+    char m_fieldA;   // +0xa
+    int m_fieldB;    // +0xb
+    int m_fieldC;    // +0xf
+} __attribute__((packed));
+
+struct UdpCharacteristicView
+{
+    char h[0xa];
+    char m_fieldA;    // +0xa
+    int m_fieldB;     // +0xb
+    int m_fieldF;     // +0xf
+    int m_field13;    // +0x13
+    int m_field17;    // +0x17
+    int m_field1B;    // +0x1b
+    int m_field1F;    // +0x1f
+    int m_field23;    // +0x23
+    int m_field27;    // +0x27
+    int m_field2B;    // +0x2b
+    int m_field2F;    // +0x2f
+} __attribute__((packed));
+
+struct StopGameEventView
+{
+    char h[0xa];
+    int m_fieldA;    // +0xa
+    int m_fieldE;    // +0xe
+    unsigned int m_field12; // +0x12
+} __attribute__((packed));
+
+struct P2PStatisticsView
+{
+    char h[0xa];
+    int m_fieldA;        // +0xa
+    int m_fieldE;        // +0xe
+    char m_field12;      // +0x12
+    short m_field13;     // +0x13
+    short m_field15;     // +0x15
+    short m_field17;     // +0x17
+    int m_field19;       // +0x19
+    int m_field1D;       // +0x1d
+    int m_field21;       // +0x21
+    int m_field25;       // +0x25
+    short m_field29;     // +0x29
+    short m_field2B;     // +0x2b
+    short m_field2D;     // +0x2d
+    int m_field2F;       // +0x2f
+    int m_field33;       // +0x33
+    int m_field37;       // +0x37
+    int m_field3B;       // +0x3b
+} __attribute__((packed));
 
 struct GuildCargoUpgradeView
 {
@@ -379,29 +441,34 @@ bool CDBManager::DeleteToBlackListOnly(unsigned int m_id, char* name)
 }
 bool CDBManager::QueryBlackList(unsigned int m_id, STBlackUserDBType* list)
 {
+    bool ret;
     CDBHandle* h = m_handles[3];    // game db
     if (!h->set_query(0x4e44,
                       "seLect charac_no, charac_name, unix_timestamp(occ_time) from  charac_black_list where m_id = %s limit %d",
                       NumberToString(m_id, 0), 0xa))
     {
-        CMyFileLog log(__FUNCTION__, 0xaac);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xaac)("./log/DBQueryErr",
             "CDBManager::QueryCharacNoByName() seLect charac_no, charac_name, occ_time from  charac_black_list where m_id = %s",
             NumberToString(m_id, 0));
         return 0;
     }
-    if (!h->exec(0x4e44))
+    ret = h->exec(0x4e44);
+    if (!ret)
         return 0;
     int n = h->get_n_rows();
     for (int i = 0; i < n; i++)
     {
-        if (!h->fetch())
+        ret = h->fetch();
+        if (!ret)
             return 0;
-        if (!h->get_uint(0, *(unsigned int*)((char*)list + i * 0x28)))
+        ret = h->get_uint(0, *(unsigned int*)&list[i].m_field0);
+        if (!ret)
             return 0;
-        if (!h->get_str(1, (char*)list + i * 0x28 + 0x4, 0x1e))
+        ret = h->get_str(1, list[i].m_pad4, 0x1e);
+        if (!ret)
             return 0;
-        if (!h->get_uint(2, *(unsigned int*)((char*)list + i * 0x28 + 0x24)))
+        ret = h->get_uint(2, *(unsigned int*)&list[i].m_field24);
+        if (!ret)
             return 0;
     }
     return 1;
@@ -530,30 +597,29 @@ char CDBManager::OnSavePowerWarBonusPoint(
 }
 char CDBManager::SavePowerWarPoint(Packet_DB_Save_Power_War_Point* packet)
 {
+    bool local_21;
     CDBHandle* h = m_handles[8];    // guild db
-    char* p = (char*)packet;
     if (!h->set_query(0x4e81,
                       "upDate power_war set a_side_point=%d, b_side_point=%d, winner_side=%d where server_id = %d",
-                      *(unsigned int*)(p + 0xc), *(unsigned int*)(p + 0x10),
-                      *(signed char*)(p + 0xb), *(unsigned char*)(p + 0xa)))
+                      packet->m_aSidePoint, packet->m_bSidePoint,
+                      packet->m_winnerSide, packet->m_serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x12ce);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x12ce)(
+            "./log/DBQueryErr",
             "CDBManager::SavePowerWarPoint() : upDate power_war set a_side_point=%d, b_side_point=%d, winner_side=%d where server_id = %d",
-            *(unsigned int*)(p + 0xc), *(unsigned int*)(p + 0x10),
-            *(signed char*)(p + 0xb), *(unsigned char*)(p + 0xa));
+            packet->m_aSidePoint, packet->m_bSidePoint,
+            packet->m_winnerSide, packet->m_serverId);
         return 0;
     }
-    if (h->exec(0x4e81) != 1 || h->getAffectedRowCount() == 0)
+    local_21 = h->exec(0x4e81);
+    if (!local_21 || h->getAffectedRowCount() == 0)
     {
-        if (!h->set_query(0x4e82,
-                          "inSert into power_war set a_side_point=%d, b_side_point=%d, winner_side=%d ,server_id = %d",
-                          *(unsigned int*)(p + 0xc),
-                          *(unsigned int*)(p + 0x10),
-                          *(signed char*)(p + 0xb),
-                          *(unsigned char*)(p + 0xa)))
-            return 0;
-        if (!h->exec(0x4e82))
+        h->set_query(0x4e82,
+                     "inSert into power_war set a_side_point=%d, b_side_point=%d, winner_side=%d ,server_id = %d",
+                     packet->m_aSidePoint, packet->m_bSidePoint,
+                     packet->m_winnerSide, packet->m_serverId);
+        local_21 = h->exec(0x4e82);
+        if (!local_21)
             return 0;
     }
     return 1;
@@ -830,16 +896,22 @@ bool CDBManager::InsertUdpCharacteristic(Packet_Udp_Characteristic* packet)
     CDBHandle* h = m_handles[0xf];  // frame_lag db
     if (!h)
         return 0;
-    char* p = (char*)packet;
-    if (!h->set_query(
-            0x4e92,
-            "insert into p2pnetwork_statistic (occ_time,server_group,success_party_try,total_party_try,dungeon_bad_ping,dungeon_total,pvp_bad_ping,pvp_total,fair_pvp_bad_ping,fair_pvp_total,success_dungeon_clear,total_dungeon_clear)  values(now(),%hhd,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
-            *(signed char*)(p + 0xa), *(int*)(p + 0xb), *(int*)(p + 0xf),
-            *(int*)(p + 0x13), *(int*)(p + 0x17), *(int*)(p + 0x1b),
-            *(int*)(p + 0x1f), *(int*)(p + 0x23), *(int*)(p + 0x27),
-            *(int*)(p + 0x2b), *(int*)(p + 0x2f)))
-        return 0;
-    if (!h->exec(0x4e92))
+    bool ret;
+    h->set_query(0x4e92,
+                 "insert into p2pnetwork_statistic (occ_time,server_group,success_party_try,total_party_try,dungeon_bad_ping,dungeon_total,pvp_bad_ping,pvp_total,fair_pvp_bad_ping,fair_pvp_total,success_dungeon_clear,total_dungeon_clear)  values(now(),%hhd,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
+                 ((UdpCharacteristicView*)packet)->m_fieldA,
+                 ((UdpCharacteristicView*)packet)->m_fieldB,
+                 ((UdpCharacteristicView*)packet)->m_fieldF,
+                 ((UdpCharacteristicView*)packet)->m_field13,
+                 ((UdpCharacteristicView*)packet)->m_field17,
+                 ((UdpCharacteristicView*)packet)->m_field1B,
+                 ((UdpCharacteristicView*)packet)->m_field1F,
+                 ((UdpCharacteristicView*)packet)->m_field23,
+                 ((UdpCharacteristicView*)packet)->m_field27,
+                 ((UdpCharacteristicView*)packet)->m_field2B,
+                 ((UdpCharacteristicView*)packet)->m_field2F);
+    ret = h->exec(0x4e92);
+    if (!ret)
         return 0;
     return 1;
 }
@@ -890,23 +962,26 @@ bool CDBManager::insertServerGameEvent(
 }
 bool CDBManager::updateServerGameEvent(Packet_StopGameEventFromServer* packet)
 {
+    bool ret = false;
     CDBHandle* h = m_handles[1];    // account db
     if (!h)
         return 0;
-    char* p = (char*)packet;
-    if (!h->set_query(0x4f5e,
-                      " upDate dnf_event_log set end_time = %u  where server_id = %d and event_type = %d and end_time = 0 ",
-                      *(unsigned int*)(p + 0x12), *(int*)(p + 0xe),
-                      *(int*)(p + 0xa)))
+    ret = h->set_query(0x4f5e,
+                       " upDate dnf_event_log set end_time = %u  where server_id = %d and event_type = %d and end_time = 0 ",
+                       ((StopGameEventView*)packet)->m_field12,
+                       ((StopGameEventView*)packet)->m_fieldE,
+                       ((StopGameEventView*)packet)->m_fieldA);
+    if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x2eb2);
-        log("./log/DBQueryErr", h->get_quest_str());
+        CMyFileLog(__FUNCTION__, 0x2eb2)("./log/DBQueryErr",
+            h->get_quest_str());
         return 0;
     }
-    if (!h->exec(0x4f5e))
+    ret = h->exec(0x4f5e);
+    if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x2eb9);
-        log("./log/DBQueryErr", "updateServerGameEvent Query(exec) Error");
+        CMyFileLog(__FUNCTION__, 0x2eb9)("./log/DBQueryErr",
+            "updateServerGameEvent Query(exec) Error");
         return 0;
     }
     return 1;
@@ -915,18 +990,19 @@ char CDBManager::UpdateGuildRank(int serverId, CGuildManager* gm)
 {
     if (!gm)
         return 0;
+    bool ok;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e33,
                       "upDate guild_info set guild_rank = 0 where server_id = %d and expire_flag = 0",
                       serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x6cf);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x6cf, "./log/DBQueryErr",
             "CDBManager::UpdateGuildRank() update guild_info set guild_rank = 0 where server_id = %d and expire_flag = 0\n",
             serverId);
         return 0;
     }
-    if (!h->exec(0x4e33))
+    ok = h->exec(0x4e33);
+    if (!ok)
         return 0;
     std::vector<std::pair<unsigned int, STGuildRankInfo*> >* rankList =
         gm->GetVtGuildRankInfo();
@@ -934,31 +1010,32 @@ char CDBManager::UpdateGuildRank(int serverId, CGuildManager* gm)
              rankList->begin();
          it != rankList->end(); ++it)
     {
-        STGuildRankInfo* info = it->second;
+        STGuildRankInfo* info = (*it).second;
         if (!info)
             continue;
-        if (*(int*)((char*)info + 8) == 0)
+        if (info->m_field8 == 0)
             continue;
         if (!h->set_query(0x4e34,
                           "upDate guild_info set guild_rank = %d where guild_id = %d and server_id = %d and expire_flag = 0",
-                          *(int*)((char*)info + 8),
-                          *(int*)((char*)info + 0), serverId))
+                          info->m_field8, info->m_field0, serverId))
         {
-            CMyFileLog log(__FUNCTION__, 0x6e6);
-            log("./log/DBQueryErr",
+            DNF_LOG_SCOPE_LINE(0x6e6, "./log/DBQueryErr",
                 "CDBManager::UpdateGuildRank() Fatal Error Break : update guild_info set guild_rank = %d where guild_id = %d and server_id = %d and expire_flag = 0\n",
-                *(int*)((char*)info + 8), *(int*)((char*)info + 0), serverId);
+                info->m_field8, info->m_field0, serverId);
             return 0;
         }
-        if (!h->exec(0x4e34))
+        ok = h->exec(0x4e34);
+        if (!ok)
             return 0;
     }
     return 1;
 }
+__attribute__((optimize("-fno-exceptions")))
 char CDBManager::QueryGuildPointList(int serverId, CGuildManager* gm)
 {
     if (!gm)
         return 0;
+    bool cVar1;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e32,
                       "seLect guild_id, guild_point from guild_info where server_id = %d and expire_flag = 0",
@@ -970,21 +1047,25 @@ char CDBManager::QueryGuildPointList(int serverId, CGuildManager* gm)
             serverId);
         return 0;
     }
-    if (!h->exec(0x4e32))
+    cVar1 = h->exec(0x4e32);
+    if (!cVar1)
         return 0;
     std::vector<std::pair<unsigned int, STGuildRankInfo*> >* rankList =
         gm->GetVtGuildRankInfo();
     int n = h->get_n_rows();
     for (int i = 0; i < n; i++)
     {
-        if (!h->fetch())
+        cVar1 = h->fetch();
+        if (!cVar1)
             return 0;
         STGuildRankInfo* info = new (std::nothrow) STGuildRankInfo;
         if (!info)
             return 0;
-        if (!h->get_uint(0, *(unsigned int*)((char*)info + 0)))
+        cVar1 = h->get_uint(0, *(unsigned int*)((char*)info + 0));
+        if (!cVar1)
             return 0;
-        if (!h->get_uint(1, *(unsigned int*)((char*)info + 4)))
+        cVar1 = h->get_uint(1, *(unsigned int*)((char*)info + 4));
+        if (!cVar1)
             return 0;
         rankList->push_back(
             std::make_pair(*(unsigned int*)((char*)info + 4), info));
@@ -998,18 +1079,28 @@ bool CDBManager::QueryP2PStatistics(Packet_P2P_Statistics* packet)
     CDBHandle* h = m_handles[0xf];  // frame_lag db
     if (!h)
         return 0;
-    char* p = (char*)packet;
-    if (!h->set_query(
-            0x4f26,
-            "inSert into p2p_statistics ( occ_time, server_group, p2p_user, p2p_min_ping, p2p_max_ping, p2p_avg_ping, p2p_over_ping_100, p2p_over_ping_200, p2p_over_ping_300, p2p_over_ping_400, relay_user, relay_min_ping, relay_max_ping, relay_avg_ping, relay_over_ping_100, relay_over_ping_200, relay_over_ping_300, relay_over_ping_400) values (now(), %d, %d, %d, %d, %d, %u, %u, %u, %u, %d, %d, %d, %d, %u, %u, %u, %u)",
-            *(signed char*)(p + 0x12), *(int*)(p + 0xa),
-            *(signed short*)(p + 0x13), *(signed short*)(p + 0x15),
-            *(signed short*)(p + 0x17), *(int*)(p + 0x19),
-            *(int*)(p + 0x1d), *(int*)(p + 0x21), *(int*)(p + 0x25),
-            *(int*)(p + 0xe), *(signed short*)(p + 0x29),
-            *(signed short*)(p + 0x2b), *(signed short*)(p + 0x2d),
-            *(int*)(p + 0x2f), *(int*)(p + 0x33), *(int*)(p + 0x37),
-            *(int*)(p + 0x3b)))
+    bool ret;
+    ret = h->set_query(
+        0x4f26,
+        "inSert into p2p_statistics ( occ_time, server_group, p2p_user, p2p_min_ping, p2p_max_ping, p2p_avg_ping, p2p_over_ping_100, p2p_over_ping_200, p2p_over_ping_300, p2p_over_ping_400, relay_user, relay_min_ping, relay_max_ping, relay_avg_ping, relay_over_ping_100, relay_over_ping_200, relay_over_ping_300, relay_over_ping_400) values (now(), %d, %d, %d, %d, %d, %u, %u, %u, %u, %d, %d, %d, %d, %u, %u, %u, %u)",
+        ((P2PStatisticsView*)packet)->m_field12,
+        ((P2PStatisticsView*)packet)->m_fieldA,
+        ((P2PStatisticsView*)packet)->m_field13,
+        ((P2PStatisticsView*)packet)->m_field15,
+        ((P2PStatisticsView*)packet)->m_field17,
+        ((P2PStatisticsView*)packet)->m_field19,
+        ((P2PStatisticsView*)packet)->m_field1D,
+        ((P2PStatisticsView*)packet)->m_field21,
+        ((P2PStatisticsView*)packet)->m_field25,
+        ((P2PStatisticsView*)packet)->m_fieldE,
+        ((P2PStatisticsView*)packet)->m_field29,
+        ((P2PStatisticsView*)packet)->m_field2B,
+        ((P2PStatisticsView*)packet)->m_field2D,
+        ((P2PStatisticsView*)packet)->m_field2F,
+        ((P2PStatisticsView*)packet)->m_field33,
+        ((P2PStatisticsView*)packet)->m_field37,
+        ((P2PStatisticsView*)packet)->m_field3B);
+    if (!ret)
     {
         CMyFileLog log(__FUNCTION__, 0x295c);
         log("./log/DBQueryErr", "set_query(insert_p2p_statistics)");
@@ -1063,29 +1154,27 @@ bool CDBManager::QueryUpdateChannelOccNum(Packet_User_Count_Statistic* packet)
     CDBHandle* h = m_handles[2];    // game db
     if (!h)
         return 0;
-    char* p = (char*)packet;
     h->set_query(0x4eed,
                  "upDate game_channel set gc_now=%d,gc_up_time=now() where gc_no=%d",
-                 *(int*)(p + 0xe), *(int*)(p + 0xa));
+                 packet->m_userCount, packet->m_gcNo);
     if (!h->exec(0x4eed))
     {
-        CMyFileLog log(__FUNCTION__, 0x27dc);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x27dc)(
+            "./log/DBQueryErr",
             "upDate game_channel Error : channel_no(%d), user_count(%d)",
-            *(int*)(p + 0xe), *(int*)(p + 0xa));
+            packet->m_gcNo, packet->m_userCount);
     }
-    for (int i = 0; i <= 0x63; i++)
+    for (int i = 0; i < 0x64; i++)
     {
         h->set_query(0x4f29,
                      "upDate channel_occ_info set occ_num=%d where gc_no=%d and age=%d",
-                     *(signed short*)(p + 0x12 + i * 2),
-                     *(int*)(p + 0xa), i + 1);
+                     packet->m_occ[i], packet->m_gcNo, i + 1);
         if (!h->exec(0x4f29))
         {
-            CMyFileLog log(__FUNCTION__, 0x27e4);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0x27e4)(
+                "./log/DBQueryErr",
                 "upDate channel_occ_info Error : channel_no(%d), user_count(%d)",
-                *(signed short*)(p + 0x12 + i * 2), *(int*)(p + 0xa));
+                packet->m_gcNo, packet->m_occ[i]);
         }
     }
     return 1;
@@ -1326,45 +1415,49 @@ bool CDBManager::GetVillageAttackedRank(Packet_DB_VillageAttackedRank* packet,
 }
 int CDBManager::GetMinTimeServerGroup(int serverId)
 {
+    bool ok = false;
     CDBHandle* h = m_handles[6];    // sso db
-    if (!h->set_query(0x4ee1,
-                      "seLect server_info from village_attacked_server_time_rank where occ_date = cast(from_unixtime(%d) as date) order by clear_time asc limit 1",
-                      serverId))
+    h->set_query(0x4ee1,
+                 "seLect server_info from village_attacked_server_time_rank where occ_date = cast(from_unixtime(%d) as date) order by clear_time asc limit 1",
+                 serverId);
+    ok = h->exec(0x4ee1);
+    if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x1deb);
-        log("./log/DBQueryErr", "GetMinTimeServerGroup Error\n");
+        DNF_LOG_SCOPE_LINE(0x1deb, "./log/DBQueryErr", "GetMinTimeServerGroup Error\n");
         return 0;
     }
-    if (!h->exec(0x4ee1))
-        return 0;
     if (h->get_n_rows() == 0)
         return 0;
-    if (!h->fetch())
+    ok = h->fetch();
+    if (!ok)
         return 0;
     int result = 0;
-    if (!h->get_int(0, result))
+    ok = h->get_int(0, result);
+    if (!ok)
         return 0;
     return result;
 }
 int CDBManager::GetMaxHuntingPointServerGroup(int serverId)
 {
+    bool ok = false;
     CDBHandle* h = m_handles[6];    // sso db
-    if (!h->set_query(0x4ee0,
-                      "seLect server_info from village_attacked_server_point_rank where occ_date = cast(from_unixtime(%d) as date) order by hunting_point desc limit 1",
-                      serverId))
+    h->set_query(0x4ee0,
+                 "seLect server_info from village_attacked_server_point_rank where occ_date = cast(from_unixtime(%d) as date) order by hunting_point desc limit 1",
+                 serverId);
+    ok = h->exec(0x4ee0);
+    if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x1dc9);
-        log("./log/DBQueryErr", "GetMaxHuntingPointServerGroup Error\n");
+        DNF_LOG_SCOPE_LINE(0x1dc9, "./log/DBQueryErr", "GetMaxHuntingPointServerGroup Error\n");
         return 0;
     }
-    if (!h->exec(0x4ee0))
-        return 0;
     if (h->get_n_rows() == 0)
         return 0;
-    if (!h->fetch())
+    ok = h->fetch();
+    if (!ok)
         return 0;
     int result = 0;
-    if (!h->get_int(0, result))
+    ok = h->get_int(0, result);
+    if (!ok)
         return 0;
     return result;
 }
@@ -1610,13 +1703,15 @@ char CDBManager::OnWriteGuildMemberMemo(
 }
 char CDBManager::OnServerMatchData(Packet_Server_Match_data_DBMW* packet)
 {
+    bool ret;
     CDBHandle* h = m_handles[9];    // event db
-    char* p = (char*)packet;
     h->set_query(0x4ef8,
                  "upDate pvp_score set win_count=win_count+%d,lose_count=lose_count+%d where server_id = %d and occ_date = cast(now() as date)",
-                 *(int*)(p + 0xb), *(int*)(p + 0xf),
-                 *(signed char*)(p + 0xa));
-    if (h->exec(0x4ef8) != 1)
+                 ((ServerMatchDataView*)packet)->m_fieldB,
+                 ((ServerMatchDataView*)packet)->m_fieldC,
+                 ((ServerMatchDataView*)packet)->m_fieldA);
+    ret = h->exec(0x4ef8);
+    if (!ret)
     {
         CMyFileLog log(__FUNCTION__, 0x219d);
         log("./log/Except", "OnServerMatchData Error db ");
@@ -1626,9 +1721,10 @@ char CDBManager::OnServerMatchData(Packet_Server_Match_data_DBMW* packet)
     {
         h->set_query(0x4ef9,
                      "inSert into pvp_score(server_id,occ_date,win_count,lose_count) values(%d,cast(now() as date),%d,%d)",
-                     *(signed char*)(p + 0xa), *(int*)(p + 0xb),
-                     *(int*)(p + 0xf));
-        h->exec(0x4ef9);
+                     ((ServerMatchDataView*)packet)->m_fieldA,
+                     ((ServerMatchDataView*)packet)->m_fieldB,
+                     ((ServerMatchDataView*)packet)->m_fieldC);
+        ret = h->exec(0x4ef9);
     }
     return 1;
 }
@@ -1795,9 +1891,11 @@ STGuildCargoLog::STGuildCargoLog()
 {
     memset(this, 0, 0x30);
 }
+#ifndef DNF_GUILD_ODR_TRIVIAL_CARGOLOG_DTOR
 STGuildCargoLog::~STGuildCargoLog()
 {
 }
+#endif
 STBlackUserDBType::STBlackUserDBType()
 {
     m_field0 = 0;
@@ -2007,8 +2105,8 @@ int CDBManager::FindCharProxyInArray(ST_MemberProxy* proxies, unsigned int chara
 }
 bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member& reply)
 {
+    bool cVar1;
     CDBHandle* h = m_handles[2];    // game db
-    char* mbase = (char*)&reply + 0x17;  // m_master（STMemberDBInfo，紧打包）
     if (!h->set_query(
             0x4e29,
             "seLect 1 as type, master_no, exp, unix_timestamp(create_time), unix_timestamp(delete_time) as charac from charac_members where charac_no = %d union all select 2, charac_no, exp, unix_timestamp(create_time), unix_timestamp(delete_time) from charac_members where master_no = %d",
@@ -2021,7 +2119,8 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         reply.m_flag = 0;
         return 0;
     }
-    if (!h->exec(0x4e29))
+    cVar1 = h->exec(0x4e29);
+    if (!cVar1)
     {
         reply.m_flag = 0;
         CMyFileLog log(__FUNCTION__, 0x537);
@@ -2037,11 +2136,12 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         n = 0xb;
     if (n == 0)
     {
-        *(char*)(mbase + 0x27) = 0;
+        *(char*)((char*)&reply + 0x3e) = 0;
         reply.m_flag = 1;
         return 1;
     }
-    if (!h->fetch())
+    cVar1 = h->fetch();
+    if (!cVar1)
     {
         reply.m_flag = 0;
         CMyFileLog log(__FUNCTION__, 0x54f);
@@ -2051,51 +2151,57 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         return 0;
     }
     int type = 0;
-    if (!h->get_int(0, type))
+    cVar1 = h->get_int(0, type);
+    if (!cVar1)
     {
         reply.m_flag = 3;
         return 0;
     }
-    ST_MemberProxy* proxies = (ST_MemberProxy*)(mbase + 0x28);
+    ST_MemberProxy* proxies = (ST_MemberProxy*)((char*)&reply + 0x3f);
     unsigned int maxExp = 0;
     unsigned int maxIdx = 0;
     if (type == 1)
     {
         unsigned int masterNo = 0;
-        if (!h->get_uint(1, masterNo))
+        cVar1 = h->get_uint(1, masterNo);
+        if (!cVar1)
         {
             reply.m_flag = 3;
             return 0;
         }
         if (masterNo != 0)
         {
-            *(int*)(mbase + 0) = masterNo;
-            if (!h->get_uint(2, *(unsigned int*)(mbase + 0x23)))
+            *(int*)((char*)&reply + 0x17) = masterNo;
+            cVar1 = h->get_uint(2, *(unsigned int*)((char*)&reply + 0x3a));
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
             }
         }
         unsigned int t = 0;
-        if (!h->get_uint(3, t))
+        cVar1 = h->get_uint(3, t);
+        if (!cVar1)
         {
             reply.m_flag = 3;
             return 0;
         }
         if (t > maxExp)
             maxExp = t;
-        if (!h->get_uint(4, t))
+        cVar1 = h->get_uint(4, t);
+        if (!cVar1)
         {
             reply.m_flag = 3;
             return 0;
         }
         if (t > maxIdx)
             maxIdx = t;
-        *(char*)(mbase + 0x27) = (char)(n - 1);
-        sprintf(str, "%s%d,", str, *(int*)(mbase + 0));
+        *(char*)((char*)&reply + 0x3e) = (char)(n - 1);
+        sprintf(str, "%s%d,", str, *(int*)((char*)&reply + 0x17));
         for (int i = 1; i < n; i++)
         {
-            if (!h->fetch())
+            cVar1 = h->fetch();
+            if (!cVar1)
             {
                 reply.m_flag = 0;
                 CMyFileLog log(__FUNCTION__, 0x58e);
@@ -2104,13 +2210,15 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
                     i, characNo);
                 return 0;
             }
-            if (!h->get_uint(1, (unsigned int&)proxies[i - 1].m_no))
+            cVar1 = h->get_uint(1, (unsigned int&)proxies[i - 1].m_no);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
             }
             sprintf(str, "%s%d,", str, proxies[i - 1].m_no);
-            if (!h->get_uint(2, (unsigned int&)proxies[i - 1].m_field23))
+            cVar1 = h->get_uint(2, (unsigned int&)proxies[i - 1].m_field23);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
@@ -2119,21 +2227,24 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
     }
     else if (type == 2)
     {
-        if (!h->get_uint(1, (unsigned int&)proxies[0].m_no))
+        cVar1 = h->get_uint(1, (unsigned int&)proxies[0].m_no);
+        if (!cVar1)
         {
             reply.m_flag = 3;
             return 0;
         }
-        if (!h->get_uint(2, (unsigned int&)proxies[0].m_field23))
+        cVar1 = h->get_uint(2, (unsigned int&)proxies[0].m_field23);
+        if (!cVar1)
         {
             reply.m_flag = 3;
             return 0;
         }
-        *(char*)(mbase + 0x27) = (char)n;
+        *(char*)((char*)&reply + 0x3e) = (char)n;
         sprintf(str, "%s%d,", str, proxies[0].m_no);
         for (int i = 1; i < n; i++)
         {
-            if (!h->fetch())
+            cVar1 = h->fetch();
+            if (!cVar1)
             {
                 reply.m_flag = 0;
                 CMyFileLog log(__FUNCTION__, 0x5cb);
@@ -2142,13 +2253,15 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
                     i, characNo);
                 return 0;
             }
-            if (!h->get_uint(1, (unsigned int&)proxies[i].m_no))
+            cVar1 = h->get_uint(1, (unsigned int&)proxies[i].m_no);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
             }
             sprintf(str, "%s%d,", str, proxies[i].m_no);
-            if (!h->get_uint(2, (unsigned int&)proxies[i - 1].m_field23))
+            cVar1 = h->get_uint(2, (unsigned int&)proxies[i - 1].m_field23);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
@@ -2179,35 +2292,41 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
         reply.m_flag = 2;
         return 0;
     }
-    if (!h->exec(0x4e2b))
+    cVar1 = h->exec(0x4e2b);
+    if (!cVar1)
     {
         reply.m_flag = 0;
         return 0;
     }
     n = h->get_n_rows();
+    char* mbase = (char*)&reply + 0x17;
     ST_MemberProxy* master = (ST_MemberProxy*)mbase;
     int j = 0;
     for (; j < n; j++)
     {
-        if (!h->fetch())
+        cVar1 = h->fetch();
+        if (!cVar1)
         {
             reply.m_flag = 0;
             return 0;
         }
         int no = 0;
-        if (!h->get_uint(0, (unsigned int&)no))
+        cVar1 = h->get_uint(0, (unsigned int&)no);
+        if (!cVar1)
         {
             reply.m_flag = 3;
             return 0;
         }
         if (master->m_no == no)
         {
-            if (!h->get_ubyte(1, master->m_lev))
+            cVar1 = h->get_ubyte(1, master->m_lev);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
             }
-            if (!h->get_str(2, master->m_name, 0x1d))
+            cVar1 = h->get_str(2, master->m_name, 0x1d);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
@@ -2218,12 +2337,14 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
             int found = FindCharProxyInArray(proxies, (unsigned int)no, 0xa);
             if (found == -1)
                 CDNFException("CDBManager::QueryMember(), Not Coresponding Database!");
-            if (!h->get_ubyte(1, proxies[found].m_lev))
+            cVar1 = h->get_ubyte(1, proxies[found].m_lev);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
             }
-            if (!h->get_str(2, proxies[found].m_name, 0x1d))
+            cVar1 = h->get_str(2, proxies[found].m_name, 0x1d);
+            if (!cVar1)
             {
                 reply.m_flag = 3;
                 return 0;
@@ -2313,13 +2434,14 @@ bool CDBManager::QueryGuildAllMembersProxy(unsigned int guildId,
 bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
 {
     result = 2;
+    bool cVar1;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[2];   // game db
-    if (info->m_characName[0] == 0)
+    if (*(char*)((char*)info + 0x14) == 0)
     {
         result = 0x27;
-        CMyFileLog log(__FUNCTION__, 0xe76);
-        log("./log/TraceGuildErr",
+        CMyFileLog(__FUNCTION__, 0xe76)(
+            "./log/TraceGuildErr",
             "CDBManager::GuildJoin guild(%d), server_group(%d), charac_no(%d)\n",
             info->m_guildId, info->m_serverId, info->m_characNo);
         return 0;
@@ -2328,17 +2450,21 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
                       "seLect member_flag, unix_timestamp(secede_time) from guild_member where charac_no = %d and  server_id= %d",
                       info->m_characNo, info->m_serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0xe80);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xe80)(
+            "./log/DBQueryErr",
             "CDBManager::GuildJoin()select_secede_time_from_guild_member_for_guildjoin Exception Break\n");
         return 0;
     }
-    if (!h->exec(0x4e60))
+    cVar1 = h->exec(0x4e60);
+    if (!cVar1)
         return 0;
-    if (h->fetch())
+    cVar1 = h->fetch();
+    if (cVar1)
     {
-        int memberFlag = 0;
-        if (!h->get_uint(0, (unsigned int&)memberFlag))
+        unsigned int secedeTime;
+        int memberFlag;
+        cVar1 = h->get_uint(0, (unsigned int&)memberFlag);
+        if (!cVar1)
             return 0;
         if (memberFlag == 1)
         {
@@ -2347,8 +2473,8 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
         }
         if (memberFlag == 2)
         {
-            unsigned int secedeTime = 0;
-            if (!h->get_uint(1, secedeTime))
+            cVar1 = h->get_uint(1, secedeTime);
+            if (!cVar1)
                 return 0;
             if (!isDayTimeOver(secedeTime, 3))
             {
@@ -2361,24 +2487,26 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
                       "seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
                       info->m_guildId))
     {
-        CMyFileLog log(__FUNCTION__, 0xeb9);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xeb9)(
+            "./log/DBQueryErr",
             "CDBManager::GuildJoin() seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
             info->m_guildId);
         return 0;
     }
     if (!h->exec(0x4e83))
     {
-        CMyFileLog log(__FUNCTION__, 0xebe);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xebe)(
+            "./log/DBQueryErr",
             "CDBManager::GuildJoin() seLect count(*) from guild_member where guild_id = %d and member_flag = 1",
             info->m_guildId);
         return 0;
     }
-    if (!h->fetch())
+    cVar1 = h->fetch();
+    if (!cVar1)
         return 0;
-    int memberCount = 0;
-    if (!h->get_int(0, memberCount))
+    int memberCount;
+    cVar1 = h->get_int(0, memberCount);
+    if (!cVar1)
         return 0;
     if (memberCount + 1 > 0x12c)
     {
@@ -2389,27 +2517,31 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
                       "upDate guild_member set guild_id=%d, member_flag=1, member_time= now(), grade = 0,last_visit_time = 0, secede_type = 0, secede_time = 0, member_point = 0, member_point_prev = 0, last_play_time = 0  where charac_no = %d and server_id= %d",
                       info->m_guildId, info->m_characNo, info->m_serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0xedb);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xedb)(
+            "./log/DBQueryErr",
             "CDBManager::GuildJoin() upDate guild_member set guild_id=%d, member_flag=1 where charac_no = %d and server_id= %d",
             info->m_guildId, info->m_characNo, info->m_serverId);
         return 0;
     }
-    if (!h->exec(0x4e61) || h->getAffectedRowCount() == 0)
+    cVar1 = h->exec(0x4e61);
+    if (!cVar1 || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4e5e,
                           "inSert into guild_member set guild_id=%d,m_id=%s,server_id=%d,charac_no=%d,charac_name='%s',job=%d,grow_type=%d,lev=%d,born_year='%s',sex=%d,member_flag=1,member_time= now()",
                           info->m_guildId, NumberToString(info->m_id, 0),
                           info->m_serverId, info->m_characNo, info->m_characName,
-                          info->m_job, info->m_growType, info->m_lev,
-                          info->m_bornYear, info->m_sex))
+                          (signed char)info->m_lev,
+                          (signed char)info->m_growType,
+                          (signed char)info->m_job,
+                          info->m_bornYear, (signed char)info->m_sex))
         {
-            CMyFileLog log(__FUNCTION__, 0xefd);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xefd)(
+                "./log/DBQueryErr",
                 "CDBManager::GuildJoin() Exception Break\n");
             return 0;
         }
-        if (!h->exec(0x4e5e))
+        cVar1 = h->exec(0x4e5e);
+        if (!cVar1)
             return 0;
     }
     if (memberCount != 0)
@@ -2418,16 +2550,16 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
                           "upDate guild_info set member_count = %d where guild_id = %d",
                           memberCount + 1, info->m_guildId))
         {
-            CMyFileLog log(__FUNCTION__, 0xf0d);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xf0d)(
+                "./log/DBQueryErr",
                 "CDBManager::GuildJoin() upDate guild_info set member_count = %d where guild_id = %d joined(%d)",
                 memberCount + 1, info->m_guildId, info->m_characNo);
             return 0;
         }
         if (!h->exec(0x4e5f))
         {
-            CMyFileLog log(__FUNCTION__, 0xf12);
-            log("./log/DBQueryErr",
+            CMyFileLog(__FUNCTION__, 0xf12)(
+                "./log/DBQueryErr",
                 "CDBManager::GuildJoin() upDate guild_info set member_count = %d where guild_id = %d joined(%d)",
                 memberCount + 1, info->m_guildId, info->m_characNo);
             return 0;
@@ -2437,16 +2569,17 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
                        "upDate charac_info set guild_id=%d where charac_no = %d",
                        info->m_guildId, info->m_characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0xf1d);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xf1d)(
+            "./log/DBQueryErr",
             "CDBManager::GuildJoin() upDate charac_info set guild_id=%d where charac_no = %d",
             info->m_guildId, info->m_characNo);
         return 0;
     }
-    if (!h2->exec(0x4e65))
+    cVar1 = h2->exec(0x4e65);
+    if (!cVar1)
     {
-        CMyFileLog log(__FUNCTION__, 0xf24);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0xf24)(
+            "./log/DBQueryErr",
             "CDBManager::GuildJoin() upDate charac_info set guild_id=%d where charac_no = %d",
             info->m_guildId, info->m_characNo);
         return 0;
@@ -3023,21 +3156,22 @@ unsigned int CDBManager::GetIdentity(CDBHandle* h)
 }
 bool CDBManager::QueryInsertUpdate(PacketInsertUpdate* packet)
 {
+    bool ret;
     CDBHandle* h = m_handles[packet->m_handleIdx];
     h->set_query(packet->m_insertQueryId, packet->m_insertSql);
-    if (h->exec(packet->m_insertQueryId))
+    ret = h->exec(packet->m_insertQueryId);
+    if (!ret)
     {
-        if (h->getAffectedRowCount() == 0)
-        {
-            h->set_query(packet->m_updateQueryId, packet->m_updateSql);
-            h->exec(packet->m_updateQueryId);
-        }
-        return 1;
+        CMyFileLog(__FUNCTION__, 0x27f5)("./log/DBQueryErr",
+            "QueryInsertUpdate Query(%s) Error\n", packet->m_insertSql);
+        return 0;
     }
-    CMyFileLog log(__FUNCTION__, 0x27f5);
-    log("./log/DBQueryErr", "QueryInsertUpdate Query(%s) Error\n",
-        packet->m_insertSql);
-    return 0;
+    if (h->getAffectedRowCount() == 0)
+    {
+        h->set_query(packet->m_updateQueryId, packet->m_updateSql);
+        ret = h->exec(packet->m_updateQueryId);
+    }
+    return 1;
 }
 char CDBManager::InsertDailyBadSpecStatistics(
     Packet_Frame_Lag_Statistic_Write_Daily_Bad_Spec* packet)
@@ -3066,6 +3200,8 @@ char CDBManager::RegisterQueryIdTable(int queryId, const char* query)
 }
 char CDBManager::LoadQueryIdTable()
 {
+    unsigned int ret;
+    int n;
     CDBHandle* h = m_handles[6];    // sso db
     if (!h->set_query(0x4f61, "seLect q_id from log_query_dbmw_ref"))
     {
@@ -3073,15 +3209,18 @@ char CDBManager::LoadQueryIdTable()
         log("./log/DBQueryErr", "seLect q_id from log_query_dbmw_ref");
         return 0;
     }
-    if (!h->exec(0x4f61))
+    ret = h->exec(0x4f61);
+    if (!ret)
         return 0;
-    int n = h->get_n_rows();
+    n = h->get_n_rows();
     for (int i = 0; i < n; i++)
     {
-        if (!h->fetch())
+        ret = h->fetch();
+        if (!ret)
             break;
-        int queryId = 0;
-        if (!h->get_int(0, queryId))
+        int queryId;
+        ret = h->get_int(0, queryId);
+        if (!ret)
             return 0;
         CQueryCounterInstance()->LoadQueryIdTable(queryId);
     }
@@ -3291,48 +3430,54 @@ char CDBManager::OnUpgradeGuildAgit(Packet_DB_Upgrade_Guild_Agit* req,
     reply.m_result = 0;
     return 1;
 }
+__attribute__((optimize("-fno-exceptions")))
 char CDBManager::QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm)
 {
     if (!gm)
         return 0;
+    bool cVar1;
     CDBHandle* h = m_handles[8];
     if (!h->set_query(
             0x4e3b,
             "seLect guild_id, guild_war_point, guild_name, guild_point_prev from guild_info where server_id = %d and expire_flag = 0 and guild_rank <= %d and guild_rank != 0",
             guildWarPoint, 0xa))
     {
-        CMyFileLog log(__FUNCTION__, 0x953);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x953)("./log/DBQueryErr",
             "CDBManager::QueryGuildWarPointList() select guild_id, guild_war_point from guild_info where server_id = %d and expire_flag = 0 and guild_rank <= %d and guild_rank != 0\n",
             guildWarPoint, 0xa);
         return 0;
     }
-    if (!h->exec(0x4e3b))
+    cVar1 = h->exec(0x4e3b);
+    if (!cVar1)
         return 0;
     std::vector<std::pair<unsigned int, STGuildWarRankInfo*> >* ranks =
         gm->GetVtGuildWarRankInfo();
     int n = h->get_n_rows();
     if (n > 0xa)
     {
-        CMyFileLog log(__FUNCTION__, 0x963);
-        log("./log/DBQueryErr",
+        CMyFileLog(__FUNCTION__, 0x963)("./log/DBQueryErr",
             "CDBManager::QueryGuildWarPointList() : Server Group( %d )\tMAX_GUILD_WAR_ENTERABLE_RANK( %d ) <-> select n_data( %d )\n",
             guildWarPoint, 0xa, n);
     }
     for (int i = 0; i < n; i++)
     {
-        if (!h->fetch())
+        cVar1 = h->fetch();
+        if (!cVar1)
             return 0;
         STGuildWarRankInfo* info = new (std::nothrow) STGuildWarRankInfo;
         if (!info)
             return 0;
-        if (!h->get_uint(0, info->m_field0))
+        cVar1 = h->get_uint(0, info->m_field0);
+        if (!cVar1)
             return 0;
-        if (!h->get_uint(1, info->m_field4))
+        cVar1 = h->get_uint(1, info->m_field4);
+        if (!cVar1)
             return 0;
-        if (!h->get_str(2, info->m_name, 0x17))
+        cVar1 = h->get_str(2, info->m_name, 0x17);
+        if (!cVar1)
             return 0;
-        if (!h->get_uint(3, info->m_field24))
+        cVar1 = h->get_uint(3, info->m_field24);
+        if (!cVar1)
             return 0;
         ranks->push_back(std::make_pair(info->m_field4, info));
     }
@@ -3939,8 +4084,8 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_fieldB9 = 0;
     memset(m_pad2E, 0, 0x14);
     memset((char*)this, 0, 0x17);
-    b0 = b0 | 0x1;
-    b0 = b0 & ~0x2;
+    ((GuildAbilityView*)this)->b0 = 1;
+    ((GuildAbilityView*)this)->b1 = 0;
     memset((char*)this + 0x45, 0, 0x50);
     memset((char*)this + 0xa4, 0, 0x15);
 }
@@ -4171,74 +4316,74 @@ char CDBManager::UpdateGuildWarPointList(int serverId, int rank)
 }
 char CDBManager::UpdateResetGuildPoint(int serverId)
 {
+    bool ok;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e36,
                       "upDate guild_info set guild_point = 0 , guild_war_point = 0 where server_id = %d and expire_flag = 0",
                       serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x72b);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x72b, "./log/DBQueryErr",
             "CDBManager::UpdateResetGuildPoint() Fatal Error Break : update guild_info set guild_point = 0 where server_id = %d and expire_flag = 0\n",
             serverId);
     }
-    if (!h->exec(0x4e36))
+    ok = h->exec(0x4e36);
+    if (!ok)
         return 0;
     if (!h->set_query(0x4e38,
                       "upDate guild_member set member_point = 0 where server_id = %d",
                       serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x737);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x737, "./log/DBQueryErr",
             "CDBManager::UpdateResetGuildPoint() Fatal Error Break : update guild_member set member_point = 0 where server_id = %d\n",
             serverId);
     }
-    if (!h->exec(0x4e38))
+    ok = h->exec(0x4e38);
+    if (!ok)
         return 0;
     return 1;
 }
 char CDBManager::UpdateAccumulateGuildPoint(int serverId)
 {
+    bool ok;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e35,
                       "upDate guild_info set guild_point_acc = guild_point_acc + guild_point, guild_point_prev = guild_point where server_id = %d and expire_flag = 0",
                       serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x707);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x707, "./log/DBQueryErr",
             "CDBManager::UpdateGuildRank() Fatal Error Break : update guild_info set guild_point_acc = guild_point_acc + guild_point, guild_point_prev = guild_point where server_id = %d and expire_flag = 0\n",
             serverId);
     }
-    if (!h->exec(0x4e35))
+    ok = h->exec(0x4e35);
+    if (!ok)
         return 0;
     if (!h->set_query(0x4e37,
                       "upDate guild_member set member_point_prev = member_point where server_id = %d",
                       serverId))
     {
-        CMyFileLog log(__FUNCTION__, 0x712);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x712, "./log/DBQueryErr",
             "CDBManager::UpdateGuildRank() Fatal Error Break : update guild_member set member_point_prev = member_point where server_id = %d\n",
             serverId);
     }
-    if (!h->exec(0x4e37))
+    ok = h->exec(0x4e37);
+    if (!ok)
         return 0;
     return 1;
 }
 char CDBManager::ChangeCharName(Packet_DBMW_Change_Char_Name* packet)
 {
+    bool ret;
     CDBHandle* h = m_handles[3];    // game db
     if (!h->set_query(0x4e85,
                       "upDate charac_black_list set charac_name='%s' where charac_no=%d",
                       packet->m_name, packet->m_characNo))
     {
-        unsigned int characNo = packet->m_characNo;
-        char* name = packet->m_name;
-        CMyFileLog log(__FUNCTION__, 0x1392);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x1392, "./log/DBQueryErr",
             "CDBManager::ChangeCharName() : upDate charac_black_list set charac_name='%s' where charac_no=%d",
-            name, characNo);
+            packet->m_name, packet->m_characNo);
         return 0;
     }
-    bool ret = h->exec(0x4e85);
+    ret = h->exec(0x4e85);
     if (!ret)
         return 0;
     return 1;
@@ -4246,18 +4391,16 @@ char CDBManager::ChangeCharName(Packet_DBMW_Change_Char_Name* packet)
 char CDBManager::ChangePvPBuddyName(Packet_DBMW_Change_Char_Name* packet)
 {
     CDBHandle* h = m_handles[9];    // +0x24
-    if (!h->set_query(0x4efa,
-                      "upDate pvp_buddy set buddy_charac_name='%s' where buddy_server_id=%d and buddy_charac_no=%d",
-                      packet->m_name, packet->m_serverId, packet->m_characNo))
+    h->set_query(0x4efa,
+                 "upDate pvp_buddy set buddy_charac_name='%s' where buddy_server_id=%d and buddy_charac_no=%d",
+                 packet->m_name, packet->m_serverId, packet->m_characNo);
+    if (!h->exec(0x4efa))
     {
-        CMyFileLog log(__FUNCTION__, 0x13b0);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x13b0, "./log/DBQueryErr",
             "CDBManager::ChangeCharacName() : upDate pvp_buddy set charac_name='%s' where server_id=%d and charac_no=%d",
             packet->m_name, packet->m_serverId, packet->m_characNo);
         return 0;
     }
-    if (!h->exec(0x4efa))
-        return 0;
     return 1;
 }
 bool CDBManager::DeleteJoinListByInvite(unsigned int guildId,
@@ -4307,16 +4450,16 @@ char CDBManager::OnUpgradeGuildCargo(Packet_DB_Guild_Cargo_Upgrade* packet)
 }
 char CDBManager::OnUpdateGuildCargo(Packet_DB_Update_Guild_Cargo* packet)
 {
+    bool ret;
     CDBHandle* h = m_handles[8];    // guild db
     h->set_query(0x4ecb,
                  "upDate guild_agit set cargo='%s' where guild_id=%d",
                  h->blob_to_str(0, (char*)packet + 0x12, 0x18d8),
-                 *(int*)((char*)packet + 0xa));
-    bool ret = h->exec(0x4ecb);
+                 packet->m_guildId);
+    ret = h->exec(0x4ecb);
     if (!ret)
     {
-        CMyFileLog log(__FUNCTION__, 0x1b90);
-        log("./log/DBQueryErr", "OnUpdateGuildCargo Query Error");
+        DNF_LOG_SCOPE_LINE(0x1b90, "./log/DBQueryErr", "OnUpdateGuildCargo Query Error");
         return 0;
     }
     return 1;
@@ -4663,25 +4806,27 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
         return 0;
     while (i < (unsigned int)h->get_n_rows())
     {
-        STTodayGuildMember member;
-        memset(&member, 0, 0x27);
+        unsigned int member[0xa];
+        STTodayGuildMember* p =
+            reinterpret_cast<STTodayGuildMember*>(member);
+        memset(member, 0, 0x27);
         if (!h->fetch())
             return 0;
-        if (!h->get_uint(0, member.m_field0))
+        if (!h->get_uint(0, p->m_field0))
             return 0;
-        if (!h->get_str(1, member.m_name, 0x1d))
+        if (!h->get_str(1, p->m_name, 0x1d))
             return 0;
-        if (!h->get_byte(2, *(char*)&member.m_field22))
+        if (!h->get_byte(2, *(char*)&p->m_field22))
             return 0;
-        if (!h->get_byte(3, *(char*)&member.m_field23))
+        if (!h->get_byte(3, *(char*)&p->m_field23))
             return 0;
-        if (!h->get_byte(4, *(char*)&member.m_field24))
+        if (!h->get_byte(4, *(char*)&p->m_field24))
             return 0;
-        if (!h->get_byte(5, *(char*)&member.m_field25))
+        if (!h->get_byte(5, *(char*)&p->m_field25))
             return 0;
-        if (!h->get_byte(6, *(char*)&member.m_field26))
+        if (!h->get_byte(6, *(char*)&p->m_field26))
             return 0;
-        vec.push_back(member);
+        vec.push_back(*p);
         i++;
     }
     if (vec.size() <= 0x13)
@@ -4804,54 +4949,53 @@ char CDBManager::OnLoadGuildCargoHistory(
 }
 bool CDBManager::DeleteToBlackList(unsigned int m_id, unsigned int characNo)
 {
+    int blackPoint;
+    int offsetPoint;
+    bool cVar1;
     CDBHandle* h = m_handles[3];    // game db
-    if (!h->set_query(0x4e40,
-                      "deLete from charac_black_list where m_id = %s and charac_no = %d",
-                      NumberToString(m_id, 0), characNo))
-        return 0;
-    if (!h->exec(0x4e40))
+    h->set_query(0x4e40,
+                 "deLete from charac_black_list where m_id = %s and charac_no = %d",
+                 NumberToString(m_id, 0), characNo);
+    cVar1 = h->exec(0x4e40);
+    if (!cVar1)
         return 0;
     if (!h->set_query(0x4ed6,
                       "seLect black_point,offset_point from charac_black_info where charac_no=%d",
                       characNo))
     {
-        CMyFileLog log(__FUNCTION__, 0xa6c);
-        log("./log/BlackListModify",
+        CMyFileLog(__FUNCTION__, 0xa6c)("./log/DBQueryErr",
             "CDBManager::DeleteToBlackList() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
     }
     if (!h->exec(0x4ed6))
         return 0;
-    if (h->get_n_rows() > 1)
+    int n = h->get_n_rows();
+    if (n > 1)
     {
-        CMyFileLog log(__FUNCTION__, 0xa74);
-        log("./log/BlackListModify",
+        CMyFileLog(__FUNCTION__, 0xa74)("./log/BlackListModify",
             "CDBManager::seLect_black_point_offset_point_from_charac_black_info() idata > 1 seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
     }
     if (!h->fetch())
     {
-        CMyFileLog log(__FUNCTION__, 0xa7a);
-        log("./log/BlackListModify",
+        CMyFileLog(__FUNCTION__, 0xa7a)("./log/DBQueryErr",
             "CDBManager::seLect_black_point_offset_point_from_charac_black_info() !db->fetch() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
     }
-    int blackPoint = 0;
-    int offsetPoint = 0;
+    blackPoint = 0;
+    offsetPoint = 0;
     if (!h->get_int(0, blackPoint))
     {
-        CMyFileLog log(__FUNCTION__, 0xa82);
-        log("./log/BlackListModify",
+        CMyFileLog(__FUNCTION__, 0xa82)("./log/DBQueryErr",
             "CDBManager::DeleteToBlackList() !db->fetch() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
     }
     if (!h->get_int(1, offsetPoint))
     {
-        CMyFileLog log(__FUNCTION__, 0xa87);
-        log("./log/BlackListModify",
+        CMyFileLog(__FUNCTION__, 0xa87)("./log/DBQueryErr",
             "CDBManager::DeleteToBlackList() !db->fetch() seLect black_point,offset_point from charac_black_info where charac_no=%d",
             characNo);
         return 0;
@@ -4862,13 +5006,13 @@ bool CDBManager::DeleteToBlackList(unsigned int m_id, unsigned int characNo)
                           "upDate charac_black_info set black_point = black_point - 1 where charac_no = %d",
                           characNo))
         {
-            CMyFileLog log(__FUNCTION__, 0xa91);
-            log("./log/BlackListModify",
+            CMyFileLog(__FUNCTION__, 0xa91)("./log/DBQueryErr",
                 "CDBManager::DeleteToBlackList() upDate charac_black_info set black_point = black_point - 1 where charac_no = %d",
                 characNo);
             return 0;
         }
-        if (!h->exec(0x4e42))
+        cVar1 = h->exec(0x4e42);
+        if (!cVar1)
             return 0;
     }
     return 1;
@@ -5096,9 +5240,9 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     if (!h)
         return 0;
     int count = *(int*)((char*)packet + 0xa);
-    CMyFileLog slog("QueryCubeStatisticCreate", 0x1872);
+    CMyFileLog slog(__FUNCTION__, 0x1872);
     slog("./log/statistic",
-         "CDBManager::QueryCubeStatisticCreate : (%d) °³ ÆÐÅ¶ ¼ö½Å\n", count);
+         "CDBManager::QueryCubeStatisticCreate : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n", count);
     char buf[0x800] = {0};
     std::string str;
     for (int i = 0; i < count; i++)
@@ -6164,32 +6308,43 @@ bool CDBManager::updateCompatibilityIndex(
 char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
-    int count = *(int*)((char*)packet + 0xa);
-    for (int i = 0; i < count; i++)
+    for (int i = 0; i < *(int*)((char*)packet + 0xa); i++)
     {
-        char* e = (char*)packet + i * 0x14;
+        char* rec = (char*)packet + i * 0x14 + 0x10;
+        char* rec20 = (char*)packet + i * 0x14 + 0x20;
         h->set_query(0x4efc,
                      "upDate log_secret_shop set show_count=show_count+%d,show_charac_count=show_charac_count+%d,buy_count=buy_count+%d,price=price+%d where occ_date=cast(now() as date) and dungeon_idx=%d and npc_idx=%d",
-                     *(int*)(e + 0x16), *(int*)(e + 0x1a), *(int*)(e + 0x1e),
-                     *(int*)(e + 0x22), *(int*)(e + 0x12),
+                     *(int*)(rec + 0x6),
+                     *(int*)(rec + 0xa),
+                     *(int*)(rec + 0xe),
+                     *(int*)(rec20 + 0x2),
+                     *(int*)(rec + 0x2),
                      *(int*)((char*)packet + 0xe));
-        if (!h->exec(0x4efc))
+        bool cVar1 = h->exec(0x4efc);
+        if (!cVar1)
         {
             CMyFileLog log(__FUNCTION__, 0x21bd);
             log("./log/DBQueryErr",
                 "CDBManager::OnSecretShopStatistic() upDate Error");
         }
-        h->set_query(
-            0x4efb,
-            "inSert into log_secret_shop(occ_date,npc_idx,dungeon_idx,show_count,show_charac_count,buy_count,price) values(cast(now() as date), %d, %d, %d, %d, %d, %d)",
-            *(int*)((char*)packet + 0xe), *(int*)(e + 0x12),
-            *(int*)(e + 0x16), *(int*)(e + 0x1a), *(int*)(e + 0x1e),
-            *(int*)(e + 0x22));
-        if (!h->exec(0x4efb))
+        if (h->getAffectedRowCount() == 0)
         {
-            CMyFileLog log(__FUNCTION__, 0x21cb);
-            log("./log/DBQueryErr",
-                "CDBManager::OnSecretShopStatistic() inSert Error");
+            h->set_query(
+                0x4efb,
+                "inSert into log_secret_shop(occ_date,npc_idx,dungeon_idx,show_count,show_charac_count,buy_count,price) values(cast(now() as date), %d, %d, %d, %d, %d, %d)",
+                *(int*)((char*)packet + 0xe),
+                *(int*)(rec + 0x2),
+                *(int*)(rec + 0x6),
+                *(int*)(rec + 0xa),
+                *(int*)(rec + 0xe),
+                *(int*)(rec20 + 0x2));
+            cVar1 = h->exec(0x4efb);
+            if (!cVar1)
+            {
+                CMyFileLog log(__FUNCTION__, 0x21cb);
+                log("./log/DBQueryErr",
+                    "CDBManager::OnSecretShopStatistic() inSert Error");
+            }
         }
     }
     return 1;
@@ -6254,23 +6409,24 @@ bool CDBManager::loadLimitNpcBuyItemInfo(LimitNpcBuyItemRequestInfo* req,
 }
 bool CDBManager::updateLimitNpcBuyItemInfo(LimitNpcBuyItemUpdate* update)
 {
+    bool ok;
     CDBHandle* h = m_handles[2];    // game db
     if (!h)
         return 0;
-    if (!h->set_query(0x4f46,
+    ok = h->set_query(0x4f46,
                       "upDate limit_npc_item set sell_count=sell_count+%u where item_index=%u",
-                      update->m_fieldA, update->m_field12))
+                      update->m_field12, update->m_fieldA);
+    if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x2857);
-        log("./log/DBQueryErr",
+        DNF_LOG_SCOPE_LINE(0x2857, "./log/DBQueryErr",
             "upDate limit_npc_item set sell_count=%u where item_index=%u Error",
-            update->m_fieldA, update->m_field12);
+            update->m_field12, update->m_fieldA);
         return 0;
     }
-    if (!h->exec(0x4f46))
+    ok = h->exec(0x4f46);
+    if (!ok)
     {
-        CMyFileLog log(__FUNCTION__, 0x2861);
-        log("./log/DBQueryErr", "updateLimitNpcBuyItemInfo Query(exec) Error");
+        DNF_LOG_SCOPE_LINE(0x2861, "./log/DBQueryErr", "updateLimitNpcBuyItemInfo Query(exec) Error");
         return 0;
     }
     return 1;
@@ -6467,29 +6623,28 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
         Packet_DB_Monitor_Change_Unconnected_GuildMember_Grade pkt;
         if (*(int*)(h + 0xb) != 0)
         {
-            memcpy((char*)&pkt + 0x12, h + 0x14, 0x1d);
-            *(int*)((char*)&pkt + 0xa) = *(int*)(h + 0xb);
-            *(char*)((char*)&pkt + 0x30) = *(char*)(h + 0x32);
-            *(int*)((char*)&pkt + 0xe) = *(int*)(h + 0xf);
+            memcpy(pkt.m_pad, h + 0x14, 0x1d);
+            pkt.m_fieldA = *(int*)(h + 0xb);
+            pkt.m_field30 = *(unsigned char*)(h + 0x32);
+            pkt.m_fieldE = *(int*)(h + 0xf);
         }
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         unsigned int result = 0;
-        m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
-            *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb), h + 0x14,
-            *(unsigned char*)((char*)&pkt + 0x31),
-            *(unsigned int*)((char*)&pkt + 0x32), result);
-        if (!result)
+        if (!m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
+                *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
+                h + 0x14, pkt.m_field31,
+                *(unsigned int*)((char*)&pkt + 0x32), result))
         {
-            *(char*)((char*)&pkt + 0x30) = 0xff;
+            pkt.m_field30 = 0xff;
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (*(unsigned char*)((char*)&pkt + 0x31) == 1)
+        if (pkt.m_field31 == 1)
         {
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (*(unsigned char*)((char*)&pkt + 0x31) == 2)
+        if (pkt.m_field31 == 2)
             goto sendlog;
         if (*(unsigned char*)(h + 0x32) != 2 ||
             *(unsigned char*)(h + 0x13) == 1)
@@ -6497,11 +6652,11 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
             if (!m_pclApp->m_dbManager.ChangeGuildMemberGrade(
                     *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
                     *(unsigned char*)(h + 0x32), h + 0x14))
-                *(char*)((char*)&pkt + 0x30) = 0xff;
+                pkt.m_field30 = 0xff;
         }
         else
         {
-            *(char*)((char*)&pkt + 0x30) = 0xfe;
+            pkt.m_field30 = 0xfe;
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
@@ -6512,7 +6667,7 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
             "::OnChangeUnconnectedGuildMemberGrade GRADE_CHANGE Guild(%d) UnConnected Name(%s) Grade(%d) Prev(%d)",
             *(unsigned int*)(h + 0xb), h + 0x14,
             *(unsigned char*)(h + 0x32),
-            *(unsigned char*)((char*)&pkt + 0x31));
+            pkt.m_field31);
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnChangeUnconnectedGuildMemberGrade() Exception Break",

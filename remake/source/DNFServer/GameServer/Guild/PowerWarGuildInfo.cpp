@@ -330,8 +330,9 @@ void CPowerWarGuildInfo::PrintDebugInfo()
     CMyFileLog log2(__FUNCTION__, 0x188);
     log2("./log/Power",
          "------ ALL GUILD RANKING -------------------------------------------------------------------------");
+    std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin();
     int rank = 1;
-    for (std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin(); it != m_vec.end(); ++it)
+    for (; it != m_vec.end(); ++it)
     {
         STPowerWarGuildInfo* info = *it;
         DNF_LOG_SCOPE_LINE(0x192,"./log/Power", "RANK:%d, GUILD:%d, POINT:%d, TOTOAL:%d, BONUS:%d", rank,

@@ -51,7 +51,7 @@ public:
     public:
         FrameLagDataStruct();
         void init();
-        char m_data[0x248];  // +0（实际大小 0x248，map 节点 0x25c）
+        int m_data[0x92];    // +0（实际大小 0x248，map 节点 0x25c）
     };
     class MonitoringSpecCase
     {

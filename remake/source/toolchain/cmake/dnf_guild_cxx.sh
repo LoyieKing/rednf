@@ -25,6 +25,7 @@
 ROOT=/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake
 C6="$ROOT/dnf_c6_gxx.sh"
 C6444R="$ROOT/dnf_c6444r_gxx.sh"
+C6446R="$ROOT/dnf_c6446r_gxx.sh"
 src=""
 prev=""
 for a in "$@"; do
@@ -44,8 +45,12 @@ case "$(basename "$src" .cpp)" in
             filtered="$filtered $a"
         done
         # shellcheck disable=SC2086
-        exec "$C6444R" $filtered ;;
-    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFPacketTranslater|DNFThreadInterface|DNFTcpAcceptThread|TcpNetSystem|DNFAppStopInit|DNFAppStartInit|DNFServerHandler|PowerWar)
+        exec "$C6446R" $filtered ;;
+    DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFThreadInterface|DNFTcpAcceptThread|DNFServerHandler|PowerWar|TcpNetSystem)
+        exec "$C6446R" "$@" ;;
+    DNFPacketTranslater)
+        exec "$C6446R" "$@" ;;
+    DNFAppStopInit|DNFAppStartInit)
         exec "$C6444R" "$@" ;;
     *)
         exec "$C6" "$@" ;;

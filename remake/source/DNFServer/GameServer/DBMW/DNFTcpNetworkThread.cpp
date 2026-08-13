@@ -76,7 +76,7 @@ void CTcpNetworkThread::dispatch(void* param)
                 break;
             }
             errno = 0;
-            DNFFLib::Sleep_Ext(5, 0);
+            DNFFLib::Sleep_Ext(0, 5);
             if (!m_net)
                 break;
             m_net->SetEpollAcceptedPeers();

@@ -91,8 +91,8 @@ char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
                     std::string name;
                     if (QueryUpdatedCharacName(*dbInfo, name))
                     {
-                        memset((char*)dbInfo + 5 * 4, 0, 0x1e);
-                        strncpy((char*)dbInfo + 5 * 4, name.c_str(), 0x1d);
+                        memset((char*)dbInfo + 5, 0, 0x1e);
+                        strncpy((char*)dbInfo + 5, name.c_str(), 0x1d);
                     }
                     for (int i = 0; i < (int)((RA_U8<39>*)dbInfo)->v; i++)
                     {
@@ -102,8 +102,8 @@ char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
                         {
                             if (QueryUpdatedCharacName(*sub, name))
                             {
-                                memset((char*)sub + 5 * 4, 0, 0x1e);
-                                strncpy((char*)sub + 5 * 4, name.c_str(), 0x1d);
+                                memset((char*)sub + 5, 0, 0x1e);
+                                strncpy((char*)sub + 5, name.c_str(), 0x1d);
                             }
                         }
                     }

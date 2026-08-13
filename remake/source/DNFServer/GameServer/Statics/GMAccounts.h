@@ -14,7 +14,7 @@ struct STCubeStatisticKey
 {
     STCubeStatisticKey();
     STCubeStatisticKey(const STCubeStatisticKey& other);
-    ~STCubeStatisticKey();
+    ~STCubeStatisticKey() throw();
     bool operator<(STCubeStatisticKey other) const;
     int m_field0;           // +0
     int m_field4;           // +4
@@ -70,7 +70,6 @@ struct STPartyJobStatisticKey
 struct PartyJobStatistic
 {
     PartyJobStatistic();
-    ~PartyJobStatistic();
     void reset();
     void operator+=(const PartyJobStatistic& other);
     int m_data[2];
@@ -105,8 +104,8 @@ struct PartyCharacStatistic
 // ---- STDeathTowerValueStatisticKey：0x8 ----
 struct STDeathTowerValueStatisticKey
 {
-    STDeathTowerValueStatisticKey();
-    ~STDeathTowerValueStatisticKey();
+    STDeathTowerValueStatisticKey() throw();
+    ~STDeathTowerValueStatisticKey() throw();
     bool operator<(const STDeathTowerValueStatisticKey& other) const;
     char m_field0;            // +0
     short m_field2;           // +2
@@ -116,9 +115,9 @@ struct STDeathTowerValueStatisticKey
 // ---- ValueStatistic：0x8 ----
 struct ValueStatistic
 {
-    ValueStatistic();
-    ~ValueStatistic();
-    void Reset();
+    ValueStatistic() throw();
+    ~ValueStatistic() throw();
+    void Reset() throw();
     void operator+=(const ValueStatistic& other);
     int m_data[2];
 };
@@ -169,10 +168,10 @@ struct PlayDataPartyStatistic
 struct STPacketOverflowKey
 {
     STPacketOverflowKey();
-    ~STPacketOverflowKey();
+    ~STPacketOverflowKey() throw();
     void Reset();
     bool operator<(const STPacketOverflowKey& other) const;
-    bool m_field0;            // +0（ORIG 汇编为 bool 提升比较）
+    unsigned char m_field0;   // +0
     unsigned short m_field2; // +2
 };
 
@@ -225,9 +224,9 @@ struct HellPartyItenmData
 // ---- LoadingTimeReport：0x48 ----
 struct LoadingTimeReport
 {
-    LoadingTimeReport();
-    ~LoadingTimeReport();
-    void Reset();
+    LoadingTimeReport() throw();
+    ~LoadingTimeReport() throw();
+    void Reset() throw();
     // ORIG：两个 9 元素数组（m_data2 编译为 add $8 + 0x4(%eax,%edx,4) 形态）
     unsigned int m_data[9];   // +0
     unsigned int m_data2[9];  // +0x24
@@ -250,7 +249,7 @@ struct STPowerwarFightLoadingData
     STPowerwarFightLoadingData();
     ~STPowerwarFightLoadingData();
     void Reset();
-    char m_field0;            // +0
+    unsigned char m_field0;   // +0
     unsigned short m_field2;  // +2
     unsigned short m_field4;  // +4
     unsigned short m_field6;  // +6
@@ -289,9 +288,9 @@ struct STFatigueBattery
 // ---- STModuleLagStatistics：0x10 ----
 struct STModuleLagStatistics
 {
-    STModuleLagStatistics();
-    ~STModuleLagStatistics();
-    void Reset();
+    STModuleLagStatistics() throw();
+    ~STModuleLagStatistics() throw();
+    void Reset() throw();
     int m_data[4];
 };
 
@@ -350,7 +349,7 @@ struct stP2PStatistics
 // ---- stDisjointAvatarInfoTotal：0x144 ----
 struct stDisjointAvatarInfoTotal
 {
-    stDisjointAvatarInfoTotal();
+    stDisjointAvatarInfoTotal() throw();
     void clear();
     bool checkCondition(int a, int b, int c);
     void incCount(int a, int b, int c, int d);
@@ -405,7 +404,6 @@ struct STBloodDungeonStatistic
 {
     unsigned int m_field0;  // +0
     unsigned int m_field4;  // +4
-    char m_data[8];         // +8
 };
 
 // ==================== DB 统计上报包（ORIG GMAccounts.cpp 发射）====================
@@ -468,8 +466,7 @@ struct STPartyJobWireItem
     char m_fieldd;             // +b
     int m_field10;             // +c
     char m_field14;            // +0x10
-    int m_data;                // +0x11
-    char m_tail[4];            // +0x15（0x19 项长）
+    int m_data[2];             // +0x11
 };
 
 class Packet_DBMW_Dungeon_Statistic_Party_Job : public PacketHeader
@@ -644,14 +641,16 @@ class Packet_DBMW_Powerwar_Loading_Time_Report : public PacketHeader
 {
 public:
     Packet_DBMW_Powerwar_Loading_Time_Report();
-    char m_data[0x1704];
+    int m_count;             // +0xa
+    char m_sql[23][0x100];   // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_Powerwar_Lag_Report : public PacketHeader
 {
 public:
     Packet_DBMW_Powerwar_Lag_Report();
-    char m_data[0x1704];
+    int m_count;             // +0xa
+    char m_sql[23][0x100];   // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_TechnicalReport_Common_Query : public PacketHeader

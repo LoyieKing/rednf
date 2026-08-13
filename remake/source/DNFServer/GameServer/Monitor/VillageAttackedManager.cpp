@@ -228,10 +228,10 @@ void CVillageAttackedManager::SetRewardCloseTime(ENUM_VILLAGE_ATTACKED_REWARD re
     switch (rewardType)
     {
     case ENUM_VILLAGE_ATTACKED_REWARD_BUFF:
-        m_field34 = (int)GetNowTime() + REWARD_BUFF_TIME;
+        m_field34 = GetNowTime() + REWARD_BUFF_TIME;
         break;
     case ENUM_VILLAGE_ATTACKED_REWARD_PENALTY:
-        m_field34 = (int)GetNowTime() + REWARD_PENALTY_TIME;
+        m_field34 = GetNowTime() + REWARD_PENALTY_TIME;
         break;
     default:
         m_field34 = 0;
@@ -275,9 +275,6 @@ void CVillageAttackedManager::OnStartVillageAttacked()
     unsigned int remain = (unsigned int)GetRemainTime();
     unsigned int f1c = (unsigned int)m_field1c;
     unsigned int f20 = (unsigned int)m_field20;
-    ((RA_UINT<10>*)&pkt)->v = remain;
-    ((RA_UINT<14>*)&pkt)->v = f1c;
-    ((RA_UINT<18>*)&pkt)->v = f20;
     m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, 0x16);
 }
 
@@ -288,35 +285,22 @@ void CVillageAttackedManager::OnCountdownVillageAttacked(int time)
         m_field20 = GetMaxHuntingPoint();
     }
     Packet_VillageAttackedCountdown pkt;
-    ((RA_INT<10>*)&pkt)->v = time;
+    pkt.m_countdown = time;
     m_app->Get_ServerHandler()->SendAllToGameServer(
-        (char*)&pkt, (unsigned int)((RA_U16<2>*)&pkt)->v);
+        (char*)&pkt, (unsigned int)pkt.packetSize);
 }
 
 void CVillageAttackedManager::SendFirstRankerReward(unsigned int charNo)
 {
-    static const char kTitle[10] = {'\xc1', '\xd6', '\xb9', '\xce', ' ',
-                                    '\xb4', '\xeb', '\xc7', '\xa5', '\0'};
-    static const char kBody[0x8e] = {
-        '\xbc', '\xd2', '\xb6', '\xf5', '\xc0', '\xbb', '\x20', '\xc0', '\xe1', '\xc0', '\xe7', '\xbf',
-        '\xec', '\xbd', '\xc3', '\xb4', '\xc0', '\xb6', '\xf3', '\x20', '\xbc', '\xf6', '\xb0', '\xed',
-        '\xc7', '\xcf', '\xbd', '\xc5', '\x20', '\xb8', '\xf0', '\xc7', '\xe8', '\xb0', '\xa1', '\xb4',
-        '\xd4', '\xb2', '\xb2', '\x20', '\xc1', '\xd6', '\xb9', '\xce', '\xb5', '\xe9', '\xc0', '\xc7',
-        '\x20', '\xc1', '\xa4', '\xbc', '\xba', '\xc0', '\xbb', '\x20', '\xb8', '\xf0', '\xbe', '\xc6',
-        '\x20', '\xbc', '\xb1', '\xb9', '\xb0', '\xc0', '\xbb', '\x20', '\xb5', '\xe5', '\xb8', '\xb3',
-        '\xb4', '\xcf', '\xb4', '\xd9', '\x2e', '\x20', '\xb0', '\xa8', '\xbb', '\xe7', '\xc7', '\xd5',
-        '\xb4', '\xcf', '\xb4', '\xd9', '\x20', '\xb8', '\xf0', '\xc7', '\xe8', '\xb0', '\xa1', '\xb4',
-        '\xd4', '\x2e', '\x28', '\xbc', '\xba', '\xc0', '\xe5', '\xc0', '\xc7', '\x20', '\xba', '\xf1',
-        '\xbe', '\xe0', '\x20', '\xbb', '\xe7', '\xbf', '\xeb', '\xb1', '\xe2', '\xb0', '\xa3', '\xc0',
-        '\xcc', '\x20', '\xc1', '\xf6', '\xb3', '\xaa', '\xb8', '\xe9', '\x20', '\xbb', '\xe7', '\xb6',
-        '\xf3', '\xc1', '\xfd', '\xb4', '\xcf', '\xb4', '\xd9', '\x2e', '\x29', '\x00'};
     Packet_DB_InsertMail pkt;
-    ((RA_UINT<10>*)&pkt)->v = charNo;
-    ((RA_UINT<14>*)&pkt)->v = 0x1dfe;
-    ((RA_UINT<18>*)&pkt)->v = 1;
-    memcpy((char*)&pkt + 0x1a, kTitle, 10);
-    memcpy((char*)&pkt + 0x2f, kBody, 0x8e);
-    ((RA_INT<303>*)&pkt)->v = 3;
+    pkt.m_fieldA = charNo;
+    pkt.m_fieldB = 0x1dfe;
+    pkt.m_fieldC = 1;
+    memcpy(pkt.m_title, "\xc1\xd6\xb9\xce \xb4\xeb\xc7\xa5", 10);
+    memcpy(pkt.m_body,
+           "\xbc\xd2\xb6\xf5\xc0\xbb \xc0\xe1\xc0\xe7\xbf\xec\xbd\xc3\xb4\xc0\xb6\xf3 \xbc\xf6\xb0\xed\xc7\xcf\xbd\xc5 \xb8\xf0\xc7\xe8\xb0\xa1\xb4\xd4\xb2\xb2 \xc1\xd6\xb9\xce\xb5\xe9\xc0\xc7 \xc1\xa4\xbc\xba\xc0\xbb \xb8\xf0\xbe\xc6 \xbc\xb1\xb9\xb0\xc0\xbb \xb5\xe5\xb8\xb3\xb4\xcf\xb4\xd9. \xb0\xa8\xbb\xe7\xc7\xd5\xb4\xcf\xb4\xd9 \xb8\xf0\xc7\xe8\xb0\xa1\xb4\xd4.(\xbc\xba\xc0\xe5\xc0\xc7 \xba\xf1\xbe\xe0 \xbb\xe7\xbf\xeb\xb1\xe2\xb0\xa3\xc0\xcc \xc1\xf6\xb3\xaa\xb8\xe9 \xbb\xe7\xb6\xf3\xc1\xfd\xb4\xcf\xb4\xd9.)",
+           0x8e);
+    pkt.m_field12f = 3;
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 
@@ -418,12 +402,11 @@ void CVillageAttackedManager::SendVillageAttackedScore(CUser* user)
     pkt.m_remainTime = (unsigned int)GetRemainTime();
     pkt.m_field16 = (unsigned int)m_field1c;
     pkt.m_field1a = (unsigned int)m_field20;
-    int* hp = GetHuntingPoint(user->GetUniqCharNo());
-    user->GetUniqCharNo();
+    stHuntingPoint* hp = GetHuntingPoint(user->GetUniqCharNo());
     if (hp != 0)
     {
-        pkt.m_cur = *hp;
-        pkt.m_max = *hp + hp[1];
+        pkt.m_cur = hp->m_huntingPoint;
+        pkt.m_max = hp->m_huntingPoint + hp->m_field4;
     }
     else
     {
@@ -454,12 +437,12 @@ void CVillageAttackedManager::OnCharacLogin(CUser* user)
     }
 }
 
-int* CVillageAttackedManager::GetHuntingPoint(unsigned int charNo)
+stHuntingPoint* CVillageAttackedManager::GetHuntingPoint(unsigned int charNo)
 {
     std::map<unsigned int, stHuntingPoint>::iterator it = m_huntingPoints.find(charNo);
     if (it != m_huntingPoints.end())
     {
-        return (int*)&it->second;
+        return &it->second;
     }
     return 0;
 }
@@ -531,7 +514,7 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
             if (users[i] != 0)
             {
                 int total = 0;
-                int* hp = GetHuntingPoint(charNos[i]);
+                stHuntingPoint* hp = GetHuntingPoint(charNos[i]);
                 if (hp == 0)
                 {
                     stHuntingPoint p;
@@ -552,20 +535,20 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
                 {
                     if (success)
                     {
-                        hp[0]++;
+                        hp->m_huntingPoint++;
                     }
                     else
                     {
-                        hp[1]++;
+                        hp->m_field4++;
                     }
-                    total = hp[0] + hp[1];
+                    total = hp->m_huntingPoint + hp->m_field4;
                 }
                 if (success)
                 {
-                    int* cur = GetHuntingPoint(charNos[i]);
-                    SendVillageAttackedRewardJpn(users[i], *cur);
+                    stHuntingPoint* cur = GetHuntingPoint(charNos[i]);
+                    SendVillageAttackedRewardJpn(users[i], cur->m_huntingPoint);
                     DNF_LOG_SCOPE_AT("UpdateHuntingPoint", 0x3ae,"./log/village", "Send Success Count [charac:%u][count:%d]",
-                        charNos[i], *cur);
+                        charNos[i], cur->m_huntingPoint);
                 }
             }
         }

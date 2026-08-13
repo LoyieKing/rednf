@@ -96,7 +96,13 @@ class Packet_Item_Limit_Edition_Load_Data_Rpy;
 class Packet_Item_Limit_Edition_Update;
 class Packet_DBMW_Change_Char_Name;
 class Packet_DB_Guild_Cargo_Upgrade;
-class Packet_DB_Update_Guild_Cargo;
+class Packet_DB_Update_Guild_Cargo : public PacketHeader
+{
+public:
+    unsigned int m_guildId;      // +0xa
+    unsigned int m_fieldE;       // +0xe
+    char m_cargo[0x18d8];        // +0x12
+} __attribute__((packed));
 class Packet_Result_OnTimeEvent_Idx;
 class CQueryCounter;
 class CMonitorServer;

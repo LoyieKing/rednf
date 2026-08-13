@@ -30,21 +30,22 @@ CUdpHandler::CUdpHandler()
 }
 int CUdpHandler::InitServerSocket(int port)
 {
+    int e;
     m_sock = socket(AF_INET, SOCK_DGRAM, 0x11);
     if (m_sock == -1)
     {
-        int e = getErrno();
+        e = getErrno();
         printf("Could not create a UDP socket : %d\n", e);
         return -1;
     }
     struct sockaddr_in addr;
-    memset(&addr, 0, 0x10);
+    memset((char*)&addr, 0, 0x10);
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = htonl(0);
-    addr.sin_port = htons(port);
+    addr.sin_port = htons((unsigned short)port);
     if (::bind(m_sock, (struct sockaddr*)&addr, 0x10) != 0)
     {
-        int e = getErrno();
+        e = getErrno();
         switch (e)
         {
         case 0x62:
@@ -56,9 +57,8 @@ int CUdpHandler::InitServerSocket(int port)
         case 0:
             break;
         default:
-            if (e != 0)
-                printf("Could not bind UDP receive port. Error= %d , strerror = %s\n",
-                       e, strerror(e));
+            printf("Could not bind UDP receive port. Error= %d , strerror = %s\n",
+                   e, strerror(e));
             break;
         }
         m_sock = -1;
@@ -198,9 +198,9 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
     }
     if (len != n)
     {
-        printf("Only %s out of %d bytes sent\n", (char*)n, len);
+        printf("Only %s out of %d bytes sent\n", n, len);
         CMyFileLog(__FUNCTION__, 0x133)("./log/UdpErr",
-            "Only %s out of %d bytes sent\n", (char*)n, len);
+            "Only %s out of %d bytes sent\n", n, len);
         return 0;
     }
     return 1;

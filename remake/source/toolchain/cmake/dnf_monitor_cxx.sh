@@ -8,6 +8,7 @@
 #   原 TU 其余函数保持 c6444r 不回退。
 ROOT=/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake
 C6444R="$ROOT/dnf_c6444r_gxx.sh"
+C6446R="$ROOT/dnf_c6446r_gxx.sh"
 C5R52="$ROOT/dnf_c5r52_gxx.sh"
 src=""
 prev=""
@@ -19,6 +20,10 @@ for a in "$@"; do
     prev="$a"
 done
 case "$(basename "$src" .cpp)" in
+    EventActionManager)
+        exec "$C6446R" -fno-exceptions "$@" ;;
+    DNFApplication|DNFMonitorServerMain|DNFServerHandler|DNFSignalTranslator|DNFTcpHandler|DNFTableBase|DNFThreadInterface|TaskScheduler)
+        exec "$C6446R" "$@" ;;
     DNFProhibitUserC5|MemoryCashManagerC5)
         filtered=""
         for a in "$@"; do

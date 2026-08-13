@@ -1695,12 +1695,12 @@ void CPacketTranslater::OnUpdateChangableCharInfo(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnUpdateChangableCharInfo : 0 == m_pclApp");
     }
-    CUser* user =
-        ((CUserManager*)((char*)m_pclApp + 0x10))->FindUser(
-            ((RA_UINT<10>*)pkt)->v);
-    if (user != 0)
+    CUser* user;
+    PacketHeader* p = pkt;
+    if ((user = ((CUserManager*)((char*)m_pclApp + 0x10))
+                    ->FindUser(((RA_UINT<10>*)p)->v)) != 0)
     {
-        user->SetUserChangableInfo(((RA_S16<15>*)pkt)->v, ((RA_S8<17>*)pkt)->v);
+        user->SetUserChangableInfo(((RA_S16<15>*)p)->v, ((RA_S8<17>*)p)->v);
     }
 
 
@@ -2314,6 +2314,8 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
 void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
 {try
 {
+    CUser* user;
+    PacketHeader* p = pkt;
 
 
     if (m_pclApp == 0)
@@ -2322,20 +2324,18 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
     }
     else
     {
-        CUserManager* userMgr = (CUserManager*)((char*)m_pclApp + 0x10);
         Packet_Request_Result_BlackList reply;
-        reply.m_idByChannel = ((RA_UINT<14>*)pkt)->v;
-        CUser* user = userMgr->FindUser(((RA_UINT<10>*)pkt)->v);
-        if (user == 0)
+        reply.m_idByChannel = ((RA_UINT<14>*)p)->v;
+        if ((user = ((CUserManager*)((char*)m_pclApp + 0x10))
+                        ->FindUser(((RA_UINT<10>*)p)->v)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0xcf3, "./log/BlackList", "CPacketTranslater::OnRequestBlackList : 0 == pclUser");
         }
         else
         {
-            unsigned char count = 0;
-            user->GetBlackList(count, reply.m_blackList);
-            reply.m_count = count;
-            user->SendToGameserver((char*)&reply, ((RA_U16<2>*)&reply)->v);
+            reply.m_count = 0;
+            user->GetBlackList(reply.m_count, reply.m_blackList);
+            user->SendToGameserver((char*)&reply, reply.packetSize);
         }
     }
 
@@ -3165,10 +3165,9 @@ void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
 void CPacketTranslater::onRequestReloadTowerRanker(PacketHeader* pkt)
 {
     register CServerHandler* handler = m_pclApp->m_serverHandler2;
-    CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
     try
     {
-        tower->processReloadRanking(handler, true, 5);
+        ((CTowerRank*)m_pclApp->getTowerRank())->processReloadRanking(handler, true, 5);
         m_pclApp->m_serverHandler2->SendAllToGameServer((char*)pkt, 10);
     }
     catch (CDNFException& e)
@@ -4228,11 +4227,12 @@ void CPacketTranslater::OnWebRequestARSInfo(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnWebRequestARSInfo : 0 == m_pclApp");
     }
+    PacketHeader* p = pkt;
     CServerHandler* handler = m_pclApp->m_serverHandler2;
     if (handler != 0)
     {
         DNF_LOG_SCOPE_LINE(0x181d, "./log/Secu", "[ARS_INFO] Web -> Monitor -> DBMW");
-        handler->SendDBMWRequestARSInfo(((RA_U8<10>*)pkt)->v);
+        handler->SendDBMWRequestARSInfo(((RA_U8<10>*)p)->v);
     }
 
 
@@ -4517,13 +4517,13 @@ void CPacketTranslater::OnRegisterEventUserIdx(PacketHeader* pkt)
     try
     {
         PacketHeader* pkt2 = pkt;
-        unsigned int errType = ((RA_U16<18>*)pkt2)->v;
         if (m_pclApp != 0)
         {
             DNF_LOG_SCOPE_LINE(0x1a30,"./log/OnTimeEvent",
                 "OnRegisterEventUserIdx:id = %u , rcv_idx = %u, cur_idx = %d, errortype = %d",
                 ((RA_UINT<10>*)pkt2)->v, ((RA_UINT<14>*)pkt2)->v,
-                m_pclApp->m_onTimeEventMgr->GetEvent_Idx(), errType);
+                m_pclApp->m_onTimeEventMgr->GetEvent_Idx(),
+                ((RA_U16<18>*)pkt2)->v);
         }
         else
         {
@@ -5252,8 +5252,7 @@ void CPacketTranslater::OnWebNoticeInGameAD(PacketHeader* pkt)
         throw CDNFException("m_pclApp == 0");
     }
     Packet_Web_Notice_InGame_Advertisement reply;
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    handler->SendAllTcpGameServer(&reply);
+    m_pclApp->m_serverHandler2->SendAllTcpGameServer(&reply);
     DNF_LOG_SCOPE_LINE(0x1f84,"./log/Web", "OnWebNoticeInGameAD() packet_id(%d)\n",
         (unsigned int)*(unsigned short*)pkt);
 

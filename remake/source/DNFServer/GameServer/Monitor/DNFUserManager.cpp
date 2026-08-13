@@ -218,8 +218,7 @@ int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
                 {
                     m_app->Call_DeleteMember(key, user);
                 }
-                user->GetDBID();
-                m_app->Call_ResetBlackList(user->GetUniqCharNo());
+                m_app->Call_ResetBlackList(user->GetDBID());
                 m_app->Call_ResetBuddyList(user->GetUniqCharNo());
                 if (user != 0)
                 {
@@ -282,8 +281,7 @@ int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
                 {
                     m_app->Call_DeleteMember(key, user);
                 }
-                user->GetDBID();
-                m_app->Call_ResetBlackList(user->GetUniqCharNo());
+                m_app->Call_ResetBlackList(user->GetDBID());
                 m_app->Call_ResetBuddyList(user->GetUniqCharNo());
                 if (user != 0)
                 {

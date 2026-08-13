@@ -143,11 +143,11 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
         return 4;
     }
     m_field6c++;
-    m_directx.add_cnt(*(unsigned int*)((char*)pkt + 0x6c));
+    m_directx.add_cnt(*(unsigned int*)((char*)pkt + 0x1b));
     for (int i = 0; i < 6; i++)
     {
-        m_memory[i].SetUsedMemory((char)*(char*)((char*)pkt + i * 0x38 + 0x174),
-                                  *(short*)((char*)pkt + i * 0x38 + 0x170));
+        m_memory[i].SetUsedMemory((char)*(char*)((char*)pkt + i + 0x174),
+                                  *(short*)((char*)pkt + (i + 0xb8) * 2 + 10));
     }
     for (std::map<int, MonitoringSpecCase>::iterator it = m_monitor.begin();
          it != m_monitor.end(); ++it)
@@ -251,13 +251,17 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
         }
         MonitoringSpecCase mc;
         *(int*)((char*)&mc + 0x0) = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-        *(int*)((char*)&mc + 0x4) = *(unsigned char*)((char*)pkt + 0x5b + i);
+        *(int*)((char*)&mc + 0x4) =
+            *(unsigned char*)((char*)pkt + 0x5b + i) |
+            (*(unsigned char*)((char*)pkt + 0x61 + i) << 8);
         *(int*)((char*)&mc + 0x8) = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
         *(int*)((char*)&mc + 0xc) = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
         *(int*)((char*)&mc + 0x10) = *(unsigned short*)((char*)pkt + (i + 0x48) * 2 + 7);
         *(int*)((char*)&mc + 0x14) = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
         *(int*)((char*)&mc + 0x18) = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-        *(int*)((char*)&mc + 0x1c) = *(unsigned short*)((char*)pkt + (i + 0x68) * 2 + 3);
+        *(int*)((char*)&mc + 0x1c) =
+            *(unsigned short*)((char*)pkt + (i + 0x68) * 2 + 3) |
+            (*(unsigned char*)((char*)pkt + 0xdf + i) << 16);
         m_monitor[sid] = mc;
         FrameLagDataStruct fd;
         m_data[*(int*)((char*)&mc + 0x0)] = fd;
@@ -302,13 +306,17 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
         {
             MonitoringSpecCase mc;
             *(int*)((char*)&mc + 0x0) = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-            *(int*)((char*)&mc + 0x4) = *(unsigned char*)((char*)pkt + 0x5b + i);
+            *(int*)((char*)&mc + 0x4) =
+                *(unsigned char*)((char*)pkt + 0x5b + i) |
+                (*(unsigned char*)((char*)pkt + 0x61 + i) << 8);
             *(int*)((char*)&mc + 0x8) = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
             *(int*)((char*)&mc + 0xc) = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
             *(int*)((char*)&mc + 0x10) = *(unsigned short*)((char*)pkt + (i + 0x48) * 2 + 7);
             *(int*)((char*)&mc + 0x14) = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
             *(int*)((char*)&mc + 0x18) = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-            *(int*)((char*)&mc + 0x1c) = *(unsigned short*)((char*)pkt + (i + 0x68) * 2 + 3);
+            *(int*)((char*)&mc + 0x1c) =
+                *(unsigned short*)((char*)pkt + (i + 0x68) * 2 + 3) |
+                (*(unsigned char*)((char*)pkt + 0xdf + i) << 16);
             m_monitor[sid] = mc;
         }
         else
@@ -458,7 +466,8 @@ int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
     }
     m_field9c = m_today;
     Packet_Frame_Lag_Statistic_Write_Query pkt;
-    time_t now = time(0);
+    time_t now;
+    time(&now);
     snprintf((char*)&pkt + 10, 0x400,
              "inSert into directx_version(occ_time,server_group,ver_etc,ver_8_x,ver_9_0,ver_9_0_a,ver_9_0_b,ver_9_0_c,ver_10_x,ver_11_x) values(from_unixtime(%d),%hhd,%u,%u,%u,%u,%u,%u,%u,%u)",
              (int)now, (signed char)handler->GetServerGroupNo(),
@@ -584,6 +593,7 @@ struct FrameLagDataLayout
     int m_f[6];      // +0x68
     int m_g[6];      // +0x80
     int m_h[6][4];   // +0x98
+    int m_pad[2];    // +0xf8
     int m_i[41][2];  // +0x100
 };
 
