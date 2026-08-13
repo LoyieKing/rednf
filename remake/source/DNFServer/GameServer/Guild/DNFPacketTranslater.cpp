@@ -443,8 +443,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                 if (user->GetUniqCharNo() != 0)
                 {
                     um->DeleteUser_CharNo(user->GetUniqCharNo());
-                    std::string charName(user->GetCharName());
-                    um->DeleteUser_CharName(charName);
+                    um->DeleteUser_CharName(user->GetCharName());
                 }
                 user->ResetCharInfo();
                 if (pb->m_foc == 0)
@@ -692,7 +691,12 @@ void CPacketTranslater::OnReplyQueryGuild(PacketHeader* pkt)
     {
         int rc = (&m_pclApp->m_guildManager)->LoadGuild(
             *(unsigned int*)(pb + 0xb), *(STGuildDBInfoOnly*)(pb + 0x13), pb + 0xd0);
-        (void)rc;
+        if (rc != 1)
+        {
+            DNF_LOG_SCOPE_LINE(0x202, "./log/GuildErr",
+                "CPacketTranslater::OnReplyQueryGuild()\tLoadGuild Err(%d)",
+                *(unsigned int*)(pb + 0xb));
+        }
         (&m_pclApp->m_guildManager)->SendGuildInfoToMembers(
             *(unsigned int*)(pb + 0xb), true);
         (&m_pclApp->m_guildManager)->AttendGuild(
@@ -2397,7 +2401,9 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
     *(unsigned short*)((char*)&resp + 0xe) = guild->GetTotalCnt_Of_GuildDBInfo();
     *(unsigned int*)((char*)&resp + 0x10) = requesterCharNo;
     *(unsigned int*)((char*)&resp + 0x14) = requester->GetIdByChannel();
-    *(unsigned char*)((char*)&resp + 0x18) = secedeFlag;
+    *(unsigned char*)((char*)&resp + 0x1c) = secedeFlag;
+    memcpy((char*)&resp + 0x1d, (char*)pkt + 0x1f, *(unsigned int*)((char*)pkt + 0x1b));
+    memcpy((char*)&resp + 0x3b, guild->GetGuildName(), 0x16);
     if (secedeType == 0 || secedeType == 1)
     {
         if (requesterCharNo != targetCharNo)
@@ -2411,6 +2417,9 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
                     (unsigned int)m_pclApp->Get_ServerGroup() & 0xff;
                 *(unsigned int*)((char*)&noCache + 0x12) = 1;
                 m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(&noCache);
+                *(unsigned int*)((char*)&noCache + 0xa) = dbid;
+                *(unsigned int*)((char*)&noCache + 0xe) =
+                    (unsigned int)m_pclApp->Get_ServerGroup() & 0xff;
                 *(unsigned int*)((char*)&noCache + 0x12) = 2;
                 m_pclApp->Get_ServerHandler()->SendTcpGameServerFirst(&noCache);
                 Packet_DBMW_Query_Msg query;
@@ -2451,12 +2460,12 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
             }
             (&m_pclApp->m_guildManager)->GuildDismiss(guild);
         }
-        *(unsigned int*)((char*)&resp + 0x1a) = 0;
+        *(unsigned int*)((char*)&resp + 0x18) = 0;
         requester->SendToGameserver((char*)&resp, 0x52);
     }
     else
     {
-        *(unsigned int*)((char*)&resp + 0x1a) = (unsigned int)secedeType;
+        *(unsigned int*)((char*)&resp + 0x18) = (unsigned int)secedeType;
         requester->SendToGameserver((char*)&resp, 0x52);
     }
     }
@@ -2755,7 +2764,11 @@ void CPacketTranslater::OnCheckGuildMemberConnectionFromWeb(PacketHeader* pkt)
     unsigned int guildKey = *(unsigned int*)((char*)pkt + 0xa);
     unsigned short port = *(unsigned short*)((char*)pkt + 4);
     unsigned int ip = *(unsigned int*)((char*)pkt + 6);
-    if (guildKey != 0)
+    if (guildKey == 0)
+    {
+        throw CDNFException(
+            "CPacketTranslater::OnCheckGuildMemberConnectionFromWeb : packet->m_uGuildKey == 0");
+    }
     {
         Packet_Answer_Guild_Member_Connection_From_Web resp;
         *(unsigned int*)((char*)&resp + 0xa) = guildKey;
