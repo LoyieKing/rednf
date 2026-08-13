@@ -137,6 +137,128 @@ struct QueryStringView
     char m_data[0x1001];      // +0xe
 } __attribute__((packed));
 
+struct PowerWarStatueRankerView
+{
+    char h[0xa];
+    unsigned char m_serverId;    // +0xa
+    unsigned int m_firstRanker;  // +0xb
+    unsigned int m_secondRanker; // +0xf
+    unsigned int m_thirdRanker;  // +0x13
+} __attribute__((packed));
+
+struct PowerWarPointRewardEntry
+{
+    unsigned int m_guildId;  // +0
+    unsigned int m_point;    // +4
+};
+
+struct PowerWarPointRewardView
+{
+    char h[0xa];
+    unsigned char m_serverId;                // +0xa
+    unsigned int m_count;                    // +0xb
+    PowerWarPointRewardEntry m_entries[1];   // +0xf，步长 8
+} __attribute__((packed));
+
+struct PowerWarUserRankEntry
+{
+    unsigned int m_characNo;  // +0
+    unsigned int m_point;     // +4
+};
+
+struct PowerWarUserRankView
+{
+    char h[0xa];
+    unsigned char m_flagA;                // +0xa
+    unsigned char m_serverId;             // +0xb
+    unsigned char m_side;                 // +0xc
+    unsigned int m_startIdx;              // +0xd
+    unsigned int m_count;                 // +0x11
+    PowerWarUserRankEntry m_entries[1];   // +0x15，步长 8
+} __attribute__((packed));
+
+struct PowerWarGuildRankEntry
+{
+    unsigned int m_guildId;  // +0
+    unsigned int m_point;    // +4
+};
+
+struct PowerWarGuildRankView
+{
+    char h[0xa];
+    unsigned char m_serverId;              // +0xa
+    unsigned char m_side;                  // +0xb
+    unsigned int m_count;                  // +0xc
+    PowerWarGuildRankEntry m_entries[1];   // +0x10，步长 8
+} __attribute__((packed));
+
+struct StartGameEventFromServerView
+{
+    char h[0xa];
+    unsigned int m_eventType;    // +0xa
+    unsigned int m_eventFlag;    // +0xe
+    unsigned int m_serverId;     // +0x12
+    unsigned short m_parameter1; // +0x16
+    unsigned short m_parameter2; // +0x18
+} __attribute__((packed));
+
+struct PacketOverflowView
+{
+    char h[0xa];
+    unsigned char m_packetType;  // +0xa
+    unsigned short m_packetKind; // +0xb
+    unsigned int m_cnt;          // +0xd
+} __attribute__((packed));
+
+struct VillageAttackedRankView
+{
+    char h[0xa];
+    unsigned char m_serverGroup; // +0xa
+    unsigned int m_fieldB;       // +0xb
+    unsigned int m_fieldF;       // +0xf
+    unsigned int m_field13;      // +0x13
+    unsigned int m_field17;      // +0x17
+} __attribute__((packed));
+
+struct EmblemCreateStatisticView
+{
+    char h[0xa];
+    unsigned int m_grade0;  // +0xa
+    unsigned int m_grade1;  // +0xe
+    unsigned int m_grade2;  // +0x12
+    unsigned int m_grade3;  // +0x16
+    unsigned int m_grade4;  // +0x1a
+    unsigned int m_grade5;  // +0x1e
+    unsigned int m_grade6;  // +0x22
+} __attribute__((packed));
+
+struct WriteGuildMemberMemoView
+{
+    char h[0xa];
+    unsigned int m_guildId;   // +0xa
+    unsigned int m_characNo;  // +0xe
+    char m_memo[0x10];        // +0x12
+} __attribute__((packed));
+
+struct ManagerEventTriggerAckView
+{
+    char h[0xa];
+    unsigned int m_eventId;  // +0xa
+    unsigned int m_flag;     // +0xe
+    unsigned int m_group;    // +0x12
+} __attribute__((packed));
+
+struct HolePunchingResultView
+{
+    char h[0xa];
+    unsigned short m_fieldA;  // +0xa
+    signed char m_fieldB;     // +0xc
+    int m_fieldC;             // +0xd
+    int m_fieldD;             // +0x11
+    char m_restE[0x10];       // +0x15
+    char m_restF[0x10];       // +0x25
+} __attribute__((packed));
+
 // ---- CGuildManager / WongWork ----
 bool CDBManager::GuildMasterDelegate(int serverId,
                                      unsigned int guildId,
@@ -567,7 +689,6 @@ bool CDBManager::OnSavePowerWarBonusPoint(
     Packet_DB_Save_Power_War_Bonus_Point* packet)
 {
     CDBHandle* h = m_handles[3];    // game db
-    char* p = (char*)packet;
     time_t now = time(0);
     struct tm* lt = localtime(&now);
     lt->tm_hour += 1;
@@ -576,18 +697,18 @@ bool CDBManager::OnSavePowerWarBonusPoint(
     long occTime = mktime(lt);
     std::string name("\xbc\xbc\xb7\xc2\xc0\xfc \xc6\xf7\xc0\xce\xc6\xae");
     int itemId = 0x4df;
-    for (int i = 0; i < *(int*)(p + 0xa); i++)
+    for (int i = 0; i < packet->m_count; i++)
     {
         if (!h->set_query(0x4ef7,
                           "inSert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name) values (from_unixtime(%d), %d, %d, %d, %d, %d, %d, %d, %d,'%s')",
-                          occTime, 0, *(int*)(p + 0xe + i * 8), 0, itemId,
-                          *(int*)(p + 0x12 + i * 8), 0, 0, 0, name.c_str()))
+                          occTime, 0, packet->m_entries[i].m_characNo, 0, itemId,
+                          packet->m_entries[i].m_addInfo, 1, 0, 0, name.c_str()))
         {
             CMyFileLog log(__FUNCTION__, 0x2172);
             log("./log/DBQueryErr",
                 "CDBManager::OnSavePowerWarBonusPoint() : insert into postal (occ_time, send_charac_no, receive_charac_no, seal_flag, item_id, add_info, endurance, upgrade, gold, send_charac_name ) values ( from_unixtime( now() ), %d, %d, %d, %d, %d, %d, %d, %d,'%s')\n",
-                0, *(int*)(p + 0xe + i * 8), 0, itemId,
-                *(int*)(p + 0x12 + i * 8), 0, 0, 0, name.c_str());
+                0, packet->m_entries[i].m_characNo, 0, itemId,
+                packet->m_entries[i].m_addInfo, 1, 0, 0, name.c_str());
             return 0;
         }
         if (!h->exec(0x4ef7))
@@ -629,8 +750,7 @@ char CDBManager::OnSavePowerWarStatueRanker(
 {
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[6];   // sso db
-    char* p = (char*)packet;
-    unsigned char serverId = *(unsigned char*)(p + 0xa);
+    unsigned char serverId = ((PowerWarStatueRankerView*)packet)->m_serverId;
     h2->set_query(0x4ecc,
                   "deLete from event_server_message where server_info = %d and message_index in (1, 2, 3)",
                   serverId);
@@ -641,15 +761,16 @@ char CDBManager::OnSavePowerWarStatueRanker(
     }
     h->set_query(0x4ead,
                  "upDate power_war_statue_ranker set first_ranker=%d, second_ranker=%d, third_ranker=%d where server_id=%d",
-                 *(unsigned int*)(p + 0xb), *(unsigned int*)(p + 0xf),
-                 *(unsigned int*)(p + 0x13), serverId);
+                 ((PowerWarStatueRankerView*)packet)->m_firstRanker,
+                 ((PowerWarStatueRankerView*)packet)->m_secondRanker,
+                 ((PowerWarStatueRankerView*)packet)->m_thirdRanker, serverId);
     if (h->exec(0x4ead) != 1 || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4eac,
                           "inSert into power_war_statue_ranker set first_ranker=%d, second_ranker=%d, third_ranker=%d, server_id=%d",
-                          *(unsigned int*)(p + 0xb),
-                          *(unsigned int*)(p + 0xf),
-                          *(unsigned int*)(p + 0x13), serverId))
+                          ((PowerWarStatueRankerView*)packet)->m_firstRanker,
+                          ((PowerWarStatueRankerView*)packet)->m_secondRanker,
+                          ((PowerWarStatueRankerView*)packet)->m_thirdRanker, serverId))
             return 0;
         if (!h->exec(0x4eac))
         {
@@ -665,12 +786,12 @@ bool CDBManager::OnSavePowerWarPointReward(
     Packet_DB_Save_Power_War_Point_Reward* packet)
 {
     CDBHandle* h = m_handles[8];    // guild db
-    unsigned char serverId = *(unsigned char*)((char*)packet + 0xa);
-    int count = *(int*)((char*)packet + 0xb);
+    unsigned char serverId = ((PowerWarPointRewardView*)packet)->m_serverId;
+    int count = ((PowerWarPointRewardView*)packet)->m_count;
     for (int i = 0; i < count; i++)
     {
-        int p1 = *(int*)((char*)packet + 0xf + i * 8);
-        int p2 = *(int*)((char*)packet + 0x13 + i * 8);
+        int p1 = ((PowerWarPointRewardView*)packet)->m_entries[i].m_guildId;
+        int p2 = ((PowerWarPointRewardView*)packet)->m_entries[i].m_point;
         h->set_query(0x4eab,
                      "upDate guild_info set power_war_point=power_war_point+%d where guild_id=%d and server_id=%d and expire_flag=0",
                      p2, p1, serverId);
@@ -812,10 +933,9 @@ char CDBManager::OnSavePowerWarUserRank(
     Packet_DB_Save_Power_War_User_Rank* packet)
 {
     CDBHandle* h = m_handles[8];    // guild db
-    char* p = (char*)packet;
-    unsigned char serverId = *(unsigned char*)(p + 0xb);
-    if (*(unsigned char*)(p + 0xa) != 0 &&
-        *(unsigned char*)(p + 0xc) == 1)
+    unsigned char serverId = ((PowerWarUserRankView*)packet)->m_serverId;
+    if (((PowerWarUserRankView*)packet)->m_flagA != 0 &&
+        ((PowerWarUserRankView*)packet)->m_side == 1)
     {
         if (!h->set_query(0x4ea7,
                           "deLete from power_war_user_rank where server_id=%d",
@@ -829,16 +949,16 @@ char CDBManager::OnSavePowerWarUserRank(
         if (!h->exec(0x4ea7))
             return 0;
     }
-    int count = *(int*)(p + 0x11);
-    int startIdx = *(int*)(p + 0xd);
+    int count = ((PowerWarUserRankView*)packet)->m_count;
+    int startIdx = ((PowerWarUserRankView*)packet)->m_startIdx;
     for (int i = 0; i < count; i++)
     {
-        int p1 = *(int*)(p + 0x15 + i * 8);
-        int p2 = *(int*)(p + 0x19 + i * 8);
+        int p1 = ((PowerWarUserRankView*)packet)->m_entries[i].m_characNo;
+        int p2 = ((PowerWarUserRankView*)packet)->m_entries[i].m_point;
         if (!h->set_query(0x4ea8,
                           "inSert into power_war_user_rank set server_id=%d, rank=%d, charac_no=%d, power_war_point=%d, power_side=%d",
                           serverId, startIdx + i, p1, p2,
-                          *(unsigned char*)(p + 0xc)))
+                          ((PowerWarUserRankView*)packet)->m_side))
         {
             CMyFileLog log(__FUNCTION__, 0x18d8);
             log("./log/DBQueryErr",
@@ -854,9 +974,8 @@ char CDBManager::OnSavePowerWarGuildRank(
     Packet_DB_Save_Power_War_Guild_Rank* packet)
 {
     CDBHandle* h = m_handles[8];    // guild db
-    char* p = (char*)packet;
-    unsigned char serverId = *(unsigned char*)(p + 0xa);
-    if (*(unsigned char*)(p + 0xb) == 1)
+    unsigned char serverId = ((PowerWarGuildRankView*)packet)->m_serverId;
+    if (((PowerWarGuildRankView*)packet)->m_side == 1)
     {
         if (!h->set_query(0x4ea9,
                           "deLete from power_war_guild_rank where server_id=%d",
@@ -870,15 +989,15 @@ char CDBManager::OnSavePowerWarGuildRank(
         if (!h->exec(0x4ea9))
             return 0;
     }
-    int count = *(int*)(p + 0xc);
+    int count = ((PowerWarGuildRankView*)packet)->m_count;
     for (int i = 0; i < count; i++)
     {
-        int g1 = *(int*)(p + 0x10 + i * 8);
-        int g2 = *(int*)(p + 0x14 + i * 8);
+        int g1 = ((PowerWarGuildRankView*)packet)->m_entries[i].m_guildId;
+        int g2 = ((PowerWarGuildRankView*)packet)->m_entries[i].m_point;
         if (!h->set_query(0x4eaa,
                           "inSert into power_war_guild_rank set server_id=%d, rank=%d, guild_id=%d, power_war_point=%d, power_side=%d",
                           serverId, i, g1, g2,
-                          *(unsigned char*)(p + 0xb)))
+                          ((PowerWarGuildRankView*)packet)->m_side))
         {
             CMyFileLog log(__FUNCTION__, 0x190c);
             log("./log/DBQueryErr",
@@ -939,13 +1058,14 @@ bool CDBManager::insertServerGameEvent(
     CDBHandle* h = m_handles[1];    // account db
     if (!h)
         return 0;
-    char* p = (char*)packet;
     if (!h->set_query(
             0x4f5d,
             " inSert into dnf_event_log (occ_time, event_type, event_flag, parameter1, parameter2,  server_id, start_time, end_time, m_id, expl, etc)  values (unix_timestamp(now()), %d, %d, %d, %d, %d, unix_timestamp(now()), 0, 1, 'event from monitor server', '6th birthday') ",
-            *(int*)(p + 0xa), *(int*)(p + 0xe),
-            *(unsigned short*)(p + 0x16), *(unsigned short*)(p + 0x18),
-            *(int*)(p + 0x12)))
+            ((StartGameEventFromServerView*)packet)->m_eventType,
+            ((StartGameEventFromServerView*)packet)->m_eventFlag,
+            ((StartGameEventFromServerView*)packet)->m_parameter1,
+            ((StartGameEventFromServerView*)packet)->m_parameter2,
+            ((StartGameEventFromServerView*)packet)->m_serverId))
     {
         CMyFileLog log(__FUNCTION__, 0x2e96);
         log("./log/DBQueryErr", h->get_quest_str());
@@ -1290,9 +1410,9 @@ char CDBManager::OnSavePacketOverflowWrite(
     if (!h)
         return 0;
     char name[0x100];
-    if (*(unsigned char*)((char*)packet + 0xa) == 0)
+    if (((PacketOverflowView*)packet)->m_packetType == 0)
     {
-        int idx = *(unsigned short*)((char*)packet + 0xb);
+        int idx = ((PacketOverflowView*)packet)->m_packetKind;
         if (idx >= getNotiPacketNameCount())
             memcpy(name, "???", 4);
         else
@@ -1300,7 +1420,7 @@ char CDBManager::OnSavePacketOverflowWrite(
     }
     else
     {
-        int idx = *(unsigned short*)((char*)packet + 0xb);
+        int idx = ((PacketOverflowView*)packet)->m_packetKind;
         if (idx >= getCmdPacketNameCount())
             memcpy(name, "???", 4);
         else
@@ -1308,15 +1428,15 @@ char CDBManager::OnSavePacketOverflowWrite(
     }
     char sql[0x400];
     sprintf(sql, "upDate packet_overflow set cnt=cnt+%d where packet_type=%d and packet_kind='%s'",
-            *(int*)((char*)packet + 0xd),
-            *(unsigned char*)((char*)packet + 0xa), name);
+            ((PacketOverflowView*)packet)->m_cnt,
+            ((PacketOverflowView*)packet)->m_packetType, name);
     h->set_query(0x4eba, "%s", sql);
     if (!h->exec(0x4eba) || h->getAffectedRowCount() == 0)
     {
         memset(sql, 0, 0x400);
         sprintf(sql, "inSert into packet_overflow (packet_type, packet_kind, cnt) values (%d, '%s', %d)",
-                *(unsigned char*)((char*)packet + 0xa), name,
-                *(int*)((char*)packet + 0xd));
+                ((PacketOverflowView*)packet)->m_packetType, name,
+                ((PacketOverflowView*)packet)->m_cnt);
         h->set_query(0x4eb9, "%s", sql);
         h->exec(0x4eb9);
     }
@@ -1394,17 +1514,20 @@ bool CDBManager::QueryTowerOfDespairStatistic(
 bool CDBManager::GetVillageAttackedRank(Packet_DB_VillageAttackedRank* packet,
                                         bool& flag, int& a, int& b)
 {
-    char* p = (char*)packet;
-    if (*(unsigned char*)(p + 0xa) == GetMinTimeServerGroup(*(int*)(p + 0xb)) ||
-        *(unsigned char*)(p + 0xa) == GetMaxHuntingPointServerGroup(*(int*)(p + 0xf)))
+    if (((VillageAttackedRankView*)packet)->m_serverGroup ==
+            GetMinTimeServerGroup(((VillageAttackedRankView*)packet)->m_fieldB) ||
+        ((VillageAttackedRankView*)packet)->m_serverGroup ==
+            GetMaxHuntingPointServerGroup(((VillageAttackedRankView*)packet)->m_fieldF))
     {
-        if (GetCoinEventPerDay(*(unsigned char*)(p + 0xa), 1, a, b))
+        if (GetCoinEventPerDay(((VillageAttackedRankView*)packet)->m_serverGroup, 1, a, b))
             flag = true;
     }
-    if (*(unsigned char*)(p + 0xa) == GetMinTimeServerGroup(*(int*)(p + 0x13)) ||
-        *(unsigned char*)(p + 0xa) == GetMaxHuntingPointServerGroup(*(int*)(p + 0x17)))
+    if (((VillageAttackedRankView*)packet)->m_serverGroup ==
+            GetMinTimeServerGroup(((VillageAttackedRankView*)packet)->m_field13) ||
+        ((VillageAttackedRankView*)packet)->m_serverGroup ==
+            GetMaxHuntingPointServerGroup(((VillageAttackedRankView*)packet)->m_field17))
     {
-        if (GetCoinEventPerDay(*(unsigned char*)(p + 0xa), -1, a, b))
+        if (GetCoinEventPerDay(((VillageAttackedRankView*)packet)->m_serverGroup, -1, a, b))
             flag = true;
     }
     return 1;
@@ -1533,11 +1656,12 @@ bool CDBManager::insertHolePunchingResult(
         return 0;
     if (!h->set_query(0x4f60,
                       "inSert into p2p_connect_success_rate  (server_group, connected_type, required_time, check_time, nation_code, peer_address, occ_date) values (%d, %d, %d, %d, '%s', '%s', now())",
-                      *(unsigned short*)((char*)packet + 0xa),
-                      *(signed char*)((char*)packet + 0xc),
-                      *(int*)((char*)packet + 0xd),
-                      *(int*)((char*)packet + 0x11),
-                      (char*)packet + 0x15, (char*)packet + 0x25))
+                      ((HolePunchingResultView*)packet)->m_fieldA,
+                      ((HolePunchingResultView*)packet)->m_fieldB,
+                      ((HolePunchingResultView*)packet)->m_fieldC,
+                      ((HolePunchingResultView*)packet)->m_fieldD,
+                      ((HolePunchingResultView*)packet)->m_restE,
+                      ((HolePunchingResultView*)packet)->m_restF))
     {
         CMyFileLog log(__FUNCTION__, 0x2edf);
         log("./log/DBQueryErr",
@@ -1655,12 +1779,15 @@ bool CDBManager::UpdateCreateEmblemStatistic(
     Packet_Emblem_Create_Statistic_DB* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
-    char* p = (char*)packet;
     if (!h->set_query(0x4ee9,
                       "inSert into log_emblem_create(cur_date, grade0, grade1, grade2, grade3, grade4, grade5, grade6) values(CURDATE(), %d, %d, %d, %d, %d, %d, %d)",
-                      *(int*)(p + 0xa), *(int*)(p + 0xe), *(int*)(p + 0x12),
-                      *(int*)(p + 0x16), *(int*)(p + 0x1a),
-                      *(int*)(p + 0x1e), *(int*)(p + 0x22)))
+                      ((EmblemCreateStatisticView*)packet)->m_grade0,
+                      ((EmblemCreateStatisticView*)packet)->m_grade1,
+                      ((EmblemCreateStatisticView*)packet)->m_grade2,
+                      ((EmblemCreateStatisticView*)packet)->m_grade3,
+                      ((EmblemCreateStatisticView*)packet)->m_grade4,
+                      ((EmblemCreateStatisticView*)packet)->m_grade5,
+                      ((EmblemCreateStatisticView*)packet)->m_grade6))
     {
         CMyFileLog log(__FUNCTION__, 0x1f04);
         log("./log/statistic", "UpdateCreateEmblemStatistic db error!!\n");
@@ -1674,18 +1801,19 @@ char CDBManager::OnWriteGuildMemberMemo(
     Packet_DB_Write_Guild_Member_Memo* packet)
 {
     CDBHandle* h = m_handles[8];    // guild db
-    char* p = (char*)packet;
+    unsigned int guildId = ((WriteGuildMemberMemoView*)packet)->m_guildId;
+    unsigned int characNo = ((WriteGuildMemberMemoView*)packet)->m_characNo;
     char buf[0x6002];
     memset(buf, 0, 0x6002);
-    h->escape_string(buf, p + 0x12);
+    h->escape_string(buf, ((WriteGuildMemberMemoView*)packet)->m_memo);
     if (!h->set_query(0x4ebb,
                       "upDate guild_member set memo='%s' where guild_id = %d and charac_no = %d",
-                      buf, *(int*)(p + 0xa), *(int*)(p + 0xe)))
+                      buf, guildId, characNo))
     {
         CMyFileLog log(__FUNCTION__, 0x1a8e);
         log("./log/DBQueryErr",
             "CDBManager::OnWriteGuildMemo() upDate guild_member set memo='%s' where guild_id = %d and charac_no = %d",
-            buf, *(int*)(p + 0xa), *(int*)(p + 0xe));
+            buf, guildId, characNo);
         return 0;
     }
     if (!h->exec(0x4ebb))
@@ -1728,19 +1856,20 @@ char CDBManager::OnManagerEventTriggerAck(
     Packet_Manager_Event_Trigger_Ack* packet)
 {
     CDBHandle* h = m_handles[1];    // account db
-    char* p = (char*)packet;
-    int kind = *(int*)(p + 0xe);
+    unsigned int eventId = ((ManagerEventTriggerAckView*)packet)->m_eventId;
+    int kind = ((ManagerEventTriggerAckView*)packet)->m_flag;
+    unsigned int group = ((ManagerEventTriggerAckView*)packet)->m_group;
     if (kind == 2)
     {
         h->set_query(0x4eff,
                      "upDate dnf_event_log set event_flag=%d where event_type=%d and server_id=%d and ( end_time > unix_timestamp(now()) or end_time=0)",
-                     kind, *(int*)(p + 0xa), *(int*)(p + 0x12));
+                     kind, eventId, group);
     }
     else if (kind == 4)
     {
         h->set_query(0x4eff,
                      "upDate dnf_event_log set event_flag=%d where event_type=%d and server_id=%d and end_time <>0",
-                     kind, *(int*)(p + 0xa), *(int*)(p + 0x12));
+                     kind, eventId, group);
     }
     else
     {
