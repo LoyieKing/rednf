@@ -16,8 +16,8 @@ public:
     CDBHandle* GetDBHandle(ENUM_DB_HANDLE_IDX idx);
     bool UpdateQueryCount(unsigned int idx, int count, int time);
     char SelectTest();
-    char QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm);
-    char AwardGuildTitleByMail(int guildId, unsigned int characNo, unsigned int itemId,
+    bool QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm);
+    bool AwardGuildTitleByMail(int guildId, unsigned int characNo, unsigned int itemId,
                                char* guildName, unsigned int item);
     bool RegisterToBlackList(unsigned int m_id, unsigned int characNo, char* characName);
     bool GuildSecede(Packet_DB_Request_Guild_Secede* req, unsigned int& characNo,
@@ -130,7 +130,7 @@ public:
     char QueryOnTimeEventItem(Packet_Result_Ontime_Event_Item& reply);
     bool QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
                         unsigned char& count);
-    char GetCoinEventPerDay(int serverId, int add, int& out1, int& out2);
+    bool GetCoinEventPerDay(int serverId, int add, int& out1, int& out2);
     bool QueryCharacNoByName(char* name, unsigned int& characNo, int* result);
     bool updateCompatibilityIndex(Packet_Stat_Compatibility_Index* packet);
     char OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet);
@@ -142,10 +142,10 @@ public:
                                      unsigned char& grade,
                                      unsigned int& m_id,
                                      unsigned int& result);
-    char ChangeGuildMemberGrade(unsigned char serverId,
+    bool ChangeGuildMemberGrade(unsigned char serverId,
                                 unsigned int guildId,
                                 unsigned char grade, char* name);
-    char ChangeGuildMemberGrade(unsigned char serverId,
+    bool ChangeGuildMemberGrade(unsigned char serverId,
                                 unsigned int guildId,
                                 unsigned char grade,
                                 unsigned int characNo);

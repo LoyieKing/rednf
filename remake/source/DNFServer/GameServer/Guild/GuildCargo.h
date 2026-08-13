@@ -110,7 +110,7 @@ public:
     void SetGuildInfo(int guildKey);
     unsigned char IsLoadComplete();
     int CalcItemCount();
-    int IsEmpty();
+    bool IsEmpty();
     void* GetGuildCargoDBInfo();
     int GetSpecificItemSlot(int itemId);
     void PrintCargo(ENUM_GUILD_CARGO_BEHAVIOR behavior);

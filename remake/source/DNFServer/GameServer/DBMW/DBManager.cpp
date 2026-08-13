@@ -3427,7 +3427,7 @@ char CDBManager::OnUpgradeGuildAgit(Packet_DB_Upgrade_Guild_Agit* req,
     return 1;
 }
 __attribute__((optimize("-fno-exceptions")))
-char CDBManager::QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm)
+bool CDBManager::QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm)
 {
     if (!gm)
         return 0;
@@ -3479,7 +3479,7 @@ char CDBManager::QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm)
     }
     return 1;
 }
-char CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
+bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
                                        unsigned int itemId, char* guildName,
                                        unsigned int item)
 {
@@ -6153,7 +6153,7 @@ bool CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
     }
     return 1;
 }
-char CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
+bool CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
                                     int& out2)
 {
     CDBHandle* h = m_handles[1];    // neople db
@@ -6458,7 +6458,7 @@ bool CDBManager::QueryGuildMemberGradeByName(unsigned char serverId,
         return 0;
     return 1;
 }
-char CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
+bool CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
                                         unsigned int guildId,
                                         unsigned char grade, char* name)
 {
@@ -6483,7 +6483,7 @@ char CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
     }
     return 1;
 }
-char CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
+bool CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
                                         unsigned int guildId,
                                         unsigned char grade,
                                         unsigned int characNo)

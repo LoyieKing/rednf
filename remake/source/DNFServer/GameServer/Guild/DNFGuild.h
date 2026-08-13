@@ -224,8 +224,8 @@ public:
     void SubGuildFund(unsigned int fund);
     unsigned int IsAddableGuildFund(unsigned int fund);
     bool IsCompleteGuildFund();
-    int InsertGuildMember(unsigned int charNo, CUser* user);
-    int DeleteGuildMember(unsigned int charNo, CUser* user);
+    bool InsertGuildMember(unsigned int charNo, CUser* user);
+    bool DeleteGuildMember(unsigned int charNo, CUser* user);
     CUser* FindGuildMember(unsigned int charNo);
     void AddGuildMemberPoint(unsigned int charNo, unsigned int point);
     void AddGuildExpUntilLimit(unsigned int exp, unsigned int limit);
@@ -245,8 +245,8 @@ public:
     void LoadGuildAgit(CServerHandler* handler, unsigned int charNo);
     void NoticeGuildMemberLogin_Out(CUser* user, char flag);
     void QueryUnconnGuildMemberProxy(CServerHandler* handler, unsigned int charNo);
-    int LoadGuildOneMemberProxy(STGuildMemberProxy& proxy);
-    int LoadGuildOneMemberProxy(CUser* user);
+    bool LoadGuildOneMemberProxy(STGuildMemberProxy& proxy);
+    bool LoadGuildOneMemberProxy(CUser* user);
     void IncTotalCnt_Of_GuildDBInfo();
     void SendGuildInfoToMembers(bool flag);
     void MakeGameServerSendUserInfoPacket(CUser* user, unsigned int guildKey);
@@ -288,7 +288,7 @@ public:
     void AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user);
     void SetSubGuildMaster(unsigned int charNo, bool flag);
     void SecedeProxyMember(ST_Notice_Guild_Secede& info);
-    int ChangeGuildMaster(CServerHandler* handler, CUser* user, unsigned int charNo);
+    bool ChangeGuildMaster(CServerHandler* handler, CUser* user, unsigned int charNo);
     bool ChangeGuildName(char* name, int flag);
     void ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade);
     char* getUnconnectedGuildMemberName(unsigned int charNo);
@@ -316,7 +316,7 @@ public:
                                       unsigned int b, char* name);
     void DismissGuildMemberAndNotice(int group);
     void ReplyGuildAllMembers(CUser* user);
-    int BuyGuildSkill(int skillId, int slot, short param, unsigned int charNo);
+    bool BuyGuildSkill(int skillId, int slot, short param, unsigned int charNo);
     unsigned char GetPowerSide();
     void SetPowerSide(unsigned char side);
     unsigned int GetPowerWarPoint();

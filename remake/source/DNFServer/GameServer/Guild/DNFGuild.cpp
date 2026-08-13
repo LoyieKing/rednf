@@ -536,7 +536,7 @@ CGuild::~CGuild()
     m_members.clear();
 }
 
-int CGuild::InsertGuildMember(unsigned int charNo, CUser* user)
+bool CGuild::InsertGuildMember(unsigned int charNo, CUser* user)
 {
     if (user == 0)
     {
@@ -555,7 +555,7 @@ int CGuild::InsertGuildMember(unsigned int charNo, CUser* user)
     return 1;
 }
 
-int CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)
+bool CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)
 {
     if (user == 0)
     {
@@ -1023,7 +1023,7 @@ void CGuild::GuildSkillPointUp(unsigned short point)
     }
 }
 
-int CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int charNo)
+bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int charNo)
 {
     if ((m_field1c & 4) == 0)
     {
@@ -1644,7 +1644,7 @@ void CGuild::LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char f
     }
 }
 
-int CGuild::LoadGuildOneMemberProxy(CUser* user)
+bool CGuild::LoadGuildOneMemberProxy(CUser* user)
 {
     if ((m_field1c & 4) == 0 || (m_field1c & 8) == 0)
     {
@@ -1677,7 +1677,7 @@ int CGuild::LoadGuildOneMemberProxy(CUser* user)
     return 1;
 }
 
-int CGuild::LoadGuildOneMemberProxy(STGuildMemberProxy& proxy)
+bool CGuild::LoadGuildOneMemberProxy(STGuildMemberProxy& proxy)
 {
     if ((m_field1c & 4) == 0 || (m_field1c & 0x10) == 0)
     {
@@ -1755,7 +1755,7 @@ void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
     }
 }
 
-int CGuild::ChangeGuildMaster(CServerHandler* handler, CUser* user, unsigned int charNo)
+bool CGuild::ChangeGuildMaster(CServerHandler* handler, CUser* user, unsigned int charNo)
 {
     if ((m_field1c & 4) == 0 || charNo == 0)
     {

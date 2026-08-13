@@ -432,7 +432,7 @@ void CGuildCargo::SendGuildCargoToDBMW(CServerHandler* handler, int slot)
     db->SendToServer((char*)p);
 }
 
-int CGuildCargo::IsEmpty()
+bool CGuildCargo::IsEmpty()
 {
     for (int i = 0; (int)m_info.m_capacity > i; i++)
     {

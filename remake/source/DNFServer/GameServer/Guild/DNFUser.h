@@ -100,7 +100,7 @@ public:
     void MakeGameServerSendUserInfoPacket(unsigned int charNo);
     bool RegisterToBlackList(unsigned int charNo, char* name);
     bool RegisterToBlackList(unsigned int charNo, char* name, unsigned int param);
-    int DeleteToBlackList(unsigned int charNo);
+    bool DeleteToBlackList(unsigned int charNo);
     void ResetBlackList();
     int IsBlackUser(unsigned int charNo);
     void GetBlackList(unsigned char& count, STBlackUserDBType* list);

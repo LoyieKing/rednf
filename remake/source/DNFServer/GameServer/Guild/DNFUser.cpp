@@ -385,7 +385,7 @@ bool CUser::RegisterToBlackList(unsigned int charNo, char* name, unsigned int pa
     return m_blackList.insert(std::make_pair(charNo, bu)).second;
 }
 
-int CUser::DeleteToBlackList(unsigned int charNo)
+bool CUser::DeleteToBlackList(unsigned int charNo)
 {
     if (m_blackList.empty())
     {
