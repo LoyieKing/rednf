@@ -739,7 +739,6 @@ void CPacketTranslater::OnDBReplyQueryGuildMember(PacketHeader* pkt)
 {
     try
     {
-    THROW_IF_NO_APP("CPacketTranslater::OnDBReplyQueryGuildMember()\tpclApp is NULL")
     PTL_DBReplyQueryGuildMemberPkt* pb = (PTL_DBReplyQueryGuildMemberPkt*)pkt;
     if (pb->m_success == 1)
     {
@@ -3304,83 +3303,86 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 void CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade(PacketHeader* pkt)
 {
     char* pb = (char*)pkt;
-    if (m_pclApp == 0)
+    try
     {
-        DNF_LOG_SCOPE_LINE(0x1036,"./log/GuildModify",
-            "CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade : 0 == m_pclApp");
-        return;
-    }
-    unsigned int guildKey = *(unsigned int*)(pb + 0xa);
-    CGuild* guild;
-    if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x103c,"./log/GuildModify",
-            "CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade : 0 == pclGuild(%d)",
-            guildKey);
-        return;
-    }
-    Packet_Monitor_Set_Sub_Guild_Master_Reply reply;
-    int result = 0;
-    if ((unsigned char)pb[0x30] == 0xff)
-    {
-        result = 2;
-    }
-    else if ((unsigned char)pb[0x30] == 0xfe)
-    {
-        result = 0x66;
-    }
-    else if ((unsigned char)pb[0x31] == 1)
-    {
-        result = 0x58;
-    }
-    else if ((unsigned char)pb[0x30] == (unsigned char)pb[0x31])
-    {
-        result = 0x65;
-    }
-    else
-    {
-        if ((unsigned char)pb[0x30] == 2)
+        if (m_pclApp == 0)
         {
-            if (guild->GetCurSubGuildMasterCnt() < 5)
+            DNF_LOG_SCOPE_LINE(0x1036,"./log/GuildModify",
+                "CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade : 0 == m_pclApp");
+            return;
+        }
+        CGuild* guild;
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(*(unsigned int*)(pb + 0xa))) == 0)
+        {
+            DNF_LOG_SCOPE_LINE(0x103c,"./log/GuildModify",
+                "CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade : 0 == pclGuild(%d)",
+                *(unsigned int*)(pb + 0xa));
+            return;
+        }
+        Packet_Monitor_Set_Sub_Guild_Master_Reply reply;
+        int result = 0;
+        if ((unsigned char)pb[0x30] == 0xff)
+        {
+            result = 2;
+        }
+        else if ((unsigned char)pb[0x30] == 0xfe)
+        {
+            result = 0x66;
+        }
+        else if ((unsigned char)pb[0x31] == 1)
+        {
+            result = 0x58;
+        }
+        else if ((unsigned char)pb[0x30] == (unsigned char)pb[0x31])
+        {
+            result = 0x65;
+        }
+        else
+        {
+            if ((unsigned char)pb[0x30] == 2)
             {
-                guild->SetSubGuildMaster(*(unsigned int*)(pb + 0x32), true);
+                if (guild->GetCurSubGuildMasterCnt() < 5)
+                {
+                    guild->SetSubGuildMaster(*(unsigned int*)(pb + 0x32), true);
+                    guild->SendGuildInfoToMembers(false);
+                }
+                else
+                {
+                    DNF_LOG_SCOPE_LINE(0x105b,"./log/GuildModify", "CRITICAL ERR sub guild master cnt over(%d)",
+                        (unsigned int)guild->GetCurSubGuildMasterCnt() & 0xff);
+                    result = 0x59;
+                }
+            }
+            else if ((unsigned char)pb[0x31] == 2)
+            {
+                guild->SetSubGuildMaster(*(unsigned int*)(pb + 0x32), false);
                 guild->SendGuildInfoToMembers(false);
             }
-            else
+            if (result == 0)
             {
-                DNF_LOG_SCOPE_LINE(0x105b,"./log/GuildModify", "CRITICAL ERR sub guild master cnt over(%d)",
-                    (unsigned int)guild->GetCurSubGuildMasterCnt() & 0xff);
-                result = 0x59;
+                guild->ChangeUnconnectedGuildMemberGrade(*(unsigned int*)(pb + 0x32),
+                                                         (unsigned char)pb[0x30]);
             }
         }
-        else if ((unsigned char)pb[0x31] == 2)
         {
-            guild->SetSubGuildMaster(*(unsigned int*)(pb + 0x32), false);
-            guild->SendGuildInfoToMembers(false);
+            DNF_LOG_SCOPE_LINE(0x1073,"./log/GuildModify",
+                "Change Guild(%d) Grade(%d) Prev Grade(%d) result(%d) unconnected charNo(%d) RequestNo(%d)",
+                *(unsigned int*)(pb + 0xa), (unsigned int)(unsigned char)pb[0x30],
+                (unsigned int)(unsigned char)pb[0x31], result, *(unsigned int*)(pb + 0x32),
+                *(unsigned int*)(pb + 0xe));
         }
-        if (result == 0)
+        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(*(unsigned int*)(pb + 0xe));
+        if (user != 0)
         {
-            guild->ChangeUnconnectedGuildMemberGrade(*(unsigned int*)(pb + 0x32),
-                                                     (unsigned char)pb[0x30]);
+            *(unsigned int*)((char*)&reply + 0xa) = result;
+            *(unsigned int*)((char*)&reply + 0xe) = user->GetIdByChannel();
+            *(unsigned int*)((char*)&reply + 0x12) = user->GetUniqCharNo();
+            *(unsigned char*)((char*)&reply + 0x16) = *(unsigned char*)(pb + 0x30);
+            memcpy((char*)&reply + 0x17, pb + 0x12, 0x1d);
+            user->SendToGameserver((char*)&reply, 0x3a);
         }
     }
-    {
-        DNF_LOG_SCOPE_LINE(0x1073,"./log/GuildModify",
-            "Change Guild(%d) Grade(%d) Prev Grade(%d) result(%d) unconnected charNo(%d) RequestNo(%d)",
-            guildKey, (unsigned int)(unsigned char)pb[0x30],
-            (unsigned int)(unsigned char)pb[0x31], result, *(unsigned int*)(pb + 0x32),
-            *(unsigned int*)(pb + 0xe));
-    }
-    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(*(unsigned int*)(pb + 0xe));
-    if (user != 0)
-    {
-        *(unsigned int*)((char*)&reply + 0xa) = result;
-        *(unsigned int*)((char*)&reply + 0xe) = user->GetIdByChannel();
-        *(unsigned int*)((char*)&reply + 0x12) = user->GetUniqCharNo();
-        *(unsigned char*)((char*)&reply + 0x16) = *(unsigned char*)(pb + 0x30);
-        memcpy((char*)&reply + 0x17, pb + 0x12, 0x1d);
-        user->SendToGameserver((char*)&reply, 0x3a);
-    }
+    DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade Exception Break", 0x1084, 0x1089);
 }
 
 void CPacketTranslater::OnNotifyMessageToGuild(PacketHeader* pkt)
@@ -4269,65 +4271,73 @@ void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
 void CPacketTranslater::OnDBCreateGuildAgit(PacketHeader* pkt)
 {
     char* pb = (char*)pkt;
-    if (m_pclApp == 0)
+    try
     {
-        DNF_LOG_SCOPE_LINE(0x1696, "./log/Except", "CPacketTranslater::OnDBCreateGuildAgit : 0 == m_pclApp");
-        return;
-    }
-    if (*(int*)(pb + 0x12) == 0)
-    {
-        unsigned int guildKey = *(unsigned int*)(pb + 0xa);
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-        if (guildKey == 0 || guild == 0)
+        if (m_pclApp == 0)
         {
-            DNF_LOG_SCOPE_LINE(0x16a9, "./log/GuildAgit", "CPacketTranslater::OnDBCreateGuildAgit : 0 == pclGuild");
+            DNF_LOG_SCOPE_LINE(0x1696, "./log/Except", "CPacketTranslater::OnDBCreateGuildAgit : 0 == m_pclApp");
+            return;
         }
-        else
+        if (*(int*)(pb + 0x12) == 0)
         {
-            guild->SetGuildAgitFlag(true);
-            guild->GetGuildCargo()->SetGuildInfo(guild->GetGuildKey());
-            STGuildCargoDBInfo cargoInfo;
-            memset(&cargoInfo, 0, 0x18dc);
-            *(unsigned int*)((char*)&cargoInfo + 0x18d8) = 8;
-            guild->GetGuildCargo()->SetGuildCargoDBInfo(cargoInfo);
-            guild->NotifyCreateGuildAgitToGuildMember(*(unsigned int*)(pb + 0xe));
-            guild->SendGuildAgitInfoToMembers();
-            guild->SendGuildInfoToMembers(false);
+            unsigned int guildKey = *(unsigned int*)(pb + 0xa);
+            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
+            if (guildKey == 0 || guild == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0x16a9, "./log/GuildAgit", "CPacketTranslater::OnDBCreateGuildAgit : 0 == pclGuild");
+            }
+            else
+            {
+                guild->SetGuildAgitFlag(true);
+                guild->GetGuildCargo()->SetGuildInfo(guild->GetGuildKey());
+                STGuildCargoDBInfo cargoInfo;
+                memset(&cargoInfo, 0, 0x18dc);
+                *(unsigned int*)((char*)&cargoInfo + 0x18d8) = 8;
+                guild->GetGuildCargo()->SetGuildCargoDBInfo(cargoInfo);
+                guild->NotifyCreateGuildAgitToGuildMember(*(unsigned int*)(pb + 0xe));
+                guild->SendGuildAgitInfoToMembers();
+                guild->SendGuildInfoToMembers(false);
+            }
+            return;
         }
-        return;
+        DNF_LOG_SCOPE_LINE(0x16a0,"./log/GuildAgit",
+            "CPacketTranslater::OnDBCreateGuildAgit / Failure! Create Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
+            *(unsigned int*)(pb + 0xa), *(unsigned int*)(pb + 0xe), *(unsigned int*)(pb + 0x12));
     }
-    DNF_LOG_SCOPE_LINE(0x16a0,"./log/GuildAgit",
-        "CPacketTranslater::OnDBCreateGuildAgit / Failure! Create Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
-        *(unsigned int*)(pb + 0xa), *(unsigned int*)(pb + 0xe), *(unsigned int*)(pb + 0x12));
+    DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBCreateGuildAgit Exception Break", 0x16c4, 0x16c9);
 }
 
 void CPacketTranslater::OnDBDeleteGuildAgit(PacketHeader* pkt)
 {
     char* pb = (char*)pkt;
-    if (m_pclApp == 0)
+    try
     {
-        DNF_LOG_SCOPE_LINE(0x16dd, "./log/Except", "CPacketTranslater::OnDBDeleteGuildAgit : 0 == m_pclApp");
-        return;
-    }
-    if (*(int*)(pb + 0x12) == 0)
-    {
-        unsigned int guildKey = *(unsigned int*)(pb + 0xa);
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-        if (guildKey == 0 || guild == 0)
+        if (m_pclApp == 0)
         {
-            DNF_LOG_SCOPE_LINE(0x16ef, "./log/GuildAgit", "CPacketTranslater::OnDBCreateGuildAgit : 0 == pclGuild");
+            DNF_LOG_SCOPE_LINE(0x16dd, "./log/Except", "CPacketTranslater::OnDBDeleteGuildAgit : 0 == m_pclApp");
+            return;
         }
-        else
+        if (*(int*)(pb + 0x12) == 0)
         {
-            guild->SetGuildAgitFlag(false);
-            guild->NotifyDeleteGuildAgitToGuildMember(*(unsigned int*)(pb + 0xe));
-            guild->SendGuildInfoToMembers(false);
+            unsigned int guildKey = *(unsigned int*)(pb + 0xa);
+            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
+            if (guildKey == 0 || guild == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0x16ef, "./log/GuildAgit", "CPacketTranslater::OnDBCreateGuildAgit : 0 == pclGuild");
+            }
+            else
+            {
+                guild->SetGuildAgitFlag(false);
+                guild->NotifyDeleteGuildAgitToGuildMember(*(unsigned int*)(pb + 0xe));
+                guild->SendGuildInfoToMembers(false);
+            }
+            return;
         }
-        return;
+        DNF_LOG_SCOPE_LINE(0x16e6,"./log/GuildAgit",
+            "CPacketTranslater::OnDBDeleteGuildAgit / Failure! Delete Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
+            *(unsigned int*)(pb + 0xa), *(unsigned int*)(pb + 0xe), *(unsigned int*)(pb + 0x12));
     }
-    DNF_LOG_SCOPE_LINE(0x16e6,"./log/GuildAgit",
-        "CPacketTranslater::OnDBDeleteGuildAgit / Failure! Delete Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
-        *(unsigned int*)(pb + 0xa), *(unsigned int*)(pb + 0xe), *(unsigned int*)(pb + 0x12));
+    DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBDeleteGuildAgit Exception Break", 0x16fe, 0x1703);
 }
 
 void CPacketTranslater::OnPowerWarProcessInfo(PacketHeader* pkt)
@@ -4439,30 +4449,34 @@ void CPacketTranslater::OnUpgradeGuildAgit(PacketHeader* pkt)
 void CPacketTranslater::OnDBUpgradeGuildAgit(PacketHeader* pkt)
 {
     char* pb = (char*)pkt;
-    if (m_pclApp == 0)
+    try
     {
-        DNF_LOG_SCOPE_LINE(0x17a8, "./log/Except", "CPacketTranslater::OnDBUpgradeGuildAgit : 0 == m_pclApp");
-        return;
-    }
-    if (*(int*)(pb + 0x12) == 0)
-    {
-        unsigned int guildKey = *(unsigned int*)(pb + 0xa);
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-        if (guildKey == 0 || guild == 0)
+        if (m_pclApp == 0)
         {
-            DNF_LOG_SCOPE_LINE(0x17b9,"./log/GuildAgit",
-                "CPacketTranslater::OnDBCreateGuildAgit : 0 == pclGuild");
+            DNF_LOG_SCOPE_LINE(0x17a8, "./log/Except", "CPacketTranslater::OnDBUpgradeGuildAgit : 0 == m_pclApp");
+            return;
         }
-        else
+        if (*(int*)(pb + 0x12) == 0)
         {
-            guild->SetGuildAgitLevelUp();
-            guild->SendGuildAgitInfoToMembers();
+            unsigned int guildKey = *(unsigned int*)(pb + 0xa);
+            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
+            if (guildKey == 0 || guild == 0)
+            {
+                DNF_LOG_SCOPE_LINE(0x17b9,"./log/GuildAgit",
+                    "CPacketTranslater::OnDBCreateGuildAgit : 0 == pclGuild");
+            }
+            else
+            {
+                guild->SetGuildAgitLevelUp();
+                guild->SendGuildAgitInfoToMembers();
+            }
+            return;
         }
-        return;
+        DNF_LOG_SCOPE_LINE(0x17b2,"./log/GuildAgit",
+            "CPacketTranslater::OnDBUpgradeGuildAgit / Failure! Upgrade Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
+            *(unsigned int*)(pb + 0xa), *(unsigned int*)(pb + 0xe), *(unsigned int*)(pb + 0x12));
     }
-    DNF_LOG_SCOPE_LINE(0x17b2,"./log/GuildAgit",
-        "CPacketTranslater::OnDBUpgradeGuildAgit / Failure! Upgrade Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
-        *(unsigned int*)(pb + 0xa), *(unsigned int*)(pb + 0xe), *(unsigned int*)(pb + 0x12));
+    DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBUpgradeGuildAgit Exception Break", 0x17c5, 0x17ca);
 }
 
 void CPacketTranslater::OnGuildExpLimit(PacketHeader* pkt)
