@@ -5799,12 +5799,11 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
                 "CPacketTranslater::OnGuildRequestGuildBoardOpen : 0 == pclGuild");
             return;
         }
-        CGuildBoard* board = guild->GetGuildBoard();
         bool sendNow = false;
-        if (board->isWebGuildBoardAction() == 0 &&
+        if (guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
             ((PTL_GuildBoardOpenPkt*)pkt)->m_fieldA == 0)
         {
-            if (board->getGuildBoardDBLoadState() == 0)
+            if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 0)
             {
                 sendNow = true;
             }
@@ -5815,23 +5814,30 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
         }
         if (!sendNow)
         {
-            board->sendGuildBoardData(((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey,
-                                      ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo,
-                                      0x232a, user);
+            guild->GetGuildBoard()->sendGuildBoardData(
+                ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey,
+                ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo,
+                0x232a, user);
             return;
         }
-        if (board->getGuildBoardDBLoadState() == 0)
+        if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 0)
         {
             Packet_DB_Load_Request_Guild_Board_Open dbPkt;
             dbPkt.m_guildKey = ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey;
             dbPkt.m_charNo = ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo;
             m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
-            board->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
+            guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
             return;
         }
-        board->setWebGuildBoardAction(false);
+        if (guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
+            ((PTL_GuildBoardOpenPkt*)pkt)->m_fieldA == 0)
+        {
+            return;
+        }
+        guild->GetGuildBoard()->setWebGuildBoardAction(false);
         bool needDB = false;
-        if (board->getGuildBoardDBLoadState() == 2 && board->isGuildBoardDBAccess() != 0)
+        if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 2 &&
+            guild->GetGuildBoard()->isGuildBoardDBAccess() != 0)
         {
             needDB = true;
         }
@@ -5841,13 +5847,14 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
             dbPkt.m_guildKey = ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey;
             dbPkt.m_charNo = ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo;
             m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
-            board->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
+            guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
         }
         else
         {
-            board->sendGuildBoardData(((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey,
-                                      ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo,
-                                      0x232a, user);
+            guild->GetGuildBoard()->sendGuildBoardData(
+                ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey,
+                ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo,
+                0x232a, user);
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGuildRequestGuildBoardOpen Exception Break", 0x1c89, 0x1c8e);
@@ -5879,15 +5886,15 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclGuild");
             return;
         }
-        CGuildBoard* board = guild->GetGuildBoard();
-        board->setGuildBoardData(guildKey, charNo, guild,
-                                 (int)(char)((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_field15,
-                                 (STGuildBoardDBInfo*)&((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_info);
+        guild->GetGuildBoard()->setGuildBoardData(
+            guildKey, charNo, guild,
+            (int)(char)((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_field15,
+            (STGuildBoardDBInfo*)&((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_info);
         if (((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_fieldC != 0)
         {
-            board->sendGuildBoardData(guildKey, charNo, 0x232a, user);
-            board->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)2);
-            board->setGuildBoardDBAccess();
+            guild->GetGuildBoard()->sendGuildBoardData(guildKey, charNo, 0x232a, user);
+            guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)2);
+            guild->GetGuildBoard()->setGuildBoardDBAccess();
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBLoadReplyGuildBoardOpen Exception Break", 0x1cbf, 0x1cc4);
@@ -5960,12 +5967,12 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardWrite(PacketHeader* pkt)
         }
         if (((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_result == 0)
         {
-            CGuildBoard* board = guild->GetGuildBoard();
-            board->setGuildBoardData(guildKey, charNo, guild, 1,
-                                     (STGuildBoardDBInfo*)&((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_info);
+            guild->GetGuildBoard()->setGuildBoardData(
+                guildKey, charNo, guild, 1,
+                (STGuildBoardDBInfo*)&((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_info);
             if (((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_field94 != 0)
             {
-                board->sendGuildBoardData(guildKey, charNo, 0x232e, user);
+                guild->GetGuildBoard()->sendGuildBoardData(guildKey, charNo, 0x232e, user);
             }
         }
         else
@@ -6418,6 +6425,10 @@ void CPacketTranslater::OnApproveJoinGuild(PacketHeader* pkt)
             {
                 DNF_LOG_SCOPE_LINE(0x1fad, "./log/Guild", "CPacketTranslater::OnApproveJoinGuild authority error");
             }
+        }
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0x1fa6, "./log/Guild", "CPacketTranslater::OnApproveJoinGuild : 0 == pGuild");
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnApproveJoinGuild Exception Break", 0x1fbb, 0x1fc0);
