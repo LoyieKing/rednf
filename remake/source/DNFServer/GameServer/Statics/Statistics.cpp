@@ -577,7 +577,9 @@ void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* hand
                 {
                     pkt.m_count = 0x17e;
                     handler->SendToDB((PacketHeader*)&pkt);
-                    DNF_LOG_SCOPE_LINE(0x24e, "./log/statistic", "DeathTowerPlayDataJob DB Sent %d", idx);
+                    DNF_LOG_SCOPE_LINE(0x24e, "./log/statistic",
+                        "Packet_DBMW_DeathTower_Statistic_Playdata_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n",
+                        idx);
                     idx = 0;
                 }
             }
@@ -585,7 +587,9 @@ void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* hand
         if (idx != 0)
         {
             pkt.m_count = idx;
-            DNF_LOG_SCOPE_LINE(0x257, "./log/statistic", "DeathTowerPlayDataJob DB Sent %d", idx);
+            DNF_LOG_SCOPE_LINE(0x257, "./log/statistic",
+                "Packet_DBMW_DeathTower_Statistic_Playdata_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xc0\xfc\xbc\xdb\n",
+                idx);
             handler->SendToDB((PacketHeader*)&pkt);
         }
     }
