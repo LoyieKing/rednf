@@ -304,22 +304,24 @@ LAB_51773:
         {
             if (0x1800 < totalLen)
             {
-                DNF_LOG_SCOPE_LINE(0x10e,"./log/TcpRecv",
-                    "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
-                    totalLen);
+                // ORIG：try 包日志块，catch 是 printf("[PARSING EXCEPTION]...")+return 0；
+                // memmove 在 try 外。
+                try
+                {
+                    DNF_LOG_SCOPE_LINE(0x10e,"./log/TcpRecv",
+                        "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
+                        totalLen);
+                }
+                catch (...)
+                {
+                    printf("[PARSING EXCEPTION] memmove : parsinglength = %d", totalLen);
+                    return 0;
+                }
                 return 0;
             }
-            try
-            {
-                memmove((char*)this + 0x1c, m_buf, totalLen);
-                m_remainLen = (int)totalLen;
-                m_buf = (char*)this + 0x1c + totalLen;
-            }
-            catch (...)
-            {
-                printf("[PARSING EXCEPTION] memmove : parsinglength = %d", totalLen);
-                return 0;
-            }
+            memmove((char*)this + 0x1c, m_buf, totalLen);
+            m_remainLen = (int)totalLen;
+            m_buf = (char*)this + 0x1c + totalLen;
         }
     }
     return 1;
