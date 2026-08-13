@@ -279,7 +279,13 @@ public:
 
 struct stItemLimitEditionItemInfo_t
 {
-    char m_data[0x48];
+    unsigned int m_ipgno;      // +0
+    char m_pad0[0x14];         // +4
+    unsigned int m_sellNum;    // +0x18（ORIG ctor: mov 0x18(%info) -> this+0x48）
+    int m_sellLimit;           // +0x1c
+    char m_pad1[0x8];          // +0x20
+    unsigned int m_sellEndTime;// +0x28
+    char m_pad2[0x1c];         // +0x2c
 } __attribute__((aligned(4)));
 
 #endif  // MONITOR_ITEMLIMITEDITIONMANAGER_H_

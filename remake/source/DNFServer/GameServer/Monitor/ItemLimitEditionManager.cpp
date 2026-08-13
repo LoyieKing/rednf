@@ -189,7 +189,7 @@ CItemLimitEdition::~CItemLimitEdition() {}
 CItemLimitEdition::CItemLimitEdition(const stItemLimitEditionItemInfo_t& info)
 {
     *((stItemLimitEditionItemInfo_t*)this) = info;
-    m_sellNum = ((RA_UINT<24>*)&info)->v;
+    m_sellNum = info.m_sellNum;
 }
 
 unsigned int CItemLimitEdition::getSellEndTime() const { return m_sellEndTime; }
@@ -208,7 +208,7 @@ char CItemLimitEdition::isSellComplete() const
 void CItemLimitEdition::makeItemInfo(stItemLimitEditionItemInfo_t& info) const
 {
     info = *((const stItemLimitEditionItemInfo_t*)this);
-    ((RA_UINT<24>*)&info)->v = getSellNum();
+    info.m_sellNum = getSellNum();
 }
 
 unsigned int CItemLimitEdition::getSellNum() const { return m_sellNum; }

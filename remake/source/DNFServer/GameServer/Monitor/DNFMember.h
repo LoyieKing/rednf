@@ -284,8 +284,13 @@ struct STMemberListInfo
 
 struct STBuddyDBInfo
 {
-    char m_data[0x2c];
-};
+    char m_name[0x1e];        // +0
+    short m_lev;              // +0x1e
+    char m_job;               // +0x20
+    char m_growType;          // +0x21
+    unsigned int m_characNo;  // +0x22
+    char m_sex;               // +0x26
+} __attribute__((packed));
 
 class CMember
 {

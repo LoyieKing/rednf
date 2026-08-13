@@ -29,6 +29,7 @@
 #include "DNFApplication.h"
 #include "DNFBuddy.h"
 #include "DNFGameServer.h"
+#include "DNFMember.h"
 #include "DNFPacketTranslater.h"
 #include "DNFProhibitUser.h"
 #include "DNFServerInterface.h"
@@ -311,7 +312,7 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
             count--;
             CBuddy* buddy = buddies[idx];
             CUser* buddyUser = FindUser_CharNo(
-                *(unsigned int*)((char*)buddy->getBuddyDBInfo() + 0x22));
+                ((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_characNo);
             if (buddyUser != 0)
             {
                 if (buddyUser->GetGameServer() != 0)

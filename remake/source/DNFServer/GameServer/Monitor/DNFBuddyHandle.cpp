@@ -31,16 +31,6 @@
 #include "DNFServerHandler.h"
 #include "DNFUser.h"
 
-struct MonitorBuddyDBInfo
-{
-    char m_name[0x1e];
-    short m_lev;
-    char m_job;
-    char m_growType;
-    unsigned int m_characNo;
-    char m_sex;
-} __attribute__((packed));
-
 CBuddyHandle::CBuddyHandle()
 {
     m_prUser = 0;
@@ -116,7 +106,7 @@ int CBuddyHandle::delDB(CServerHandler* handler, char* name)
             Packet_DBMW_Del_Buddy pkt;
             pkt.m_uniqCharNo = m_prUser->GetUniqCharNo();
             pkt.m_buddyCharNo =
-                *(unsigned int*)((char*)it->second->getBuddyDBInfo() + 0x22);
+                ((STBuddyDBInfo*)it->second->getBuddyDBInfo())->m_characNo;
             memcpy(pkt.m_charName, name, 0x1d);
             handler->SendToDB(&pkt);
             return 0;
@@ -132,7 +122,7 @@ void CBuddyHandle::setBuddyCharName(int charNo, const std::string& newName)
          it != m_buddies.end(); ++it)
     {
         if (it->second != 0 &&
-            charNo == *(int*)((char*)it->second->getBuddyDBInfo() + 0x22))
+            charNo == ((STBuddyDBInfo*)it->second->getBuddyDBInfo())->m_characNo)
         {
             CBuddy* buddy = it->second;
             m_buddies.erase(it);
@@ -156,7 +146,7 @@ int CBuddyHandle::getBuddysCharNo(unsigned int* out)
         CBuddy* b = it->second;
         if (b != 0)
         {
-            out[count] = ((MonitorBuddyDBInfo*)b->getBuddyDBInfo())->m_characNo;
+            out[count] = ((STBuddyDBInfo*)b->getBuddyDBInfo())->m_characNo;
         }
         count++;
         if (0x20 < count)
@@ -212,7 +202,7 @@ int CBuddyHandle::addFromCash(CBuddy* buddy)
     if (m_buddies.size() < 0x20)
     {
         return m_buddies.insert(
-                   std::make_pair(((MonitorBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name,
+                   std::make_pair(((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name,
                                   buddy))
             .second;
     }
@@ -224,7 +214,7 @@ int CBuddyHandle::insert(CBuddy* buddy)
     if (m_buddies.size() < 0x20)
     {
         m_buddies.insert(
-            std::make_pair(((MonitorBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name, buddy));
+            std::make_pair(((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name, buddy));
     }
 }
 
@@ -250,7 +240,7 @@ CBuddy* CBuddyHandle::findBuddyByCharNo(unsigned int charNo)
     {
         CBuddy* buddy = it2->second;
         if (buddy != 0 &&
-            ((MonitorBuddyDBInfo*)buddy->getBuddyDBInfo())->m_characNo == charNo)
+            ((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_characNo == charNo)
         {
             return it2->second;
         }
@@ -270,9 +260,12 @@ void CBuddyHandle::printBuddys(char* out)
             DNF_LOG_SCOPE_LINE(0x16e,"./log/buddy",
                 "[%s] name(%s) fname(%s) flevel(%d) fjob(%d) fgrowtype(%d) fcharNo(%d) "
                 "fsex(%d)",
-                out, m_prUser->GetCharName(), info, (int)*(short*)(info + 0x1e),
-                (int)*(char*)(info + 0x20), (int)*(char*)(info + 0x21),
-                *(int*)(info + 0x22), (int)*(char*)(info + 0x26));
+                out, m_prUser->GetCharName(), info,
+                (int)((STBuddyDBInfo*)info)->m_lev,
+                (int)((STBuddyDBInfo*)info)->m_job,
+                (int)((STBuddyDBInfo*)info)->m_growType,
+                ((STBuddyDBInfo*)info)->m_characNo,
+                (int)((STBuddyDBInfo*)info)->m_sex);
         }
     }
 }
