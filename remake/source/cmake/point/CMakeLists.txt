@@ -10,6 +10,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
 set(BASIC       "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/basic_source")
 set(BASIC_HDR   "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/basic_header")
 set(COMMON      "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/common_source")
+set(COMMON_HDR  "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/common_header")
 set(AUCTIONCOMMON "${DNF_SRC}/DNFServer/GameServer/ServerLab/AppCommon/AuctionCommon")
 set(SERVERCOMMON "${DNF_SRC}/DNFServer/ServerCommon")
 set(DNFSSHARED  "${DNF_SRC}/DNFShared/GameScript")
@@ -19,6 +20,7 @@ set(AUCTIONGD   "${AUCTION}/GameData")
 set(AUCTIONAUCTION "${AUCTION}/GameData/auction")
 set(AUCTIONDICT "${AUCTION}/GameData/auction/dictionary")
 set(AUCTIONSRC  "${AUCTION}/auction_source")
+set(AUCTIONHDR  "${AUCTION}/auction_header")
 
 # 与 auction 同源，唯一差别：-DPOINT_SERVER（build-point.sh COMMON_FLAGS/TINYXML_FLAGS）。
 dnf_service(point
@@ -101,7 +103,7 @@ dnf_service(point
     INCLUDES
         -isystem${DNF_SRC}/Library3rd/Boost/Include
         -isystem${DNF_SRC}/Library3rd/MySQL/include
-        -I${BASIC_HDR} -I${BASIC} -I${COMMON} -I${AUCTIONCOMMON} -I${SERVERCOMMON} -I${DNFSSHARED} -I${CORE}
+        -I${BASIC_HDR} -I${COMMON_HDR} -I${BASIC} -I${COMMON} -I${AUCTIONHDR} -I${AUCTIONCOMMON} -I${SERVERCOMMON} -I${DNFSSHARED} -I${CORE}
         -I${AUCTIONGD} -I${AUCTIONAUCTION} -I${AUCTIONDICT} -I${AUCTIONSRC}
         -I${DNF_SRC}/shared -I${DNF_SRC}/shared/common/include -I${DNF_SRC}/shared/packet/include
     DEFINES

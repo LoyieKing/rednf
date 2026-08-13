@@ -10,6 +10,7 @@ include("${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake")
 set(BASIC       "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/basic_source")
 set(BASIC_HDR   "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/basic_header")
 set(COMMON      "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/common_source")
+set(COMMON_HDR  "${DNF_SRC}/DNFServer/GameServer/ServerLab/ServerLib/common_header")
 set(AUCTIONCOMMON "${DNF_SRC}/DNFServer/GameServer/ServerLab/AppCommon/AuctionCommon")
 set(SERVERCOMMON "${DNF_SRC}/DNFServer/ServerCommon")
 set(DNFSSHARED  "${DNF_SRC}/DNFShared/GameScript")
@@ -19,6 +20,7 @@ set(AUCTIONGD   "${AUCTION}/GameData")
 set(AUCTIONAUCTION "${AUCTION}/GameData/auction")
 set(AUCTIONDICT "${AUCTION}/GameData/auction/dictionary")
 set(AUCTIONSRC  "${AUCTION}/auction_source")
+set(AUCTIONHDR  "${AUCTION}/auction_header")
 
 # 源文件与顺序：build-auction.sh 的链接顺序 = `ls *.o`（按 .o 基名字母序，
 # ServerCommon/Thread.cpp 以 ServerCommon_Thread.o 参与排序）。SRC_OPTS 复刻
@@ -104,7 +106,7 @@ dnf_service(auction
     INCLUDES
         -isystem${DNF_SRC}/Library3rd/Boost/Include
         -isystem${DNF_SRC}/Library3rd/MySQL/include
-        -I${BASIC_HDR} -I${BASIC} -I${COMMON} -I${AUCTIONCOMMON} -I${SERVERCOMMON} -I${DNFSSHARED} -I${CORE}
+        -I${BASIC_HDR} -I${COMMON_HDR} -I${BASIC} -I${COMMON} -I${AUCTIONHDR} -I${AUCTIONCOMMON} -I${SERVERCOMMON} -I${DNFSSHARED} -I${CORE}
         -I${AUCTIONGD} -I${AUCTIONAUCTION} -I${AUCTIONDICT} -I${AUCTIONSRC}
         -I${DNF_SRC}/shared -I${DNF_SRC}/shared/common/include -I${DNF_SRC}/shared/packet/include
     DEFINES
