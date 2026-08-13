@@ -236,7 +236,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
             reply.m_boards[i].m_field80 = it->second.m_field80;
             memcpy(&reply.m_boards[i].m_char, (char*)&it->second + 0x84, 0x21);
             ++it;
-            if (it != endit)
+            if (it == endit)
             {
                 break;
             }
