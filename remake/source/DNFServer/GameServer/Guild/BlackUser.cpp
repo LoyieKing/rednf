@@ -93,18 +93,18 @@ void CBlackUser::operator delete(void* p, unsigned int size) { m_BlackUserMemPoo
 CBlackUser::CBlackUser()
 {
     m_time = 0;
-    memset(m_data, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 void CBlackUser::SetBlackUser(char* name, unsigned int time)
 {
-    memcpy(m_data, name, 0x1d);
+    memcpy(m_name, name, 0x1d);
     m_time = time;
 }
 
 char* CBlackUser::GetName()
 {
-    return m_data;
+    return m_name;
 }
 
 unsigned int CBlackUser::GetOccurTime()

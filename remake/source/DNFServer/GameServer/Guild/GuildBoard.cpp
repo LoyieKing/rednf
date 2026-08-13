@@ -83,7 +83,7 @@ STGuildBoardDBInfo::STGuildBoardDBInfo()
     m_field78 = 0;
     m_field7c = 0;
     m_field80 = 0;
-    memset(m_data, 0, 0x78);
+    memset(m_memo, 0, 0x78);
 }
 
 void CGuildBoard::setWebGuildBoardAction(bool flag)
@@ -160,7 +160,7 @@ void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guil
         memcpy(&entry.m_char, &info[i].m_char, 0x21);
         if (guild->IsGuildMaster(entry.m_field80) != 0)
         {
-            entry.m_char.m_data[2] = 1;
+            entry.m_char.m_field2 = 1;
         }
         m_board.insert(std::make_pair(entry.m_field7c, entry));
     }
@@ -341,7 +341,7 @@ void CGuildBoard::printGuildBoard()
     {
         DNF_LOG_SCOPE_LINE(0x188,"./log/GuildBoard", "\n*%d* %d %s\n",
             cur->first, cur->second.m_field78,
-            cur->second.m_data);
+            cur->second.m_memo);
         ++cur;
     }
 }

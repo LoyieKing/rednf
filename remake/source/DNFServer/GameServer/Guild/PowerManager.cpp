@@ -353,8 +353,7 @@ void CPowerManager::SaveDBPowerWarRank()
         Packet_DB_Save_Power_War_Statue_Ranker statuePkt;
         Packet_Notice_Power_War_Rank noticePkt;
         (void)noticePkt;
-        *(unsigned char*)((char*)&statuePkt + 0xa) =
-            app->Get_ServerHandler()->GetServerGroupNo();
+        statuePkt.m_group = app->Get_ServerHandler()->GetServerGroupNo();
         std::vector<STPowerWarCharacInfo*> users;
         CPowerWarCharacInfo* s1 =
             ((CPower*)((char*)this + 0x74))->GetPowerWarCharacInfo();
@@ -368,7 +367,7 @@ void CPowerManager::SaveDBPowerWarRank()
             if (i < (int)users.size())
             {
                 unsigned int charNo = *(unsigned int*)users[i]->m_data;
-                *(unsigned int*)((char*)&statuePkt + 0xb + i * 4) = charNo;
+                statuePkt.m_rankers[i] = charNo;
                 DNF_LOG_SCOPE_LINE(0x273, "./log/PowerResult", "Last Rank:%d, Charac No:%d", i, charNo);
             }
         }
@@ -708,18 +707,11 @@ Packet_DB_Save_Power_War_User_Rank::Packet_DB_Save_Power_War_User_Rank()
     memset(m_ranks, 0, sizeof(m_ranks));
 }
 
-#pragma pack(push,1)
-struct Packet_DB_Save_Power_War_Statue_Ranker_Layout
-{
-    char pad0x0[0xa];
-    unsigned char ma;
-};
-#pragma pack(pop)
 Packet_DB_Save_Power_War_Statue_Ranker::Packet_DB_Save_Power_War_Statue_Ranker()
     : PacketHeader(0x6da, 0x17)
 {
-    ((Packet_DB_Save_Power_War_Statue_Ranker_Layout*)this)->ma = 0;
-    memset((char*)this + 0xb, 0, 0xc);
+    m_group = 0;
+    memset(m_rankers, 0, sizeof(m_rankers));
 }
 
 STPowerWarPointInfo::STPowerWarPointInfo()

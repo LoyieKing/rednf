@@ -66,7 +66,9 @@ public:
 class Packet_Notice_DB_Save_Guild_War_Point : public PacketHeader {
 public:
     Packet_Notice_DB_Save_Guild_War_Point();
-    char m_data[0x51];
-};
+    unsigned char m_group;         // +0xa（server group）
+    unsigned int m_guildKeys[10];  // +0xb（0x28）
+    unsigned int m_points[10];     // +0x33（0x28）
+} __attribute__((packed));
 
 #endif

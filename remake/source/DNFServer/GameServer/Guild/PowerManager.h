@@ -165,8 +165,9 @@ public:
 class Packet_DB_Save_Power_War_Statue_Ranker : public PacketHeader {
 public:
     Packet_DB_Save_Power_War_Statue_Ranker();
-    char m_data[0xd];
-};
+    unsigned char m_group;       // +0xa（server group）
+    unsigned int m_rankers[3];   // +0xb（3 × 4 = 0xc）
+} __attribute__((packed));
 
 // from GuildPackets.h
 #pragma pack(push,1)

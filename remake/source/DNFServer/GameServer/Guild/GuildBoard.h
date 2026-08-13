@@ -23,17 +23,21 @@ enum ENUM_DB_LOAD_STATE {};
 
 // from GuildDomain.h（自 DNFGuild.h 移入，供 STGuildBoardDBInfo 使用真实成员；
 // DNFGuild.h 在包含本头文件后再用该类型，定义顺序满足）
+// ORIG 反汇编 ctor 校验：+0=0xff, +1=0xff, +2=0, +3..0x20 为 0（memset 0x1e）。
 struct STGuildMemberCharacData
 {
     STGuildMemberCharacData();
-    char m_data[0x21];
-};
+    unsigned char m_field0;   // +0
+    unsigned char m_field1;   // +1
+    unsigned char m_field2;   // +2
+    char m_name[0x1e];        // +3（总大小 0x21）
+} __attribute__((packed));
 
 #pragma pack(push,1)
 struct STGuildBoardDBInfo
 {
     STGuildBoardDBInfo();
-    char m_data[0x78];            // +0
+    char m_memo[0x78];            // +0（board 留言文本，printGuildBoard 以 %s 输出）
     unsigned int m_field78;       // +0x78
     unsigned int m_field7c;       // +0x7c
     unsigned int m_field80;       // +0x80

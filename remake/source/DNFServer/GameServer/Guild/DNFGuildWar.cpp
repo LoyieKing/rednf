@@ -370,10 +370,9 @@ void CGuildWar::DBSaveProcess(CApplication* app)
         return;
     }
     Packet_Notice_DB_Save_Guild_War_Point pkt;
-    if (GetGuildWarInfoDBSave((unsigned int*)((char*)&pkt + 0xb),
-                              (unsigned int*)((char*)&pkt + 0x33)))
+    if (GetGuildWarInfoDBSave(pkt.m_guildKeys, pkt.m_points))
     {
-        pkt.m_data[0] = app->Get_ServerGroup();
+        pkt.m_group = app->Get_ServerGroup();
         app->Get_ServerHandler()->SendToDB(&pkt);
     }
     m_bSaveCnt = 0;
@@ -404,8 +403,8 @@ void CGuildWar::printGuildWarRank()
 Packet_Notice_DB_Save_Guild_War_Point::Packet_Notice_DB_Save_Guild_War_Point()
     : PacketHeader(0x418, 0x5b)
 {
-    memset((char*)this + 0xb, 0, 0x28);
-    memset((char*)this + 0x33, 0, 0x28);
+    memset(m_guildKeys, 0, sizeof(m_guildKeys));
+    memset(m_points, 0, sizeof(m_points));
 }
 
 template void DNFFLib::Swap<STGuildWarInfo>(STGuildWarInfo*, STGuildWarInfo*);

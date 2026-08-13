@@ -97,7 +97,7 @@ CServerXml::~CServerXml()
 void CServerXml::InitString()
 {
     m_field50 = 0;
-    memset(m_data, 0, 5);
+    memset(m_type, 0, 5);
     m_str1.clear();
     m_str2.clear();
     m_str3.clear();
@@ -181,7 +181,7 @@ void CServerXml::CharsetInit(TiXmlNode* node)
         puts("[CServerXml] <type> Tag Error");
         exit(-1);
     }
-    strcpy((char*)this, type);
+    strcpy(m_type, type);
 }
 
 void CServerXml::EventLoad(TiXmlNode* node)

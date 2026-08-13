@@ -37,7 +37,7 @@ public:
     std::string GetServerString(int idx, bool* ok) const;
     unsigned int GetEventRGBA(int idx) const;
     std::string GetEventString(int idx, _eStringType type, bool* ok) const;
-    char m_data[5];   // +0
+    char m_type[5];   // +0（charset 类型字符串：kor/chn/jpn/usa/twn）
     TiXmlDocument m_doc; // +8 TiXmlDocument（0x48）
     int m_field50;    // +0x50
     std::string m_path;  // +0x54

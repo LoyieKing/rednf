@@ -35,7 +35,7 @@ public:
     void SetBlackUser(char* name, unsigned int time);
     char* GetName();
     unsigned int GetOccurTime();
-    char m_data[0x20];
+    char m_name[0x20];  // +0（黑名单角色名，GetName 返回此缓冲）
     unsigned int m_time;  // +0x20
     char m_pad[4];        // +0x24
 };
