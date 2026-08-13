@@ -66,17 +66,26 @@ class UpgradeSeparateInfo;
 class hyperlink_item_info;
 
 // from GuildDomain.h
-struct STGuildSkill
+struct __attribute__((packed)) STGuildSkill
 {
     STGuildSkill();
-    char m_data[5];
+    int m0;              // +0
+    unsigned char m4;    // +4
 };
 
 // from GuildDomain.h
-struct STGuildMemberProxy
+struct __attribute__((packed)) STGuildMemberProxy
 {
     STGuildMemberProxy();
-    char m_data[0x41];
+    unsigned int m0;            // +0
+    char m_pad4[0x1e];          // +4 .. +0x22
+    unsigned char m22;          // +0x22
+    unsigned char m23;          // +0x23
+    unsigned short m_field24;   // +0x24
+    unsigned char m_field26;    // +0x26
+    unsigned char m_field27;    // +0x27
+    unsigned int m_field28;     // +0x28
+    char m_pad2c[0x15];         // +0x2c .. +0x41
 };
 
 // from GuildDomain.h
@@ -130,9 +139,10 @@ struct STGuildAgitDBInfo
 };
 
 // from GuildDomain.h
-struct STGuildMemberChangableInfo
+struct __attribute__((packed)) STGuildMemberChangableInfo
 {
-    char m_data[0x20];
+    unsigned int m_time;      // +0
+    char m_pad4[0x1c];        // +4 .. +0x20
 };
 
 // from GuildDomain.h
@@ -158,9 +168,16 @@ public:
 #pragma pack(pop)
 
 // from GuildDomain.h
-struct STGuildMemberWebConnInfo
+struct __attribute__((packed)) STGuildMemberWebConnInfo_Rec
 {
-    char m_data[0x5dc];
+    unsigned int m_charNo;    // +0
+    unsigned char m_channel;  // +4
+};
+
+// from GuildDomain.h
+struct __attribute__((packed)) STGuildMemberWebConnInfo
+{
+    STGuildMemberWebConnInfo_Rec m_members[300];  // 300×5B = 0x5dc
 };
 
 // from GuildDomain.h
@@ -176,24 +193,35 @@ struct STGuildCallInfo
 #pragma pack(pop)
 
 // from GuildDomain.h
-struct ST_GuildCreateFromWeb
+struct __attribute__((packed)) ST_GuildCreateFromWeb
 {
     ST_GuildCreateFromWeb();
-    char m_data[0x1f];
+    unsigned int m0;          // +0
+    unsigned int m4;          // +4
+    char m_pad8[0x17];        // +8 .. +0x1f
 };
 
 // from GuildDomain.h
-struct ST_Notice_Guild_Enter
+struct __attribute__((packed)) ST_Notice_Guild_Enter
 {
     ST_Notice_Guild_Enter();
-    char m_data[0x41];
+    unsigned int m_guildKey;   // +0
+    unsigned int m_dbid;       // +4
+    unsigned int m_charNo;     // +8
+    char m_guildName[0x17];    // +0xc
+    char m_charName[0x1e];     // +0x23
 };
 
 // from GuildDomain.h
-struct ST_Notice_Guild_Secede
+struct __attribute__((packed)) ST_Notice_Guild_Secede
 {
     ST_Notice_Guild_Secede();
-    char m_data[0x43];
+    unsigned int m_guildKey;    // +0
+    unsigned int m_dbid;        // +4
+    unsigned int m_charNo;      // +8
+    unsigned short m_secedeFlag;// +0xc
+    char m_guildName[0x17];     // +0xe
+    char m_charName[0x1e];      // +0x25
 };
 
 // from GuildDomain.h

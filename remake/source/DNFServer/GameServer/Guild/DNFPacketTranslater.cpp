@@ -5954,17 +5954,10 @@ Packet_Tcp_Server_Connect::Packet_Tcp_Server_Connect()
     (void)0;
 }
 
-#pragma pack(push,1)
-struct Packet_Monitor_UDP_User_Getout_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-};
-#pragma pack(pop)
 Packet_Monitor_UDP_User_Getout::Packet_Monitor_UDP_User_Getout()
     : PacketHeader(0x3ee, 0xe)
 {
-    ((Packet_Monitor_UDP_User_Getout_Layout*)this)->ma = 0;
+    ma = 0;
 }
 
 Packet_Monitor_Notice_Guild_Create_ToUser::Packet_Monitor_Notice_Guild_Create_ToUser()
@@ -5977,23 +5970,13 @@ Packet_Monitor_Call_Guild_Info_Reply::Packet_Monitor_Call_Guild_Info_Reply()
 {
 }
 
-#pragma pack(push,1)
-struct Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade_Layout
-{
-    char pad0x0[0xa];
-    unsigned char ma;
-    unsigned int mb;
-    char pad0xf[0x23];
-    unsigned char m32;
-};
-#pragma pack(pop)
 Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade::
     Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade()
     : PacketHeader(0x42b, 0x33)
 {
-    ((Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade_Layout*)this)->ma = 0;
-    ((Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade_Layout*)this)->mb = 0;
-    ((Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade_Layout*)this)->m32 = 255;
+    ma = 0;
+    mb = 0;
+    m32 = 255;
     memset((char*)this + 0x14, 0, 0x1e);
 }
 
@@ -6063,42 +6046,22 @@ Packet_Notice_DB_Guild_War_End::Packet_Notice_DB_Guild_War_End()
     memset((char*)this + 0x5b, 0, 0x14);
 }
 
-#pragma pack(push,1)
-struct Packet_Channel_Delete_Guild_Agit_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned int m12;
-    unsigned char m16;
-};
-#pragma pack(pop)
 Packet_Channel_Delete_Guild_Agit::Packet_Channel_Delete_Guild_Agit()
     : PacketHeader(0x6de, 0x17)
 {
-    ((Packet_Channel_Delete_Guild_Agit_Layout*)this)->ma = 4294967295;
-    ((Packet_Channel_Delete_Guild_Agit_Layout*)this)->me = 0;
-    ((Packet_Channel_Delete_Guild_Agit_Layout*)this)->m12 = 0;
-    ((Packet_Channel_Delete_Guild_Agit_Layout*)this)->m16 = 0;
+    ma = 4294967295;
+    me = 0;
+    m12 = 0;
+    m16 = 0;
 }
 
-#pragma pack(push,1)
-struct Packet_Guild_Apply_Origial_Power_Side_Reply_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned int m12;
-    unsigned char m16;
-};
-#pragma pack(pop)
 Packet_Guild_Apply_Origial_Power_Side_Reply::Packet_Guild_Apply_Origial_Power_Side_Reply()
     : PacketHeader(0x6b2, 0x17)
 {
-    ((Packet_Guild_Apply_Origial_Power_Side_Reply_Layout*)this)->ma = 0;
-    ((Packet_Guild_Apply_Origial_Power_Side_Reply_Layout*)this)->me = 0;
-    ((Packet_Guild_Apply_Origial_Power_Side_Reply_Layout*)this)->m12 = 0;
-    ((Packet_Guild_Apply_Origial_Power_Side_Reply_Layout*)this)->m16 = 0;
+    ma = 0;
+    me = 0;
+    m12 = 0;
+    m16 = 0;
 }
 
 Packet_Answer_Join_Power::Packet_Answer_Join_Power()
@@ -6263,19 +6226,11 @@ Packet_Reply_Change_Guild_Name::Packet_Reply_Change_Guild_Name()
     memset((char*)this + 0x17, 0, 0x17);
 }
 
-#pragma pack(push,1)
-struct Packet_UnChangable_GuildInfo_Save_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-};
-#pragma pack(pop)
 Packet_UnChangable_GuildInfo_Save::Packet_UnChangable_GuildInfo_Save()
     : PacketHeader(0x452, 0x30)
 {
-    ((Packet_UnChangable_GuildInfo_Save_Layout*)this)->ma = 0;
-    ((Packet_UnChangable_GuildInfo_Save_Layout*)this)->me = 0;
+    ma = 0;
+    me = 0;
     memset((char*)this + 0x12, 0, 0x1e);
 }
 
@@ -6311,24 +6266,13 @@ Packet_DBMW_Request_Guild_Create::Packet_DBMW_Request_Guild_Create()
     memset((char*)this + 0x38, 0, 0x17);
 }
 
-#pragma pack(push,1)
-struct Packet_Notice_GuildName_On_Guild_Create_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned int m12;
-    char pad0x16[0x17];
-    unsigned char m2d;
-};
-#pragma pack(pop)
 Packet_Notice_GuildName_On_Guild_Create::Packet_Notice_GuildName_On_Guild_Create()
     : PacketHeader(0x445, 0x2e)
 {
-    ((Packet_Notice_GuildName_On_Guild_Create_Layout*)this)->ma = 0;
-    ((Packet_Notice_GuildName_On_Guild_Create_Layout*)this)->me = 4294967295;
-    ((Packet_Notice_GuildName_On_Guild_Create_Layout*)this)->m12 = 0;
-    ((Packet_Notice_GuildName_On_Guild_Create_Layout*)this)->m2d = 255;
+    ma = 0;
+    me = 4294967295;
+    m12 = 0;
+    m2d = 255;
     memset((char*)this + 0x16, 0, 0x17);
 }
 
@@ -6355,35 +6299,19 @@ Packet_Guild_Cargo_History_Response::Packet_Guild_Cargo_History_Response()
     memset(m_log, 0, 0x960);
 }
 
-#pragma pack(push,1)
-struct Packet_Channel_Check_Guild_Cargo_Push_Item_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned char m12;
-    unsigned int m13;
-    unsigned int m17;
-    unsigned int m1b;
-    unsigned int m1f;
-    unsigned char m23;
-    unsigned char m24;
-    unsigned short m25;
-};
-#pragma pack(pop)
 Packet_Channel_Check_Guild_Cargo_Push_Item::Packet_Channel_Check_Guild_Cargo_Push_Item()
     : PacketHeader(0x70c, 0x27)
 {
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->ma = 4294967295;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->me = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m12 = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m13 = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m17 = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m1b = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m1f = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m23 = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m24 = 0;
-    ((Packet_Channel_Check_Guild_Cargo_Push_Item_Layout*)this)->m25 = 0;
+    ma = 4294967295;
+    me = 0;
+    m12 = 0;
+    m13 = 0;
+    m17 = 0;
+    m1b = 0;
+    m1f = 0;
+    m23 = 0;
+    m24 = 0;
+    m25 = 0;
 }
 
 Packet_Channel_Guild_Cargo_Push_Item::Packet_Channel_Guild_Cargo_Push_Item()
@@ -6402,42 +6330,22 @@ Packet_Channel_Guild_Cargo_Pop_Item::Packet_Channel_Guild_Cargo_Pop_Item()
     memset((char*)this + 0x16, 0, 0x35);
 }
 
-#pragma pack(push,1)
-struct Packet_Channel_Guild_Cargo_Move_Item_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned char m12;
-    unsigned int m13;
-    unsigned int m17;
-};
-#pragma pack(pop)
 Packet_Channel_Guild_Cargo_Move_Item::Packet_Channel_Guild_Cargo_Move_Item()
     : PacketHeader(0x70f, 0x1b)
 {
-    ((Packet_Channel_Guild_Cargo_Move_Item_Layout*)this)->ma = 4294967295;
-    ((Packet_Channel_Guild_Cargo_Move_Item_Layout*)this)->me = 0;
-    ((Packet_Channel_Guild_Cargo_Move_Item_Layout*)this)->m12 = 0;
-    ((Packet_Channel_Guild_Cargo_Move_Item_Layout*)this)->m13 = 0;
-    ((Packet_Channel_Guild_Cargo_Move_Item_Layout*)this)->m17 = 0;
+    ma = 4294967295;
+    me = 0;
+    m12 = 0;
+    m13 = 0;
+    m17 = 0;
 }
 
-#pragma pack(push,1)
-struct Packet_Channel_Guild_Cargo_Upgrade_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned char m12;
-};
-#pragma pack(pop)
 Packet_Channel_Guild_Cargo_Upgrade::Packet_Channel_Guild_Cargo_Upgrade()
     : PacketHeader(0x713, 0x13)
 {
-    ((Packet_Channel_Guild_Cargo_Upgrade_Layout*)this)->ma = 4294967295;
-    ((Packet_Channel_Guild_Cargo_Upgrade_Layout*)this)->me = 0;
-    ((Packet_Channel_Guild_Cargo_Upgrade_Layout*)this)->m12 = 0;
+    ma = 4294967295;
+    me = 0;
+    m12 = 0;
 }
 
 Packet_DBMW_Query_Msg::Packet_DBMW_Query_Msg()
@@ -6449,75 +6357,36 @@ Packet_DBMW_Query_Msg::Packet_DBMW_Query_Msg()
     for (i = 0; i <= 0x1000; i++) { m_data[i] = 0x0; }
 }
 
-#pragma pack(push,1)
-struct Packet_Guild_Exp_Book_Delete_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    char pad0x12[0x4];
-    unsigned int m16;
-};
-#pragma pack(pop)
 Packet_Guild_Exp_Book_Delete::Packet_Guild_Exp_Book_Delete()
     : PacketHeader(0x1b6c, 0x1a)
 {
-    ((Packet_Guild_Exp_Book_Delete_Layout*)this)->ma = 4294967295;
-    ((Packet_Guild_Exp_Book_Delete_Layout*)this)->me = 0;
-    ((Packet_Guild_Exp_Book_Delete_Layout*)this)->m16 = 0;
+    ma = 4294967295;
+    me = 0;
+    m16 = 0;
 }
 
-#pragma pack(push,1)
-struct Packet_No_Cache_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned int m12;
-};
-#pragma pack(pop)
 Packet_No_Cache::Packet_No_Cache()
     : PacketHeader(0x1b6d, 0x16)
 {
-    ((Packet_No_Cache_Layout*)this)->ma = 0;
-    ((Packet_No_Cache_Layout*)this)->me = 0;
-    ((Packet_No_Cache_Layout*)this)->m12 = 0;
+    ma = 0;
+    me = 0;
+    m12 = 0;
 }
 
-#pragma pack(push,1)
-struct Packet_Add_Guild_Fund_Result_Layout
-{
-    char pad0x0[0xa];
-    unsigned char ma;
-    unsigned int mb;
-    unsigned int mf;
-    unsigned int m13;
-};
-#pragma pack(pop)
 Packet_Add_Guild_Fund_Result::Packet_Add_Guild_Fund_Result()
     : PacketHeader(0x1bbd, 0x17)
 {
-    ((Packet_Add_Guild_Fund_Result_Layout*)this)->ma = 0;
-    ((Packet_Add_Guild_Fund_Result_Layout*)this)->mb = 0;
-    ((Packet_Add_Guild_Fund_Result_Layout*)this)->mf = 0;
-    ((Packet_Add_Guild_Fund_Result_Layout*)this)->m13 = 0;
+    ma = 0;
+    mb = 0;
+    mf = 0;
+    m13 = 0;
 }
 
-#pragma pack(push,1)
-struct Packet_Approve_Join_Guild_Result_Layout
-{
-    char pad0x0[0xa];
-    unsigned int ma;
-    unsigned int me;
-    unsigned int m12;
-    unsigned int m16;
-};
-#pragma pack(pop)
 Packet_Approve_Join_Guild_Result::Packet_Approve_Join_Guild_Result()
     : PacketHeader(0x1bc3, 0x1a)
 {
-    ((Packet_Approve_Join_Guild_Result_Layout*)this)->ma = 0;
-    ((Packet_Approve_Join_Guild_Result_Layout*)this)->me = 0;
-    ((Packet_Approve_Join_Guild_Result_Layout*)this)->m12 = 0;
-    ((Packet_Approve_Join_Guild_Result_Layout*)this)->m16 = 0;
+    ma = 0;
+    me = 0;
+    m12 = 0;
+    m16 = 0;
 }

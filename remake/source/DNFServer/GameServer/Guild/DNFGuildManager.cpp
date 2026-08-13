@@ -102,20 +102,6 @@ static const int guild_att_exp[] = {
     14,52,65,135,166,286,468,734,1115,1239,1797,2533,3496,3775,4907,6184,0,
 };
 
-struct ST_Notice_Guild_Enter_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-    unsigned int m8;
-};
-
-struct ST_Notice_Guild_Secede_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-    unsigned int m8;
-};
-
 void CGuildManager::LoadGuildAgit(unsigned int guildKey, CServerHandler* handler)
 {
     CGuild* guild = FindGuild(guildKey);
@@ -429,10 +415,10 @@ CGuild* CGuildManager::GuildEnter(unsigned int guildKey, ST_Notice_Guild_Enter& 
     {
         throw CDNFException("CGuildManager::GuildEnter() pclServerHandler == NULL\n");
     }
-    CUser* user = m_app->Get_UserManager()->FindUser_CharNo(((ST_Notice_Guild_Enter_Layout*)&info)->m8);
+    CUser* user = m_app->Get_UserManager()->FindUser_CharNo(info.m_charNo);
     if (user != 0)
     {
-        user->SendSetGuildKeyToUser(guildKey, ((ST_Notice_Guild_Enter_Layout*)&info)->m8);
+        user->SendSetGuildKeyToUser(guildKey, info.m_charNo);
     }
     CGuild* guild = FindGuild(guildKey);
     if (guild != 0)
@@ -450,7 +436,7 @@ CGuild* CGuildManager::GuildEnter(unsigned int guildKey, ST_Notice_Guild_Enter& 
         }
         else if (guild->IsSetGuildDBFlag(4) && guild->IsSetGuildDBFlag(0x10))
         {
-            guild->QueryUnconnGuildMemberProxy(handler, ((ST_Notice_Guild_Enter_Layout*)&info)->m8);
+            guild->QueryUnconnGuildMemberProxy(handler, info.m_charNo);
         }
     }
     else if (user != 0)
@@ -475,7 +461,7 @@ CGuild* CGuildManager::GuildSecede(unsigned int guildKey, ST_Notice_Guild_Secede
     {
         throw CDNFException("CGuildManager::GuildSecede()\t0 == dwGuildKey\n");
     }
-    CUser* user = m_app->Get_UserManager()->FindUser_CharNo(((ST_Notice_Guild_Secede_Layout*)&info)->m8);
+    CUser* user = m_app->Get_UserManager()->FindUser_CharNo(info.m_charNo);
     CGuild* guild = FindGuild(guildKey);
     if (guild != 0)
     {
@@ -485,19 +471,19 @@ CGuild* CGuildManager::GuildSecede(unsigned int guildKey, ST_Notice_Guild_Secede
             {
                 return 0;
             }
-            user->SendSetGuildKeyToUser(0, ((ST_Notice_Guild_Secede_Layout*)&info)->m8);
+            user->SendSetGuildKeyToUser(0, info.m_charNo);
             user->ResetGuild();
         }
         guild->SecedeProxyMember(info);
-        if (guild->IsSubGuildMaster(((ST_Notice_Guild_Secede_Layout*)&info)->m8) != 0)
+        if (guild->IsSubGuildMaster(info.m_charNo) != 0)
         {
-            guild->SetSubGuildMaster(((ST_Notice_Guild_Secede_Layout*)&info)->m8, false);
+            guild->SetSubGuildMaster(info.m_charNo, false);
         }
     }
     else if (user != 0)
     {
-        register unsigned int charId = ((ST_Notice_Guild_Secede_Layout*)&info)->m8;
-        register char* accId = NumberToString(((ST_Notice_Guild_Secede_Layout*)&info)->m4, 0);
+        register unsigned int charId = info.m_charNo;
+        register char* accId = NumberToString(info.m_dbid, 0);
         DNF_LOG_SCOPE_LINE(0x2a1,"./log/Except",
             "GUILD : CGuildManager::GuildSecede() pclGuild == NULL But pclUser != NULL( Guild Key : %d, Acc Id : %s, Char Id : %d )\n",
             guildKey, accId, charId);

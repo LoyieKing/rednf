@@ -95,16 +95,6 @@ struct __attribute__((packed)) GuildNoticeInfoFull
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-struct STGuildMemberProxyLayout
-{
-    char pad0[0x24];
-    unsigned short m_field24;   // +0x24
-    unsigned char m_field26;    // +0x26
-    unsigned char m_field27;    // +0x27
-    unsigned int m_field28;     // +0x28
-    char rest[0x41 - 0x2c];
-};
-
 // CGuild 布局镜像（仅本 TU 使用，字节级对齐 DNFGuild.h 中 CGuild 布局；
 // 供按真实成员形态还原 ORIG 代码生成用）
 struct __attribute__((packed)) CGuildMemberNameView
@@ -185,21 +175,13 @@ void CGuild::AddGuildMemberPoint(unsigned int charNo, unsigned int point)
 
 MemPool<CGuild> m_GuildMemPool_(10000);
 
-#pragma pack(push,1)
-struct ST_Notice_Guild_Enter_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-    unsigned int m8;
-};
-#pragma pack(pop)
 ST_Notice_Guild_Enter::ST_Notice_Guild_Enter()
 {
-    ((ST_Notice_Guild_Enter_Layout*)this)->m0 = 0;
-    ((ST_Notice_Guild_Enter_Layout*)this)->m4 = 0;
-    ((ST_Notice_Guild_Enter_Layout*)this)->m8 = 0;
-    memset((char*)this + 0xc, 0, 0x17);
-    memset((char*)this + 0x23, 0, 0x1e);
+    m_guildKey = 0;
+    m_dbid = 0;
+    m_charNo = 0;
+    memset(m_guildName, 0, 0x17);
+    memset(m_charName, 0, 0x1e);
 }
 
 unsigned int CGuild::GetGuildKey()
@@ -300,15 +282,15 @@ void CGuild::SetPowerSide(unsigned char side)
 
 STGuildMemberProxy::STGuildMemberProxy()
 {
-    *(unsigned int*)m_data = 0;
-    m_data[0x22] = 0xff;
-    m_data[0x23] = 0xff;
-    ((STGuildMemberProxyLayout*)this)->m_field24 = 0xffff;
-    m_data[0x26] = 0;
-    m_data[0x27] = 0;
-    ((STGuildMemberProxyLayout*)this)->m_field28 = 0;
-    memset(m_data + 4, 0, 0x1e);
-    memset(m_data + 0x2c, 0, 0x15);
+    m0 = 0;
+    m22 = 0xff;
+    m23 = 0xff;
+    m_field24 = 0xffff;
+    m_field26 = 0;
+    m_field27 = 0;
+    m_field28 = 0;
+    memset(m_pad4, 0, 0x1e);
+    memset(m_pad2c, 0, 0x15);
 }
 
 #pragma pack(push,1)
@@ -327,37 +309,21 @@ STGuildMemberCharacData::STGuildMemberCharacData()
     memset((char*)this + 0x3, 0, 0x1e);
 }
 
-#pragma pack(push,1)
-struct ST_GuildCreateFromWeb_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-};
-#pragma pack(pop)
 ST_GuildCreateFromWeb::ST_GuildCreateFromWeb()
 {
-    ((ST_GuildCreateFromWeb_Layout*)this)->m0 = 0;
-    ((ST_GuildCreateFromWeb_Layout*)this)->m4 = 0;
-    memset((char*)this + 0x8, 0, 0x17);
+    m0 = 0;
+    m4 = 0;
+    memset(m_pad8, 0, 0x17);
 }
 
-#pragma pack(push,1)
-struct ST_Notice_Guild_Secede_Layout
-{
-    unsigned int m0;
-    unsigned int m4;
-    unsigned int m8;
-    unsigned short mc;
-};
-#pragma pack(pop)
 ST_Notice_Guild_Secede::ST_Notice_Guild_Secede()
 {
-    ((ST_Notice_Guild_Secede_Layout*)this)->m0 = 0;
-    ((ST_Notice_Guild_Secede_Layout*)this)->m4 = 0;
-    ((ST_Notice_Guild_Secede_Layout*)this)->m8 = 0;
-    ((ST_Notice_Guild_Secede_Layout*)this)->mc = 0;
-    memset((char*)this + 0xe, 0, 0x17);
-    memset((char*)this + 0x25, 0, 0x1e);
+    m_guildKey = 0;
+    m_dbid = 0;
+    m_charNo = 0;
+    m_secedeFlag = 0;
+    memset(m_guildName, 0, 0x17);
+    memset(m_charName, 0, 0x1e);
 }
 
 STGuildCallInfo::STGuildCallInfo()
@@ -1341,10 +1307,10 @@ int CGuild::ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info)
         {
             if (it->second != 0)
             {
-                *(unsigned int*)((char*)&info + count * 5 * 4) = it->second->GetUniqCharNo();
+                info->m_members[count].m_charNo = it->second->GetUniqCharNo();
                 if (it->second->GetGameServer() != 0)
                 {
-                    *(unsigned char*)((char*)&info + count * 5 * 4 + 4) =
+                    info->m_members[count].m_channel =
                         it->second->GetGameServer()->GetChannelNo();
                 }
                 count++;
@@ -1710,8 +1676,8 @@ void CGuild::AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user)
     }
     unsigned short idx = m_field1e;
     *(unsigned int*)((char*)this + (unsigned int)idx * 0x41 + 0xdd) =
-        *(unsigned int*)((char*)&info + 8);
-    memcpy((char*)this + (unsigned int)idx * 0x41 + 0xe1, (char*)&info + 0x23, 0x1d);
+        info.m_charNo;
+    memcpy((char*)this + (unsigned int)idx * 0x41 + 0xe1, info.m_charName, 0x1d);
     *(unsigned char*)((char*)this + (unsigned int)idx * 0x41 + 0xff) = user->GetJob();
     *(unsigned char*)((char*)this + (unsigned int)idx * 0x41 + 0x100) = user->GetGrowthType();
     *(unsigned short*)((char*)this + (unsigned int)idx * 0x41 + 0x101) = user->GetLevel();
@@ -1733,7 +1699,7 @@ void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
         {
             for (int i = 0; i < (int)cnt; i++)
             {
-                if (*(int*)((char*)this + i * 0x41 + 0xdd) == *(int*)((char*)&info + 8))
+                if (*(int*)((char*)this + i * 0x41 + 0xdd) == info.m_charNo)
                 {
                     if ((unsigned int)cnt - (unsigned int)i != 1)
                     {
@@ -1993,7 +1959,7 @@ void CGuild::UpdateChangableInfoProcess()
                         info) != 0)
                 {
                     ((CGuildMemberExtraArray*)this)->m_members[i].m_changableTime =
-                        *(unsigned int*)info.m_data;
+                        info.m_time;
                 }
             }
             m_changable.clear();
@@ -2446,8 +2412,8 @@ void CGuild::NotifyAllAchieveAttendance(unsigned int charNo, unsigned int phase)
 
 STGuildSkill::STGuildSkill()
 {
-    *(int*)m_data = -1;
-    m_data[4] = 0xff;
+    m0 = -1;
+    m4 = 0xff;
 }
 
 STGuildDBInfoOnly::STGuildDBInfoOnly()
