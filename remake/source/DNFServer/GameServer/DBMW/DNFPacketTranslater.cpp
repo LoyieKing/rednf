@@ -2124,7 +2124,7 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                 int count = 0;
                 while (count <= 0x95 && srcIdx < size)
                 {
-                    (*(st_ip_counter_list*)((char*)&reply + 0xc + count * 0x14))
+                    (*(st_ip_counter_list*)&reply.m_rest[count * 0x14])
                         .CopyStruct(vec1[srcIdx]);
                     srcIdx++;
                     count++;
@@ -2165,8 +2165,7 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                 int count = 0;
                 while (count <= 0x95 && srcIdx < size)
                 {
-                    (*(st_full_ip_counter_list*)((char*)&reply + 0xc +
-                                                 count * 0x18))
+                    (*(st_full_ip_counter_list*)&reply.m_rest[count * 0x18])
                         .CopyStruct(vec2[srcIdx]);
                     srcIdx++;
                     count++;
@@ -2292,7 +2291,7 @@ void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
                 int count = 0;
                 while (count <= 0x63 && srcIdx < size)
                 {
-                    (*(st_ars_info_list*)((char*)&reply + 0xf + count * 0xc))
+                    (*(st_ars_info_list*)&reply.m_rest[count * 0xc])
                         .CopyStruct(list[srcIdx]);
                     srcIdx++;
                     count++;

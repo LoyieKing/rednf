@@ -46,11 +46,18 @@ class Packet_DBMW_Statistic_Login_Logout : public PacketHeader
 {
 public:
     Packet_DBMW_Statistic_Login_Logout();
-    char m_pad[0x5fe];  // +0xa .. +0x607
-    int m_field608;     // +0x608
-    int m_field60c;     // +0x60c
-    int m_field610;     // +0x610
-    int m_field614;     // +0x614
+    int m_count;                     // +0xa（条目数）
+    struct __attribute__((packed)) Item
+    {
+        unsigned char m_channelNo;   // +0
+        unsigned char m_eventType;   // +1
+        int m_count;                 // +2（6 字节/条）
+    };
+    Item m_items[0xff];              // +0xe（0xff × 6 = 0x5fa，至 +0x608）
+    int m_field608;                  // +0x608
+    int m_field60c;                  // +0x60c
+    int m_field610;                  // +0x610
+    int m_field614;                  // +0x614
 } __attribute__((packed));
 
 class Packet_User_Count_Statistic : public PacketHeader
@@ -739,7 +746,9 @@ class Packet_DBMW_Save_Client_Spec_Statistic : public PacketHeader
 
 class Packet_DBMW_Assert_Manager_Info_Write_Query : public PacketHeader
 {
-};
+public:
+    int m_count;       // +0xa（条目数）
+} __attribute__((packed));
 
 class Packet_DBMW_Cube_Statistic : public PacketHeader
 {
@@ -751,7 +760,17 @@ class Packet_DBMW_DeathTower_Statistic_Playdata_Job : public PacketHeader
 
 class Packet_DBMW_DeathTower_Statistic_Value : public PacketHeader
 {
-};
+public:
+    int m_count;        // +0xa（条目数）
+    struct __attribute__((packed)) Item
+    {
+        signed char m_type;  // +0
+        short m_level;       // +1
+        int m_index;         // +3
+        unsigned int m_value; // +0xb（0xf 字节/条）
+    };
+    Item m_items[0x200];     // +0xe（stride 0xf）
+} __attribute__((packed));
 
 class Packet_Avater_Disjoint_Statistic_DB : public PacketHeader
 {
@@ -779,7 +798,11 @@ class Packet_Secret_Shop_Statistic : public PacketHeader
 
 class Packet_UnChangable_GuildInfo_Save : public PacketHeader
 {
-};
+public:
+    int m_guildId;      // +0xa
+    int m_characNo;     // +0xe
+    char m_masterName[0x1e]; // +0x12（ORIG 以裸指针/lea 访问）
+} __attribute__((packed));
 
 class Packet_DB_Load_Request_Guild_Board_Open : public PacketHeader
 {

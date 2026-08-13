@@ -311,6 +311,7 @@ int FrameLagCollector::PopMonitoringSpecData(Packet_Frame_Lag_Spec_Delete_Notify
     }
     if (erased)
     {
+        // ORIG 以 lea 0xa(%eax) 直取 key 地址；packed int 成员取址会被物化，保持裸形态
         m_data.erase(*(int*)((char*)pkt + 10));
     }
     return 0;

@@ -753,6 +753,7 @@ void StatisticManager::WriteUserTingTImeCheckStatistic(
     {
         if (m_field110.size() <= 1000)
         {
+            // ORIG 以 lea 0xe(%eax) 直取 key 地址；packed 成员会被物化临时量，保持裸形态
             unsigned int& uKey = *(unsigned int*)((char*)pkt + 0xe);
             std::map<unsigned int, int>::iterator it2 = m_field110.find(uKey);
             if (m_field110.empty() || it2 == m_field110.end())
@@ -1186,13 +1187,15 @@ void StatisticManager::AddFatigueBatteryStatistics(Packet_Fatigue_Battery_Money_
     struct __attribute__((packed)) Wire
     {
         char m_hdr[0xa];
-        char m_f0a;
+        unsigned char m_f0a;
         int m_f0b;
         unsigned short m_f0f;
     };
     STFatigueBattery value;
     value.m_field0 = ((Wire*)pkt)->m_f0b;
     value.m_field4 = ((Wire*)pkt)->m_f0f;
+    // ORIG 以 lea 0xa(%eax) 直取 key 地址（unsigned char packed 成员可取址，但 map key
+    // 经 make_pair 转发引用绑定会改变 codegen，保持裸形态以完全复现 ORIG）
     std::map<unsigned char, STFatigueBattery>::iterator it =
         m_fatigue.find(*(unsigned char*)((char*)pkt + 10));
     if (it != m_fatigue.end())
@@ -1233,6 +1236,7 @@ void StatisticManager::AddBloodDungeonStatistics(Packet_Blood_dungeon_statistic*
         unsigned char m_f0;
         unsigned char m_f1;
     };
+    // ORIG 以 lea 0xe(%eax) 直取 key 地址；packed int 成员取址会被物化，保持裸形态
     std::map<unsigned int, STBloodDungeonStatistic>::iterator it =
         m_blood.find(*(unsigned int*)((char*)pkt + 0xe));
     if (it != m_blood.end())
@@ -1554,6 +1558,7 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
 }
 void StatisticManager::AddValueStatistics(Packet_Value_Statistic* pkt)
 {
+    // ORIG 以 lea 0xa(%eax) 直取 key 地址；packed int 成员取址会被物化，保持裸形态
     std::map<int, ValueStatisticData>::iterator it = m_value.find(*(int*)((char*)pkt + 10));
     if (it != m_value.end())
     {
@@ -1607,6 +1612,7 @@ void StatisticManager::SendDBValueStatistic(CServerHandler* handler)
 }
 void StatisticManager::AddCirculationStatistics(Packet_Circulation_Statistic* pkt)
 {
+    // ORIG 以 lea 0xa(%eax) 直取 key 地址；packed int 成员取址会被物化，保持裸形态
     std::map<int, CirculationStatisticData>::iterator it = m_circ.find(*(int*)((char*)pkt + 10));
     if (it != m_circ.end())
     {
@@ -1935,6 +1941,7 @@ void StatisticManager::AddP2PStatistic(Packet_P2P_Statistics* pkt)
     m_p2p.m_field0 += pkt->m_fieldA;
     m_p2p.m_field4 += pkt->m_fieldB;
     m_p2p.m_field8 = pkt->m_fieldC;
+    // ORIG 全部用 lea 直取地址；packed 成员取址会变 add+mov 并级联改寄存器分配，保持裸形态
     minPing(*(short*)((char*)this + 0xb3a), *(short*)((char*)pkt + 0x13));
     maxPing(*(short*)((char*)this + 0xb3c), *(short*)((char*)pkt + 0x15));
     sumPing(*(int*)((char*)this + 0xb40), *(short*)((char*)pkt + 0x17),
@@ -1965,6 +1972,7 @@ void StatisticManager::SendDBP2PStatistic(CServerHandler* handler)
     {
         pkt.m_fieldD = m_p2p.m_fieldA;
     }
+    // ORIG 用 lea 直取地址（见 AddP2PStatistic 注释），保持裸形态
     avgPing(*(int*)((char*)this + 0xb40), *(int*)((char*)this + 0xb44),
             *(short*)((char*)this + 0xb3e));
     pkt.m_fieldE = m_p2p.m_fieldC;

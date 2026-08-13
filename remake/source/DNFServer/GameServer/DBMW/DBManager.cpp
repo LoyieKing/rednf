@@ -776,19 +776,19 @@ char CDBManager::SaveGuildSkill(unsigned char serverGroup,
     CDBHandle* h = m_handles[8];    // guild db
     h->set_query(0x4e55,
                  "upDate guild_skill set remain_sp = %d, used_sp = %d, skill_slot = '%s' where guild_id = %d",
-                 *(unsigned short*)((char*)&info + 0x42),
-                 *(unsigned char*)((char*)&info + 0x44),
+                 info.m_field42,
+                 (unsigned char)info.m_field44,
                  h->blob_to_str(0, (char*)&info + 0x45,
-                                *(unsigned char*)((char*)&info + 0x44) * 5),
+                                (unsigned char)info.m_field44 * 5),
                  guildId);
     if (h->exec(0x4e55) != 1 || h->getAffectedRowCount() == 0)
     {
         h->set_query(0x4e59,
                      "inSert into guild_skill set guild_id= %d, remain_sp = %d, used_sp = %d, skill_slot = '%s'",
-                     guildId, *(unsigned short*)((char*)&info + 0x42),
-                     *(unsigned char*)((char*)&info + 0x44),
+                     guildId, info.m_field42,
+                     (unsigned char)info.m_field44,
                      h->blob_to_str(0, (char*)&info + 0x45,
-                                    *(unsigned char*)((char*)&info + 0x44) * 5));
+                                    (unsigned char)info.m_field44 * 5));
         h->exec(0x4e59);
     }
     return 1;
@@ -803,24 +803,24 @@ char CDBManager::SaveGuildMember(unsigned char serverGroup,
     {
         h->set_query(0x4e30,
                      "upDate guild_member set member_point=%d, last_play_time =  now() where guild_id = %d and server_id = %d and charac_no = %d",
-                     *(int*)((char*)&info + 0x16), guildId, serverGroup, flag);
+                     info.m_field16, guildId, serverGroup, flag);
         CMyFileLog log(__FUNCTION__, 0x2ba);
         log("./log/GuildModify",
             "CDBManager::SaveGuildMember(SAVE_LOGOUT flag(%d), grade(%d), guildMemPoint(%d), g(%d), s(%d), c(%d))",
-            type, *(unsigned char*)((char*)&info + 0x15),
-            *(int*)((char*)&info + 0x16), guildId, serverGroup, flag);
+            type, (unsigned char)info.m_field15,
+            info.m_field16, guildId, serverGroup, flag);
     }
     else if (type == 3)
     {
         h->set_query(0x4e30,
                      "upDate guild_member set member_point=%d, grade=%d where guild_id = %d and server_id = %d and charac_no = %d",
-                     *(int*)((char*)&info + 0x16),
-                     *(unsigned char*)((char*)&info + 0x15), guildId,
+                     info.m_field16,
+                     (unsigned char)info.m_field15, guildId,
                      serverGroup, flag);
         CMyFileLog log(__FUNCTION__, 0x2c5);
         log("./log/GuildModify",
             "CDBManager::SaveGuildMember(GRADE_CHANGE flag(%d), grade(%d), g(%d), s(%d), c(%d))",
-            type, *(unsigned char*)((char*)&info + 0x15), guildId, serverGroup,
+            type, (unsigned char)info.m_field15, guildId, serverGroup,
             flag);
     }
     else
@@ -2739,7 +2739,7 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
     bool cVar1;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[2];   // game db
-    if (*(char*)((char*)info + 0x14) == 0)
+    if (*(unsigned char*)((char*)info + 0x14) == 0)
     {
         result = 0x27;
         CMyFileLog(__FUNCTION__, 0xe76)(
@@ -4784,13 +4784,13 @@ char CDBManager::OnStatisticLoginLogout(
 {
     CDBHandle* h = m_handles[4];    // log db
     time_t now = time(0);
-    for (int i = 0; i < *(int*)((char*)packet + 0xa); i++)
+    for (int i = 0; i < packet->m_count; i++)
     {
         h->set_query(0x4eeb,
                      "inSert into log_login_logout(occ_time,channel_no,event_type,count) values (from_unixtime(%d),%d,%d,%d)",
                      now, *(unsigned char*)((char*)packet + i * 6 + 0xe),
                      *(unsigned char*)((char*)packet + i * 6 + 0xf),
-                     *(int*)((char*)packet + i * 6 + 0x10));
+                     packet->m_items[i].m_count);
         if (!h->exec(0x4eeb))
         {
             CMyFileLog log(__FUNCTION__, 0x2099);
@@ -5087,7 +5087,7 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
     CDBHandle* h = m_handles[8];    // guild db
     time_t now = time(0);
     localtime(&now);
-    *(unsigned int*)((char*)&reply + 0xa) = guildId;
+    reply.m_fieldA = guildId;
     unsigned int i = 0;
     std::vector<STTodayGuildMember> vec;
     vec.clear();
@@ -5496,7 +5496,7 @@ char CDBManager::OnSaveAssertManagerInfoWrite(
     CDBHandle* h = m_handles[0xf];    // frame_lag db
     if (!h)
         return 0;
-    int count = *(int*)((char*)packet + 0xa);
+    int count = packet->m_count;
     for (int i = 0; i < count; i++)
     {
         char buf1[0x400];
@@ -5607,17 +5607,17 @@ char CDBManager::SaveUnchangableGuildInfo(
         CMyFileLog log(__FUNCTION__, 0x1313);
         log("./log/TraceGuildErr",
             "CDBManager::SaveUnchangableGuildInfo guild(%d), charac_no(%d)\n",
-            *(int*)((char*)packet + 0xa), *(int*)((char*)packet + 0xe));
+            packet->m_guildId, packet->m_characNo);
         return 0;
     }
     if (!h->set_query(0x4e86,
                       "seLect master_no from guild_info where guild_id = %d and expire_flag = 0",
-                      *(int*)((char*)packet + 0xa)))
+                      packet->m_guildId))
     {
         CMyFileLog log(__FUNCTION__, 0x1319);
         log("./log/DBQueryErr",
             "CDBManager::SaveUnchangableGuildInfo() seLect master_no from guild_info where guild_id = %d and expire_flag = 0",
-            *(int*)((char*)packet + 0xa));
+            packet->m_guildId);
         return 0;
     }
     if (!h->exec(0x4e86))
@@ -5627,22 +5627,22 @@ char CDBManager::SaveUnchangableGuildInfo(
         CMyFileLog log(__FUNCTION__, 0x1327);
         log("./log/DBQueryErr",
             "CDBManager::SaveUnchangableGuildInfo() seLect master_no from guild_info where guild_id = %d and expire_flag = 0, fetch()",
-            *(int*)((char*)packet + 0xa));
+            packet->m_guildId);
         return 0;
     }
     unsigned int masterNo = 0;
     if (!h->get_uint(0, masterNo))
         return 0;
-    if (*(int*)((char*)packet + 0xe) == (int)masterNo)
+    if (packet->m_characNo == (int)masterNo)
     {
         if (!h->set_query(0x4e87,
                           "upDate guild_info set master_name='%s' where guild_id=%d and expire_flag = 0",
-                          (char*)packet + 0x12, *(int*)((char*)packet + 0xa)))
+                          (char*)packet + 0x12, packet->m_guildId))
         {
             CMyFileLog log(__FUNCTION__, 0x1348);
             log("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_info set master_name='%s' where guild_id=%d and expire_flag = 0",
-                (char*)packet + 0x12, *(int*)((char*)packet + 0xa));
+                (char*)packet + 0x12, packet->m_guildId);
             return 0;
         }
         if (!h->exec(0x4e87))
@@ -5650,7 +5650,7 @@ char CDBManager::SaveUnchangableGuildInfo(
             CMyFileLog log(__FUNCTION__, 0x134f);
             log("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_info set master_name='%s' where guild_id=%d and expire_flag = 0, exe()",
-                (char*)packet + 0x12, *(int*)((char*)packet + 0xa));
+                (char*)packet + 0x12, packet->m_guildId);
             return 0;
         }
     }
@@ -5658,14 +5658,14 @@ char CDBManager::SaveUnchangableGuildInfo(
     {
         if (!h->set_query(0x4e84,
                           "upDate guild_member set charac_name='%s' where guild_id=%d and charac_no=%d",
-                          (char*)packet + 0x12, *(int*)((char*)packet + 0xa),
-                          *(int*)((char*)packet + 0xe)))
+                          (char*)packet + 0x12, packet->m_guildId,
+                          packet->m_characNo))
         {
             CMyFileLog log(__FUNCTION__, 0x135e);
             log("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_member set charac_name=%s where guild_id=%d and charac_no=%d",
-                (char*)packet + 0x12, *(int*)((char*)packet + 0xa),
-                *(int*)((char*)packet + 0xe));
+                (char*)packet + 0x12, packet->m_guildId,
+                packet->m_characNo);
             return 0;
         }
         if (!h->exec(0x4e84))
@@ -5673,8 +5673,8 @@ char CDBManager::SaveUnchangableGuildInfo(
             CMyFileLog log(__FUNCTION__, 0x1369);
             log("./log/DBQueryErr",
                 "CDBManager::SaveUnchangableGuildInfo() : upDate guild_member set charac_name=%s where guild_id=%d and charac_no=%d, exe()",
-                (char*)packet + 0x12, *(int*)((char*)packet + 0xa),
-                *(int*)((char*)packet + 0xe));
+                (char*)packet + 0x12, packet->m_guildId,
+                packet->m_characNo);
             return 0;
         }
     }
@@ -5938,7 +5938,7 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    int count = *(int*)((char*)packet + 0xa);
+    int count = packet->m_count;
     CMyFileLog slog(__FUNCTION__, 0x1760);
     slog("./log/statistic",
          "Packet_DBMW_DeathTower_Statistic_Value : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
@@ -5946,20 +5946,20 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
     for (int i = 0; i < count; i++)
     {
         unsigned int vals[0xb] = {0};
-        vals[*(int*)((char*)packet + i * 0xf + 0x11)] =
-            *(unsigned int*)((char*)packet + i * 0xf + 0x19);
+        vals[packet->m_items[i].m_index] =
+            packet->m_items[i].m_value;
         h->set_query(0x4e9e,
                      "upDate log_deathtower_value set try_cnt=try_cnt+%u, clear_stage=clear_stage+%u, recipeCnt=recipeCnt+%u, commonCnt=commonCnt+%u, uncommonCnt=uncommonCnt+%u, rareCnt=rareCnt+%u, uniqCnt=uniqCnt+%u, card_item_goldprice=card_item_goldprice+%u, card_gold=card_gold+%u, repair_price=repair_price+%u  where occ_date=cast(now() as date) and type=%d and level=%d",
                      vals[0], vals[1], vals[2], vals[3], vals[4], vals[5],
                      vals[6], vals[7], vals[8], vals[9],
                      *(signed char*)((char*)packet + i * 0xf + 0xe),
-                     *(short*)((char*)packet + i * 0xf + 0xf));
+                     packet->m_items[i].m_level);
         if (!h->exec(0x4e9e))
         {
             h->set_query(0x4e9d,
                          "inSert into log_deathtower_value (occ_date, type, level, try_cnt, clear_stage, recipeCnt, commonCnt, uncommonCnt, rareCnt, uniqCnt, card_item_goldprice, card_gold, repair_price) values (cast(now() as date), %d, %d, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u)",
                          *(signed char*)((char*)packet + i * 0xf + 0xe),
-                         *(short*)((char*)packet + i * 0xf + 0xf), vals[0],
+                         packet->m_items[i].m_level, vals[0],
                          vals[1], vals[2], vals[3], vals[4], vals[5], vals[6],
                          vals[7], vals[8], vals[9]);
             if (!h->exec(0x4e9d))
@@ -6700,14 +6700,14 @@ bool CDBManager::loadLimitNpcBuyItemInfo(LimitNpcBuyItemRequestInfo* req,
         log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo Query(exec) Error");
         return 0;
     }
-    *(int*)((char*)result + 0xa) = h->get_n_rows();
-    if (*(int*)((char*)result + 0xa) == 0)
+    result->m_count = h->get_n_rows();
+    if (result->m_count == 0)
     {
         CMyFileLog log(__FUNCTION__, 0x2821);
         log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (Row_Data Not Exist) Error");
         return 0;
     }
-    for (int i = 0; i < *(int*)((char*)result + 0xa) && i <= 0x1d; i++)
+    for (int i = 0; i < result->m_count && i <= 0x1d; i++)
     {
         if (!h->fetch())
         {
@@ -6963,7 +6963,7 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
         if (!m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
                 *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
                 h + 0x14, pkt.m_field31,
-                *(unsigned int*)((char*)&pkt + 0x32), result))
+                *(unsigned int*)&pkt.m_field32, result))
         {
             pkt.m_field30 = 0xff;
             gs->SendToServer((char*)&pkt, pkt.packetSize);

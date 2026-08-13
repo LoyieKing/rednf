@@ -188,8 +188,8 @@ int CTcpNetSystem::SendPacket()
         {
             CMyFileLog log(__FUNCTION__, 0xba);
             log("./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
-                ((unsigned short*)buf)[0], ((unsigned short*)buf)[1],
-                *(unsigned int*)((char*)buf + 6));
+                buf->m_header.packetId, buf->m_header.packetSize,
+                buf->m_header.reversed2);
             PopDeleteTcpSendPacketQ(buf);
             result = 0;
         }
@@ -198,7 +198,7 @@ int CTcpNetSystem::SendPacket()
             CPeer* peer = it->second;
             bool bad = true;
             if (peer != NULL &&
-                *(unsigned int*)((char*)buf + 6) ==
+                buf->m_header.reversed2 ==
                     peer->GetTcpSocket()->getHandle())
                 bad = false;
             if (bad)
@@ -206,21 +206,21 @@ int CTcpNetSystem::SendPacket()
                 CMyFileLog log(__FUNCTION__, 0xc3);
                 log("./log/TcpSend",
                     "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
-                    ((unsigned short*)buf)[0], ((unsigned short*)buf)[1],
-                    *(unsigned int*)((char*)buf + 6));
+                    buf->m_header.packetId, buf->m_header.packetSize,
+                    buf->m_header.reversed2);
                 PopDeleteTcpSendPacketQ(buf);
                 result = 0;
             }
             else
             {
                 result = peer->send_packet((char*)buf,
-                                           ((unsigned short*)buf)[1]);
+                                           buf->m_header.packetSize);
                 if (result < 1)
                 {
                     CMyFileLog log(__FUNCTION__, 0xd5);
                     log("./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
-                        ((unsigned short*)buf)[0], ((unsigned short*)buf)[1],
-                        *(unsigned int*)((char*)buf + 6),
+                        buf->m_header.packetId, buf->m_header.packetSize,
+                        buf->m_header.reversed2,
                         m_sendQueue.size());
                 }
                 else
@@ -257,8 +257,9 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
     {
         CMyFileLog log(__FUNCTION__, 0x91);
         log("./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", n,
-            *(unsigned short*)buf, ((unsigned short*)buf)[1],
-            *(unsigned int*)((char*)buf + 6));
+            ((CTcpSendBuffer*)buf)->m_header.packetId,
+            ((CTcpSendBuffer*)buf)->m_header.packetSize,
+            ((CTcpSendBuffer*)buf)->m_header.reversed2);
     }
 }
 void CTcpNetSystem::CleanTcpSendPacketQ()

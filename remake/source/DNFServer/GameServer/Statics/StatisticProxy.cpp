@@ -171,11 +171,11 @@ void Field::getUpdateCondition(const std::string& key, const std::string& cond)
 int Field::updateDatabase(const char* table, const std::string& key, const std::string& cond)
 {
     PacketInsertUpdate p;
-    *(unsigned int*)((char*)&p + 0xa) = 4;
-    *(unsigned int*)((char*)&p + 0xe) = 0x4f2b;
-    *(unsigned int*)((char*)&p + 0x812) = 0x4f2c;
-    MakeInsertQuery((char*)&p + 0x12, table, key, cond);
-    MakeUpdateQuery((char*)&p + 0x816, table, key, cond);
+    p.m_handleIdx = 4;
+    p.m_updateQueryId = 0x4f2b;
+    p.m_insertQueryId = 0x4f2c;
+    MakeInsertQuery(p.m_updateSql, table, key, cond);
+    MakeUpdateQuery(p.m_insertSql, table, key, cond);
     (*StatisticProxy::sendPacketFunctionPointer)((char*)&p);
     return 1;
 }
