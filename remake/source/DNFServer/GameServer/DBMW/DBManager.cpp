@@ -259,6 +259,40 @@ struct HolePunchingResultView
     char m_restF[0x10];       // +0x25
 } __attribute__((packed));
 
+struct TowerOfDespairEntry
+{
+    int m_success;  // +0
+    int m_enter;    // +4
+};
+
+struct TowerOfDespairView
+{
+    char h[0xa];
+    int m_serverId;                   // +0xa
+    int m_uv;                         // +0xe
+    TowerOfDespairEntry m_entries[0x65]; // +0x12，步长 8
+} __attribute__((packed));
+
+struct RandomboxStatisticView
+{
+    char h[0xa];
+    int m_createCount[5];  // +0xa，步长 4
+    int m_openCount[5];    // +0x1e，步长 4
+} __attribute__((packed));
+
+struct GoldcardEventEntry
+{
+    int m_createCnt;  // +0
+    int m_openCnt;    // +4
+    char m_pad;       // +8
+} __attribute__((packed));
+
+struct GoldcardEventView
+{
+    char h[0xb];
+    GoldcardEventEntry m_entries[0x63];  // +0xb，步长 9
+} __attribute__((packed));
+
 // ---- CGuildManager / WongWork ----
 bool CDBManager::GuildMasterDelegate(int serverId,
                                      unsigned int guildId,
@@ -1233,16 +1267,15 @@ char CDBManager::OnGoldcardEventStatistic(
     Packet_Goldcard_Event_Statistic_STD* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
-    char* p = (char*)packet;
     for (int i = 0; i <= 0x62; i++)
     {
-        if (*(int*)(p + i * 9 + 0xb) != 0 ||
-            *(int*)(p + i * 9 + 0xf) != 0)
+        if (((GoldcardEventView*)packet)->m_entries[i].m_createCnt != 0 ||
+            ((GoldcardEventView*)packet)->m_entries[i].m_openCnt != 0)
         {
             h->set_query(0x4f03,
                          "upDate log_goldcard_event set create_cnt=create_cnt+%d,open_cnt=open_cnt+%d where occ_date=cast(now() as date) and level=%d",
-                         *(int*)(p + i * 9 + 0xb),
-                         *(int*)(p + i * 9 + 0xf), i);
+                         ((GoldcardEventView*)packet)->m_entries[i].m_createCnt,
+                         ((GoldcardEventView*)packet)->m_entries[i].m_openCnt, i);
             if (h->exec(0x4f03) != 1)
             {
                 CMyFileLog log(__FUNCTION__, 0x222b);
@@ -1253,8 +1286,8 @@ char CDBManager::OnGoldcardEventStatistic(
             {
                 h->set_query(0x4f02,
                              "inSert into log_goldcard_event(occ_date,level,create_cnt,open_cnt) values(cast(now() as date), %d, %d, %d)",
-                             i, *(int*)(p + i * 9 + 0xb),
-                             *(int*)(p + i * 9 + 0xf));
+                             i, ((GoldcardEventView*)packet)->m_entries[i].m_createCnt,
+                             ((GoldcardEventView*)packet)->m_entries[i].m_openCnt);
                 if (h->exec(0x4f02) != 1)
                 {
                     CMyFileLog log(__FUNCTION__, 0x2236);
@@ -1480,34 +1513,36 @@ bool CDBManager::QueryTowerOfDespairStatistic(
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    char* p = (char*)packet;
     for (int i = 1; i <= 0x64; i++)
     {
-        if (*(int*)(p + 0x12 + i * 8) == 0)
-            continue;
-        if (*(int*)(p + 0xe + i * 8) == 0)
-            continue;
-        h->set_query(0x4f27,
-                     "inSert into log_tower_despair_layer_stat(occ_date,server_id,layer,enter,success) values(now(),%d,%d,%d,%d)",
-                     *(int*)(p + 0xa), i, *(int*)(p + 0x12 + i * 8),
-                     *(int*)(p + 0xe + i * 8));
-        if (!h->exec(0x4f27))
+        if (((TowerOfDespairView*)packet)->m_entries[i].m_enter != 0 ||
+            ((TowerOfDespairView*)packet)->m_entries[i].m_success != 0)
         {
-            CMyFileLog log(__FUNCTION__, 0x27bc);
-            log("./log/DBQueryErr",
-                "insert error TOD : group(%d),layer(%d),enter(%d),succ(%d)",
-                *(int*)(p + 0xa), i, *(int*)(p + 0x12 + i * 8),
-                *(int*)(p + 0xe + i * 8));
+            h->set_query(0x4f27,
+                         "inSert into log_tower_despair_layer_stat(occ_date,server_id,layer,enter,success) values(now(),%d,%d,%d,%d)",
+                         ((TowerOfDespairView*)packet)->m_serverId, i,
+                         ((TowerOfDespairView*)packet)->m_entries[i].m_enter,
+                         ((TowerOfDespairView*)packet)->m_entries[i].m_success);
+            if (!h->exec(0x4f27))
+            {
+                CMyFileLog log(__FUNCTION__, 0x27bc);
+                log("./log/DBQueryErr",
+                    "insert error TOD : group(%d),layer(%d),enter(%d),succ(%d)",
+                    ((TowerOfDespairView*)packet)->m_serverId, i,
+                    ((TowerOfDespairView*)packet)->m_entries[i].m_enter,
+                    ((TowerOfDespairView*)packet)->m_entries[i].m_success);
+            }
         }
     }
     h->set_query(0x4f28,
                  "inSert into log_tower_despair_uv_stat(occ_date,server_id,uv) values(now(),%d,%d)",
-                 *(int*)(p + 0xa), *(int*)(p + 0xe));
+                 ((TowerOfDespairView*)packet)->m_serverId,
+                 ((TowerOfDespairView*)packet)->m_uv);
     if (!h->exec(0x4f28))
     {
         CMyFileLog log(__FUNCTION__, 0x27c8);
         log("./log/DBQueryErr", "insert error TOD : uv(%d)",
-            *(int*)(p + 0xe));
+            ((TowerOfDespairView*)packet)->m_uv);
     }
     return 1;
 }
@@ -1676,29 +1711,28 @@ bool CDBManager::UpdateRandomboxStatistic(
     Packet_Randombox_statistic_DB* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
-    char boxKind[0x20] = {0};
+    char boxKind[0x10] = {0};
     if (!h)
         return 0;
-    char* p = (char*)packet;
     for (int i = 0; i <= 4; i++)
     {
         if (i == 0)
             memcpy(boxKind, "randombox", 10);
         else if (i == 2)
             memcpy(boxKind, "emeraldbox", 11);
-        if (*(int*)(p + i * 4 + 0xa) == 0)
-            continue;
-        if (*(int*)(p + i * 4 + 0x1e) == 0)
-            continue;
-        h->set_query(0x4eea,
-                     "inSert into log_randombox(occ_date, box_kind, create_count, open_count) values(CURDATE(), '%s', %d, %d)",
-                     boxKind, *(int*)(p + i * 4 + 0xa),
-                     *(int*)(p + i * 4 + 0x1e));
-        if (!h->exec(0x4eea))
+        if (((RandomboxStatisticView*)packet)->m_createCount[i] != 0 ||
+            ((RandomboxStatisticView*)packet)->m_openCount[i] != 0)
         {
-            CMyFileLog log(__FUNCTION__, 0x207b);
-            log("./log/statistic", "UpdateRandomboxStatistic db error!!\n");
-            return 0;
+            h->set_query(0x4eea,
+                         "inSert into log_randombox(occ_date, box_kind, create_count, open_count) values(CURDATE(), '%s', %d, %d)",
+                         boxKind, ((RandomboxStatisticView*)packet)->m_createCount[i],
+                         ((RandomboxStatisticView*)packet)->m_openCount[i]);
+            if (!h->exec(0x4eea))
+            {
+                CMyFileLog log(__FUNCTION__, 0x207b);
+                log("./log/statistic", "UpdateRandomboxStatistic db error!!\n");
+                return 0;
+            }
         }
     }
     return 1;
@@ -4839,7 +4873,7 @@ char CDBManager::InsertFrameLagStatistics(
     if (h->get_n_rows() != 0)
         return 1;
     Packet_Frame_Lag_Spec_Delete_Notify pkt;
-    *(int*)((char*)&pkt + 0xb) = *(int*)((char*)packet + 0xb);
+    *(int*)((char*)&pkt + 0xa) = *(int*)((char*)packet + 0xb);
     stats->SendToServer((char*)&pkt, pkt.packetSize);
     return 1;
 }
