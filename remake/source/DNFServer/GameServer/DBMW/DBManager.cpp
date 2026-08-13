@@ -696,15 +696,14 @@ bool CDBManager::InsertMail(unsigned int characNo, char* subject,
     lt->tm_sec = 0;
     long occTime = mktime(lt);
     int letterNo = 0;
-    if (!InsertLetter(characNo, (unsigned int)subject, content, 0, letterNo,
-                      occTime))
+    if (!InsertLetter(characNo, 0, subject, content, letterNo, occTime))
     {
         CMyFileLog log(__FUNCTION__, 0x1d9e);
         log("./log/Postal", "InsertLetter Err, %s(%s)", content, subject);
         return 0;
     }
-    if (!InsertPostal(characNo, (unsigned int)subject, 0, 0, h12, h16, 0,
-                      content, occTime, letterNo))
+    if (!InsertPostal(characNo, 0, 0, hE, h16, h12, 0, subject, occTime,
+                      letterNo))
     {
         CMyFileLog log(__FUNCTION__, 0x1da4);
         log("./log/Postal", "InsertPostal Err, %s(%s)", content, subject);
