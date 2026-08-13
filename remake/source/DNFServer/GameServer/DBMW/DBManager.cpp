@@ -4984,7 +4984,7 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
     if (vec.size() <= 0x13)
         return 1;
     STTodayGuildMember& m = vec[rand() % vec.size()];
-    reply.m_member = m;
+    memcpy(reply.m_data, &m, sizeof(STTodayGuildMember));
     vec.clear();
     return 1;
 }

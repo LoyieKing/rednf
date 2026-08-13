@@ -610,7 +610,7 @@ class Packet_Reply_Today_Guild_Member : public PacketHeader
 public:
     Packet_Reply_Today_Guild_Member();
     int m_fieldA;        // +0xa
-    STTodayGuildMember m_member;  // +0xe（0x27 字节）
+    char m_data[0x27];   // +0xe（STTodayGuildMember，0x27 字节）
 } __attribute__((packed));
 
 class Packet_Response_D_IPCounterList : public PacketHeader
