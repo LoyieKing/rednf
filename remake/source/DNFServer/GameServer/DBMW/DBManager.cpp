@@ -6719,8 +6719,14 @@ bool CDBManager::loadLimitNpcBuyItemInfo(LimitNpcBuyItemRequestInfo* req,
         log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (Row_Data Not Exist) Error");
         return 0;
     }
-    for (int i = 0; i < result->m_count && i <= 0x1d; i++)
+    // ORIG 循环变量为 unsigned（jbe/ja 无符号比较），且条件失败直接 return 1。
+    unsigned int i = 0;
+    while (true)
     {
+        if ((unsigned int)result->m_count <= i || 0x1d < i)
+        {
+            return 1;
+        }
         if (!h->fetch())
         {
             CMyFileLog log(__FUNCTION__, 0x282a);
@@ -6746,8 +6752,8 @@ bool CDBManager::loadLimitNpcBuyItemInfo(LimitNpcBuyItemRequestInfo* req,
             log("./log/DBQueryErr", "loadLimitNpcBuyItemInfo (get_uint(sellCount)) Error");
             return 0;
         }
+        i++;
     }
-    return 1;
 }
 bool CDBManager::updateLimitNpcBuyItemInfo(LimitNpcBuyItemUpdate* update)
 {
