@@ -922,10 +922,11 @@ void CGuild::SendGuildInfoToMemberOnly(CUser* user)
 {
     if ((m_guildDBFlag & 4) != 0)
     {
-        GuildNoticeInfoFull pkt;
-        new (&pkt) Packet_Monitor_Notice_Guild_Info();
+        // ORIG：直接构造 Packet_Monitor_Notice_Guild_Info（无 placement new，
+        // 无 EH landing pad，u=0）。本地视图 + placement new 会引入 _Unwind_Resume。
+        Packet_Monitor_Notice_Guild_Info pkt;
         pkt.m_guildKey = m_guildKey;
-        memcpy(pkt.m_body, (char*)this + 0x20, 0xbd);
+        memcpy(&pkt.m_info, (char*)this + 0x20, 0xbd);
         pkt.m_channel = user->GetIdByChannel();
         pkt.m_charNo = user->GetUniqCharNo();
         int len = strlen((char*)this + 0x4d0a);

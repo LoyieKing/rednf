@@ -290,22 +290,24 @@ out:
     {
         if ((unsigned int)parsinglength > 0x1800)
         {
-            DNF_LOG_SCOPE_LINE(0x10e, "./log/TcpRecv",
-                "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
-                parsinglength);
+            // ORIG：try 包日志块，catch 是 printf("[PARSING EXCEPTION]...")+return 0；
+            // memmove 在 try 外。
+            try
+            {
+                DNF_LOG_SCOPE_LINE(0x10e, "./log/TcpRecv",
+                    "[PARSING LENGTH EXCEPTION] parsinglength > MAX_RECV_BUF , memmove : parsinglength = %d",
+                    parsinglength);
+            }
+            catch (...)
+            {
+                printf("[PARSING EXCEPTION] memmove : parsinglength = %d", parsinglength);
+                return 0;
+            }
             return 0;
         }
-        try
-        {
-            memmove((char*)this + 0x1c, m_sendBuf, parsinglength);
-            m_recvLen = parsinglength;
-            m_sendBuf = (char*)this + 0x1c + parsinglength;
-        }
-        catch (...)
-        {
-            printf("[PARSING EXCEPTION] memmove : parsinglength = %d", parsinglength);
-            return 0;
-        }
+        memmove((char*)this + 0x1c, m_sendBuf, parsinglength);
+        m_recvLen = parsinglength;
+        m_sendBuf = (char*)this + 0x1c + parsinglength;
     }
     return 1;
 }
