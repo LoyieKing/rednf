@@ -26,33 +26,33 @@ void CServerHandler::Load(ST_ServerInfo* info)
     int i;
     for (i = 0; i < 0xff; i++)
     {
-        if (info[i].m_field0 == 1)
+        if (info[i].m_serverType == 1)
         {
-            index = info[i].m_field2;
+            index = info[i].m_serverIndex;
             if (index == 0xff)
             {
                 throw CDNFException("CServerHandler::Load() Server Table Exception Break!");
             }
-            m_servers[index].Init(info[i].m_field1, info[i].m_string, info[i].m_ushort, index);
+            m_servers[index].Init(info[i].m_id, info[i].m_string, info[i].m_ushort, index);
         }
-        if (info[i].m_field0 == 2)
+        if (info[i].m_serverType == 2)
         {
-            index = info[i].m_field2;
+            index = info[i].m_serverIndex;
             if (index == 0xff || index != 0xc8)
             {
                 printf("*******%d", index);
                 throw CDNFException("CServerHandler::Load() DB2 Server Table Exception Break!");
             }
-            m_dbServer.Init(info[i].m_field1, info[i].m_string, info[i].m_ushort, index);
+            m_dbServer.Init(info[i].m_id, info[i].m_string, info[i].m_ushort, index);
         }
-        if (info[i].m_field0 == 4)
+        if (info[i].m_serverType == 4)
         {
-            index = info[i].m_field2;
+            index = info[i].m_serverIndex;
             if (index == 0xff || index != 0xca)
             {
                 throw CDNFException("CServerHandler::Load() Manager Server Table Exception Break!");
             }
-            m_mgrServer.Init(info[i].m_field1, info[i].m_string, info[i].m_ushort, index);
+            m_mgrServer.Init(info[i].m_id, info[i].m_string, info[i].m_ushort, index);
         }
     }
 }

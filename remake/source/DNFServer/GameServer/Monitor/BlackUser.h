@@ -249,9 +249,9 @@ public:
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
     char m_name[0x1e];           // +0
-    unsigned short m_field1e;    // +0x1e
+    unsigned short m_field1e;    // +0x1e（保留：无 Ghidra 证据）
     unsigned int m_occurTime;    // +0x20
-    unsigned int m_field24;      // +0x24
+    unsigned int m_field24;      // +0x24（保留：无 Ghidra 证据）
 };
 
 struct STBlackUserDBType
@@ -259,8 +259,8 @@ struct STBlackUserDBType
     STBlackUserDBType();
     unsigned int m_dbid;       // +0
     char m_name[0x1e];         // +4
-    unsigned short m_field22;  // +0x22
-    unsigned int m_field24;    // +0x24
+    unsigned short m_field22;  // +0x22（保留：无 Ghidra 证据）
+    unsigned int m_occurTime;  // +0x24（GetBlackList: =CBlackUser::GetOccurTime）
 } __attribute__((packed));
 
 #endif  // MONITOR_BLACKUSER_H_

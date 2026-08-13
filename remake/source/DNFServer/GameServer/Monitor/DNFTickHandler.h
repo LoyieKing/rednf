@@ -245,23 +245,23 @@ public:
     CFrameCountHandler* GetFrameCountInfo();
     void SaveProcess();
     void SaveProcess(int threadNo);
-    unsigned char m_field0;    // +0
-    char m_pad1[3];            // +1
-    unsigned int m_field4;     // +4
-    int m_field8;              // +8
-    int m_fieldc;              // +0xc
-    int m_field10;             // +0x10
-    int m_field14;             // +0x14
-    int m_field18;             // +0x18
-    int m_field1c;             // +0x1c
-    int m_field20;             // +0x20
-    unsigned char m_field24;   // +0x24
-    unsigned char m_field25;   // +0x25
-    unsigned char m_field26;   // +0x26
-    char m_pad27;              // +0x27
-    unsigned char m_field28;   // +0x28
-    char m_pad29[3];           // +0x29
-    CApplication* m_app;       // +0x2c
+    unsigned char m_inited;     // +0（0→1 初始化标志）
+    char m_pad1[3];             // +1
+    unsigned int m_frameCount;  // +4（DFC：每帧计数）
+    int m_interval;             // +8（100/frameCount）
+    int m_prevTick;             // +0xc（times() 上一时刻）
+    int m_curTick;              // +0x10（times() 当前时刻）
+    int m_frameCounter;         // +0x14（间隔帧累计）
+    int m_fps;                  // +0x18（FPS 快照）
+    int m_field1c;              // +0x1c（未使用，保留）
+    int m_field20;              // +0x20（清零，保留）
+    unsigned char m_state;      // +0x24（0=init,1=帧,2=秒,3=分,4=时）
+    unsigned char m_secCounter; // +0x25（秒计数，>59 进位）
+    unsigned char m_minCounter; // +0x26（分计数，>59 进位）
+    char m_pad27;               // +0x27
+    unsigned char m_logCounter; // +0x28（SaveProcess 节流）
+    char m_pad29[3];            // +0x29
+    CApplication* m_app;        // +0x2c
 };
 
 #endif  // MONITOR_DNFTICKHANDLER_H_

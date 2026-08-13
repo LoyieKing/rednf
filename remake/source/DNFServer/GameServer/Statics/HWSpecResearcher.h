@@ -9,9 +9,9 @@ class CServerHandler;
 struct HWSpec
 {
     HWSpec();
-    unsigned char m_field0;   // +0（0xff）
-    unsigned int m_field4;    // +4（0xffffffff）
-    unsigned int m_field8;    // +8（0xffffffff）
+    unsigned char m_category1;  // +0（log_hardware_ting.category1，0xff 默认）
+    unsigned int m_category2;   // +4（log_hardware_ting.category2，0xffffffff 默认）
+    unsigned int m_category3;   // +8（log_hardware_ting.category3，0xffffffff 默认）
 };
 
 // ---- ErrorValue：0x8 ----
@@ -19,8 +19,8 @@ struct ErrorValue
 {
     ErrorValue();
     ErrorValue(unsigned short value, unsigned int param);
-    unsigned short m_field0;  // +0（0xffff）
-    unsigned int m_field4;    // +4（0xffffffff）
+    unsigned short m_errorLine;  // +0（log_packet_dispatcher_error_line.error_line，0xffff 默认）
+    unsigned int m_errorCode;    // +4（log_packet_dispatcher_error_line，0xffffffff 默认）
 };
 
 // ---- STSpecStatic：0xc ----
@@ -51,10 +51,10 @@ public:
     void WriteErrorLineStatics(unsigned short param, int value);
     void ResetSpec();
     std::map<STSpecStatic, unsigned int> m_spec[3];      // +0x0/0x18/0x30
-    unsigned char m_field48;                             // +0x48
+    unsigned char m_specSaveTick;                        // +0x48（DBSaveProcess 保存计数）
     int m_field4c;                                       // +0x4c
     std::map<STErrorStatic, unsigned int> m_errorSpec;   // +0x50
-    unsigned char m_field68;                             // +0x68
+    unsigned char m_errorSaveTick;                       // +0x68（DBSaveProcess 保存计数）
 };
 
 #endif // HW_SPEC_RESEARCHER_H_

@@ -325,8 +325,8 @@ public:
     unsigned char m_posState;                           // +0x10
     char m_pad10[3];                                    // +0x11
     class CMember* m_member;                            // +0x14
-    unsigned short m_field18;                           // +0x18
-    char m_field1a;                                     // +0x1a
+    unsigned short m_field18;                           // +0x18（未使用，保留）
+    char m_memberEnterCount;                            // +0x1a（RecordCallMemberEnter 计数）
     unsigned int m_memberEnterCallerId;                 // +0x1c
     int m_idByChannel;                                  // +0x20
     char m_dataC2[0x1e];                                // +0x24
@@ -337,7 +337,7 @@ public:
     char m_dataC2b[7];                                  // +0x47
     char m_dataC2c[2];                                  // +0x4e
     std::map<unsigned int, class CBlackUser*> m_blackList;  // +0x50
-    unsigned short m_field68;                           // +0x68
+    unsigned short m_blackListDBFlag;                   // +0x68（SetBlackListDBFlag/GetBlackListDBFlag）
     class CBuddyHandle m_buddyHandle;                   // +0x6c
     unsigned int m_channelCount;                        // +0x8c
     struct ChannelInfo

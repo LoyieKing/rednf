@@ -80,9 +80,9 @@
 
 STGuildBoardDBInfo::STGuildBoardDBInfo()
 {
-    m_field78 = 0;
-    m_field7c = 0;
-    m_field80 = 0;
+    m_guildKey = 0;
+    m_boardId = 0;
+    m_writerCharNo = 0;
     memset(m_memo, 0, 0x78);
 }
 
@@ -153,16 +153,16 @@ void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guil
     for (int i = 0; i < c; i++)
     {
         STGuildBoardDBInfo entry;
-        entry.m_field7c = info[i].m_field7c;
-        entry.m_field78 = info[i].m_field78;
+        entry.m_boardId = info[i].m_boardId;
+        entry.m_guildKey = info[i].m_guildKey;
         memcpy(&entry, &info[i], 0x78);
-        entry.m_field80 = info[i].m_field80;
+        entry.m_writerCharNo = info[i].m_writerCharNo;
         memcpy(&entry.m_char, &info[i].m_char, 0x21);
-        if (guild->IsGuildMaster(entry.m_field80) != 0)
+        if (guild->IsGuildMaster(entry.m_writerCharNo) != 0)
         {
-            entry.m_char.m_field2 = 1;
+            entry.m_char.m_masterFlag = 1;
         }
-        m_board.insert(std::make_pair(entry.m_field7c, entry));
+        m_board.insert(std::make_pair(entry.m_boardId, entry));
     }
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5f, "./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, COUNT:%u", a, b, c);
 }
@@ -209,10 +209,10 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         reply.m_17 = 10;
         for (int i = 0; i < 10; i++)
         {
-            reply.m_boards[i].m_field7c = it->first;
+            reply.m_boards[i].m_boardId = it->first;
             memcpy(&reply.m_boards[i], (char*)&it->second, 0x78);
-            reply.m_boards[i].m_field78 = it->second.m_field78;
-            reply.m_boards[i].m_field80 = it->second.m_field80;
+            reply.m_boards[i].m_guildKey = it->second.m_guildKey;
+            reply.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
             memcpy(&reply.m_boards[i].m_char, (char*)&it->second + 0x84, 0x21);
             ++it;
         }
@@ -230,10 +230,10 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         reply.m_17 = (unsigned char)remainder;
         for (int i = 0; i < remainder; i++)
         {
-            reply.m_boards[i].m_field7c = it->first;
+            reply.m_boards[i].m_boardId = it->first;
             memcpy(&reply.m_boards[i], (char*)&it->second, 0x78);
-            reply.m_boards[i].m_field78 = it->second.m_field78;
-            reply.m_boards[i].m_field80 = it->second.m_field80;
+            reply.m_boards[i].m_guildKey = it->second.m_guildKey;
+            reply.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
             memcpy(&reply.m_boards[i].m_char, (char*)&it->second + 0x84, 0x21);
             ++it;
             if (it == endit)
@@ -340,7 +340,7 @@ void CGuildBoard::printGuildBoard()
     while (cur != endit)
     {
         DNF_LOG_SCOPE_LINE(0x188,"./log/GuildBoard", "\n*%d* %d %s\n",
-            cur->first, cur->second.m_field78,
+            cur->first, cur->second.m_guildKey,
             cur->second.m_memo);
         ++cur;
     }

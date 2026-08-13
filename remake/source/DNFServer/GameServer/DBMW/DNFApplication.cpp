@@ -458,7 +458,7 @@ void CApplication::TranslateSignal()
             }
             Packet_Notice_Guild_Mail_Arrived pkt;
             pkt.m_guildId = guildId;
-            pkt.m_fieldA = 1;
+            pkt.m_flag = 1;
             CMonitorServer* ms = m_serverHandler->GetMonitorServer();
             ms->SendToServer((char*)&pkt, pkt.packetSize);
             break;

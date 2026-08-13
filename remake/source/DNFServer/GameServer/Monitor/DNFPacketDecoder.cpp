@@ -173,17 +173,17 @@ CPacketDecoder::CPacketDecoder()
 
 CPacketDecoder::~CPacketDecoder()
 {
-    m_field0 = 0;
-    m_field4 = 0;
+    m_udpParseQ = 0;
+    m_udpQLock = 0;
 }
 
 void CPacketDecoder::Attach(CApplication* app)
 {
     if (app != 0)
     {
-        m_field0 = app->Get_UdpPacketParseQ();
+        m_udpParseQ = app->Get_UdpPacketParseQ();
         m_net.m_parseQ = app->Get_TcpNetSystem()->Get_TcpSwapQPacket()->GetParseQ();
-        m_field4 = app->Get_UdpQLock();
+        m_udpQLock = app->Get_UdpQLock();
         m_net.m_udpBLock = app->Get_UdpBLock();
         m_net.m_recvQ = app->Get_TcpNetSystem()->Get_TcpRecvQLock();
         m_net.m_bLock = app->Get_TcpNetSystem()->Get_TcpRecvBLock();
@@ -243,22 +243,22 @@ void CPacketDecoder::TcpProcess()
 
 void CPacketDecoder::UdpProcess()
 {
-    if (m_field0 != 0 && m_field4 != 0)
+    if (m_udpParseQ != 0 && m_udpQLock != 0)
     {
         CUdpRecvBuffer* buf = 0;
         while (true)
         {
             do
             {
-                if (((std::queue<CUdpRecvBuffer*>*)m_field0)->empty())
+                if (((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->empty())
                 {
                     return;
                 }
-                buf = ((std::queue<CUdpRecvBuffer*>*)m_field0)->front();
-                ((std::queue<CUdpRecvBuffer*>*)m_field0)->pop();
+                buf = ((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->front();
+                ((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->pop();
             } while (buf == 0);
             CUdpRecvBuffer* pkt = buf;
-            int qsize = ((std::queue<CUdpRecvBuffer*>*)m_field0)->size();
+            int qsize = ((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->size();
             CAppLoadChecker* checker = CAppLoadCheckerInstance();
             if (checker->CheckUdpRecvQ(qsize))
             {

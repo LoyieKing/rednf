@@ -30,7 +30,7 @@
 
 CFrameCountHandler::CFrameCountHandler()
 {
-    m_field28 = 0;
+    m_logCounter = 0;
     m_app = 0;
 }
 
@@ -42,8 +42,8 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int fram
     {
         m_app = app;
         memset((char*)this, 0, 0x28);
-        m_field4 = frameCount;
-        m_field8 = 100 / frameCount;
+        m_frameCount = frameCount;
+        m_interval = 100 / frameCount;
     }
     else
     {
@@ -54,49 +54,49 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int fram
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
     tms tm = {};
-    m_field24 = 0;
-    if (m_field0 == 0)
+    m_state = 0;
+    if (m_inited == 0)
     {
-        m_field0 = 1;
-        m_field14 = 0;
-        m_fieldc = times(&tm);
-        if (m_fieldc == -1)
+        m_inited = 1;
+        m_frameCounter = 0;
+        m_prevTick = times(&tm);
+        if (m_prevTick == -1)
         {
             throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
         }
     }
     else
     {
-        m_field10 = times(&tm);
-        if (m_field10 == -1)
+        m_curTick = times(&tm);
+        if (m_curTick == -1)
         {
             throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
         }
-        if ((unsigned int)m_field10 < (unsigned int)m_fieldc)
+        if ((unsigned int)m_curTick < (unsigned int)m_prevTick)
         {
-            m_fieldc = m_field10;
+            m_prevTick = m_curTick;
         }
-        if (m_field14 < (unsigned int)((int)m_field10 - (int)m_fieldc) / (unsigned int)m_field8)
+        if (m_frameCounter < (unsigned int)((int)m_curTick - (int)m_prevTick) / (unsigned int)m_interval)
         {
-            m_field14++;
-            m_field24 = 1;
-            if (99 < (unsigned int)((int)m_field10 - (int)m_fieldc))
+            m_frameCounter++;
+            m_state = 1;
+            if (99 < (unsigned int)((int)m_curTick - (int)m_prevTick))
             {
-                m_field18 = m_field14;
-                m_field24 = 2;
-                m_field14 = 0;
-                m_fieldc = (m_field10 - (m_field10 - m_fieldc)) + 100;
-                m_field20 = 0;
-                m_field25++;
-                if (59 < (unsigned char)m_field25)
+                m_fps = m_frameCounter;
+                m_state = 2;
+                m_frameCounter = 0;
+                m_prevTick = (m_curTick - (m_curTick - m_prevTick)) + 100;
+                m_field20 = 0;  // 保留原名（未使用）
+                m_secCounter++;
+                if (59 < (unsigned char)m_secCounter)
                 {
-                    m_field24 = 3;
-                    m_field25 = 0;
-                    m_field26++;
-                    if (59 < (unsigned char)m_field26)
+                    m_state = 3;
+                    m_secCounter = 0;
+                    m_minCounter++;
+                    if (59 < (unsigned char)m_minCounter)
                     {
-                        m_field24 = 4;
-                        m_field26 = 0;
+                        m_state = 4;
+                        m_minCounter = 0;
                     }
                 }
             }
@@ -107,19 +107,19 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 
 void CFrameCountHandler::SaveProcess()
 {
-    if ((m_field28 = m_field28 + 1) != 0)
+    if ((m_logCounter = m_logCounter + 1) != 0)
     {
-        DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_field18, m_field4);
-        m_field28 = 0;
+        DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_fps, m_frameCount);
+        m_logCounter = 0;
     }
 }
 
 void CFrameCountHandler::SaveProcess(int threadNo)
 {
-    if ((m_field28 = m_field28 + 1) != 0)
+    if ((m_logCounter = m_logCounter + 1) != 0)
     {
-        DNF_LOG_SCOPE_LINE(0xb8,"./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", threadNo, m_field18,
-            m_field4);
-        m_field28 = 0;
+        DNF_LOG_SCOPE_LINE(0xb8,"./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", threadNo, m_fps,
+            m_frameCount);
+        m_logCounter = 0;
     }
 }

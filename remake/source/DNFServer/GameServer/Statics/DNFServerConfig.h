@@ -11,9 +11,9 @@ struct ST_ServerInfo
 {
     ST_ServerInfo();
     ~ST_ServerInfo();
-    char m_field0;           // +0（1=游戏服务器 / 2=DB / 4=Manager）
-    char m_field1;           // +1
-    char m_field2;           // +2（服务器索引）
+    char m_serverType;       // +0（1=游戏服务器 / 2=DB / 4=Manager）
+    char m_id;               // +1（CDBServer::Init 的 id）
+    char m_serverIndex;      // +2（服务器索引，0xff=无效）
     std::string m_string;    // +4
     unsigned short m_ushort; // +8
 };

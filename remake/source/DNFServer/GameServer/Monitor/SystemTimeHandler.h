@@ -241,12 +241,12 @@ class CommonTime
 {
 public:
     void SetCurTime();
-    unsigned char m_field0;  // +0
-    unsigned char m_field1;  // +1
-    unsigned char m_field2;  // +2
-    unsigned char m_field3;  // +3
-    unsigned char m_field4;  // +4
-    unsigned char m_field5;  // +5
+    unsigned char m_year;   // +0（tm_year-100）
+    unsigned char m_month;  // +1（tm_mon+1）
+    unsigned char m_day;    // +2（tm_mday）
+    unsigned char m_hour;   // +3（tm_hour）
+    unsigned char m_minute; // +4（tm_min）
+    unsigned char m_wday;   // +5（tm_wday）
 };
 
 class CSystemTime
@@ -255,10 +255,10 @@ public:
     CSystemTime();
     ~CSystemTime() {}
     unsigned int m_pad;     // +0
-    unsigned int m_field4;  // +4
+    unsigned int m_msec;    // +4（tv_usec/1000）
     unsigned int m_tv_sec;  // +8
     int m_tv_usec;          // +0xc
-    unsigned int m_field16; // +0x10
+    unsigned int m_sec;     // +0x10（tv_sec 快照）
 };
 
 class CSystemTimeHandler : public CSystemTime

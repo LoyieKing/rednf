@@ -69,18 +69,18 @@
 CServerInterface::CServerInterface()
 {
     m_info = 0;
-    m_field8 = 0;
-    m_field9 = 0;
-    m_fielda = 0;
+    m_connected = 0;
+    m_heartBeatCnt = 0;
+    m_heartBeatOverCnt = 0;
     m_sock = 0;
 }
 
 CServerInterface::CServerInterface(stServerInfo* info)
 {
     m_info = info;
-    m_field8 = 0;
-    m_field9 = 0;
-    m_fielda = 0;
+    m_connected = 0;
+    m_heartBeatCnt = 0;
+    m_heartBeatOverCnt = 0;
     m_sock = 0;
 }
 
@@ -127,38 +127,38 @@ bool CServerInterface::IsValidServer()
 
 bool CServerInterface::IsConnected()
 {
-    return m_field8;
+    return m_connected;
 }
 
 void CServerInterface::SetConnFlag(bool flag)
 {
-    m_field8 = flag;
+    m_connected = flag;
 }
 
 void CServerInterface::OnDisconnect()
 {
-    m_field8 = 0;
-    m_field9 = 0x14;
-    m_fielda = 0;
+    m_connected = 0;
+    m_heartBeatCnt = 0x14;
+    m_heartBeatOverCnt = 0;
 }
 
 int CServerInterface::IsHeartBeatTimeOver()
 {
-    if (--m_field9 == 0)
+    if (--m_heartBeatCnt == 0)
     {
-        if (0x14 < (unsigned char)++m_fielda)
+        if (0x14 < (unsigned char)++m_heartBeatOverCnt)
         {
             return 1;
         }
-        m_field9 = 0x14;
+        m_heartBeatCnt = 0x14;
     }
     return 0;
 }
 
 void CServerInterface::ResetHeartBeat()
 {
-    m_field9 = 0x14;
-    m_fielda = 0;
+    m_heartBeatCnt = 0x14;
+    m_heartBeatOverCnt = 0;
 }
 
 void CServerInterface::SetServerInfo(stServerInfo* info)

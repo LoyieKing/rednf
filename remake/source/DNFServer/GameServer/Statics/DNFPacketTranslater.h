@@ -11,12 +11,12 @@ class Packet_GameServer2Statisctics2DBServer : public PacketHeader
 {
 public:
     Packet_GameServer2Statisctics2DBServer();
-    unsigned short m_fieldA;  // +0xa
-    char m_fieldB;            // +0xc
-    int m_fieldC;             // +0xd
-    int m_fieldD;             // +0x11
-    char m_restE[0x10];       // +0x15
-    char m_restF[0x10];       // +0x25
+    unsigned short m_serverGroup;   // +0xa（p2p_connect_success_rate.server_group）
+    char m_connectedType;           // +0xc（p2p_connect_success_rate.connected_type）
+    int m_requiredTime;             // +0xd（p2p_connect_success_rate.required_time）
+    int m_checkTime;                // +0x11（p2p_connect_success_rate.check_time）
+    char m_nationCode[0x10];        // +0x15（p2p_connect_success_rate.nation_code）
+    char m_peerAddress[0x10];       // +0x25（p2p_connect_success_rate.peer_address）
 } __attribute__((packed));
 #pragma pack(pop)
 

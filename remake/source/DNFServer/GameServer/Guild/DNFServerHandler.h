@@ -97,7 +97,7 @@ public:
     CApplication* m_app;                                   // +0x3c
     int m_heartbeat;                                       // +0x40
     CTcpDBServer m_tcpDbServer;                            // +0x44
-    int m_field58;                                         // +0x58
+    int m_hbCnt;                                           // +0x58（心跳计数，>3 发送）
 };
 
 #endif

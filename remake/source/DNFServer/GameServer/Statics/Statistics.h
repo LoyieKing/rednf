@@ -53,11 +53,11 @@ class CApplication;
 struct STHellPartyStatisticItemWire
 {
     char         m_pad[0xe];   // +0
-    char         m_field0;     // +0xe（STHellPartyStatisticItemKey::m_field0）
-    unsigned int m_field4;     // +0xf（m_field4）
-    char         m_field8;     // +0x13（m_field8）
-    char         m_field9;     // +0x14（m_field9）
-    char         m_fielda;     // +0x15（m_fielda）
+    char         m_hellpartyType;   // +0xe（log_hellparty_value.hellparty_type）
+    unsigned int m_dungeonIndex;    // +0xf（log_hellparty_value.dungeon_index）
+    char         m_dungeonDiff;     // +0x13（log_hellparty_value.dungeon_diff）
+    char         m_partyCount;      // +0x14（log_hellparty_value.party_count）
+    char         m_hellpartyDiff;   // +0x15（log_hellparty_value.hellparty_diff）
     int          m_count;      // +0x16（HellPartyItenmData::m_count）
     int          m_data[6];    // +0x1a（HellPartyItenmData::m_data[6]）
 };                              // 步长 0x24
@@ -178,7 +178,7 @@ public:
     std::map<STPacketOverflowKey, int> m_packetOverflow;   // +0xc8
     std::map<STAssertManagerKey, int> m_assertManager;     // +0xe0
     std::map<STUserTingTimeCheckKey, int> m_userTing;      // +0xf8
-    std::map<unsigned int, int> m_field110;                // +0x110
+    std::map<unsigned int, int> m_tingUser;                // +0x110（ting_user_account: m_id→minute）
     std::map<STHellPartyStatisticItemKey, HellPartyItenmData> m_hellParty; // +0x128
     LoadingTimeReport m_loading;           // +0x140
     std::map<STPowerwarFightLoadingKey, STPowerwarFightLoadingData> m_pwLoading; // +0x188

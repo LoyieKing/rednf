@@ -8,7 +8,7 @@
 #include "DNFFileLog.h"
 
 CHWSpecResearcher::CHWSpecResearcher()
-    : m_field48(0), m_field4c(0), m_field68(0)
+    : m_specSaveTick(0), m_field4c(0), m_errorSaveTick(0)
 {
 }
 CHWSpecResearcher::~CHWSpecResearcher()
@@ -49,7 +49,7 @@ void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char pa
 {
     Packet_DBMW_Save_Client_Spec_Statistic pkt;
     std::map<STSpecStatic, unsigned int>* pMap = &m_spec[param];
-    pkt.m_fieldA = (char)param;
+    pkt.m_flag = (char)param;
     int count = 0;
     if (!pMap->empty())
     {
@@ -58,17 +58,17 @@ void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char pa
         {
             const STSpecStatic* pSpec = &it->first;
             memcpy(&pkt.m_items[count].m_spec, (const void*)pSpec, 0xc);
-            pkt.m_items[count].m_field0 = (short)it->second;
+            pkt.m_items[count].m_total = (short)it->second;
             if (0x1b3U < (++count))
             {
-                pkt.m_fieldB = 0x1b4;
+                pkt.m_count = 0x1b4;
                 handler->SendToDB((PacketHeader*)&pkt);
                 count = 0;
             }
         }
         if (count != 0)
         {
-            pkt.m_fieldB = count;
+            pkt.m_count = count;
             pkt.packetSize = (unsigned short)(count * 0xe + 0xf);
             handler->SendToDB((PacketHeader*)&pkt);
         }
@@ -76,18 +76,18 @@ void CHWSpecResearcher::SendDBMWHWSpec(CServerHandler* handler, unsigned char pa
 }
 void CHWSpecResearcher::DBSaveProcess(CServerHandler* handler)
 {
-    if ((++m_field48) > 0x1d)
+    if ((++m_specSaveTick) > 0x1d)
     {
-        m_field48 = 0;
+        m_specSaveTick = 0;
         for (int i = 0; i < 3; i++)
         {
             SendDBMWHWSpec(handler, (unsigned char)i);
         }
         ResetSpec();
     }
-    if ((++m_field68) > 0x2c)
+    if ((++m_errorSaveTick) > 0x2c)
     {
-        m_field68 = 0xf;
+        m_errorSaveTick = 0xf;
         SendDBMWErrorLine(handler);
         m_field4c = 0;
         ResetErrorSpec();
@@ -96,8 +96,8 @@ void CHWSpecResearcher::DBSaveProcess(CServerHandler* handler)
 void CHWSpecResearcher::WriteErrorLineStatics(unsigned short param, int value)
 {
     ErrorValue errorValue;
-    errorValue.m_field4 = (unsigned int)value;
-    errorValue.m_field0 = param;
+    errorValue.m_errorCode = (unsigned int)value;
+    errorValue.m_errorLine = param;
     STErrorStatic key(errorValue);
     std::map<STErrorStatic, unsigned int>::iterator it = m_errorSpec.find(key);
     if (m_errorSpec.empty() || it == m_errorSpec.end())
@@ -118,9 +118,9 @@ void CHWSpecResearcher::SendDBMWErrorLine(CServerHandler* handler)
         for (std::map<STErrorStatic, unsigned int>::iterator it = m_errorSpec.begin();
              it != m_errorSpec.end(); ++it)
         {
-            pkt.m_items[count].m_field4 = it->first.m_field0;
-            pkt.m_items[count].m_field0 = it->first.ErrorValue::m_field4;
-            pkt.m_items[count].m_field6 = (int)it->second;
+            pkt.m_items[count].m_errorLine = it->first.m_errorLine;
+            pkt.m_items[count].m_errorCode = it->first.ErrorValue::m_errorCode;
+            pkt.m_items[count].m_cnt = (int)it->second;
             if (0x263U < (++count))
             {
                 pkt.m_count = 0x264;
@@ -142,7 +142,7 @@ void CHWSpecResearcher::ResetErrorSpec()
 }
 HWSpec::HWSpec()
 {
-    m_field0 = 0xff;
-    m_field4 = 0xffffffff;
-    m_field8 = 0xffffffff;
+    m_category1 = 0xff;
+    m_category2 = 0xffffffff;
+    m_category3 = 0xffffffff;
 }

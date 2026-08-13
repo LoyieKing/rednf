@@ -42,8 +42,8 @@ struct ST_Req_Ontime_Event_Idx_Update
 COnTimeEventManager::COnTimeEventManager()
 {
     m_app = 0;
-    m_field30 = 0;
-    m_field34 = 0;
+    m_eventIdx = 0;
+    m_hasIdxFlag = 0;
     m_field40 = 0;
     Clear();
 }
@@ -53,8 +53,8 @@ COnTimeEventManager::~COnTimeEventManager() {}
 void COnTimeEventManager::AttachApp(CApplication* app)
 {
     m_app = app;
-    m_field38 = 0;
-    m_field3c = 0;
+    m_itemIndex = 0;
+    m_itemCount = 0;
     time_t t = time(0);
     register CTaskScheduler::CTask* task = new COnTimeEventIdxLoad(t + 10, 0, this);
     m_app->GetTaskScheduler()->AddTask(task);
@@ -74,8 +74,8 @@ void COnTimeEventManager::ChangeState(ENUM_ONTIME_EVENT_STATE state)
 
 void COnTimeEventManager::SetEventIdx(unsigned int idx)
 {
-    m_field30 = idx;
-    m_field34 = 1;
+    m_eventIdx = idx;
+    m_hasIdxFlag = 1;
 }
 
 void COnTimeEventManager::SendContinueTimeToGS()
@@ -83,29 +83,29 @@ void COnTimeEventManager::SendContinueTimeToGS()
     if (m_app != 0)
     {
         Packet_MTG_OntimeEvent_RewardStart pkt;
-        pkt.m_eventIdx = (unsigned int)m_field30;
-        pkt.m_field12 = m_field38;
-        pkt.m_field16 = m_field3c;
-        pkt.m_fieldE = m_field28 * 0x3c;
+        pkt.m_eventIdx = (unsigned int)m_eventIdx;
+        pkt.m_itemIndex = m_itemIndex;
+        pkt.m_itemCount = m_itemCount;
+        pkt.m_remainSec = m_eventDurationMin * 0x3c;
         m_app->Get_ServerHandler()->SendAllTcpGameServer(&pkt);
     }
 }
 
 void COnTimeEventManager::UpdateEventIdx()
 {
-    m_field30 = m_field30 + 1;
+    m_eventIdx = m_eventIdx + 1;
     SendEventIdxToDBMW();
 }
 
-unsigned int COnTimeEventManager::GetEvent_Idx() { return (unsigned int)m_field30; }
+unsigned int COnTimeEventManager::GetEvent_Idx() { return (unsigned int)m_eventIdx; }
 
 void COnTimeEventManager::Clear()
 {
     m_rewardList.Clear();
-    m_field1c = 0;
-    m_field20 = 0;
-    m_field24 = 0;
-    m_field28 = 0;
+    m_startTime = 0;
+    m_rewardStartTime = 0;
+    m_eventStart = 0;
+    m_eventDurationMin = 0;
     m_state2c = ONTIME_EVENT_STATE_REWARD;
 }
 
@@ -136,13 +136,13 @@ void CRewardUserList::Clear()
 
 void COnTimeEventManager::SetEventItem(unsigned int idx, unsigned int cnt)
 {
-    m_field38 = idx;
-    m_field3c = cnt;
+    m_itemIndex = idx;
+    m_itemCount = cnt;
 }
 
 void COnTimeEventManager::StartEvent()
 {
-    StartEvent(m_field24, m_field28);
+    StartEvent(m_eventStart, m_eventDurationMin);
 }
 
 void COnTimeEventManager::StartEvent(unsigned int a, unsigned int b)
@@ -152,9 +152,9 @@ void COnTimeEventManager::StartEvent(unsigned int a, unsigned int b)
         return;
     }
     unsigned int t = (unsigned int)time(0);
-    m_field24 = (int)a;
-    m_field28 = (int)b;
-    m_field1c = (int)t;
+    m_eventStart = (int)a;
+    m_eventDurationMin = (int)b;
+    m_startTime = (int)t;
     ChangeState(ONTIME_EVENT_STATE_START);
     register CTaskScheduler::CTask* task =
         new COnTimeEventRewardStartTrigger(t, 0, this);
@@ -173,8 +173,8 @@ void COnTimeEventManager::EndEvent()
 
 void COnTimeEventManager::GetCurEventItemByDBMW(unsigned int a, unsigned int b)
 {
-    m_field24 = (int)a;
-    m_field28 = (int)b;
+    m_eventStart = (int)a;
+    m_eventDurationMin = (int)b;
     Packet_Req_Ontime_Event_Item pkt;
     if (m_app != 0)
     {
@@ -197,9 +197,9 @@ void COnTimeEventManager::SendEventIdxToDBMW()
         {
             char* buf = db->makePacketHeader(0x2347, 0x16);
             ST_Req_Ontime_Event_Idx_Update* buf2 = (ST_Req_Ontime_Event_Idx_Update*)buf;
-            buf2->m_no = (unsigned int)m_field30;
-            buf2->m_itemIndex = m_field38;
-            buf2->m_itemCount = m_field3c;
+            buf2->m_no = (unsigned int)m_eventIdx;
+            buf2->m_itemIndex = m_itemIndex;
+            buf2->m_itemCount = m_itemCount;
             db->SendToServer((char*)buf2);
         }
     }
@@ -207,7 +207,7 @@ void COnTimeEventManager::SendEventIdxToDBMW()
 
 int COnTimeEventManager::GetCurIdxByDBMW()
 {
-    if (m_field34 != 0)
+    if (m_hasIdxFlag != 0)
     {
         return 1;
     }
@@ -244,9 +244,9 @@ void COnTimeEventManager::OnRewardStart()
             ChangeState(ONTIME_EVENT_STATE_NONE);
             UpdateEventIdx();
             register int t = (int)time(0);
-            m_field20 = t;
+            m_rewardStartTime = t;
             register CTaskScheduler::CTask* task =
-                new COnTimeEventRewardEndTrigger((unsigned int)(m_field28 * 0x3c + t), 0, this);
+                new COnTimeEventRewardEndTrigger((unsigned int)(m_eventDurationMin * 0x3c + t), 0, this);
             m_app->GetTaskScheduler()->AddTask(task);
             register int idx = GetEvent_Idx();
             CMyFileLog log2(__FUNCTION__, 0xa7);

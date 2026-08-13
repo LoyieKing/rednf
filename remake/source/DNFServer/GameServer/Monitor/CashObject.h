@@ -266,7 +266,7 @@ public:
     CMember* m_memberObject;        // +8
     CBuddy* m_buddys[0x20];         // +0xc
     std::map<unsigned int, class CBlackUser*> m_blackUsers;  // +0x8c
-    unsigned int m_field98;         // +0x98
+    unsigned int m_field98;         // +0x98（无使用/Ghidra 证据，保留）
 };
 
 #endif  // MONITOR_CASHOBJECT_H_

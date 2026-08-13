@@ -82,14 +82,14 @@ namespace WongWork
 {
 bool CGMAccounts::stGMInfo_t::operator==(const stGMInfo_t& other) const
 {
-    return m_field0 == other.m_field0;
+    return m_id == other.m_id;
 }
 
 void CGMAccounts::LoadGmList(unsigned int group, int index)
 {
     stGMInfo_t info;
-    info.m_field0 = group;
-    info.m_field1 = index;
+    info.m_id = group;
+    info.m_flag = index;
     m_list.push_back(info);
 }
 
@@ -101,8 +101,8 @@ void CGMAccounts::clearGmList()
 void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
 {
     stGMInfo_t info = {};
-    info.m_field0 = id;
-    info.m_field1 = (unsigned int)flag;
+    info.m_id = id;
+    info.m_flag = (unsigned int)flag;
     m_list.push_back(info);
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcd, "./log/Init", "GM List Add mid:%s", NumberToString(id, 0));
 }
@@ -115,8 +115,8 @@ int CGMAccounts::loadGMAccounts(const char* path)
 int CGMAccounts::isGM(unsigned int id)
 {
     stGMInfo_t key = {};
-    key.m_field1 = 3;
-    key.m_field0 = id;
+    key.m_flag = 3;
+    key.m_id = id;
     std::list<stGMInfo_t>::iterator end = m_list.end();
     std::list<stGMInfo_t>::iterator it = std::find(m_list.begin(), m_list.end(), key);
     if (it != end) return 1;
@@ -144,11 +144,11 @@ int CGMAccounts::removeGM(unsigned int id, unsigned int value)
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
 {
     stGMInfo_t result;
-    result.m_field0 = 0;
-    result.m_field1 = 3;
+    result.m_id = 0;
+    result.m_flag = 3;
     stGMInfo_t key = {};
-    key.m_field1 = 3;
-    key.m_field0 = id;
+    key.m_flag = 3;
+    key.m_id = id;
     std::list<stGMInfo_t>::const_iterator it = std::find(m_list.begin(), m_list.end(), key);
     if (it != m_list.end())
     {

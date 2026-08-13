@@ -57,6 +57,6 @@ CBlackUser::CBlackUser() throw()
 STBlackUserDBType::STBlackUserDBType()
 {
     m_dbid = 0;
-    m_field24 = 0;
+    m_occurTime = 0;
     memset(m_name, 0, 0x1e);
 }

@@ -240,9 +240,9 @@ struct stUserHuntingPoint;
 
 struct stServerInfo
 {
-    unsigned char m_field0;    // +0
-    unsigned char m_field1;    // +1
-    unsigned char m_field2;    // +2
+    unsigned char m_field0;    // +0（保留：语义未明）
+    unsigned char m_group;     // +1（RegistGameServer 用做 server group）
+    unsigned char m_type;      // +2（1=game, 2=DB, 4=manager）
     char m_name[0x10];         // +3
     unsigned short m_port;     // +0x14
 };

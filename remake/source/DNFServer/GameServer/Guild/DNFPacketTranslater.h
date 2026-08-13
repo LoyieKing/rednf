@@ -308,9 +308,9 @@ public:
 class Packet_Channel_Guild_Cargo_Upgrade : public PacketHeader {
 public:
     Packet_Channel_Guild_Cargo_Upgrade();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
-    unsigned char m12;                 // +0x12
+    unsigned int m_channel;          // +0xa（GetIdByChannel）
+    unsigned int m_charNo;           // +0xe
+    unsigned char m_result;          // +0x12（成功 0xc1）
 
 };
 
@@ -318,9 +318,9 @@ public:
 class Packet_DBMW_Query_Msg : public PacketHeader {
 public:
     Packet_DBMW_Query_Msg();
-    unsigned int m_fieldA;    // +0xa
-    unsigned int m_fieldE;    // +0xe
-    char m_data[0x1001];      // +0x12
+    unsigned int m_queryId;    // +0xa（0x4f00；DBMW QueryMsg 传给 set_query/exec）
+    unsigned int m_handleIdx;  // +0xe（DBMW m_handles[idx]）
+    char m_data[0x1001];       // +0x12
 };
 
 // from GuildPackets.h
@@ -363,14 +363,14 @@ public:
 class Packet_DBMW_Save_Guild_Join : public PacketHeader {
 public:
     Packet_DBMW_Save_Guild_Join();
-    unsigned int m_fieldA;            // +0xa
-    unsigned char m_fieldE;           // +0xe
-    unsigned char m_fieldF;           // +0xf
-    unsigned short m_field10;         // +0x10
-    unsigned char m_field12;          // +0x12
-    unsigned char m_field13;          // +0x13
-    unsigned short m_field14;         // +0x14
-    unsigned char m_field16;          // +0x16
+    unsigned int m_groupGuildId;      // +0xa（(group<<24)|(guildId&0xffffff)）
+    unsigned char m_guildIdHi;        // +0xe（guildId>>24）
+    unsigned char m_dbidLo;           // +0xf（dbid&0xff）
+    unsigned short m_dbidMid;         // +0x10（(dbid>>8)&0xffff）
+    unsigned char m_dbidHi;           // +0x12（dbid>>24）
+    unsigned char m_callerIdLo;       // +0x13（callerId&0xff）
+    unsigned short m_callerIdMid;     // +0x14（(callerId>>8)&0xffff）
+    unsigned char m_callerIdHi;       // +0x16（callerId>>24）
     unsigned int m_uniqCharNo;        // +0x17
     char m_name[0x1e];                // +0x1b
     unsigned char m_job;              // +0x39
@@ -499,10 +499,12 @@ public:
 class Packet_Guild_Exp_Book_Delete : public PacketHeader {
 public:
     Packet_Guild_Exp_Book_Delete();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
-    int m_field12;                   // +0x12
-    unsigned int m16;                 // +0x16
+    unsigned int m_channel;          // +0xa（GetIdByChannel）
+    unsigned int m_charNo;           // +0xe（GetUniqCharNo）
+    int m_group;                     // +0x12（用法依上下文：OnNoticeGuildSecede 传 guildKey，
+                                     //      另一 handler 传 Get_ServerGroup()&0xff；不要固定语义）
+    unsigned int m16;                // +0x16（用法依上下文：OnNoticeGuildSecede 传
+                                     //      Get_ServerGroup()&0xff，另一 handler 传 DBID）
 
 };
 
@@ -572,9 +574,9 @@ public:
 class Packet_Monitor_Notify_GuildMemberGrade : public PacketHeader {
 public:
     Packet_Monitor_Notify_GuildMemberGrade();
-    unsigned int m_fieldA;            // +0xa
-    unsigned int m_fieldE;            // +0xe
-    unsigned char m12;                // +0x12
+    unsigned int m_channel;           // +0xa（GetIdByChannel）
+    unsigned int m_charNo;            // +0xe（GetUniqCharNo）
+    unsigned char m_grade;            // +0x12
 
 };
 
@@ -639,11 +641,11 @@ public:
 class Packet_Notice_GuildName_On_Guild_Create : public PacketHeader {
 public:
     Packet_Notice_GuildName_On_Guild_Create();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
-    unsigned int m12;                 // +0x12
+    unsigned int m_charNo;           // +0xa（创建者 charNo）
+    unsigned int m_channel;          // +0xe
+    unsigned int m_guildKey;         // +0x12
     char pad0x16[0x17];                 // +0x16
-    unsigned char m2d;                 // +0x2d
+    unsigned char m_group;             // +0x2d（Get_ServerGroup）
 
 };
 
@@ -669,10 +671,10 @@ public:
 class Packet_Reply_Change_Guild_Name : public PacketHeader {
 public:
     Packet_Reply_Change_Guild_Name();
-    unsigned int m_a;                 // +0xa
-    unsigned int m_fieldE;            // +0xe
+    unsigned int m_charNo;            // +0xa
+    unsigned int m_guildKey;          // +0xe（成功分支写 guildKey；失败分支残留 channel，ORIG 同）
     unsigned int m_12;                // +0x12
-    unsigned char m_16;               // +0x16
+    unsigned char m_result;           // +0x16（错误码 100/0x56/0）
     char m_name[0x17];                // +0x17
 };
 
@@ -680,9 +682,9 @@ public:
 class Packet_Reply_Guild_Create : public PacketHeader {
 public:
     Packet_Reply_Guild_Create();
-    unsigned int m_a;                 // +0xa
-    unsigned int m_e;                 // +0xe
-    unsigned int m_12;                // +0x12
+    unsigned int m_charNo;            // +0xa
+    unsigned int m_channel;           // +0xe（GetIdByChannel）
+    unsigned int m_result;            // +0x12（错误码 1/0x20）
     char m_name[0x17];                // +0x16
 };
 
@@ -690,7 +692,7 @@ public:
 class Packet_Request_Result_BlackList : public PacketHeader {
 public:
     Packet_Request_Result_BlackList();
-    unsigned int m_fieldA;              // +0xa
+    unsigned int m_charNo;              // +0xa（pb->m_charNo）
     unsigned char m_count;              // +0xe
     STBlackUserDBType m_items[10];      // +0xf
 } __attribute__((packed));
@@ -706,8 +708,8 @@ public:
 class Packet_UnChangable_GuildInfo_Save : public PacketHeader {
 public:
     Packet_UnChangable_GuildInfo_Save();
-    unsigned int ma;               // +0xa
-    unsigned int me;               // +0xe
+    unsigned int m_guildKey;       // +0xa
+    unsigned int m_charNo;         // +0xe
     char m_name[0x1d];             // +0x12
     char m_pad;                    // +0x2f
 };

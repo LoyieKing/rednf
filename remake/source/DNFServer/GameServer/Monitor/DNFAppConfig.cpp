@@ -112,12 +112,12 @@ bool CAppConfig::Parse_Table(char* line, int idx)
         if (DNFFLib::ExplodeString(line, " \t\r\n\"", tokens, 6) == 6)
         {
             stServerInfo* si = (stServerInfo*)operator new(0x16);
-            si->m_field2 = (unsigned char)atoi(tokens[1]);
+            si->m_type = (unsigned char)atoi(tokens[1]);
             si->m_field0 = (unsigned char)atoi(tokens[2]);
-            si->m_field1 = (unsigned char)atoi(tokens[3]);
+            si->m_group = (unsigned char)atoi(tokens[3]);
             strncpy((char*)si + 3, tokens[4], 0x10);
             si->m_port = (unsigned short)atoi(tokens[5]);
-            m_serverInfo.insert(std::pair<const unsigned int, stServerInfo*>(si->m_field2, si));
+            m_serverInfo.insert(std::pair<const unsigned int, stServerInfo*>(si->m_type, si));
             return 1;
         }
     }

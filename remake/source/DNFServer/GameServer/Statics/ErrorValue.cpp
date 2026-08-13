@@ -6,11 +6,11 @@
 
 ErrorValue::ErrorValue()
 {
-    m_field0 = 0xffff;
-    m_field4 = 0xffffffff;
+    m_errorLine = 0xffff;
+    m_errorCode = 0xffffffff;
 }
 ErrorValue::ErrorValue(unsigned short value, unsigned int param)
 {
-    m_field0 = value;
-    m_field4 = param;
+    m_errorLine = value;
+    m_errorCode = param;
 }

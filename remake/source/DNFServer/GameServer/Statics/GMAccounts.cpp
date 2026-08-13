@@ -140,9 +140,9 @@ Packet_DBMW_TechnicalReport_Common_Query::Packet_DBMW_TechnicalReport_Common_Que
 Packet_Server_Match_data_DBMW::Packet_Server_Match_data_DBMW()
     : PacketHeader(0x1b68, 0x13)
 {
-    m_fieldA = 0;
-    m_fieldB = 0;
-    m_fieldC = 0;
+    m_serverId = 0;
+    m_winCount = 0;
+    m_loseCount = 0;
 }
 SECRET_SHOP_STATISTIC_DATA::SECRET_SHOP_STATISTIC_DATA()
 {
@@ -158,9 +158,9 @@ Packet_Secret_Shop_Statistic::Packet_Secret_Shop_Statistic()
 }
 GoldCardEventStatistic::GoldCardEventStatistic()
 {
-    m_field0 = 0;
-    m_field1 = 0;
-    m_field5 = 0;
+    m_level = 0;
+    m_createCnt = 0;
+    m_openCnt = 0;
 }
 Packet_Goldcard_Event_Statistic_STD::Packet_Goldcard_Event_Statistic_STD()
     : PacketHeader(0x1f47, 0x385)
@@ -169,8 +169,8 @@ Packet_Goldcard_Event_Statistic_STD::Packet_Goldcard_Event_Statistic_STD()
 }
 TowerOfDespairStatistic_Value::TowerOfDespairStatistic_Value()
 {
-    m_field0 = 0;
-    m_field4 = 0;
+    m_success = 0;
+    m_enter = 0;
 }
 Packet_TowerOfDespair_Statistic_STD::Packet_TowerOfDespair_Statistic_STD()
     : PacketHeader(0x271d, 0x33a), m_countA(0), m_countB(0)
@@ -178,14 +178,14 @@ Packet_TowerOfDespair_Statistic_STD::Packet_TowerOfDespair_Statistic_STD()
 }
 STPartyStatisticKey::STPartyStatisticKey()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_field9 = 0;
-    m_fielda = 0;
-    m_fieldb = 0;
-    m_fieldc = 0;
-    m_fieldd = 0;
+    m_channelNo = 0;
+    m_dungeonIndex = 0;
+    m_dungeonDiff = 0;
+    m_dungeonStandardLevel = 0;
+    m_abuseParty = 0;
+    m_balkunParty = 0;
+    m_success = 0;
+    m_partyUserCount = 0;
 }
 STPartyStatisticKey::~STPartyStatisticKey()
 {
@@ -223,30 +223,30 @@ void PartyJobStatistic::reset()
 }
 STPartyJobStatisticKey::STPartyJobStatisticKey()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_field9 = 0;
-    m_fielda = 0;
-    m_fieldb = 0;
-    m_fieldc = 0;
-    m_fieldd = 0;
-    m_field10 = (STPartyJobKeyField10)0;
-    m_field14 = 0;
+    m_channelNo = 0;
+    m_dungeonIndex = 0;
+    m_dungeonDiff = 0;
+    m_dungeonStandardLevel = 0;
+    m_abuseParty = 0;
+    m_balkunParty = 0;
+    m_success = 0;
+    m_partyUserCount = 0;
+    m_characJob = (STPartyJobKeyField10)0;
+    m_characGrow = 0;
 }
 STPartyJobStatisticKey::~STPartyJobStatisticKey()
 {
 }
 STPartyCharacKey::STPartyCharacKey()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_field9 = 0;
-    m_fielda = 0;
-    m_fieldc = (STPartyCharacKeyFieldC)0;
-    m_field10 = 0;
-    m_field11 = 0;
+    m_channelNo = 0;
+    m_dungeonIndex = 0;
+    m_dungeonDiff = 0;
+    m_dungeonStandardLevel = 0;
+    m_success = 0;
+    m_characJob = (STPartyCharacKeyFieldC)0;
+    m_characGrow = 0;
+    m_partyUserCount = 0;
 }
 STPartyCharacKey::~STPartyCharacKey()
 {
@@ -276,9 +276,9 @@ void PartyCharacStatistic::Reset()
 }
 STDeathTowerValueStatisticKey::STDeathTowerValueStatisticKey() throw()
 {
-    m_field0 = 0;
-    m_field2 = 0;
-    m_field4 = 0;
+    m_type = 0;
+    m_level = 0;
+    m_counterIdx = 0;
 }
 STDeathTowerValueStatisticKey::~STDeathTowerValueStatisticKey() throw()
 {
@@ -297,10 +297,10 @@ void ValueStatistic::Reset() throw()
 }
 STDeathTowerPlayDataJobStatisticKey::STDeathTowerPlayDataJobStatisticKey()
 {
-    m_field0 = 0;
-    m_field2 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
+    m_deathTowerType = 0;
+    m_level = 0;
+    m_characJob = 0;
+    m_characGrow = 0;
 }
 STDeathTowerPlayDataJobStatisticKey::~STDeathTowerPlayDataJobStatisticKey()
 {
@@ -319,8 +319,8 @@ void PlayDataJobStatistic::Reset()
 }
 STDeathTowerPlayDataPartyStatisticKey::STDeathTowerPlayDataPartyStatisticKey()
 {
-    m_field0 = 0;
-    m_field1 = 0;
+    m_deathTowerType = 0;
+    m_partyCount = 0;
 }
 STDeathTowerPlayDataPartyStatisticKey::~STDeathTowerPlayDataPartyStatisticKey()
 {
@@ -346,8 +346,8 @@ STPacketOverflowKey::~STPacketOverflowKey() throw()
 }
 void STPacketOverflowKey::Reset()
 {
-    m_field0 = 0;
-    m_field2 = 0;
+    m_packetType = 0;
+    m_packetKind = 0;
 }
 STAssertManagerKey::STAssertManagerKey()
 {
@@ -358,9 +358,9 @@ STAssertManagerKey::~STAssertManagerKey()
 }
 void STAssertManagerKey::Reset()
 {
-    memset(m_str0, 0, 0x100);
-    m_field100 = 0;
-    memset(m_str2, 0, 0x100);
+    memset(m_fileName, 0, 0x100);
+    m_fileLine = 0;
+    memset(m_reason, 0, 0x100);
 }
 STUserTingTimeCheckKey::STUserTingTimeCheckKey()
 {
@@ -371,15 +371,15 @@ STUserTingTimeCheckKey::~STUserTingTimeCheckKey()
 }
 void STUserTingTimeCheckKey::Reset()
 {
-    m_field0 = 0;
+    m_minute = 0;
 }
 STHellPartyStatisticItemKey::STHellPartyStatisticItemKey()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field9 = 0;
-    m_field8 = 0;
-    m_fielda = 0;
+    m_hellpartyType = 0;
+    m_dungeonIndex = 0;
+    m_partyCount = 0;
+    m_dungeonDiff = 0;
+    m_hellpartyDiff = 0;
 }
 STHellPartyStatisticItemKey::~STHellPartyStatisticItemKey()
 {
@@ -420,8 +420,8 @@ STPowerwarFightLoadingKey::~STPowerwarFightLoadingKey()
 }
 void STPowerwarFightLoadingKey::Reset()
 {
-    m_field0 = 0;
-    m_field4 = 0;
+    m_mId = 0;
+    m_round = 0;
 }
 STPowerwarFightLoadingData::STPowerwarFightLoadingData()
 {
@@ -432,10 +432,10 @@ STPowerwarFightLoadingData::~STPowerwarFightLoadingData()
 }
 void STPowerwarFightLoadingData::Reset()
 {
-    m_field0 = 0;
-    m_field2 = 0;
-    m_field4 = 0;
-    m_field6 = 0;
+    m_player = 0;
+    m_myLoading = 0;
+    m_otherLoading = 0;
+    m_vsLoading = 0;
 }
 STPowerwarFightLagKey::STPowerwarFightLagKey()
 {
@@ -446,8 +446,8 @@ STPowerwarFightLagKey::~STPowerwarFightLagKey()
 }
 void STPowerwarFightLagKey::Reset()
 {
-    m_field0 = 0;
-    m_field4 = 0;
+    m_mId = 0;
+    m_round = 0;
 }
 STPowerwarFightLagData::STPowerwarFightLagData()
 {
@@ -458,14 +458,14 @@ STPowerwarFightLagData::~STPowerwarFightLagData()
 }
 void STPowerwarFightLagData::Reset()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
+    m_player = 0;
+    m_lagAvg = 0;
+    m_lagCnt = 0;
 }
 STFatigueBattery::STFatigueBattery()
 {
-    m_field0 = 0;
-    m_field4 = 0;
+    m_money = 0;
+    m_buff = 0;
 }
 STModuleLagStatistics::STModuleLagStatistics() throw()
 {
@@ -520,21 +520,21 @@ stP2PStatistics::stP2PStatistics()
 void stP2PStatistics::Init()
 {
     memset(this, 0, 0x48);
-    m_fieldA = 0x7fff;
-    m_fieldB = 0x7fff;
+    m_p2pMinPing = 0x7fff;
+    m_relayMinPing = 0x7fff;
 }
 namespace WongWork
 {
 bool CGMAccounts::stGMInfo_t::operator==(const stGMInfo_t& other) const
 {
-    return m_field0 == other.m_field0;
+    return m_id == other.m_id;
 }
 
 void CGMAccounts::LoadGmList(unsigned int group, int index)
 {
     stGMInfo_t info;
-    info.m_field0 = group;
-    info.m_field1 = index;
+    info.m_id = group;
+    info.m_flag = index;
     m_list.push_back(info);
 }
 
@@ -546,8 +546,8 @@ void CGMAccounts::clearGmList()
 void CGMAccounts::AppendGM_Sys(unsigned int id, char flag)
 {
     stGMInfo_t info = {};
-    info.m_field0 = id;
-    info.m_field1 = flag;
+    info.m_id = id;
+    info.m_flag = flag;
     m_list.push_back(info);
     register char* mid = NumberToString(id, 0);
     DNF_LOG_SCOPE_LINE(0xcd, "./log/Init", "GM List Add mid:%s", mid);
@@ -561,8 +561,8 @@ bool CGMAccounts::loadGMAccounts(const char* path)
 int CGMAccounts::isGM(unsigned int id)
 {
     stGMInfo_t key = {};
-    key.m_field1 = 3;
-    key.m_field0 = id;
+    key.m_flag = 3;
+    key.m_id = id;
     if (std::find(m_list.begin(), m_list.end(), key) != m_list.end())
         return 1;
     else
@@ -591,11 +591,11 @@ int CGMAccounts::removeGM(unsigned int id, unsigned int value)
 CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
 {
     stGMInfo_t out;
-    out.m_field0 = 0;
-    out.m_field1 = 3;
+    out.m_id = 0;
+    out.m_flag = 3;
     stGMInfo_t key = {};
-    key.m_field1 = 3;
-    key.m_field0 = id;
+    key.m_flag = 3;
+    key.m_id = id;
     std::list<stGMInfo_t>::const_iterator it =
         std::find(m_list.begin(), m_list.end(), key);
     if (it != m_list.end())
@@ -606,27 +606,27 @@ CGMAccounts::stGMInfo_t CGMAccounts::getGMInfo(unsigned int id) const
 }
 bool STPartyStatisticKey::operator<(const STPartyStatisticKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if ((short)m_field0 == (short)other.m_field0)
+    if (m_channelNo < other.m_channelNo) return true;
+    if ((short)m_channelNo == (short)other.m_channelNo)
     {
-        if (m_field4 < other.m_field4) return true;
-        if (m_field4 == other.m_field4)
+        if (m_dungeonIndex < other.m_dungeonIndex) return true;
+        if (m_dungeonIndex == other.m_dungeonIndex)
         {
-            if (m_field8 < other.m_field8) return true;
-            if (m_field8 == other.m_field8)
+            if (m_dungeonDiff < other.m_dungeonDiff) return true;
+            if (m_dungeonDiff == other.m_dungeonDiff)
             {
-                if (m_field9 < other.m_field9) return true;
-                if (m_field9 == other.m_field9)
+                if (m_dungeonStandardLevel < other.m_dungeonStandardLevel) return true;
+                if (m_dungeonStandardLevel == other.m_dungeonStandardLevel)
                 {
-                    if (m_fielda < other.m_fielda) return true;
-                    if (m_fielda == other.m_fielda)
+                    if (m_abuseParty < other.m_abuseParty) return true;
+                    if (m_abuseParty == other.m_abuseParty)
                     {
-                        if (m_fieldb < other.m_fieldb) return true;
-                        if (m_fieldb == other.m_fieldb)
+                        if (m_balkunParty < other.m_balkunParty) return true;
+                        if (m_balkunParty == other.m_balkunParty)
                         {
-                            if (m_fieldc < other.m_fieldc) return true;
-                            if (m_fieldc == other.m_fieldc &&
-                                m_fieldd < other.m_fieldd) return true;
+                            if (m_success < other.m_success) return true;
+                            if (m_success == other.m_success &&
+                                m_partyUserCount < other.m_partyUserCount) return true;
                         }
                     }
                 }
@@ -652,34 +652,34 @@ void PartyStatistic::operator+=(const PartyStatistic& other)
 }
 bool STPartyJobStatisticKey::operator<(const STPartyJobStatisticKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0)
+    if (m_channelNo < other.m_channelNo) return true;
+    if (m_channelNo == other.m_channelNo)
     {
-        if (m_field4 < other.m_field4) return true;
-        if (m_field4 == other.m_field4)
+        if (m_dungeonIndex < other.m_dungeonIndex) return true;
+        if (m_dungeonIndex == other.m_dungeonIndex)
         {
-            if (m_field8 < other.m_field8) return true;
-            if (m_field8 == other.m_field8)
+            if (m_dungeonDiff < other.m_dungeonDiff) return true;
+            if (m_dungeonDiff == other.m_dungeonDiff)
             {
-                if (m_field9 < other.m_field9) return true;
-                if (m_field9 == other.m_field9)
+                if (m_dungeonStandardLevel < other.m_dungeonStandardLevel) return true;
+                if (m_dungeonStandardLevel == other.m_dungeonStandardLevel)
                 {
-                    if (m_fielda < other.m_fielda) return true;
-                    if (m_fielda == other.m_fielda)
+                    if (m_abuseParty < other.m_abuseParty) return true;
+                    if (m_abuseParty == other.m_abuseParty)
                     {
-                        if (m_fieldb < other.m_fieldb) return true;
-                        if (m_fieldb == other.m_fieldb)
+                        if (m_balkunParty < other.m_balkunParty) return true;
+                        if (m_balkunParty == other.m_balkunParty)
                         {
-                            if (m_fieldc < other.m_fieldc) return true;
-                            if (m_fieldc == other.m_fieldc)
+                            if (m_success < other.m_success) return true;
+                            if (m_success == other.m_success)
                             {
-                            if (m_fieldd < other.m_fieldd)
+                            if (m_partyUserCount < other.m_partyUserCount)
                                 return true;
-                                if (m_fieldd == other.m_fieldd)
+                                if (m_partyUserCount == other.m_partyUserCount)
                                 {
-                                    if (m_field10 < other.m_field10) return true;
-                                    if (m_field10 == other.m_field10 &&
-                                        m_field14 < other.m_field14) return true;
+                                    if (m_characJob < other.m_characJob) return true;
+                                    if (m_characJob == other.m_characJob &&
+                                        m_characGrow < other.m_characGrow) return true;
                                 }
                             }
                         }
@@ -697,30 +697,30 @@ void PartyJobStatistic::operator+=(const PartyJobStatistic& other)
 }
 bool STPartyCharacKey::operator<(const STPartyCharacKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0)
+    if (m_channelNo < other.m_channelNo) return true;
+    if (m_channelNo == other.m_channelNo)
     {
-        if (m_field4 < other.m_field4) return true;
-        if (m_field4 == other.m_field4)
+        if (m_dungeonIndex < other.m_dungeonIndex) return true;
+        if (m_dungeonIndex == other.m_dungeonIndex)
         {
-            if (m_field8 < other.m_field8) return true;
-            if (m_field8 == other.m_field8)
+            if (m_dungeonDiff < other.m_dungeonDiff) return true;
+            if (m_dungeonDiff == other.m_dungeonDiff)
             {
-                if (m_field9 < other.m_field9)
+                if (m_dungeonStandardLevel < other.m_dungeonStandardLevel)
                     return true;
-                if (m_field9 == other.m_field9)
+                if (m_dungeonStandardLevel == other.m_dungeonStandardLevel)
                 {
-                    if (m_fielda < other.m_fielda)
+                    if (m_success < other.m_success)
                         return true;
-                    if (m_fielda == other.m_fielda)
+                    if (m_success == other.m_success)
                     {
-                        if (m_fieldc < other.m_fieldc) return true;
-                        if (m_fieldc == other.m_fieldc)
+                        if (m_characJob < other.m_characJob) return true;
+                        if (m_characJob == other.m_characJob)
                         {
-                            if (m_field10 < other.m_field10)
+                            if (m_characGrow < other.m_characGrow)
                                 return true;
-                            if (m_field10 == other.m_field10 &&
-                                m_field11 < other.m_field11)
+                            if (m_characGrow == other.m_characGrow &&
+                                m_partyUserCount < other.m_partyUserCount)
                                 return true;
                         }
                     }
@@ -748,12 +748,12 @@ void PartyCharacStatistic::operator+=(const PartyCharacStatistic& other)
 }
 bool STDeathTowerValueStatisticKey::operator<(const STDeathTowerValueStatisticKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0)
+    if (m_type < other.m_type) return true;
+    if (m_type == other.m_type)
     {
-        if (m_field2 < other.m_field2) return true;
-        if (m_field2 == other.m_field2 &&
-            (int)m_field4 < (int)other.m_field4) return true;
+        if (m_level < other.m_level) return true;
+        if (m_level == other.m_level &&
+            (int)m_counterIdx < (int)other.m_counterIdx) return true;
     }
     return false;
 }
@@ -765,15 +765,15 @@ void ValueStatistic::operator+=(const ValueStatistic& other)
 bool STDeathTowerPlayDataJobStatisticKey::operator<(
     const STDeathTowerPlayDataJobStatisticKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0)
+    if (m_deathTowerType < other.m_deathTowerType) return true;
+    if (m_deathTowerType == other.m_deathTowerType)
     {
-        if (m_field2 < other.m_field2) return true;
-        if (m_field2 == other.m_field2)
+        if (m_level < other.m_level) return true;
+        if (m_level == other.m_level)
         {
-            if ((int)m_field4 < (int)other.m_field4) return true;
-            if (m_field4 == other.m_field4 &&
-                m_field8 < other.m_field8) return true;
+            if ((int)m_characJob < (int)other.m_characJob) return true;
+            if (m_characJob == other.m_characJob &&
+                m_characGrow < other.m_characGrow) return true;
         }
     }
     return false;
@@ -786,8 +786,8 @@ void PlayDataJobStatistic::operator+=(const PlayDataJobStatistic& other)
 bool STDeathTowerPlayDataPartyStatisticKey::operator<(
     const STDeathTowerPlayDataPartyStatisticKey& other) const
 {
-    if ((char)m_field0 < (char)other.m_field0) return true;
-    if (m_field0 == other.m_field0 && (char)m_field1 < (char)other.m_field1) return true;
+    if ((char)m_deathTowerType < (char)other.m_deathTowerType) return true;
+    if (m_deathTowerType == other.m_deathTowerType && (char)m_partyCount < (char)other.m_partyCount) return true;
     return false;
 }
 void PlayDataPartyStatistic::operator+=(const PlayDataPartyStatistic& other)
@@ -797,44 +797,44 @@ void PlayDataPartyStatistic::operator+=(const PlayDataPartyStatistic& other)
 }
 bool STPacketOverflowKey::operator<(const STPacketOverflowKey& other) const
 {
-    if ((unsigned char)m_field0 < (unsigned char)other.m_field0) return true;
-    if (m_field2 < other.m_field2) return true;
+    if ((unsigned char)m_packetType < (unsigned char)other.m_packetType) return true;
+    if (m_packetKind < other.m_packetKind) return true;
     return false;
 }
 bool STAssertManagerKey::operator<(const STAssertManagerKey& other) const
 {
-    // ORIG 0x80743c2 实测：平铺链（strcmp != 0 → true；m_field100 < → true；
+    // ORIG 0x80743c2 实测：平铺链（strcmp != 0 → true；m_fileLine < → true；
     // strcmp2 != 0 → true；否则 false），分支极性/布局与 ORIG 对齐。
-    if (strcmp(m_str0, other.m_str0) != 0) return true;
-    if (m_field100 < other.m_field100) return true;
-    if (strcmp(m_str2, other.m_str2) != 0) return true;
+    if (strcmp(m_fileName, other.m_fileName) != 0) return true;
+    if (m_fileLine < other.m_fileLine) return true;
+    if (strcmp(m_reason, other.m_reason) != 0) return true;
     return false;
 }
 bool STUserTingTimeCheckKey::operator<(const STUserTingTimeCheckKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
+    if (m_minute < other.m_minute) return true;
     return false;
 }
 bool STHellPartyStatisticItemKey::operator<(const STHellPartyStatisticItemKey& other) const
 {
-    // ORIG 0x80768b8 实测：嵌套 == 链；m_field0 / m_field4 / m_field8 / m_field9
-    // / m_field9（重复）/ m_fielda 比较链（m_field9 在 ORIG 中被比较两次）。
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0)
+    // ORIG 0x80768b8 实测：嵌套 == 链；m_hellpartyType / m_dungeonIndex / m_dungeonDiff / m_partyCount
+    // / m_partyCount（重复）/ m_hellpartyDiff 比较链（m_partyCount 在 ORIG 中被比较两次）。
+    if (m_hellpartyType < other.m_hellpartyType) return true;
+    if (m_hellpartyType == other.m_hellpartyType)
     {
-        if (m_field4 < other.m_field4) return true;
-        if (m_field4 == other.m_field4)
+        if (m_dungeonIndex < other.m_dungeonIndex) return true;
+        if (m_dungeonIndex == other.m_dungeonIndex)
         {
-            if (m_field8 < other.m_field8) return true;
-            if (m_field8 == other.m_field8)
+            if (m_dungeonDiff < other.m_dungeonDiff) return true;
+            if (m_dungeonDiff == other.m_dungeonDiff)
             {
-                if (m_field9 < other.m_field9) return true;
-                if (m_field9 == other.m_field9)
+                if (m_partyCount < other.m_partyCount) return true;
+                if (m_partyCount == other.m_partyCount)
                 {
-                    if (m_field9 < other.m_field9) return true;
-                    if (m_fielda == other.m_fielda)
+                    if (m_partyCount < other.m_partyCount) return true;
+                    if (m_hellpartyDiff == other.m_hellpartyDiff)
                     {
-                        if (m_fielda < other.m_fielda) return true;
+                        if (m_hellpartyDiff < other.m_hellpartyDiff) return true;
                     }
                 }
             }
@@ -852,13 +852,13 @@ void HellPartyItenmData::operator+=(const HellPartyItenmData& other)
 }
 bool STPowerwarFightLoadingKey::operator<(const STPowerwarFightLoadingKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0 && m_field4 < other.m_field4) return true;
+    if (m_mId < other.m_mId) return true;
+    if (m_mId == other.m_mId && m_round < other.m_round) return true;
     return false;
 }
 bool STPowerwarFightLagKey::operator<(const STPowerwarFightLagKey& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0 && m_field4 < other.m_field4) return true;
+    if (m_mId < other.m_mId) return true;
+    if (m_mId == other.m_mId && m_round < other.m_round) return true;
     return false;
 }

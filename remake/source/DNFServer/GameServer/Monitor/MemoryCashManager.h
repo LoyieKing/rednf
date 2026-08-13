@@ -270,9 +270,9 @@ public:
     int m_buddyCashCnt;                                 // +0x38
     int m_memberCashCnt;                                // +0x3c
     int m_blackListCashCnt;                             // +0x40
-    int m_field44;                                      // +0x44
-    int m_field48;                                      // +0x48
-    int m_field4c;                                      // +0x4c
+    int m_buddyCashHitCnt;                              // +0x44（incBuddyCashHitCnt）
+    int m_memberCashHitCnt;                             // +0x48（incMemberCashHitCnt）
+    int m_blackListCashHitCnt;                          // +0x4c（incBlackListCashHitCnt）
 };
 
 #endif  // MONITOR_MEMORYCASHMANAGER_H_

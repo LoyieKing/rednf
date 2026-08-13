@@ -276,7 +276,7 @@ class LimitNpcBuyItemChangeInfo : public PacketHeader
 public:
     LimitNpcBuyItemChangeInfo();
     unsigned int m_itemId;  // +10
-    int m_fieldE;           // +14
+    int m_remainCount;      // +14（maxCount - sellCount）
 };
 #pragma pack(pop)
 

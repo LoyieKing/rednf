@@ -453,10 +453,10 @@ void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, co
     log.behavior = (unsigned char)behavior;
     log.param = param;
     register const RandomOption* o = option;
-    log.opt0 = o->m_field0;
-    log.opt1 = o->m_field4;
-    log.opt2 = o->m_field8;
-    log.opt3 = o->m_fieldc;
+    log.opt0 = o->m_opt0;
+    log.opt1 = o->m_opt1;
+    log.opt2 = o->m_opt2;
+    log.opt3 = o->m_opt3;
     time_t t;
     time(&t);
     log.time = t;

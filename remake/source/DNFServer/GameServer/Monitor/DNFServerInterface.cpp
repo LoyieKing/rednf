@@ -105,7 +105,7 @@ char CServerInterface::IsHeartBeatTimeOver()
     return 0;
 }
 
-unsigned char CServerInterface::GetChannelNo() { return m_info->m_field1; }
+unsigned char CServerInterface::GetChannelNo() { return m_info->m_group; }
 
 void CServerInterface::OnDisconnect()
 {

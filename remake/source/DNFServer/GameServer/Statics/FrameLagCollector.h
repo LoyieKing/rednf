@@ -56,16 +56,16 @@ public:
     class MonitoringSpecCase
     {
     public:
-        int   m_specId;   // +0x00
-        char  m_field4;   // +0x04
-        char  m_field5;   // +0x05
-        int   m_field8;   // +0x08
-        int   m_fieldc;   // +0x0c
-        unsigned short m_field10;  // +0x10
-        int   m_field14;  // +0x14
-        int   m_field18;  // +0x18
-        unsigned short m_field1c;  // +0x1c
-        char  m_field1e;  // +0x1e
+        int   m_specId;          // +0x00（monitoring_spec.spec_id）
+        char  m_cpuVendor;       // +0x04（monitoring_spec.cpu_vendor）
+        char  m_cpuProcessorNum; // +0x05（monitoring_spec.cpu_processor_num）
+        int   m_aboveCpuClock;   // +0x08（monitoring_spec.above_cpu_clock）
+        int   m_belowCpuClock;   // +0x0c（monitoring_spec.below_cpu_clock）
+        unsigned short m_ram;    // +0x10（monitoring_spec.ram）
+        int   m_videocardVendor; // +0x14（monitoring_spec.videocard_vendor）
+        int   m_videocardDevice; // +0x18（monitoring_spec.videocard_device）
+        unsigned short m_videocardTextureMem; // +0x1c（monitoring_spec.videocard_texture_mem）
+        char  m_osVersion;       // +0x1e（monitoring_spec.os_version）
     };
 
     FrameLagCollector();

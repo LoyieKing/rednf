@@ -251,8 +251,8 @@ public:
     void SetTCPQueue(std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*,
                     std::allocator<CTcpRecvBuffer*> > >* q);
     char MsgDecode(PacketHeader* pkt);
-    void* m_field0;                         // +0
-    void* m_field4;                         // +4
+    void* m_udpParseQ;                      // +0（Attach: app->Get_UdpPacketParseQ()）
+    void* m_udpQLock;                       // +4（Attach: app->Get_UdpQLock()）
     union {
         char m_header[0x14];                // +8
         struct {

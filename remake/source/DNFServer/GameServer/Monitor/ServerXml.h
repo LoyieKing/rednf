@@ -263,7 +263,7 @@ public:
     std::string GetEventString(int idx, _eStringType type, bool* ok) const;
     void RGBALoad(int idx, TiXmlNode* node);
     void ProcessLoad(TiXmlNode* node);
-    char m_field0[8];                       // +0
+    char m_field0[8];                       // +0（无使用证据，保留）
     TiXmlDocument m_doc;                    // +8
     int m_charset;                          // +0x50
     std::string m_str54;                    // +0x54

@@ -306,7 +306,7 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
         int idx = 0;
         CBuddy* buddies[32];
         int count = user->GetBuddys(buddies);
-        ((RA_S8<14>*)&pkt)->v = (char)count;
+        pkt.m_count = (char)count;
         while (count != 0)
         {
             count--;
@@ -338,7 +338,7 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
             }
             else
             {
-                ((RA_UINT<10>*)&pkt)->v = user->GetDBID();
+                pkt.m_dbid = user->GetDBID();
                 unsigned short size =
                     (unsigned short)((idx << 2) * 8 + idx * 10 + 0xf);
                 ((CServerInterface*)user->GetGameServer())

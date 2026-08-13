@@ -38,8 +38,8 @@ void CIPCounter::Init(CServerHandler* handler)
     m_min = 0;
     m_term = 0x708;
     m_option = 5;
-    m_field10 = 1;
-    m_field11 = 1;
+    m_loadFlag = 1;
+    m_loadParam = 1;
     m_handler = handler;
 }
 
@@ -49,13 +49,13 @@ void CIPCounter::Proc(unsigned int tick)
     {
         return;
     }
-    if (m_field10 == 0)
+    if (m_loadFlag == 0)
     {
         return;
     }
     if (m_count + m_term < tick)
     {
-        m_handler->SendDBMWRequestIPCounter(m_option, m_field11);
+        m_handler->SendDBMWRequestIPCounter(m_option, m_loadParam);
         m_count = tick;
         CMyFileLog log(__FUNCTION__, 0x3c);
         log("./log/Secu", "[IP Counter] LoadStart");

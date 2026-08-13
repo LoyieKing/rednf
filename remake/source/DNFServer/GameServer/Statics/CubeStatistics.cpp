@@ -23,10 +23,10 @@ struct CubePkt
 void CCubeStatistic::addStatisticData(Packet_Cube_Statistic* pkt)
 {
     STCubeStatisticKey key;
-    key.m_field0 = (unsigned int)(short)((const CubePkt*)pkt)->m_a;
-    key.m_field4 = ((const CubePkt*)pkt)->m_c;
-    key.m_field8 = (unsigned int)(short)((const CubePkt*)pkt)->m_b;
-    key.m_fieldc = ((const CubePkt*)pkt)->m_e;
+    key.m_channel = (unsigned int)(short)((const CubePkt*)pkt)->m_a;
+    key.m_index = ((const CubePkt*)pkt)->m_c;
+    key.m_level = (unsigned int)(short)((const CubePkt*)pkt)->m_b;
+    key.m_type = ((const CubePkt*)pkt)->m_e;
     int value = ((const CubePkt*)pkt)->m_d;
     std::map<STCubeStatisticKey, int>::iterator it = m_data.find(key);
     if (it != m_data.end())
@@ -43,11 +43,11 @@ void CCubeStatistic::sendStatisticData(CServerHandler* handler)
         for (std::map<STCubeStatisticKey, int>::iterator it = m_data.begin();
              it != m_data.end(); ++it)
         {
-            pkt.m_items[count].m_field0 = it->first.m_field0;
-            pkt.m_items[count].m_field4 = (int)it->first.m_field4;
-            pkt.m_items[count].m_field8 = it->first.m_field8;
-            pkt.m_items[count].m_fieldc = it->first.m_fieldc;
-            pkt.m_items[count].m_value = (int)it->second;
+            pkt.m_items[count].m_channel = it->first.m_channel;
+            pkt.m_items[count].m_itemIndex = (int)it->first.m_index;
+            pkt.m_items[count].m_level = it->first.m_level;
+            pkt.m_items[count].m_type = it->first.m_type;
+            pkt.m_items[count].m_itemCount = (int)it->second;
             count = count + 1;
             if (0x1d5U < count)
             {
@@ -76,8 +76,8 @@ void CCubeStatistic::printStatisticData()
          it != m_data.end(); ++it)
     {
         printf("\nchannel %d, index %d, level %d, type %d, count %d\n",
-               it->first.m_field0, it->first.m_field4, it->first.m_field8,
-               (unsigned int)it->first.m_fieldc, it->second);
+               it->first.m_channel, it->first.m_index, it->first.m_level,
+               (unsigned int)it->first.m_type, it->second);
     }
 }
 Packet_DBMW_Cube_Statistic::Packet_DBMW_Cube_Statistic()

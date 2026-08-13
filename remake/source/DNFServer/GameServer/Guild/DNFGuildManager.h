@@ -94,7 +94,7 @@ public:
     CApplication* m_app;          // +0
     std::map<unsigned int, CGuild*> m_guilds;  // +4
     CScheduler m_scheduler;       // +0x1c
-    unsigned char m_field40;      // +0x40
+    unsigned char m_cargoLock;    // +0x40（CargoLock/CargoUnlock/IsCargoLock）
     char m_pad41[3];              // +0x41（对齐）
     CGuildWar m_guildWar;         // +0x44
     std::map<unsigned int, STTodayGuildMember> m_todayMembers;  // +0x58

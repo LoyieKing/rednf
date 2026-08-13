@@ -297,9 +297,9 @@ namespace exchange_server
 {
 struct CACHE_CHARACTER_TYPE
 {
-    int m_field0;   // +0
-    int m_field4;   // +4
-    long m_field8;  // +8
+    int m_field0;  // +0（CacheCharacter 报文 +0xf，语义未知）
+    int m_field4;  // +4（CacheCharacter 报文 +0xe，语义未知）
+    long m_time;   // +8（CacheCharacter: time(0) 时间戳）
 };
 
 struct CCacheCharacterTime

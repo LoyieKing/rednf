@@ -96,7 +96,7 @@ CServerXml::~CServerXml()
 
 void CServerXml::InitString()
 {
-    m_field50 = 0;
+    m_state = 0;
     memset(m_type, 0, 5);
     m_str1.clear();
     m_str2.clear();
@@ -158,23 +158,23 @@ void CServerXml::CharsetInit(TiXmlNode* node)
     }
     if (strcmp(type, "kor") == 0)
     {
-        m_field50 = 0;
+        m_state = 0;
     }
     else if (strcmp(type, "chn") == 0)
     {
-        m_field50 = 1;
+        m_state = 1;
     }
     else if (strcmp(type, "jpn") == 0)
     {
-        m_field50 = 2;
+        m_state = 2;
     }
     else if (strcmp(type, "usa") == 0)
     {
-        m_field50 = 3;
+        m_state = 3;
     }
     else if (strcmp(type, "twn") == 0)
     {
-        m_field50 = 4;
+        m_state = 4;
     }
     else
     {

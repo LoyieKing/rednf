@@ -395,24 +395,24 @@ class Packet_Item_Limit_Edition_Load_Data_Req : public PacketHeader
 {
 public:
     Packet_Item_Limit_Edition_Load_Data_Req();
-    unsigned char m_fieldA;   // +10
-    unsigned int m_fieldB;    // +11
-    unsigned int m_fieldC;    // +15
+    unsigned char m_fullLoad;   // +10（Ghidra log "FullLoad: %d"）
+    unsigned int m_serverType;  // +11（Ghidra log "ServerType:%d"，与 serverGroup&0xff 比较）
+    unsigned int m_loadTargetNum;  // +15（Ghidra log "LoadTargetNum: %d"）
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Sell_end : public PacketHeader
 {
 public:
     Packet_Item_Limit_Edition_Sell_end();
-    unsigned int m_fieldA;    // +10
-    unsigned int m_fieldB;    // +14
+    unsigned int m_serverType;   // +10（Ghidra log "ServerType: %d"）
+    unsigned int m_sellEndNum;   // +14（Ghidra log "SellEndNum: %d"）
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Update : public PacketHeader
 {
 public:
     Packet_Item_Limit_Edition_Update();
-    unsigned int m_fieldA;    // +10
+    unsigned int m_serverGroup;  // +10（processScheduledJob: Get_ServerGroup()）
     unsigned int m_count;     // +14
     struct __attribute__((packed)) Rec
     {
@@ -426,32 +426,32 @@ class Packet_Monitor_Event_Start : public PacketHeader
 {
 public:
     Packet_Monitor_Event_Start();
-    unsigned int m_fieldA;    // +10
-    unsigned short m_fieldB;  // +14
-    unsigned short m_fieldC;  // +16
+    unsigned int m_eventCode;    // +10（Ghidra log "eventCode(%d)"）
+    unsigned short m_eventParam1;  // +14（Ghidra log "eventParam1(%d)"）
+    unsigned short m_eventParam2;  // +16（Ghidra log "eventParam2(%d)"）
 } __attribute__((packed));
 
 class Packet_Monitor_Event_End : public PacketHeader
 {
 public:
     Packet_Monitor_Event_End();
-    unsigned int m_fieldA;    // +10
+    unsigned int m_eventCode;  // +10（Ghidra log "eventCode(%d)"）
 } __attribute__((packed));
 
 class Packet_Monitor_Take_Screen_Shot : public PacketHeader
 {
 public:
     Packet_Monitor_Take_Screen_Shot();
-    unsigned char m_fieldA;   // +10
-    unsigned int m_fieldB;    // +11
+    unsigned char m_channel;  // +10（Ghidra log "channel(%d)"，0xff=全部）
+    unsigned int m_time;      // +11（Ghidra log "time(%d)"）
 } __attribute__((packed));
 
 class Packet_DBMW_Query_Msg : public PacketHeader
 {
 public:
     Packet_DBMW_Query_Msg();
-    unsigned int m_fieldA;    // +0xa
-    unsigned int m_fieldB;    // +0xe
+    unsigned int m_queryId;   // +0xa（dbmw set_query 第一参；SendMinTime 用 0x4ee2..4）
+    unsigned int m_handleIdx; // +0xe（dbmw m_handles[] 索引；Village 用 6）
     char m_sql[0x1001];       // +0x12
 } __attribute__((packed));
 
@@ -459,7 +459,7 @@ class Packet_VillageAttackedRewardServer : public PacketHeader
 {
 public:
     Packet_VillageAttackedRewardServer();
-    unsigned int m_fieldA;    // +10
+    unsigned int m_rewardType;  // +10（OnRewardVillageAttacked 置 0，透传）
 } __attribute__((packed));
 
 class Packet_VillageAttackedEnd : public PacketHeader
@@ -467,8 +467,8 @@ class Packet_VillageAttackedEnd : public PacketHeader
 public:
     Packet_VillageAttackedEnd();
     unsigned int m_dungeonRemain;  // +10
-    unsigned int m_fieldE;         // +14
-    unsigned int m_field12;        // +18
+    unsigned int m_huntingPoint;   // +14（=CVillageAttackedManager::m_field1c 当前狩猎点）
+    unsigned int m_maxHuntingPoint;// +18（=CVillageAttackedManager::m_field20 最大狩猎点）
 } __attribute__((packed));
 
 class Packet_VillageAttackedUpdate : public PacketHeader
@@ -476,8 +476,8 @@ class Packet_VillageAttackedUpdate : public PacketHeader
 public:
     Packet_VillageAttackedUpdate();
     unsigned int m_remainTime;  // +10
-    unsigned int m_fieldE;      // +14
-    unsigned int m_field12;     // +18
+    unsigned int m_huntingPoint;// +14
+    unsigned int m_maxHuntingPoint;  // +18
 } __attribute__((packed));
 
 class Packet_VillageAttackedScore : public PacketHeader
@@ -487,8 +487,8 @@ public:
     unsigned int m_idByChannel;  // +10
     unsigned int m_uniqCharNo;   // +14
     unsigned int m_remainTime;   // +18
-    unsigned int m_field16;      // +22
-    unsigned int m_field1a;      // +26
+    unsigned int m_huntingPoint; // +22
+    unsigned int m_maxHuntingPoint;  // +26
     int m_cur;                   // +30
     int m_max;                   // +34
 } __attribute__((packed));
@@ -583,7 +583,7 @@ class Packet_Monitor_SAVE_Member : public PacketHeader
 {
 public:
     Packet_Monitor_SAVE_Member();
-    unsigned char m_fieldA;      // +10
+    unsigned char m_flag;        // +10（SaveMemberOnConnect: pkt.m_flag = flag）
     unsigned int m_upperCharNo;  // +11
     unsigned int m_lowerCharNo;  // +15
     unsigned char m_type;        // +19
@@ -613,14 +613,14 @@ class Packet_Monitor_Member_Enter_Reply_ToResponser : public PacketHeader
 {
 public:
     Packet_Monitor_Member_Enter_Reply_ToResponser();
-    unsigned char m_fieldA;      // +10
-    unsigned char m_fieldB;      // +11
-    unsigned char m_fieldC;      // +12
+    unsigned char m_result;      // +10（结果码：1=成功，2/3/4=错误类型）
+    unsigned char m_flag;        // +11（关系类型标志，==1 时附 extraCharNo）
+    unsigned char m_flag2;       // +12
     unsigned int m_idByChannel;  // +13
     unsigned int m_uniqCharNo;   // +17
-    unsigned char m_fieldD;      // +21
+    unsigned char m_level;       // +21（调用传 GetLevel）
     char m_name[0x1e];           // +22
-    unsigned char m_fieldE;      // +52
+    unsigned char m_expLevel;    // +52（调用传 GetUpperMemberExpLevel）
     unsigned int m_extraCharNo;  // +53
 } __attribute__((packed));
 
@@ -628,14 +628,14 @@ class Packet_Monitor_Notice_Member_Enter_Ok : public PacketHeader
 {
 public:
     Packet_Monitor_Notice_Member_Enter_Ok();
-    unsigned char m_fieldA;      // +10
-    unsigned char m_fieldB;      // +11
-    unsigned char m_fieldC;      // +12
+    unsigned char m_result;      // +10
+    unsigned char m_flag;        // +11
+    unsigned char m_flag2;       // +12
     unsigned int m_idByChannel;  // +13
     unsigned int m_uniqCharNo;   // +17
-    unsigned char m_fieldD;      // +21
+    unsigned char m_level;       // +21
     char m_name[0x1e];           // +22
-    unsigned char m_fieldE;      // +52
+    unsigned char m_expLevel;    // +52
     unsigned int m_extraCharNo;  // +53
 } __attribute__((packed));
 
@@ -729,6 +729,9 @@ class Packet_CollectItemsUpdate : public PacketHeader
 {
 public:
     Packet_CollectItemsUpdate();
+    // 双向复用：UpdateCollectItems（monitor→DBMW）中
+    // m_fieldA=CollectItms.m_field4 当前数, m_fieldF=m_field8 时间戳,
+    // m_fieldE=Get_ServerGroup(), m_field13=m_fieldC。语义随方向而异，保留原名。
     unsigned int m_fieldA;   // +10
     unsigned char m_fieldE;  // +14
     unsigned int m_fieldF;   // +15
@@ -739,6 +742,9 @@ class Packet_CollectItemsResult : public PacketHeader
 {
 public:
     Packet_CollectItemsResult();
+    // 双向复用：monitor→游戏服 m_fieldA=CollectItms.m_field0,
+    // m_fieldE=m_field4, m_field12=m_field8；游戏服→monitor
+    // onCollectItemsResult 读 m_fieldE→money, m_fieldA→uniqCharNo, m_field12→etc。
     unsigned int m_fieldA;   // +10
     unsigned int m_fieldE;   // +14
     unsigned int m_field12;  // +18
@@ -748,9 +754,9 @@ class Packet_Server_Queue_Load_Statistic : public PacketHeader
 {
 public:
     Packet_Server_Queue_Load_Statistic();
-    unsigned char m_fieldA;  // +10
-    unsigned char m_fieldB;  // +11
-    unsigned short m_fieldC; // +12
+    unsigned char m_flag;   // +10（canonical：Guild/DBMW 同名）
+    unsigned char m_param;  // +11
+    unsigned short m_value; // +12
 } __attribute__((packed));
 
 class Packet_InnerPakcet_Login : public PacketHeader
@@ -769,36 +775,36 @@ class Packet_Monitor_UDP_HeartBeat : public PacketHeader
 {
 public:
     Packet_Monitor_UDP_HeartBeat();
-    unsigned char m_fieldA;  // +10
+    unsigned char m_channelIndex;  // +10（OnHeartBeat：频道号，0xc8=DB 完成，0xff=全部）
 } __attribute__((packed));
 
 class Packet_MiniCraneSeed : public PacketHeader
 {
 public:
     Packet_MiniCraneSeed();
-    unsigned int m_fieldA;   // +10
+    unsigned int m_seed;  // +10（SendMiniCraneRandomSeed: m_seed = getMiniCraneSeed()）
 } __attribute__((packed));
 
 class Packet_DB_Query_Member : public PacketHeader
 {
 public:
     Packet_DB_Query_Member();
-    unsigned int m_fieldA;   // +10
+    unsigned int m_memberKey;  // +10（QueryMember(key)）
 } __attribute__((packed));
 
 class Packet_DB_Query_Member_Member : public PacketHeader
 {
 public:
     Packet_DB_Query_Member_Member();
-    unsigned int m_fieldA;   // +10
+    unsigned int m_memberKey;  // +10（QueryMemberMember(key)）
 } __attribute__((packed));
 
 class Packet_Send_Time_Sync : public PacketHeader
 {
 public:
     Packet_Send_Time_Sync();
-    unsigned short m_fieldA; // +10
-    unsigned short m_fieldC; // +12
+    unsigned short m_hour;  // +10（ProcessTimeSync: tm_hour）
+    unsigned short m_min;   // +12（ProcessTimeSync: tm_min）
 } __attribute__((packed));
 
 class Packet_Monitor_Notice_Buddy_In_Out : public PacketHeader
@@ -808,10 +814,10 @@ public:
     unsigned int m_charNo;       // +10
     unsigned int m_idByChannel;  // +14
     unsigned char m_channel;     // +18
-    unsigned char m_field13;     // +19
-    unsigned char m_field14;     // +20
+    unsigned char m_flag1;       // +19（SendNoticeBuddyInOut flag1）
+    unsigned char m_flag2;       // +20（SendNoticeBuddyInOut flag2）
     char m_name[0x1e];           // +21
-    unsigned char m_field33;     // +51
+    unsigned char m_flag3;       // +51（SendNoticeBuddyInOut flag3）
 } __attribute__((packed));
 
 class Packet_DBMW_Request_BlackList : public PacketHeader
@@ -926,9 +932,9 @@ class Packet_MTG_OntimeEvent_RewardStart : public PacketHeader
 public:
     Packet_MTG_OntimeEvent_RewardStart();
     unsigned int m_eventIdx;   // +10
-    unsigned int m_fieldE;     // +14
-    unsigned int m_field12;    // +18
-    int m_field16;             // +22
+    unsigned int m_remainSec;  // +14（=m_field28*0x3c，剩余秒数）
+    unsigned int m_itemIndex;  // +18（=COnTimeEventManager::m_field38）
+    int m_itemCount;           // +22（=COnTimeEventManager::m_field3c）
 } __attribute__((packed));
 
 class Packet_Manager_Event_Trigger_Ack : public PacketHeader
@@ -996,23 +1002,23 @@ class BuddyList
 public:
     BuddyList()
     {
-        m_field0 = 0xff;
-        m_field1 = 0;
-        m_field2 = 0;
+        m_channelNo = 0xff;
+        m_blackFlag = 0;
+        m_online = 0;
         memset(m_pad3, 0, 0x27);
     }
-    signed char m_field0;  // +0
-    char m_field1;         // +1
-    char m_field2;         // +2
-    char m_pad3[0x27];     // +3 .. +0x29
+    signed char m_channelNo;  // +0（SendConnectedBuddysList: 频道号，0xff=离线）
+    char m_blackFlag;         // +1（IsBlackUser 时置 1）
+    char m_online;            // +2（GetGameServer 非空时置 1）
+    char m_pad3[0x27];        // +3 .. +0x29
 } __attribute__((packed));
 
 class Packet_Monitor_Reply_Buddy_List : public PacketHeader
 {
 public:
-    Packet_Monitor_Reply_Buddy_List() : PacketHeader(0x3f2, 0x54f), m_fieldA(0), m_fieldE(0) {}
-    unsigned int m_fieldA;       // +0xa
-    unsigned char m_fieldE;      // +0xe
+    Packet_Monitor_Reply_Buddy_List() : PacketHeader(0x3f2, 0x54f), m_dbid(0), m_count(0) {}
+    unsigned int m_dbid;         // +0xa（SendConnectedBuddysList: GetDBID）
+    unsigned char m_count;       // +0xe（好友数量，>0x20 截断）
     BuddyList m_buddies[32];     // +0xf
 } __attribute__((packed));
 
@@ -1020,13 +1026,13 @@ class Packet_DB_InsertMail : public PacketHeader
 {
 public:
     Packet_DB_InsertMail();
-    unsigned int m_fieldA;      // +0xa
-    unsigned int m_fieldB;      // +0xe
-    unsigned int m_fieldC;      // +0x12
-    unsigned int m_fieldD;      // +0x16
-    char m_title[0x15];         // +0x1a
-    char m_body[0x100];         // +0x2f
-    unsigned int m_field12f;    // +0x12f
+    unsigned int m_characNo;   // +0xa（收件人 charNo）
+    unsigned int m_fieldE;     // +0xe（=dbmw InsertMail hE）
+    unsigned int m_field12;    // +0x12（=dbmw InsertMail h12）
+    unsigned int m_field16;    // +0x16（=dbmw InsertMail h16）
+    char m_subject[0x15];      // +0x1a（邮件标题）
+    char m_content[0x100];     // +0x2f（邮件正文，与 dbmw Packet_DBMW_Insert_Mail 一致）
+    unsigned int m_delayHours; // +0x12f（延迟小时数）
 } __attribute__((packed));
 
 class Packet_VillageAttackedStart : public PacketHeader
@@ -1067,11 +1073,11 @@ class Packet_Request_IPCounterList : public PacketHeader
 public:
     Packet_Request_IPCounterList() : PacketHeader(0x1038, 0xc)
     {
-        m_fieldA = 5;
-        m_fieldB = 0;
+        m_type = 5;
+        m_param = 0;
     }
-    unsigned char m_fieldA;  // +0xa
-    unsigned char m_fieldB;  // +0xb
+    unsigned char m_type;   // +0xa（SendDBMWRequestIPCounter flag）
+    unsigned char m_param;  // +0xb（SendDBMWRequestIPCounter b）
 } __attribute__((packed));
 
 class Packet_Monitor_ServerEvent_Start : public PacketHeader
@@ -1090,12 +1096,12 @@ class Packet_DBMW_Statistic_Login_Logout : public PacketHeader
 {
 public:
     Packet_DBMW_Statistic_Login_Logout();
-    unsigned int m_fieldA;      // +0xa
+    unsigned int m_channelNo;   // +0xa（服务器组/频道号）
     stLoginLogoutVariable m_entries[255]; // +0xe
-    unsigned int m_field608;    // +0x608
-    unsigned int m_field60c;    // +0x60c
-    unsigned int m_field610;    // +0x610
-    unsigned int m_field614;    // +0x614
+    unsigned int m_occCount0;   // +0x608（=CLoginLogoutStatistics::m_fieldac）
+    unsigned int m_occCount4;   // +0x60c（=m_fieldb0）
+    unsigned int m_loginCount;  // +0x610（=m_fieldb4）
+    unsigned int m_logoutCount; // +0x614（=m_fieldb8）
 } __attribute__((packed));
 
 class Packet_Arad_DeleteEffect : public PacketHeader
@@ -1118,8 +1124,8 @@ class Packet_Punish_Cancel : public PacketHeader
 public:
     Packet_Punish_Cancel();
     unsigned int m_idByChannel;  // +10
-    unsigned short m_fieldE;     // +14
-    unsigned short m_field10;    // +16
+    unsigned short m_type;       // +14（透传，OnMonitorPunishCancel 原样转发）
+    unsigned short m_param;      // +16（透传）
 } __attribute__((packed));
 
 class Packet_Set_CleanPad_Point : public PacketHeader
@@ -1127,7 +1133,7 @@ class Packet_Set_CleanPad_Point : public PacketHeader
 public:
     Packet_Set_CleanPad_Point();
     unsigned int m_idByChannel;  // +10
-    unsigned short m_fieldE;     // +14
+    unsigned short m_point;      // +14（透传点数值）
 } __attribute__((packed));
 
 class Packet_SecuService_Connect_Web : public PacketHeader
@@ -1152,7 +1158,7 @@ class Packet_Monitor_Other_Channel_Chat_ToUser : public PacketHeader
 public:
     Packet_Monitor_Other_Channel_Chat_ToUser();
     unsigned int m_senderCharId;  // +10
-    unsigned char m_fieldE;       // +14
+    unsigned char m_serverId;     // +14（canonical：共享头 server_id）
     unsigned int m_idByChannel;   // +15
     unsigned int m_uniqCharNo;    // +19
     char m_name[0x1e];            // +23
@@ -1166,7 +1172,7 @@ class Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link : public PacketHeader
 public:
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link();
     unsigned int m_senderCharId;  // +10
-    unsigned char m_fieldE;       // +14
+    unsigned char m_serverId;     // +14（canonical：共享头 server_id）
     unsigned int m_idByChannel;   // +15
     unsigned int m_uniqCharNo;    // +19
     char m_name[0x1e];            // +23
@@ -1181,9 +1187,9 @@ class Packet_Change_User_Handicap : public PacketHeader
 {
 public:
     Packet_Change_User_Handicap();
-    unsigned int m_fieldA;  // +10
-    unsigned int m_fieldE;  // +14
-    unsigned int m_field12; // +18
+    unsigned int m_charNo;   // +10（OnWebChangeUserHandicap 透传）
+    unsigned int m_fieldE;   // +14（透传，语义未明）
+    unsigned int m_field12;  // +18（透传，语义未明）
 } __attribute__((packed));
 
 class Packet_Web_Request_ARS_Info : public PacketHeader

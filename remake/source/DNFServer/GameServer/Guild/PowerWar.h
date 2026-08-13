@@ -27,7 +27,7 @@ struct ST_PowerWarEventStartTimeConfig
     unsigned char m_hour;   // +1
     unsigned char m_min;    // +2
     char m_pad;             // +3
-    int m_field4;           // +4
+    int m_rankUpdateTime;   // +4（GetPowerWarRankingUpdateTime 返回）
     std::vector<STPowerWarScheduleTime> m_schedule;  // +8
 };
 
@@ -50,7 +50,7 @@ public:
     int ProcessByMinuteEndEvent();
     int ProcessByMinuteStartEvent();
     int GetPowerWarRankingUpdateTime();
-    int m_field8;                   // +8
+    int m_minuteCnt;                // +8（事件倒计时分钟，-1=未进行）
     unsigned short m_endKillPoint;  // +0xc
     char m_pad2[2];                 // +0xe
     CPowerWarConfig* m_config;      // +0x10

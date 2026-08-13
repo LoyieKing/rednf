@@ -16,7 +16,7 @@ class stServerInfo;
 class Packet_Monitor_UDP_HeartBeat : public PacketHeader {
 public:
     Packet_Monitor_UDP_HeartBeat();
-    unsigned char m_fieldA;
+    unsigned char m_group;   // +0xa（发送时写 group）
 };
 
 // from GuildServer.h

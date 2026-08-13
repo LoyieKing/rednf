@@ -84,7 +84,7 @@ ST_PowerWarEventStartTimeConfig::~ST_PowerWarEventStartTimeConfig()
 
 bool CPowerWar::IsPowerWarOn() const
 {
-    return m_field4 != 0;
+    return m_isEventOn != 0;
 }
 
 unsigned short CPowerWar::getPowerWarEndKillPoint()
@@ -98,7 +98,7 @@ unsigned short CPowerWar::getPowerWarEndKillPoint() const
 }
 
 CPowerWar::CPowerWar()
-    : m_field8(-1), m_endKillPoint(0xffff), m_config(0)
+    : m_minuteCnt(-1), m_endKillPoint(0xffff), m_config(0)
 {
     m_config = new CPowerWarConfig;
     resetEvent();
@@ -116,22 +116,22 @@ CPowerWar::~CPowerWar()
 
 void CPowerWar::setEvent()
 {
-    m_field4 = 1;
+    m_isEventOn = 1;
     time_t now = time(0);
     tm* t = localtime(&now);
-    m_field8 = m_scheduler.GetSpecificDayScheduleHour(t->tm_wday);
+    m_minuteCnt = m_scheduler.GetSpecificDayScheduleHour(t->tm_wday);
 }
 
 void CPowerWar::setProlongTime()
 {
-    m_field4 = 1;
-    m_field8 = m_field8 + 10;
+    m_isEventOn = 1;
+    m_minuteCnt = m_minuteCnt + 10;
 }
 
 void CPowerWar::resetEvent()
 {
-    m_field4 = 0;
-    m_field8 = -1;
+    m_isEventOn = 0;
+    m_minuteCnt = -1;
     m_endKillPoint = 0xffff;
 }
 
@@ -145,7 +145,7 @@ void CPowerWar::setPowerWarEndKillPoint(unsigned short point)
 
 int CPowerWar::ProcessByMinuteStartEvent()
 {
-    if (m_field4 != 0)
+    if (m_isEventOn != 0)
     {
         return 0;
     }
@@ -156,16 +156,16 @@ int CPowerWar::ProcessByMinuteStartEvent()
 
 int CPowerWar::ProcessByMinuteEndEvent()
 {
-    if (m_field8 == -1 || m_field4 == 0)
+    if (m_minuteCnt == -1 || m_isEventOn == 0)
     {
         return -1;
     }
-    m_field8 = m_field8 - 1;
-    if (m_field8 <= 0)
+    m_minuteCnt = m_minuteCnt - 1;
+    if (m_minuteCnt <= 0)
     {
         return 0;
     }
-    return m_field8;
+    return m_minuteCnt;
 }
 
 void CPowerWar::LoadPowerWarTableFile(char* path)
@@ -189,7 +189,7 @@ int CPowerWar::GetPowerWarRankingUpdateTime()
 {
     if (m_config != 0)
     {
-        return m_config->GetInfo()->m_field4;
+        return m_config->GetInfo()->m_rankUpdateTime;
     }
     else
     {

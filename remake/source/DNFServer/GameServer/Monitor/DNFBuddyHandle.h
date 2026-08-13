@@ -260,7 +260,7 @@ public:
     void SetBuddyDBFlag(unsigned short flag);
     std::map<std::string, CBuddy*> m_buddies;  // +0
     CUser* m_prUser;                           // +0x18
-    unsigned short m_field1c;                  // +0x1c
+    unsigned short m_buddyDBFlag;              // +0x1c（GetBuddyDBFlag/SetBuddyDBFlag）
 };
 
 #endif  // MONITOR_DNFBUDDYHANDLE_H_

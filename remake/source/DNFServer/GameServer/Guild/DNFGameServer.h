@@ -23,7 +23,7 @@ public:
     bool Destroy();
     int GetSocket();
     void SetSocket(unsigned int sock);
-    unsigned int m_field10; // +0x10
+    unsigned int m_sock;    // +0x10（GetSocket/SetSocket）
 };
 
 // from GuildServer.h

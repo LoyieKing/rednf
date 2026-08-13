@@ -275,6 +275,9 @@ class CollectItms
 public:
     CollectItms();
     ~CollectItms();
+    // 注意：该结构被双重视图复用——onCollectItems 视为
+    // MonitorCollectItemsState{m_total,m_current,m_time}，onCollectItemsResult 视为
+    // STCollectItemsData{m_uniqCharNo,m_money,m_etc,m_end}。语义随调用方而异，暂保留偏移名。
     unsigned int m_field0;   // +0
     unsigned int m_field4;   // +4
     unsigned int m_field8;   // +8
@@ -401,23 +404,23 @@ public:
     CMutex m_udpBLock;                  // +0x150
     CTcpNetSystem m_tcpNetSystem;       // +0x168
     CTaskScheduler* m_taskScheduler;    // +0x2c8
-    WongWork::CGMAccounts* m_field2cc;  // +0x2cc
+    WongWork::CGMAccounts* m_gmAccounts;  // +0x2cc
     CMemberManager m_memberManager;     // +0x2d0
     CBuddyRegisterManager m_buddyMgr;   // +0x300
     CMemoryCashManager* m_memoryCash;   // +0x318
-    void* m_field31c;                   // +0x31c
+    void* m_eventActionMgr;                   // +0x31c
     class COnTimeEventManager* m_onTimeEventMgr;  // +0x320
     CTowerRank* m_towerRank;            // +0x324
     CItemLimitEditionMgr* m_itemLimitMgr;  // +0x328
     CIPCounter* m_ipCounter;            // +0x32c
-    CLoginLogoutStatistics* m_field330; // +0x330
-    void* m_field334;                   // +0x334
+    CLoginLogoutStatistics* m_loginLogoutStats; // +0x330
+    void* m_accusationMgr;                   // +0x334
     std::set<std::pair<const std::string, int> > m_set338;  // +0x338
     std::map<const std::string, int> m_map350;        // +0x350
     std::map<unsigned int, std::list<unsigned int> > m_map368;  // +0x368
     CPeriodicMessageMgr* m_periodicMsg; // +0x380
     LimitNpcBuyItemManager* m_limitNpc; // +0x384
-    void* m_field388;                   // +0x388
+    void* m_collectItms;                   // +0x388
     int m_miniCraneSeed;                // +0x38c
     short m_timeSyncHour;               // +0x390
 };

@@ -367,7 +367,7 @@ void CMemberManager::SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUs
     if (handler != 0 && u1 != 0 && u2 != 0)
     {
         Packet_Monitor_SAVE_Member pkt;
-        pkt.m_fieldA = flag;
+        pkt.m_flag = flag;
         short l1 = u1->GetLevel();
         short l2 = u2->GetLevel();
         if (l2 < l1)
@@ -396,7 +396,7 @@ void CMemberManager::SaveMemberOnUnConnect(CServerHandler* handler, unsigned int
     if (handler != 0)
     {
         Packet_Monitor_SAVE_Member pkt;
-        pkt.m_fieldA = flag;
+        pkt.m_flag = flag;
         if (c == 1)
         {
             pkt.m_upperCharNo = b;

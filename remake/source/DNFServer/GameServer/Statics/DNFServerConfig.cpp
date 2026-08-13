@@ -20,9 +20,9 @@ bool CServerConfig::Parse_Table(char* line, int idx)
         if (idx < 0xff)
         {
             ST_ServerInfo* s = &m_servers[idx];
-            s->m_field0 = (char)atoi(tok[0]);
-            s->m_field1 = (char)atoi(tok[1]);
-            s->m_field2 = (char)atoi(tok[2]);
+            s->m_serverType = (char)atoi(tok[0]);
+            s->m_id = (char)atoi(tok[1]);
+            s->m_serverIndex = (char)atoi(tok[2]);
             s->m_string = tok[3];
             s->m_ushort = (unsigned short)atoi(tok[4]);
             return 1;
@@ -51,7 +51,7 @@ ST_ServerInfo* CServerConfig::GetServerInfo()
     return m_servers;
 }
 ST_ServerInfo::ST_ServerInfo()
-    : m_field0(0), m_field1(0), m_field2(0xff), m_ushort(0)
+    : m_serverType(0), m_id(0), m_serverIndex(0xff), m_ushort(0)
 {
 }
 CServerConfig::CServerConfig()

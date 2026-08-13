@@ -310,17 +310,17 @@ public:
     void Clear();
     CApplication* m_app;       // +0
     CRewardUserList m_rewardList;  // +4
-    int m_field1c;             // +0x1c
-    int m_field20;             // +0x20
-    unsigned int m_field24;    // +0x24
-    unsigned int m_field28;    // +0x28
+    int m_startTime;           // +0x1c（StartEvent: time(0)）
+    int m_rewardStartTime;     // +0x20（OnRewardStart: time(0)）
+    unsigned int m_eventStart; // +0x24（StartEvent(a,b)/GetCurEventItemByDBMW(a,b) 的 a）
+    unsigned int m_eventDurationMin;  // +0x28（b；OnRewardStart: b*0x3c 秒触发结束）
     ENUM_ONTIME_EVENT_STATE m_state2c;  // +0x2c（枚举成员：enum 比较才出 ORIG 的 eax 形态）
-    unsigned int m_field30;             // +0x30（无符号：赋值先载 this 的 ORIG 形态）
-    unsigned char m_field34;   // +0x34
+    unsigned int m_eventIdx;   // +0x30（GetEvent_Idx/SetEventIdx）
+    unsigned char m_hasIdxFlag;// +0x34（SetEventIdx 置 1）
     char m_pad[3];             // +0x35
-    unsigned int m_field38;    // +0x38
-    unsigned int m_field3c;    // +0x3c
-    int m_field40;             // +0x40
+    unsigned int m_itemIndex;  // +0x38（SetEventItem idx）
+    unsigned int m_itemCount;  // +0x3c（SetEventItem cnt）
+    int m_field40;             // +0x40（ctor 清零，保留）
 };
 
 #endif  // MONITOR_ONTIMEEVENTMANAGER_H_

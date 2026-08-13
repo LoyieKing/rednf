@@ -20,7 +20,7 @@ struct __attribute__((packed)) STGuildJoinInfo
     char m_pad1[3];
     int m_guildId;             // +0x4
     unsigned int m_id;         // +0x8
-    unsigned int m_fieldC;     // +0xc
+    unsigned int m_mid;        // +0xc（OnGuildJoinByListApprove 直接赋 m_id 参数；GuildJoin 流程未用）
     int m_characNo;            // +0x10
     char m_characName[0x1e];   // +0x14
     unsigned char m_lev;       // +0x32
@@ -33,13 +33,13 @@ struct __attribute__((packed)) STGuildJoinInfo
 
 struct STTodayGuildMember
 {
-    unsigned int m_field0;   // +0（charac_no）
+    unsigned int m_characNo; // +0（SQL charac_no）
     char m_name[0x1e];       // +4（charac_name，get_str 0x1d）
-    unsigned char m_field22; // +0x22（grade）
-    unsigned char m_field23; // +0x23（job）
-    unsigned char m_field24; // +0x24（grow_type）
-    unsigned char m_field25; // +0x25（sex）
-    unsigned char m_field26; // +0x26（lev）
+    unsigned char m_grade;   // +0x22（SQL grade）
+    unsigned char m_job;     // +0x23（SQL job）
+    unsigned char m_growType;// +0x24（SQL grow_type）
+    unsigned char m_sex;     // +0x25（SQL sex）
+    unsigned char m_lev;     // +0x26（SQL lev）
 };
 
 class Packet_DBMW_Statistic_Login_Logout : public PacketHeader
@@ -54,10 +54,10 @@ public:
         int m_count;                 // +2（6 字节/条）
     };
     Item m_items[0xff];              // +0xe（0xff × 6 = 0x5fa，至 +0x608）
-    int m_field608;                  // +0x608
-    int m_field60c;                  // +0x60c
-    int m_field610;                  // +0x610
-    int m_field614;                  // +0x614
+    int m_numOccupationsCharscreen;  // +0x608（SQL num_occupations_charscreen）
+    int m_numOccupationsSeriaroom;   // +0x60c（SQL num_occupations_seriaroom）
+    int m_numLoginPerMin;            // +0x610（SQL num_login_per_min）
+    int m_numLogoutPerMin;           // +0x614（SQL num_logout_per_min）
 } __attribute__((packed));
 
 class Packet_User_Count_Statistic : public PacketHeader
@@ -193,18 +193,18 @@ public:
 class Packet_DBMW_Collect_Items_Update : public PacketHeader
 {
 public:
-    int m_fieldA;          // +0xa
+    int m_totalCount;      // +0xa（onCollectItemsUpdate：新总数 = 当前数 + diff）
     unsigned char m_serverInfo;  // +0xe
-    unsigned char m_field13;     // +0x13
+    unsigned char m_flag;  // +0x13（非 0 时强制回报）
 } __attribute__((packed));
 
 class Packet_DBMW_Collect_Items_Gm : public PacketHeader
 {
 public:
     unsigned char m_serverInfo;  // +0xa
-    int m_fieldB;      // +0xb
-    unsigned int m_fieldF;  // +0xf
-    int m_field13;     // +0x13
+    int m_totalCount;      // +0xb（updateCollectItemsGm SQL total_count）
+    unsigned int m_curCount;  // +0xf（SQL cur_count）
+    int m_fullTime;     // +0x13（SQL full_time=from_unixtime）
 } __attribute__((packed));
 
 class Packet_DBMW_Request_Guild_Join : public PacketHeader
@@ -212,8 +212,8 @@ class Packet_DBMW_Request_Guild_Join : public PacketHeader
 public:
     unsigned char m_serverId;    // +0xa
     unsigned int m_guildId;      // +0xb
-    unsigned int m_id;           // +0xf
-    unsigned int m_field13;      // +0x13
+    unsigned int m_accId;        // +0xf（→ STGuildJoinInfo.m_id(+8)，GuildJoin SQL m_id）
+    unsigned int m_mid;          // +0x13（→ STGuildJoinInfo.m_mid(+0xc)，approve 流程 m_id）
     int m_characNo;              // +0x17
     char m_characName[0x1d];     // +0x1b
     unsigned char m_lev;         // +0x39
@@ -245,17 +245,17 @@ class Packet_DBMW_Request_Change_Unconnected_GuildMember_Grade : public PacketHe
 public:
     unsigned char m_serverId;  // +0xa
     unsigned int m_guildId;    // +0xb
-    unsigned int m_fieldF;     // +0xf
-    unsigned char m_field13;   // +0x13
+    unsigned int m_characNo;   // +0xf（ChangeGuildMemberGrade 的目标 charac）
+    unsigned char m_flag;      // +0x13（==1 时直接返回）
     char m_name[0x1d];         // +0x14
-    unsigned char m_field32;   // +0x32
+    unsigned char m_newGrade;  // +0x32
 } __attribute__((packed));
 
 class Packet_DBMW_Request_BlackList_Login : public PacketHeader
 {
 public:
     unsigned int m_mid;    // +0xa
-    unsigned char m_fieldE;  // +0xe
+    unsigned char m_serverType;  // +0xe（0xc9=monitor / 0xcb=guild 路由）
 } __attribute__((packed));
 
 class Packet_DBMW_Request_Guild_Booting : public PacketHeader
@@ -314,22 +314,22 @@ class Packet_DB_Load_Request_Guild_Board_Write : public PacketHeader
 {
 public:
     unsigned int m_guildId;  // +0xb
-    unsigned int m_field13;  // +0x13
+    unsigned int m_characNo; // +0x13（OnWriteGuildBoard SQL charac_no）
 } __attribute__((packed));
 
 class Packet_DB_Load_Request_Web_Guild_Board_Write : public PacketHeader
 {
 public:
-    unsigned int m_guildId;  // +0xa
-    unsigned int m_fieldE;   // +0xe
+    unsigned int m_guildKey; // +0xa（guild 侧 canonical m_guildKey）
+    unsigned int m_charNo;   // +0xe（guild 侧 canonical m_charNo）
 } __attribute__((packed));
 
 class Packet_DB_Load_Request_Guild_Board_Delete : public PacketHeader
 {
 public:
-    unsigned int m_fieldB;   // +0xb
-    unsigned int m_fieldF;   // +0xf
-    unsigned int m_field13;  // +0x13
+    unsigned int m_boardNo;  // +0xb（OnDeleteGuildBoard SQL where no=%u）
+    unsigned int m_guildId;  // +0xf（handler 日志 Guild Id）
+    unsigned int m_charNo;   // +0x13（reply.m_charNo）
 } __attribute__((packed));
 
 class Packet_DB_Load_Guild_Agit : public PacketHeader
@@ -342,21 +342,21 @@ class Packet_DB_Create_Guild_Agit : public PacketHeader
 {
 public:
     unsigned int m_guildId;  // +0xa
-    unsigned int m_fieldE;   // +0xe
+    unsigned int m_characNo; // +0xe（guild 侧 PTL_GuildAgitPkt.m_charNo）
 } __attribute__((packed));
 
 class Packet_DB_Delete_Guild_Agit : public PacketHeader
 {
 public:
     unsigned int m_guildId;  // +0xa
-    unsigned int m_fieldE;   // +0xe
+    unsigned int m_characNo; // +0xe
 } __attribute__((packed));
 
 class Packet_DB_Upgrade_Guild_Agit : public PacketHeader
 {
 public:
     unsigned int m_guildId;  // +0xa
-    unsigned int m_fieldE;   // +0xe
+    unsigned int m_characNo; // +0xe
 } __attribute__((packed));
 
 class Packet_StartGameEventFromServer : public PacketHeader
@@ -402,7 +402,7 @@ class Packet_DBMW_Query_Guild_Member : public PacketHeader
 {
 public:
     unsigned char m_serverId;  // +0xa
-    unsigned int m_guildId;    // +0xb
+    unsigned int m_characNo;   // +0xb（QueryGuildMember SQL where charac_no=%d）
 } __attribute__((packed));
 
 class Packet_DBMW_Save_Member_Update_CharInfo : public PacketHeader
@@ -424,7 +424,7 @@ public:
 class Packet_DBMW_Send_Guild_Letter : public PacketHeader
 {
 public:
-    unsigned int m_fieldA;   // +0xa
+    unsigned int m_fieldA;   // +0xa（回显字段，未定）
     unsigned char m_serverId; // +0xe
     unsigned int m_guildId;  // +0xf
     char m_content[0x100];   // +0x13
@@ -444,9 +444,9 @@ class Packet_DBMW_Save_Member : public PacketHeader
 {
 public:
     unsigned char m_type;    // +0xa
-    unsigned int m_fieldB;   // +0xb
-    unsigned int m_fieldF;   // +0xf
-    unsigned char m_field13; // +0x13
+    unsigned int m_masterNo; // +0xb（SaveMemberInsert/Delete param_1）
+    unsigned int m_characNo; // +0xf（param_2）
+    unsigned char m_flag;    // +0x13（param_3：1=insert 2=delete）
 } __attribute__((packed));
 
 class Packet_TowerOfDespair_Statistic_STD : public PacketHeader
@@ -456,8 +456,8 @@ public:
     int m_uv;        // +0xe（与 m_entries[0] 同址）
     struct Entry
     {
-        int m_fieldE;   // +0xe
-        int m_field12;  // +0x12
+        int m_success;  // +0xe（SQL enter/success；DBManager 视图 TowerOfDespairEntry.m_success）
+        int m_enter;    // +0x12（TowerOfDespairEntry.m_enter）
     } m_entries[1];     // +0xe，步长 8（条目从 i=1 起用）
 } __attribute__((packed));
 
@@ -465,7 +465,7 @@ class Packet_DBMW_Request_IPCounter_List : public PacketHeader
 {
 public:
     unsigned char m_serverGroup;  // +0xa
-    unsigned char m_fieldB;       // +0xb
+    unsigned char m_fullListFlag; // +0xb（非 0 时返回完整 IP 列表）
 } __attribute__((packed));
 
 class Packet_DBMW_Request_Approve_Join_Guild : public PacketHeader
@@ -481,29 +481,29 @@ class Packet_Result_OnTimeEvent_Idx : public PacketHeader
 {
 public:
     Packet_Result_OnTimeEvent_Idx();
-    int m_fieldA;       // +0xa
-    char m_fieldE;      // +0xe
+    int m_maxNo;        // +0xa（SQL ifnull(max(no),1)）
+    char m_result;      // +0xe（QueryOnTimeEventIdx 返回值）
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Statistic_Reload_Spec : public PacketHeader
 {
 public:
-    unsigned char m_fieldA;  // +0xa
-    int m_fieldB;            // +0xb
+    unsigned char m_loadSeq;  // +0xa（statics FrameLagCollector m_field18/m_field19 序号）
+    int m_lastModifyTime;     // +0xb（SQL unix_timestamp(modify_time)>%d）
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Collect_Interval_Check : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Collect_Interval_Check();
-    short m_fieldA;          // +0xa
+    short m_intervalSec;     // +0xa（SQL collect_interval.value）
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Statistic_Result_Reload_Spec : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Statistic_Result_Reload_Spec();
-    unsigned char m_fieldA;              // +0xa
+    unsigned char m_loadSeq;             // +0xa（回显请求序号）
     int m_batchIndex;                    // +0xb（每 6 条发送后自增）
     int m_count;                         // +0xf
     int m_uniqueId[6];                   // +0x13
@@ -524,7 +524,7 @@ class Packet_Frame_Lag_Statistic_Result_Load_Spec : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Statistic_Result_Load_Spec();
-    unsigned char m_fieldA;  // +0xa
+    unsigned char m_loadSeq;             // +0xa（回显请求序号）
     int m_batchIndex;                    // +0xb（每 6 条发送后自增）
     int m_count;                         // +0xf
     int m_uniqueId[6];                   // +0x13
@@ -544,7 +544,7 @@ public:
 class Packet_Frame_Lag_Statistic_Load_Spec : public PacketHeader
 {
 public:
-    unsigned char m_fieldA;  // +0xa
+    unsigned char m_loadSeq;  // +0xa（statics LoadSpec m_field18 序号）
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Spec_Delete_Notify : public PacketHeader
@@ -562,26 +562,26 @@ class Packet_CollectItemsResult : public PacketHeader
 {
 public:
     Packet_CollectItemsResult();
-    int m_fieldA;       // +0xa
-    int m_fieldE;       // +0xe
-    int m_field12;      // +0x12
+    int m_totalCount;   // +0xa（selectCollectItems out2 total_count）
+    int m_curCount;     // +0xe（out1 cur_count）
+    int m_changeFlag;   // +0x12（out3 change_flag）
 } __attribute__((packed));
 
 class Packet_DBMW_Add_Buddy_Reply : public PacketHeader
 {
 public:
     Packet_DBMW_Add_Buddy_Reply();
-    int m_fieldA;          // +0xa
+    int m_mid;             // +0xa
     STBuddyDBInfo m_info;  // +0xe（STBuddyDBInfo 区）
-    char m_field35;        // +0x35（ORIG ctor size 0x36）
+    char m_result;         // +0x35（AddBuddy out result；ORIG ctor size 0x36）
 } __attribute__((packed));
 
 class Packet_DBMW_Del_Buddy_Reply : public PacketHeader
 {
 public:
     Packet_DBMW_Del_Buddy_Reply();
-    unsigned int m_fieldA;  // +0xa
-    unsigned int m_fieldE;  // +0xe
+    unsigned int m_mid;     // +0xa
+    unsigned int m_characNo;// +0xe
     char m_rest[0x1f];      // +0x12（ORIG ctor size 0x31）
 } __attribute__((packed));
 
@@ -589,14 +589,14 @@ class Packet_DB_Reply_Guild_Secede : public PacketHeader
 {
 public:
     Packet_DB_Reply_Guild_Secede();
-    unsigned int m_fieldA;   // +0xa
-    unsigned int m_fieldE;   // +0xe
-    unsigned int m_field12;  // +0x12
-    unsigned int m_field16;  // +0x16
-    char m_field1A;          // +0x1a
-    unsigned int m_field1B;  // +0x1b
+    unsigned int m_guildId;      // +0xa
+    unsigned int m_characNo;     // +0xe（请求 characNo 回显）
+    unsigned int m_secedeCharacNo; // +0x12（GuildSecede 按名字解析出的 charac_no）
+    unsigned int m_result;       // +0x16（GuildSecede out3 result）
+    char m_grade;                // +0x1a（请求 grade 回显）
+    unsigned int m_secedeType;   // +0x1b（请求 secedeType 回显）
     char m_pad[0x1e];        // +0x1f..0x3c
-    unsigned int m_field3D;  // +0x3d（ORIG ctor size 0x41）
+    unsigned int m_mid;      // +0x3d（GuildSecede out2 m_id；ORIG ctor size 0x41）
 } __attribute__((packed));
 
 class Packet_Notify_New_Group_Mail : public PacketHeader
@@ -611,8 +611,8 @@ class Packet_Response_IPCounterList : public PacketHeader
 {
 public:
     Packet_Response_IPCounterList();
-    char m_fieldA;       // +0xa
-    char m_fieldB;       // +0xb
+    char m_batchFlag;    // +0xa（0=首包 1=中间 2=末包）
+    char m_count;        // +0xb
     char m_rest[0xbb8];  // 数据区（ORIG ctor size 0xbc4）
 } __attribute__((packed));
 
@@ -620,9 +620,9 @@ class Packet_DBMW_Reply_Guild_Create : public PacketHeader
 {
 public:
     Packet_DBMW_Reply_Guild_Create();
-    unsigned int m_fieldA;   // +0xa
-    unsigned int m_fieldE;   // +0xe
-    unsigned int m_field12;  // +0x12
+    unsigned int m_characNo; // +0xa
+    unsigned int m_guildId;  // +0xe（QueryGuildCreate out guildId）
+    unsigned int m_result;   // +0x12（QueryGuildCreate out result）
     char m_rest[0x17];       // +0x16（ORIG ctor size 0x2d）
 } __attribute__((packed));
 
@@ -630,7 +630,7 @@ class Packet_Reply_Today_Guild_Member : public PacketHeader
 {
 public:
     Packet_Reply_Today_Guild_Member();
-    int m_fieldA;        // +0xa
+    int m_guildId;       // +0xa
     char m_data[0x27];   // +0xe（STTodayGuildMember，0x27 字节）
 } __attribute__((packed));
 
@@ -638,8 +638,8 @@ class Packet_Response_D_IPCounterList : public PacketHeader
 {
 public:
     Packet_Response_D_IPCounterList();
-    char m_fieldA;       // +0xa
-    char m_fieldB;       // +0xb
+    char m_batchFlag;    // +0xa（0=首包 1=中间 2=末包）
+    char m_count;        // +0xb
     char m_rest[0xe10];  // 数据区（ORIG ctor size 0xe1c）
 } __attribute__((packed));
 
@@ -647,35 +647,35 @@ class Packet_Result_Ontime_Event_Item : public PacketHeader
 {
 public:
     Packet_Result_Ontime_Event_Item();
-    int m_fieldA;             // +0xa
-    int m_fieldE;             // +0xe
-    unsigned short m_field12; // +0x12
+    int m_idx;                // +0xa（SQL event_ontime_item.idx）
+    int m_cnt;                // +0xe（SQL cnt）
+    unsigned short m_result;  // +0x12（2=无数据）
 } __attribute__((packed));
 
 class Packet_DB_Create_Guild_Agit_Reply : public PacketHeader
 {
 public:
     Packet_DB_Create_Guild_Agit_Reply();
-    int m_fieldA;    // +0xa
-    int m_fieldE;    // +0xe
-    int m_field12;   // +0x12
+    int m_guildId;   // +0xa
+    int m_characNo;  // +0xe
+    int m_result;    // +0x12（0=成功 2=失败）
 } __attribute__((packed));
 
 class Packet_DB_Delete_Guild_Agit_Reply : public PacketHeader
 {
 public:
     Packet_DB_Delete_Guild_Agit_Reply();
-    int m_fieldA;    // +0xa
-    int m_fieldE;    // +0xe
-    int m_field12;   // +0x12
+    int m_guildId;   // +0xa
+    int m_characNo;  // +0xe
+    int m_result;    // +0x12
 } __attribute__((packed));
 
 class Packet_DBMW_Query_Buddy_Info_Reply : public PacketHeader
 {
 public:
     Packet_DBMW_Query_Buddy_Info_Reply();
-    int m_fieldA;             // +0xa
-    unsigned char m_fieldE;   // +0xe
+    int m_characNo;           // +0xa
+    unsigned char m_count;    // +0xe（QueryBuddyInfo out count）
     STBuddyDBInfo m_rest[32]; // +0xf（ORIG ctor size 0x4ef；0x27*32=0x4e0）
 } __attribute__((packed));
 
@@ -683,8 +683,8 @@ class Packet_DB_Upgrade_Guild_Agit_Reply : public PacketHeader
 {
 public:
     Packet_DB_Upgrade_Guild_Agit_Reply();
-    int m_fieldA;    // +0xa
-    int m_fieldE;    // +0xe
+    int m_guildId;   // +0xa
+    int m_characNo;  // +0xe
     int m_result;    // +0x12
 } __attribute__((packed));
 
@@ -692,9 +692,9 @@ class Packet_DB_Reply_Guild_Master_Delegate : public PacketHeader
 {
 public:
     Packet_DB_Reply_Guild_Master_Delegate();
-    unsigned int m_fieldA;   // +0xa
-    unsigned int m_fieldE;   // +0xe
-    unsigned int m_field12;  // +0x12
+    unsigned int m_guildId;       // +0xa
+    unsigned int m_oldMasterNo;   // +0xe
+    unsigned int m_newMasterNo;   // +0x12（QueryGuildMemberGradeByName out m_id）
     char m_rest[0x22];       // +0x16（ORIG ctor size 0x38）
 } __attribute__((packed));
 
@@ -702,10 +702,10 @@ class Packet_DB_Response_Approve_Join_Guild : public PacketHeader
 {
 public:
     Packet_DB_Response_Approve_Join_Guild();
-    int m_fieldA;     // +0xa
-    int m_fieldE;     // +0xe
-    int m_field12;    // +0x12
-    int m_field16;    // +0x16
+    int m_result;     // +0xa
+    int m_guildId;    // +0xe
+    int m_id;         // +0x12
+    int m_characNo;   // +0x16
     STGuildJoinInfo m_joinInfo;  // +0x1a（0x3c 字节）
 } __attribute__((packed));
 
@@ -714,30 +714,30 @@ class Packet_Result_Loading_Periodic_Message : public PacketHeader
 public:
     Packet_Result_Loading_Periodic_Message();
     char m_message[0x200];  // +0xa
-    int m_field20A;      // +0x20a
-    int m_field20E;      // +0x20e
+    int m_startHour;    // +0x20a（SQL start_h）
+    int m_endHour;      // +0x20e（SQL end_h）
 } __attribute__((packed));
 
 class Packet_DB_Load_Reply_Guild_Board_Delete : public PacketHeader
 {
 public:
     Packet_DB_Load_Reply_Guild_Board_Delete();
-    unsigned short m_fieldA;  // +0xa
-    int m_fieldC;             // +0xc
-    int m_field10;            // +0x10
-    int m_field14;            // +0x14
+    unsigned short m_result;  // +0xa
+    int m_guildId;            // +0xc
+    int m_charNo;             // +0x10
+    int m_boardNo;            // +0x14
 } __attribute__((packed));
 
 class Packet_DB_Monitor_Change_Unconnected_GuildMember_Grade : public PacketHeader
 {
 public:
     Packet_DB_Monitor_Change_Unconnected_GuildMember_Grade();
-    int m_fieldA;      // +0xa
-    int m_fieldE;      // +0xe
-    char m_pad[0x1e];  // +0x12
-    unsigned char m_field30;  // +0x30
-    unsigned char m_field31;  // +0x31
-    int m_field32;     // +0x32
+    int m_guildId;     // +0xa
+    int m_characNo;    // +0xe
+    char m_name[0x1e]; // +0x12
+    unsigned char m_result;  // +0x30（0xff/0xfe=失败）
+    unsigned char m_grade;   // +0x31（当前 grade）
+    int m_newGrade;    // +0x32
 } __attribute__((packed));
 
 class Packet_DBMW_Save_Client_Spec_Statistic : public PacketHeader
@@ -812,25 +812,25 @@ class Packet_Server_Queue_Load_Statistic : public PacketHeader
 {
 public:
     Packet_Server_Queue_Load_Statistic();
-    unsigned char m_fieldA;       // +0xa
-    unsigned char m_fieldB;       // +0xb
-    unsigned short m_fieldC;  // +0xc
+    unsigned char m_serverType;   // +0xa（0xc8=请求方类型）
+    unsigned char m_kind;         // +0xb（SaveServerQueueLoadStatistic kind）
+    unsigned short m_qCnt;        // +0xc（SQL q_cnt）
 } __attribute__((packed));
 
 class Packet_DB_Query_Reply_On_Guild_Booting : public PacketHeader
 {
 public:
     Packet_DB_Query_Reply_On_Guild_Booting();
-    unsigned int m_fieldA;   // +0xa
-    unsigned int m_fieldE;   // +0xe
-    signed char m_field12;   // +0x12（ORIG ctor size 0x13）
+    unsigned int m_aSidePoint; // +0xa（SQL a_side_point）
+    unsigned int m_bSidePoint; // +0xe（SQL b_side_point）
+    signed char m_winnerSide;  // +0x12（SQL winner_side；ORIG ctor size 0x13）
 } __attribute__((packed));
 
 class Packet_Monitor_Notify_New_Mail : public PacketHeader
 {
 public:
     Packet_Monitor_Notify_New_Mail();
-    unsigned int m_fieldA;  // +0xa
+    unsigned int m_characNo; // +0xa（OnDBMWInsertMail 填入收件 charac_no）
     char m_rest[4];         // +0xe（ORIG ctor size 0x12）
 } __attribute__((packed));
 
@@ -838,27 +838,27 @@ class Packet_DBMW_Reply_Guild_Mail : public PacketHeader
 {
 public:
     Packet_DBMW_Reply_Guild_Mail();
-    unsigned int m_fieldA;   // +0xa
-    unsigned int m_fieldE;   // +0xe
-    char m_field12;          // +0x12（ORIG ctor size 0x13）
+    unsigned int m_senderCharacNo; // +0xa（请求首字段回显，语义未完全确定）
+    unsigned int m_guildId;        // +0xe
+    char m_result;                 // +0x12（0=成功；ORIG ctor size 0x13）
 } __attribute__((packed));
 
 class Packet_DBMW_Save_Guild_Join_Reply : public PacketHeader
 {
 public:
     Packet_DBMW_Save_Guild_Join_Reply();
-    unsigned int m_fieldA;   // +0xa
-    unsigned int m_fieldE;   // +0xe
-    unsigned int m_field12;  // +0x12
-    unsigned int m_field16;  // +0x16（ORIG ctor size 0x1a）
+    unsigned int m_guildId;  // +0xa
+    unsigned int m_mid;      // +0xe（请求 +0x13 回显）
+    unsigned int m_characNo; // +0x12
+    unsigned int m_result;   // +0x16（GuildJoin out result；ORIG ctor size 0x1a）
 } __attribute__((packed));
 
 class Packet_Reply_Load_Tower_Full_Rank : public PacketHeader
 {
 public:
     Packet_Reply_Load_Tower_Full_Rank();
-    char m_fieldA;            // +0xa
-    char m_fieldB;            // +0xb
+    char m_batchFlag;         // +0xa（1=首包 0=后续包）
+    char m_count;             // +0xb
     char m_rest[0x17b3];      // +0xc（ORIG ctor size 0x17bf）
 } __attribute__((packed));
 
@@ -866,8 +866,8 @@ class Packet_Set_ARS_Info : public PacketHeader
 {
 public:
     Packet_Set_ARS_Info();
-    int m_fieldA;        // +0xa（ORIG 以 32 位存储 count）
-    char m_fieldE;       // +0xe
+    int m_count;         // +0xa（ARS 条目数；ORIG 以 32 位存储）
+    char m_statsType;    // +0xe（日志 Stats : %3d）
     char m_rest[0x4b0];  // +0xf（ORIG ctor size 0x4bf）
 } __attribute__((packed));
 
@@ -875,7 +875,7 @@ class Packet_Result_Ontime_Event_Idx_Update : public PacketHeader
 {
 public:
     Packet_Result_Ontime_Event_Idx_Update();
-    int m_fieldA;        // +0xa（ORIG ctor 报文长 0x16，数据区仅此字段）
+    int m_no;            // +0xa（回显请求 no；ORIG ctor 报文长 0x16，数据区仅此字段）
 } __attribute__((packed));
 
 struct STDBConnInfo
@@ -894,26 +894,26 @@ struct STDBConnInfo
 struct STGuildRankInfo
 {
     STGuildRankInfo();
-    int m_field0;    // +0
-    unsigned int m_field4;    // +4
-    unsigned int m_field8;    // +8（rank）
+    int m_guildId;   // +0（SQL guild_id）
+    unsigned int m_guildPoint;  // +4（SQL guild_point）
+    unsigned int m_rank;        // +8（rank() 赋值）
 };
 
 struct STGuildWarRankInfo
 {
     STGuildWarRankInfo();
-    unsigned int m_field0;  // +0（guild_id）
-    unsigned int m_field4;  // +4（guild_war_point，pair.first）
-    unsigned int m_field8;  // +8（guild_point_prev）
+    unsigned int m_guildId;      // +0（SQL guild_id）
+    unsigned int m_guildWarPoint;// +4（SQL guild_war_point，pair.first）
+    unsigned int m_rank;         // +8（rankGuildWar() 赋值）
     char m_name[0x17];      // +0xc（guild_name）
-    unsigned int m_field24; // +0x24
+    unsigned int m_guildPointPrev; // +0x24（SQL guild_point_prev）
 };
 
 struct STGuildSkill
 {
     STGuildSkill();
-    int m_field0;    // +0（默认 0xffffffff）
-    char m_field4;   // +4（默认 0xff）
+    int m_skillId;    // +0（默认 0xffffffff = 空槽）
+    char m_skillLevel;// +4（默认 0xff = 空槽）
 } __attribute__((packed));
 
 struct CPairDataCompare
@@ -935,13 +935,13 @@ struct STGuildMemberProxy
     STGuildMemberProxy();
     int m_no;               // +0
     char m_name[0x1e];      // +4
-    unsigned char m_field22;   // +0x22
-    unsigned char m_field23;   // +0x23
-    unsigned short m_field24;  // +0x24
-    unsigned char m_field26;   // +0x26
-    unsigned char m_field27;   // +0x27
-    int m_field28;          // +0x28
-    char m_data2c[0x15];    // +0x2c
+    unsigned char m_job;    // +0x22（SQL job）
+    unsigned char m_growType;// +0x23（SQL grow_type）
+    unsigned short m_lev;   // +0x24（SQL lev）
+    unsigned char m_sex;    // +0x26（SQL sex）
+    unsigned char m_grade;  // +0x27（SQL grade）
+    int m_lastPlayTime;     // +0x28（SQL unix_timestamp(last_play_time)）
+    char m_memo[0x15];      // +0x2c（SQL memo）
 } __attribute__((packed));
 
 struct RandomOptionSeed
@@ -1022,27 +1022,27 @@ struct DnfItemInfo
 struct STGuildMemberCharacData
 {
     STGuildMemberCharacData();
-    unsigned char m_field0;      // +0
-    unsigned char m_field1;      // +1
-    unsigned char m_field2;      // +2
+    unsigned char m_job;         // +0（OnWriteGuildBoard job）
+    unsigned char m_field1;      // +1（未定）
+    unsigned char m_field2;      // +2（未定）
     char m_name[0x1e];           // +3（总大小 0x21）
 } __attribute__((packed));
 
 struct STBlackUserDBType
 {
     STBlackUserDBType();
-    int m_field0;     // +0
-    char m_pad4[0x20];  // +4..0x23
-    int m_field24;    // +0x24（总大小 0x28）
+    int m_characNo;   // +0（SQL charac_no）
+    char m_name[0x20]; // +4..0x23（SQL charac_name）
+    int m_occTime;    // +0x24（SQL unix_timestamp(occ_time)；总大小 0x28）
 } __attribute__((packed));
 
 struct STGuildBoardDBInfo
 {
     STGuildBoardDBInfo();
     char m_pre[0x78];                    // +0
-    int m_field78;                       // +0x78
-    int m_field7c;                       // +0x7c
-    int m_field80;                       // +0x80
+    int m_createTime;                    // +0x78（SQL unix_timestamp(create_time)）
+    int m_no;                            // +0x7c（SQL no）
+    int m_characNo;                      // +0x80（SQL charac_no）
     STGuildMemberCharacData m_member;    // +0x84（0x21 字节，总大小 0xa5）
 } __attribute__((packed));
 
@@ -1056,29 +1056,29 @@ struct STGuildCargoDBInfo
 struct STGuildMemerDBInfo
 {
     STGuildMemerDBInfo();
-    char m_pad[0x15];  // +0..0x14
-    char m_field15;    // +0x15
-    int m_field16;     // +0x16（总大小 0x1a）
+    char m_memo[0x15]; // +0..0x14（SQL memo）
+    char m_grade;      // +0x15（SQL grade）
+    int m_memberPoint; // +0x16（SQL member_point；总大小 0x1a）
 } __attribute__((packed));
 
 struct st_ip_counter_list
 {
     ~st_ip_counter_list();
     void CopyStruct(const st_ip_counter_list& other);
-    unsigned short m_field0;  // +0（hack_type）
-    unsigned short m_field2;  // +2（hack_sub_type）
+    unsigned short m_hackType;    // +0（hack_type）
+    unsigned short m_hackSubType; // +2（hack_sub_type）
     char m_cClassIp[0xc];     // +4
-    unsigned int m_field10;   // +0x10（cnt）
+    unsigned int m_cnt;       // +0x10（cnt）
 };
 
 struct st_full_ip_counter_list
 {
     ~st_full_ip_counter_list();
     void CopyStruct(const st_full_ip_counter_list& other);
-    unsigned short m_field0;  // +0（hack_type）
-    unsigned short m_field2;  // +2（hack_sub_type）
+    unsigned short m_hackType;    // +0（hack_type）
+    unsigned short m_hackSubType; // +2（hack_sub_type）
     char m_fullIp[0x10];      // +4
-    unsigned int m_field14;   // +0x14（cnt）
+    unsigned int m_cnt;       // +0x14（cnt）
 };
 
 struct stTowerRank_t
@@ -1095,13 +1095,13 @@ struct st_ars_info_list
 {
     ~st_ars_info_list();
     void CopyStruct(const st_ars_info_list& other);
-    unsigned short m_field0;  // +0（hack_type）
-    unsigned short m_field2;  // +2（cnt）
-    unsigned short m_field4;  // +4（etc）
-    unsigned short m_field6;  // +6（hack_sub_type）
-    unsigned char m_field8;   // +8（hack_sub_cnt）
-    unsigned char m_field9;   // +9（apply_flag）
-    unsigned short m_fieldA;  // +0xa（ip_cnt）
+    unsigned short m_hackType;   // +0（SQL hack_type）
+    unsigned short m_cnt;        // +2（SQL cnt）
+    unsigned short m_etc;        // +4（SQL etc）
+    unsigned short m_hackSubType;// +6（SQL hack_sub_type）
+    unsigned char m_hackSubCnt;  // +8（SQL hack_sub_cnt）
+    unsigned char m_applyFlag;   // +9（SQL apply_flag）
+    unsigned short m_ipCnt;      // +0xa（SQL ip_cnt）
 };
 
 struct STGuildDBInfoOnly
@@ -1124,10 +1124,10 @@ struct STGuildDBInfoOnly
     int m_guildPoint;             // +0x24
     unsigned char m_guildRank;    // +0x28
     int m_guildExp;               // +0x29
-    char m_field2D;               // +0x2d
-    char m_pad2E[0x14];           // +0x2e..0x41
-    unsigned short m_field42;     // +0x42..0x43
-    char m_field44;               // +0x44
+    char m_subMasterCnt;          // +0x2d（QueryGuildMember 的 grade2 人数）
+    char m_subMasterData[0x14];   // +0x2e..0x41（grade2 charac_no 列表；guild 侧 m_subGuildMaster）
+    unsigned short m_guildSkillPoint; // +0x42..0x43（SQL remain_sp）
+    char m_skillLearnCnt;         // +0x44（SQL skill_slot 数量）
     STGuildSkill m_skills[16];    // +0x45..0x94（16×STGuildSkill(5B)=0x50）
     unsigned char m_powerSide;    // +0x95
     int m_powerSecedeTime;        // +0x96
@@ -1145,7 +1145,7 @@ public:
     unsigned char m_serverId;    // +0xa
     unsigned int m_guildId;      // +0xb
     STGuildDBInfoOnly m_info;    // +0xf（0xbd 字节，至 +0xcb）
-    int m_fieldCC;               // +0xcc（0=SaveGuildInfo，1=SaveGuildSkill）
+    int m_saveType;              // +0xcc（0=SaveGuildInfo，1=SaveGuildSkill）
 } __attribute__((packed));
 
 class Packet_DBMW_Save_Guild_Member : public PacketHeader
@@ -1153,18 +1153,18 @@ class Packet_DBMW_Save_Guild_Member : public PacketHeader
 public:
     unsigned char m_serverId;    // +0xa
     unsigned int m_guildId;      // +0xb
-    unsigned int m_fieldF;       // +0xf
+    unsigned int m_flag;         // +0xf（SaveGuildMember flag：charac_no）
     STGuildMemerDBInfo m_info;   // +0x13（0x1a 字节，至 +0x2c）
-    unsigned char m_field2D;     // +0x2d
+    unsigned char m_type;        // +0x2d（SaveGuildMember type：SAVE_LOGOUT/GRADE_CHANGE）
 } __attribute__((packed));
 
 class Packet_DBMW_Insert_Mail : public PacketHeader
 {
 public:
     unsigned int m_characNo;  // +0xa
-    unsigned int m_fieldE;    // +0xe
-    int m_field12;            // +0x12
-    int m_field16;            // +0x16
+    unsigned int m_itemId;    // +0xe（InsertPostal item_id）
+    int m_addInfo;            // +0x12（InsertPostal add_info）
+    int m_extra;              // +0x16（InsertMail 第 7 参，ORIG 未使用）
     char m_subject[0x15];     // +0x1a
     char m_content[0x100];    // +0x2f
     int m_delayHours;         // +0x12f
@@ -1183,10 +1183,10 @@ public:
 class LimitNpcBuyItemUpdate : public PacketHeader
 {
 public:
-    unsigned int m_fieldA;   // +0xa（sell_count 增量）
-    unsigned int m_fieldE;   // +0xe
-    unsigned int m_field12;  // +0x12（item_index）
-    unsigned int m_field16;  // +0x16
+    unsigned int m_itemIndex;    // +0xa（SQL where item_index=%u）
+    unsigned int m_fieldE;       // +0xe（未定）
+    unsigned int m_sellCountInc; // +0x12（SQL sell_count=sell_count+%u）
+    unsigned int m_field16;      // +0x16（未定）
 } __attribute__((packed));
 
 struct ST_ServerInfo
@@ -1211,15 +1211,15 @@ struct stPacketProcess
 class Packet_DB_Call_Unconn_Guild_Member : public PacketHeader
 {
 public:
-    unsigned int m_fieldA;  // +0xa（guildKey）
-    unsigned int m_fieldE;  // +0xe（characNo）
+    unsigned int m_guildId; // +0xa（guildKey）
+    unsigned int m_characNo;// +0xe
 } __attribute__((packed));
 
 class Packet_DB_Call_Guild_All_Members : public PacketHeader
 {
 public:
-    unsigned int m_fieldA;  // +0xa（guildKey）
-    unsigned int m_fieldE;  // +0xe（characNo）
+    unsigned int m_guildId; // +0xa（guildKey）
+    unsigned int m_characNo;// +0xe
 } __attribute__((packed));
 
 class Packet_Tcp_Server_Login : public PacketHeader
@@ -1244,14 +1244,14 @@ class Packet_Monitor_UDP_HeartBeat : public PacketHeader
 {
 public:
     Packet_Monitor_UDP_HeartBeat();
-    char m_fieldA;      // +0xa
+    char m_fieldA;      // +0xa（心跳，未定）
 } __attribute__((packed));
 
 class Packet_Notice_Guild_Mail_Arrived : public PacketHeader
 {
 public:
     Packet_Notice_Guild_Mail_Arrived();
-    char m_fieldA;      // +0xa
+    char m_flag;        // +0xa（OnSendGuildLetter 置 1）
     int m_guildId;      // +0xb
     char m_rest[0x28];  // +0xf..0x33
 } __attribute__((packed));
@@ -1262,7 +1262,7 @@ struct ST_MemberProxy
     int m_no;               // +0
     unsigned char m_lev;    // +4
     char m_name[0x1e];      // +5（memset 0x1e）
-    int m_field23;          // +0x23
+    int m_exp;              // +0x23（QueryMember SQL exp）
 } __attribute__((packed));
 
 struct STMemberDBInfo
@@ -1278,9 +1278,9 @@ class Packet_DB_Reply_Query_Member : public PacketHeader
 public:
     Packet_DB_Reply_Query_Member();
     char m_flag;             // +0xa
-    int m_fieldB;            // +0xb
-    int m_fieldF;            // +0xf（maxExp）
-    int m_field13;           // +0x13（maxIdx）
+    int m_characNo;          // +0xb（OnQueryMember 回显请求 charac_no）
+    int m_maxCreateTime;     // +0xf（QueryMember SQL max(unix_timestamp(create_time))）
+    int m_maxDeleteTime;     // +0x13（SQL max(unix_timestamp(delete_time))）
     STMemberDBInfo m_master; // +0x17
     char m_rest[0x1c5 - 0x17 - 0x1ae];
 } __attribute__((packed));
@@ -1289,8 +1289,8 @@ class Packet_DB_Reply_Unconn_Guild_Member : public PacketHeader
 {
 public:
     Packet_DB_Reply_Unconn_Guild_Member();
-    int m_fieldA;           // +0xa
-    int m_fieldE;           // +0xe
+    int m_guildId;          // +0xa
+    int m_characNo;         // +0xe
     STGuildMemberProxy m_proxy;  // +0x12
 } __attribute__((packed));
 
@@ -1298,8 +1298,8 @@ class Packet_DB_Reply_Guild_All_Members : public PacketHeader
 {
 public:
     Packet_DB_Reply_Guild_All_Members();
-    int m_fieldA;            // +0xa
-    int m_fieldE;            // +0xe
+    int m_guildId;           // +0xa
+    int m_characNo;          // +0xe
     unsigned char m_flag;    // +0x12
     unsigned char m_count;   // +0x13
     STGuildMemberProxy m_members[0x5d];  // +0x14（93 × 0x41 = 0x179d）
@@ -1309,9 +1309,9 @@ class Packet_DB_Reply_Query_Guild : public PacketHeader
 {
 public:
     Packet_DB_Reply_Query_Guild();
-    char m_fieldA;               // +0xa
-    int m_fieldB;                // +0xb
-    int m_fieldF;                // +0xf
+    char m_result;               // +0xa（guild 侧 m_success）
+    int m_guildId;               // +0xb（guild 侧 m_guildKey）
+    int m_characNo;              // +0xf（guild 侧 m_charNo）
     STGuildDBInfoOnly m_guildInfo;  // +0x13（0xbd 字节）
     char m_rest[0x65];           // +0xd0（ORIG ctor size 0x135）
 } __attribute__((packed));
@@ -1320,7 +1320,7 @@ class Packet_Guild_Load_Guild_Agit : public PacketHeader
 {
 public:
     Packet_Guild_Load_Guild_Agit();
-    int m_fieldA;               // +0xa
+    int m_guildId;              // +0xa
     STGuildAgitDBInfo m_info;   // +0xe
 } __attribute__((packed));
 
@@ -1328,7 +1328,7 @@ class Packet_DBMW_Reponse_BlackList : public PacketHeader
 {
 public:
     Packet_DBMW_Reponse_BlackList();
-    int m_fieldA;                        // +0xa
+    int m_mid;                           // +0xa
     STBlackUserDBType m_blackList[10];   // +0xe（10 × 0x28 = 0x190）
 } __attribute__((packed));
 
@@ -1336,7 +1336,7 @@ class Packet_Guild_Load_Guild_Cargo : public PacketHeader
 {
 public:
     Packet_Guild_Load_Guild_Cargo();
-    unsigned int m_fieldA;  // +0xa
+    unsigned int m_guildId;  // +0xa
     STGuildCargoDBInfo m_cargo;  // +0xe（0x18dc 字节）
 } __attribute__((packed));
 
@@ -1345,8 +1345,8 @@ class Packet_DB_Reply_Query_Guild_Member : public PacketHeader
 public:
     Packet_DB_Reply_Query_Guild_Member();
     char m_flag;              // +0xa
-    int m_fieldB;             // +0xb
-    int m_fieldF;             // +0xf
+    int m_guildId;            // +0xb（SQL guild_id）
+    int m_characNo;           // +0xf（guild 侧 m_charNo）
     STGuildMemerDBInfo m_info; // +0x13（0x1a 字节，总大小 0x2d）
 } __attribute__((packed));
 
@@ -1354,11 +1354,11 @@ class Packet_DB_Load_Reply_Guild_Board_Open : public PacketHeader
 {
 public:
     Packet_DB_Load_Reply_Guild_Board_Open();
-    unsigned short m_fieldA;  // +0xa
-    char m_fieldC;            // +0xc
-    int m_fieldD;             // +0xd
-    int m_field11;            // +0x11
-    char m_field15;           // +0x15
+    unsigned short m_result;  // +0xa（1=失败）
+    char m_count;             // +0xc（本包板数，1 或 10）
+    int m_guildId;            // +0xd
+    int m_charNo;             // +0x11
+    char m_boardCount;        // +0x15（成功时为 10）
     STGuildBoardDBInfo m_boards[10];  // +0x16（10 × 0xa5 = 0x672）
 } __attribute__((packed));
 
@@ -1366,8 +1366,8 @@ class Packet_Guild_Load_Guild_Cargo_History : public PacketHeader
 {
 public:
     Packet_Guild_Load_Guild_Cargo_History();
-    int m_fieldA;                    // +0xa
-    int m_fieldE;                    // +0xe
+    int m_guildId;                   // +0xa
+    int m_count;                     // +0xe（OnLoadGuildCargoHistory 行数）
     STGuildCargoLog m_logs[50];      // +0x12（50 × 0x30 = 0x960，总大小 0x972）
 } __attribute__((packed));
 
@@ -1375,9 +1375,9 @@ class Packet_DB_Load_Reply_Guild_Board_Write : public PacketHeader
 {
 public:
     Packet_DB_Load_Reply_Guild_Board_Write();
-    unsigned short m_fieldA;  // +0xa
-    int m_fieldC;             // +0xc
-    int m_field10;            // +0x10
+    unsigned short m_result;  // +0xa
+    int m_guildId;            // +0xc
+    int m_charNo;             // +0x10
     STGuildBoardDBInfo m_board;  // +0x14（总大小 0xb9）
 } __attribute__((packed));
 
@@ -1385,35 +1385,35 @@ class Packet_DB_Load_Reply_Web_Guild_Board_Write : public PacketHeader
 {
 public:
     Packet_DB_Load_Reply_Web_Guild_Board_Write();
-    unsigned short m_fieldA;  // +0xa
-    int m_fieldC;             // +0xc
-    int m_field10;            // +0x10
+    unsigned short m_result;  // +0xa
+    int m_guildId;            // +0xc
+    int m_charNo;             // +0x10
     STGuildBoardDBInfo m_board;  // +0x14（总大小 0xb9）
 } __attribute__((packed));
 
 struct STPartyMemberStat
 {
     char m_data0[0xe];      // +0..0xd
-    unsigned short m_fieldE;  // +0xe
-    int m_field10;            // +0x10
-    char m_field14;           // +0x14（movsbl）
-    unsigned char m_field15;  // +0x15
-    unsigned char m_field16;  // +0x16
-    unsigned char m_field17;  // +0x17
-    unsigned char m_field18;  // +0x18
-    char m_field19;           // +0x19（movsbl）
-    int m_field1A;            // +0x1a
-    int m_field1E;            // +0x1e
-    int m_field22;            // +0x22
-    int m_field26;            // +0x26
-    int m_field2A;            // +0x2a
-    int m_field2E;            // +0x2e
-    int m_field32;            // +0x32
-    int m_field36;            // +0x36
-    int m_field3A;            // +0x3a
-    int m_field3E;            // +0x3e
-    int m_field42;            // +0x42
-    int m_field46;            // +0x46
+    unsigned short m_channelNo;   // +0xe（SQL log_dungeon_party.channel_no）
+    int m_dungeonIndex;           // +0x10
+    char m_dungeonDiff;           // +0x14（movsbl）
+    unsigned char m_dungeonStandardLevel; // +0x15
+    unsigned char m_abuseParty;   // +0x16
+    unsigned char m_balkunParty;  // +0x17
+    unsigned char m_success;      // +0x18
+    char m_partyUserCount;        // +0x19（movsbl）
+    int m_clearTime;              // +0x1a
+    int m_dieCount;               // +0x1e
+    int m_hpConsume;              // +0x22
+    int m_mpConsume;              // +0x26
+    int m_hitCount;               // +0x2a
+    int m_hitPerAvgDamage;        // +0x2e
+    int m_hpRecovery;             // +0x32
+    int m_mpRecovery;             // +0x36
+    int m_expAdd;                 // +0x3a
+    int m_fatigueConsume;         // +0x3e
+    int m_level;                  // +0x42
+    int m_updateCount;            // +0x46
 } __attribute__((packed));
 
 class Packet_DBMW_Dungeon_Statistic_Party : public PacketHeader
@@ -1428,18 +1428,18 @@ public:
 struct STPartyJobMemberStat
 {
     char m_data0[0xe];      // +0..0xd
-    unsigned short m_fieldE;  // +0xe
-    int m_field10;            // +0x10
-    char m_field14;           // +0x14（movsbl）
-    unsigned char m_field15;  // +0x15
-    unsigned char m_field16;  // +0x16
-    unsigned char m_field17;  // +0x17
-    unsigned char m_field18;  // +0x18
-    char m_field19;           // +0x19（movsbl）
-    int m_field1A;            // +0x1a
-    char m_field1E;           // +0x1e（movsbl）
-    int m_field1F;            // +0x1f
-    int m_field23;            // +0x23
+    unsigned short m_channelNo;   // +0xe（SQL log_dungeon_party_job.channel_no）
+    int m_dungeonIndex;           // +0x10
+    char m_dungeonDiff;           // +0x14（movsbl）
+    unsigned char m_dungeonStandardLevel; // +0x15
+    unsigned char m_abuseParty;   // +0x16
+    unsigned char m_balkunParty;  // +0x17
+    unsigned char m_success;      // +0x18
+    char m_partyUserCount;        // +0x19（movsbl）
+    int m_characJob;              // +0x1a
+    char m_characGrow;            // +0x1e（movsbl）
+    int m_jobCount;               // +0x1f
+    int m_rank;                   // +0x23
 } __attribute__((packed));
 
 class Packet_DBMW_Dungeon_Statistic_Party_Job : public PacketHeader
@@ -1454,28 +1454,28 @@ public:
 struct STPartyCharacMemberStat
 {
     char m_data0[0xe];       // +0..0xd
-    unsigned short m_fieldE; // +0xe
-    int m_field10;           // +0x10
-    int m_field11;           // +0x11（与 +0x10 重叠读）
-    char m_field14;          // +0x14（movsbl）
-    unsigned char m_field15; // +0x15
-    unsigned char m_field16; // +0x16
-    int m_field17;           // +0x17
-    char m_field1B;          // +0x1b（movsbl）
-    char m_field1C;          // +0x1c（movsbl）
-    int m_field1D;           // +0x1d
-    int m_field21;           // +0x21
-    int m_field25;           // +0x25
-    int m_field29;           // +0x29
-    int m_field2D;           // +0x2d
-    int m_field31;           // +0x31
-    int m_field35;           // +0x35
-    int m_field39;           // +0x39
-    int m_field3D;           // +0x3d
-    int m_field41;           // +0x41
-    int m_field45;           // +0x45
-    int m_field49;           // +0x49
-    int m_field4D;           // +0x4d
+    unsigned short m_channelNo; // +0xe（SQL log_dungeon_charac.channel_no）
+    int m_dungeonIndex;         // +0x10
+    int m_field11;              // +0x11（与 +0x10 重叠读，未定）
+    char m_dungeonDiff;         // +0x14（movsbl）
+    unsigned char m_dungeonStandardLevel; // +0x15
+    unsigned char m_success;    // +0x16
+    int m_characJob;            // +0x17
+    char m_characGrow;          // +0x1b（movsbl）
+    char m_partyUserCount;      // +0x1c（movsbl）
+    int m_clearTime;            // +0x1d
+    int m_dieCount;             // +0x21
+    int m_hpConsume;            // +0x25
+    int m_mpConsume;            // +0x29
+    int m_hitCount;             // +0x2d
+    int m_hitPerAvgDamage;      // +0x31
+    int m_hpRecovery;           // +0x35
+    int m_mpRecovery;           // +0x39
+    int m_expAvg;               // +0x3d
+    int m_fatigueConsume;       // +0x41
+    int m_level;                // +0x45
+    int m_updateCount;          // +0x49
+    int m_rank;                 // +0x4d
 } __attribute__((packed));
 
 class Packet_DBMW_Dungeon_Statistic_Party_Charac : public PacketHeader
@@ -1515,18 +1515,18 @@ class Packet_Item_Limit_Edition_Load_Data_Req : public PacketHeader
 {
 public:
     Packet_Item_Limit_Edition_Load_Data_Req() : PacketHeader(0x1008, 0x7ef) {}
-    unsigned char m_fieldA;    // +0xa
-    int m_fieldB;              // +0xb
-    unsigned int m_fieldF;     // +0xf
-    unsigned int m_list[0x100]; // +0x13
+    unsigned char m_flag;      // +0xa（==1 时按 ipg_no 列表过滤）
+    int m_serverId;            // +0xb（SQL where server_id=%d）
+    unsigned int m_ipgNoCount; // +0xf（列表条目数）
+    unsigned int m_list[0x100]; // +0x13（ipg_no 列表）
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Load_Data_Rpy : public PacketHeader
 {
 public:
     Packet_Item_Limit_Edition_Load_Data_Rpy();
-    unsigned char m_fieldA;    // +0xa
-    int m_fieldB;              // +0xb
+    unsigned char m_flag;      // +0xa（回显请求 flag）
+    int m_count;               // +0xb（行数）
     STItemLimitItem m_items[1]; // +0xf（0x48 × n，上限 0x1c）
     char m_pad[0x798];  // 数据区（ORIG ctor size 0x7ef）
 } __attribute__((packed));

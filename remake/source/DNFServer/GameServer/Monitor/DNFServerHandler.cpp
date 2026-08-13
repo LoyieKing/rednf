@@ -35,8 +35,8 @@
 #include "TcpNetSystem.h"
 
 CServerHandler::CServerHandler()
-    : m_dbServer(0), m_managerServer(0), m_app(0), m_field24(0),
-      m_field50(0), m_field64(0)
+    : m_dbServer(0), m_managerServer(0), m_app(0), m_managerHeartbeatCnt(0),
+      m_dbHeartbeatCnt(0), m_managerTcpHeartbeatCnt(0)
 {
 }
 
@@ -71,11 +71,11 @@ unsigned char CServerHandler::GetServerGroupNo()
 
 void CServerHandler::Process()
 {
-    if (m_managerServer != 0 && m_field24++ > 3)
+    if (m_managerServer != 0 && m_managerHeartbeatCnt++ > 3)
     {
         unsigned char group = GetServerGroupNo();
         m_managerServer->SendHeartBeat(group & 0xff);
-        m_field24 = 0;
+        m_managerHeartbeatCnt = 0;
     }
     for (std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.begin();
          it != m_gameServers.end(); it++)
@@ -116,10 +116,10 @@ void CServerHandler::Process()
                     m_tcpManagerServer.GetIP(), m_tcpManagerServer.GetPort());
             }
         }
-        if (9 < m_field64++)
+        if (9 < m_managerTcpHeartbeatCnt++)
         {
             m_tcpManagerServer.SendHeartbeat(GetServerGroupNo());
-            m_field64 = 0;
+            m_managerTcpHeartbeatCnt = 0;
         }
         if (m_tcpDbServer.IsValidServer() != 1)
         {
@@ -135,10 +135,10 @@ void CServerHandler::Process()
                     m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
             }
         }
-        if (9 < m_field50++)
+        if (9 < m_dbHeartbeatCnt++)
         {
             m_tcpDbServer.SendHeartbeat();
-            m_field50 = 0;
+            m_dbHeartbeatCnt = 0;
         }
     }
 }
@@ -149,17 +149,17 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
          it != map->end(); it++)
     {
         stServerInfo* si = it->second;
-        if (si->m_field2 == 1)
+        if (si->m_type == 1)
         {
-            if (si->m_field1 == 0xff)
+            if (si->m_group == 0xff)
             {
                 throw CDNFException("CServerHandler::Load() Server Table Exception Break!");
             }
             RegistGameServer(si);
         }
-        else if (si->m_field2 == 2)
+        else if (si->m_type == 2)
         {
-            if (si->m_field1 == 0xff || si->m_field1 != 0xc8)
+            if (si->m_group == 0xff || si->m_group != 0xc8)
             {
                 throw CDNFException("CServerHandler::Load() DB Server Table Exception Break!");
             }
@@ -172,9 +172,9 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
             db->Initialize();
             RegistDBServer(db);
         }
-        else if (si->m_field2 == 4)
+        else if (si->m_type == 4)
         {
-            if (si->m_field1 == 0xff || si->m_field1 != 0xca)
+            if (si->m_group == 0xff || si->m_group != 0xca)
             {
                 throw CDNFException("CServerHandler::Load() Manager Server Table Exception Break!");
             }
@@ -192,13 +192,13 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
 
 bool CServerHandler::RegistGameServer(stServerInfo* info)
 {
-    unsigned int group = (unsigned int)info->m_field1;
+    unsigned int group = (unsigned int)info->m_group;
     std::map<unsigned int, CGameServer*>::iterator found = m_gameServers.find(group);
     if (found != m_gameServers.end())
         return false;
     CGameServer* gs = new CGameServer(info);
     gs->Initialize();
-    m_gameServers.insert(std::pair<const unsigned int, CGameServer*>(info->m_field1, gs));
+    m_gameServers.insert(std::pair<const unsigned int, CGameServer*>(info->m_group, gs));
     return true;
 }
 
@@ -262,8 +262,8 @@ int CServerHandler::SendToManager(PacketHeader* pkt)
 void CServerHandler::SendDBMWRequestIPCounter(unsigned char flag, unsigned char b)
 {
     Packet_Request_IPCounterList pkt;
-    pkt.m_fieldA = flag;
-    pkt.m_fieldB = b;
+    pkt.m_type = flag;
+    pkt.m_param = b;
     SendToDB(&pkt);
 }
 
@@ -525,20 +525,20 @@ void CServerHandler::SetGameServerIpPort(unsigned char a, unsigned int b, unsign
 void CServerHandler::QueryMember(unsigned int key)
 {
     Packet_DB_Query_Member pkt;
-    pkt.m_fieldA = key;
+    pkt.m_memberKey = key;
     SendToDB(&pkt);
 }
 
 void CServerHandler::QueryMemberMember(unsigned int key)
 {
     Packet_DB_Query_Member_Member pkt;
-    pkt.m_fieldA = key;
+    pkt.m_memberKey = key;
     SendToDB(&pkt);
 }
 
 void CServerHandler::SendDBMWRequest_D_IPCounter(unsigned char flag)
 {
     Packet_Request_IPCounterList pkt;
-    pkt.m_fieldA = flag;
+    pkt.m_type = flag;
     SendToDB(&pkt);
 }

@@ -69,13 +69,13 @@
 CGameServer::CGameServer()
     : CServerInterface()
 {
-    m_field10 = 0;
+    m_sock = 0;
 }
 
 CGameServer::CGameServer(stServerInfo* info)
     : CServerInterface(info)
 {
-    m_field10 = 0;
+    m_sock = 0;
 }
 
 CGameServer::~CGameServer()
@@ -102,12 +102,12 @@ bool CGameServer::Destroy()
 
 void CGameServer::SetSocket(unsigned int sock)
 {
-    m_field10 = sock;
+    m_sock = sock;
 }
 
 int CGameServer::GetSocket()
 {
-    return m_field10;
+    return m_sock;
 }
 
 CTcpGameServer::CTcpGameServer()

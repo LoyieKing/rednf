@@ -20,7 +20,7 @@ class CEvent
 public:
     CEvent();
     virtual ~CEvent();
-    bool m_field4;           // +4
+    bool m_isEventOn;        // +4（setEvent=1/resetEvent=0，IsPowerWarOn 判断）
     char m_pad[3];
 };
 

@@ -289,12 +289,12 @@ public:
     CDBServer* m_dbServer;                          // +0x18
     CManagerServer* m_managerServer;                // +0x1c
     CApplication* m_app;                            // +0x20
-    int m_field24;                                  // +0x24
+    int m_managerHeartbeatCnt;                      // +0x24（Process: 每 4 次向 manager 发心跳）
     std::map<unsigned int, class CTcpGameServer*> m_tcpGameServers; // +0x28
     CTcpDBServer m_tcpDbServer;                     // +0x40
-    int m_field50;                                  // +0x50
+    int m_dbHeartbeatCnt;                           // +0x50（Process: 每 10 次向 DBMW 发心跳）
     CTcpManagerServer m_tcpManagerServer;           // +0x54
-    int m_field64;                                  // +0x64
+    int m_managerTcpHeartbeatCnt;                   // +0x64（Process: 每 10 次发心跳）
 };
 
 #endif  // MONITOR_DNFSERVERHANDLER_H_

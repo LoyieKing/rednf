@@ -1008,12 +1008,12 @@ void CPacketTranslater::OnHolePunchingSuccessRateStatistic(PacketHeader* pkt)
         THROW_IF_NO_APP("OnHolePunchingSuccessRateStatistic() : 0 == m_pclApp")
         Packet_GameServer2Statisctics2DBServer* pck = (Packet_GameServer2Statisctics2DBServer*)pkt;
         Packet_GameServer2Statisctics2DBServer out;
-        out.m_fieldA = pck->m_fieldA;
-        out.m_fieldB = pck->m_fieldB;
-        out.m_fieldC = pck->m_fieldC;
-        out.m_fieldD = pck->m_fieldD;
-        strncpy(out.m_restE, pck->m_restE, 0x10);
-        strncpy(out.m_restF, pck->m_restF, 0x10);
+        out.m_serverGroup = pck->m_serverGroup;
+        out.m_connectedType = pck->m_connectedType;
+        out.m_requiredTime = pck->m_requiredTime;
+        out.m_checkTime = pck->m_checkTime;
+        strncpy(out.m_nationCode, pck->m_nationCode, 0x10);
+        strncpy(out.m_peerAddress, pck->m_peerAddress, 0x10);
         m_pclApp->Get_ServerHandler()->SendToDB((PacketHeader*)&out);
 
     }
@@ -1030,11 +1030,11 @@ void CPacketTranslater::OnHolePunchingSuccessRateStatistic(PacketHeader* pkt)
 Packet_GameServer2Statisctics2DBServer::Packet_GameServer2Statisctics2DBServer()
     : PacketHeader(0x27fd, 0x35)
 {
-    m_fieldA = 0;
-    m_fieldB = 0xff;
-    m_fieldC = 0;
-    m_fieldD = 0;
-    memset(m_restE, 0, sizeof(m_restE));
-    memset(m_restF, 0, sizeof(m_restF));
+    m_serverGroup = 0;
+    m_connectedType = 0xff;
+    m_requiredTime = 0;
+    m_checkTime = 0;
+    memset(m_nationCode, 0, sizeof(m_nationCode));
+    memset(m_peerAddress, 0, sizeof(m_peerAddress));
 }
 CApplication* CPacketTranslater::m_pclApp = 0;

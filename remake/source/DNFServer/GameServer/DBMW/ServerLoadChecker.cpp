@@ -75,9 +75,9 @@ void CAppLoadChecker::setTcpSendQueue(int size) { m_tcpSendLast = size; }
 void CAppLoadChecker::RequestDB(CServerHandler* serverHandler, int flag, int size)
 {
     Packet_Server_Queue_Load_Statistic pkt;
-    pkt.m_fieldA = 0xc8;
-    pkt.m_fieldB = (char)flag;
-    pkt.m_fieldC = (unsigned short)size;
+    pkt.m_serverType = 0xc8;
+    pkt.m_kind = (char)flag;
+    pkt.m_qCnt = (unsigned short)size;
     CPacketTranslater::OnServeQueueLoadStatistic(&pkt);
 }
 bool CAppLoadChecker::checkTcpRecvLoad(int size)

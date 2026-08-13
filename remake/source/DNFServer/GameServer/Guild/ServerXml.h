@@ -39,7 +39,7 @@ public:
     std::string GetEventString(int idx, _eStringType type, bool* ok) const;
     char m_type[5];   // +0（charset 类型字符串：kor/chn/jpn/usa/twn）
     TiXmlDocument m_doc; // +8 TiXmlDocument（0x48）
-    int m_field50;    // +0x50
+    int m_state;      // +0x50（0-3）
     std::string m_path;  // +0x54
     std::map<int, std::string> m_str1;  // +0x58
     std::map<int, std::string> m_str2;  // +0x70

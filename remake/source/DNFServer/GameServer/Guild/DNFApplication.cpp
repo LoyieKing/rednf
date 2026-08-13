@@ -456,7 +456,7 @@ void CApplication::TranslateSignal()
     }
     for (std::vector<ST_KillUSRConfig*>::const_iterator it = vec->begin(); it != vec->end(); ++it)
     {
-        switch ((*it)->m_field0)
+        switch ((*it)->m_type)
         {
         case 1:
             Get_GuildManager()->DBGuildProcess(Get_ServerHandler(), true);
@@ -471,8 +471,8 @@ void CApplication::TranslateSignal()
                     unsigned int f2;
                     char msg[0x17];
                 };
-                ((MailFields*)&mail)->f1 = (unsigned int)(*it)->m_field1;
-                ((MailFields*)&mail)->f2 = (unsigned int)(*it)->m_field2;
+                ((MailFields*)&mail)->f1 = (unsigned int)(*it)->m_param1;
+                ((MailFields*)&mail)->f2 = (unsigned int)(*it)->m_param2;
                 memcpy(((MailFields*)&mail)->msg,
                        "\xc5\xc2\xbd\xba\xc6\xae \xb1\xe6\xb5\xe5\xb8\xde\xc0\xcf\xc0\xd4\xb4\xcf\xb4\xd9.",
                        0x17);
@@ -493,9 +493,9 @@ void CApplication::TranslateSignal()
                     unsigned int f3;
                     char msg[0x16];
                 };
-                ((EnterFields*)&enter)->f1 = (unsigned int)(*it)->m_field1;
-                ((EnterFields*)&enter)->f2 = (unsigned int)(*it)->m_field2;
-                ((EnterFields*)&enter)->f3 = (unsigned int)(*it)->m_field3;
+                ((EnterFields*)&enter)->f1 = (unsigned int)(*it)->m_param1;
+                ((EnterFields*)&enter)->f2 = (unsigned int)(*it)->m_param2;
+                ((EnterFields*)&enter)->f3 = (unsigned int)(*it)->m_param3;
                 memcpy(((EnterFields*)&enter)->msg,
                        "\xb4\xab\xbb\xe7\xb6\xf7\x00\xb0\xde\xdf\xb8\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
                        0x16);
@@ -514,9 +514,9 @@ void CApplication::TranslateSignal()
                     unsigned char f3;
                 };
                 ((GradeFields*)&grade)->grade = 2;
-                ((GradeFields*)&grade)->f1 = (unsigned int)(*it)->m_field1;
-                ((GradeFields*)&grade)->f2 = (unsigned int)(*it)->m_field2;
-                ((GradeFields*)&grade)->f3 = (unsigned char)(*it)->m_field3;
+                ((GradeFields*)&grade)->f1 = (unsigned int)(*it)->m_param1;
+                ((GradeFields*)&grade)->f2 = (unsigned int)(*it)->m_param2;
+                ((GradeFields*)&grade)->f3 = (unsigned char)(*it)->m_param3;
                 CPacketTranslater::OnSetGuildMemberGradeFromWeb(&grade);
                 break;
             }
@@ -531,9 +531,9 @@ void CApplication::TranslateSignal()
                     unsigned int f3;
                     char msg[4];
                 };
-                ((DelegateFields*)&delegate)->f1 = (unsigned int)(*it)->m_field1;
-                ((DelegateFields*)&delegate)->f2 = (unsigned int)(*it)->m_field2;
-                ((DelegateFields*)&delegate)->f3 = (unsigned int)(*it)->m_field3;
+                ((DelegateFields*)&delegate)->f1 = (unsigned int)(*it)->m_param1;
+                ((DelegateFields*)&delegate)->f2 = (unsigned int)(*it)->m_param2;
+                ((DelegateFields*)&delegate)->f3 = (unsigned int)(*it)->m_param3;
                 memcpy(((DelegateFields*)&delegate)->msg, "\xb0\xde\xdf\xb8", 4);
                 CPacketTranslater::OnGuildMasterDelegateFromWeb(&delegate);
                 break;
@@ -545,7 +545,7 @@ void CApplication::TranslateSignal()
                 m_powerManager.StartPowerWarEvent();
                 {
                     Packet_Monitor_Event_Start start;
-                    start.m_fieldA = 0x1e;
+                    start.m_eventType = 0x1e;
                     m_serverHandler->SendAllTcpGameServer(&start);
                 }
                 break;
@@ -554,7 +554,7 @@ void CApplication::TranslateSignal()
                 m_powerManager.EndPowerWarEvent();
                 {
                     Packet_Monitor_Event_End end;
-                    end.m_fieldA = 0x1e;
+                    end.m_eventType = 0x1e;
                     m_serverHandler->SendAllTcpGameServer(&end);
                 }
                 break;

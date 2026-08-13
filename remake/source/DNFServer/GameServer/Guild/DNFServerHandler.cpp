@@ -76,7 +76,7 @@ CServerHandler::CServerHandler()
       m_managerServer(0),
       m_app(0),
       m_heartbeat(0),
-      m_field58(0)
+      m_hbCnt(0)
 {
 }
 
@@ -215,13 +215,13 @@ void CServerHandler::Process()
                 (unsigned int)m_tcpDbServer.GetPort());
         }
     }
-    int hbOld = m_field58;
+    int hbOld = m_hbCnt;
     bool hb = hbOld > 3;
-    m_field58 = hbOld + 1;
+    m_hbCnt = hbOld + 1;
     if (hb)
     {
         m_tcpDbServer.SendHeartbeat();
-        m_field58 = 0;
+        m_hbCnt = 0;
     }
 }
 

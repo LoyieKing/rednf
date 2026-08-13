@@ -252,8 +252,8 @@ public:
     unsigned int m_count;          // +4
     unsigned int m_min;            // +8
     unsigned int m_term;           // +0xc
-    char m_field10;                // +0x10
-    char m_field11;                // +0x11
+    char m_loadFlag;               // +0x10（setOption(2) 置 1，setOption(3) 清 0）
+    char m_loadParam;              // +0x11（setOption(4) 清 0，SendDBMWRequestIPCounter 第二参）
     char m_pad2[2];                // +0x12
     CServerHandler* m_handler;     // +0x14
 };

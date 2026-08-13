@@ -255,7 +255,7 @@ public:
     {
         bool operator==(const stGMInfo_t& other) const;
         unsigned int m_dbid;
-        unsigned int m_field4;
+        unsigned int m_level;   // +4（AppendGM_Sys: =level）
     };
     stGMInfo_t getGMInfo(unsigned int dbid) const;
     std::list<stGMInfo_t> m_list;  // +0

@@ -39,8 +39,8 @@ void CUser::operator delete(void* p, unsigned int size) { ::operator delete(p); 
 
 CUser::CUser()
     : m_dbid(0), m_uniqCharNo(0), m_gameServer(0), m_tcpGameServer(0), m_posState(0),
-      m_member(0), m_field18(0), m_field1a(0), m_memberEnterCallerId(0), m_idByChannel(-1),
-      m_job(0xff), m_growthType(0xff), m_level(0xffff), m_sex(1), m_field68(0)
+      m_member(0), m_field18(0), m_memberEnterCount(0), m_memberEnterCallerId(0), m_idByChannel(-1),
+      m_job(0xff), m_growthType(0xff), m_level(0xffff), m_sex(1), m_blackListDBFlag(0)
 {
     ((RA_S8<176>*)this)->v = 0;
     ((RA_UINT<180>*)this)->v = 0;
@@ -63,7 +63,7 @@ CUser::~CUser()
     memset((char*)this + 0x24, 0, 0x1e);
     ResetMemberInfo();
     ((RA_S8<16>*)this)->v = 0;
-    m_field68 = 0;
+    m_blackListDBFlag = 0;
     ((RA_S8<70>*)this)->v = 1;
     m_channelCount = 0;
     m_channelInfoMap.clear();
@@ -184,12 +184,12 @@ void CUser::MemberEnterProcess()
     {
         return;
     }
-    m_field1a--;
-    register bool b = m_field1a <= 0;
+    m_memberEnterCount--;
+    register bool b = m_memberEnterCount <= 0;
     if (b)
     {
         m_memberEnterCallerId = 0;
-        m_field1a = 0;
+        m_memberEnterCount = 0;
     }
     return;
 }
@@ -261,7 +261,7 @@ void CUser::RegisterToCashBlackList(std::map<unsigned int, CBlackUser*>& map)
     }
 }
 
-void CUser::SetBlackListDBFlag(unsigned short flag) { m_field68 |= flag; }
+void CUser::SetBlackListDBFlag(unsigned short flag) { m_blackListDBFlag |= flag; }
 
 void CUser::SetDBID(unsigned int dbid)
 {
@@ -415,10 +415,10 @@ void CUser::SendNoticeBuddyInOut(unsigned char channel, unsigned int charNo, cha
         pkt.m_charNo = charNo;
         pkt.m_idByChannel = GetIdByChannel();
         pkt.m_channel = channel;
-        pkt.m_field13 = flag1;
-        pkt.m_field14 = flag2;
+        pkt.m_flag1 = flag1;
+        pkt.m_flag2 = flag2;
         memcpy(pkt.m_name, name, 0x1d);
-        pkt.m_field33 = (unsigned char)flag3;
+        pkt.m_flag3 = (unsigned char)flag3;
         ((CServerInterface*)GetGameServer())->SendToServer(
             (char*)&pkt, pkt.packetSize);
     }
@@ -431,7 +431,7 @@ unsigned short CUser::GetBuddyDBFlag()
 
 unsigned short CUser::GetBlackListDBFlag()
 {
-    return m_field68;
+    return m_blackListDBFlag;
 }
 
 std::map<unsigned int, CBlackUser*>* CUser::GetMapBlackList()
@@ -451,7 +451,7 @@ void CUser::GetBlackList(unsigned char& count, STBlackUserDBType* out)
              it != m_blackList.end(); ++it)
         {
             memcpy(out[(unsigned int)count].m_name, (*it).second->GetName(), 0x1d);
-            out[(unsigned int)count].m_field24 = (*it).second->GetOccurTime();
+            out[(unsigned int)count].m_occurTime = (*it).second->GetOccurTime();
             out[(unsigned int)count].m_dbid = (*it).first;
             count++;
             if (9 < count)
@@ -558,14 +558,14 @@ char CUser::CheckPrevCallMemberEnter()
 void CUser::ResetRequestMemberEnter()
 {
     m_memberEnterCallerId = 0;
-    m_field1a = 0;
+    m_memberEnterCount = 0;
 }
 
 char CUser::RecordCallMemberEnter(unsigned int callerId, unsigned short count)
 {
-    if (m_field1a != 0) return 0;
+    if (m_memberEnterCount != 0) return 0;
     m_memberEnterCallerId = callerId;
-    m_field1a = (char)(unsigned int)count;
+    m_memberEnterCount = (char)(unsigned int)count;
     return 1;
 }
 

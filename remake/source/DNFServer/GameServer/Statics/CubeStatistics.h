@@ -26,11 +26,11 @@ public:
 #pragma pack(push, 1)
 struct CubeStatisticItem
 {
-    unsigned short m_field0;   // +0x0
-    unsigned short m_field8;   // +0x2
-    unsigned int m_field4;     // +0x4
-    unsigned int m_value;      // +0x8
-    unsigned char m_fieldc;    // +0xc
+    unsigned short m_channel;   // +0x0（CubeStatisticView.channel）
+    unsigned short m_level;     // +0x2（CubeStatisticView.level）
+    unsigned int m_itemIndex;   // +0x4（CubeStatisticView.item_index）
+    unsigned int m_itemCount;   // +0x8（CubeStatisticView.item_count）
+    unsigned char m_type;       // +0xc（CubeStatisticView.type）
 } __attribute__((packed));
 
 class Packet_DBMW_Cube_Statistic : public PacketHeader

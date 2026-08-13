@@ -45,7 +45,7 @@ class Packet_Udp_Characteristic : public PacketHeader
 {
 public:
     Packet_Udp_Characteristic();
-    char m_fieldA;    // +0xa
+    char m_serverGroup;  // +0xa（p2pnetwork_statistic.server_group）
     int m_values[10]; // +0xb
 } __attribute__((packed));
 #pragma pack(pop)
@@ -63,17 +63,17 @@ public:
     void PushAbnormalExitData(Packet_Abnormal_Exit_Statistic* pkt);
     void InitUdpCharacteristicData();
     void SaveUdpCharacteristicData(CServerHandler* handler, int interval);
-    int m_field0;   // +0
-    int m_field4;   // +4
-    int m_field8;   // +8
-    int m_fieldc;   // +0xc
-    int m_field10;  // +0x10
-    int m_field14;  // +0x14
-    int m_field18;  // +0x18
-    int m_field1c;  // +0x1c
-    int m_field20;  // +0x20
-    int m_field24;  // +0x24
-    int m_field28;  // +0x28
+    int m_intervalTick;         // +0（保存间隔计数）
+    int m_successPartyTry;      // +4（p2pnetwork_statistic.success_party_try）
+    int m_totalPartyTry;        // +8（p2pnetwork_statistic.total_party_try）
+    int m_dungeonBadPing;       // +0xc（p2pnetwork_statistic.dungeon_bad_ping）
+    int m_dungeonTotal;         // +0x10（p2pnetwork_statistic.dungeon_total）
+    int m_pvpBadPing;           // +0x14（p2pnetwork_statistic.pvp_bad_ping）
+    int m_pvpTotal;             // +0x18（p2pnetwork_statistic.pvp_total）
+    int m_fairPvpBadPing;       // +0x1c（p2pnetwork_statistic.fair_pvp_bad_ping）
+    int m_fairPvpTotal;         // +0x20（p2pnetwork_statistic.fair_pvp_total）
+    int m_successDungeonClear;  // +0x24（p2pnetwork_statistic.success_dungeon_clear）
+    int m_totalDungeonClear;    // +0x28（p2pnetwork_statistic.total_dungeon_clear）
 };
 
 #endif // UDP_CHARACTERISTIC_H_

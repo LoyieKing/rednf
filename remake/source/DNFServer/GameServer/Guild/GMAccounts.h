@@ -27,8 +27,8 @@ public:
     struct stGMInfo_t
     {
         bool operator==(const stGMInfo_t& other) const;
-        unsigned int m_field0;
-        unsigned int m_field1;
+        unsigned int m_id;    // +0（== 比较；LoadGmList 为 group，AppendGM_Sys 为 id）
+        unsigned int m_flag;  // +4（LoadGmList 为 index，AppendGM_Sys 为 flag）
     };
     void LoadGmList(unsigned int group, int index);
     void clearGmList();

@@ -157,7 +157,7 @@ CVillageAttackedManager::CVillageAttackedManager(CApplication* app)
 {
     SetRealConfig();
     m_app = app;
-    m_field30 = 0;
+    m_rewardType = 0;
     Reset();
 }
 
@@ -175,8 +175,8 @@ void CVillageAttackedManager::SendFirstRankerRewardJpn(CUser* user, int rank)
 
 void CVillageAttackedManager::InsertTimer(int startTime, int endTime)
 {
-    m_field2c = startTime;
-    m_field28 = endTime;
+    m_startTime = startTime;
+    m_endTime = endTime;
     CVillageAttackedCountdownFirst* t1 =
         new CVillageAttackedCountdownFirst(startTime - 600, 0, this);
     m_app->GetTaskScheduler()->AddTask(t1);
@@ -228,13 +228,13 @@ void CVillageAttackedManager::SetRewardCloseTime(ENUM_VILLAGE_ATTACKED_REWARD re
     switch (rewardType)
     {
     case ENUM_VILLAGE_ATTACKED_REWARD_BUFF:
-        m_field34 = GetNowTime() + REWARD_BUFF_TIME;
+        m_rewardCloseTime = GetNowTime() + REWARD_BUFF_TIME;
         break;
     case ENUM_VILLAGE_ATTACKED_REWARD_PENALTY:
-        m_field34 = GetNowTime() + REWARD_PENALTY_TIME;
+        m_rewardCloseTime = GetNowTime() + REWARD_PENALTY_TIME;
         break;
     default:
-        m_field34 = 0;
+        m_rewardCloseTime = 0;
         break;
     }
 }
@@ -243,11 +243,11 @@ void CVillageAttackedManager::RequestEventEnd(bool flag)
 {
     if (flag)
     {
-        m_field1c = (int)m_field20;
+        m_curHuntingPoint = (int)m_maxHuntingPoint;
     }
-    else if ((unsigned int)m_field1c >= (unsigned int)m_field20)
+    else if ((unsigned int)m_curHuntingPoint >= (unsigned int)m_maxHuntingPoint)
     {
-        m_field1c = m_field1c - 1;
+        m_curHuntingPoint = m_curHuntingPoint - 1;
     }
     OnEndVillageAttacked();
 }
@@ -273,8 +273,8 @@ void CVillageAttackedManager::OnStartVillageAttacked()
     ClearDungeonCloseTime();
     Packet_VillageAttackedStart pkt;
     unsigned int remain = (unsigned int)GetRemainTime();
-    unsigned int f1c = (unsigned int)m_field1c;
-    unsigned int f20 = (unsigned int)m_field20;
+    unsigned int f1c = (unsigned int)m_curHuntingPoint;
+    unsigned int f20 = (unsigned int)m_maxHuntingPoint;
     m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, 0x16);
 }
 
@@ -282,7 +282,7 @@ void CVillageAttackedManager::OnCountdownVillageAttacked(int time)
 {
     if (time == 600)
     {
-        m_field20 = GetMaxHuntingPoint();
+        m_maxHuntingPoint = GetMaxHuntingPoint();
     }
     Packet_VillageAttackedCountdown pkt;
     pkt.m_countdown = time;
@@ -293,23 +293,23 @@ void CVillageAttackedManager::OnCountdownVillageAttacked(int time)
 void CVillageAttackedManager::SendFirstRankerReward(unsigned int charNo)
 {
     Packet_DB_InsertMail pkt;
-    pkt.m_fieldA = charNo;
-    pkt.m_fieldB = 0x1dfe;
-    pkt.m_fieldC = 1;
-    memcpy(pkt.m_title, "\xc1\xd6\xb9\xce \xb4\xeb\xc7\xa5", 10);
-    memcpy(pkt.m_body,
+    pkt.m_characNo = charNo;
+    pkt.m_fieldE = 0x1dfe;
+    pkt.m_field12 = 1;
+    memcpy(pkt.m_subject, "\xc1\xd6\xb9\xce \xb4\xeb\xc7\xa5", 10);
+    memcpy(pkt.m_content,
            "\xbc\xd2\xb6\xf5\xc0\xbb \xc0\xe1\xc0\xe7\xbf\xec\xbd\xc3\xb4\xc0\xb6\xf3 \xbc\xf6\xb0\xed\xc7\xcf\xbd\xc5 \xb8\xf0\xc7\xe8\xb0\xa1\xb4\xd4\xb2\xb2 \xc1\xd6\xb9\xce\xb5\xe9\xc0\xc7 \xc1\xa4\xbc\xba\xc0\xbb \xb8\xf0\xbe\xc6 \xbc\xb1\xb9\xb0\xc0\xbb \xb5\xe5\xb8\xb3\xb4\xcf\xb4\xd9. \xb0\xa8\xbb\xe7\xc7\xd5\xb4\xcf\xb4\xd9 \xb8\xf0\xc7\xe8\xb0\xa1\xb4\xd4.(\xbc\xba\xc0\xe5\xc0\xc7 \xba\xf1\xbe\xe0 \xbb\xe7\xbf\xeb\xb1\xe2\xb0\xa3\xc0\xcc \xc1\xf6\xb3\xaa\xb8\xe9 \xbb\xe7\xb6\xf3\xc1\xfd\xb4\xcf\xb4\xd9.)",
            0x8e);
-    pkt.m_field12f = 3;
+    pkt.m_delayHours = 3;
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 
 void CVillageAttackedManager::SendMaxHuntingPoint()
 {
     Packet_DBMW_Query_Msg pkt;
-    pkt.m_fieldB = 6;
-    pkt.m_fieldA = 0x4ee2;
-    register unsigned int hp = (unsigned int)m_field1c;
+    pkt.m_handleIdx = 6;
+    pkt.m_queryId = 0x4ee2;
+    register unsigned int hp = (unsigned int)m_curHuntingPoint;
     register unsigned int now = GetNowTime();
     sprintf(pkt.m_sql,
             "inSert into village_attacked_server_point_rank(server_info, occ_date, hunting_point) values(%d,cast(from_unixtime(%d) as date),%u)",
@@ -320,11 +320,11 @@ void CVillageAttackedManager::SendMaxHuntingPoint()
 void CVillageAttackedManager::Reset()
 {
     m_huntingPoints.clear();
-    m_field1c = 0;
-    this->m_field20 = GetMaxHuntingPoint();
+    m_curHuntingPoint = 0;
+    this->m_maxHuntingPoint = GetMaxHuntingPoint();
     m_state24 = 0;
-    m_field28 = 0;
-    m_field2c = 0;
+    m_endTime = 0;
+    m_startTime = 0;
 }
 
 void CVillageAttackedManager::OnEndVillageAttacked()
@@ -334,22 +334,22 @@ void CVillageAttackedManager::OnEndVillageAttacked()
         return;
     }
     int now = (int)GetNowTime();
-    if ((unsigned int)m_field1c >= (unsigned int)m_field20)
+    if ((unsigned int)m_curHuntingPoint >= (unsigned int)m_maxHuntingPoint)
     {
-        m_field30 = 1;
+        m_rewardType = 1;
         CVillageAttackedReward* task =
             new CVillageAttackedReward(REWARD_BUFF_TIME + now, 0, this);
         m_app->GetTaskScheduler()->AddTask(task);
     }
     else
     {
-        m_field30 = 2;
+        m_rewardType = 2;
         CVillageAttackedReward* task =
             new CVillageAttackedReward(REWARD_PENALTY_TIME + now, 0, this);
         m_app->GetTaskScheduler()->AddTask(task);
     }
     m_state24 = 0;
-    SetRewardCloseTime((ENUM_VILLAGE_ATTACKED_REWARD)m_field30);
+    SetRewardCloseTime((ENUM_VILLAGE_ATTACKED_REWARD)m_rewardType);
     SendVillageAttackedEnd();
     SendCharacRank();
     SendMaxHuntingPoint();
@@ -360,37 +360,37 @@ void CVillageAttackedManager::OnEndVillageAttacked()
 void CVillageAttackedManager::OnRewardVillageAttacked()
 {
     Packet_VillageAttackedRewardServer pkt;
-    pkt.m_fieldA = 0;
+    pkt.m_rewardType = 0;
     m_app->Get_ServerHandler()->SendAllToGameServer(
         (char*)&pkt, (unsigned int)pkt.packetSize);
-    m_field30 = 0;
+    m_rewardType = 0;
 }
 
 unsigned int CVillageAttackedManager::GetDungeonRemainTime()
 {
-    return m_field34;
+    return m_rewardCloseTime;
 }
 
 void CVillageAttackedManager::SendVillageAttackedEnd()
 {
     Packet_VillageAttackedEnd pkt;
     pkt.m_dungeonRemain = GetDungeonRemainTime();
-    pkt.m_fieldE = (unsigned int)m_field1c;
-    pkt.m_field12 = (unsigned int)m_field20;
+    pkt.m_huntingPoint = (unsigned int)m_curHuntingPoint;
+    pkt.m_maxHuntingPoint = (unsigned int)m_maxHuntingPoint;
     m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, 0x16);
 }
 
 int CVillageAttackedManager::GetRemainTime()
 {
-    return m_field28 - (int)GetNowTime();
+    return m_endTime - (int)GetNowTime();
 }
 
 void CVillageAttackedManager::OnUpdateVillageAttacked()
 {
     Packet_VillageAttackedUpdate pkt;
     pkt.m_remainTime = (unsigned int)GetRemainTime();
-    pkt.m_fieldE = (unsigned int)m_field1c;
-    pkt.m_field12 = (unsigned int)m_field20;
+    pkt.m_huntingPoint = (unsigned int)m_curHuntingPoint;
+    pkt.m_maxHuntingPoint = (unsigned int)m_maxHuntingPoint;
     m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, pkt.packetSize);
 }
 
@@ -400,13 +400,13 @@ void CVillageAttackedManager::SendVillageAttackedScore(CUser* user)
     pkt.m_idByChannel = (unsigned int)user->GetIdByChannel();
     pkt.m_uniqCharNo = (unsigned int)user->GetUniqCharNo();
     pkt.m_remainTime = (unsigned int)GetRemainTime();
-    pkt.m_field16 = (unsigned int)m_field1c;
-    pkt.m_field1a = (unsigned int)m_field20;
+    pkt.m_huntingPoint = (unsigned int)m_curHuntingPoint;
+    pkt.m_maxHuntingPoint = (unsigned int)m_maxHuntingPoint;
     stHuntingPoint* hp = GetHuntingPoint(user->GetUniqCharNo());
     if (hp != 0)
     {
         pkt.m_cur = hp->m_huntingPoint;
-        pkt.m_max = hp->m_huntingPoint + hp->m_field4;
+        pkt.m_max = hp->m_huntingPoint + hp->m_bonusPoint;
     }
     else
     {
@@ -431,9 +431,9 @@ void CVillageAttackedManager::OnCharacLogin(CUser* user)
     {
         SendVillageAttackedScore(user);
     }
-    if (m_field30 != 0 && m_field30 != 1)
+    if (m_rewardType != 0 && m_rewardType != 1)
     {
-        SendVillageAttackedReward(user, m_field30);
+        SendVillageAttackedReward(user, m_rewardType);
     }
 }
 
@@ -460,8 +460,8 @@ void CVillageAttackedManager::SendVillageAttackedRewardJpn(CUser* user, int coun
 void CVillageAttackedManager::SendMinTime()
 {
     Packet_DBMW_Query_Msg pkt;
-    pkt.m_fieldB = 6;
-    pkt.m_fieldA = 0x4ee3;
+    pkt.m_handleIdx = 6;
+    pkt.m_queryId = 0x4ee3;
     register unsigned int elapse = GetElapseTime();
     register unsigned int now = GetNowTime();
     register unsigned int group = (unsigned int)m_app->Get_ServerGroup();
@@ -495,12 +495,12 @@ void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
 
 unsigned int CVillageAttackedManager::GetElapseTime()
 {
-    return (unsigned int)(GetNowTime() - m_field2c);
+    return (unsigned int)(GetNowTime() - m_startTime);
 }
 
 void CVillageAttackedManager::ClearDungeonCloseTime()
 {
-    m_field34 = 0;
+    m_rewardCloseTime = 0;
 }
 
 void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, int* a,
@@ -518,14 +518,14 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
                 {
                     stHuntingPoint p;
                     p.m_huntingPoint = 0;
-                    p.m_field4 = 0;
+                    p.m_bonusPoint = 0;
                     if (success)
                     {
                         p.m_huntingPoint++;
                     }
                     else
                     {
-                        p.m_field4++;
+                        p.m_bonusPoint++;
                     }
                     m_huntingPoints.insert(
                         std::pair<const unsigned int, stHuntingPoint>(charNos[i], p));
@@ -538,9 +538,9 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
                     }
                     else
                     {
-                        hp->m_field4++;
+                        hp->m_bonusPoint++;
                     }
-                    total = hp->m_huntingPoint + hp->m_field4;
+                    total = hp->m_huntingPoint + hp->m_bonusPoint;
                 }
                 if (success)
                 {
@@ -553,9 +553,9 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
         }
         if (success)
         {
-            m_field1c = m_field1c + 1;
+            m_curHuntingPoint = m_curHuntingPoint + 1;
         }
-        if (m_field1c == m_field20)
+        if (m_curHuntingPoint == m_maxHuntingPoint)
         {
             SendMinTime();
         }
@@ -573,7 +573,7 @@ void CVillageAttackedManager::SendCharacRank()
         {
             stUserHuntingPoint p;
             p.m_huntingPoint = it->second.m_huntingPoint;
-            p.m_characNo = it->second.m_field4;
+            p.m_characNo = it->second.m_bonusPoint;
             pq.push(p);
         }
         char sql[0x1001];
@@ -581,7 +581,7 @@ void CVillageAttackedManager::SendCharacRank()
         std::string query;
         serverGroup = m_app->Get_ServerGroup();
         unsigned int now = GetNowTime();
-        if ((unsigned int)m_field20 <= (unsigned int)m_field1c)
+        if ((unsigned int)m_maxHuntingPoint <= (unsigned int)m_curHuntingPoint)
         {
             int rank = 0;
             int count = 0;
@@ -615,8 +615,8 @@ void CVillageAttackedManager::SendCharacRank()
             }
         }
         Packet_DBMW_Query_Msg pkt;
-        pkt.m_fieldB = 6;
-        pkt.m_fieldA = 0x4ee4;
+        pkt.m_handleIdx = 6;
+        pkt.m_queryId = 0x4ee4;
         sprintf(pkt.m_sql,
                 "inSert into village_attacked_charac_point_rank(server_info, occ_date, charac_no, hunting_point, rank) values%s",
                 query.c_str());
@@ -684,7 +684,7 @@ CVillageAttackedReward::~CVillageAttackedReward() {}
 stHuntingPoint::stHuntingPoint()
 {
     m_huntingPoint = 0;
-    m_field4 = 0;
+    m_bonusPoint = 0;
 }
 
 void CVillageAttackedManager::RequestEventStart(int time)
@@ -702,7 +702,7 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
     RA_UINT<10>* p10 = (RA_UINT<10>*)pkt;
-    p10->v = m_field30;
+    p10->v = m_rewardType;
     RA_UINT<14>* p14 = (RA_UINT<14>*)pkt;
     p14->v = GetDungeonRemainTime();
 }

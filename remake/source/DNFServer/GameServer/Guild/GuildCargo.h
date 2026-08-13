@@ -42,10 +42,10 @@ struct RandomOptionSeed
 struct RandomOption
 {
     void reset();
-    unsigned int m_field0;   // +0
-    unsigned int m_field4;   // +4
-    unsigned int m_field8;   // +8
-    unsigned short m_fieldc; // +0xc
+    unsigned int m_opt0;     // +0（随机选项值）
+    unsigned int m_opt1;     // +4
+    unsigned int m_opt2;     // +8
+    unsigned short m_opt3;   // +0xc
 };
 #pragma pack(pop)
 

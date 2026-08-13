@@ -13,7 +13,7 @@ class CUdpHandler;
 struct STSpecCount
 {
     STSpecCount();
-    unsigned short m_field0;  // +0
+    unsigned short m_total;   // +0（log_hardware_ting.total）
     HWSpec m_spec;            // +2
 };
 #pragma pack(pop)
@@ -23,9 +23,9 @@ struct STSpecCount
 struct STErrorCount
 {
     STErrorCount();
-    unsigned int m_field0;   // +0
-    unsigned short m_field4; // +4
-    unsigned int m_field6;   // +6
+    unsigned int m_errorCode;   // +0（log_packet_dispatcher_error_line）
+    unsigned short m_errorLine; // +4（log_packet_dispatcher_error_line.error_line）
+    unsigned int m_cnt;         // +6（log_packet_dispatcher_error_line.cnt）
 };
 #pragma pack(pop)
 
@@ -60,8 +60,8 @@ class Packet_DBMW_Save_Client_Spec_Statistic : public PacketHeader
 {
 public:
     Packet_DBMW_Save_Client_Spec_Statistic();
-    char m_fieldA;                // +0xa
-    int m_fieldB;                 // +0xb
+    char m_flag;                  // +0xa（HWspecView.m_flag）
+    int m_count;                  // +0xb（HWspecView.m_count）
     STSpecCount m_items[436];     // +0xf（436 * 0xe）
 } __attribute__((packed));
 

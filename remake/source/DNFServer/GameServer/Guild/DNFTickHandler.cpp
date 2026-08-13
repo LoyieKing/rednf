@@ -69,8 +69,8 @@
 
 CFrameCountHandler::CFrameCountHandler()
 {
-    m_field28 = 0;
-    m_field2c = 0;
+    m_logCnt = 0;
+    m_app = 0;
 }
 
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int value,
@@ -78,10 +78,10 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int valu
 {
     if (value != 0)
     {
-        m_field2c = (int)app;
+        m_app = (int)app;
         memset((char*)this, 0, 0x28);
-        m_field4 = value;
-        m_field8 = 100 / value;
+        m_frameCount = value;
+        m_fpsInterval = 100 / value;
     }
     else
     {
@@ -96,9 +96,9 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
     if (*(unsigned char*)this == 0)
     {
         *(unsigned char*)this = 1;
-        m_field14 = 0;
-        m_fieldc = (int)times(&t);
-        if (m_fieldc == -1)
+        m_secondFrameCnt = 0;
+        m_startClock = (int)times(&t);
+        if (m_startClock == -1)
         {
             throw CDNFException(
                 "CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
@@ -106,27 +106,27 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
     }
     else
     {
-        m_field10 = (int)times(&t);
-        if (m_field10 == -1)
+        m_curClock = (int)times(&t);
+        if (m_curClock == -1)
         {
             throw CDNFException(
                 "CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
         }
-        if ((unsigned int)m_fieldc > (unsigned int)m_field10)
+        if ((unsigned int)m_startClock > (unsigned int)m_curClock)
         {
-            m_fieldc = m_field10;
+            m_startClock = m_curClock;
         }
-        if ((unsigned int)m_field14 <
-            (unsigned int)(m_field10 - m_fieldc) / (unsigned int)m_field8)
+        if ((unsigned int)m_secondFrameCnt <
+            (unsigned int)(m_curClock - m_startClock) / (unsigned int)m_fpsInterval)
         {
-            m_field14 = m_field14 + 1;
+            m_secondFrameCnt = m_secondFrameCnt + 1;
             *(unsigned char*)((char*)this + 0x24) = 1;
-            if (99 < (unsigned int)(m_field10 - m_fieldc))
+            if (99 < (unsigned int)(m_curClock - m_startClock))
             {
-                m_field18 = m_field14;
+                m_fps = m_secondFrameCnt;
                 *(unsigned char*)((char*)this + 0x24) = 2;
-                m_field14 = 0;
-                m_fieldc = m_field10 - (m_field10 - m_fieldc) + 100;
+                m_secondFrameCnt = 0;
+                m_startClock = m_curClock - (m_curClock - m_startClock) + 100;
                 m_field20 = 0;
                 *(unsigned char*)((char*)this + 0x25) =
                     (unsigned char)(*(unsigned char*)((char*)this + 0x25) + 1);
@@ -150,22 +150,22 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 
 void CFrameCountHandler::SaveProcess()
 {
-    ++m_field28;
-    register bool b = m_field28 != 0;
+    ++m_logCnt;
+    register bool b = m_logCnt != 0;
     if (b)
     {
-        DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_field18, m_field4);
-        m_field28 = 0;
+        DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_fps, m_frameCount);
+        m_logCnt = 0;
     }
 }
 
 void CFrameCountHandler::SaveProcess(int interval)
 {
-    ++m_field28;
-    register bool b = m_field28 != 0;
+    ++m_logCnt;
+    register bool b = m_logCnt != 0;
     if (b)
     {
-        DNF_LOG_SCOPE_LINE(0xb8, "./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", interval, m_field18, m_field4);
-        m_field28 = 0;
+        DNF_LOG_SCOPE_LINE(0xb8, "./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", interval, m_fps, m_frameCount);
+        m_logCnt = 0;
     }
 }

@@ -146,11 +146,11 @@ MemPool<CUser> CUser::m_UsermemPool_(28000);
 CUser::CUser()
     : m_dbid(0), m_charNo(0), m_gameServer(0), m_tcpGameServer(0), m_posState(0),
       m_channel(-1), m_job(0xff), m_growthType(0xff), m_guildMemFlag(0xffff),
-      m_field3a(1), m_guild(0), m_field48(0), m_guildDBInfo(), m_blackList(),
-      m_field7c(0), m_field7e(0x7f), m_field80(0), m_field84(0)
+      m_sex(1), m_guild(0), m_guildStateFlag(0), m_guildDBInfo(), m_blackList(),
+      m_blackListDBFlag(0), m_guildInviteFact(0x7f), m_guildInviteCallerId(0), m_guildInviteGuildId(0)
 {
     memset(m_charInfo, 0, sizeof(m_charInfo));
-    memset(m_field3b, 0, sizeof(m_field3b));
+    memset(m_ssn, 0, sizeof(m_ssn));
 }
 
 CUser::~CUser()
@@ -166,8 +166,8 @@ CUser::~CUser()
     m_guildMemFlag = 0xffff;
     memset(m_charInfo, 0, sizeof(m_charInfo));
     m_posState = 0;
-    m_field7c = 0;
-    m_field3a = 1;
+    m_blackListDBFlag = 0;
+    m_sex = 1;
 }
 
 void CUser::QueryGuildMember(CServerHandler* handler)
@@ -175,13 +175,13 @@ void CUser::QueryGuildMember(CServerHandler* handler)
     if (m_gameServer != 0)
     {
         handler->QueryGuildMember((unsigned char)m_gameServer->GetGroupNo(), m_charNo);
-        m_field48 |= 2;
+        m_guildStateFlag |= 2;
     }
 }
 
 void CUser::LoadGuildMember(unsigned int guildKey, STGuildMemerDBInfo& info)
 {
-    if ((m_field48 & 8) != 0)
+    if ((m_guildStateFlag & 8) != 0)
     {
         return;
     }
@@ -189,10 +189,10 @@ void CUser::LoadGuildMember(unsigned int guildKey, STGuildMemerDBInfo& info)
     {
         return;
     }
-    if ((m_field48 & 2) != 0)
+    if ((m_guildStateFlag & 2) != 0)
     {
         memcpy(&m_guildDBInfo, &info, 0x1a);
-        m_field48 |= 4;
+        m_guildStateFlag |= 4;
         if (m_guild->GetMasterId() == GetUniqCharNo() && m_guildDBInfo.m_data[0x15] != 1)
         {
             register int grade = (unsigned char)m_guildDBInfo.m_data[0x15];
@@ -262,10 +262,10 @@ void CUser::ResetGuild()
 {
     DetachGuild();
     memset((void*)&m_guildDBInfo, 0, 0x1a);
-    m_field48 = 0;
-    m_field7e = 0x7f;
-    m_field80 = 0;
-    m_field84 = 0;
+    m_guildStateFlag = 0;
+    m_guildInviteFact = 0x7f;
+    m_guildInviteCallerId = 0;
+    m_guildInviteGuildId = 0;
 }
 
 void CUser::SendToGameserver(char* buf, int len)
@@ -306,7 +306,7 @@ unsigned int CUser::GetGuildKey()
 
 unsigned short CUser::GetGuildMemFlag()
 {
-    return m_field48;
+    return m_guildStateFlag;
 }
 
 void CUser::SendSetGuildKeyToUser(unsigned int guildKey, unsigned int grade)
@@ -477,10 +477,10 @@ unsigned short CUser::GetBlackListSize()
 
 void CUser::GuildInviteProcess()
 {
-    if (m_field7e < 2)
+    if (m_guildInviteFact < 2)
     {
-        --m_field7e;
-        register bool bVar = (m_field7e == 0 || m_field7e > 1);
+        --m_guildInviteFact;
+        register bool bVar = (m_guildInviteFact == 0 || m_guildInviteFact > 1);
         if (bVar)
         {
             SetGuildInviteFact(0, 0, 0xff);
@@ -525,12 +525,12 @@ void CUser::DetachGuild()
 
 bool CUser::IsSetGuildMemFlag(unsigned short flag)
 {
-    return (m_field48 & flag) != 0;
+    return (m_guildStateFlag & flag) != 0;
 }
 
 void CUser::SetGuildMemFlag(unsigned short flag)
 {
-    m_field48 |= flag;
+    m_guildStateFlag |= flag;
 }
 
 int CUser::GetIdByChannel()
@@ -545,14 +545,14 @@ unsigned char CUser::GetJob()
 
 void CUser::ResetGuildMemFlag(unsigned short flag)
 {
-    m_field48 = (unsigned short)(m_field48 & ~flag);
+    m_guildStateFlag = (unsigned short)(m_guildStateFlag & ~flag);
 }
 
 void CUser::SetGuildInviteFact(unsigned int guildId, unsigned int callerId, unsigned char fact)
 {
-    m_field84 = guildId;
-    m_field80 = callerId;
-    m_field7e = (char)fact;
+    m_guildInviteGuildId = guildId;
+    m_guildInviteCallerId = callerId;
+    m_guildInviteFact = (char)fact;
 }
 
 unsigned int CUser::GetUniqCharNo()
@@ -646,12 +646,12 @@ unsigned char CUser::GetLevel()
 
 void CUser::SetSex(unsigned char sex)
 {
-    m_field3a = sex;
+    m_sex = sex;
 }
 
 unsigned char CUser::GetSex()
 {
-    return m_field3a;
+    return m_sex;
 }
 
 void CUser::SetSsn(char* ssn)
@@ -689,17 +689,17 @@ bool CUser::IsSubGuildMaster()
 
 void CUser::SetBlackListDBFlag(unsigned short flag)
 {
-    m_field7c |= flag;
+    m_blackListDBFlag |= flag;
 }
 
 unsigned int CUser::GetGuildInviteCallerId()
 {
-    return m_field80;
+    return m_guildInviteCallerId;
 }
 
 unsigned int CUser::GetGuildInviteGuildId()
 {
-    return m_field84;
+    return m_guildInviteGuildId;
 }
 
 void CUser::SetTcpGameServer(CTcpGameServer* server)
@@ -714,5 +714,5 @@ void* CUser::GetMapBlackList()
 
 unsigned short CUser::GetBlackListDBFlag()
 {
-    return m_field7c;
+    return m_blackListDBFlag;
 }

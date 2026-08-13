@@ -29,7 +29,7 @@ struct STGuildMemberCharacData
     STGuildMemberCharacData();
     unsigned char m_field0;   // +0
     unsigned char m_field1;   // +1
-    unsigned char m_field2;   // +2
+    unsigned char m_masterFlag; // +2（setGuildBoardData 中 IsGuildMaster 置 1）
     char m_name[0x1e];        // +3（总大小 0x21）
 } __attribute__((packed));
 
@@ -38,9 +38,9 @@ struct STGuildBoardDBInfo
 {
     STGuildBoardDBInfo();
     char m_memo[0x78];            // +0（board 留言文本，printGuildBoard 以 %s 输出）
-    unsigned int m_field78;       // +0x78
-    unsigned int m_field7c;       // +0x7c
-    unsigned int m_field80;       // +0x80
+    unsigned int m_guildKey;      // +0x78（推断：board 所属 guild；printGuildBoard 以 %d 输出）
+    unsigned int m_boardId;       // +0x7c（m_board map 键，排序索引）
+    unsigned int m_writerCharNo;  // +0x80（IsGuildMaster 判断写入者）
     STGuildMemberCharacData m_char; // +0x84（0x21 字节）
 };
 #pragma pack(pop)

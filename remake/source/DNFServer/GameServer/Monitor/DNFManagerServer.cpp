@@ -140,7 +140,7 @@ void CManagerServer::SendHeartBeat(int group)
     if (GetUdpHandler() != 0)
     {
         Packet_Monitor_UDP_HeartBeat pkt;
-        pkt.m_fieldA = (char)group;
+        pkt.m_channelIndex = (char)group;
         ((CUdpHandler*)GetUdpHandler())
             ->SendToServer((char*)&pkt, 0xb, GetServerInfo()->m_port,
                            GetServerInfo()->m_name);
@@ -282,7 +282,7 @@ CCacheCharacterMgr::~CCacheCharacterMgr() {}
 
 int CCacheCharacterMgr::CacheCharacter(unsigned int dbid, CACHE_CHARACTER_TYPE* type)
 {
-    type->m_field8 = (long)time(0);
+    type->m_time = (long)time(0);
     std::pair<std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator, bool> r =
         m_cache.insert(std::make_pair(dbid, *type));
     if (r.second)
@@ -300,7 +300,7 @@ int CCacheCharacterMgr::CacheCharacter(unsigned int dbid, CACHE_CHARACTER_TYPE* 
         r.first->second = *type;
     }
     CCacheCharacterTime t;
-    t.m_time = (int)type->m_field8;
+    t.m_time = (int)type->m_time;
     t.m_charNo = (int)dbid;
     m_timeQueue.push(t);
     if (m_timeQueue.size() > 49999)
@@ -317,7 +317,7 @@ bool CCacheCharacterMgr::GetCacheCharacter(unsigned int dbid, CACHE_CHARACTER_TY
     {
         *out = it->second;
         m_cache.erase(it);
-        if (time(0) - out->m_field8 > 0x1d)
+        if (time(0) - out->m_time > 0x1d)
         {
             return 0;
         }
@@ -343,7 +343,7 @@ bool CCacheCharacterMgr::CollectGarbage()
         }
         std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator it =
             m_cache.find((unsigned int)top.m_charNo);
-        if (it != m_cache.end() && 0x1d < now - it->second.m_field8)
+        if (it != m_cache.end() && 0x1d < now - it->second.m_time)
         {
             m_cache.erase(it);
             result = 1;

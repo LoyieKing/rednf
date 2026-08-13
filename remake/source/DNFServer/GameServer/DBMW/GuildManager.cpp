@@ -27,16 +27,16 @@ int get_day_interval(struct tm* a, struct tm* b);
 // ---- CGuildManager / WongWork ----
 STGuildWarRankInfo::STGuildWarRankInfo()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
+    m_guildId = 0;
+    m_guildWarPoint = 0;
+    m_rank = 0;
     memset(m_name, 0, 0x17);
 }
 STGuildRankInfo::STGuildRankInfo()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
+    m_guildId = 0;
+    m_guildPoint = 0;
+    m_rank = 0;
 }
 CGuildManager::CGuildManager() {}
 CGuildManager::~CGuildManager() { clear(); }
@@ -78,7 +78,7 @@ STGuildMemberProxy* CGuildManager::GetArrayTempGuildMemberList()
 bool GuildWarPairDataCompare(const std::pair<unsigned int, STGuildWarRankInfo*>& a,
                              const std::pair<unsigned int, STGuildWarRankInfo*>& b)
 {
-    return a.second->m_field4 < b.second->m_field4;
+    return a.second->m_guildWarPoint < b.second->m_guildWarPoint;
 }
 bool CPairDataCompare::operator()(
     const std::pair<unsigned int, STGuildRankInfo*>& a,
@@ -110,7 +110,7 @@ STGuildWarRankInfo* CGuildManager::GetFirstRankGuild()
 void CGuildManager::insertGuildWar(STGuildWarRankInfo* info)
 {
     if (info)
-        m_warRankList.push_back(std::make_pair(info->m_field4, info));
+        m_warRankList.push_back(std::make_pair(info->m_guildWarPoint, info));
 }
 unsigned int CGuildManager::getFirstGuildOfGuildWar()
 {
@@ -118,7 +118,7 @@ unsigned int CGuildManager::getFirstGuildOfGuildWar()
         return 0;
     return (*std::max_element(m_warRankList.begin(), m_warRankList.end(),
                               GuildWarPairDataCompare))
-        .second->m_field0;
+        .second->m_guildId;
 }
 char CGuildManager::InitGuildWarPointList()
 {
@@ -129,7 +129,7 @@ char CGuildManager::InitGuildWarPointList()
              m_warRankList.begin();
          it != m_warRankList.end(); ++it)
     {
-        it->second->m_field4 = 0x3e8;
+        it->second->m_guildWarPoint = 0x3e8;
         if (++count > 0xa)
             break;
     }
@@ -146,7 +146,7 @@ char CGuildManager::rank()
          it != m_rankList.end(); ++it)
     {
         STGuildRankInfo* p = (*it).second;
-        p->m_field8 = ++r;
+        p->m_rank = ++r;
     }
     return 1;
 }
@@ -162,14 +162,14 @@ char CGuildManager::rankGuildWar()
          it != m_warRankList.end(); ++it)
     {
         STGuildWarRankInfo* p = (*it).second;
-        p->m_field8 = ++r;
+        p->m_rank = ++r;
     }
     return 1;
 }
 void CGuildManager::insert(STGuildRankInfo* info)
 {
     if (info)
-        m_rankList.push_back(std::make_pair(info->m_field4, info));
+        m_rankList.push_back(std::make_pair(info->m_guildPoint, info));
 }
 std::vector<std::pair<unsigned int, STGuildRankInfo*> >*
 CGuildManager::GetVtGuildRankInfo()
@@ -187,7 +187,7 @@ void CGuildManager::printGuildWarRank()
         std::pair<unsigned int, STGuildWarRankInfo*> p = *it;
         CMyFileLog(__FUNCTION__, 0x10a)("./log/GuildWar",
             "GuildKey : %d,  GuildWarPoint : %d, Guild Rank : %d",
-            p.second->m_field0, p.second->m_field4, p.second->m_field8);
+            p.second->m_guildId, p.second->m_guildWarPoint, p.second->m_rank);
     }
 }
 // ORIG 将 info 视为 0x23 字节记录的数组（字段 +0/+4/+8[0x16]/+0x1f，packed）。
@@ -208,10 +208,10 @@ void CGuildManager::GetGuildWarEnterableRank(ST_Guild_War_Info* info)
              m_warRankList.begin();
          it != m_warRankList.end(); ++it)
     {
-        info[i].m_field0 = it->second->m_field0;
-        info[i].m_field4 = it->second->m_field4;
+        info[i].m_field0 = it->second->m_guildId;
+        info[i].m_field4 = it->second->m_guildWarPoint;
         memcpy(info[i].m_field8, (char*)it->second + 0xc, 0x16);
-        info[i].m_field1f = it->second->m_field24;
+        info[i].m_field1f = it->second->m_guildPointPrev;
         if (++i > 9)
             break;
     }
@@ -220,12 +220,12 @@ void CGuildManager::GetGuildWarEnterableRank(ST_Guild_War_Info* info)
 STGuildMemberProxy::STGuildMemberProxy()
 {
     m_no = 0;
-    m_field22 = 0xff;
-    m_field23 = 0xff;
-    m_field24 = 0xffff;
-    m_field26 = 0;
-    m_field27 = 0;
-    m_field28 = 0;
+    m_job = 0xff;
+    m_growType = 0xff;
+    m_lev = 0xffff;
+    m_sex = 0;
+    m_grade = 0;
+    m_lastPlayTime = 0;
     memset(m_name, 0, 0x1e);
-    memset(m_data2c, 0, 0x15);
+    memset(m_memo, 0, 0x15);
 }

@@ -67,9 +67,9 @@ void CAppLoadChecker::setTcpSendQueue(int size) { m_tcpSendLast = size; }
 void CAppLoadChecker::RequestDB(CServerHandler* serverHandler, int flag, int size)
 {
     Packet_Server_Queue_Load_Statistic pkt;
-    pkt.m_fieldA = 0xc9;
-    pkt.m_fieldB = (unsigned char)flag;
-    pkt.m_fieldC = (unsigned short)size;
+    pkt.m_flag = 0xc9;
+    pkt.m_param = (unsigned char)flag;
+    pkt.m_value = (unsigned short)size;
     serverHandler->SendToDB(&pkt);
 }
 

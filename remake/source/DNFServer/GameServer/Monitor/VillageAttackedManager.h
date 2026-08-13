@@ -272,7 +272,7 @@ struct stHuntingPoint
 {
     stHuntingPoint();
     unsigned int m_huntingPoint;  // +0
-    unsigned int m_field4;        // +4
+    unsigned int m_bonusPoint;    // +4（击杀加成，SendVillageAttackedScore: max=hp+bonus）
 };
 
 class CVillageAttackedManager
@@ -314,14 +314,14 @@ public:
     void Reset();
     CApplication* m_app;                       // +0
     std::map<unsigned int, stHuntingPoint> m_huntingPoints;  // +4
-    unsigned int m_field1c;                    // +0x1c
-    unsigned int m_field20;                    // +0x20
+    unsigned int m_curHuntingPoint;            // +0x1c（当前狩猎点，递减）
+    unsigned int m_maxHuntingPoint;            // +0x20（GetMaxHuntingPoint）
     bool m_state24;                            // +0x24
     char m_pad25[3];                           // +0x25
-    int m_field28;                             // +0x28
-    int m_field2c;                             // +0x2c
-    int m_field30;                             // +0x30
-    int m_field34;                             // +0x34
+    int m_endTime;                             // +0x28（GetRemainTime = endTime - now）
+    int m_startTime;                           // +0x2c
+    int m_rewardType;                          // +0x30（ENUM_VILLAGE_ATTACKED_REWARD）
+    int m_rewardCloseTime;                     // +0x34（SetRewardCloseTime/GetDungeonRemainTime）
 };
 
 class CVillageAttackedCountdownFirst : public CTaskScheduler::CTask

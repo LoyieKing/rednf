@@ -106,14 +106,14 @@ struct __attribute__((packed)) STGuildDBInfoOnly
     unsigned int m_guildExp;       // +0x29
     unsigned char m_subMasterCnt;  // +0x2d
     unsigned int m_subGuildMaster[5]; // +0x2e（5×4B，跨度 0x2e..0x42，与原 m_pad2e 同跨度）
-    unsigned short m_field42;      // +0x42
-    unsigned char m_field44;       // +0x44
+    unsigned short m_guildSkillPoint;  // +0x42（GuildSkillPointUp/BuyGuildSkill，错误日志 gsp）
+    unsigned char m_skillLearnCnt;     // +0x44（BuyGuildSkill learnCnt）
     STGuildSkill m_skills[16];     // +0x45（自动构造）
     unsigned char m_powerSide;     // +0x95
     unsigned int m_powerSecedeTime;// +0x96
     unsigned int m_powerWarPoint;  // +0x9a
     unsigned char m_agitFlag;      // +0x9e
-    unsigned char m_field9f;       // +0x9f
+    unsigned char m_powerJoinCount; // +0x9f（IncPowerJoinCount 日志 JoinCount）
     unsigned int m_guildFund;      // +0xa0
     char m_masterName[0x15];       // +0xa4
     unsigned int m_fieldB9;        // +0xb9
@@ -355,21 +355,21 @@ public:
     CGuildBoard* GetGuildBoard();
     std::map<unsigned int, CUser*> m_members;  // +0
     unsigned int m_guildKey;                    // +0x18
-    unsigned short m_field1c;                   // +0x1c
-    unsigned short m_field1e;                   // +0x1e
+    unsigned short m_guildDBFlag;               // +0x1c（GetGuildDBFlag/SetGuildDBFlag/IsSetGuildDBFlag）
+    unsigned short m_totalCnt;                  // +0x1e（GetTotalCnt_Of_GuildDBInfo/Inc/DecTotalCnt）
     STGuildDBInfo m_dbInfo;                     // +0x20
     STGuildAgitDBInfo m_agitInfo;               // +0x4d09
-    char m_field4d0a[100];                      // +0x4d0a
+    char m_guildMessage[100];                   // +0x4d0a（SetGuildMessage/strlen 发送）
     char m_pad4d6e[2];                          // +0x4d6e
     unsigned short m_field4d70;                 // +0x4d70
     unsigned short m_field4d72;                 // +0x4d72
     unsigned short m_field4d74;                 // +0x4d74
     char m_field4d76[0x1c];                     // +0x4d76（未知区域）
     unsigned short m_field4d92;                 // +0x4d92
-    unsigned short m_field4d94;                 // +0x4d94
-    unsigned char m_field4d96;                  // +0x4d96
+    unsigned short m_saveIntervalCnt;           // +0x4d94（DBGuildSaveProcess SAVE_INTERVAL 计数）
+    unsigned char m_dBSaveFlag;                 // +0x4d96（GetDBSaveFlag/EnableDBSaveFlag）
     std::map<unsigned int, STGuildMemberChangableInfo> m_changable;  // +0x4d98
-    unsigned char m_field4db0;                  // +0x4db0
+    unsigned char m_changableTickCnt;           // +0x4db0（UpdateChangableInfoProcess 节拍计数）
     char m_pad4db1[3];                          // 对齐：cargo 从 +0x4db4 开始
     CGuildCargo m_cargo;                        // +0x4db4（内嵌对象）
     CGuildBoard m_board;                        // +0x66c4（内嵌对象）
@@ -390,9 +390,9 @@ public:
 class Packet_Channel_Create_Guild_Agit : public PacketHeader {
 public:
     Packet_Channel_Create_Guild_Agit();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
-    unsigned int m12;                 // +0x12
+    unsigned int m_channel;          // +0xa（GetIdByChannel）
+    unsigned int m_charNo2;          // +0xe（目标 GetUniqCharNo）
+    unsigned int m_charNo;           // +0x12（创建者 charNo）
 
 };
 
@@ -401,9 +401,9 @@ public:
 class Packet_Channel_Guild_Agit_Info : public PacketHeader {
 public:
     Packet_Channel_Guild_Agit_Info();
-    unsigned int m_a;              // +0xa
-    unsigned int m_b;              // +0xe
-    unsigned int m_c;              // +0x12
+    unsigned int m_channel;        // +0xa（GetIdByChannel）
+    unsigned int m_charNo;         // +0xe（GetUniqCharNo）
+    unsigned int m_guildKey;       // +0x12（SendGuildAgitInfoToMembers 写 m_guildKey）
     STGuildAgitDBInfo m_info;      // +0x16
 };
 #pragma pack(pop)
@@ -420,8 +420,8 @@ public:
 class Packet_DB_Call_Guild_All_Members : public PacketHeader {
 public:
     Packet_DB_Call_Guild_All_Members();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
+    unsigned int m_guildKey;         // +0xa（QueryGuildAllMembersProxy 写 m_guildKey）
+    unsigned int m_charNo;           // +0xe
 
 };
 
@@ -429,8 +429,8 @@ public:
 class Packet_DB_Call_Unconn_Guild_Member : public PacketHeader {
 public:
     Packet_DB_Call_Unconn_Guild_Member();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
+    unsigned int m_guildKey;         // +0xa
+    unsigned int m_charNo;           // +0xe
 
 };
 
@@ -438,8 +438,8 @@ public:
 class Packet_DB_Create_Guild_Agit : public PacketHeader {
 public:
     Packet_DB_Create_Guild_Agit();
-    unsigned int m0xa;                 // +0xa
-    unsigned int m0xe;                 // +0xe
+    unsigned int m_guildKey;          // +0xa（CreateGuildAgit(handler, guildKey, charNo, ...)）
+    unsigned int m_charNo;            // +0xe
 
 };
 
@@ -447,8 +447,8 @@ public:
 class Packet_DB_Delete_Guild_Agit : public PacketHeader {
 public:
     Packet_DB_Delete_Guild_Agit();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
+    unsigned int m_guildKey;         // +0xa（DeleteGuildAgit(handler, guildKey, charNo)）
+    unsigned int m_charNo;           // +0xe
 
 };
 
@@ -463,8 +463,8 @@ public:
 class Packet_DB_Upgrade_Guild_Agit : public PacketHeader {
 public:
     Packet_DB_Upgrade_Guild_Agit();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
+    unsigned int m_guildKey;         // +0xa
+    unsigned int m_charNo;           // +0xe
 
 };
 
@@ -491,8 +491,8 @@ public:
 class Packet_Guild_Notify_Guild_Member_Memo : public PacketHeader {
 public:
     Packet_Guild_Notify_Guild_Member_Memo();
-    int m_fieldA;             // +0xa
-    unsigned int m_fieldE;    // +0xe
+    int m_channel;            // +0xa（GetIdByChannel）
+    unsigned int m_charNo;    // +0xe（GetUniqCharNo）
     char m_name[0x1d];        // +0x12
     char m_memo[0x14];        // +0x30
 };
@@ -501,8 +501,8 @@ public:
 class Packet_Guild_Notify_Message_To_Guild_Mem : public PacketHeader {
 public:
     Packet_Guild_Notify_Message_To_Guild_Mem();
-    unsigned int m_fieldA;    // +0xa
-    unsigned int m_fieldE;    // +0xe
+    unsigned int m_channel;   // +0xa
+    unsigned int m_charNo;    // +0xe
     char m_msg[0x65];         // +0x12
 };
 
@@ -510,8 +510,8 @@ public:
 class Packet_Monitor_Guild_Chat_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Guild_Chat_ToUser();
-    unsigned int m_fieldA;    // +0xa
-    unsigned int m_fieldE;    // +0xe
+    unsigned int m_channel;   // +0xa
+    unsigned int m_charNo;    // +0xe
     char m_name[0x1d];        // +0x12
     unsigned char m_len;      // +0x2f
     char m_msg[1];            // +0x30
@@ -522,8 +522,8 @@ public:
 class Packet_Monitor_Guild_Chat_ToUser_Hyper_Link : public PacketHeader {
 public:
     Packet_Monitor_Guild_Chat_ToUser_Hyper_Link();
-    unsigned int m_fieldA;    // +0xa
-    unsigned int m_fieldE;    // +0xe
+    unsigned int m_channel;   // +0xa
+    unsigned int m_charNo;    // +0xe
     char m_name[0x1d];        // +0x12
     unsigned char m_type;     // +0x2f
     char m_items[0x128];      // +0x30
@@ -536,8 +536,8 @@ public:
 class Packet_Monitor_Notice_Guild_Dismiss_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Dismiss_ToUser();
-    unsigned int ma;                 // +0xa
-    unsigned int me;                 // +0xe
+    unsigned int m_channel;          // +0xa（GetIdByChannel）
+    unsigned int m_charNo;           // +0xe（GetUniqCharNo）
 
 };
 
@@ -558,9 +558,9 @@ public:
 class Packet_Monitor_Notice_Guild_Info : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Info();
-    unsigned int m_fieldA;          // +0xa
-    unsigned int m_fieldE;          // +0xe
-    unsigned int m_field12;          // +0x12
+    unsigned int m_channel;         // +0xa（GetIdByChannel）
+    unsigned int m_charNo;          // +0xe（GetUniqCharNo）
+    unsigned int m_guildKey;        // +0x12
     STGuildDBInfoOnly m_info;        // +0x16
     char m_padD3;                    // +0xd3（ORIG 布局：m_info 后 1 字节间隙）
     char m_rest[0x65];               // +0xd4
@@ -583,8 +583,8 @@ public:
 class Packet_Monitor_Notice_Guild_Secede_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Secede_ToUser();
-    unsigned int m_a;              // +0xa
-    unsigned int m_b;              // +0xe
+    unsigned int m_channel;        // +0xa（GetIdByChannel）
+    unsigned int m_charNo;         // +0xe（GetUniqCharNo）
     ST_Notice_Guild_Secede m_info; // +0x12
 };
 #pragma pack(pop)
@@ -595,7 +595,7 @@ class Packet_Monitor_SAVE_Guild : public PacketHeader {
 public:
     Packet_Monitor_SAVE_Guild();
     unsigned char m_flag;          // +0xa
-    unsigned int m_b;              // +0xb
+    unsigned int m_guildKey;       // +0xb（SaveGuild 写 m_guildKey）
     STGuildDBInfoOnly m_info;      // +0xf
     unsigned int m_param;          // +0xcc
 };
@@ -625,7 +625,7 @@ public:
 class Packet_Query_Today_Guild_Member : public PacketHeader {
 public:
     Packet_Query_Today_Guild_Member();
-    unsigned int ma;                 // +0xa
+    unsigned int m_guildKey;         // +0xa
 
 };
 
@@ -633,9 +633,9 @@ public:
 class Packet_Monitor_Notice_Guild_Mark_Change_ToUser : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Mark_Change_ToUser();
-    int m_fieldA;              // +0xa
-    unsigned int m_fieldE;     // +0xe
-    unsigned int m_field12;    // +0x12
+    int m_channel;             // +0xa（GetIdByChannel）
+    unsigned int m_charNo;     // +0xe（GetUniqCharNo）
+    unsigned int m_charNo2;    // +0x12（变更标记的角色 charNo；ORIG 日志误标 guildkey）
 };
 
 #pragma pack(pop)

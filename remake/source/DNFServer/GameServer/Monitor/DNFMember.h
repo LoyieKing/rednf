@@ -242,16 +242,16 @@ struct ST_MemberProxy
 {
     ST_MemberProxy()
     {
-        m_field0 = 0;
+        m_charNo = 0;
         m_flag4 = 0;
-        m_field23 = 0;
+        m_exp = 0;
         memset(m_name, 0, 0x1e);
     }
     void Reset();
-    unsigned int m_field0;    // +0
+    unsigned int m_charNo;    // +0（member key / charNo，FindMemberUser 用）
     unsigned char m_flag4;    // +4
     char m_name[0x1e];        // +5
-    unsigned int m_field23;   // +0x23
+    unsigned int m_exp;       // +0x23（GetMemberExpNextLevelNeedExpLevel 的 exp 输入）
 } __attribute__((packed));
 
 struct STMemberDBInfo
@@ -265,13 +265,13 @@ struct STMemberDBInfo
 struct ST_MemberInfo
 {
     ST_MemberInfo();
-    unsigned char m_field0;    // +0
-    unsigned char m_field1;    // +1
+    unsigned char m_channelNo; // +0（0xff=离线，否则频道号）
+    unsigned char m_flag;      // +1（=ST_MemberProxy.m_flag4）
     char m_name[0x1e];         // +2
-    unsigned char m_field20;   // +0x20
-    unsigned char m_field21;   // +0x21
-    unsigned int m_field22;    // +0x22
-    unsigned int m_field26;    // +0x26
+    unsigned char m_blackFlag; // +0x20（IsBlackUser 时置 1）
+    unsigned char m_level;     // +0x21
+    unsigned int m_exp;        // +0x22
+    unsigned int m_expNext;    // +0x26
 } __attribute__((packed));
 
 struct STMemberListInfo
@@ -307,7 +307,7 @@ public:
     void NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned char count,
                                                const hyperlink_item_info* items, CUser* user);
     void NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user);
-    bool IsThereUpper() const { return m_dbInfo.m_member.m_field0 != 0; }
+    bool IsThereUpper() const { return m_dbInfo.m_member.m_charNo != 0; }
     int GetUpperMember_CharId() const;
     int FindLowerMember(unsigned int charNo) const;
     unsigned int GetLowerMemberCount() const;

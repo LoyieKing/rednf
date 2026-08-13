@@ -121,12 +121,12 @@ void CGuildManager::DBSaveProcess(CApplication* app, bool force)
 
 void CGuildManager::CargoLock()
 {
-    m_field40 = 1;
+    m_cargoLock = 1;
 }
 
 void CGuildManager::CargoUnlock()
 {
-    m_field40 = 0;
+    m_cargoLock = 0;
 }
 
 #pragma pack(push,1)
@@ -169,14 +169,14 @@ unsigned int CGuildManager::GetMaxGuildExp2()
 
 unsigned char CGuildManager::IsCargoLock()
 {
-    return m_field40;
+    return m_cargoLock;
 }
 
 CGuildManager::CGuildManager()
     : m_app(0)
 {
     m_scheduler.SetSpecialDayHour(1, 5);
-    m_field40 = 1;
+    m_cargoLock = 1;
     memset(m_time1, 0, sizeof(m_time1));
     memset(m_time2, 0, sizeof(m_time2));
 }

@@ -264,14 +264,14 @@ CApplication::CApplication()
       m_udpHandler(0),
       m_udpThread(0),
       m_taskScheduler(0),
-      m_field2cc(0),
+      m_gmAccounts(0),
       m_memoryCash(0),
       m_towerRank(0),
       m_ipCounter(0),
-      m_field330(0),
+      m_loginLogoutStats(0),
       m_periodicMsg(0),
       m_limitNpc(0),
-      m_field388(0)
+      m_collectItms(0)
 {
     SetMiniCraneRandomSeed();
 }
@@ -291,7 +291,7 @@ void CApplication::Init(int argc, char** argv)
         CSignalTranslatorInstance()->init(this);
         AttachAppInitor(argv);
         m_appInit->Init(this, argc, argv);
-        m_field31c = 0;
+        m_eventActionMgr = 0;
         m_onTimeEventMgr = 0;
         puts("Application Init() Success!");
     }
@@ -418,18 +418,18 @@ void CApplication::Load(int argc, char** argv)
         m_itemLimitMgr = new CItemLimitEditionMgr;
         {
             Packet_Item_Limit_Edition_Load_Data_Req pkt;
-            pkt.m_fieldA = 1;
-            pkt.m_fieldB = Get_ServerGroup();
-            pkt.m_fieldC = 0;
+            pkt.m_fullLoad = 1;
+            pkt.m_serverType = Get_ServerGroup();
+            pkt.m_loadTargetNum = 0;
             m_serverHandler2->SendToDB(&pkt);
         }
 
         m_ipCounter = new CIPCounter;
         m_ipCounter->Init(m_serverHandler2);
 
-        if (m_field31c == 0)
+        if (m_eventActionMgr == 0)
         {
-            m_field31c = new CEventActionManager;
+            m_eventActionMgr = new CEventActionManager;
         }
         if (m_onTimeEventMgr == 0)
         {
@@ -437,7 +437,7 @@ void CApplication::Load(int argc, char** argv)
         }
         m_onTimeEventMgr->AttachApp(this);
 
-        m_field2cc = new WongWork::CGMAccounts;
+        m_gmAccounts = new WongWork::CGMAccounts;
         m_periodicMsg = new CPeriodicMessageMgr;
         {
             Packet_Load_Periodic_Message pkt;
@@ -449,7 +449,7 @@ void CApplication::Load(int argc, char** argv)
             m_serverHandler2->SendToDB(&pkt);
         }
 
-        m_field388 = new CollectItms;
+        m_collectItms = new CollectItms;
         {
             time_t now = time(0);
             tm pt = *localtime(&now);
@@ -460,13 +460,13 @@ void CApplication::Load(int argc, char** argv)
         m_towerRank->processReloadRanking(m_serverHandler2, true, 10000);
         m_towerRank->processReloadRanking(m_serverHandler2, true, 5);
 
-        m_field334 = new init_accusation::CInitAccusationListMgr(*this);
+        m_accusationMgr = new init_accusation::CInitAccusationListMgr(*this);
         {
             bool schedule = false;
-            ((init_accusation::CInitAccusationListMgr*)m_field334)->setSchedule(schedule);
+            ((init_accusation::CInitAccusationListMgr*)m_accusationMgr)->setSchedule(schedule);
         }
 
-        m_field330 = new CLoginLogoutStatistics(*this);
+        m_loginLogoutStats = new CLoginLogoutStatistics(*this);
         {
             typedef std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*, std::allocator<CTcpRecvBuffer*> > > TcpRecvQueue;
             IQueue<TcpRecvQueue>::Get()->InitQueue(
@@ -538,10 +538,10 @@ void CApplication::Free()
             delete m_taskScheduler;
             m_taskScheduler = 0;
         }
-        if (m_field2cc != 0)
+        if (m_gmAccounts != 0)
         {
-        delete m_field2cc;
-            m_field2cc = 0;
+        delete m_gmAccounts;
+            m_gmAccounts = 0;
         }
         if (m_memoryCash != 0)
         {
@@ -563,10 +563,10 @@ void CApplication::Free()
             delete m_ipCounter;
             m_ipCounter = 0;
         }
-        if (m_field334 != 0)
+        if (m_accusationMgr != 0)
         {
-            ::operator delete(m_field334);
-            m_field334 = 0;
+            ::operator delete(m_accusationMgr);
+            m_accusationMgr = 0;
         }
         if (m_periodicMsg != 0)
         {
@@ -578,15 +578,15 @@ void CApplication::Free()
             delete m_limitNpc;
             m_limitNpc = 0;
         }
-        if (m_field388 != 0)
+        if (m_collectItms != 0)
         {
-            ::operator delete(m_field388);
-            m_field388 = 0;
+            ::operator delete(m_collectItms);
+            m_collectItms = 0;
         }
-        if (m_field330 != 0)
+        if (m_loginLogoutStats != 0)
         {
-        delete m_field330;
-            m_field330 = 0;
+        delete m_loginLogoutStats;
+            m_loginLogoutStats = 0;
         }
         puts("Application Exit!");
     }
@@ -609,10 +609,10 @@ void CApplication::Process()
         try
         {
             CFrameCountHandler* frameInfo = m_frameCount.GetFrameCountInfo();
-            if (frameInfo->m_field24 != 0 && 1 < frameInfo->m_field24)
+            if (frameInfo->m_state != 0 && 1 < frameInfo->m_state)
             {
                 m_serverHandler2->Process();
-                if (2 < frameInfo->m_field24)
+                if (2 < frameInfo->m_state)
                 {
                     m_memberManager.MemberRegisterFlagProcess();
                     m_userManager.MemberEnterProcess();
@@ -623,10 +623,10 @@ void CApplication::Process()
                     m_towerRank->processReloadRanking(m_serverHandler2, false, 10000);
                     m_towerRank->processReloadRanking(m_serverHandler2, false, 5);
                     m_periodicMsg->OnProcess(m_serverHandler2);
-                    ((CLoginLogoutStatistics*)m_field330)->ProcessByMinute();
+                    ((CLoginLogoutStatistics*)m_loginLogoutStats)->ProcessByMinute();
                     ProcessTimeSync();
                     UpdateCollectItems();
-                    if (frameInfo->m_field24 == 4)
+                    if (frameInfo->m_state == 4)
                     {
                         UpdateMiniCraneSeed();
                     }
@@ -745,7 +745,7 @@ COnTimeEventManager* CApplication::GetOnTimeEventManager()
 
 void* CApplication::GetGMAccounts()
 {
-    return m_field2cc;
+    return m_gmAccounts;
 }
 
 void* CApplication::getIPCounter()
@@ -765,7 +765,7 @@ int CApplication::getMiniCraneSeed() const
 
 void* CApplication::getCollectItems()
 {
-    return m_field388;
+    return m_collectItms;
 }
 
 void* CApplication::FindGameServer(int id)
@@ -786,12 +786,12 @@ void CApplication::OnTcpGameServerDown(CTcpGameServer* tcpGameServer)
 void CApplication::SendTestPacket_1()
 {
     Packet_Monitor_Event_End endPkt;
-    endPkt.m_fieldA = 9;
+    endPkt.m_eventCode = 9;
     CPacketTranslater::OnEventEnd(&endPkt);
     Packet_Monitor_Event_Start startPkt;
-    startPkt.m_fieldA = 9;
-    startPkt.m_fieldB = 4;
-    startPkt.m_fieldC = 0;
+    startPkt.m_eventCode = 9;
+    startPkt.m_eventParam1 = 4;
+    startPkt.m_eventParam2 = 0;
     CPacketTranslater::OnEventStart(&startPkt);
 }
 
@@ -802,7 +802,7 @@ void* CApplication::Get_MemoryCashManager()
 
 void* CApplication::GetLoginLogoutStatistics()
 {
-    return m_field330;
+    return m_loginLogoutStats;
 }
 
 void* CApplication::GetPeriodicMessageManager()
@@ -962,16 +962,16 @@ void CApplication::TranslateSignal()
         case 3:
         {
             Packet_Monitor_Event_End pkt;
-            pkt.m_fieldA = (*it)->m_val;
+            pkt.m_eventCode = (*it)->m_val;
             CPacketTranslater::OnEventEnd(&pkt);
             break;
         }
         case 2:
         {
             Packet_Monitor_Event_Start pkt;
-            pkt.m_fieldA = (*it)->m_val;
-            pkt.m_fieldB = (unsigned short)(*it)->m_b;
-            pkt.m_fieldC = (unsigned short)(*it)->m_c;
+            pkt.m_eventCode = (*it)->m_val;
+            pkt.m_eventParam1 = (unsigned short)(*it)->m_b;
+            pkt.m_eventParam2 = (unsigned short)(*it)->m_c;
             CPacketTranslater::OnEventStart(&pkt);
             break;
         }
@@ -985,8 +985,8 @@ void CApplication::TranslateSignal()
         case 7:
         {
             Packet_Monitor_Take_Screen_Shot pkt;
-            pkt.m_fieldA = 0xff;
-            pkt.m_fieldB = (unsigned int)time(0);
+            pkt.m_channel = 0xff;
+            pkt.m_time = (unsigned int)time(0);
             CPacketTranslater::OnTakeScreenShot(&pkt);
             break;
         }
@@ -1128,7 +1128,7 @@ void CApplication::SetMiniCraneRandomSeed()
 void CApplication::SendMiniCraneRandomSeed()
 {
     Packet_MiniCraneSeed packet;
-    packet.m_fieldA = getMiniCraneSeed();
+    packet.m_seed = getMiniCraneSeed();
     m_serverHandler2->SendAllTcpGameServer(&packet);
 }
 
@@ -1156,8 +1156,8 @@ void CApplication::ProcessTimeSync()
         if (t.tm_min < 0) goto end;
         if (t.tm_min > 0x3b) goto end;
         Packet_Send_Time_Sync pkt;
-        pkt.m_fieldA = (unsigned short)t.tm_hour;
-        pkt.m_fieldC = (unsigned short)t.tm_min;
+        pkt.m_hour = (unsigned short)t.tm_hour;
+        pkt.m_min = (unsigned short)t.tm_min;
         m_serverHandler2->SendAllTcpGameServer(&pkt);
         m_timeSyncHour = (short)t.tm_hour;
     }
@@ -1171,17 +1171,17 @@ void CApplication::UpdateCollectItems()
     tm t = *localtime(&now);
     if ((t.tm_min & 1U) == 0)
     {
-        // ORIG：不设局部指针，每次直接读成员 m_field388
+        // ORIG：不设局部指针，每次直接读成员 m_collectItms
         Packet_CollectItemsUpdate pkt;
-        pkt.m_fieldA = ((CollectItms*)m_field388)->m_field4;
-        pkt.m_fieldF = ((CollectItms*)m_field388)->m_field8;
+        pkt.m_fieldA = ((CollectItms*)m_collectItms)->m_field4;
+        pkt.m_fieldF = ((CollectItms*)m_collectItms)->m_field8;
         pkt.m_fieldE = Get_ServerGroup();
-        pkt.m_field13 = ((CollectItms*)m_field388)->m_fieldC;
+        pkt.m_field13 = ((CollectItms*)m_collectItms)->m_fieldC;
         m_serverHandler2->SendToDB(&pkt);
         Packet_CollectItemsResult pkt2;
-        pkt2.m_fieldE = ((CollectItms*)m_field388)->m_field4;
-        pkt2.m_fieldA = ((CollectItms*)m_field388)->m_field0;
-        pkt2.m_field12 = ((CollectItms*)m_field388)->m_field8;
+        pkt2.m_fieldE = ((CollectItms*)m_collectItms)->m_field4;
+        pkt2.m_fieldA = ((CollectItms*)m_collectItms)->m_field0;
+        pkt2.m_field12 = ((CollectItms*)m_collectItms)->m_field8;
         m_serverHandler2->SendAllTcpGameServer(&pkt2);
     }
 }
@@ -1201,9 +1201,9 @@ void ShowLogo()
     CommonTime t;
     t.SetCurTime();
     printf("[!] Service Date (%02d-%02d-%02d/%02d:%02d)\n",
-           (int)(char)t.m_field0, (int)(char)t.m_field1,
-           (int)(char)t.m_field2, (int)(char)t.m_field3,
-           (int)(char)t.m_field4);
+           (int)(char)t.m_year, (int)(char)t.m_month,
+           (int)(char)t.m_day, (int)(char)t.m_hour,
+           (int)(char)t.m_minute);
 }
 
 CAppBase* CApplicationInstance()

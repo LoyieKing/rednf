@@ -33,7 +33,7 @@ public:
     void RewardGuildPowerWarPoint(CGuildManager& gm, bool a, int b, int c, int d, int e);
     CPowerWarGuildInfo* GetPowerWarGuildInfo();
     CPowerWarCharacInfo* GetPowerWarCharacInfo();
-    int m_field4;                      // +4
+    int m_score;                       // +4（GetScore/IncScore/SetScore）
     CPowerWarGuildInfo m_guildInfo;    // +8
     CPowerWarCharacInfo m_characInfo;  // +0x3c
 };

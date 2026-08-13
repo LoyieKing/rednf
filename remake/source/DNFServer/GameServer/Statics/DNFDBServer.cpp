@@ -6,18 +6,18 @@
 #include "DNFUdpHandler.h"
 
 STSpecCount::STSpecCount()
-    : m_field0(0)
+    : m_total(0)
 {
 }
 Packet_DBMW_Save_Client_Spec_Statistic::Packet_DBMW_Save_Client_Spec_Statistic()
-    : PacketHeader(0x9cf, 0x17e7), m_fieldA(0), m_fieldB(0)
+    : PacketHeader(0x9cf, 0x17e7), m_flag(0), m_count(0)
 {
 }
 STErrorCount::STErrorCount()
 {
-    m_field0 = 0;
-    m_field4 = 0;
-    m_field6 = 0;
+    m_errorCode = 0;
+    m_errorLine = 0;
+    m_cnt = 0;
 }
 Packet_DBMW_Save_Error_Line_Statistic::Packet_DBMW_Save_Error_Line_Statistic()
     : PacketHeader(0x9d1, 0x17f6)
@@ -25,14 +25,14 @@ Packet_DBMW_Save_Error_Line_Statistic::Packet_DBMW_Save_Error_Line_Statistic()
 }
 STSpecStatic::STSpecStatic(const HWSpec& spec)
 {
-    m_field0 = spec.m_field0;
-    m_field4 = spec.m_field4;
-    m_field8 = spec.m_field8;
+    m_category1 = spec.m_category1;
+    m_category2 = spec.m_category2;
+    m_category3 = spec.m_category3;
 }
 STErrorStatic::STErrorStatic(const ErrorValue& value)
 {
-    m_field0 = value.m_field0;
-    m_field4 = value.m_field4;
+    m_errorLine = value.m_errorLine;
+    m_errorCode = value.m_errorCode;
 }
 CDBServer::CDBServer() : m_id(0xff)
 {
@@ -104,17 +104,17 @@ void CDBServer::SetConnFlag(bool flag)
 }
 bool STSpecStatic::operator<(const STSpecStatic& other) const
 {
-    if ((unsigned char)m_field0 < (unsigned char)other.m_field0) return true;
-    if (m_field0 == other.m_field0)
+    if ((unsigned char)m_category1 < (unsigned char)other.m_category1) return true;
+    if (m_category1 == other.m_category1)
     {
-        if (m_field4 < other.m_field4) return true;
-        if ((int)m_field4 == (int)other.m_field4 && m_field8 < other.m_field8) return true;
+        if (m_category2 < other.m_category2) return true;
+        if ((int)m_category2 == (int)other.m_category2 && m_category3 < other.m_category3) return true;
     }
     return false;
 }
 bool STErrorStatic::operator<(const STErrorStatic& other) const
 {
-    if (m_field0 < other.m_field0) return true;
-    if (m_field0 == other.m_field0 && m_field4 < other.m_field4) return true;
+    if (m_errorLine < other.m_errorLine) return true;
+    if (m_errorLine == other.m_errorLine && m_errorCode < other.m_errorCode) return true;
     return false;
 }

@@ -15,10 +15,10 @@ struct ST_KillUSRConfig;
 struct ST_KillUSRConfig
 {
     ST_KillUSRConfig();
-    int m_field0;
-    int m_field1;
-    int m_field2;
-    int m_field3;
+    int m_type;    // +0（DNFApplication switch 分支）
+    int m_param1;  // +4
+    int m_param2;  // +8
+    int m_param3;  // +0xc
 };
 
 // from GuildTable.h

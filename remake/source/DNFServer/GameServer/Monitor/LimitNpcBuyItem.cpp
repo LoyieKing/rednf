@@ -123,7 +123,7 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemCount(unsigned int itemId,
     out.m_itemId = itemId;
     register int maxCount = (int)it->second.m_maxCount;
     register int sellCount = (int)it->second.m_sellCount;
-    out.m_fieldE = maxCount - sellCount;
+    out.m_remainCount = maxCount - sellCount;
 }
 
 LimitNpcBuyItemChangeInfo::LimitNpcBuyItemChangeInfo() : PacketHeader(0x27db, 0x12)

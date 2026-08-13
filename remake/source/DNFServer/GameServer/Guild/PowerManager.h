@@ -86,7 +86,7 @@ public:
                                            unsigned int d, unsigned int e, unsigned int f,
                                            unsigned int g, unsigned int h);
     void SendPowerWarEndInfoInSpecificPower(char side);
-    unsigned int m_field4;       // +4（ORIG C1 置 0）
+    unsigned int m_app;          // +4（CApplication*，InitPowerManager 写入）
     CPower m_power[3];           // +8（0x6c × 3 → +8..+0x14c）
     CPowerWar m_powerWar;        // +0x14c（0x38 → +0x14c..+0x184）
     char m_winnerSide;           // +0x184
@@ -94,7 +94,7 @@ public:
     unsigned short m_powerWarEndKillPoint;  // +0x186
     char m_sideCount;            // +0x188
     char m_pad189;
-    unsigned short m_field18a;   // +0x18a
+    unsigned short m_powerDBFlag; // +0x18a（SetPowerDBFlag）
     int m_reward1;               // +0x18c
     int m_reward2;               // +0x190
     int m_reward3;               // +0x194

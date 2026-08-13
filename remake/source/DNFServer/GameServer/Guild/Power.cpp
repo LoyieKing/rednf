@@ -85,19 +85,19 @@ CPower::CPower()
 
 CPower::~CPower()
 {
-    m_field4 = 0;
+    m_score = 0;
 }
 
 void CPower::InitPower()
 {
-    m_field4 = 0;
+    m_score = 0;
     m_characInfo.Initialize();
     m_guildInfo.Initialize();
 }
 
 void CPower::CleanPower()
 {
-    m_field4 = 0;
+    m_score = 0;
     m_characInfo.Clean();
     m_guildInfo.Clean();
 }
@@ -121,22 +121,22 @@ void CPower::UpdatePowerWarInfo(int a, unsigned int b, unsigned int c)
 
 int CPower::IncScore(int score)
 {
-    m_field4 += score;
-    if (m_field4 == 0x7fffffff)
+    m_score += score;
+    if (m_score == 0x7fffffff)
     {
-        m_field4 = 0x7fffffff;
+        m_score = 0x7fffffff;
     }
-    return m_field4;
+    return m_score;
 }
 
 int CPower::GetScore()
 {
-    return m_field4;
+    return m_score;
 }
 
 void CPower::SetScore(int score)
 {
-    m_field4 = score;
+    m_score = score;
 }
 
 CPowerWarGuildInfo* CPower::GetPowerWarGuildInfo()

@@ -116,7 +116,7 @@ bool CPowerWarConfig::Parse_Table(char* line, int idx)
             m_info.m_min = (unsigned char)atoi(tokens[1]);
             break;
         case 3:
-            m_info.m_field4 = atoi(tokens[1]);
+            m_info.m_rankUpdateTime = atoi(tokens[1]);
             break;
         case 4:
             bFlag = atoi(tokens[1]) != 0;

@@ -120,16 +120,16 @@ public:
     char m_job;                       // +0x36
     char m_growthType;                // +0x37
     short m_guildMemFlag;             // +0x38
-    unsigned char m_field3a;          // +0x3a
-    char m_field3b[7];                // +0x3b
+    unsigned char m_sex;              // +0x3a（SetSex/GetSex）
+    char m_ssn[7];                    // +0x3b（SetSsn/GetSsn，6 字节）
     CGuild* m_guild;                  // +0x44
-    unsigned short m_field48;         // +0x48
+    unsigned short m_guildStateFlag;  // +0x48（GetGuildMemFlag/SetGuildMemFlag；+0x38 已占用 m_guildMemFlag）
     STGuildMemerDBInfo m_guildDBInfo; // +0x4a
     std::map<unsigned int, CBlackUser*> m_blackList;  // +0x64
-    unsigned short m_field7c;         // +0x7c
-    char m_field7e;                   // +0x7e
-    unsigned int m_field80;           // +0x80
-    unsigned int m_field84;           // +0x84
+    unsigned short m_blackListDBFlag; // +0x7c（GetBlackListDBFlag/SetBlackListDBFlag）
+    char m_guildInviteFact;           // +0x7e（SetGuildInviteFact）
+    unsigned int m_guildInviteCallerId; // +0x80（GetGuildInviteCallerId）
+    unsigned int m_guildInviteGuildId;  // +0x84（GetGuildInviteGuildId）
     void* m_field88;                  // +0x88（MemPool 空闲链指针，尺寸 0x8c）
 };
 

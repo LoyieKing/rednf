@@ -33,8 +33,8 @@
 CLoginLogoutStatistics::CLoginLogoutStatistics(CApplication& app)
     : m_app(&app)
 {
-    m_fieldac = 0;
-    m_fieldb0 = 0;
+    m_occCount0 = 0;
+    m_occCount4 = 0;
 }
 
 CLoginLogoutStatistics::~CLoginLogoutStatistics()
@@ -51,12 +51,12 @@ void CLoginLogoutStatistics::ProcessByMinute()
     Packet_DBMW_Statistic_Login_Logout pkt;
     int cnt = 0;
     char dummy;
-    pkt.m_field608 = m_fieldac;
-    pkt.m_field60c = m_fieldb0;
-    pkt.m_field610 = m_fieldb4;
-    pkt.m_field614 = m_fieldb8;
-    m_fieldb4 = 0;
-    m_fieldb8 = 0;
+    pkt.m_occCount0 = m_occCount0;
+    pkt.m_occCount4 = m_occCount4;
+    pkt.m_loginCount = m_loginCount;
+    pkt.m_logoutCount = m_logoutCount;
+    m_loginCount = 0;
+    m_logoutCount = 0;
     m_app->Get_ServerHandler()->GetDBServer()->SendToServer((char*)&pkt, 0x618);
     (void)stack_pad;
     (void)dummy;
@@ -67,14 +67,14 @@ void CLoginLogoutStatistics::LoginLogout(ENUM_LOGIN_LOGOUT type, unsigned char c
     std::map<unsigned char, stLoginLogout>::iterator it = m_maps[type].find(channel);
     if (it != m_maps[type].end())
     {
-        ++it->second.m_field0;
+        ++it->second.m_count;
     }
     else
     {
         for (int i = 0; i < 7; i++)
         {
             stLoginLogout st;
-            st.m_field0 = 0;
+            st.m_count = 0;
             m_maps[i].insert(std::make_pair(channel, st));
         }
         LoginLogout(type, channel);
@@ -85,11 +85,11 @@ void CLoginLogoutStatistics::CountNumOfLoginout(ENUM_LOGIN_LOGOUT type)
 {
     if ((int)type == 0)
     {
-        m_fieldb4 = m_fieldb4 + 1;
+        m_loginCount = m_loginCount + 1;
     }
     else if ((int)type == 6)
     {
-        m_fieldb8 = m_fieldb8 + 1;
+        m_logoutCount = m_logoutCount + 1;
     }
 }
 
@@ -97,12 +97,12 @@ void CLoginLogoutStatistics::CountNumOfOccupations(ENUM_LOGIN_LOGOUT type, int v
 {
     if ((int)type == 0)
     {
-        m_fieldac = value;
+        m_occCount0 = value;
     }
     else if ((int)type == 4)
     {
-        m_fieldb0 = value;
+        m_occCount4 = value;
     }
 }
 
-stLoginLogout::stLoginLogout() { m_field0 = 0; }
+stLoginLogout::stLoginLogout() { m_count = 0; }

@@ -223,14 +223,14 @@ void CPacketTranslater::SendNoticeMemberEnterPacketOk(CUser* user, CUser* other,
                                                       unsigned char d, unsigned char e)
 {
     Packet_Monitor_Notice_Member_Enter_Ok pkt;
-    pkt.m_fieldA = a;
-    pkt.m_fieldB = b;
-    pkt.m_fieldC = c;
+    pkt.m_result = a;
+    pkt.m_flag = b;
+    pkt.m_flag2 = c;
     pkt.m_idByChannel = user->GetIdByChannel();
     pkt.m_uniqCharNo = user->GetUniqCharNo();
-    pkt.m_fieldD = d;
+    pkt.m_level = d;
     memcpy(pkt.m_name, other->GetCharName(), 0x1d);
-    pkt.m_fieldE = e;
+    pkt.m_expLevel = e;
     if (b == 1)
     {
         pkt.m_extraCharNo = other->GetUniqCharNo();
@@ -246,19 +246,19 @@ void CPacketTranslater::SendNoticeMemberEnterPacketReply(CUser* user, CUser* oth
     Packet_Monitor_Member_Enter_Reply_ToResponser pkt;
     if (a == 2)
     {
-        pkt.m_fieldB = a + 1;
+        pkt.m_flag = a + 1;
     }
     else
     {
-        pkt.m_fieldB = b;
+        pkt.m_flag = b;
     }
-    pkt.m_fieldA = a;
-    pkt.m_fieldC = c;
+    pkt.m_result = a;
+    pkt.m_flag2 = c;
     pkt.m_idByChannel = user->GetIdByChannel();
     pkt.m_uniqCharNo = user->GetUniqCharNo();
-    pkt.m_fieldD = d;
+    pkt.m_level = d;
     memcpy(pkt.m_name, other->GetCharName(), 0x1d);
-    pkt.m_fieldE = e;
+    pkt.m_expLevel = e;
     if (b == 1)
     {
         pkt.m_extraCharNo = other->GetUniqCharNo();
@@ -1576,69 +1576,69 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
                     rpkt.m_idByChannel = user->GetIdByChannel();
                     rpkt.m_uniqCharNo = user->GetUniqCharNo();
                     STMemberDBInfo* db = (STMemberDBInfo*)member->GetMemberDBInfo();
-                    CUser* upperUser = userMgr->FindUser_CharNo(db->m_member.m_field0);
+                    CUser* upperUser = userMgr->FindUser_CharNo(db->m_member.m_charNo);
                     if (upperUser == 0)
                     {
-                        rpkt.m_memberList.m_info.m_field0 = 0xff;
+                        rpkt.m_memberList.m_info.m_channelNo = 0xff;
                     }
                     else if (upperUser->GetGameServer() == 0)
                     {
-                        rpkt.m_memberList.m_info.m_field0 = 0xff;
+                        rpkt.m_memberList.m_info.m_channelNo = 0xff;
                     }
                     else
                     {
                         if (upperUser->IsBlackUser(user->GetUniqCharNo()) != 0)
                         {
-                            rpkt.m_memberList.m_info.m_field20 = 1;
+                            rpkt.m_memberList.m_info.m_blackFlag = 1;
                         }
-                        rpkt.m_memberList.m_info.m_field0 =
+                        rpkt.m_memberList.m_info.m_channelNo =
                             ((CServerInterface*)upperUser->GetGameServer())->GetChannelNo();
                     }
-                    rpkt.m_memberList.m_info.m_field1 = db->m_member.m_flag4;
+                    rpkt.m_memberList.m_info.m_flag = db->m_member.m_flag4;
                     memcpy(rpkt.m_memberList.m_info.m_name, db->m_member.m_name, 0x1d);
-                    rpkt.m_memberList.m_info.m_field22 = db->m_member.m_field23;
-                    unsigned int upperExp = rpkt.m_memberList.m_info.m_field22;
-                    unsigned int upperExpNext = rpkt.m_memberList.m_info.m_field26;
-                    unsigned char upperExpLevel = rpkt.m_memberList.m_info.m_field21;
+                    rpkt.m_memberList.m_info.m_exp = db->m_member.m_exp;
+                    unsigned int upperExp = rpkt.m_memberList.m_info.m_exp;
+                    unsigned int upperExpNext = rpkt.m_memberList.m_info.m_expNext;
+                    unsigned char upperExpLevel = rpkt.m_memberList.m_info.m_level;
                     memberMgr->GetMemberExpNextLevelNeedExpLevel(
                         upperExp, upperExpNext, upperExpLevel);
-                    rpkt.m_memberList.m_info.m_field22 = upperExp;
-                    rpkt.m_memberList.m_info.m_field26 = upperExpNext;
-                    rpkt.m_memberList.m_info.m_field21 = upperExpLevel;
+                    rpkt.m_memberList.m_info.m_exp = upperExp;
+                    rpkt.m_memberList.m_info.m_expNext = upperExpNext;
+                    rpkt.m_memberList.m_info.m_level = upperExpLevel;
                     rpkt.m_memberList.m_count = db->m_count27;
                     for (int i = 0; i < (int)(unsigned int)db->m_count27; i++)
                     {
                         ST_MemberInfo* entry = &rpkt.m_memberList.m_members[i];
-                        unsigned int lowerCharNo = db->m_lowers[i].m_field0;
+                        unsigned int lowerCharNo = db->m_lowers[i].m_charNo;
                         CUser* lowerUser = userMgr->FindUser_CharNo(lowerCharNo);
                         if (lowerUser == 0)
                         {
-                            entry->m_field0 = 0xff;
+                            entry->m_channelNo = 0xff;
                         }
                         else if (lowerUser->GetGameServer() == 0)
                         {
-                            entry->m_field0 = 0xff;
+                            entry->m_channelNo = 0xff;
                         }
                         else
                         {
                             if (lowerUser->IsBlackUser(user->GetUniqCharNo()) != 0)
                             {
-                                entry->m_field20 = 1;
+                                entry->m_blackFlag = 1;
                             }
-                            entry->m_field0 =
+                            entry->m_channelNo =
                                 ((CServerInterface*)lowerUser->GetGameServer())->GetChannelNo();
                         }
-                        entry->m_field1 = db->m_lowers[i].m_flag4;
+                        entry->m_flag = db->m_lowers[i].m_flag4;
                         memcpy(entry->m_name, db->m_lowers[i].m_name, 0x1d);
-                        entry->m_field22 = db->m_lowers[i].m_field23;
-                        unsigned int exp = entry->m_field22;
-                        unsigned int expNext = entry->m_field26;
-                        unsigned char expLevel = entry->m_field21;
+                        entry->m_exp = db->m_lowers[i].m_exp;
+                        unsigned int exp = entry->m_exp;
+                        unsigned int expNext = entry->m_expNext;
+                        unsigned char expLevel = entry->m_level;
                         memberMgr->GetMemberExpNextLevelNeedExpLevel(
                             exp, expNext, expLevel);
-                        entry->m_field22 = exp;
-                        entry->m_field26 = expNext;
-                        entry->m_field21 = expLevel;
+                        entry->m_exp = exp;
+                        entry->m_expNext = expNext;
+                        entry->m_level = expLevel;
                     }
                     int size = (int)(unsigned int)db->m_count27 * 0x2a + 0x3d;
                     user->SendToGameserver((char*)&rpkt, size);
@@ -3107,7 +3107,7 @@ void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
             return;
         }
         Packet_Change_User_Handicap reply;
-        reply.m_fieldA = ((RA_UINT<10>*)pktLocal)->v;
+        reply.m_charNo = ((RA_UINT<10>*)pktLocal)->v;
         reply.m_fieldE = ((RA_UINT<14>*)pktLocal)->v;
         reply.m_field12 = ((RA_UINT<18>*)pktLocal)->v;
         user->SendToGameserver((char*)&reply, reply.packetSize);
@@ -4106,7 +4106,7 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
             {
                 Packet_Set_CleanPad_Point reply;
                 reply.m_idByChannel = target->GetIdByChannel();
-                reply.m_fieldE = ((RA_U16<14>*)pkt)->v;
+                reply.m_point = ((RA_U16<14>*)pkt)->v;
                 ((RA_U16<2>*)&reply)->v = 0x10;
                 target->SendToGameserver((char*)&reply, 0x10);
             }
@@ -4785,8 +4785,8 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
             {
                 Packet_Punish_Cancel reply;
                 reply.m_idByChannel = target->GetIdByChannel();
-                reply.m_fieldE = ((RA_U16<14>*)pkt)->v;
-                reply.m_field10 = ((RA_U16<16>*)pkt)->v;
+                reply.m_type = ((RA_U16<14>*)pkt)->v;
+                reply.m_param = ((RA_U16<16>*)pkt)->v;
                 ((RA_U16<2>*)&reply)->v = 0x12;
                 target->SendToGameserver((char*)&reply, 0x12);
             }
@@ -5603,8 +5603,8 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* pkt)
         throw 0x22ea;
     }
     Packet_Monitor_Event_Start epkt;
-    epkt.m_fieldA = ((RA_UINT<10>*)p)->v;
-    *(unsigned int*)&epkt.m_fieldB = ((RA_UINT<22>*)p)->v;
+    epkt.m_eventCode = ((RA_UINT<10>*)p)->v;
+    *(unsigned int*)&epkt.m_eventParam1 = ((RA_UINT<22>*)p)->v;
     m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(&epkt);
     DNF_LOG_SCOPE_LINE(0x22f2,"./log/AradOnly", "[Server Event] start event. (event:%d, param:%d,%d)",
         ((RA_UINT<10>*)p)->v, ((RA_U16<22>*)p)->v,
@@ -5633,7 +5633,7 @@ void CPacketTranslater::onEndGameEventFromServer(PacketHeader* pkt)
         throw 0x230c;
     }
     Packet_Monitor_Event_End epkt;
-    epkt.m_fieldA = ((RA_UINT<10>*)p)->v;
+    epkt.m_eventCode = ((RA_UINT<10>*)p)->v;
     m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(&epkt);
     DNF_LOG_SCOPE_LINE(0x2312,"./log/AradOnly", "[Server Event] end event. (event:%d)",
         ((RA_UINT<10>*)p)->v);
@@ -5688,21 +5688,21 @@ void CPacketTranslater::onReloadSecurityRestrictPolicy(PacketHeader* pkt)
 Packet_Item_Limit_Edition_Load_Data_Req::Packet_Item_Limit_Edition_Load_Data_Req()
     : PacketHeader(0x1007, 0x83)
 {
-    m_fieldA = 0;
-    m_fieldC = 0;
+    m_fullLoad = 0;
+    m_loadTargetNum = 0;
 }
 
 Packet_Item_Limit_Edition_Sell_end::Packet_Item_Limit_Edition_Sell_end()
     : PacketHeader(0x1005, 0x82)
 {
-    m_fieldB = 0;
-    m_fieldA = 0;
+    m_sellEndNum = 0;
+    m_serverType = 0;
 }
 
 Packet_Item_Limit_Edition_Update::Packet_Item_Limit_Edition_Update()
     : PacketHeader(0x1006, 0x10e)
 {
-    m_fieldA = 0;
+    m_serverGroup = 0;
     m_count = 0;
 }
 
@@ -5713,14 +5713,14 @@ Packet_Monitor_Event_End::Packet_Monitor_Event_End() : PacketHeader(0x450, 0xe) 
 Packet_Monitor_Take_Screen_Shot::Packet_Monitor_Take_Screen_Shot()
     : PacketHeader(0x9d3, 0xf)
 {
-    m_fieldA = 0;
-    m_fieldB = 0;
+    m_channel = 0;
+    m_time = 0;
 }
 
 Packet_DBMW_Query_Msg::Packet_DBMW_Query_Msg() : PacketHeader(0x177d, 0x1013)
 {
-    m_fieldA = 0;
-    m_fieldB = 0;
+    m_queryId = 0;
+    m_handleIdx = 0;
     int i = 0;
     for (i = 0; i <= 0x1000; i++)
     {
@@ -5731,21 +5731,21 @@ Packet_DBMW_Query_Msg::Packet_DBMW_Query_Msg() : PacketHeader(0x177d, 0x1013)
 Packet_VillageAttackedRewardServer::Packet_VillageAttackedRewardServer()
     : PacketHeader(0x177a, 0xe)
 {
-    m_fieldA = 0;
+    m_rewardType = 0;
 }
 
 Packet_VillageAttackedEnd::Packet_VillageAttackedEnd() : PacketHeader(0x1774, 0x16)
 {
     m_dungeonRemain = 0;
-    m_fieldE = 0;
-    m_field12 = 0;
+    m_huntingPoint = 0;
+    m_maxHuntingPoint = 0;
 }
 
 Packet_VillageAttackedUpdate::Packet_VillageAttackedUpdate() : PacketHeader(0x1777, 0x16)
 {
     m_remainTime = 0;
-    m_fieldE = 0;
-    m_field12 = 0;
+    m_huntingPoint = 0;
+    m_maxHuntingPoint = 0;
 }
 
 Packet_VillageAttackedScore::Packet_VillageAttackedScore() : PacketHeader(0x1778, 0x26)
@@ -5753,8 +5753,8 @@ Packet_VillageAttackedScore::Packet_VillageAttackedScore() : PacketHeader(0x1778
     m_idByChannel = 0;
     m_uniqCharNo = 0;
     m_remainTime = 0;
-    m_field16 = 0;
-    m_field1a = 0;
+    m_huntingPoint = 0;
+    m_maxHuntingPoint = 0;
     m_cur = 0;
     m_max = 0;
 }
@@ -5919,7 +5919,7 @@ Packet_Monitor_Notice_Buddy_In_Out::Packet_Monitor_Notice_Buddy_In_Out()
     m_charNo = 0;
     m_idByChannel = 0xffffffff;
     m_channel = 0xff;
-    m_field33 = 0;
+    m_flag3 = 0;
     memset(m_name, 0, 0x1e);
 }
 
@@ -5988,7 +5988,7 @@ Packet_CollectItemsReward::Packet_CollectItemsReward() : PacketHeader(0x27e8, 0x
 Packet_CollectItemsRewardBroadcast::Packet_CollectItemsRewardBroadcast()
     : PacketHeader(0x27e9, 0x32)
 {
-    m_fieldA = 0;
+    m_fieldA = 0;  // +10 语义未知（SendColletItemsReward 未赋值），保留原名
     m_charNo = 0;
     m_type = 0;
     m_nameLen = 0;
@@ -5999,9 +5999,9 @@ Packet_MTG_OntimeEvent_RewardStart::Packet_MTG_OntimeEvent_RewardStart()
     : PacketHeader(0x17c0, 0x1a)
 {
     m_eventIdx = 0;
-    m_fieldE = 0;
-    m_field12 = 0;
-    m_field16 = 0;
+    m_remainSec = 0;
+    m_itemIndex = 0;
+    m_itemCount = 0;
 }
 
 Packet_MTG_OntimeEvent_RewardEnd::Packet_MTG_OntimeEvent_RewardEnd()
@@ -6018,29 +6018,29 @@ Packet_Arad_DeleteEffect::Packet_Arad_DeleteEffect(int group, int code)
 
 Packet_DB_InsertMail::Packet_DB_InsertMail() : PacketHeader(0x177c, 0x133)
 {
-    m_fieldA = 0;
-    m_fieldB = 0;
-    m_fieldC = 0;
-    m_fieldD = 0;
-    m_field12f = 0;
+    m_characNo = 0;
+    m_fieldE = 0;
+    m_field12 = 0;
+    m_field16 = 0;
+    m_delayHours = 0;
     int i = 0;
     for (i = 0; (unsigned)i <= 0x14; i++)
     {
-        m_title[i] = 0;
+        m_subject[i] = 0;
     }
     for (i = 0; i <= 0xff; i++)
     {
-        m_body[i] = 0;
+        m_content[i] = 0;
     }
 }
 
 Packet_DBMW_Statistic_Login_Logout::Packet_DBMW_Statistic_Login_Logout()
     : PacketHeader(0x17b8, 0x618),
-      m_fieldA(0),
-      m_field608(0),
-      m_field60c(0),
-      m_field610(0),
-      m_field614(0)
+      m_channelNo(0),
+      m_occCount0(0),
+      m_occCount4(0),
+      m_loginCount(0),
+      m_logoutCount(0)
 {
     memset((char*)this + 0xe, 0, 0x5fa);
 }
@@ -6053,21 +6053,21 @@ Packet_Monitor_Call_Member_List_ToUser::Packet_Monitor_Call_Member_List_ToUser()
 Packet_Punish_Cancel::Packet_Punish_Cancel() : PacketHeader(0xb64, 0x12)
 {
     m_idByChannel = 0;
-    m_fieldE = 0;
-    m_field10 = 0;
+    m_type = 0;
+    m_param = 0;
 }
 
 Packet_Set_CleanPad_Point::Packet_Set_CleanPad_Point() : PacketHeader(0xb60, 0x10)
 {
     m_idByChannel = 0;
-    m_fieldE = 0;
+    m_point = 0;
 }
 
 Packet_SecuService_Connect_Web::Packet_SecuService_Connect_Web()
     : PacketHeader(0xb65, 0x15)
 {
     m_idByChannel = 0;
-    m_fieldE = 0;
+    m_fieldE = 0;  // 整包透传，语义未知，保留原名
     m_fieldF = 0;
     memset(m_payload, 0, 5);
 }
@@ -6077,7 +6077,7 @@ Packet_Monitor_User_Repel::Packet_Monitor_User_Repel() : PacketHeader(0x4c1, 0x1
 Packet_Monitor_Other_Channel_Chat_ToUser::Packet_Monitor_Other_Channel_Chat_ToUser()
     : PacketHeader(0x3f3, 0x137)
 {
-    m_fieldE = 0;
+    m_serverId = 0;
     m_idByChannel = 0xffffffff;
     m_uniqCharNo = 0;
     m_type = 0;
@@ -6090,7 +6090,7 @@ Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link::
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link()
     : PacketHeader(0x2719, 0x270)
 {
-    m_fieldE = 0;
+    m_serverId = 0;
     m_idByChannel = 0xffffffff;
     m_uniqCharNo = 0;
     m_type = 0;
@@ -6133,9 +6133,9 @@ Packet_CollectItemsResult::Packet_CollectItemsResult() : PacketHeader(0x27e7, 0x
 Packet_Server_Queue_Load_Statistic::Packet_Server_Queue_Load_Statistic()
     : PacketHeader(0x9d2, 0xe)
 {
-    m_fieldA = 0;
-    m_fieldB = 0;
-    m_fieldC = 0;
+    m_flag = 0;
+    m_param = 0;
+    m_value = 0;
 }
 
 Packet_InnerPakcet_Login::Packet_InnerPakcet_Login() : PacketHeader(0xfa0, 0xa) {}
@@ -6144,26 +6144,26 @@ Packet_InnerPakcet_Logout::Packet_InnerPakcet_Logout() : PacketHeader(0xfa1, 0xa
 
 Packet_Monitor_UDP_HeartBeat::Packet_Monitor_UDP_HeartBeat() : PacketHeader(0x3ec, 0xb)
 {
-    m_fieldA = 0xff;
+    m_channelIndex = 0xff;
 }
 
 Packet_MiniCraneSeed::Packet_MiniCraneSeed() : PacketHeader(0x27f8, 0xe)
 {
-    m_fieldA = 0;
+    m_seed = 0;
 }
 
 Packet_DB_Query_Member::Packet_DB_Query_Member() : PacketHeader(0x4b2, 0xe)
 {
-    m_fieldA = 0;
+    m_memberKey = 0;
 }
 
 Packet_DB_Query_Member_Member::Packet_DB_Query_Member_Member() : PacketHeader(0x4b0, 0xe)
 {
-    m_fieldA = 0;
+    m_memberKey = 0;
 }
 
 Packet_Send_Time_Sync::Packet_Send_Time_Sync() : PacketHeader(0x1f4b, 0xe)
 {
-    m_fieldA = 0;
-    m_fieldC = 0;
+    m_hour = 0;
+    m_min = 0;
 }

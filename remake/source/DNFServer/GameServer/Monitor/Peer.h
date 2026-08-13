@@ -266,7 +266,7 @@ public:
     int m_sendRemain;      // +0x1834
     char* m_sendPtr;       // +0x1838
     char m_sendBuf[0x96000];  // +0x183c
-    unsigned int m_field9783c;  // +0x9783c
+    unsigned int m_field9783c;  // +0x9783c（发送缓冲区尾部字段，无使用证据，保留）
 };
 
 #endif  // MONITOR_PEER_H_

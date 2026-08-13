@@ -34,12 +34,12 @@
 CBuddyHandle::CBuddyHandle()
 {
     m_prUser = 0;
-    m_field1c = 0;
+    m_buddyDBFlag = 0;
 }
 
-unsigned short CBuddyHandle::GetBuddyDBFlag() { return m_field1c; }
+unsigned short CBuddyHandle::GetBuddyDBFlag() { return m_buddyDBFlag; }
 
-void CBuddyHandle::SetBuddyDBFlag(unsigned short flag) { m_field1c |= flag; }
+void CBuddyHandle::SetBuddyDBFlag(unsigned short flag) { m_buddyDBFlag |= flag; }
 
 CBuddyHandle::~CBuddyHandle() { reset(0, 0); }
 
@@ -290,7 +290,7 @@ int CBuddyHandle::add(std::string name, STBuddyDBInfo& info)
 void CBuddyHandle::reset(CUser* user, bool flag)
 {
     m_prUser = user;
-    m_field1c = 0;
+    m_buddyDBFlag = 0;
     clear(flag);
 }
 

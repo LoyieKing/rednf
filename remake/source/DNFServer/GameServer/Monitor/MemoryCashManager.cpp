@@ -232,17 +232,17 @@ void CMemoryCashManager::InsertUpdatedCharacName(unsigned int dbid, const std::s
 
 void CMemoryCashManager::incMemberCashHitCnt()
 {
-    m_field48 = m_field48 + 1;
+    m_memberCashHitCnt = m_memberCashHitCnt + 1;
 }
 
 void CMemoryCashManager::incBuddyCashHitCnt()
 {
-    m_field44 = m_field44 + 1;
+    m_buddyCashHitCnt = m_buddyCashHitCnt + 1;
 }
 
 void CMemoryCashManager::incBlackListCashHitCnt()
 {
-    m_field4c = m_field4c + 1;
+    m_blackListCashHitCnt = m_blackListCashHitCnt + 1;
 }
 
 void CMemoryCashManager::incBuddyCashCnt()
@@ -362,7 +362,7 @@ void CMemoryCashManager::resetCashCnt()
     m_buddyCashCnt = 0;
     m_memberCashCnt = 0;
     m_blackListCashCnt = 0;
-    m_field44 = 0;
-    m_field48 = 0;
-    m_field4c = 0;
+    m_buddyCashHitCnt = 0;
+    m_memberCashHitCnt = 0;
+    m_blackListCashHitCnt = 0;
 }

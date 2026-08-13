@@ -13,7 +13,7 @@ void CMemoryCashManager::ProcessCashDataPrint()
     {
         DNF_LOG_SCOPE_LINE(0x4e, "./log/cashmem",
             "buddy(%d/%d)  member(%d/%d)  black(%d/%d)",
-            m_field44, m_buddyCashCnt, m_field48, m_memberCashCnt, m_field4c,
+            m_buddyCashHitCnt, m_buddyCashCnt, m_memberCashHitCnt, m_memberCashCnt, m_blackListCashHitCnt,
             m_blackListCashCnt);
         resetCashCnt();
     }

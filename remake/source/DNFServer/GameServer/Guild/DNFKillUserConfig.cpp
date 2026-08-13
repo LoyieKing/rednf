@@ -104,10 +104,10 @@ bool CKillUSRConfig::Parse_Table(char* line, int idx)
         p = new (std::nothrow) ST_KillUSRConfig;
         if (p != 0)
         {
-            p->m_field0 = atoi(tok[0]);
-            p->m_field1 = atoi(tok[1]);
-            p->m_field2 = atoi(tok[2]);
-            p->m_field3 = atoi(tok[3]);
+            p->m_type = atoi(tok[0]);
+            p->m_param1 = atoi(tok[1]);
+            p->m_param2 = atoi(tok[2]);
+            p->m_param3 = atoi(tok[3]);
             m_infos.push_back(p);
             return 1;
         }
@@ -128,10 +128,10 @@ void CKillUSRConfig::Load_Table(const std::string& path)
 
 ST_KillUSRConfig::ST_KillUSRConfig()
 {
-    m_field0 = 0;
-    m_field1 = 0;
-    m_field2 = 0;
-    m_field3 = 0;
+    m_type = 0;
+    m_param1 = 0;
+    m_param2 = 0;
+    m_param3 = 0;
 }
 
 const std::vector<ST_KillUSRConfig*>* CKillUSRConfig::GetInfo() const

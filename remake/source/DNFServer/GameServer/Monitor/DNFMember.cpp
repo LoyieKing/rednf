@@ -78,7 +78,7 @@ void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
     if (invalid == 0 && (m_flag & 4) != 0)
     {
         Packet_Monitor_Notice_Member_Member_Login_out pkt;
-        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
+        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo);
         if (member != 0)
         {
             if (user->IsBlackUser(member->GetUniqCharNo()) != 1)
@@ -122,7 +122,7 @@ void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
         {
             for (int i = 0; i < count; i++)
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
                 if (m == 0)
                 {
                     continue;
@@ -213,7 +213,7 @@ void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned
             memcpy(pkt.m_items + i * 0x68, (char*)items + i * 0x68, 0x68);
         }
         pkt.packetSize = (unsigned short)len + 0x16a;
-        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
+        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo);
         if (member != 0)
         {
             pkt.m_idByChannel = member->GetIdByChannel();
@@ -228,7 +228,7 @@ void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned
         {
             for (int i = 0; i < count2; i++)
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
                 if (m != 0)
                 {
                     pkt.m_idByChannel = m->GetIdByChannel();
@@ -249,7 +249,7 @@ void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)
         pkt.m_msgLen = (unsigned char)len;
         memcpy(pkt.m_msg, msg, len);
         pkt.packetSize = (unsigned short)len + 0x31;
-        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_field0);
+        CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo);
         if (member != 0)
         {
             pkt.m_idByChannel = member->GetIdByChannel();
@@ -264,7 +264,7 @@ void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)
         {
             for (int i = 0; i < count; i++)
             {
-                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+                CUser* m = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
                 if (m != 0)
                 {
                     pkt.m_idByChannel = m->GetIdByChannel();
@@ -338,13 +338,13 @@ unsigned int* CMember::GetLowerMember_Proxy() const
 
 int CMember::IncConnUpperMemberExp(unsigned int maxExp)
 {
-    m_dbInfo.m_member.m_field23 = m_dbInfo.m_member.m_field23 + 1;
-    if (maxExp < m_dbInfo.m_member.m_field23)
+    m_dbInfo.m_member.m_exp = m_dbInfo.m_member.m_exp + 1;
+    if (maxExp < m_dbInfo.m_member.m_exp)
     {
-        m_dbInfo.m_member.m_field23 = m_dbInfo.m_member.m_field23 - 1;
+        m_dbInfo.m_member.m_exp = m_dbInfo.m_member.m_exp - 1;
         return 0;
     }
-    return m_dbInfo.m_member.m_field23;
+    return m_dbInfo.m_member.m_exp;
 }
 
 void CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
@@ -352,12 +352,12 @@ void CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
     for (int i = 0; i <= 9; i++)
     {
         ST_MemberProxy* proxy = &m_dbInfo.m_lowers[i];
-        if (proxy->m_field0 == uCharNo)
+        if (proxy->m_charNo == uCharNo)
         {
-            proxy->m_field23 = proxy->m_field23 + 1;
-            if (maxExp < proxy->m_field23)
+            proxy->m_exp = proxy->m_exp + 1;
+            if (maxExp < proxy->m_exp)
             {
-                proxy->m_field23 = proxy->m_field23 - 1;
+                proxy->m_exp = proxy->m_exp - 1;
             }
             return;
         }
@@ -369,22 +369,22 @@ int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int
     if (index < (int)(unsigned int)(unsigned char)((RA_S8<45>*)this)->v)
     {
         ST_MemberProxy* proxy = (ST_MemberProxy*)((char*)this + index * 0x27 + 0x2e);
-        if (proxy->m_field0 == uCharNo)
+        if (proxy->m_charNo == uCharNo)
         {
-            proxy->m_field23 = proxy->m_field23 + 1;
-            if (maxExp < proxy->m_field23)
+            proxy->m_exp = proxy->m_exp + 1;
+            if (maxExp < proxy->m_exp)
             {
-                proxy->m_field23 = proxy->m_field23 - 1;
+                proxy->m_exp = proxy->m_exp - 1;
                 return 0;
             }
-            return proxy->m_field23;
+            return proxy->m_exp;
         }
         else
         {
             DNF_LOG_SCOPE_LINE(0x28c,"./log/Member2Except",
                 "CMember::IncConnLowerMemberExp  ,  stMemberLowerProxy.m_uCharId(%d) != "
                 "uCharNo(%d)",
-                proxy->m_field0, uCharNo);
+                proxy->m_charNo, uCharNo);
             return 0;
         }
     }
@@ -406,7 +406,7 @@ void CMember::NoticeLevelUpToLowers(unsigned int level)
         Packet_Monitor_Notice_MemberExp_LevelUp pkt;
         for (int i = 0; i < count; i++)
         {
-            CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+            CUser* user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
             if (user != 0)
             {
                 pkt.m_idByChannel = user->GetIdByChannel();
@@ -448,7 +448,7 @@ unsigned short CMember::GetMemberDBFlag() { return m_flag; }
 
 unsigned int CMember::GetUpperMemberExpLevel()
 {
-    return m_memberManager->GetMemberExpLevel(m_dbInfo.m_member.m_field23);
+    return m_memberManager->GetMemberExpLevel(m_dbInfo.m_member.m_exp);
 }
 
 int CMember::GetConnLowerMemberCnt()
@@ -462,7 +462,7 @@ int CMember::GetConnLowerMemberCnt()
     int cnt = 0;
     for (int i = 0; i < count; i++)
     {
-        user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_field0);
+        user = m_memberManager->FindMemberUser(m_dbInfo.m_lowers[i].m_charNo);
         if (user == 0)
         {
             continue;
@@ -499,7 +499,7 @@ int CMember::InsertLowerMember(unsigned int charNo, unsigned char level, const c
     }
     ST_MemberProxy* p = &m_dbInfo.m_lowers[n];
     p->m_flag4 = level;
-    p->m_field0 = charNo;
+    p->m_charNo = charNo;
     memcpy(p->m_name, name, 0x1d);
     if (flag)
     {
@@ -603,19 +603,19 @@ STMemberListInfo::STMemberListInfo() : m_count(0) {}
 
 ST_MemberInfo::ST_MemberInfo()
 {
-    m_field0 = 0;
-    m_field1 = 0;
-    m_field20 = 0;
-    m_field21 = 0;
-    m_field22 = 0;
-    m_field26 = 0;
+    m_channelNo = 0;
+    m_flag = 0;
+    m_blackFlag = 0;
+    m_level = 0;
+    m_exp = 0;
+    m_expNext = 0;
     memset(m_name, 0, 0x1e);
 }
 
 void ST_MemberProxy::Reset()
 {
-    m_field0 = 0;
+    m_charNo = 0;
     m_flag4 = 0;
     memset(m_name, 0, 0x1e);
-    m_field23 = 0;
+    m_exp = 0;
 }
