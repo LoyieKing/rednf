@@ -1482,7 +1482,7 @@ char CDBManager::QueryErrorLineStatisticCreate(
     CDBHandle* h = m_handles[4];    // log db
     char* p = (char*)packet;
     int count = *(int*)(p + 0xa);
-    char buf[0x200] = {0};
+    char buf[0x800] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -3003,7 +3003,7 @@ char CDBManager::QueryPartyStatisticCreate(
     log("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
-    char buf[0x200] = {0};
+    char buf[0x800] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -3072,7 +3072,7 @@ char CDBManager::QueryPartyJobStatisticCreate(
     log("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party_Job : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
-    char buf[0x200] = {0};
+    char buf[0x800] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -3135,7 +3135,7 @@ char CDBManager::QueryPartyCharacStatisticCreate(
     log("./log/statistic",
         "Packet_DBMW_Dungeon_Statistic_Party_Charac : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n",
         count);
-    char buf[0x200] = {0};
+    char buf[0x800] = {0};
     std::string sql;
     for (int i = 0; i < count; i++)
     {
@@ -4271,7 +4271,7 @@ bool CDBManager::onItemLimitEditionLoadData(
     if (!h)
         return 0;
     time_t now = time(0);
-    char buf[0x400] = {0};
+    char buf[0x1000] = {0};
     if (req->m_fieldF != 0 || req->m_fieldA != 1)
     {
         memcpy(buf, "and ipg_no ", 0xc);
