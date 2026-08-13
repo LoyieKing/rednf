@@ -165,10 +165,10 @@ unsigned int get_rand_int(int n)
 
 CollectItms::CollectItms()
 {
-    ((RA_UINT<0>*)this)->v = 0;
-    ((RA_UINT<4>*)this)->v = 0;
-    ((RA_UINT<8>*)this)->v = 0;
-    m_data[0xc] = 1;
+    m_field0 = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+    m_fieldC = 1;
 }
 
 CollectItms::~CollectItms() {}
@@ -177,7 +177,7 @@ namespace init_accusation
 {
 CInitAccusationListMgr::CInitAccusationListMgr(CApplication& app)
 {
-    *(CApplication**)this = &app;  // ORIG：mov 0xc(%ebp),%edx; mov %edx,(%eax)
+    m_app = &app;  // ORIG：mov 0xc(%ebp),%edx; mov %edx,(%eax)
 }
 
 CInitAccusationListMgr::~CInitAccusationListMgr() {}
@@ -195,13 +195,13 @@ bool CInitAccusationListMgr::setSchedule(bool const& flag)
         next = next + 0x15180;
     }
     CInitAccusationList* list = new CInitAccusationList(next, 0, this);
-    (*(CApplication**)this)->GetTaskScheduler()->AddTask(list);
+    m_app->GetTaskScheduler()->AddTask(list);
     return true;
 }
 
 CApplication* CInitAccusationListMgr::getApp() const
 {
-    return *(CApplication**)this;
+    return m_app;
 }
 
 CInitAccusationList::CInitAccusationList(unsigned int time, unsigned int flag,
@@ -1173,15 +1173,15 @@ void CApplication::UpdateCollectItems()
     {
         // ORIG：不设局部指针，每次直接读成员 m_field388
         Packet_CollectItemsUpdate pkt;
-        pkt.m_fieldA = ((RA_UINT<4>*)(CollectItms*)m_field388)->v;
-        pkt.m_fieldF = ((RA_UINT<8>*)(CollectItms*)m_field388)->v;
+        pkt.m_fieldA = ((CollectItms*)m_field388)->m_field4;
+        pkt.m_fieldF = ((CollectItms*)m_field388)->m_field8;
         pkt.m_fieldE = Get_ServerGroup();
-        pkt.m_field13 = ((RA_U8<12>*)(CollectItms*)m_field388)->v;
+        pkt.m_field13 = ((CollectItms*)m_field388)->m_fieldC;
         m_serverHandler2->SendToDB(&pkt);
         Packet_CollectItemsResult pkt2;
-        pkt2.m_fieldE = ((RA_UINT<4>*)(CollectItms*)m_field388)->v;
-        pkt2.m_fieldA = ((RA_UINT<0>*)(CollectItms*)m_field388)->v;
-        pkt2.m_field12 = ((RA_UINT<8>*)(CollectItms*)m_field388)->v;
+        pkt2.m_fieldE = ((CollectItms*)m_field388)->m_field4;
+        pkt2.m_fieldA = ((CollectItms*)m_field388)->m_field0;
+        pkt2.m_field12 = ((CollectItms*)m_field388)->m_field8;
         m_serverHandler2->SendAllTcpGameServer(&pkt2);
     }
 }

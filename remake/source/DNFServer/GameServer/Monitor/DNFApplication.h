@@ -275,8 +275,12 @@ class CollectItms
 public:
     CollectItms();
     ~CollectItms();
-    char m_data[0x10];
-};
+    unsigned int m_field0;   // +0
+    unsigned int m_field4;   // +4
+    unsigned int m_field8;   // +8
+    unsigned char m_fieldC;  // +0xc
+    char m_padD[3];          // +0xd
+} __attribute__((packed));
 
 namespace init_accusation
 {
@@ -287,7 +291,7 @@ public:
     ~CInitAccusationListMgr();
     bool setSchedule(bool const& flag);
     CApplication* getApp() const;
-    char m_data[4];
+    CApplication* m_app;     // +0
 };
 
 class CInitAccusationList : public CTaskScheduler::CTask
