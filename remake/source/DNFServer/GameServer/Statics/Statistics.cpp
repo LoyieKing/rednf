@@ -893,23 +893,20 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                             v.m_field6 = *(unsigned short*)((char*)pkt + j * 9 + 0x3b);
                             m_pwLoading.insert(std::make_pair(lkey, v));
                         }
-                        else
-                        {
-                            it->second.m_field2 += *(unsigned short*)((char*)pkt + j * 9 + 0x37);
-                            it->second.m_field4 += *(unsigned short*)((char*)pkt + j * 9 + 0x39);
-                            it->second.m_field6 += *(unsigned short*)((char*)pkt + j * 9 + 0x3b);
-                        }
                     }
                 }
             }
-            unsigned short gcount = *(unsigned short*)((char*)pkt + 0x4e);
+        }
+        if (i == 8)
+        {
+            unsigned short gcount = *(unsigned short*)((char*)pkt + 0x3b8);
             if (gcount != 0)
             {
                 STPowerwarFightLagKey gkey;
-                gkey.m_field0 = *(unsigned int*)((char*)pkt + 0x4a);
+                gkey.m_field0 = *(unsigned int*)((char*)pkt + 0x2e);
                 for (int j = 0; j < (int)gcount; j++)
                 {
-                    gkey.m_field4 = *(unsigned short*)((char*)pkt + j * 0xd + 0x50);
+                    gkey.m_field4 = *(unsigned short*)((char*)pkt + j * 0xb + 0x3ba);
                     if (m_pwLag.size() < 0x3e9)
                     {
                         std::map<STPowerwarFightLagKey, STPowerwarFightLagData>::iterator it =
@@ -918,16 +915,10 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                         if (isNew)
                         {
                             STPowerwarFightLagData v;
-                            v.m_field0 = *(unsigned int*)((char*)pkt + j * 0xd + 0x52);
-                            v.m_field4 = *(unsigned int*)((char*)pkt + j * 0xd + 0x56);
-                            v.m_field8 = *(unsigned int*)((char*)pkt + j * 0xd + 0x5a);
+                            v.m_field0 = *(unsigned char*)((char*)pkt + j * 0xb + 0x3bc);
+                            v.m_field4 = *(unsigned int*)((char*)pkt + j * 0xb + 0x3bd);
+                            v.m_field8 = *(unsigned int*)((char*)pkt + j * 0xb + 0x3c1);
                             m_pwLag.insert(std::make_pair(gkey, v));
-                        }
-                        else
-                        {
-                            it->second.m_field0 += *(unsigned int*)((char*)pkt + j * 0xd + 0x52);
-                            it->second.m_field4 += *(unsigned int*)((char*)pkt + j * 0xd + 0x56);
-                            it->second.m_field8 += *(unsigned int*)((char*)pkt + j * 0xd + 0x5a);
                         }
                     }
                 }
