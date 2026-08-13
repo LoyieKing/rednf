@@ -84,52 +84,45 @@ CUdpNetworkThread::~CUdpNetworkThread()
 
 void CUdpNetworkThread::dispatch(void* param)
 {
-    if (m_queue != 0 && m_handler != 0 && m_lock != 0)
+    if (m_queue == 0 || m_handler == 0 || m_lock == 0)
     {
-        DNFFLib::Sleep_Ext(5, 0);
-        puts("Network Thread Start!");
-        m_running = true;
-        while (m_running)
+        throw CDNFException("NetworkThread is Not Ready!\n");
+    }
+    DNFFLib::Sleep_Ext(5, 0);
+    puts("Network Thread Start!");
+    m_running = true;
+    while (m_running)
+    {
+        CUdpRecvBuffer* buf;
         {
-            CUdpRecvBuffer* buf;
+            CGuard<CMutex> g((CMutex*)m_bLock);
+            buf = (CUdpRecvBuffer*)CUdpRecvBuffer::operator new(0x1804);
+        }
+        int len = 0x1800;
+        unsigned short port = 0;
+        unsigned int ip = 0;
+        if (((CUdpHandler*)m_handler)->RecvFromClient((char*)buf, &len, &ip, &port) != 1)
+        {
+            CUdpRecvBuffer* buf2 = buf;
+            if (*(unsigned short*)((char*)buf2 + 2) == len)
             {
-                CGuard<CMutex> g((CMutex*)m_bLock);
-                buf = (CUdpRecvBuffer*)CUdpRecvBuffer::operator new(0x1804);
-            }
-            int len = 0x1800;
-            unsigned short port = 0;
-            unsigned int ip = 0;
-            if (((CUdpHandler*)m_handler)->RecvFromClient((char*)buf, &len, &ip, &port) != 1)
-            {
-                CUdpRecvBuffer* buf2 = buf;
-                if (*(unsigned short*)((char*)buf2 + 2) == len)
+                if (*(unsigned short*)((char*)buf2 + 2) < 0x1800)
                 {
-                    if (*(unsigned short*)((char*)buf2 + 2) < 0x1800)
+                    if (len < 0x1801)
                     {
-                        if (len < 0x1801)
+                        *(unsigned int*)((char*)buf2 + 6) = ip;
+                        *(unsigned short*)((char*)buf2 + 4) = port;
                         {
-                            *(unsigned int*)((char*)buf2 + 6) = ip;
-                            *(unsigned short*)((char*)buf2 + 4) = port;
-                            {
-                                CGuard<CMutex> g((CMutex*)m_lock);
-                                ((std::queue<CUdpRecvBuffer*>*)m_queue)->push(buf2);
-                                unsigned int qsize =
-                                    ((std::queue<CUdpRecvBuffer*>*)m_queue)->size();
-                            }
-                        }
-                        else
-                        {
-                            DNF_LOG_SCOPE_LINE(0x7d,"./log/recvErr",
-                                "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
-                                *(unsigned short*)((char*)buf2 + 2), len, *(unsigned short*)buf2);
-                            CGuard<CMutex> g((CMutex*)m_bLock);
-                            CUdpRecvBuffer::operator delete(buf2);
+                            CGuard<CMutex> g((CMutex*)m_lock);
+                            ((std::queue<CUdpRecvBuffer*>*)m_queue)->push(buf2);
+                            unsigned int qsize =
+                                ((std::queue<CUdpRecvBuffer*>*)m_queue)->size();
                         }
                     }
                     else
                     {
-                        DNF_LOG_SCOPE_LINE(0x71,"./log/recvErr",
-                            "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                        DNF_LOG_SCOPE_LINE(0x7d,"./log/recvErr",
+                            "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                             *(unsigned short*)((char*)buf2 + 2), len, *(unsigned short*)buf2);
                         CGuard<CMutex> g((CMutex*)m_bLock);
                         CUdpRecvBuffer::operator delete(buf2);
@@ -137,8 +130,8 @@ void CUdpNetworkThread::dispatch(void* param)
                 }
                 else
                 {
-                    DNF_LOG_SCOPE_LINE(0x66,"./log/recvErr",
-                        "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                    DNF_LOG_SCOPE_LINE(0x71,"./log/recvErr",
+                        "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                         *(unsigned short*)((char*)buf2 + 2), len, *(unsigned short*)buf2);
                     CGuard<CMutex> g((CMutex*)m_bLock);
                     CUdpRecvBuffer::operator delete(buf2);
@@ -146,13 +139,19 @@ void CUdpNetworkThread::dispatch(void* param)
             }
             else
             {
+                DNF_LOG_SCOPE_LINE(0x66,"./log/recvErr",
+                    "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                    *(unsigned short*)((char*)buf2 + 2), len, *(unsigned short*)buf2);
                 CGuard<CMutex> g((CMutex*)m_bLock);
-                CUdpRecvBuffer::operator delete(buf);
+                CUdpRecvBuffer::operator delete(buf2);
             }
         }
-        return;
+        else
+        {
+            CGuard<CMutex> g((CMutex*)m_bLock);
+            CUdpRecvBuffer::operator delete(buf);
+        }
     }
-    throw CDNFException("NetworkThread is Not Ready!\n");
 }
 
 void CUdpNetworkThread::attach(CApplication* app)

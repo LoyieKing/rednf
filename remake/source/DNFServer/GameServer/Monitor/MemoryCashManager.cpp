@@ -73,100 +73,98 @@ void CMemoryCashManager::ProcessLifeTimeOut()
 
 char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
 {
-    char ok = 0;
-    if (!m_cashObjects.empty())
+    if (m_cashObjects.empty())
     {
-        unsigned int dbid = user->GetDBID();
-        std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.find(dbid);
-        if (it != m_cashObjects.end())
+        return 0;
+    }
+    unsigned int dbid = user->GetDBID();
+    std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.find(dbid);
+    if (it != m_cashObjects.end())
+    {
+        CCashObject* obj = it->second;
+        if (obj->GetCharacNo() != user->GetUniqCharNo())
         {
-            CCashObject* obj = it->second;
-            if (obj->GetCharacNo() == user->GetUniqCharNo())
+            obj->DeleteMemberObject();
+            return 0;
+        }
+        CMemberManager* mgr = m_app->Get_MemberManager();
+        CMember* member = obj->GetMemberObject();
+        if (member != 0)
+        {
+            unsigned int* dbInfo = member->GetMemberDBInfoW();
+            std::string name;
+            if (QueryUpdatedCharacName(*dbInfo, name))
             {
-                CMemberManager* mgr = m_app->Get_MemberManager();
-                CMember* member = obj->GetMemberObject();
-                if (member != 0)
+                memset((char*)dbInfo + 5, 0, 0x1e);
+                strncpy((char*)dbInfo + 5, name.c_str(), 0x1d);
+            }
+            for (int i = 0; i < (int)((RA_U8<39>*)dbInfo)->v; i++)
+            {
+                unsigned int* sub =
+                    (unsigned int*)((char*)dbInfo + i * 0x27 + 0x28);
+                if (*sub != 0)
                 {
-                    unsigned int* dbInfo = member->GetMemberDBInfoW();
-                    std::string name;
-                    if (QueryUpdatedCharacName(*dbInfo, name))
+                    if (QueryUpdatedCharacName(*sub, name))
                     {
-                        memset((char*)dbInfo + 5, 0, 0x1e);
-                        strncpy((char*)dbInfo + 5, name.c_str(), 0x1d);
+                        memset((char*)sub + 5, 0, 0x1e);
+                        strncpy((char*)sub + 5, name.c_str(), 0x1d);
                     }
-                    for (int i = 0; i < (int)((RA_U8<39>*)dbInfo)->v; i++)
-                    {
-                        unsigned int* sub =
-                            (unsigned int*)((char*)dbInfo + i * 0x27 + 0x28);
-                        if (*sub != 0)
-                        {
-                            if (QueryUpdatedCharacName(*sub, name))
-                            {
-                                memset((char*)sub + 5, 0, 0x1e);
-                                strncpy((char*)sub + 5, name.c_str(), 0x1d);
-                            }
-                        }
-                    }
-                    ok = mgr->LoadMemberFromCash(user, member);
-                    if (ok != 0)
-                    {
-                        incMemberCashHitCnt();
-                    }
-                    obj->ClearMemberObject();
-                }
-                else
-                {
-                    obj->DeleteMemberObject();
-                    ok = 0;
                 }
             }
         }
+        char ok = mgr->LoadMemberFromCash(user, obj->GetMemberObject());
+        if (ok != 0)
+        {
+            incMemberCashHitCnt();
+        }
+        obj->ClearMemberObject();
+        return ok;
     }
-    return ok;
+    return 0;
 }
 
 int CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
 {
-    if (!m_cashObjects.empty())
+    if (m_cashObjects.empty())
     {
-        unsigned int dbid = user->GetDBID();
-        std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.find(dbid);
-        if (it != m_cashObjects.end())
+        return 0;
+    }
+    unsigned int dbid = user->GetDBID();
+    std::map<unsigned int, CCashObject*>::iterator it = m_cashObjects.find(dbid);
+    if (it != m_cashObjects.end())
+    {
+        CCashObject* obj = it->second;
+        if (obj->GetCharacNo() != user->GetUniqCharNo())
         {
-            CCashObject* obj = it->second;
-            if (obj->GetCharacNo() == user->GetUniqCharNo())
-            {
-                CBuddy* buddies[32];
-                int count = obj->GetBuddysObject(buddies);
-                for (int i = 0; i < count; i++)
-                {
-                    if (buddies[i] != 0)
-                    {
-                        std::string name;
-                        unsigned int* info = buddies[i]->getBuddyDBInfo();
-                        if (QueryUpdatedCharacName(((RA_UINT<34>*)info)->v, name))
-                        {
-                            memset(info, 0, 0x1e);
-                            strncpy((char*)info, name.c_str(), 0x1d);
-                        }
-                        user->AddBuddyFromCash(buddies[i]);
-                        user->GetUniqCharNo();
-                        unsigned int charNo = ((RA_UINT<34>*)info)->v;
-                        m_app->Get_BuddyRegisterManager()->addBuddyRegister(charNo,
-                                                                            user->GetUniqCharNo());
-                    }
-                }
-                if (count != 0)
-                {
-                    m_app->Get_UserManager()->SendConnectedBuddysList(user);
-                }
-                user->SetBuddyDBFlag(4);
-                incBuddyCashHitCnt();
-                return 1;
-            }
             obj->DeleteBuddys();
             return 0;
         }
+        CBuddy* buddies[32];
+        int count = obj->GetBuddysObject(buddies);
+        for (int i = 0; i < count; i++)
+        {
+            if (buddies[i] != 0)
+            {
+                std::string name;
+                if (QueryUpdatedCharacName(((RA_UINT<34>*)buddies[i]->getBuddyDBInfo())->v, name))
+                {
+                    memset(buddies[i]->getBuddyDBInfo(), 0, 0x1e);
+                    strncpy((char*)buddies[i]->getBuddyDBInfo(), name.c_str(), 0x1d);
+                }
+                user->AddBuddyFromCash(buddies[i]);
+                register unsigned int uniqNo = user->GetUniqCharNo();
+                register unsigned int charNo = ((RA_UINT<34>*)buddies[i]->getBuddyDBInfo())->v;
+                m_app->Get_BuddyRegisterManager()->addBuddyRegister(charNo, uniqNo);
+            }
+        }
+        if (count != 0)
+        {
+            CUserManager* mgr = m_app->Get_UserManager();
+            mgr->SendConnectedBuddysList(user);
+        }
+        user->SetBuddyDBFlag(4);
+        incBuddyCashHitCnt();
+        return 1;
     }
     return 0;
 }
@@ -208,15 +206,15 @@ char CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
     return 0;
 }
 
-char CMemoryCashManager::QueryUpdatedCharacName(unsigned int charNo, std::string& name)
+bool CMemoryCashManager::QueryUpdatedCharacName(unsigned int charNo, std::string& name)
 {
     std::map<unsigned int, std::string>::iterator it = m_names.find(charNo);
-    if (it != m_names.end())
+    if (it == m_names.end())
     {
-        name = it->second;
-        return 1;
+        return false;
     }
-    return 0;
+    name = it->second;
+    return true;
 }
 
 void CMemoryCashManager::InsertUpdatedCharacName(unsigned int dbid, const std::string& name)

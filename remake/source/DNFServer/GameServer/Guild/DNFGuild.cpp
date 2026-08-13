@@ -545,14 +545,14 @@ int CGuild::InsertGuildMember(unsigned int charNo, CUser* user)
     user->AttachGuild(this);
     std::pair<std::map<unsigned int, CUser*>::iterator, bool> r =
         m_members.insert(std::make_pair(charNo, user));
-    if (r.second != 0)
+    if (r.second == 0)
     {
-        return 1;
+        DNF_LOG_SCOPE_LINE(0x7b,"./log/GuildMember",
+            "[INSERT_ERR]\tAlready Exist : Guild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
+            GetGuildKey(), charNo, user->GetCharName(), m_members.size());
+        return 0;
     }
-    DNF_LOG_SCOPE_LINE(0x7b,"./log/GuildMember",
-        "[INSERT_ERR]\tAlready Exist : Guild Key : %d\tChar Key : %d,\tChar Name : %s\tLogin Mem Cnt : %d\n",
-        GetGuildKey(), charNo, user->GetCharName(), m_members.size());
-    return 0;
+    return 1;
 }
 
 int CGuild::DeleteGuildMember(unsigned int charNo, CUser* user)

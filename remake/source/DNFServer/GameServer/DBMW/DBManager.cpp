@@ -225,7 +225,7 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
     }
     return 1;
 }
-char CDBManager::OnWriteGuildBoard(
+bool CDBManager::OnWriteGuildBoard(
     Packet_DB_Load_Request_Guild_Board_Write* req, STGuildBoardDBInfo* info)
 {
     CDBHandle* h = m_handles[5];    // web db
@@ -272,7 +272,7 @@ char CDBManager::OnWriteGuildBoard(
     }
     return 1;
 }
-char CDBManager::OnWriteWebGuildBoard(
+bool CDBManager::OnWriteWebGuildBoard(
     Packet_DB_Load_Request_Web_Guild_Board_Write* req,
     STGuildBoardDBInfo* info)
 {
@@ -293,9 +293,9 @@ char CDBManager::OnWriteWebGuildBoard(
         return 0;
     if (!h->get_uint(1, *(unsigned int*)((char*)info + 0x80)))
         return 0;
-    if (!h->get_binary(2, (char*)info + 0x87, 0x1e))
+    if (!h->get_str(2, (char*)info + 0x87, 0x1e))
         return 0;
-    if (!h->get_binary(3, info, 0x78))
+    if (!h->get_str(3, (char*)info, 0x78))
         return 0;
     if (!h->get_uint(4, *(unsigned int*)((char*)info + 0x78)))
         return 0;
@@ -303,7 +303,7 @@ char CDBManager::OnWriteWebGuildBoard(
         return 0;
     return 1;
 }
-char CDBManager::OnDeleteGuildBoard(unsigned int no)
+bool CDBManager::OnDeleteGuildBoard(unsigned int no)
 {
     bool ret;
     CDBHandle* h = m_handles[5];    // web db
@@ -364,7 +364,7 @@ char CDBManager::OnLoadGuildCargo(unsigned int guildId,
     int col = 0;
     if (!h->get_uint(col++, *(unsigned int*)((char*)&reply + 0x18e6)))
         return 0;
-    if (!h->get_str(col++, (char*)&reply + 0xe, 0x18d8))
+    if (!h->get_binary(col++, (char*)&reply + 0xe, 0x18d8))
         return 0;
     return 1;
 }
@@ -563,7 +563,7 @@ bool CDBManager::SaveGuildWarPointList(int serverId,
     }
     return 1;
 }
-char CDBManager::OnSavePowerWarBonusPoint(
+bool CDBManager::OnSavePowerWarBonusPoint(
     Packet_DB_Save_Power_War_Bonus_Point* packet)
 {
     CDBHandle* h = m_handles[3];    // game db
@@ -712,7 +712,7 @@ bool CDBManager::InsertMail(unsigned int characNo, char* subject,
     }
     return 1;
 }
-char CDBManager::OnLoadPeriodicMessage(
+bool CDBManager::OnLoadPeriodicMessage(
     Packet_Load_Periodic_Message* req,
     Packet_Result_Loading_Periodic_Message* reply)
 {
@@ -1164,7 +1164,7 @@ bool CDBManager::QueryUpdateChannelOccNum(Packet_User_Count_Statistic* packet)
             "upDate game_channel Error : channel_no(%d), user_count(%d)",
             packet->m_gcNo, packet->m_userCount);
     }
-    for (int i = 0; i < 0x64; i++)
+    for (unsigned int i = 0; i < 0x64; i++)
     {
         h->set_query(0x4f29,
                      "upDate channel_occ_info set occ_num=%d where gc_no=%d and age=%d",
@@ -1240,11 +1240,11 @@ char CDBManager::QueryGuildBooting(
     {
         if (!h->fetch())
             return 0;
-        if (!h->get_uint(0, *(unsigned int*)((char*)&reply + 0xa)))
+        if (!h->get_int(0, *(int*)((char*)&reply + 0xa)))
             return 0;
-        if (!h->get_uint(1, *(unsigned int*)((char*)&reply + 0xe)))
+        if (!h->get_int(1, *(int*)((char*)&reply + 0xe)))
             return 0;
-        if (!h->get_ubyte(2, *(unsigned char*)((char*)&reply + 0x12)))
+        if (!h->get_byte(2, *(char*)((char*)&reply + 0x12)))
             return 0;
     }
     return 1;
@@ -1461,7 +1461,7 @@ int CDBManager::GetMaxHuntingPointServerGroup(int serverId)
         return 0;
     return result;
 }
-char CDBManager::updateCollectItems(unsigned char a, int b, unsigned int c,
+bool CDBManager::updateCollectItems(unsigned char a, int b, unsigned int c,
                                     unsigned char d)
 {
     CDBHandle* h = m_handles[9];    // event db
@@ -2376,13 +2376,13 @@ bool CDBManager::QueryGuildMemberProxy(unsigned int guildId, unsigned int charac
         return 0;
     if (!h->get_str(1, proxy.m_name, 0x1d))
         return 0;
-    if (!h->get_ubyte(2, proxy.m_field22))
+    if (!h->get_byte(2, (char&)proxy.m_field22))
         return 0;
     if (!h->get_short(3, (short&)proxy.m_field24))
         return 0;
-    if (!h->get_ubyte(4, proxy.m_field23))
+    if (!h->get_byte(4, (char&)proxy.m_field23))
         return 0;
-    if (!h->get_ubyte(5, proxy.m_field26))
+    if (!h->get_byte(5, (char&)proxy.m_field26))
         return 0;
     return 1;
 }
@@ -2414,13 +2414,13 @@ bool CDBManager::QueryGuildAllMembersProxy(unsigned int guildId,
             return 0;
         if (!h->get_str(1, proxies[i].m_name, 0x1d))
             return 0;
-        if (!h->get_ubyte(2, proxies[i].m_field22))
+        if (!h->get_byte(2, (char&)proxies[i].m_field22))
             return 0;
         if (!h->get_short(3, (short&)proxies[i].m_field24))
             return 0;
-        if (!h->get_ubyte(4, proxies[i].m_field23))
+        if (!h->get_byte(4, (char&)proxies[i].m_field23))
             return 0;
-        if (!h->get_ubyte(5, proxies[i].m_field26))
+        if (!h->get_byte(5, (char&)proxies[i].m_field26))
             return 0;
         if (!h->get_ubyte(6, proxies[i].m_field27))
             return 0;
@@ -3686,7 +3686,7 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                 req->m_guildId, req->m_characName);
             return 0;
         }
-        if (!h->get_ubyte(1, (unsigned char&)grade))
+        if (!h->get_byte(1, grade))
         {
             CMyFileLog log(__FUNCTION__, 0xfcc);
             log("./log/DBQueryErr",
@@ -4144,7 +4144,7 @@ bool CDBManager::onItemLimitEditionLoadData(
             return 0;
         if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x23)))
             return 0;
-        if (!h->get_ubyte(col++, *(unsigned char*)((char*)IT(i) + 0x1b)))
+        if (!h->get_byte(col++, *(char*)((char*)IT(i) + 0x1b)))
             return 0;
         if (!h->get_int(col++, *(int*)((char*)IT(i) + 0x2b)))
             return 0;
@@ -4160,9 +4160,9 @@ bool CDBManager::onItemLimitEditionLoadData(
             return 0;
         if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x3f)))
             return 0;
-        if (!h->get_short(col++, *(short*)((char*)IT(i) + 0x43)))
+        if (!h->get_ushort(col++, *(unsigned short*)((char*)IT(i) + 0x43)))
             return 0;
-        if (!h->get_short(col++, *(short*)((char*)IT(i) + 0x45)))
+        if (!h->get_ushort(col++, *(unsigned short*)((char*)IT(i) + 0x45)))
             return 0;
         if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x47)))
             return 0;
@@ -5017,7 +5017,7 @@ bool CDBManager::DeleteToBlackList(unsigned int m_id, unsigned int characNo)
     }
     return 1;
 }
-char CDBManager::OnLoadGuildBoard(int guildId, int& count,
+bool CDBManager::OnLoadGuildBoard(int guildId, int& count,
                                   STGuildBoardDBInfo* boards)
 {
     CDBHandle* h = m_handles[5];    // sso db
@@ -6173,8 +6173,8 @@ char CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
         return 0;
     if (!h->fetch())
         return 0;
-    int logId = 0;
-    if (!h->get_int(0, logId))
+    unsigned int logId = 0;
+    if (!h->get_uint(0, logId))
         return 0;
     int param1 = 0;
     if (!h->get_int(1, param1))
@@ -6456,7 +6456,7 @@ bool CDBManager::QueryGuildMemberGradeByName(unsigned char serverId,
         return 0;
     if (!h->get_ubyte(1, grade))
         return 0;
-    if (!h->get_ubyte(2, *(unsigned char*)&result))
+    if (!h->get_uint(2, result))
         return 0;
     return 1;
 }
@@ -6596,7 +6596,7 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
         *(char*)((char*)&reply + 0xa) = 3;
         return 1;
     }
-    if (!h->get_ushort(1, *(unsigned short*)(info + 0x44)))
+    if (!h->get_ubyte(1, *(unsigned char*)(info + 0x44)))
     {
         *(char*)((char*)&reply + 0xa) = 3;
         return 1;

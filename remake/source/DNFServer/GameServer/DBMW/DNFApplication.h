@@ -54,7 +54,7 @@ public:
     void* GetGMAccounts();
     CGameServer* FindGameServer(int idx);
 
-    char m_loaded;                      // +4
+    bool m_loaded;                      // +4
     char m_pad5[3];                     // +5
     int m_field8;                       // +8
     CAppInit* m_appInitor;              // +0xc

@@ -262,29 +262,25 @@ void CPowerManager::RewardGuildPowerWarPoint()
 {
     CMyFileLog logTop(__FUNCTION__, 0x198);
     logTop("./log/PowerResult", "CPowerManager::RewardGuildPowerWarPoint");
-    char winnerSide = *(char*)((char*)this + 0x184);
-    if (winnerSide == 0 || winnerSide > 2)
+    if (m_winnerSide == 0 || m_winnerSide > 2)
     {
-        DNF_LOG_SCOPE_LINE(0x19c, "./log/PowerResult", "invalid winner side income(%d)", (int)winnerSide);
+        DNF_LOG_SCOPE_LINE(0x19c, "./log/PowerResult", "invalid winner side income(%d)", (int)m_winnerSide);
         return;
     }
-    CApplication* app = *(CApplication**)((char*)this + 4);
-    CGuildManager* gm = app->Get_GuildManager();
-    int reward1 = *(int*)((char*)this + 0x18c);
-    int reward2 = *(int*)((char*)this + 0x190);
-    int reward3 = *(int*)((char*)this + 0x194);
-    int reward4 = *(int*)((char*)this + 0x198);
-    ((CPower*)((char*)this + (unsigned char)winnerSide * 0x6c + 8))
-        ->RewardGuildPowerWarPoint(*gm, true, reward1, reward2, reward3, reward4);
-    if (winnerSide == 1)
+    m_power[m_winnerSide].RewardGuildPowerWarPoint(
+        *((CApplication*)m_field4)->Get_GuildManager(), true,
+        m_reward1, m_reward2, m_reward3, m_reward4);
+    if (m_winnerSide == 1)
     {
-        ((CPower*)((char*)this + 0xe0))
-            ->RewardGuildPowerWarPoint(*gm, false, reward1, reward2, reward3, reward4);
+        m_power[2].RewardGuildPowerWarPoint(
+            *((CApplication*)m_field4)->Get_GuildManager(), false,
+            m_reward1, m_reward2, m_reward3, m_reward4);
     }
     else
     {
-        ((CPower*)((char*)this + 0x74))
-            ->RewardGuildPowerWarPoint(*gm, false, reward1, reward2, reward3, reward4);
+        m_power[1].RewardGuildPowerWarPoint(
+            *((CApplication*)m_field4)->Get_GuildManager(), false,
+            m_reward1, m_reward2, m_reward3, m_reward4);
     }
 }
 

@@ -80,7 +80,8 @@ void CApplication::Process()
                 if (info->m_field24 == 3)
                 {
                     m_frameCount.SaveProcess();
-                    CQueryCounterInstance()->WriteDBLog(m_dbManager);
+                    CQueryCounter* counter = CQueryCounterInstance();
+                    counter->WriteDBLog(m_dbManager);
                     CPacketTracerInstance()->WritePacketProcessLog();
                 }
             }
@@ -357,10 +358,9 @@ void CApplication::Free()
         puts("Application Free Start!");
         if (m_networkThread)
         {
-            void (**vt)(void*) = *(void(***)(void*))m_networkThread;
-            vt[0](m_networkThread);
+            (*(void(***)(void*))m_networkThread)[0](m_networkThread);
             if (m_networkThread != 0)
-                vt[3](m_networkThread);
+                (*(void(***)(void*))m_networkThread)[3](m_networkThread);
             m_networkThread = 0;
         }
         puts("Thread Free Success!");

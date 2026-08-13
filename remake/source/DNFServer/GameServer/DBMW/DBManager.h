@@ -77,7 +77,7 @@ public:
     char OnLoadGuildCargoHistory(unsigned int guildId,
                                  Packet_Guild_Load_Guild_Cargo_History& reply);
     bool DeleteToBlackList(unsigned int m_id, unsigned int characNo);
-    char OnLoadGuildBoard(int guildId, int& count, STGuildBoardDBInfo* boards);
+    bool OnLoadGuildBoard(int guildId, int& count, STGuildBoardDBInfo* boards);
     bool selectCollectItems(unsigned char serverInfo, int& curCount,
                             int& totalCount, unsigned int& changeFlag,
                             unsigned char& fullTime);
@@ -155,13 +155,13 @@ public:
                              unsigned int newMasterMId,
                              unsigned int newMasterNo, char* newMasterName);
     bool SendGuildLetter(int serverId, unsigned int guildId, char* msg);
-    char OnWriteGuildBoard(
+    bool OnWriteGuildBoard(
         Packet_DB_Load_Request_Guild_Board_Write* req,
         STGuildBoardDBInfo* info);
-    char OnWriteWebGuildBoard(
+    bool OnWriteWebGuildBoard(
         Packet_DB_Load_Request_Web_Guild_Board_Write* req,
         STGuildBoardDBInfo* info);
-    char OnDeleteGuildBoard(unsigned int no);
+    bool OnDeleteGuildBoard(unsigned int no);
     bool OnLoadGuildAgit(Packet_DB_Load_Guild_Agit* req,
                          Packet_Guild_Load_Guild_Agit& reply);
     char OnLoadGuildCargo(unsigned int guildId,
@@ -183,7 +183,7 @@ public:
                          unsigned char type);
     bool SaveGuildWarPointList(int serverId, unsigned int* guildIds,
                                unsigned int* points);
-    char OnSavePowerWarBonusPoint(
+    bool OnSavePowerWarBonusPoint(
         Packet_DB_Save_Power_War_Bonus_Point* packet);
     char SavePowerWarPoint(Packet_DB_Save_Power_War_Point* packet);
     char OnSavePowerWarStatueRanker(
@@ -192,7 +192,7 @@ public:
         Packet_DB_Save_Power_War_Point_Reward* packet);
     bool InsertMail(unsigned int characNo, char* subject, char* content,
                     unsigned int hE, unsigned int h12, int h16, int h17);
-    char OnLoadPeriodicMessage(
+    bool OnLoadPeriodicMessage(
         Packet_Load_Periodic_Message* req,
         Packet_Result_Loading_Periodic_Message* reply);
     bool QueryGuildMember(unsigned char serverId, unsigned int guildId,
@@ -228,7 +228,7 @@ public:
                                 bool& flag, int& a, int& b);
     int GetMinTimeServerGroup(int serverId);
     int GetMaxHuntingPointServerGroup(int serverId);
-    char updateCollectItems(unsigned char a, int b, unsigned int c,
+    bool updateCollectItems(unsigned char a, int b, unsigned int c,
                             unsigned char d);
     char updateCollectItemsGm(unsigned char a, int b, int c, unsigned int d);
     bool insertHolePunchingResult(

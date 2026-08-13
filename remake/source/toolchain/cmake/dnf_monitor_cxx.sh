@@ -22,7 +22,7 @@ done
 case "$(basename "$src" .cpp)" in
     EventActionManager)
         exec "$C6446R" -fno-exceptions "$@" ;;
-    DNFApplication|DNFMonitorServerMain|DNFServerHandler|DNFSignalTranslator|DNFTcpHandler|DNFTableBase|DNFThreadInterface|TaskScheduler)
+    DNFApplication|DNFMonitorServerMain|DNFServerHandler|DNFSignalTranslator|DNFTcpHandler|DNFTableBase|DNFThreadInterface|DNFPacketTranslater|TaskScheduler)
         exec "$C6446R" "$@" ;;
     DNFProhibitUserC5|MemoryCashManagerC5)
         filtered=""

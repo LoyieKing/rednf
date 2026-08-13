@@ -1219,7 +1219,7 @@ void CPacketTranslater::OnRequestApproveJoinGuild(PacketHeader* header)
              pkt->m_guildId, pkt->m_characNo, reply.m_fieldA);
     }
     DNF_CATCH_LOG("./log/Except.log",
-                  "CPacketTranslater::OnRequestApproveJoinGuild() Exception Break",
+                  "CPacketTranslater::OnGuildJoin() Exception Break",
                   0x534, 0x539);
 }
 void CPacketTranslater::OnInsertUdpCharacteristic(PacketHeader* header)
@@ -1922,7 +1922,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
             (Packet_DB_Load_Request_Guild_Board_Open*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         int count = 0;
-        STGuildBoardDBInfo boards[0x31];
+        STGuildBoardDBInfo boards[0x32];
         if (!m_pclApp->m_dbManager.OnLoadGuildBoard(
                 ((FieldViewP<0xa,int>*)pkt)->v, count, boards))
         {
@@ -2120,9 +2120,9 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                     reply.m_fieldA = 2;
                 else
                     reply.m_fieldA = 1;
-                unsigned short sendSize =
+                reply.packetSize =
                     (unsigned short)(0xbc4 - (0x96 - count) * 0x14);
-                ms->SendToServer((char*)&reply, sendSize);
+                ms->SendToServer((char*)&reply, reply.packetSize);
                 DNF_LOG_SCOPE_LINE(0xbab,
                     "./log/Secu",
                     "[IP Counter] Packet Send - Stats : %3d, Cnt : %3d", (int)reply.m_fieldA,
@@ -2162,9 +2162,9 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                     reply.m_fieldA = 2;
                 else
                     reply.m_fieldA = 1;
-                unsigned short sendSize =
+                reply.packetSize =
                     (unsigned short)(0xe1c - (0x96 - count) * 0x18);
-                ms->SendToServer((char*)&reply, sendSize);
+                ms->SendToServer((char*)&reply, reply.packetSize);
                 DNF_LOG_SCOPE_LINE(0xbd8,
                     "./log/Secu",
                     "[D_IP Counter] Packet Send - Stats : %3d, Cnt : %3d", (int)reply.m_fieldA,
@@ -2215,6 +2215,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
             if (i > 0x3b)
             {
                 reply.m_fieldB = (char)i;
+                reply.packetSize = 0x17bf;
                 ms->SendToServer((char*)&reply, 0x17bf);
                 DNF_LOG_SCOPE_LINE(0x5a8,
                     "./log/DeathTower",
@@ -2231,8 +2232,8 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
         if (i != 0)
         {
             reply.m_fieldB = (char)i;
-            unsigned short sendSize = (unsigned short)(0x13 + i * 0x65);
-            ms->SendToServer((char*)&reply, sendSize);
+            reply.packetSize = (unsigned short)(0x13 + i * 0x65);
+            ms->SendToServer((char*)&reply, reply.packetSize);
             DNF_LOG_SCOPE_LINE(0x5b3,
                 "./log/DeathTower",
                 "(tower_idx:%d)(send count:%d)\n",
@@ -2287,9 +2288,9 @@ void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
                     reply.m_fieldE = 1;
                 else
                     reply.m_fieldE = 2;
-                unsigned short sendSize =
+                reply.packetSize =
                     (unsigned short)(0x4bf - (0x64 - count) * 0xc);
-                ms->SendToServer((char*)&reply, sendSize);
+                ms->SendToServer((char*)&reply, reply.packetSize);
                 DNF_LOG_SCOPE_LINE(0xe1a,
                     "./log/Secu",
                     "[ARS_INFO] Packet Send - Stats : %3d, Cnt : %3d", batch,
@@ -2304,7 +2305,8 @@ void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
             Packet_Set_ARS_Info reply;
             reply.m_fieldA = 0;
             reply.m_fieldE = 0;
-            ms->SendToServer((char*)&reply, 0x4bf);
+            reply.packetSize = 0x4bf;
+            ms->SendToServer((char*)&reply, reply.packetSize);
             DNF_LOG_SCOPE_LINE(0xe2d,
                 "./log/Secu",
                 "[ARS_INFO] Packet Send - Stats : %3d, Cnt : 0", 0

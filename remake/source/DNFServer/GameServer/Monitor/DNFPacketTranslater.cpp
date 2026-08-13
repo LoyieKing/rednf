@@ -708,17 +708,9 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                         "uDBID(%d) uCharName(%s) is already exist at m_mapCharNoUsers!",
                         ((RA_UINT<15>*)pkt)->v, (char*)pkt + 0x1f);
                 }
-                user->GetDBID();
                 ((CMemoryCashManager*)m_pclApp->Get_MemoryCashManager())
                     ->DeleteCashObjecct(user->GetDBID());
-                CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
                 stTowerRankElement_t elements[5];
-                for (int i = 0; i < 5; i++)
-                {
-                    elements[i].m_job = 0;
-                    elements[i].m_pad = 0;
-                    elements[i].m_score = 0;
-                }
                 Packet_Request_Charac_Tower_Ranking rankPkt;
                 ((RA_UINT<10>*)&rankPkt)->v = user->GetIdByChannel();
                 ((RA_UINT<14>*)&rankPkt)->v =
@@ -727,8 +719,9 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                 for (int t = 0; t < 4; t++)
                 {
                     unsigned int cnt =
-                        tower->getRankData((unsigned int)(t + 1), user->GetCharName(), 5,
-                                           elements);
+                        ((CTowerRank*)m_pclApp->getTowerRank())
+                            ->getRankData((unsigned int)(t + 1), (char*)pkt + 0x1f, 5,
+                                          elements);
                     for (unsigned int i = 0; i < cnt; i++)
                     {
                         *(unsigned int*)((char*)&rankPkt + 2 +
@@ -1161,7 +1154,6 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
         CUser* requester = userMgr->FindUser_CharNo(((RA_UINT<14>*)pkt)->v);
         if (requester != 0)
         {
-            requester->GetMemberEnterCallerId();
             CUser* responser = userMgr->FindUser_CharNo(requester->GetMemberEnterCallerId());
             if (responser != 0)
             {
@@ -1625,14 +1617,13 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
         }
         else
         {
-            unsigned int upperCharId = (unsigned int)member->GetUpperMember_CharId();
-            CUser* upperUser = userMgr->FindUser_CharNo(upperCharId);
+            CUser* upperUser = userMgr->FindUser_CharNo(member->GetUpperMember_CharId());
             if (upperUser == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x849,"./log/Member",
                     "CPacketTranslater::OnPayTaxToUpper : pclUpperUser == 0!, Maybe, upper "
                     "Member is not connect!\tupper char id(%d)",
-                    upperCharId);
+                    member->GetUpperMember_CharId());
             }
             else
             {
@@ -1652,13 +1643,14 @@ void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
                     unsigned int limit =
                         m_pclApp->Get_MemberManager()->GetLowerMemberEnterLimit(
                             (unsigned int)level);
-                    unsigned char expLevel = payUser->GetUpperMemberExpLevel();
-                    float rate = (float)(0.01 * (double)expLevel) +
+                    float rate = (float)(0.01 * (double)payUser->GetUpperMemberExpLevel()) +
                                  (float)(0.05 * ((double)lowerCnt / (double)limit));
                     int moneyTax =
                         (int)((double)((RA_UINT<14>*)pkt)->v * (double)rate);
+                    float rate2 = (float)(0.01 * (double)payUser->GetUpperMemberExpLevel()) +
+                                  (float)(0.05 * ((double)lowerCnt / (double)limit));
                     int fatigueTax =
-                        (int)((double)((RA_UINT<18>*)pkt)->v * (double)rate);
+                        (int)((double)((RA_UINT<18>*)pkt)->v * (double)rate2);
                     if (moneyTax != 0 || fatigueTax != 0)
                     {
                         Packet_Monitor_Member_Pay_Tax_ToUpper reply;
@@ -2817,7 +2809,6 @@ void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
                             ((CServerInterface*)other->GetGameServer())->GetChannelNo();
                     }
                     reply.m_result = ((RA_U8<53>*)pkt)->v;
-                    user->GetUniqCharNo();
                     ((CBuddyRegisterManager*)((char*)m_pclApp + 0x300))
                         ->addBuddyRegister(((RA_UINT<48>*)pkt)->v,
                                            user->GetUniqCharNo());
@@ -2966,7 +2957,6 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
                      i < (int)(unsigned int)(unsigned char)((RA_S8<14>*)pkt)->v; i++)
                 {
                     user->AddBuddy(*(STBuddyDBInfo*)((char*)pkt + i * 0x27 + 0xf));
-                    user->GetUniqCharNo();
                     ((CBuddyRegisterManager*)((char*)m_pclApp + 0x300))
                         ->addBuddyRegister(*(unsigned int*)((char*)pkt + i * 0x27 + 0x31),
                                            user->GetUniqCharNo());
@@ -3034,8 +3024,7 @@ void CPacketTranslater::OnGMRequestMid(PacketHeader* pkt)
         Packet_GM_Request_Mid reply;
         ((RA_UINT<10>*)&reply)->v = ((RA_UINT<10>*)p)->v;
         memcpy((char*)&reply + 0x16, (char*)p + 0x16, 0x1d);
-        std::string name((char*)p + 0x16);
-        target = userMgr->FindUser_CharName(name);
+        target = userMgr->FindUser_CharName((char*)p + 0x16);
         if (target == 0)
         {
             ((RA_UINT<14>*)&reply)->v = 0xffffffff;
@@ -3104,16 +3093,15 @@ void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
 {
     try
     {
-        CTowerRank* tower = (CTowerRank*)m_pclApp->getTowerRank();
         if (((RA_S8<10>*)pkt)->v != 0)
         {
-            tower->reset();
+            ((CTowerRank*)m_pclApp->getTowerRank())->reset();
         }
         DNF_LOG_SCOPE_LINE(0x1172,"./log/DeathTower", "%d/%d\n", ((RA_UINT<11>*)pkt)->v,
             ((RA_UINT<15>*)pkt)->v);
         for (unsigned int i = 0; i < ((RA_UINT<11>*)pkt)->v; i++)
         {
-            tower->registRank(
+            ((CTowerRank*)m_pclApp->getTowerRank())->registRank(
                 (unsigned int)(unsigned char)*(char*)((char*)pkt + i * 0x65 + 0x1b),
                 (unsigned int)*(unsigned short*)((char*)pkt + i * 0x65 + 0x17),
                 (unsigned int)*(unsigned short*)((char*)pkt + i * 0x65 + 0x19),
@@ -5211,8 +5199,7 @@ void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
                 ((RA_UINT<10>*)&reply)->v = 0;
                 ((RA_UINT<14>*)&reply)->v = requester->GetIdByChannel();
                 strncpy((char*)&reply + 0x17, (char*)pkt + 0xa, 0x1d);
-                std::string sname((char*)pkt + 0xa);
-                target = userMgr->FindUser_CharName(sname);
+                target = userMgr->FindUser_CharName((char*)pkt + 0xa);
                 bool notfound = (target == 0);
                 if (notfound)
                 {

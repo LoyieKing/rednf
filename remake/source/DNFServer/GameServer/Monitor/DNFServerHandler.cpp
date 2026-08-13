@@ -71,8 +71,7 @@ unsigned char CServerHandler::GetServerGroupNo()
 
 void CServerHandler::Process()
 {
-    int tick = m_field24++;
-    if (m_managerServer != 0 && tick > 3)
+    if (m_managerServer != 0 && m_field24++ > 3)
     {
         unsigned char group = GetServerGroupNo();
         m_managerServer->SendHeartBeat(group & 0xff);
@@ -111,7 +110,7 @@ void CServerHandler::Process()
             else
             {
                 CTcpNetSystem* net = m_app->Get_TcpNetSystem();
-                net->OpenTcpService(*m_tcpManagerServer.GetSockRef(), ip,
+                net->OpenTcpService(*m_tcpManagerServer.GetSockRef(), m_tcpManagerServer.GetIP(),
                                     m_tcpManagerServer.GetPort());
                 DNF_LOG_SCOPE_LINE(0x124,"./log/TcpServer", "try connect to DBMW(%s, %d)",
                     m_tcpManagerServer.GetIP(), m_tcpManagerServer.GetPort());
@@ -131,7 +130,7 @@ void CServerHandler::Process()
             else
             {
                 CTcpNetSystem* net = m_app->Get_TcpNetSystem();
-                net->OpenTcpService(*m_tcpDbServer.GetSockRef(), ip, m_tcpDbServer.GetPort());
+                net->OpenTcpService(*m_tcpDbServer.GetSockRef(), m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
                 DNF_LOG_SCOPE_LINE(0x13d,"./log/TcpServer", "try connect to DBMW(%s, %d)",
                     m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
             }

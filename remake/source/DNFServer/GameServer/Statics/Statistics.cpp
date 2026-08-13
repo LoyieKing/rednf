@@ -140,8 +140,8 @@ void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
     STDeathTowerPlayDataJobStatisticKey key;
     key.m_field0 = ((Wire*)pkt)->m_f0a;
     key.m_field2 = ((Wire*)pkt)->m_f0b;
-    key.m_field4 = ((Wire*)pkt)->m_f0d;
     key.m_field8 = ((Wire*)pkt)->m_f11;
+    key.m_field4 = ((Wire*)pkt)->m_f0d;
     PlayDataJobStatistic value;
     value.m_data[0] = ((Wire*)pkt)->m_f12;
     std::map<STDeathTowerPlayDataJobStatisticKey, PlayDataJobStatistic>::iterator it =
@@ -720,15 +720,11 @@ void StatisticManager::WriteUserTingTImeCheckStatistic(
     {
         if (m_field110.size() <= 1000)
         {
-            std::map<unsigned int, int>::iterator it2 = m_field110.find(key.m_field0);
-            bool isNew2 = (m_field110.empty() || it2 == m_field110.end());
-            if (isNew2)
+            unsigned int& uKey = *(unsigned int*)((char*)pkt + 0xe);
+            std::map<unsigned int, int>::iterator it2 = m_field110.find(uKey);
+            if (m_field110.empty() || it2 == m_field110.end())
             {
-                m_field110.insert(std::make_pair(key.m_field0, 1));
-            }
-            else
-            {
-                it2->second += 1;
+                m_field110.insert(std::make_pair(uKey, key.m_field0));
             }
         }
     }

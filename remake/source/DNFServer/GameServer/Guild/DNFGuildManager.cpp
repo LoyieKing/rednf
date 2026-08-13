@@ -320,13 +320,13 @@ CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
     {
         throw CDNFException("CGuildManager::GuildMemLogin() : dwGuildKey == 0\n");
     }
+    CGuild* guild;
     CServerHandler* handler;
     if (!(handler = m_app->Get_ServerHandler()))
     {
         throw CDNFException("CGuildManager::GuildMemLogin() pclServerHandler == NULL\n");
     }
-    CGuild* guild = FindGuild(guildKey);
-    if (guild == 0)
+    if (!(guild = FindGuild(guildKey)))
     {
         guild = CreateGuild(guildKey, handler, user->GetUniqCharNo());
     }
@@ -335,12 +335,12 @@ CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
         guild->QueryGuild(handler, user->GetUniqCharNo());
         guild->SendGuildInfoToMemberOnly(user);
         guild->CheckGuildSkill();
-        AttendGuild(guildKey, user->GetUniqCharNo());
+        m_app->Get_GuildManager()->AttendGuild(guildKey, user->GetUniqCharNo());
     }
-    STTodayGuildMember* today = (STTodayGuildMember*)GetTodayMember(guildKey);
+    STTodayGuildMember* today = m_app->Get_GuildManager()->GetTodayMember(guildKey);
     if (today == 0)
     {
-        guild->QueryTodayGuildMember(handler);
+        guild->QueryTodayGuildMember(m_app->Get_ServerHandler());
     }
     else
     {
