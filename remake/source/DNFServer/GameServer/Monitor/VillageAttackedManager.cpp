@@ -311,7 +311,7 @@ void CVillageAttackedManager::SendMaxHuntingPoint()
     pkt.m_fieldA = 0x4ee2;
     register unsigned int hp = (unsigned int)m_field1c;
     register unsigned int now = GetNowTime();
-    sprintf(pkt.m_data,
+    sprintf(pkt.m_sql,
             "inSert into village_attacked_server_point_rank(server_info, occ_date, hunting_point) values(%d,cast(from_unixtime(%d) as date),%u)",
             (unsigned int)m_app->Get_ServerGroup() & 0xff, now, hp);
     m_app->Get_ServerHandler()->SendToDB(&pkt);
@@ -465,8 +465,7 @@ void CVillageAttackedManager::SendMinTime()
     register unsigned int elapse = GetElapseTime();
     register unsigned int now = GetNowTime();
     register unsigned int group = (unsigned int)m_app->Get_ServerGroup();
-    char sql[0x1001];
-    sprintf(sql,
+    sprintf(pkt.m_sql,
             "inSert into village_attacked_server_time_rank(server_info, occ_date, clear_time) values(%d,cast(from_unixtime(%d) as date),%u)",
             group & 0xff, now, elapse);
     m_app->Get_ServerHandler()->SendToDB(&pkt);
@@ -618,7 +617,7 @@ void CVillageAttackedManager::SendCharacRank()
         Packet_DBMW_Query_Msg pkt;
         pkt.m_fieldB = 6;
         pkt.m_fieldA = 0x4ee4;
-        sprintf(sql,
+        sprintf(pkt.m_sql,
                 "inSert into village_attacked_charac_point_rank(server_info, occ_date, charac_no, hunting_point, rank) values%s",
                 query.c_str());
         m_app->Get_ServerHandler()->SendToDB(&pkt);

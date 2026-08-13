@@ -98,7 +98,7 @@ void CPeriodicMessageMgr::OnTimerSendData(CServerHandler* handler)
     {
         Packet_Send_Periodic_Message pkt;
         int len = strlen(m_msg);
-        strncpy((char*)&pkt + 0xa, m_msg, len);
+        strncpy(pkt.m_msg, m_msg, len);
         handler->SendAllTcpGameServer(&pkt);
     }
     return;

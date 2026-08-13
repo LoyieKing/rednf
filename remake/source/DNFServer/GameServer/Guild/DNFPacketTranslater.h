@@ -208,14 +208,20 @@ public:
 class Packet_Answer_Join_Power : public PacketHeader {
 public:
     Packet_Answer_Join_Power();
-    char m_data[0xd];
+    unsigned int m_a;                 // +0xa
+    unsigned int m_e;                 // +0xe
+    unsigned int m_12;                // +0x12
+    unsigned char m_16;               // +0x16
 };
 
 // from GuildPackets.h
 class Packet_Answer_Secede_Power : public PacketHeader {
 public:
     Packet_Answer_Secede_Power();
-    char m_data[0xd];
+    unsigned int m_a;                 // +0xa
+    unsigned int m_e;                 // +0xe
+    unsigned int m_12;                // +0x12
+    unsigned char m_16;               // +0x16
 };
 
 // from GuildPackets.h
@@ -321,7 +327,10 @@ public:
 class Packet_DBMW_Register_To_BlackList : public PacketHeader {
 public:
     Packet_DBMW_Register_To_BlackList();
-    char m_data[0x2a];
+    unsigned int m_dbid;              // +0xa
+    char m_name[0x1e];                // +0xe
+    unsigned int m2c;                 // +0x2c
+    char m_pad30[0x4];                // +0x30
 };
 
 // from GuildPackets.h
@@ -336,14 +345,40 @@ public:
 class Packet_DBMW_Request_Guild_Create : public PacketHeader {
 public:
     Packet_DBMW_Request_Guild_Create();
-    char m_data[0x52];
+    unsigned char m_group;            // +0xa
+    unsigned int m_dbid;              // +0xb
+    unsigned int m_charNo;            // +0xf
+    char m_name[0x1e];                // +0x13
+    unsigned char m_job;              // +0x31
+    unsigned char m_growth;           // +0x32
+    unsigned char m_level;            // +0x33
+    unsigned char m_sex;              // +0x34
+    char m_ssn[2];                    // +0x35
+    char m_pad37[1];                  // +0x37
+    char m_guildName[0x17];           // +0x38
+    char m_extra[0xd];                // +0x4f
 };
 
 // from GuildPackets.h
 class Packet_DBMW_Save_Guild_Join : public PacketHeader {
 public:
     Packet_DBMW_Save_Guild_Join();
-    char m_data[0x36];
+    unsigned int m_fieldA;            // +0xa
+    unsigned char m_fieldE;           // +0xe
+    unsigned char m_fieldF;           // +0xf
+    unsigned short m_field10;         // +0x10
+    unsigned char m_field12;          // +0x12
+    unsigned char m_field13;          // +0x13
+    unsigned short m_field14;         // +0x14
+    unsigned char m_field16;          // +0x16
+    unsigned int m_uniqCharNo;        // +0x17
+    char m_name[0x1e];                // +0x1b
+    unsigned char m_job;              // +0x39
+    unsigned char m_growth;           // +0x3a
+    unsigned char m_level;            // +0x3b
+    unsigned char m_sex;              // +0x3c
+    char m_ssn[2];                    // +0x3d
+    char m_pad3f[1];                  // +0x3f
 };
 
 // from GuildPackets.h
@@ -362,28 +397,40 @@ public:
 class Packet_DB_Request_Guild_Master_Delegate : public PacketHeader {
 public:
     Packet_DB_Request_Guild_Master_Delegate();
-    char m_data[0x27];
+    unsigned int m_guildKey;          // +0xa
+    unsigned int m_charNo;            // +0xe
+    unsigned char m_group;            // +0x12
+    char m_name[0x1e];                // +0x13
 };
 
 // from GuildPackets.h
 class Packet_DB_Request_Guild_Secede : public PacketHeader {
 public:
     Packet_DB_Request_Guild_Secede();
-    char m_data[0x2f];
+    unsigned int m_guildKey;          // +0xa
+    unsigned int m_charNo;            // +0xe
+    unsigned char m_flag;             // +0x12
+    unsigned int m_nameLen;           // +0x13
+    char m_name[0x1e];                // +0x17
+    char m_pad35[0x4];                // +0x35
 };
 
 // from GuildPackets.h
 class Packet_DB_Write_Guild_Member_Memo : public PacketHeader {
 public:
     Packet_DB_Write_Guild_Member_Memo();
-    char m_data[0x1d];
+    unsigned int m_charNo;            // +0xa
+    unsigned int m_guildKey;          // +0xe
+    char m_memo[0x15];                // +0x12
 };
 
 // from GuildPackets.h
 class Packet_DMBW_Delete_To_BlackList : public PacketHeader {
 public:
     Packet_DMBW_Delete_To_BlackList();
-    unsigned int m2c;                 // +0xa
+    unsigned int m_dbid;              // +0xa
+    char m_name[0x1e];                // +0xe
+    unsigned int m2c;                 // +0x2c
 
 };
 
@@ -391,7 +438,10 @@ public:
 class Packet_Delete_To_BlackList_Result : public PacketHeader {
 public:
     Packet_Delete_To_BlackList_Result();
-    char m_data[0x27];
+    unsigned int m_channel;           // +0xa
+    char m_name[0x1e];                // +0xe
+    unsigned int m2c;                 // +0x2c
+    unsigned char m_result;           // +0x30
 };
 
 // from GuildPackets.h
@@ -409,14 +459,19 @@ public:
 class Packet_Guild_Call_Guild_Invite_To_Caller : public PacketHeader {
 public:
     Packet_Guild_Call_Guild_Invite_To_Caller();
-    char m_data[0xc];
+    unsigned int m_a;                 // +0xa
+    unsigned int m_e;                 // +0xe
+    unsigned int m_12;                // +0x12
 };
 
 // from GuildPackets.h
 class Packet_Guild_Call_Guild_Invite_To_Invited : public PacketHeader {
 public:
     Packet_Guild_Call_Guild_Invite_To_Invited();
-    char m_data[0x3d];
+    unsigned int m_a;                 // +0xa
+    unsigned int m_e;                 // +0xe
+    char m_name[0x1e];                // +0x12
+    char m_guildName[0x17];           // +0x30
 };
 
 // from GuildPackets.h
@@ -474,14 +529,23 @@ public:
 class Packet_Guild_Reply_Guild_Master_Delegate : public PacketHeader {
 public:
     Packet_Guild_Reply_Guild_Master_Delegate();
-    char m_data[0xc];
+    unsigned int m_a;                 // +0xa
+    unsigned int m_e;                 // +0xe
+    unsigned int m_12;                // +0x12
 };
 
 // from GuildPackets.h
 class Packet_Guild_Reply_Guild_Secede : public PacketHeader {
 public:
     Packet_Guild_Reply_Guild_Secede();
-    char m_data[0x48];
+    unsigned int m_guildKey;          // +0xa
+    unsigned short m_totalCnt;        // +0xe
+    unsigned int m_requester;         // +0x10
+    unsigned int m_channel;           // +0x14
+    unsigned int m_secedeType;        // +0x18
+    unsigned char m_secedeFlag;       // +0x1c
+    char m_name[0x1e];                // +0x1d
+    char m_guildName[0x17];           // +0x3b
 };
 
 // from GuildPackets.h
@@ -508,7 +572,8 @@ public:
 class Packet_Monitor_Notify_GuildMemberGrade : public PacketHeader {
 public:
     Packet_Monitor_Notify_GuildMemberGrade();
-    unsigned char m12;                 // +0xa
+    char pad0xa[0x8];                 // +0xa .. +0x11
+    unsigned char m12;                // +0x12
 
 };
 
@@ -524,14 +589,21 @@ public:
 class Packet_Monitor_Reply_Guild_Mail : public PacketHeader {
 public:
     Packet_Monitor_Reply_Guild_Mail();
-    char m_data[0x9];
+    unsigned int m_charNo;            // +0xa
+    unsigned int m_channel;           // +0xe
+    unsigned char m_result;           // +0x12
 };
 
 // from GuildPackets.h
 class Packet_Monitor_Set_Sub_Guild_Master_Reply : public PacketHeader {
 public:
     Packet_Monitor_Set_Sub_Guild_Master_Reply();
-    char m_data[0x30];
+    unsigned int m_a;                 // +0xa
+    unsigned int m_e;                 // +0xe
+    unsigned int m_12;                // +0x12
+    unsigned char m_16;               // +0x16
+    char m_name[0x1d];                // +0x17
+    char m_pad34[0x6];                // +0x34
 };
 
 // from GuildPackets.h
@@ -556,7 +628,10 @@ public:
 class Packet_Notice_DB_Guild_War_End : public PacketHeader {
 public:
     Packet_Notice_DB_Guild_War_End();
-    char m_data[0x65];
+    unsigned char m_group;            // +0xa
+    char m_fieldB[0x28];              // +0xb
+    char m_field33[0x28];             // +0x33
+    char m_field5b[0x14];             // +0x5b
 };
 
 // from GuildPackets.h
@@ -575,28 +650,39 @@ public:
 class Packet_Notice_Has_Been_Guild_Master : public PacketHeader {
 public:
     Packet_Notice_Has_Been_Guild_Master();
-    char m_data[0x8];
+    unsigned int m_charNo;            // +0xa
+    unsigned int m_channel;           // +0xe
 };
 
 // from GuildPackets.h
 class Packet_Register_To_BlackList_RESULT : public PacketHeader {
 public:
     Packet_Register_To_BlackList_RESULT();
-    char m_data[0x27];
+    unsigned int m_channel;           // +0xa
+    char m_name[0x1e];                // +0xe
+    unsigned int m2c;                 // +0x2c
+    unsigned char m_result;           // +0x30
 };
 
 // from GuildPackets.h
 class Packet_Reply_Change_Guild_Name : public PacketHeader {
 public:
     Packet_Reply_Change_Guild_Name();
-    char m_data[0x24];
+    unsigned int m_a;                 // +0xa
+    char m_padE[0x4];                 // +0xe
+    unsigned int m_12;                // +0x12
+    unsigned char m_16;               // +0x16
+    char m_name[0x17];                // +0x17
 };
 
 // from GuildPackets.h
 class Packet_Reply_Guild_Create : public PacketHeader {
 public:
     Packet_Reply_Guild_Create();
-    char m_data[0x23];
+    unsigned int m_a;                 // +0xa
+    unsigned int m_e;                 // +0xe
+    unsigned int m_12;                // +0x12
+    char m_name[0x17];                // +0x16
 };
 
 // from GuildPackets.h
@@ -629,14 +715,18 @@ public:
 class Packet_Web_Notify_Message_To_Guild : public PacketHeader {
 public:
     Packet_Web_Notify_Message_To_Guild();
-    char m_data[0x6a];
+    unsigned int m_guildKey;          // +0xa
+    unsigned char m_mode;             // +0xe
+    char m_payload[0x65];             // +0xf
 };
 
 // from GuildPackets.h
 class Packet_Answer_Guild_Member_Connection_From_Web : public PacketHeader {
 public:
     Packet_Answer_Guild_Member_Connection_From_Web();
-    char m_data[0x5e2];
+    unsigned int m_guildKey;          // +0xa
+    unsigned short m_fieldE;          // +0xe
+    STGuildMemberWebConnInfo m_members;  // +0x10
 };
 
 // from GuildPackets.h

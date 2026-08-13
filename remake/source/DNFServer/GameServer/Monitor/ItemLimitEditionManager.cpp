@@ -42,12 +42,12 @@ void CItemLimitEditionMgr::makeItemLimitEditionUpdatePacket(
              endIt = m_items.end(); it != endIt; ++it)
     {
         CItemLimitEdition* item = it->second;
-        *(unsigned int*)(idx * 9 + (char*)&pkt + 0x12) = item->getIPGNO();
-        *(unsigned int*)(idx * 9 + (char*)&pkt + 0x16) = item->getSellNum();
-        *(idx * 9 + (char*)&pkt + 0x1a) = item->isSellComplete();
+        pkt.m_records[idx].m_ipgno = item->getIPGNO();
+        pkt.m_records[idx].m_sellNum = item->getSellNum();
+        pkt.m_records[idx].m_sellComplete = item->isSellComplete();
         idx++;
     }
-    ((RA_INT<14>*)&pkt)->v = idx;
+    pkt.m_count = idx;
 }
 
 void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(

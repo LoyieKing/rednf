@@ -397,8 +397,11 @@ struct STReasonCrashDownKey
     {
         return memcmp(this, &other, sizeof(*this)) < 0;
     }
-    char m_data[0x10];
-};
+    unsigned int m_field0;  // +0
+    unsigned int m_field4;  // +4
+    unsigned int m_field8;  // +8
+    unsigned int m_fieldc;  // +0xc
+} __attribute__((packed));
 
 struct STBloodDungeonStatistic
 {
@@ -443,7 +446,7 @@ class Packet_DBMW_Reason_Crash_Down_Query : public PacketHeader
 {
 public:
     Packet_DBMW_Reason_Crash_Down_Query();
-    char m_data[0x100];
+    char m_query[0x100];
 } __attribute__((packed));
 
 class Packet_DBMW_Dungeon_Statistic_Party : public PacketHeader
@@ -469,6 +472,60 @@ struct STPartyJobWireItem
     int m_data[2];             // +0x11
 };
 
+struct STPartyCharacWireItem
+{
+    unsigned short m_field0;   // +0
+    int m_field4;              // +2
+    char m_field8;             // +6
+    unsigned char m_field9;    // +7
+    unsigned char m_fielda;    // +8
+    unsigned int m_fieldc;     // +9
+    char m_field10;            // +0xd
+    char m_field11;            // +0xe
+    int m_data[13];            // +0xf
+};
+
+struct STDeathTowerValueWireItem
+{
+    unsigned char m_field0;   // +0
+    unsigned short m_field2;  // +1
+    unsigned int m_field4;    // +3
+    int m_value;              // +7
+    char m_pad[4];            // +0xb
+};
+
+struct STDeathTowerPlayDataJobWireItem
+{
+    unsigned char m_field0;   // +0
+    unsigned short m_field2;  // +1
+    unsigned int m_field4;    // +3
+    char m_field8;            // +7
+    int m_avg;                // +8
+    int m_count;              // +0xc
+};
+
+struct STDeathTowerPlayDataPartyWireItem
+{
+    char m_field0;            // +0
+    char m_field1;            // +1
+    int m_value;              // +2
+    char m_pad[4];            // +6
+};
+
+struct STAssertManagerWriteItem
+{
+    char m_str0[0x100];       // +0
+    unsigned short m_field100;// +0x100
+    int m_count;              // +0x102
+    char m_str2[0x100];       // +0x106
+};
+
+struct STUserTingTimeCheckWriteItem
+{
+    unsigned int m_field0;    // +0
+    int m_field4;             // +4
+};
+
 class Packet_DBMW_Dungeon_Statistic_Party_Job : public PacketHeader
 {
 public:
@@ -481,23 +538,20 @@ class Packet_DBMW_Dungeon_Statistic_Party_Charac : public PacketHeader
 {
 public:
     Packet_DBMW_Dungeon_Statistic_Party_Charac();
-    char m_data[0x174f];
+    unsigned int m_count;                  // +0xa
+    STPartyCharacWireItem m_items[0x59];   // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_Packet_Overflow_Statistic : public PacketHeader
 {
 public:
     Packet_DBMW_Packet_Overflow_Statistic();
-    union
+    struct __attribute__((packed))
     {
-        char m_data[0x7];
-        struct __attribute__((packed))
-        {
-            char m_field0;            // +0xa
-            unsigned short m_field2;  // +0xb
-            unsigned int m_field4;    // +0xd
-        } m_typed;
-    };
+        char m_field0;            // +0xa
+        unsigned short m_field2;  // +0xb
+        unsigned int m_field4;    // +0xd
+    } m_typed;
 } __attribute__((packed));
 
 class Packet_Avater_Disjoint_Statistic_DB : public PacketHeader
@@ -511,22 +565,18 @@ class Packet_Emblem_Create_Statistic_DB : public PacketHeader
 {
 public:
     Packet_Emblem_Create_Statistic_DB();
-    char m_data[0x1c];
+    stCreateEmblemStatistic m_info;  // +0xa
 } __attribute__((packed));
 
 class Packet_Randombox_statistic_DB : public PacketHeader
 {
 public:
     Packet_Randombox_statistic_DB();
-    union
+    struct __attribute__((packed))
     {
-        char m_data[0x28];
-        struct __attribute__((packed))
-        {
-            unsigned int m_a[5];   // +0xa
-            unsigned int m_b[5];   // +0x1e
-        } m_typed;
-    };
+        unsigned int m_a[5];   // +0xa
+        unsigned int m_b[5];   // +0x1e
+    } m_typed;
 } __attribute__((packed));
 
 class Packet_Server_Match_data_DBMW : public PacketHeader
@@ -542,7 +592,8 @@ class Packet_DBMW_DeathTower_Statistic_Value : public PacketHeader
 {
 public:
     Packet_DBMW_DeathTower_Statistic_Value();
-    char m_data[0x17dd];
+    unsigned int m_count;                // +0xa
+    STDeathTowerValueWireItem m_items[0x197];  // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_Query_String : public PacketHeader
@@ -550,7 +601,7 @@ class Packet_DBMW_Query_String : public PacketHeader
 public:
     Packet_DBMW_Query_String();
     unsigned int m_queryId;  // +0xa
-    char m_data[0x1001];     // +0xe
+    char m_query[0x1001];    // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_Fatigue_Battery_Money_Statistic : public PacketHeader
@@ -562,35 +613,34 @@ public:
         int m_field0;
         int m_field4;
     };
-    union
+    struct __attribute__((packed))
     {
-        char m_data[0x328];
-        struct __attribute__((packed))
-        {
-            FatigueBatteryItem m_items[0x65];
-        } m_typed;
-    };
+        FatigueBatteryItem m_items[0x65];
+    } m_typed;
 } __attribute__((packed));
 
 class Packet_DBMW_User_Ting_TimeCheck_Write_Query : public PacketHeader
 {
 public:
     Packet_DBMW_User_Ting_TimeCheck_Write_Query();
-    char m_data[0x17f4];
+    unsigned int m_count;                      // +0xa
+    STUserTingTimeCheckWriteItem m_items[0x2fe];  // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_DeathTower_Statistic_Playdata_Job : public PacketHeader
 {
 public:
     Packet_DBMW_DeathTower_Statistic_Playdata_Job();
-    char m_data[0x17e4];
+    unsigned int m_count;                         // +0xa
+    STDeathTowerPlayDataJobWireItem m_items[0x17e];  // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_DeathTower_Statistic_Playdata_Party : public PacketHeader
 {
 public:
     Packet_DBMW_DeathTower_Statistic_Playdata_Party();
-    char m_data[0x17ec];
+    unsigned int m_count;                           // +0xa
+    STDeathTowerPlayDataPartyWireItem m_items[0x264];  // +0xe
 } __attribute__((packed));
 
 class Packet_Secret_Shop_Statistic : public PacketHeader
@@ -614,7 +664,8 @@ class Packet_DBMW_Assert_Manager_Info_Write_Query : public PacketHeader
 {
 public:
     Packet_DBMW_Assert_Manager_Info_Write_Query();
-    char m_data[0x123a];
+    unsigned int m_count;                  // +0xa
+    STAssertManagerWriteItem m_items[9];   // +0xe
 } __attribute__((packed));
 
 class Packet_DBMW_Ting_User_TimeCheck_Write_Query : public PacketHeader
@@ -626,15 +677,11 @@ public:
         unsigned int m_field0;
         int m_field4;
     };
-    union
+    struct __attribute__((packed))
     {
-        char m_data[0x17f4];
-        struct __attribute__((packed))
-        {
-            unsigned int m_count;        // +0xa
-            TingItem m_items[0x2fe];     // +0xe
-        } m_typed;
-    };
+        unsigned int m_count;        // +0xa
+        TingItem m_items[0x2fe];     // +0xe
+    } m_typed;
 } __attribute__((packed));
 
 class Packet_DBMW_Powerwar_Loading_Time_Report : public PacketHeader
@@ -657,7 +704,7 @@ class Packet_DBMW_TechnicalReport_Common_Query : public PacketHeader
 {
 public:
     Packet_DBMW_TechnicalReport_Common_Query();
-    char m_data[0x400];
+    char m_query[0x400];
 } __attribute__((packed));
 
 #pragma pack(pop)

@@ -2325,7 +2325,7 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
         *(unsigned int*)((char*)&dbPkt + 0xa) = guildKey;
         *(unsigned int*)((char*)&dbPkt + 0xe) = requesterCharNo;
         size_t nameLen = *(size_t*)((char*)pkt + 0x12);
-        *(unsigned char*)((char*)&dbPkt + 0x13) = (unsigned char)nameLen;
+        *(unsigned int*)((char*)&dbPkt + 0x13) = nameLen;
         memcpy((char*)&dbPkt + 0x17, (char*)pkt + 0x16, nameLen);
         (void)guild->GetMasterId();
         if (*(int*)((char*)pkt + 0x12) == 0)

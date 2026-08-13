@@ -14,6 +14,34 @@ struct STBuddyDBInfo
     char m_sex;               // +0x26
 } __attribute__((packed));
 
+struct __attribute__((packed)) STGuildJoinInfo
+{
+    unsigned char m_serverId;  // +0
+    char m_pad1[3];
+    int m_guildId;             // +0x4
+    unsigned int m_id;         // +0x8
+    unsigned int m_fieldC;     // +0xc
+    int m_characNo;            // +0x10
+    char m_characName[0x1e];   // +0x14
+    unsigned char m_lev;       // +0x32
+    unsigned char m_growType;  // +0x33
+    unsigned char m_job;       // +0x34
+    unsigned char m_sex;       // +0x35
+    char m_bornYear[3];        // +0x36
+    char m_pad39[3];           // +0x39
+};
+
+struct STTodayGuildMember
+{
+    unsigned int m_field0;   // +0（charac_no）
+    char m_name[0x1e];       // +4（charac_name，get_str 0x1d）
+    unsigned char m_field22; // +0x22（grade）
+    unsigned char m_field23; // +0x23（job）
+    unsigned char m_field24; // +0x24（grow_type）
+    unsigned char m_field25; // +0x25（sex）
+    unsigned char m_field26; // +0x26（lev）
+};
+
 class Packet_DBMW_Statistic_Login_Logout : public PacketHeader
 {
 public:
@@ -468,10 +496,21 @@ class Packet_Frame_Lag_Statistic_Result_Reload_Spec : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Statistic_Result_Reload_Spec();
-    unsigned char m_fieldA;  // +0xa
-    int m_specId;            // +0xb
-    int m_count;             // +0xf
-    char m_data[0xd6];       // +0x13 项数据区（3 条 × 各列，见 QueryReloadSpecDb）
+    unsigned char m_fieldA;              // +0xa
+    int m_batchIndex;                    // +0xb（每 6 条发送后自增）
+    int m_count;                         // +0xf
+    int m_uniqueId[6];                   // +0x13
+    unsigned int m_modifyTime[6];        // +0x2b
+    int m_specId[6];                     // +0x43
+    unsigned char m_cpuVendor[6];        // +0x5b
+    unsigned char m_cpuProcessorNum[6];  // +0x61
+    int m_aboveCpuClock[6];              // +0x67
+    int m_belowCpuClock[6];              // +0x7f
+    unsigned short m_ram[6];             // +0x97
+    int m_videocardVendor[6];            // +0xa3
+    int m_videocardDevice[6];            // +0xbb
+    unsigned short m_videocardTextureMem[6]; // +0xd3
+    unsigned char m_osVersion[6];        // +0xdf
 } __attribute__((packed));
 
 class Packet_Frame_Lag_Statistic_Result_Load_Spec : public PacketHeader
@@ -571,7 +610,7 @@ class Packet_Reply_Today_Guild_Member : public PacketHeader
 public:
     Packet_Reply_Today_Guild_Member();
     int m_fieldA;        // +0xa
-    char m_data[0x27];   // +0xe（ORIG ctor size 0x35）
+    STTodayGuildMember m_member;  // +0xe（0x27 字节）
 } __attribute__((packed));
 
 class Packet_Response_D_IPCounterList : public PacketHeader
@@ -646,14 +685,14 @@ public:
     int m_fieldE;     // +0xe
     int m_field12;    // +0x12
     int m_field16;    // +0x16
-    char m_data[0x3c];  // +0x1a（ORIG ctor size 0x56）
+    STGuildJoinInfo m_joinInfo;  // +0x1a（0x3c 字节）
 } __attribute__((packed));
 
 class Packet_Result_Loading_Periodic_Message : public PacketHeader
 {
 public:
     Packet_Result_Loading_Periodic_Message();
-    char m_data[0x200];  // +0xa
+    char m_message[0x200];  // +0xa
     int m_field20A;      // +0x20a
     int m_field20E;      // +0x20e
 } __attribute__((packed));
@@ -811,7 +850,7 @@ struct STDBConnInfo
     char m_user[0x15];      // +0x18
     char m_pass[0x15];      // +0x2d
     char m_db[0x1f];        // +0x42
-    char m_data[0x100];     // +0x61
+    char m_pad61[0x100];    // +0x61
     int m_tail;             // +0x164
 };
 
@@ -868,32 +907,18 @@ struct STGuildMemberProxy
     char m_data2c[0x15];    // +0x2c
 } __attribute__((packed));
 
-struct STGuildJoinInfo
-{
-    unsigned char m_serverId;  // +0
-    char m_pad1[3];
-    int m_guildId;             // +0x4
-    unsigned int m_id;         // +0x8
-    unsigned int m_fieldC;     // +0xc
-    int m_characNo;            // +0x10
-    char m_characName[0x1e];   // +0x14
-    unsigned char m_lev;       // +0x32
-    unsigned char m_growType;  // +0x33
-    unsigned char m_job;       // +0x34
-    unsigned char m_sex;       // +0x35
-    char m_bornYear[0x14];     // +0x36
-};
-
 struct RandomOptionSeed
 {
     void reset();
-    char m_data[1];
+    unsigned char m_seed;  // +0
 };
 
 struct RandomOptionField
 {
     void reset();
-    char m_data[3];
+    unsigned char m_b0;    // +0
+    unsigned char m_b1;    // +1
+    unsigned char m_b2;    // +2
 };
 
 struct RandomOption
@@ -912,7 +937,7 @@ struct UpgradeSeparateInfo
     UpgradeSeparateInfo();
     void reset();
     unsigned char GetUpgradeSeparate() const;
-    char m_data[1];
+    unsigned char m_bits;  // +0（b0:5 / b1:1 / b2:2）
 } __attribute__((packed));
 
 struct ReservedCapacity
@@ -999,25 +1024,13 @@ struct STGuildMemerDBInfo
     int m_field16;     // +0x16（总大小 0x1a）
 } __attribute__((packed));
 
-struct STTodayGuildMember
-{
-    ~STTodayGuildMember();
-    unsigned int m_field0;   // +0（charac_no）
-    char m_name[0x1e];       // +4（charac_name，get_str 0x1d）
-    unsigned char m_field22; // +0x22（grade）
-    unsigned char m_field23; // +0x23（job）
-    unsigned char m_field24; // +0x24（grow_type）
-    unsigned char m_field25; // +0x25（sex）
-    unsigned char m_field26; // +0x26（lev）
-};
-
 struct st_ip_counter_list
 {
     ~st_ip_counter_list();
     void CopyStruct(const st_ip_counter_list& other);
     unsigned short m_field0;  // +0（hack_type）
     unsigned short m_field2;  // +2（hack_sub_type）
-    char m_data[0xc];         // +4（c_class_ip）
+    char m_cClassIp[0xc];     // +4
     unsigned int m_field10;   // +0x10（cnt）
 };
 
@@ -1027,7 +1040,7 @@ struct st_full_ip_counter_list
     void CopyStruct(const st_full_ip_counter_list& other);
     unsigned short m_field0;  // +0（hack_type）
     unsigned short m_field2;  // +2（hack_sub_type）
-    char m_data[0x10];        // +4（full_ip）
+    char m_fullIp[0x10];      // +4
     unsigned int m_field14;   // +0x14（cnt）
 };
 
@@ -1439,26 +1452,26 @@ public:
 
 struct STItemLimitItem
 {
-    char m_data[0xf];          // +0..0xe
-    unsigned int m_field0F;    // +0xf
-    unsigned int m_field13;    // +0x13
-    unsigned int m_field17;    // +0x17
-    unsigned char m_field1B;   // +0x1b
-    unsigned int m_field1F;    // +0x1f
-    unsigned int m_field23;    // +0x23
-    unsigned int m_field27;    // +0x27
-    int m_field2B;             // +0x2b
-    unsigned int m_field2F;    // +0x2f
-    unsigned int m_field33;    // +0x33
-    unsigned int m_field37;    // +0x37
-    unsigned int m_field3B;    // +0x3b
-    unsigned int m_field3F;    // +0x3f
-    unsigned short m_field43;  // +0x43
-    unsigned short m_field45;  // +0x45
-    unsigned int m_field47;    // +0x47
-    unsigned int m_field4B;    // +0x4b
-    unsigned int m_field4F;    // +0x4f
-    unsigned int m_field53;    // +0x53
+    unsigned int m_ipgNo;                     // +0（ipg_no）
+    unsigned int m_itemNo;                    // +4（item_no）
+    unsigned int m_itemCnt;                   // +8（item_cnt）
+    unsigned char m_avatarPeriodType;         // +0xc（avatar_period_type）
+    char m_padD[3];                           // +0xd
+    unsigned int m_ceraPrice;                 // +0x10（cera_price）
+    unsigned int m_goldPrice;                 // +0x14（gold_price）
+    unsigned int m_sellCnt;                   // +0x18（sell_cnt）
+    int m_totalCnt;                           // +0x1c（total_cnt）
+    unsigned int m_restrictNo;                // +0x20（restrict_no）
+    unsigned int m_startTime;                 // +0x24（start_time）
+    unsigned int m_endTime;                   // +0x28（end_time）
+    unsigned int m_npcIdx;                    // +0x2c（npc_idx）
+    unsigned int m_condCharacJob;             // +0x30（cond_charac_job）
+    unsigned short m_condLevBegin;            // +0x34（cond_lev_begin）
+    unsigned short m_condLevEnd;              // +0x36（cond_lev_end）
+    unsigned int m_condAccCreateTimeBegin;    // +0x38（cond_acc_create_time_begin）
+    unsigned int m_condAccCreateTimeEnd;      // +0x3c（cond_acc_create_time_end）
+    unsigned int m_condChaCreateTimeBegin;    // +0x40（cond_cha_create_time_begin）
+    unsigned int m_condChaCreateTimeEnd;      // +0x44（cond_cha_create_time_end）
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Load_Data_Req : public PacketHeader
@@ -1477,8 +1490,8 @@ public:
     Packet_Item_Limit_Edition_Load_Data_Rpy();
     unsigned char m_fieldA;    // +0xa
     int m_fieldB;              // +0xb
-    STItemLimitItem m_items[1]; // +0xf
-    char m_pad[0x78c];  // 数据区（ORIG ctor size 0x7ef）
+    STItemLimitItem m_items[1]; // +0xf（0x48 × n，上限 0x1c）
+    char m_pad[0x798];  // 数据区（ORIG ctor size 0x7ef）
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Update : public PacketHeader

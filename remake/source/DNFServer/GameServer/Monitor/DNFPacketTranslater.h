@@ -413,8 +413,13 @@ class Packet_Item_Limit_Edition_Update : public PacketHeader
 public:
     Packet_Item_Limit_Edition_Update();
     unsigned int m_fieldA;    // +10
-    unsigned int m_fieldB;    // +14
-    char m_data[0x100];       // +18
+    unsigned int m_count;     // +14
+    struct __attribute__((packed)) Rec
+    {
+        unsigned int m_ipgno;        // +18
+        unsigned int m_sellNum;      // +22
+        char m_sellComplete;         // +26
+    } m_records[28];                 // +18 .. +0x10d
 } __attribute__((packed));
 
 class Packet_Monitor_Event_Start : public PacketHeader
@@ -447,7 +452,7 @@ public:
     Packet_DBMW_Query_Msg();
     unsigned int m_fieldA;    // +0xa
     unsigned int m_fieldB;    // +0xe
-    char m_data[0x1001];      // +0x12
+    char m_sql[0x1001];       // +0x12
 } __attribute__((packed));
 
 class Packet_VillageAttackedRewardServer : public PacketHeader
@@ -531,7 +536,7 @@ public:
 
 struct hyperlink_item_info
 {
-    char m_data[0x68];
+    char m_payload[0x68];
 };
 
 class Packet_Monitor_Member_Chat_ToUser_Hyper_Link : public PacketHeader
@@ -834,9 +839,9 @@ class Packet_Request_Charac_Tower_Ranking : public PacketHeader
 {
 public:
     Packet_Request_Charac_Tower_Ranking();
-    unsigned int m_idByChannel;  // +10
-    unsigned int m_uniqCharNo;   // +14
-    char m_data[0x50];           // +18
+    unsigned int m_uniqCharNo;   // +10
+    unsigned int m_idByChannel;  // +14
+    unsigned int m_scores[5][4]; // +18 .. +0x61
 } __attribute__((packed));
 
 class Packet_Send_Time_Sync_For_Login : public PacketHeader
@@ -965,7 +970,7 @@ public:
     {
         memset((char*)this + 0xa, 0, 0x200);
     }
-    char m_data[0x200];  // +0xa payload
+    char m_msg[0x200];   // +0xa payload
 } __attribute__((packed));
 
 class Packet_DB_Save_Member_Exp : public PacketHeader
@@ -991,12 +996,15 @@ class BuddyList
 public:
     BuddyList()
     {
-        ((RA_S8<0>*)this)->v = 0xff;
-        ((RA_S8<1>*)this)->v = 0;
-        ((RA_S8<2>*)this)->v = 0;
-        memset((char*)this + 3, 0, 0x27);
+        m_field0 = 0xff;
+        m_field1 = 0;
+        m_field2 = 0;
+        memset(m_pad3, 0, 0x27);
     }
-    char m_data[0x2a];
+    signed char m_field0;  // +0
+    char m_field1;         // +1
+    char m_field2;         // +2
+    char m_pad3[0x27];     // +3 .. +0x29
 } __attribute__((packed));
 
 class Packet_Monitor_Reply_Buddy_List : public PacketHeader
@@ -1129,7 +1137,7 @@ public:
     unsigned int m_idByChannel;  // +10
     unsigned char m_fieldE;      // +14
     unsigned char m_fieldF;      // +15
-    char m_data[5];              // +16
+    char m_payload[5];           // +16
 } __attribute__((packed));
 
 class Packet_Monitor_User_Repel : public PacketHeader

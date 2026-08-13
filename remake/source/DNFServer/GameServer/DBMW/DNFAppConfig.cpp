@@ -39,7 +39,7 @@ STDBConnInfo::STDBConnInfo()
     memset(m_user, 0, 0x15);
     memset(m_pass, 0, 0x15);
     memset(m_db, 0, 0x1f);
-    memset(m_data, 0, 0x100);
+    memset(m_pad61, 0, 0x100);
     m_port = 0;
     m_tail = 0;
 }

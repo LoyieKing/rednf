@@ -3,6 +3,13 @@
 
 #include "DBMWCommon.h"
 
+struct __attribute__((packed)) DBmwPacketBufferHeader
+{
+    unsigned short packetId;   // +0
+    unsigned short packetSize; // +2
+    unsigned short reversed1;  // +4
+    unsigned int reversed2;    // +6
+};
 
 class CUdpRecvBuffer
 {
@@ -10,7 +17,8 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
-    char m_data[0x1804];
+    DBmwPacketBufferHeader m_header;  // +0
+    char m_payload[0x17fa];           // +0xa
 };
 
 class CTcpRecvBuffer
@@ -19,7 +27,8 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
-    char m_data[0x1804];
+    DBmwPacketBufferHeader m_header;  // +0
+    char m_payload[0x17fa];           // +0xa
 };
 
 class CTcpSendBuffer
@@ -28,7 +37,8 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
-    char m_data[0x1804];
+    DBmwPacketBufferHeader m_header;  // +0
+    char m_payload[0x17fa];           // +0xa
 };
 
 class CPacketBuffer
@@ -37,7 +47,8 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* ptr);
     static void operator delete(void* ptr, unsigned int size);
-    char m_data[0x1804];
+    DBmwPacketBufferHeader m_header;  // +0
+    char m_payload[0x17fa];           // +0xa
 };
 
 template<class T>

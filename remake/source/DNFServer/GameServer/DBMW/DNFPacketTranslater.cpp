@@ -1218,8 +1218,8 @@ void CPacketTranslater::OnRequestApproveJoinGuild(PacketHeader* header)
         if (!m_pclApp->m_dbManager.OnGuildJoinByListApprove(
                 pkt->m_guildId, pkt->m_serverId,
                 pkt->m_id, pkt->m_characNo,
-                *(STGuildJoinInfo*)((char*)&reply + 0x1a),
-                *(unsigned int*)((char*)&reply + 0xa)))
+                reply.m_joinInfo,
+                (unsigned int&)reply.m_fieldA))
         {
             if (reply.m_fieldA == 0)
                 reply.m_fieldA = 1;

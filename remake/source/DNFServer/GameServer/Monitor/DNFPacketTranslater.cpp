@@ -820,9 +820,8 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                     ->DeleteCashObjecct(user->GetDBID());
                 stTowerRankElement_t elements[5];
                 Packet_Request_Charac_Tower_Ranking rankPkt;
-                ((RA_UINT<10>*)&rankPkt)->v = user->GetIdByChannel();
-                ((RA_UINT<14>*)&rankPkt)->v =
-                    ((RA_UINT<15>*)pkt)->v;
+                rankPkt.m_idByChannel = user->GetIdByChannel();
+                rankPkt.m_uniqCharNo = ((RA_UINT<15>*)pkt)->v;
                 char hasData = 0;
                 for (int t = 0; t < 4; t++)
                 {
@@ -832,10 +831,7 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                                           elements);
                     for (unsigned int i = 0; i < cnt; i++)
                     {
-                        *(unsigned int*)((char*)&rankPkt + 2 +
-                                         ((unsigned int)(unsigned char)elements[i].m_job * 4 +
-                                          (unsigned int)t + 4) *
-                                             2) =
+                        rankPkt.m_scores[(unsigned int)(unsigned char)elements[i].m_job][t] =
                             (unsigned int)elements[i].m_score;
                         hasData = 1;
                     }
@@ -5707,7 +5703,7 @@ Packet_Item_Limit_Edition_Update::Packet_Item_Limit_Edition_Update()
     : PacketHeader(0x1006, 0x10e)
 {
     m_fieldA = 0;
-    m_fieldB = 0;
+    m_count = 0;
 }
 
 Packet_Monitor_Event_Start::Packet_Monitor_Event_Start() : PacketHeader(0x44f, 0x12) {}
@@ -5728,7 +5724,7 @@ Packet_DBMW_Query_Msg::Packet_DBMW_Query_Msg() : PacketHeader(0x177d, 0x1013)
     int i = 0;
     for (i = 0; i <= 0x1000; i++)
     {
-        m_data[i] = 0;
+        m_sql[i] = 0;
     }
 }
 
@@ -5945,7 +5941,7 @@ Packet_DBMW_Query_Buddy_Info::Packet_DBMW_Query_Buddy_Info()
 Packet_Request_Charac_Tower_Ranking::Packet_Request_Charac_Tower_Ranking()
     : PacketHeader(0x4cb, 0x62)
 {
-    memset(m_data, 0, 0x50);
+    memset(m_scores, 0, 0x50);
 }
 
 Packet_Send_Time_Sync_For_Login::Packet_Send_Time_Sync_For_Login()
@@ -6073,7 +6069,7 @@ Packet_SecuService_Connect_Web::Packet_SecuService_Connect_Web()
     m_idByChannel = 0;
     m_fieldE = 0;
     m_fieldF = 0;
-    memset(m_data, 0, 5);
+    memset(m_payload, 0, 5);
 }
 
 Packet_Monitor_User_Repel::Packet_Monitor_User_Repel() : PacketHeader(0x4c1, 0x12) {}

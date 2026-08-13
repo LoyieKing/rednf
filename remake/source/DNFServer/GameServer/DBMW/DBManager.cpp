@@ -127,14 +127,14 @@ struct QueryMsgView
     char h[0xa];
     unsigned int m_fieldA;    // +0xa
     unsigned int m_fieldE;    // +0xe
-    char m_data[0x1001];      // +0x12
+    char m_query[0x1001];     // +0x12
 } __attribute__((packed));
 
 struct QueryStringView
 {
     char h[0xa];
     unsigned int m_queryId;   // +0xa
-    char m_data[0x1001];      // +0xe
+    char m_query[0x1001];     // +0xe
 } __attribute__((packed));
 
 struct PowerWarStatueRankerView
@@ -881,9 +881,9 @@ bool CDBManager::OnLoadPeriodicMessage(
     }
     if (h->get_n_rows() == 0)
     {
-        memset((char*)reply + 0xa, 0, 0x200);
-        *(int*)((char*)reply + 0x20a) = 0;
-        *(int*)((char*)reply + 0x20e) = 0;
+        memset(reply->m_message, 0, sizeof(reply->m_message));
+        reply->m_field20A = 0;
+        reply->m_field20E = 0;
         return 1;
     }
     if (!h->fetch())
@@ -892,27 +892,31 @@ bool CDBManager::OnLoadPeriodicMessage(
         log("./log/DBQueryErr", "CDBManager::OnLoadPeriodicMessage() fetch Error");
         return 0;
     }
-    if (!h->get_str(0, (char*)reply + 0xa, 0x200))
+    if (!h->get_str(0, reply->m_message, 0x200))
     {
         CMyFileLog log(__FUNCTION__, 0x226c);
         log("./log/DBQueryErr",
             "CDBManager::OnLoadPeriodicMessage() get_str Error");
         return 0;
     }
-    if (!h->get_int(1, *(int*)((char*)reply + 0x20a)))
+    int startH;
+    if (!h->get_int(1, startH))
     {
         CMyFileLog log(__FUNCTION__, 0x2273);
         log("./log/DBQueryErr",
             "CDBManager::OnLoadPeriodicMessage() get_int for start_h Error");
         return 0;
     }
-    if (!h->get_int(2, *(int*)((char*)reply + 0x20e)))
+    reply->m_field20A = startH;
+    int endH;
+    if (!h->get_int(2, endH))
     {
         CMyFileLog log(__FUNCTION__, 0x2279);
         log("./log/DBQueryErr",
             "CDBManager::OnLoadPeriodicMessage() get_int for end_h Error");
         return 0;
     }
+    reply->m_field20E = endH;
     return 1;
 }
 bool CDBManager::QueryGuildMember(unsigned char serverId,
@@ -1780,11 +1784,11 @@ bool CDBManager::QueryMsg(Packet_DBMW_Query_Msg* packet)
     bool ret;
     CDBHandle* h = m_handles[((QueryMsgView*)packet)->m_fieldE];
     h->set_query(((QueryMsgView*)packet)->m_fieldA,
-                 ((QueryMsgView*)packet)->m_data);
+                 ((QueryMsgView*)packet)->m_query);
     ret = h->exec(((QueryMsgView*)packet)->m_fieldA);
     if (!ret)
     {
-        register char* str = ((QueryMsgView*)packet)->m_data;
+        register char* str = ((QueryMsgView*)packet)->m_query;
         CMyFileLog log(__FUNCTION__, 0x1db6);
         log("./log/DBQueryErr", "GetDBMWQueryMsg Query(%s) Error\n",
             str);
@@ -1797,11 +1801,11 @@ bool CDBManager::GetDBMWStatistic(Packet_DBMW_Query_String* packet)
     bool ret;
     CDBHandle* h = m_handles[4];    // log db
     h->set_query(((QueryStringView*)packet)->m_queryId,
-                 ((QueryStringView*)packet)->m_data);
+                 ((QueryStringView*)packet)->m_query);
     ret = h->exec(((QueryStringView*)packet)->m_queryId);
     if (!ret)
     {
-        register char* str = ((QueryStringView*)packet)->m_data;
+        register char* str = ((QueryStringView*)packet)->m_query;
         CMyFileLog log(__FUNCTION__, 0x1cb8);
         log("./log/DBQueryErr", "GetDBMWStatistic Query(%s) Error\n",
             str);
@@ -1966,7 +1970,7 @@ char CDBManager::OnSaveFatigueBattery(
 }
 void RandomOptionSeed::reset()
 {
-    m_data[0] = 0;
+    m_seed = 0;
 }
 void RandomOption::reset()
 {
@@ -1979,9 +1983,9 @@ void RandomOption::reset()
 }
 void RandomOptionField::reset()
 {
-    m_data[0] = 0;
-    m_data[1] = 0;
-    m_data[2] = 0;
+    m_b0 = 0;
+    m_b1 = 0;
+    m_b2 = 0;
 }
 UpgradeSeparateInfo::UpgradeSeparateInfo()
 {
@@ -1989,13 +1993,13 @@ UpgradeSeparateInfo::UpgradeSeparateInfo()
 }
 void UpgradeSeparateInfo::reset()
 {
-    (*(UpgradeSeparateBits*)m_data).b0 &= ~0x1f;
-    (*(UpgradeSeparateBits*)m_data).b1 &= ~0x1;
-    (*(UpgradeSeparateBits*)m_data).b2 = 0;
+    (*(UpgradeSeparateBits*)&m_bits).b0 &= ~0x1f;
+    (*(UpgradeSeparateBits*)&m_bits).b1 &= ~0x1;
+    (*(UpgradeSeparateBits*)&m_bits).b2 = 0;
 }
 unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const
 {
-    return (unsigned char)(m_data[0] & 0x1f);
+    return (unsigned char)(m_bits & 0x1f);
 }
 ReservedCapacity::ReservedCapacity()
 {
@@ -2081,7 +2085,6 @@ STGuildMemerDBInfo::STGuildMemerDBInfo()
     m_field16 = 0;
     memset(m_pad, 0, 0x15);
 }
-STTodayGuildMember::~STTodayGuildMember() {}
 st_ip_counter_list::~st_ip_counter_list() {}
 st_full_ip_counter_list::~st_full_ip_counter_list() {}
 stTowerRank_t::~stTowerRank_t() {}
@@ -2100,16 +2103,16 @@ void st_ip_counter_list::CopyStruct(const st_ip_counter_list& other)
 {
     m_field0 = other.m_field0;
     m_field2 = other.m_field2;
-    memset(m_data, 0, 0xc);
-    strncpy(m_data, other.m_data, 0xc);
+    memset(m_cClassIp, 0, 0xc);
+    strncpy(m_cClassIp, other.m_cClassIp, 0xc);
     m_field10 = other.m_field10;
 }
 void st_full_ip_counter_list::CopyStruct(const st_full_ip_counter_list& other)
 {
     m_field0 = other.m_field0;
     m_field2 = other.m_field2;
-    memset(m_data, 0, 0x10);
-    strncpy(m_data, other.m_data, 0x10);
+    memset(m_fullIp, 0, 0x10);
+    strncpy(m_fullIp, other.m_fullIp, 0x10);
     m_field14 = other.m_field14;
 }
 Packet_Server_Queue_Load_Statistic::Packet_Server_Queue_Load_Statistic()
@@ -2197,7 +2200,7 @@ Packet_DB_Reply_Guild_Master_Delegate::Packet_DB_Reply_Guild_Master_Delegate()
 Packet_DB_Response_Approve_Join_Guild::Packet_DB_Response_Approve_Join_Guild()
     : PacketHeader(0x1bc5, 0x56), m_fieldA(0), m_fieldE(0), m_field12(0), m_field16(0)
 {
-    memset(m_data, 0, 0x3c);
+    memset(&m_joinInfo, 0, sizeof(m_joinInfo));
 }
 Packet_Guild_Load_Guild_Cargo_History::Packet_Guild_Load_Guild_Cargo_History()
     : PacketHeader(0x709, 0x972), m_fieldA(0), m_fieldE(0)
@@ -2214,7 +2217,7 @@ Packet_DB_Load_Reply_Guild_Board_Write::Packet_DB_Load_Reply_Guild_Board_Write()
 Packet_Result_Loading_Periodic_Message::Packet_Result_Loading_Periodic_Message()
     : PacketHeader(0x1f49, 0x212)
 {
-    memset((char*)this + 0xa, 0, 0x200);
+    memset(m_message, 0, sizeof(m_message));
     m_field20A = 0;
     m_field20E = 0;
 }
@@ -2914,12 +2917,14 @@ bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
         log("./log/DBQueryErr", "exec(seLect_from_guild_join_list) or fetch() Query Error");
         return 0;
     }
-    if (!h->get_uint(0, joinInfo.m_id))
+    unsigned int accId;
+    if (!h->get_uint(0, accId))
     {
         CMyFileLog log(__FUNCTION__, 0x23dd);
         log("./log/DBQueryErr", "get_uint(0, join_info.m_uAccId) Query Error");
         return 0;
     }
+    joinInfo.m_id = accId;
     if (!h->get_str(1, joinInfo.m_bornYear, 3))
     {
         CMyFileLog log(__FUNCTION__, 0x23e3);
@@ -4291,47 +4296,35 @@ bool CDBManager::onItemLimitEditionLoadData(
     {
         if (!h->fetch())
             return 0;
-#define IT(i) ((STItemLimitItem*)((char*)rpy + 0xf + (i) * 0x48))
+        STItemLimitItem* item = &rpy->m_items[i];
         int col = 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x0f)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x13)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x17)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x1f)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x23)))
-            return 0;
-        if (!h->get_byte(col++, *(char*)((char*)IT(i) + 0x1b)))
-            return 0;
-        if (!h->get_int(col++, *(int*)((char*)IT(i) + 0x2b)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x27)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x2f)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x33)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x37)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x3b)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x3f)))
-            return 0;
-        if (!h->get_ushort(col++, *(unsigned short*)((char*)IT(i) + 0x43)))
-            return 0;
-        if (!h->get_ushort(col++, *(unsigned short*)((char*)IT(i) + 0x45)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x47)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x4b)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x4f)))
-            return 0;
-        if (!h->get_uint(col++, *(unsigned int*)((char*)IT(i) + 0x53)))
-            return 0;
-#undef IT
+        unsigned int u;
+        unsigned short s;
+        int v;
+        char c;
+#define DNF_GETU(field) do { if (!h->get_uint(col++, u)) return 0; item->field = u; } while (0)
+#define DNF_GETS(field) do { if (!h->get_ushort(col++, s)) return 0; item->field = s; } while (0)
+        DNF_GETU(m_ipgNo);
+        DNF_GETU(m_itemNo);
+        DNF_GETU(m_itemCnt);
+        DNF_GETU(m_ceraPrice);
+        DNF_GETU(m_goldPrice);
+        if (!h->get_byte(col++, c)) return 0; item->m_avatarPeriodType = c;
+        if (!h->get_int(col++, v)) return 0; item->m_totalCnt = v;
+        DNF_GETU(m_sellCnt);
+        DNF_GETU(m_restrictNo);
+        DNF_GETU(m_startTime);
+        DNF_GETU(m_endTime);
+        DNF_GETU(m_npcIdx);
+        DNF_GETU(m_condCharacJob);
+        DNF_GETS(m_condLevBegin);
+        DNF_GETS(m_condLevEnd);
+        DNF_GETU(m_condAccCreateTimeBegin);
+        DNF_GETU(m_condAccCreateTimeEnd);
+        DNF_GETU(m_condChaCreateTimeBegin);
+        DNF_GETU(m_condChaCreateTimeEnd);
+#undef DNF_GETU
+#undef DNF_GETS
     }
     return 1;
 }
@@ -4736,36 +4729,36 @@ char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
     int count = n_rows / 6;
     if (n_rows % 6 != 0)
         count++;
-    *(int*)((char*)&rp + 0xf) = count;
-    *(int*)((char*)&rp + 0xb) = 1;
+    rp.m_count = count;
+    rp.m_batchIndex = 1;
     int i = 0;
     for (int j = 0; j < n_rows; j++)
     {
         if (!h->fetch())
             return 0;
-        if (!h->get_int(0, *(int*)((char*)&rp + (i + 4) * 4 + 3)))
+        if (!h->get_int(0, rp.m_uniqueId[i]))
             return 0;
-        if (!h->get_uint(1, *(unsigned int*)((char*)&rp + (i + 8) * 4 + 0xb)))
+        if (!h->get_uint(1, rp.m_modifyTime[i]))
             return 0;
-        if (!h->get_int(2, *(int*)((char*)&rp + (i + 0x10) * 4 + 3)))
+        if (!h->get_int(2, rp.m_specId[i]))
             return 0;
-        if (!h->get_byte(3, *(char*)((char*)&rp + 0x50 + i + 0xb)))
+        if (!h->get_byte(3, (char&)rp.m_cpuVendor[i]))
             return 0;
-        if (!h->get_byte(4, *(char*)((char*)&rp + 0x60 + i + 1)))
+        if (!h->get_byte(4, (char&)rp.m_cpuProcessorNum[i]))
             return 0;
-        if (!h->get_int(5, *(int*)((char*)&rp + (i + 0x18) * 4 + 7)))
+        if (!h->get_int(5, rp.m_aboveCpuClock[i]))
             return 0;
-        if (!h->get_int(6, *(int*)((char*)&rp + (i + 0x1c) * 4 + 0xf)))
+        if (!h->get_int(6, rp.m_belowCpuClock[i]))
             return 0;
-        if (!h->get_short(7, *(short*)((char*)&rp + (i + 0x48) * 2 + 7)))
+        if (!h->get_short(7, (short&)rp.m_ram[i]))
             return 0;
-        if (!h->get_int(8, *(int*)((char*)&rp + (i + 0x28) * 4 + 3)))
+        if (!h->get_int(8, rp.m_videocardVendor[i]))
             return 0;
-        if (!h->get_int(9, *(int*)((char*)&rp + (i + 0x2c) * 4 + 0xb)))
+        if (!h->get_int(9, rp.m_videocardDevice[i]))
             return 0;
-        if (!h->get_short(10, *(short*)((char*)&rp + (i + 0x68) * 2 + 3)))
+        if (!h->get_short(10, (short&)rp.m_videocardTextureMem[i]))
             return 0;
-        if (!h->get_byte(11, *(char*)((char*)&rp + 0xd0 + i + 0xf)))
+        if (!h->get_byte(11, (char&)rp.m_osVersion[i]))
             return 0;
         i++;
         if (i % 6 == 0)
@@ -4773,14 +4766,14 @@ char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
             stats->SendToServer((char*)&rp, rp.packetSize);
             DNFFLib::Sleep_Ext(0, 1);
             stats->SendToServer((char*)&rp, rp.packetSize);
-            *(int*)((char*)&rp + 0xb) += 1;
+            rp.m_batchIndex += 1;
             i = 0;
         }
     }
     if (i != 0)
     {
         if (i > 0 && i <= 5)
-            *(int*)((char*)&rp + (i + 4) * 4 + 3) = -1;
+            rp.m_uniqueId[i] = -1;
         stats->SendToServer((char*)&rp, rp.packetSize);
         DNFFLib::Sleep_Ext(0, 1);
         stats->SendToServer((char*)&rp, rp.packetSize);
@@ -4991,7 +4984,7 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
     if (vec.size() <= 0x13)
         return 1;
     STTodayGuildMember& m = vec[rand() % vec.size()];
-    *(STTodayGuildMember*)((char*)&reply + 0xe) = m;
+    reply.m_member = m;
     vec.clear();
     return 1;
 }
@@ -5655,8 +5648,8 @@ bool CDBManager::QueryIPCounter(
             return 0;
         if (!h->get_ushort(1, item.m_field2))
             return 0;
-        memset(item.m_data, 0, 0xc);
-        if (!h->get_str(2, item.m_data, 0xc))
+        memset(item.m_cClassIp, 0, sizeof(item.m_cClassIp));
+        if (!h->get_str(2, item.m_cClassIp, 0xc))
             return 0;
         if (!h->get_uint(3, item.m_field10))
             return 0;
@@ -5687,8 +5680,8 @@ bool CDBManager::QueryIPCounter(
             return 0;
         if (!h->get_ushort(1, item.m_field2))
             return 0;
-        memset(item.m_data, 0, 0x10);
-        if (!h->get_str(2, item.m_data, 0x10))
+        memset(item.m_fullIp, 0, sizeof(item.m_fullIp));
+        if (!h->get_str(2, item.m_fullIp, 0x10))
             return 0;
         if (!h->get_uint(3, item.m_field14))
             return 0;
