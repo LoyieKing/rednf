@@ -56,7 +56,16 @@ public:
     class MonitoringSpecCase
     {
     public:
-        char m_data[0x20];  // +0（实际大小 0x20，map 节点 0x34）
+        int   m_specId;   // +0x00
+        char  m_field4;   // +0x04
+        char  m_field5;   // +0x05
+        int   m_field8;   // +0x08
+        int   m_fieldc;   // +0x0c
+        unsigned short m_field10;  // +0x10
+        int   m_field14;  // +0x14
+        int   m_field18;  // +0x18
+        unsigned short m_field1c;  // +0x1c
+        char  m_field1e;  // +0x1e
     };
 
     FrameLagCollector();

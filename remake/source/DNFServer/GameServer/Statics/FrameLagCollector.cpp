@@ -14,6 +14,23 @@
 
 struct PairView { int m_key; int m_f0; char m_rest[0x1c]; };
 struct PktView { char m_pad[0xa]; int m_a; } __attribute__((packed));
+struct FrameLagPktHeader
+{
+    char m_pad0[0xa];           // +0x00 PacketHeader
+    int m_min;                  // +0x0a
+    char m_field_e;             // +0x0e
+    char m_field_f;             // +0x0f
+    char m_pad10[0x2];          // +0x10
+    unsigned short m_field_12;  // +0x12
+    unsigned short m_field_14;  // +0x14
+    unsigned short m_field_16;  // +0x16
+    unsigned short m_field_18;  // +0x18
+    char m_field_1a;            // +0x1a
+    unsigned int m_directx;     // +0x1b
+    char m_module;              // +0x1f
+    short m_sum1;               // +0x20
+    short m_sum2;               // +0x22
+} __attribute__((packed));
 
 int FrameLagCollector::GetCollectInterval()
 {
@@ -143,7 +160,7 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
         return 4;
     }
     m_field6c++;
-    m_directx.add_cnt(*(unsigned int*)((char*)pkt + 0x1b));
+    m_directx.add_cnt(((FrameLagPktHeader*)pkt)->m_directx);
     for (int i = 0; i < 6; i++)
     {
         m_memory[i].SetUsedMemory((char)*(char*)((char*)pkt + i + 0x174),
@@ -153,24 +170,23 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
          it != m_monitor.end(); ++it)
     {
         char match = 1;
-        char* s = (char*)&it->second;
-        if (!(*(char*)(s + 0x8) == -1 || *(char*)(s + 0x8) == *(char*)((char*)pkt + 0x3c)))
+        if (!(it->second.m_field4 == -1 || it->second.m_field4 == ((FrameLagPktHeader*)pkt)->m_field_f))
             match = 0;
-        if (match && !(*(char*)(s + 0x9) == -1 || *(char*)(s + 0x9) == *(char*)((char*)pkt + 0x38)))
+        if (match && !(it->second.m_field5 == -1 || it->second.m_field5 == ((FrameLagPktHeader*)pkt)->m_field_e))
             match = 0;
-        if (match && !(*(int*)(s + 0xc) == -1 || *(int*)((char*)pkt + 0x28) < *(int*)(s + 0xc)))
+        if (match && !(it->second.m_field8 == -1 || it->second.m_field8 <= ((FrameLagPktHeader*)pkt)->m_min))
             match = 0;
-        if (match && !(*(int*)(s + 0x10) == -1 || *(int*)(s + 0x10) <= *(int*)((char*)pkt + 0x28)))
+        if (match && !(it->second.m_fieldc == -1 || it->second.m_fieldc > ((FrameLagPktHeader*)pkt)->m_min))
             match = 0;
-        if (match && !(*(short*)(s + 0x14) == -1 || *(short*)(s + 0x14) == *(short*)((char*)pkt + 0x60)))
+        if (match && !(it->second.m_field10 == -1 || it->second.m_field10 == ((FrameLagPktHeader*)pkt)->m_field_18))
             match = 0;
-        if (match && !(*(int*)(s + 0x18) == -1 || *(unsigned int*)(s + 0x18) == (unsigned int)*(unsigned short*)((char*)pkt + 0x48)))
+        if (match && !(it->second.m_field14 == -1 || (unsigned int)it->second.m_field14 == (unsigned int)((FrameLagPktHeader*)pkt)->m_field_12))
             match = 0;
-        if (match && !(*(int*)(s + 0x1c) == -1 || *(unsigned int*)(s + 0x1c) == (unsigned int)*(unsigned short*)((char*)pkt + 0x50)))
+        if (match && !(it->second.m_field18 == -1 || (unsigned int)it->second.m_field18 == (unsigned int)((FrameLagPktHeader*)pkt)->m_field_14))
             match = 0;
-        if (match && !(*(short*)(s + 0x20) == -1 || *(short*)(s + 0x20) == *(short*)((char*)pkt + 0x58)))
+        if (match && !(it->second.m_field1c == -1 || it->second.m_field1c == ((FrameLagPktHeader*)pkt)->m_field_16))
             match = 0;
-        if (match && !(*(char*)(s + 0x22) == -1 || *(char*)(s + 0x22) == *(char*)((char*)pkt + 0x68)))
+        if (match && !(it->second.m_field1e == -1 || it->second.m_field1e == ((FrameLagPktHeader*)pkt)->m_field_1a))
             match = 0;
         if (match)
         {
@@ -178,19 +194,19 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
             if (fd != m_data.end())
             {
                 FrameLagDataStruct* v = &fd->second;
-                *(int*)((char*)v + 4) = *(int*)((char*)v + 4) + 1;
-                if (-1 < (char)*(char*)((char*)pkt + 0x7c) &&
-                    (char)*(char*)((char*)pkt + 0x7c) < 8)
+                *(int*)((char*)v + 0) = *(int*)((char*)v + 0) + 1;
+                if (-1 < (char)((FrameLagPktHeader*)pkt)->m_module &&
+                    (char)((FrameLagPktHeader*)pkt)->m_module < 8)
                 {
-                    *(short*)((char*)v + 0x10 + ((char)*(char*)((char*)pkt + 0x7c) + 8) * 2) += 1;
+                    *(short*)((char*)v + 0x0c + ((char)((FrameLagPktHeader*)pkt)->m_module + 8) * 2) += 1;
                 }
-                if (-1 < *(short*)((char*)pkt + 0x80))
+                if (-1 < ((FrameLagPktHeader*)pkt)->m_sum1)
                 {
-                    *(int*)((char*)v + 0x34) += (int)*(short*)((char*)pkt + 0x80);
-                    *(int*)((char*)v + 0x38) += (int)*(short*)((char*)pkt + 0x88);
-                    *(int*)((char*)v + 0x30) += 1;
+                    *(int*)((char*)v + 0x30) += (int)((FrameLagPktHeader*)pkt)->m_sum1;
+                    *(int*)((char*)v + 0x34) += (int)((FrameLagPktHeader*)pkt)->m_sum2;
+                    *(int*)((char*)v + 0x2c) += 1;
                 }
-                accFrameLagStruct(*v, (FrameLagStruct*)((char*)pkt + 0x90));
+                accFrameLagStruct(*v, (FrameLagStruct*)((char*)pkt + 0x24));
             }
         }
     }
@@ -250,21 +266,19 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
             m_field4c = ts;
         }
         MonitoringSpecCase mc;
-        *(int*)((char*)&mc + 0x0) = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-        *(int*)((char*)&mc + 0x4) =
-            *(unsigned char*)((char*)pkt + 0x5b + i) |
-            (*(unsigned char*)((char*)pkt + 0x61 + i) << 8);
-        *(int*)((char*)&mc + 0x8) = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
-        *(int*)((char*)&mc + 0xc) = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
-        *(int*)((char*)&mc + 0x10) = *(unsigned short*)((char*)pkt + (i + 0x48) * 2 + 7);
-        *(int*)((char*)&mc + 0x14) = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
-        *(int*)((char*)&mc + 0x18) = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-        *(int*)((char*)&mc + 0x1c) =
-            *(unsigned short*)((char*)pkt + (i + 0x68) * 2 + 3) |
-            (*(unsigned char*)((char*)pkt + 0xdf + i) << 16);
+        mc.m_specId = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
+        mc.m_field4 = *(char*)((char*)pkt + 0x5b + i);
+        mc.m_field5 = *(char*)((char*)pkt + 0x61 + i);
+        mc.m_field8 = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
+        mc.m_fieldc = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
+        mc.m_field10 = *(short*)((char*)pkt + (i + 0x48) * 2 + 7);
+        mc.m_field14 = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
+        mc.m_field18 = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
+        mc.m_field1c = *(short*)((char*)pkt + (i + 0x68) * 2 + 3);
+        mc.m_field1e = *(char*)((char*)pkt + 0xdf + i);
         m_monitor[sid] = mc;
         FrameLagDataStruct fd;
-        m_data[*(int*)((char*)&mc + 0x0)] = fd;
+        m_data[mc.m_specId] = fd;
     }
     if ((int)m_map1c.size() == *(int*)((char*)pkt + 0xf))
     {
@@ -305,32 +319,30 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
         if (it == m_monitor.end())
         {
             MonitoringSpecCase mc;
-            *(int*)((char*)&mc + 0x0) = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-            *(int*)((char*)&mc + 0x4) =
-                *(unsigned char*)((char*)pkt + 0x5b + i) |
-                (*(unsigned char*)((char*)pkt + 0x61 + i) << 8);
-            *(int*)((char*)&mc + 0x8) = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
-            *(int*)((char*)&mc + 0xc) = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
-            *(int*)((char*)&mc + 0x10) = *(unsigned short*)((char*)pkt + (i + 0x48) * 2 + 7);
-            *(int*)((char*)&mc + 0x14) = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
-            *(int*)((char*)&mc + 0x18) = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-            *(int*)((char*)&mc + 0x1c) =
-                *(unsigned short*)((char*)pkt + (i + 0x68) * 2 + 3) |
-                (*(unsigned char*)((char*)pkt + 0xdf + i) << 16);
+            mc.m_specId = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
+            mc.m_field4 = *(char*)((char*)pkt + 0x5b + i);
+            mc.m_field5 = *(char*)((char*)pkt + 0x61 + i);
+            mc.m_field8 = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
+            mc.m_fieldc = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
+            mc.m_field10 = *(short*)((char*)pkt + (i + 0x48) * 2 + 7);
+            mc.m_field14 = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
+            mc.m_field18 = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
+            mc.m_field1c = *(short*)((char*)pkt + (i + 0x68) * 2 + 3);
+            mc.m_field1e = *(char*)((char*)pkt + 0xdf + i);
             m_monitor[sid] = mc;
         }
         else
         {
-            *(int*)((char*)&it->second + 0x4) = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
-            *(char*)((char*)&it->second + 0x8) = *(char*)((char*)pkt + 0x5b + i);
-            *(char*)((char*)&it->second + 0x9) = *(char*)((char*)pkt + 0x61 + i);
-            *(int*)((char*)&it->second + 0xc) = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
-            *(int*)((char*)&it->second + 0x10) = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
-            *(short*)((char*)&it->second + 0x14) = *(short*)((char*)pkt + (i + 0x48) * 2 + 7);
-            *(int*)((char*)&it->second + 0x18) = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
-            *(int*)((char*)&it->second + 0x1c) = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
-            *(short*)((char*)&it->second + 0x20) = *(short*)((char*)pkt + (i + 0x68) * 2 + 3);
-            *(char*)((char*)&it->second + 0x22) = *(char*)((char*)pkt + 0xdf + i);
+            it->second.m_specId = *(int*)((char*)pkt + (i + 0x10) * 4 + 3);
+            it->second.m_field4 = *(char*)((char*)pkt + 0x5b + i);
+            it->second.m_field5 = *(char*)((char*)pkt + 0x61 + i);
+            it->second.m_field8 = *(int*)((char*)pkt + (i + 0x18) * 4 + 7);
+            it->second.m_fieldc = *(int*)((char*)pkt + (i + 0x1c) * 4 + 0xf);
+            it->second.m_field10 = *(short*)((char*)pkt + (i + 0x48) * 2 + 7);
+            it->second.m_field14 = *(int*)((char*)pkt + (i + 0x28) * 4 + 3);
+            it->second.m_field18 = *(int*)((char*)pkt + (i + 0x2c) * 4 + 0xb);
+            it->second.m_field1c = *(short*)((char*)pkt + (i + 0x68) * 2 + 3);
+            it->second.m_field1e = *(char*)((char*)pkt + 0xdf + i);
         }
         FrameLagDataStruct fd;
         m_data[*(int*)((char*)pkt + (i + 0x10) * 4 + 3)] = fd;
