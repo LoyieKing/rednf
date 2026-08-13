@@ -299,15 +299,15 @@ void CGuild::SetPowerSide(unsigned char side)
 
 STGuildMemberProxy::STGuildMemberProxy()
 {
-    m0 = 0;
-    m22 = 0xff;
-    m23 = 0xff;
-    m_field24 = 0xffff;
-    m_field26 = 0;
-    m_field27 = 0;
-    m_field28 = 0;
-    memset(m_pad4, 0, 0x1e);
-    memset(m_pad2c, 0, 0x15);
+    m_no = 0;
+    m_job = 0xff;
+    m_growType = 0xff;
+    m_lev = 0xffff;
+    m_sex = 0;
+    m_grade = 0;
+    m_lastPlayTime = 0;
+    memset(m_name, 0, 0x1e);
+    memset(m_memo, 0, 0x15);
 }
 
 #pragma pack(push,1)

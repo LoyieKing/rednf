@@ -152,7 +152,6 @@ class Packet_Monitor_Notice_Guild_Enter : public PacketHeader {
 public:
     Packet_Monitor_Notice_Guild_Enter();
     ST_Notice_Guild_Enter m_info;  // +0xa
-    char m_pad[5];                 // +0x4b
 };
 #pragma pack(pop)
 

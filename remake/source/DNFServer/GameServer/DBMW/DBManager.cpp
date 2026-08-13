@@ -710,8 +710,12 @@ char CDBManager::OnInsertGuildCargoHistory(
         *(unsigned int*)(r + 0x2d), *(signed char*)(r + 0x28),
         *(unsigned char*)(r + 0x31), *(unsigned int*)(r + 0x32),
         *(unsigned int*)(r + 0x37), *(unsigned short*)(r + 0x3b),
-        *(unsigned int*)(r + 0x3d), *(unsigned int*)(r + 0x36) & 0x1f,
-        (*(unsigned int*)(r + 0x36) >> 5) & 1,
+        *(unsigned int*)(r + 0x3d),
+        // +0x36 为位域字节：低 5 bit upgrade、高 3 bit seal_cnt。
+        // ORIG 反汇编 movzbl 0x36(%eax),%eax; shr $0x5,%al 只读 1 字节，
+        // seal_cnt = byte >> 5（0-7）；原写法读 4 字节且 &1 只取 bit5，语义错误。
+        *(unsigned char*)(r + 0x36) & 0x1f,
+        (unsigned int)(*(unsigned char*)(r + 0x36)) >> 5,
         *(unsigned char*)(r + 0x41), *(unsigned short*)(r + 0x42),
         h->blob_to_str(0, r + 0x4e, 0xe),
         ((UpgradeSeparateInfo*)(r + 0x5c))->GetUpgradeSeparate());
@@ -5126,7 +5130,10 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
     if (vec.size() <= 0x13)
         return 1;
     STTodayGuildMember& m = vec[rand() % vec.size()];
-    memcpy(reply.m_data, &m, sizeof(STTodayGuildMember));
+    // ORIG 逐字段拷贝 0x27 字节（9 dword + word + byte，写 reply +0xe..+0x34）。
+    // sizeof(STTodayGuildMember) 因对齐为 0x28，memcpy 会越界多写 +0x35 一字节，
+    // 与 ORIG 语义不符（ORIG 汇编见 md：mov %ecx,0xe(%edx) ... mov %al,0x34(%edx)）。
+    memcpy(reply.m_data, &m, 0x27);
     vec.clear();
     return 1;
 }

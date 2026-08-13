@@ -77,15 +77,15 @@ struct __attribute__((packed)) STGuildSkill
 struct __attribute__((packed)) STGuildMemberProxy
 {
     STGuildMemberProxy();
-    unsigned int m0;            // +0
-    char m_pad4[0x1e];          // +4 .. +0x22
-    unsigned char m22;          // +0x22
-    unsigned char m23;          // +0x23
-    unsigned short m_field24;   // +0x24
-    unsigned char m_field26;    // +0x26
-    unsigned char m_field27;    // +0x27
-    unsigned int m_field28;     // +0x28
-    char m_pad2c[0x15];         // +0x2c .. +0x41
+    int m_no;               // +0（SQL charac_no）
+    char m_name[0x1e];      // +4（charac_name，SQL get_str 0x1d）
+    unsigned char m_job;    // +0x22（SQL job）
+    unsigned char m_growType;// +0x23（SQL grow_type）
+    unsigned short m_lev;   // +0x24（SQL lev）
+    unsigned char m_sex;    // +0x26（SQL sex）
+    unsigned char m_grade;  // +0x27（SQL grade）
+    int m_lastPlayTime;     // +0x28（SQL unix_timestamp(last_play_time)）
+    char m_memo[0x15];      // +0x2c（SQL memo）
 };
 
 // from GuildDomain.h
@@ -210,6 +210,10 @@ struct __attribute__((packed)) ST_Notice_Guild_Enter
     unsigned int m_charNo;     // +8
     char m_guildName[0x17];    // +0xc
     char m_charName[0x1e];     // +0x23
+    // 尾部字段（ORIG GuildJoin 写 dbid/0；OnNoticeGuildEnter 写 charNo/1。
+    // NoticeEnterToGuildMember 整块 memcpy 0x46 字节 → Packet_Monitor_Notice_Guild_Enter_ToUser）
+    unsigned int m_field_4b;   // +0x41
+    unsigned char m_field_4f;  // +0x45
 };
 
 // from GuildDomain.h
@@ -550,7 +554,6 @@ public:
     unsigned int m_b;              // +0xe
     unsigned short m_totalCnt;     // +0x12
     ST_Notice_Guild_Enter m_info;  // +0x14
-    char m_pad55[5];               // +0x55
 };
 #pragma pack(pop)
 

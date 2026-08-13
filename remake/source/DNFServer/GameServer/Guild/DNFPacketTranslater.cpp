@@ -252,6 +252,24 @@ struct PTL_NoticeGuildEnterPkt
     unsigned char m_field_4f; // +0x4f
 } __attribute__((packed));
 
+// 本地布局视图（STGuildJoinInfo 在 guild 侧仅前置声明；与 DBMW DNFPacket.h 同布局）
+struct STGuildJoinInfo_Layout
+{
+    unsigned char m_serverId;  // +0
+    char m_pad1[3];
+    int m_guildId;             // +0x4
+    unsigned int m_id;         // +0x8
+    unsigned int m_mid;        // +0xc
+    int m_characNo;            // +0x10
+    char m_characName[0x1e];   // +0x14
+    unsigned char m_lev;       // +0x32
+    unsigned char m_growType;  // +0x33
+    unsigned char m_job;       // +0x34
+    unsigned char m_sex;       // +0x35
+    char m_bornYear[3];        // +0x36
+    char m_pad39[3];           // +0x39
+} __attribute__((packed));
+
 struct PTL_NoticeGuildCreatePkt
 {
     char m_base[0xa];
@@ -2609,17 +2627,21 @@ void CPacketTranslater::GuildJoin(CGuild* guild, CUser* user, unsigned int dbid)
             DNF_LOG_SCOPE_LINE(0xa4a,"./log/GuildModify", "GUILD JOIN guild(%s) char(%s)",
                 guild->GetGuildName(), user->GetCharName());
             ST_Notice_Guild_Enter info;
-            memset(&info, 0, sizeof(info));
-            *(unsigned int*)((char*)&info + 0) = guild->GetGuildKey();
-            *(unsigned int*)((char*)&info + 4) = user->GetDBID();
-            *(unsigned int*)((char*)&info + 8) = user->GetUniqCharNo();
-            memcpy((char*)&info + 0x23, user->GetCharName(), 0x1d);
-            memcpy((char*)&info + 0xc, guild->GetGuildName(), 0x16);
+            // ORIG：ctor 后无 memset；+8=GetUniqCharNo、+0x41=dbid、+0x45=0，
+            // +4=GetDBID 在两次 memcpy 之后最后写入
+            info.m_guildKey = guild->GetGuildKey();
+            info.m_charNo = user->GetUniqCharNo();
+            info.m_field_4b = dbid;
+            info.m_field_4f = 0;
+            memcpy(info.m_charName, user->GetCharName(), 0x1d);
+            memcpy(info.m_guildName, guild->GetGuildName(), 0x16);
+            info.m_dbid = user->GetDBID();
             guild->NoticeEnterToGuildMember((char*)&info);
         }
         user->MakeGameServerSendUserInfoPacket(guild->GetGuildKey());
         guild->SendGuildInfoToMembers(false);
     }
+    return;
 }
 
 void CPacketTranslater::GuildJoin(CGuild* guild, STGuildJoinInfo* joinInfo, unsigned int dbid)
@@ -2630,8 +2652,17 @@ void CPacketTranslater::GuildJoin(CGuild* guild, STGuildJoinInfo* joinInfo, unsi
         {
             STGuildMemberProxy proxy;
             memset(&proxy, 0, sizeof(proxy));
-            *(unsigned int*)((char*)&proxy + 0x10) = *(unsigned int*)((char*)joinInfo + 0x10);
-            memcpy((char*)&proxy + 0x14, (char*)joinInfo + 0x14, 0x1d);
+            // ORIG（ORIG 反汇编铁证，GuildJoin+0x12f 起）：
+            //   +0x27=0、+0x23=pInfo[0x33](growType)、+0x22=pInfo[0x32](lev)、
+            //   +0x26=pInfo[0x35](sex)、memcpy(+4,pInfo+0x14,0x1d)、
+            //   +0=pInfo[0x10](characNo)、+0x28=0
+            proxy.m_grade = 0;
+            proxy.m_growType = ((STGuildJoinInfo_Layout*)joinInfo)->m_growType;
+            proxy.m_job = ((STGuildJoinInfo_Layout*)joinInfo)->m_lev;
+            proxy.m_sex = ((STGuildJoinInfo_Layout*)joinInfo)->m_sex;
+            memcpy(proxy.m_name, ((STGuildJoinInfo_Layout*)joinInfo)->m_characName, 0x1d);
+            proxy.m_no = ((STGuildJoinInfo_Layout*)joinInfo)->m_characNo;
+            proxy.m_lastPlayTime = 0;
             if (guild->LoadGuildOneMemberProxy(proxy) != 1)
             {
                 guild->IncTotalCnt_Of_GuildDBInfo();
@@ -2640,15 +2671,19 @@ void CPacketTranslater::GuildJoin(CGuild* guild, STGuildJoinInfo* joinInfo, unsi
                 guild->GetGuildName(), (char*)joinInfo + 0x14);
         }
         ST_Notice_Guild_Enter info;
-        memset(&info, 0, sizeof(info));
-        *(unsigned int*)((char*)&info + 0) = guild->GetGuildKey();
-        *(unsigned int*)((char*)&info + 4) = *(unsigned int*)((char*)joinInfo + 8);
-        *(unsigned int*)((char*)&info + 8) = dbid;
-        memcpy((char*)&info + 0x23, (char*)joinInfo + 0x14, 0x1d);
-        memcpy((char*)&info + 0xc, guild->GetGuildName(), 0x16);
+        // ORIG：ctor 后无 memset；+8=pInfo[0x10](characNo)、+0x41=dbid、+0x45=0，
+        // +4=pInfo[8](m_id) 在两次 memcpy 之后最后写入
+        info.m_guildKey = guild->GetGuildKey();
+        info.m_charNo = ((STGuildJoinInfo_Layout*)joinInfo)->m_characNo;
+        info.m_field_4b = dbid;
+        info.m_field_4f = 0;
+        memcpy(info.m_charName, ((STGuildJoinInfo_Layout*)joinInfo)->m_characName, 0x1d);
+        memcpy(info.m_guildName, guild->GetGuildName(), 0x16);
+        info.m_dbid = ((STGuildJoinInfo_Layout*)joinInfo)->m_id;
         guild->NoticeEnterToGuildMember((char*)&info);
         guild->SendGuildInfoToMembers(false);
     }
+    return;
 }
 
 void CPacketTranslater::OnMonitorSendGuildLetter(PacketHeader* pkt)
