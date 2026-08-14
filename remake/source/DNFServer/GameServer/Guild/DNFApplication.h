@@ -131,7 +131,7 @@ public:
     unsigned int m_requesterCharNo;  // +0xe
     unsigned int m_delegateeCharNo;  // +0x12
     char m_msg[0x1e];                // +0x16
-};
+} __attribute__((packed));
 
 // from GuildPackets.h
 class Packet_Monitor_Event_End : public PacketHeader {
@@ -165,7 +165,7 @@ public:
     unsigned int m_charNo;      // +0xa
     unsigned int m_guildId;     // +0xe
     char m_msg[0x100];          // +0x12
-};
+} __attribute__((packed));
 
 // from GuildPackets.h
 class Packet_Monitor_Set_GuildMember_Grade_FromWeb : public PacketHeader {

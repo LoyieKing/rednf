@@ -149,7 +149,7 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 void CFrameCountHandler::SaveProcess()
 {
     ++m_logCnt;
-    register bool b = m_logCnt != 0;
+    register bool b asm("al") = m_logCnt != 0;
     if (b)
     {
         DNF_LOG_SCOPE_LINE(0xa8, "./log/frame", "FPS(%02d) / DFC(%02d)\n", m_fps, m_frameCount);
@@ -160,7 +160,7 @@ void CFrameCountHandler::SaveProcess()
 void CFrameCountHandler::SaveProcess(int interval)
 {
     ++m_logCnt;
-    register bool b = m_logCnt != 0;
+    register bool b asm("al") = m_logCnt != 0;
     if (b)
     {
         DNF_LOG_SCOPE_LINE(0xb8, "./log/frame", "Thread(%2d) / FPS(%02d) / DFC(%02d)", interval, m_fps, m_frameCount);
