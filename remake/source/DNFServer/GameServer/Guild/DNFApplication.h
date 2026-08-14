@@ -168,6 +168,7 @@ public:
 } __attribute__((packed));
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_Monitor_Set_GuildMember_Grade_FromWeb : public PacketHeader {
 public:
     Packet_Monitor_Set_GuildMember_Grade_FromWeb();
@@ -176,6 +177,7 @@ public:
     unsigned char m_newGrade;     // +0x12
     unsigned int m_targetCharNo;  // +0x13
 };
+#pragma pack(pop)
 
 void ShowLogo();
 CApplication* CApplicationInstance();

@@ -154,7 +154,7 @@ void CMemoryCashManager::ProcessLifeTimeOut()
     }
 }
 
-int CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
+bool CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
 {
     std::map<unsigned int, CCashObject*>::iterator it =
         m_cashObjects.find(user->GetDBID());

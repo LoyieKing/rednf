@@ -379,7 +379,7 @@ void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
     }
 }
 
-int CGuildManager::LoadGuild(unsigned int guildKey, STGuildDBInfoOnly& info, char* name)
+bool CGuildManager::LoadGuild(unsigned int guildKey, STGuildDBInfoOnly& info, char* name)
 {
     CGuild* guild;
     if ((guild = FindGuild(guildKey)) == 0)

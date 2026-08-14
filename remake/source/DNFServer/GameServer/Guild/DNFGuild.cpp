@@ -462,7 +462,7 @@ void CGuild::EnableDBSaveFlag()
 
 void CGuild::SetTodayGuildMember(STTodayGuildMember& member)
 {
-    m_board.m_today = *(const CGuildBoard::TodayMemberBlock*)member.m_data;
+    m_board.m_today = *(const CGuildBoard::TodayMemberBlock*)&member;
 }
 
 CGuild::CGuild(unsigned int guildKey)
@@ -2419,7 +2419,8 @@ STGuildDBInfoOnly::STGuildDBInfoOnly()
     m_fieldB9 = 0;
     memset(m_subGuildMaster, 0, 0x14);
     memset(m_guildName, 0, 0x17);
-    m_flags = 1;
+    m_flags = (unsigned char)(m_flags | 1);
+    m_flags = (unsigned char)(m_flags & 0xfd);
     memset((char*)m_skills, 0, 0x50);
     memset(m_masterName, 0, 0x15);
 }

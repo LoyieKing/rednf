@@ -29,7 +29,7 @@ public:
     bool SetUserObject(CUser* user);
     void ProcessLifeTimeOut();
     void DeleteCashObjecct(unsigned int dbid);
-    int QueryCashMemoryBlackList(CUser* user);
+    bool QueryCashMemoryBlackList(CUser* user);
     std::map<unsigned int, CCashObject*> m_cashObjects;  // +0
     CApplication* m_app;                                 // +0x18
 };

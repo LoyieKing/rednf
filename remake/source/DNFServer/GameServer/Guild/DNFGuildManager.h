@@ -65,7 +65,7 @@ public:
     bool InsertGuild(unsigned int guildKey, CGuild* guild);
     CGuild* FindGuild(unsigned int guildKey);
     bool IsEmptyGuild(unsigned int guildKey);
-    int LoadGuild(unsigned int guildKey, STGuildDBInfoOnly& info, char* name);
+    bool LoadGuild(unsigned int guildKey, STGuildDBInfoOnly& info, char* name);
     void DBGuildProcess(CServerHandler* handler, bool flag);
     void DBGuildAndGuildMemberSave(CServerHandler* handler);
     void DBLoadAllLoginGuild(CServerHandler* handler);

@@ -53,6 +53,7 @@ public:
 };
 
 // from GuildPackets.h
+#pragma pack(push,1)
 class Packet_DB_Load_Request_Guild_Board_Delete : public PacketHeader {
 public:
     Packet_DB_Load_Request_Guild_Board_Delete();
@@ -61,6 +62,7 @@ public:
     unsigned int m_c;         // +0xf
     unsigned int m_d;         // +0x13
 };
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_DB_Load_Request_Guild_Board_Open : public PacketHeader {
