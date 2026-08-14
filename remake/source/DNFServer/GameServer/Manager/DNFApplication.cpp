@@ -353,16 +353,16 @@ void CApplication::TranslateSignal()
         case 2:
         {
             Packet_Monitor_Event_Start pkt;
-            pkt.m_fieldA = (*it)->m_field4;
-            pkt.m_fieldE = (unsigned short)(*it)->m_field8;
-            pkt.m_field10 = (unsigned short)(*it)->m_fieldC;
+            pkt.m_eventCode = (*it)->m_field4;
+            pkt.m_eventParam1 = (unsigned short)(*it)->m_field8;
+            pkt.m_eventParam2 = (unsigned short)(*it)->m_fieldC;
             CPacketTranslater::OnEventStart(&pkt);
             break;
         }
         case 3:
         {
             Packet_Monitor_Event_End pkt;
-            pkt.m_fieldA = (*it)->m_field4;
+            pkt.m_eventCode = (*it)->m_field4;
             CPacketTranslater::OnEventEnd((PacketHeader*)&pkt);
             break;
         }

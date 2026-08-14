@@ -399,12 +399,12 @@ void CApplication::SendTestPacket_2()
 void CApplication::SendTestPacket_1()
 {
     Packet_Monitor_Event_End end;
-    end.m_fieldA = 9;
+    end.m_eventCode = 9;
     CPacketTranslater::OnEventEnd((PacketHeader*)&end);
     Packet_Monitor_Event_Start start;
-    start.m_fieldA = 9;
-    start.m_fieldE = 4;
-    start.m_field10 = 0;
+    start.m_eventCode = 9;
+    start.m_eventParam1 = 4;
+    start.m_eventParam2 = 0;
     CPacketTranslater::OnEventStart((PacketHeader*)&start);
 }
 void CApplication::TranslateSignal()
