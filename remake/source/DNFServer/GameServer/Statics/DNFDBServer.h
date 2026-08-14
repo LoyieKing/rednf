@@ -63,7 +63,7 @@ public:
     char m_flag;                  // +0xa（HWspecView.m_flag）
     int m_count;                  // +0xb（HWspecView.m_count）
     STSpecCount m_items[436];     // +0xf（436 * 0xe）
-} __attribute__((packed));
+};
 
 class Packet_DBMW_Save_Error_Line_Statistic : public PacketHeader
 {
@@ -71,7 +71,7 @@ public:
     Packet_DBMW_Save_Error_Line_Statistic();
     int m_count;              // +0xa
     STErrorCount m_items[612];  // +0xe（612 * 0xa）
-} __attribute__((packed));
+};
 
 #pragma pack(pop)
 
