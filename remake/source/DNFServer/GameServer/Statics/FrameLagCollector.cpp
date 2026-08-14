@@ -503,9 +503,9 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
             else
             {
                 pkt.m_ratio1 = (short)((double)it->second.m_c[1] /
-                        (double)(unsigned int)it->second.m_c[0] + 0.5);
+                        (double)(unsigned int)it->second.m_c[0]);
                 pkt.m_ratio2 = (short)((double)it->second.m_c[2] /
-                        (double)(unsigned int)it->second.m_c[0] + 0.5);
+                        (double)(unsigned int)it->second.m_c[0]);
             }
             int k;
             for (k = 0; k < 6; k++)
@@ -537,8 +537,8 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
                 int j;
                 for (j = 0; j < 6; j++)
                 {
-                    pkt.m_items[k].m_pair[j][0] = it->second.m_i[k * 7 + j][0];
-                    pkt.m_items[k].m_pair[j][1] = it->second.m_i[k * 7 + j][1];
+                    pkt.m_items[k].m_pair[j][0] = it->second.m_i[k * 7 + j].m_words[0];
+                    pkt.m_items[k].m_pair[j][1] = it->second.m_i[k * 7 + j].m_words[1];
                 }
             }
             handler->SendToDB((PacketHeader*)&pkt);
@@ -631,19 +631,19 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
         }
         for (int j = 0; j < 6; j++)
         {
-            data.m_i[i * 7 + j][0] =
+            data.m_i[i * 7 + j].s.m_i =
                 data.m_a[i] *
-                data.m_i[i * 7 + j][0];
-            data.m_i[i * 7 + j][1] =
+                data.m_i[i * 7 + j].s.m_i;
+            data.m_i[i * 7 + j].s.m_f =
                 (float)(unsigned int)data.m_a[i] *
-                data.m_i[i * 7 + j][1];
-            data.m_i[i * 7 + j][0] +=
+                data.m_i[i * 7 + j].s.m_f;
+            data.m_i[i * 7 + j].s.m_i +=
                 ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_i;
-            data.m_i[i * 7 + j][1] +=
+            data.m_i[i * 7 + j].s.m_f +=
                 ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_f;
-            data.m_i[i * 7 + j][0] /=
+            data.m_i[i * 7 + j].s.m_i /=
                 data.m_a[i] + 1U;
-            data.m_i[i * 7 + j][1] /=
+            data.m_i[i * 7 + j].s.m_f /=
                 (float)(data.m_a[i] + 1);
         }
         data.m_a[i] += 1;
@@ -706,8 +706,8 @@ void FrameLagCollector::FrameLagDataStruct::init()
         m_h[k][3] = 0;
         for (int j = 0; j < 6; j++)
         {
-            m_i[k * 7 + j][0] = 0;
-            m_i[k * 7 + j][1] = 0;
+            m_i[k * 7 + j].m_words[0] = 0;
+            m_i[k * 7 + j].m_words[1] = 0;
         }
     }
 }

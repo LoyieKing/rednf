@@ -61,7 +61,16 @@ public:
         int m_g[6];          // +0x80
         int m_h[6][4];       // +0x98
         int m_pad[2];        // +0xf8
-        int m_i[41][2];      // +0x100（总计 0x248）
+        union Pair
+        {
+            struct
+            {
+                int m_i;         // +0
+                float m_f;       // +4
+            } s;
+            int m_words[2];      // 用于按 ORIG 的 int 位模式读写
+        };
+        Pair m_i[41];        // +0x100（总计 0x248）
     };
     class MonitoringSpecCase
     {
