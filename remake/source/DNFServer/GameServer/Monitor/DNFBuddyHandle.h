@@ -246,7 +246,7 @@ public:
     int delDB(CServerHandler* handler, char* name);
     int del(std::string name);
     int addFromCash(class CBuddy* buddy);
-    int insert(class CBuddy* buddy);
+    void insert(class CBuddy* buddy);
     class CBuddy* findBuddy(std::string name);
     class CBuddy* findBuddyByCharNo(unsigned int charNo);
     void printBuddys(char* out);

@@ -4966,13 +4966,12 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         throw CDNFException(
             "CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink : 0 == m_pclApp");
     }
-    CUserManager* userMgr = &m_pclApp->m_userManager;
     Packet_Monitor_Other_Channel_Chat_Hyper_Link* chat =
         (Packet_Monitor_Other_Channel_Chat_Hyper_Link*)pkt;
     if (chat->what_0x1b != 0 &&
         (unsigned char)chat->what_0x1b < 0x1e)
     {
-        CUser* target = userMgr->FindUser_CharName(chat->buddy_n_user_id_what);
+        CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(chat->buddy_n_user_id_what);
         chat->what_0x17 =
             target != 0 ? (int)target->GetUniqCharNo() : (int)0xffffffff;
     }
@@ -4991,12 +4990,12 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
     }
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link reply;
     reply.m_senderCharId = (unsigned int)chat->what_0x0a;
-    CUser* sender = userMgr->FindUser_CharNo((unsigned int)chat->what_0x13);
+    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x13);
     if (sender == 0)
     {
         return;
     }
-    CUser* receiver = userMgr->FindUser_CharNo((unsigned int)chat->what_0x17);
+    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x17);
     if (receiver == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();

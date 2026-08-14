@@ -261,7 +261,7 @@ public:
 class COnTimeEventRewardStartTrigger : public CTaskScheduler::CTask
 {
 public:
-    COnTimeEventRewardStartTrigger(unsigned int time, unsigned int flag, COnTimeEventManager* mgr);
+    COnTimeEventRewardStartTrigger(unsigned int time, unsigned int flag, COnTimeEventManager* mgr) throw();
     ~COnTimeEventRewardStartTrigger();
     void _DoExecute();
     COnTimeEventManager* m_mgr;  // +0x10
@@ -270,7 +270,7 @@ public:
 class COnTimeEventIdxLoad : public CTaskScheduler::CTask
 {
 public:
-    COnTimeEventIdxLoad(unsigned int time, unsigned int flag, COnTimeEventManager* mgr);
+    COnTimeEventIdxLoad(unsigned int time, unsigned int flag, COnTimeEventManager* mgr) throw();
     ~COnTimeEventIdxLoad();
     void _DoExecute();
     COnTimeEventManager* m_mgr;  // +0x10

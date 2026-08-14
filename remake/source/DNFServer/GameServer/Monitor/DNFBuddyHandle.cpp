@@ -199,23 +199,24 @@ int CBuddyHandle::del(std::string name)
 
 int CBuddyHandle::addFromCash(CBuddy* buddy)
 {
-    if (m_buddies.size() < 0x20)
+    if (m_buddies.size() > 0x1f)
     {
-        return m_buddies.insert(
-                   std::make_pair(((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name,
-                                  buddy))
-            .second;
+        return 0;
     }
-    return 0;
+    return m_buddies.insert(
+               std::make_pair(((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name,
+                              buddy))
+        .second;
 }
 
-int CBuddyHandle::insert(CBuddy* buddy)
+void CBuddyHandle::insert(CBuddy* buddy)
 {
-    if (m_buddies.size() < 0x20)
+    if (m_buddies.size() > 0x1f)
     {
-        m_buddies.insert(
-            std::make_pair(((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name, buddy));
+        return;
     }
+    m_buddies.insert(
+        std::make_pair(((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_name, buddy));
 }
 
 CBuddy* CBuddyHandle::findBuddy(std::string name)

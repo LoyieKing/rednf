@@ -295,7 +295,7 @@ COnTimeEventRewardEndTrigger::~COnTimeEventRewardEndTrigger() {}
 
 COnTimeEventRewardStartTrigger::COnTimeEventRewardStartTrigger(unsigned int time,
                                                                unsigned int flag,
-                                                               COnTimeEventManager* mgr)
+                                                               COnTimeEventManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;
@@ -304,7 +304,7 @@ COnTimeEventRewardStartTrigger::COnTimeEventRewardStartTrigger(unsigned int time
 COnTimeEventRewardStartTrigger::~COnTimeEventRewardStartTrigger() {}
 
 COnTimeEventIdxLoad::COnTimeEventIdxLoad(unsigned int time, unsigned int flag,
-                                         COnTimeEventManager* mgr)
+                                         COnTimeEventManager* mgr) throw()
     : CTask(time, flag)
 {
     m_mgr = mgr;

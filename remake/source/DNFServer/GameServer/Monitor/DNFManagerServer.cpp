@@ -267,7 +267,7 @@ void CTcpManagerServer::SendTcpPacket(PacketHeader* pkt)
     char* buf = makePacketHeader(pkt->packetId, pkt->packetSize);
     if (buf != 0)
     {
-        memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
+        memcpy(buf + 10, (char*)pkt + 10, (unsigned int)pkt->packetSize - 10U);
         SendToServer(buf);
     }
 }

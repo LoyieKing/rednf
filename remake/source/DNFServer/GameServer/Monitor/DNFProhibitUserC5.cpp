@@ -7,8 +7,7 @@
 bool CDNFProhibitUser::IsTimeOutConnectable()
 {
     m_remain--;
-    register bool b = ((short)m_remain <= 0);
-    if (b)
+    if ((short)m_remain <= 0)
     {
         return true;
     }

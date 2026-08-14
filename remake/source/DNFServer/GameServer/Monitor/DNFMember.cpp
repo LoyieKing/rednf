@@ -286,7 +286,7 @@ void CMember::LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsi
             info.m_count27 = (unsigned char)limit;
         }
         unsigned int size = (unsigned int)info.m_count27 * 0x27 + 0x28;
-        memcpy(&m_dbInfo, &info, size);
+        memcpy((char*)this + 6, &info, size);
         m_flag |= 4;
         SetMemberRegisterTime(a);
         SetMemberDeleteTime(b);

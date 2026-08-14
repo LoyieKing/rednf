@@ -474,10 +474,10 @@ void CVillageAttackedManager::SendMinTime()
 void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
 {
     Packet_DB_VillageAttackedRank pkt;
-    unsigned char group = m_app->Get_ServerGroup();
+    pkt.m_group = (char)m_app->Get_ServerGroup();
     time_t now = GetNowTime();
     tm* pt = localtime(&now);
-    int times[18];
+    int times[MAX_SCHEDULER_COUNT];
     for (int i = 0; i < MAX_SCHEDULER_COUNT; i++)
     {
         times[i] = GetPrevSchedule(*pt, village_attacked_scheduler[i * 6],
@@ -485,7 +485,6 @@ void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
                                    village_attacked_scheduler[i * 6 + 2]);
     }
     std::sort(&times[0], &times[MAX_SCHEDULER_COUNT], compareTime);
-    pkt.m_group = (char)group;
     pkt.m_time0a = times[0];
     pkt.m_time0b = times[0];
     pkt.m_time1a = times[1];
@@ -701,9 +700,8 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
 
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
-    Packet_Request_Revenge_Dungeon* req = (Packet_Request_Revenge_Dungeon*)pkt;
-    req->m_rewardType = m_rewardType;
-    req->m_remainTime = GetDungeonRemainTime();
+    ((Packet_Request_Revenge_Dungeon*)pkt)->m_rewardType = m_rewardType;
+    ((Packet_Request_Revenge_Dungeon*)pkt)->m_remainTime = GetDungeonRemainTime();
 }
 
 void CVillageAttackedManager::ProcessByMinute()

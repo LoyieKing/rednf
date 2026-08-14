@@ -185,8 +185,7 @@ void CUser::MemberEnterProcess()
         return;
     }
     m_memberEnterCount--;
-    register bool b = m_memberEnterCount <= 0;
-    if (b)
+    if (m_memberEnterCount <= 0)
     {
         m_memberEnterCallerId = 0;
         m_memberEnterCount = 0;
@@ -245,7 +244,9 @@ int CUser::AddBuddy(STBuddyDBInfo& info)
 
 char CUser::DelBuddy(char* name)
 {
-    return (char)m_buddyHandle.del(std::string(name));
+    char result;
+    result = (char)m_buddyHandle.del(std::string(name));
+    return result;
 }
 
 void CUser::RegisterToCashBlackList(std::map<unsigned int, CBlackUser*>& map)

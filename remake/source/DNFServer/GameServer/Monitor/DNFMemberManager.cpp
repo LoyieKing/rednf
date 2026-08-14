@@ -350,7 +350,7 @@ int CMemberManager::InsertMember(unsigned int key, CMember* member)
     {
         std::pair<std::map<unsigned int, CMember*>::iterator, bool> r =
             m_members.insert(std::make_pair(key, member));
-        if (r.second == 0)
+        if (!r.second)
         {
             DNF_LOG_SCOPE_LINE(0x83, "./log/Member", "[INSERT_ERR] Member Key : %d\tAlready Member Exist", key);
         }
@@ -369,13 +369,13 @@ void CMemberManager::SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUs
         pkt.m_flag = flag;
         short l1 = u1->GetLevel();
         short l2 = u2->GetLevel();
-        if (l2 < l1)
+        if (l1 > l2)
         {
             pkt.m_upperCharNo = u1->GetUniqCharNo();
             pkt.m_lowerCharNo = u2->GetUniqCharNo();
             pkt.m_type = 1;
         }
-        else if (l2 > l1)
+        else if (l1 < l2)
         {
             pkt.m_upperCharNo = u2->GetUniqCharNo();
             pkt.m_lowerCharNo = u1->GetUniqCharNo();
@@ -426,25 +426,25 @@ int CMemberManager::RegisterMember(CMember* member, short level, CUser* user, bo
     }
     if (level < user->GetLevel())
     {
-        if (member->InsertUpperMember(user->GetUniqCharNo(),
-                                      (unsigned char)user->GetLevel(), user->GetCharName(),
-                                      flag) != 1)
+        if (!member->InsertUpperMember(user->GetUniqCharNo(),
+                                       (unsigned char)user->GetLevel(), user->GetCharName(),
+                                       flag))
         {
             return 0;
         }
     }
-    else if (level <= user->GetLevel())
+    else if (user->GetLevel() < level)
     {
-        return 0;
+        if (!member->InsertLowerMember(user->GetUniqCharNo(),
+                                       (unsigned char)user->GetLevel(), user->GetCharName(),
+                                       flag))
+        {
+            return 0;
+        }
     }
     else
     {
-        if (member->InsertLowerMember(user->GetUniqCharNo(),
-                                      (unsigned char)user->GetLevel(), user->GetCharName(),
-                                      flag) != 1)
-        {
-            return 0;
-        }
+        return 0;
     }
     return 1;
 }

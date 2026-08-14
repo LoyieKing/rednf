@@ -66,7 +66,7 @@ char TCPSocket::connect(const char* ip, unsigned short port)
                strerror(errno));
         return 0;
     }
-    memcpy(m_peerIp, (void*)((char*)&addr + 4), 4);
+    memcpy((char*)this + 0x14, &addr.sin_addr, 4);
     m_peerPort = addr.sin_port;
     return 1;
 }

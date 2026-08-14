@@ -307,26 +307,24 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
         CBuddy* buddies[32];
         int count = user->GetBuddys(buddies);
         pkt.m_count = (char)count;
-        while (count != 0)
+        while (count-- != 0)
         {
-            count--;
-            CBuddy* buddy = buddies[idx];
             CUser* buddyUser = FindUser_CharNo(
-                ((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_characNo);
+                ((STBuddyDBInfo*)buddies[idx]->getBuddyDBInfo())->m_characNo);
             if (buddyUser != 0)
             {
                 if (buddyUser->GetGameServer() != 0)
                 {
-                    *(char*)((char*)&pkt + 0xf + idx * 0x2a + 2) = 1;
-                    *(char*)((char*)&pkt + 0xf + idx * 0x2a) =
+                    pkt.m_buddies[idx].m_online = 1;
+                    pkt.m_buddies[idx].m_channelNo =
                         ((CServerInterface*)buddyUser->GetGameServer())->GetChannelNo();
                     if (buddyUser->IsBlackUser(user->GetUniqCharNo()) != 0)
                     {
-                        *(char*)((char*)&pkt + 0xf + idx * 0x2a + 1) = 1;
+                        pkt.m_buddies[idx].m_blackFlag = 1;
                     }
                 }
             }
-            memcpy((char*)&pkt + 0xf + idx * 0x2a + 3, buddy->getBuddyDBInfo(), 0x27);
+            memcpy(pkt.m_buddies[idx].m_pad3, buddies[idx]->getBuddyDBInfo(), 0x27);
             idx++;
         }
         if (idx != 0)

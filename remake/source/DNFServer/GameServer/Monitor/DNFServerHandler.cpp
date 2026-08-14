@@ -228,9 +228,12 @@ CTcpGameServer* CServerHandler::GetTcpGameServerByCh(unsigned char channel)
          it != m_tcpGameServers.end(); ++it)
     {
         CTcpGameServer* tcp = it->second;
-        if (tcp != 0 && tcp->GetChannelNo() == channel)
+        if (tcp != 0)
         {
-            return tcp;
+            if (tcp->GetChannelNo() == channel)
+            {
+                return tcp;
+            }
         }
     }
     return 0;
@@ -358,10 +361,11 @@ void CServerHandler::SendAllTcpGameServer(PacketHeader* pkt)
         if (tcp->IsValidServer() != 0)
         {
             buf = tcp->makePacketHeader(pkt->packetId, pkt->packetSize);
-            memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
+            memcpy(buf + 10, (char*)pkt + 10, (unsigned int)pkt->packetSize - 10U);
             tcp->SendToGameServer(buf);
         }
     }
+    __asm__ __volatile__("nop");
 }
 
 int CServerHandler::SendAllTcpGameServer(PacketHeader* pkt, int channel)
@@ -376,7 +380,7 @@ int CServerHandler::SendAllTcpGameServer(PacketHeader* pkt, int channel)
         if (tcp->IsValidServer() && tcp->GetChannelType() == channel)
         {
             buf = tcp->makePacketHeader(pkt->packetId, pkt->packetSize);
-            memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
+            memcpy(buf + 10, (char*)pkt + 10, (unsigned int)pkt->packetSize - 10U);
             tcp->SendToGameServer(buf);
             count++;
         }
