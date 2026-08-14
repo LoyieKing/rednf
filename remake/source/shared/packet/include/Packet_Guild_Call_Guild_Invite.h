@@ -9,6 +9,9 @@
 
 class Packet_Guild_Call_Guild_Invite : public PacketHeader {
 public:
+    unsigned int m_caller;      // +0xa
+    unsigned int m_guildKey;    // +0xe
+    char m_name[0x1e];          // +0x12
     Packet_Guild_Call_Guild_Invite() : PacketHeader(0x434, 0x30){};
 } __attribute__((packed));
 

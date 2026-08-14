@@ -6,6 +6,61 @@
 #include "DNFFunctionLib.h"
 #include "Packet_Request_Power_War_Start_Info.h"
 #include "Packet_Guild_Change_Power_War_Point.h"
+#include "Packet_Guild_Request_Guild_Board_Delete.h"
+#include "Packet_Guild_Request_Guild_Board_Open.h"
+#include "Packet_Guild_Request_Guild_Board_Write.h"
+#include "Packet_Game_Server_Regist.h"
+#include "Packet_Monitor_UDP_Login.h"
+#include "Packet_Monitor_UDP_Logout.h"
+#include "Packet_Monitor_Char_Info.h"
+#include "Packet_Monitor_Char_Changable_Info.h"
+#include "Packet_Monitor_Charac_Delete.h"
+#include "Packet_Monitor_Buy_Guild_Skill.h"
+#include "Packet_Monitor_Guild_Chat.h"
+#include "Packet_Monitor_Guild_Chat_Hyper_Link.h"
+#include "Packet_Monitor_Increase_Guild_Exp.h"
+#include "Packet_Monitor_Set_Sub_Guild_Master.h"
+#include "Packet_Monitor_Call_Guild_Members.h"
+#include "Packet_Monitor_Call_Guild_All_Members.h"
+#include "Packet_Monitor_Call_Guild_Level_Up.h"
+#include "Packet_Monitor_Call_Guild_Info.h"
+#include "Packet_Monitor_Notice_Guild_Dismiss.h"
+#include "Packet_Guild_Call_Guild_Invite.h"
+#include "Packet_Guild_Reply_Guild_Invite_From_Invited.h"
+#include "Packet_Guild_Request_Guild_Secede.h"
+#include "Packet_Guild_Request_Guild_Master_Delegate.h"
+#include "Packet_Request_Guild_Create.h"
+#include "Packet_Change_Guild_Name.h"
+#include "Packet_Change_Char_Name.h"
+#include "Packet_Request_BlackList.h"
+#include "Packet_Register_To_BlackList.h"
+#include "Packet_Delete_To_BlackList.h"
+#include "Packet_Add_Guild_Fund.h"
+#include "Packet_Guild_Debug.h"
+#include "Packet_Refresh_Guild_Info.h"
+#include "Packet_Approve_Join_Guild.h"
+#include "Packet_Guild_Attendance_Info.h"
+#include "Packet_Guild_Write_Guild_Member_Memo.h"
+#include "Packet_Notice_Guild_War_Point_Change.h"
+#include "Packet_Notice_Guild_War_End.h"
+#include "Packet_Notice_Guild_War_Info.h"
+#include "Packet_Guild_Create_Guild_Agit.h"
+#include "Packet_Guild_Delete_Guild_Agit.h"
+#include "Packet_Guild_Upgrade_Guild_Agit.h"
+#include "Packet_Guild_Check_Guild_Cargo_Push_Item.h"
+#include "Packet_Guild_Guild_Cargo_Push_Item.h"
+#include "Packet_Guild_Guild_Cargo_Pop_Item.h"
+#include "Packet_Guild_Guild_Cargo_Move_Item.h"
+#include "Packet_Guild_Guild_Cargo_Upgrade.h"
+#include "Packet_Request_Join_Power.h"
+#include "Packet_Request_Secede_Power.h"
+#include "Packet_Guild_Apply_Origial_Power_Side.h"
+#include "Packet_Notice_Power_War_CFG.h"
+#include "Packet_Guild_Power_War_Process_Info.h"
+#include "Packet_Guild_Increase_Decrease_Power_War_Point.h"
+#include "Packet_Guild_Cargo_Requst.h"
+#include "Packet_Guild_Cargo_History_Request.h"
+#include "Packet_Sync_GM_List.h"
 
 #include "DNFPacketTranslater.h"
 #include "BlackUser.h"
@@ -77,782 +132,6 @@
 
 CApplication* CPacketTranslater::m_pclApp = 0;
 
-struct GuildPacketBodyView
-{
-    char m_base[0xa];
-    unsigned char m_field_a;
-    unsigned char m_field_b;
-    unsigned int m_gmIds[0x14];  // 0xc
-    char m_gmNames[0x100];       // 0x5c
-};
-
-struct GuildEventBodyView
-{
-    char m_base[0xa];
-    unsigned int m_eventCode;      // 0xa
-    unsigned short m_eventParam1;  // 0xe
-    unsigned short m_eventParam2;  // 0x10
-} __attribute__((packed));
-
-struct PTL_GuildBootingPkt
-{
-    char m_base[0xa];
-    int m_a;      // +0xa
-    int m_e;      // +0xe
-    char m_12;             // +0x12
-} __attribute__((packed));
-
-struct PTL_GuildDebugPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;  // +0xa
-    unsigned int m_charNo;    // +0xe
-    int m_mode;               // +0x12
-} __attribute__((packed));
-
-struct PTL_LoginPkt
-{
-    char m_base[0x6];
-    unsigned int m_connNo;    // +0x6
-    int m_guildKey;           // +0xa
-    unsigned int m_serverNo;  // +0xe
-    unsigned char m_channel;  // +0x12
-    char m_pad[0x10];         // +0x13
-    unsigned char m_sex;      // +0x23
-    char m_pad2[0x8];         // +0x24
-    char m_ssn[0x100];        // +0x2c
-} __attribute__((packed));
-
-struct PTL_PowerWarProcessPkt
-{
-    char m_base[0xa];
-    unsigned int m_a;      // +0xa
-} __attribute__((packed));
-
-struct PTL_NotifyNewGroupMailPkt
-{
-    char m_base[0xa];
-    unsigned int m_count;        // +0xa
-    unsigned int m_charNos[1];   // +0xe
-} __attribute__((packed));
-
-struct PTL_PowerWarCfgPkt
-{
-    char m_base[0xa];
-    unsigned short m_endKillPoint;   // +0xa
-    int m_basic;                     // +0xc
-    int m_first;                     // +0x10
-    int m_decrease;                  // +0x14
-    int m_ranking;                   // +0x18
-} __attribute__((packed));
-
-struct PTL_TodayGuildMemberPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;        // +0xa
-    STTodayGuildMember m_member;    // +0xe
-} __attribute__((packed));
-
-struct PTL_GuildCargoLoadPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildId;         // +0xa
-    STGuildCargoDBInfo m_cargo;     // +0xe
-} __attribute__((packed));
-
-struct PTL_InnerPacketPkt
-{
-    char m_base[0x6];
-    unsigned int m_group;           // +0x6
-} __attribute__((packed));
-
-struct PTL_LoadGuildCargoHistoryPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;  // +0xa
-    unsigned int m_count;     // +0xe
-    char m_logData;           // +0x12
-} __attribute__((packed));
-
-struct PTL_CharLoginPkt
-{
-    char m_base[0xa];
-    unsigned int m_serverNo;        // +0xa
-    unsigned char m_channel;        // +0xe
-    unsigned int m_charKey;         // +0xf
-    unsigned int m_guildKey;        // +0x13
-    unsigned char m_job;            // +0x17
-    unsigned char m_pvp;            // +0x18
-    unsigned short m_level;         // +0x19
-    unsigned int m_memberKey;       // +0x1b
-    char m_name[0x1e];              // +0x1f
-    unsigned char m_war;            // +0x3d
-} __attribute__((packed));
-
-struct PTL_AddGuildFundPkt
-{
-    char m_base[0xa];
-    unsigned char m_mode;           // +0xa
-    unsigned int m_fund;            // +0xb
-    unsigned int m_charNo;          // +0xf
-    unsigned int m_guildKey;        // +0x13
-} __attribute__((packed));
-
-struct PTL_BuyGuildSkillPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;          // +0xa
-    unsigned int m_guildKey;        // +0xe
-    int m_field12;                  // +0x12
-    int m_field16;                  // +0x16
-    unsigned short m_field1a;       // +0x1a
-    unsigned int m_field1c;         // +0x1c
-} __attribute__((packed));
-
-struct PTL_LogoutPkt
-{
-    char m_base[0xa];
-    unsigned int m_dbid;      // +0xa
-    char m_pad[0x9];          // +0xe
-    unsigned char m_foc;      // +0x17
-} __attribute__((packed));
-
-struct PTL_ChangableCharInfoPkt
-{
-    char m_base[0xa];
-    unsigned int m_dbid;       // +0xa
-    char m_pad1;               // +0xe
-    short m_field_f;           // +0xf
-    char m_field_11;           // +0x11
-} __attribute__((packed));
-
-struct PTL_GuildWarPointChangePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;  // +0xa
-    char m_point;             // +0xe
-} __attribute__((packed));
-
-struct PTL_GuildMailArrivePkt
-{
-    char m_base[0xa];
-    unsigned char m_count;       // +0xa
-    unsigned int m_guildKeys[1]; // +0xb
-} __attribute__((packed));
-
-struct PTL_NoticeGuildEnterPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;  // +0xa
-    unsigned int m_dbid;      // +0xe
-    unsigned int m_charNo;    // +0x12
-    char m_guildName[0x17];   // +0x16
-    char m_charName[0x1e];    // +0x2d
-    unsigned int m_field_4b;  // +0x4b
-    unsigned char m_field_4f; // +0x4f
-} __attribute__((packed));
-
-// 本地布局视图（STGuildJoinInfo 在 guild 侧仅前置声明；与 DBMW DNFPacket.h 同布局）
-struct STGuildJoinInfo_Layout
-{
-    unsigned char m_serverId;  // +0
-    char m_pad1[3];
-    int m_guildId;             // +0x4
-    unsigned int m_id;         // +0x8
-    unsigned int m_mid;        // +0xc
-    int m_characNo;            // +0x10
-    char m_characName[0x1e];   // +0x14
-    unsigned char m_lev;       // +0x32
-    unsigned char m_growType;  // +0x33
-    unsigned char m_job;       // +0x34
-    unsigned char m_sex;       // +0x35
-    char m_bornYear[3];        // +0x36
-    char m_pad39[3];           // +0x39
-} __attribute__((packed));
-
-struct PTL_NoticeGuildCreatePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;  // +0xa
-    unsigned int m_charNo;    // +0xe
-} __attribute__((packed));
-
-struct PTL_NoticeGuildDismissPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;  // +0xa
-} __attribute__((packed));
-
-struct PTL_NoticeGuildChatMsgPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;    // +0xa
-    unsigned int m_guildKey;  // +0xe
-    unsigned char m_msgLen;   // +0x12
-    char m_msg[1];            // +0x13
-} __attribute__((packed));
-
-struct PTL_NoticeGuildChatMsgHyperLinkPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;    // +0xa
-    unsigned int m_guildKey;  // +0xe
-    unsigned char m_field_12; // +0x12
-    char m_items[0x138];      // +0x13
-    unsigned char m_msgLen;   // +0x14b
-    char m_msg[1];            // +0x14c
-} __attribute__((packed));
-
-struct PTL_IncreaseGuildExpPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;    // +0xa
-    unsigned int m_guildKey;  // +0xe
-    unsigned int m_addExp;    // +0x12
-    char m_field_16;          // +0x16
-    char m_field_17;          // +0x17
-} __attribute__((packed));
-
-struct PTL_BlackListPkt
-{
-    char m_base[0xa];
-    unsigned int m_dbid;    // +0xa
-    char m_name[0x1d];      // +0xe
-    char m_pad1;            // +0x2b
-    unsigned int m_charNo;  // +0x2c
-} __attribute__((packed));
-
-struct PTL_RequestBlackListPkt
-{
-    char m_base[0xa];
-    unsigned int m_dbid;    // +0xa
-    unsigned int m_charNo;  // +0xe
-} __attribute__((packed));
-
-struct PTL_DBReplyQueryGuildMemberPkt
-{
-    char m_base[0xa];
-    unsigned char m_success;  // +0xa
-    unsigned int m_guildKey;  // +0xb
-    unsigned int m_charNo;    // +0xf
-} __attribute__((packed));
-
-struct PTL_BlackListRecord
-{
-    unsigned int m_charNo;      // +0x0
-    char m_name[0x20];          // +0x4
-    unsigned int m_uniqCharNo;  // +0x24
-} __attribute__((packed));
-
-struct PTL_ResponseBlackListOnLoginPkt
-{
-    char m_base[0xa];
-    unsigned int m_dbid;         // +0xa
-    PTL_BlackListRecord m_items[1];  // +0xe
-} __attribute__((packed));
-
-// ---- 以下报文视图 offset 均对照 ORIG df_guild_r 反汇编逐条核实 ----
-struct PTL_SetGuildMemberGradeFromWebPkt
-{
-    char m_base[0xa];
-    unsigned int m_masterCharNo;  // +0xa（ORIG mov 0xa(%eax)）
-    unsigned int m_guildKey;      // +0xe（ORIG mov 0xe(%eax)）
-    unsigned char m_newGrade;     // +0x12（ORIG movzbl 0x12(%eax)）
-    unsigned int m_targetCharNo;  // +0x13（ORIG mov 0x13(%eax)）
-} __attribute__((packed));
-
-struct PTL_ReplyGuildInvitePkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;    // +0xa
-    unsigned char m_accept;   // +0xe（ORIG movzbl 0xe(%eax)）
-} __attribute__((packed));
-
-struct PTL_RequestGuildSecedePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;         // +0xa
-    unsigned int m_requesterCharNo;  // +0xe
-    unsigned int m_nameLen;          // +0x12（ORIG mov 0x12(%eax)）
-    char m_name[0x1e];               // +0x16（ORIG add $0x16）
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildSecedePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;         // +0xa
-    unsigned int m_requesterCharNo;  // +0xe
-    unsigned int m_targetCharNo;     // +0x12
-    int m_secedeType;                // +0x16
-    unsigned char m_secedeFlag;      // +0x1a（ORIG movzbl 0x1a(%eax)）
-    unsigned int m_nameLen;          // +0x1b
-    char m_name[0x1e];               // +0x1f
-    unsigned int m_dbid;             // +0x3d
-} __attribute__((packed));
-
-struct PTL_RequestGuildMasterDelegatePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;         // +0xa
-    unsigned int m_requesterCharNo;  // +0xe
-    char m_name[0x1e];               // +0x12（ORIG lea 0x12(%eax)）
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildMasterDelegatePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;         // +0xa
-    unsigned int m_requesterCharNo;  // +0xe
-    unsigned int m_delegateeCharNo;  // +0x12
-    char m_name[0x1e];               // +0x16
-    int m_result;                    // +0x34（ORIG mov 0x34(%eax)）
-} __attribute__((packed));
-
-struct PTL_GuildMasterDelegateFromWebPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;         // +0xa
-    unsigned int m_requesterCharNo;  // +0xe
-    unsigned int m_delegateeCharNo;  // +0x12
-    char m_msg[4];                   // +0x16（ORIG add $0x16）
-} __attribute__((packed));
-
-struct PTL_CheckGuildMemberConnectionFromWebPkt
-{
-    char m_base[4];
-    unsigned short m_port;    // +4（ORIG movzwl 0x4(%eax)）
-    unsigned int m_ip;        // +6（ORIG mov 0x6(%eax)）
-    unsigned int m_guildKey;  // +0xa
-} __attribute__((packed));
-
-struct PTL_GuildCargoPushItemPkt
-{
-    char m_base[0xa];
-    unsigned int m_group;          // +0xa
-    unsigned int m_guildKey;       // +0xe
-    int m_slot;                    // +0x12
-    int m_count;                   // +0x16
-    unsigned char m_itemType;      // +0x1a（ORIG movzbl 0x1a(%eax)）
-    DnfItemInfo m_item;            // +0x1b（0x35 字节）
-    unsigned char m_fst;           // +0x50（ORIG movzbl 0x50(%eax)）
-    unsigned short m_fsn;          // +0x51（ORIG movzwl 0x51(%eax)）
-} __attribute__((packed));
-
-struct PTL_GuildCargoPopItemPkt
-{
-    char m_base[0xa];
-    unsigned int m_group;      // +0xa
-    unsigned int m_guildKey;   // +0xe
-    int m_slot;                // +0x12
-    int m_id;                  // +0x16
-    int m_count;               // +0x1a
-    unsigned char m_itemType;  // +0x1e（ORIG movzbl 0x1e(%eax)）
-    unsigned int m_uit;        // +0x1f
-} __attribute__((packed));
-
-struct PTL_GuildCargoMoveItemPkt
-{
-    char m_base[0xa];
-    unsigned int m_group;     // +0xa
-    unsigned int m_charNo;    // +0xe
-    int m_fromSlot;           // +0x12
-    int m_toSlot;             // +0x16
-    int m_count;              // +0x1a
-    int m_type;               // +0x1e
-} __attribute__((packed));
-
-struct PTL_SetGuildMemberGradePkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    char m_name[0x1e];          // +0x12
-    unsigned char m_grade;      // +0x30（ORIG movzbl 0x30(%eax)）
-} __attribute__((packed));
-
-struct PTL_CharacterDeletePkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xe
-    unsigned int m_guildKey;    // +0x12
-} __attribute__((packed));
-
-struct PTL_CallGuildMembersPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-} __attribute__((packed));
-
-struct PTL_CallGuildInvitePkt
-{
-    char m_base[0xa];
-    unsigned int m_caller;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    char m_name[0x1e];          // +0x12
-} __attribute__((packed));
-
-struct PTL_DBMWGuildJoinPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_caller;      // +0xe
-    unsigned int m_joiner;      // +0x12
-    int m_result;               // +0x16
-} __attribute__((packed));
-
-struct PTL_CallGuildLevelUpPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xe
-    unsigned int m_guildKey;    // +0x12
-    unsigned int m_fund;        // +0x17（ORIG mov 0x17(%eax)）
-} __attribute__((packed));
-
-struct PTL_CallGuildInfoPkt
-{
-    char m_base[0xa];
-    unsigned int m_fieldA;      // +0xa
-    unsigned int m_charNo;      // +0xe
-    unsigned char m_count;      // +0x12（ORIG movzbl 0x12(%eax)）
-    unsigned int m_guildKeys[1]; // +0x13
-} __attribute__((packed));
-
-struct PTL_NoticeGuildSecedePkt
-{
-    char m_base[0xa];
-    unsigned int m_fieldA;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    unsigned int m_charNo;      // +0x12
-} __attribute__((packed));
-
-struct PTL_ChangeGuildNamePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    char m_name[0x1e];          // +0x12
-} __attribute__((packed));
-
-// web 消息源的改名报文布局与普通 OnChangeGuildName 相反：
-// ORIG OnChangeGuildNameFromWeb 反汇编 FindGuild 读 +0xe、IsSubGuildMaster/IsGuildMaster 读 +0xa。
-struct PTL_ChangeGuildNameFromWebPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa（IsSubGuildMaster/IsGuildMaster）
-    unsigned int m_guildKey;    // +0xe（FindGuild）
-    char m_name[0x1e];          // +0x12
-} __attribute__((packed));
-
-struct PTL_ChangeCharNamePkt
-{
-    char m_base[0xa];
-    unsigned int m_fieldA;      // +0xa
-    unsigned int m_charNo;      // +0xe
-    int m_field12;              // +0x12
-    char m_name[0x1e];          // +0x16
-} __attribute__((packed));
-
-struct PTL_GuildAgitPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    unsigned int m_field12;     // +0x12
-    unsigned int m_fund;        // +0x16
-} __attribute__((packed));
-
-struct PTL_GuildCargoCheckPushItemPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    int m_field12;              // +0x12
-    int m_field16;              // +0x16
-    int m_field1a;              // +0x1a
-    int m_field1e;              // +0x1e
-    unsigned char m_field22;    // +0x22（ORIG movzbl 0x22(%eax)）
-    unsigned char m_field23;    // +0x23（ORIG movzbl 0x23(%eax)）
-    unsigned short m_field24;   // +0x24（ORIG movzwl 0x24(%eax)）
-} __attribute__((packed));
-
-struct PTL_GuildCargoUpgradePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    int m_field12;              // +0x12
-    unsigned int m_field16;     // +0x16
-    unsigned int m_field1a;     // +0x1a
-} __attribute__((packed));
-
-struct PTL_RequestGuildCreatePkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    char m_guildName[0x17];     // +0xe
-    char m_extra[0xc];          // +0x25
-} __attribute__((packed));
-
-struct PTL_GuildBoardOpenPkt
-{
-    char m_base[0xa];
-    unsigned char m_fieldA;     // +0xa（ORIG movzbl 0xa(%eax)）
-    unsigned int m_guildKey;    // +0xb
-    unsigned int m_charNo;      // +0xf
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildBoardOpenPkt
-{
-    char m_base[0xa];
-    unsigned char m_fieldC;     // +0xc（ORIG movzbl 0xc(%eax)）
-    unsigned int m_guildKey;    // +0xd
-    unsigned int m_charNo;      // +0x11
-    unsigned char m_field15;    // +0x15（ORIG movzbl 0x15(%eax)）
-    char m_info[0xa5];          // +0x16
-} __attribute__((packed));
-
-struct PTL_GuildBoardWritePkt
-{
-    char m_base[0xa];
-    unsigned int m_fieldA;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    unsigned int m_charNo;      // +0x12
-    unsigned char m_field16;    // +0x16（ORIG movzbl 0x16(%eax)）
-    unsigned char m_field17;    // +0x17（ORIG movzbl 0x17(%eax)）
-    char m_info[0x78];          // +0x18
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildBoardWritePkt
-{
-    char m_base[0xa];
-    unsigned short m_result;    // +0xa（ORIG movzwl 0xa(%eax)）
-    unsigned int m_guildKey;    // +0xc
-    unsigned int m_charNo;      // +0x10
-    char m_info[0xa5];          // +0x14
-    int m_field94;              // +0x94
-} __attribute__((packed));
-
-struct PTL_GuildBoardDeletePkt
-{
-    char m_base[0xa];
-    unsigned int m_fieldA;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    unsigned int m_charNo;      // +0x12
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildBoardDeletePkt
-{
-    char m_base[0xa];
-    unsigned short m_result;    // +0xa（ORIG movzwl 0xa(%eax)）
-    unsigned int m_guildKey;    // +0xc
-    unsigned int m_charNo;      // +0x10
-    char m_info[0xa5];          // +0x14
-} __attribute__((packed));
-
-struct PTL_WebGuildBoardPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    unsigned int m_no;          // +0x12
-} __attribute__((packed));
-
-struct PTL_DBReplyWebGuildBoardWritePkt
-{
-    char m_base[0xa];
-    unsigned short m_result;    // +0xa
-    unsigned int m_guildKey;    // +0xc
-    unsigned int m_charNo;      // +0x10
-    char m_info[0xa5];          // +0x14
-} __attribute__((packed));
-
-struct PTL_ApproveJoinGuildPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    unsigned int m_no;          // +0x12
-} __attribute__((packed));
-
-struct PTL_DBResponseApproveJoinGuildPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_joinerNo;    // +0x12
-    unsigned int m_requesterNo; // +0x16
-    char m_joinInfo;            // +0x1a
-} __attribute__((packed));
-
-struct PTL_GuildAttendanceInfoPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    unsigned char m_field12;    // +0x12（ORIG movzbl 0x12(%eax)）
-} __attribute__((packed));
-
-struct PTL_SendGuildLetterPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildId;     // +0xe
-    char m_msg[0x100];          // +0x12
-} __attribute__((packed));
-
-struct PTL_ReplySendGuildLetterPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    unsigned char m_result;     // +0x12（ORIG movzbl 0x12(%eax)）
-} __attribute__((packed));
-
-struct PTL_PowerWarPointPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    int m_point;                // +0x12
-} __attribute__((packed));
-
-struct PTL_RefreshGuildInfoPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-} __attribute__((packed));
-
-struct PTL_WriteGuildMemberMemoPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa（ORIG FindGuild 读 +0xa）
-    unsigned int m_charNo;      // +0xe（ORIG FindUser_CharNo 读 +0xe）
-    char m_memo[0x15];          // +0x12
-} __attribute__((packed));
-
-struct PTL_GuildCargoSimplePkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-} __attribute__((packed));
-
-struct PTL_PowerSidePkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    unsigned char m_field12;    // +0x12（ORIG movzbl 0x12(%eax)）
-} __attribute__((packed));
-
-struct PTL_JoinPowerPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    unsigned char m_field12;    // +0x12（ORIG movzbl 0x12(%eax)）
-} __attribute__((packed));
-
-struct PTL_SecedePowerPkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-} __attribute__((packed));
-
-struct PTL_DBLoadGuildAgitPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    char m_info[0x30];          // +0xe
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildCreatePkt
-{
-    char m_base[0xa];
-    unsigned int m_charNo;      // +0xa
-    unsigned int m_guildKey;    // +0xe
-    int m_result;               // +0x12
-    char m_name[0x1e];          // +0x16
-} __attribute__((packed));
-
-struct PTL_ChangePowerWarPointPkt
-{
-    char m_base[0xa];
-    unsigned char m_fieldA;     // +0xa（ORIG movzbl 0xa(%eax)）
-    unsigned int m_fieldB;      // +0xb
-    unsigned int m_fieldF;      // +0xf
-    unsigned int m_field13;     // +0x13
-    unsigned int m_field17;     // +0x17
-    unsigned int m_field1B;     // +0x1b
-    unsigned char m_field2B;    // +0x2b（ORIG movzbl 0x2b(%eax)）
-    unsigned char m_field2C;    // +0x2c
-} __attribute__((packed));
-
-struct PTL_GameServerRegistPkt
-{
-    char m_base[4];
-    unsigned int m_connNo;      // +6
-    unsigned char m_field2;     // +0xa（ORIG movzbl 0xa(%eax)）
-    unsigned char m_group;      // +0xb（ORIG movzbl 0xb(%eax)）
-    unsigned char m_field1;     // +0xc（ORIG movzbl 0xc(%eax)）
-    char m_name[0x10];          // +0xd
-    unsigned short m_port;      // +0x1d
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildMemberPkt
-{
-    char m_base[0xa];
-    unsigned char m_success;    // +0xa
-    unsigned int m_guildKey;    // +0xb
-    unsigned int m_charNo;      // +0xf
-    char m_member;              // +0x13
-} __attribute__((packed));
-
-struct PTL_DBReplyGuildAllMembersPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    unsigned char m_count;      // +0x12（ORIG movzbl 0x12(%eax)）
-    unsigned char m_field13;    // +0x13（ORIG movzbl 0x13(%eax)）
-    char m_members;             // +0x14
-} __attribute__((packed));
-
-struct PTL_DBReplyUnconnGuildMemberPkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    char m_member;              // +0x12
-} __attribute__((packed));
-
-struct PTL_ReplyQueryGuildPkt
-{
-    char m_base[0xa];
-    unsigned char m_success;    // +0xa（ORIG movzbl 0xa(%eax)）
-    unsigned int m_guildKey;    // +0xb
-    unsigned int m_charNo;      // +0xf
-    char m_info[0xc0];          // +0x13
-} __attribute__((packed));
-
-struct PTL_NoticeGuildWarEndPkt
-{
-    char m_base[0xa];
-    unsigned char m_fieldA;     // +0xa（ORIG movzbl 0xa(%eax)）
-} __attribute__((packed));
-
-struct PTL_ChangeUnconnectedGuildMemberGradePkt
-{
-    char m_base[0xa];
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_charNo;      // +0xe
-    char m_name[0x1e];          // +0x12
-    unsigned char m_grade;      // +0x30（ORIG movzbl 0x30(%eax)）
-    unsigned char m_prevGrade;  // +0x31（ORIG movzbl 0x31(%eax)）
-    unsigned int m_targetCharNo; // +0x32
-} __attribute__((packed));
-
 #define STUB_HANDLER(name) \
     void CPacketTranslater::name(PacketHeader* pkt) {}
 
@@ -873,7 +152,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
 {
     try
     {
-        PTL_LoginPkt* pb = (PTL_LoginPkt*)pkt;
+        Packet_Monitor_UDP_Login* pb = (Packet_Monitor_UDP_Login*)pkt;
         if (m_pclApp != 0)
         {
             CGameServer* gs;
@@ -941,7 +220,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
 
 void CPacketTranslater::OnLogout(PacketHeader* pkt)
 {
-    PTL_LogoutPkt* pb = (PTL_LogoutPkt*)pkt;
+    Packet_Monitor_UDP_Logout* pb = (Packet_Monitor_UDP_Logout*)pkt;
     try
     {
         if (m_pclApp != 0)
@@ -1014,7 +293,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
             CServerHandler* handler = m_pclApp->m_serverHandler;
             if (handler != 0)
             {
-                unsigned char idx = ((GuildPacketBodyView*)pb)->m_field_a;
+                unsigned char idx = ((Packet_Sync_GM_List*)pb)->m_field_a;
                 if (idx == 0xc8)
                 {
                     handler->ResetDBHeartBeat();
@@ -1049,7 +328,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                 else
                 {
                     DNF_LOG_SCOPE_LINE(0x130,"./log/Except", "[ERROR - HEART BEAT] Channel Index(%d) Over.",
-                        (unsigned int)((GuildPacketBodyView*)pb)->m_field_a);
+                        (unsigned int)((Packet_Sync_GM_List*)pb)->m_field_a);
                 }
             }
         }
@@ -1141,7 +420,7 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
         }
         CUser* user;
         CGuild* guild;
-        PTL_CharLoginPkt* pb = (PTL_CharLoginPkt*)pkt;
+        Packet_Monitor_Char_Info* pb = (Packet_Monitor_Char_Info*)pkt;
         CUserManager* um;
         if ((&m_pclApp->m_guildManager)->IsGuildWarEnterableChar(
                 pb->m_war, pb->m_guildKey) != true)
@@ -1206,43 +485,43 @@ void CPacketTranslater::OnReplyQueryGuild(PacketHeader* pkt)
 {
     try
     {
-    if (((PTL_ReplyQueryGuildPkt*)pkt)->m_success == 1)
+    if (((Packet_DB_Reply_Query_Guild*)pkt)->m_result == 1)
     {
         int rc = (&m_pclApp->m_guildManager)->LoadGuild(
-            ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey,
-            *(STGuildDBInfoOnly*)&((PTL_ReplyQueryGuildPkt*)pkt)->m_info,
-            &((PTL_ReplyQueryGuildPkt*)pkt)->m_info[0xbd]);
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId,
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildInfo,
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_rest);
         if (rc != 1)
         {
             DNF_LOG_SCOPE_LINE(0x202, "./log/GuildErr",
                 "CPacketTranslater::OnReplyQueryGuild()\tLoadGuild Err(%d)",
-                ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey);
+                ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
         }
         (&m_pclApp->m_guildManager)->SendGuildInfoToMembers(
-            ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey, true);
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId, true);
         (&m_pclApp->m_guildManager)->AttendGuild(
-            ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey,
-            ((PTL_ReplyQueryGuildPkt*)pkt)->m_charNo);
-        if ((unsigned char)((PTL_ReplyQueryGuildPkt*)pkt)->m_info[0x9e] != 0)
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId,
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_characNo);
+        if (((Packet_DB_Reply_Query_Guild*)pkt)->m_guildInfo.m_agitFlag != 0)
         {
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-                ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey);
+                ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
             CServerHandler* handler = m_pclApp->Get_ServerHandler();
             if (guild != 0)
             {
                 guild->LoadGuildAgit(handler,
-                                     ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey);
+                                     ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
             }
         }
     }
     else
     {
         (&m_pclApp->m_guildManager)->SendGuildInfoToMembers(
-            ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey, true);
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId, true);
         DNF_LOG_SCOPE_LINE(0x21d,"./log/Except",
             "[DB ERROR]CPacketTranslater::OnReplyQueryGuild() packet->bSuccess : %d,guildKey(%d)",
-            (unsigned int)((PTL_ReplyQueryGuildPkt*)pkt)->m_success,
-            ((PTL_ReplyQueryGuildPkt*)pkt)->m_guildKey);
+            (unsigned int)((Packet_DB_Reply_Query_Guild*)pkt)->m_result,
+            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
     }
     }
     catch (CDNFException& e)
@@ -1263,25 +542,23 @@ void CPacketTranslater::OnDBReplyQueryGuildMember(PacketHeader* pkt)
 {
     try
     {
-    PTL_DBReplyQueryGuildMemberPkt* pb = (PTL_DBReplyQueryGuildMemberPkt*)pkt;
-    if (pb->m_success == 1)
+    Packet_DB_Reply_Query_Guild_Member* pb = (Packet_DB_Reply_Query_Guild_Member*)pkt;
+    if (pb->m_flag == 1)
     {
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_characNo);
         if (user == 0)
         {
             throw CDNFException(
                 "CPacketTranslater::OnDBReplyQueryGuildMember()\tpclUser is NULL\n");
         }
-        user->LoadGuildMember(pb->m_guildKey,
-                              *(STGuildMemerDBInfo*)&((PTL_DBReplyGuildMemberPkt*)pkt)->m_member);
-        user->SendGuildMemberDBInfo(
-            *(STGuildMemerDBInfo*)&((PTL_DBReplyGuildMemberPkt*)pkt)->m_member);
+        user->LoadGuildMember(pb->m_guildId, pb->m_info);
+        user->SendGuildMemberDBInfo(pb->m_info);
     }
     else
     {
         DNF_LOG_SCOPE_LINE(0x24b,"./log/Except",
             "[DB ERROR]CPacketTranslater::OnDBReplyQueryGuildMember() packet->bSuccess : %d\n",
-            (unsigned int)pb->m_success);
+            (unsigned int)pb->m_flag);
     }
     }
     catch (CDNFException& e)
@@ -1303,18 +580,18 @@ void CPacketTranslater::OnNoticeGuildEnter(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildEnter : 0 == m_pclApp")
-    PTL_NoticeGuildEnterPkt* pb = (PTL_NoticeGuildEnterPkt*)pkt;
-    char* mid = NumberToString(pb->m_dbid, 0);
+    Packet_Monitor_Notice_Guild_Enter* pb = (Packet_Monitor_Notice_Guild_Enter*)pkt;
+    char* mid = NumberToString(pb->m_info.m_dbid, 0);
     DNF_LOG_SCOPE_LINE(0x283,"./log/Web",
         "Packet_Monitor_Notice_Guild_Enter: guildkey : %d, m_id : %s , charid : %d, guildname : %s, charname : %s\n",
-        pb->m_guildKey, mid, pb->m_charNo, pb->m_guildName, pb->m_charName);
+        pb->m_info.m_guildKey, mid, pb->m_info.m_charNo, pb->m_info.m_guildName, pb->m_info.m_charName);
     CGuild* guild = (&m_pclApp->m_guildManager)->GuildEnter(
-        pb->m_guildKey, *(ST_Notice_Guild_Enter*)((char*)pb + 10));
+        pb->m_info.m_guildKey, pb->m_info);
     if (guild != 0)
     {
-        pb->m_field_4f = 1;
-        pb->m_field_4b = pb->m_charNo;
-        guild->NoticeEnterToGuildMember((char*)pb + 10);
+        pb->m_info.m_field_4f = 1;
+        pb->m_info.m_field_4b = pb->m_info.m_charNo;
+        guild->NoticeEnterToGuildMember((char*)&pb->m_info);
     }
     }
     catch (CDNFException& e)
@@ -1334,29 +611,28 @@ void CPacketTranslater::OnNoticeGuildEnter(PacketHeader* pkt)
 void CPacketTranslater::OnNoticeGuildSecede(PacketHeader* pkt)
 {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildSecede : 0 == m_pclApp")
-    char* pb = (char*)pkt;
+    Packet_Monitor_Notice_Guild_Secede* pb = (Packet_Monitor_Notice_Guild_Secede*)pkt;
     try
     {
         CUser* user =
-            m_pclApp->Get_UserManager()->FindUser_CharNo(
-                ((PTL_NoticeGuildSecedePkt*)pb)->m_charNo);
+            m_pclApp->Get_UserManager()->FindUser_CharNo(pb->m_info.m_charNo);
         if (user != 0)
         {
             Packet_Guild_Exp_Book_Delete expDel;
             expDel.m_channel = user->GetIdByChannel();
-            expDel.m_charNo = ((PTL_NoticeGuildSecedePkt*)pb)->m_charNo;
-            expDel.m_group = ((PTL_NoticeGuildSecedePkt*)pb)->m_guildKey;
+            expDel.m_charNo = pb->m_info.m_charNo;
+            expDel.m_group = pb->m_info.m_guildKey;
             expDel.m16 = (unsigned int)m_pclApp->Get_ServerGroup() & 0xff;
             user->SendTcpGameserver((PacketHeader*)&expDel);
         }
         else
         {
             Packet_No_Cache noCache;
-            noCache.ma = ((PTL_NoticeGuildSecedePkt*)pb)->m_guildKey;
+            noCache.ma = pb->m_info.m_guildKey;
             noCache.me = (unsigned int)m_pclApp->Get_ServerGroup() & 0xff;
             noCache.m12 = 1;
             m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(&noCache);
-            noCache.ma = ((PTL_NoticeGuildSecedePkt*)pb)->m_guildKey;
+            noCache.ma = pb->m_info.m_guildKey;
             noCache.me = (unsigned int)m_pclApp->Get_ServerGroup() & 0xff;
             noCache.m12 = 2;
             m_pclApp->Get_ServerHandler()->SendTcpGameServerFirst(&noCache);
@@ -1366,16 +642,15 @@ void CPacketTranslater::OnNoticeGuildSecede(PacketHeader* pkt)
             query.m_handleIdx = 2;
             sprintf(query.m_data,
                     "upDate charac_info set guild_secede = 1 where charac_no = %u",
-                    ((PTL_NoticeGuildSecedePkt*)pb)->m_charNo);
+                    pb->m_info.m_charNo);
             m_pclApp->Get_ServerHandler()->SendToDB(&query);
         }
 
         CGuild* guild = (&m_pclApp->m_guildManager)->GuildSecede(
-            ((PTL_NoticeGuildSecedePkt*)pb)->m_fieldA,
-            *(ST_Notice_Guild_Secede*)(pb + 0xa));
+            pb->m_info.m_guildKey, pb->m_info);
         if (guild != 0)
         {
-            guild->NoticeSecedeToGuildMember(pb + 0xa);
+            guild->NoticeSecedeToGuildMember((char*)&pb->m_info);
             guild->SendGuildInfoToMembers(false);
         }
     }
@@ -1428,21 +703,21 @@ void CPacketTranslater::OnNoticeGuildCreate(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildCreate : 0 == m_pclApp");
-    PTL_NoticeGuildCreatePkt* pb = (PTL_NoticeGuildCreatePkt*)pkt;
+    Packet_Monitor_Notice_Guild_Create* pb = (Packet_Monitor_Notice_Guild_Create*)pkt;
     CServerHandler* handler;
     if ((handler = m_pclApp->Get_ServerHandler()) == 0)
     {
         throw CDNFException("CGuildManager::GuildMemLogin() pclServerHandler == NULL\n");
     }
-    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo);
+    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_info.m_charNo);
     if (user != 0)
     {
         unsigned int uniqCharNo = user->GetUniqCharNo();
-        (&m_pclApp->m_guildManager)->CreateGuild(pb->m_guildKey, handler,
+        (&m_pclApp->m_guildManager)->CreateGuild(pb->m_info.m_guildKey, handler,
                                                   uniqCharNo);
         user->QueryGuildMember(handler);
         Packet_Monitor_Notice_Guild_Create_ToUser notice;
-        memcpy(&notice.m_info, (char*)pb + 0xa, 0x1f);
+        notice.m_info = pb->m_info;
         notice.m_member = user->GetIdByChannel();
         user->SendToGameserver((char*)&notice, 0x2d);
     }
@@ -1466,7 +741,7 @@ void CPacketTranslater::OnNoticeGuildDismiss(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildDismiss : 0 == m_pclApp")
-    PTL_NoticeGuildDismissPkt* pb = (PTL_NoticeGuildDismissPkt*)pkt;
+    Packet_Monitor_Notice_Guild_Dismiss* pb = (Packet_Monitor_Notice_Guild_Dismiss*)pkt;
     DNF_LOG_SCOPE_LINE(0x3a9,"./log/Web", "Packet_Monitor_Notice_Guild_Dismiss: guildkey : %d\n",
         pb->m_guildKey);
     Packet_No_Cache noCache;
@@ -1504,7 +779,7 @@ void CPacketTranslater::OnNoticeGuildChatMsg(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildChatMsg : 0 == m_pclApp")
-    PTL_NoticeGuildChatMsgPkt* pb = (PTL_NoticeGuildChatMsgPkt*)pkt;
+    Packet_Monitor_Guild_Chat* pb = (Packet_Monitor_Guild_Chat*)pkt;
     if (pb->m_guildKey == 0 || pb->m_charNo == 0 || pb->m_msgLen == 0)
     {
         throw CDNFException(
@@ -1538,7 +813,7 @@ void CPacketTranslater::OnNoticeGuildChatMsgHyperLink(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildChatMsgHyperLink : 0 == m_pclApp");
-    PTL_NoticeGuildChatMsgHyperLinkPkt* pb = (PTL_NoticeGuildChatMsgHyperLinkPkt*)pkt;
+    Packet_Monitor_Guild_Chat_Hyper_Link* pb = (Packet_Monitor_Guild_Chat_Hyper_Link*)pkt;
     if (pb->m_guildKey != 0 && pb->m_charNo != 0 && pb->m_msgLen != 0)
     {
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo);
@@ -1579,7 +854,7 @@ void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnIncreaseGuildExp : 0 == m_pclApp")
-    PTL_IncreaseGuildExpPkt* pb = (PTL_IncreaseGuildExpPkt*)pkt;
+    Packet_Monitor_Increase_Guild_Exp* pb = (Packet_Monitor_Increase_Guild_Exp*)pkt;
     if (pb->m_guildKey == 0)
     {
         throw CDNFException(
@@ -1649,7 +924,7 @@ void CPacketTranslater::OnBuyGuildSkill(PacketHeader* pkt)
         THROW_IF_NO_APP("CPacketTranslater::OnBuyGuildSkill : 0 == m_pclApp");
         CUser* user;
         CGuild* guild;
-        PTL_BuyGuildSkillPkt* pb = (PTL_BuyGuildSkillPkt*)pkt;
+        Packet_Monitor_Buy_Guild_Skill* pb = (Packet_Monitor_Buy_Guild_Skill*)pkt;
         if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
         {
             throw CDNFException("CPacketTranslater::OnBuyGuildSkill : 0 == pclUser");
@@ -1660,8 +935,8 @@ void CPacketTranslater::OnBuyGuildSkill(PacketHeader* pkt)
             {
                 if (guild->IsGuildMaster(pb->m_charNo) || guild->IsSubGuildMaster(pb->m_charNo))
                 {
-                    if (guild->BuyGuildSkill((int)pb->m_field12, (int)pb->m_field16,
-                                             (short)pb->m_field1a, pb->m_field1c))
+                    if (guild->BuyGuildSkill(pb->m_skillId, pb->m_skillLevel,
+                                             pb->m_slot, pb->m_cost))
                     {
                         char saveFlag = (char)guild->GetDBSaveFlag();
                         guild->SendGuildInfoToMembers(false);
@@ -1702,10 +977,10 @@ void CPacketTranslater::OnSetGuildMemberGradeFromWeb(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnSetGuildMemberGradeFromWeb : 0 == m_pclApp");
-    unsigned int guildKey = ((PTL_SetGuildMemberGradeFromWebPkt*)pkt)->m_guildKey;
-    unsigned int masterCharNo = ((PTL_SetGuildMemberGradeFromWebPkt*)pkt)->m_masterCharNo;
-    unsigned char newGrade = ((PTL_SetGuildMemberGradeFromWebPkt*)pkt)->m_newGrade;
-    unsigned int targetCharNo = ((PTL_SetGuildMemberGradeFromWebPkt*)pkt)->m_targetCharNo;
+    unsigned int guildKey = ((Packet_Monitor_Set_GuildMember_Grade_FromWeb*)pkt)->m_guildKey;
+    unsigned int masterCharNo = ((Packet_Monitor_Set_GuildMember_Grade_FromWeb*)pkt)->m_masterCharNo;
+    unsigned char newGrade = ((Packet_Monitor_Set_GuildMember_Grade_FromWeb*)pkt)->m_newGrade;
+    unsigned int targetCharNo = ((Packet_Monitor_Set_GuildMember_Grade_FromWeb*)pkt)->m_targetCharNo;
     if (guildKey == 0)
     {
         DNF_LOG_SCOPE_LINE(0x515,"./log/GuildModify",
@@ -1816,19 +1091,19 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
     THROW_IF_NO_APP("CPacketTranslater::OnSetGuildMemberGrade : 0 == m_pclApp")
     CUser* caller;
     if ((caller = (&m_pclApp->m_userManager)->FindUser_CharNo(
-             ((PTL_SetGuildMemberGradePkt*)pkt)->m_charNo)) == 0)
+             ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_charNo)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0x5f3,"./log/GuildModify", "CPacketTranslater::OnSetGuildMemberGrade : no pclRequester(%d)",
-            ((PTL_SetGuildMemberGradePkt*)pkt)->m_charNo);
+            ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_charNo);
         return;
     }
     Packet_Monitor_Set_Sub_Guild_Master_Reply reply;
     reply.m_a = caller->GetIdByChannel();
     reply.m_e = caller->GetUniqCharNo();
     int errCode = 0;
-    memcpy(reply.m_name, ((PTL_SetGuildMemberGradePkt*)pkt)->m_name, 0x1d);
-    unsigned char grade = ((PTL_SetGuildMemberGradePkt*)pkt)->m_grade;
-    unsigned int guildKey = ((PTL_SetGuildMemberGradePkt*)pkt)->m_guildKey;
+    memcpy(reply.m_name, ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_name, 0x1d);
+    unsigned char grade = ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_grade;
+    unsigned int guildKey = ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_guildKey;
     CGuild* guild = 0;
     if (guildKey == 0 ||
         (guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
@@ -1837,7 +1112,7 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
         caller->SendToGameserver((char*)&reply, 0x3a);
         return;
     }
-    bool authorized = guild->IsGuildMaster(((PTL_SetGuildMemberGradePkt*)pkt)->m_charNo) == 1 ||
+    bool authorized = guild->IsGuildMaster(((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_charNo) == 1 ||
                       caller->IsSubGuildMaster();
     if (!authorized)
     {
@@ -1851,7 +1126,7 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
     {
         if (guild->GetCurSubGuildMasterCnt() < 5)
         {
-            if (guild->IsGuildMaster(((PTL_SetGuildMemberGradePkt*)pkt)->m_charNo) != 1)
+            if (guild->IsGuildMaster(((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_charNo) != 1)
             {
                 errCode = 0x66;
             }
@@ -1862,7 +1137,7 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
         }
     }
     CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(
-        ((PTL_SetGuildMemberGradePkt*)pkt)->m_name);
+        ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_name);
     if (target == 0)
     {
         if (errCode == 0)
@@ -1876,9 +1151,9 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
             dbPkt.ma = group;
             dbPkt.mb = guildKey;
             dbPkt.m_f = grade;
-            dbPkt.m_10 = ((PTL_SetGuildMemberGradePkt*)pkt)->m_charNo;
-            dbPkt.m_14 = *(unsigned char*)((char*)caller->GetGuildMemDBInfo() + 0x15);
-            memcpy(dbPkt.m_name, ((PTL_SetGuildMemberGradePkt*)pkt)->m_name, 0x1d);
+            dbPkt.m_10 = ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_charNo;
+            dbPkt.m_14 = caller->GetGuildMemDBInfo()->m_grade;
+            memcpy(dbPkt.m_name, ((Packet_Monitor_Set_Sub_Guild_Master*)pkt)->m_name, 0x1d);
             m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
             return;
         }
@@ -1893,7 +1168,7 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
             }
             else
             {
-                if (*(unsigned char*)((char*)target->GetGuildMemDBInfo() + 0x15) == grade)
+                if (target->GetGuildMemDBInfo()->m_grade == grade)
                 {
                     errCode = 0x65;
                 }
@@ -1901,10 +1176,10 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
                 {
                     if (grade == 2)
                     {
-                        if (*(char*)((char*)caller->GetGuildMemDBInfo() + 0x15) == 1)
+                        if ((char)caller->GetGuildMemDBInfo()->m_grade == 1)
                         {
                             guild->SetSubGuildMaster(target->GetUniqCharNo(), true);
-                            *(unsigned char*)((char*)target->GetGuildMemDBInfo() + 0x15) = 2;
+                            target->GetGuildMemDBInfo()->m_grade = 2;
                             guild->ChangeUnconnectedGuildMemberGrade(target->GetUniqCharNo(), 2);
                             guild->SendGuildInfoToMembers(false);
                         }
@@ -1917,7 +1192,7 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
                     {
                         if (guild->IsSubGuildMaster(target->GetUniqCharNo()))
                         {
-                            if (*(char*)((char*)caller->GetGuildMemDBInfo() + 0x15) == 1)
+                            if ((char)caller->GetGuildMemDBInfo()->m_grade == 1)
                             {
                                 guild->SetSubGuildMaster(target->GetUniqCharNo(), false);
                                 guild->SendGuildInfoToMembers(false);
@@ -1974,7 +1249,7 @@ void CPacketTranslater::OnUpdateChangableCharInfo(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnUpdateChangableCharInfo : 0 == m_pclApp");
-    PTL_ChangableCharInfoPkt* pb = (PTL_ChangableCharInfoPkt*)pkt;
+    Packet_Monitor_Char_Changable_Info* pb = (Packet_Monitor_Char_Changable_Info*)pkt;
     CUser* user = (&m_pclApp->m_userManager)->FindUser(pb->m_dbid);
     if (user != 0)
     {
@@ -2013,7 +1288,7 @@ void CPacketTranslater::OnNoticeGuildWarPointChange(PacketHeader* pkt)
     CGuildWar* war = (&m_pclApp->m_guildManager)->GetGuildWar();
     if (war->IsGuildWarEventOn() == 1)
     {
-        PTL_GuildWarPointChangePkt* pb = (PTL_GuildWarPointChangePkt*)pkt;
+        Packet_Notice_Guild_War_Point_Change* pb = (Packet_Notice_Guild_War_Point_Change*)pkt;
         if (war->IsGuildWarEnterableGuild(pb->m_guildKey) == 1)
         {
             war->AddGuildWarPoint(pb->m_guildKey, (int)(char)pb->m_point);
@@ -2050,7 +1325,7 @@ void CPacketTranslater::OnNoticeGuildWarEnd(PacketHeader* pkt)
     if (war->IsGuildWarEventOn() == 1)
     {
         war->SetGuildWarEvent(false,
-                              ((PTL_NoticeGuildWarEndPkt*)pkt)->m_fieldA);
+                              ((Packet_Notice_Guild_War_End*)pkt)->m_fieldA);
         if (war->Rank() != 1)
         {
             throw CDNFException(
@@ -2087,18 +1362,12 @@ void CPacketTranslater::OnNoticeGuildWarEnd(PacketHeader* pkt)
 
 void CPacketTranslater::OnRequestGuildWarInfo(PacketHeader* pkt)
 {
-    struct PTL_RequestGuildWarInfoPkt
-    {
-        char m_base[0xe];
-        unsigned int m_charNo;   // +0xe
-        char m_rankInfo[0x14a];  // +0x12
-    } __attribute__((packed));
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildWarInfo : 0 == m_pclApp");
         CUser* user;
         CGuildWar* war = (&m_pclApp->m_guildManager)->GetGuildWar();
-        PTL_RequestGuildWarInfoPkt* pb = (PTL_RequestGuildWarInfoPkt*)pkt;
+        Packet_Notice_Guild_War_Info* pb = (Packet_Notice_Guild_War_Info*)pkt;
         if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x78d,"./log/Except",
@@ -2121,26 +1390,26 @@ void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
     char* pb = (char*)pkt;
     try
     {
-        unsigned int guildKey = ((PTL_CharacterDeletePkt*)pb)->m_guildKey;
+        unsigned int guildKey = ((Packet_Monitor_Charac_Delete*)pb)->m_guildKey;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x7bb,"./log/GuildModify",
                 "CPacketTranslater::OnCharacterDelete : 0 == pclGuild, Char Key = %d (Maybe Requester was logout)",
-                ((PTL_CharacterDeletePkt*)pb)->m_charNo);
+                ((Packet_Monitor_Charac_Delete*)pb)->m_charNo);
         }
         else
         {
             ST_Notice_Guild_Secede notice;
-            notice.m_guildKey = ((PTL_CharacterDeletePkt*)pb)->m_guildKey;
-            notice.m_charNo = ((PTL_CharacterDeletePkt*)pb)->m_charNo;
+            notice.m_guildKey = ((Packet_Monitor_Charac_Delete*)pb)->m_guildKey;
+            notice.m_charNo = ((Packet_Monitor_Charac_Delete*)pb)->m_charNo;
             notice.m_secedeFlag = 1;
             memcpy(notice.m_guildName, guild->GetGuildName(), 0x16);
             (&m_pclApp->m_guildManager)->GuildSecede(
-                ((PTL_CharacterDeletePkt*)pb)->m_guildKey, notice);
+                ((Packet_Monitor_Charac_Delete*)pb)->m_guildKey, notice);
             guild->SendGuildInfoToMembers(false);
             (&m_pclApp->m_userManager)->DeleteBlackUserOnCharacDelete(
-                ((PTL_CharacterDeletePkt*)pb)->m_charNo);
+                ((Packet_Monitor_Charac_Delete*)pb)->m_charNo);
         }
     }
     DNF_CATCH_LOG_PRINTF("./log/Except", "CPacketTranslater::OnCharacterDelete Exception Break", 0x7d2, 0x7d8)
@@ -2151,19 +1420,19 @@ void CPacketTranslater::OnCallGuildMembers(PacketHeader* pkt)
     THROW_IF_NO_APP("CPacketTranslater::OnCallGuildMembers : 0 == m_pclApp")
     try
     {
-        unsigned int key = ((PTL_CallGuildMembersPkt*)pkt)->m_guildKey;
+        unsigned int key = ((Packet_Monitor_Call_Guild_Members*)pkt)->m_guildKey;
         if (key == 0)
         {
             throw CDNFException("CPacketTranslater::OnCallGuildMembers : packet->m_uGuildKey == 0");
         }
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-            ((PTL_CallGuildMembersPkt*)pkt)->m_charNo);
+            ((Packet_Monitor_Call_Guild_Members*)pkt)->m_charNo);
         if (user == 0)
         {
             throw CDNFException("CPacketTranslater::OnCallGuildMembers : 0 == pclUser");
         }
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-            ((PTL_CallGuildMembersPkt*)pkt)->m_guildKey);
+            ((Packet_Monitor_Call_Guild_Members*)pkt)->m_guildKey);
         if (guild == 0)
         {
             throw CDNFException("CPacketTranslater::OnCallGuildMembers : 0 == pclGuild");
@@ -2191,17 +1460,17 @@ void CPacketTranslater::OnCallGuildAllMembers(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnCallGuildAllMembers : 0 == m_pclApp")
-        if (((PTL_CallGuildMembersPkt*)pkt)->m_guildKey == 0)
+        if (((Packet_Monitor_Call_Guild_Members*)pkt)->m_guildKey == 0)
         {
             throw CDNFException(
                 "CPacketTranslater::OnCallGuildAllMembers : packet->m_uGuildKey == 0");
         }
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-            ((PTL_CallGuildMembersPkt*)pkt)->m_charNo);
+            ((Packet_Monitor_Call_Guild_Members*)pkt)->m_charNo);
         if (user != 0)
         {
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-                ((PTL_CallGuildMembersPkt*)pkt)->m_guildKey);
+                ((Packet_Monitor_Call_Guild_Members*)pkt)->m_guildKey);
             if (guild != 0)
             {
                 guild->CallGuildAllMembersProxy(user, m_pclApp->Get_ServerHandler());
@@ -2237,7 +1506,7 @@ void CPacketTranslater::OnDBReplyGuildAllMembers(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnDBReplyGuildAllMembers : 0 == m_pclApp");
-        unsigned int guildKey = ((PTL_DBReplyGuildAllMembersPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_DB_Reply_Guild_All_Members*)pkt)->m_guildId;
         if (guildKey == 0)
         {
             throw CDNFException(
@@ -2250,20 +1519,20 @@ void CPacketTranslater::OnDBReplyGuildAllMembers(PacketHeader* pkt)
                 "CPacketTranslater::OnDBReplyGuildAllMembers : 0 == pclGuild ,the guild is out");
         }
         guild->LoadGuildAllMembersProxy(
-            (STGuildMemberProxy*)&((PTL_DBReplyGuildAllMembersPkt*)pkt)->m_members,
-            ((PTL_DBReplyGuildAllMembersPkt*)pkt)->m_count,
-            ((PTL_DBReplyGuildAllMembersPkt*)pkt)->m_field13);
+            (STGuildMemberProxy*)&((Packet_DB_Reply_Guild_All_Members*)pkt)->m_members,
+            ((Packet_DB_Reply_Guild_All_Members*)pkt)->m_count,
+            ((Packet_DB_Reply_Guild_All_Members*)pkt)->m_field13);
         CUser* user = 0;
-        if (((PTL_DBReplyGuildAllMembersPkt*)pkt)->m_count == 2)
+        if (((Packet_DB_Reply_Guild_All_Members*)pkt)->m_count == 2)
         {
             user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                ((PTL_DBReplyGuildAllMembersPkt*)pkt)->m_charNo);
+                ((Packet_DB_Reply_Guild_All_Members*)pkt)->m_characNo);
             if (user != 0)
             {
                 guild->SetGuildDBFlag(0x10);
                 guild->ReplyGuildAllMembers(user);
                 DNF_LOG_SCOPE_LINE(0x87b,"./log/GuildModify", "OnDBReplyGuildAllMembers gKey(%d), cKey(%d)", guildKey,
-                    ((PTL_DBReplyGuildAllMembersPkt*)pkt)->m_charNo);
+                    ((Packet_DB_Reply_Guild_All_Members*)pkt)->m_characNo);
             }
         }
     }
@@ -2287,8 +1556,8 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnDBReplyUnconnGuildMember : 0 == m_pclApp");
-        char* pb = (char*)pkt;
-        unsigned int guildKey = *(unsigned int*)(pb + 0xa);
+        Packet_DB_Reply_Unconn_Guild_Member* pb = (Packet_DB_Reply_Unconn_Guild_Member*)pkt;
+        unsigned int guildKey = pb->m_guildId;
         if (guildKey == 0)
         {
             throw CDNFException(
@@ -2297,7 +1566,7 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
         if (guild != 0)
         {
-            guild->LoadGuildOneMemberProxy(*(STGuildMemberProxy*)(pb + 0x12));
+            guild->LoadGuildOneMemberProxy(pb->m_proxy);
             return;
         }
         throw CDNFException(
@@ -2322,28 +1591,28 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
     {
         THROW_IF_NO_APP("CPacketTranslater::OnCallGuildInvite : 0 == m_pclApp");
         Packet_Guild_Call_Guild_Invite_To_Caller callerPkt;
-        if (((PTL_CallGuildInvitePkt*)pkt)->m_guildKey == 0)
+        if (((Packet_Guild_Call_Guild_Invite*)pkt)->m_guildKey == 0)
         {
             throw CDNFException("CPacketTranslater::OnCallGuildInvite : packet->m_uGuildKey == 0");
         }
         CUserManager* um = &m_pclApp->m_userManager;
         CUser* caller;
-        if ((caller = um->FindUser_CharNo(((PTL_CallGuildInvitePkt*)pkt)->m_caller)) == 0)
+        if ((caller = um->FindUser_CharNo(((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x8db,"./log/Except",
                 "CPacketTranslater::OnCallGuildInvite : 0 == pclCaller, Char Key = %d",
-                ((PTL_CallGuildInvitePkt*)pkt)->m_caller);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller);
             return;
         }
-        callerPkt.m_a = ((PTL_CallGuildInvitePkt*)pkt)->m_caller;
+        callerPkt.m_a = ((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller;
         callerPkt.m_e = caller->GetIdByChannel();
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(
-                 ((PTL_CallGuildInvitePkt*)pkt)->m_guildKey)) == 0)
+                 ((Packet_Guild_Call_Guild_Invite*)pkt)->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x8e4,"./log/GuildModify",
                 "CPacketTranslater::OnCallGuildInvite : 0 == pclGuild, Guild Key = %d",
-                ((PTL_CallGuildInvitePkt*)pkt)->m_guildKey);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_guildKey);
             callerPkt.m_12 = 0x22;
             caller->SendToGameserver((char*)&callerPkt, 0x16);
             return;
@@ -2352,19 +1621,19 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
         {
             DNF_LOG_SCOPE_LINE(0x8eb,"./log/GuildModify",
                 "CPacketTranslater::OnCallGuildInvite : !( m_eGuildDBFlag & GUILD_DB_LOAD_STATE ), Guild Key = %d",
-                ((PTL_CallGuildInvitePkt*)pkt)->m_guildKey);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_guildKey);
             callerPkt.m_12 = 0x22;
             caller->SendToGameserver((char*)&callerPkt, 0x16);
             return;
         }
-        if (!guild->IsGuildMaster(((PTL_CallGuildInvitePkt*)pkt)->m_caller) &&
-            !guild->IsSubGuildMaster(((PTL_CallGuildInvitePkt*)pkt)->m_caller) &&
-            *(char*)((char*)caller->GetGuildMemDBInfo() + 0x15) != 0x03)
+        if (!guild->IsGuildMaster(((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller) &&
+            !guild->IsSubGuildMaster(((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller) &&
+            (char)caller->GetGuildMemDBInfo()->m_grade != 0x03)
         {
             DNF_LOG_SCOPE_LINE(0x8f4,"./log/GuildModify",
                 "CPacketTranslater::OnCallGuildInvite : IsGuildMaster or IsSubGuildMaster, g(%d), c(%d)",
-                ((PTL_CallGuildInvitePkt*)pkt)->m_guildKey,
-                ((PTL_CallGuildInvitePkt*)pkt)->m_caller);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_guildKey,
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller);
             callerPkt.m_12 = 0x24;
             caller->SendToGameserver((char*)&callerPkt, 0x16);
             return;
@@ -2374,18 +1643,18 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x8fd,"./log/GuildModify",
                 "CPacketTranslater::OnCallGuildInvite : cnt(%d), Guild Key = %d",
                 guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff,
-                ((PTL_CallGuildInvitePkt*)pkt)->m_guildKey);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_guildKey);
             callerPkt.m_12 = 0x26;
             caller->SendToGameserver((char*)&callerPkt, 0x16);
             return;
         }
         CUser* invited =
-            um->FindUser_CharName(std::string(((PTL_CallGuildInvitePkt*)pkt)->m_name));
+            um->FindUser_CharName(std::string(((Packet_Guild_Call_Guild_Invite*)pkt)->m_name));
         if (invited == 0)
         {
             DNF_LOG_SCOPE_LINE(0x905,"./log/GuildModify",
                 "CPacketTranslater::OnCallGuildInvite : 0 == pclInvitedUser, Char Key = %d",
-                ((PTL_CallGuildInvitePkt*)pkt)->m_caller);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller);
             callerPkt.m_12 = 3;
             caller->SendToGameserver((char*)&callerPkt, 0x16);
             return;
@@ -2395,7 +1664,7 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
         {
             DNF_LOG_SCOPE_LINE(0x90d,"./log/GuildModify",
                 "CPacketTranslater::OnCallGuildInvite : 0 == pclInvitedUser, Char Key = %d",
-                ((PTL_CallGuildInvitePkt*)pkt)->m_caller);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller);
             callerPkt.m_12 = 0x4d;
             caller->SendToGameserver((char*)&callerPkt, 0x16);
             return;
@@ -2416,7 +1685,7 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
         {
             DNF_LOG_SCOPE_LINE(0x916,"./log/GuildModify",
                 "CPacketTranslater::OnCallGuildInvite : 0 != pclInvitedUser.GetGuildKey(), Char Key = %d",
-                ((PTL_CallGuildInvitePkt*)pkt)->m_caller);
+                ((Packet_Guild_Call_Guild_Invite*)pkt)->m_caller);
             callerPkt.m_12 = 0x27;
             caller->SendToGameserver((char*)&callerPkt, 0x16);
         }
@@ -2438,7 +1707,7 @@ void CPacketTranslater::OnReplyGuildInvite(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnReplyGuildInvite : 0 == m_pclApp");
-    unsigned int charNo = ((PTL_ReplyGuildInvitePkt*)pkt)->m_charNo;
+    unsigned int charNo = ((Packet_Guild_Reply_Guild_Invite_From_Invited*)pkt)->m_charNo;
     CUser* invited;
     if ((invited = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) == 0)
     {
@@ -2479,7 +1748,7 @@ void CPacketTranslater::OnReplyGuildInvite(PacketHeader* pkt)
     }
     if ((guild->GetTotalCnt_Of_GuildDBInfo() & 0xffff) + 1 < 0x12d)
     {
-        if (((PTL_ReplyGuildInvitePkt*)pkt)->m_accept == 1)
+        if (((Packet_Guild_Reply_Guild_Invite_From_Invited*)pkt)->m_accept == 1)
         {
             Packet_DBMW_Save_Guild_Join joinPkt;
             unsigned int dbid = invited->GetDBID();
@@ -2513,7 +1782,7 @@ void CPacketTranslater::OnReplyGuildInvite(PacketHeader* pkt)
                 Packet_Guild_Reply_Guild_Invite_To_Caller callerPkt;
                 callerPkt.m_a = callerId;
                 callerPkt.m_e = caller->GetIdByChannel();
-                callerPkt.m_12 = (unsigned int)((PTL_ReplyGuildInvitePkt*)pkt)->m_accept;
+                callerPkt.m_12 = (unsigned int)((Packet_Guild_Reply_Guild_Invite_From_Invited*)pkt)->m_accept;
                 memcpy(callerPkt.m_rest, invited->GetCharName(), 0x1d);
                 caller->SendToGameserver((char*)&callerPkt, 0x34);
             }
@@ -2558,38 +1827,38 @@ void CPacketTranslater::OnDBMWGuildJoin(PacketHeader* pkt)
         THROW_IF_NO_APP("CPacketTranslater::OnReplyGuildInvite : 0 == m_pclApp");
         CUser* joinUser;
         if ((joinUser = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                 ((PTL_DBMWGuildJoinPkt*)pkt)->m_joiner)) == 0)
+                 ((Packet_DBMW_Guild_Join*)pkt)->m_joiner)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x9d8, "./log/GuildModify", "CPacketTranslater::OnDBMWGuildJoin() 0 == pclJoinUser");
         }
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-            ((PTL_DBMWGuildJoinPkt*)pkt)->m_guildKey);
+            ((Packet_DBMW_Guild_Join*)pkt)->m_guildKey);
         if (guild == 0)
         {
             DNF_LOG_SCOPE_LINE(0x9dc, "./log/GuildModify", "CPacketTranslater::OnDBMWGuildJoin() 0 == pclGuild");
         }
-        if (((PTL_DBMWGuildJoinPkt*)pkt)->m_result == 0)
+        if (((Packet_DBMW_Guild_Join*)pkt)->m_result == 0)
         {
-            GuildJoin(guild, joinUser, ((PTL_DBMWGuildJoinPkt*)pkt)->m_caller);
+            GuildJoin(guild, joinUser, ((Packet_DBMW_Guild_Join*)pkt)->m_caller);
         }
         else
         {
             CUser* caller;
             if ((caller = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                     ((PTL_DBMWGuildJoinPkt*)pkt)->m_caller)) != 0)
+                     ((Packet_DBMW_Guild_Join*)pkt)->m_caller)) != 0)
             {
                 Packet_Guild_Reply_Guild_Invite_To_Caller callerPkt;
-                callerPkt.m_a = ((PTL_DBMWGuildJoinPkt*)pkt)->m_caller;
+                callerPkt.m_a = ((Packet_DBMW_Guild_Join*)pkt)->m_caller;
                 callerPkt.m_e = caller->GetIdByChannel();
-                callerPkt.m_12 = ((PTL_DBMWGuildJoinPkt*)pkt)->m_result;
+                callerPkt.m_12 = ((Packet_DBMW_Guild_Join*)pkt)->m_result;
                 caller->SendToGameserver((char*)&callerPkt, 0x34);
             }
             if (joinUser != 0)
             {
                 Packet_Guild_Reply_Guild_Invite_To_Invited invitedPkt;
-                invitedPkt.m_a = ((PTL_DBMWGuildJoinPkt*)pkt)->m_joiner;
+                invitedPkt.m_a = ((Packet_DBMW_Guild_Join*)pkt)->m_joiner;
                 invitedPkt.m_e = joinUser->GetIdByChannel();
-                invitedPkt.m_12 = ((PTL_DBMWGuildJoinPkt*)pkt)->m_result;
+                invitedPkt.m_12 = ((Packet_DBMW_Guild_Join*)pkt)->m_result;
                 joinUser->SendToGameserver((char*)&invitedPkt, 0x16);
             }
         }
@@ -2657,11 +1926,11 @@ void CPacketTranslater::GuildJoin(CGuild* guild, STGuildJoinInfo* joinInfo, unsi
             //   +0x26=pInfo[0x35](sex)、memcpy(+4,pInfo+0x14,0x1d)、
             //   +0=pInfo[0x10](characNo)、+0x28=0
             proxy.m_grade = 0;
-            proxy.m_growType = ((STGuildJoinInfo_Layout*)joinInfo)->m_growType;
-            proxy.m_job = ((STGuildJoinInfo_Layout*)joinInfo)->m_lev;
-            proxy.m_sex = ((STGuildJoinInfo_Layout*)joinInfo)->m_sex;
-            memcpy(proxy.m_name, ((STGuildJoinInfo_Layout*)joinInfo)->m_characName, 0x1d);
-            proxy.m_no = ((STGuildJoinInfo_Layout*)joinInfo)->m_characNo;
+            proxy.m_growType = ((STGuildJoinInfo*)joinInfo)->m_growType;
+            proxy.m_job = ((STGuildJoinInfo*)joinInfo)->m_lev;
+            proxy.m_sex = ((STGuildJoinInfo*)joinInfo)->m_sex;
+            memcpy(proxy.m_name, ((STGuildJoinInfo*)joinInfo)->m_characName, 0x1d);
+            proxy.m_no = ((STGuildJoinInfo*)joinInfo)->m_characNo;
             proxy.m_lastPlayTime = 0;
             if (guild->LoadGuildOneMemberProxy(proxy) != 1)
             {
@@ -2674,12 +1943,12 @@ void CPacketTranslater::GuildJoin(CGuild* guild, STGuildJoinInfo* joinInfo, unsi
         // ORIG：ctor 后无 memset；+8=pInfo[0x10](characNo)、+0x41=dbid、+0x45=0，
         // +4=pInfo[8](m_id) 在两次 memcpy 之后最后写入
         info.m_guildKey = guild->GetGuildKey();
-        info.m_charNo = ((STGuildJoinInfo_Layout*)joinInfo)->m_characNo;
+        info.m_charNo = ((STGuildJoinInfo*)joinInfo)->m_characNo;
         info.m_field_4b = dbid;
         info.m_field_4f = 0;
-        memcpy(info.m_charName, ((STGuildJoinInfo_Layout*)joinInfo)->m_characName, 0x1d);
+        memcpy(info.m_charName, ((STGuildJoinInfo*)joinInfo)->m_characName, 0x1d);
         memcpy(info.m_guildName, guild->GetGuildName(), 0x16);
-        info.m_dbid = ((STGuildJoinInfo_Layout*)joinInfo)->m_id;
+        info.m_dbid = ((STGuildJoinInfo*)joinInfo)->m_id;
         guild->NoticeEnterToGuildMember((char*)&info);
         guild->SendGuildInfoToMembers(false);
     }
@@ -2692,9 +1961,9 @@ void CPacketTranslater::OnMonitorSendGuildLetter(PacketHeader* pkt)
     {
     THROW_IF_NO_APP("CPacketTranslater::OnMonitorSendGuildLetter : 0 == m_pclApp");
     char* pb = (char*)pkt;
-    unsigned int charNo = ((PTL_SendGuildLetterPkt*)pb)->m_charNo;
-    unsigned int guildId = ((PTL_SendGuildLetterPkt*)pb)->m_guildId;
-    const char* msg = ((PTL_SendGuildLetterPkt*)pb)->m_msg;
+    unsigned int charNo = ((Packet_Monitor_Send_Guild_Mail*)pb)->m_charNo;
+    unsigned int guildId = ((Packet_Monitor_Send_Guild_Mail*)pb)->m_guildId;
+    const char* msg = ((Packet_Monitor_Send_Guild_Mail*)pb)->m_msg;
     Packet_Monitor_Reply_Guild_Mail reply;
     {
         DNF_LOG_SCOPE_LINE(0xa98, "./log/GuildLetter", "charNo(%d),guildId(%d),msg(%s)", charNo, guildId, msg);
@@ -2799,12 +2068,12 @@ void CPacketTranslater::OnDBMWReplySendGuildLetter(PacketHeader* pkt)
     THROW_IF_NO_APP("CPacketTranslater::OnDBMWReplySendGuildLetter : 0 == m_pclApp");
     char* pb = (char*)pkt;
     Packet_Monitor_Reply_Guild_Mail reply;
-    if (((PTL_ReplySendGuildLetterPkt*)pb)->m_guildKey == 0)
+    if (((Packet_DBMW_Reply_Send_Guild_Letter*)pb)->m_guildKey == 0)
     {
         throw CDNFException(
             "CPacketTranslater::OnDBMWReplySendGuildLetter : packet->m_uGuildKey == 0");
     }
-    unsigned int charNo = ((PTL_ReplySendGuildLetterPkt*)pb)->m_charNo;
+    unsigned int charNo = ((Packet_DBMW_Reply_Send_Guild_Letter*)pb)->m_charNo;
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) == 0)
     {
@@ -2815,7 +2084,7 @@ void CPacketTranslater::OnDBMWReplySendGuildLetter(PacketHeader* pkt)
     {
         reply.m_charNo = charNo;
         reply.m_channel = user->GetIdByChannel();
-        reply.m_result = ((PTL_ReplySendGuildLetterPkt*)pb)->m_result;
+        reply.m_result = ((Packet_DBMW_Reply_Send_Guild_Letter*)pb)->m_result;
         user->SendToGameserver((char*)&reply, 0x13);
     }
     }
@@ -2837,8 +2106,8 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
     {
     THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildSecede : 0 == m_pclApp");
     Packet_Guild_Reply_Guild_Secede resp;
-    unsigned int guildKey = ((PTL_RequestGuildSecedePkt*)pkt)->m_guildKey;
-    unsigned int requesterCharNo = ((PTL_RequestGuildSecedePkt*)pkt)->m_requesterCharNo;
+    unsigned int guildKey = ((Packet_Guild_Request_Guild_Secede*)pkt)->m_guildKey;
+    unsigned int requesterCharNo = ((Packet_Guild_Request_Guild_Secede*)pkt)->m_requesterCharNo;
     if (guildKey == 0)
     {
         throw CDNFException("CPacketTranslater::OnCallGuildInvite : packet->m_uGuildKey == 0");
@@ -2868,11 +2137,11 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
         Packet_DB_Request_Guild_Secede dbPkt;
         dbPkt.m_guildKey = guildKey;
         dbPkt.m_charNo = requesterCharNo;
-        size_t nameLen = ((PTL_RequestGuildSecedePkt*)pkt)->m_nameLen;
+        size_t nameLen = ((Packet_Guild_Request_Guild_Secede*)pkt)->m_nameLen;
         dbPkt.m_nameLen = nameLen;
-        memcpy(dbPkt.m_name, ((PTL_RequestGuildSecedePkt*)pkt)->m_name, nameLen);
+        memcpy(dbPkt.m_name, ((Packet_Guild_Request_Guild_Secede*)pkt)->m_name, nameLen);
         (void)guild->GetMasterId();
-        if (((PTL_RequestGuildSecedePkt*)pkt)->m_nameLen == 0)
+        if (((Packet_Guild_Request_Guild_Secede*)pkt)->m_nameLen == 0)
         {
             dbPkt.m_flag = 1;
             const char* name = requester->GetCharName();
@@ -2918,12 +2187,12 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
     {
     THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildSecede : 0 == m_pclApp");
     Packet_Guild_Reply_Guild_Secede resp;
-    unsigned int guildKey = ((PTL_DBReplyGuildSecedePkt*)pkt)->m_guildKey;
-    unsigned int requesterCharNo = ((PTL_DBReplyGuildSecedePkt*)pkt)->m_requesterCharNo;
-    unsigned int targetCharNo = ((PTL_DBReplyGuildSecedePkt*)pkt)->m_targetCharNo;
-    int secedeType = ((PTL_DBReplyGuildSecedePkt*)pkt)->m_secedeType;
-    unsigned char secedeFlag = ((PTL_DBReplyGuildSecedePkt*)pkt)->m_secedeFlag;
-    unsigned int dbid = ((PTL_DBReplyGuildSecedePkt*)pkt)->m_dbid;
+    unsigned int guildKey = ((Packet_DB_Reply_Guild_Secede*)pkt)->m_guildKey;
+    unsigned int requesterCharNo = ((Packet_DB_Reply_Guild_Secede*)pkt)->m_requesterCharNo;
+    unsigned int targetCharNo = ((Packet_DB_Reply_Guild_Secede*)pkt)->m_targetCharNo;
+    int secedeType = ((Packet_DB_Reply_Guild_Secede*)pkt)->m_secedeType;
+    unsigned char secedeFlag = ((Packet_DB_Reply_Guild_Secede*)pkt)->m_secedeFlag;
+    unsigned int dbid = ((Packet_DB_Reply_Guild_Secede*)pkt)->m_dbid;
     CUser* requester;
     if ((requester = (&m_pclApp->m_userManager)->FindUser_CharNo(requesterCharNo)) == 0)
     {
@@ -2945,8 +2214,8 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
     resp.m_requester = requesterCharNo;
     resp.m_channel = requester->GetIdByChannel();
     resp.m_secedeFlag = secedeFlag;
-    memcpy(resp.m_name, ((PTL_DBReplyGuildSecedePkt*)pkt)->m_name,
-           ((PTL_DBReplyGuildSecedePkt*)pkt)->m_nameLen);
+    memcpy(resp.m_name, ((Packet_DB_Reply_Guild_Secede*)pkt)->m_name,
+           ((Packet_DB_Reply_Guild_Secede*)pkt)->m_nameLen);
     memcpy(resp.m_guildName, guild->GetGuildName(), 0x16);
     if (secedeType == 0 || secedeType == 1)
     {
@@ -2986,7 +2255,7 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
         notice.m_guildKey = guildKey;
         notice.m_charNo = targetCharNo;
         notice.m_secedeFlag = (unsigned short)(signed char)secedeFlag;
-        memcpy(notice.m_charName, ((PTL_DBReplyGuildSecedePkt*)pkt)->m_name, 0x1d);
+        memcpy(notice.m_charName, ((Packet_DB_Reply_Guild_Secede*)pkt)->m_name, 0x1d);
         memcpy(notice.m_guildName, guild->GetGuildName(), 0x16);
         guild->NoticeSecedeToGuildMember((char*)&notice);
         (&m_pclApp->m_guildManager)->GuildSecede(guildKey, notice);
@@ -3028,8 +2297,8 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
     {
     THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildMasterDelegate : 0 == m_pclApp");
     Packet_Guild_Reply_Guild_Master_Delegate resp;
-    unsigned int guildKey = ((PTL_RequestGuildMasterDelegatePkt*)pkt)->m_guildKey;
-    unsigned int requesterCharNo = ((PTL_RequestGuildMasterDelegatePkt*)pkt)->m_requesterCharNo;
+    unsigned int guildKey = ((Packet_Guild_Request_Guild_Master_Delegate*)pkt)->m_guildKey;
+    unsigned int requesterCharNo = ((Packet_Guild_Request_Guild_Master_Delegate*)pkt)->m_requesterCharNo;
     if (guildKey != 0)
     {
         CUser* requester;
@@ -3057,7 +2326,7 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
             if (guild->IsGuildMaster(requesterCharNo))
             {
                 CUser* delegatee = (&m_pclApp->m_userManager)->FindUser_CharName(
-                    std::string(((PTL_RequestGuildMasterDelegatePkt*)pkt)->m_name));
+                    std::string(((Packet_Guild_Request_Guild_Master_Delegate*)pkt)->m_name));
                 if (delegatee != 0 && !guild->IsSubGuildMaster(delegatee->GetUniqCharNo()))
                 {
                     DNF_LOG_SCOPE_LINE(0xc49,"./log/GuildModify",
@@ -3073,7 +2342,7 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
                     dbPkt.m_guildKey = guildKey;
                     dbPkt.m_charNo = requesterCharNo;
                     dbPkt.m_group = requester->GetGameServer()->GetGroupNo();
-                    memcpy(dbPkt.m_name, ((PTL_RequestGuildMasterDelegatePkt*)pkt)->m_name, 0x1d);
+                    memcpy(dbPkt.m_name, ((Packet_Guild_Request_Guild_Master_Delegate*)pkt)->m_name, 0x1d);
                     m_pclApp->m_serverHandler->SendToDB(&dbPkt);
                 }
             }
@@ -3119,10 +2388,10 @@ void CPacketTranslater::OnDBReplyGuildMasterDelegate(PacketHeader* pkt)
     {
     THROW_IF_NO_APP("CPacketTranslater::OnRequestGuildMasterDelegate : 0 == m_pclApp");
     Packet_Guild_Reply_Guild_Master_Delegate resp;
-    unsigned int guildKey = ((PTL_DBReplyGuildMasterDelegatePkt*)pkt)->m_guildKey;
-    unsigned int requesterCharNo = ((PTL_DBReplyGuildMasterDelegatePkt*)pkt)->m_requesterCharNo;
-    unsigned int delegateeCharNo = ((PTL_DBReplyGuildMasterDelegatePkt*)pkt)->m_delegateeCharNo;
-    int result = ((PTL_DBReplyGuildMasterDelegatePkt*)pkt)->m_result;
+    unsigned int guildKey = ((Packet_DB_Reply_Guild_Master_Delegate*)pkt)->m_guildKey;
+    unsigned int requesterCharNo = ((Packet_DB_Reply_Guild_Master_Delegate*)pkt)->m_requesterCharNo;
+    unsigned int delegateeCharNo = ((Packet_DB_Reply_Guild_Master_Delegate*)pkt)->m_delegateeCharNo;
+    int result = ((Packet_DB_Reply_Guild_Master_Delegate*)pkt)->m_result;
     if (guildKey == 0)
     {
         throw CDNFException(
@@ -3169,7 +2438,7 @@ void CPacketTranslater::OnDBReplyGuildMasterDelegate(PacketHeader* pkt)
             requester->ChangeGuildMemberGrade(3);
             guild->SendGuildInfoToMembers(false);
             guild->NoticeGuildMasterDelegateToMembers(
-                ((PTL_DBReplyGuildMasterDelegatePkt*)pkt)->m_name);
+                ((Packet_DB_Reply_Guild_Master_Delegate*)pkt)->m_name);
         }
         if (requester != 0)
         {
@@ -3211,9 +2480,9 @@ void CPacketTranslater::OnGuildMasterDelegateFromWeb(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnGuildMasterDelegateFromWeb : 0 == m_pclApp");
-    unsigned int guildKey = ((PTL_GuildMasterDelegateFromWebPkt*)pkt)->m_guildKey;
-    unsigned int requesterCharNo = ((PTL_GuildMasterDelegateFromWebPkt*)pkt)->m_requesterCharNo;
-    unsigned int delegateeCharNo = ((PTL_GuildMasterDelegateFromWebPkt*)pkt)->m_delegateeCharNo;
+    unsigned int guildKey = ((Packet_Guild_Master_Delegate_FromWeb*)pkt)->m_guildKey;
+    unsigned int requesterCharNo = ((Packet_Guild_Master_Delegate_FromWeb*)pkt)->m_requesterCharNo;
+    unsigned int delegateeCharNo = ((Packet_Guild_Master_Delegate_FromWeb*)pkt)->m_delegateeCharNo;
     if (guildKey == 0)
     {
         throw CDNFException(
@@ -3261,7 +2530,7 @@ void CPacketTranslater::OnGuildMasterDelegateFromWeb(PacketHeader* pkt)
                 }
                 guild->SendGuildInfoToMembers(false);
                 guild->NoticeGuildMasterDelegateToMembers(
-                    ((PTL_GuildMasterDelegateFromWebPkt*)pkt)->m_msg);
+                    ((Packet_Guild_Master_Delegate_FromWeb*)pkt)->m_msg);
                 CUser* delegatee;
                 if ((delegatee = (&m_pclApp->m_userManager)->FindUser_CharNo(delegateeCharNo)) != 0)
                 {
@@ -3303,9 +2572,9 @@ void CPacketTranslater::OnCheckGuildMemberConnectionFromWeb(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnCheckGuildMemberConnectionFromWeb : 0 == m_pclApp");
-    unsigned int guildKey = ((PTL_CheckGuildMemberConnectionFromWebPkt*)pkt)->m_guildKey;
-    unsigned short port = ((PTL_CheckGuildMemberConnectionFromWebPkt*)pkt)->m_port;
-    unsigned int ip = ((PTL_CheckGuildMemberConnectionFromWebPkt*)pkt)->m_ip;
+    unsigned int guildKey = ((Packet_Check_Guild_Member_Connection_From_Web*)pkt)->m_guildKey;
+    unsigned short port = pkt->reversed1;
+    unsigned int ip = pkt->m_connNo;
     if (guildKey == 0)
     {
         throw CDNFException(
@@ -3354,43 +2623,43 @@ void CPacketTranslater::OnCallGuildLevelUp(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnCallGuildLevelUp : 0 == m_pclApp")
-    if (((PTL_CallGuildLevelUpPkt*)pkt)->m_guildKey == 0)
+    if (((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_guildKey == 0)
     {
         throw CDNFException("CPacketTranslater::OnCallGuildLevelUp : packet->m_uGuildKey == 0");
     }
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-             ((PTL_CallGuildLevelUpPkt*)pkt)->m_charNo)) == 0)
+             ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_charNo)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0xd90, "./log/Except",
             "CPacketTranslater::OnCallGuildLevelUp : 0 == pclUser, Char Key = %d",
-            ((PTL_CallGuildLevelUpPkt*)pkt)->m_charNo);
+            ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_charNo);
     }
     CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-        ((PTL_CallGuildLevelUpPkt*)pkt)->m_guildKey);
+        ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_guildKey);
     if (guild == 0)
     {
         DNF_LOG_SCOPE_LINE(0xd94, "./log/Except",
             "CPacketTranslater::OnCallGuildLevelUp : 0 == pclGuild, Guild Key = %d",
-            ((PTL_CallGuildLevelUpPkt*)pkt)->m_guildKey);
+            ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_guildKey);
         return;
     }
-    if (((PTL_CallGuildLevelUpPkt*)pkt)->m_fund > guild->GetGuildFund())
+    if (((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_fund > guild->GetGuildFund())
     {
         DNF_LOG_SCOPE_LINE(0xd9a, "./log/GuildModify",
             "CPacketTranslater::OnCallGuildLevelUp(%d : %d) Guild Fund Shortage",
-            ((PTL_CallGuildLevelUpPkt*)pkt)->m_charNo,
-            ((PTL_CallGuildLevelUpPkt*)pkt)->m_guildKey);
+            ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_charNo,
+            ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_guildKey);
         return;
     }
-    guild->SubGuildFund(((PTL_CallGuildLevelUpPkt*)pkt)->m_fund);
+    guild->SubGuildFund(((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_fund);
     unsigned char ret = (unsigned char)guild->GuildLevelUp(m_pclApp->Get_ServerHandler(), user);
     if (ret != 0)
     {
         DNF_LOG_SCOPE_LINE(0xda3, "./log/GuildModify",
             "CPacketTranslater::OnCallGuildLevelUp(%d : %d) ERR(%d)",
-            ((PTL_CallGuildLevelUpPkt*)pkt)->m_guildKey,
-            ((PTL_CallGuildLevelUpPkt*)pkt)->m_charNo, (int)ret);
+            ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_guildKey,
+            ((Packet_Monitor_Call_Guild_Level_Up*)pkt)->m_charNo, (int)ret);
     }
     }
     catch (CDNFException& e)
@@ -3412,21 +2681,21 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
     {
         CUser* user;
         if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                 ((PTL_CallGuildInfoPkt*)pkt)->m_charNo)) == 0)
+                 ((Packet_Monitor_Call_Guild_Info*)pkt)->m_charNo)) == 0)
         {
             CMyFileLog log("OnCallGuildInfo", 0xdc5);
             log("./log/Except",
                 "CPacketTranslater::OnCallGuildInfo() pclUser = 0, Char Key : %d\n",
-                ((PTL_CallGuildInfoPkt*)pkt)->m_charNo);
+                ((Packet_Monitor_Call_Guild_Info*)pkt)->m_charNo);
             return;
         }
         Packet_Monitor_Call_Guild_Info_Reply replyPkt;
-        replyPkt.ma = ((PTL_CallGuildInfoPkt*)pkt)->m_fieldA;
-        replyPkt.me = ((PTL_CallGuildInfoPkt*)pkt)->m_charNo;
-        replyPkt.m12 = ((PTL_CallGuildInfoPkt*)pkt)->m_count;
-        for (int i = 0; i < (unsigned char)((PTL_CallGuildInfoPkt*)pkt)->m_count; i++)
+        replyPkt.ma = ((Packet_Monitor_Call_Guild_Info*)pkt)->m_fieldA;
+        replyPkt.me = ((Packet_Monitor_Call_Guild_Info*)pkt)->m_charNo;
+        replyPkt.m12 = ((Packet_Monitor_Call_Guild_Info*)pkt)->m_count;
+        for (int i = 0; i < (unsigned char)((Packet_Monitor_Call_Guild_Info*)pkt)->m_count; i++)
         {
-            unsigned int guildKey = ((PTL_CallGuildInfoPkt*)pkt)->m_guildKeys[i];
+            unsigned int guildKey = ((Packet_Monitor_Call_Guild_Info*)pkt)->m_guildKeys[i];
             if (guildKey == 0)
             {
                 CMyFileLog log("OnCallGuildInfo", 0xdd3);
@@ -3445,7 +2714,7 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
             memcpy(replyPkt.m_infos[i].m_data, guild->GetGuildName(), 0x16);
         }
         unsigned short totalLen =
-            (unsigned short)((unsigned char)((PTL_CallGuildInfoPkt*)pkt)->m_count * 0x1d + 0x13);
+            (unsigned short)((unsigned char)((Packet_Monitor_Call_Guild_Info*)pkt)->m_count * 0x1d + 0x13);
         replyPkt.packetSize = totalLen;
         user->SendToGameserver((char*)&replyPkt, totalLen);
     }
@@ -3468,7 +2737,7 @@ void CPacketTranslater::OnNoticeGuildMailArrive(PacketHeader* pkt)
     try
     {
     THROW_IF_NO_APP("CPacketTranslater::OnNoticeGuildMailArrive : 0 == m_pclApp");
-    PTL_GuildMailArrivePkt* pb = (PTL_GuildMailArrivePkt*)pkt;
+    Packet_Notice_Guild_Mail_Arrive* pb = (Packet_Notice_Guild_Mail_Arrive*)pkt;
     for (int i = 0; i < (int)(unsigned int)(unsigned char)pb->m_count; i++)
     {
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKeys[i]);
@@ -3514,9 +2783,9 @@ void CPacketTranslater::OnEventStart(PacketHeader* pkt)
         PacketHeader* pb = pkt;
         DNF_LOG_SCOPE_LINE(0xe4c,"./log/Web",
             "CPacketTranslater::OnEventStart() eventCode(%d), eventParam1(%d), eventParam2(%d)\n",
-            ((GuildEventBodyView*)pb)->m_eventCode,
-            (unsigned int)((GuildEventBodyView*)pb)->m_eventParam1,
-            (unsigned int)((GuildEventBodyView*)pb)->m_eventParam2);
+            ((Packet_Monitor_Event_Start*)pb)->m_eventType,
+            (unsigned int)((Packet_Monitor_Event_Start*)pb)->m_eventParam1,
+            (unsigned int)((Packet_Monitor_Event_Start*)pb)->m_eventParam2);
         m_pclApp->m_serverHandler->SendAllTcpGameServer(pkt);
     }
     catch (CDNFException& e)
@@ -3538,7 +2807,7 @@ void CPacketTranslater::OnEventEnd(PacketHeader* pkt)
     THROW_IF_NO_APP("CPacketTranslater::OnEventEnd : 0 == m_pclApp");
     PacketHeader* pb = pkt;
     DNF_LOG_SCOPE_LINE(0xe6b, "./log/Web", "CPacketTranslater::OnEventEnd() eventCode(%d)\n",
-        ((GuildEventBodyView*)pb)->m_eventCode);
+        ((Packet_Monitor_Event_Start*)pb)->m_eventType);
     m_pclApp->Get_ServerHandler()->SendAllTcpGameServer(pkt);
     }
     catch (CDNFException& e)
@@ -3557,7 +2826,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
 {
     try
     {
-    PTL_BlackListPkt* pb = (PTL_BlackListPkt*)pkt;
+    Packet_Register_To_BlackList* pb = (Packet_Register_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0xe8f, "./log/BlackList", "CPacketTranslater::OnRegisterToBlackList : 0 == m_pclApp");
@@ -3601,7 +2870,7 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
 {
     try
     {
-    PTL_BlackListPkt* pb = (PTL_BlackListPkt*)pkt;
+    Packet_Delete_To_BlackList* pb = (Packet_Delete_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0xeeb, "./log/BlackList", "CPacketTranslater::OnDeleteToBlackList : 0 == m_pclApp");
@@ -3643,14 +2912,14 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
 {
     try
     {
-    PTL_RequestBlackListPkt* pb = (PTL_RequestBlackListPkt*)pkt;
+    Packet_Request_BlackList* pb = (Packet_Request_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0xf2f, "./log/BlackList", "CPacketTranslater::OnRequestBlackList : 0 == m_pclApp");
         return;
     }
     Packet_Request_Result_BlackList reply;
-    reply.m_charNo = pb->m_charNo;
+    reply.m_charNo = pb->m_idByChannel;
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser(pb->m_dbid)) == 0)
     {
@@ -3678,7 +2947,7 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
 {
     try
     {
-    PTL_BlackListPkt* pb = (PTL_BlackListPkt*)pkt;
+    Packet_DBMW_Register_To_BlackList* pb = (Packet_DBMW_Register_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0xf5e,"./log/BlackList",
@@ -3695,19 +2964,19 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
     Packet_Register_To_BlackList_RESULT reply;
     reply.m_channel = user->GetIdByChannel();
     memcpy(reply.m_name, pb->m_name, 0x1d);
-    if (pb->m_charNo == (unsigned int)-1)
+    if (pb->m2c == (unsigned int)-1)
     {
         reply.m_result = 3;
         user->SendToGameserver((char*)&reply, 0x31);
         return;
     }
-    if (user->IsBlackUser(pb->m_charNo) == 0)
+    if (user->IsBlackUser(pb->m2c) == 0)
     {
         if (user->GetBlackListSize() < 10)
         {
-            user->RegisterToBlackList(pb->m_charNo, pb->m_name);
+            user->RegisterToBlackList(pb->m2c, pb->m_name);
             reply.m_result = 1;
-            reply.m2c = pb->m_charNo;
+            reply.m2c = pb->m2c;
             user->SendToGameserver((char*)&reply, 0x31);
         }
         else
@@ -3738,7 +3007,7 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
 {
     try
     {
-    PTL_BlackListPkt* pb = (PTL_BlackListPkt*)pkt;
+    Packet_DMBW_Delete_To_BlackList* pb = (Packet_DMBW_Delete_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0xfa6,"./log/BlackList",
@@ -3755,19 +3024,19 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
     Packet_Delete_To_BlackList_Result reply;
     reply.m_channel = user->GetIdByChannel();
     memcpy(reply.m_name, pb->m_name, 0x1d);
-    if (pb->m_charNo == (unsigned int)-1)
+    if (pb->m2c == (unsigned int)-1)
     {
         reply.m_result = 3;
         user->SendToGameserver((char*)&reply, 0x31);
         return;
     }
-    if (user->DeleteToBlackList(pb->m_charNo) != 1)
+    if (user->DeleteToBlackList(pb->m2c) != 1)
     {
         reply.m_result = 2;
         user->SendToGameserver((char*)&reply, 0x31);
     }
     reply.m_result = 1;
-    reply.m2c = pb->m_charNo;
+    reply.m2c = pb->m2c;
     user->SendToGameserver((char*)&reply, 0x31);
     }
     catch (CDNFException& e)
@@ -3807,7 +3076,7 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 {
     try
     {
-    PTL_ResponseBlackListOnLoginPkt* pb = (PTL_ResponseBlackListOnLoginPkt*)pkt;
+    Packet_DBMW_Reponse_BlackList* pb = (Packet_DBMW_Reponse_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1000,"./log/BlackList",
@@ -3815,20 +3084,20 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
         return;
     }
     CUser* user;
-    if ((user = (&m_pclApp->m_userManager)->FindUser(pb->m_dbid)) == 0)
+    if ((user = (&m_pclApp->m_userManager)->FindUser(pb->m_mid)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1007,"./log/BlackList",
             "CPacketTranslater::OnDBMWResponseBlackListOnLogin : 0 == pclUser");
         return;
     }
     int i = 0;
-    while (pb->m_items[i].m_uniqCharNo != 0)
+    while (pb->m_blackList[i].m_occurTime != 0)
     {
-        if (user->IsBlackUser(pb->m_items[i].m_charNo) != 1)
+        if (user->IsBlackUser((unsigned int)pb->m_blackList[i].m_field0) != 1)
         {
-            user->RegisterToBlackList(pb->m_items[i].m_charNo,
-                                      pb->m_items[i].m_name,
-                                      pb->m_items[i].m_uniqCharNo);
+            user->RegisterToBlackList((unsigned int)pb->m_blackList[i].m_field0,
+                                      pb->m_blackList[i].m_name,
+                                      (unsigned int)pb->m_blackList[i].m_occurTime);
         }
         i++;
     }
@@ -3848,7 +3117,8 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 
 void CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade(PacketHeader* pkt)
 {
-    char* pb = (char*)pkt;
+    Packet_DB_Monitor_Change_Unconnected_GuildMember_Grade* pb =
+        (Packet_DB_Monitor_Change_Unconnected_GuildMember_Grade*)pkt;
     try
     {
         if (m_pclApp == 0)
@@ -3858,41 +3128,38 @@ void CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade(PacketHeader* pk
             return;
         }
         CGuild* guild;
-        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(
-                 ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_guildKey)) == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildId)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x103c,"./log/GuildModify",
                 "CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade : 0 == pclGuild(%d)",
-                ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_guildKey);
+                pb->m_guildId);
             return;
         }
         Packet_Monitor_Set_Sub_Guild_Master_Reply reply;
         int result = 0;
-        if (((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_grade == 0xff)
+        if (pb->m_result == 0xff)
         {
             result = 2;
         }
-        else if (((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_grade == 0xfe)
+        else if (pb->m_result == 0xfe)
         {
             result = 0x66;
         }
-        else if (((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_prevGrade == 1)
+        else if (pb->m_grade == 1)
         {
             result = 0x58;
         }
-        else if (((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_grade ==
-                 ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_prevGrade)
+        else if (pb->m_result == pb->m_grade)
         {
             result = 0x65;
         }
         else
         {
-            if (((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_grade == 2)
+            if (pb->m_result == 2)
             {
                 if (guild->GetCurSubGuildMasterCnt() < 5)
                 {
-                    guild->SetSubGuildMaster(
-                        ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_targetCharNo, true);
+                    guild->SetSubGuildMaster(pb->m_newGrade, true);
                     guild->SendGuildInfoToMembers(false);
                 }
                 else
@@ -3902,38 +3169,34 @@ void CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade(PacketHeader* pk
                     result = 0x59;
                 }
             }
-            else if (((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_prevGrade == 2)
+            else if (pb->m_grade == 2)
             {
-                guild->SetSubGuildMaster(
-                    ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_targetCharNo, false);
+                guild->SetSubGuildMaster(pb->m_newGrade, false);
                 guild->SendGuildInfoToMembers(false);
             }
             if (result == 0)
             {
-                guild->ChangeUnconnectedGuildMemberGrade(
-                    ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_targetCharNo,
-                    ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_grade);
+                guild->ChangeUnconnectedGuildMemberGrade(pb->m_newGrade, pb->m_result);
             }
         }
         {
             DNF_LOG_SCOPE_LINE(0x1073,"./log/GuildModify",
                 "Change Guild(%d) Grade(%d) Prev Grade(%d) result(%d) unconnected charNo(%d) RequestNo(%d)",
-                ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_guildKey,
-                (unsigned int)((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_grade,
-                (unsigned int)((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_prevGrade,
+                pb->m_guildId,
+                (unsigned int)pb->m_result,
+                (unsigned int)pb->m_grade,
                 result,
-                ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_targetCharNo,
-                ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_charNo);
+                pb->m_newGrade,
+                pb->m_characNo);
         }
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-            ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_charNo);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_characNo);
         if (user != 0)
         {
             reply.m_a = result;
             reply.m_e = user->GetIdByChannel();
             reply.m_12 = user->GetUniqCharNo();
-            reply.m_16 = ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_grade;
-            memcpy(reply.m_name, ((PTL_ChangeUnconnectedGuildMemberGradePkt*)pb)->m_name, 0x1d);
+            reply.m_16 = pb->m_result;
+            memcpy(reply.m_name, pb->m_name, 0x1d);
             user->SendToGameserver((char*)&reply, 0x3a);
         }
     }
@@ -3942,14 +3205,7 @@ void CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade(PacketHeader* pk
 
 void CPacketTranslater::OnNotifyMessageToGuild(PacketHeader* pkt)
 {
-    struct PTL_NotifyMessageToGuildPkt
-    {
-        char m_base[0xa];
-        unsigned int m_guildKey;  // +0xa
-        unsigned char m_mode;     // +0xe
-        char m_payload[0x66];     // +0xf
-    } __attribute__((packed));
-    PTL_NotifyMessageToGuildPkt* pb = (PTL_NotifyMessageToGuildPkt*)pkt;
+    Packet_Web_Notify_Message_To_Guild* pb = (Packet_Web_Notify_Message_To_Guild*)pkt;
     try
     {
     if (m_pclApp == 0)
@@ -3988,7 +3244,7 @@ void CPacketTranslater::OnRequestGuildCreate(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x10d8, "./log/GuildModify", "CPacketTranslater::OnRequestGuildCreate : 0 == m_pclApp");
         return;
     }
-    unsigned int charNo = ((PTL_RequestGuildCreatePkt*)pkt)->m_charNo;
+    unsigned int charNo = ((Packet_Request_Guild_Create*)pkt)->m_charNo;
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) == 0)
     {
@@ -4020,8 +3276,8 @@ void CPacketTranslater::OnRequestGuildCreate(PacketHeader* pkt)
     dbPkt.m_level = user->GetLevel();
     dbPkt.m_sex = user->GetSex();
     memcpy(dbPkt.m_ssn, user->GetSsn(), 2);
-    memcpy(dbPkt.m_guildName, ((PTL_RequestGuildCreatePkt*)pkt)->m_guildName, 0x16);
-    memcpy(dbPkt.m_extra, ((PTL_RequestGuildCreatePkt*)pkt)->m_extra, 0xc);
+    memcpy(dbPkt.m_guildName, ((Packet_Request_Guild_Create*)pkt)->m_guildName, 0x16);
+    memcpy(dbPkt.m_extra, ((Packet_Request_Guild_Create*)pkt)->m_extra, 0xc);
     m_pclApp->Get_ServerHandler()->GetDBServer()->SendToServer((char*)&dbPkt, 0x5c);
     }
     catch (CDNFException& e)
@@ -4045,7 +3301,7 @@ void CPacketTranslater::OnDBReplyGuildCreate(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x112c, "./log/GuildModify", "CPacketTranslater::OnDBReplyGuildCreate : 0 == m_pclApp");
         return;
     }
-    unsigned int charNo = ((PTL_DBReplyGuildCreatePkt*)pkt)->m_charNo;
+    unsigned int charNo = ((Packet_DBMW_Reply_Guild_Create*)pkt)->m_characNo;
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) == 0)
     {
@@ -4055,15 +3311,15 @@ void CPacketTranslater::OnDBReplyGuildCreate(PacketHeader* pkt)
     }
     Packet_Notice_GuildName_On_Guild_Create notice;
     Packet_Reply_Guild_Create reply;
-    unsigned int guildKey = ((PTL_DBReplyGuildCreatePkt*)pkt)->m_guildKey;
+    unsigned int guildKey = ((Packet_DBMW_Reply_Guild_Create*)pkt)->m_guildId;
     notice.m_charNo = charNo;
     reply.m_charNo = charNo;
     unsigned int channel = user->GetIdByChannel();
     notice.m_channel = channel;
     reply.m_channel = channel;
-    int result = ((PTL_DBReplyGuildCreatePkt*)pkt)->m_result;
+    int result = ((Packet_DBMW_Reply_Guild_Create*)pkt)->m_result;
     reply.m_result = result;
-    memcpy(reply.m_name, ((PTL_DBReplyGuildCreatePkt*)pkt)->m_name, 0x16);
+    memcpy(reply.m_name, ((Packet_DBMW_Reply_Guild_Create*)pkt)->m_name, 0x16);
     if (result == 0)
     {
         CServerHandler* handler = m_pclApp->Get_ServerHandler();
@@ -4080,7 +3336,7 @@ void CPacketTranslater::OnDBReplyGuildCreate(PacketHeader* pkt)
         uniqCharNo = user->GetUniqCharNo();
         user->SendSetGuildKeyToUser(guildKey, uniqCharNo);
         notice.m_guildKey = guildKey;
-        memcpy((char*)&notice + 0x16, ((PTL_DBReplyGuildCreatePkt*)pkt)->m_name, 0x16);
+        memcpy((char*)&notice + 0x16, ((Packet_DBMW_Reply_Guild_Create*)pkt)->m_name, 0x16);
         notice.m_group = m_pclApp->Get_ServerGroup();
         m_pclApp->m_serverHandler->SendAllTcpGameServer(&notice);
         (&m_pclApp->m_guildManager)->AttendGuild(guildKey, charNo);
@@ -4138,54 +3394,54 @@ void CPacketTranslater::OnChangePowerWarPoint(PacketHeader* pkt)
         CPowerManager* pm = m_pclApp->GetPowerManager();
         if (pm->IsPowerWarOn() == 1)
         {
-            if (((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA != 1 &&
-                ((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA != 2)
+            if (((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA != 1 &&
+                ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA != 2)
             {
-                if (((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA == 0)
+                if (((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA == 0)
                 {
                     DNF_LOG_SCOPE_LINE(0x11c9,"./log/Power",
                         "ChangePowerWarPoint Invalid Power Side Income(side:%d, 0:%d, 1:%d, 2:%d, 3:%d, pp:%d)",
-                        (unsigned int)((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA,
-                        ((PTL_ChangePowerWarPointPkt*)pb)->m_fieldB,
-                        ((PTL_ChangePowerWarPointPkt*)pb)->m_fieldF,
-                        ((PTL_ChangePowerWarPointPkt*)pb)->m_field13,
-                        ((PTL_ChangePowerWarPointPkt*)pb)->m_field17,
-                        (unsigned int)((PTL_ChangePowerWarPointPkt*)pb)->m_field2B);
+                        (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldB,
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldF,
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_field13,
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_field17,
+                        (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B);
                     return;
                 }
                 DNF_LOG_SCOPE_LINE(0x11ce,"./log/Power",
                     "ChangePowerWarPoint Invalid Power Side Income(side:%d, 0:%d, 1:%d, 2:%d, 3:%d, pp:%d)",
-                    (unsigned int)((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA,
-                    ((PTL_ChangePowerWarPointPkt*)pb)->m_fieldB,
-                    ((PTL_ChangePowerWarPointPkt*)pb)->m_fieldF,
-                    ((PTL_ChangePowerWarPointPkt*)pb)->m_field13,
-                    ((PTL_ChangePowerWarPointPkt*)pb)->m_field17,
-                    (unsigned int)((PTL_ChangePowerWarPointPkt*)pb)->m_field2B);
-                ((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA =
-                    (unsigned char)(((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA == 3 ? 1 : 2);
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldB,
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldF,
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_field13,
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_field17,
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B);
+                ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA =
+                    (unsigned char)(((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA == 3 ? 1 : 2);
             }
             int winScore = pm->IncPowerScore(
-                (ENUM_POWER_SIDE_TYPE)((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA,
-                ((PTL_ChangePowerWarPointPkt*)pb)->m_field2B);
+                (ENUM_POWER_SIDE_TYPE)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
+                ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B);
             ENUM_POWER_SIDE_TYPE loseSide =
-                ((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA == 1 ?
+                ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA == 1 ?
                 (ENUM_POWER_SIDE_TYPE)2 : (ENUM_POWER_SIDE_TYPE)1;
             int loseScore = pm->IncPowerScore(
-                loseSide, ((PTL_ChangePowerWarPointPkt*)pb)->m_field2C);
+                loseSide, ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2C);
             {
                 DNF_LOG_SCOPE_LINE(0x11e1,"./log/Power", "win side(%d), win pp(%d, %d), lose pp(%d, %d)",
-                    (unsigned int)((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA,
-                    (unsigned int)((PTL_ChangePowerWarPointPkt*)pb)->m_field2B,
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B,
                     winScore,
-                    (unsigned int)((PTL_ChangePowerWarPointPkt*)pb)->m_field2C, loseScore);
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2C, loseScore);
             }
             pm->UpdatePowerWarInfo(1,
-                                   (ENUM_POWER_SIDE_TYPE)((PTL_ChangePowerWarPointPkt*)pb)->m_fieldA,
-                                   ((PTL_ChangePowerWarPointPkt*)pb)->m_field2B,
-                                   &((PTL_ChangePowerWarPointPkt*)pb)->m_fieldB);
+                                   (ENUM_POWER_SIDE_TYPE)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
+                                   ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B,
+                                   &((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldB);
             pm->UpdatePowerWarInfo(0, loseSide,
-                                   ((PTL_ChangePowerWarPointPkt*)pb)->m_field2C,
-                                   &((PTL_ChangePowerWarPointPkt*)pb)->m_field1B);
+                                   ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2C,
+                                   &((Packet_Guild_Change_Power_War_Point*)pb)->m_field1B);
             std::vector<unsigned int> users;
             users.reserve(8);
             ((Packet_Guild_Change_Power_War_Point*)pkt)->GetUserList(users);
@@ -4204,14 +3460,14 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
     {
         Packet_Answer_Join_Power reply;
         reply.m_a = 0;
-        reply.m_12 = ((PTL_JoinPowerPkt*)pkt)->m_charNo;
-        reply.m_16 = ((PTL_JoinPowerPkt*)pkt)->m_field12;
+        reply.m_12 = ((Packet_Request_Join_Power*)pkt)->m_charNo;
+        reply.m_16 = ((Packet_Request_Join_Power*)pkt)->m_field12;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1237, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = ((PTL_JoinPowerPkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_Request_Join_Power*)pkt)->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
@@ -4219,7 +3475,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
             return;
         }
         reply.m_e = user->GetIdByChannel();
-        unsigned int guildKey = ((PTL_JoinPowerPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Request_Join_Power*)pkt)->m_guildKey;
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
         if (guildKey == 0 || guild == 0)
         {
@@ -4230,7 +3486,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
         }
         if (guild->IsSubGuildMaster(charNo) == 1 || guild->IsGuildMaster(charNo) == 1)
         {
-            unsigned char side = ((PTL_JoinPowerPkt*)pkt)->m_field12 == 1 ? 3 : 4;
+            unsigned char side = ((Packet_Request_Join_Power*)pkt)->m_field12 == 1 ? 3 : 4;
             guild->SetPowerSide(side);
             guild->IncPowerJoinCount();
             CServerInterface* gs = user->GetGameServer();
@@ -4272,7 +3528,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
     }
     Packet_Answer_Secede_Power reply;
     reply.m_a = 0;
-    unsigned int charNo = ((PTL_SecedePowerPkt*)pkt)->m_charNo;
+    unsigned int charNo = ((Packet_Request_Secede_Power*)pkt)->m_charNo;
     reply.m_12 = charNo;
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo)) == 0)
@@ -4281,7 +3537,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
         return;
     }
     reply.m_e = user->GetIdByChannel();
-    unsigned int guildKey = ((PTL_SecedePowerPkt*)pkt)->m_guildKey;
+    unsigned int guildKey = ((Packet_Request_Secede_Power*)pkt)->m_guildKey;
     CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
     if (guildKey == 0 || guild == 0)
     {
@@ -4343,7 +3599,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
 
 void CPacketTranslater::OnSetPowerWarCfg(PacketHeader* pkt)
 {
-    PTL_PowerWarCfgPkt* pb = (PTL_PowerWarCfgPkt*)pkt;
+    Packet_Notice_Power_War_CFG* pb = (Packet_Notice_Power_War_CFG*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1317, "./log/Power", "CPacketTranslater::OnSetPowerWarCfg : 0 == m_pclApp");
@@ -4365,7 +3621,7 @@ void CPacketTranslater::OnSetPowerWarCfg(PacketHeader* pkt)
 
 void CPacketTranslater::OnLoadFromDBOnGuildBooting(PacketHeader* pkt)
 {
-    PTL_GuildBootingPkt* pb = (PTL_GuildBootingPkt*)pkt;
+    Packet_DB_Reply_On_Guild_Booting* pb = (Packet_DB_Reply_On_Guild_Booting*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1343,"./log/Power",
@@ -4440,7 +3696,7 @@ void CPacketTranslater::OnGMPowerWarEnd(PacketHeader* pkt)
 
 void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
 {
-    PTL_InnerPacketPkt* pb = (PTL_InnerPacketPkt*)pkt;
+    Packet_InnerPakcet_Login* pb = (Packet_InnerPakcet_Login*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1455, "./log/Except", "CPacketTranslater::OnInnerPacketLogin : 0 == m_pclApp");
@@ -4448,13 +3704,13 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
     }
     try
     {
-        if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == pb->m_group)
+        if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == pb->m_connNo)
         {
             m_pclApp->Get_ServerHandler()->GetTcpDBServer()->Connected();
         }
         else
         {
-            CTcpGameServer* tgs = m_pclApp->Get_ServerHandler()->CreateTcpGameServer(pb->m_group);
+            CTcpGameServer* tgs = m_pclApp->Get_ServerHandler()->CreateTcpGameServer(pb->m_connNo);
             if (tgs != 0)
             {
                 char* buf = tgs->makePacketHeader(8000, 0xc);
@@ -4485,21 +3741,21 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
     }
     try
     {
-        PTL_InnerPacketPkt* pb = (PTL_InnerPacketPkt*)pkt;
-        if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == pb->m_group)
+        Packet_InnerPakcet_Logout* pb = (Packet_InnerPakcet_Logout*)pkt;
+        if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == pb->m_connNo)
         {
             m_pclApp->Get_ServerHandler()->GetTcpDBServer()->DisConnected();
         }
         else
         {
-            CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(pb->m_group);
+            CTcpGameServer* tgs = m_pclApp->FindTcpGameServer(pb->m_connNo);
             m_pclApp->OnTcpGameServerDown(tgs);
             unsigned char ch = tgs->GetChannelNo();
             if (ch != 0)
             {
                 m_pclApp->Get_ServerHandler()->UnregistGameServer((unsigned int)ch);
             }
-            m_pclApp->Get_ServerHandler()->DeleteTcpGameServer(pb->m_group);
+            m_pclApp->Get_ServerHandler()->DeleteTcpGameServer(pb->m_connNo);
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnInnerPacketLogout Exception Break", 0x14be, 0x14c3);
@@ -4515,17 +3771,17 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
         return;
     }
     Packet_Reply_Change_Guild_Name reply;
-    reply.m_charNo = ((PTL_ChangeGuildNamePkt*)pkt)->m_charNo;
-    memcpy(reply.m_name, ((PTL_ChangeGuildNamePkt*)pkt)->m_name, 0x16);
+    reply.m_charNo = ((Packet_Change_Guild_Name*)pkt)->m_charNo;
+    memcpy(reply.m_name, ((Packet_Change_Guild_Name*)pkt)->m_name, 0x16);
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-             ((PTL_ChangeGuildNamePkt*)pkt)->m_charNo)) == 0)
+             ((Packet_Change_Guild_Name*)pkt)->m_charNo)) == 0)
     {
         DNF_LOG_SCOPE_LINE(0x14e7, "./log/GuildModify", "CPacketTranslater::OnChangeGuildName : 0 == pclRequestUser");
         return;
     }
     reply.m_guildKey = user->GetIdByChannel();
-    unsigned int guildKey = ((PTL_ChangeGuildNamePkt*)pkt)->m_guildKey;
+    unsigned int guildKey = ((Packet_Change_Guild_Name*)pkt)->m_guildKey;
     CGuild* guild = 0;
     if (guildKey == 0 ||
         (guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
@@ -4535,9 +3791,9 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
         user->SendTcpGameserver(&reply);
         return;
     }
-    if (guild->IsGuildMaster(((PTL_ChangeGuildNamePkt*)pkt)->m_charNo) == 1)
+    if (guild->IsGuildMaster(((Packet_Change_Guild_Name*)pkt)->m_charNo) == 1)
     {
-        guild->ChangeGuildName(((PTL_ChangeGuildNamePkt*)pkt)->m_name, 1);
+        guild->ChangeGuildName(((Packet_Change_Guild_Name*)pkt)->m_name, 1);
         unsigned char group = 0;
         if (user->GetGameServer() != 0)
         {
@@ -4564,7 +3820,7 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
         char mailContent[0x100];
         memset(mailContent, 0, sizeof(mailContent));
         sprintf(mailContent, letterText + 0xff,
-                ((PTL_ChangeGuildNamePkt*)pkt)->m_name);
+                ((Packet_Change_Guild_Name*)pkt)->m_name);
         SendPacketGuildMail(group, user->GetUniqCharNo(), guildKey, letterText,
                             mailContent, 0xffffffff);
     }
@@ -4572,8 +3828,8 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x14f7,"./log/GuildModify",
             "CPacketTranslater::OnChangeGuildName : %d is not guild master or sub master(g:%d)",
-            ((PTL_ChangeGuildNamePkt*)pkt)->m_charNo,
-            ((PTL_ChangeGuildNamePkt*)pkt)->m_guildKey);
+            ((Packet_Change_Guild_Name*)pkt)->m_charNo,
+            ((Packet_Change_Guild_Name*)pkt)->m_guildKey);
         reply.m_result = 0x56;
         user->SendTcpGameserver(&reply);
     }
@@ -4599,44 +3855,44 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x1544, "./log/Except", "CPacketTranslater::OnChangeGuildName : 0 == m_pclApp");
         return;
     }
-    if (((PTL_ChangeCharNamePkt*)pkt)->m_field12 == 0)
+    if (((Packet_Change_Char_Name*)pkt)->m_field12 == 0)
     {
         DNF_LOG_SCOPE_LINE(0x154c, "./log/ServerUnify", "CPacketTranslater::OnChangeCharName : packet->m_uGuildKey");
         return;
     }
     Packet_UnChangable_GuildInfo_Save save;
-    save.m_guildKey = ((PTL_ChangeCharNamePkt*)pkt)->m_field12;
-    save.m_charNo = ((PTL_ChangeCharNamePkt*)pkt)->m_charNo;
-    memcpy(save.m_name, ((PTL_ChangeCharNamePkt*)pkt)->m_name, 0x1d);
+    save.m_guildKey = ((Packet_Change_Char_Name*)pkt)->m_field12;
+    save.m_charNo = ((Packet_Change_Char_Name*)pkt)->m_charNo;
+    memcpy(save.m_name, ((Packet_Change_Char_Name*)pkt)->m_name, 0x1d);
     m_pclApp->Get_ServerHandler()->SendToDB(&save);
     STTodayGuildMember* today =
         m_pclApp->Get_GuildManager()->GetTodayMember(
-            ((PTL_ChangeCharNamePkt*)pkt)->m_field12);
-    if (today != 0 && *(int*)today == (int)((PTL_ChangeCharNamePkt*)pkt)->m_charNo)
+            ((Packet_Change_Char_Name*)pkt)->m_field12);
+    if (today != 0 && *(int*)today == (int)((Packet_Change_Char_Name*)pkt)->m_charNo)
     {
         memset((char*)today + 4, 0, 0x1e);
-        strncpy((char*)today + 4, ((PTL_ChangeCharNamePkt*)pkt)->m_name, 0x1d);
+        strncpy((char*)today + 4, ((Packet_Change_Char_Name*)pkt)->m_name, 0x1d);
     }
     CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-        ((PTL_ChangeCharNamePkt*)pkt)->m_fieldA);
+        ((Packet_Change_Char_Name*)pkt)->m_idByChannel);
     if (guild == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1563, "./log/ServerUnify", "CPacketTranslater::OnChangeCharName : 0 == pclGuild");
         return;
     }
-    if (guild->ChangeGuildMemberCharName(((PTL_ChangeCharNamePkt*)pkt)->m_charNo,
-                                         ((PTL_ChangeCharNamePkt*)pkt)->m_name) == 1)
+    if (guild->ChangeGuildMemberCharName(((Packet_Change_Char_Name*)pkt)->m_charNo,
+                                         ((Packet_Change_Char_Name*)pkt)->m_name) == 1)
     {
         CUser* user;
         if ((user = (&m_pclApp->m_userManager)->FindUser(
-                 ((PTL_ChangeCharNamePkt*)pkt)->m_fieldA)) == 0)
+                 ((Packet_Change_Char_Name*)pkt)->m_idByChannel)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1572,"./log/ServerUnify",
                 "CPacketTranslater::OnChangeGuildName : 0 == pclRequestUser");
         }
         else
         {
-            user->ChangeCharName(((PTL_ChangeCharNamePkt*)pkt)->m_name);
+            user->ChangeCharName(((Packet_Change_Char_Name*)pkt)->m_name);
         }
     }
     else
@@ -4667,7 +3923,7 @@ void CPacketTranslater::OnChangeGuildNameFromWeb(PacketHeader* pkt)
                 "CPacketTranslater::OnChangeGuildNameFromWeb : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((PTL_ChangeGuildNameFromWebPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Change_Guild_Name_From_Web*)pkt)->m_guildKey;
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
         if (guildKey == 0 || guild == 0)
         {
@@ -4675,10 +3931,10 @@ void CPacketTranslater::OnChangeGuildNameFromWeb(PacketHeader* pkt)
                 "CPacketTranslater::OnChangeGuildNameFromWeb : 0 == pclGuild");
             return;
         }
-        unsigned int charNo = ((PTL_ChangeGuildNameFromWebPkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_Change_Guild_Name_From_Web*)pkt)->m_charNo;
         if (guild->IsSubGuildMaster(charNo) == 1 || guild->IsGuildMaster(charNo) == 1)
         {
-            guild->ChangeGuildName(((PTL_ChangeGuildNameFromWebPkt*)pkt)->m_name, 0);
+            guild->ChangeGuildName(((Packet_Change_Guild_Name_From_Web*)pkt)->m_name, 0);
             guild->SendGuildInfoToMembers(false);
         }
         else
@@ -4701,7 +3957,7 @@ void CPacketTranslater::OnInCreaseDecreasePowerWarPoint(PacketHeader* pkt)
                 "CPacketTranslater::OnInCreaseDecreasePowerWarPoint : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((PTL_PowerWarPointPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Guild_Increase_Decrease_Power_War_Point*)pkt)->m_guildKey;
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
         if (guildKey == 0 || guild == 0)
         {
@@ -4709,12 +3965,12 @@ void CPacketTranslater::OnInCreaseDecreasePowerWarPoint(PacketHeader* pkt)
                 "CPacketTranslater::OnInCreaseDecreasePowerWarPoint : 0 == pclGuild");
             return;
         }
-        int point = ((PTL_PowerWarPointPkt*)pkt)->m_point;
+        int point = ((Packet_Guild_Increase_Decrease_Power_War_Point*)pkt)->m_point;
         if (point == 0)
         {
             DNF_LOG_SCOPE_LINE(0x15e2,"./log/Power",
                 "CPacketTranslater::OnInCreaseDecreasePowerWarPoint : Invalid Power War Point Reached(characNo:%d, PowerWarPoint:%d)",
-            ((PTL_PowerWarPointPkt*)pkt)->m_charNo, point);
+            ((Packet_Guild_Increase_Decrease_Power_War_Point*)pkt)->m_charNo, point);
             return;
         }
         if (point < 1)
@@ -4743,17 +3999,17 @@ void CPacketTranslater::OnCreateGuildAgit(PacketHeader* pkt)
         }
         else
         {
-            unsigned int guildKey = ((PTL_GuildAgitPkt*)pb)->m_guildKey;
+            unsigned int guildKey = ((Packet_Guild_Create_Guild_Agit*)pb)->m_guildKey;
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
             if (guildKey == 0 || guild == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x1610, "./log/GuildAgit", "CPacketTranslater::OnCreateGuildAgit : 0 == pclGuild");
             }
-            else if (guild->IsGuildMaster(((PTL_GuildAgitPkt*)pb)->m_charNo) == 1)
+            else if (guild->IsGuildMaster(((Packet_Guild_Create_Guild_Agit*)pb)->m_charNo) == 1)
             {
                 if (guild->IsExistGuildAgit() == 0)
                 {
-                    if (guild->GetGuildFund() < ((PTL_GuildAgitPkt*)pb)->m_fund)
+                    if (guild->GetGuildFund() < ((Packet_Guild_Create_Guild_Agit*)pb)->m_fund)
                     {
                         DNF_LOG_SCOPE_LINE(0x1623,"./log/GuildAgit",
                             "CPacketTranslater::OnCreateGuildAgit : %d guild fund shortage",
@@ -4762,9 +4018,9 @@ void CPacketTranslater::OnCreateGuildAgit(PacketHeader* pkt)
                     else
                     {
                         guild->CreateGuildAgit(m_pclApp->Get_ServerHandler(), guildKey,
-                                               ((PTL_GuildAgitPkt*)pb)->m_charNo,
-                                               ((PTL_GuildAgitPkt*)pb)->m_field12,
-                                               ((PTL_GuildAgitPkt*)pb)->m_fund);
+                                               ((Packet_Guild_Create_Guild_Agit*)pb)->m_charNo,
+                                               ((Packet_Guild_Create_Guild_Agit*)pb)->m_field12,
+                                               ((Packet_Guild_Create_Guild_Agit*)pb)->m_fund);
                     }
                 }
                 else
@@ -4778,7 +4034,7 @@ void CPacketTranslater::OnCreateGuildAgit(PacketHeader* pkt)
             {
                 DNF_LOG_SCOPE_LINE(0x1616,"./log/GuildAgit",
                     "CPacketTranslater::OnCreateGuildAgit : %d is not guild master(g:%d)",
-                    ((PTL_GuildAgitPkt*)pb)->m_charNo, guildKey);
+                    ((Packet_Guild_Create_Guild_Agit*)pb)->m_charNo, guildKey);
             }
         }
     }
@@ -4797,20 +4053,20 @@ void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
         }
         else
         {
-            unsigned int guildKey = ((PTL_GuildAgitPkt*)pb)->m_guildKey;
+            unsigned int guildKey = ((Packet_Guild_Delete_Guild_Agit*)pb)->m_guildKey;
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
             if (guildKey == 0 || guild == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x164f, "./log/GuildAgit", "CPacketTranslater::OnDeleteGuildAgit : 0 == pclGuild");
             }
-            else if (guild->IsGuildMaster(((PTL_GuildAgitPkt*)pb)->m_charNo) == 1)
+            else if (guild->IsGuildMaster(((Packet_Guild_Delete_Guild_Agit*)pb)->m_charNo) == 1)
             {
                 if (guild->IsExistGuildAgit() == 1)
                 {
                     if (guild->GetGuildCargo()->IsEmpty() == 1)
                     {
                         guild->DeleteGuildAgit(m_pclApp->Get_ServerHandler(), guildKey,
-                                               ((PTL_GuildAgitPkt*)pb)->m_charNo);
+                                               ((Packet_Guild_Delete_Guild_Agit*)pb)->m_charNo);
                     }
                     else
                     {
@@ -4819,12 +4075,12 @@ void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
                             guildKey);
                         CUser* user =
                             (&m_pclApp->m_userManager)->FindUser_CharNo(
-                                ((PTL_GuildAgitPkt*)pb)->m_charNo);
+                                ((Packet_Guild_Delete_Guild_Agit*)pb)->m_charNo);
                         if (user == 0)
                         {
                             DNF_LOG_SCOPE_LINE(0x166b,"./log/GuildCargo",
                                 "CPacketTranslater::OnDeleteGuildAgit : 0 == pclUser(%d)",
-                                ((PTL_GuildAgitPkt*)pb)->m_charNo);
+                                ((Packet_Guild_Delete_Guild_Agit*)pb)->m_charNo);
                         }
                         else
                         {
@@ -4848,7 +4104,7 @@ void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
             {
                 DNF_LOG_SCOPE_LINE(0x1655,"./log/GuildAgit",
                     "CPacketTranslater::OnDeleteGuildAgit : %d is not guild master(g:%d)",
-                    ((PTL_GuildAgitPkt*)pb)->m_charNo, guildKey);
+                    ((Packet_Guild_Delete_Guild_Agit*)pb)->m_charNo, guildKey);
             }
         }
     }
@@ -4865,9 +4121,9 @@ void CPacketTranslater::OnDBCreateGuildAgit(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x1696, "./log/Except", "CPacketTranslater::OnDBCreateGuildAgit : 0 == m_pclApp");
             return;
         }
-        if (((PTL_GuildAgitPkt*)pb)->m_field12 == 0)
+        if (((Packet_DB_Create_Guild_Agit_Reply*)pb)->m_field12 == 0)
         {
-            unsigned int guildKey = ((PTL_GuildAgitPkt*)pb)->m_guildKey;
+            unsigned int guildKey = ((Packet_DB_Create_Guild_Agit_Reply*)pb)->m_guildKey;
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
             if (guildKey == 0 || guild == 0)
             {
@@ -4882,7 +4138,7 @@ void CPacketTranslater::OnDBCreateGuildAgit(PacketHeader* pkt)
                 cargoInfo.m_capacity = 8;
                 guild->GetGuildCargo()->SetGuildCargoDBInfo(cargoInfo);
                 guild->NotifyCreateGuildAgitToGuildMember(
-                    ((PTL_GuildAgitPkt*)pb)->m_charNo);
+                    ((Packet_DB_Create_Guild_Agit_Reply*)pb)->m_charNo);
                 guild->SendGuildAgitInfoToMembers();
                 guild->SendGuildInfoToMembers(false);
             }
@@ -4890,9 +4146,9 @@ void CPacketTranslater::OnDBCreateGuildAgit(PacketHeader* pkt)
         }
         DNF_LOG_SCOPE_LINE(0x16a0,"./log/GuildAgit",
             "CPacketTranslater::OnDBCreateGuildAgit / Failure! Create Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
-            ((PTL_GuildAgitPkt*)pb)->m_guildKey,
-            ((PTL_GuildAgitPkt*)pb)->m_charNo,
-            ((PTL_GuildAgitPkt*)pb)->m_field12);
+            ((Packet_DB_Create_Guild_Agit_Reply*)pb)->m_guildKey,
+            ((Packet_DB_Create_Guild_Agit_Reply*)pb)->m_charNo,
+            ((Packet_DB_Create_Guild_Agit_Reply*)pb)->m_field12);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBCreateGuildAgit Exception Break", 0x16c4, 0x16c9);
 }
@@ -4906,9 +4162,9 @@ void CPacketTranslater::OnDBDeleteGuildAgit(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x16dd, "./log/Except", "CPacketTranslater::OnDBDeleteGuildAgit : 0 == m_pclApp");
             return;
         }
-        if (((PTL_GuildAgitPkt*)pkt)->m_field12 == 0)
+        if (((Packet_DB_Delete_Guild_Agit_Reply*)pkt)->m_field12 == 0)
         {
-            unsigned int guildKey = ((PTL_GuildAgitPkt*)pkt)->m_guildKey;
+            unsigned int guildKey = ((Packet_DB_Delete_Guild_Agit_Reply*)pkt)->m_guildKey;
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
             if (guildKey == 0 || guild == 0)
             {
@@ -4918,16 +4174,16 @@ void CPacketTranslater::OnDBDeleteGuildAgit(PacketHeader* pkt)
             {
                 guild->SetGuildAgitFlag(false);
                 guild->NotifyDeleteGuildAgitToGuildMember(
-                    ((PTL_GuildAgitPkt*)pkt)->m_charNo);
+                    ((Packet_DB_Delete_Guild_Agit_Reply*)pkt)->m_charNo);
                 guild->SendGuildInfoToMembers(false);
             }
             return;
         }
         DNF_LOG_SCOPE_LINE(0x16e6,"./log/GuildAgit",
             "CPacketTranslater::OnDBDeleteGuildAgit / Failure! Delete Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
-            ((PTL_GuildAgitPkt*)pkt)->m_guildKey,
-            ((PTL_GuildAgitPkt*)pkt)->m_charNo,
-            ((PTL_GuildAgitPkt*)pkt)->m_field12);
+            ((Packet_DB_Delete_Guild_Agit_Reply*)pkt)->m_guildKey,
+            ((Packet_DB_Delete_Guild_Agit_Reply*)pkt)->m_charNo,
+            ((Packet_DB_Delete_Guild_Agit_Reply*)pkt)->m_field12);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBDeleteGuildAgit Exception Break", 0x16fe, 0x1703);
 }
@@ -4945,7 +4201,7 @@ void CPacketTranslater::OnPowerWarProcessInfo(PacketHeader* pkt)
     {
         char* pb = (char*)pkt;
         CPowerManager* pm = m_pclApp->GetPowerManager();
-        pm->SendPowerWarProcessInfo(((PTL_PowerWarProcessPkt*)pb)->m_a);
+        pm->SendPowerWarProcessInfo(((Packet_Guild_Power_War_Process_Info*)pb)->m_a);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPowerWarProcessInfo Exception Break", 0x1722, 0x1727);
 }
@@ -4960,7 +4216,7 @@ void CPacketTranslater::OnDBLoadGuildAgit(PacketHeader* pkt)
             log("./log/Except", "CPacketTranslater::OnDBLoadGuildAgit : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((PTL_DBLoadGuildAgitPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Guild_Load_Guild_Agit*)pkt)->m_guildId;
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
         if (guildKey == 0 || guild == 0)
         {
@@ -4969,8 +4225,7 @@ void CPacketTranslater::OnDBLoadGuildAgit(PacketHeader* pkt)
         }
         else
         {
-            guild->SetGuildAgitInfo(
-                *(STGuildAgitDBInfo*)&((PTL_DBLoadGuildAgitPkt*)pkt)->m_info);
+            guild->SetGuildAgitInfo(((Packet_Guild_Load_Guild_Agit*)pkt)->m_info);
             guild->SendGuildAgitInfoToMembers();
         }
     }
@@ -5000,17 +4255,17 @@ void CPacketTranslater::OnUpgradeGuildAgit(PacketHeader* pkt)
         }
         else
         {
-            unsigned int guildKey = ((PTL_GuildAgitPkt*)pb)->m_guildKey;
+            unsigned int guildKey = ((Packet_Guild_Upgrade_Guild_Agit*)pb)->m_guildKey;
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
             if (guildKey == 0 || guild == 0)
             {
                 DNF_LOG_SCOPE_LINE(6000, "./log/GuildAgit", "CPacketTranslater::OnCreateGuildAgit : 0 == pclGuild");
             }
-            else if (guild->IsGuildMaster(((PTL_GuildAgitPkt*)pb)->m_charNo) == 1)
+            else if (guild->IsGuildMaster(((Packet_Guild_Upgrade_Guild_Agit*)pb)->m_charNo) == 1)
             {
                 if (guild->IsExistGuildAgit() == 1)
                 {
-                    if (guild->GetGuildFund() < ((PTL_GuildAgitPkt*)pb)->m_fund)
+                    if (guild->GetGuildFund() < ((Packet_Guild_Upgrade_Guild_Agit*)pb)->m_fund)
                     {
                         DNF_LOG_SCOPE_LINE(0x1783,"./log/GuildAgit",
                             "CPacketTranslater::OnCreateGuildAgit : %d guild fund shortage",
@@ -5019,9 +4274,9 @@ void CPacketTranslater::OnUpgradeGuildAgit(PacketHeader* pkt)
                     else
                     {
                         guild->UpgradeGuildAgit(m_pclApp->Get_ServerHandler(), guildKey,
-                                                ((PTL_GuildAgitPkt*)pb)->m_charNo,
-                                                ((PTL_GuildAgitPkt*)pb)->m_field12,
-                                                ((PTL_GuildAgitPkt*)pb)->m_fund);
+                                                ((Packet_Guild_Upgrade_Guild_Agit*)pb)->m_charNo,
+                                                ((Packet_Guild_Upgrade_Guild_Agit*)pb)->m_field12,
+                                                ((Packet_Guild_Upgrade_Guild_Agit*)pb)->m_fund);
                     }
                 }
                 else
@@ -5035,7 +4290,7 @@ void CPacketTranslater::OnUpgradeGuildAgit(PacketHeader* pkt)
             {
                 DNF_LOG_SCOPE_LINE(0x1776,"./log/GuildAgit",
                     "CPacketTranslater::OnCreateGuildAgit : %d is not guild master(g:%d)",
-                    ((PTL_GuildAgitPkt*)pb)->m_charNo, guildKey);
+                    ((Packet_Guild_Upgrade_Guild_Agit*)pb)->m_charNo, guildKey);
             }
         }
     }
@@ -5051,9 +4306,9 @@ void CPacketTranslater::OnDBUpgradeGuildAgit(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x17a8, "./log/Except", "CPacketTranslater::OnDBUpgradeGuildAgit : 0 == m_pclApp");
             return;
         }
-        if (((PTL_GuildAgitPkt*)pkt)->m_field12 == 0)
+        if (((Packet_DB_Upgrade_Guild_Agit_Reply*)pkt)->m_field12 == 0)
         {
-            unsigned int guildKey = ((PTL_GuildAgitPkt*)pkt)->m_guildKey;
+            unsigned int guildKey = ((Packet_DB_Upgrade_Guild_Agit_Reply*)pkt)->m_guildKey;
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
             if (guildKey == 0 || guild == 0)
             {
@@ -5069,9 +4324,9 @@ void CPacketTranslater::OnDBUpgradeGuildAgit(PacketHeader* pkt)
         }
         DNF_LOG_SCOPE_LINE(0x17b2,"./log/GuildAgit",
             "CPacketTranslater::OnDBUpgradeGuildAgit / Failure! Upgrade Guild Agit(Guild No : %d, Master No : %d, Reason : %d)",
-            ((PTL_GuildAgitPkt*)pkt)->m_guildKey,
-            ((PTL_GuildAgitPkt*)pkt)->m_charNo,
-            ((PTL_GuildAgitPkt*)pkt)->m_field12);
+            ((Packet_DB_Upgrade_Guild_Agit_Reply*)pkt)->m_guildKey,
+            ((Packet_DB_Upgrade_Guild_Agit_Reply*)pkt)->m_charNo,
+            ((Packet_DB_Upgrade_Guild_Agit_Reply*)pkt)->m_field12);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBUpgradeGuildAgit Exception Break", 0x17c5, 0x17ca);
 }
@@ -5092,13 +4347,13 @@ void CPacketTranslater::OnWriteGuildMemberMemo(PacketHeader* pkt)
             return;
         }
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-            ((PTL_WriteGuildMemberMemoPkt*)pkt)->m_charNo);
+            ((Packet_Guild_Write_Guild_Member_Memo*)pkt)->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x17f5, "./log/GuildMember", "CPacketTranslater::OnWriteGuildMemberMemo : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = ((PTL_WriteGuildMemberMemoPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Guild_Write_Guild_Member_Memo*)pkt)->m_guildKey;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
@@ -5106,13 +4361,13 @@ void CPacketTranslater::OnWriteGuildMemberMemo(PacketHeader* pkt)
             return;
         }
         Packet_DB_Write_Guild_Member_Memo dbPkt;
-        dbPkt.m_charNo = ((PTL_WriteGuildMemberMemoPkt*)pkt)->m_charNo;
+        dbPkt.m_charNo = ((Packet_Guild_Write_Guild_Member_Memo*)pkt)->m_charNo;
         dbPkt.m_guildKey = guildKey;
-        size_t len = strlen(((PTL_WriteGuildMemberMemoPkt*)pkt)->m_memo);
-        memcpy(dbPkt.m_memo, ((PTL_WriteGuildMemberMemoPkt*)pkt)->m_memo, len < 0x15 ? len : 0x14);
+        size_t len = strlen(((Packet_Guild_Write_Guild_Member_Memo*)pkt)->m_memo);
+        memcpy(dbPkt.m_memo, ((Packet_Guild_Write_Guild_Member_Memo*)pkt)->m_memo, len < 0x15 ? len : 0x14);
         m_pclApp->m_serverHandler->SendToDB(&dbPkt);
-        guild->WriteGuildMemberMemo(user, ((PTL_WriteGuildMemberMemoPkt*)pkt)->m_memo);
-        guild->NotifyMemoToGuildMember(user, ((PTL_WriteGuildMemberMemoPkt*)pkt)->m_memo);
+        guild->WriteGuildMemberMemo(user, ((Packet_Guild_Write_Guild_Member_Memo*)pkt)->m_memo);
+        guild->NotifyMemoToGuildMember(user, ((Packet_Guild_Write_Guild_Member_Memo*)pkt)->m_memo);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnWriteGuildMemberMemo Exception Break", 0x1818, 0x181d);
 }
@@ -5120,7 +4375,7 @@ void CPacketTranslater::OnWriteGuildMemberMemo(PacketHeader* pkt)
 void CPacketTranslater::OnLoadGuildCargo(PacketHeader* pkt)
 {
     CGuild* guild;
-    PTL_GuildCargoLoadPkt* pb = (PTL_GuildCargoLoadPkt*)pkt;
+    Packet_Guild_Load_Guild_Cargo* pb = (Packet_Guild_Load_Guild_Cargo*)pkt;
     try
     {
         if (m_pclApp == 0)
@@ -5135,8 +4390,7 @@ void CPacketTranslater::OnLoadGuildCargo(PacketHeader* pkt)
             }
             else
             {
-                guild->GetGuildCargo()->SetGuildCargoDBInfo(
-                    *(STGuildCargoDBInfo*)((char*)pb + 0xe));
+                guild->GetGuildCargo()->SetGuildCargoDBInfo(pb->m_cargo);
             }
         }
     }
@@ -5155,21 +4409,20 @@ void CPacketTranslater::OnLoadGuildCargoHistory(PacketHeader* pkt)
     try
     {
         CGuild* guild;
-        PTL_LoadGuildCargoHistoryPkt* pb = (PTL_LoadGuildCargoHistoryPkt*)pkt;
+        Packet_Guild_Load_Guild_Cargo_History* pb = (Packet_Guild_Load_Guild_Cargo_History*)pkt;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1861,"./log/GuildCargo",
                 "CPacketTranslater::OnLoadGuildCargoHistory : 0 == m_pclApp");
             return;
         }
-        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildId)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1868,"./log/GuildCargo",
                 "CPacketTranslater::OnLoadGuildCargoHistory : 0 == pclGuild");
             return;
         }
-        guild->GetGuildCargo()->SetGuildCargoHistory(pb->m_count,
-                                                     (STGuildCargoLog*)((char*)pb + 0x12));
+        guild->GetGuildCargo()->SetGuildCargoHistory(pb->m_count, &pb->m_logs);
     }
     catch (CDNFException& e)
     {
@@ -5187,20 +4440,20 @@ void CPacketTranslater::OnGuildCargo(PacketHeader* pkt)
 {
     try
     {
-        char* pb = (char*)pkt;
+        Packet_Guild_Cargo_Requst* pb = (Packet_Guild_Cargo_Requst*)pkt;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x188c, "./log/GuildCargo", "CPacketTranslater::OnGuildCargo : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = *(unsigned int*)(pb + 0xa);
+        unsigned int charNo = pb->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1896, "./log/GuildCargo", "CPacketTranslater::OnGuildCargo : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = *(unsigned int*)(pb + 0xe);
+        unsigned int guildKey = pb->m_guildKey;
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
         if (guild == 0)
         {
@@ -5212,7 +4465,7 @@ void CPacketTranslater::OnGuildCargo(PacketHeader* pkt)
         reply.m_b = guildKey;
         if (guild->GetGuildCargo()->IsLoadComplete() == 1)
         {
-            unsigned char grade = *(unsigned char*)((char*)user->GetGuildMemDBInfo() + 0x15);
+            unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
             if (grade == 3 || grade == 1 || grade == 2)
             {
                 if ((&m_pclApp->m_guildManager)->IsCargoLock())
@@ -5266,14 +4519,14 @@ void CPacketTranslater::OnGuildCargoHistory(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x18ec, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoHistory : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = ((PTL_GuildCargoSimplePkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_Guild_Cargo_Requst*)pkt)->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x18f6, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoHistory : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = ((PTL_GuildCargoSimplePkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Guild_Cargo_Requst*)pkt)->m_guildKey;
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
         if (guild == 0)
         {
@@ -5282,7 +4535,7 @@ void CPacketTranslater::OnGuildCargoHistory(PacketHeader* pkt)
         }
         if ((&m_pclApp->m_guildManager)->IsCargoLock() == 0)
         {
-            unsigned char grade = *(unsigned char*)((char*)user->GetGuildMemDBInfo() + 0x15);
+            unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
             if (grade == 3 || grade == 1 || grade == 2)
             {
                 Packet_Guild_Cargo_History_Response reply;
@@ -5319,16 +4572,16 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
             return;
         }
         Packet_Channel_Check_Guild_Cargo_Push_Item reply;
-        unsigned int charNo = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_charNo;
         reply.me = charNo;
-        reply.m13 = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field12;
-        reply.m17 = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field16;
-        reply.m1b = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field1a;
-        reply.m23 = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field22;
-        reply.m1f = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field1e;
-        reply.m25 = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field24;
-        reply.m24 = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field23;
-        unsigned int guildKey = ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_guildKey;
+        reply.m13 = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field12;
+        reply.m17 = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field16;
+        reply.m1b = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field1a;
+        reply.m23 = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field22;
+        reply.m1f = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field1e;
+        reply.m25 = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field24;
+        reply.m24 = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field23;
+        unsigned int guildKey = ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_guildKey;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
@@ -5370,15 +4623,15 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
             user->SendTcpGameserver(&reply);
             return;
         }
-        unsigned char grade = *(unsigned char*)((char*)user->GetGuildMemDBInfo() + 0x15);
+        unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
         if (grade == 3 || grade == 1 || grade == 2)
         {
             int result = guild->GetGuildCargo()->CheckInsertItem(
-                ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field16,
-                ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field1a,
-                ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field12,
-                ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field22,
-                ((PTL_GuildCargoCheckPushItemPkt*)pkt)->m_field1e);
+                ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field16,
+                ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field1a,
+                ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field12,
+                ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field22,
+                ((Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt)->m_field1e);
             reply.m12 = (unsigned char)result;
             user->SendTcpGameserver(&reply);
         }
@@ -5408,19 +4661,19 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
 {
     try
     {
-        unsigned int group = ((PTL_GuildCargoPushItemPkt*)pkt)->m_group;
-        unsigned int guildKey = ((PTL_GuildCargoPushItemPkt*)pkt)->m_guildKey;
-        int slot = ((PTL_GuildCargoPushItemPkt*)pkt)->m_slot;
-        int count = ((PTL_GuildCargoPushItemPkt*)pkt)->m_count;
-        unsigned char itemType = ((PTL_GuildCargoPushItemPkt*)pkt)->m_itemType;
-        DnfItemInfo* item = &((PTL_GuildCargoPushItemPkt*)pkt)->m_item;
-        unsigned char fst = ((PTL_GuildCargoPushItemPkt*)pkt)->m_fst;
-        unsigned short fsn = ((PTL_GuildCargoPushItemPkt*)pkt)->m_fsn;
+        unsigned int group = ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_group;
+        unsigned int guildKey = ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_guildKey;
+        int slot = ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_slot;
+        int count = ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_count;
+        unsigned char itemType = ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_itemType;
+        DnfItemInfo* item = (DnfItemInfo*)((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_item;
+        unsigned char fst = ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_fst;
+        unsigned short fsn = ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_fsn;
         char* itemDesc = (char*)CGuildCargo::PrintDnfItemInfo(*item);
         CMyFileLog log0("OnGuildCargoPushItem", 0x19b3);
         log0("./log/GuildCargo", "PUSH ITEM(g:%d,cn:%d,sn:%d,sl:%d,fsn:%d,fst:%d,it:%d,%s)",
-             group, guildKey, ((PTL_GuildCargoPushItemPkt*)pkt)->m_slot,
-             ((PTL_GuildCargoPushItemPkt*)pkt)->m_count, (unsigned int)fsn, (unsigned int)fst,
+             group, guildKey, ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_slot,
+             ((Packet_Guild_Guild_Cargo_Push_Item*)pkt)->m_count, (unsigned int)fsn, (unsigned int)fst,
              (unsigned int)itemType, itemDesc);
         Packet_Channel_Guild_Cargo_Push_Item resp;
         if (m_pclApp == 0)
@@ -5467,7 +4720,7 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
             user->SendTcpGameserver((PacketHeader*)&resp);
             return;
         }
-        unsigned char grade = *(unsigned char*)((char*)user->GetGuildMemDBInfo() + 0x15);
+        unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
         if (grade != 3 && grade != 1 && grade != 2)
         {
             DNF_LOG_SCOPE_LINE(0x1a05,"./log/GuildCargo", "CPacketTranslater::OnGuildCargoPushItem : Access Deny(%d,%d,%d)",
@@ -5482,9 +4735,7 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
         if (result == 0xc1)
         {
             guild->GetGuildCargo()->InsertHistory((ENUM_GUILD_CARGO_BEHAVIOR)1, (int)guildKey, user->GetCharName(),
-                                 ((PTL_GuildCargoPushItemPkt*)pkt)->m_item.m_itemId,
-                                 ((PTL_GuildCargoPushItemPkt*)pkt)->m_item.m_addInfo,
-                                 &((PTL_GuildCargoPushItemPkt*)pkt)->m_item.m_opt);
+                                 item->m_itemId, item->m_addInfo, &item->m_opt);
             CServerHandler* handler = m_pclApp->m_serverHandler;
             guild->GetGuildCargo()->SendHistoryToDBMW(handler, (ENUM_GUILD_CARGO_BEHAVIOR)1, (int)guildKey,
                                      user->GetCharName(), slot, 0, *item);
@@ -5510,13 +4761,13 @@ void CPacketTranslater::OnGuildCargoPopItem(PacketHeader* pkt)
 {
     try
     {
-    unsigned int group = ((PTL_GuildCargoPopItemPkt*)pkt)->m_group;
-    unsigned int guildKey = ((PTL_GuildCargoPopItemPkt*)pkt)->m_guildKey;
-    int slot = ((PTL_GuildCargoPopItemPkt*)pkt)->m_slot;
-    int id = ((PTL_GuildCargoPopItemPkt*)pkt)->m_id;
-    int count = ((PTL_GuildCargoPopItemPkt*)pkt)->m_count;
-    unsigned char itemType = ((PTL_GuildCargoPopItemPkt*)pkt)->m_itemType;
-    unsigned int uit = ((PTL_GuildCargoPopItemPkt*)pkt)->m_uit;
+    unsigned int group = ((Packet_Guild_Guild_Cargo_Pop_Item*)pkt)->m_group;
+    unsigned int guildKey = ((Packet_Guild_Guild_Cargo_Pop_Item*)pkt)->m_guildKey;
+    int slot = ((Packet_Guild_Guild_Cargo_Pop_Item*)pkt)->m_slot;
+    int id = ((Packet_Guild_Guild_Cargo_Pop_Item*)pkt)->m_id;
+    int count = ((Packet_Guild_Guild_Cargo_Pop_Item*)pkt)->m_count;
+    unsigned char itemType = ((Packet_Guild_Guild_Cargo_Pop_Item*)pkt)->m_itemType;
+    unsigned int uit = ((Packet_Guild_Guild_Cargo_Pop_Item*)pkt)->m_uit;
     CMyFileLog log0("OnGuildCargoPopItem", 0x1a65);
     log0("./log/GuildCargo", "POP ITEM(g:%d,cn:%d,sn:%d,id:%d,cnt:%d,it:%d,uit:%d)",
          group, guildKey, slot, id, count, (unsigned int)itemType, uit);
@@ -5565,7 +4816,7 @@ void CPacketTranslater::OnGuildCargoPopItem(PacketHeader* pkt)
         user->SendTcpGameserver((PacketHeader*)&resp);
         return;
     }
-    unsigned char grade = *(unsigned char*)((char*)user->GetGuildMemDBInfo() + 0x15);
+    unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
     if (grade != 3 && grade != 1 && grade != 2)
     {
         DNF_LOG_SCOPE_LINE(0x1ab5,"./log/GuildCargo", "CPacketTranslater::OnGuildCargoPopItem : Access Deny(%d,%d,%d)",
@@ -5608,12 +4859,12 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
     try
     {
     Packet_Channel_Guild_Cargo_Move_Item reply;
-    unsigned int charNo = ((PTL_GuildCargoMoveItemPkt*)pkt)->m_charNo;
-    unsigned int fromSlot = ((PTL_GuildCargoMoveItemPkt*)pkt)->m_fromSlot;
-    unsigned int toSlot = ((PTL_GuildCargoMoveItemPkt*)pkt)->m_toSlot;
+    unsigned int charNo = ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_charNo;
+    unsigned int fromSlot = ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_fromSlot;
+    unsigned int toSlot = ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_toSlot;
     {
         DNF_LOG_SCOPE_LINE(0x1b15,"./log/GuildCargo", "MOVE ITEM(g:%d,cn:%d,fsn:%d,dsn:%d",
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_group, charNo, fromSlot, toSlot);
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_group, charNo, fromSlot, toSlot);
     }
     reply.me = charNo;
     reply.m13 = fromSlot;
@@ -5632,7 +4883,7 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
     }
     reply.ma = user->GetIdByChannel();
     CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-        ((PTL_GuildCargoMoveItemPkt*)pkt)->m_group);
+        ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_group);
     if (guild == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1b35, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoMoveItem : 0 == pclGuild");
@@ -5644,8 +4895,8 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x1b40,"./log/GuildCargo",
             "CPacketTranslater::OnGuildCargoMoveItem GUILD CARGO LOCKED!(%d,%d)",
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_charNo,
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_group);
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_charNo,
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_group);
         reply.m12 = 0xcc;
         user->SendTcpGameserver(&reply);
         return;
@@ -5654,8 +4905,8 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x1b4b,"./log/GuildCargo",
             "CPacketTranslater::OnGuildCargoMoveItem : (%d,%d) No GuildAgit",
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_charNo,
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_group);
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_charNo,
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_group);
         reply.m12 = 0xb5;
         user->SendTcpGameserver(&reply);
         return;
@@ -5665,28 +4916,28 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x1b55,"./log/GuildCargo",
             "CPacketTranslater::OnGuildCargoMoveItem : Guild(%d,%d) Not Loaded",
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_charNo,
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_group);
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_charNo,
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_group);
         reply.m12 = 0xc3;
         user->SendTcpGameserver(&reply);
         return;
     }
-    unsigned char grade = *(unsigned char*)((char*)user->GetGuildMemDBInfo() + 0x15);
+    unsigned char grade = user->GetGuildMemDBInfo()->m_grade;
     if (grade == 3 || grade == 1 || grade == 2)
     {
         DnfItemInfo fromItem;
         DnfItemInfo toItem;
         int result = cargo->MoveItem(fromItem, toItem,
-                                     ((PTL_GuildCargoMoveItemPkt*)pkt)->m_fromSlot,
-                                     ((PTL_GuildCargoMoveItemPkt*)pkt)->m_count,
-                                     ((PTL_GuildCargoMoveItemPkt*)pkt)->m_toSlot,
-                                     ((PTL_GuildCargoMoveItemPkt*)pkt)->m_type,
-                                     ((PTL_GuildCargoMoveItemPkt*)pkt)->m_charNo);
+                                     ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_fromSlot,
+                                     ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_count,
+                                     ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_toSlot,
+                                     ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_type,
+                                     ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_charNo);
         reply.m12 = (unsigned char)result;
         if (result == 0xc1)
         {
             cargo->SendGuildCargoToDBMW(m_pclApp->m_serverHandler,
-                                        ((PTL_GuildCargoMoveItemPkt*)pkt)->m_charNo);
+                                        ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_charNo);
             cargo->PrintCargo((ENUM_GUILD_CARGO_BEHAVIOR)3);
         }
         user->SendTcpGameserver(&reply);
@@ -5695,8 +4946,8 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x1b63,"./log/GuildCargo",
             "CPacketTranslater::OnGuildCargoMoveItem : Access Deny(%d,%d,%d)",
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_charNo,
-            ((PTL_GuildCargoMoveItemPkt*)pkt)->m_group, (unsigned int)grade);
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_charNo,
+            ((Packet_Guild_Guild_Cargo_Move_Item*)pkt)->m_group, (unsigned int)grade);
         reply.m12 = 0x24;
         user->SendTcpGameserver(&reply);
     }
@@ -5722,14 +4973,14 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x1bd1, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoUpgrade : 0 == m_pclApp");
         return;
     }
-    unsigned int charNo = ((PTL_GuildCargoUpgradePkt*)pkt)->m_charNo;
+    unsigned int charNo = ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_charNo;
     CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
     if (user == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1bdb, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoUpgrade : 0 == pclUser");
         return;
     }
-    unsigned int guildKey = ((PTL_GuildCargoUpgradePkt*)pkt)->m_guildKey;
+    unsigned int guildKey = ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_guildKey;
     CGuild* guild;
     if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
     {
@@ -5741,16 +4992,16 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
         if (guild->IsExistGuildAgit() == 1)
         {
             int curCapacity = guild->GetGuildCargo()->GetCapacity();
-            if (((PTL_GuildCargoUpgradePkt*)pkt)->m_field12 == curCapacity)
+            if (((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field12 == curCapacity)
             {
-                unsigned int reqFund = ((PTL_GuildCargoUpgradePkt*)pkt)->m_field1a;
+                unsigned int reqFund = ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field1a;
                 unsigned int guildFund = guild->GetGuildFund();
                 if (guildFund < reqFund)
                 {
                     DNF_LOG_SCOPE_LINE(0x1c00,"./log/GuildCargo",
                         "CPacketTranslater::OnGuildCargoUpgrade guild fund shortage(c:%d,n:%d, gcapa:%d) Error! Guild(%d), User(%d), ReqFund(%d), CurrFund(%d)",
-                        ((PTL_GuildCargoUpgradePkt*)pkt)->m_field12,
-                        ((PTL_GuildCargoUpgradePkt*)pkt)->m_field16, curCapacity,
+                        ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field12,
+                        ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field16, curCapacity,
                         guildKey, charNo, reqFund, guildFund);
                 }
                 else
@@ -5758,13 +5009,13 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
                     guild->SubGuildFund(reqFund);
                     guild->SendGuildInfoToMembers(true);
                     guild->GetGuildCargo()->SetCapacity(
-                        ((PTL_GuildCargoUpgradePkt*)pkt)->m_field16);
+                        ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field16);
                     CTcpDBServer* tcpDb = m_pclApp->Get_ServerHandler()->GetTcpDBServer();
                     char* buf = tcpDb->makePacketHeader(0x714, 0x16);
                     *(unsigned int*)(buf + 0xa) = guildKey;
                     *(unsigned int*)(buf + 0xe) = charNo;
                     *(unsigned int*)(buf + 0x12) =
-                        ((PTL_GuildCargoUpgradePkt*)pkt)->m_field16;
+                        ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field16;
                     tcpDb->SendToServer(buf);
                     Packet_Channel_Guild_Cargo_Upgrade reply;
                     reply.m_channel = user->GetIdByChannel();
@@ -5778,8 +5029,8 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
             {
                 DNF_LOG_SCOPE_LINE(0x1bf7,"./log/GuildCargo",
                     "CPacketTranslater::OnGuildCargoUpgrade Capacity(c:%d,n:%d, gcapa:%d) Error! Guild(%d), User(%d)",
-                    ((PTL_GuildCargoUpgradePkt*)pkt)->m_field12,
-                    ((PTL_GuildCargoUpgradePkt*)pkt)->m_field16, curCapacity,
+                    ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field12,
+                    ((Packet_Guild_Guild_Cargo_Upgrade*)pkt)->m_field16, curCapacity,
                     guildKey, charNo);
             }
         }
@@ -5819,14 +5070,14 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
             return;
         }
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-            ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo);
+            ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1c54,"./log/GuildBoard",
                 "CPacketTranslater::OnGuildRequestGuildBoardOpen : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_guildKey;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
@@ -5836,7 +5087,7 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
         }
         bool sendNow = false;
         if (guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
-            ((PTL_GuildBoardOpenPkt*)pkt)->m_fieldA == 0)
+            ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_boardType == 0)
         {
             if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 0)
             {
@@ -5850,22 +5101,22 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
         if (!sendNow)
         {
             guild->GetGuildBoard()->sendGuildBoardData(
-                ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey,
-                ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo,
+                ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_guildKey,
+                ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_charNo,
                 0x232a, user);
             return;
         }
         if (guild->GetGuildBoard()->getGuildBoardDBLoadState() == 0)
         {
             Packet_DB_Load_Request_Guild_Board_Open dbPkt;
-            dbPkt.m_guildKey = ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey;
-            dbPkt.m_charNo = ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo;
+            dbPkt.m_guildKey = ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_guildKey;
+            dbPkt.m_charNo = ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_charNo;
             m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
             guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
             return;
         }
         if (guild->GetGuildBoard()->isWebGuildBoardAction() == 0 &&
-            ((PTL_GuildBoardOpenPkt*)pkt)->m_fieldA == 0)
+            ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_boardType == 0)
         {
             return;
         }
@@ -5879,16 +5130,16 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
         if (needDB)
         {
             Packet_DB_Load_Request_Guild_Board_Open dbPkt;
-            dbPkt.m_guildKey = ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey;
-            dbPkt.m_charNo = ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo;
+            dbPkt.m_guildKey = ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_guildKey;
+            dbPkt.m_charNo = ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_charNo;
             m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
             guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)1);
         }
         else
         {
             guild->GetGuildBoard()->sendGuildBoardData(
-                ((PTL_GuildBoardOpenPkt*)pkt)->m_guildKey,
-                ((PTL_GuildBoardOpenPkt*)pkt)->m_charNo,
+                ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_guildKey,
+                ((Packet_Guild_Request_Guild_Board_Open*)pkt)->m_charNo,
                 0x232a, user);
         }
     }
@@ -5905,7 +5156,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = ((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_DB_Load_Reply_Guild_Board_Open*)pkt)->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
@@ -5913,7 +5164,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = ((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_DB_Load_Reply_Guild_Board_Open*)pkt)->m_guildId;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
@@ -5923,9 +5174,9 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
         }
         guild->GetGuildBoard()->setGuildBoardData(
             guildKey, charNo, guild,
-            (int)(char)((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_field15,
-            (STGuildBoardDBInfo*)&((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_info);
-        if (((PTL_DBReplyGuildBoardOpenPkt*)pkt)->m_fieldC != 0)
+            (int)(char)((Packet_DB_Load_Reply_Guild_Board_Open*)pkt)->m_boardCount,
+            &((Packet_DB_Load_Reply_Guild_Board_Open*)pkt)->m_boards);
+        if (((Packet_DB_Load_Reply_Guild_Board_Open*)pkt)->m_count != 0)
         {
             guild->GetGuildBoard()->sendGuildBoardData(guildKey, charNo, 0x232a, user);
             guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)2);
@@ -5946,7 +5197,7 @@ void CPacketTranslater::OnGuildRequestGuildBoardWrite(PacketHeader* pkt)
             return;
         }
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-            ((PTL_GuildBoardWritePkt*)pkt)->m_fieldA);
+            ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1cdd,"./log/GuildBoard",
@@ -5955,19 +5206,19 @@ void CPacketTranslater::OnGuildRequestGuildBoardWrite(PacketHeader* pkt)
         }
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(
-                 ((PTL_GuildBoardWritePkt*)pkt)->m_guildKey)) == 0)
+                 ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1ce4,"./log/GuildBoard",
                 "CPacketTranslater::OnGuildRequestGuildBoardWrite : 0 == pclGuild");
             return;
         }
         Packet_DB_Load_Request_Guild_Board_Write dbPkt;
-        dbPkt.m_b = ((PTL_GuildBoardWritePkt*)pkt)->m_fieldA;
-        dbPkt.m_c = ((PTL_GuildBoardWritePkt*)pkt)->m_guildKey;
-        dbPkt.m_d = ((PTL_GuildBoardWritePkt*)pkt)->m_charNo;
-        memcpy(&dbPkt.m_info, ((PTL_GuildBoardWritePkt*)pkt)->m_info, 0x78);
-        *(unsigned char*)((char*)&dbPkt + 0x9b) = ((PTL_GuildBoardWritePkt*)pkt)->m_field16;
-        *(unsigned char*)((char*)&dbPkt + 0x9c) = ((PTL_GuildBoardWritePkt*)pkt)->m_field17;
+        dbPkt.m_b = ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_boardNo;
+        dbPkt.m_c = ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_guildKey;
+        dbPkt.m_d = ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_charNo;
+        memcpy(&dbPkt.m_info, ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_info, 0x78);
+        *(unsigned char*)((char*)&dbPkt + 0x9b) = ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_field16;
+        *(unsigned char*)((char*)&dbPkt + 0x9c) = ((Packet_Guild_Request_Guild_Board_Write*)pkt)->m_field17;
         memcpy((char*)&dbPkt + 0x9e, user->GetCharName(), 0x1e);
         m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
     }
@@ -5984,7 +5235,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardWrite(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardWrite : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = ((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_DB_Load_Reply_Guild_Board_Write*)pkt)->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
@@ -5992,7 +5243,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardWrite(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardWrite : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = ((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_DB_Load_Reply_Guild_Board_Write*)pkt)->m_guildId;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
@@ -6000,12 +5251,12 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardWrite(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardWrite : 0 == pclGuild");
             return;
         }
-        if (((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_result == 0)
+        if (((Packet_DB_Load_Reply_Guild_Board_Write*)pkt)->m_result == 0)
         {
             guild->GetGuildBoard()->setGuildBoardData(
                 guildKey, charNo, guild, 1,
-                (STGuildBoardDBInfo*)&((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_info);
-            if (((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_field94 != 0)
+                &((Packet_DB_Load_Reply_Guild_Board_Write*)pkt)->m_board);
+            if (((Packet_DB_Load_Reply_Guild_Board_Write*)pkt)->m_board.m_writerCharNo != 0)
             {
                 guild->GetGuildBoard()->sendGuildBoardData(guildKey, charNo, 0x232e, user);
             }
@@ -6013,7 +5264,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardWrite(PacketHeader* pkt)
         else
         {
             Packet_Guild_Reply_Guild_Board reply;
-            reply.m_a = ((PTL_DBReplyGuildBoardWritePkt*)pkt)->m_result;
+            reply.m_a = ((Packet_DB_Load_Reply_Guild_Board_Write*)pkt)->m_result;
             reply.m_c = 0x232e;
             reply.m_f = user->GetIdByChannel();
             reply.m_13 = user->GetUniqCharNo();
@@ -6036,7 +5287,7 @@ void CPacketTranslater::OnGuildRequestGuildBoardDelete(PacketHeader* pkt)
             return;
         }
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-            ((PTL_GuildBoardDeletePkt*)pkt)->m_fieldA);
+            ((Packet_Guild_Request_Guild_Board_Delete*)pkt)->m_charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1d5c,"./log/GuildBoard",
@@ -6045,16 +5296,16 @@ void CPacketTranslater::OnGuildRequestGuildBoardDelete(PacketHeader* pkt)
         }
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(
-                 ((PTL_GuildBoardDeletePkt*)pkt)->m_guildKey)) == 0)
+                 ((Packet_Guild_Request_Guild_Board_Delete*)pkt)->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1d63,"./log/GuildBoard",
                 "CPacketTranslater::OnGuildRequestGuildBoardDelete : 0 == pclGuild");
             return;
         }
         Packet_DB_Load_Request_Guild_Board_Delete dbPkt;
-        dbPkt.m_b = ((PTL_GuildBoardDeletePkt*)pkt)->m_fieldA;
-        dbPkt.m_c = ((PTL_GuildBoardDeletePkt*)pkt)->m_guildKey;
-        dbPkt.m_d = ((PTL_GuildBoardDeletePkt*)pkt)->m_charNo;
+        dbPkt.m_b = ((Packet_Guild_Request_Guild_Board_Delete*)pkt)->m_boardNo;
+        dbPkt.m_c = ((Packet_Guild_Request_Guild_Board_Delete*)pkt)->m_guildKey;
+        dbPkt.m_d = ((Packet_Guild_Request_Guild_Board_Delete*)pkt)->m_charNo;
         m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGuildRequestGuildBoardDelete Exception Break", 0x1d71, 0x1d76);
@@ -6070,7 +5321,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardDelete(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardDelete : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = ((PTL_DBReplyGuildBoardDeletePkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_DB_Load_Reply_Guild_Board_Delete*)pkt)->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
@@ -6078,7 +5329,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardDelete(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardDelete : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = ((PTL_DBReplyGuildBoardDeletePkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_DB_Load_Reply_Guild_Board_Delete*)pkt)->m_guildId;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
@@ -6086,10 +5337,10 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardDelete(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardDelete : 0 == pclGuild");
             return;
         }
-        if (((PTL_DBReplyGuildBoardDeletePkt*)pkt)->m_result == 0)
+        if (((Packet_DB_Load_Reply_Guild_Board_Delete*)pkt)->m_result == 0)
         {
             guild->GetGuildBoard()->deleteGuildBoardData(
-                *(unsigned int*)&((PTL_DBReplyGuildBoardDeletePkt*)pkt)->m_info, guildKey,
+                ((Packet_DB_Load_Reply_Guild_Board_Delete*)pkt)->m_boardNo, guildKey,
                 charNo);
         }
         else
@@ -6098,7 +5349,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardDelete(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyGuildBoardDelete : Delete Fail!!");
         }
         Packet_Guild_Reply_Guild_Board_Delete reply;
-        reply.m_result = ((PTL_DBReplyGuildBoardDeletePkt*)pkt)->m_result;
+        reply.m_result = ((Packet_DB_Load_Reply_Guild_Board_Delete*)pkt)->m_result;
         reply.m_channel = user->GetIdByChannel();
         reply.m_charNo = user->GetUniqCharNo();
         user->SendTcpGameserver(&reply);
@@ -6110,9 +5361,9 @@ void CPacketTranslater::OnWebGuildBoardWrite(PacketHeader* pkt)
 {
     try
     {
-        unsigned int guildKey = ((PTL_WebGuildBoardPkt*)pkt)->m_guildKey;
-        unsigned int charNo = ((PTL_WebGuildBoardPkt*)pkt)->m_charNo;
-        unsigned int no = ((PTL_WebGuildBoardPkt*)pkt)->m_no;
+        unsigned int guildKey = ((Packet_DB_Load_Request_Web_Guild_Board_Write*)pkt)->m_guildKey;
+        unsigned int charNo = ((Packet_DB_Load_Request_Web_Guild_Board_Write*)pkt)->m_charNo;
+        unsigned int no = ((Packet_DB_Load_Request_Web_Guild_Board_Write*)pkt)->m_no;
         {
             DNF_LOG_SCOPE_LINE(0x1dbe,"./log/GuildBoard",
                 "CPacketTranslater::OnWebGuildBoardWrite Receive Data: GuildKey : %u, CharacID : %u, NO : %u",
@@ -6148,7 +5399,7 @@ void CPacketTranslater::OnDBLoadReplyWebGuildBoardWrite(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyWebGuildBoardWrite : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((PTL_DBReplyWebGuildBoardWritePkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_DB_Load_Reply_Web_Guild_Board_Write*)pkt)->m_guildId;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
@@ -6156,13 +5407,13 @@ void CPacketTranslater::OnDBLoadReplyWebGuildBoardWrite(PacketHeader* pkt)
                 "CPacketTranslater::OnDBLoadReplyWebGuildBoardWrite : 0 == pclGuild");
             return;
         }
-        if (((PTL_DBReplyWebGuildBoardWritePkt*)pkt)->m_result == 0)
+        if (((Packet_DB_Load_Reply_Web_Guild_Board_Write*)pkt)->m_result == 0)
         {
             guild->GetGuildBoard()->setGuildBoardData(
                                                       guildKey,
-                                                      ((PTL_DBReplyWebGuildBoardWritePkt*)pkt)->m_charNo,
+                                                      ((Packet_DB_Load_Reply_Web_Guild_Board_Write*)pkt)->m_charNo,
                                                       guild, 1,
-                                                      (STGuildBoardDBInfo*)&((PTL_DBReplyWebGuildBoardWritePkt*)pkt)->m_info);
+                                                      &((Packet_DB_Load_Reply_Web_Guild_Board_Write*)pkt)->m_board);
             guild->GetGuildBoard()->setWebGuildBoardAction(true);
         }
     }
@@ -6173,9 +5424,9 @@ void CPacketTranslater::OnWebGuildBoardDelete(PacketHeader* pkt)
 {
     try
     {
-        unsigned int guildKey = ((PTL_WebGuildBoardPkt*)pkt)->m_guildKey;
-        unsigned int charNo = ((PTL_WebGuildBoardPkt*)pkt)->m_charNo;
-        unsigned int no = ((PTL_WebGuildBoardPkt*)pkt)->m_no;
+        unsigned int guildKey = ((Packet_DB_Load_Request_Web_Guild_Board_Write*)pkt)->m_guildKey;
+        unsigned int charNo = ((Packet_DB_Load_Request_Web_Guild_Board_Write*)pkt)->m_charNo;
+        unsigned int no = ((Packet_DB_Load_Request_Web_Guild_Board_Write*)pkt)->m_no;
         {
             DNF_LOG_SCOPE_LINE(0x1e15,"./log/GuildBoard",
                 "CPacketTranslater::OnWebGuildBoardDelete Receive Data: GuildKey : %u, CharacID : %u, NO : %u",
@@ -6218,21 +5469,21 @@ void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
                 "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == m_pclApp");
             return;
         }
-        unsigned int charNo = ((PTL_PowerSidePkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_Guild_Apply_Origial_Power_Side*)pkt)->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1e4e, "./log/Power", "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == pclUser");
             return;
         }
-        unsigned int guildKey = ((PTL_PowerSidePkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Guild_Apply_Origial_Power_Side*)pkt)->m_guildKey;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1e55, "./log/Power", "CPacketTranslater::OnGuildApplyOriginalPowerSide : 0 == pclGuild");
             return;
         }
-        unsigned char side = ((PTL_PowerSidePkt*)pkt)->m_field12;
+        unsigned char side = ((Packet_Guild_Apply_Origial_Power_Side*)pkt)->m_field12;
         if (!((side == 3 || side == 4) && side == guild->GetPowerSide()))
         {
             DNF_LOG_SCOPE_LINE(0x1e5d,"./log/Power",
@@ -6257,7 +5508,7 @@ void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
 
 void CPacketTranslater::OnNotifyNewGroupMail(PacketHeader* pkt)
 {
-    PTL_NotifyNewGroupMailPkt* pb = (PTL_NotifyNewGroupMailPkt*)pkt;
+    Packet_Notify_New_Group_Mail* pb = (Packet_Notify_New_Group_Mail*)pkt;
     CUserManager* um = &m_pclApp->m_userManager;
     CUser* user = 0;
     Packet_Monitor_Notify_New_Mail mail;
@@ -6265,10 +5516,10 @@ void CPacketTranslater::OnNotifyNewGroupMail(PacketHeader* pkt)
     {
         for (int i = 0; i < (int)pb->m_count; i++)
         {
-            user = um->FindUser_CharNo(pb->m_charNos[i]);
+            user = um->FindUser_CharNo(pb->m_characNos[i]);
             if (user != 0)
             {
-                mail.ma = pb->m_charNos[i];
+                mail.ma = pb->m_characNos[i];
                 mail.me = user->GetIdByChannel();
                 user->SendToGameserver((char*)&mail, 0x12);
             }
@@ -6282,13 +5533,13 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
 {
     stServerInfo info;
     memset(&info, 0, sizeof(info));
-    info.m_group = ((PTL_GameServerRegistPkt*)pkt)->m_group;
-    info.m_field1 = ((PTL_GameServerRegistPkt*)pkt)->m_field1;
-    info.m_field2 = ((PTL_GameServerRegistPkt*)pkt)->m_field2;
-    info.m_port = ((PTL_GameServerRegistPkt*)pkt)->m_port;
-    strncpy(info.m_name, ((PTL_GameServerRegistPkt*)pkt)->m_name, 0x10);
+    info.m_group = ((Packet_Game_Server_Regist*)pkt)->m_group;
+    info.m_field1 = ((Packet_Game_Server_Regist*)pkt)->m_channel;
+    info.m_field2 = ((Packet_Game_Server_Regist*)pkt)->m_type;
+    info.m_port = ((Packet_Game_Server_Regist*)pkt)->m_port;
+    strncpy(info.m_name, ((Packet_Game_Server_Regist*)pkt)->m_name, 0x10);
     CTcpGameServer* tgs = m_pclApp->Get_ServerHandler()->GetTcpGameServer(
-        ((PTL_GameServerRegistPkt*)pkt)->m_connNo);
+        ((Packet_Game_Server_Regist*)pkt)->m_connNo);
     if (tgs != 0)
     {
         DNF_LOG_SCOPE_LINE(0x1ec6,"./log/GameServer", "Get Packet - OnGameServerRegist from Channel:%d",
@@ -6300,10 +5551,10 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
             {
                 if (m_pclApp->Get_ServerHandler()->RegistGameServer(&info) == 1)
                 {
-                    tgs->SetChannelNo(((PTL_GameServerRegistPkt*)pkt)->m_field1);
+                    tgs->SetChannelNo(((Packet_Game_Server_Regist*)pkt)->m_channel);
                     CGameServer* gs = m_pclApp->Get_ServerHandler()->GetGameServer(
-                        ((PTL_GameServerRegistPkt*)pkt)->m_connNo);
-                    gs->SetSocket(((PTL_GameServerRegistPkt*)pkt)->m_connNo);
+                        ((Packet_Game_Server_Regist*)pkt)->m_connNo);
+                    gs->SetSocket(((Packet_Game_Server_Regist*)pkt)->m_connNo);
                     reply[0xb] = 0;
                     DNF_LOG_SCOPE_LINE(0x1eeb,"./log/GameServer", "Game server regist success. Channel: %d",
                         (unsigned int)(unsigned char)info.m_field1);
@@ -6324,7 +5575,7 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
 
 void CPacketTranslater::OnAddGuildFund(PacketHeader* pkt)
 {
-    PTL_AddGuildFundPkt* pb = (PTL_AddGuildFundPkt*)pkt;
+    Packet_Add_Guild_Fund* pb = (Packet_Add_Guild_Fund*)pkt;
     CGuild* guild = 0;
     CUser* user = 0;
     if (m_pclApp == 0)
@@ -6393,13 +5644,13 @@ void CPacketTranslater::OnRefreshGuildInfo(PacketHeader* pkt)
         }
         CUser* user;
         if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                 ((PTL_RefreshGuildInfoPkt*)pkt)->m_charNo)) == 0)
+                 ((Packet_Refresh_Guild_Info*)pkt)->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f51, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pUser");
             return;
         }
         CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-            ((PTL_RefreshGuildInfoPkt*)pkt)->m_guildKey);
+            ((Packet_Refresh_Guild_Info*)pkt)->m_guildKey);
         if (guild == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f57, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pGuild");
@@ -6412,7 +5663,7 @@ void CPacketTranslater::OnRefreshGuildInfo(PacketHeader* pkt)
 
 void CPacketTranslater::OnReplyTodayGuildMember(PacketHeader* pkt)
 {
-    PTL_TodayGuildMemberPkt* pb = (PTL_TodayGuildMemberPkt*)pkt;
+    Packet_Reply_Today_Guild_Member* pb = (Packet_Reply_Today_Guild_Member*)pkt;
     CGuild* guild = 0;
     if (m_pclApp == 0)
     {
@@ -6421,12 +5672,12 @@ void CPacketTranslater::OnReplyTodayGuildMember(PacketHeader* pkt)
     }
     try
     {
-        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildKey)) == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(pb->m_guildId)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f7b, "./log/Guild", "CPacketTranslater::OnReplyTodayGuildMember : 0 == pGuild");
             return;
         }
-        m_pclApp->Get_GuildManager()->InsertTodayMember(pb->m_guildKey, pb->m_member);
+        m_pclApp->Get_GuildManager()->InsertTodayMember(pb->m_guildId, pb->m_member);
         guild->SetTodayGuildMember(pb->m_member);
         guild->NotifyAllTodayGuildMember();
     }
@@ -6442,17 +5693,17 @@ void CPacketTranslater::OnApproveJoinGuild(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x1fa0, "./log/Guild", "CPacketTranslater::OnApproveJoinGuild : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((PTL_ApproveJoinGuildPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Approve_Join_Guild*)pkt)->m_guildKey;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) != 0)
         {
-            unsigned int charNo = ((PTL_ApproveJoinGuildPkt*)pkt)->m_charNo;
+            unsigned int charNo = ((Packet_Approve_Join_Guild*)pkt)->m_charNo;
             if (guild->IsGuildMaster(charNo) == 1 || guild->IsSubGuildMaster(charNo) == 1)
             {
                 Packet_DB_Request_Approve_Join_Guild dbPkt;
                 dbPkt.m_guildKey = guildKey;
                 dbPkt.m_charNo = charNo;
-                dbPkt.m_no = ((PTL_ApproveJoinGuildPkt*)pkt)->m_no;
+                dbPkt.m_no = ((Packet_Approve_Join_Guild*)pkt)->m_no;
                 dbPkt.m_group = m_pclApp->Get_ServerGroup();
                 m_pclApp->m_serverHandler->SendToDB(&dbPkt);
             }
@@ -6478,32 +5729,32 @@ void CPacketTranslater::OnDBResponseApproveJoinGuild(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x1fd1, "./log/Guild", "CPacketTranslater::OnApproveJoinGuild : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((PTL_DBResponseApproveJoinGuildPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_DB_Response_Approve_Join_Guild*)pkt)->m_guildId;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1fd7, "./log/Guild", "CPacketTranslater::OnApproveJoinGuild : 0 == pGuild");
             return;
         }
-        unsigned int requesterNo = ((PTL_DBResponseApproveJoinGuildPkt*)pkt)->m_requesterNo;
+        unsigned int requesterNo = ((Packet_DB_Response_Approve_Join_Guild*)pkt)->m_characNo;
         CUser* requester = (&m_pclApp->m_userManager)->FindUser_CharNo(requesterNo);
         if (requester == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1fdd, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pUser");
             return;
         }
-        unsigned int joinerNo = ((PTL_DBResponseApproveJoinGuildPkt*)pkt)->m_joinerNo;
+        unsigned int joinerNo = ((Packet_DB_Response_Approve_Join_Guild*)pkt)->m_id;
         CUser* joiner = (&m_pclApp->m_userManager)->FindUser_CharNo(joinerNo);
         Packet_Approve_Join_Guild_Result reply;
         reply.ma = guildKey;
         reply.me = requester->GetUniqCharNo();
         reply.m12 = requester->GetIdByChannel();
-        reply.m16 = ((PTL_DBResponseApproveJoinGuildPkt*)pkt)->m_requesterNo;
+        reply.m16 = ((Packet_DB_Response_Approve_Join_Guild*)pkt)->m_characNo;
         if (guildKey == 0)
         {
             if (joiner == 0)
             {
-                GuildJoin(guild, (STGuildJoinInfo*)&((PTL_DBResponseApproveJoinGuildPkt*)pkt)->m_joinInfo,
+                GuildJoin(guild, (STGuildJoinInfo*)&((Packet_DB_Response_Approve_Join_Guild*)pkt)->m_joinInfo,
                           joinerNo);
             }
             else
@@ -6525,14 +5776,14 @@ void CPacketTranslater::OnGuildAttendanceInfo(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x200e, "./log/Guild", "CPacketTranslater::OnGuildAttendanceInfo : 0 == m_pclApp");
             return;
         }
-        unsigned int guildKey = ((PTL_GuildAttendanceInfoPkt*)pkt)->m_guildKey;
+        unsigned int guildKey = ((Packet_Guild_Attendance_Info*)pkt)->m_guildKey;
         CGuild* guild;
         if ((guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x2014, "./log/Guild", "CPacketTranslater::OnGuildAttendanceInfo : 0 == pGuild");
             return;
         }
-        unsigned int charNo = ((PTL_GuildAttendanceInfoPkt*)pkt)->m_charNo;
+        unsigned int charNo = ((Packet_Guild_Attendance_Info*)pkt)->m_charNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
@@ -6542,7 +5793,7 @@ void CPacketTranslater::OnGuildAttendanceInfo(PacketHeader* pkt)
         Packet_Guild_Attendance_Info_Reply reply;
         reply.m_a = user->GetUniqCharNo();
         reply.m_b = user->GetIdByChannel();
-        reply.m_c = ((PTL_GuildAttendanceInfoPkt*)pkt)->m_field12;
+        reply.m_c = ((Packet_Guild_Attendance_Info*)pkt)->m_field12;
         (&m_pclApp->m_guildManager)->GetAttendanceInfo(
             guildKey, reply.m_info);
         user->SendToGameserver((char*)&reply, 0x2f);
@@ -6564,7 +5815,7 @@ void CPacketTranslater::OnGuildDebug(PacketHeader* pkt)
 {
     try
     {
-        PTL_GuildDebugPkt* pb = (PTL_GuildDebugPkt*)pkt;
+        Packet_Guild_Debug* pb = (Packet_Guild_Debug*)pkt;
         CUser* user = 0;
         CGuild* guild = 0;
         if (m_pclApp == 0)
@@ -6612,7 +5863,7 @@ void CPacketTranslater::OnGuildDebug(PacketHeader* pkt)
 
 void CPacketTranslater::OnRenew_GM_List(PacketHeader* pkt)
 {
-    GuildPacketBodyView* pb = (GuildPacketBodyView*)pkt;
+    Packet_Sync_GM_List* pb = (Packet_Sync_GM_List*)pkt;
     WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_pclApp->GetGMAccounts();
     if (gm != 0 && pb != 0)
     {
@@ -6656,7 +5907,7 @@ Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade::
     ma = 0;
     mb = 0;
     m32 = 255;
-    memset((char*)this + 0x14, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 #pragma pack(push,1)
@@ -6698,7 +5949,7 @@ Packet_DB_Write_Guild_Member_Memo::Packet_DB_Write_Guild_Member_Memo()
 {
     ((Packet_DB_Write_Guild_Member_Memo_Layout*)this)->ma = 0;
     ((Packet_DB_Write_Guild_Member_Memo_Layout*)this)->me = 0;
-    memset((char*)this + 0x12, 0, 0x15);
+    memset(m_memo, 0, 0x15);
 }
 
 #pragma pack(push,1)
@@ -6714,15 +5965,15 @@ Packet_Web_Notify_Message_To_Guild::Packet_Web_Notify_Message_To_Guild()
 {
     ((Packet_Web_Notify_Message_To_Guild_Layout*)this)->ma = 0;
     ((Packet_Web_Notify_Message_To_Guild_Layout*)this)->me = 0;
-    memset((char*)this + 0xf, 0, 0x65);
+    memset(m_payload, 0, 0x65);
 }
 
 Packet_Notice_DB_Guild_War_End::Packet_Notice_DB_Guild_War_End()
     : PacketHeader(0x412, 0x6f)
 {
-    memset((char*)this + 0xb, 0, 0x28);
-    memset((char*)this + 0x33, 0, 0x28);
-    memset((char*)this + 0x5b, 0, 0x14);
+    memset(m_fieldB, 0, 0x28);
+    memset(m_field33, 0, 0x28);
+    memset(m_field5b, 0, 0x14);
 }
 
 Packet_Channel_Delete_Guild_Agit::Packet_Channel_Delete_Guild_Agit()
@@ -6764,13 +6015,13 @@ Packet_Monitor_Notify_New_Mail::Packet_Monitor_Notify_New_Mail()
 Packet_Register_To_BlackList_RESULT::Packet_Register_To_BlackList_RESULT()
     : PacketHeader(0x5dc, 0x31)
 {
-    memset((char*)this + 0xe, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 Packet_Delete_To_BlackList_Result::Packet_Delete_To_BlackList_Result()
     : PacketHeader(0x5dd, 0x31)
 {
-    memset((char*)this + 0xe, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 Packet_Request_Result_BlackList::Packet_Request_Result_BlackList()
@@ -6789,7 +6040,7 @@ Packet_DBMW_Register_To_BlackList::Packet_DBMW_Register_To_BlackList()
     : PacketHeader(0x5de, 0x34)
 {
     ((Packet_DBMW_Register_To_BlackList_Layout*)this)->m2c = 4294967295;
-    memset((char*)this + 0xe, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 #pragma pack(push,1)
@@ -6803,7 +6054,7 @@ Packet_DMBW_Delete_To_BlackList::Packet_DMBW_Delete_To_BlackList()
     : PacketHeader(0x5df, 0x30)
 {
     ((Packet_DMBW_Delete_To_BlackList_Layout*)this)->m2c = 4294967295;
-    memset((char*)this + 0xe, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 Packet_DBMW_Request_BlackList::Packet_DBMW_Request_BlackList()
@@ -6821,8 +6072,8 @@ Packet_Monitor_Reply_Guild_Mail::Packet_Monitor_Reply_Guild_Mail()
 Packet_DBMW_Send_Guild_Mail::Packet_DBMW_Send_Guild_Mail()
     : PacketHeader(0x432, 0x129)
 {
-    memset((char*)this + 0x113, 0, 0x11);
-    memset((char*)this + 0x13, 0, 0x100);
+    memset(m_title, 0, 0x11);
+    memset(m_content, 0, 0x100);
 }
 
 Packet_Guild_Call_Guild_Invite_To_Caller::Packet_Guild_Call_Guild_Invite_To_Caller()
@@ -6834,8 +6085,8 @@ Packet_Guild_Call_Guild_Invite_To_Caller::Packet_Guild_Call_Guild_Invite_To_Call
 Packet_Guild_Call_Guild_Invite_To_Invited::Packet_Guild_Call_Guild_Invite_To_Invited()
     : PacketHeader(0x435, 0x47)
 {
-    memset((char*)this + 0x12, 0, 0x1e);
-    memset((char*)this + 0x30, 0, 0x17);
+    memset(m_name, 0, 0x1e);
+    memset(m_guildName, 0, 0x17);
 }
 
 Packet_Guild_Reply_Guild_Invite_To_Invited::Packet_Guild_Reply_Guild_Invite_To_Invited()
@@ -6847,27 +6098,28 @@ Packet_Guild_Reply_Guild_Invite_To_Invited::Packet_Guild_Reply_Guild_Invite_To_I
 Packet_Guild_Reply_Guild_Invite_To_Caller::Packet_Guild_Reply_Guild_Invite_To_Caller()
     : PacketHeader(0x437, 0x34)
 {
-    memset((char*)this + 0x16, 0, 0x1e);
+    memset(m_rest, 0, 0x1e);
 }
 
 Packet_DBMW_Save_Guild_Join::Packet_DBMW_Save_Guild_Join()
     : PacketHeader(0x438, 0x40)
 {
-    memset((char*)this + 0x1b, 0, 0x1e);
-    memset((char*)this + 0x3d, 0, 3);
+    memset(m_name, 0, 0x1e);
+    memset(m_ssn, 0, 2);
+    m_pad3f[0] = 0;
 }
 
 Packet_Guild_Reply_Guild_Secede::Packet_Guild_Reply_Guild_Secede()
     : PacketHeader(0x439, 0x52)
 {
-    memset((char*)this + 0x1d, 0, 0x1e);
-    memset((char*)this + 0x3b, 0, 0x17);
+    memset(m_name, 0, 0x1e);
+    memset(m_guildName, 0, 0x17);
 }
 
 Packet_DB_Request_Guild_Secede::Packet_DB_Request_Guild_Secede()
     : PacketHeader(0x439, 0x39)
 {
-    memset((char*)this + 0x17, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 Packet_Guild_Reply_Guild_Master_Delegate::Packet_Guild_Reply_Guild_Master_Delegate()
@@ -6879,7 +6131,7 @@ Packet_Guild_Reply_Guild_Master_Delegate::Packet_Guild_Reply_Guild_Master_Delega
 Packet_DB_Request_Guild_Master_Delegate::Packet_DB_Request_Guild_Master_Delegate()
     : PacketHeader(0x43b, 0x31)
 {
-    memset((char*)this + 0x13, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 Packet_Notice_Has_Been_Guild_Master::Packet_Notice_Has_Been_Guild_Master()
@@ -6902,7 +6154,7 @@ Packet_Reply_Change_Guild_Name::Packet_Reply_Change_Guild_Name()
 {
     ((Packet_Reply_Change_Guild_Name_Layout*)this)->ma = 0;
     ((Packet_Reply_Change_Guild_Name_Layout*)this)->m12 = 0;
-    memset((char*)this + 0x17, 0, 0x17);
+    memset(m_name, 0, 0x17);
 }
 
 Packet_UnChangable_GuildInfo_Save::Packet_UnChangable_GuildInfo_Save()
@@ -6910,7 +6162,7 @@ Packet_UnChangable_GuildInfo_Save::Packet_UnChangable_GuildInfo_Save()
 {
     m_guildKey = 0;
     m_charNo = 0;
-    memset((char*)this + 0x12, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }
 
 #pragma pack(push,1)
@@ -6927,22 +6179,23 @@ Packet_Answer_Guild_Member_Connection_From_Web::
 {
     ((Packet_Answer_Guild_Member_Connection_From_Web_Layout*)this)->ma = 0;
     ((Packet_Answer_Guild_Member_Connection_From_Web_Layout*)this)->me = 0;
-    memset((char*)this + 0x10, 0, 0x5dc);
+    memset(&m_members, 0, 0x5dc);
 }
 
 Packet_Reply_Guild_Create::Packet_Reply_Guild_Create()
     : PacketHeader(0x43f, 0x2d)
 {
-    memset((char*)this + 0x16, 0, 0x17);
+    memset(m_name, 0, 0x17);
 }
 
 Packet_DBMW_Request_Guild_Create::Packet_DBMW_Request_Guild_Create()
     : PacketHeader(0x43f, 0x5c)
 {
-    memset((char*)this + 0x13, 0, 0x17);
-    memset((char*)this + 0x35, 0, 3);
-    memset((char*)this + 0x4f, 0, 0xd);
-    memset((char*)this + 0x38, 0, 0x17);
+    memset(m_name, 0, 0x17);
+    memset(m_ssn, 0, 2);
+    m_pad37[0] = 0;
+    memset(m_extra, 0, 0xd);
+    memset(m_guildName, 0, 0x17);
 }
 
 Packet_Notice_GuildName_On_Guild_Create::Packet_Notice_GuildName_On_Guild_Create()
@@ -6952,16 +6205,17 @@ Packet_Notice_GuildName_On_Guild_Create::Packet_Notice_GuildName_On_Guild_Create
     m_channel = 4294967295;
     m_guildKey = 0;
     m_group = 255;
-    memset((char*)this + 0x16, 0, 0x17);
+    memset(pad0x16, 0, 0x17);
 }
 
 void Packet_Guild_Change_Power_War_Point::GetUserList(std::vector<unsigned int>& list)
 {
+    unsigned int* users = &m_fieldB;
     for (int i = 0; i < 8; ++i)
     {
-        if (*(int*)((char*)this + i * 4 + 0xb) != 0)
+        if (users[i] != 0)
         {
-            list.push_back(*(unsigned int*)((char*)this + i * 4 + 0xb));
+            list.push_back(users[i]);
         }
     }
 }
@@ -6969,7 +6223,7 @@ void Packet_Guild_Change_Power_War_Point::GetUserList(std::vector<unsigned int>&
 Packet_Guild_Cargo_Response::Packet_Guild_Cargo_Response()
     : PacketHeader(0x70a, 0x18ef), m_a(0xffffffff), m_b(0), m_flag(0)
 {
-    memset((char*)this + 0x12, 0, 0x18dc);
+    memset(&m_cargo, 0, sizeof(m_cargo));
 }
 
 Packet_Guild_Cargo_History_Response::Packet_Guild_Cargo_History_Response()
@@ -6998,7 +6252,7 @@ Packet_Channel_Guild_Cargo_Push_Item::Packet_Channel_Guild_Cargo_Push_Item()
 {
     m_flag = 0;
     m_e = 0;
-    memset((char*)this + 0x17, 0, 0x35);
+    memset(&m_item, 0, 0x35);
 }
 
 Packet_Channel_Guild_Cargo_Pop_Item::Packet_Channel_Guild_Cargo_Pop_Item()
@@ -7006,7 +6260,7 @@ Packet_Channel_Guild_Cargo_Pop_Item::Packet_Channel_Guild_Cargo_Pop_Item()
 {
     m_flag = 0;
     m_d = 0;
-    memset((char*)this + 0x16, 0, 0x35);
+    memset(&m_item, 0, 0x35);
 }
 
 Packet_Channel_Guild_Cargo_Move_Item::Packet_Channel_Guild_Cargo_Move_Item()

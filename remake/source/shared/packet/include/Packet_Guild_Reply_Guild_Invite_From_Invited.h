@@ -9,6 +9,8 @@
 
 class Packet_Guild_Reply_Guild_Invite_From_Invited : public PacketHeader {
 public:
+    unsigned int m_charNo;    // +0xa
+    unsigned char m_accept;   // +0xe
     Packet_Guild_Reply_Guild_Invite_From_Invited(): PacketHeader(0x436,0xf) {};
 } __attribute__((packed));
 

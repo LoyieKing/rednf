@@ -227,7 +227,7 @@ char* CTcpDBServer::makePacketHeader(unsigned short id, unsigned short size)
         PacketHeader* pkt = (PacketHeader*)p;
         pkt->packetId = id;
         pkt->packetSize = size;
-        pkt->reversed2 = m_sock;
+        pkt->m_connNo = m_sock;
         return (char*)pkt;
     }
     return 0;

@@ -82,7 +82,7 @@ int EpollHandler::SetEpoll(void* peer, int fd, bool flag)
     m_peer = peer;
     CGuard<CMutex> guard(&m_mutex);
     register int r;
-    if (epoll_ctl(m_epollFd, 1, fd, (epoll_event*)((char*)this + 4)) < 0)
+    if (epoll_ctl(m_epollFd, 1, fd, (epoll_event*)&m_eventType) < 0)
     {
         r = errno;
     }
@@ -95,11 +95,11 @@ int EpollHandler::SetEpoll(void* peer, int fd, bool flag)
 
 int EpollHandler::ResetEpoll(int fd)
 {
-    memset((char*)this + 4, 0, 0xc);
-    ((RA_INT<4>*)this)->v = 1;
+    memset(&m_eventType, 0, 0xc);
+    m_eventType = 1;
     CGuard<CMutex> guard(&m_mutex);
     register int r;
-    if (epoll_ctl(m_epollFd, 2, fd, (epoll_event*)((char*)this + 4)) < 0)
+    if (epoll_ctl(m_epollFd, 2, fd, (epoll_event*)&m_eventType) < 0)
     {
         r = errno;
     }
@@ -258,12 +258,12 @@ int CTcpNetSystem::SendPacket()
     {
         return 0;
     }
-    unsigned int fd = ((RA_UINT<6>*)buf)->v;
+    unsigned int fd = ((PacketHeader*)buf)->m_connNo;
     std::map<unsigned int, CPeer*>::iterator it = m_peers.find(fd);
     if (it == m_peers.end())
     {
-        unsigned short size = ((RA_U16<2>*)buf)->v;
-        unsigned short id = *(unsigned short*)buf;
+        unsigned short size = ((PacketHeader*)buf)->packetSize;
+        unsigned short id = ((PacketHeader*)buf)->packetId;
         DNF_LOG_SCOPE_LINE(0xba,"./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)", (unsigned int)id,
             (unsigned int)size, fd);
         PopDeleteTcpSendPacketQ(buf);
@@ -277,19 +277,19 @@ int CTcpNetSystem::SendPacket()
     }
     if (invalid)
     {
-        unsigned short size = ((RA_U16<2>*)buf)->v;
-        unsigned short id = *(unsigned short*)buf;
+        unsigned short size = ((PacketHeader*)buf)->packetSize;
+        unsigned short id = ((PacketHeader*)buf)->packetId;
         DNF_LOG_SCOPE_LINE(0xc3,"./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
             (unsigned int)id, (unsigned int)size, fd);
         PopDeleteTcpSendPacketQ(buf);
         return 0;
     }
-    int result = peer->send_packet((char*)buf, (unsigned int)((RA_U16<2>*)buf)->v);
+    int result = peer->send_packet((char*)buf, (unsigned int)((PacketHeader*)buf)->packetSize);
     if (result < 1)
     {
         unsigned int cnt = (unsigned int)m_sendQ.size();
-        unsigned short size = ((RA_U16<2>*)buf)->v;
-        unsigned short id = *(unsigned short*)buf;
+        unsigned short size = ((PacketHeader*)buf)->packetSize;
+        unsigned short id = ((PacketHeader*)buf)->packetId;
         DNF_LOG_SCOPE_LINE(0xd5,"./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)", (unsigned int)id,
             (unsigned int)size, fd, cnt);
     }
@@ -412,9 +412,9 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
     if (10 < size)
     {
         DNF_LOG_SCOPE_LINE(0x91,"./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", size,
-            (unsigned int)*(unsigned short*)buf,
-            (unsigned int)((RA_U16<2>*)buf)->v,
-            ((RA_UINT<6>*)buf)->v);
+            (unsigned int)((PacketHeader*)buf)->packetId,
+            (unsigned int)((PacketHeader*)buf)->packetSize,
+            ((PacketHeader*)buf)->m_connNo);
     }
 }
 

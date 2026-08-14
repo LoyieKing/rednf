@@ -757,7 +757,7 @@ Packet_Notice_Power_War_Info::Packet_Notice_Power_War_Info()
 Packet_Notice_Power_War_Rank::Packet_Notice_Power_War_Rank()
     : PacketHeader(0x6d8, 0x16)
 {
-    memset((char*)this + 0xa, 0, 0xc);
+    memset(m_data, 0, 0xc);
 }
 
 #pragma pack(push,1)

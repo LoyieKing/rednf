@@ -111,10 +111,10 @@ void CTcpGameServer::SendToGameServer(char* buf)
 
 void CTcpGameServer::SendToGameServer(PacketHeader* pkt)
 {
-    char* buf = makePacketHeader(*(unsigned short*)pkt, ((RA_U16<2>*)pkt)->v);
+    char* buf = makePacketHeader(pkt->packetId, pkt->packetSize);
     if (buf != 0)
     {
-        memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
+        memcpy(buf + 10, (char*)pkt + 10, pkt->packetSize - 10);
         SendToGameServer(buf);
     }
 }

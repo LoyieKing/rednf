@@ -504,12 +504,12 @@ void CGuildCargo::SendHistoryToDBMW(CServerHandler* handler, ENUM_GUILD_CARGO_BE
 Packet_Notice_Guild_Cargo::Packet_Notice_Guild_Cargo()
     : PacketHeader(0x712, 0x18ee), m_a(0xffffffff), m_b(0)
 {
-    memset((char*)this + 0x12, 0, 0x18dc);
+    memset(&m_cargo, 0, sizeof(m_cargo));
 }
 
 Packet_DB_Insert_Guild_Cargo_History::Packet_DB_Insert_Guild_Cargo_History()
     : PacketHeader(0x711, 0x66), m_a(0), m_b(0), m_c(0), m_d(0xff), m_e(0), m_f(0)
 {
-    memset((char*)this + 0x13, 0, 0x15);
-    memset((char*)this + 0x31, 0, 0x35);
+    memset(m_pad, 0, 0x15);
+    memset(&m_item, 0, 0x35);
 }

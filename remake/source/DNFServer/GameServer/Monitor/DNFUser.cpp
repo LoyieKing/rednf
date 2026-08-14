@@ -40,31 +40,31 @@ void CUser::operator delete(void* p, unsigned int size) { ::operator delete(p); 
 CUser::CUser()
     : m_dbid(0), m_uniqCharNo(0), m_gameServer(0), m_tcpGameServer(0), m_posState(0),
       m_member(0), m_field18(0), m_memberEnterCount(0), m_memberEnterCallerId(0), m_idByChannel(-1),
-      m_job(0xff), m_growthType(0xff), m_level(0xffff), m_sex(1), m_blackListDBFlag(0)
+      m_job(0xff), m_growthType(0xff), m_level(-1), m_sex(1), m_blackListDBFlag(0)
 {
-    ((RA_S8<176>*)this)->v = 0;
-    ((RA_UINT<180>*)this)->v = 0;
-    memset((char*)this + 0x24, 0, 0x1e);
-    memset((char*)this + 0x47, 0, 7);
+    m_data2[8] = 0;
+    m_eventIdx = 0;
+    memset(m_dataC2, 0, 0x1e);
+    memset(m_dataC2b, 0, 7);
     m_channelCount = 0;
     m_channelInfoMap.clear();
 }
 
 CUser::~CUser()
 {
-    ((RA_UINT<8>*)this)->v = 0;
-    ((RA_UINT<12>*)this)->v = 0;
-    ((RA_UINT<0>*)this)->v = 0;
-    ((RA_UINT<4>*)this)->v = 0;
-    ((RA_UINT<32>*)this)->v = 0xffffffff;
-    ((RA_S8<66>*)this)->v = 0xff;
-    ((RA_S8<67>*)this)->v = 0xff;
-    ((RA_U16<68>*)this)->v = 0xffff;
-    memset((char*)this + 0x24, 0, 0x1e);
+    m_gameServer = 0;
+    m_tcpGameServer = 0;
+    m_dbid = 0;
+    m_uniqCharNo = 0;
+    m_idByChannel = -1;
+    m_job = 0xff;
+    m_growthType = 0xff;
+    m_level = -1;
+    memset(m_dataC2, 0, 0x1e);
     ResetMemberInfo();
-    ((RA_S8<16>*)this)->v = 0;
+    m_posState = 0;
     m_blackListDBFlag = 0;
-    ((RA_S8<70>*)this)->v = 1;
+    m_sex = 1;
     m_channelCount = 0;
     m_channelInfoMap.clear();
 }
@@ -84,7 +84,7 @@ void* CUser::GetGameServer() { return m_gameServer; }
 
 void* CUser::GetTcpGameServer() { return m_tcpGameServer; }
 
-unsigned int CUser::GetDBID() { return ((RA_UINT<0>*)this)->v; }
+unsigned int CUser::GetDBID() { return m_dbid; }
 
 short CUser::GetLevel() { return (short)m_level; }
 
@@ -94,7 +94,7 @@ char CUser::GetGrowthType() { return m_growthType; }
 
 unsigned int CUser::GetIdByChannel() { return m_idByChannel; }
 
-char* CUser::GetCharName() { return (char*)this + 0x24; }
+char* CUser::GetCharName() { return m_dataC2; }
 
 char CUser::IsBlackUser(unsigned int key)
 {
@@ -112,12 +112,12 @@ char CUser::IsBlackUser(unsigned int key)
 
 unsigned char CUser::GetUpperMemberExpLevel()
 {
-    if (((RA_INT<20>*)this)->v != 0)
+    if (m_member != 0)
     {
-        if (((CMember*)((RA_INT<20>*)this)->v)->GetMemberKey() != 0 &&
+        if (m_member->GetMemberKey() != 0 &&
             (GetMemberDBFlag() & 4) != 0)
         {
-            return (unsigned char)((CMember*)((RA_INT<20>*)this)->v)->GetUpperMemberExpLevel();
+            return (unsigned char)m_member->GetUpperMemberExpLevel();
         }
     }
     return 0;
@@ -125,14 +125,14 @@ unsigned char CUser::GetUpperMemberExpLevel()
 
 void CUser::SendTcpGameserver(PacketHeader* pkt)
 {
-    if (((RA_INT<12>*)this)->v != 0)
+    if (m_tcpGameServer != 0)
     {
-        char* buf = ((CTcpGameServer*)((RA_INT<12>*)this)->v)->makePacketHeader(
-            *(unsigned short*)pkt, ((RA_U16<2>*)pkt)->v);
+        char* buf = m_tcpGameServer->makePacketHeader(
+            pkt->packetId, pkt->packetSize);
         if (buf != 0)
         {
-            memcpy(buf + 10, (char*)pkt + 10, ((RA_U16<2>*)pkt)->v - 10);
-            ((CTcpGameServer*)((RA_INT<12>*)this)->v)->SendToGameServer(buf);
+            memcpy(buf + 10, (char*)pkt + 10, (unsigned int)pkt->packetSize - 10U);
+            m_tcpGameServer->SendToGameServer(buf);
         }
     }
 }
@@ -230,22 +230,22 @@ void CUser::SetBuddyDBFlag(unsigned short flag)
 
 int CUser::AddBuddyDB(CServerHandler* handler, char* name)
 {
-    return ((CBuddyHandle*)((char*)this + 0x6c))->addDB(handler, name);
+    return m_buddyHandle.addDB(handler, name);
 }
 
 int CUser::DelBuddyDB(CServerHandler* handler, char* name)
 {
-    return ((CBuddyHandle*)((char*)this + 0x6c))->delDB(handler, name);
+    return m_buddyHandle.delDB(handler, name);
 }
 
 int CUser::AddBuddy(STBuddyDBInfo& info)
 {
-    return ((CBuddyHandle*)((char*)this + 0x6c))->add(std::string((char*)&info), info);
+    return m_buddyHandle.add(std::string((char*)&info), info);
 }
 
 char CUser::DelBuddy(char* name)
 {
-    return (char)((CBuddyHandle*)((char*)this + 0x6c))->del(std::string(name));
+    return (char)m_buddyHandle.del(std::string(name));
 }
 
 void CUser::RegisterToCashBlackList(std::map<unsigned int, CBlackUser*>& map)
@@ -292,18 +292,18 @@ void CUser::SetUserPosState(unsigned char state)
 
 void CUser::SetUserChangableInfo(short level, char flag)
 {
-    ((RA_S16<68>*)this)->v = level;
-    ((RA_S8<67>*)this)->v = flag;
+    m_level = level;
+    m_growthType = flag;
 }
 
 void CUser::SetUserInfo_CharNo(char a, char b, short level, unsigned int charNo, char* name)
 {
-    ((RA_S8<66>*)this)->v = a;
-    ((RA_S8<67>*)this)->v = b;
-    ((RA_S16<68>*)this)->v = level;
-    ((RA_UINT<4>*)this)->v = charNo;
-    memcpy((char*)this + 0x24, name, 0x1d);
-    ((CBuddyHandle*)((char*)this + 0x6c))->reset(this, true);
+    m_job = a;
+    m_growthType = b;
+    m_level = level;
+    m_uniqCharNo = charNo;
+    memcpy(m_dataC2, name, 0x1d);
+    m_buddyHandle.reset(this, true);
 }
 
 void CUser::SetSex(unsigned char sex)
@@ -313,7 +313,7 @@ void CUser::SetSex(unsigned char sex)
 
 void CUser::SetSsn(char* ssn)
 {
-    memcpy((char*)this + 0x47, ssn, 6);
+    memcpy(m_dataC2b, ssn, 6);
 }
 
 void CUser::SetEvent_idx(unsigned int idx)
@@ -334,27 +334,27 @@ void CUser::SetTcpGameServer(CTcpGameServer* server)
 void CUser::QueryBuddyInfo(CServerHandler* handler)
 {
     Packet_DBMW_Query_Buddy_Info pkt;
-    unsigned int v = GetUniqCharNo();
+    pkt.m_charNo = GetUniqCharNo();
     handler->SendToDB(&pkt);
 }
 
 void CUser::ResetMemberInfo()
 {
-    ((RA_UINT<20>*)this)->v = 0;
-    ((RA_U16<24>*)this)->v = 0;
-    ((RA_S8<26>*)this)->v = 0;
-    ((RA_UINT<28>*)this)->v = 0;
+    m_member = 0;
+    m_field18 = 0;
+    m_memberEnterCount = 0;
+    m_memberEnterCallerId = 0;
 }
 
 void CUser::ResetCharInfo(bool flag)
 {
-    ((RA_UINT<4>*)this)->v = 0;
-    ((RA_S8<66>*)this)->v = 0xff;
-    ((RA_S8<67>*)this)->v = 0xff;
-    ((RA_U16<68>*)this)->v = 0xffff;
-    memset((char*)this + 0x24, 0, 0x1e);
+    m_uniqCharNo = 0;
+    m_job = 0xff;
+    m_growthType = 0xff;
+    m_level = -1;
+    memset(m_dataC2, 0, 0x1e);
     ResetMemberInfo();
-    ((CBuddyHandle*)((char*)this + 0x6c))->reset(0, flag);
+    m_buddyHandle.reset(0, flag);
 }
 
 void CUser::ResetBlackList(int flag)
@@ -387,14 +387,14 @@ void CUser::ResetBuddyList(bool flag)
 
 int CUser::GetBuddysCharNo(unsigned int* out)
 {
-    return ((CBuddyHandle*)((char*)this + 0x6c))->getBuddysCharNo(out);
+    return m_buddyHandle.getBuddysCharNo(out);
 }
 
 void CUser::GetBuddiesCharNo(std::vector<unsigned int>& out)
 {
     unsigned int buf[32];
     memset(buf, 0, 0x80);
-    int count = ((CBuddyHandle*)((char*)this + 0x6c))->getBuddysCharNo(buf);
+    int count = m_buddyHandle.getBuddysCharNo(buf);
     for (int i = 0; i < count; i++)
     {
         out.push_back(buf[i]);
@@ -403,7 +403,7 @@ void CUser::GetBuddiesCharNo(std::vector<unsigned int>& out)
 
 int CUser::GetBuddys(CBuddy** out)
 {
-    return ((CBuddyHandle*)((char*)this + 0x6c))->getBuddys(out);
+    return m_buddyHandle.getBuddys(out);
 }
 
 void CUser::SendNoticeBuddyInOut(unsigned char channel, unsigned int charNo, char* name,
@@ -531,8 +531,8 @@ int CUser::DeleteToBlackList(unsigned int charNo)
 void CUser::SendBlackList()
 {
     Packet_Monitor_Notice_Black_List pkt;
-    pkt.m_dbid = ((RA_UINT<0>*)this)->v;
-    pkt.m_idByChannel = ((RA_UINT<32>*)this)->v;
+    pkt.m_dbid = m_dbid;
+    pkt.m_idByChannel = (unsigned int)m_idByChannel;
     GetBlackList(pkt.m_count, pkt.m_charNos);
     SendTcpGameserver(&pkt);
 }
@@ -544,11 +544,11 @@ unsigned int CUser::GetMemberEnterCallerId()
 
 char CUser::CheckPrevCallMemberEnter()
 {
-    if (((RA_S8<26>*)this)->v < 1)
+    if (m_memberEnterCount < 1)
     {
         return 0;
     }
-    if (((RA_INT<28>*)this)->v == 0)
+    if (m_memberEnterCallerId == 0)
     {
         return 0;
     }
@@ -580,12 +580,12 @@ unsigned short CUser::GetMemberDBFlag()
 
 int CUser::GetConnLowerMemberCnt()
 {
-    if (((RA_INT<20>*)this)->v != 0)
+    if (m_member != 0)
     {
-        if (((CMember*)((RA_INT<20>*)this)->v)->GetMemberKey() != 0 &&
+        if (m_member->GetMemberKey() != 0 &&
             (GetMemberDBFlag() & 4) != 0)
         {
-            return ((CMember*)((RA_INT<20>*)this)->v)->GetConnLowerMemberCnt();
+            return m_member->GetConnLowerMemberCnt();
         }
     }
     return 0;
@@ -600,26 +600,26 @@ CMember* CUser::GetMember()
 
 void CUser::SetMemberRegisterFlag(bool flag)
 {
-    if (((RA_INT<20>*)this)->v != 0)
+    if (m_member != 0)
     {
-        ((CMember*)((RA_INT<20>*)this)->v)->SetMemberRegisterFlag(flag);
+        m_member->SetMemberRegisterFlag(flag);
     }
 }
 
 bool CUser::IsAbleToRegisterMember()
 {
-    if (((RA_INT<20>*)this)->v != 0)
+    if (m_member != 0)
     {
-        return ((CMember*)((RA_INT<20>*)this)->v)->IsAbleToRegisterMember();
+        return m_member->IsAbleToRegisterMember();
     }
     return 1;
 }
 
 unsigned int CUser::GetMemberKey()
 {
-    if (((RA_INT<20>*)this)->v != 0)
+    if (m_member != 0)
     {
-        return ((CMember*)((RA_INT<20>*)this)->v)->GetMemberKey();
+        return m_member->GetMemberKey();
     }
     return 0;
 }

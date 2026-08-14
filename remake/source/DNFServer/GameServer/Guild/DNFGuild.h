@@ -95,9 +95,7 @@ struct __attribute__((packed)) STGuildDBInfoOnly
     char m_guildName[0x17];        // +0
     unsigned int m_masterId;       // +0x17
     unsigned char m_guildLevel;    // +0x1b
-    unsigned char m_flag0 : 1;     // +0x1c bit0
-    unsigned char m_flag1 : 1;     // +0x1c bit1
-    unsigned char m_flagPad : 6;   // +0x1c bits2-7
+    unsigned char m_flags;         // +0x1c（ctor=1；GuildLevelUp |= 2）
     char m_pad1d;                  // +0x1d
     unsigned int m_field1e;        // +0x1e
     unsigned short m_totalCnt;     // +0x22
@@ -196,9 +194,9 @@ struct STGuildCallInfo
 struct __attribute__((packed)) ST_GuildCreateFromWeb
 {
     ST_GuildCreateFromWeb();
-    unsigned int m0;          // +0
-    unsigned int m4;          // +4
-    char m_pad8[0x17];        // +8 .. +0x1f
+    unsigned int m_guildKey;  // +0
+    unsigned int m_charNo;    // +4
+    char m_rest[0x17];        // +8 .. +0x1f
 };
 
 // from GuildDomain.h
@@ -363,8 +361,8 @@ public:
     unsigned short m_totalCnt;                  // +0x1e（GetTotalCnt_Of_GuildDBInfo/Inc/DecTotalCnt）
     STGuildDBInfo m_dbInfo;                     // +0x20
     STGuildAgitDBInfo m_agitInfo;               // +0x4d09
-    char m_guildMessage[100];                   // +0x4d0a（SetGuildMessage/strlen 发送）
-    char m_pad4d6e[2];                          // +0x4d6e
+    char m_guildMessage[0x65];                  // +0x4d0a（SetGuildMessage memset 0x65）
+    char m_pad4d6f;                             // +0x4d6f
     unsigned short m_field4d70;                 // +0x4d70
     unsigned short m_field4d72;                 // +0x4d72
     unsigned short m_field4d74;                 // +0x4d74

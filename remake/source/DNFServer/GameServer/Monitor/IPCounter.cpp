@@ -81,9 +81,8 @@ void CIPCounter::setMinIPCount(unsigned char count)
 {
     if (count > 200)
     {
-        count = 200;
+        m_option = (char)200;
     }
-    m_option = count;
 }
 
 void CIPCounter::setOption(unsigned char type, unsigned char opt)
@@ -98,16 +97,16 @@ void CIPCounter::setOption(unsigned char type, unsigned char opt)
     }
     else if (type == 2)
     {
-        ((RA_U8<16>*)this)->v = 1;
-        ((RA_UINT<8>*)this)->v = 0;
-        ((RA_UINT<4>*)this)->v = 0;
+        m_loadFlag = 1;
+        m_min = 0;
+        m_count = 0;
     }
     else if (type == 3)
     {
-        ((RA_U8<16>*)this)->v = 0;
+        m_loadFlag = 0;
     }
     else if (type == 4)
     {
-        ((RA_U8<17>*)this)->v = 0;
+        m_loadParam = 0;
     }
 }

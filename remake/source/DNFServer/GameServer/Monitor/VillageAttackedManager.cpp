@@ -272,9 +272,9 @@ void CVillageAttackedManager::OnStartVillageAttacked()
     m_state24 = 1;
     ClearDungeonCloseTime();
     Packet_VillageAttackedStart pkt;
-    unsigned int remain = (unsigned int)GetRemainTime();
-    unsigned int f1c = (unsigned int)m_curHuntingPoint;
-    unsigned int f20 = (unsigned int)m_maxHuntingPoint;
+    pkt.m_remainTime = (int)GetRemainTime();
+    pkt.m_curHuntingPoint = m_curHuntingPoint;
+    pkt.m_maxHuntingPoint = m_maxHuntingPoint;
     m_app->Get_ServerHandler()->SendAllToGameServer((char*)&pkt, 0x16);
 }
 
@@ -442,7 +442,8 @@ stHuntingPoint* CVillageAttackedManager::GetHuntingPoint(unsigned int charNo)
     std::map<unsigned int, stHuntingPoint>::iterator it = m_huntingPoints.find(charNo);
     if (it != m_huntingPoints.end())
     {
-        return &it->second;
+        stHuntingPoint* local_c = &it->second;
+        return local_c;
     }
     return 0;
 }
@@ -485,11 +486,11 @@ void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
                                    village_attacked_scheduler[i * 6 + 2]);
     }
     std::sort(&times[0], &times[MAX_SCHEDULER_COUNT], compareTime);
-    ((RA_S8<10>*)&pkt)->v = (char)group;
-    ((RA_INT<11>*)&pkt)->v = times[0];
-    ((RA_INT<15>*)&pkt)->v = times[0];
-    ((RA_INT<19>*)&pkt)->v = times[1];
-    ((RA_INT<23>*)&pkt)->v = times[1];
+    pkt.m_group = (char)group;
+    pkt.m_time0a = times[0];
+    pkt.m_time0b = times[0];
+    pkt.m_time1a = times[1];
+    pkt.m_time1b = times[1];
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 
@@ -701,10 +702,9 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
 
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
-    RA_UINT<10>* p10 = (RA_UINT<10>*)pkt;
-    p10->v = m_rewardType;
-    RA_UINT<14>* p14 = (RA_UINT<14>*)pkt;
-    p14->v = GetDungeonRemainTime();
+    Packet_Request_Revenge_Dungeon* req = (Packet_Request_Revenge_Dungeon*)pkt;
+    req->m_rewardType = m_rewardType;
+    req->m_remainTime = GetDungeonRemainTime();
 }
 
 void CVillageAttackedManager::ProcessByMinute()

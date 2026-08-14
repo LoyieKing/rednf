@@ -119,11 +119,11 @@ class EventManager;
 struct EventParam;
 template<class T> class IQueue;
 class LimitNpcBuyItemChangeInfo;
-struct LimitNpcBuyItemInfo;
-struct LimitNpcBuyItemInfoAll;
+class LimitNpcBuyItemInfo;
+class LimitNpcBuyItemInfoAll;
 class LimitNpcBuyItemManager;
 class LimitNpcBuyItemRequestInfo;
-struct LimitNpcBuyItemUpdate;
+class LimitNpcBuyItemUpdate;
 template<class T> class MemPool;
 struct NpcBuyLimitItem;
 class Packet_Arad_ApplyEffect;
@@ -245,28 +245,40 @@ struct NpcBuyLimitItem
 };
 
 #pragma pack(push, 1)
-struct LimitNpcBuyItemInfo
+class LimitNpcBuyItemInfo : public PacketHeader
 {
-    char m_data[0x12];
-    unsigned int m_charNo;   // +0x12
-    unsigned int m_itemId;   // +0x16
-    unsigned int m_count;    // +0x1a
+public:
+    unsigned int m_itemIdReq;      // +0xa
+    unsigned int m_dbid;           // +0xe FindUser
+    unsigned int m_charNo;         // +0x12
+    unsigned int m_itemId;         // +0x16
+    unsigned int m_count;          // +0x1a
+    unsigned int m_pad1e;          // +0x1e
+    unsigned int m_errorNo;        // +0x22
 };
 
-struct LimitNpcBuyItemUpdate
+class LimitNpcBuyItemUpdate : public PacketHeader
 {
-    char m_data[0xa];
-    unsigned int m_itemId;      // +0xa
-    unsigned int m_charNo;      // +0xe
-    unsigned int m_cancelCount; // +0x12
-    unsigned int m_errorNo;     // +0x16
+public:
+    unsigned int m_itemId;         // +0xa
+    unsigned int m_charNo;         // +0xe
+    unsigned int m_cancelCount;    // +0x12
+    unsigned int m_errorNo;        // +0x16
 };
 
-struct LimitNpcBuyItemInfoAll
+class LimitNpcBuyItemInfoAll : public PacketHeader
 {
-    char m_data[0x16];
-    int m_count;        // +0x16
-    char m_data2[0x1c8];
+public:
+    unsigned int m_padA;           // +0xa
+    unsigned int m_dbid;           // +0xe FindUser
+    unsigned int m_charNo;         // +0x12
+    int m_count;                   // +0x16
+    struct Rec
+    {
+        unsigned int m_itemId;
+        unsigned int m_maxCount;
+        unsigned int m_sellCount;
+    } m_items[30];                 // +0x1a
 };
 #pragma pack(pop)
 

@@ -378,8 +378,8 @@ IQueue<T>* IQueue<T>::Get()
 template<class T>
 void IQueue<T>::InitQueue(T* recv, T* parse)
 {
-    *(T**)((char*)this + 0) = recv;
-    *(T**)((char*)this + 4) = parse;
+    m_recv = recv;
+    m_parse = parse;
 }
 template<class T>
 bool IQueue<T>::SwitchQueue()

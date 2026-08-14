@@ -2,6 +2,7 @@
 #define DBMW_EPOLLHANDLER_H_
 
 #include "DBMWCommon.h"
+#include <sys/epoll.h>
 
 
 class CProtocol
@@ -36,9 +37,7 @@ public:
     virtual void* GetEventPtr(int idx);
     int GetEpollFD();
     struct epoll_event* GetEpollEvents();
-    int m_eventType;  // +4
-    void* m_peer;     // +8
-    char m_dataC[4];  // +0xc
+    epoll_event m_ev; // +4（events+data，12 字节）
     struct epoll_event* m_events;  // +0x10（指针，布局不变）
     int m_epollFd;    // +0x14
     CMutex m_mutex;   // +0x18

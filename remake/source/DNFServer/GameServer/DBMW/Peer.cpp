@@ -55,10 +55,10 @@ CPeer::CPeer()
 }
 CPeer::~CPeer()
 {
-    m_sendBuf = (char*)this + 0x1c;
+    m_sendBuf = m_gap1c;
     m_sendLen = 0;
     m_recvLen = 0;
-    m_recvBuf = (char*)this + 0x183c;
+    m_recvBuf = m_data183c;
     m_remainSendLen = 0;
 }
 void CPeer::InitPeer(TcpRecvQueue* recvQ, CMutex* qLock, CMutex* bLock)
@@ -66,10 +66,10 @@ void CPeer::InitPeer(TcpRecvQueue* recvQ, CMutex* qLock, CMutex* bLock)
     m_recvQ = recvQ;
     m_sendQLock = qLock;
     m_sendBLock = bLock;
-    m_sendBuf = (char*)this + 0x1c;
+    m_sendBuf = m_gap1c;
     m_sendLen = 0;
     m_recvLen = 0;
-    m_recvBuf = (char*)this + 0x183c;
+    m_recvBuf = m_data183c;
     m_remainSendLen = 0;
 }
 void CPeer::ConnSig()
@@ -119,10 +119,10 @@ int CPeer::recv_packet()
     if (getHandle() < 0)
         return 0;
     errno = 0;
-    int remaining = (char*)this + 0x1c - m_sendBuf + 0x1800;
+    int remaining = m_gap1c - m_sendBuf + 0x1800;
     if (remaining == 0)
     {
-        m_sendBuf = (char*)this + 0x1c;
+        m_sendBuf = m_gap1c;
         m_recvLen = 0;
         remaining = 0x1800;
     }
@@ -149,7 +149,7 @@ int CPeer::send_packet()
     if (m_remainSendLen == 0)
         return 1;
     int n = m_remainSendLen;
-    if ((ret = write(getHandle(), (char*)this + 0x183c, n)) <= 0)
+    if ((ret = write(getHandle(), m_data183c, n)) <= 0)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 1;
@@ -164,19 +164,19 @@ int CPeer::send_packet()
     {
         if ((int)m_remainSendLen > ret)
         {
-            m_recvBuf = (char*)this + 0x183c + ret;
+            m_recvBuf = m_data183c + ret;
             m_remainSendLen -= ret;
             if (m_remainSendLen > 0x96000u)
             {
                 DNF_LOG_SCOPE_LINE(0x17e, "./log/TcpErr",
                     "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
                     m_remainSendLen);
-                m_recvBuf = (char*)this + 0x183c;
+                m_recvBuf = m_data183c;
                 m_remainSendLen = 0;
                 return 1;
             }
-            memmove((char*)this + 0x183c, m_recvBuf, m_remainSendLen);
-            m_recvBuf = (char*)this + 0x183c + m_remainSendLen;
+            memmove(m_data183c, m_recvBuf, m_remainSendLen);
+            m_recvBuf = m_data183c + m_remainSendLen;
         }
         else if ((int)m_remainSendLen < ret)
         {
@@ -185,7 +185,7 @@ int CPeer::send_packet()
         }
         else
         {
-            m_recvBuf = (char*)this + 0x183c;
+            m_recvBuf = m_data183c;
             m_remainSendLen = 0;
         }
     }
@@ -207,17 +207,17 @@ int CPeer::send_packet(char* buf, int len)
         DNF_LOG_SCOPE_LINE(0x133, "./log/TcpErr",
             "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
-        m_recvBuf = (char*)this + 0x183c;
+        m_recvBuf = m_data183c;
         m_remainSendLen = 0;
         return -1;
     }
-    if (m_recvBuf < (char*)this + 0x183c ||
-        (unsigned int)m_recvBuf >= (unsigned int)((char*)this + 0x183c) + 0x96000)
+    if (m_recvBuf < m_data183c ||
+        (unsigned int)m_recvBuf >= (unsigned int)(m_data183c) + 0x96000)
     {
         DNF_LOG_SCOPE_LINE(0x13b, "./log/TcpErr",
             "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
-        m_recvBuf = (char*)this + 0x183c;
+        m_recvBuf = m_data183c;
         m_remainSendLen = 0;
         return -1;
     }
@@ -236,7 +236,7 @@ bool CPeer::parsing(int len)
         m_sendBuf += len;
         DNF_LOG_SCOPE_LINE(0xbb, "./log/TcpRecv",
             "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
-            m_sendBuf, (char*)this + 0x1c, m_recvLen, len);
+            m_sendBuf, m_gap1c, m_recvLen, len);
         return 1;
     }
     do
@@ -249,8 +249,8 @@ bool CPeer::parsing(int len)
         {
             DNF_LOG_SCOPE_LINE(0xd0, "./log/TcpRecv",
                 "Recv Size[%d], Parsing Packet Size[%d] is Too Large, offset:%x, buf:%x, alreadyRead:%d",
-                len, size, m_sendBuf, (char*)this + 0x1c, m_sendLen);
-            m_sendBuf = (char*)this + 0x1c;
+                len, size, m_sendBuf, m_gap1c, m_sendLen);
+            m_sendBuf = m_gap1c;
             m_recvLen = 0;
             return 0;
         }
@@ -267,7 +267,7 @@ bool CPeer::parsing(int len)
             buf = new CTcpRecvBuffer;
         }
         memcpy(buf, m_sendBuf, size);
-        buf->m_header.reversed2 = getHandle();
+        buf->m_header.m_connNo = getHandle();
         {
             CGuard<CMutex> guard(m_sendQLock);
             m_recvQ->push(buf);
@@ -278,7 +278,7 @@ bool CPeer::parsing(int len)
         m_recvLen = 0;
         if (parsinglength == 0)
         {
-            m_sendBuf = (char*)this + 0x1c;
+            m_sendBuf = m_gap1c;
             goto out;
         }
     } while (parsinglength > 9);
@@ -305,9 +305,9 @@ out:
             }
             return 0;
         }
-        memmove((char*)this + 0x1c, m_sendBuf, parsinglength);
+        memmove(m_gap1c, m_sendBuf, parsinglength);
         m_recvLen = parsinglength;
-        m_sendBuf = (char*)this + 0x1c + parsinglength;
+        m_sendBuf = m_gap1c + parsinglength;
     }
     return 1;
 }

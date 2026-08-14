@@ -254,7 +254,7 @@ int CServerHandler::SendToManager(PacketHeader* pkt)
     if (m_managerServer)
     {
         return m_managerServer->SendToServer((char*)pkt,
-                                             (unsigned int)((RA_U16<2>*)pkt)->v);
+                                             (unsigned int)pkt->packetSize);
     }
     return 0;
 }
@@ -401,8 +401,7 @@ void CServerHandler::SendToGameServer(unsigned char channel, PacketHeader* pkt)
     CGameServer* gs = GetGameServer((unsigned int)channel);
     if (gs != 0)
     {
-        ((CServerInterface*)gs)->SendToServer((char*)pkt,
-                                              ((RA_U16<2>*)pkt)->v);
+        ((CServerInterface*)gs)->SendToServer((char*)pkt, pkt->packetSize);
     }
 }
 

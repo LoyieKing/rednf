@@ -9,6 +9,8 @@
 
 class Packet_Notice_Guild_War_Point_Change : public PacketHeader {
 public:
+    unsigned int m_guildKey;  // +0xa
+    char m_point;             // +0xe
     Packet_Notice_Guild_War_Point_Change(): PacketHeader(0x417,0xf) {};
 } __attribute__((packed));
 

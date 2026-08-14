@@ -58,7 +58,7 @@ CMember::~CMember()
     m_key = 0;
     m_flag = 0;
     m_memberManager = 0;
-    memset((char*)this + 6, 0, 0x1ae);
+    memset(&m_dbInfo, 0, 0x1ae);
     m_registerTime = 0;
     m_dayHourTime = 0;
     m_state1b8 = 0;
@@ -70,7 +70,7 @@ void CMember::QueryMember(CServerHandler* handler)
     m_flag |= 2;
 }
 
-unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)((char*)this + 6); }
+unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)&m_dbInfo; }
 
 void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
 {
@@ -286,7 +286,7 @@ void CMember::LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsi
             info.m_count27 = (unsigned char)limit;
         }
         unsigned int size = (unsigned int)info.m_count27 * 0x27 + 0x28;
-        memcpy((char*)this + 6, &info, size);
+        memcpy(&m_dbInfo, &info, size);
         m_flag |= 4;
         SetMemberRegisterTime(a);
         SetMemberDeleteTime(b);
@@ -300,7 +300,7 @@ int CMember::GetUpperMember_CharId() const
     {
         if (IsThereUpper() != 0)
         {
-            return ((RA_INT<6>*)this)->v;
+            return (int)m_dbInfo.m_member.m_charNo;
         }
         return 0xffffffff;
     }
@@ -314,14 +314,14 @@ int CMember::FindLowerMember(unsigned int charNo) const
     {
         return 0;
     }
-    const char* p = (const char*)this + 0x2e;
+    const ST_MemberProxy* p = m_dbInfo.m_lowers;
     while (count-- != 0)
     {
-        if (*(unsigned int*)p == charNo)
+        if (p->m_charNo == charNo)
         {
             return (int)p;
         }
-        p += 0x27;
+        p++;
     }
     return 0;
 }
@@ -333,7 +333,7 @@ unsigned int CMember::GetLowerMemberCount() const
 
 unsigned int* CMember::GetLowerMember_Proxy() const
 {
-    return (unsigned int*)((char*)this + 0x2e);
+    return (unsigned int*)&m_dbInfo.m_lowers[0];
 }
 
 int CMember::IncConnUpperMemberExp(unsigned int maxExp)
@@ -366,9 +366,9 @@ void CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
 
 int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int maxExp)
 {
-    if (index < (int)(unsigned int)(unsigned char)((RA_S8<45>*)this)->v)
+    if (index < (int)(unsigned int)m_dbInfo.m_count27)
     {
-        ST_MemberProxy* proxy = (ST_MemberProxy*)((char*)this + index * 0x27 + 0x2e);
+        ST_MemberProxy* proxy = &m_dbInfo.m_lowers[index];
         if (proxy->m_charNo == uCharNo)
         {
             proxy->m_exp = proxy->m_exp + 1;
@@ -393,7 +393,7 @@ int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int
         DNF_LOG_SCOPE_LINE(0x284,"./log/Member2Except",
             "CMember::IncConnLowerMemberExp  ,  index(%d) >= "
             "m_stMemberDBInfo.m_lowerCnt(%d)",
-            index, (unsigned int)(unsigned char)((RA_S8<45>*)this)->v);
+            index, (unsigned int)m_dbInfo.m_count27);
         return 0;
     }
 }
@@ -420,16 +420,16 @@ void CMember::NoticeLevelUpToLowers(unsigned int level)
 
 unsigned int* CMember::GetUpperMember_Proxy()
 {
-    return (unsigned int*)((char*)this + 6);
+    return (unsigned int*)&m_dbInfo.m_member;
 }
 
 unsigned int* CMember::GetUpperMember_Proxy() const
 {
-    if ((((RA_U16<4>*)this)->v & 4) != 0)
+    if ((m_flag & 4) != 0)
     {
         if (IsThereUpper() != 0)
         {
-            return (unsigned int*)((char*)this + 6);
+            return (unsigned int*)&m_dbInfo.m_member;
         }
         return 0;
     }
@@ -479,9 +479,9 @@ int CMember::InsertUpperMember(unsigned int charNo, unsigned char level, const c
     {
         return 0;
     }
-    ((RA_U8<10>*)this)->v = level;
-    ((RA_UINT<6>*)this)->v = charNo;
-    memcpy((char*)this + 0xb, name, 0x1d);
+    m_dbInfo.m_member.m_flag4 = level;
+    m_dbInfo.m_member.m_charNo = charNo;
+    memcpy(m_dbInfo.m_member.m_name, name, 0x1d);
     if (flag)
     {
         SetMemberRegisterTime((unsigned int)time(0));
@@ -539,13 +539,13 @@ void CMember::DeleteLowerMember(unsigned int charNo, bool flag)
     {
         return;
     }
-    char* p = (char*)this + 0x2e;
+    ST_MemberProxy* p = m_dbInfo.m_lowers;
     unsigned char idx = 0;
     while (count-- != 0)
     {
-        if (*(unsigned int*)p == charNo)
+        if (p->m_charNo == charNo)
         {
-            memcpy(p, p + 0x27, (int)(~(unsigned char)idx) * 0x27 + 0x186);
+            memcpy(p, p + 1, (int)(~(unsigned char)idx) * 0x27 + 0x186);
             m_dbInfo.m_count27--;
             if (flag)
             {
@@ -553,7 +553,7 @@ void CMember::DeleteLowerMember(unsigned int charNo, bool flag)
             }
             break;
         }
-        p += 0x27;
+        p++;
         idx++;
     }
     DebugPrintMemberMember("DELETE_LOWER_MEMBER");
@@ -561,7 +561,7 @@ void CMember::DeleteLowerMember(unsigned int charNo, bool flag)
 
 unsigned char* CMember::GetMemberDBInfo() const
 {
-    return (unsigned char*)((char*)this + 6);
+    return (unsigned char*)&m_dbInfo;
 }
 
 int CMember::DeleteMemberByName(char* name, unsigned int& outKey)
@@ -574,7 +574,7 @@ int CMember::DeleteMemberByName(char* name, unsigned int& outKey)
         SetMemberDeleteTime(time(0));
         return 1;
     }
-    char* p = (char*)this + 0x2e;
+    ST_MemberProxy* p = m_dbInfo.m_lowers;
     unsigned char idx = 0;
     int count = (int)m_dbInfo.m_count27;
     if (count <= 0)
@@ -583,15 +583,15 @@ int CMember::DeleteMemberByName(char* name, unsigned int& outKey)
     }
     while (count-- != 0)
     {
-        if (strcmp(p + 5, name) == 0)
+        if (strcmp(p->m_name, name) == 0)
         {
-            outKey = *(unsigned int*)p;
-            memcpy(p, p + 0x27, (int)(~(unsigned char)idx) * 0x27 + 0x186);
+            outKey = p->m_charNo;
+            memcpy(p, p + 1, (int)(~(unsigned char)idx) * 0x27 + 0x186);
             m_dbInfo.m_count27--;
             SetMemberDeleteTime(time(0));
             return 2;
         }
-        p += 0x27;
+        p++;
         idx++;
     }
     return 3;

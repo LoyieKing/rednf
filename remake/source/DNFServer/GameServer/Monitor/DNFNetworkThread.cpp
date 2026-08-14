@@ -89,14 +89,14 @@ void CUdpNetworkThread::dispatch(void* param)
             if (ok == 1)
             {
                 CUdpRecvBuffer* pkt = buf;
-                if (((RA_U16<2>*)buf)->v == recvSize)
+                if (((PacketHeader*)buf)->packetSize == recvSize)
                 {
-                    if (((RA_U16<2>*)buf)->v < 0x1800)
+                    if (((PacketHeader*)buf)->packetSize < 0x1800)
                     {
                         if (recvSize < 0x1801)
                         {
-                            ((RA_UINT<6>*)buf)->v = fromAddr;
-                            ((RA_U16<4>*)buf)->v = srcPort;
+                            ((PacketHeader*)buf)->m_connNo = fromAddr;
+                            ((PacketHeader*)buf)->reversed1 = srcPort;
                             {
                                 CGuard<CMutex> guard((CMutex*)m_qLock);
                                 ((std::queue<CUdpRecvBuffer*>*)m_recvQ)->push(pkt);
@@ -107,7 +107,7 @@ void CUdpNetworkThread::dispatch(void* param)
                         else
                         {
                             unsigned short code = *(unsigned short*)buf;
-                            unsigned short psize = ((RA_U16<2>*)buf)->v;
+                            unsigned short psize = ((PacketHeader*)buf)->packetSize;
                             DNF_LOG_SCOPE_LINE(0x85,"./log/recvErr",
                                 "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                                 psize, recvByte, code);
@@ -120,7 +120,7 @@ void CUdpNetworkThread::dispatch(void* param)
                     else
                     {
                         unsigned short code = *(unsigned short*)buf;
-                        unsigned short psize = ((RA_U16<2>*)buf)->v;
+                        unsigned short psize = ((PacketHeader*)buf)->packetSize;
                         DNF_LOG_SCOPE_LINE(0x79,"./log/recvErr",
                             "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                             psize, recvByte, code);
@@ -133,7 +133,7 @@ void CUdpNetworkThread::dispatch(void* param)
                 else
                 {
                     unsigned short code = *(unsigned short*)buf;
-                    unsigned short psize = ((RA_U16<2>*)buf)->v;
+                    unsigned short psize = ((PacketHeader*)buf)->packetSize;
                     DNF_LOG_SCOPE_LINE(0x6e,"./log/recvErr",
                         "Packet Size is Incorrect! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                         psize, recvByte, code);

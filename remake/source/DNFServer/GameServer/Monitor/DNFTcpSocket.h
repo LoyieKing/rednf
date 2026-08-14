@@ -264,10 +264,17 @@ public:
     char setOptLinger(bool flag);
     char* getPeerAdrs();
     unsigned short getPeerPort();
-    int m_fd;             // +0
-    char m_data[0x14];    // +4
-    unsigned short m_peerPort;  // +0x18
-    char m_data2[2];      // +0x1a
+    int m_fd;                    // +0
+    struct TcpAcceptAddr         // +4，accept 写入的 sockaddr（0x10）
+    {
+        unsigned short m_family; // +4
+        unsigned short m_port;   // +6
+        unsigned int m_ip;       // +8
+        char m_pad[8];           // +0xc
+    } m_addr;
+    unsigned char m_peerIp[4];   // +0x14（从 m_addr.m_ip 拷来）
+    unsigned short m_peerPort;   // +0x18（从 m_addr.m_port 拷来）
+    char m_data2[2];             // +0x1a
 };
 
 #endif  // MONITOR_DNFTCPSOCKET_H_

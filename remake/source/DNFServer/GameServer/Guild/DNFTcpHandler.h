@@ -68,9 +68,7 @@ public:
     virtual void* GetEventPtr(int idx);
     int GetEpollFD();
     void* GetEpollEvents();
-    int m_field4;     // +4
-    void* m_ptr;      // +8
-    int m_fieldC;     // +0xc
+    epoll_event m_ev; // +4（events+data，12 字节；ORIG lea 0x4(%eax)）
     epoll_event* m_events;    // +0x10
     int m_epollFd;    // +0x14
     CMutex m_mutex;   // +0x18

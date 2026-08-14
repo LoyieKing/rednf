@@ -59,7 +59,7 @@ void StartEffectTask::_DoExecute()
 EndEffectTask::EndEffectTask(unsigned int time, unsigned int flag)
     : CTaskScheduler::CTask(time, flag)
 {
-    ((RA_S8<16>*)this)->v = 1;
+    m_flag = 1;
     EventManager::Get()->SetEndEffectTask(this);
 }
 
@@ -67,7 +67,7 @@ EndEffectTask::~EndEffectTask() {}
 
 void EndEffectTask::_DoExecute()
 {
-    if (((RA_S8<16>*)this)->v != 0)
+    if (m_flag != 0)
     {
         time_t next = time(0) +
                       (EventManager::Get()->GetIntervalTime() -
@@ -177,11 +177,11 @@ void EventManager::EndEvent()
     sendDeleteEffect();
     if (m_startTask != 0)
     {
-        ((RA_S8<16>*)m_startTask)->v = 0;
+        m_startTask->m_flag = 0;
     }
     if (m_endTask != 0)
     {
-        ((RA_S8<16>*)m_endTask)->v = 0;
+        m_endTask->m_flag = 0;
     }
     Init();
 }
@@ -194,12 +194,12 @@ void EventAction::onStartAction(EventParam& param)
     {
         m_running = 1;
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0x17,"./log/AradOnly", "[Momiji] onStartAction(%d,%d,%d)",
-            (unsigned int)(unsigned char)((RA_S8<0>*)&param)->v,
-            (unsigned int)(unsigned char)((RA_S8<1>*)&param)->v,
-            (unsigned int)(unsigned char)((RA_S8<2>*)&param)->v);
-        EventManager::Get()->StartEvent(((RA_U8<0>*)&param)->v,
-                                        ((RA_U8<1>*)&param)->v,
-                                        ((RA_U8<2>*)&param)->v);
+            (unsigned int)((EventParamBytes*)&param)->m_startHour,
+            (unsigned int)((EventParamBytes*)&param)->m_interval,
+            (unsigned int)((EventParamBytes*)&param)->m_duration);
+        EventManager::Get()->StartEvent(((EventParamBytes*)&param)->m_startHour,
+                                        ((EventParamBytes*)&param)->m_interval,
+                                        ((EventParamBytes*)&param)->m_duration);
     }
 }
 

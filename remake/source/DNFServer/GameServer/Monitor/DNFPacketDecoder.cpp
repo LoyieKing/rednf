@@ -39,13 +39,13 @@
 CPacketDecoder::CPacketDecoder()
 {
     int i;
-    ((RA_INT<0>*)this)->v = 0;
-    ((RA_INT<4>*)this)->v = 0;
-    ((RA_INT<8>*)this)->v = 0;
-    ((RA_INT<12>*)this)->v = 0;
-    ((RA_INT<16>*)this)->v = 0;
-    ((RA_INT<20>*)this)->v = 0;
-    ((RA_INT<24>*)this)->v = 0;
+    m_udpParseQ = 0;
+    m_udpQLock = 0;
+    m_net.m_udpBLock = 0;
+    m_net.m_parseQ = 0;
+    m_net.m_recvQ = 0;
+    m_net.m_bLock = 0;
+    m_net.m_handler = 0;
     for (i = 1000; i < 0x2800; i++)
     {
         m_handlers[i] = 0;
@@ -325,13 +325,11 @@ CPacketDecoder* CPacketDecoderInstance()
 void CPacketDecoder::SetUdpQueue(
     std::queue<CUdpRecvBuffer*, std::deque<CUdpRecvBuffer*, std::allocator<CUdpRecvBuffer*> > >* q)
 {
-    *(std::queue<CUdpRecvBuffer*, std::deque<CUdpRecvBuffer*, std::allocator<CUdpRecvBuffer*> > >**)
-        ((char*)this + 0) = q;
+    m_udpParseQ = q;
 }
 
 void CPacketDecoder::SetTCPQueue(
     std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*, std::allocator<CTcpRecvBuffer*> > >* q)
 {
-    *(std::queue<CTcpRecvBuffer*, std::deque<CTcpRecvBuffer*, std::allocator<CTcpRecvBuffer*> > >**)
-        ((char*)this + 0xc) = q;
+    m_net.m_parseQ = q;
 }

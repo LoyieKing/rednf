@@ -9,6 +9,7 @@
 
 class Packet_Guild_Power_War_Process_Info : public PacketHeader {
 public:
+    unsigned int m_a;      // +0xa
     Packet_Guild_Power_War_Process_Info(): PacketHeader(0x6e0,0xe) {};
 } __attribute__((packed));
 

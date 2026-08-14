@@ -9,6 +9,9 @@
 
 class Packet_Guild_Write_Guild_Member_Memo : public PacketHeader {
 public:
+    unsigned int m_guildKey;  // +0xa
+    unsigned int m_charNo;    // +0xe
+    char m_memo[0x15];        // +0x12
     Packet_Guild_Write_Guild_Member_Memo(): PacketHeader(0x4d1,0x27) {};
 } __attribute__((packed));
 

@@ -15,7 +15,7 @@
  * 0x00,0x01(ushort): packet type
  * 0x02,0x03(ushort): packet length
  * 0x4, 0x05(ushort): reversed1
- * 0x06, 0x07. 0x08, 0x09(uint): reversed2
+ * 0x06, 0x07. 0x08, 0x09(uint): m_connNo（连接/套接字，网络层写入）
  * ...: data content
  */
 class PacketHeader {
@@ -23,7 +23,7 @@ public:
     ushort packetId;
     ushort packetSize;
     ushort reversed1;
-    unsigned int reversed2;  // 0x06-0x09（uint，原始一次 movl 清零）
+    unsigned int m_connNo;  // +0x06 连接号/套接字（原始一次 movl 清零）
 
     PacketHeader(ushort packetId, ushort packetSize);
 } __attribute__((packed));

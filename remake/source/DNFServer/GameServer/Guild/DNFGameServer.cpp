@@ -147,7 +147,7 @@ char* CTcpGameServer::makePacketHeader(unsigned short id, unsigned short size)
         PacketHeader* pkt = (PacketHeader*)p;
         pkt->packetId = id;
         pkt->packetSize = size;
-        pkt->reversed2 = m_group;
+        pkt->m_connNo = m_group;
         return (char*)pkt;
     }
     return 0;

@@ -76,7 +76,23 @@ public:
     int m_loadState;         // +8
     std::map<unsigned int, STGuildBoardDBInfo, std::greater<unsigned int> > m_board;  // +0xc
     unsigned int m_dbAccessTime;   // +0x24
-    char m_rest[0x54 - 0x28];      // +0x28
+    // CGuild+0x66ec：今日成员块（9×uint + ushort + byte = 0x27）
+    struct __attribute__((packed)) TodayMemberBlock
+    {
+        unsigned int m_charNo;    // +0
+        unsigned int m_name0;     // +4
+        unsigned int m_name1;
+        unsigned int m_name2;
+        unsigned int m_name3;
+        unsigned int m_name4;
+        unsigned int m_name5;
+        unsigned int m_name6;
+        unsigned int m_name7;     // +0x20
+        unsigned short m_field24; // +0x24
+        unsigned char m_field26;  // +0x26
+    };
+    TodayMemberBlock m_today;      // +0x28（绝对 +0x66ec）
+    char m_pad4f[5];               // 保持 CGuildBoard 0x54
 };
 
 #endif

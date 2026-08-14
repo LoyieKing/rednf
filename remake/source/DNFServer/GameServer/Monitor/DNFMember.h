@@ -260,7 +260,7 @@ struct STMemberDBInfo
     ST_MemberProxy m_member;    // +0
     unsigned char m_count27;    // +0x27
     ST_MemberProxy m_lowers[10];// +0x28
-};
+} __attribute__((packed));
 
 struct ST_MemberInfo
 {

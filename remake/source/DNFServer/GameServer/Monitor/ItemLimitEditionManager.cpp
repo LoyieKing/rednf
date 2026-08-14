@@ -61,7 +61,7 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
         item->makeItemInfo(*(stItemLimitEditionItemInfo_t*)((char*)&pkt + (idx * 0x48 + 0xf)));
         idx++;
     }
-    ((RA_INT<11>*)&pkt)->v = idx;
+    pkt.m_count = idx;
 }
 
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)

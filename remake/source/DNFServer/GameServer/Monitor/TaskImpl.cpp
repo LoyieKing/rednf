@@ -127,9 +127,9 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
 void CTask_ChristmasEvent::_DoExecute()
 {
     Packet_Monitor_ServerEvent_Start pkt;
-    ((RA_INT<10>*)&pkt)->v = 1;
-    ((RA_U16<14>*)&pkt)->v = 0x14;
-    ((RA_U16<18>*)&pkt)->v = 0xe10;
+    pkt.m_eventCode = 1;
+    pkt.m_param1 = 0x14;
+    pkt.m_param2 = 0xe10;
     ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendAllToGameServer(
         (char*)&pkt, 0x12);
     unsigned int t = MakeEventStartTick(1);

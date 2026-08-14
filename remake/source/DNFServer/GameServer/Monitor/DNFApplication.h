@@ -408,7 +408,7 @@ public:
     CMemberManager m_memberManager;     // +0x2d0
     CBuddyRegisterManager m_buddyMgr;   // +0x300
     CMemoryCashManager* m_memoryCash;   // +0x318
-    void* m_eventActionMgr;                   // +0x31c
+    CEventActionManager* m_eventActionMgr;    // +0x31c
     class COnTimeEventManager* m_onTimeEventMgr;  // +0x320
     CTowerRank* m_towerRank;            // +0x324
     CItemLimitEditionMgr* m_itemLimitMgr;  // +0x328

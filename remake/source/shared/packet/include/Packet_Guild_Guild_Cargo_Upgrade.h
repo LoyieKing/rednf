@@ -9,6 +9,11 @@
 
 class Packet_Guild_Guild_Cargo_Upgrade : public PacketHeader {
 public:
+    unsigned int m_guildKey;    // +0xa
+    unsigned int m_charNo;      // +0xe
+    int m_field12;              // +0x12
+    unsigned int m_field16;     // +0x16
+    unsigned int m_field1a;     // +0x1a
     Packet_Guild_Guild_Cargo_Upgrade(): PacketHeader(0x713,0x1e) {};
 } __attribute__((packed));
 

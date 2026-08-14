@@ -30,9 +30,9 @@
 TCPSocket::TCPSocket()
 {
     m_fd = -1;
-    memset((char*)this + 0x14, 0, 4);
-    memset((char*)this + 4, 0, 0x10);
-    ((RA_U16<24>*)this)->v = 0;
+    memset(m_peerIp, 0, 4);
+    memset(&m_addr, 0, 0x10);
+    m_peerPort = 0;
 }
 
 TCPSocket::~TCPSocket()
@@ -66,8 +66,8 @@ char TCPSocket::connect(const char* ip, unsigned short port)
                strerror(errno));
         return 0;
     }
-    memcpy((void*)((char*)this + 0x14), (void*)((char*)&addr + 4), 4);
-    ((RA_U16<24>*)this)->v = addr.sin_port;
+    memcpy(m_peerIp, (void*)((char*)&addr + 4), 4);
+    m_peerPort = addr.sin_port;
     return 1;
 }
 
@@ -230,7 +230,7 @@ int TCPSocket::pollReadWriteErrEvent() const
 char TCPSocket::accept(TCPSocket& sock)
 {
     socklen_t len = 0x10;
-    sock.m_fd = ::accept(m_fd, (sockaddr*)sock.m_data, &len);
+    sock.m_fd = ::accept(m_fd, (sockaddr*)&sock.m_addr, &len);
     if (sock.m_fd == 0)
     {
         FILE* f = fopen("log.txt", "a+");
@@ -250,8 +250,8 @@ char TCPSocket::accept(TCPSocket& sock)
         }
         return 0;
     }
-    memcpy((char*)&sock + 0x14, (char*)&sock + 8, 4);
-    sock.m_peerPort = ((RA_U16<6>*)&sock)->v;
+    memcpy(sock.m_peerIp, &sock.m_addr.m_ip, 4);
+    sock.m_peerPort = sock.m_addr.m_port;
     sock.setOptNonBlock();
     return 1;
 }
@@ -311,8 +311,8 @@ void TCPSocket::close()
     {
         ::close(m_fd);
         m_fd = -1;
-        memset((char*)this + 0x14, 0, 4);
-        ((RA_U16<24>*)this)->v = 0;
+        memset(m_peerIp, 0, 4);
+        m_peerPort = 0;
     }
     return;
 }
@@ -353,17 +353,17 @@ char TCPSocket::setOptLinger(bool flag)
     return 1;
 }
 
-char* TCPSocket::getPeerAdrs() { return (char*)this + 0x14; }
+char* TCPSocket::getPeerAdrs() { return (char*)m_peerIp; }
 
 unsigned short TCPSocket::getPeerPort() { return m_peerPort; }
 
 char* TCPSocket::getPeerIP()
 {
     static char ip[0x10];
-    sprintf(ip, "%d.%d.%d.%d", (unsigned int)(unsigned char)((RA_S8<20>*)this)->v,
-            (unsigned int)(unsigned char)((RA_S8<21>*)this)->v,
-            (unsigned int)(unsigned char)((RA_S8<22>*)this)->v,
-            (unsigned int)(unsigned char)((RA_S8<23>*)this)->v);
+    sprintf(ip, "%d.%d.%d.%d", (unsigned int)m_peerIp[0],
+            (unsigned int)m_peerIp[1],
+            (unsigned int)m_peerIp[2],
+            (unsigned int)m_peerIp[3]);
     return ip;
 }
 

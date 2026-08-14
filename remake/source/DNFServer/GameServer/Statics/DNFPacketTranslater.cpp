@@ -84,7 +84,7 @@ union Packet_FrameLagAddLocal
         unsigned short m_packetId;          // +0
         unsigned short m_packetSize;        // +2
         unsigned short m_reversed1;         // +4
-        unsigned int m_reversed2;           // +6
+        unsigned int m_connNo;           // +6
         int m_cpuClock;                     // +0xa
         char m_numOfProcessor;              // +0xe
         char m_cpuVendor;                   // +0xf

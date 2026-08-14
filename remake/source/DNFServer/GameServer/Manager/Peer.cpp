@@ -54,10 +54,10 @@ CPeer::CPeer()
 
 CPeer::~CPeer()
 {
-    m_sendBuf = (char*)this + 0x1c;
+    m_sendBuf = m_sendData;
     m_sendLen = 0;
     m_recvLen = 0;
-    m_recvBuf = (char*)this + 0x183c;
+    m_recvBuf = m_data183c;
     m_remainSendLen = 0;
 }
 
@@ -66,10 +66,10 @@ int CPeer::recv_packet()
     if (getHandle() < 0)
         return 0;
     errno = 0;
-    int remaining = (char*)this + 0x1c - m_sendBuf + 0x1800;
+    int remaining = m_sendData - m_sendBuf + 0x1800;
     if (remaining == 0)
     {
-        m_sendBuf = (char*)this + 0x1c;
+        m_sendBuf = m_sendData;
         m_recvLen = 0;
         remaining = 0x1800;
     }
@@ -96,7 +96,7 @@ int CPeer::send_packet()
     int ret = 0;
     if (m_remainSendLen == 0)
         return 1;
-    if ((ret = write(getHandle(), (char*)this + 0x183c, m_remainSendLen)) <= 0)
+    if ((ret = write(getHandle(), m_data183c, m_remainSendLen)) <= 0)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 1;
@@ -121,11 +121,11 @@ int CPeer::send_packet()
                     "m_remain_sendlen < MAX_PACKET_SIZE_UDP :  m_remain_sendlen:%d]",
                     remain);
                 char pad[16];
-                m_recvBuf = (char*)this + 0x183c;
+                m_recvBuf = m_data183c;
                 m_remainSendLen = 0;
                 return 1;
             }
-            memmove((char*)this + 0x183c, m_recvBuf, m_remainSendLen);
+            memmove(m_data183c, m_recvBuf, m_remainSendLen);
             m_recvBuf = m_data183c + m_remainSendLen;
         }
         else if ((int)m_remainSendLen < ret)
@@ -135,7 +135,7 @@ int CPeer::send_packet()
         }
         else
         {
-            m_recvBuf = (char*)this + 0x183c;
+            m_recvBuf = m_data183c;
             m_remainSendLen = 0;
         }
     }
@@ -158,17 +158,17 @@ int CPeer::send_packet(char* buf, int len)
         DNF_LOG_SCOPE_LINE(0x133, "./log/TcpErr",
             "!!!Send Packet Overflow P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
-        m_recvBuf = (char*)this + 0x183c;
+        m_recvBuf = m_data183c;
         m_remainSendLen = 0;
         return -1;
     }
-    if (m_recvBuf < (char*)this + 0x183c ||
-        (unsigned int)m_recvBuf >= (unsigned int)((char*)this + 0x183c) + 0x96000u)
+    if (m_recvBuf < m_data183c ||
+        (unsigned int)m_recvBuf >= (unsigned int)(m_data183c) + 0x96000u)
     {
         DNF_LOG_SCOPE_LINE(0x13b, "./log/TcpErr",
             "!!!Send Packet Buffer critical error P_TYPE[%d] Size:Remain[%d] Last[%d]",
             buf[1], m_remainSendLen, len);
-        m_recvBuf = (char*)this + 0x183c;
+        m_recvBuf = m_data183c;
         m_remainSendLen = 0;
         return -1;
     }
@@ -181,10 +181,10 @@ void CPeer::InitPeer(TcpRecvQueue* recvQ, CMutex* qLock, CMutex* bLock)
     m_recvQ = recvQ;
     m_sendQLock = qLock;
     m_sendBLock = bLock;
-    m_sendBuf = (char*)this + 0x1c;
+    m_sendBuf = m_sendData;
     m_sendLen = 0;
     m_recvLen = 0;
-    m_recvBuf = (char*)this + 0x183c;
+    m_recvBuf = m_data183c;
     m_remainSendLen = 0;
 }
 bool CPeer::parsing(int len)
@@ -202,11 +202,11 @@ bool CPeer::parsing(int len)
         m_sendBuf += len;
         DNF_LOG_SCOPE_LINE(0xbb, "./log/TcpRecv",
             "(offset:%x - buf:%x) = remainlen:%d, Recv Size[%d] ",
-            m_sendBuf, (char*)this + 0x1c, m_recvLen, len);
+            m_sendBuf, m_sendData, m_recvLen, len);
         return 1;
     }
-    // R40：ORIG 控制流形态——need_more(0x100) 日志块置于函数尾部（goto 标签），
-    // 循环用 for(;;)+if(<=9)break 使回边生成直接 jg（4.4.x 下 do-while 会物化 setg）。
+    // R40：ORIG 控制流形态——主路径/need_more 为 if-else 结构（jb 入 else），
+    // f8 日志在循环底部 continue 之后，else 的 goto out 冗余跳转被删留下 out 前空块 nop。
     for (;;)
     {
         if (m_recvLen != 0)
@@ -217,46 +217,49 @@ bool CPeer::parsing(int len)
         {
             DNF_LOG_SCOPE_LINE(0xd0, "./log/TcpRecv",
                 "Recv Size[%d], Parsing Packet Size[%d] is Too Large, offset:%x, buf:%x, alreadyRead:%d",
-                len, size, m_sendBuf, (char*)this + 0x1c, m_sendLen);
-            m_sendBuf = (char*)this + 0x1c;
+                len, size, m_sendBuf, m_sendData, m_sendLen);
+            m_sendBuf = m_sendData;
             m_recvLen = 0;
             return 0;
         }
-        if (parsinglength < size)
-            goto need_more;
-        CTcpRecvBuffer* buf;
+        if (parsinglength >= size)
         {
-            CGuard<CMutex> guard(m_sendBLock);
-            buf = new CTcpRecvBuffer;
-        }
-        memcpy(buf, m_sendBuf, size);
-        struct RAInt6 { char p[6]; int v; } __attribute__((packed));
-        ((RAInt6*)buf)->v = getHandle();
-        {
-            CGuard<CMutex> guard(m_sendQLock);
-            m_recvQ->push(buf);
-            qsize = m_recvQ->size();
-        }
-        parsinglength -= size;
-        m_sendBuf += size;
-        m_recvLen = 0;
-        if (parsinglength == 0)
-        {
-            m_sendBuf = (char*)this + 0x1c;
+            CTcpRecvBuffer* buf;
+            {
+                CGuard<CMutex> guard(m_sendBLock);
+                buf = new CTcpRecvBuffer;
+            }
+            memcpy(buf, m_sendBuf, size);
+            struct RAInt6 { char p[6]; int v; } __attribute__((packed));
+            ((RAInt6*)buf)->v = getHandle();
+            {
+                CGuard<CMutex> guard(m_sendQLock);
+                m_recvQ->push(buf);
+                qsize = m_recvQ->size();
+            }
+            parsinglength -= size;
+            m_sendBuf += size;
+            m_recvLen = 0;
+            if (parsinglength == 0)
+            {
+                m_sendBuf = m_sendData;
+                goto out;
+            }
+            if (parsinglength > 9)
+                continue;
+            DNF_LOG_SCOPE_LINE(0xf8, "./log/TcpRecv",
+                "need more data (parsinglength < HEADER_SIZE): body=%d !!",
+                parsinglength);
             goto out;
         }
-        if (parsinglength <= 9)
-            goto f8_block;
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
+                "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
+                parsinglength);
+            goto out;
+        }
     }
-f8_block:
-    DNF_LOG_SCOPE_LINE(0xf8, "./log/TcpRecv",
-        "need more data (parsinglength < HEADER_SIZE): body=%d !!",
-        parsinglength);
-    goto out;
-need_more:
-    DNF_LOG_SCOPE_LINE(0x100, "./log/TcpRecv",
-        "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",
-        parsinglength);
 out:
     if (parsinglength > 0)
     {
@@ -269,7 +272,7 @@ out:
                     parsinglength);
                 return 0;
             }
-            memmove((char*)this + 0x1c, m_sendBuf, parsinglength);
+            memmove(m_sendData, m_sendBuf, parsinglength);
             m_recvLen = parsinglength;
             m_sendBuf = m_sendData + parsinglength;
         }

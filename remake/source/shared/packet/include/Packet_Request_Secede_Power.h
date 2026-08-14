@@ -9,6 +9,8 @@
 
 class Packet_Request_Secede_Power : public PacketHeader {
 public:
+    unsigned int m_charNo;      // +0xa
+    unsigned int m_guildKey;    // +0xe
     Packet_Request_Secede_Power() : PacketHeader(0x6a9, 0x13){};
 } __attribute__((packed));
 

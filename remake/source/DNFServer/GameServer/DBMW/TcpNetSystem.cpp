@@ -189,7 +189,7 @@ int CTcpNetSystem::SendPacket()
             CMyFileLog log(__FUNCTION__, 0xba);
             log("./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
                 buf->m_header.packetId, buf->m_header.packetSize,
-                buf->m_header.reversed2);
+                buf->m_header.m_connNo);
             PopDeleteTcpSendPacketQ(buf);
             result = 0;
         }
@@ -198,7 +198,7 @@ int CTcpNetSystem::SendPacket()
             CPeer* peer = it->second;
             bool bad = true;
             if (peer != NULL &&
-                buf->m_header.reversed2 ==
+                buf->m_header.m_connNo ==
                     peer->GetTcpSocket()->getHandle())
                 bad = false;
             if (bad)
@@ -207,7 +207,7 @@ int CTcpNetSystem::SendPacket()
                 log("./log/TcpSend",
                     "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
                     buf->m_header.packetId, buf->m_header.packetSize,
-                    buf->m_header.reversed2);
+                    buf->m_header.m_connNo);
                 PopDeleteTcpSendPacketQ(buf);
                 result = 0;
             }
@@ -220,7 +220,7 @@ int CTcpNetSystem::SendPacket()
                     CMyFileLog log(__FUNCTION__, 0xd5);
                     log("./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
                         buf->m_header.packetId, buf->m_header.packetSize,
-                        buf->m_header.reversed2,
+                        buf->m_header.m_connNo,
                         m_sendQueue.size());
                 }
                 else
@@ -259,7 +259,7 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
         log("./log/TcpSend", "SEND PUSH(cnt:%d,id:%d,size:%d,ip:%d)", n,
             ((CTcpSendBuffer*)buf)->m_header.packetId,
             ((CTcpSendBuffer*)buf)->m_header.packetSize,
-            ((CTcpSendBuffer*)buf)->m_header.reversed2);
+            ((CTcpSendBuffer*)buf)->m_header.m_connNo);
     }
 }
 void CTcpNetSystem::CleanTcpSendPacketQ()

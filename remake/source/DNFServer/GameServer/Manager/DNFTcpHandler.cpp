@@ -72,24 +72,22 @@ bool EpollHandler::IsSetErrEvent(int idx)
 int EpollHandler::SetEpoll(void* peer, int fd, bool flag)
 {
     if (flag)
-        m_eventType = 0x8000001d;
+        m_ev.events = 0x8000001d;
     else
-        m_eventType = 0x1d;
-    m_peer = peer;
+        m_ev.events = 0x1d;
+    m_ev.data.ptr = peer;
     CGuard<CMutex> guard(&m_mutex);
-    if (epoll_ctl(m_epollFd, 0x1, fd,
-                  (struct epoll_event*)((char*)this + 4)) < 0)
+    if (epoll_ctl(m_epollFd, 0x1, fd, &m_ev) < 0)
         return errno;
     return 0;
 }
 
 int EpollHandler::ResetEpoll(int fd)
 {
-    memset(&m_eventType, 0, 0xc);
-    m_eventType = 0x1;
+    memset(&m_ev, 0, 0xc);
+    m_ev.events = 0x1;
     CGuard<CMutex> guard(&m_mutex);
-    if (epoll_ctl(m_epollFd, 0x2, fd,
-                  (struct epoll_event*)((char*)this + 4)) < 0)
+    if (epoll_ctl(m_epollFd, 0x2, fd, &m_ev) < 0)
         return errno;
     return 0;
 }

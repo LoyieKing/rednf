@@ -143,13 +143,13 @@ void CEventActionManager::destroy()
 
 void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
 {
-    unsigned int code = ((RA_UINT<10>*)pkt)->v;
+    unsigned int code = pkt->m_eventCode;
     if (code < 0xa6)
     {
         union { unsigned int u; EventParam e; } param;
-        param.u = ((RA_UINT<14>*)pkt)->v;
+        param.u = pkt->m_eventParam;
         m_actions[code]->OnStartEvent(param.e);
-        ((RA_UINT<14>*)pkt)->v = param.u;
+        pkt->m_eventParam = param.u;
     }
     return;
 }

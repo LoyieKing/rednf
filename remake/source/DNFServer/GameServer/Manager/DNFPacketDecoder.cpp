@@ -80,7 +80,7 @@ void CPacketDecoder::TcpProcess()
             {
                 CMyFileLog(__FUNCTION__, 0xe7)("./log/TcpRecv",
                     "cnt(%)id(%d)size(%d)ip(%d)",
-                    qsize, p->packetId, p->packetSize, p->reversed2);
+                    qsize, p->packetId, p->packetSize, p->m_connNo);
             }
             if (!MsgDecode(p))
             {

@@ -9,6 +9,9 @@
 
 class Packet_Monitor_Send_Guild_Mail : public PacketHeader {
 public:
+    unsigned int m_charNo;      // +0xa
+    unsigned int m_guildId;     // +0xe
+    char m_msg[0x100];          // +0x12
     Packet_Monitor_Send_Guild_Mail() : PacketHeader(0x432, 0x112){};
 } __attribute__((packed));
 

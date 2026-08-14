@@ -9,6 +9,10 @@
 
 class Packet_Sync_GM_List : public PacketHeader {
 public:
+    unsigned char m_field_a;      // +0xa
+    unsigned char m_field_b;      // +0xb
+    unsigned int m_gmIds[0x14];   // +0xc
+    char m_gmNames[0x100];        // +0x5c
     Packet_Sync_GM_List() : PacketHeader(0x1f4d, 0x70){};
 } __attribute__((packed));
 

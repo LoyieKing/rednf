@@ -98,10 +98,10 @@ char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
                 memset((char*)dbInfo + 5, 0, 0x1e);
                 strncpy((char*)dbInfo + 5, name.c_str(), 0x1d);
             }
-            for (int i = 0; i < (int)((RA_U8<39>*)dbInfo)->v; i++)
+            STMemberDBInfo* memberDb = (STMemberDBInfo*)dbInfo;
+            for (int i = 0; i < (int)memberDb->m_count27; i++)
             {
-                unsigned int* sub =
-                    (unsigned int*)((char*)dbInfo + i * 0x27 + 0x28);
+                unsigned int* sub = (unsigned int*)&memberDb->m_lowers[i];
                 if (*sub != 0)
                 {
                     if (QueryUpdatedCharacName(*sub, name))
@@ -146,14 +146,15 @@ int CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
             if (buddies[i] != 0)
             {
                 std::string name;
-                if (QueryUpdatedCharacName(((RA_UINT<34>*)buddies[i]->getBuddyDBInfo())->v, name))
+                STBuddyDBInfo* buddyDb = (STBuddyDBInfo*)buddies[i]->getBuddyDBInfo();
+                if (QueryUpdatedCharacName(buddyDb->m_characNo, name))
                 {
-                    memset(buddies[i]->getBuddyDBInfo(), 0, 0x1e);
-                    strncpy((char*)buddies[i]->getBuddyDBInfo(), name.c_str(), 0x1d);
+                    memset(buddyDb->m_name, 0, 0x1e);
+                    strncpy(buddyDb->m_name, name.c_str(), 0x1d);
                 }
                 user->AddBuddyFromCash(buddies[i]);
                 register unsigned int uniqNo = user->GetUniqCharNo();
-                register unsigned int charNo = ((RA_UINT<34>*)buddies[i]->getBuddyDBInfo())->v;
+                register unsigned int charNo = buddyDb->m_characNo;
                 m_app->Get_BuddyRegisterManager()->addBuddyRegister(charNo, uniqNo);
             }
         }

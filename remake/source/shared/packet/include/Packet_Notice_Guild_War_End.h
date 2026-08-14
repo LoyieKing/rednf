@@ -9,6 +9,7 @@
 
 class Packet_Notice_Guild_War_End : public PacketHeader {
 public:
+    unsigned char m_fieldA;  // +0xa
     Packet_Notice_Guild_War_End() : PacketHeader(0x412, 0xb){};
 } __attribute__((packed));
 

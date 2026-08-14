@@ -2688,7 +2688,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* header)
             DNF_LOG_SCOPE_LINE(0xc00,
                 "./log/TcpServer",
                 "CPacketTranslater::OnInnerPacketLogin (sock:%d)",
-            pkt->reversed2
+            pkt->m_connNo
         );
 
     }
@@ -2711,13 +2711,13 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
         }
         Packet_InnerPakcet_Logout* pkt = (Packet_InnerPakcet_Logout*)header;
         CTcpServer* server =
-            m_pclApp->Get_ServerHandler()->GetTcpServer(pkt->reversed2);
+            m_pclApp->Get_ServerHandler()->GetTcpServer(pkt->m_connNo);
         if (!server)
         {
             DNF_LOG_SCOPE_LINE(0xc1f,
                 "./log/TcpServer",
                 "CPacketTranslater::OnInnerPacketLogout Invalid Server Instance(sock:%d)",
-                pkt->reversed2
+                pkt->m_connNo
             );
 
             return;
@@ -2728,7 +2728,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
             DNF_LOG_SCOPE_LINE(0xc27,
                 "./log/TcpServer",
                 "CPacketTranslater::OnInnerPacketLogout DeleteTcpServer fail(sock:%d)",
-                pkt->reversed2
+                pkt->m_connNo
             );
 
             return;
@@ -2736,7 +2736,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
         DNF_LOG_SCOPE_LINE(0xc2b,
             "./log/TcpServer",
             "CPacketTranslater::OnInnerPacketLogout DeleteTcpServer Success(TYPE:%d, sock:%d)", idx,
-            pkt->reversed2
+            pkt->m_connNo
         );
 
     }
@@ -2752,7 +2752,7 @@ void CPacketTranslater::OnTcpServerLogin(PacketHeader* header)
             return;
         Packet_Tcp_Server_Login* pkt = (Packet_Tcp_Server_Login*)header;
         register unsigned char idx = pkt->m_idx;
-        register int port = (int)pkt->reversed2;
+        register int port = (int)pkt->m_connNo;
         CServerHandler* handler = m_pclApp->Get_ServerHandler();
         if (handler->GetTcpServer(idx))
         {
@@ -2801,7 +2801,7 @@ void CPacketTranslater::OnTcpServerLogout(PacketHeader* header)
             DNF_LOG_SCOPE_LINE(0xc74,
                 "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogout Invalid Server Instance(TYPE:%d, sock:%d)", pkt->m_idx,
-                pkt->reversed2
+                pkt->m_connNo
             );
 
             return;
@@ -2811,16 +2811,16 @@ void CPacketTranslater::OnTcpServerLogout(PacketHeader* header)
             DNF_LOG_SCOPE_LINE(0xc7a,
                 "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerLogout DeleteTcpServer fail(TYPE:%d, sock:%d)", pkt->m_idx,
-                pkt->reversed2
+                pkt->m_connNo
             );
 
             return;
         }
-        printf("CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", pkt->m_idx, pkt->reversed2);
+        printf("CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", pkt->m_idx, pkt->m_connNo);
         DNF_LOG_SCOPE_LINE(0xc7e,
             "./log/TcpServer",
             "CPacketTranslater::OnTcpServerLogout(TYPE:%d, sock:%d)", pkt->m_idx,
-            pkt->reversed2
+            pkt->m_connNo
         );
 
     }
@@ -2843,7 +2843,7 @@ void CPacketTranslater::OnTcpServerHeartbeat(PacketHeader* header)
             DNF_LOG_SCOPE_LINE(0xc98,
                 "./log/TcpServer",
                 "CPacketTranslater::OnTcpServerHeartbeat Invalid Server Instance(TYPE:%d, sock:%d)", pkt->m_idx,
-                pkt->reversed2
+                pkt->m_connNo
             );
 
             return;
@@ -2901,9 +2901,9 @@ void CPacketTranslater::OnWebNoticeBroadcast(PacketHeader* header)
                 if (ch <= 0x64)
                 {
                     Packet_Web_Notice_Single pkt;
-                    ((char*)&pkt)[0xa] = len;
-                    memset((char*)&pkt + 0xb, 0, 0xff);
-                    strncpy((char*)&pkt + 0xb, (char*)header + 0x10b, len);
+                    pkt.m_len = (unsigned char)len;
+                    memset(pkt.m_text, 0, 0xff);
+                    strncpy(pkt.m_text, (char*)header + 0x10b, len);
                     m_pclApp->m_serverHandler->SendToTcpServer((char*)&pkt, 0x10a, ch);
                 }
             }

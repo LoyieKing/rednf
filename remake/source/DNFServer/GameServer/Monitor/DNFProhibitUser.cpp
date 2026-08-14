@@ -64,9 +64,9 @@ void CDNFProhibitUser::SetUserConnectableTime(unsigned int dbid, short time, cha
 {
     if (!m_flag)
     {
-        ((RA_S16<4>*)this)->v = time;
-        *(unsigned int*)this = dbid;
-        ((RA_S8<6>*)this)->v = channel;
-        ((RA_S8<7>*)this)->v = (char)flag;
+        m_remain = (unsigned short)time;
+        m_dbid = dbid;
+        m_channel = channel;
+        m_flag = flag;
     }
 }

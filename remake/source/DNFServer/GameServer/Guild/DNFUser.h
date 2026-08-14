@@ -29,11 +29,17 @@ struct STBlackUserDBType;
 struct STGuildMemerDBInfo;
 
 // from GuildDomain.h
+// pack(1)：m_guildPoint 在 +0x16（CUser 内 +0x60），alignof 必须为 1，
+// 否则 CUser::m_guildDBInfo@+0x4a 会被垫到 +0x4c。
+#pragma pack(push, 1)
 struct STGuildMemerDBInfo
 {
     STGuildMemerDBInfo();
-    unsigned char m_data[0x1a];
+    char m_memo[0x15];          // +0（SetGuildMemberMemo）
+    unsigned char m_grade;      // +0x15（CUser+0x5f；IsSubGuildMaster==2）
+    unsigned int m_guildPoint;  // +0x16（CUser+0x60）
 };
+#pragma pack(pop)
 
 // from GuildDomain.h
 class CUser

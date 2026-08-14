@@ -70,7 +70,7 @@ CTcpServer* CServerHandler::GetTcpServer(unsigned char idx)
 CMonitorServer* CServerHandler::GetMonitorServer(int idx)
 {
     if (idx <= 0x64 && m_monitorServers[idx].IsValidMonitorServer())
-        return (CMonitorServer*)((char*)this + idx * 0x14);
+        return m_monitorServers + idx;
     CMyFileLog log(__FUNCTION__, 0xc7);
     log("./log/Server.log", "Server Index Over Index : %d!\n", idx);
     return 0;

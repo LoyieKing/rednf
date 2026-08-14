@@ -8,7 +8,7 @@ struct __attribute__((packed)) DBmwPacketBufferHeader
     unsigned short packetId;   // +0
     unsigned short packetSize; // +2
     unsigned short reversed1;  // +4
-    unsigned int reversed2;    // +6
+    unsigned int m_connNo;    // +6
 };
 
 class CUdpRecvBuffer

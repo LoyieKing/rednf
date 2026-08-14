@@ -46,52 +46,56 @@ void CQueryCounter::ResetQueryCount()
 void CQueryCounter::WriteDBLog(CDBManager& db)
 {
     m_interval--;
-    if (m_interval > 0)
+    while (m_interval > 0)
         return;
-    for (int q = 0x4e21; q <= 0x4f60; q++)
+    for (unsigned int q = 0x4e21; q <= 0x4f60U; q++)
     {
         if (!db.UpdateQueryCount(q, m_counts[q - 0x4e20],
                                  (int)(m_responseTimes[q - 0x4e20] * 1000.0)))
         {
             if (m_counts[q - 0x4e20] != 0)
             {
-                register int t = (int)(m_responseTimes[q - 0x4e20] * 1000.0);
-                register int c = m_counts[q - 0x4e20];
-                CMyFileLog log(__FUNCTION__, 0x76);
-                log("./log/QueryCount",
-                    "Count DB Insert Fail! id(%d), count(%d), time(%d)", q,
-                    c, t);
+                DNF_LOG_SCOPE_LINE(0x76, "./log/QueryCount",
+                    "Count DB Insert Fail! id(%d), count(%d), time(%d)",
+                    q, m_counts[q - 0x4e20],
+                    (int)(m_responseTimes[q - 0x4e20] * 1000.0));
+                continue;
             }
         }
         else
         {
             if (m_counts[q - 0x4e20] != 0)
             {
-                register int avg = (int)(m_responseTimes[q - 0x4e20] * 1000.0) /
-                                   (int)m_counts[q - 0x4e20];
-                register int t = (int)(m_responseTimes[q - 0x4e20] * 1000.0);
-                register int c = m_counts[q - 0x4e20];
-                CMyFileLog log(__FUNCTION__, 0x7a);
-                log("./log/QueryCount",
+                DNF_LOG_SCOPE_LINE(0x7a, "./log/QueryCount",
                     "Count DB Insert Success! id(%d), count(%d), time(%d), compute(%4.2f)",
-                    q, c, t, avg);
-                m_counts[q - 0x4e20] = 0;
-                m_responseTimes[q - 0x4e20] = 0.0;
+                    q, m_counts[q - 0x4e20],
+                    (int)(m_responseTimes[q - 0x4e20] * 1000.0),
+                    (int)(m_responseTimes[q - 0x4e20] * 1000.0) /
+                    (int)m_counts[q - 0x4e20]);
             }
+            m_counts[q - 0x4e20] = 0;
+            m_responseTimes[q - 0x4e20] = 0.0;
+            continue;
         }
+        __asm__ __volatile__("nop");
     }
     m_interval = 0x1e;
 }
 char CQueryCounter::IncreQureyCount(unsigned int idx, const char* name)
 {
-    if (idx <= 0x4f60)
+    if (idx > 0x4f60)
+        goto done;
     {
         int i = idx - 0x4e20;
         m_counts[i]++;
         m_timer->SetLastTime();
-        return !m_used[i];
+        while (!m_used[i])
+            break;
     }
+done:
+    ;
 }
+__attribute__((target("arch=i586")))
 void CQueryCounter::SetResponseTime(unsigned int ms)
 {
     if (ms > 0x4f60)

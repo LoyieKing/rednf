@@ -115,15 +115,15 @@ int EpollHandler::SetEpoll(void* ptr, int fd, bool flag)
 {
     if (flag)
     {
-        m_field4 = 0x8000001d;
+        m_ev.events = 0x8000001d;
     }
     else
     {
-        m_field4 = 0x1d;
+        m_ev.events = 0x1d;
     }
-    m_ptr = ptr;
+    m_ev.data.ptr = ptr;
     CGuard<CMutex> g(&m_mutex);
-    if (epoll_ctl(m_epollFd, 1, fd, (epoll_event*)((char*)this + 4)) < 0)
+    if (epoll_ctl(m_epollFd, 1, fd, &m_ev) < 0)
     {
         return errno;
     }
@@ -132,10 +132,10 @@ int EpollHandler::SetEpoll(void* ptr, int fd, bool flag)
 
 int EpollHandler::ResetEpoll(int fd)
 {
-    memset((char*)this + 4, 0, 0xc);
-    m_field4 = 1;
+    memset(&m_ev, 0, 0xc);
+    m_ev.events = 1;
     CGuard<CMutex> g(&m_mutex);
-    if (epoll_ctl(m_epollFd, 2, fd, (epoll_event*)((char*)this + 4)) < 0)
+    if (epoll_ctl(m_epollFd, 2, fd, &m_ev) < 0)
     {
         return errno;
     }

@@ -87,7 +87,7 @@ void CPacketTracer::AddLog(int p1, int p2)
 
 void CPacketTracer::ResetLog()
 {
-    ((std::string*)((char*)this + 4))->clear();
+    m_strLog.clear();
 }
 
 void CPacketTracer::WriteLog()
@@ -103,7 +103,7 @@ void CPacketTracer::WriteLog()
 void CPacketTracer::AbsoluteWriteLog()
 {
     DNF_LOG_SCOPE_LINE(0x32,"./log/packet_trace", "[TRACE_PACKET] Packet Code : %s\n",
-        ((std::string*)((char*)this + 4))->c_str());
+        m_strLog.c_str());
     ResetLog();
 }
 

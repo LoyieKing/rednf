@@ -70,7 +70,7 @@ void CExchangeServer::SetExchageServer(unsigned int ip, short port, int code, bo
     in_addr ipLocal;
     ipLocal.s_addr = ip;
     in_addr oldIp;
-    oldIp.s_addr = ((RA_UINT<8>*)this)->v;
+    oldIp.s_addr = m_ip;
     result = false;
     if (m_active != 0)
     {
@@ -140,7 +140,7 @@ void CManagerServer::SendHeartBeat(int group)
     if (GetUdpHandler() != 0)
     {
         Packet_Monitor_UDP_HeartBeat pkt;
-        pkt.m_channelIndex = (char)group;
+        pkt.m_channel = (char)group;
         ((CUdpHandler*)GetUdpHandler())
             ->SendToServer((char*)&pkt, 0xb, GetServerInfo()->m_port,
                            GetServerInfo()->m_name);
@@ -264,10 +264,10 @@ void CTcpManagerServer::SendToServer(char* buf)
 
 void CTcpManagerServer::SendTcpPacket(PacketHeader* pkt)
 {
-    char* buf = makePacketHeader(*(unsigned short*)pkt, ((RA_U16<2>*)pkt)->v);
+    char* buf = makePacketHeader(pkt->packetId, pkt->packetSize);
     if (buf != 0)
     {
-        memcpy(buf + 10, (char*)pkt + 10, (int)(((RA_U16<2>*)pkt)->v - 10));
+        memcpy(buf + 10, (char*)pkt + 10, (int)(pkt->packetSize - 10));
         SendToServer(buf);
     }
 }

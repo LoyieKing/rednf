@@ -83,14 +83,7 @@
 #include "TcpNetSystem.h"
 #include "WebEvent.h"
 
-#pragma pack(push,1)
-struct STGuildMemerDBInfo_Layout
-{
-    char pad0x0[0x15];
-    unsigned char m15;
-    unsigned int m16;   // +0x16（CUser 内 +0x60）
-};
-#pragma pack(pop)
+
 
 struct CUserGuildPointLayout
 {
@@ -193,27 +186,26 @@ void CUser::LoadGuildMember(unsigned int guildKey, STGuildMemerDBInfo& info)
     {
         memcpy(&m_guildDBInfo, &info, 0x1a);
         m_guildStateFlag |= 4;
-        if (m_guild->GetMasterId() == GetUniqCharNo() && m_guildDBInfo.m_data[0x15] != 1)
+        if (m_guild->GetMasterId() == GetUniqCharNo() && m_guildDBInfo.m_grade != 1)
         {
-            register int grade = (unsigned char)m_guildDBInfo.m_data[0x15];
+            register int grade = (unsigned char)m_guildDBInfo.m_grade;
             register unsigned int charNo = GetUniqCharNo();
             CMyFileLog log(__FUNCTION__, 0x8d);
             log("./log/GuildMember", "[Master_Err]\tGuild_K(%d)\tChar_No(%d)\tGrade(%d)", guildKey,
                 charNo, grade);
-            m_guildDBInfo.m_data[0x15] = 1;
+            m_guildDBInfo.m_grade = 1;
         }
     }
 }
 
 void CUser::AddGuildMemberPoint(unsigned int point)
 {
-    unsigned int old = ((CUserGuildPointLayout*)this)->m_guildPoint;
-    ((CUserGuildPointLayout*)this)->m_guildPoint =
-        ((CUserGuildPointLayout*)this)->m_guildPoint + point;
+    unsigned int old = m_guildDBInfo.m_guildPoint;
+    m_guildDBInfo.m_guildPoint = m_guildDBInfo.m_guildPoint + point;
     SetGuildMemFlag(0x10);
-    if (((CUserGuildPointLayout*)this)->m_guildPoint < old)
+    if (m_guildDBInfo.m_guildPoint < old)
     {
-        ((CUserGuildPointLayout*)this)->m_guildPoint = old;
+        m_guildDBInfo.m_guildPoint = old;
     }
 }
 
@@ -240,7 +232,7 @@ void CUser::SaveGuildMember(unsigned char type, unsigned int value, CServerHandl
 
 void CUser::ResetGuildPoint()
 {
-    ((CUserGuildPointLayout*)this)->m_guildPoint = 0;
+    m_guildDBInfo.m_guildPoint = 0;
 }
 
 void CUser::ResetCharInfo()
@@ -284,7 +276,7 @@ void CUser::SendTcpGameserver(PacketHeader* pkt)
             pkt->packetId, pkt->packetSize);
         if (out != 0)
         {
-            memcpy(out + 10, (char*)pkt + 10, pkt->packetSize - 10);
+            memcpy(out + 10, (char*)pkt + 10, (unsigned int)pkt->packetSize - 10U);
             m_tcpGameServer->SendToGameServer(out);
         }
     }
@@ -320,27 +312,27 @@ void CUser::SendSetGuildKeyToUser(unsigned int guildKey, unsigned int grade)
 
 void CUser::SetGuildMemberMemo(const char* memo)
 {
-    memset((char*)this + 0x4a, 0, 0x15);
+    memset(m_guildDBInfo.m_memo, 0, 0x15);
     int n = (int)strlen(memo);
     if (n <= 0x14)
     {
-        memcpy((char*)this + 0x4a, memo, n);
+        memcpy(m_guildDBInfo.m_memo, memo, n);
     }
     else
     {
-        memcpy((char*)this + 0x4a, memo, 0x14);
+        memcpy(m_guildDBInfo.m_memo, memo, 0x14);
     }
 }
 
 void CUser::ChangeGuildMemberGrade(unsigned char grade)
 {
-    if (grade == 1 || grade == 2 || (unsigned char)m_guildDBInfo.m_data[0x15] == 1 ||
-        (unsigned char)m_guildDBInfo.m_data[0x15] == 2)
+    if (grade == 1 || grade == 2 || m_guildDBInfo.m_grade == 1 ||
+        m_guildDBInfo.m_grade == 2)
     {
         DNF_LOG_SCOPE_LINE(0x183, "./log/GuildModify", "char(%s), old(%d), new(%d)", GetCharName(),
-            (unsigned int)(unsigned char)m_guildDBInfo.m_data[0x15], (unsigned int)grade);
+            (unsigned int)m_guildDBInfo.m_grade, (unsigned int)grade);
     }
-    m_guildDBInfo.m_data[0x15] = (char)grade;
+    m_guildDBInfo.m_grade = (unsigned char)grade;
     SendGuildMemberDBInfo(m_guildDBInfo);
 }
 
@@ -480,12 +472,23 @@ void CUser::GuildInviteProcess()
     if (m_guildInviteFact < 2)
     {
         --m_guildInviteFact;
-        register bool bVar = (m_guildInviteFact == 0 || m_guildInviteFact > 1);
-        if (bVar)
+        register int bVar1;
+        if (m_guildInviteFact == 0 || m_guildInviteFact > 1)
+            bVar1 = 1;
+        else
+            bVar1 = 0;
+        if (bVar1)
         {
             SetGuildInviteFact(0, 0, 0xff);
+            goto L_end;
         }
     }
+    else
+    {
+        __asm__ __volatile__("nop");
+    }
+L_end:
+    ;
 }
 
 void CUser::ChangeCharName(char* name)
@@ -508,9 +511,9 @@ void CUser::MakeGameServerSendUserInfoPacket(unsigned int guildKey)
 
 STGuildMemerDBInfo::STGuildMemerDBInfo()
 {
-    ((STGuildMemerDBInfo_Layout*)this)->m15 = 0;
-    ((STGuildMemerDBInfo_Layout*)this)->m16 = 0;
-    memset((char*)this, 0, 0x15);
+    m_grade = 0;
+    m_guildPoint = 0;
+    memset(m_memo, 0, 0x15);
 }
 
 char* CUser::GetCharName()
@@ -656,12 +659,12 @@ unsigned char CUser::GetSex()
 
 void CUser::SetSsn(char* ssn)
 {
-    memcpy((char*)this + 0x3b, ssn, 6);
+    memcpy(m_ssn, ssn, 6);
 }
 
 char* CUser::GetSsn()
 {
-    return (char*)this + 0x3b;
+    return m_ssn;
 }
 
 STGuildMemerDBInfo* CUser::GetGuildMemDBInfo()
@@ -679,8 +682,7 @@ struct CUser_IsSubGuildMaster_Layout
 
 bool CUser::IsSubGuildMaster()
 {
-    // ORIG：仅比较 this+0x5f 字节 == 2（无 m_guild 解引用），打包布局复现直接偏移读取
-    if (((CUser_IsSubGuildMaster_Layout*)this)->m5f == 2)
+    if (m_guildDBInfo.m_grade == 2)
     {
         return true;
     }

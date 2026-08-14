@@ -219,7 +219,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* header)
         }
         PacketHeader* hdr = header;
         DNF_LOG_SCOPE_LINE(0x1f6, "./log/TcpServer",
-            "CPacketTranslater::OnInnerPacketLogin (sock:%d)", hdr->reversed2);
+            "CPacketTranslater::OnInnerPacketLogin (sock:%d)", hdr->m_connNo);
     }
     catch (CDNFException& e)
     {
@@ -462,9 +462,9 @@ void CPacketTranslater::OnWebNoticeBroadcast(PacketHeader* header)
                     {
                         Packet_Web_Notice_Single pkt;
                         // R10: 成员访问复现 ORIG 的 mov %al,-0x168(%ebp) 直写
-                        pkt.data[0] = ((WebNoticeBroadcastPacket*)hdr)->m_byLen;
-                        memset((char*)&pkt + 0xb, 0, 0xff);
-                        strncpy((char*)&pkt + 0xb, (char*)hdr + 0x10b,
+                        pkt.m_len = ((WebNoticeBroadcastPacket*)hdr)->m_byLen;
+                        memset(pkt.m_text, 0, 0xff);
+                        strncpy(pkt.m_text, (char*)hdr + 0x10b,
                             ((WebNoticeBroadcastPacket*)hdr)->m_byLen);
                         handler->SendToTcpServer((char*)&pkt, 0x10a, ch);
                     }

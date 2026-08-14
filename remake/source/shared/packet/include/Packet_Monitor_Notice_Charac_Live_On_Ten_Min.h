@@ -9,8 +9,10 @@
 
 class Packet_Monitor_Notice_Charac_Live_On_Ten_Min : public PacketHeader {
 public:
+    unsigned int m_charNo;          // +0xa  FindUser_CharNo
     Packet_Monitor_Notice_Charac_Live_On_Ten_Min(): PacketHeader(0x640,0xe) {};
 } __attribute__((packed));
 
+TEST_CLASS_SIZE(Packet_Monitor_Notice_Charac_Live_On_Ten_Min, 0xe);
 
 #endif //PACKET_MONITOR_NOTICE_CHARAC_LIVE_ON_TEN_MIN_H

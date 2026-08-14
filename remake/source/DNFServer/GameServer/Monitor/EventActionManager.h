@@ -239,9 +239,20 @@ struct stUserHuntingPoint;
 
 struct EventParam
 {
+    // ORIG 就是两个 ushort（4 字节）。Momiji 把同一块内存当 3 个 byte 读，
+    // 用 EventParamBytes 视图，不要在这里加匿名 union——GCC 4.4 会改变
+    // OnStartEvent/OnEndEvent/init 的寄存器与 landing pad。
     unsigned short m_a;  // +0
     unsigned short m_b;  // +2
 };
+
+struct EventParamBytes
+{
+    unsigned char m_startHour;  // +0
+    unsigned char m_interval;   // +1
+    unsigned char m_duration;   // +2
+    unsigned char m_pad;        // +3
+} __attribute__((packed));
 
 class CBaseEventAction
 {

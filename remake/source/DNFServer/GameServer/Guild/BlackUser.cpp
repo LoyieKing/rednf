@@ -124,5 +124,5 @@ STBlackUserDBType::STBlackUserDBType()
 {
     ((STBlackUserDBType_Layout*)this)->m0 = 0;
     ((STBlackUserDBType_Layout*)this)->m24 = 0;
-    memset((char*)this + 0x4, 0, 0x1e);
+    memset(m_name, 0, 0x1e);
 }

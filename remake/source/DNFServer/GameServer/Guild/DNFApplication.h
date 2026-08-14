@@ -121,29 +121,32 @@ public:
 class Packet_DB_Query_On_Guild_Booting : public PacketHeader {
 public:
     Packet_DB_Query_On_Guild_Booting();
-    char m_data[0x1];
 };
 
 // from GuildPackets.h
 class Packet_Guild_Master_Delegate_FromWeb : public PacketHeader {
 public:
     Packet_Guild_Master_Delegate_FromWeb();
-    char m_data[0x2a];
+    unsigned int m_guildKey;         // +0xa
+    unsigned int m_requesterCharNo;  // +0xe
+    unsigned int m_delegateeCharNo;  // +0x12
+    char m_msg[0x1e];                // +0x16
 };
 
 // from GuildPackets.h
 class Packet_Monitor_Event_End : public PacketHeader {
 public:
     Packet_Monitor_Event_End();
-    unsigned int m_eventType;   // +0xa（固定 0x1e）
+    unsigned int m_eventType;   // +0xa（OnEventEnd 日志 eventCode）
 } __attribute__((packed));
 
 // from GuildPackets.h
 class Packet_Monitor_Event_Start : public PacketHeader {
 public:
     Packet_Monitor_Event_Start();
-    unsigned int m_eventType;   // +0xa（固定 0x1e）
-    char m_data[0x4];
+    unsigned int m_eventType;         // +0xa（OnEventStart 日志 eventCode）
+    unsigned short m_eventParam1;     // +0xe
+    unsigned short m_eventParam2;     // +0x10
 } __attribute__((packed));
 
 // from GuildPackets.h
@@ -159,14 +162,19 @@ public:
 class Packet_Monitor_Send_Guild_Mail : public PacketHeader {
 public:
     Packet_Monitor_Send_Guild_Mail();
-    char m_data[0x108];
+    unsigned int m_charNo;      // +0xa
+    unsigned int m_guildId;     // +0xe
+    char m_msg[0x100];          // +0x12
 };
 
 // from GuildPackets.h
 class Packet_Monitor_Set_GuildMember_Grade_FromWeb : public PacketHeader {
 public:
     Packet_Monitor_Set_GuildMember_Grade_FromWeb();
-    char m_data[0xd];
+    unsigned int m_masterCharNo;  // +0xa
+    unsigned int m_guildKey;      // +0xe
+    unsigned char m_newGrade;     // +0x12
+    unsigned int m_targetCharNo;  // +0x13
 };
 
 void ShowLogo();

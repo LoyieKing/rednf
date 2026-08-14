@@ -79,7 +79,7 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int valu
     if (value != 0)
     {
         m_app = (int)app;
-        memset((char*)this, 0, 0x28);
+        memset(&m_bInit, 0, 0x28);
         m_frameCount = value;
         m_fpsInterval = 100 / value;
     }
@@ -92,10 +92,10 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int valu
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
     struct tms t;
-    *(unsigned char*)((char*)this + 0x24) = 0;
-    if (*(unsigned char*)this == 0)
+    m_state = 0;
+    if (m_bInit == 0)
     {
-        *(unsigned char*)this = 1;
+        m_bInit = 1;
         m_secondFrameCnt = 0;
         m_startClock = (int)times(&t);
         if (m_startClock == -1)
@@ -120,26 +120,24 @@ CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
             (unsigned int)(m_curClock - m_startClock) / (unsigned int)m_fpsInterval)
         {
             m_secondFrameCnt = m_secondFrameCnt + 1;
-            *(unsigned char*)((char*)this + 0x24) = 1;
+            m_state = 1;
             if (99 < (unsigned int)(m_curClock - m_startClock))
             {
                 m_fps = m_secondFrameCnt;
-                *(unsigned char*)((char*)this + 0x24) = 2;
+                m_state = 2;
                 m_secondFrameCnt = 0;
                 m_startClock = m_curClock - (m_curClock - m_startClock) + 100;
                 m_field20 = 0;
-                *(unsigned char*)((char*)this + 0x25) =
-                    (unsigned char)(*(unsigned char*)((char*)this + 0x25) + 1);
-                if (0x3b < *(unsigned char*)((char*)this + 0x25))
+                m_secCnt = (unsigned char)(m_secCnt + 1);
+                if (0x3b < m_secCnt)
                 {
-                    *(unsigned char*)((char*)this + 0x24) = 3;
-                    *(unsigned char*)((char*)this + 0x25) = 0;
-                    *(unsigned char*)((char*)this + 0x26) =
-                        (unsigned char)(*(unsigned char*)((char*)this + 0x26) + 1);
-                    if (0x3b < *(unsigned char*)((char*)this + 0x26))
+                    m_state = 3;
+                    m_secCnt = 0;
+                    m_minCnt = (unsigned char)(m_minCnt + 1);
+                    if (0x3b < m_minCnt)
                     {
-                        *(unsigned char*)((char*)this + 0x24) = 4;
-                        *(unsigned char*)((char*)this + 0x26) = 0;
+                        m_state = 4;
+                        m_minCnt = 0;
                     }
                 }
             }

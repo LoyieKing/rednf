@@ -99,11 +99,11 @@ void CNetworkThread::dispatch(void* param)
                 }
                 else
                 {
-                    if (ph->reversed2 == 0)
+                    if (ph->m_connNo == 0)
                     {
-                        printf("id(%d), m_id(%d)", ph->packetId, ph->reversed2);
+                        printf("id(%d), m_id(%d)", ph->packetId, ph->m_connNo);
                     }
-                    int idx = ph->reversed2 % 10;
+                    int idx = ph->m_connNo % 10;
                     {
                         CGuard<CMutex> g((CMutex*)m_locks[idx]);
                         ((std::queue<CUdpRecvBuffer*>*)m_queues[idx])->push(buf);

@@ -9,6 +9,9 @@
 
 class Packet_Web_Notify_Message_To_Guild : public PacketHeader {
 public:
+    unsigned int m_guildKey;  // +0xa
+    unsigned char m_mode;     // +0xe
+    char m_payload[0x66];     // +0xf
     Packet_Web_Notify_Message_To_Guild(): PacketHeader(0x42d,0x74) {};
 } __attribute__((packed));
 

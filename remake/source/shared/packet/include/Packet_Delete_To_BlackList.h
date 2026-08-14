@@ -9,7 +9,11 @@
 
 class Packet_Delete_To_BlackList : public PacketHeader {
 public:
+    unsigned int m_dbid;            // +0xa  FindUser
+    char m_name[0x1e];              // +0xe
     Packet_Delete_To_BlackList() : PacketHeader(0x5dd, 0x2c){};
 } __attribute__((packed));
+
+TEST_CLASS_SIZE(Packet_Delete_To_BlackList, 0x2c);
 
 #endif  // PACKET_DELETE_TO_BLACKLIST_H

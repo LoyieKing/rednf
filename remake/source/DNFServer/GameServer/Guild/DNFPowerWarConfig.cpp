@@ -213,5 +213,5 @@ CPowerWarConfig::CPowerWarConfig()
 
 ST_PowerWarEventStartTimeConfig* CPowerWarConfig::GetInfo() const
 {
-    return (ST_PowerWarEventStartTimeConfig*)((char*)this + 4);
+    return (ST_PowerWarEventStartTimeConfig*)&m_info;
 }

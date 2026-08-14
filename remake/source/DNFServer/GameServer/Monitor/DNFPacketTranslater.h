@@ -398,6 +398,7 @@ public:
     unsigned char m_fullLoad;   // +10（Ghidra log "FullLoad: %d"）
     unsigned int m_serverType;  // +11（Ghidra log "ServerType:%d"，与 serverGroup&0xff 比较）
     unsigned int m_loadTargetNum;  // +15（Ghidra log "LoadTargetNum: %d"）
+    unsigned int m_ipgNo[24];   // +19
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Sell_end : public PacketHeader
@@ -406,6 +407,19 @@ public:
     Packet_Item_Limit_Edition_Sell_end();
     unsigned int m_serverType;   // +10（Ghidra log "ServerType: %d"）
     unsigned int m_sellEndNum;   // +14（Ghidra log "SellEndNum: %d"）
+    unsigned int m_ipgNo[28];    // +18
+} __attribute__((packed));
+
+class Packet_Item_Limit_Edition_Load_Data_Rpy : public PacketHeader
+{
+public:
+    signed char m_fullLoad;   // +10
+    unsigned int m_count;     // +11
+    struct __attribute__((packed)) Rec
+    {
+        unsigned int m_ipgno;  // +0
+        char m_rest[0x44];     // +4 .. 0x47
+    } m_items[28];             // +15，步长 0x48
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Update : public PacketHeader
@@ -427,8 +441,13 @@ class Packet_Monitor_Event_Start : public PacketHeader
 public:
     Packet_Monitor_Event_Start();
     unsigned int m_eventCode;    // +10（Ghidra log "eventCode(%d)"）
-    unsigned short m_eventParam1;  // +14（Ghidra log "eventParam1(%d)"）
-    unsigned short m_eventParam2;  // +16（Ghidra log "eventParam2(%d)"）
+    union {
+        unsigned int m_eventParam;  // +14 EventActionManager 按 uint 读写
+        struct {
+            unsigned short m_eventParam1;  // +14
+            unsigned short m_eventParam2;  // +16
+        };
+    };
 } __attribute__((packed));
 
 class Packet_Monitor_Event_End : public PacketHeader
@@ -679,6 +698,7 @@ public:
     unsigned int m_charNo;       // +10
     char m_name[0x1e];           // +14
     unsigned int m_charNo2;      // +44
+    int m_result;                // +48  DB 回包 0x5a=GM
 } __attribute__((packed));
 
 class Packet_Register_To_BlackList_RESULT : public PacketHeader
@@ -775,7 +795,7 @@ class Packet_Monitor_UDP_HeartBeat : public PacketHeader
 {
 public:
     Packet_Monitor_UDP_HeartBeat();
-    unsigned char m_channelIndex;  // +10（OnHeartBeat：频道号，0xc8=DB 完成，0xff=全部）
+    unsigned char m_channel;  // +10（OnHeartBeat：频道号，0xc8=DB 完成，0xff=全部）
 } __attribute__((packed));
 
 class Packet_MiniCraneSeed : public PacketHeader
@@ -839,6 +859,7 @@ class Packet_DBMW_Query_Buddy_Info : public PacketHeader
 {
 public:
     Packet_DBMW_Query_Buddy_Info();
+    unsigned int m_charNo;  // +10（QueryBuddyInfo：lea -0x16 后 -0xc 就是这个字段）
 } __attribute__((packed));
 
 class Packet_Request_Charac_Tower_Ranking : public PacketHeader
@@ -942,9 +963,9 @@ class Packet_Manager_Event_Trigger_Ack : public PacketHeader
 public:
     Packet_Manager_Event_Trigger_Ack() : PacketHeader(0x1b6b, 0x16)
     {
-        ((RA_UINT<10>*)this)->v = 0;
-        ((RA_UINT<14>*)this)->v = 0;
-        ((RA_UINT<18>*)this)->v = 0;
+        m_eventId = 0;
+        m_flag = 0;
+        m_group = 0;
     }
     unsigned int m_eventId;  // +10
     unsigned int m_flag;     // +14
@@ -963,6 +984,56 @@ public:
     Packet_Req_Ontime_Event_Idx() : PacketHeader(0x2340, 0xa) {}
 } __attribute__((packed));
 
+class Packet_Register_Event_Idx : public PacketHeader
+{
+public:
+    unsigned int m_eventIdx;  // +10
+    signed char m_result;     // +14
+} __attribute__((packed));
+
+class Packet_Register_Event_User_Idx : public PacketHeader
+{
+public:
+    unsigned int m_dbid;      // +10 FindUser
+    unsigned int m_idx;       // +14
+    short m_errortype;        // +18
+} __attribute__((packed));
+
+class Packet_Register_Event_Item : public PacketHeader
+{
+public:
+    unsigned int m_idx;       // +10
+    unsigned int m_cnt;       // +14
+    short m_errortype;        // +18
+} __attribute__((packed));
+
+class Packet_Result_Register_Event_Idx : public PacketHeader
+{
+public:
+    unsigned int m_eventIdx;  // +10
+} __attribute__((packed));
+
+class Packet_StartGameEventFromServer : public PacketHeader
+{
+public:
+    unsigned int m_eventCode;  // +10
+    unsigned int m_padE;       // +14
+    unsigned int m_pad12;      // +18
+    union {
+        unsigned int m_eventParam;  // +22
+        struct {
+            unsigned short m_eventParam1;  // +22
+            unsigned short m_eventParam2;  // +24
+        };
+    };
+} __attribute__((packed));
+
+class Packet_StopGameEventFromServer : public PacketHeader
+{
+public:
+    unsigned int m_eventCode;  // +10
+} __attribute__((packed));
+
 class Packet_MTG_OntimeEvent_RewardEnd : public PacketHeader
 {
 public:
@@ -974,7 +1045,7 @@ class Packet_Send_Periodic_Message : public PacketHeader
 public:
     Packet_Send_Periodic_Message() : PacketHeader(0x1f4a, 0x20a)
     {
-        memset((char*)this + 0xa, 0, 0x200);
+        memset(m_msg, 0, 0x200);
     }
     char m_msg[0x200];   // +0xa payload
 } __attribute__((packed));
@@ -1040,10 +1111,13 @@ class Packet_VillageAttackedStart : public PacketHeader
 public:
     Packet_VillageAttackedStart() : PacketHeader(0x1773, 0x16)
     {
-        ((RA_INT<10>*)this)->v = 0;
-        ((RA_INT<14>*)this)->v = 0;
-        ((RA_INT<18>*)this)->v = 0;
+        m_remainTime = 0;
+        m_curHuntingPoint = 0;
+        m_maxHuntingPoint = 0;
     }
+    int m_remainTime;       // +10（OnStartVillageAttacked：lea -0x1e 后 -0x14）
+    int m_curHuntingPoint;  // +14（-0x10）
+    int m_maxHuntingPoint;  // +18（-0xc）
 } __attribute__((packed));
 
 class Packet_VillageAttackedCountdown : public PacketHeader
@@ -1057,6 +1131,11 @@ class Packet_DB_VillageAttackedRank : public PacketHeader
 {
 public:
     Packet_DB_VillageAttackedRank() : PacketHeader(0x177b, 0x1b) {}
+    signed char m_group;  // +10
+    int m_time0a;         // +11
+    int m_time0b;         // +15
+    int m_time1a;         // +19
+    int m_time1b;         // +23
 } __attribute__((packed));
 
 class Packet_Request_Load_Tower_Full_Rank : public PacketHeader
@@ -1084,6 +1163,10 @@ class Packet_Monitor_ServerEvent_Start : public PacketHeader
 {
 public:
     Packet_Monitor_ServerEvent_Start() : PacketHeader(0x44e, 0x12) {}
+    int m_eventCode;             // +10
+    unsigned short m_param1;     // +14
+    unsigned short m_pad16;      // +16
+    unsigned short m_param2;     // +18
 } __attribute__((packed));
 
 class Packet_TOD_DoRandomSelect : public PacketHeader
@@ -1108,6 +1191,8 @@ class Packet_Arad_DeleteEffect : public PacketHeader
 {
 public:
     Packet_Arad_DeleteEffect(int group, int code);
+    int m_group;  // +10
+    int m_code;   // +14
 } __attribute__((packed));
 
 class Packet_Monitor_Call_Member_List_ToUser : public PacketHeader
@@ -1136,6 +1221,13 @@ public:
     unsigned short m_point;      // +14（透传点数值）
 } __attribute__((packed));
 
+class Packet_Request_Set_CleanPad_Point : public PacketHeader
+{
+public:
+    unsigned int m_dbid;         // +10 FindUser
+    unsigned short m_point;      // +14
+} __attribute__((packed));
+
 class Packet_SecuService_Connect_Web : public PacketHeader
 {
 public:
@@ -1150,7 +1242,8 @@ class Packet_Monitor_User_Repel : public PacketHeader
 {
 public:
     Packet_Monitor_User_Repel();
-    unsigned int m_idByChannel;  // +10
+    unsigned int m_idByChannel;  // +10  inbound: dbid，转发前改写为 idByChannel
+    unsigned int m_charNo;       // +14
 } __attribute__((packed));
 
 class Packet_Monitor_Other_Channel_Chat_ToUser : public PacketHeader
@@ -1212,6 +1305,123 @@ class Packet_Load_Periodic_Message : public PacketHeader
 {
 public:
     Packet_Load_Periodic_Message();
+} __attribute__((packed));
+
+class Packet_Result_Load_Periodic_Message : public PacketHeader
+{
+public:
+    char m_msg[0x200];  // +10
+    int m_start;        // +0x20a
+    int m_end;          // +0x20e
+} __attribute__((packed));
+
+class Packet_Web_Emergency_Patch_Message : public PacketHeader
+{
+public:
+    char m_channels[0x32];  // +10
+    unsigned char m_len;    // +60
+    char m_text[0xff];      // +61
+} __attribute__((packed));
+
+class Packet_Social_Event_Reward_Item_Response : public PacketHeader
+{
+public:
+    unsigned int m_count;  // +10
+    struct __attribute__((packed)) Rec
+    {
+        unsigned int m_itemId;
+        unsigned int m_maxCount;
+        unsigned int m_sellCount;
+    } m_items[30];         // +14，步长 0xc
+} __attribute__((packed));
+
+class Packet_Request_Revenge_Dungeon : public PacketHeader
+{
+public:
+    unsigned int m_rewardType;  // +10
+    unsigned int m_remainTime;  // +14
+} __attribute__((packed));
+
+class Packet_IPCounter_Control : public PacketHeader
+{
+public:
+    unsigned char m_type;   // +10
+    unsigned char m_value;  // +11
+} __attribute__((packed));
+
+class Packet_IP_Counter_List : public PacketHeader
+{
+public:
+    unsigned char m_dataStats;  // +10
+    unsigned char m_dataSize;   // +11
+} __attribute__((packed));
+
+class Packet_Cera_Update : public PacketHeader
+{
+public:
+    unsigned int m_dbid;  // +10 FindUser
+} __attribute__((packed));
+
+class Packet_Event_Item_Update : public PacketHeader
+{
+public:
+    unsigned int m_dbid;       // +10 FindUser
+    unsigned int m_charNo;     // +14
+    unsigned int m_eventType;  // +18
+    unsigned int m_itemId;     // +22
+    unsigned int m_stack;      // +26
+    unsigned int m_tableId;    // +30
+} __attribute__((packed));
+
+class Packet_Web_Query_User_State : public PacketHeader
+{
+public:
+    unsigned int m_dbid;  // +10 FindUser
+    char m_padE[4];       // +14
+    char m_online;        // +18
+} __attribute__((packed));
+
+class Packet_DB_Reply_Query_Member : public PacketHeader
+{
+public:
+    char m_success;               // +10
+    unsigned int m_memberId;      // +11
+    unsigned int m_maxCreateTime; // +15
+    unsigned int m_maxDeleteTime; // +19
+    STMemberDBInfo m_info;        // +23
+} __attribute__((packed));
+
+class Packet_DBMW_Add_Buddy_Reply : public PacketHeader
+{
+public:
+    unsigned int m_charNo;   // +10
+    STBuddyDBInfo m_buddy;   // +14  m_characNo 位于 +0x30
+    signed char m_result;    // +53
+} __attribute__((packed));
+
+class Packet_DBMW_Del_Buddy_Reply : public PacketHeader
+{
+public:
+    unsigned int m_charNo;      // +10
+    unsigned int m_buddyCharNo; // +14
+    char m_name[0x1e];          // +18
+    signed char m_result;       // +48
+} __attribute__((packed));
+
+class Packet_DBMW_Query_Buddy_Info_Reply : public PacketHeader
+{
+public:
+    unsigned int m_charNo;    // +10
+    unsigned char m_count;    // +14
+    STBuddyDBInfo m_items[1]; // +15
+} __attribute__((packed));
+
+class Packet_Reply_Load_Tower_Full_Rank : public PacketHeader
+{
+public:
+    char m_reset;          // +10
+    unsigned int m_count;  // +11
+    unsigned int m_total;  // +15
 } __attribute__((packed));
 
 #endif  // MONITOR_DNFPACKETTRANSLATER_H_

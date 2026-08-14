@@ -464,16 +464,9 @@ void CApplication::TranslateSignal()
             case 3:
             {
                 Packet_Monitor_Send_Guild_Mail mail;
-                struct MailFields
-                {
-                    char pad[0xa];
-                    unsigned int f1;
-                    unsigned int f2;
-                    char msg[0x17];
-                };
-                ((MailFields*)&mail)->f1 = (unsigned int)(*it)->m_param1;
-                ((MailFields*)&mail)->f2 = (unsigned int)(*it)->m_param2;
-                memcpy(((MailFields*)&mail)->msg,
+                mail.m_charNo = (unsigned int)(*it)->m_param1;
+                mail.m_guildId = (unsigned int)(*it)->m_param2;
+                memcpy(mail.m_msg,
                        "\xc5\xc2\xbd\xba\xc6\xae \xb1\xe6\xb5\xe5\xb8\xde\xc0\xcf\xc0\xd4\xb4\xcf\xb4\xd9.",
                        0x17);
                 CPacketTranslater::OnMonitorSendGuildLetter(&mail);
@@ -485,18 +478,10 @@ void CApplication::TranslateSignal()
             case 7:
             {
                 Packet_Monitor_Notice_Guild_Enter enter;
-                struct EnterFields
-                {
-                    char pad[0xa];
-                    unsigned int f1;
-                    unsigned int f2;
-                    unsigned int f3;
-                    char msg[0x16];
-                };
-                ((EnterFields*)&enter)->f1 = (unsigned int)(*it)->m_param1;
-                ((EnterFields*)&enter)->f2 = (unsigned int)(*it)->m_param2;
-                ((EnterFields*)&enter)->f3 = (unsigned int)(*it)->m_param3;
-                memcpy(((EnterFields*)&enter)->msg,
+                enter.m_info.m_guildKey = (unsigned int)(*it)->m_param1;
+                enter.m_info.m_dbid = (unsigned int)(*it)->m_param2;
+                enter.m_info.m_charNo = (unsigned int)(*it)->m_param3;
+                memcpy(enter.m_info.m_guildName,
                        "\xb4\xab\xbb\xe7\xb6\xf7\x00\xb0\xde\xdf\xb8\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
                        0x16);
                 CPacketTranslater::OnNoticeGuildEnter(&enter);
@@ -523,18 +508,10 @@ void CApplication::TranslateSignal()
             case 9:
             {
                 Packet_Guild_Master_Delegate_FromWeb delegate;
-                struct DelegateFields
-                {
-                    char pad[0xa];
-                    unsigned int f1;
-                    unsigned int f2;
-                    unsigned int f3;
-                    char msg[4];
-                };
-                ((DelegateFields*)&delegate)->f1 = (unsigned int)(*it)->m_param1;
-                ((DelegateFields*)&delegate)->f2 = (unsigned int)(*it)->m_param2;
-                ((DelegateFields*)&delegate)->f3 = (unsigned int)(*it)->m_param3;
-                memcpy(((DelegateFields*)&delegate)->msg, "\xb0\xde\xdf\xb8", 4);
+                delegate.m_guildKey = (unsigned int)(*it)->m_param1;
+                delegate.m_requesterCharNo = (unsigned int)(*it)->m_param2;
+                delegate.m_delegateeCharNo = (unsigned int)(*it)->m_param3;
+                memcpy(delegate.m_msg, "\xb0\xde\xdf\xb8", 4);
                 CPacketTranslater::OnGuildMasterDelegateFromWeb(&delegate);
                 break;
             }
@@ -587,13 +564,13 @@ void CApplication::SwitchQueueUDP()
 {
     CGuard<CMutex> guard(&m_udpQLock);
     typedef std::queue<CUdpRecvBuffer*> UdpRecvQueue;
-    if (((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->GetRecvQ()->empty())
+    if (m_swapQueue.GetRecvQ()->empty())
         return;
-    ((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->SwapQ();
+    m_swapQueue.SwapQ();
     m_udpThread->SetUDPQueue(
-        ((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->GetRecvQ());
+        m_swapQueue.GetRecvQ());
     CPacketDecoderInstance()->SetUdpQueue(
-        ((CSwapQueue<UdpRecvQueue, 2>*)((char*)this + 0xa0))->GetParseQ());
+        m_swapQueue.GetParseQ());
 }
 
 CAppBase::~CAppBase()
@@ -640,13 +617,13 @@ Packet_DB_Query_On_Guild_Booting::Packet_DB_Query_On_Guild_Booting()
 Packet_Monitor_Send_Guild_Mail::Packet_Monitor_Send_Guild_Mail()
     : PacketHeader(0x432, 0x112)
 {
-    memset((char*)this + 0x12, 0, 0x100);
+    memset(m_msg, 0, 0x100);
 }
 
 Packet_Guild_Master_Delegate_FromWeb::Packet_Guild_Master_Delegate_FromWeb()
     : PacketHeader(0x442, 0x34)
 {
-    memset((char*)this + 0x16, 0, 0x1e);
+    memset(m_msg, 0, 0x1e);
 }
 
 CTcpNetSystem* CApplication::Get_TcpNetSystem()

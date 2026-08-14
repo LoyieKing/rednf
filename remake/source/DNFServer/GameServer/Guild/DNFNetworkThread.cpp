@@ -136,7 +136,7 @@ void CUdpNetworkThread::dispatch(void* param)
                         }
                         else
                         {
-                            ((PacketHeader*)buf2)->reversed2 = ip;
+                            ((PacketHeader*)buf2)->m_connNo = ip;
                             ((PacketHeader*)buf2)->reversed1 = port;
                             {
                                 CGuard<CMutex> g((CMutex*)m_lock);

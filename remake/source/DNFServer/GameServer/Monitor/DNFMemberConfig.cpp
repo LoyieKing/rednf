@@ -73,8 +73,8 @@ ST_MemberConfig* CMemberConfig::GetMemberInfo()
 
 CMemberExpTbl::CMemberExpTbl()
 {
-    ((RA_S8<4>*)this)->v = 0;
-    memset((char*)this + 8, 0, 0x2c);
+    m_count = 0;
+    memset(m_table, 0, 0x2c);
 }
 
 CMemberExpTbl::~CMemberExpTbl() {}
@@ -101,8 +101,8 @@ bool CMemberExpTbl::Parse_Table(char* line, int idx)
 
 int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
 {
-    char* p = (char*)this + 8;
-    int local_c = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
+    char* p = (char*)m_table;
+    int local_c = (int)m_count - 1;
     int local_8 = 1;
     if (exp >= (unsigned int)m_table[local_c])
     {
@@ -134,13 +134,13 @@ unsigned int CMemberExpTbl::GetMaxMemberExp()
 
 unsigned char CMemberExpTbl::IsMemberExpLevelUp(unsigned int exp)
 {
-    char* p = (char*)this + 8;
-    unsigned int count = (unsigned int)(unsigned char)((RA_S8<4>*)this)->v;
+    char* p = (char*)m_table;
+    unsigned int count = (unsigned int)m_count;
     if (exp == 1)
     {
         return 0;
     }
-    if (exp >= (unsigned int)m_table[((unsigned int)(unsigned char)((RA_S8<4>*)this)->v) - 1])
+    if (exp >= (unsigned int)m_table[(unsigned int)m_count - 1])
     {
         return 1;
     }
@@ -164,8 +164,8 @@ unsigned char CMemberExpTbl::IsMemberExpLevelUp(unsigned int exp)
 void CMemberExpTbl::GetMemberExpLevel(unsigned int exp, unsigned int& lo, unsigned int& hi,
                                       unsigned char& lv)
 {
-    char* p = (char*)this + 8;
-    int local_c = (int)(unsigned char)((RA_S8<4>*)this)->v - 1;
+    char* p = (char*)m_table;
+    int local_c = (int)m_count - 1;
     int l = 1;
     if (exp == 0)
     {

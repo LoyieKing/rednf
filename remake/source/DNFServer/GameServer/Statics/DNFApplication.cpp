@@ -236,7 +236,7 @@ void CApplication::Process()
                         pkt->packetId);
                     continue;
                 }
-                pkt->reversed2 = ip;
+                pkt->m_connNo = ip;
                 pkt->reversed1 = port;
                 if (CPacketDecoderInstance()->MsgDecode(pkt) != 1)
                 {

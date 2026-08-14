@@ -9,6 +9,9 @@
 
 class Packet_Request_Guild_Create : public PacketHeader {
 public:
+    unsigned int m_charNo;      // +0xa
+    char m_guildName[0x17];     // +0xe
+    char m_extra[0xc];          // +0x25
     Packet_Request_Guild_Create() : PacketHeader(0x43f, 0x32){};
 } __attribute__((packed));
 

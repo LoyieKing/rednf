@@ -104,9 +104,9 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemInfoAll(LimitNpcBuyItemInfoAll* o
             {
                 return;
             }
-            *(unsigned int*)((char*)out + out->m_count * 0xc + 0x1a) = it->first;
-            *(unsigned int*)((char*)out + out->m_count * 0xc + 0x1e) = it->second.m_maxCount;
-            *(unsigned int*)((char*)out + out->m_count * 0xc + 0x22) = it->second.m_sellCount;
+            out->m_items[out->m_count].m_itemId = it->first;
+            out->m_items[out->m_count].m_maxCount = it->second.m_maxCount;
+            out->m_items[out->m_count].m_sellCount = it->second.m_sellCount;
             out->m_count = out->m_count + 1;
         }
     }
@@ -128,8 +128,8 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemCount(unsigned int itemId,
 
 LimitNpcBuyItemChangeInfo::LimitNpcBuyItemChangeInfo() : PacketHeader(0x27db, 0x12)
 {
-    ((RA_UINT<10>*)this)->v = 0;
-    ((RA_INT<14>*)this)->v = 0;
+    m_itemId = 0;
+    m_remainCount = 0;
 }
 
 LimitNpcBuyItemRequestInfo::LimitNpcBuyItemRequestInfo() : PacketHeader(0x27d8, 10) {}

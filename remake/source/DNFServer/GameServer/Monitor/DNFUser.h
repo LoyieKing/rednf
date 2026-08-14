@@ -332,7 +332,7 @@ public:
     char m_dataC2[0x1e];                                // +0x24
     char m_job;                                         // +0x42
     char m_growthType;                                  // +0x43
-    unsigned short m_level;                             // +0x44
+    short m_level;                                      // +0x44
     unsigned char m_sex;                                // +0x46
     char m_dataC2b[7];                                  // +0x47
     char m_dataC2c[2];                                  // +0x4e
