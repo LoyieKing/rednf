@@ -370,7 +370,7 @@ struct SECRET_SHOP_STATISTIC_DATA
 {
     SECRET_SHOP_STATISTIC_DATA();
     int m_data[5];
-};
+} __attribute__((packed));
 
 // ---- GoldCardEventStatistic：0x9 ----
 #pragma pack(push, 1)
@@ -497,8 +497,8 @@ struct STDeathTowerValueWireItem
 
 struct STDeathTowerPlayDataJobWireItem
 {
-    unsigned char m_deathTowerType;   // +0（log_deathtower_playdata_job.type）
-    unsigned short m_level;           // +1（log_deathtower_playdata_job.level）
+    char m_deathTowerType;            // +0（log_deathtower_playdata_job.type）
+    short m_level;                    // +1（log_deathtower_playdata_job.level）
     unsigned int m_characJob;         // +3（log_deathtower_playdata_job.charac_job）
     char m_characGrow;                // +7（log_deathtower_playdata_job.charac_grow）
     int m_avgClearCount;              // +8（log_deathtower_playdata_job.avg_clear_count）
@@ -510,7 +510,7 @@ struct STDeathTowerPlayDataPartyWireItem
     char m_deathTowerType;    // +0（log_deathtower_playdata_party.type）
     char m_partyCount;        // +1（log_deathtower_playdata_party.party_count）
     int m_avgClearCount;      // +2（log_deathtower_playdata_party.avg_clear_count）
-    char m_pad[4];            // +6（ORIG 按 int 读作 playcount，保留类型）
+    int m_playCount;          // +6（ORIG 按 int 读作 playcount）
 };
 
 struct STAssertManagerWriteItem

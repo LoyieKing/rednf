@@ -413,8 +413,7 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
             pkt.m_elem[idx].m_data[10] = it->second.m_data[10];
             pkt.m_elem[idx].m_data[11] = it->second.m_data[11];
             idx++;
-            bool over = (idx > 0x63);
-            if (over)
+            if (idx > 0x63)
             {
                 pkt.m_count = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -452,8 +451,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_data[0] = it->second.m_data[0];
             pkt.m_items[idx].m_data[1] = it->second.m_data[1];
             idx++;
-            bool over = (idx > 0xf2);
-            if (over)
+            if (idx > 0xf2)
             {
                 pkt.m_count = 0xf3;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -500,8 +498,7 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_data[11] = it->second.m_data[11];
             pkt.m_items[idx].m_data[12] = it->second.m_data[12];
             idx++;
-            bool over = (idx > 0x58);
-            if (over)
+            if (idx > 0x58)
             {
                 pkt.m_count = 0x59;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -531,8 +528,7 @@ void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_counterIdx = it->first.m_counterIdx;
             pkt.m_items[idx].m_value = it->second.m_data[0];
             idx++;
-            bool over = (idx > 0x196);
-            if (over)
+            if (idx > 0x196)
             {
                 pkt.m_count = 0x197;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -559,29 +555,30 @@ void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* hand
         {
             pkt.m_items[idx].m_deathTowerType = it->first.m_deathTowerType;
             pkt.m_items[idx].m_level = it->first.m_level;
-            pkt.m_items[idx].m_characJob = it->first.m_characJob;
             pkt.m_items[idx].m_characGrow = it->first.m_characGrow;
+            pkt.m_items[idx].m_characJob = it->first.m_characJob;
+            pkt.m_items[idx].m_playCount = it->second.m_data[1];
             if (it->second.m_data[1] == 0)
             {
                 it->second.m_data[1] = 1;
             }
-            int count = it->second.m_data[1];
-            int avg = it->second.m_data[0] / count;
-            pkt.m_items[idx].m_avgClearCount = avg;
-            pkt.m_items[idx].m_playCount = count;
+            pkt.m_items[idx].m_avgClearCount =
+                it->second.m_data[0] / it->second.m_data[1];
             if (it->first.m_level == 0)
             {
                 DNF_LOG_SCOPE_LINE(0x23d, "./log/statistic",
                     "SendDBDeathTowerPlayDataJobStatistic : 0 level error!! deathTower_type (%d) level (%d) job_ (%d) grow_type_ (%d) / updateCount (%d) clearStage (%d)\n",
-                    (int)it->first.m_deathTowerType, (int)it->first.m_level,
-                    (int)it->first.m_characJob, (int)it->first.m_characGrow,
-                    count, avg);
+                    (int)pkt.m_items[idx].m_deathTowerType,
+                    (int)pkt.m_items[idx].m_level,
+                    (int)pkt.m_items[idx].m_characJob,
+                    (int)pkt.m_items[idx].m_characGrow,
+                    (int)pkt.m_items[idx].m_playCount,
+                    (int)pkt.m_items[idx].m_avgClearCount);
             }
             else
             {
                 idx++;
-                bool over = (idx > 0x17d);
-                if (over)
+                if (idx > 0x17d)
                 {
                     pkt.m_count = 0x17e;
                     handler->SendToDB((PacketHeader*)&pkt);
@@ -613,14 +610,14 @@ void StatisticManager::SendDBDeathTowerPlayDataPartyStatistic(CServerHandler* ha
         {
             pkt.m_items[idx].m_deathTowerType = it->first.m_deathTowerType;
             pkt.m_items[idx].m_partyCount = it->first.m_partyCount;
+            pkt.m_items[idx].m_playCount = it->second.m_data[1];
             if (it->second.m_data[1] == 0)
             {
                 it->second.m_data[1] = 1;
             }
             pkt.m_items[idx].m_avgClearCount = it->second.m_data[0] / it->second.m_data[1];
             idx++;
-            bool over = (idx > 0x263);
-            if (over)
+            if (idx > 0x263)
             {
                 pkt.m_count = 0x264;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -712,14 +709,13 @@ void StatisticManager::SendDBAssertManagerStatistic(CServerHandler* handler)
         for (std::map<STAssertManagerKey, int>::iterator it = m_assertManager.begin();
              it != m_assertManager.end(); ++it)
         {
-            STAssertManagerWriteItem* slot = &pkt.m_items[idx];
-            memcpy(slot->m_fileName, it->first.m_fileName, 0x100);
-            slot->m_fileLine = it->first.m_fileLine;
-            slot->m_count = it->second;
-            memcpy(slot->m_reason, it->first.m_reason, 0x100);
+            memcpy((char*)&pkt + idx * 0x206 + 0xe, it->first.m_fileName, 0x100);
+            *(unsigned short*)((char*)&pkt + idx * 0x206 + 0x10e) =
+                it->first.m_fileLine;
+            *(int*)((char*)&pkt + idx * 0x206 + 0x110) = it->second;
+            memcpy((char*)&pkt + idx * 0x206 + 0x114, it->first.m_reason, 0x100);
             idx++;
-            bool over = (idx > 8);
-            if (over)
+            if (idx > 8)
             {
                 pkt.m_count = 9;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -789,8 +785,7 @@ void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
             pkt.m_typed.m_items[idx].m_id = it->first;
             pkt.m_typed.m_items[idx].m_minute = it->second;
             idx++;
-            bool over = (idx > 0x2fd);
-            if (over)
+            if (idx > 0x2fd)
             {
                 pkt.m_typed.m_count = 0x2fe;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -822,8 +817,7 @@ void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_minute = it->first.m_minute;
             pkt.m_items[idx].m_cnt = it->second;
             idx++;
-            bool over = (idx > 0x2fd);
-            if (over)
+            if (idx > 0x2fd)
             {
                 pkt.m_count = 0x2fe;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -882,23 +876,20 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
         for (std::map<STHellPartyStatisticItemKey, HellPartyItenmData>::iterator it =
                  m_hellParty.begin(); it != m_hellParty.end(); ++it)
         {
-            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_hellpartyType =
+            *(unsigned char*)((char*)&pkt + idx * 0x24 + 0xe) =
                 it->first.m_hellpartyType;
-            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_dungeonIndex =
+            *(unsigned int*)((char*)&pkt + idx * 0x24 + 0xf) =
                 it->first.m_dungeonIndex;
-            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_dungeonDiff =
+            *(char*)((char*)&pkt + idx * 0x24 + 0x13) =
                 it->first.m_dungeonDiff;
-            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_partyCount =
+            *(char*)((char*)&pkt + idx * 0x24 + 0x14) =
                 it->first.m_partyCount;
-            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_hellpartyDiff =
+            *(char*)((char*)&pkt + idx * 0x24 + 0x15) =
                 it->first.m_hellpartyDiff;
-            memcpy(((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_data,
-                   it->second.m_data, 0x18);
-            ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_count =
-                it->second.m_count;
+            memcpy((char*)&pkt + idx * 0x24 + 0x1a, it->second.m_data, 0x18);
+            *(int*)((char*)&pkt + idx * 0x24 + 0x16) = it->second.m_count;
             idx++;
-            bool over = (idx > 0xa7);
-            if (over)
+            if (idx > 0xa7)
             {
                 pkt.m_count = 0xa8;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -1586,15 +1577,15 @@ void StatisticManager::ResetValueStatistic()
 }
 void StatisticManager::SendDBValueStatistic(CServerHandler* handler)
 {
-    // ORIG：空 if + else 形态（call empty; test; jne），直接写 !empty() 会物化 xor。
     if (m_value.empty())
     {
+        return;
     }
-    else
     {
         Packet_DBMW_Query_String pkt;
         pkt.m_queryId = 0x4ef5;
-        time_t now = time(0);
+        time_t now;
+        time(&now);
         for (std::map<int, ValueStatisticData>::iterator it = m_value.begin();
              it != m_value.end(); ++it)
         {
@@ -1608,7 +1599,7 @@ void StatisticManager::SendDBValueStatistic(CServerHandler* handler)
                 v->m_data[10], v->m_data[11], v->m_data[12], v->m_data[13], v->m_data[14],
                 v->m_data[15], v->m_data[16], v->m_data[17], v->m_data[18], v->m_data[19],
                 v->m_data[20], v->m_data[21], v->m_data[22], v->m_data[23], v->m_data[24],
-                v->m_data[25], v->m_data[26], v->m_data[27], v->m_data[28]);
+                v->m_data[25]);
             handler->SendToDB((PacketHeader*)&pkt);
         }
     }
@@ -1646,7 +1637,8 @@ void StatisticManager::SendDBCirculationStatistic(CServerHandler* handler)
     }
     Packet_DBMW_Query_String pkt;
     pkt.m_queryId = 0x4ef6;
-    time_t now = time(0);
+    time_t now;
+    time(&now);
     for (std::map<int, CirculationStatisticData>::iterator it = m_circ.begin();
          it != m_circ.end(); ++it)
     {
@@ -1657,14 +1649,13 @@ void StatisticManager::SendDBCirculationStatistic(CServerHandler* handler)
                 "inSert into log_gold_stat(channel_no,occ_time ,level,dungeon_drop,result_card,sell_store,quest_reward,death_tower_reward,illusion_tower_reward,war_area_drop,member_tax,blood_dungeon_reward,blood_dungeon_lotto,power_dungeon_drop,power_dungeon_result_card,buy_store,stamina_recovery,repair_item,private_store_commission,gold_card,gold_drop,upgrade,quest_use,mail_commission,punish_user,restrict_trade,guild_level_up,guild_skill,guild_mail,item_compound,blood_dungeon_enter,buy_cerashop,war_area_enter,assault_gold,upgrade_guild_agit,upgrade_guild_cargo,break_away_reward,link_charac_bonus,ultimate_dungeon_reward,guild_fund,guild_fund_dungeon,quest_shop_init_cost,unseal, lottery, amplify,roi_regen) values(%d,from_unixtime(%d),%d,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u,%u)",
                 1, now, key,
                 v->m_data[0], v->m_data[1], v->m_data[2], v->m_data[3], v->m_data[4],
-                v->m_data[5], v->m_data[6], v->m_data[7], v->m_data[8], v->m_data[9],
-                v->m_data[10], v->m_data[11], v->m_data[12], v->m_data[13], v->m_data[14],
-                v->m_data[15], v->m_data[16], v->m_data[17], v->m_data[18], v->m_data[19],
-                v->m_data[20], v->m_data[21], v->m_data[22], v->m_data[23], v->m_data[24],
-                v->m_data[25], v->m_data[26], v->m_data[27], v->m_data[28], v->m_data[29],
-                v->m_data[30], v->m_data[31], v->m_data[32], v->m_data[33], v->m_data[34],
-                v->m_data[35], v->m_data[36], v->m_data[37], v->m_data[38], v->m_data[39],
-                v->m_data[40], v->m_data[41], v->m_data[42], v->m_data[43], v->m_data[44],
+                v->m_data[5], v->m_data[6], v->m_data[7], v->m_data[11], v->m_data[13],
+                v->m_data[14], v->m_data[15], v->m_data[18], v->m_data[19], v->m_data[20],
+                v->m_data[21], v->m_data[22], v->m_data[24], v->m_data[25], v->m_data[26],
+                v->m_data[27], v->m_data[28], v->m_data[29], v->m_data[30], v->m_data[31],
+                v->m_data[32], v->m_data[33], v->m_data[37], v->m_data[38], v->m_data[35],
+                v->m_data[36], v->m_data[39], v->m_data[40], v->m_data[16], v->m_data[17],
+                v->m_data[12], v->m_data[41], v->m_data[42], v->m_data[43], v->m_data[44],
                 v->m_data[45], v->m_data[46], v->m_data[47]);
             handler->SendToDB((PacketHeader*)&pkt);
         }
@@ -1738,8 +1729,8 @@ void StatisticManager::SendDBSecretShopStatistic(CServerHandler* handler)
             continue;
         }
         int idx = 0;
-        std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it;
-        for (it = m_secretShop[s].begin(); it != m_secretShop[s].end(); )
+        std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it = m_secretShop[s].begin();
+        while (it != m_secretShop[s].end())
         {
             pkt.m_items[idx] = it->second;
             ++it;
