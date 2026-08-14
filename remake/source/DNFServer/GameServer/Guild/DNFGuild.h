@@ -141,7 +141,6 @@ struct STGuildAgitDBInfo
 struct __attribute__((packed)) STGuildMemberChangableInfo
 {
     unsigned int m_time;      // +0
-    char m_pad4[0x1c];        // +4 .. +0x20
 };
 
 // from GuildDomain.h

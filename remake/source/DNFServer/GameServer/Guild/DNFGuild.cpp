@@ -1922,9 +1922,9 @@ void CGuild::DecTotalCnt_Of_GuildDBInfo()
 
 bool CGuild::InsertGuildMemberChanglableInfo(unsigned int charNo)
 {
-    unsigned int timeVal = time(0);
-    // ORIG：仅把 time(0) 的首 dword 当作 changable 信息传入；其余字段 ORIG 未初始化/不使用。
-    return m_changable.insert(std::make_pair(charNo, *(STGuildMemberChangableInfo*)&timeVal)).second;
+    STGuildMemberChangableInfo info;
+    info.m_time = time(0);
+    return m_changable.insert(std::make_pair(charNo, info)).second;
 }
 
 int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
