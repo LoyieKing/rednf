@@ -313,8 +313,26 @@ public:
 class Packet_DB_Load_Request_Guild_Board_Write : public PacketHeader
 {
 public:
-    unsigned int m_guildId;  // +0xb
-    unsigned int m_characNo; // +0x13（OnWriteGuildBoard SQL charac_no）
+    struct __attribute__((packed)) Member
+    {
+        signed char m_job;        // +0
+        signed char m_field1;     // +1（grow_type）
+        unsigned char m_field2;   // +2
+        char m_name[0x1e];        // +3
+    };
+    struct __attribute__((packed)) BoardInfo
+    {
+        char m_pre[0x78];         // +0（memo/board 文本）
+        int m_createTime;         // +0x78
+        int m_no;                 // +0x7c
+        int m_characNo;           // +0x80
+        Member m_member;          // +0x84
+    };
+    unsigned char m_a;            // +0xa
+    unsigned int m_guildId;       // +0xb（SQL guild_id）
+    unsigned int m_id;            // +0xf（SQL m_id；0 时清空 m_info.m_member.m_name）
+    unsigned int m_characNo;      // +0x13（SQL charac_no）
+    BoardInfo m_info;             // +0x17
 } __attribute__((packed));
 
 class Packet_DB_Load_Request_Web_Guild_Board_Write : public PacketHeader
@@ -322,6 +340,7 @@ class Packet_DB_Load_Request_Web_Guild_Board_Write : public PacketHeader
 public:
     unsigned int m_guildKey; // +0xa（guild 侧 canonical m_guildKey）
     unsigned int m_charNo;   // +0xe（guild 侧 canonical m_charNo）
+    unsigned int m_no;       // +0x12（OnWriteWebGuildBoard SQL where no=%u）
 } __attribute__((packed));
 
 class Packet_DB_Load_Request_Guild_Board_Delete : public PacketHeader

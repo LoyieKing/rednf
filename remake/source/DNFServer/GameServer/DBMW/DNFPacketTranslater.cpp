@@ -1938,7 +1938,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
             (Packet_DB_Load_Request_Guild_Board_Open*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         int count = 0;
-        STGuildBoardDBInfo boards[0x32];
+        STGuildBoardDBInfo boards[0x31];
         if (!m_pclApp->m_dbManager.OnLoadGuildBoard(
                 ((FieldViewP<0xa,int>*)pkt)->v, count, boards))
         {

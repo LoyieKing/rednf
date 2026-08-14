@@ -525,17 +525,17 @@ bool CDBManager::OnWriteGuildBoard(
     Packet_DB_Load_Request_Guild_Board_Write* req, STGuildBoardDBInfo* info)
 {
     CDBHandle* h = m_handles[5];    // web db
-    char* r = (char*)req;
-    if (*(unsigned int*)(r + 0xf) == 0)
-        memset(r + 0x9e, 0, 0x1e);
+    if (req->m_id == 0)
+        memset(req->m_info.m_member.m_name, 0, 0x1e);
     h->set_query(0x4f08,
                  "inSert into guild_memo set guild_id=%u, m_id=%s, charac_no=%u, charac_name='%s', memo='%s', create_time=now(), job=%d, grow_type=%d",
-                 *(unsigned int*)(r + 0xb),
-                 NumberToString(*(unsigned int*)(r + 0xf), 0),
-                 *(unsigned int*)(r + 0x13), r + 0x9e,
-                 h->blob_to_str(0, r + 0x17, 0x78),
-                 *(char*)(r + 0x9b), *(char*)(r + 0x9c));
-    if (!h->exec(0x4f08))
+                 req->m_guildId,
+                 NumberToString(req->m_id, 0),
+                 req->m_characNo, req->m_info.m_member.m_name,
+                 h->blob_to_str(0, req->m_info.m_pre, 0x78),
+                 req->m_info.m_member.m_job, req->m_info.m_member.m_field1);
+    bool ret = h->exec(0x4f08);
+    if (!ret)
     {
         CMyFileLog log(__FUNCTION__, 0x22fc);
         log("./log/DBQueryErr", "OnWriteGuildBoard Query Error");
@@ -543,7 +543,8 @@ bool CDBManager::OnWriteGuildBoard(
     }
     h->set_query(0x4f07,
                  "seLect no, unix_timestamp(create_time) from guild_memo where no=LAST_INSERT_ID()");
-    if (!h->exec(0x4f07))
+    ret = h->exec(0x4f07);
+    if (!ret)
     {
         CMyFileLog log(__FUNCTION__, 0x2306);
         log("./log/DBQueryErr", "OnWriteGuildBoard Query Error");
@@ -555,16 +556,16 @@ bool CDBManager::OnWriteGuildBoard(
         return 0;
     if (!h->get_uint(1, *(unsigned int*)&info->m_createTime))
         return 0;
-    if (*(unsigned int*)(r + 0xf) == 0)
+    if (req->m_id == 0)
     {
         info->m_characNo = 0;
     }
     else
     {
-        info->m_characNo = *(unsigned int*)(r + 0x13);
-        info->m_member.m_job = *(char*)(r + 0x9b);
-        memcpy(info->m_member.m_name, r + 0x9e, 0x1e);
-        memcpy(info, r + 0x17, 0x78);
+        info->m_characNo = req->m_characNo;
+        info->m_member.m_job = req->m_info.m_member.m_job;
+        memcpy(info->m_member.m_name, req->m_info.m_member.m_name, 0x1e);
+        memcpy(info, req->m_info.m_pre, 0x78);
     }
     return 1;
 }
@@ -573,11 +574,11 @@ bool CDBManager::OnWriteWebGuildBoard(
     STGuildBoardDBInfo* info)
 {
     CDBHandle* h = m_handles[5];    // web db
-    char* r = (char*)req;
     h->set_query(0x4f07,
                  "seLect no, charac_no, charac_name, memo, unix_timestamp(create_time), job from guild_memo where no=%u",
-                 *(unsigned int*)(r + 0x12));
-    if (!h->exec(0x4f07))
+                 req->m_no);
+    bool ret = h->exec(0x4f07);
+    if (!ret)
     {
         CMyFileLog log(__FUNCTION__, 0x2329);
         log("./log/DBQueryErr", "OnWriteWebGuildBoard Query Error");
@@ -938,7 +939,8 @@ char CDBManager::OnSavePowerWarStatueRanker(
     h2->set_query(0x4ecc,
                   "deLete from event_server_message where server_info = %d and message_index in (1, 2, 3)",
                   serverId);
-    if (h2->exec(0x4ecc) != 1)
+    bool ret = h2->exec(0x4ecc);
+    if (!ret)
     {
         CMyFileLog log(__FUNCTION__, 0x1943);
         log("./log/DBQueryErr", "deLete_power_war_statue_message Query Error\n");
@@ -948,14 +950,14 @@ char CDBManager::OnSavePowerWarStatueRanker(
                  ((PowerWarStatueRankerView*)packet)->m_firstRanker,
                  ((PowerWarStatueRankerView*)packet)->m_secondRanker,
                  ((PowerWarStatueRankerView*)packet)->m_thirdRanker, serverId);
-    if (h->exec(0x4ead) != 1 || h->getAffectedRowCount() == 0)
+    ret = h->exec(0x4ead);
+    if (!ret || h->getAffectedRowCount() == 0)
     {
-        if (!h->set_query(0x4eac,
-                          "inSert into power_war_statue_ranker set first_ranker=%d, second_ranker=%d, third_ranker=%d, server_id=%d",
-                          ((PowerWarStatueRankerView*)packet)->m_firstRanker,
-                          ((PowerWarStatueRankerView*)packet)->m_secondRanker,
-                          ((PowerWarStatueRankerView*)packet)->m_thirdRanker, serverId))
-            return 0;
+        h->set_query(0x4eac,
+                     "inSert into power_war_statue_ranker set first_ranker=%d, second_ranker=%d, third_ranker=%d, server_id=%d",
+                     ((PowerWarStatueRankerView*)packet)->m_firstRanker,
+                     ((PowerWarStatueRankerView*)packet)->m_secondRanker,
+                     ((PowerWarStatueRankerView*)packet)->m_thirdRanker, serverId);
         if (!h->exec(0x4eac))
         {
             CMyFileLog log(__FUNCTION__, 0x195a);
@@ -2058,10 +2060,10 @@ char CDBManager::OnServerMatchData(Packet_Server_Match_data_DBMW* packet)
 char CDBManager::OnManagerEventTriggerAck(
     Packet_Manager_Event_Trigger_Ack* packet)
 {
-    CDBHandle* h = m_handles[1];    // account db
     unsigned int eventId = ((ManagerEventTriggerAckView*)packet)->m_eventId;
     int kind = ((ManagerEventTriggerAckView*)packet)->m_flag;
     unsigned int group = ((ManagerEventTriggerAckView*)packet)->m_group;
+    CDBHandle* h = m_handles[1];    // account db
     if (kind == 2)
     {
         h->set_query(0x4eff,
@@ -3059,9 +3061,9 @@ char CDBManager::SaveMemberDelete(unsigned int characNo, unsigned int masterNo,
                      "upDate charac_members set  master_no = 0 , exp = 0, delete_time = now() where charac_no=%d",
                      masterNo);
         r = h->exec(0x4e4f);
-        if (!r)
-            return 0;
     }
+    if (!r)
+        return 0;
     return 1;
 }
 bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
@@ -6701,20 +6703,17 @@ bool CDBManager::updateCompatibilityIndex(
 char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
-    SecretShopStatisticView* view = (SecretShopStatisticView*)packet;
-    for (int i = 0; i < view->m_count; i++)
+    for (int i = 0; i < ((SecretShopStatisticView*)packet)->m_count; i++)
     {
-        int* rec = &view->m_data[i * 5];
         h->set_query(0x4efc,
                      "upDate log_secret_shop set show_count=show_count+%d,show_charac_count=show_charac_count+%d,buy_count=buy_count+%d,price=price+%d where occ_date=cast(now() as date) and dungeon_idx=%d and npc_idx=%d",
-                     rec[1],
-                     rec[2],
-                     rec[3],
-                     rec[4],
-                     rec[0],
-                     view->m_shopIdx);
-        bool cVar1 = h->exec(0x4efc);
-        if (!cVar1)
+                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 1],
+                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 2],
+                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 3],
+                     ((SecretShopStatisticView*)packet)->m_data[i * 5 + 4],
+                     ((SecretShopStatisticView*)packet)->m_data[i * 5],
+                     ((SecretShopStatisticView*)packet)->m_shopIdx);
+        if (!h->exec(0x4efc))
         {
             CMyFileLog log(__FUNCTION__, 0x21bd);
             log("./log/DBQueryErr",
@@ -6725,14 +6724,13 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
             h->set_query(
                 0x4efb,
                 "inSert into log_secret_shop(occ_date,npc_idx,dungeon_idx,show_count,show_charac_count,buy_count,price) values(cast(now() as date), %d, %d, %d, %d, %d, %d)",
-                view->m_shopIdx,
-                rec[0],
-                rec[1],
-                rec[2],
-                rec[3],
-                rec[4]);
-            cVar1 = h->exec(0x4efb);
-            if (!cVar1)
+                ((SecretShopStatisticView*)packet)->m_shopIdx,
+                ((SecretShopStatisticView*)packet)->m_data[i * 5],
+                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 1],
+                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 2],
+                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 3],
+                ((SecretShopStatisticView*)packet)->m_data[i * 5 + 4]);
+            if (!h->exec(0x4efb))
             {
                 CMyFileLog log(__FUNCTION__, 0x21cb);
                 log("./log/DBQueryErr",

@@ -48,7 +48,7 @@ void CQueryCounter::WriteDBLog(CDBManager& db)
     m_interval--;
     while (m_interval > 0)
         return;
-    for (unsigned int q = 0x4e21; q <= 0x4f60U; q++)
+    for (int q = 0x4e21; q <= 0x4f60; q++)
     {
         if (!db.UpdateQueryCount(q, m_counts[q - 0x4e20],
                                  (int)(m_responseTimes[q - 0x4e20] * 1000.0)))
