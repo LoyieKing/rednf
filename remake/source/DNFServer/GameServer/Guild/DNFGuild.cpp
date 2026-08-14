@@ -1297,18 +1297,22 @@ void CGuild::NoticeGuildMemberLogin_Out(CUser* user, char flag)
 int CGuild::ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info)
 {
     int count = 0;
-    if ((m_guildDBFlag & 4) != 0 && !m_members.empty())
+    if ((m_guildDBFlag & 4) != 0)
     {
-        for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
-             it != m_members.end() && count < 300; ++it)
+        if (m_members.empty())
         {
-            if (it->second != 0)
+            return 0;
+        }
+        std::map<unsigned int, CUser*>::iterator it;
+        for (it = m_members.begin(); it != m_members.end(); ++it)
+        {
+            if (it->second != 0 && !(299 < count))
             {
-                info->m_members[count].m_charNo = it->second->GetUniqCharNo();
+                STGuildMemberWebConnInfo_Rec* rec = &info->m_members[count];
+                rec->m_charNo = it->second->GetUniqCharNo();
                 if (it->second->GetGameServer() != 0)
                 {
-                    info->m_members[count].m_channel =
-                        it->second->GetGameServer()->GetChannelNo();
+                    rec->m_channel = it->second->GetGameServer()->GetChannelNo();
                 }
                 count++;
             }

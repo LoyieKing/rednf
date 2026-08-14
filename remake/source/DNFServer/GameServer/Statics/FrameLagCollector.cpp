@@ -460,7 +460,7 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
         return 2;
     }
     m_field10++;
-    if (!(m_collectInterval <= m_field10))
+    if (m_field10 < m_collectInterval)
     {
         return 0;
     }
@@ -470,76 +470,73 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
         return 0;
     }
     Packet_Frame_Lag_Statistic_Write_Lag_Index pkt;
-    char* pb = (char*)&pkt;
-    pb[10] = (char)handler->GetServerGroupNo();
-    // ORIG：time(&t) 后再拷贝到 now（now 实际未用于报文，仅为复现 ORIG 代码形态）
+    pkt.m_data[0] = (char)handler->GetServerGroupNo();
     time_t t;
     time(&t);
     time_t now = t;
-    for (std::map<int, FrameLagDataStruct>::iterator it = m_data.begin();
-         it != m_data.end(); ++it)
+    (void)now;
+    std::map<int, FrameLagDataStruct>::iterator it;
+    for (it = m_data.begin(); it != m_data.end(); ++it)
     {
-        // ORIG 对 map value 的读写全部以 pair 基址（it.operator->()）为基准：
-        // value 在 pair+4。偏移表达式按 ORIG 反汇编逐槽位核对过。
-        char* v = (char*)it.operator->();
-        *(int*)(pb + 0xb) = it->first;
-        *(int*)(pb + 0xf) = *(int*)((char*)v + 4);
-        for (int i = 0; i < 8; i++)
+        FrameLagDataLayout* rec = (FrameLagDataLayout*)&it->second;
+        *(int*)(pkt.m_data + 1) = it->first;
+        *(int*)(pkt.m_data + 5) = rec->m0;
+        int i;
+        for (i = 0; i < 8; i++)
         {
-            *(short*)(pb + 0x13 + i * 2) = *(short*)((char*)v + 0x10 + (i + 8) * 2);
+            *(short*)(pkt.m_data + 9 + i * 2) = rec->m_b[i + 8];
         }
-        if (*(int*)((char*)v + 0x30) == 0)
+        if (rec->m_c[0] == 0)
         {
-            *(short*)(pb + 0x23) = -1;
-            *(short*)(pb + 0x25) = -1;
+            *(short*)(pkt.m_data + 0x19) = -1;
+            *(short*)(pkt.m_data + 0x1b) = -1;
         }
         else
         {
-            *(short*)(pb + 0x23) = (short)((double)(*(int*)((char*)v + 0x34)) /
-                                           (double)(*(unsigned int*)((char*)v + 0x30)) + 0.5);
-            *(short*)(pb + 0x25) = (short)((double)(*(int*)((char*)v + 0x38)) /
-                                           (double)(*(unsigned int*)((char*)v + 0x30)) + 0.5);
+            *(short*)(pkt.m_data + 0x19) =
+                (short)((double)rec->m_c[1] /
+                        (double)(unsigned int)rec->m_c[0] + 0.5);
+            *(short*)(pkt.m_data + 0x1b) =
+                (short)((double)rec->m_c[2] /
+                        (double)(unsigned int)rec->m_c[0] + 0.5);
         }
-        for (int i = 0; i < 6; i++)
+        for (i = 0; i < 6; i++)
         {
-            *(short*)(pb + 0x27 + i * 0x38 + 0) = 0;
-            *(short*)(pb + 0x27 + i * 0x38 + 2) = 0;
-            *(short*)(pb + 0x27 + i * 0x38 + 4) = 0;
-            *(short*)(pb + 0x27 + i * 0x38 + 6) = 0;
-            if (0 < *(int*)((char*)v + (i + 9) * 0x10 + 0xc))
+            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 0) = 0;
+            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 2) = 0;
+            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 4) = 0;
+            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 6) = 0;
+            if (0 < rec->m_h[i][0])
             {
-                *(short*)(pb + 0x27 + i * 0x38 + 0) =
-                    (short)(*(int*)((char*)v + 0xc + (i + 0xc) * 4) /
-                            *(int*)((char*)v + (i + 9) * 0x10 + 0xc));
+                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 0) =
+                    (short)(rec->m_d[i] / rec->m_h[i][0]);
             }
-            if (0 < *(int*)((char*)v + i * 0x10 + 0xa0))
+            if (0 < rec->m_h[i][1])
             {
-                *(short*)(pb + 0x27 + i * 0x38 + 2) =
-                    (short)(*(int*)((char*)v + 4 + (i + 0x14) * 4) /
-                            *(int*)((char*)v + i * 0x10 + 0xa0));
+                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 2) =
+                    (short)(rec->m_e[i] / rec->m_h[i][1]);
             }
-            if (0 < *(int*)((char*)v + i * 0x10 + 0xa4))
+            if (0 < rec->m_h[i][2])
             {
-                *(short*)(pb + 0x27 + i * 0x38 + 4) =
-                    (short)(*(int*)((char*)v + 0xc + (i + 0x18) * 4) /
-                            *(int*)((char*)v + i * 0x10 + 0xa4));
+                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 4) =
+                    (short)(rec->m_f[i] / rec->m_h[i][2]);
             }
-            if (0 < *(int*)((char*)v + i * 0x10 + 0xa8))
+            if (0 < rec->m_h[i][3])
             {
-                *(short*)(pb + 0x27 + i * 0x38 + 6) =
-                    (short)(*(int*)((char*)v + 4 + (i + 0x20) * 4) /
-                            *(int*)((char*)v + i * 0x10 + 0xa8));
+                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 6) =
+                    (short)(rec->m_g[i] / rec->m_h[i][3]);
             }
-            for (int j = 0; j < 6; j++)
+            int j;
+            for (j = 0; j < 6; j++)
             {
-                *(int*)(pb + 0xf + (i * 7 + j + 4) * 8) =
-                    *(int*)((char*)v + 0x14 + (i * 7 + j + 0x1e) * 8);
-                *(int*)(pb + 0x13 + (i * 7 + j + 4) * 8) =
-                    *(int*)((char*)v + 0x18 + (i * 7 + j + 0x1e) * 8);
+                *(int*)(pkt.m_data + 5 + (i * 7 + j + 4) * 8) =
+                    rec->m_i[i * 7 + j][0];
+                *(int*)(pkt.m_data + 9 + (i * 7 + j + 4) * 8) =
+                    rec->m_i[i * 7 + j][1];
             }
         }
         handler->SendToDB((PacketHeader*)&pkt);
-        ((FrameLagDataStruct*)((char*)v + 4))->init();
+        it->second.init();
         DNFFLib::Sleep_Ext(0, 1);
     }
     m_field6c = 0;
@@ -548,6 +545,7 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
     {
         m_collectInterval = 0x1e;
     }
+    return 0;
 }
 int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
 {

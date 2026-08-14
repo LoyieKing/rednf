@@ -13,6 +13,9 @@
 #include "Packet_Value_Statistic.h"
 #include "Packet_Circulation_Statistic.h"
 #include "Packet_Emblem_Create_Statistic.h"
+#include "Packet_Avater_Disjoint_Statistic.h"
+#include "Packet_Goldcard_Event_Statistic_GTS.h"
+#include "Packet_TowerOfDespair_Statistic_GTS.h"
 
 // AddLoadingTimeReportStatistics 的报文视图（+0xa 的 int[9]；+0x2e 起 powerwar 段；+0x3b8 起 lag 段）
 struct __attribute__((packed)) LoadingValsWire
@@ -1304,20 +1307,7 @@ void StatisticManager::AddReasonCrashDownData(Packet_Reason_Crash_Down_Info* pkt
 }
 void StatisticManager::AddDisjointAvatarInfo(Packet_Avater_Disjoint_Statistic* pkt)
 {
-    struct __attribute__((packed)) Item
-    {
-        int m_a;
-        int m_b;
-        char m_c;
-        int m_d;
-    };
-    struct __attribute__((packed)) Wire
-    {
-        char m_hdr[0xa];
-        int m_count;
-        Item m_items[3];
-    };
-    int count = ((Wire*)pkt)->m_count;
+    int count = pkt->m_count;
     if (count < 0)
     {
         return;
@@ -1328,10 +1318,10 @@ void StatisticManager::AddDisjointAvatarInfo(Packet_Avater_Disjoint_Statistic* p
     }
     for (int i = 0; i < count; i++)
     {
-        int a = ((Wire*)pkt)->m_items[i].m_a;
-        int b = ((Wire*)pkt)->m_items[i].m_b;
-        int c = (int)(char)((Wire*)pkt)->m_items[i].m_c;
-        int d = ((Wire*)pkt)->m_items[i].m_d;
+        int a = pkt->m_items[i].m_a;
+        int b = pkt->m_items[i].m_b;
+        int c = (int)(char)pkt->m_items[i].m_c;
+        int d = pkt->m_items[i].m_d;
         m_disjoint.incCount(a, b, c, d);
     }
 }
@@ -1728,24 +1718,22 @@ void StatisticManager::AddSecretShopStatistic(Packet_Secret_Shop_Statistic* pkt)
 }
 void StatisticManager::SendDBSecretShopStatistic(CServerHandler* handler)
 {
-    for (int s = 0; s < 3; s++)
+    Packet_Secret_Shop_Statistic pkt;
+    int s;
+    for (s = 0; s < 3; s++)
     {
-        if (m_secretShop[s].empty())
+        pkt.m_shopIdx = s;
+        pkt.m_count = m_secretShop[s].size();
+        if (pkt.m_count <= 0)
         {
             continue;
         }
-        Packet_Secret_Shop_Statistic pkt;
-        pkt.m_count = m_secretShop[s].size();
-        pkt.m_shopIdx = s;
         int idx = 0;
-        for (std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it = m_secretShop[s].begin();
-             it != m_secretShop[s].end(); ++it)
+        std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it;
+        for (it = m_secretShop[s].begin(); it != m_secretShop[s].end(); )
         {
-            pkt.m_items[idx].m_data[0] = it->first;
-            for (int k = 1; k < 5; k++)
-            {
-                pkt.m_items[idx].m_data[k] = it->second.m_data[k];
-            }
+            pkt.m_items[idx] = it->second;
+            ++it;
             idx++;
         }
         handler->SendToDB((PacketHeader*)&pkt);
@@ -1760,18 +1748,11 @@ void StatisticManager::ResetSecretShopStatistic()
 }
 void StatisticManager::AddGoldcardEventStatistic(Packet_Goldcard_Event_Statistic_GTS* pkt)
 {
-    struct __attribute__((packed)) Wire
-    {
-        char m_hdr[0xa];
-        char m_f0a;
-        int m_f0b;
-        int m_f0f;
-    };
-    int idx = (unsigned char)((Wire*)pkt)->m_f0a;
+    int idx = (unsigned char)pkt->m_level;
     if (0 <= idx && idx < 100)
     {
-        m_goldcard[idx].m_createCnt += ((Wire*)pkt)->m_f0b;
-        m_goldcard[idx].m_openCnt += ((Wire*)pkt)->m_f0f;
+        m_goldcard[idx].m_createCnt += pkt->m_createCnt;
+        m_goldcard[idx].m_openCnt += pkt->m_openCnt;
     }
 }
 void StatisticManager::SendDBGoldcardEventStatistic(CServerHandler* handler)
@@ -1786,33 +1767,26 @@ void StatisticManager::ResetGoldcardEventStatistic()
 }
 void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statistic_GTS* pkt)
 {
-    struct __attribute__((packed)) Wire
-    {
-        char m_hdr[0xe];
-        int m_f0e;
-        char m_f12;
-        unsigned int m_f13;
-    };
     if (pkt == 0)
     {
         return;
     }
-    if (((Wire*)pkt)->m_f0e <= 0)
+    if (pkt->m_layer <= 0)
     {
         return;
     }
-    if (0x64 < ((Wire*)pkt)->m_f0e)
+    if (0x64 < pkt->m_layer)
     {
         return;
     }
-    if (((Wire*)pkt)->m_f12 == 0)
+    if (pkt->m_enterFlag != 0)
     {
-        *(int*)((char*)this + (((Wire*)pkt)->m_f0e + 0x100) * 8 + 7) += 1;
+        m_tower[pkt->m_layer].m_enter = m_tower[pkt->m_layer].m_enter + 1;
+        m_serverList.insert(pkt->m_serverId);
     }
     else
     {
-        *(int*)((char*)this + (((Wire*)pkt)->m_f0e + 0x100) * 8 + 0xb) += 1;
-        m_serverList.insert(((Wire*)pkt)->m_f13);
+        m_tower[pkt->m_layer].m_success = m_tower[pkt->m_layer].m_success + 1;
     }
 }
 void StatisticManager::SendDBTowerOfDespairStatistic(CServerHandler* handler)

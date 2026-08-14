@@ -86,9 +86,9 @@ void stDisjointAvatarInfoTotal::clear()
         {
             for (k = 0; k < 2; k++)
             {
-                m_data[(i * 9 + j) * 2 + k] = 0;
+                m_count[i][j][k] = 0;
             }
-            m_data[(i * 9 + j + 0x34) + 2] = 0;
+            m_sum[i][j] = 0;
         }
     }
 }
@@ -103,8 +103,8 @@ void stDisjointAvatarInfoTotal::incCount(int a, int b, int c, int d)
 {
     if (checkCondition(a, b, c))
     {
-        m_data[(a * 9 + b) * 2 + c] += 1;
-        m_data[a * 9 + b + 0x34 + 2] += d;
+        m_count[a][b][c] = m_count[a][b][c] + 1;
+        m_sum[a][b] = m_sum[a][b] + d;
     }
 }
 Packet_Avater_Disjoint_Statistic_DB::Packet_Avater_Disjoint_Statistic_DB()

@@ -63,54 +63,63 @@ void CTcpNetworkThread::attach(CTcpNetSystem* net)
 }
 void CTcpNetworkThread::dispatch(void* param)
 {
+    CPeer* peer = 0;
+    int nEvent = 0;
     m_runningFlag = 1;
     DNFFLib::Sleep_Ext(5, 0);
     try
     {
-        while (1)
+        while (m_runningFlag)
         {
-            if (!m_runningFlag)
-            {
-                CMyFileLog log(__FUNCTION__, 0xae);
-                log("./log/TcpRecv", "RecvThread Terminate");
-                break;
-            }
             errno = 0;
             DNFFLib::Sleep_Ext(0, 5);
-            if (!m_net)
-                break;
+            if (m_net == 0)
+            {
+                continue;
+            }
             m_net->SetEpollAcceptedPeers();
             m_net->SendPacket();
-            int nEvent = m_net->WaitForEvent();
+            nEvent = m_net->WaitForEvent();
             if (nEvent == 0)
+            {
                 continue;
+            }
             if (nEvent < 0)
             {
-                if (errno == 0x4)
+                if (errno == 4)
+                {
                     continue;
+                }
                 if (errno != 0)
-                    break;
+                {
+                    return;
+                }
             }
             for (int i = 0; i < nEvent; i++)
             {
-                CPeer* peer = (CPeer*)m_handler->GetEventPtr(i);
-                if (peer && m_handler->IsSetInEvent(i))
+                peer = (CPeer*)m_handler->GetEventPtr(i);
+                if (peer != 0 && m_handler->IsSetInEvent(i))
                 {
-                    if (!peer->RecvPacket())
+                    if (peer->RecvPacket() != 1)
                     {
                         peer->DisConnSig();
                         m_net->DeletePeer(peer);
                         peer = 0;
                     }
                 }
-                if (peer && peer->get_remain_sendlen() != 0 &&
-                    m_handler->IsSetOutEvent(i) && peer->get_remain_sendlen() <= 0x1800)
+                if (peer != 0 && peer->get_remain_sendlen() != 0 &&
+                    m_handler->IsSetOutEvent(i))
                 {
-                    peer->send_packet();
+                    if ((unsigned int)peer->get_remain_sendlen() <= 0x1800)
+                    {
+                        peer->send_packet();
+                    }
                 }
                 m_handler->IsSetErrEvent(i);
             }
         }
+        CMyFileLog log(__FUNCTION__, 0xae);
+        log("./log/TcpRecv", "RecvThread Terminate");
     }
     catch (CDNFException& e)
     {

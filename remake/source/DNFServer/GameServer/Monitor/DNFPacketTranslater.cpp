@@ -16,6 +16,7 @@
 #include <sys/times.h>
 #include <algorithm>
 #include <new>
+#include <string>
 
 #include "DNFPacketTranslater.h"
 #include "DNFFileLog.h"
@@ -4377,16 +4378,17 @@ void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
         (CTcpGameServer*)m_pclApp->FindTcpGameServer(acc->m_connNo);
     if (tcpGs != 0)
     {
-        int type = acc->m_type;
-        std::string name2(acc->m_name2);
-        std::string name1(acc->m_name1);
         acc->m_result = (char)m_pclApp->AddAccusationCharac(
-            name1, name2, type, acc->m_result);
+            std::string(acc->m_name1),
+            std::string(acc->m_name2),
+            acc->m_type,
+            acc->m_result);
         char* buf = tcpGs->makePacketHeader(0x1b66, 0x15f);
         if (buf != 0)
         {
-            memcpy(buf, pkt, 0x15f);
-            tcpGs->SendToGameServer(buf);
+            char* out = buf;
+            memcpy(out, acc, 0x15f);
+            tcpGs->SendToGameServer(out);
         }
     }
 }

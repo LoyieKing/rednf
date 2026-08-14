@@ -305,8 +305,8 @@ struct CACHE_CHARACTER_TYPE
 struct CCacheCharacterTime
 {
     CCacheCharacterTime() : m_time(0), m_charNo(0) {}
-    int m_time;    // +0
-    int m_charNo;  // +4
+    int m_time;             // +0
+    unsigned int m_charNo;  // +4
     bool operator<(const CCacheCharacterTime& other) const
     {
         return m_time >= other.m_time;

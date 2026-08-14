@@ -32,14 +32,12 @@ void CommonTime::SetCurTime()
     time_t t;
     time(&t);
     tm* p = localtime(&t);
-    register int v0 = p->tm_year - 100;
-    register int v1 = p->tm_mon + 1;
-    m_year = (unsigned char)v0;
-    m_month = (unsigned char)v1;
-    m_day = (unsigned char)(p->tm_mday);
-    m_hour = (unsigned char)(p->tm_hour);
-    m_minute = (unsigned char)(p->tm_min);
-    m_wday = (unsigned char)(p->tm_wday);
+    m_year = p->tm_year - 0x64;
+    m_month = p->tm_mon + 1;
+    m_day = p->tm_mday;
+    m_hour = p->tm_hour;
+    m_minute = p->tm_min;
+    m_wday = p->tm_wday;
 }
 
 CSystemTime::CSystemTime()

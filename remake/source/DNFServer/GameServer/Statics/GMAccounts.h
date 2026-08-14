@@ -353,7 +353,8 @@ struct stDisjointAvatarInfoTotal
     void clear();
     bool checkCondition(int a, int b, int c);
     void incCount(int a, int b, int c, int d);
-    int m_data[0x51];   // 0x144 字节（ORIG 按 int 索引寻址）
+    int m_count[3][9][2];  // +0，54 个 int（ORIG 下标 (a*9+b)*2+c）
+    int m_sum[3][9];       // +0xd8，27 个 int（ORIG 下标 a*9+b+0x36）
 };
 
 // ---- stCreateEmblemStatistic：0x1c ----

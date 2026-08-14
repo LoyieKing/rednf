@@ -366,29 +366,7 @@ void CMember::IncConnLowerMemberExp(unsigned int uCharNo, unsigned int maxExp)
 
 int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int maxExp)
 {
-    if (index < (int)(unsigned int)m_dbInfo.m_count27)
-    {
-        ST_MemberProxy* proxy = &m_dbInfo.m_lowers[index];
-        if (proxy->m_charNo == uCharNo)
-        {
-            proxy->m_exp = proxy->m_exp + 1;
-            if (maxExp < proxy->m_exp)
-            {
-                proxy->m_exp = proxy->m_exp - 1;
-                return 0;
-            }
-            return proxy->m_exp;
-        }
-        else
-        {
-            DNF_LOG_SCOPE_LINE(0x28c,"./log/Member2Except",
-                "CMember::IncConnLowerMemberExp  ,  stMemberLowerProxy.m_uCharId(%d) != "
-                "uCharNo(%d)",
-                proxy->m_charNo, uCharNo);
-            return 0;
-        }
-    }
-    else
+    if ((int)(unsigned int)m_dbInfo.m_count27 <= index)
     {
         DNF_LOG_SCOPE_LINE(0x284,"./log/Member2Except",
             "CMember::IncConnLowerMemberExp  ,  index(%d) >= "
@@ -396,6 +374,22 @@ int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int
             index, (unsigned int)m_dbInfo.m_count27);
         return 0;
     }
+    ST_MemberProxy* proxy = &m_dbInfo.m_lowers[index];
+    if (proxy->m_charNo != uCharNo)
+    {
+        DNF_LOG_SCOPE_LINE(0x28c,"./log/Member2Except",
+            "CMember::IncConnLowerMemberExp  ,  stMemberLowerProxy.m_uCharId(%d) != "
+            "uCharNo(%d)",
+            proxy->m_charNo, uCharNo);
+        return 0;
+    }
+    proxy->m_exp = proxy->m_exp + 1;
+    if (maxExp < proxy->m_exp)
+    {
+        proxy->m_exp = proxy->m_exp - 1;
+        return 0;
+    }
+    return proxy->m_exp;
 }
 
 void CMember::NoticeLevelUpToLowers(unsigned int level)

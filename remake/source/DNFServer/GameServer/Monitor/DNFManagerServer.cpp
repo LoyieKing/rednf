@@ -334,23 +334,26 @@ bool CCacheCharacterMgr::CollectGarbage()
     bool result = 0;
     CCacheCharacterTime top;
     time_t now = time(0);
-    while (!m_timeQueue.empty())
+    while (1)
     {
+        if (m_timeQueue.empty())
+        {
+            return result;
+        }
         top = m_timeQueue.top();
         if (now - top.m_time <= 0x1d)
         {
             return result;
         }
         std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator it =
-            m_cache.find((unsigned int)top.m_charNo);
-        if (it != m_cache.end() && 0x1d < now - it->second.m_time)
+            m_cache.find(top.m_charNo);
+        if (it != m_cache.end() && now - it->second.m_time > 0x1d)
         {
             m_cache.erase(it);
             result = 1;
         }
         m_timeQueue.pop();
     }
-    return result;
 }
 
 void CCacheCharacterMgr::Reset()

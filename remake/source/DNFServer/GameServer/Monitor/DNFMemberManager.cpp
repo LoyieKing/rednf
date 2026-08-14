@@ -344,21 +344,18 @@ CMember* CMemberManager::CreateMemberQuery(unsigned int key, CUser* user, CServe
 
 int CMemberManager::InsertMember(unsigned int key, CMember* member)
 {
-    if (member == 0)
-    {
-        DNF_LOG_SCOPE_LINE(0x87, "./log/Member", "[INSERT_ERR] Member Key : %d\tpclMember == 0", key);
-        return 0;
-    }
-    else
+    if (member != 0)
     {
         std::pair<std::map<unsigned int, CMember*>::iterator, bool> r =
-            m_members.insert(std::pair<const unsigned int, CMember*>(key, member));
-        if (!r.second)
+            m_members.insert(std::make_pair(key, member));
+        if (r.second == 0)
         {
             DNF_LOG_SCOPE_LINE(0x83, "./log/Member", "[INSERT_ERR] Member Key : %d\tAlready Member Exist", key);
         }
         return 1;
     }
+    DNF_LOG_SCOPE_LINE(0x87, "./log/Member", "[INSERT_ERR] Member Key : %d\tpclMember == 0", key);
+    return 0;
 }
 
 void CMemberManager::SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUser* u2,
