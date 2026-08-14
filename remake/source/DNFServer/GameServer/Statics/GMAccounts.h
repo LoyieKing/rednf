@@ -491,8 +491,8 @@ struct STDeathTowerValueWireItem
     unsigned char m_type;   // +0（log_deathtower_value.type）
     unsigned short m_level; // +1（log_deathtower_value.level）
     unsigned int m_counterIdx; // +3（log_deathtower_value 计数器下标）
-    int m_value;            // +7（对应计数器的增量）
-    char m_pad[4];          // +0xb
+    char m_pad[4];          // +7
+    int m_value;            // +0xb（对应计数器的增量）
 };
 
 struct STDeathTowerPlayDataJobWireItem

@@ -24,7 +24,19 @@ class Packet_Frame_Lag_Statistic_Write_Lag_Index : public PacketHeader
 {
 public:
     Packet_Frame_Lag_Statistic_Write_Lag_Index();
-    char m_data[0x171];  // +0xa（packetSize 0x17b）
+    struct Item
+    {
+        short m_s[4];      // +0x00（相对 item 基址）
+        int m_pair[6][2];  // +0x08（0x30 字节）
+    };
+    char m_serverGroup;    // +0xa
+    int m_key;             // +0xb
+    int m_value;           // +0xf
+    short m_part[8];       // +0x13
+    short m_ratio1;        // +0x23
+    short m_ratio2;        // +0x25
+    Item m_items[6];       // +0x27（每项 0x38）
+    char m_tail[4];        // +0x177
 };
 
 class Packet_Frame_Lag_Statistic_Write_Query : public PacketHeader

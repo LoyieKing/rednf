@@ -495,8 +495,8 @@ public:
     Packet_Guild_Notify_Guild_Member_Memo();
     int m_channel;            // +0xa（GetIdByChannel）
     unsigned int m_charNo;    // +0xe（GetUniqCharNo）
-    char m_name[0x1d];        // +0x12
-    char m_memo[0x14];        // +0x30
+    char m_name[0x1e];        // +0x12
+    char m_memo[0x15];        // +0x30
 };
 
 // from GuildPackets.h

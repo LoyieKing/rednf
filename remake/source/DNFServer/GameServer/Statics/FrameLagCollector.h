@@ -51,7 +51,17 @@ public:
     public:
         FrameLagDataStruct();
         void init();
-        int m_data[0x92];    // +0（实际大小 0x248，map 节点 0x25c）
+        int m0;              // +0x00
+        int m_a[2];          // +0x04（accFrameLagStruct/init 会越界访问到 [5]）
+        short m_b[16];       // +0x0c
+        int m_c[3];          // +0x2c
+        int m_d[6];          // +0x38
+        int m_e[6];          // +0x50
+        int m_f[6];          // +0x68
+        int m_g[6];          // +0x80
+        int m_h[6][4];       // +0x98
+        int m_pad[2];        // +0xf8
+        int m_i[41][2];      // +0x100（总计 0x248）
     };
     class MonitoringSpecCase
     {

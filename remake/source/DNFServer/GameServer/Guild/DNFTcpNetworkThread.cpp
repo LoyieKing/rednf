@@ -131,7 +131,10 @@ void CTcpNetworkThread::dispatch(void* param)
                     if (peer != 0 && peer->get_remain_sendlen() != 0 &&
                         ((CTcpHandler*)m_handler)->IsSetOutEvent(i))
                     {
-                        if ((unsigned int)peer->get_remain_sendlen() <= 0x1800)
+                        if ((unsigned int)peer->get_remain_sendlen() > 0x1800)
+                        {
+                        }
+                        else
                         {
                             peer->send_packet();
                         }

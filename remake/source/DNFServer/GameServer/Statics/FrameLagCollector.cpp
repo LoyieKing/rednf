@@ -94,22 +94,6 @@ struct FrameLagAccItem
     char m_rest[0x28];  // 补齐至 0x38
 } __attribute__((packed));
 
-// FrameLagDataStruct 的命名成员视图（与 ORIG 反汇编逐槽位核对）
-struct FrameLagDataLayout
-{
-    int m0;          // +0x00
-    int m_a[2];      // +0x04 (view; accessed up to [5])
-    short m_b[16];   // +0x0c
-    int m_c[3];      // +0x2c
-    int m_d[6];      // +0x38
-    int m_e[6];      // +0x50
-    int m_f[6];      // +0x68
-    int m_g[6];      // +0x80
-    int m_h[6][4];   // +0x98
-    int m_pad[2];    // +0xf8
-    int m_i[41][2];  // +0x100
-};
-
 int FrameLagCollector::GetCollectInterval()
 {
     return m_collectInterval;
@@ -272,17 +256,17 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
             if (fd != m_data.end())
             {
                 FrameLagDataStruct* v = &fd->second;
-                v->m_data[0] = v->m_data[0] + 1;
+                v->m0 = v->m0 + 1;
                 if (-1 < (char)((FrameLagPktHeader*)pkt)->m_module &&
                     (char)((FrameLagPktHeader*)pkt)->m_module < 8)
                 {
-                    ((FrameLagDataLayout*)v)->m_b[((char)((FrameLagPktHeader*)pkt)->m_module + 8)] += 1;
+                    v->m_b[((char)((FrameLagPktHeader*)pkt)->m_module + 8)] += 1;
                 }
                 if (-1 < ((FrameLagPktHeader*)pkt)->m_sum1)
                 {
-                    ((FrameLagDataLayout*)v)->m_c[1] += (int)((FrameLagPktHeader*)pkt)->m_sum1;
-                    ((FrameLagDataLayout*)v)->m_c[2] += (int)((FrameLagPktHeader*)pkt)->m_sum2;
-                    ((FrameLagDataLayout*)v)->m_c[0] += 1;
+                    v->m_c[1] += (int)((FrameLagPktHeader*)pkt)->m_sum1;
+                    v->m_c[2] += (int)((FrameLagPktHeader*)pkt)->m_sum2;
+                    v->m_c[0] += 1;
                 }
                 accFrameLagStruct(*v, (FrameLagStruct*)((char*)pkt + 0x24));
             }
@@ -460,87 +444,83 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
         return 2;
     }
     m_field10++;
-    if (m_field10 < m_collectInterval)
+    if (m_field10 >= m_collectInterval)
     {
-        return 0;
+        m_field10 = 0;
+        if (m_field6c == 0)
+        {
+            return 0;
+        }
+        Packet_Frame_Lag_Statistic_Write_Lag_Index pkt;
+        pkt.m_serverGroup = (char)handler->GetServerGroupNo();
+        time_t t;
+        time(&t);
+        time_t now = t;
+        (void)now;
+        std::map<int, FrameLagDataStruct>::iterator it;
+        for (it = m_data.begin(); it != m_data.end(); ++it)
+        {
+            pkt.m_key = it->first;
+            pkt.m_value = it->second.m0;
+            int i;
+            for (i = 0; i < 8; i++)
+            {
+                pkt.m_part[i] = it->second.m_b[i + 8];
+            }
+            if (it->second.m_c[0] == 0)
+            {
+                pkt.m_ratio1 = -1;
+                pkt.m_ratio2 = -1;
+            }
+            else
+            {
+                pkt.m_ratio1 = (short)((double)it->second.m_c[1] /
+                        (double)(unsigned int)it->second.m_c[0] + 0.5);
+                pkt.m_ratio2 = (short)((double)it->second.m_c[2] /
+                        (double)(unsigned int)it->second.m_c[0] + 0.5);
+            }
+            int k;
+            for (k = 0; k < 6; k++)
+            {
+                pkt.m_items[k].m_s[0] = 0;
+                pkt.m_items[k].m_s[1] = 0;
+                pkt.m_items[k].m_s[2] = 0;
+                pkt.m_items[k].m_s[3] = 0;
+                if (0 < it->second.m_h[k][0])
+                {
+                    pkt.m_items[k].m_s[0] =
+                        (short)(it->second.m_d[k] / it->second.m_h[k][0]);
+                }
+                if (0 < it->second.m_h[k][1])
+                {
+                    pkt.m_items[k].m_s[1] =
+                        (short)(it->second.m_e[k] / it->second.m_h[k][1]);
+                }
+                if (0 < it->second.m_h[k][2])
+                {
+                    pkt.m_items[k].m_s[2] =
+                        (short)(it->second.m_f[k] / it->second.m_h[k][2]);
+                }
+                if (0 < it->second.m_h[k][3])
+                {
+                    pkt.m_items[k].m_s[3] =
+                        (short)(it->second.m_g[k] / it->second.m_h[k][3]);
+                }
+                int j;
+                for (j = 0; j < 6; j++)
+                {
+                    pkt.m_items[k].m_pair[j][0] = it->second.m_i[k * 7 + j][0];
+                    pkt.m_items[k].m_pair[j][1] = it->second.m_i[k * 7 + j][1];
+                }
+            }
+            handler->SendToDB((PacketHeader*)&pkt);
+            it->second.init();
+            DNFFLib::Sleep_Ext(0, 1);
+        }
+        m_field6c = 0;
     }
-    m_field10 = 0;
-    if (m_field6c == 0)
-    {
-        return 0;
-    }
-    Packet_Frame_Lag_Statistic_Write_Lag_Index pkt;
-    pkt.m_data[0] = (char)handler->GetServerGroupNo();
-    time_t t;
-    time(&t);
-    time_t now = t;
-    (void)now;
-    std::map<int, FrameLagDataStruct>::iterator it;
-    for (it = m_data.begin(); it != m_data.end(); ++it)
-    {
-        FrameLagDataLayout* rec = (FrameLagDataLayout*)&it->second;
-        *(int*)(pkt.m_data + 1) = it->first;
-        *(int*)(pkt.m_data + 5) = rec->m0;
-        int i;
-        for (i = 0; i < 8; i++)
-        {
-            *(short*)(pkt.m_data + 9 + i * 2) = rec->m_b[i + 8];
-        }
-        if (rec->m_c[0] == 0)
-        {
-            *(short*)(pkt.m_data + 0x19) = -1;
-            *(short*)(pkt.m_data + 0x1b) = -1;
-        }
-        else
-        {
-            *(short*)(pkt.m_data + 0x19) =
-                (short)((double)rec->m_c[1] /
-                        (double)(unsigned int)rec->m_c[0] + 0.5);
-            *(short*)(pkt.m_data + 0x1b) =
-                (short)((double)rec->m_c[2] /
-                        (double)(unsigned int)rec->m_c[0] + 0.5);
-        }
-        for (i = 0; i < 6; i++)
-        {
-            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 0) = 0;
-            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 2) = 0;
-            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 4) = 0;
-            *(short*)(pkt.m_data + 0x1d + i * 0x38 + 6) = 0;
-            if (0 < rec->m_h[i][0])
-            {
-                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 0) =
-                    (short)(rec->m_d[i] / rec->m_h[i][0]);
-            }
-            if (0 < rec->m_h[i][1])
-            {
-                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 2) =
-                    (short)(rec->m_e[i] / rec->m_h[i][1]);
-            }
-            if (0 < rec->m_h[i][2])
-            {
-                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 4) =
-                    (short)(rec->m_f[i] / rec->m_h[i][2]);
-            }
-            if (0 < rec->m_h[i][3])
-            {
-                *(short*)(pkt.m_data + 0x1d + i * 0x38 + 6) =
-                    (short)(rec->m_g[i] / rec->m_h[i][3]);
-            }
-            int j;
-            for (j = 0; j < 6; j++)
-            {
-                *(int*)(pkt.m_data + 5 + (i * 7 + j + 4) * 8) =
-                    rec->m_i[i * 7 + j][0];
-                *(int*)(pkt.m_data + 9 + (i * 7 + j + 4) * 8) =
-                    rec->m_i[i * 7 + j][1];
-            }
-        }
-        handler->SendToDB((PacketHeader*)&pkt);
-        it->second.init();
-        DNFFLib::Sleep_Ext(0, 1);
-    }
-    m_field6c = 0;
-    time_t t2 = time(0);
+    time_t t2;
+    time(&t2);
     if (t2 < m_field8c || m_field90 < t2)
     {
         m_collectInterval = 0x1e;
@@ -600,46 +580,46 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
     {
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0)
         {
-            ((FrameLagDataLayout*)&data)->m_d[i] +=
+            data.m_d[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v0;
-            ((FrameLagDataLayout*)&data)->m_h[i][0] += 1;
+            data.m_h[i][0] += 1;
         }
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1)
         {
-            ((FrameLagDataLayout*)&data)->m_e[i] +=
+            data.m_e[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v1;
-            ((FrameLagDataLayout*)&data)->m_h[i][1] += 1;
+            data.m_h[i][1] += 1;
         }
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2)
         {
-            ((FrameLagDataLayout*)&data)->m_f[i] +=
+            data.m_f[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v2;
-            ((FrameLagDataLayout*)&data)->m_h[i][2] += 1;
+            data.m_h[i][2] += 1;
         }
         if (0 < ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3)
         {
-            ((FrameLagDataLayout*)&data)->m_g[i] +=
+            data.m_g[i] +=
                 (int)((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_v3;
-            ((FrameLagDataLayout*)&data)->m_h[i][3] += 1;
+            data.m_h[i][3] += 1;
         }
         for (int j = 0; j < 6; j++)
         {
-            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0] =
-                ((FrameLagDataLayout*)&data)->m_a[i] *
-                ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0];
-            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1] =
-                (float)(unsigned int)((FrameLagDataLayout*)&data)->m_a[i] *
-                ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1];
-            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0] +=
+            data.m_i[i * 7 + j][0] =
+                data.m_a[i] *
+                data.m_i[i * 7 + j][0];
+            data.m_i[i * 7 + j][1] =
+                (float)(unsigned int)data.m_a[i] *
+                data.m_i[i * 7 + j][1];
+            data.m_i[i * 7 + j][0] +=
                 ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_i;
-            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1] +=
+            data.m_i[i * 7 + j][1] +=
                 ((FrameLagAccItem*)((char*)pkt + i * 0x38))->m_sub[j].m_f;
-            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][0] /=
-                ((FrameLagDataLayout*)&data)->m_a[i] + 1U;
-            ((FrameLagDataLayout*)&data)->m_i[i * 7 + j][1] /=
-                (float)(((FrameLagDataLayout*)&data)->m_a[i] + 1);
+            data.m_i[i * 7 + j][0] /=
+                data.m_a[i] + 1U;
+            data.m_i[i * 7 + j][1] /=
+                (float)(data.m_a[i] + 1);
         }
-        ((FrameLagDataLayout*)&data)->m_a[i] += 1;
+        data.m_a[i] += 1;
     }
 }
 void FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
@@ -678,29 +658,29 @@ FrameLagCollector::FrameLagDataStruct::FrameLagDataStruct()
 }
 void FrameLagCollector::FrameLagDataStruct::init()
 {
-    ((FrameLagDataLayout*)this)->m0 = 0;
+    m0 = 0;
     for (int i = 0; i < 8; i++)
     {
-        ((FrameLagDataLayout*)this)->m_b[i + 8] = 0;
+        m_b[i + 8] = 0;
     }
-    ((FrameLagDataLayout*)this)->m_c[0] = 0;
-    ((FrameLagDataLayout*)this)->m_c[1] = 0;
-    ((FrameLagDataLayout*)this)->m_c[2] = 0;
+    m_c[0] = 0;
+    m_c[1] = 0;
+    m_c[2] = 0;
     for (int i = 0; i < 6; i++)
     {
-        ((FrameLagDataLayout*)this)->m_a[i] = 0;
-        ((FrameLagDataLayout*)this)->m_d[i] = 0;
-        ((FrameLagDataLayout*)this)->m_e[i] = 0;
-        ((FrameLagDataLayout*)this)->m_f[i] = 0;
-        ((FrameLagDataLayout*)this)->m_g[i] = 0;
-        ((FrameLagDataLayout*)this)->m_h[i][0] = 0;
-        ((FrameLagDataLayout*)this)->m_h[i][1] = 0;
-        ((FrameLagDataLayout*)this)->m_h[i][2] = 0;
-        ((FrameLagDataLayout*)this)->m_h[i][3] = 0;
+        m_a[i] = 0;
+        m_d[i] = 0;
+        m_e[i] = 0;
+        m_f[i] = 0;
+        m_g[i] = 0;
+        m_h[i][0] = 0;
+        m_h[i][1] = 0;
+        m_h[i][2] = 0;
+        m_h[i][3] = 0;
         for (int j = 0; j < 6; j++)
         {
-            ((FrameLagDataLayout*)this)->m_i[i * 7 + j][0] = 0;
-            ((FrameLagDataLayout*)this)->m_i[i * 7 + j][1] = 0;
+            m_i[i * 7 + j][0] = 0;
+            m_i[i * 7 + j][1] = 0;
         }
     }
 }

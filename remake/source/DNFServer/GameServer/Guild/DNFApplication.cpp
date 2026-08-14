@@ -302,10 +302,10 @@ void CApplication::Process()
         try
         {
             CFrameCountHandler* f = m_frameCount.GetFrameCountInfo();
-            if (((unsigned char*)f)[0x24] != 0 && 1 < ((unsigned char*)f)[0x24])
+            if (f->m_state != 0 && 1 < f->m_state)
             {
                 m_serverHandler->Process();
-                if (((unsigned char*)f)[0x24] == 3)
+                if (f->m_state == 3)
                 {
                     m_frameCount.SaveProcess();
                     m_guildManager.DBGuildProcess(m_serverHandler, false);

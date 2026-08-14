@@ -26,7 +26,8 @@ int getErrno();
 CPacketTracer::CPacketTracer()
     : m_field0(0), m_timer(0), m_processCount(0)
 {
-    m_timer = new CUnixTimer;
+    CUnixTimer* timer = new CUnixTimer;
+    m_timer = timer;
     ResetPacketProcessLog();
 }
 CPacketTracer::~CPacketTracer()

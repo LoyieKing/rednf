@@ -313,21 +313,20 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
 
 bool CUserManager::InsertUser_CharNo(unsigned int charNo, CUser* user)
 {
-    if (user == 0)
+    if (user != 0)
     {
-        return 0;
+        if (m_charNoUsers.insert(std::make_pair((const unsigned int&)charNo, user)).second)
+        {
+            return 1;
+        }
+        register char* name = user->GetCharName();
+        register unsigned int dbid = user->GetDBID();
+        register unsigned int nCharNo = charNo;
+        CMyFileLog log(__FUNCTION__, 0x163);
+        log("./log/Except",
+            "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s\n",
+            nCharNo, dbid, name);
     }
-    if (m_charNoUsers.insert(std::make_pair(charNo, user)).second)
-    {
-        return 1;
-    }
-    register char* name = user->GetCharName();
-    register unsigned int dbid = user->GetDBID();
-    register unsigned int nCharNo = charNo;
-    CMyFileLog log(__FUNCTION__, 0x163);
-    log("./log/Except",
-        "[INSERT_ERR]Already Exist!\tChar No : %d\tDB No : %d\tChar_Name : %s\n",
-        nCharNo, dbid, name);
     return 0;
 }
 

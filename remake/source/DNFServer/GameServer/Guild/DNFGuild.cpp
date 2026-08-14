@@ -1573,22 +1573,21 @@ void CGuild::CallGuildAllMembersProxy(CUser* user, CServerHandler* handler)
     {
         return;
     }
-    if ((m_guildDBFlag & 4) == 0)
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
-    }
-    if (m_members.empty())
-    {
-        return;
-    }
-    if ((m_guildDBFlag & 0x10) != 0)
-    {
-        ReplyGuildAllMembers(user);
-        return;
-    }
-    if ((m_guildDBFlag & 8) == 0)
-    {
-        QueryGuildAllMembersProxy(handler, user->GetUniqCharNo());
+        if (m_members.empty())
+        {
+            return;
+        }
+        if ((m_guildDBFlag & 0x10) != 0)
+        {
+            ReplyGuildAllMembers(user);
+            return;
+        }
+        if ((m_guildDBFlag & 8) == 0)
+        {
+            QueryGuildAllMembersProxy(handler, user->GetUniqCharNo());
+        }
     }
 }
 
@@ -2046,27 +2045,36 @@ void CGuild::WriteGuildMemberMemo(CUser* user, const char* memo)
 
 void CGuild::NotifyMemoToGuildMember(CUser* user, const char* memo)
 {
-    if ((m_guildDBFlag & 4) == 0 || m_members.empty())
+    if ((m_guildDBFlag & 4) != 0)
     {
-        return;
+        if (m_members.empty())
+        {
+            return;
+        }
+        Packet_Guild_Notify_Guild_Member_Memo pkt;
+        char* name = user->GetCharName();
+        int n = (int)strlen(name);
+        if ((int)n < 0x1e)
+        {
+            memcpy(pkt.m_name, name, n);
+        }
+        else
+        {
+            memcpy(pkt.m_name, name, 0x1d);
+        }
+        n = strlen(memo);
+        if ((int)n < 0x15)
+        {
+            memcpy(pkt.m_memo, memo, n);
+        }
+        else
+        {
+            memcpy(pkt.m_memo, memo, 0x14);
+        }
+        pkt.m_channel = user->GetIdByChannel();
+        pkt.m_charNo = user->GetUniqCharNo();
+        user->SendToGameserver((char*)&pkt, 0x45);
     }
-    Packet_Guild_Notify_Guild_Member_Memo pkt;
-    char* name = user->GetCharName();
-    size_t n = strlen(name);
-    if (n > 0x1d)
-    {
-        n = 0x1d;
-    }
-    memcpy(pkt.m_name, name, n);
-    n = strlen(memo);
-    if (n > 0x14)
-    {
-        n = 0x14;
-    }
-    memcpy(pkt.m_memo, memo, n);
-    pkt.m_channel = user->GetIdByChannel();
-    pkt.m_charNo = user->GetUniqCharNo();
-    user->SendToGameserver((char*)&pkt, 0x45);
 }
 
 void CGuild::CreateGuildAgit(CServerHandler* handler, unsigned int a, unsigned int b,
@@ -2366,19 +2374,18 @@ void CGuild::NotifyAllTodayGuildMember()
 void CGuild::NotifyTodayGuildMember(CUser* user)
 {
     Packet_Notify_Today_Guild_Member pkt;
-    CGuildBoard::TodayMemberBlock* todayBlock = &m_board.m_today;
     pkt.m_guildKey = m_guildKey;
-    pkt.m_member0 = todayBlock->m_charNo;
-    pkt.m_member1 = todayBlock->m_name0;
-    pkt.m_member2 = todayBlock->m_name1;
-    pkt.m_member3 = todayBlock->m_name2;
-    pkt.m_member4 = todayBlock->m_name3;
-    pkt.m_member5 = todayBlock->m_name4;
-    pkt.m_member6 = todayBlock->m_name5;
-    pkt.m_member7 = todayBlock->m_name6;
-    pkt.m_member8 = todayBlock->m_name7;
-    pkt.m_memberA = todayBlock->m_field24;
-    pkt.m_memberC = (char)todayBlock->m_field26;
+    pkt.m_member0 = m_board.m_today.m_charNo;
+    pkt.m_member1 = m_board.m_today.m_name0;
+    pkt.m_member2 = m_board.m_today.m_name1;
+    pkt.m_member3 = m_board.m_today.m_name2;
+    pkt.m_member4 = m_board.m_today.m_name3;
+    pkt.m_member5 = m_board.m_today.m_name4;
+    pkt.m_member6 = m_board.m_today.m_name5;
+    pkt.m_member7 = m_board.m_today.m_name6;
+    pkt.m_member8 = m_board.m_today.m_name7;
+    pkt.m_memberA = m_board.m_today.m_field24;
+    pkt.m_memberC = (char)m_board.m_today.m_field26;
     pkt.m_channel = user->GetIdByChannel();
     pkt.m_charNo = user->GetUniqCharNo();
     user->SendToGameserver((char*)&pkt, 0x3d);

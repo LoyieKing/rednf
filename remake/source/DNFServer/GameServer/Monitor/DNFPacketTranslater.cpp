@@ -4755,13 +4755,13 @@ void CPacketTranslater::OnGameMonitorGMVillageAttacked(PacketHeader* pkt)
     }
     Packet_Game_Monitor_GM_Village_Attacked* va =
         (Packet_Game_Monitor_GM_Village_Attacked*)pkt;
-    if (va->m_flag == 0)
+    if (va->m_flag != 0)
     {
-        village_attacked::SetRealConfig();
+        village_attacked::SetGMConfig(va->m_a, va->m_b, va->m_c);
     }
     else
     {
-        village_attacked::SetGMConfig(va->m_a, va->m_b, va->m_c);
+        village_attacked::SetRealConfig();
     }
 
 

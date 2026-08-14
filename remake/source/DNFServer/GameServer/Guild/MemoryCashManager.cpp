@@ -103,14 +103,12 @@ bool CMemoryCashManager::IsRightObject(CUser* user)
 
 int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user)
 {
-    std::pair<std::map<unsigned int, CCashObject*>::iterator, bool> r;
     CCashObject* obj;
     if (IsRightObject(user))
     {
         obj = new CCashObject;
         obj->SetCharacNo(user->GetUniqCharNo());
-        r = m_cashObjects.insert(std::make_pair(user->GetDBID(), obj));
-        if (!r.second)
+        if (!m_cashObjects.insert(std::make_pair(user->GetDBID(), obj)).second)
         {
             delete obj;
             return 0;

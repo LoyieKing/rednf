@@ -364,7 +364,7 @@ void CGuildWar::DBSaveProcess(CApplication* app)
         return;
     }
     m_bSaveCnt++;
-    bool bZero = (m_bSaveCnt == 0);
+    register bool bZero = (m_bSaveCnt == 0);
     if (bZero)
     {
         return;

@@ -148,8 +148,7 @@ int CPeer::send_packet()
     int ret = 0;
     if (m_remainSendLen == 0)
         return 1;
-    int n = m_remainSendLen;
-    if ((ret = write(getHandle(), m_data183c, n)) <= 0)
+    if ((ret = write(getHandle(), m_data183c, m_remainSendLen)) <= 0)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 1;

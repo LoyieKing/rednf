@@ -386,7 +386,7 @@ void StatisticManager::WritePacketOverflowStatistic(Packet_Overflow_Statistic_Ad
 void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_party.empty())
     {
         for (std::map<STPartyStatisticKey, PartyStatistic>::iterator it = m_party.begin();
@@ -815,7 +815,7 @@ void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_minute = it->first.m_minute;
             pkt.m_items[idx].m_cnt = it->second;
             idx++;
-            if (0x2fd < idx)
+            if (idx > 0x2fd)
             {
                 pkt.m_count = 0x2fe;
                 handler->SendToDB((PacketHeader*)&pkt);

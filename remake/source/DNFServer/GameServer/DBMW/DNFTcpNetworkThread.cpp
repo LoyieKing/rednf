@@ -69,31 +69,23 @@ void CTcpNetworkThread::dispatch(void* param)
     DNFFLib::Sleep_Ext(5, 0);
     try
     {
-        while (m_runningFlag)
+        do
         {
             errno = 0;
             DNFFLib::Sleep_Ext(0, 5);
-            if (m_net == 0)
-            {
+            if (!m_net)
                 continue;
-            }
             m_net->SetEpollAcceptedPeers();
             m_net->SendPacket();
             nEvent = m_net->WaitForEvent();
             if (nEvent == 0)
-            {
                 continue;
-            }
             if (nEvent < 0)
             {
                 if (errno == 4)
-                {
                     continue;
-                }
                 if (errno != 0)
-                {
-                    return;
-                }
+                    break;
             }
             for (int i = 0; i < nEvent; i++)
             {
@@ -110,7 +102,10 @@ void CTcpNetworkThread::dispatch(void* param)
                 if (peer != 0 && peer->get_remain_sendlen() != 0 &&
                     m_handler->IsSetOutEvent(i))
                 {
-                    if ((unsigned int)peer->get_remain_sendlen() <= 0x1800)
+                    if ((unsigned int)peer->get_remain_sendlen() > 0x1800)
+                    {
+                    }
+                    else
                     {
                         peer->send_packet();
                     }
@@ -118,6 +113,7 @@ void CTcpNetworkThread::dispatch(void* param)
                 m_handler->IsSetErrEvent(i);
             }
         }
+        while (m_runningFlag);
         CMyFileLog log(__FUNCTION__, 0xae);
         log("./log/TcpRecv", "RecvThread Terminate");
     }

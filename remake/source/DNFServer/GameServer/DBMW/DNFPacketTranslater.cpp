@@ -1503,9 +1503,9 @@ void CPacketTranslater::OnDBMWVillageAttackRank(PacketHeader* header)
         if (flag)
         {
             Packet_Monitor_Event_Start ev;
-            ev.m_fieldA = 4;
-            ev.m_fieldE = (unsigned short)a;
-            ev.m_field10 = (unsigned short)b;
+            ev.m_eventCode = 4;
+            ev.m_eventParam1 = (unsigned short)a;
+            ev.m_eventParam2 = (unsigned short)b;
             m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
                 (char*)&ev, ev.packetSize);
         }

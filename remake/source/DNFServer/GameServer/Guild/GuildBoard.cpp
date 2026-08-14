@@ -175,11 +175,10 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         return;
     }
     int total = (int)m_board.size();
-    unsigned short codeType = (unsigned short)c;
     if (total == 0)
     {
         Packet_Guild_Reply_Guild_Board reply;
-        reply.m_c = codeType;
+        reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
         reply.m_e = 0;
@@ -202,7 +201,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     for (int page = 0; page < fullPages; page++)
     {
         Packet_Guild_Reply_Guild_Board reply;
-        reply.m_c = codeType;
+        reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
         reply.m_e = (unsigned char)total;
@@ -210,10 +209,10 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         for (int i = 0; i < 10; i++)
         {
             reply.m_boards[i].m_boardId = it->first;
-            memcpy(&reply.m_boards[i], (char*)&it->second, 0x78);
+            memcpy(&reply.m_boards[i], &it->second, 0x78);
             reply.m_boards[i].m_guildKey = it->second.m_guildKey;
             reply.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
-            memcpy(&reply.m_boards[i].m_char, (char*)&it->second + 0x84, 0x21);
+            memcpy(&reply.m_boards[i].m_char, &it->second.m_char, 0x21);
             ++it;
         }
         user->SendTcpGameserver(&reply);
@@ -223,7 +222,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     if (remainder != 0)
     {
         Packet_Guild_Reply_Guild_Board reply;
-        reply.m_c = codeType;
+        reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
         reply.m_e = (unsigned char)total;
@@ -231,10 +230,10 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         for (int i = 0; i < remainder; i++)
         {
             reply.m_boards[i].m_boardId = it->first;
-            memcpy(&reply.m_boards[i], (char*)&it->second, 0x78);
+            memcpy(&reply.m_boards[i], &it->second, 0x78);
             reply.m_boards[i].m_guildKey = it->second.m_guildKey;
             reply.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
-            memcpy(&reply.m_boards[i].m_char, (char*)&it->second + 0x84, 0x21);
+            memcpy(&reply.m_boards[i].m_char, &it->second.m_char, 0x21);
             ++it;
             if (it == endit)
             {
@@ -266,21 +265,22 @@ void CGuildBoard::sendMessageToDBMW_GuildLevelUP(CServerHandler* handler, int le
                                                  CUser* user)
 {
     Packet_DB_Load_Request_Guild_Board_Write pkt;
-    unsigned int guildKey = user->GetGuildKey();
-    unsigned int characNo = user->GetUniqCharNo();
+    pkt.m_b = user->GetGuildKey();
+    pkt.m_d = user->GetUniqCharNo();
     std::string msg = g_ServerString_.GetServerString(0x3ee, 0);
     std::string str = g_ServerString_.GetServerString(0x3ef, 0);
     char buf[255] = {0};
     sprintf(buf, "%d", level + 1);
     msg += buf;
     msg += str;
-    if (msg.length() < 0x78)
+    if (msg.length() > 0x77)
     {
-        memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
-        handler->SendToDB(&pkt);
-        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x107,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, LEVEL:%u",
-            guildKey, characNo, level + 1);
+        return;
     }
+    memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
+    handler->SendToDB(&pkt);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x107,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, LEVEL:%u",
+        pkt.m_b, pkt.m_d, level + 1);
 }
 
 void CGuildBoard::sendMessageToDBMW_GuildAttendance(CServerHandler* handler, int a, int b,
@@ -291,8 +291,8 @@ void CGuildBoard::sendMessageToDBMW_GuildAttendance(CServerHandler* handler, int
 void CGuildBoard::sendMessageToDBMW_GuildFund(CServerHandler* handler, int fund, CUser* user)
 {
     Packet_DB_Load_Request_Guild_Board_Write pkt;
-    unsigned int guildKey = user->GetGuildKey();
-    unsigned int characNo = user->GetUniqCharNo();
+    pkt.m_b = user->GetGuildKey();
+    pkt.m_d = user->GetUniqCharNo();
     std::string msg;
     std::string str1 = g_ServerString_.GetServerString(0x3f0, 0);
     char buf[255] = {0};
@@ -303,31 +303,33 @@ void CGuildBoard::sendMessageToDBMW_GuildFund(CServerHandler* handler, int fund,
     sprintf(buf2, "%d ", fund);
     msg += buf2;
     msg += str1;
-    if (msg.length() < 0x78)
+    if (msg.length() > 0x77)
     {
-        memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
-        handler->SendToDB(&pkt);
-        DNF_LOG_SCOPE_LINE(0x15d,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, gold :%d",
-            guildKey, characNo, fund);
+        return;
     }
+    memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
+    handler->SendToDB(&pkt);
+    DNF_LOG_SCOPE_LINE(0x15d,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, gold :%d",
+        pkt.m_b, pkt.m_d, fund);
 }
 
 void CGuildBoard::sendMessageToDBMW_GuildMasterChanging(CServerHandler* handler, CUser* user,
                                                         const char* name)
 {
     Packet_DB_Load_Request_Guild_Board_Write pkt;
-    unsigned int guildKey = user->GetGuildKey();
-    unsigned int characNo = user->GetUniqCharNo();
+    pkt.m_b = user->GetGuildKey();
+    pkt.m_d = user->GetUniqCharNo();
     std::string msg(name);
     std::string str = g_ServerString_.GetServerString(0x3f1, 0);
     msg += str;
-    if (msg.length() < 0x78)
+    if (msg.length() > 0x77)
     {
-        memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
-        handler->SendToDB(&pkt);
-        DNF_LOG_SCOPE_AT(__FUNCTION__, 0x17b,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u",
-            guildKey, characNo);
+        return;
     }
+    memcpy((char*)&pkt + 0x17, msg.c_str(), msg.length());
+    handler->SendToDB(&pkt);
+    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x17b,"./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u",
+        pkt.m_b, pkt.m_d);
 }
 
 void CGuildBoard::printGuildBoard()

@@ -42,6 +42,7 @@ case "$(basename "$src" .cpp)" in
 -isystem /tmp/c5r52tool/usr/include/c++/4.1.2/x86_64-redhat-linux \
 -isystem /tmp/c5r52tool/usr/include/c++/4.1.2/backward \
 -isystem /tmp/c5r52tool/usr/include \
+-isystem /tmp/c5root/usr/include \
 -I/home/loyieking/dnf_workspace/dnf_decompile/source/cmake/monitor \
 -I/home/loyieking/dnf_workspace/dnf_decompile/source/DNFServer/ServerCommon \
 -I/home/loyieking/dnf_workspace/dnf_decompile/source/DNFServer/GameServer/Monitor \

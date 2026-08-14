@@ -485,56 +485,56 @@ void CPacketTranslater::OnReplyQueryGuild(PacketHeader* pkt)
 {
     try
     {
-    if (((Packet_DB_Reply_Query_Guild*)pkt)->m_result == 1)
-    {
-        int rc = (&m_pclApp->m_guildManager)->LoadGuild(
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId,
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildInfo,
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_rest);
-        if (rc != 1)
+        PacketHeader* p = pkt;
+        if (((Packet_DB_Reply_Query_Guild*)p)->m_result == 1)
         {
-            DNF_LOG_SCOPE_LINE(0x202, "./log/GuildErr",
-                "CPacketTranslater::OnReplyQueryGuild()\tLoadGuild Err(%d)",
-                ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
-        }
-        (&m_pclApp->m_guildManager)->SendGuildInfoToMembers(
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId, true);
-        (&m_pclApp->m_guildManager)->AttendGuild(
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId,
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_characNo);
-        if (((Packet_DB_Reply_Query_Guild*)pkt)->m_guildInfo.m_agitFlag != 0)
-        {
-            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-                ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
-            CServerHandler* handler = m_pclApp->Get_ServerHandler();
-            if (guild != 0)
+            if (!(&m_pclApp->m_guildManager)->LoadGuild(
+                    ((Packet_DB_Reply_Query_Guild*)p)->m_guildId,
+                    ((Packet_DB_Reply_Query_Guild*)p)->m_guildInfo,
+                    ((Packet_DB_Reply_Query_Guild*)p)->m_rest))
             {
-                guild->LoadGuildAgit(handler,
-                                     ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
+                DNF_LOG_SCOPE_LINE(0x202, "./log/GuildErr",
+                    "CPacketTranslater::OnReplyQueryGuild()\tLoadGuild Err(%d)",
+                    ((Packet_DB_Reply_Query_Guild*)p)->m_guildId);
+            }
+            (&m_pclApp->m_guildManager)->SendGuildInfoToMembers(
+                ((Packet_DB_Reply_Query_Guild*)p)->m_guildId, true);
+            (&m_pclApp->m_guildManager)->AttendGuild(
+                ((Packet_DB_Reply_Query_Guild*)p)->m_guildId,
+                ((Packet_DB_Reply_Query_Guild*)p)->m_characNo);
+            if (((Packet_DB_Reply_Query_Guild*)p)->m_guildInfo.m_agitFlag != 0)
+            {
+                CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
+                    ((Packet_DB_Reply_Query_Guild*)p)->m_guildId);
+                CServerHandler* handler = m_pclApp->Get_ServerHandler();
+                if (guild != 0)
+                {
+                    guild->LoadGuildAgit(handler,
+                                         ((Packet_DB_Reply_Query_Guild*)p)->m_guildId);
+                }
             }
         }
-    }
-    else
-    {
-        (&m_pclApp->m_guildManager)->SendGuildInfoToMembers(
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId, true);
-        DNF_LOG_SCOPE_LINE(0x21d,"./log/Except",
-            "[DB ERROR]CPacketTranslater::OnReplyQueryGuild() packet->bSuccess : %d,guildKey(%d)",
-            (unsigned int)((Packet_DB_Reply_Query_Guild*)pkt)->m_result,
-            ((Packet_DB_Reply_Query_Guild*)pkt)->m_guildId);
-    }
+        else
+        {
+            (&m_pclApp->m_guildManager)->SendGuildInfoToMembers(
+                ((Packet_DB_Reply_Query_Guild*)p)->m_guildId, true);
+            DNF_LOG_SCOPE_LINE(0x21d, "./log/Except",
+                "[DB ERROR]CPacketTranslater::OnReplyQueryGuild() packet->bSuccess : %d,guildKey(%d)",
+                (unsigned int)((Packet_DB_Reply_Query_Guild*)p)->m_result,
+                ((Packet_DB_Reply_Query_Guild*)p)->m_guildId);
+        }
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnReplyQueryGuild() Exception Break : %s\n", e.what());
-        CMyFileLog log("OnReplyQueryGuild", 0x223);
-        log("./log/Except", "CPacketTranslater::OnReplyQueryGuild() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x223, "./log/Except",
+            "CPacketTranslater::OnReplyQueryGuild() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnReplyQueryGuild() Exception Break");
-        CMyFileLog log(__FUNCTION__, 0x229);
-        log("./log/Except", "CPacketTranslater::OnReplyQueryGuild() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x229, "./log/Except",
+            "CPacketTranslater::OnReplyQueryGuild() Exception Break\n");
     }
 }
 
@@ -542,36 +542,44 @@ void CPacketTranslater::OnDBReplyQueryGuildMember(PacketHeader* pkt)
 {
     try
     {
-    Packet_DB_Reply_Query_Guild_Member* pb = (Packet_DB_Reply_Query_Guild_Member*)pkt;
-    if (pb->m_flag == 1)
-    {
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_characNo);
-        if (user == 0)
+        PacketHeader* p = pkt;
+        if (((Packet_DB_Reply_Query_Guild_Member*)p)->m_flag == 1)
         {
-            throw CDNFException(
-                "CPacketTranslater::OnDBReplyQueryGuildMember()\tpclUser is NULL\n");
+            CUserManager* um = &m_pclApp->m_userManager;
+            CUser* user;
+            if ((user = um->FindUser_CharNo(
+                     ((Packet_DB_Reply_Query_Guild_Member*)p)->m_characNo)) != 0)
+            {
+                user->LoadGuildMember(
+                    ((Packet_DB_Reply_Query_Guild_Member*)p)->m_guildId,
+                    ((Packet_DB_Reply_Query_Guild_Member*)p)->m_info);
+                user->SendGuildMemberDBInfo(
+                    ((Packet_DB_Reply_Query_Guild_Member*)p)->m_info);
+            }
+            else
+            {
+                throw CDNFException(
+                    "CPacketTranslater::OnDBReplyQueryGuildMember()\tpclUser is NULL\n");
+            }
         }
-        user->LoadGuildMember(pb->m_guildId, pb->m_info);
-        user->SendGuildMemberDBInfo(pb->m_info);
-    }
-    else
-    {
-        DNF_LOG_SCOPE_LINE(0x24b,"./log/Except",
-            "[DB ERROR]CPacketTranslater::OnDBReplyQueryGuildMember() packet->bSuccess : %d\n",
-            (unsigned int)pb->m_flag);
-    }
+        else
+        {
+            DNF_LOG_SCOPE_LINE(0x24b, "./log/Except",
+                "[DB ERROR]CPacketTranslater::OnDBReplyQueryGuildMember() packet->bSuccess : %d\n",
+                (unsigned int)((Packet_DB_Reply_Query_Guild_Member*)p)->m_flag);
+        }
     }
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnDBReplyQueryGuildMember() Exception Break : %s\n", e.what());
-        CMyFileLog log("OnDBReplyQueryGuildMember", 0x251);
-        log("./log/Except", "CPacketTranslater::OnDBReplyQueryGuildMember() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x251, "./log/Except",
+            "CPacketTranslater::OnDBReplyQueryGuildMember() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnDBReplyQueryGuildMember() Exception Break");
-        CMyFileLog log(__FUNCTION__, 0x257);
-        log("./log/Except", "CPacketTranslater::OnDBReplyQueryGuildMember() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x257, "./log/Except",
+            "CPacketTranslater::OnDBReplyQueryGuildMember() Exception Break\n");
     }
 }
 
@@ -5644,21 +5652,22 @@ void CPacketTranslater::OnRefreshGuildInfo(PacketHeader* pkt)
 {
     try
     {
+        PacketHeader* p = pkt;
+        CGuild* guild = 0;
+        CUser* user = 0;
         if (m_pclApp == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f4b, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == m_pclApp");
             return;
         }
-        CUser* user;
         if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(
-                 ((Packet_Refresh_Guild_Info*)pkt)->m_charNo)) == 0)
+                 ((Packet_Refresh_Guild_Info*)p)->m_charNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f51, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pUser");
             return;
         }
-        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-            ((Packet_Refresh_Guild_Info*)pkt)->m_guildKey);
-        if (guild == 0)
+        if ((guild = (&m_pclApp->m_guildManager)->FindGuild(
+            ((Packet_Refresh_Guild_Info*)p)->m_guildKey)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1f57, "./log/Guild", "CPacketTranslater::OnAddGuildFund : 0 == pGuild");
             return;
@@ -5914,7 +5923,7 @@ Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade::
     ma = 0;
     mb = 0;
     m32 = 255;
-    memset(m_name, 0, 0x1e);
+    memset(&m_14, 0, 0x1e);
 }
 
 #pragma pack(push,1)
@@ -6112,8 +6121,7 @@ Packet_DBMW_Save_Guild_Join::Packet_DBMW_Save_Guild_Join()
     : PacketHeader(0x438, 0x40)
 {
     memset(m_name, 0, 0x1e);
-    memset(m_ssn, 0, 2);
-    m_pad3f[0] = 0;
+    memset(m_ssn, 0, 3);
 }
 
 Packet_Guild_Reply_Guild_Secede::Packet_Guild_Reply_Guild_Secede()
@@ -6199,8 +6207,7 @@ Packet_DBMW_Request_Guild_Create::Packet_DBMW_Request_Guild_Create()
     : PacketHeader(0x43f, 0x5c)
 {
     memset(m_name, 0, 0x17);
-    memset(m_ssn, 0, 2);
-    m_pad37[0] = 0;
+    memset(m_ssn, 0, 3);
     memset(m_extra, 0, 0xd);
     memset(m_guildName, 0, 0x17);
 }
