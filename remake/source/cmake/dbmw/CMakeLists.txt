@@ -133,8 +133,8 @@ dnf_service(dbmw
         # DNFPacketTracer/DNFMySql 同形态逐函数复检。
         "${SVC_DIR}/DNFApplication.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFSignalTranslator.cpp|-B${DF_CC1P446}"
-        "${SVC_DIR}/DNFPacketTracer.cpp|-B${DF_CC1P446}"
-        "${SVC_DIR}/DNFMySql.cpp|-B${DF_CC1P446}"
+        "${SVC_DIR}/DNFPacketTracer.cpp|-D_DNF_DBMW_C5_TU -std=gnu++98"
+        "${SVC_DIR}/DNFMySql.cpp|-D_DNF_DBMW_C5_TU -std=gnu++98"
         "${SVC_DIR}/DNFSignal.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFTcpHandler.cpp|-B${DF_CC1P446}"
         "${SVC_DIR}/DNFThreadInterface.cpp|-B${DF_CC1P446}"

@@ -616,23 +616,27 @@ bool CDBManager::OnDeleteGuildBoard(unsigned int no)
 bool CDBManager::OnLoadGuildAgit(Packet_DB_Load_Guild_Agit* req,
                                  Packet_Guild_Load_Guild_Agit& reply)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     h->set_query(0x4eb5,
                  "seLect upgrade from guild_agit where guild_id=%d",
                  req->m_guildId);
-    if (!h->exec(0x4eb5))
+    r = h->exec(0x4eb5);
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0x19c3);
         log("./log/DBQueryErr", "OnLoadGuildAgit Query Error\n");
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0x19cb);
         log("./log/DBQueryErr", "OnLoadGuildAgit Fetch Error\n");
         return 0;
     }
-    if (!h->get_ubyte(0, *(unsigned char*)((char*)&reply + 0xe)))
+    r = h->get_ubyte(0, *(unsigned char*)((char*)&reply + 0xe));
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0x19d3);
         log("./log/DBQueryErr",
@@ -644,17 +648,18 @@ bool CDBManager::OnLoadGuildAgit(Packet_DB_Load_Guild_Agit* req,
 char CDBManager::OnLoadGuildCargo(unsigned int guildId,
                                   Packet_Guild_Load_Guild_Cargo& reply)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
-    if (!h->set_query(0x4ed7,
-                      "seLect cargo_capacity,cargo from guild_agit where guild_id=%d",
-                      guildId))
+    h->set_query(0x4ed7,
+                 "seLect cargo_capacity,cargo from guild_agit where guild_id=%d",
+                 guildId);
+    r = h->exec(0x4ed7);
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0x1b35);
         log("./log/DBQueryErr", "OnLoadGuildCargo Query Error");
         return 0;
     }
-    if (!h->exec(0x4ed7))
-        return 0;
     if (!h->fetch())
         return 0;
     int col = 0;
@@ -697,29 +702,30 @@ char CDBManager::OnCreateGuildAgit(Packet_DB_Create_Guild_Agit* req,
 char CDBManager::OnInsertGuildCargoHistory(
     Packet_DB_Insert_Guild_Cargo_History* req)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
-    char* r = (char*)req;
-    char table[0x100] = {0};
-    sprintf(table, "guild_cargo_history_%d", *(unsigned int*)(r + 0xb) % 10);
+    char table[0xff] = {0};
+    sprintf(table, "guild_cargo_history_%d", req->m_guildId % 10);
     h->set_query(
         0x4ed9,
         "inSert into %s(occ_time,guild_id,server_id,charac_no,charac_name,slot_no,moveto_slot_no,behavior,seal_flag,item_id,add_info,endurance,extend_info,upgrade,seal_cnt,amplify_option,amplify_value,random_option,separate) values(unix_timestamp(now()),%d,%d,%d,'%s',%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,'%s',%d)",
-        table, *(unsigned int*)(r + 0xb),
-        *(unsigned char*)(r + 0xa), *(unsigned int*)(r + 0xf),
-        r + 0x13, *(unsigned int*)(r + 0x29),
-        *(unsigned int*)(r + 0x2d), *(signed char*)(r + 0x28),
-        *(unsigned char*)(r + 0x31), *(unsigned int*)(r + 0x32),
-        *(unsigned int*)(r + 0x37), *(unsigned short*)(r + 0x3b),
-        *(unsigned int*)(r + 0x3d),
+        table, req->m_guildId,
+        req->m_serverId, req->m_characNo,
+        req->m_characName, req->m_slotNo,
+        req->m_movetoSlotNo, req->m_behavior,
+        (unsigned char)req->m_item.m_field0, req->m_item.m_field1,
+        req->m_item.m_field6, req->m_item.m_fieldA,
+        req->m_item.m_fieldC,
         // +0x36 为位域字节：低 5 bit upgrade、高 3 bit seal_cnt。
         // ORIG 反汇编 movzbl 0x36(%eax),%eax; shr $0x5,%al 只读 1 字节，
         // seal_cnt = byte >> 5（0-7）；原写法读 4 字节且 &1 只取 bit5，语义错误。
-        *(unsigned char*)(r + 0x36) & 0x1f,
-        (unsigned int)(*(unsigned char*)(r + 0x36)) >> 5,
-        *(unsigned char*)(r + 0x41), *(unsigned short*)(r + 0x42),
-        h->blob_to_str(0, r + 0x4e, 0xe),
-        ((UpgradeSeparateInfo*)(r + 0x5c))->GetUpgradeSeparate());
-    if (!h->exec(0x4ed9))
+        (unsigned char)req->m_item.m_field5 & 0x1f,
+        (unsigned char)req->m_item.m_field5 / 0x20,
+        (unsigned char)req->m_item.m_field10, req->m_item.m_field11,
+        h->blob_to_str(0, (char*)&req->m_item.m_option, 0xe),
+        req->m_item.m_upg.GetUpgradeSeparate());
+    r = h->exec(0x4ed9);
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0x1bd3);
         log("./log/DBQueryErr", "OnInsertGuildCargoHistory Query Error");
@@ -1067,6 +1073,7 @@ bool CDBManager::QueryGuildMember(unsigned char serverId,
                                   unsigned int guildId,
                                   Packet_DB_Reply_Query_Guild_Member& reply)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e24,
                       "seLect guild_id, memo, grade, member_point from guild_member where charac_no = %d and server_id = %d and member_flag = 1",
@@ -1078,32 +1085,38 @@ bool CDBManager::QueryGuildMember(unsigned char serverId,
         reply.m_flag = 0;
         return 0;
     }
-    if (!h->exec(0x4e24))
+    r = h->exec(0x4e24);
+    if (!r)
     {
         reply.m_flag = 0;
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
         reply.m_flag = 2;
         return 0;
     }
-    if (!h->get_uint(0, *(unsigned int*)&reply.m_guildId))
+    r = h->get_uint(0, *(unsigned int*)&reply.m_guildId);
+    if (!r)
     {
         reply.m_flag = 3;
         return 0;
     }
-    if (!h->get_str(1, reply.m_info.m_memo, 0x15))
+    r = h->get_str(1, reply.m_info.m_memo, 0x15);
+    if (!r)
     {
         reply.m_flag = 3;
         return 0;
     }
-    if (!h->get_ubyte(2, *(unsigned char*)&reply.m_info.m_grade))
+    r = h->get_ubyte(2, *(unsigned char*)&reply.m_info.m_grade);
+    if (!r)
     {
         reply.m_flag = 3;
         return 0;
     }
-    if (!h->get_uint(3, *(unsigned int*)&reply.m_info.m_memberPoint))
+    r = h->get_uint(3, *(unsigned int*)&reply.m_info.m_memberPoint);
+    if (!r)
     {
         reply.m_flag = 3;
         return 0;
@@ -1523,6 +1536,7 @@ bool CDBManager::UpdateMemberKeyInCharacInfo(unsigned char serverId,
 char CDBManager::QueryGuildBooting(
     Packet_DB_Query_Reply_On_Guild_Booting& reply, int serverId)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e80,
                       "seLect a_side_point, b_side_point, winner_side from power_war where server_id = %d",
@@ -1534,17 +1548,22 @@ char CDBManager::QueryGuildBooting(
             serverId);
         return 0;
     }
-    if (!h->exec(0x4e80))
+    r = h->exec(0x4e80);
+    if (!r)
         return 0;
     if (h->get_n_rows() != 0)
     {
-        if (!h->fetch())
+        r = h->fetch();
+        if (!r)
             return 0;
-        if (!h->get_int(0, *(int*)&reply.m_aSidePoint))
+        r = h->get_int(0, *(int*)&reply.m_aSidePoint);
+        if (!r)
             return 0;
-        if (!h->get_int(1, *(int*)&reply.m_bSidePoint))
+        r = h->get_int(1, *(int*)&reply.m_bSidePoint);
+        if (!r)
             return 0;
-        if (!h->get_byte(2, *(char*)&reply.m_winnerSide))
+        r = h->get_byte(2, *(char*)&reply.m_winnerSide);
+        if (!r)
             return 0;
     }
     return 1;
@@ -1982,12 +2001,13 @@ bool CDBManager::UpdateCreateEmblemStatistic(
 char CDBManager::OnWriteGuildMemberMemo(
     Packet_DB_Write_Guild_Member_Memo* packet)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
-    unsigned int guildId = ((WriteGuildMemberMemoView*)packet)->m_guildId;
-    unsigned int characNo = ((WriteGuildMemberMemoView*)packet)->m_characNo;
+    unsigned int guildId = packet->m_guildId;
+    unsigned int characNo = packet->m_characNo;
     char buf[0x6002];
     memset(buf, 0, 0x6002);
-    h->escape_string(buf, ((WriteGuildMemberMemoView*)packet)->m_memo);
+    h->escape_string(buf, packet->m_memo);
     if (!h->set_query(0x4ebb,
                       "upDate guild_member set memo='%s' where guild_id = %d and charac_no = %d",
                       buf, guildId, characNo))
@@ -1998,7 +2018,8 @@ char CDBManager::OnWriteGuildMemberMemo(
             buf, guildId, characNo);
         return 0;
     }
-    if (!h->exec(0x4ebb))
+    r = h->exec(0x4ebb);
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0x1a96);
         log("./log/DBQueryErr",
@@ -2896,6 +2917,7 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
 char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                                   unsigned char type)
 {
+    bool r;
     CDBHandle* h = m_handles[2];    // game db
     if (type == 2)
     {
@@ -2909,7 +2931,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                 masterNo, characNo);
             return 0;
         }
-        if (!h->exec(0x4e45) || h->getAffectedRowCount() == 0)
+        r = h->exec(0x4e45);
+        if (!r || h->getAffectedRowCount() == 0)
         {
             if (!h->set_query(0x4e46,
                               "inSert into charac_members set charac_no=%d, master_no=%d, exp = 0, create_time = now()",
@@ -2921,7 +2944,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                     characNo, masterNo);
                 return 0;
             }
-            if (!h->exec(0x4e46))
+            r = h->exec(0x4e46);
+            if (!r)
                 return 0;
         }
         if (!h->set_query(0x4e4b,
@@ -2934,7 +2958,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                 masterNo, masterNo);
             return 0;
         }
-        if (!h->exec(0x4e4b) || h->getAffectedRowCount() == 0)
+        r = h->exec(0x4e4b);
+        if (!r || h->getAffectedRowCount() == 0)
         {
             if (!h->set_query(0x4e47,
                               "inSert into charac_members set charac_no=%d, master_no=0, exp = 0, create_time = now()",
@@ -2946,7 +2971,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                     masterNo);
                 return 0;
             }
-            if (!h->exec(0x4e47))
+            r = h->exec(0x4e47);
+            if (!r)
                 return 0;
         }
         return 1;
@@ -2963,7 +2989,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
             masterNo, characNo);
         return 0;
     }
-    if (!h->exec(0x4e48) || h->getAffectedRowCount() == 0)
+    r = h->exec(0x4e48);
+    if (!r || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4e49,
                           "inSert into charac_members set charac_no=%d, master_no=%d, exp = 0, create_time = now()",
@@ -2975,7 +3002,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                 characNo, masterNo);
             return 0;
         }
-        if (!h->exec(0x4e49))
+        r = h->exec(0x4e49);
+        if (!r)
             return 0;
     }
     if (!h->set_query(0x4e4a,
@@ -2988,7 +3016,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
             masterNo);
         return 0;
     }
-    if (!h->exec(0x4e4a) || h->getAffectedRowCount() == 0)
+    r = h->exec(0x4e4a);
+    if (!r || h->getAffectedRowCount() == 0)
     {
         if (!h->set_query(0x4e46,
                           "inSert into charac_members set charac_no=%d, master_no=0, exp = 0, create_time=now()",
@@ -3000,7 +3029,8 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                 masterNo);
             return 0;
         }
-        if (!h->exec(0x4e46))
+        r = h->exec(0x4e46);
+        if (!r)
             return 0;
     }
     return 1;
@@ -3008,27 +3038,28 @@ char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
 char CDBManager::SaveMemberDelete(unsigned int characNo, unsigned int masterNo,
                                   unsigned char type)
 {
+    bool r;
     CDBHandle* h = m_handles[2];    // game db
     if (type == 1)
     {
         h->set_query(0x4e4e,
                      "upDate charac_members set master_no = 0, exp = 0 where charac_no=%d",
                      masterNo);
-        bool r1 = h->exec(0x4e4e);
-        if (!r1)
+        r = h->exec(0x4e4e);
+        if (!r)
             return 0;
         h->set_query(0x4e4c,
                      "upDate charac_members set  delete_time = now() where charac_no=%d",
                      characNo);
-        bool r2 = h->exec(0x4e4c);
+        r = h->exec(0x4e4c);
     }
-    if (type == 2)
+    else if (type == 2)
     {
         h->set_query(0x4e4f,
                      "upDate charac_members set  master_no = 0 , exp = 0, delete_time = now() where charac_no=%d",
                      masterNo);
-        bool r3 = h->exec(0x4e4f);
-        if (!r3)
+        r = h->exec(0x4e4f);
+        if (!r)
             return 0;
     }
     return 1;
@@ -4507,6 +4538,7 @@ bool CDBManager::onItemLimitEditionUpdateData(
 bool CDBManager::QueryGuild(unsigned char serverGroup, unsigned int guildId,
                             Packet_DB_Reply_Query_Guild& reply)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e22,
                       "seLect guild_name, master_no, lev, ability, member_count, guild_rank, guild_point, guild_exp, power_side, unix_timestamp(power_secede_time), power_war_point, guild_agit_flag, power_join_count, guild_fund,master_name from guild_info where guild_id = %d and server_id = %d and expire_flag = 0",
@@ -4519,56 +4551,73 @@ bool CDBManager::QueryGuild(unsigned char serverGroup, unsigned int guildId,
         reply.m_result = 0;
         return 0;
     }
-    if (!h->exec(0x4e22))
+    r = h->exec(0x4e22);
+    if (!r)
     {
         reply.m_result = 0;
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
         reply.m_result = 2;
         return 0;
     }
+    unsigned int guildRank;
     STGuildDBInfoOnly* info = &reply.m_guildInfo;
 #define QG_FAIL() \
     do { \
         reply.m_result = 3; \
         return 0; \
     } while (0)
-    if (!h->get_str(0, info->m_guildName, 0x17))
+    r = h->get_str(0, info->m_guildName, 0x17);
+    if (!r)
         QG_FAIL();
-    if (!h->get_uint(1, *(unsigned int*)&info->m_masterNo))
+    r = h->get_uint(1, *(unsigned int*)&info->m_masterNo);
+    if (!r)
         QG_FAIL();
-    if (!h->get_ubyte(2, *(unsigned char*)&info->m_lev))
+    r = h->get_ubyte(2, *(unsigned char*)&info->m_lev);
+    if (!r)
         QG_FAIL();
-    if (!h->get_ushort(3, *(unsigned short*)&info->m_ability))
+    r = h->get_ushort(3, *(unsigned short*)&info->m_ability);
+    if (!r)
         QG_FAIL();
-    if (!h->get_ushort(4, *(unsigned short*)&info->m_memberCount))
+    r = h->get_ushort(4, *(unsigned short*)&info->m_memberCount);
+    if (!r)
         QG_FAIL();
-    unsigned int guildRank = 0;
-    if (!h->get_uint(5, guildRank))
+    r = h->get_uint(5, guildRank);
+    if (!r)
         QG_FAIL();
     if (guildRank > 0x64)
         info->m_guildRank = 0;
     else
         info->m_guildRank = (char)guildRank;
-    if (!h->get_uint(6, *(unsigned int*)&info->m_guildPoint))
+    r = h->get_uint(6, *(unsigned int*)&info->m_guildPoint);
+    if (!r)
         QG_FAIL();
-    if (!h->get_uint(7, *(unsigned int*)&info->m_guildExp))
+    r = h->get_uint(7, *(unsigned int*)&info->m_guildExp);
+    if (!r)
         QG_FAIL();
-    if (!h->get_ubyte(8, *(unsigned char*)&info->m_powerSide))
+    r = h->get_ubyte(8, *(unsigned char*)&info->m_powerSide);
+    if (!r)
         QG_FAIL();
-    if (!h->get_uint(9, *(unsigned int*)&info->m_powerSecedeTime))
+    r = h->get_uint(9, *(unsigned int*)&info->m_powerSecedeTime);
+    if (!r)
         QG_FAIL();
-    if (!h->get_uint(10, *(unsigned int*)&info->m_powerWarPoint))
+    r = h->get_uint(10, *(unsigned int*)&info->m_powerWarPoint);
+    if (!r)
         QG_FAIL();
-    if (!h->get_ubyte(11, *(unsigned char*)&info->m_guildAgitFlag))
+    r = h->get_ubyte(11, *(unsigned char*)&info->m_guildAgitFlag);
+    if (!r)
         QG_FAIL();
-    if (!h->get_ubyte(12, *(unsigned char*)&info->m_powerJoinCount))
+    r = h->get_ubyte(12, *(unsigned char*)&info->m_powerJoinCount);
+    if (!r)
         QG_FAIL();
-    if (!h->get_uint(13, *(unsigned int*)&info->m_guildFund))
+    r = h->get_uint(13, *(unsigned int*)&info->m_guildFund);
+    if (!r)
         QG_FAIL();
-    if (!h->get_str(14, info->m_masterName, 0x15))
+    r = h->get_str(14, info->m_masterName, 0x15);
+    if (!r)
         QG_FAIL();
 #undef QG_FAIL
     reply.m_result = 1;
@@ -5221,35 +5270,37 @@ char CDBManager::OnLoadGuildCargoHistory(
     unsigned int guildId, Packet_Guild_Load_Guild_Cargo_History& reply)
 {
     CDBHandle* h = m_handles[8];    // guild db
-    char buf[0x100] = {0};
+    char buf[0xff] = {0};
     sprintf(buf, "guild_cargo_history_%d", guildId % 10);
     h->set_query(0x4ed8,
                  "seLect occ_time,behavior,charac_name,item_id,add_info,random_option from %s where guild_id=%d order by occ_time desc limit %d",
                  buf, guildId, 0x32);
-    if (!h->exec(0x4ed8))
+    char r = h->exec(0x4ed8);
+    if (!r)
     {
         CMyFileLog log(__FUNCTION__, 0x1b63);
         log("./log/DBQueryErr", "OnLoadGuildCargoHistory Query Error");
         return 0;
     }
     reply.m_count = h->get_n_rows();
+    int col = 0;
     unsigned int j = 0;
     while (j < (unsigned int)h->get_n_rows())
     {
         if (!h->fetch())
             return 0;
-        STGuildCargoLog* log = &reply.m_logs[j];
-        if (!h->get_int(0, *(int*)&log->time))
+        col = 0;
+        if (!h->get_int(col++, *(int*)&reply.m_logs[j].time))
             return 0;
-        if (!h->get_byte(1, *(char*)&log->behavior))
+        if (!h->get_byte(col++, *(char*)&reply.m_logs[j].behavior))
             return 0;
-        if (!h->get_str(2, log->name, 0x15))
+        if (!h->get_str(col++, reply.m_logs[j].name, 0x15))
             return 0;
-        if (!h->get_int(3, *(int*)&log->count))
+        if (!h->get_int(col++, *(int*)&reply.m_logs[j].count))
             return 0;
-        if (!h->get_int(4, *(int*)&log->param))
+        if (!h->get_int(col++, *(int*)&reply.m_logs[j].param))
             return 0;
-        if (!h->get_binary(5, (char*)&log->opt0, 0xe))
+        if (!h->get_binary(col++, (char*)&reply.m_logs[j].opt0, 0xe))
             return 0;
         j++;
     }
@@ -5693,9 +5744,9 @@ bool CDBManager::InsertLetter(unsigned int characNo, unsigned int sendCharacNo,
                               int& letterNo, long expiry)
 {
     CDBHandle* h = m_handles[3];    // game db
-    char buf1[0x200] = {0};
+    char buf1[0x1ff] = {0};
     h->escape_string(buf1, (char*)content);
-    char buf2[0x3c] = {0};
+    char buf2[0x3b] = {0};
     h->escape_string(buf2, (char*)subject);
     h->set_query(0x4e5c,
                  "inSert into letter(charac_no,send_charac_no,send_charac_name,letter_text,reg_date,stat) values(%d,%d,'%s','%s',from_unixtime(%d),%d)",
@@ -6786,6 +6837,7 @@ bool CDBManager::QueryGuildMemberGradeByName(unsigned char serverId,
                                              unsigned int& m_id,
                                              unsigned int& result)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e5a,
                       "seLect charac_no, grade, m_id from guild_member where guild_id = %d and server_id = %d and charac_name =  '%s' and member_flag = 1",
@@ -6796,15 +6848,20 @@ bool CDBManager::QueryGuildMemberGradeByName(unsigned char serverId,
             "CDBManager::ChangeUnconnectedGuildMemberGrade() Exception Break\n");
         return 0;
     }
-    if (!h->exec(0x4e5a))
+    r = h->exec(0x4e5a);
+    if (!r)
         return 0;
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
         return 1;
-    if (!h->get_uint(0, m_id))
+    r = h->get_uint(0, m_id);
+    if (!r)
         return 0;
-    if (!h->get_ubyte(1, grade))
+    r = h->get_ubyte(1, grade);
+    if (!r)
         return 0;
-    if (!h->get_uint(2, result))
+    r = h->get_uint(2, result);
+    if (!r)
         return 0;
     return 1;
 }
@@ -6896,6 +6953,7 @@ bool CDBManager::QueryGuildNotiMessage(unsigned char serverGroup,
                                        unsigned int guildId,
                                        Packet_DB_Reply_Query_Guild& reply)
 {
+    bool r;
     CDBHandle* h = m_handles[8];    // guild db
     if (!h->set_query(0x4e64, "seLect notice from guild_notice where guild_id = %d",
                       guildId))
@@ -6904,11 +6962,14 @@ bool CDBManager::QueryGuildNotiMessage(unsigned char serverGroup,
         log("./log/DBQueryErr", "CDBManager::QueryGuildMember() Exception Break\n");
         return 0;
     }
-    if (!h->exec(0x4e64))
+    r = h->exec(0x4e64);
+    if (!r)
         return 0;
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
         return 1;
-    if (!h->get_str(0, (char*)&reply + 0xd0, 0x64))
+    r = h->get_str(0, (char*)&reply + 0xd0, 0x64);
+    if (!r)
         return 0;
     return 1;
 }
@@ -6916,43 +6977,51 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
                                  unsigned int guildId,
                                  Packet_DB_Reply_Query_Guild& reply)
 {
+    bool r;
+    register unsigned int sv;
     CDBHandle* h = m_handles[8];    // guild db
     CDBHandle* h2 = m_handles[2];   // game db
     STGuildDBInfoOnly* info = &reply.m_guildInfo;
     if (!h->set_query(0x4e56, "seLect remain_sp, used_sp, skill_slot from guild_skill where guild_id = %d",
                       guildId))
     {
+        sv = serverGroup;
         CMyFileLog log(__FUNCTION__, 0xcec);
         log("./log/DBQueryErr",
             "CDBManager::QueryGuild() seLect remain_sp, skill_slot from guild_skill where guild_id = %d and server_id = %d and expire_flag = 0",
-            guildId, serverGroup);
+            guildId, sv);
         reply.m_result = 0;
         return 0;
     }
-    if (!h->exec(0x4e56))
+    r = h->exec(0x4e56);
+    if (!r)
     {
         reply.m_result = 0;
         return 0;
     }
-    if (!h->fetch())
+    r = h->fetch();
+    if (!r)
     {
         reply.m_result = 1;
         return 1;
     }
-    if (!h->get_ushort(0, *(unsigned short*)&info->m_guildSkillPoint))
+    r = h->get_ushort(0, *(unsigned short*)&info->m_guildSkillPoint);
+    if (!r)
     {
         reply.m_result = 3;
         return 1;
     }
-    if (!h->get_ubyte(1, *(unsigned char*)&info->m_skillLearnCnt))
+    r = h->get_ubyte(1, *(unsigned char*)&info->m_skillLearnCnt);
+    if (!r)
     {
         reply.m_result = 3;
         return 1;
     }
-    if (info->m_skillLearnCnt != 0)
+    if ((unsigned char)info->m_skillLearnCnt != 0)
     {
-        if (!h->get_binary(2, (char*)info->m_skills,
-                           info->m_skillLearnCnt * 5))
+        r = h->get_binary(2, (char*)info->m_skills,
+                          (unsigned char)info->m_skillLearnCnt * 5);
+        if (!r)
         {
             reply.m_result = 3;
             return 1;

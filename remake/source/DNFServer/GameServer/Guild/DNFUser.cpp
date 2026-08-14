@@ -472,7 +472,7 @@ void CUser::GuildInviteProcess()
     if (m_guildInviteFact < 2)
     {
         --m_guildInviteFact;
-        register int bVar1;
+        register unsigned char bVar1 asm("eax");
         if (m_guildInviteFact == 0 || m_guildInviteFact > 1)
             bVar1 = 1;
         else

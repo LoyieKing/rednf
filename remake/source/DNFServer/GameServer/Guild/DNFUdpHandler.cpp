@@ -89,13 +89,15 @@ CUdpHandler::CUdpHandler()
 
 int CUdpHandler::InitServerSocket(int port)
 {
+    int err;
+    int bufsize;
     m_sock = socket(2, 2, 0x11);
-    if (m_sock == -1) { int err = getErrno(); printf("Could not create a UDP socket : %d\n", err); return -1; }
+    if (m_sock == -1) { err = getErrno(); printf("Could not create a UDP socket : %d\n", err); return -1; }
     sockaddr_in local; memset(&local, 0, 0x10);
     local.sin_family = 2; local.sin_addr.s_addr = htonl(0);
     local.sin_port = htons((unsigned short)port);
     if (bind(m_sock, (sockaddr*)&local, 0x10) != 0) {
-        int err = getErrno();
+        err = getErrno();
         switch (err)
         {
         case 0x62: printf("Port %d for receiving UDP is in use\n", port); break;
@@ -106,8 +108,8 @@ int CUdpHandler::InitServerSocket(int port)
         }
         m_sock = -1;
     }
-    int bufsize = 1000000; setsockopt(m_clientSock, 1, 8, &bufsize, 4);
-    DNF_LOG_SCOPE("./log/Udp", "Opened port %d with fd %d, recv buf size %d\n", port, m_sock, bufsize);
+    bufsize = 1000000; setsockopt(m_clientSock, 1, 8, &bufsize, 4);
+    DNF_LOG_SCOPE_LINE(0x6e, "./log/Udp", "Opened port %d with fd %d, recv buf size %d\n", port, m_sock, bufsize);
     return m_sock;
 }
 

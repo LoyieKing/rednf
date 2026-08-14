@@ -92,20 +92,20 @@ void stDisjointAvatarInfoTotal::clear()
         }
     }
 }
+void stDisjointAvatarInfoTotal::incCount(int a, int b, int c, int d)
+{
+    if (checkCondition(a, b, c))
+    {
+        ++m_count[a][b][c];
+        m_sum[a][b] = m_sum[a][b] + d;
+    }
+}
 bool stDisjointAvatarInfoTotal::checkCondition(int a, int b, int c)
 {
     if (a < 0 || 2 < a) return 0;
     if (b < 0 || 8 < b) return 0;
     if (c < 0 || 1 < c) return 0;
     return 1;
-}
-void stDisjointAvatarInfoTotal::incCount(int a, int b, int c, int d)
-{
-    if (checkCondition(a, b, c))
-    {
-        m_count[a][b][c] = m_count[a][b][c] + 1;
-        m_sum[a][b] = m_sum[a][b] + d;
-    }
 }
 Packet_Avater_Disjoint_Statistic_DB::Packet_Avater_Disjoint_Statistic_DB()
     : PacketHeader(0x17a3, 0x14e)

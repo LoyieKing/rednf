@@ -334,7 +334,8 @@ int CPeer::send_packet()
     if (m_sendRemain == 0)
         return 1;
     ret = write(getHandle(), m_sendBuf, m_sendRemain);
-    if (ret < 1)
+    register bool sendFailed = ret <= 0;
+    if (sendFailed)
     {
         if (errno == EAGAIN || errno == EINTR || errno == EAGAIN || errno == 0)
             return 1;

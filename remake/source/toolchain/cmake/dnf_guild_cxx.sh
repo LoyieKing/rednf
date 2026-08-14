@@ -48,8 +48,8 @@ case "$(basename "$src" .cpp)" in
         exec "$C6446R" $filtered ;;
     DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFThreadInterface|DNFTcpAcceptThread|DNFServerHandler|PowerWar|TcpNetSystem)
         exec "$C6446R" "$@" ;;
-    DNFPacketTranslater)
-        exec "$C6446R" "$@" ;;
+    DNFPacketTranslater|GuildCargo|GuildBoard|PowerManager|DNFPacketDecoder|DNFGuild)
+        exec "$C6444R" "$@" ;;
     DNFAppStopInit|DNFAppStartInit)
         exec "$C6444R" "$@" ;;
     *)

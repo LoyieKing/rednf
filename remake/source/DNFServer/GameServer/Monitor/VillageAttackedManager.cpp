@@ -465,10 +465,9 @@ void CVillageAttackedManager::SendMinTime()
     pkt.m_queryId = 0x4ee3;
     register unsigned int elapse = GetElapseTime();
     register unsigned int now = GetNowTime();
-    register unsigned int group = (unsigned int)m_app->Get_ServerGroup();
     sprintf(pkt.m_sql,
             "inSert into village_attacked_server_time_rank(server_info, occ_date, clear_time) values(%d,cast(from_unixtime(%d) as date),%u)",
-            group & 0xff, now, elapse);
+            m_app->Get_ServerGroup(), now, elapse);
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 

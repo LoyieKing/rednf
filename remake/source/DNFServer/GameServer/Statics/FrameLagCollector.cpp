@@ -217,7 +217,7 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
     {
         return 2;
     }
-    if (is_valid_statistic_packet(pkt) != 1)
+    if (is_valid_statistic_packet(pkt) == 0)
     {
         return 4;
     }
@@ -228,47 +228,75 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
         m_memory[i].SetUsedMemory((char)((FrameLagMemView*)pkt)->m_used[i],
                                   ((FrameLagMemView*)pkt)->m_val[i]);
     }
-    for (std::map<int, MonitoringSpecCase>::iterator it = m_monitor.begin();
-         it != m_monitor.end(); ++it)
+    std::map<int, MonitoringSpecCase>::iterator it;
+    std::map<int, FrameLagDataStruct>::iterator fd;
+    it = m_monitor.begin();
+    for (; it != m_monitor.end(); ++it)
     {
         char match = 1;
-        if (!(it->second.m_cpuVendor == -1 || it->second.m_cpuVendor == ((FrameLagPktHeader*)pkt)->m_field_f))
-            match = 0;
-        if (match && !(it->second.m_cpuProcessorNum == -1 || it->second.m_cpuProcessorNum == ((FrameLagPktHeader*)pkt)->m_field_e))
-            match = 0;
-        if (match && !(it->second.m_aboveCpuClock == -1 || it->second.m_aboveCpuClock <= ((FrameLagPktHeader*)pkt)->m_min))
-            match = 0;
-        if (match && !(it->second.m_belowCpuClock == -1 || it->second.m_belowCpuClock > ((FrameLagPktHeader*)pkt)->m_min))
-            match = 0;
-        if (match && !(it->second.m_ram == -1 || it->second.m_ram == ((FrameLagPktHeader*)pkt)->m_field_18))
-            match = 0;
-        if (match && !(it->second.m_videocardVendor == -1 || (unsigned int)it->second.m_videocardVendor == (unsigned int)((FrameLagPktHeader*)pkt)->m_field_12))
-            match = 0;
-        if (match && !(it->second.m_videocardDevice == -1 || (unsigned int)it->second.m_videocardDevice == (unsigned int)((FrameLagPktHeader*)pkt)->m_field_14))
-            match = 0;
-        if (match && !(it->second.m_videocardTextureMem == -1 || it->second.m_videocardTextureMem == ((FrameLagPktHeader*)pkt)->m_field_16))
-            match = 0;
-        if (match && !(it->second.m_osVersion == -1 || it->second.m_osVersion == ((FrameLagPktHeader*)pkt)->m_field_1a))
-            match = 0;
-        if (match)
+        if (match == 1)
         {
-            std::map<int, FrameLagDataStruct>::iterator fd = m_data.find(it->first);
+            if (!(it->second.m_cpuVendor == -1 || it->second.m_cpuVendor == ((FrameLagPktHeader*)pkt)->m_field_f))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_cpuProcessorNum == -1 || it->second.m_cpuProcessorNum == ((FrameLagPktHeader*)pkt)->m_field_e))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_aboveCpuClock == -1 || it->second.m_aboveCpuClock <= ((FrameLagPktHeader*)pkt)->m_min))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_belowCpuClock == -1 || it->second.m_belowCpuClock > ((FrameLagPktHeader*)pkt)->m_min))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_ram == -1 || it->second.m_ram == ((FrameLagPktHeader*)pkt)->m_field_18))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_videocardVendor == -1 || (unsigned int)it->second.m_videocardVendor == (unsigned int)((FrameLagPktHeader*)pkt)->m_field_12))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_videocardDevice == -1 || (unsigned int)it->second.m_videocardDevice == (unsigned int)((FrameLagPktHeader*)pkt)->m_field_14))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_videocardTextureMem == -1 || it->second.m_videocardTextureMem == ((FrameLagPktHeader*)pkt)->m_field_16))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            if (!(it->second.m_osVersion == -1 || it->second.m_osVersion == ((FrameLagPktHeader*)pkt)->m_field_1a))
+                match = 0;
+        }
+        if (match == 1)
+        {
+            fd = m_data.find(it->first);
             if (fd != m_data.end())
             {
-                FrameLagDataStruct* v = &fd->second;
-                v->m0 = v->m0 + 1;
+                fd->second.m0 = fd->second.m0 + 1;
                 if (-1 < (char)((FrameLagPktHeader*)pkt)->m_module &&
                     (char)((FrameLagPktHeader*)pkt)->m_module < 8)
                 {
-                    v->m_b[((char)((FrameLagPktHeader*)pkt)->m_module + 8)] += 1;
+                    fd->second.m_b[((char)((FrameLagPktHeader*)pkt)->m_module + 8)] += 1;
                 }
                 if (-1 < ((FrameLagPktHeader*)pkt)->m_sum1)
                 {
-                    v->m_c[1] += (int)((FrameLagPktHeader*)pkt)->m_sum1;
-                    v->m_c[2] += (int)((FrameLagPktHeader*)pkt)->m_sum2;
-                    v->m_c[0] += 1;
+                    fd->second.m_c[1] += (int)((FrameLagPktHeader*)pkt)->m_sum1;
+                    fd->second.m_c[2] += (int)((FrameLagPktHeader*)pkt)->m_sum2;
+                    fd->second.m_c[0] += 1;
                 }
-                accFrameLagStruct(*v, (FrameLagStruct*)((char*)pkt + 0x24));
+                accFrameLagStruct(fd->second, (FrameLagStruct*)((char*)pkt + 0x24));
             }
         }
     }
@@ -533,11 +561,9 @@ int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
     {
         return 2;
     }
-    if (m_field9c == m_today)
+    if (m_field9c != m_today)
     {
-        return 0;
-    }
-    m_field9c = m_today;
+        m_field9c = m_today;
     Packet_Frame_Lag_Statistic_Write_Query pkt;
     time_t now;
     time(&now);
@@ -548,8 +574,9 @@ int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
              (unsigned int)m_directx.m_data[2], (unsigned int)m_directx.m_data[3],
              (unsigned int)m_directx.m_data[4], (unsigned int)m_directx.m_data[5],
              (unsigned int)m_directx.m_data[6], (unsigned int)m_directx.m_data[7]);
-    handler->SendToDB((PacketHeader*)&pkt);
-    m_directx.init();
+        handler->SendToDB((PacketHeader*)&pkt);
+        m_directx.init();
+    }
     return 0;
 }
 int FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add* pkt)
@@ -622,10 +649,10 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
         data.m_a[i] += 1;
     }
 }
-void FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
+int FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
 {
     m_field1e4++;
-    if (m_collectInterval <= m_field1e4)
+    if (m_field1e4 >= m_collectInterval)
     {
         m_field1e4 = 0;
         Packet_Frame_Lag_Used_Memory_Write_Query pkt;
@@ -633,11 +660,10 @@ void FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
         {
             for (int j = 0; j < 6; j++)
             {
-                int count = m_memory[i].m_counts[j];
-                int sum = m_memory[i].m_sums[j];
-                if (sum != 0)
+                if (m_memory[i].m_sums[j] != 0)
                 {
-                    unsigned int avg = (unsigned int)sum / (unsigned int)count;
+                    unsigned int avg = (unsigned int)m_memory[i].m_sums[j] /
+                                       (unsigned int)m_memory[i].m_counts[j];
                     snprintf((char*)&pkt + 10, 0x400,
                              "inSert into used_memory (occ_time, minute_type, module, memory) values (now(),%d,%d,%d)",
                              i, j, avg);
@@ -647,6 +673,7 @@ void FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
             m_memory[i].init();
         }
     }
+    return 0;
 }
 Packet_Frame_Lag_Statistic_Load_Spec::Packet_Frame_Lag_Statistic_Load_Spec()
     : PacketHeader(0xc27, 0xb)
@@ -666,21 +693,21 @@ void FrameLagCollector::FrameLagDataStruct::init()
     m_c[0] = 0;
     m_c[1] = 0;
     m_c[2] = 0;
-    for (int i = 0; i < 6; i++)
+    for (int k = 0; k < 6; k++)
     {
-        m_a[i] = 0;
-        m_d[i] = 0;
-        m_e[i] = 0;
-        m_f[i] = 0;
-        m_g[i] = 0;
-        m_h[i][0] = 0;
-        m_h[i][1] = 0;
-        m_h[i][2] = 0;
-        m_h[i][3] = 0;
+        m_a[k] = 0;
+        m_d[k] = 0;
+        m_e[k] = 0;
+        m_f[k] = 0;
+        m_g[k] = 0;
+        m_h[k][0] = 0;
+        m_h[k][1] = 0;
+        m_h[k][2] = 0;
+        m_h[k][3] = 0;
         for (int j = 0; j < 6; j++)
         {
-            m_i[i * 7 + j][0] = 0;
-            m_i[i * 7 + j][1] = 0;
+            m_i[k * 7 + j][0] = 0;
+            m_i[k * 7 + j][1] = 0;
         }
     }
 }

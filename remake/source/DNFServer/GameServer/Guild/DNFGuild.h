@@ -20,6 +20,7 @@ class CGuild;
 class CServerHandler;
 class CUser;
 class DnfItemInfo;
+template<class T> class MemPool;
 struct Packet_Achieve_Guild_Attendance;
 struct Packet_Channel_Create_Guild_Agit;
 struct Packet_Channel_Guild_Agit_Info;
@@ -235,6 +236,7 @@ public:
     static void* operator new(unsigned int size);
     static void operator delete(void* p);
     static void operator delete(void* p, unsigned int size);
+    static MemPool<CGuild> m_GuildmemPool_;
     unsigned int GetGuildKey();
     bool IsSubGuildMaster(unsigned int dbid);
     bool IsGuildMaster(unsigned int dbid);
@@ -382,10 +384,10 @@ public:
 class Packet_Achieve_Guild_Attendance : public PacketHeader {
 public:
     Packet_Achieve_Guild_Attendance();
-    unsigned int m_charNo;     // +0xa
-    unsigned int m_phase;      // +0xe
-    unsigned int m_channel;    // +0x12
-    unsigned int m_charNo2;    // +0x16
+    unsigned int m_charNo2;    // +0xa（接收者 GetUniqCharNo）
+    unsigned int m_channel;    // +0xe（接收者 GetIdByChannel）
+    unsigned int m_charNo;     // +0x12（参数 charNo）
+    unsigned int m_phase;      // +0x16（参数 phase）
 };
 
 // from GuildPackets.h

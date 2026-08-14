@@ -191,10 +191,10 @@ void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
                 {
                     CMyFileLog(__FUNCTION__, 0x13e)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].frame : %d", i, j,
-                          pck->m_lag.m_frameLag[i * 7 + (4 + j)].m_frame);
+                          pck->m_lag.m_frameLag[i * 7 + j + 4].m_frame);
                     CMyFileLog(__FUNCTION__, 0x13f)("./log/FrameLag.log",
                           "m_frameLagArray[%d].framelag[%d].time : %.3f", i, j,
-                          (double)pck->m_lag.m_frameLag[i * 7 + (4 + j)].m_time);
+                          (double)pck->m_lag.m_frameLag[i * 7 + j + 4].m_time);
                 }
             }
             register unsigned int t5 = chk_ting[5];

@@ -65,12 +65,11 @@ void CIPCounter::Proc(unsigned int tick)
 
 void CIPCounter::setLoadTerm(unsigned char term)
 {
-    int v = (int)(unsigned char)term * 0x3c;
-    if (v > 0x2a30)
+    m_term = (int)(unsigned char)term * 0x3c;
+    if ((int)m_term > 0x2a30)
     {
-        v = 0x2a30;
+        m_term = 0x2a30;
     }
-    m_term = v;
     if (m_term < 0x708)
     {
         m_term = 0x708;

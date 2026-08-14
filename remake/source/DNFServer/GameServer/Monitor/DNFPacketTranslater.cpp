@@ -3114,16 +3114,15 @@ void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
     {
         CUser* user = 0;
         CUserManager* mgr = &m_pclApp->m_userManager;
-        Packet_Change_User_Handicap* in = (Packet_Change_User_Handicap*)pktLocal;
-        if ((user = mgr->FindUser(in->m_charNo)) == 0)
+        user = mgr->FindUser(((Packet_Change_User_Handicap*)pktLocal)->m_charNo);
+        if (user != 0)
         {
-            return;
+            Packet_Change_User_Handicap reply;
+            reply.m_charNo = ((Packet_Change_User_Handicap*)pktLocal)->m_charNo;
+            reply.m_fieldE = ((Packet_Change_User_Handicap*)pktLocal)->m_fieldE;
+            reply.m_field12 = ((Packet_Change_User_Handicap*)pktLocal)->m_field12;
+            user->SendToGameserver((char*)&reply, reply.packetSize);
         }
-        Packet_Change_User_Handicap reply;
-        reply.m_charNo = in->m_charNo;
-        reply.m_fieldE = in->m_fieldE;
-        reply.m_field12 = in->m_field12;
-        user->SendToGameserver((char*)&reply, reply.packetSize);
     }
 }
 
@@ -4378,7 +4377,7 @@ void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
         (CTcpGameServer*)m_pclApp->FindTcpGameServer(acc->m_connNo);
     if (tcpGs != 0)
     {
-        acc->m_result = (char)m_pclApp->AddAccusationCharac(
+        acc->m_result = m_pclApp->AddAccusationCharac(
             std::string(acc->m_name1),
             std::string(acc->m_name2),
             acc->m_type,
@@ -4494,13 +4493,14 @@ void CPacketTranslater::OnDisableUserOneToOneChat_GM(PacketHeader* pkt)
 
 void CPacketTranslater::OnFindCharacName_useUID(PacketHeader* pkt)
 {
-    Packet_Find_Charac_Name_UseUID* req = (Packet_Find_Charac_Name_UseUID*)pkt;
     CTcpGameServer* tcpGs =
-        (CTcpGameServer*)m_pclApp->FindTcpGameServer(req->m_connNo);
+        (CTcpGameServer*)m_pclApp->FindTcpGameServer(pkt->m_connNo);
     if (tcpGs != 0)
     {
+        Packet_Find_Charac_Name_UseUID* req = (Packet_Find_Charac_Name_UseUID*)pkt;
+        char* buf = tcpGs->makePacketHeader(0x1f45, 0x34);
         Packet_Find_Charac_Name_UseUID* pb =
-            (Packet_Find_Charac_Name_UseUID*)tcpGs->makePacketHeader(0x1f45, 0x34);
+            (Packet_Find_Charac_Name_UseUID*)buf;
         pb->m_dbid = req->m_dbid;
         pb->m_charNo = req->m_charNo;
         pb->m_len = 0;
@@ -4508,9 +4508,7 @@ void CPacketTranslater::OnFindCharacName_useUID(PacketHeader* pkt)
             (&m_pclApp->m_userManager)->FindUser_CharNo(req->m_charNo);
         if (user != 0)
         {
-            char* name = user->GetCharName();
-            unsigned int len = (unsigned int)strlen(name);
-            pb->m_len = len;
+            pb->m_len = strlen(user->GetCharName());
             if (0x1d < pb->m_len)
             {
                 pb->m_len = 0;

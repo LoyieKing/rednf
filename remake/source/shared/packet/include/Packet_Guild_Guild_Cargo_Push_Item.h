@@ -9,8 +9,8 @@
 
 class Packet_Guild_Guild_Cargo_Push_Item : public PacketHeader {
 public:
-    unsigned int m_group;          // +0xa
-    unsigned int m_guildKey;       // +0xe
+    unsigned int m_guildKey;       // +0xa
+    unsigned int m_charNo;         // +0xe
     int m_slot;                    // +0x12
     int m_count;                   // +0x16
     unsigned char m_itemType;      // +0x1a

@@ -31,10 +31,10 @@ struct STPartyStatisticKey
     unsigned short m_channelNo;        // +0（log_dungeon_party.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_party.dungeon_index）
     char m_dungeonDiff;                // +8（log_dungeon_party.dungeon_diff）
-    bool m_dungeonStandardLevel;       // +9（log_dungeon_party.dungeon_standard_level）
-    bool m_abuseParty;                 // +0xa（log_dungeon_party.abuse_party）
-    bool m_balkunParty;                // +0xb（log_dungeon_party.balkun_party）
-    bool m_success;                    // +0xc（log_dungeon_party.success）
+    bool m_dungeonStandardLevel;       // +9
+    bool m_abuseParty;                 // +0xa
+    bool m_balkunParty;                // +0xb
+    bool m_success;                    // +0xc
     char m_partyUserCount;             // +0xd（log_dungeon_party.party_user_count）
 };
 
@@ -57,10 +57,10 @@ struct STPartyJobStatisticKey
     unsigned short m_channelNo;        // +0（log_dungeon_party_job.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_party_job.dungeon_index）
     char m_dungeonDiff;                // +8（log_dungeon_party_job.dungeon_diff）
-    bool m_dungeonStandardLevel;       // +9（log_dungeon_party_job.dungeon_standard_level）
-    bool m_abuseParty;                 // +0xa（log_dungeon_party_job.abuse_party）
-    bool m_balkunParty;                // +0xb（log_dungeon_party_job.balkun_party）
-    bool m_success;                    // +0xc（log_dungeon_party_job.success）
+    bool m_dungeonStandardLevel;       // +9
+    bool m_abuseParty;                 // +0xa
+    bool m_balkunParty;                // +0xb
+    bool m_success;                    // +0xc
     char m_partyUserCount;             // +0xd（log_dungeon_party_job.party_user_count）
     enum STPartyJobKeyField10 { ST_PARTY_JOB_KEY_FIELD10_0 = 0 } m_characJob;  // +0x10（log_dungeon_party_job.charac_job）
     char m_characGrow;                // +0x14（log_dungeon_party_job.charac_grow）
@@ -84,8 +84,8 @@ struct STPartyCharacKey
     unsigned short m_channelNo;        // +0（log_dungeon_charac.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_charac.dungeon_index）
     char m_dungeonDiff;                // +8（log_dungeon_charac.dungeon_diff）
-    bool m_dungeonStandardLevel;       // +9（log_dungeon_charac.dungeon_standard_level）
-    bool m_success;                    // +0xa（log_dungeon_charac.success）
+    bool m_dungeonStandardLevel;       // +9
+    bool m_success;                    // +0xa
     enum STPartyCharacKeyFieldC { ST_PARTY_CHARAC_KEY_FIELDC_0 = 0 } m_characJob;  // +0xc（log_dungeon_charac.charac_job）
     char m_characGrow;                // +0x10（log_dungeon_charac.charac_grow）
     char m_partyUserCount;            // +0x11（log_dungeon_charac.party_user_count）
@@ -203,7 +203,7 @@ struct STHellPartyStatisticItemKey
     STHellPartyStatisticItemKey();
     ~STHellPartyStatisticItemKey();
     bool operator<(const STHellPartyStatisticItemKey& other) const;
-    bool m_hellpartyType;    // +0（log_hellparty_value.hellparty_type）
+    bool m_hellpartyType;    // +0
     int m_dungeonIndex;      // +4（log_hellparty_value.dungeon_index）
     char m_dungeonDiff;      // +8（log_hellparty_value.dungeon_diff）
     char m_partyCount;       // +9（log_hellparty_value.party_count）

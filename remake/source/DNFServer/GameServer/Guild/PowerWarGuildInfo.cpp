@@ -292,17 +292,13 @@ void CPowerWarGuildInfo::MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Poin
     int i = 0;
     if (n != 0)
     {
-        if (n <= 0xfa)
-        {
+        std::vector<STDBSavePowerWarPoint*>::iterator it = m_vec2.begin();
+        if (n < 0xfb)
             count = (int)n;
-        }
         else
-        {
             count = 0xfa;
-        }
         char* out = (char*)pkt + 0xf;
-        for (std::vector<STDBSavePowerWarPoint*>::iterator it = m_vec2.begin();
-             it != m_vec2.end() && i <= count; )
+        while (it != m_vec2.end() && i < count)
         {
             STDBSavePowerWarPoint* p = *it;
             *(unsigned int*)(out + i * 8) = p->m_field[0];

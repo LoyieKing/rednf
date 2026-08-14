@@ -324,8 +324,8 @@ int CTcpNetSystem::SendPacket()
     {
         register int ret;
         register int flag;
-        CTcpSendBuffer* b2;
         CTcpSendBuffer* buf;
+        CTcpSendBuffer* b2;
         CPeer* peer;
         int result;
         int cnt;

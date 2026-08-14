@@ -271,9 +271,7 @@ public:
     virtual void* GetEventPtr(int idx);
     int GetEpollFD() { return m_epollFd; }
     void* GetEpollEvents() { return m_events; }
-    int m_eventType;  // +4
-    void* m_peer;     // +8
-    int m_pad;        // +0xc（ORIG 布局占位）
+    epoll_event m_event;    // +4 (12 bytes)
     epoll_event* m_events;  // +0x10
     int m_epollFd;    // +0x14
     CMutex m_mutex;   // +0x18

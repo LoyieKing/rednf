@@ -82,7 +82,7 @@ public:
     ~FrameLagCollector();
     int ReLoadSpec(CServerHandler* handler);
     void RenewToday();
-    void SaveUsedMemory(CServerHandler* handler);
+    int SaveUsedMemory(CServerHandler* handler);
     int SaveDailyBadSpec(CServerHandler* handler);
     int SaveFrameLagData(CServerHandler* handler);
     int GetCollectInterval();

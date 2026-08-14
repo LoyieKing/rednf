@@ -114,37 +114,34 @@ void CTcpNetworkThread::dispatch(void* param)
             {
                 continue;
             }
-            if (eventCount >= 0 || errno == EINTR || errno == 0)
-            {
-                for (int i = 0; i < eventCount; i++)
-                {
-                    peer = (CPeer*)((CTcpHandler*)m_handler)->GetEventPtr(i);
-                    if (peer != 0 && ((CTcpHandler*)m_handler)->IsSetInEvent(i))
-                    {
-                        if (peer->RecvPacket() != 1)
-                        {
-                            peer->DisConnSig();
-                            m_net->DeletePeer(peer);
-                            peer = 0;
-                        }
-                    }
-                    if (peer != 0 && peer->get_remain_sendlen() != 0 &&
-                        ((CTcpHandler*)m_handler)->IsSetOutEvent(i))
-                    {
-                        if ((unsigned int)peer->get_remain_sendlen() > 0x1800)
-                        {
-                        }
-                        else
-                        {
-                            peer->send_packet();
-                        }
-                    }
-                    ((CTcpHandler*)m_handler)->IsSetErrEvent(i);
-                }
-            }
-            else
+            if (eventCount < 0 && errno != EINTR && errno != 0)
             {
                 break;
+            }
+            for (int i = 0; i < eventCount; i++)
+            {
+                peer = (CPeer*)((CTcpHandler*)m_handler)->GetEventPtr(i);
+                if (peer != 0 && ((CTcpHandler*)m_handler)->IsSetInEvent(i))
+                {
+                    if (peer->RecvPacket() != 1)
+                    {
+                        peer->DisConnSig();
+                        m_net->DeletePeer(peer);
+                        peer = 0;
+                    }
+                }
+                if (peer != 0 && peer->get_remain_sendlen() != 0 &&
+                    ((CTcpHandler*)m_handler)->IsSetOutEvent(i))
+                {
+                    if ((unsigned int)peer->get_remain_sendlen() > 0x1800)
+                    {
+                    }
+                    else
+                    {
+                        peer->send_packet();
+                    }
+                }
+                ((CTcpHandler*)m_handler)->IsSetErrEvent(i);
             }
         }
         DNF_LOG_SCOPE_LINE(0xae, "./log/TcpRecv", "RecvThread Terminate");

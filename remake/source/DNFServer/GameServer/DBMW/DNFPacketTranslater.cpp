@@ -2341,41 +2341,42 @@ void CPacketTranslater::OnQueryGuild(PacketHeader* header)
     try
     {
         Packet_DBMW_Query_Guild* pkt = (Packet_DBMW_Query_Guild*)header;
-        unsigned int guildId = pkt->m_guildId;
+        reply.m_guildId = pkt->m_guildId;
+        reply.m_characNo = pkt->m_serverGroup;
         if (!m_pclApp->m_dbManager.QueryGuild(
-                pkt->m_serverId, guildId, reply))
+                pkt->m_serverId, pkt->m_guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x56,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
-                reply.m_result
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", reply.m_guildId,
+                (unsigned char)reply.m_result
             );
         }
         if (!m_pclApp->m_dbManager.QuerySubGuildMaster(
-                pkt->m_serverId, guildId, reply))
+                pkt->m_serverId, pkt->m_guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x5b,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
-                reply.m_result
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", reply.m_guildId,
+                (unsigned char)reply.m_result
             );
         }
         if (!m_pclApp->m_dbManager.QueryGuildSkill(
-                pkt->m_serverId, guildId, reply))
+                pkt->m_serverId, pkt->m_guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x60,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
-                reply.m_result
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", reply.m_guildId,
+                (unsigned char)reply.m_result
             );
         }
         if (!m_pclApp->m_dbManager.QueryGuildNotiMessage(
-                pkt->m_serverId, guildId, reply))
+                pkt->m_serverId, pkt->m_guildId, reply))
         {
             DNF_LOG_SCOPE_LINE(0x65,
                 "./log/Except",
-                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", guildId,
-                reply.m_result
+                "CPacketTranslater::OnQueryGuild()\tGuild Id : %d,\t Query Result : %d\n", reply.m_guildId,
+                (unsigned char)reply.m_result
             );
         }
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();

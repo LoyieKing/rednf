@@ -82,6 +82,10 @@ void LimitNpcBuyItemManager::registItem(NpcBuyLimitItem& item)
     {
         m_items.insert(std::make_pair(item.m_itemId, item));
     }
+    else
+    {
+        return;
+    }
 }
 
 void LimitNpcBuyItemManager::registItemClear()
@@ -91,8 +95,8 @@ void LimitNpcBuyItemManager::registItemClear()
 
 void LimitNpcBuyItemManager::getNpcLimitBuyItemInfoAll(LimitNpcBuyItemInfoAll* out)
 {
-    for (std::map<unsigned int, NpcBuyLimitItem>::iterator it = m_items.begin();
-         it != m_items.end(); ++it)
+    for (std::map<unsigned int, NpcBuyLimitItem>::iterator it = m_items.begin(),
+             endIt = m_items.end(); it != endIt; ++it)
     {
         if (it->first != 0)
         {

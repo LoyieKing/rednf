@@ -37,7 +37,7 @@ CItemLimitEditionMgr::~CItemLimitEditionMgr() { clear(); }
 void CItemLimitEditionMgr::makeItemLimitEditionUpdatePacket(
     Packet_Item_Limit_Edition_Update& pkt) const
 {
-    int idx = 0;
+    unsigned int idx = 0;
     for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin(),
              endIt = m_items.end(); it != endIt; ++it)
     {
@@ -58,7 +58,7 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
              endIt = m_items.end(); it != endIt; ++it)
     {
         CItemLimitEdition* item = it->second;
-        item->makeItemInfo(*(stItemLimitEditionItemInfo_t*)((char*)&pkt + (idx * 0x48 + 0xf)));
+        item->makeItemInfo(*(stItemLimitEditionItemInfo_t*)&pkt.m_items[idx]);
         idx++;
     }
     pkt.m_count = idx;

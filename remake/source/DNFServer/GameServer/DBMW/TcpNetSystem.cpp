@@ -147,6 +147,7 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
         goto check;
     body:
         peer = m_peerQueue.front();
+        ret = 0;
         ret = m_tcpHandler->SetPeer(peer, peer->GetTcpSocket()->getHandle(), false);
         if (ret != 0)
         {

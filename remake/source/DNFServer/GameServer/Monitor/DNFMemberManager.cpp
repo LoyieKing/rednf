@@ -62,7 +62,7 @@ void CMemberManager::MemberRegisterFlagProcess()
 {
     time_t t = time(0);
     struct tm* lt = localtime(&t);
-    if (!m_scheduler.IsOnTimeSpecialHour(lt->tm_hour, lt->tm_min))
+    if (m_scheduler.IsOnTimeSpecialHour(lt->tm_hour, lt->tm_min))
     {
         for (std::map<unsigned int, CMember*>::iterator it = m_members.begin();
              it != m_members.end(); ++it)
@@ -70,9 +70,11 @@ void CMemberManager::MemberRegisterFlagProcess()
             CMember* member = it->second;
             member->CheckMemberRegisterFlag();
         }
+        register int min = lt->tm_min;
+        register int hour = lt->tm_hour;
         CMyFileLog log(__FUNCTION__, 0x19a);
         log("./log/MemberModify", "CMemberManager::MemberRegisterFlagProcess(%d,%d)",
-            lt->tm_min, lt->tm_hour);
+            hour, min);
     }
 }
 

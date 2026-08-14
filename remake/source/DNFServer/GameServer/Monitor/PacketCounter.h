@@ -254,7 +254,7 @@ public:
     char m_packetFlag[0x2418];    // +0x120c8
     int m_packetTotal[0x2418];    // +0x144e0
     char m_path[0x100];           // +0x1d540
-    char m_flagInit;              // +0x1d640
+    bool m_flagInit;              // +0x1d640
     char m_flag2;                 // +0x1d641
     char m_pad[6];                // +0x1d642
 };
@@ -311,7 +311,7 @@ void CPacketCounter<A, B>::AfterProcess(int id)
 {
     if (id > 0x27ff) return;
     if (id < 0x3e8) return;
-    if (m_flagInit == 0 && m_packetCount[id - 0x3e8] > 10) return;
+    if (!m_flagInit && m_packetCount[id - 0x3e8] > 10) return;
     int v;
     if ((v = m_totalCount) == -1)
     {

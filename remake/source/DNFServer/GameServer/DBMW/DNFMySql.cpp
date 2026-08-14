@@ -53,19 +53,16 @@ bool CMySql::init_db_handle()
 }
 char* CMySql::blob_to_str(int col, void* buf, int len)
 {
-    if (col < 0 || col > 9)
+    if (col < 0 || col > 9 || (buf == 0 && len > 0x5fff))
         return 0;
-    if (buf == 0 && len > 0x5fff)
-        return 0;
-    char* base = (char*)this + col * 0x6001 + 0x6070;
-    base[9] = 0;
+    ((char*)this + col * 0x6001 + 0x6070)[9] = 0;
     if (len > 0)
     {
-        char* dst = base + 9;
+        char* dst = (char*)this + (col * 0x6001 + 0x6070) + 9;
         dst += mysql_real_escape_string(m_mysql, dst, (const char*)buf, len);
         *dst++ = 0;
     }
-    return base + 9;
+    return (char*)this + (col * 0x6001 + 0x6070) + 9;
 }
 bool CMySql::set_compress_option()
 {

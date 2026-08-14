@@ -413,7 +413,8 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
             pkt.m_elem[idx].m_data[10] = it->second.m_data[10];
             pkt.m_elem[idx].m_data[11] = it->second.m_data[11];
             idx++;
-            if (99 < idx)
+            bool over = (idx > 0x63);
+            if (over)
             {
                 pkt.m_count = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -432,7 +433,7 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
 void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Job pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_partyJob.empty())
     {
         for (std::map<STPartyJobStatisticKey, PartyJobStatistic>::iterator it = m_partyJob.begin();
@@ -451,7 +452,8 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_data[0] = it->second.m_data[0];
             pkt.m_items[idx].m_data[1] = it->second.m_data[1];
             idx++;
-            if (0xf2 < idx)
+            bool over = (idx > 0xf2);
+            if (over)
             {
                 pkt.m_count = 0xf3;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -470,7 +472,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
 void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Charac pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_partyCharac.empty())
     {
         for (std::map<STPartyCharacKey, PartyCharacStatistic>::iterator it = m_partyCharac.begin();
@@ -498,7 +500,8 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_data[11] = it->second.m_data[11];
             pkt.m_items[idx].m_data[12] = it->second.m_data[12];
             idx++;
-            if (0x58 < idx)
+            bool over = (idx > 0x58);
+            if (over)
             {
                 pkt.m_count = 0x59;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -517,7 +520,7 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
 void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
 {
     Packet_DBMW_DeathTower_Statistic_Value pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_deathTowerValue.empty())
     {
         for (std::map<STDeathTowerValueStatisticKey, ValueStatistic>::iterator it =
@@ -528,7 +531,8 @@ void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_counterIdx = it->first.m_counterIdx;
             pkt.m_items[idx].m_value = it->second.m_data[0];
             idx++;
-            if (0x196 < idx)
+            bool over = (idx > 0x196);
+            if (over)
             {
                 pkt.m_count = 0x197;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -547,7 +551,7 @@ void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
 void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* handler)
 {
     Packet_DBMW_DeathTower_Statistic_Playdata_Job pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_deathTowerJob.empty())
     {
         for (std::map<STDeathTowerPlayDataJobStatisticKey, PlayDataJobStatistic>::iterator it =
@@ -576,7 +580,8 @@ void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* hand
             else
             {
                 idx++;
-                if (0x17d < idx)
+                bool over = (idx > 0x17d);
+                if (over)
                 {
                     pkt.m_count = 0x17e;
                     handler->SendToDB((PacketHeader*)&pkt);
@@ -600,7 +605,7 @@ void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* hand
 void StatisticManager::SendDBDeathTowerPlayDataPartyStatistic(CServerHandler* handler)
 {
     Packet_DBMW_DeathTower_Statistic_Playdata_Party pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_deathTowerParty.empty())
     {
         for (std::map<STDeathTowerPlayDataPartyStatisticKey, PlayDataPartyStatistic>::iterator it =
@@ -614,7 +619,8 @@ void StatisticManager::SendDBDeathTowerPlayDataPartyStatistic(CServerHandler* ha
             }
             pkt.m_items[idx].m_avgClearCount = it->second.m_data[0] / it->second.m_data[1];
             idx++;
-            if (0x263 < idx)
+            bool over = (idx > 0x263);
+            if (over)
             {
                 pkt.m_count = 0x264;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -700,7 +706,7 @@ void StatisticManager::WriteAssertManagerStatistic(Packet_Assert_Manager_Info* p
 void StatisticManager::SendDBAssertManagerStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Assert_Manager_Info_Write_Query pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_assertManager.empty())
     {
         for (std::map<STAssertManagerKey, int>::iterator it = m_assertManager.begin();
@@ -712,7 +718,8 @@ void StatisticManager::SendDBAssertManagerStatistic(CServerHandler* handler)
             slot->m_count = it->second;
             memcpy(slot->m_reason, it->first.m_reason, 0x100);
             idx++;
-            if (8 < idx)
+            bool over = (idx > 8);
+            if (over)
             {
                 pkt.m_count = 9;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -773,7 +780,7 @@ void StatisticManager::WriteUserTingTImeCheckStatistic(
 void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
 {
     Packet_DBMW_Ting_User_TimeCheck_Write_Query pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_tingUser.empty())
     {
         for (std::map<unsigned int, int>::iterator it = m_tingUser.begin();
@@ -806,7 +813,7 @@ void StatisticManager::ResetTingUserTimeCheckMap()
 void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
 {
     Packet_DBMW_User_Ting_TimeCheck_Write_Query pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_userTing.empty())
     {
         for (std::map<STUserTingTimeCheckKey, int>::iterator it = m_userTing.begin();
@@ -815,7 +822,8 @@ void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_minute = it->first.m_minute;
             pkt.m_items[idx].m_cnt = it->second;
             idx++;
-            if (idx > 0x2fd)
+            bool over = (idx > 0x2fd);
+            if (over)
             {
                 pkt.m_count = 0x2fe;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -868,7 +876,7 @@ void StatisticManager::WriteHellPartyStatisticItem(Packet_HellParty_Statistic_It
 void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
 {
     Packet_DBMW_HellParty_Statistic_Item pkt;
-    int idx = 0;
+    unsigned int idx = 0;
     if (!m_hellParty.empty())
     {
         for (std::map<STHellPartyStatisticItemKey, HellPartyItenmData>::iterator it =
@@ -889,7 +897,8 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
             ((STHellPartyStatisticItemWire*)((char*)&pkt + idx * 0x24))->m_count =
                 it->second.m_count;
             idx++;
-            if (0xa7 < idx)
+            bool over = (idx > 0xa7);
+            if (over)
             {
                 pkt.m_count = 0xa8;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -1781,12 +1790,12 @@ void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statisti
     }
     if (pkt->m_enterFlag != 0)
     {
-        m_tower[pkt->m_layer].m_enter = m_tower[pkt->m_layer].m_enter + 1;
-        m_serverList.insert(pkt->m_serverId);
+        ++m_tower[pkt->m_layer].m_enter;
+        m_serverList.insert(*(unsigned int*)((char*)pkt + 0x13));
     }
     else
     {
-        m_tower[pkt->m_layer].m_success = m_tower[pkt->m_layer].m_success + 1;
+        ++m_tower[pkt->m_layer].m_success;
     }
 }
 void StatisticManager::SendDBTowerOfDespairStatistic(CServerHandler* handler)

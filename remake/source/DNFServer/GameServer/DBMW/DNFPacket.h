@@ -1594,4 +1594,146 @@ struct StackBufferContext
     int m_offset;                         // +0x1c
 };
 
+class Packet_DB_Insert_Guild_Cargo_History : public PacketHeader
+{
+public:
+    Packet_DB_Insert_Guild_Cargo_History();
+    unsigned char m_serverId;      // +0xa（SQL server_id）
+    unsigned int m_guildId;        // +0xb（SQL guild_id）
+    unsigned int m_characNo;       // +0xf（SQL charac_no）
+    char m_characName[0x15];       // +0x13（SQL charac_name）
+    char m_behavior;               // +0x28（SQL behavior）
+    unsigned int m_slotNo;         // +0x29（SQL slot_no）
+    unsigned int m_movetoSlotNo;   // +0x2d（SQL moveto_slot_no）
+    DnfItemInfo m_item;            // +0x31
+} __attribute__((packed));
+
+// ---- DBMWTypes.h 仅前置声明、DBManager.cpp 先前以裸偏移/本地 view 访问的入站包 ----
+// 字段偏移以 ORIG df_dbmw_r 反汇编为准（PacketHeader 占 +0xa）。
+
+struct __attribute__((packed)) STErrorCount
+{
+    unsigned int m_errorCode;   // +0（log_packet_dispatcher_error_line.error_code）
+    unsigned short m_errorLine; // +4（log_packet_dispatcher_error_line.error_line）
+    unsigned int m_cnt;         // +6（log_packet_dispatcher_error_line.cnt）
+};
+
+struct __attribute__((packed)) GoldCardEventStatistic
+{
+    char m_level;               // +0（log_goldcard_event.level）
+    unsigned int m_createCnt;   // +1（log_goldcard_event.create_cnt）
+    unsigned int m_openCnt;     // +5（log_goldcard_event.open_cnt）
+};
+
+struct stCreateEmblemStatistic
+{
+    int m_data[7];              // +0（grade0..grade6）
+};
+
+class Packet_DB_Guild_Cargo_Upgrade : public PacketHeader
+{
+public:
+    unsigned int m_guildId;        // +0xa（SQL guild_id）
+    unsigned int m_characNo;       // +0xe（SQL charac_no）
+    unsigned int m_cargoCapacity;  // +0x12（SQL cargo_capacity）
+} __attribute__((packed));
+
+class Packet_DB_Write_Guild_Member_Memo : public PacketHeader
+{
+public:
+    unsigned int m_guildId;        // +0xa（SQL guild_id）
+    unsigned int m_characNo;       // +0xe（SQL charac_no）
+    char m_memo[0x15];             // +0x12
+} __attribute__((packed));
+
+class Packet_Server_Match_data_DBMW : public PacketHeader
+{
+public:
+    char m_serverId;               // +0xa（pvp_score.server_id）
+    int m_winCount;                // +0xb（pvp_score.win_count）
+    int m_loseCount;               // +0xf（pvp_score.lose_count）
+} __attribute__((packed));
+
+class Packet_Udp_Characteristic : public PacketHeader
+{
+public:
+    char m_serverGroup;            // +0xa（p2pnetwork_statistic.server_group）
+    int m_values[10];              // +0xb
+} __attribute__((packed));
+
+class Packet_DBMW_Save_Error_Line_Statistic : public PacketHeader
+{
+public:
+    int m_count;                   // +0xa
+    STErrorCount m_items[612];     // +0xe（612 * 0xa）
+} __attribute__((packed));
+
+class Packet_DBMW_HellParty_Statistic_Item : public PacketHeader
+{
+public:
+    unsigned int m_count;          // +0xa
+    char m_data[0x17a0];           // +0xe（0xa8 个 item，各 0x24）
+} __attribute__((packed));
+
+class Packet_Goldcard_Event_Statistic_STD : public PacketHeader
+{
+public:
+    GoldCardEventStatistic m_items[99]; // +0xa（99 * 0x9）
+} __attribute__((packed));
+
+class Packet_DBMW_Packet_Overflow_Statistic : public PacketHeader
+{
+public:
+    struct __attribute__((packed))
+    {
+        char m_packetType;            // +0xa（packet_overflow.packet_type）
+        unsigned short m_packetKind;  // +0xb（packet_overflow.packet_kind）
+        unsigned int m_cnt;           // +0xd（packet_overflow.cnt）
+    } m_typed;
+} __attribute__((packed));
+
+class Packet_Emblem_Create_Statistic_DB : public PacketHeader
+{
+public:
+    stCreateEmblemStatistic m_info; // +0xa（grade0..grade6）
+} __attribute__((packed));
+
+class Packet_Randombox_statistic_DB : public PacketHeader
+{
+public:
+    struct __attribute__((packed))
+    {
+        unsigned int m_createCount[5]; // +0xa
+        unsigned int m_openCount[5];   // +0x1e
+    } m_typed;
+} __attribute__((packed));
+
+class Packet_DBMW_Query_String : public PacketHeader
+{
+public:
+    unsigned int m_queryId;        // +0xa
+    char m_query[0x1001];          // +0xe
+} __attribute__((packed));
+
+class Packet_DBMW_Fatigue_Battery_Money_Statistic : public PacketHeader
+{
+public:
+    struct FatigueBatteryItem
+    {
+        int m_money;               // +0（log_fatigue_battery.money）
+        int m_buff;                // +4（log_fatigue_battery.buff）
+    };
+    struct __attribute__((packed))
+    {
+        FatigueBatteryItem m_items[0x65]; // +0xa（0x65 * 8）
+    } m_typed;
+} __attribute__((packed));
+
+class Packet_DBMW_Loading_Time_Report : public PacketHeader
+{
+public:
+    char m_group[9];               // +0xa（server_id）
+    unsigned int m_value[9];       // +0x13（load_sec）
+} __attribute__((packed));
+
 #endif

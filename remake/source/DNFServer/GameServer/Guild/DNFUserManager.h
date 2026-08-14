@@ -30,7 +30,7 @@ public:
     int Size();
     CUser* CreateUser(unsigned int dbid, unsigned int charNo, char* charName, int channel,
                       CGameServer* server);
-    void DeleteUser(unsigned int dbid);
+    int DeleteUser(unsigned int dbid);
     int DeleteUser(CUser* user);
     int DeleteUser_CharNo(unsigned int charNo);
     int DeleteUser_CharName(std::string name);
@@ -40,8 +40,8 @@ public:
     CUser* FindUser(unsigned int dbid) const;
     CUser* FindUser_CharNo(unsigned int charNo) const;
     CUser* FindUser_CharName(std::string name) const;
-    void DeleteUsersOnGameServerDown(CGameServer* server);
-    void DeleteUsersOnTcpGameServerDown(CTcpGameServer* server);
+    int DeleteUsersOnGameServerDown(CGameServer* server);
+    int DeleteUsersOnTcpGameServerDown(CTcpGameServer* server);
     void DeleteBlackUserOnCharacDelete(unsigned int charNo);
     void RefreshGuildAttendanceInfo();
     std::map<const unsigned int, CUser*> m_users;         // +0

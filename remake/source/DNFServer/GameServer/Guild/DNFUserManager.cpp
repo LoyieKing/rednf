@@ -115,28 +115,29 @@ bool CUserManager::InsertUser(const unsigned int dbid, CUser* user)
     return 0;
 }
 
-void CUserManager::DeleteUser(unsigned int dbid)
+int CUserManager::DeleteUser(unsigned int dbid)
 {
     if (m_users.empty())
     {
-        return;
+        return 0;
     }
-    CUser* user = FindUser(dbid);
-    if (user != 0)
+    CUser* user;
+    if ((user = FindUser(dbid)) != 0)
     {
         if (user->GetGameServer() == 0)
         {
-            return;
+            return 0;
         }
         if (m_users.erase(dbid) == 1)
         {
-            char* mid = NumberToString(dbid, 0);
             DNF_LOG_SCOPE_LINE(0x5f,"./log/User",
                 "[USER LOGOUT] Disconnected User DB ID : %s, Char No : %d , char name:%s\n",
-                mid, user->GetUniqCharNo(), user->GetCharName());
+                NumberToString(dbid, 0), user->GetUniqCharNo(), user->GetCharName());
             delete user;
+            return 1;
         }
     }
+    return 0;
 }
 
 int CUserManager::DeleteUser(CUser* user)
@@ -163,11 +164,11 @@ int CUserManager::DeleteUser(CUser* user)
     return 0;
 }
 
-void CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* server)
+int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* server)
 {
     if (m_users.empty())
     {
-        return;
+        return 0;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
          it != m_charNoUsers.end();)
@@ -179,8 +180,8 @@ void CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* server)
                 m_charNoUsers.erase(it++);
                 continue;
             }
+            ++it;
         }
-        ++it;
     }
     for (std::map<std::string, CUser*>::iterator it = m_charNameUsers.begin();
          it != m_charNameUsers.end();)
@@ -192,8 +193,8 @@ void CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* server)
                 m_charNameUsers.erase(it++);
                 continue;
             }
+            ++it;
         }
-        ++it;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
          it != m_users.end();)
@@ -203,8 +204,8 @@ void CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* server)
         {
             if (user->GetTcpGameServer() == server)
             {
-                unsigned int guildKey = user->GetGuildKey();
-                if (guildKey != 0)
+                unsigned int guildKey;
+                if ((guildKey = user->GetGuildKey()) != 0)
                 {
                     m_app->Call_DeleteGuildMember(guildKey, user);
                 }
@@ -212,16 +213,17 @@ void CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* server)
                 m_users.erase(it++);
                 continue;
             }
+            ++it;
         }
-        ++it;
     }
+    return 0;
 }
 
-void CUserManager::DeleteUsersOnGameServerDown(CGameServer* server)
+int CUserManager::DeleteUsersOnGameServerDown(CGameServer* server)
 {
     if (m_users.empty())
     {
-        return;
+        return 0;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
          it != m_charNoUsers.end();)
@@ -233,8 +235,8 @@ void CUserManager::DeleteUsersOnGameServerDown(CGameServer* server)
                 m_charNoUsers.erase(it++);
                 continue;
             }
+            ++it;
         }
-        ++it;
     }
     for (std::map<std::string, CUser*>::iterator it = m_charNameUsers.begin();
          it != m_charNameUsers.end();)
@@ -246,8 +248,8 @@ void CUserManager::DeleteUsersOnGameServerDown(CGameServer* server)
                 m_charNameUsers.erase(it++);
                 continue;
             }
+            ++it;
         }
-        ++it;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
          it != m_users.end();)
@@ -257,8 +259,8 @@ void CUserManager::DeleteUsersOnGameServerDown(CGameServer* server)
         {
             if (user->GetGameServer() == server)
             {
-                unsigned int guildKey = user->GetGuildKey();
-                if (guildKey != 0)
+                unsigned int guildKey;
+                if ((guildKey = user->GetGuildKey()) != 0)
                 {
                     m_app->Call_DeleteGuildMember(guildKey, user);
                 }
@@ -266,9 +268,10 @@ void CUserManager::DeleteUsersOnGameServerDown(CGameServer* server)
                 m_users.erase(it++);
                 continue;
             }
+            ++it;
         }
-        ++it;
     }
+    return 0;
 }
 
 CUser* CUserManager::FindUser(unsigned int dbid) const
@@ -357,19 +360,18 @@ CUser* CUserManager::FindUser_CharNo(unsigned int charNo) const
 
 bool CUserManager::InsertUser_CharName(char* name, CUser* user)
 {
-    if (user == 0)
+    if (user != 0)
     {
-        return 0;
+        if (m_charNameUsers.insert(std::pair<const std::string, CUser*>(name, user)).second)
+        {
+            return 1;
+        }
+        register unsigned int dbid = user->GetDBID();
+        register char* nName = name;
+        CMyFileLog log(__FUNCTION__, 0x1a6);
+        log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
+            nName, dbid);
     }
-    if (m_charNameUsers.insert(std::pair<const std::string, CUser*>(name, user)).second)
-    {
-        return 1;
-    }
-    register unsigned int dbid = user->GetDBID();
-    register char* nName = name;
-    CMyFileLog log(__FUNCTION__, 0x1a6);
-    log("./log/Except", "[INSERT_ERR]Already Exist!\tChar Name : %s\tDB No : %d\n",
-        nName, dbid);
     return 0;
 }
 
