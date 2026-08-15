@@ -931,7 +931,7 @@ void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
         }
         else
         {
-            CMyFileLog log2("OnIncreaseGuildExp", 0x462);
+            CMyFileLog log2(__FUNCTION__, 0x462);
             log2("./log/Guild",
                  "OnIncreaseGuildExp : guild key(%d), curr guild exp(%d),lev(%d), next guild exp(%d), exp lev(%d)",
                  pb->m_guildKey, oldExp, level, oldExp + addExp, expLevel);
@@ -4626,7 +4626,7 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
         resp.m_e = pb->m_fsn;
         resp.m_flag = pb->m_fst;
         char* itemDesc = (char*)CGuildCargo::PrintDnfItemInfo(*(DnfItemInfo*)pb->m_item);
-        CMyFileLog log0("OnGuildCargoPushItem", 0x19b3);
+        CMyFileLog log0(__FUNCTION__, 0x19b3);
         log0("./log/GuildCargo", "PUSH ITEM(g:%d,cn:%d,sn:%d,sl:%d,fsn:%d,fst:%d,it:%d,%s)",
              pb->m_guildKey, pb->m_charNo, pb->m_slot,
              pb->m_count, (unsigned int)pb->m_fsn, (unsigned int)pb->m_fst,
@@ -5094,42 +5094,39 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
     {
         Packet_DB_Load_Reply_Guild_Board_Open* reply =
             (Packet_DB_Load_Reply_Guild_Board_Open*)pkt;
-        if (m_pclApp != 0)
+        if (m_pclApp == 0)
         {
-            unsigned int charNo = reply->m_charNo;
-            CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
-            if (user == 0)
-            {
-                CMyFileLog log2("OnDBLoadReplyGuildBoardOpen", 0x1ca7);
-                log2("./log/GuildBoard",
-                    "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclUser");
-                return;
-            }
-            unsigned int guildKey = reply->m_guildId;
-            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
-            if (guild == 0)
-            {
-                CMyFileLog log3("OnDBLoadReplyGuildBoardOpen", 0x1cae);
-                log3("./log/GuildBoard",
-                    "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclGuild");
-                return;
-            }
-            guild->GetGuildBoard()->setGuildBoardData(
-                guildKey, charNo, guild,
-                (int)(char)reply->m_boardCount,
-                &reply->m_boards);
-            if (reply->m_count != 0)
-            {
-                guild->GetGuildBoard()->sendGuildBoardData(guildKey, charNo, 0x232a, user);
-                guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)2);
-                guild->GetGuildBoard()->setGuildBoardDBAccess();
-            }
-        }
-        else
-        {
-            CMyFileLog log1("OnDBLoadReplyGuildBoardOpen", 0x1c9d);
+            CMyFileLog log1(__FUNCTION__, 0x1c9d);
             log1("./log/GuildBoard",
                 "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == m_pclApp");
+            return;
+        }
+        CUserManager* userMgr = &m_pclApp->m_userManager;
+        CUser* user = userMgr->FindUser_CharNo(reply->m_charNo);
+        if (user == 0)
+        {
+            CMyFileLog log2(__FUNCTION__, 0x1ca7);
+            log2("./log/GuildBoard",
+                "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclUser");
+            return;
+        }
+        CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(reply->m_guildId);
+        if (guild == 0)
+        {
+            CMyFileLog log3(__FUNCTION__, 0x1cae);
+            log3("./log/GuildBoard",
+                "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclGuild");
+            return;
+        }
+        guild->GetGuildBoard()->setGuildBoardData(
+            reply->m_guildId, reply->m_charNo, guild,
+            (int)(char)reply->m_boardCount,
+            &reply->m_boards);
+        if (reply->m_count != 0)
+        {
+            guild->GetGuildBoard()->sendGuildBoardData(reply->m_guildId, reply->m_charNo, 0x232a, user);
+            guild->GetGuildBoard()->setGuildBoardDBLoadState((ENUM_DB_LOAD_STATE)2);
+            guild->GetGuildBoard()->setGuildBoardDBAccess();
         }
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBLoadReplyGuildBoardOpen Exception Break", 0x1cbf, 0x1cc4);
