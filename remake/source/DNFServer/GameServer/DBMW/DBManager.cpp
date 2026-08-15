@@ -6302,9 +6302,9 @@ bool CDBManager::AwardGuildCoinByMail(int guildId, unsigned int serverGroup,
     int n = h->get_n_rows();
     time_t now = time(0);
     tm* t = localtime(&now);
-    t->tm_mday += 1;
-    t->tm_hour = 0;
+    t->tm_hour += 1;
     t->tm_min = 0;
+    t->tm_sec = 0;
     time_t tomorrow = mktime(t);
     int i = 0;
     while (i < n)
