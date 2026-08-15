@@ -840,6 +840,9 @@ void CGuild::NoticeGuildMasterDelegateToMembers(char* name)
 {
     if ((m_guildDBFlag & 4) == 0)
     {
+        CMyFileLog log(__FUNCTION__, 0x2bd);
+        log("./log/GuildErr", "GUILD_INFO : NoticeGuildMasterDelegateToMembers, Guild Key(%d)",
+            m_guildKey);
         return;
     }
     Packet_Guild_Notice_Guild_Master_Delegate pkt;
@@ -853,9 +856,6 @@ void CGuild::NoticeGuildMasterDelegateToMembers(char* name)
         pkt.m_charNo = member->GetUniqCharNo();
         member->SendToGameserver((char*)&pkt, 0x30);
     }
-    CMyFileLog log(__FUNCTION__, 0x2bd);
-    log("./log/GuildErr", "GUILD_INFO : NoticeGuildMasterDelegateToMembers, Guild Key(%d)",
-        m_guildKey);
 }
 
 void CGuild::SendGuildInfoToMembers(bool flag)
@@ -1538,7 +1538,7 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
         char* buf2 = (char*)&pkt2;
         *(unsigned int*)(buf2 + 0x12) = m_guildKey;
         int cnt2 = 0;
-        for (int i = idx; i < (int)total; i++)
+        for (int i = idx + 1; i < (int)total; i++)
         {
             char* src = (char*)&m_dbInfo.m_members[i];
             char* rec = buf2 + 0x17 + cnt2 * 0x3f;
@@ -2540,9 +2540,9 @@ Packet_Monitor_Guild_Chat_ToUser::Packet_Monitor_Guild_Chat_ToUser()
 {
     m_channel = 4294967295;
     m_charNo = 0;
-    m_msg[0] = 0;
+    m_len = 0;
     memset(m_name, 0, 0x1e);
-    memset(m_pad, 0, 0x100);
+    memset(m_msg, 0, 0x100);
 }
 
 #pragma pack(push,1)
@@ -2788,11 +2788,11 @@ Packet_Monitor_Guild_Chat_ToUser_Hyper_Link::Packet_Monitor_Guild_Chat_ToUser_Hy
 {
     m_channel = 4294967295;
     m_charNo = 0;
-    m_items[0] = 0;
-    m_pad[0xf] = 0;
+    m_type = 0;
+    m_len = 0;
     memset(m_name, 0, 0x1e);
-    memset(&m_pad[0x10], 0, 0x100);
-    memset(&m_items[1], 0, 0x138);
+    memset(m_msg, 0, 0x100);
+    memset(m_items, 0, 0x138);
 }
 
 unsigned short CGuild::GetGuildDBFlag()

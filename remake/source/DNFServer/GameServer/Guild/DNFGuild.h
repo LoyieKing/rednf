@@ -516,9 +516,10 @@ public:
     unsigned int m_channel;   // +0xa
     unsigned int m_charNo;    // +0xe
     char m_name[0x1d];        // +0x12
-    unsigned char m_len;      // +0x2f
-    char m_msg[1];            // +0x30
-    char m_pad[0x100];        // +0x31
+    char m_pad0;              // +0x2f
+    unsigned char m_len;      // +0x30
+    char m_msg[1];            // +0x31
+    char m_pad[0x100];        // +0x32
 };
 
 // from GuildPackets.h
@@ -528,11 +529,12 @@ public:
     unsigned int m_channel;   // +0xa
     unsigned int m_charNo;    // +0xe
     char m_name[0x1d];        // +0x12
-    unsigned char m_type;     // +0x2f
-    char m_items[0x128];      // +0x30
-    char m_len;               // +0x158
-    char m_msg[1];            // +0x159
-    char m_pad[0x110];        // +0x15a
+    char m_pad0;              // +0x2f
+    unsigned char m_type;     // +0x30
+    char m_items[0x138];      // +0x31..0x168
+    char m_len;               // +0x169
+    char m_msg[1];            // +0x16a
+    char m_pad[0x110];        // +0x16b
 };
 
 // from GuildPackets.h

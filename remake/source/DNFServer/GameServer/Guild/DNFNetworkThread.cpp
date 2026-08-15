@@ -171,12 +171,12 @@ void CUdpNetworkThread::dispatch(void* param)
     catch (CDNFException& e)
     {
         printf("CUdpNetworkThread::dispatch() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n", e.what());
-        throw CDNFException("CUdpNetworkThread::dispatch() Recv  Socket Exception Break!");
+        throw CDNFException("CNetworkThread::dispatch() Recv  Socket Exception Break!");
     }
     catch (...)
     {
         puts("CUdpNetworkThread::dispatch() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd");
-        throw CDNFException("CUdpNetworkThread::dispatch() Recv  Socket Exception Break!");
+        throw CDNFException("CNetworkThread::dispatch() Recv  Socket Exception Break!");
     }
 }
 

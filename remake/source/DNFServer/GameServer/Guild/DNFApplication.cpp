@@ -482,7 +482,7 @@ void CApplication::TranslateSignal()
                 enter.m_info.m_dbid = (unsigned int)(*it)->m_param2;
                 enter.m_info.m_charNo = (unsigned int)(*it)->m_param3;
                 memcpy(enter.m_info.m_guildName,
-                       "\xb4\xab\xbb\xe7\xb6\xf7\x00\xb0\xde\xdf\xb8\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
+                       "\xb4\xab\xbb\xe7\xb6\xf7\x00\xbe\xdf\xb8\xde\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00",
                        0x16);
                 CPacketTranslater::OnNoticeGuildEnter(&enter);
                 break;
@@ -494,9 +494,9 @@ void CApplication::TranslateSignal()
                 {
                     char pad[0xa];
                     unsigned int f1;
-                    unsigned int f2;
                     unsigned int grade;
                     unsigned char f3;
+                    unsigned int f2;
                 };
                 ((GradeFields*)&grade)->grade = 2;
                 ((GradeFields*)&grade)->f1 = (unsigned int)(*it)->m_param1;
@@ -511,7 +511,7 @@ void CApplication::TranslateSignal()
                 delegate.m_guildKey = (unsigned int)(*it)->m_param1;
                 delegate.m_requesterCharNo = (unsigned int)(*it)->m_param2;
                 delegate.m_delegateeCharNo = (unsigned int)(*it)->m_param3;
-                memcpy(delegate.m_msg, "\xb0\xde\xdf\xb8", 4);
+                memcpy(delegate.m_msg, "\xbe\xdf\xb8\xde", 4);
                 CPacketTranslater::OnGuildMasterDelegateFromWeb(&delegate);
                 break;
             }
