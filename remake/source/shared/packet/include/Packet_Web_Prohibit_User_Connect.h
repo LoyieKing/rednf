@@ -18,7 +18,7 @@ public:
     }
     int m_fieldA;       // +0xa
     char m_fieldE;      // +0xe
-    unsigned short m_fieldF;  // +0xf
+    short m_fieldF;           // +0xf（ORIG movswl 有符号扩展）
     char m_field11;     // +0x11
     char m_field12;     // +0x12
 } __attribute__((packed));

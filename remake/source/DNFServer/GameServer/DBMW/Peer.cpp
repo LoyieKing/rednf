@@ -272,7 +272,6 @@ bool CPeer::parsing(int len)
         {
             CGuard<CMutex> guard(m_sendQLock);
             m_recvQ->push(buf);
-            int qsize = m_recvQ->size();
         }
         parsinglength -= size;
         m_sendBuf += size;

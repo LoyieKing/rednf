@@ -332,7 +332,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
                             user->SetTcpGameServer(tcpGs);
                             out->m_sex = 1;
                             char* dbid = NumberToString(login->m_dbid, 0);
-                            CMyFileLog log2("OnLogin", 0x1a5);
+                            CMyFileLog log2(__FUNCTION__, 0x1a5);
                             log2("./log/User",
                                  "Current user count : %d\tConnected User DB ID : %s\n",
                                  userMgr->Size(), dbid);
@@ -461,7 +461,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
             (unsigned int)(unsigned char)logout->m_channel);
         unsigned int memberKey2 = logout->m_memberKey;
         CMemoryCashManager* cash = (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
-        CMember* member = memberMgr->FindMember(logout->m_dbid);
+        CMember* member = memberMgr->FindMember(logout->m_memberKey);
         bool f1 = false;
         bool f2 = false;
         cash->InsertCashMemorySetCharacterObject(user, member, f1, f2);
@@ -2554,17 +2554,14 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
                 result.m_result = 3;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
-            else if (user->DeleteToBlackList(db->m_charNo2) != 1)
+            if (user->DeleteToBlackList(db->m_charNo2) != 1)
             {
                 result.m_result = 2;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
-            else
-            {
-                result.m_result = 1;
-                result.m_charNo = db->m_charNo2;
-                user->SendToGameserver((char*)&result, result.packetSize);
-            }
+            result.m_result = 1;
+            result.m_charNo = db->m_charNo2;
+            user->SendToGameserver((char*)&result, result.packetSize);
         }
     }
 
@@ -2632,7 +2629,7 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 
     if (m_pclApp == 0)
     {
-        DNF_LOG_SCOPE_LINE(0xdc3,"./log/BlackList",
+        DNF_LOG_SCOPE_LINE(0xdc4,"./log/BlackList",
             "CPacketTranslater::OnDBMWResponseBlackListOnLogin : 0 == m_pclApp");
     }
     else
@@ -3984,7 +3981,7 @@ void CPacketTranslater::onItemLimitEditionBuyableRequest(PacketHeader* pkt)
             {
                 CItemLimitEdition* item = m_pclApp->getItemLimitEditionMgr()->getItemInfo(
                     q->m_ipgno);
-                bool expired = (item == 0 || item->getSellEndTime() < (unsigned int)now);
+                bool expired = (item == 0 || (int)item->getSellEndTime() < (int)now);
                 if (expired)
                 {
                     *(unsigned int*)(buf + 0xa) = q->m_seq;

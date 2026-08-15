@@ -58,10 +58,10 @@ InitFrameCountInfo_throw:
 }
 void* CFrameCountHandler::GetFrameCountInfo()
 {
-    clock_t dummy0 = 0;
-    clock_t dummy1 = 0;
-    clock_t dummy2 = 0;
-    clock_t dummy3 = 0;
+    volatile clock_t dummy0 = 0;
+    volatile clock_t dummy1 = 0;
+    volatile clock_t dummy2 = 0;
+    volatile clock_t dummy3 = 0;
     (void)dummy0;
     (void)dummy1;
     (void)dummy2;
