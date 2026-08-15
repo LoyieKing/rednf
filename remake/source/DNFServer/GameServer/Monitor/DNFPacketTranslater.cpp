@@ -2078,15 +2078,17 @@ void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
 
 
     CUserManager* userMgr = &m_pclApp->m_userManager;
-    Packet_Relay_Server_User_Check* check = (Packet_Relay_Server_User_Check*)pkt;
-    unsigned int channel = (unsigned int)(unsigned char)check->m_channel;
-    if (userMgr->FindUser(check->m_dbid) == 0)
+    CUser* user =
+        userMgr->FindUser(((Packet_Relay_Server_User_Check*)pkt)->m_dbid);
+    unsigned int channel =
+        (unsigned int)(unsigned char)((Packet_Relay_Server_User_Check*)pkt)->m_channel;
+    if (user != 0)
     {
-        check->m_channel = 0;
+        ((Packet_Relay_Server_User_Check*)pkt)->m_channel = 1;
     }
     else
     {
-        check->m_channel = 1;
+        ((Packet_Relay_Server_User_Check*)pkt)->m_channel = 0;
     }
     CServerInterface* gs =
         (CServerInterface*)m_pclApp->FindGameServer((int)channel);
@@ -5288,8 +5290,8 @@ void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
 
 void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
 {
-    CUser* requester = 0;
-    CUser* target = 0;
+    CUser* requester;
+    CUser* target;
     if (m_pclApp != 0)
     {
         CUserManager* userMgr = &m_pclApp->m_userManager;
