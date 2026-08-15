@@ -1022,7 +1022,7 @@ bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int char
         unsigned char* learnCnt = &m_dbInfo.m_info.m_skillLearnCnt;
         if (*learnCnt > 0xf)
         {
-            CMyFileLog log("BuyGuildSkill", 0x3ee);
+            CMyFileLog log(__FUNCTION__, 0x3ee);
             log("./log/GuildSkill", "BUY_SKILL_ERR, GKey(%d) , Learn Cnt(%d)", GetGuildKey(),
                 (unsigned int)*learnCnt);
             *learnCnt = 0xf;
@@ -1469,6 +1469,7 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
     pkt.m_fieldC = m_guildKey;
     memcpy(buf + 0x16, m_dbInfo.m_info.m_guildName, 0x16);
     pkt.m_fieldD = m_dbInfo.m_info.m_guildPoint;
+    pkt.m_totalCnt = m_totalCnt;
     unsigned short total = m_totalCnt;
     int count = 0;
     if (m_dbInfo.m_info.m_totalCnt != m_totalCnt)
@@ -2214,6 +2215,7 @@ void CGuild::NotifyDeleteGuildAgitToGuildMember(unsigned int charNo)
     }
     Packet_Channel_Delete_Guild_Agit pkt;
     pkt.m12 = charNo;
+    pkt.m16 = 0;
     for (std::map<unsigned int, CUser*>::iterator it = m_members.begin();
          it != m_members.end(); ++it)
     {

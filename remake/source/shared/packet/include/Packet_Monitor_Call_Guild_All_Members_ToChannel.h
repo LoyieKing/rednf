@@ -20,7 +20,7 @@ public:
     unsigned int m_fieldC;            // +0x12
     char m_field16[0x17];             // +0x16..+0x2c
     unsigned int m_fieldD;            // +0x2d
-    char m_pad[2];                    // +0x31..+0x32
+    unsigned short m_totalCnt;        // +0x31
     unsigned char m_fieldE;           // +0x33
     ST_Guild_Mem_Info m_members[96];  // +0x34
 } __attribute__((packed));
