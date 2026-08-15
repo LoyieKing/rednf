@@ -1659,7 +1659,7 @@ bool CGuild::LoadGuildOneMemberProxy(CUser* user)
     }
     if (m_totalCnt > 0x12b)
     {
-        CMyFileLog log("LoadGuildOneMemberProxy", 0x73d);
+        CMyFileLog log(__FUNCTION__, 0x73d);
         log("./log/GuildErr", "Guild Member Cnt Full Or Over : G Key(%d), Cnt(%d)", m_guildKey,
             (unsigned int)m_totalCnt);
         if (m_totalCnt > 0x12c)

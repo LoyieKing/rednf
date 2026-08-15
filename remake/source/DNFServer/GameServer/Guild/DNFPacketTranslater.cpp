@@ -694,7 +694,7 @@ void CPacketTranslater::OnNoticeGuildSecede(PacketHeader* pkt)
     }
     catch (std::exception& e)
     {
-        CMyFileLog log("OnNoticeGuildSecede", 0x2f9);
+        CMyFileLog log(__FUNCTION__, 0x2f9);
         log("./log/Except",
             "CPacketTranslater::OnNoticeGuildSecede() Exception Break : %s\n", e.what());
     }
@@ -1461,7 +1461,7 @@ void CPacketTranslater::OnCallGuildMembers(PacketHeader* pkt)
     catch (std::exception& e)
     {
         printf("CPacketTranslater::OnCallGuildMembers() Exception Break : %s\n", e.what());
-        CMyFileLog log("OnCallGuildMembers", 0x812);
+        CMyFileLog log(__FUNCTION__, 0x812);
         log("./log/Except",
             "CPacketTranslater::OnCallGuildMembers() Exception Break : %s\n", e.what());
     }
@@ -2670,7 +2670,7 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
         CUser* user;
         if ((user = um->FindUser_CharNo(pb->m_charNo)) == 0)
         {
-            CMyFileLog log("OnCallGuildInfo", 0xdc5);
+            CMyFileLog log(__FUNCTION__, 0xdc5);
             log("./log/Except",
                 "CPacketTranslater::OnCallGuildInfo() pclUser = 0, Char Key : %d\n",
                 pb->m_charNo);
@@ -2684,7 +2684,7 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
         {
             if (pb->m_guildKeys[i] == 0)
             {
-                CMyFileLog log("OnCallGuildInfo", 0xdd3);
+                CMyFileLog log(__FUNCTION__, 0xdd3);
                 log("./log/Guild",
                     "CPacketTranslater::OnCallGuildInfo : packet->m_uGuildKey[%d] == 0", i);
                 continue;
@@ -2706,7 +2706,7 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
     }
     catch (std::exception& e)
     {
-        CMyFileLog log("OnCallGuildInfo", 0xde9);
+        CMyFileLog log(__FUNCTION__, 0xde9);
         log("./log/Except",
             "CPacketTranslater::OnCallGuildInfo() Exception Break : %s\n", e.what());
     }
@@ -2900,6 +2900,7 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
     }
     Packet_Request_Result_BlackList reply;
     reply.m_charNo = pb->m_idByChannel;
+    reply.m_count = 0;
     CUser* user;
     if ((user = (&m_pclApp->m_userManager)->FindUser(pb->m_dbid)) == 0)
     {
@@ -3458,7 +3459,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
             {
                 DNF_LOG_SCOPE_LINE(0x1244, "./log/Power", "CPacketTranslater::OnPacketJoinPower : 0 == pclGuild");
                 reply.m_a = 100;
-                user->SendToGameserver((char*)&reply, 0x17);
+                user->SendToGameserver((char*)&reply, reply.packetSize);
                 return;
             }
             if (guild->IsSubGuildMaster(charNo) == 1 || guild->IsGuildMaster(charNo) == 1)
@@ -3469,7 +3470,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
                 CServerInterface* gs = user->GetGameServer();
                 guild->DBGuildSave(gs->GetGroupNo(), m_pclApp->Get_ServerHandler(), 0);
                 reply.m_16 = side;
-                user->SendToGameserver((char*)&reply, 0x17);
+                user->SendToGameserver((char*)&reply, reply.packetSize);
                 guild->SendGuildInfoToMembers(false);
             }
             else
@@ -3478,7 +3479,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
                     "CPacketTranslater::OnPacketJoinPower : %d is not guild master or sub master(g:%d)",
                     charNo, guildKey);
                 reply.m_a = 0x56;
-                user->SendToGameserver((char*)&reply, 0x17);
+                user->SendToGameserver((char*)&reply, reply.packetSize);
             }
         }
         else
@@ -3523,7 +3524,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
     {
         DNF_LOG_SCOPE_LINE(0x12bc, "./log/Power", "CPacketTranslater::OnPacketSecedePower : 0 == pclGuild");
         reply.m_a = 100;
-        user->SendToGameserver((char*)&reply, 0x17);
+        user->SendToGameserver((char*)&reply, reply.packetSize);
         return;
     }
     if (guild->GetPowerSide() != 0)
@@ -3538,7 +3539,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
                 guild->DBSavePowerSecedeTime(gs->GetGroupNo(),
                                              m_pclApp->Get_ServerHandler());
                 guild->SendGuildInfoToMembers(false);
-                user->SendToGameserver((char*)&reply, 0x17);
+                user->SendToGameserver((char*)&reply, reply.packetSize);
             }
             else
             {
@@ -3546,7 +3547,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
                     "CPacketTranslater::OnPacketSecedePower : %d power war on(g:%d)", charNo,
                     guildKey);
                 reply.m_a = 0x7f;
-                user->SendToGameserver((char*)&reply, 0x17);
+                user->SendToGameserver((char*)&reply, reply.packetSize);
             }
         }
         else
@@ -3555,7 +3556,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
                 "CPacketTranslater::OnPacketSecedePower : %d is not guild master or sub master(g:%d)",
                 charNo, guildKey);
             reply.m_a = 0x56;
-            user->SendToGameserver((char*)&reply, 0x17);
+            user->SendToGameserver((char*)&reply, reply.packetSize);
         }
         return;
     }
@@ -3563,7 +3564,7 @@ void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
         "CPacketTranslater::OnPacketSecedePower : %d did not join power side(g:%d)", charNo,
         guildKey);
     reply.m_a = 0x82;
-    user->SendToGameserver((char*)&reply, 0x17);
+    user->SendToGameserver((char*)&reply, reply.packetSize);
     }
     catch (CDNFException& e)
     {
@@ -4190,7 +4191,7 @@ void CPacketTranslater::OnDBLoadGuildAgit(PacketHeader* pkt)
     }
     catch (std::exception& e)
     {
-        CMyFileLog log("OnDBLoadGuildAgit", 0x174f);
+        CMyFileLog log(__FUNCTION__, 0x174f);
         log("./log/Except",
             "CPacketTranslater::OnDBLoadGuildAgit Exception Break : %s\n", e.what());
     }
