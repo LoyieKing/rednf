@@ -2374,17 +2374,16 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0xca6, "./log/BlackList", "CPacketTranslater::OnDeleteToBlackList : 0 == m_pclApp");
         return;
     }
-    CUserManager* userMgr = &m_pclApp->m_userManager;
-    CServerHandler* handler = m_pclApp->m_serverHandler2;
-    Packet_Delete_To_BlackList* req = (Packet_Delete_To_BlackList*)pkt;
     Packet_DMBW_Delete_To_BlackList dbPkt;
     Packet_Delete_To_BlackList_Result result;
-    dbPkt.m_charNo = req->m_dbid;
-    memcpy(dbPkt.m_name, req->m_name, 0x1d);
-    CUser* target = userMgr->FindUser_CharName(req->m_name);
+    dbPkt.m_charNo = ((Packet_Delete_To_BlackList*)pkt)->m_dbid;
+    memcpy(dbPkt.m_name, ((Packet_Delete_To_BlackList*)pkt)->m_name, 0x1d);
+    CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(
+        ((Packet_Delete_To_BlackList*)pkt)->m_name);
     if (target != 0)
     {
-        CUser* user = userMgr->FindUser(req->m_dbid);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser(
+            ((Packet_Delete_To_BlackList*)pkt)->m_dbid);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xcb6, "./log/BlackList", "CPacketTranslater::OnDeleteToBlackList : 0 == pclUser");
@@ -2392,7 +2391,7 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
         }
         result.m_idByChannel = user->GetIdByChannel();
         result.m_charNo = target->GetUniqCharNo();
-        memcpy(result.m_name, req->m_name, 0x1d);
+        memcpy(result.m_name, ((Packet_Delete_To_BlackList*)pkt)->m_name, 0x1d);
         if (user->DeleteToBlackList(target->GetUniqCharNo()) != 1)
         {
             result.m_result = 2;
@@ -2403,7 +2402,7 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
         result.m_result = 1;
         user->SendToGameserver((char*)&result, result.packetSize);
     }
-    handler->SendToDB(&dbPkt);
+    m_pclApp->m_serverHandler2->SendToDB(&dbPkt);
 
 
     }
