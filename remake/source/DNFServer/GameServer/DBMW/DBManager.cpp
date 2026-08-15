@@ -298,7 +298,7 @@ struct GoldcardEventView
 struct LoadingTimeReportView
 {
     char h[0xa];
-    char m_group[9];         // +0xa
+    unsigned char m_group[9]; // +0xa
     unsigned int m_value[9]; // +0x13（ORIG：+0xa+i 字节、+0x13+i*4 int）
 } __attribute__((packed));
 
@@ -1606,22 +1606,21 @@ char CDBManager::QueryHellPartyStatisticItemCreate(
     for (int i = 0; i < count; i++)
     {
         char* e = p + i * 0x24;
-        if (!h->set_query(
-                0x4ec0,
-                "inSert into log_hellparty_value (occ_time, hellparty_type, dungeon_index, dungeon_diff, party_count, hellparty_diff, update_count, uncommon_count, rare_count, uniq_count, epic_count) values (now(), %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
-                *(unsigned char*)(e + 0xe), *(int*)(e + 0xf),
-                *(signed char*)(e + 0x13), *(signed char*)(e + 0x14),
-                *(signed char*)(e + 0x15), *(int*)(e + 0x16),
-                *(int*)(e + 0x1e), *(int*)(e + 0x22), *(int*)(e + 0x26),
-                *(int*)(e + 0x2a)))
+        h->set_query(
+            0x4ec0,
+            "inSert into log_hellparty_value (occ_time, hellparty_type, dungeon_index, dungeon_diff, party_count, hellparty_diff, update_count, uncommon_count, rare_count, uniq_count, epic_count) values (now(), %d, %d, %d, %d, %d, %d, %d, %d, %d, %d)",
+            *(unsigned char*)(e + 0xe), *(int*)(e + 0xf),
+            *(signed char*)(e + 0x13), *(signed char*)(e + 0x14),
+            *(signed char*)(e + 0x15), *(int*)(e + 0x16),
+            *(int*)(e + 0x1e), *(int*)(e + 0x22), *(int*)(e + 0x26),
+            *(int*)(e + 0x2a));
+        if (!h->exec(0x4ec0))
         {
             CMyFileLog log2(__FUNCTION__, 0x185c);
             log2("./log/statistic",
                  "\nQueryDeathTowerValueStatisticCreate db error!!\n");
             return 0;
         }
-        if (!h->exec(0x4ec0))
-            return 0;
     }
     return 1;
 }
@@ -1687,10 +1686,9 @@ char CDBManager::QueryErrorLineStatisticCreate(
                     *(int*)(e + 0x14));
         sql += buf;
     }
-    if (!h->set_query(0x4e88,
-                      "inSert into log_packet_dispatcher_error_line(occ_time,channel_no,error_line,cnt) values%s",
-                      sql.c_str()))
-        return 0;
+    h->set_query(0x4e88,
+                 "inSert into log_packet_dispatcher_error_line(occ_time,channel_no,error_line,cnt) values%s",
+                 sql.c_str());
     if (!h->exec(0x4e88))
         return 0;
     return 1;
@@ -3217,7 +3215,7 @@ char CDBManager::QueryPartyStatisticCreate(
     std::string sql;
     for (int i = 0; i < count; i++)
     {
-#define PM(i) ((STPartyMemberStat*)((char*)packet + 0x10 + (i) * 0x3c))
+#define PM(i) ((STPartyMemberStat*)((char*)packet + (i) * 0x3c))
         if (sql.size())
             sprintf(buf,
                     ",(now(),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
@@ -3286,7 +3284,7 @@ char CDBManager::QueryPartyJobStatisticCreate(
     std::string sql;
     for (int i = 0; i < count; i++)
     {
-#define PM(i) ((STPartyJobMemberStat*)((char*)packet + 0x10 + (i) * 0x19))
+#define PM(i) ((STPartyJobMemberStat*)((char*)packet + (i) * 0x19))
         if (sql.size())
             sprintf(buf,
                     ",(now(),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
@@ -3349,7 +3347,7 @@ char CDBManager::QueryPartyCharacStatisticCreate(
     std::string sql;
     for (int i = 0; i < count; i++)
     {
-#define PM(i) ((STPartyCharacMemberStat*)((char*)packet + 0x10 + (i) * 0x43))
+#define PM(i) ((STPartyCharacMemberStat*)((char*)packet + (i) * 0x43))
         if (sql.size())
             sprintf(buf,
                     ",(now(),%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d)",
@@ -4496,10 +4494,9 @@ bool CDBManager::onItemLimitEditionLoadData(
         getList2inQuery(req->m_ipgNoCount, (const unsigned int*)((char*)req + 0x13),
                         buf + 0xb);
     }
-    if (!h->set_query(0x4ec7,
-                      "seLect ipg_no,item_no,item_cnt,cera_price,gold_price,avatar_period_type,total_cnt,sell_cnt,restrict_no,start_time,end_time,npc_idx,cond_charac_job,cond_lev_begin,cond_lev_end,cond_acc_create_time_begin,cond_acc_create_time_end,cond_cha_create_time_begin,cond_cha_create_time_end from limited_shop_manager where server_id=%d %s and (start_time<%d and end_time>%d) and status_flag=0 limit %d",
-                      req->m_serverId, buf, now, now, 0x1c))
-        return 0;
+    h->set_query(0x4ec7,
+                 "seLect ipg_no,item_no,item_cnt,cera_price,gold_price,avatar_period_type,total_cnt,sell_cnt,restrict_no,start_time,end_time,npc_idx,cond_charac_job,cond_lev_begin,cond_lev_end,cond_acc_create_time_begin,cond_acc_create_time_end,cond_cha_create_time_begin,cond_cha_create_time_end from limited_shop_manager where server_id=%d %s and (start_time<%d and end_time>%d) and status_flag=0 limit %d",
+                 req->m_serverId, buf, now, now, 0x1c);
     if (!h->exec(0x4ec7))
         return 0;
     rpy->m_flag = req->m_flag;
@@ -4552,21 +4549,19 @@ bool CDBManager::onItemLimitEditionUpdateData(
     {
         if (((char*)packet)[i * 9 + 0x1a] != 0)
         {
-            if (!h->set_query(0x4ec8,
-                              "upDate limited_shop_manager set sell_cnt=%d,real_end_time=%d where ipg_no=%d and server_id=%d",
-                              *(int*)((char*)packet + i * 9 + 0x16), now,
-                              *(int*)((char*)packet + i * 9 + 0x12),
-                              packet->m_serverId))
-                return 0;
+            h->set_query(0x4ec8,
+                         "upDate limited_shop_manager set sell_cnt=%d,real_end_time=%d where ipg_no=%d and server_id=%d",
+                         *(int*)((char*)packet + i * 9 + 0x16), now,
+                         *(int*)((char*)packet + i * 9 + 0x12),
+                         packet->m_serverId);
         }
         else
         {
-            if (!h->set_query(0x4ec8,
-                              "upDate limited_shop_manager set sell_cnt=%d where ipg_no=%d and server_id=%d",
-                              *(int*)((char*)packet + i * 9 + 0x16),
-                              *(int*)((char*)packet + i * 9 + 0x12),
-                              packet->m_serverId))
-                return 0;
+            h->set_query(0x4ec8,
+                         "upDate limited_shop_manager set sell_cnt=%d where ipg_no=%d and server_id=%d",
+                         *(int*)((char*)packet + i * 9 + 0x16),
+                         *(int*)((char*)packet + i * 9 + 0x12),
+                         packet->m_serverId);
         }
         h->exec(0x4ec8);
     }
@@ -6056,7 +6051,7 @@ char CDBManager::QueryDeathTowerValueStatisticCreate(
                      vals[6], vals[7], vals[8], vals[9],
                      *(signed char*)((char*)packet + i * 0xf + 0xe),
                      packet->m_items[i].m_level);
-        if (!h->exec(0x4e9e))
+        if (!h->exec(0x4e9e) || h->getAffectedRowCount() == 0)
         {
             h->set_query(0x4e9d,
                          "inSert into log_deathtower_value (occ_date, type, level, try_cnt, clear_stage, recipeCnt, commonCnt, uncommonCnt, rareCnt, uniqCnt, card_item_goldprice, card_gold, repair_price) values (cast(now() as date), %d, %d, %u, %u, %u, %u, %u, %u, %u, %u, %u, %u)",
@@ -7102,24 +7097,24 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (pkt.m_grade == 2)
-            goto sendlog;
-        if (*(unsigned char*)(h + 0x32) != 2 ||
-            *(unsigned char*)(h + 0x13) == 1)
-        {
-            if (!m_pclApp->m_dbManager.ChangeGuildMemberGrade(
-                    *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
-                    *(unsigned char*)(h + 0x32), h + 0x14))
-                pkt.m_result = 0xff;
-        }
-        else
+        if (pkt.m_grade == 2 && *(unsigned char*)(h + 0x32) == 2 &&
+            *(unsigned char*)(h + 0x13) != 1)
         {
             pkt.m_result = 0xfe;
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-    sendlog:
-        gs->SendToServer((char*)&pkt, pkt.packetSize);
+        if (*(unsigned char*)(h + 0x32) == pkt.m_grade)
+        {
+            if (!m_pclApp->m_dbManager.ChangeGuildMemberGrade(
+                    *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
+                    *(unsigned char*)(h + 0x32), h + 0x14))
+            {
+                pkt.m_result = 0xff;
+                return;
+            }
+            gs->SendToServer((char*)&pkt, pkt.packetSize);
+        }
         CMyFileLog log(__FUNCTION__, 0x495);
         log("./log/GuildModify",
             "::OnChangeUnconnectedGuildMemberGrade GRADE_CHANGE Guild(%d) UnConnected Name(%s) Grade(%d) Prev(%d)",

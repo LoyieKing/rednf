@@ -787,6 +787,7 @@ public:
         signed char m_type;  // +0
         short m_level;       // +1
         int m_index;         // +3
+        int m_pad;           // +7（ORIG 未使用字段，使条目步长 0xf）
         unsigned int m_value; // +0xb（0xf 字节/条）
     };
     Item m_items[0x200];     // +0xe（stride 0xf）
@@ -1476,7 +1477,6 @@ struct STPartyCharacMemberStat
     char m_data0[0xe];       // +0..0xd
     unsigned short m_channelNo; // +0xe（SQL log_dungeon_charac.channel_no）
     int m_dungeonIndex;         // +0x10
-    int m_field11;              // +0x11（与 +0x10 重叠读，未定）
     char m_dungeonDiff;         // +0x14（movsbl）
     unsigned char m_dungeonStandardLevel; // +0x15
     unsigned char m_success;    // +0x16
