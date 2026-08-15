@@ -2681,12 +2681,9 @@ void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
         {
             Packet_Exchange_Server_Info* reply = (Packet_Exchange_Server_Info*)pkt;
             unsigned int channel = reply->m_channel;
-            unsigned int ip = reply->m_ip;
             bool result = false;
-            int code = (int)reply->m_channel;
-            short port = reply->m_port;
-            unsigned int ip2 = reply->m_ip;
-            GetInstanceExchangeServer()->SetExchageServer(ip2, port, code, result);
+            GetInstanceExchangeServer()->SetExchageServer(
+                reply->m_ip, reply->m_port, (int)reply->m_channel, result);
             if (!result)
             {
                 reply->m_port =
