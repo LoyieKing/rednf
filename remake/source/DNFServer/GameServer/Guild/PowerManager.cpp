@@ -333,7 +333,12 @@ void CPowerManager::SaveDBPowerWarRank()
                 app->Get_ServerHandler()->SendToDB(&userPkt);
             }
         }
-        Packet_DB_Save_Power_War_Guild_Rank guildPkt;
+        // ORIG 复用 userPkt 栈槽（4.1.2 合并不相交生命周期大局部，4.4.6 不合并）：
+        // 引用别名强制共用同一缓冲，消除多余的 0x330 字节局部。
+        Packet_DB_Save_Power_War_Guild_Rank& guildPkt =
+            *(Packet_DB_Save_Power_War_Guild_Rank*)&userPkt;
+        guildPkt.packetId = 0x6d6;
+        guildPkt.packetSize = 0x330;
         guildPkt.m_a = app->Get_ServerHandler()->GetServerGroupNo();
         for (int side = 1; side < 3; side++)
         {

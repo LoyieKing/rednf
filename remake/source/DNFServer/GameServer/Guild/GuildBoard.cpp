@@ -175,9 +175,9 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         return;
     }
     int total = (int)m_board.size();
+    Packet_Guild_Reply_Guild_Board reply;
     if (total == 0)
     {
-        Packet_Guild_Reply_Guild_Board reply;
         reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
@@ -200,7 +200,6 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         m_board.end();
     for (int page = 0; page < fullPages; page++)
     {
-        Packet_Guild_Reply_Guild_Board reply;
         reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
@@ -221,7 +220,6 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     }
     if (remainder != 0)
     {
-        Packet_Guild_Reply_Guild_Board reply;
         reply.m_c = (unsigned short)c;
         reply.m_f = user->GetIdByChannel();
         reply.m_13 = user->GetUniqCharNo();
