@@ -1942,13 +1942,12 @@ void CPacketTranslater::OnEventStart(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::OnEventStart : 0 == m_pclApp");
         }
         Packet_Monitor_Event_Start* rpkt = (Packet_Monitor_Event_Start*)pkt;
-        unsigned short p2 = rpkt->m_eventParam2;
-        unsigned short p1 = rpkt->m_eventParam1;
-        unsigned int code = rpkt->m_eventCode;
         DNF_LOG_SCOPE_LINE(0x9f4,"./log/Web",
             "CPacketTranslater::OnEventStart() eventCode(%d), eventParam1(%d), "
             "eventParam2(%d)\n",
-            code, (unsigned int)p1, (unsigned int)p2);
+            (unsigned int)rpkt->m_eventCode,
+            (unsigned int)rpkt->m_eventParam1,
+            (unsigned int)rpkt->m_eventParam2);
         m_pclApp->m_eventActionMgr
             ->OnStartAction(rpkt);
         (m_pclApp->m_serverHandler2)
@@ -3604,7 +3603,8 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
             pkt2.m_charNo = info->m_charNo;
             pkt2.m_fieldE = info->m_fieldE;
             pkt2.m_field12 = info->m_field12;
-            m_pclApp->Get_ServerGroup();
+            unsigned int sg = m_pclApp->Get_ServerGroup();
+            (void)sg;
             CServerHandler* handler = m_pclApp->m_serverHandler2;
             int count = handler->SendAllTcpGameServer(
                 &pkt2, (int)(unsigned char)info->m_channelCount);
@@ -3617,7 +3617,7 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
                 reply.m_field12 = info->m_field12;
                 reply.m_count = 0;
                 reply.packetSize =
-                    (unsigned short)((0 << 4) + 0x18);
+                    (unsigned short)((reply.m_count << 4) + 0x18);
                 user->SendTcpGameserver(&reply);
             }
         }
@@ -4771,6 +4771,7 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::OnMonitorPunishCancel : 0 == m_pclApp");
         }
         Packet_Punish_Cancel* in = (Packet_Punish_Cancel*)pkt;
+        Packet_Punish_Cancel reply;
         int charNo = 0;
         CUser* user =
             (&m_pclApp->m_userManager)->FindUser(in->m_idByChannel);
@@ -4788,7 +4789,6 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
                                 ->FindUser_CharNo((unsigned int)charNo);
             if (target != 0)
             {
-                Packet_Punish_Cancel reply;
                 reply.m_idByChannel = target->GetIdByChannel();
                 reply.m_type = in->m_type;
                 reply.m_param = in->m_param;
