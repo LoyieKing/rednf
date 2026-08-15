@@ -1811,7 +1811,7 @@ bool CDBManager::updateCollectItems(unsigned char a, int b, unsigned int c,
     CDBHandle* h = m_handles[9];    // event db
     if (!h)
         return 0;
-    bool setQueryOk = false;
+    bool setQueryOk;
     if (d == 0)
     {
         if (b <= 0)
@@ -6367,7 +6367,7 @@ bool CDBManager::SendGuildCoinByMail(int guildId, unsigned int serverGroup,
         unsigned int characNo = 0;
         if (!h->get_uint(0, characNo))
             return 0;
-        int letterNo = 0;
+    int letterNo;
         if (!InsertLetter(characNo, 0, subject, content, letterNo, tomorrow))
         {
             CMyFileLog log(__FUNCTION__, 0x8c0);
