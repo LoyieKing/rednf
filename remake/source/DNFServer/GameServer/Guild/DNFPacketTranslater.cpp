@@ -3848,6 +3848,8 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x1563, "./log/ServerUnify", "CPacketTranslater::OnChangeCharName : 0 == pclGuild");
         return;
     }
+    char deadBuf[0x1e];
+    memset(deadBuf, 0, 0x1e);
     if (guild->ChangeGuildMemberCharName(pb->m_charNo,
                                          pb->m_name) == 1)
     {
