@@ -826,6 +826,11 @@ void CPacketTranslater::OnNoticeGuildChatMsg(PacketHeader* pkt)
                                                (const char*)user->GetCharName());
         }
     }
+    else
+    {
+        throw CDNFException(
+            "CPacketTranslater::OnNoticeGuildChatMsg : packet->m_uCharID && packet->m_uGuildKey && packet->m_msgLen");
+    }
     }
     catch (CDNFException& e)
     {
@@ -1319,12 +1324,10 @@ void CPacketTranslater::OnNoticeGuildWarPointChange(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        printf("CPacketTranslater::OnNoticeGuildWarEnd Exception Break : %s\n", e.what());
         DNF_LOG_SCOPE_LINE(0x705, "./log/Except", "CPacketTranslater::OnNoticeGuildWarEnd Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        puts("CPacketTranslater::OnNoticeGuildWarEnd Exception Break");
         DNF_LOG_SCOPE_LINE(0x70a, "./log/Except", "CPacketTranslater::OnNoticeGuildWarEnd Exception Break\n");
     }
 }
@@ -2735,12 +2738,10 @@ void CPacketTranslater::OnNoticeGuildMailArrive(PacketHeader* pkt)
     }
     catch (CDNFException& e)
     {
-        printf("CPacketTranslater::OnNoticeGuildMailArrive() Exception Break : %s\n", e.what());
         DNF_LOG_SCOPE_LINE(0xe10, "./log/Except", "CPacketTranslater::OnNoticeGuildMailArrive() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
-        puts("CPacketTranslater::OnNoticeGuildMailArrive() Exception Break");
         DNF_LOG_SCOPE_LINE(0xe15, "./log/Except", "CPacketTranslater::OnNoticeGuildMailArrive() Exception Break\n");
     }
 }
