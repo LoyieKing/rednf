@@ -362,7 +362,7 @@ void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
         if (guild->DeleteGuildMember(user->GetUniqCharNo(), user) == 1)
         {
             guild->InsertGuildMemberChanglableInfo(user->GetUniqCharNo());
-            if (!IsEmptyGuild(guildKey))
+            if (IsEmptyGuild(guildKey) == 0)
             {
                 guild->NoticeGuildMemberLogin_Out(user, 0);
             }
@@ -531,7 +531,7 @@ void CGuildManager::DBGuildProcess(CServerHandler* handler, bool flag)
     static unsigned int save_order = 0;
     time_t now;
     tm* t;
-    time(&now);
+    now = time(NULL);
     t = localtime(&now);
     char onTime = m_scheduler.IsOnTimeSpecialDayHour(t->tm_mday, t->tm_hour, t->tm_min);
     unsigned char groupNo = m_app->Get_ServerGroup();

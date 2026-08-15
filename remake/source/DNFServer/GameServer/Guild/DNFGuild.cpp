@@ -1041,13 +1041,13 @@ bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int char
     {
         m_dbInfo.m_info.m_skills[found].m4 = (unsigned char)slot;
     }
-    if (m_dbInfo.m_info.m_guildSkillPoint >= (unsigned short)param)
+    if (m_dbInfo.m_info.m_guildSkillPoint < param)
     {
-        m_dbInfo.m_info.m_guildSkillPoint -= (unsigned short)param;
+        m_dbInfo.m_info.m_guildSkillPoint = 0;
     }
     else
     {
-        m_dbInfo.m_info.m_guildSkillPoint = 0;
+        m_dbInfo.m_info.m_guildSkillPoint -= (unsigned short)param;
     }
     m_dBSaveFlag = 1;
     CMyFileLog log(__FUNCTION__, 0x403);
@@ -1066,15 +1066,13 @@ int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
     }
     if ((m_guildDBFlag & 4) != 0)
     {
-    if (user->GetUniqCharNo() != GetMasterId())
+    if (user->GetUniqCharNo() == GetMasterId() ||
+        IsSubGuildMaster(user->GetUniqCharNo()))
     {
-        if (IsSubGuildMaster(user->GetUniqCharNo()))
-        {
-        }
-        else
-        {
-            return 2;
-        }
+    }
+    else
+    {
+        return 2;
     }
     if (m_dbInfo.m_info.m_guildLevel + 1 > 0x10)
     {
