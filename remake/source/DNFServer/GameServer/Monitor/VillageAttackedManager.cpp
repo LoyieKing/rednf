@@ -513,22 +513,7 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
             {
                 int total = 0;
                 stHuntingPoint* hp = GetHuntingPoint(charNos[i]);
-                if (hp == 0)
-                {
-                    stHuntingPoint p;
-                    p.m_huntingPoint = 0;
-                    p.m_bonusPoint = 0;
-                    if (success)
-                    {
-                        p.m_huntingPoint++;
-                    }
-                    else
-                    {
-                        p.m_bonusPoint++;
-                    }
-                    m_huntingPoints.insert(std::make_pair(charNos[i], p));
-                }
-                else
+                if (hp != 0)
                 {
                     if (success)
                     {
@@ -540,11 +525,25 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
                     }
                     total = hp->m_huntingPoint + hp->m_bonusPoint;
                 }
+                else
+                {
+                    stHuntingPoint p;
+                    if (success)
+                    {
+                        p.m_huntingPoint++;
+                    }
+                    else
+                    {
+                        p.m_bonusPoint++;
+                    }
+                    m_huntingPoints.insert(std::make_pair(charNos[i], p));
+                    total = 1;  // 复刻 ORIG：hp==0 时 total 置 1（ORIG 死变量，保留）
+                }
                 if (success)
                 {
                     stHuntingPoint* cur = GetHuntingPoint(charNos[i]);
                     SendVillageAttackedRewardJpn(users[i], cur->m_huntingPoint);
-                    DNF_LOG_SCOPE_AT("UpdateHuntingPoint", 0x3ae,"./log/village", "Send Success Count [charac:%u][count:%d]",
+                    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x3ae,"./log/village", "Send Success Count [charac:%u][count:%d]",
                         charNos[i], cur->m_huntingPoint);
                 }
             }
