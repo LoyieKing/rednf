@@ -2294,13 +2294,11 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
     }
     else
     {
-        CUserManager* userMgr = &m_pclApp->m_userManager;
-        CServerHandler* handler = m_pclApp->m_serverHandler2;
         Packet_DBMW_Register_To_BlackList dbPkt;
         Packet_Register_To_BlackList_RESULT result;
         dbPkt.m_charNo = req->m_dbid;
         memcpy(dbPkt.m_name, req->m_name, 0x1d);
-        CUser* user = userMgr->FindUser(req->m_dbid);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser(req->m_dbid);
         if (user == 0)
         {
             DNF_LOG_SCOPE_LINE(0xc50, "./log/BlackList", "CPacketTranslater::OnRegisterToBlackList : 0 == pclUser");
@@ -2319,7 +2317,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
             memcpy(result.m_name, req->m_name, 0x1d);
             if (user->GetBlackListSize() < 10)
             {
-                CUser* target = userMgr->FindUser_CharName(req->m_name);
+                CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(req->m_name);
                 if (target != 0)
                 {
                     result.m_charNo = target->GetUniqCharNo();
@@ -2344,7 +2342,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
                     user->SendToGameserver((char*)&result,
                                            result.packetSize);
                 }
-                handler->SendToDB(&dbPkt);
+                m_pclApp->m_serverHandler2->SendToDB(&dbPkt);
             }
             else
             {
