@@ -366,13 +366,12 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
                 "OnGuildJoin Err(g:%d,c:%d,r:%d) : return false", pkt->m_guildId, pkt->m_characNo,
                 reply.m_result
             );
-
-            if (reply.m_result == 0)
-                m_pclApp->m_dbManager.DeleteJoinListByInvite(
-                    join.m_guildId, join.m_characNo);
-            m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
-                (char*)&reply, reply.packetSize);
         }
+        if (reply.m_result == 0)
+            m_pclApp->m_dbManager.DeleteJoinListByInvite(
+                join.m_guildId, join.m_characNo);
+        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
+            (char*)&reply, reply.packetSize);
         CMyFileLog log2(__FUNCTION__, 0x576);
         log2("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
              pkt->m_guildId, pkt->m_characNo,
@@ -1817,8 +1816,7 @@ void CPacketTranslater::onCollectItemsUpdate(PacketHeader* header)
         m_pclApp->m_dbManager.updateCollectItems(
             pkt->m_serverInfo, diff,
             reply.m_changeFlag, flag);
-        if (flag == 0 &&
-            pkt->m_flag == 0 && diff < 0)
+        if (flag != 0 || pkt->m_flag != 0 || diff < 0)
         {
             m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
                 (char*)&reply, reply.packetSize);
@@ -1944,13 +1942,13 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
             (Packet_DB_Load_Request_Guild_Board_Open*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         int count = 0;
-        STGuildBoardDBInfo boards[0x31];
+        STGuildBoardDBInfo boards[0x32];
         if (!m_pclApp->m_dbManager.OnLoadGuildBoard(
                 ((FieldViewP<0xa,int>*)pkt)->v, count, boards))
         {
             DNF_LOG_SCOPE_LINE(0xf8a,
                 "./log/Except",
-                "CPacketTranslater::OnDBLoadRequestGuildBoardOpen()\tGuild Id : %d, \t Query Result : %d\n", ((FieldViewP<0xa,int>*)pkt)->v,
+                "CPacketTranslater::OnDBLoadRequestGuildBoardOpen()\tGuild Id : %d,\t Query Result : %d\n", ((FieldViewP<0xa,int>*)pkt)->v,
                 0
             );
 
@@ -2314,7 +2312,8 @@ void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
                 ms->SendToServer((char*)&reply, reply.packetSize);
                 DNF_LOG_SCOPE_LINE(0xe1a,
                     "./log/Secu",
-                    "[ARS_INFO] Packet Send - Stats : %3d, Cnt : %3d", batch,
+                    "[ARS_INFO] Packet Send - Stats : %3d, Cnt : %3d",
+                    (unsigned int)reply.m_statsType,
                     count
                 );
 
