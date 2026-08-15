@@ -1,17 +1,14 @@
 #!/bin/sh
-# guild 逐 TU 编译器分发（2026-08-11 第 9 轮集成用）：
+# guild 逐 TU 编译器分发（2026-08-11 起调优，2026-08-15 修正）：
 # - 默认 c6（c6root 4.4.7 纯驱动），与 ORIG 4.4.7-1 TU 对齐
-# - 以下 5 个 TU 保留 c6444r（4.4.7 驱动 + 4.4.4-13 cc1plus）：
-#   A/B 全量实测 c6 会使这些 TU 的已 identical 函数回归为 NEAR
-#   （DNFTcpHandler 9、DNFSignalTranslator 2、DNFApplication 1、main 1）
-#   DNFPacketTranslater：ORIG .comment 以 4.4.4-13 为主（8 项），该 TU 的
-#   e.what() 虚调用寄存器形态（fn->%edx）与 c6444r 逐条一致（第 14 轮验证）
-#   DNFTcpAcceptThread：CTcpAcceptThread::dispatch 的 e.what() 虚调用寄存器
-#   形态同样与 c6444r 逐条一致（第 23 轮验证，NEAR→IDENTICAL_AE，同 TU 其余
-#   6 函数 c6/c6444r 均 identical）
-#   TcpNetSystem：CTcpNetSystem D1/D2 的虚调用（fn->%edx 形态）与 c6444r
-#   逐条一致（第 30 轮验证，NEAR→IDENTICAL；同 TU 其余函数 c6/c6444r 均
-#   identical，含 Init 在 begin() 返回 bool 后 IDENTICAL）
+# - 2026-08-15 实测修正：catch 块 e.what() 虚调用寄存器形态（fn->%edx）
+#   由 **c6446r（4.4.6-3 cc1plus）** 产出，c6444r/c6 均产出 fn->%eax。
+#   把含 catch 的 TU（DNFPacketTranslater/DNFGuild/GuildCargo/GuildBoard/
+#   PowerManager/DNFPacketDecoder/DNFApplication/DNFGuildServerMain/
+#   DNFNetworkThread/DNFSignalTranslator/DNFTcpAcceptThread/
+#   DNFTcpNetworkThread/Peer）切到 c6446r 后，非 identical 198 → 169
+#   （44 NEAR → 15，29 个翻为 IDENTICAL/IDENTICAL_AE，零回归）。
+#   全量 c6446r 为 170（略差 1）；DNFAppStopInit/DNFAppStartInit 保持 c6444r。
 # - DNFTableBase：c6444r 编译但去掉 -fno-enforce-eh-specs。R42 验证：
 #   Load_Txt_Table_Data 虚调用（fn->%edx 形态）与 fopen 赋值条件
 #   （(f=fopen())==0 → sete %al;test %al,%al;je）均与 ORIG 逐条一致；
@@ -48,8 +45,8 @@ case "$(basename "$src" .cpp)" in
         exec "$C6446R" $filtered ;;
     DNFTcpHandler|DNFSignalTranslator|DNFApplication|DNFGuildServerMain|DNFThreadInterface|DNFTcpAcceptThread|DNFServerHandler|PowerWar|TcpNetSystem)
         exec "$C6446R" "$@" ;;
-    DNFPacketTranslater|GuildCargo|GuildBoard|PowerManager|DNFPacketDecoder|DNFGuild)
-        exec "$C6444R" "$@" ;;
+    DNFPacketTranslater|GuildCargo|GuildBoard|PowerManager|DNFPacketDecoder|DNFGuild|DNFApplication|DNFGuildServerMain|DNFNetworkThread|DNFSignalTranslator|DNFTcpAcceptThread|DNFTcpNetworkThread|Peer)
+        exec "$C6446R" "$@" ;;
     DNFAppStopInit|DNFAppStartInit)
         exec "$C6444R" "$@" ;;
     *)
