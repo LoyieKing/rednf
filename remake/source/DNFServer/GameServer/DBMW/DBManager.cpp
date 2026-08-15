@@ -5634,8 +5634,7 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     CDBHandle* h = m_handles[4];    // log db
     if (!h)
         return 0;
-    CubeStatisticView* view = (CubeStatisticView*)packet;
-    int count = view->m_count;
+    int count = ((CubeStatisticView*)packet)->m_count;
     CMyFileLog slog(__FUNCTION__, 0x1872);
     slog("./log/statistic",
          "CDBManager::QueryCubeStatisticCreate : (%d) \xb0\xb3 \xc6\xd0\xc5\xb6 \xbc\xf6\xbd\xc5\n", count);
@@ -5646,20 +5645,20 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
         if (str.size() != 0)
         {
             sprintf(buf, ",(now(),%d,%d,%d,%d,%d)",
-                    view->m_entries[i].m_channel,
-                    view->m_entries[i].m_level,
-                    view->m_entries[i].m_itemIndex,
-                    view->m_entries[i].m_type,
-                    view->m_entries[i].m_itemCount);
+                    ((CubeStatisticView*)packet)->m_entries[i].m_channel,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_level,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_itemIndex,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_type,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_itemCount);
         }
         else
         {
             sprintf(buf, "(now(),%d,%d,%d,%d,%d)",
-                    view->m_entries[i].m_channel,
-                    view->m_entries[i].m_level,
-                    view->m_entries[i].m_itemIndex,
-                    view->m_entries[i].m_type,
-                    view->m_entries[i].m_itemCount);
+                    ((CubeStatisticView*)packet)->m_entries[i].m_channel,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_level,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_itemIndex,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_type,
+                    ((CubeStatisticView*)packet)->m_entries[i].m_itemCount);
         }
         if (str.length() + 0x800 > 0x6000)
         {

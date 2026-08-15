@@ -1,5 +1,5 @@
 // 自动提取自 ORIG .data（0x82e5420/0x82e5d00），供 OnSavePacketOverflowWrite 使用
-static const char* g_szNotiPacketName[] = {
+const char* g_szNotiPacketName[] = {
     "ENUM_NOTIPACKET_CHECK_CONNECTION",
     "ENUM_NOTIPACKET_CHANNELINFO",
     "ENUM_NOTIPACKET_USERINFO",
@@ -565,7 +565,7 @@ static const char* g_szNotiPacketName[] = {
     "ENUM_NOTIPACKET_END",
 };
 
-static const char* g_szCmdPacketName[] = {
+const char* g_szCmdPacketName[] = {
     "ENUM_CMDPACKET_CHECK_CONNECTION",
     "ENUM_CMDPACKET_LOGIN",
     "ENUM_CMDPACKET_SET_UDP_IP_PORT",
