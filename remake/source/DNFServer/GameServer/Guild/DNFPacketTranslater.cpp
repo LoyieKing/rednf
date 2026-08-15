@@ -5086,7 +5086,8 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
             CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
             if (user == 0)
             {
-                DNF_LOG_SCOPE_LINE(0x1ca7,"./log/GuildBoard",
+                CMyFileLog log2("OnDBLoadReplyGuildBoardOpen", 0x1ca7);
+                log2("./log/GuildBoard",
                     "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclUser");
                 return;
             }
@@ -5094,7 +5095,8 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
             CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(guildKey);
             if (guild == 0)
             {
-                DNF_LOG_SCOPE_LINE(0x1cae,"./log/GuildBoard",
+                CMyFileLog log3("OnDBLoadReplyGuildBoardOpen", 0x1cae);
+                log3("./log/GuildBoard",
                     "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == pclGuild");
                 return;
             }
@@ -5111,7 +5113,8 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
         }
         else
         {
-            DNF_LOG_SCOPE_LINE(0x1c9d,"./log/GuildBoard",
+            CMyFileLog log1("OnDBLoadReplyGuildBoardOpen", 0x1c9d);
+            log1("./log/GuildBoard",
                 "CPacketTranslater::OnDBLoadReplyGuildBoardOpen : 0 == m_pclApp");
         }
     }
