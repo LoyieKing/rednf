@@ -2146,7 +2146,8 @@ char CDBManager::OnSaveFatigueBattery(
         return 0;
     for (int i = 0; i <= 0x64; i++)
     {
-        if (((FatigueBatteryView*)packet)->m_entries[i].m_fieldA != 0)
+        if (((FatigueBatteryView*)packet)->m_entries[i].m_fieldA != 0 ||
+            ((FatigueBatteryView*)packet)->m_entries[i].m_fieldA != 0)
         {
             h->set_query(0x4ec5,
                          "inSert into log_fatigue_battery set occ_date = now(), server_id = %d, money = %d, buff = %d",
@@ -5235,8 +5236,7 @@ char CDBManager::QueryHWspecCreate(
     HWspecView* view = (HWspecView*)packet;
     if (view->m_flag == 0)
     {
-        int count = view->m_count;
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < (int)view->m_count; i++)
         {
             h->set_query(0x4e78,
                          "upDate log_hardware_ting set total=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
@@ -5259,8 +5259,7 @@ char CDBManager::QueryHWspecCreate(
     }
     else if (view->m_flag == 1)
     {
-        int count = view->m_count;
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < (int)view->m_count; i++)
         {
             h->set_query(0x4e7a,
                          "upDate log_hardware_ting set ting=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
@@ -5283,8 +5282,7 @@ char CDBManager::QueryHWspecCreate(
     }
     else
     {
-        int count = view->m_count;
-        for (int i = 0; i < count; i++)
+        for (int i = 0; i < (int)view->m_count; i++)
         {
             h->set_query(0x4e7c,
                          "upDate log_hardware_ting_low set total=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
