@@ -101,7 +101,7 @@ int CBuddyHandle::delDB(CServerHandler* handler, char* name)
     std::map<std::string, CBuddy*>::iterator it = m_buddies.find(name);
     if (it == m_buddies.end())
     {
-        return 0x12;
+        return 0x15;
     }
     Packet_DBMW_Del_Buddy pkt;
     pkt.m_uniqCharNo = m_prUser->GetUniqCharNo();
