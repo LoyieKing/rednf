@@ -111,7 +111,7 @@ public:
     int IsBlackUser(unsigned int charNo);
     void GetBlackList(unsigned char& count, STBlackUserDBType* list);
     void GetBlackList(unsigned char& count, unsigned int* list);
-    unsigned short GetBlackListSize();
+    int GetBlackListSize();
     unsigned short GetBlackListDBFlag();
     void SetBlackListDBFlag(unsigned short flag);
     void* GetMapBlackList();

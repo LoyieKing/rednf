@@ -462,9 +462,9 @@ int CUser::IsBlackUser(unsigned int charNo)
     return it != m_blackList.end() ? 1 : 0;
 }
 
-unsigned short CUser::GetBlackListSize()
+int CUser::GetBlackListSize()
 {
-    return (unsigned short)m_blackList.size();
+    return (int)m_blackList.size();
 }
 
 void CUser::GuildInviteProcess()

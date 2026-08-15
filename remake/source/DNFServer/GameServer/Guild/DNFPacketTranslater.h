@@ -738,14 +738,12 @@ public:
 class Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade : public PacketHeader {
 public:
     Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade();
-    unsigned char ma;                 // +0xa
-    unsigned int mb;                 // +0xb
-    unsigned char m_f;               // +0xf
-    unsigned int m_10;               // +0x10
-    unsigned char m_14;              // +0x14
-    char m_name[0x1d];               // +0x15
-    unsigned char m32;                 // +0x32
-
+    unsigned char ma;                 // +0xa group
+    unsigned int mb;                  // +0xb guildKey
+    unsigned int m_f;                 // +0xf charNo
+    unsigned char m_13;               // +0x13 caller grade
+    char m_name[0x1e];                // +0x14 name
+    unsigned char m32;                // +0x32 new grade
 };
 
 // from GuildPackets.h

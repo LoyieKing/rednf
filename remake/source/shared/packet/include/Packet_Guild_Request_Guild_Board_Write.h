@@ -9,8 +9,8 @@
 
 class Packet_Guild_Request_Guild_Board_Write : public PacketHeader {
 public:
-    unsigned int m_boardNo;     // +0xa
-    unsigned int m_guildKey;    // +0xe
+    unsigned int m_guildKey;    // +0xa
+    unsigned int m_boardNo;     // +0xe
     unsigned int m_charNo;      // +0x12
     unsigned char m_field16;    // +0x16
     unsigned char m_field17;    // +0x17

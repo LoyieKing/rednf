@@ -85,14 +85,15 @@ public:
 };
 #pragma pack(pop)
 
-// from GuildPackets.h
+#pragma pack(push,1)
 class Packet_DB_Load_Request_Web_Guild_Board_Write : public PacketHeader {
 public:
     Packet_DB_Load_Request_Web_Guild_Board_Write();
     unsigned int m_guildKey;  // +0xa
     unsigned int m_charNo;    // +0xe
     unsigned int m_no;        // +0x12
-};
+} __attribute__((packed));
+#pragma pack(pop)
 
 // from GuildPackets.h
 class Packet_DB_Request_Approve_Join_Guild : public PacketHeader {
