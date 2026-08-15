@@ -993,20 +993,18 @@ bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int char
     {
     if ((int)m_dbInfo.m_info.m_guildSkillPoint < (int)(short)param)
     {
-        unsigned int gsp = (unsigned int)m_dbInfo.m_info.m_guildSkillPoint;
-        unsigned int key = GetGuildKey();
         CMyFileLog log(__FUNCTION__, 0x3d2);
         log("./log/GuildSkill", "BUY_SKILL_1, GKey(%d) , Idx(%d), lev(%d), gsp(%d)",
-            key, skillId, slot, gsp);
+            GetGuildKey(), skillId, slot,
+            (unsigned int)m_dbInfo.m_info.m_guildSkillPoint);
         return 0;
     }
     if (m_dbInfo.m_info.m_guildFund < charNo)
     {
-        unsigned int fund = m_dbInfo.m_info.m_guildFund;
-        unsigned int key = GetGuildKey();
         CMyFileLog log(__FUNCTION__, 0x3d9);
         log("./log/GuildSkill", "BUY_SKILL_1, GKey(%d) , Idx(%d), lev(%d), guildfund(%d)",
-            key, skillId, slot, fund);
+            GetGuildKey(), skillId, slot,
+            (unsigned int)m_dbInfo.m_info.m_guildFund);
         return 0;
     }
     SubGuildFund(charNo);
