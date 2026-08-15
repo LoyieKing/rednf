@@ -230,6 +230,7 @@ bool CPeer::parsing(int len)
     PacketHeader hdr(0, 0);
     int parsinglength = m_recvLen + len;
     int headerSize = 10;
+    (void)headerSize;
     if (parsinglength <= 9)
     {
         m_recvLen += len;

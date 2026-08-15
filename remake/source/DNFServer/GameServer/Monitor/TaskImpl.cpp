@@ -64,57 +64,31 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
 {
     int eventHour = DecideEventTime();
     time_t now = time(0);
-    tm* pt = localtime(&now);
-    int sec = pt->tm_sec;
-    int min = pt->tm_min;
-    int hour = pt->tm_hour;
-    int mday = pt->tm_mday;
-    int mon = pt->tm_mon;
-    int year = pt->tm_year;
-    int wday = pt->tm_wday;
-    int yday = pt->tm_yday;
-    int isdst = pt->tm_isdst;
-    long gmtoff = pt->tm_gmtoff;
-    char* zone = (char*)pt->tm_zone;
+    tm nowTm = *localtime(&now);
 
     if (now < (time_t)getEventStartTime())
     {
-        tm t;
-        t.tm_mday = mday;
-        t.tm_mon = mon;
-        t.tm_year = year;
-        t.tm_wday = wday;
-        t.tm_yday = yday;
-        t.tm_isdst = isdst;
-        t.tm_gmtoff = gmtoff;
-        t.tm_zone = zone;
+        tm t = nowTm;
         t.tm_hour = 0;
         t.tm_min = 0;
         t.tm_sec = 0;
         time_t midnight = mktime(&t);
         param_1 = (int)(((time_t)getEventStartTime() - midnight) / 86400);
     }
-    if (param_1 == 0 && eventHour < hour + 1)
+    if (param_1 == 0 && eventHour < nowTm.tm_hour + 1)
     {
         int n = 0;
-        while (n < 3 && (eventHour = DecideEventTime(), eventHour < hour + 1))
+        while (n < 3 && (eventHour = DecideEventTime(), eventHour < nowTm.tm_hour + 1))
         {
             n++;
         }
         if (n == 3)
         {
-            eventHour = (hour + eventHour + 1) % 25;
+            eventHour = (nowTm.tm_hour + eventHour + 1) % 25;
         }
     }
-    tm t2;
-    t2.tm_mon = mon;
-    t2.tm_year = year;
-    t2.tm_wday = wday;
-    t2.tm_yday = yday;
-    t2.tm_isdst = isdst;
-    t2.tm_gmtoff = gmtoff;
-    t2.tm_zone = zone;
-    t2.tm_mday = mday + param_1;
+    tm t2 = nowTm;
+    t2.tm_mday = nowTm.tm_mday + param_1;
     t2.tm_hour = eventHour - 1;
     t2.tm_min = 0;
     t2.tm_sec = 0;

@@ -1562,14 +1562,13 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
     {
         try
         {
-            CUserManager* userMgr = &m_pclApp->m_userManager;
-            CMemberManager* memberMgr = &m_pclApp->m_memberManager;
             Packet_Monitor_Call_Member_List* req =
                 (Packet_Monitor_Call_Member_List*)pkt;
+            CUserManager* userMgr = &m_pclApp->m_userManager;
+            CMemberManager* memberMgr = &m_pclApp->m_memberManager;
             CUser* user = userMgr->FindUser_CharNo(req->m_charNo);
             if (user != 0)
             {
-                user->GetUniqCharNo();
                 CMember* member = memberMgr->FindMember(user->GetUniqCharNo());
                 if (member != 0)
                 {
@@ -2290,6 +2289,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
 {
 
 
+    Packet_Register_To_BlackList* req = (Packet_Register_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0xc41, "./log/BlackList", "CPacketTranslater::OnRegisterToBlackList : 0 == m_pclApp");
@@ -2298,7 +2298,6 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
     {
         CUserManager* userMgr = &m_pclApp->m_userManager;
         CServerHandler* handler = m_pclApp->m_serverHandler2;
-        Packet_Register_To_BlackList* req = (Packet_Register_To_BlackList*)pkt;
         Packet_DBMW_Register_To_BlackList dbPkt;
         Packet_Register_To_BlackList_RESULT result;
         dbPkt.m_charNo = req->m_dbid;
@@ -2532,13 +2531,13 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
 {
 
 
+    Packet_DMBW_Delete_To_BlackList* db = (Packet_DMBW_Delete_To_BlackList*)pkt;
     if (m_pclApp == 0)
     {
         DNF_LOG_SCOPE_LINE(0xd69, "./log/BlackList", "CPacketTranslater::OnDBMWDeleteToBlackList : 0 == m_pclApp");
     }
     else
     {
-        Packet_DMBW_Delete_To_BlackList* db = (Packet_DMBW_Delete_To_BlackList*)pkt;
         CUser* user =
             (&m_pclApp->m_userManager)->FindUser(db->m_charNo);
         if (user == 0)
@@ -3179,25 +3178,25 @@ void CPacketTranslater::OnUserRepelByCharName(PacketHeader* pkt)
 {
 
 
-    if (m_pclApp != 0)
+    CUserManager* userMgr = 0;
+    Packet_Monitor_User_Repel_ByCharName* repel = 0;
+    if (m_pclApp == 0)
     {
-        CUserManager* userMgr = &m_pclApp->m_userManager;
-        Packet_Monitor_User_Repel_ByCharName* repel =
-            (Packet_Monitor_User_Repel_ByCharName*)pkt;
-        CUser* user = userMgr->FindUser(repel->m_dbid);
-        if (user != 0)
-        {
-            Packet_Monitor_User_Repel reply;
-            CUser* target = userMgr->FindUser_CharName(repel->m_name);
-            if (target != 0)
-            {
-                reply.m_idByChannel = target->GetIdByChannel();
-                target->SendToGameserver((char*)&reply, 0x12);
-            }
-        }
-        return;
+        throw CDNFException("CPacketTranslater::OnUserRepel : 0 == m_pclApp");
     }
-    throw CDNFException("CPacketTranslater::OnUserRepel : 0 == m_pclApp");
+    userMgr = &m_pclApp->m_userManager;
+    repel = (Packet_Monitor_User_Repel_ByCharName*)pkt;
+    CUser* user = userMgr->FindUser(repel->m_dbid);
+    if (user != 0)
+    {
+        Packet_Monitor_User_Repel reply;
+        CUser* target = userMgr->FindUser_CharName(repel->m_name);
+        if (target != 0)
+        {
+            reply.m_idByChannel = target->GetIdByChannel();
+            target->SendToGameserver((char*)&reply, 0x12);
+        }
+    }
 
 
     }
@@ -3548,9 +3547,8 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
             pkt2.m_charNo = rpkt->m_charNo;
             memcpy(pkt2.m_name, rpkt->m_name, 0x1d);
             m_pclApp->Get_ServerHandler()->SendToDB(&pkt2);
-            unsigned int dbid = rpkt->m_charNo;
             CUserManager* userMgr = m_pclApp->Get_UserManager();
-            userMgr->ChangeBlackListCharName(dbid, rpkt->m_name);
+            userMgr->ChangeBlackListCharName(rpkt->m_charNo, rpkt->m_name);
             std::vector<unsigned int> vec;
             (&m_pclApp->m_buddyMgr)
                 ->findBuddyRegister(rpkt->m_charNo, vec);
@@ -4109,32 +4107,30 @@ void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::OnSetCleanPadPoint : 0 == m_pclApp");
         }
         int charNo = 0;
-        CUser* user =
-            (&m_pclApp->m_userManager)->FindUser(
-                ((Packet_Request_Set_CleanPad_Point*)pkt)->m_dbid);
-        if (user == 0)
-        {
-            charNo = -1;
-        }
-        else
+        Packet_Request_Set_CleanPad_Point* req = (Packet_Request_Set_CleanPad_Point*)pkt;
+        CUser* user = (&m_pclApp->m_userManager)->FindUser(req->m_dbid);
+        if (user != 0)
         {
             charNo = (int)user->GetUniqCharNo();
         }
-        if (charNo != 0)
+        else
         {
-            CUser* target = (&m_pclApp->m_userManager)
-                                ->FindUser_CharNo((unsigned int)charNo);
-            if (target != 0)
-            {
-                Packet_Set_CleanPad_Point reply;
-                reply.m_idByChannel = target->GetIdByChannel();
-                reply.m_point = ((Packet_Request_Set_CleanPad_Point*)pkt)->m_point;
-                reply.packetSize = 0x10;
-                target->SendToGameserver((char*)&reply, 0x10);
-            }
-            return;
+            charNo = -1;
         }
-        throw CDNFException("CPacketTranslater::OnSetCleanPadPoint");
+        if (charNo == 0)
+        {
+            throw CDNFException("CPacketTranslater::OnSetCleanPadPoint");
+        }
+        CUser* target = 0;
+        Packet_Set_CleanPad_Point reply;
+        target = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)charNo);
+        if (target != 0)
+        {
+            reply.m_idByChannel = target->GetIdByChannel();
+            reply.m_point = req->m_point;
+            reply.packetSize = 0x10;
+            target->SendToGameserver((char*)&reply, reply.packetSize);
+        }
     }
     catch (CDNFException& e)
     {
@@ -4216,22 +4212,19 @@ void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::OnTakeScreenShot : 0 == m_pclApp");
         }
-        Packet_Monitor_Take_Screen_Shot* shot = (Packet_Monitor_Take_Screen_Shot*)pkt;
-        char buf[15];
-        memcpy(buf, shot, 15);
+        Packet_Monitor_Take_Screen_Shot shotCopy = *(Packet_Monitor_Take_Screen_Shot*)pkt;
         CServerHandler* handler = m_pclApp->m_serverHandler2;
-        if (shot->m_channel == 0)
+        if (shotCopy.m_channel == 0)
         {
-            handler->SendAllToGameServer(buf, shot->packetSize);
+            handler->SendAllToGameServer((char*)&shotCopy, shotCopy.packetSize);
         }
         else
         {
-            handler->SendToGameServer(shot->m_channel,
-                                      (PacketHeader*)buf);
+            handler->SendToGameServer(shotCopy.m_channel, (PacketHeader*)&shotCopy);
         }
         DNF_LOG_SCOPE_LINE(0x1710,"./log/ScreenShot", "Recv TakeScreenShot Command! channel(%d) time(%d)",
-            (unsigned int)(unsigned char)shot->m_channel,
-            shot->m_time);
+            (unsigned int)(unsigned char)shotCopy.m_channel,
+            shotCopy.m_time);
     }
     catch (CDNFException& e)
     {
@@ -5384,54 +5377,46 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
         {
             throw CDNFException("CPacketTranslater::onCollectItems");
         }
-        MonitorCollectItemsState* state =
-            (MonitorCollectItemsState*)m_pclApp->getCollectItems();
-        unsigned int cur = state->m_current;
-        if (cur < state->m_total)
+        Packet_CollectItems* req = (Packet_CollectItems*)pkt;
+        unsigned int cur =
+            ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
+        if (cur < ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_total)
         {
-            if (state->m_current == 0)
+            if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current == 0)
             {
-                SendColletItemsReward(((Packet_CollectItems*)pkt)->m_charNo,
-                                      ((Packet_CollectItems*)pkt)->m_idByChannel,
-                                      ((Packet_CollectItems*)pkt)->m_name,
-                                      (int)((Packet_CollectItems*)pkt)->m_nameLen,
-                                      TimeGateRewardType::TYPE_0);
+                SendColletItemsReward(req->m_charNo, req->m_idByChannel, req->m_name,
+                                      (int)req->m_nameLen, TimeGateRewardType::TYPE_0);
             }
             else
             {
-                int cur2 = (int)state->m_current;
-                int add = ((Packet_CollectItems*)pkt)->m_add;
-                if ((unsigned int)(cur2 + add) < state->m_total)
+                unsigned int cur2 =
+                    ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
+                if (cur2 + req->m_add >=
+                    ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_total)
                 {
-                    int cur3 = (int)state->m_current;
-                    unsigned int rest = state->m_current;
-                    if ((cur3 - rest % 0x14) + 0x14 <=
-                        (unsigned int)((int)state->m_current +
-                                       ((Packet_CollectItems*)pkt)->m_add))
-                    {
-                        SendColletItemsReward(((Packet_CollectItems*)pkt)->m_charNo,
-                                              ((Packet_CollectItems*)pkt)->m_idByChannel,
-                                              ((Packet_CollectItems*)pkt)->m_name,
-                                              (int)((Packet_CollectItems*)pkt)->m_nameLen,
-                                              TimeGateRewardType::TYPE_1);
-                    }
+                    SendColletItemsReward(req->m_charNo, req->m_idByChannel, req->m_name,
+                                          (int)req->m_nameLen, TimeGateRewardType::TYPE_2);
+                    ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_time =
+                        (long)time(0);
                 }
                 else
                 {
-                    SendColletItemsReward(((Packet_CollectItems*)pkt)->m_charNo,
-                                          ((Packet_CollectItems*)pkt)->m_idByChannel,
-                                          ((Packet_CollectItems*)pkt)->m_name,
-                                          (int)((Packet_CollectItems*)pkt)->m_nameLen,
-                                          TimeGateRewardType::TYPE_2);
-                    MonitorCollectItemsState* state2 =
-                        (MonitorCollectItemsState*)m_pclApp->getCollectItems();
-                    state2->m_time = (long)time(0);
+                    unsigned int cur3 =
+                        ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
+                    unsigned int rest =
+                        ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
+                    if ((cur3 - rest % 0x14) + 0x14 <=
+                        ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +
+                            req->m_add)
+                    {
+                        SendColletItemsReward(req->m_charNo, req->m_idByChannel, req->m_name,
+                                              (int)req->m_nameLen, TimeGateRewardType::TYPE_1);
+                    }
                 }
             }
-            MonitorCollectItemsState* state3 =
-                (MonitorCollectItemsState*)m_pclApp->getCollectItems();
-            state3->m_current =
-                state3->m_current + ((Packet_CollectItems*)pkt)->m_add;
+            ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current =
+                ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +
+                req->m_add;
         }
     }
     catch (CDNFException& e)

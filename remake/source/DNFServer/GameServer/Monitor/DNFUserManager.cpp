@@ -83,10 +83,9 @@ void CUserManager::MemberEnterProcess()
 
 void CUserManager::ProcessByMinute()
 {
-    std::map<const unsigned int, CDNFProhibitUser*>::iterator it;
     if (!m_prohibitUsers.empty())
     {
-        it = m_prohibitUsers.begin();
+        std::map<const unsigned int, CDNFProhibitUser*>::iterator it = m_prohibitUsers.begin();
         while (it != m_prohibitUsers.end())
         {
             CDNFProhibitUser* pu;
@@ -94,8 +93,8 @@ void CUserManager::ProcessByMinute()
             {
                 if (pu->IsTimeOutConnectable())
                 {
-                    int remain = (short)pu->GetProhibitRemainTime();
-                    unsigned int dbid = pu->GetDBID();
+                    register int remain = (short)pu->GetProhibitRemainTime();
+                    register unsigned int dbid = pu->GetDBID();
                     CMyFileLog log(__FUNCTION__, 0x292);
                     log("./log/User",
                         "[PROHIBIT CONNECT USER TIME_OUT] Prohibit User DB ID : %d\t Remain time(%d)\n",
@@ -181,30 +180,24 @@ int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
     for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
          it != m_charNoUsers.end(); )
     {
-        if (it->second != 0)
+        if (it->second != 0 && it->second->GetGameServer() == gameServer)
         {
-            if (it->second->GetGameServer() == gameServer)
-            {
-                std::map<const unsigned int, CUser*>::iterator cur = it++;
-                m_charNoUsers.erase(cur);
-                continue;
-            }
-            ++it;
+            std::map<const unsigned int, CUser*>::iterator cur = it++;
+            m_charNoUsers.erase(cur);
+            continue;
         }
+        ++it;
     }
     for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
          it != m_charNameUsers.end(); )
     {
-        if (it->second != 0)
+        if (it->second != 0 && it->second->GetGameServer() == gameServer)
         {
-            if (it->second->GetGameServer() == gameServer)
-            {
-                std::map<const std::string, CUser*>::iterator cur = it++;
-                m_charNameUsers.erase(cur);
-                continue;
-            }
-            ++it;
+            std::map<const std::string, CUser*>::iterator cur = it++;
+            m_charNameUsers.erase(cur);
+            continue;
         }
+        ++it;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
          it != m_users.end(); )
@@ -244,30 +237,24 @@ int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
     for (std::map<const unsigned int, CUser*>::iterator it = m_charNoUsers.begin();
          it != m_charNoUsers.end(); )
     {
-        if (it->second != 0)
+        if (it->second != 0 && it->second->GetTcpGameServer() == (void*)tcpGameServer)
         {
-            if (it->second->GetTcpGameServer() == (void*)tcpGameServer)
-            {
-                std::map<const unsigned int, CUser*>::iterator cur = it++;
-                m_charNoUsers.erase(cur);
-                continue;
-            }
-            ++it;
+            std::map<const unsigned int, CUser*>::iterator cur = it++;
+            m_charNoUsers.erase(cur);
+            continue;
         }
+        ++it;
     }
     for (std::map<const std::string, CUser*>::iterator it = m_charNameUsers.begin();
          it != m_charNameUsers.end(); )
     {
-        if (it->second != 0)
+        if (it->second != 0 && it->second->GetTcpGameServer() == (void*)tcpGameServer)
         {
-            if (it->second->GetTcpGameServer() == (void*)tcpGameServer)
-            {
-                std::map<const std::string, CUser*>::iterator cur = it++;
-                m_charNameUsers.erase(cur);
-                continue;
-            }
-            ++it;
+            std::map<const std::string, CUser*>::iterator cur = it++;
+            m_charNameUsers.erase(cur);
+            continue;
         }
+        ++it;
     }
     for (std::map<unsigned int, CUser*>::iterator it = m_users.begin();
          it != m_users.end(); )

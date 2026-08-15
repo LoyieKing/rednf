@@ -227,6 +227,10 @@ void CTcpNetSystem::CleanPeers()
 void CTcpNetSystem::SetEpollAcceptedPeers()
 {
     CGuard<CMutex> guard(&m_mutex60);
+    if (m_peerQ.empty())
+    {
+        return;
+    }
     CPeer* peer = 0;
     while (!m_peerQ.empty())
     {
@@ -237,67 +241,76 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
             printf("G_EpollHandler()->SetPeer(peer->get_socket(%d)) %d(%s)",
                    peer->GetTcpSocket()->getHandle(), result, strerror(result));
         }
-        m_peers.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
+        m_peers.insert(std::make_pair((int)peer->GetTcpSocket()->getHandle(), peer));
         m_peerQ.pop();
     }
 }
 
 int CTcpNetSystem::SendPacket()
 {
-    CTcpSendBuffer* buf = 0;
-    bool empty;
+    register int ret;
+    register int flag;
+    CTcpSendBuffer* buf;
+    CTcpSendBuffer* b2;
+    CPeer* peer;
+    int result;
     {
         CGuard<CMutex> guard(&m_mutexe8);
-        empty = m_sendQ.empty();
-        if (!empty)
+        if (m_sendQ.empty())
+        {
+            ret = 0;
+            flag = 0;
+        }
+        else
         {
             buf = m_sendQ.front();
+            flag = 1;
         }
     }
-    if (empty || buf == 0)
+    if (flag)
     {
-        return 0;
+        if (!buf)
+        {
+            return 0;
+        }
+        b2 = buf;
+        std::map<unsigned int, CPeer*>::iterator it =
+            m_peers.find(((PacketHeader*)b2)->m_connNo);
+        if (it == m_peers.end())
+        {
+            DNF_LOG_SCOPE_LINE(0xba,"./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)",
+                (unsigned int)((PacketHeader*)b2)->packetId,
+                (unsigned int)((PacketHeader*)b2)->packetSize,
+                ((PacketHeader*)b2)->m_connNo);
+            PopDeleteTcpSendPacketQ(buf);
+            return 0;
+        }
+        peer = it->second;
+        if (peer == 0 ||
+            (int)((PacketHeader*)b2)->m_connNo != peer->GetTcpSocket()->getHandle())
+        {
+            DNF_LOG_SCOPE_LINE(0xc3,"./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)",
+                peer, (unsigned int)((PacketHeader*)b2)->packetId,
+                (unsigned int)((PacketHeader*)b2)->packetSize,
+                ((PacketHeader*)b2)->m_connNo);
+            PopDeleteTcpSendPacketQ(buf);
+            return 0;
+        }
+        result = peer->send_packet((char*)b2, (unsigned int)((PacketHeader*)b2)->packetSize);
+        if (result < 1)
+        {
+            DNF_LOG_SCOPE_LINE(0xd5,"./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)",
+                (unsigned int)((PacketHeader*)b2)->packetId,
+                (unsigned int)((PacketHeader*)b2)->packetSize,
+                ((PacketHeader*)b2)->m_connNo, (unsigned int)m_sendQ.size());
+        }
+        else
+        {
+            PopDeleteTcpSendPacketQ(buf);
+        }
+        return result;
     }
-    unsigned int fd = ((PacketHeader*)buf)->m_connNo;
-    std::map<unsigned int, CPeer*>::iterator it = m_peers.find(fd);
-    if (it == m_peers.end())
-    {
-        unsigned short size = ((PacketHeader*)buf)->packetSize;
-        unsigned short id = ((PacketHeader*)buf)->packetId;
-        DNF_LOG_SCOPE_LINE(0xba,"./log/TcpSend", "SEND ERR:no peer(id:%d,size:%d,ip:%d)", (unsigned int)id,
-            (unsigned int)size, fd);
-        PopDeleteTcpSendPacketQ(buf);
-        return 0;
-    }
-    CPeer* peer = it->second;
-    bool invalid = true;
-    if (peer != 0 && (int)fd == peer->GetTcpSocket()->getHandle())
-    {
-        invalid = false;
-    }
-    if (invalid)
-    {
-        unsigned short size = ((PacketHeader*)buf)->packetSize;
-        unsigned short id = ((PacketHeader*)buf)->packetId;
-        DNF_LOG_SCOPE_LINE(0xc3,"./log/TcpSend", "SEND ERR:invalid peer(%x)(id:%d)(size:%d)(ip:%d)", peer,
-            (unsigned int)id, (unsigned int)size, fd);
-        PopDeleteTcpSendPacketQ(buf);
-        return 0;
-    }
-    int result = peer->send_packet((char*)buf, (unsigned int)((PacketHeader*)buf)->packetSize);
-    if (result < 1)
-    {
-        unsigned int cnt = (unsigned int)m_sendQ.size();
-        unsigned short size = ((PacketHeader*)buf)->packetSize;
-        unsigned short id = ((PacketHeader*)buf)->packetId;
-        DNF_LOG_SCOPE_LINE(0xd5,"./log/TcpSend", "SEND(id:%d,size:%d,ip:%d, cnt:%d)", (unsigned int)id,
-            (unsigned int)size, fd, cnt);
-    }
-    else
-    {
-        PopDeleteTcpSendPacketQ(buf);
-    }
-    return result;
+    return 0;
 }
 
 int CTcpNetSystem::WaitForEvent()

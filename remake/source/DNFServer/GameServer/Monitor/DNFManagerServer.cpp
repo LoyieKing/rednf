@@ -341,9 +341,9 @@ bool CCacheCharacterMgr::CollectGarbage()
             return result;
         }
         top = m_timeQueue.top();
-        if (now - top.m_time <= 0x1d)
+        if (now - top.m_time < 0x1e)
         {
-            return result;
+            break;
         }
         std::map<unsigned int, CACHE_CHARACTER_TYPE>::iterator it =
             m_cache.find(top.m_charNo);
@@ -354,6 +354,7 @@ bool CCacheCharacterMgr::CollectGarbage()
         }
         m_timeQueue.pop();
     }
+    return result;
 }
 
 void CCacheCharacterMgr::Reset()

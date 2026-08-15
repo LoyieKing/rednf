@@ -56,12 +56,10 @@ stTowerRankElement_t::stTowerRankElement_t(unsigned char job, unsigned short sco
 void CTowerRank::registCharacRank(unsigned int floor, const char* name, unsigned int job,
                                   unsigned int score)
 {
-    std::string strName(name);
-    std::string strName2(name);
     std::multimap<std::string, stTowerRankElement_t>::iterator lo =
-        m_ranks[floor - 1].lower_bound(strName);
+        m_ranks[floor - 1].lower_bound(std::string(name));
     std::multimap<std::string, stTowerRankElement_t>::iterator up =
-        m_ranks[floor - 1].upper_bound(strName2);
+        m_ranks[floor - 1].upper_bound(std::string(name));
     while (lo != up)
     {
         if (lo->second.m_job == job)
@@ -76,8 +74,8 @@ void CTowerRank::registCharacRank(unsigned int floor, const char* name, unsigned
         ++lo;
     }
 INSERT:
-    stTowerRankElement_t elem((unsigned char)job, (unsigned short)score);
-    m_ranks[floor - 1].insert(std::make_pair(name, elem));
+    m_ranks[floor - 1].insert(
+        std::make_pair(name, stTowerRankElement_t((unsigned char)job, (unsigned short)score)));
 }
 
 unsigned int CTowerRank::getRankData(unsigned int floor, const char* name, unsigned int maxCount,

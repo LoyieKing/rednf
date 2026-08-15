@@ -44,10 +44,7 @@ void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));
     app->m_appConfig = new CAppConfig;
-    {
-        std::string cfgName(argv[1]);
-        app->m_appConfig->Check_FileName(cfgName);
-    }
+    app->m_appConfig->Check_FileName(std::string(argv[1]));
     app->m_memberConfig = new CMemberConfig;
     app->m_memberExpTbl = new CMemberExpTbl;
     app->m_serverHandler = new CKillUSRConfig;
@@ -59,7 +56,7 @@ void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 
 int CAppStartInit::Init_Daemon(int argc, char** argv)
 {
-    const char* mode = argv[2];
+    char* mode = argv[2];
     if (strcmp(mode, "start") == 0)
     {
         pid_t pid = fork();
@@ -75,14 +72,20 @@ int CAppStartInit::Init_Daemon(int argc, char** argv)
         chdir("./");
         umask(0);
     }
+    register bool failed;
     {
-        std::string pidFile(argv[1]);
-        char ok = Save_pid(pidFile);
-        return ok == 1 ? 0 : -1;
+        std::allocator<char> alloc;
+        std::string pidFile(argv[1], alloc);
+        failed = !Save_pid(pidFile);
     }
+    if (failed)
+    {
+        return -1;
+    }
+    return 0;
 }
 
-char CAppStartInit::Save_pid(const std::string& file)
+bool CAppStartInit::Save_pid(const std::string& file)
 {
     std::string path = "./pid/" + file;
     int fd = ::open(path.c_str(), 0x42, 0x1a4);

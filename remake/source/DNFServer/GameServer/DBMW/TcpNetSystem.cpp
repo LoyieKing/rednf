@@ -181,8 +181,13 @@ int CTcpNetSystem::SendPacket()
             flag = 1;
         }
     }
-    if (flag && buf != NULL)
+    if (flag)
     {
+        if (!buf)
+        {
+            result = 0;
+            return result;
+        }
         std::map<unsigned int, CPeer*>::iterator it =
             m_peerMap.find(*(unsigned int*)((char*)buf + 6));
         if (it == m_peerMap.end())
@@ -265,13 +270,25 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
 }
 void CTcpNetSystem::CleanTcpSendPacketQ()
 {
-    while (true)
+    for (;;)
     {
-        CGuard<CMutex> guard(&m_mutexE8);
-        if (m_sendQueue.empty())
+        CTcpSendBuffer* p;
+        int keep;
+        {
+            CGuard<CMutex> guard(&m_mutexE8);
+            if (m_sendQueue.empty())
+            {
+                keep = 0;
+            }
+            else
+            {
+                p = m_sendQueue.front();
+                m_sendQueue.pop();
+                keep = 1;
+            }
+        }
+        if (!keep)
             break;
-        CTcpSendBuffer* p = m_sendQueue.front();
-        m_sendQueue.pop();
         {
             CGuard<CMutex> guard(&m_mutex100);
             delete p;

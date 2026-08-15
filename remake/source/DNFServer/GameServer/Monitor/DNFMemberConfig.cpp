@@ -28,7 +28,7 @@
 #include "Packet_Monitor_Reply_Charac_Info.h"
 #include "DNFMember.h"
 
-CMemberConfig::CMemberConfig()
+CMemberConfig::CMemberConfig() throw()
 {
 }
 
@@ -71,7 +71,7 @@ ST_MemberConfig* CMemberConfig::GetMemberInfo()
     return m_table;
 }
 
-CMemberExpTbl::CMemberExpTbl()
+CMemberExpTbl::CMemberExpTbl() throw()
 {
     m_count = 0;
     memset(m_table, 0, 0x2c);

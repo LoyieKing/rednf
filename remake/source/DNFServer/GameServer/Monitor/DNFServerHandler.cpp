@@ -73,18 +73,20 @@ void CServerHandler::Process()
 {
     if (m_managerServer != 0 && m_managerHeartbeatCnt++ > 3)
     {
-        unsigned char group = GetServerGroupNo();
-        m_managerServer->SendHeartBeat(group & 0xff);
+        m_managerServer->SendHeartBeat((int)(unsigned char)GetServerGroupNo());
         m_managerHeartbeatCnt = 0;
     }
     for (std::map<unsigned int, CGameServer*>::iterator it = m_gameServers.begin();
-         it != m_gameServers.end(); it++)
+         it != m_gameServers.end(); ++it)
     {
         CServerInterface* gs = it->second;
-        if (gs->IsValidServer() && gs->IsConnected() && gs->IsHeartBeatTimeOver())
+        if (!gs->IsValidServer())
         {
-            unsigned char channel = gs->GetChannelNo();
-            if (channel < 0xbe)
+            continue;
+        }
+        if (gs->IsConnected() && gs->IsHeartBeatTimeOver())
+        {
+            if (gs->GetChannelNo() <= 0xbd)
             {
                 m_app->OnGameServerDown((CGameServer*)gs);
             }
@@ -93,8 +95,8 @@ void CServerHandler::Process()
     }
     if (m_dbServer == 0 || !m_dbServer->IsValidServer())
     {
+        return;
     }
-    else
     {
         if (m_dbServer->IsConnected() && m_dbServer->IsHeartBeatTimeOver())
         {

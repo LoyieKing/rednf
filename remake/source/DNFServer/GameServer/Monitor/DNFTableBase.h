@@ -250,7 +250,7 @@ private:
 class CTableBase
 {
 public:
-    CTableBase();
+    CTableBase() throw();
     virtual ~CTableBase();
     virtual void Load_Table(const std::string& path);
     virtual bool Parse_Table(char* line, int idx) = 0;

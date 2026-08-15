@@ -526,8 +526,7 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
                     {
                         p.m_bonusPoint++;
                     }
-                    m_huntingPoints.insert(
-                        std::pair<const unsigned int, stHuntingPoint>(charNos[i], p));
+                    m_huntingPoints.insert(std::make_pair(charNos[i], p));
                 }
                 else
                 {
@@ -564,7 +563,10 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
 void CVillageAttackedManager::SendCharacRank()
 {
     unsigned char serverGroup = 0;
-    if (!m_huntingPoints.empty())
+    if (m_huntingPoints.empty())
+    {
+        return;
+    }
     {
         std::priority_queue<stUserHuntingPoint> pq;
         for (std::map<unsigned int, stHuntingPoint>::iterator it = m_huntingPoints.begin();
@@ -576,7 +578,6 @@ void CVillageAttackedManager::SendCharacRank()
             pq.push(p);
         }
         char sql[0x1001];
-        memset(sql, 0, 0x1001);
         std::string query;
         serverGroup = m_app->Get_ServerGroup();
         unsigned int now = GetNowTime();

@@ -38,7 +38,7 @@ const char* CDNFException::what() const throw()
     return m_msg.c_str();
 }
 
-CTableBase::CTableBase()
+CTableBase::CTableBase() throw()
 {
 }
 

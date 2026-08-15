@@ -24,9 +24,9 @@ public:
     bool checkUdpRecvLoad(int n);
     bool checkTcpRecvLoad(int n);
     bool checkTcpSendLoad(int n);
-    int CheckUdpRecvQ(int n);
-    int CheckTcpRecvQ(int n);
-    int CheckTcpSendQ(int n);
+    bool CheckUdpRecvQ(int n);
+    bool CheckTcpRecvQ(int n);
+    bool CheckTcpSendQ(int n);
     void RequestDB(CServerHandler* handler, int a, int b);
     int m_tcpRecvLast;   // +0
     int m_udpRecvLast;   // +4

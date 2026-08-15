@@ -107,16 +107,37 @@ static void freeAllStackBuffers()
 {
     if (!g_stackBufferContext)
         return;
-    std::vector<unsigned char*>::iterator it =
-        g_stackBufferContext->m_blocks.begin();
-    std::vector<unsigned char*>::iterator e =
-        g_stackBufferContext->m_blocks.end();
-    for (; it != e; it++)
+    bool runOnce = false;
+    if (runOnce)
+        goto free_ctx;
     {
-        unsigned char* p = *it;
-        if (p)
-            delete[] p;
+        std::vector<unsigned char*>::iterator it =
+            g_stackBufferContext->m_blocks.begin();
+        std::vector<unsigned char*>::iterator e =
+            g_stackBufferContext->m_blocks.end();
+        goto foreach_cond;
+    foreach_body:
+        {
+            unsigned char** p = &*it;
+            goto inner_cond;
+        inner_body:
+            if (*p)
+                delete[] *p;
+            runOnce = false;
+        inner_cond:
+            if (runOnce)
+                goto inner_body;
+            it++;
+        }
+    foreach_cond:
+        if (it != e)
+        {
+            runOnce = (bool)(runOnce ^ 1);
+            if (runOnce)
+                goto foreach_body;
+        }
     }
+free_ctx:
     delete g_stackBufferContext;
     g_stackBufferContext = 0;
 }

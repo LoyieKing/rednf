@@ -216,6 +216,7 @@ public:
     unsigned int m_mid;          // +0x13（→ STGuildJoinInfo.m_mid(+0xc)，approve 流程 m_id）
     int m_characNo;              // +0x17
     char m_characName[0x1d];     // +0x1b
+    char m_pad38;                // +0x38
     unsigned char m_lev;         // +0x39
     unsigned char m_growType;    // +0x3a
     unsigned char m_job;         // +0x3b

@@ -239,9 +239,9 @@ void CPeer::ConnSig()
 bool CPeer::parsing(int recvLen)
 {
     PacketHeader header(0, 0);
-    unsigned int totalLen = (unsigned int)(m_remainLen + recvLen);
+    int totalLen = m_remainLen + recvLen;
     int headerSize = 10;
-    if ((int)totalLen < 10)
+    if (totalLen < 10)
     {
         m_remainLen = m_remainLen + recvLen;
         m_buf = m_buf + recvLen;
@@ -267,7 +267,7 @@ bool CPeer::parsing(int recvLen)
                 m_remainLen = 0;
                 return 0;
             }
-            if (totalLen < pktSize)
+            if ((unsigned int)totalLen < pktSize)
             {
                 DNF_LOG_SCOPE_LINE(0x100,"./log/TcpRecv",
                     "need more data (packetsize > (unsigned int)parsinglength): body=%d !!",

@@ -198,7 +198,7 @@ CPacketDecoder::CPacketDecoder()
     m_table[10012] = &CPacketTranslater::OnNoticeGuildChatMsgHyperLink;
 }
 
-int CPacketDecoder::MsgDecode(PacketHeader* pkt)
+bool CPacketDecoder::MsgDecode(PacketHeader* pkt)
 {
     if (pkt == 0)
     {
@@ -245,24 +245,25 @@ void CPacketDecoder::UdpProcess()
         }
         CUdpRecvBuffer* pkt = buf;
         int qsize = (int)((std::queue<CUdpRecvBuffer*>*)m_udpParseQ)->size();
-        if (CAppLoadCheckerInstance()->CheckUdpRecvQ(qsize) != 0)
+        if (CAppLoadCheckerInstance()->CheckUdpRecvQ(qsize))
         {
-            CServerHandler* handler = (CServerHandler*)m_serverHandler;
-            CAppLoadCheckerInstance()->RequestDB(handler, 2, qsize);
+            CAppLoadCheckerInstance()->RequestDB((CServerHandler*)m_serverHandler, 2, qsize);
         }
-        if (MsgDecode((PacketHeader*)pkt) != 1)
+        if (!MsgDecode((PacketHeader*)pkt))
         {
-            CMutex* mtx = (CMutex*)m_udpBLock;
-            CGuard<CMutex> g(mtx);
-            CUdpRecvBuffer::operator delete(buf);
+            {
+                CGuard<CMutex> g((CMutex*)m_udpBLock);
+                CUdpRecvBuffer::operator delete(buf);
+            }
             printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", pkt,
                    (unsigned int)*(unsigned short*)pkt);
             throw CDNFException(
                 "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
         }
-        CMutex* mtx = (CMutex*)m_udpBLock;
-        CGuard<CMutex> g(mtx);
-        CUdpRecvBuffer::operator delete(buf);
+        {
+            CGuard<CMutex> g((CMutex*)m_udpBLock);
+            CUdpRecvBuffer::operator delete(buf);
+        }
     }
 }
 
@@ -283,24 +284,25 @@ void CPacketDecoder::TcpProcess()
         }
         CTcpRecvBuffer* pkt = buf;
         int qsize = (int)((std::queue<CTcpRecvBuffer*>*)m_tcpParseQ)->size();
-        if (CAppLoadCheckerInstance()->CheckTcpRecvQ(qsize) != 0)
+        if (CAppLoadCheckerInstance()->CheckTcpRecvQ(qsize))
         {
-            CServerHandler* handler = (CServerHandler*)m_serverHandler;
-            CAppLoadCheckerInstance()->RequestDB(handler, 1, qsize);
+            CAppLoadCheckerInstance()->RequestDB((CServerHandler*)m_serverHandler, 1, qsize);
         }
-        if (MsgDecode((PacketHeader*)pkt) != 1)
+        if (!MsgDecode((PacketHeader*)pkt))
         {
-            CMutex* mtx = (CMutex*)m_tcpRecvBLock;
-            CGuard<CMutex> g(mtx);
-            CTcpRecvBuffer::operator delete(buf);
+            {
+                CGuard<CMutex> g((CMutex*)m_tcpRecvBLock);
+                CTcpRecvBuffer::operator delete(buf);
+            }
             printf("[false == this->MsgDecode]packetHeader : %x\tpacket id : %d\n", pkt,
                    (unsigned int)*(unsigned short*)pkt);
             throw CDNFException(
                 "CPacketDecoder::MsgDecode() Undefined Packet Arrived Exception Break!");
         }
-        CMutex* mtx = (CMutex*)m_tcpRecvBLock;
-        CGuard<CMutex> g(mtx);
-        CTcpRecvBuffer::operator delete(buf);
+        {
+            CGuard<CMutex> g((CMutex*)m_tcpRecvBLock);
+            CTcpRecvBuffer::operator delete(buf);
+        }
     }
 }
 

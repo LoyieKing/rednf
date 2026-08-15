@@ -58,19 +58,30 @@ InitFrameCountInfo_throw:
 }
 void* CFrameCountHandler::GetFrameCountInfo()
 {
-    struct tms tms;
+    clock_t dummy0 = 0;
+    clock_t dummy1 = 0;
+    clock_t dummy2 = 0;
+    clock_t dummy3 = 0;
+    (void)dummy0;
+    (void)dummy1;
+    (void)dummy2;
+    (void)dummy3;
+    struct tms tmsbuf;
+    bool fail;
     m_field24 = 0;
     if (!m_field0[0])
     {
         m_field0[0] = 1;
         m_field14 = 0;
-        m_fieldC = times(&tms);
-        if (m_fieldC == (unsigned int)-1)
+        m_fieldC = times(&tmsbuf);
+        fail = (m_fieldC == (unsigned int)-1);
+        if (fail)
             throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
         return this;
     }
-    m_field10 = times(&tms);
-    if (m_field10 == -1)
+    m_field10 = times(&tmsbuf);
+    fail = (m_field10 == -1);
+    if (fail)
         throw CDNFException("CFrameCountHandler::GetFrameCountInfo() times() Exception Break!");
     if (m_fieldC > (unsigned int)m_field10)
         m_fieldC = m_field10;

@@ -57,10 +57,10 @@ struct STPartyJobStatisticKey
     unsigned short m_channelNo;        // +0（log_dungeon_party_job.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_party_job.dungeon_index）
     char m_dungeonDiff;                // +8（log_dungeon_party_job.dungeon_diff）
-    bool m_dungeonStandardLevel;       // +9
-    bool m_abuseParty;                 // +0xa
-    bool m_balkunParty;                // +0xb
-    bool m_success;                    // +0xc
+    char m_dungeonStandardLevel;       // +9（ORIG 按字节拷贝，非 bool setne）
+    char m_abuseParty;                 // +0xa
+    char m_balkunParty;                // +0xb
+    char m_success;                    // +0xc
     char m_partyUserCount;             // +0xd（log_dungeon_party_job.party_user_count）
     enum STPartyJobKeyField10 { ST_PARTY_JOB_KEY_FIELD10_0 = 0 } m_characJob;  // +0x10（log_dungeon_party_job.charac_job）
     char m_characGrow;                // +0x14（log_dungeon_party_job.charac_grow）

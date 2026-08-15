@@ -45,12 +45,7 @@ CBuddyHandle::~CBuddyHandle() { reset(0, 0); }
 
 int CBuddyHandle::addDB(CServerHandler* handler, char* name)
 {
-    bool invalid = true;
-    if (m_prUser != 0 && m_prUser->GetUniqCharNo() != 0)
-    {
-        invalid = false;
-    }
-    if (invalid)
+    if (m_prUser == 0 || m_prUser->GetUniqCharNo() == 0)
     {
         DNF_LOG_SCOPE_LINE(0x5a, "./log/buddy", "Buddy::addDB m_prUser is NULL");
         return 1;
@@ -59,37 +54,38 @@ int CBuddyHandle::addDB(CServerHandler* handler, char* name)
     {
         return 1;
     }
-    if (m_buddies.size() < 0x20)
+    if (m_buddies.size() > 0x1f)
     {
-        if (m_buddies.find(name) == m_buddies.end())
-        {
-            if (strcmp(name, m_prUser->GetCharName()) == 0)
-            {
-                return 1;
-            }
-            if (strlen(name) < 0x1e)
-            {
-                Packet_DBMW_Add_Buddy pkt;
-                pkt.m_uniqCharNo = m_prUser->GetUniqCharNo();
-                memcpy(pkt.m_charName, name, 0x1d);
-                handler->SendToDB(&pkt);
-                return 0;
-            }
-            return -1;
-        }
+        return 4;
+    }
+    std::map<std::string, CBuddy*>::iterator it;
+    {
+        std::allocator<char> alloc;
+        std::string key(name, alloc);
+        it = m_buddies.find(key);
+    }
+    if (it != m_buddies.end())
+    {
         return 0x12;
     }
-    return 4;
+    if (strcmp(name, m_prUser->GetCharName()) == 0)
+    {
+        return 1;
+    }
+    if (strlen(name) < 0x1e)
+    {
+        Packet_DBMW_Add_Buddy pkt;
+        pkt.m_uniqCharNo = m_prUser->GetUniqCharNo();
+        memcpy(pkt.m_charName, name, 0x1d);
+        handler->SendToDB(&pkt);
+        return 0;
+    }
+    return -1;
 }
 
 int CBuddyHandle::delDB(CServerHandler* handler, char* name)
 {
-    bool invalid = true;
-    if (m_prUser != 0 && m_prUser->GetUniqCharNo() != 0)
-    {
-        invalid = false;
-    }
-    if (invalid)
+    if (m_prUser == 0 || m_prUser->GetUniqCharNo() == 0)
     {
         DNF_LOG_SCOPE_LINE(0xb7, "./log/buddy", "Buddy::addDB m_prUser is NULL");
         return 1;
@@ -98,22 +94,21 @@ int CBuddyHandle::delDB(CServerHandler* handler, char* name)
     {
         return 1;
     }
-    if (strlen(name) < 0x1e)
+    if (strlen(name) > 0x1d)
     {
-        std::map<std::string, CBuddy*>::iterator it = m_buddies.find(name);
-        if (it != m_buddies.end())
-        {
-            Packet_DBMW_Del_Buddy pkt;
-            pkt.m_uniqCharNo = m_prUser->GetUniqCharNo();
-            pkt.m_buddyCharNo =
-                ((STBuddyDBInfo*)it->second->getBuddyDBInfo())->m_characNo;
-            memcpy(pkt.m_charName, name, 0x1d);
-            handler->SendToDB(&pkt);
-            return 0;
-        }
+        return -1;
+    }
+    std::map<std::string, CBuddy*>::iterator it = m_buddies.find(name);
+    if (it == m_buddies.end())
+    {
         return 0x12;
     }
-    return -1;
+    Packet_DBMW_Del_Buddy pkt;
+    pkt.m_uniqCharNo = m_prUser->GetUniqCharNo();
+    pkt.m_buddyCharNo = ((STBuddyDBInfo*)it->second->getBuddyDBInfo())->m_characNo;
+    memcpy(pkt.m_charName, name, 0x1d);
+    handler->SendToDB(&pkt);
+    return 0;
 }
 
 void CBuddyHandle::setBuddyCharName(int charNo, const std::string& newName)
@@ -251,22 +246,26 @@ CBuddy* CBuddyHandle::findBuddyByCharNo(unsigned int charNo)
 
 void CBuddyHandle::printBuddys(char* out)
 {
-    if (m_prUser != 0 && !m_buddies.empty())
+    if (m_prUser != 0)
     {
-        for (std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
-             it != m_buddies.end(); ++it)
+        if (!m_buddies.empty())
         {
-            CBuddy* buddy = it->second;
-            char* info = (char*)buddy->getBuddyDBInfo();
-            DNF_LOG_SCOPE_LINE(0x16e,"./log/buddy",
-                "[%s] name(%s) fname(%s) flevel(%d) fjob(%d) fgrowtype(%d) fcharNo(%d) "
-                "fsex(%d)",
-                out, m_prUser->GetCharName(), info,
-                (int)((STBuddyDBInfo*)info)->m_lev,
-                (int)((STBuddyDBInfo*)info)->m_job,
-                (int)((STBuddyDBInfo*)info)->m_growType,
-                ((STBuddyDBInfo*)info)->m_characNo,
-                (int)((STBuddyDBInfo*)info)->m_sex);
+            std::map<std::string, CBuddy*>::iterator it = m_buddies.begin();
+            std::map<std::string, CBuddy*>::iterator end = m_buddies.end();
+            while (it != end)
+            {
+                CBuddy* buddy = it->second;
+                DNF_LOG_SCOPE_LINE(0x16e,"./log/buddy",
+                    "[%s] name(%s) fname(%s) flevel(%d) fjob(%d) fgrowtype(%d) fcharNo(%d) "
+                    "fsex(%d)",
+                    out, m_prUser->GetCharName(), (char*)buddy->getBuddyDBInfo(),
+                    (int)((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_lev,
+                    (int)((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_job,
+                    (int)((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_growType,
+                    ((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_characNo,
+                    (int)((STBuddyDBInfo*)buddy->getBuddyDBInfo())->m_sex);
+                ++it;
+            }
         }
     }
 }

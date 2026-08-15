@@ -37,7 +37,7 @@ public:
     short m_ratio2;        // +0x25
     Item m_items[6];       // +0x27（每项 0x38）
     char m_tail[4];        // +0x177
-};
+} __attribute__((packed));
 
 class Packet_Frame_Lag_Statistic_Write_Query : public PacketHeader
 {

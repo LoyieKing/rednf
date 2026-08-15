@@ -249,7 +249,7 @@ struct ST_MemberConfig
 class CMemberConfig : public CTableBase
 {
 public:
-    CMemberConfig();
+    CMemberConfig() throw();
     virtual ~CMemberConfig();
     virtual void Load_Table(const std::string& path);
     virtual bool Parse_Table(char* line, int idx);
@@ -260,7 +260,7 @@ public:
 class CMemberExpTbl : public CTableBase
 {
 public:
-    CMemberExpTbl();
+    CMemberExpTbl() throw();
     virtual ~CMemberExpTbl();
     virtual void Load_Table(const std::string& path);
     virtual bool Parse_Table(char* line, int idx);

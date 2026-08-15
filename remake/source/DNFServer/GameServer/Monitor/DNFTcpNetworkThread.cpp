@@ -74,28 +74,25 @@ void CTcpNetworkThread::dispatch(void* param)
     CPeer* peer = 0;
     int eventCount = 0;
     m_runningFlag = 1;
+    DNFFLib::Sleep_Ext(5, 0);
     try
     {
-        DNFFLib::Sleep_Ext(5, 0);
-        while (true)
+        while (m_runningFlag)
         {
-            do
+            errno = 0;
+            DNFFLib::Sleep_Ext(0, 5);
+            if (m_net == 0)
             {
-                do
-                {
-                    if (m_runningFlag == 0)
-                    {
-                        DNF_LOG_SCOPE_LINE(0xae, "./log/TcpRecv", "RecvThread Terminate");
-                        return;
-                    }
-                    errno = 0;
-                    DNFFLib::Sleep_Ext(0, 5);
-                } while (m_net == 0);
-                m_net->SetEpollAcceptedPeers();
-                m_net->SendPacket();
-                eventCount = m_net->WaitForEvent();
-            } while (eventCount == 0);
-            if ((eventCount < 0 && errno != EINTR) && errno != 0)
+                continue;
+            }
+            m_net->SetEpollAcceptedPeers();
+            m_net->SendPacket();
+            eventCount = m_net->WaitForEvent();
+            if (eventCount == 0)
+            {
+                continue;
+            }
+            if (eventCount < 0 && errno != EINTR && errno != 0)
             {
                 break;
             }
@@ -122,6 +119,7 @@ void CTcpNetworkThread::dispatch(void* param)
                 ((CTcpHandler*)m_handler)->IsSetErrEvent(i);
             }
         }
+        DNF_LOG_SCOPE_LINE(0xae, "./log/TcpRecv", "RecvThread Terminate");
     }
     catch (CDNFException& e)
     {

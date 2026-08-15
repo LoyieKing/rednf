@@ -56,48 +56,42 @@ void CTcpAcceptThread::dispatch(void* param)
 {
     try
     {
-        if (m_sock.open())
+        if (!m_sock.open())
         {
-            if (m_sock.bind(m_port, true))
-            {
-                if (m_sock.listen(5))
-                {
-                    m_running = true;
-                    DNFFLib::Sleep_Ext(5, 0);
-                    while (m_running)
-                    {
-                        if (m_sock.pollReadEvent())
-                        {
-                            CPeer* peer = m_net->CreatePeer();
-                            TCPSocket* sock = peer->GetTcpSocket();
-                            if (m_sock.accept(*sock) != 1)
-                            {
-                                printf("Accept GameServer Fail(Port : %d)\n", sock->getHandle());
-                            }
-                            printf("Accept GameServer(Port : %d)\n", sock->getHandle());
-                            CMutex* recvB = m_net->Get_TcpRecvBLock();
-                            CMutex* recvQ = m_net->Get_TcpRecvQLock();
-                            void* q = m_net->Get_TcpSwapQPacket()->GetRecvQ();
-                            peer->InitPeer(
-                                (std::queue<CTcpRecvBuffer*>*)q, recvQ, recvB);
-                            peer->ConnSig();
-                            m_net->InsertAcceptedPeer(peer);
-                        }
-                    }
-                }
-                else
-                {
-                    printf("Tcp Accept Socket Listen Err");
-                }
-            }
-            else
-            {
-                printf("Tcp Accept Socket Bind Err");
-            }
+            printf("Tcp Accept Socket Open Err");
+        }
+        else if (!m_sock.bind(m_port, true))
+        {
+            printf("Tcp Accept Socket Bind Err");
+        }
+        else if (!m_sock.listen(5))
+        {
+            printf("Tcp Accept Socket Listen Err");
         }
         else
         {
-            printf("Tcp Accept Socket Open Err");
+            m_running = true;
+            DNFFLib::Sleep_Ext(5, 0);
+            while (m_running)
+            {
+                if (m_sock.pollReadEvent())
+                {
+                    CPeer* peer = m_net->CreatePeer();
+                    TCPSocket* sock = peer->GetTcpSocket();
+                    if (m_sock.accept(*sock) != 1)
+                    {
+                        printf("Accept GameServer Fail(Port : %d)\n", sock->getHandle());
+                    }
+                    printf("Accept GameServer(Port : %d)\n", sock->getHandle());
+                    CMutex* recvB = m_net->Get_TcpRecvBLock();
+                    CMutex* recvQ = m_net->Get_TcpRecvQLock();
+                    void* q = m_net->Get_TcpSwapQPacket()->GetRecvQ();
+                    peer->InitPeer(
+                        (std::queue<CTcpRecvBuffer*>*)q, recvQ, recvB);
+                    peer->ConnSig();
+                    m_net->InsertAcceptedPeer(peer);
+                }
+            }
         }
     }
     catch (CDNFException& e)

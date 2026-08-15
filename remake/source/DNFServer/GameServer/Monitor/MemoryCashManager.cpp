@@ -146,15 +146,16 @@ int CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
             if (buddies[i] != 0)
             {
                 std::string name;
-                STBuddyDBInfo* buddyDb = (STBuddyDBInfo*)buddies[i]->getBuddyDBInfo();
-                if (QueryUpdatedCharacName(buddyDb->m_characNo, name))
+                if (QueryUpdatedCharacName(
+                        ((STBuddyDBInfo*)buddies[i]->getBuddyDBInfo())->m_characNo, name))
                 {
-                    memset(buddyDb->m_name, 0, 0x1e);
-                    strncpy(buddyDb->m_name, name.c_str(), 0x1d);
+                    memset(buddies[i]->getBuddyDBInfo(), 0, 0x1e);
+                    strncpy((char*)buddies[i]->getBuddyDBInfo(), name.c_str(), 0x1d);
                 }
                 user->AddBuddyFromCash(buddies[i]);
                 register unsigned int uniqNo = user->GetUniqCharNo();
-                register unsigned int charNo = buddyDb->m_characNo;
+                register unsigned int charNo =
+                    ((STBuddyDBInfo*)buddies[i]->getBuddyDBInfo())->m_characNo;
                 m_app->Get_BuddyRegisterManager()->addBuddyRegister(charNo, uniqNo);
             }
         }
@@ -191,7 +192,7 @@ char CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
                     if (QueryUpdatedCharacName(key, name))
                     {
                         char buf[30];
-                        memset(buf, 0, 30);
+                        __builtin_memset(buf, 0, 0x1e);
                         strncpy(buf, name.c_str(), 0x1d);
                         bu->ChangeCharName(buf);
                     }
@@ -323,8 +324,7 @@ int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user, CMember*
         incBuddyCashCnt();
     }
     std::pair<std::map<unsigned int, CCashObject*>::iterator, bool> r =
-        m_cashObjects.insert(
-            std::pair<const unsigned int, CCashObject*>(user->GetDBID(), obj));
+        m_cashObjects.insert(std::make_pair(user->GetDBID(), obj));
     if (r.second)
     {
         return 1;

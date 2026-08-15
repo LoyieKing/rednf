@@ -252,7 +252,7 @@ public:
     virtual ~CAppStartInit();
     virtual void Init(CApplication* app, int argc, char** argv);
     int Init_Daemon(int argc, char** argv);
-    char Save_pid(const std::string& file);
+    bool Save_pid(const std::string& file);
 };
 
 #endif  // MONITOR_DNFAPPSTARTINIT_H_

@@ -66,23 +66,20 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
 
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
 {
-    std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(*(unsigned int*)&info);
-    std::map<unsigned int, CItemLimitEdition*>::iterator it2;
-    CItemLimitEdition* item;
-    std::map<unsigned int, CItemLimitEdition*>::iterator end = m_items.end();
-    if (it == end && 0x1b < m_items.size())
+    std::map<unsigned int, CItemLimitEdition*>::iterator found =
+        m_items.find(*(unsigned int*)&info);
+    if (found == m_items.end() && m_items.size() > 0x1b)
     {
         return;
     }
-    item = new CItemLimitEdition(info);
+    CItemLimitEdition* item = new CItemLimitEdition(info);
     unsigned int ipgno = item->getIPGNO();
-    it2 = m_items.find(ipgno);
-    std::map<unsigned int, CItemLimitEdition*>::iterator end2 = m_items.end();
-    if (it2 != end2)
+    std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(ipgno);
+    if (it != m_items.end())
     {
-        register CItemLimitEdition* item2 = it2->second;
-        delete item2;
-        m_items.erase(it2);
+        register CItemLimitEdition* old = it->second;
+        delete old;
+        m_items.erase(it);
     }
     m_items.insert(std::make_pair(item->getIPGNO(), item));
 }
@@ -138,7 +135,15 @@ void CItemLimitEditionMgr::clear()
 void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
 {
     time_t now;
-    if (!m_items.empty() && (now = time(0), now - m_lastTime > 4 || flag))
+    if (m_items.empty())
+    {
+        return;
+    }
+    now = time(0);
+    if (now - m_lastTime <= 4 && !flag)
+    {
+        return;
+    }
     {
         m_lastTime = now;
         Packet_Item_Limit_Edition_Sell_end pkt;

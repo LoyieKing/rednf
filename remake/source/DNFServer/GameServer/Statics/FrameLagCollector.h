@@ -100,7 +100,7 @@ public:
     int PopMonitoringSpecData(Packet_Frame_Lag_Spec_Delete_Notify* pkt);
     int PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_Load_Spec* pkt);
     int PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_Reload_Spec* pkt);
-    int is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add* pkt);
+    bool is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add* pkt);
     int SaveCollectedDirectxVersion(CServerHandler* handler);
     bool Init();
     int LoadSpec(CServerHandler* handler);

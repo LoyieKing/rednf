@@ -120,37 +120,32 @@ int CMemberManager::DeleteMember(unsigned int key, bool cash)
 
 void CMemberManager::MemberMemLogout(unsigned int key, CUser* user, bool cash)
 {
-    if (user != 0 && m_app != 0)
+    if (user == 0 || m_app == 0)
     {
-        if (key == 0)
-        {
-            DNF_LOG_SCOPE_LINE(0x23b,"./log/MemberMember",
-                "CMemberManager::MemberMemLogout()\tMemberKey == 0\tchar id(%d), Maybe after logout, this user connect at character screen, and logout again! check User.log!",
-                user->GetUniqCharNo());
-        }
-        else
-        {
-            CMember* member = FindMember(key);
-            if (member == 0)
-            {
-                DNF_LOG_SCOPE_LINE(0x241,"./log/Except",
-                    "CMemberManager::MemberMemLogout()\t0 == pclMember\tMemberKey(%d)", key);
-            }
-            else
-            {
-                member->NoticeMemberLogin_Out(user, 0);
-                char ok = (char)DeleteMember(key, cash);
-                if (ok != 1)
-                {
-                    DNF_LOG_SCOPE_LINE(0x24b,"./log/MemberMember",
-                        "<Delete Member Error> CMemberManager::MemberMemLogout\tdeleteOrCash(%d), Member Key(%d)",
-                        (unsigned int)cash, key);
-                }
-            }
-        }
+        throw CDNFException("CMemberManager::MemberMemLogout\t0 == pclUser || 0 == m_pclApp\n");
+    }
+    if (key == 0)
+    {
+        DNF_LOG_SCOPE_LINE(0x23b,"./log/MemberMember",
+            "CMemberManager::MemberMemLogout()\tMemberKey == 0\tchar id(%d), Maybe after logout, this user connect at character screen, and logout again! check User.log!",
+            user->GetUniqCharNo());
         return;
     }
-    throw CDNFException("CMemberManager::MemberMemLogout\t0 == pclUser || 0 == m_pclApp\n");
+    CMember* member = FindMember(key);
+    if (member == 0)
+    {
+        DNF_LOG_SCOPE_LINE(0x241,"./log/Except",
+            "CMemberManager::MemberMemLogout()\t0 == pclMember\tMemberKey(%d)", key);
+        return;
+    }
+    member->NoticeMemberLogin_Out(user, 0);
+    char ok = (char)DeleteMember(key, cash);
+    if (ok != 1)
+    {
+        DNF_LOG_SCOPE_LINE(0x24b,"./log/MemberMember",
+            "<Delete Member Error> CMemberManager::MemberMemLogout\tdeleteOrCash(%d), Member Key(%d)",
+            (unsigned int)cash, key);
+    }
 }
 
 void CMemberManager::SendToDBMemberUpdateCharInfo(CServerHandler* handler, unsigned int key,

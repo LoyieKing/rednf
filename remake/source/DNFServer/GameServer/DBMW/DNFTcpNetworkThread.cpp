@@ -82,10 +82,11 @@ void CTcpNetworkThread::dispatch(void* param)
                 continue;
             if (nEvent < 0)
             {
-                if (errno == 4)
-                    continue;
-                if (errno != 0)
-                    break;
+                if (errno != 4)
+                {
+                    if (errno != 0)
+                        return;
+                }
             }
             for (int i = 0; i < nEvent; i++)
             {

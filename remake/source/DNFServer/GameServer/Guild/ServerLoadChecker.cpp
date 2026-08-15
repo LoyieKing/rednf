@@ -319,7 +319,7 @@ bool CAppLoadChecker::checkTcpSendLoad(int n)
     return 0;
 }
 
-int CAppLoadChecker::CheckTcpRecvQ(int n)
+bool CAppLoadChecker::CheckTcpRecvQ(int n)
 {
     if (checkTcpRecvLoad(n))
     {
@@ -329,7 +329,7 @@ int CAppLoadChecker::CheckTcpRecvQ(int n)
     return 0;
 }
 
-int CAppLoadChecker::CheckUdpRecvQ(int n)
+bool CAppLoadChecker::CheckUdpRecvQ(int n)
 {
     if (checkUdpRecvLoad(n))
     {
@@ -339,7 +339,7 @@ int CAppLoadChecker::CheckUdpRecvQ(int n)
     return 0;
 }
 
-int CAppLoadChecker::CheckTcpSendQ(int n)
+bool CAppLoadChecker::CheckTcpSendQ(int n)
 {
     if (checkTcpSendLoad(n))
     {

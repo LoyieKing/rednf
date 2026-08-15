@@ -292,16 +292,17 @@ void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Pa
     key.m_partyUserCount = ((Wire*)pkt)->m_f15;
     key.m_characJob = (STPartyJobStatisticKey::STPartyJobKeyField10)((Wire*)pkt)->m_f16;
     key.m_characGrow = ((Wire*)pkt)->m_f1a;
+    std::map<STPartyJobStatisticKey, PartyJobStatistic>::iterator it = m_partyJob.find(key);
     PartyJobStatistic value;
     value.m_data[1] = ((Wire*)pkt)->m_f1b;
-    std::map<STPartyJobStatisticKey, PartyJobStatistic>::iterator it = m_partyJob.find(key);
     if (m_partyJob.empty() || it == m_partyJob.end())
     {
         m_partyJob.insert(std::make_pair(key, value));
     }
     else
     {
-        it->second += value;
+        PartyJobStatistic* p = &it->second;
+        *p += value;
     }
 }
 void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic_Party_Charac* pkt)
@@ -757,18 +758,21 @@ void StatisticManager::WriteUserTingTImeCheckStatistic(
     }
     else
     {
-        it->second += 1;
+        int* p = &it->second;
+        *p = *p + 1;
     }
     if ((int)key.m_minute < 0xb && 0 < (int)key.m_minute)
     {
-        if (m_tingUser.size() <= 1000)
+        if (1000 < m_tingUser.size())
         {
-            // ORIG 以 lea 0xe(%eax) 直取 key 地址；packed 成员会被物化临时量，保持裸形态
-            unsigned int& uKey = *(unsigned int*)((char*)pkt + 0xe);
-            std::map<unsigned int, int>::iterator it2 = m_tingUser.find(uKey);
+        }
+        else
+        {
+            std::map<unsigned int, int>::iterator it2 =
+                m_tingUser.find(*(unsigned int*)((char*)pkt + 0xe));
             if (m_tingUser.empty() || it2 == m_tingUser.end())
             {
-                m_tingUser.insert(std::make_pair(uKey, key.m_minute));
+                m_tingUser.insert(std::make_pair(*(unsigned int*)((char*)pkt + 0xe), key.m_minute));
             }
         }
     }

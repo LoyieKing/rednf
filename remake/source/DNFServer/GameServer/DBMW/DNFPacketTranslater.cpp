@@ -369,7 +369,7 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
 
             if (reply.m_result == 0)
                 m_pclApp->m_dbManager.DeleteJoinListByInvite(
-                    pkt->m_guildId, pkt->m_characNo);
+                    join.m_guildId, join.m_characNo);
             m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
                 (char*)&reply, reply.packetSize);
         }
@@ -403,7 +403,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
             return;
         }
         int count = pkt->m_count;
-        int absCount = count < 0 ? -count : count;
+        int absCount = count & ~(count >> 31);
         std::vector<int> characNos;
         characNos.clear();
         if (!m_pclApp->m_dbManager.AwardGuildCoinByMail(
@@ -441,11 +441,13 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardWrite(PacketHeader* header)
         Packet_DB_Load_Request_Guild_Board_Write_View* pkt =
             (Packet_DB_Load_Request_Guild_Board_Write_View*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+        int unused = 0;
+        (void)unused;
         STGuildBoardDBInfo info;
-        Packet_DB_Load_Reply_Guild_Board_Write reply;
         if (m_pclApp->m_dbManager.OnWriteGuildBoard(
                 (Packet_DB_Load_Request_Guild_Board_Write*)pkt, &info))
         {
+            Packet_DB_Load_Reply_Guild_Board_Write reply;
             reply.m_guildId = pkt->m_guildId;
             reply.m_charNo = pkt->m_characNo;
             memcpy((char*)&reply + 0x14, &info, 0xa5);
@@ -459,6 +461,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardWrite(PacketHeader* header)
                 0
             );
 
+            Packet_DB_Load_Reply_Guild_Board_Write reply;
             reply.m_result = 1;
             reply.m_guildId = pkt->m_guildId;
             reply.m_charNo = pkt->m_characNo;
@@ -478,11 +481,13 @@ void CPacketTranslater::OnDBLoadRequestWebGuildBoardWrite(PacketHeader* header)
         Packet_DB_Load_Request_Web_Guild_Board_Write* pkt =
             (Packet_DB_Load_Request_Web_Guild_Board_Write*)header;
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+        int unused = 0;
+        (void)unused;
         STGuildBoardDBInfo info;
-        Packet_DB_Load_Reply_Web_Guild_Board_Write reply;
         if (m_pclApp->m_dbManager.OnWriteWebGuildBoard(
                 pkt, &info))
         {
+            Packet_DB_Load_Reply_Web_Guild_Board_Write reply;
             reply.m_guildId = pkt->m_guildKey;
             reply.m_charNo = pkt->m_charNo;
             memcpy((char*)&reply + 0x14, &info, 0xa5);
@@ -496,6 +501,7 @@ void CPacketTranslater::OnDBLoadRequestWebGuildBoardWrite(PacketHeader* header)
                 0
             );
 
+            Packet_DB_Load_Reply_Web_Guild_Board_Write reply;
             reply.m_result = 1;
             reply.m_guildId = pkt->m_guildKey;
             reply.m_charNo = pkt->m_charNo;

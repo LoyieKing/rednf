@@ -23,7 +23,7 @@ public:
     void Process();
     void TcpProcess();
     void UdpProcess();
-    int MsgDecode(PacketHeader* pkt);
+    bool MsgDecode(PacketHeader* pkt);
     void SetTCPQueue(std::queue<CTcpRecvBuffer*>* q);
     void SetUdpQueue(std::queue<CUdpRecvBuffer*>* q);
     void* m_udpParseQ;                          // +0
