@@ -81,7 +81,7 @@ void CNetworkThread::dispatch(void* param)
                     if (hdr->size >= 0x1800)
                     {
                         DNF_LOG_SCOPE_LINE(0x81,"./log/recvErr",
-                            "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                            "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                             hdr->size, len, hdr->code);
                         {
                             CGuard<CMutex> g((CMutex*)m_bLock);
@@ -93,7 +93,7 @@ void CNetworkThread::dispatch(void* param)
                         if ((unsigned int)len >= 0x1801)
                         {
                             DNF_LOG_SCOPE_LINE(0x8d,"./log/recvErr",
-                                "Packet Size is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
+                                "Recv Byte is Over! Packet Size( %d ), Recv Byte( %d ) Code( %d )\n",
                                 hdr->size, len, hdr->code);
                             {
                                 CGuard<CMutex> g((CMutex*)m_bLock);

@@ -26,7 +26,7 @@ struct STCubeStatisticKey
 struct STPartyStatisticKey
 {
     STPartyStatisticKey();
-    ~STPartyStatisticKey();
+    ~STPartyStatisticKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     bool operator<(const STPartyStatisticKey& other) const;
     unsigned short m_channelNo;        // +0（log_dungeon_party.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_party.dungeon_index）
@@ -42,7 +42,7 @@ struct STPartyStatisticKey
 struct PartyStatistic
 {
     PartyStatistic();
-    ~PartyStatistic();
+    ~PartyStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PartyStatistic& other);
     int m_data[12];
@@ -57,10 +57,10 @@ struct STPartyJobStatisticKey
     unsigned short m_channelNo;        // +0（log_dungeon_party_job.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_party_job.dungeon_index）
     char m_dungeonDiff;                // +8（log_dungeon_party_job.dungeon_diff）
-    char m_dungeonStandardLevel;       // +9（ORIG 按字节拷贝，非 bool setne）
-    char m_abuseParty;                 // +0xa
-    char m_balkunParty;                // +0xb
-    char m_success;                    // +0xc
+    bool m_dungeonStandardLevel;       // +9
+    bool m_abuseParty;                 // +0xa
+    bool m_balkunParty;                // +0xb
+    bool m_success;                    // +0xc
     char m_partyUserCount;             // +0xd（log_dungeon_party_job.party_user_count）
     enum STPartyJobKeyField10 { ST_PARTY_JOB_KEY_FIELD10_0 = 0 } m_characJob;  // +0x10（log_dungeon_party_job.charac_job）
     char m_characGrow;                // +0x14（log_dungeon_party_job.charac_grow）
@@ -79,7 +79,7 @@ struct PartyJobStatistic
 struct STPartyCharacKey
 {
     STPartyCharacKey();
-    ~STPartyCharacKey();
+    ~STPartyCharacKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     bool operator<(const STPartyCharacKey& other) const;
     unsigned short m_channelNo;        // +0（log_dungeon_charac.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_charac.dungeon_index）
@@ -95,7 +95,7 @@ struct STPartyCharacKey
 struct PartyCharacStatistic
 {
     PartyCharacStatistic();
-    ~PartyCharacStatistic();
+    ~PartyCharacStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PartyCharacStatistic& other);
     int m_data[13];
@@ -126,7 +126,7 @@ struct ValueStatistic
 struct STDeathTowerPlayDataJobStatisticKey
 {
     STDeathTowerPlayDataJobStatisticKey();
-    ~STDeathTowerPlayDataJobStatisticKey();
+    ~STDeathTowerPlayDataJobStatisticKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     bool operator<(const STDeathTowerPlayDataJobStatisticKey& other) const;
     char m_deathTowerType;    // +0（日志 deathTower_type）
     short m_level;            // +2（日志 level）
@@ -138,7 +138,7 @@ struct STDeathTowerPlayDataJobStatisticKey
 struct PlayDataJobStatistic
 {
     PlayDataJobStatistic();
-    ~PlayDataJobStatistic();
+    ~PlayDataJobStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PlayDataJobStatistic& other);
     int m_data[2];
@@ -148,7 +148,7 @@ struct PlayDataJobStatistic
 struct STDeathTowerPlayDataPartyStatisticKey
 {
     STDeathTowerPlayDataPartyStatisticKey();
-    ~STDeathTowerPlayDataPartyStatisticKey();
+    ~STDeathTowerPlayDataPartyStatisticKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     bool operator<(const STDeathTowerPlayDataPartyStatisticKey& other) const;
     char m_deathTowerType;  // +0（log_deathtower_playdata_party.type）
     char m_partyCount;      // +1（log_deathtower_playdata_party.party_count）
@@ -158,7 +158,7 @@ struct STDeathTowerPlayDataPartyStatisticKey
 struct PlayDataPartyStatistic
 {
     PlayDataPartyStatistic();
-    ~PlayDataPartyStatistic();
+    ~PlayDataPartyStatistic() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const PlayDataPartyStatistic& other);
     int m_data[2];
@@ -179,7 +179,7 @@ struct STPacketOverflowKey
 struct STAssertManagerKey
 {
     STAssertManagerKey();
-    ~STAssertManagerKey();
+    ~STAssertManagerKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     bool operator<(const STAssertManagerKey& other) const;
     char m_fileName[0x100];     // +0（assert_manager.file_name）
@@ -201,7 +201,7 @@ struct STUserTingTimeCheckKey
 struct STHellPartyStatisticItemKey
 {
     STHellPartyStatisticItemKey();
-    ~STHellPartyStatisticItemKey();
+    ~STHellPartyStatisticItemKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     bool operator<(const STHellPartyStatisticItemKey& other) const;
     bool m_hellpartyType;    // +0
     int m_dungeonIndex;      // +4（log_hellparty_value.dungeon_index）
@@ -214,7 +214,7 @@ struct STHellPartyStatisticItemKey
 struct HellPartyItenmData
 {
     HellPartyItenmData();
-    ~HellPartyItenmData();
+    ~HellPartyItenmData() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     void operator+=(const HellPartyItenmData& other);
     int m_count;       // +0（1）
@@ -236,7 +236,7 @@ struct LoadingTimeReport
 struct STPowerwarFightLoadingKey
 {
     STPowerwarFightLoadingKey();
-    ~STPowerwarFightLoadingKey();
+    ~STPowerwarFightLoadingKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     bool operator<(const STPowerwarFightLoadingKey& other) const;
     unsigned int m_mId;    // +0（powerwar_loading.m_id）
@@ -247,7 +247,7 @@ struct STPowerwarFightLoadingKey
 struct STPowerwarFightLoadingData
 {
     STPowerwarFightLoadingData();
-    ~STPowerwarFightLoadingData();
+    ~STPowerwarFightLoadingData() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     unsigned char m_player;   // +0（powerwar_loading.player）
     unsigned short m_myLoading;     // +2（powerwar_loading.my_loading）
@@ -259,7 +259,7 @@ struct STPowerwarFightLoadingData
 struct STPowerwarFightLagKey
 {
     STPowerwarFightLagKey();
-    ~STPowerwarFightLagKey();
+    ~STPowerwarFightLagKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     bool operator<(const STPowerwarFightLagKey& other) const;
     unsigned int m_mId;    // +0（powerwar_lag.m_id）
@@ -270,7 +270,7 @@ struct STPowerwarFightLagKey
 struct STPowerwarFightLagData
 {
     STPowerwarFightLagData();
-    ~STPowerwarFightLagData();
+    ~STPowerwarFightLagData() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     unsigned char m_player; // +0（powerwar_lag.player）
     unsigned int m_lagAvg;  // +4（powerwar_lag.lag_avg）
@@ -298,7 +298,7 @@ struct STModuleLagStatistics
 struct STDungeonLagStatistics
 {
     STDungeonLagStatistics();
-    ~STDungeonLagStatistics();
+    ~STDungeonLagStatistics() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     int m_data[8];
 };

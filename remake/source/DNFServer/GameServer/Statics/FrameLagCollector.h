@@ -52,8 +52,8 @@ public:
         FrameLagDataStruct();
         void init();
         int m0;              // +0x00
-        int m_a[2];          // +0x04（accFrameLagStruct/init 会越界访问到 [5]）
-        short m_b[16];       // +0x0c
+        int m_a[6];          // +0x04..0x1b
+        short m_b[8];        // +0x1c..0x2b
         int m_c[3];          // +0x2c
         int m_d[6];          // +0x38
         int m_e[6];          // +0x50

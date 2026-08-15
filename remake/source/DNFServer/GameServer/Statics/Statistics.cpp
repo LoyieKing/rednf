@@ -52,6 +52,59 @@ struct __attribute__((packed)) LoadingLagWire
     } m_lag[0x100];         // +0x3ba，步长 0xb
 };
 
+// SendDB* 上报侧对 key 字段的无符号视图：key 结构体保持 ORIG 的 bool/enum/char
+// 形态（operator< 才能对齐），这里以同布局的 uchar/uint 视图读取，凑出 ORIG
+// 的直接 movzbl 加载形态（c6446r 读 bool 会多一条 mov %eax,%ecx 换手）。
+struct STPartyStatisticKeyView
+{
+    unsigned short m_channelNo;
+    int m_dungeonIndex;
+    char m_dungeonDiff;
+    unsigned char m_dungeonStandardLevel;
+    unsigned char m_abuseParty;
+    unsigned char m_balkunParty;
+    unsigned char m_success;
+    char m_partyUserCount;
+};
+struct STPartyJobStatisticKeyView
+{
+    unsigned short m_channelNo;
+    int m_dungeonIndex;
+    char m_dungeonDiff;
+    unsigned char m_dungeonStandardLevel;
+    unsigned char m_abuseParty;
+    unsigned char m_balkunParty;
+    unsigned char m_success;
+    char m_partyUserCount;
+    unsigned int m_characJob;
+    char m_characGrow;
+};
+struct STPartyCharacKeyView
+{
+    unsigned short m_channelNo;
+    int m_dungeonIndex;
+    char m_dungeonDiff;
+    unsigned char m_dungeonStandardLevel;
+    unsigned char m_success;
+    unsigned int m_characJob;
+    char m_characGrow;
+    char m_partyUserCount;
+};
+struct STDeathTowerValueStatisticKeyView
+{
+    unsigned char m_type;
+    unsigned short m_level;
+    unsigned int m_counterIdx;
+};
+struct STHellPartyStatisticItemKeyView
+{
+    unsigned char m_hellpartyType;
+    unsigned int m_dungeonIndex;
+    char m_dungeonDiff;
+    char m_partyCount;
+    char m_hellpartyDiff;
+};
+
 void StatisticManager::ResetDisjointAvatarInfoTotal()
 {
     m_disjoint.clear();
@@ -190,7 +243,8 @@ void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
     }
     else
     {
-        it->second += value;
+        PlayDataJobStatistic* p = &it->second;
+        *p += value;
     }
 }
 void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
@@ -216,7 +270,8 @@ void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
     }
     else
     {
-        it->second += value;
+        PlayDataPartyStatistic* p = &it->second;
+        *p += value;
     }
 }
 void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party* pkt)
@@ -226,10 +281,10 @@ void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party
         char m_hdr[0xc];
         int m_dungeonIndex;             // +0xc
         char m_dungeonDiff;            // +0x10
-        unsigned char m_dungeonStandardLevel;   // +0x11
-        unsigned char m_abuseParty;   // +0x12
-        unsigned char m_balkunParty;   // +0x13
-        unsigned char m_success;   // +0x14
+        bool m_dungeonStandardLevel;   // +0x11
+        bool m_abuseParty;   // +0x12
+        bool m_balkunParty;   // +0x13
+        bool m_success;   // +0x14
         char m_partyUserCount;            // +0x15
         int m_data[10];           // +0x16
         short m_last;             // +0x3e
@@ -262,7 +317,8 @@ void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party
     }
     else
     {
-        it->second += value;
+        PartyStatistic* p = &it->second;
+        *p += value;
     }
 }
 void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Party_Job* pkt)
@@ -272,10 +328,10 @@ void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Pa
         char m_hdr[0xc];
         unsigned int m_f0c;
         char m_f10;
-        char m_f11;
-        char m_f12;
-        char m_f13;
-        char m_f14;
+        bool m_f11;
+        bool m_f12;
+        bool m_f13;
+        bool m_f14;
         char m_f15;
         unsigned int m_f16;
         char m_f1a;
@@ -312,8 +368,8 @@ void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic
         char m_hdr[0xc];
         unsigned int m_f0c;
         char m_f10;
-        char m_f11;
-        char m_f12;
+        bool m_f11;
+        bool m_f12;
         unsigned int m_f13;
         char m_f17;
         char m_f18;
@@ -359,7 +415,8 @@ void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic
     }
     else
     {
-        it->second += value;
+        PartyCharacStatistic* p = &it->second;
+        *p += value;
     }
 }
 void StatisticManager::WritePacketOverflowStatistic(Packet_Overflow_Statistic_Add* pkt)
@@ -387,7 +444,7 @@ void StatisticManager::WritePacketOverflowStatistic(Packet_Overflow_Statistic_Ad
 void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_party.empty())
     {
         for (std::map<STPartyStatisticKey, PartyStatistic>::iterator it = m_party.begin();
@@ -396,10 +453,14 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
             pkt.m_elem[idx].m_channelNo = it->first.m_channelNo;
             pkt.m_elem[idx].m_dungeonIndex = it->first.m_dungeonIndex;
             pkt.m_elem[idx].m_dungeonDiff = it->first.m_dungeonDiff;
-            pkt.m_elem[idx].m_dungeonStandardLevel = it->first.m_dungeonStandardLevel;
-            pkt.m_elem[idx].m_abuseParty = it->first.m_abuseParty;
-            pkt.m_elem[idx].m_balkunParty = it->first.m_balkunParty;
-            pkt.m_elem[idx].m_success = it->first.m_success;
+            pkt.m_elem[idx].m_dungeonStandardLevel =
+                ((const STPartyStatisticKeyView*)&it->first)->m_dungeonStandardLevel;
+            pkt.m_elem[idx].m_abuseParty =
+                ((const STPartyStatisticKeyView*)&it->first)->m_abuseParty;
+            pkt.m_elem[idx].m_balkunParty =
+                ((const STPartyStatisticKeyView*)&it->first)->m_balkunParty;
+            pkt.m_elem[idx].m_success =
+                ((const STPartyStatisticKeyView*)&it->first)->m_success;
             pkt.m_elem[idx].m_partyUserCount = it->first.m_partyUserCount;
             pkt.m_elem[idx].m_data[0] = it->second.m_data[0];
             pkt.m_elem[idx].m_data[1] = it->second.m_data[1];
@@ -413,8 +474,7 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
             pkt.m_elem[idx].m_data[9] = it->second.m_data[9];
             pkt.m_elem[idx].m_data[10] = it->second.m_data[10];
             pkt.m_elem[idx].m_data[11] = it->second.m_data[11];
-            idx++;
-            if (idx > 0x63)
+            if (0x63U < (++idx))
             {
                 pkt.m_count = 100;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -433,7 +493,7 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
 void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Job pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_partyJob.empty())
     {
         for (std::map<STPartyJobStatisticKey, PartyJobStatistic>::iterator it = m_partyJob.begin();
@@ -442,17 +502,21 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_channelNo = it->first.m_channelNo;
             pkt.m_items[idx].m_dungeonIndex = it->first.m_dungeonIndex;
             pkt.m_items[idx].m_dungeonDiff = it->first.m_dungeonDiff;
-            pkt.m_items[idx].m_dungeonStandardLevel = it->first.m_dungeonStandardLevel;
-            pkt.m_items[idx].m_abuseParty = it->first.m_abuseParty;
-            pkt.m_items[idx].m_balkunParty = it->first.m_balkunParty;
-            pkt.m_items[idx].m_success = it->first.m_success;
+            pkt.m_items[idx].m_dungeonStandardLevel =
+                ((const STPartyJobStatisticKeyView*)&it->first)->m_dungeonStandardLevel;
+            pkt.m_items[idx].m_abuseParty =
+                ((const STPartyJobStatisticKeyView*)&it->first)->m_abuseParty;
+            pkt.m_items[idx].m_balkunParty =
+                ((const STPartyJobStatisticKeyView*)&it->first)->m_balkunParty;
+            pkt.m_items[idx].m_success =
+                ((const STPartyJobStatisticKeyView*)&it->first)->m_success;
             pkt.m_items[idx].m_partyUserCount = it->first.m_partyUserCount;
-            pkt.m_items[idx].m_characJob = it->first.m_characJob;
+            pkt.m_items[idx].m_characJob =
+                ((const STPartyJobStatisticKeyView*)&it->first)->m_characJob;
             pkt.m_items[idx].m_characGrow = it->first.m_characGrow;
             pkt.m_items[idx].m_data[0] = it->second.m_data[0];
             pkt.m_items[idx].m_data[1] = it->second.m_data[1];
-            idx++;
-            if (idx > 0xf2)
+            if (0xf2U < (++idx))
             {
                 pkt.m_count = 0xf3;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -471,7 +535,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
 void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Charac pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_partyCharac.empty())
     {
         for (std::map<STPartyCharacKey, PartyCharacStatistic>::iterator it = m_partyCharac.begin();
@@ -480,8 +544,10 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_channelNo = it->first.m_channelNo;
             pkt.m_items[idx].m_dungeonIndex = it->first.m_dungeonIndex;
             pkt.m_items[idx].m_dungeonDiff = it->first.m_dungeonDiff;
-            pkt.m_items[idx].m_dungeonStandardLevel = it->first.m_dungeonStandardLevel;
-            pkt.m_items[idx].m_success = it->first.m_success;
+            pkt.m_items[idx].m_dungeonStandardLevel =
+                ((const STPartyCharacKeyView*)&it->first)->m_dungeonStandardLevel;
+            pkt.m_items[idx].m_success =
+                ((const STPartyCharacKeyView*)&it->first)->m_success;
             pkt.m_items[idx].m_characJob = it->first.m_characJob;
             pkt.m_items[idx].m_characGrow = it->first.m_characGrow;
             pkt.m_items[idx].m_partyUserCount = it->first.m_partyUserCount;
@@ -498,8 +564,7 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
             pkt.m_items[idx].m_data[10] = it->second.m_data[10];
             pkt.m_items[idx].m_data[11] = it->second.m_data[11];
             pkt.m_items[idx].m_data[12] = it->second.m_data[12];
-            idx++;
-            if (idx > 0x58)
+            if (0x58U < (++idx))
             {
                 pkt.m_count = 0x59;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -518,18 +583,19 @@ void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
 void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
 {
     Packet_DBMW_DeathTower_Statistic_Value pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_deathTowerValue.empty())
     {
         for (std::map<STDeathTowerValueStatisticKey, ValueStatistic>::iterator it =
                  m_deathTowerValue.begin(); it != m_deathTowerValue.end(); ++it)
         {
-            pkt.m_items[idx].m_type = it->first.m_type;
-            pkt.m_items[idx].m_level = it->first.m_level;
+            pkt.m_items[idx].m_type =
+                ((const STDeathTowerValueStatisticKeyView*)&it->first)->m_type;
+            pkt.m_items[idx].m_level =
+                ((const STDeathTowerValueStatisticKeyView*)&it->first)->m_level;
             pkt.m_items[idx].m_counterIdx = it->first.m_counterIdx;
             pkt.m_items[idx].m_value = it->second.m_data[0];
-            idx++;
-            if (idx > 0x196)
+            if (0x196U < (++idx))
             {
                 pkt.m_count = 0x197;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -548,7 +614,7 @@ void StatisticManager::SendDBDeathTowerValueStatistic(CServerHandler* handler)
 void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* handler)
 {
     Packet_DBMW_DeathTower_Statistic_Playdata_Job pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_deathTowerJob.empty())
     {
         for (std::map<STDeathTowerPlayDataJobStatisticKey, PlayDataJobStatistic>::iterator it =
@@ -578,8 +644,7 @@ void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* hand
             }
             else
             {
-                idx++;
-                if (idx > 0x17d)
+                if (0x17dU < (++idx))
                 {
                     pkt.m_count = 0x17e;
                     handler->SendToDB((PacketHeader*)&pkt);
@@ -603,7 +668,7 @@ void StatisticManager::SendDBDeathTowerPlayDataJobStatistic(CServerHandler* hand
 void StatisticManager::SendDBDeathTowerPlayDataPartyStatistic(CServerHandler* handler)
 {
     Packet_DBMW_DeathTower_Statistic_Playdata_Party pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_deathTowerParty.empty())
     {
         for (std::map<STDeathTowerPlayDataPartyStatisticKey, PlayDataPartyStatistic>::iterator it =
@@ -617,8 +682,7 @@ void StatisticManager::SendDBDeathTowerPlayDataPartyStatistic(CServerHandler* ha
                 it->second.m_data[1] = 1;
             }
             pkt.m_items[idx].m_avgClearCount = it->second.m_data[0] / it->second.m_data[1];
-            idx++;
-            if (idx > 0x263)
+            if (0x263U < (++idx))
             {
                 pkt.m_count = 0x264;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -698,25 +762,24 @@ void StatisticManager::WriteAssertManagerStatistic(Packet_Assert_Manager_Info* p
     }
     else
     {
-        it->second += 1;
+        int* p = &it->second;
+        *p += 1;
     }
 }
 void StatisticManager::SendDBAssertManagerStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Assert_Manager_Info_Write_Query pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_assertManager.empty())
     {
         for (std::map<STAssertManagerKey, int>::iterator it = m_assertManager.begin();
              it != m_assertManager.end(); ++it)
         {
-            memcpy((char*)&pkt + idx * 0x206 + 0xe, it->first.m_fileName, 0x100);
-            *(unsigned short*)((char*)&pkt + idx * 0x206 + 0x10e) =
-                it->first.m_fileLine;
-            *(int*)((char*)&pkt + idx * 0x206 + 0x110) = it->second;
-            memcpy((char*)&pkt + idx * 0x206 + 0x114, it->first.m_reason, 0x100);
-            idx++;
-            if (idx > 8)
+            memcpy(pkt.m_items[idx].m_fileName, it->first.m_fileName, 0x100);
+            pkt.m_items[idx].m_fileLine = it->first.m_fileLine;
+            pkt.m_items[idx].m_count = it->second;
+            memcpy(pkt.m_items[idx].m_reason, it->first.m_reason, 0x100);
+            if (8U < (++idx))
             {
                 pkt.m_count = 9;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -774,7 +837,7 @@ void StatisticManager::WriteUserTingTImeCheckStatistic(
 void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
 {
     Packet_DBMW_Ting_User_TimeCheck_Write_Query pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_tingUser.empty())
     {
         for (std::map<unsigned int, int>::iterator it = m_tingUser.begin();
@@ -782,8 +845,7 @@ void StatisticManager::SendDBTingUserTimeCheck(CServerHandler* handler)
         {
             pkt.m_typed.m_items[idx].m_id = it->first;
             pkt.m_typed.m_items[idx].m_minute = it->second;
-            idx++;
-            if (idx > 0x2fd)
+            if (0x2fdU < (++idx))
             {
                 pkt.m_typed.m_count = 0x2fe;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -806,7 +868,7 @@ void StatisticManager::ResetTingUserTimeCheckMap()
 void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
 {
     Packet_DBMW_User_Ting_TimeCheck_Write_Query pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_userTing.empty())
     {
         for (std::map<STUserTingTimeCheckKey, int>::iterator it = m_userTing.begin();
@@ -814,8 +876,7 @@ void StatisticManager::SendDBUserTingTimeCheckStatistic(CServerHandler* handler)
         {
             pkt.m_items[idx].m_minute = it->first.m_minute;
             pkt.m_items[idx].m_cnt = it->second;
-            idx++;
-            if (idx > 0x2fd)
+            if (0x2fdU < (++idx))
             {
                 pkt.m_count = 0x2fe;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -840,7 +901,7 @@ void StatisticManager::WriteHellPartyStatisticItem(Packet_HellParty_Statistic_It
     struct __attribute__((packed)) Wire
     {
         char m_hdr[0xa];
-        char m_f0a;
+        bool m_f0a;
         unsigned int m_f0b;
         char m_f0f;
         char m_f10;
@@ -862,32 +923,29 @@ void StatisticManager::WriteHellPartyStatisticItem(Packet_HellParty_Statistic_It
     }
     else
     {
-        it->second += value;
+        HellPartyItenmData* p = &it->second;
+        *p += value;
     }
 }
 void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
 {
     Packet_DBMW_HellParty_Statistic_Item pkt;
-    unsigned int idx = 0;
+    int idx = 0;
     if (!m_hellParty.empty())
     {
         for (std::map<STHellPartyStatisticItemKey, HellPartyItenmData>::iterator it =
                  m_hellParty.begin(); it != m_hellParty.end(); ++it)
         {
-            *(unsigned char*)((char*)&pkt + idx * 0x24 + 0xe) =
-                it->first.m_hellpartyType;
-            *(unsigned int*)((char*)&pkt + idx * 0x24 + 0xf) =
-                it->first.m_dungeonIndex;
-            *(char*)((char*)&pkt + idx * 0x24 + 0x13) =
-                it->first.m_dungeonDiff;
-            *(char*)((char*)&pkt + idx * 0x24 + 0x14) =
-                it->first.m_partyCount;
-            *(char*)((char*)&pkt + idx * 0x24 + 0x15) =
-                it->first.m_hellpartyDiff;
-            memcpy((char*)&pkt + idx * 0x24 + 0x1a, it->second.m_data, 0x18);
-            *(int*)((char*)&pkt + idx * 0x24 + 0x16) = it->second.m_count;
-            idx++;
-            if (idx > 0xa7)
+            pkt.m_items[idx].m_hellpartyType =
+                ((const STHellPartyStatisticItemKeyView*)&it->first)->m_hellpartyType;
+            pkt.m_items[idx].m_dungeonIndex =
+                ((const STHellPartyStatisticItemKeyView*)&it->first)->m_dungeonIndex;
+            pkt.m_items[idx].m_dungeonDiff = it->first.m_dungeonDiff;
+            pkt.m_items[idx].m_partyCount = it->first.m_partyCount;
+            pkt.m_items[idx].m_hellpartyDiff = it->first.m_hellpartyDiff;
+            memcpy(pkt.m_items[idx].m_data, it->second.m_data, 0x18);
+            pkt.m_items[idx].m_count = it->second.m_count;
+            if (0xa7U < (++idx))
             {
                 pkt.m_count = 0xa8;
                 handler->SendToDB((PacketHeader*)&pkt);
@@ -926,8 +984,7 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                     {
                         std::map<STPowerwarFightLoadingKey, STPowerwarFightLoadingData>::iterator it =
                             m_pwLoading.find(lkey);
-                        bool isNew = (m_pwLoading.empty() || it == m_pwLoading.end());
-                        if (isNew)
+                        if (m_pwLoading.empty() || it == m_pwLoading.end())
                         {
                             STPowerwarFightLoadingData v;
                             v.m_player = ((LoadingPwWire*)pkt)->m_pw[j].m_f0;
@@ -954,8 +1011,7 @@ void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report
                     {
                         std::map<STPowerwarFightLagKey, STPowerwarFightLagData>::iterator it =
                             m_pwLag.find(gkey);
-                        bool isNew = (m_pwLag.empty() || it == m_pwLag.end());
-                        if (isNew)
+                        if (m_pwLag.empty() || it == m_pwLag.end())
                         {
                             STPowerwarFightLagData v;
                             v.m_player = ((LoadingLagWire*)pkt)->m_lag[j].m_f0;
@@ -1456,8 +1512,10 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
     {
         if (((LagWire*)pkt)->m_mods[i].m_u.m_int != 0)
         {
-            float avg_f = ((LagWire*)pkt)->m_mods[i].m_u.m_float;
-            float dev_f = ((LagWire*)pkt)->m_mods[i].m_field4;
+            float* pAvg = &((LagWire*)pkt)->m_mods[i].m_u.m_float;
+            float* pDev = &((LagWire*)pkt)->m_mods[i].m_field4;
+            float avg_f = *pAvg;
+            float dev_f = *pDev;
             m_modules[i].m_data[0] += (int)(long long)avg_f;
             m_modules[i].m_data[1] += (int)(long long)dev_f;
             m_modules[i].m_data[2] +=
@@ -1465,20 +1523,23 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
             m_modules[i].m_data[3] += 1;
         }
     }
-    unsigned char dcount = ((LagDungeonWire*)pkt)->m_dcount;
-    if (dcount != 0 && dcount < 0xb)
+    if (((LagDungeonWire*)pkt)->m_dcount != 0 &&
+        ((LagDungeonWire*)pkt)->m_dcount < 0xb)
     {
-        for (int j = 0; j < (int)dcount; j++)
+        for (int j = 0; j < (int)((LagDungeonWire*)pkt)->m_dcount; j++)
         {
-            float a = ((LagDungeonWire*)pkt)->m_d[j].m_a;
-            float b = ((LagDungeonWire*)pkt)->m_d[j].m_b;
-            float c = ((LagDungeonWire*)pkt)->m_d[j].m_c;
-            float d = ((LagDungeonWire*)pkt)->m_d[j].m_d;
             unsigned short key = ((LagDungeonWire*)pkt)->m_d[j].m_key;
             std::map<unsigned short, STDungeonLagStatistics>::iterator it =
                 m_dungeonLag.find(key);
-            bool isNew = (m_dungeonLag.empty() || it == m_dungeonLag.end());
-            if (isNew)
+            float* pA = &((LagDungeonWire*)pkt)->m_d[j].m_a;
+            float* pB = &((LagDungeonWire*)pkt)->m_d[j].m_b;
+            float a = *pA;
+            float b = *pB;
+            float* pC = &((LagDungeonWire*)pkt)->m_d[j].m_c;
+            float* pD = &((LagDungeonWire*)pkt)->m_d[j].m_d;
+            float c = *pC;
+            float d = *pD;
+            if (m_dungeonLag.empty() || it == m_dungeonLag.end())
             {
                 STDungeonLagStatistics v;
                 v.m_data[0] = (int)(long long)a;
@@ -1518,9 +1579,9 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
             snprintf(pkt.m_query, 0x400,
                 "inSert into lag_stat_module (occ_time, server_id, module, average, deviation, count) values ('%s', %d, %d, %d, %d, %d)",
                 timeStr, handler->GetServerGroupNo() & 0xff, i,
-                m_modules[i].m_data[2] / m_modules[i].m_data[3],
+                (unsigned int)m_modules[i].m_data[0] / (unsigned int)m_modules[i].m_data[3],
                 (unsigned int)m_modules[i].m_data[1] / (unsigned int)m_modules[i].m_data[3],
-                (unsigned int)m_modules[i].m_data[0] / (unsigned int)m_modules[i].m_data[3]);
+                m_modules[i].m_data[2] / m_modules[i].m_data[3]);
             DNF_LOG_SCOPE_LINE(0x6a1, "./log/LagStatistics", "%s", pkt.m_query);
             handler->SendToDB((PacketHeader*)&pkt);
             m_modules[i].Reset();
@@ -1537,12 +1598,12 @@ void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeSt
         snprintf(pkt.m_query, 0x400,
             "inSert into lag_stat_dungeon (occ_time, server_id, dungeon_idx, first_average, first_deviation, first_count, boss_average, boss_deviation, boss_count) values ('%s', %d, %d, %d, %d, %d, %d, %d, %d)",
             timeStr, handler->GetServerGroupNo() & 0xff, it->first,
-            it->second.m_data[6] / it->second.m_data[7],
-            (unsigned int)it->second.m_data[5] / (unsigned int)it->second.m_data[7],
-            (unsigned int)it->second.m_data[4] / (unsigned int)it->second.m_data[7],
-            it->second.m_data[2] / it->second.m_data[3],
+            (unsigned int)it->second.m_data[0] / (unsigned int)it->second.m_data[3],
             (unsigned int)it->second.m_data[1] / (unsigned int)it->second.m_data[3],
-            (unsigned int)it->second.m_data[0] / (unsigned int)it->second.m_data[3]);
+            it->second.m_data[2] / it->second.m_data[3],
+            (unsigned int)it->second.m_data[4] / (unsigned int)it->second.m_data[7],
+            (unsigned int)it->second.m_data[5] / (unsigned int)it->second.m_data[7],
+            it->second.m_data[6] / it->second.m_data[7]);
         DNF_LOG_SCOPE_LINE(0x6b8, "./log/LagStatistics", "%s", pkt.m_query);
         handler->SendToDB((PacketHeader*)&pkt);
     }

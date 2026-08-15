@@ -18,7 +18,7 @@ public:
     bool begin();
     static void* dispatch_proxy(void* temp);
     pthread_t m_handle;   // +4
-    char m_running;       // +8
+    bool m_running;       // +8
 };
 
 #endif // DNF_THREAD_INTERFACE_H_

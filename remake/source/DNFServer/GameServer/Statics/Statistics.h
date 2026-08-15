@@ -47,19 +47,17 @@ class CApplication;
 
 // ---- HellParty 统计上报包（ORIG Statistics.cpp 发射）----
 #pragma pack(push, 1)
-// SendDBHellPartyStatisticItem 的 item 视图：以 packet+idx*0x24 为基址，
-// 字段从 +0xe 开始（前 0xe 字节对应 PacketHeader 0xa + 包级 count 0x4，
-// 对 idx>0 的 item 则与前一 item 的 m_data 尾部重叠，仅作位移视图）。
+// SendDBHellPartyStatisticItem 的 item 视图：packet 从 +0xe 起是 0xa8 个 item，
+// 每个 0x24 字节。字段从 item+0 起（与 ORIG 的类型化成员访问形态一致）。
 struct STHellPartyStatisticItemWire
 {
-    char         m_pad[0xe];   // +0
-    char         m_hellpartyType;   // +0xe（log_hellparty_value.hellparty_type）
-    unsigned int m_dungeonIndex;    // +0xf（log_hellparty_value.dungeon_index）
-    char         m_dungeonDiff;     // +0x13（log_hellparty_value.dungeon_diff）
-    char         m_partyCount;      // +0x14（log_hellparty_value.party_count）
-    char         m_hellpartyDiff;   // +0x15（log_hellparty_value.hellparty_diff）
-    int          m_count;      // +0x16（HellPartyItenmData::m_count）
-    int          m_data[6];    // +0x1a（HellPartyItenmData::m_data[6]）
+    unsigned char m_hellpartyType;   // +0（log_hellparty_value.hellparty_type）
+    unsigned int  m_dungeonIndex;    // +1（log_hellparty_value.dungeon_index）
+    char          m_dungeonDiff;     // +5（log_hellparty_value.dungeon_diff）
+    char          m_partyCount;      // +6（log_hellparty_value.party_count）
+    char          m_hellpartyDiff;   // +7（log_hellparty_value.hellparty_diff）
+    int           m_count;      // +8（HellPartyItenmData::m_count）
+    int           m_data[6];    // +0xc（HellPartyItenmData::m_data[6]）
 };                              // 步长 0x24
 
 class Packet_DBMW_HellParty_Statistic_Item : public PacketHeader
@@ -67,7 +65,7 @@ class Packet_DBMW_HellParty_Statistic_Item : public PacketHeader
 public:
     Packet_DBMW_HellParty_Statistic_Item();
     unsigned int m_count;        // +0xa（本包内 item 数量）
-    char         m_data[0x17a0]; // +0xe（0xa8 个 item，各 0x24 字节）
+    STHellPartyStatisticItemWire m_items[0xa8]; // +0xe（0xa8 个 item，各 0x24 字节）
 } __attribute__((packed));
 #pragma pack(pop)
 

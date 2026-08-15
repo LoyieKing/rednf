@@ -312,11 +312,11 @@ int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
             fd = m_data.find(it->second.m_specId);
             if (fd != m_data.end())
             {
-                fd->second.m0 = fd->second.m0 + 1;
+                fd->second.m0 += 1;
                 if (-1 < (char)((FrameLagPktHeader*)pkt)->m_module &&
                     (char)((FrameLagPktHeader*)pkt)->m_module < 8)
                 {
-                    fd->second.m_b[((char)((FrameLagPktHeader*)pkt)->m_module + 8)] += 1;
+                    fd->second.m_b[((char)((FrameLagPktHeader*)pkt)->m_module)] += 1;
                 }
                 if (-1 < ((FrameLagPktHeader*)pkt)->m_sum1)
                 {
@@ -362,47 +362,42 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
     {
         return 3;
     }
-    if (m_field18 != ((FrameLagSpecView*)pkt)->m_fieldA)
+    if (m_field18 == ((FrameLagSpecView*)pkt)->m_fieldA)
     {
-        return 0;
-    }
-    int specId = ((FrameLagSpecIntsB*)pkt)->m[0];
-    if (m_map1c.find(specId) == m_map1c.end())
-    {
-        return 0;
-    }
-    m_map1c[specId] = 1;
-    for (int i = 0; i <= 5; i++)
-    {
-        int sid = ((FrameLagSpecInts3*)pkt)->m[i + 4];
-        if (sid == -1)
+        if (m_map1c.find(((FrameLagSpecIntsB*)pkt)->m[0]) == m_map1c.end())
         {
-            break;
+            m_map1c[((FrameLagSpecIntsB*)pkt)->m[0]] = 1;
+            for (int i = 0; i <= 5; i++)
+            {
+                if (((FrameLagSpecInts3*)pkt)->m[i + 4] == -1)
+                {
+                    break;
+                }
+                if (m_field4c < ((FrameLagSpecIntsB*)pkt)->m[i + 8])
+                {
+                    m_field4c = ((FrameLagSpecIntsB*)pkt)->m[i + 8];
+                }
+                MonitoringSpecCase mc;
+                mc.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
+                mc.m_cpuVendor = ((FrameLagSpecView*)pkt)->m_field4[i];
+                mc.m_cpuProcessorNum = ((FrameLagSpecView*)pkt)->m_field5[i];
+                mc.m_aboveCpuClock = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
+                mc.m_belowCpuClock = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
+                mc.m_ram = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
+                mc.m_videocardVendor = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
+                mc.m_videocardDevice = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
+                mc.m_videocardTextureMem = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
+                mc.m_osVersion = ((FrameLagSpecView*)pkt)->m_field1e[i];
+                m_monitor[((FrameLagSpecInts3*)pkt)->m[i + 4]] = mc;
+                FrameLagDataStruct fd;
+                m_data[mc.m_specId] = fd;
+            }
+            if (m_map1c.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
+            {
+                m_field4 = 2;
+                puts("============FirstSpecLoad Complete!!!==========");
+            }
         }
-        int ts = ((FrameLagSpecIntsB*)pkt)->m[i + 8];
-        if (m_field4c < ts)
-        {
-            m_field4c = ts;
-        }
-        MonitoringSpecCase mc;
-        mc.m_specId = ((FrameLagSpecInts3*)pkt)->m[i + 0x10];
-        mc.m_cpuVendor = ((FrameLagSpecView*)pkt)->m_field4[i];
-        mc.m_cpuProcessorNum = ((FrameLagSpecView*)pkt)->m_field5[i];
-        mc.m_aboveCpuClock = ((FrameLagSpecInts7*)pkt)->m[i + 0x18];
-        mc.m_belowCpuClock = ((FrameLagSpecIntsF*)pkt)->m[i + 0x1c];
-        mc.m_ram = ((FrameLagSpecShorts7*)pkt)->m[i + 0x48];
-        mc.m_videocardVendor = ((FrameLagSpecInts3*)pkt)->m[i + 0x28];
-        mc.m_videocardDevice = ((FrameLagSpecIntsB*)pkt)->m[i + 0x2c];
-        mc.m_videocardTextureMem = ((FrameLagSpecShorts3*)pkt)->m[i + 0x68];
-        mc.m_osVersion = ((FrameLagSpecView*)pkt)->m_field1e[i];
-        m_monitor[sid] = mc;
-        FrameLagDataStruct fd;
-        m_data[mc.m_specId] = fd;
-    }
-    if ((int)m_map1c.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
-    {
-        m_field4 = 2;
-        puts("============FirstSpecLoad Complete!!!==========");
     }
     return 0;
 }
@@ -418,9 +413,6 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
         std::map<int, char>::iterator found =
             m_map34.find(*(int*)((char*)pkt + 0xb));
         if (found == e)
-        {
-        }
-        else
         {
             m_map34[*(int*)((char*)pkt + 0xb)] = 1;
             for (int i = 0; i <= 5; i++)
@@ -466,9 +458,9 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
                 FrameLagDataStruct fd;
                 m_data[((FrameLagSpecInts3*)pkt)->m[i + 0x10]] = fd;
             }
-            if ((int)m_map34.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
+            if (m_map34.size() == ((FrameLagSpecIntsF*)pkt)->m[0])
             {
-                if (m_field4c < m_field50)
+                if (m_field50 > m_field4c)
                 {
                     m_field4c = m_field50;
                 }
@@ -718,7 +710,7 @@ void FrameLagCollector::FrameLagDataStruct::init()
     m0 = 0;
     for (int i = 0; i < 8; i++)
     {
-        m_b[i + 8] = 0;
+        m_b[i] = 0;
     }
     m_c[0] = 0;
     m_c[1] = 0;

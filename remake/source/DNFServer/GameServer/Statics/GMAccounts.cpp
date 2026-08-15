@@ -187,14 +187,14 @@ STPartyStatisticKey::STPartyStatisticKey()
     m_success = 0;
     m_partyUserCount = 0;
 }
-STPartyStatisticKey::~STPartyStatisticKey()
+STPartyStatisticKey::~STPartyStatisticKey() throw()
 {
 }
 PartyStatistic::PartyStatistic()
 {
     Reset();
 }
-PartyStatistic::~PartyStatistic()
+PartyStatistic::~PartyStatistic() throw()
 {
 }
 void PartyStatistic::Reset()
@@ -248,14 +248,14 @@ STPartyCharacKey::STPartyCharacKey()
     m_characGrow = 0;
     m_partyUserCount = 0;
 }
-STPartyCharacKey::~STPartyCharacKey()
+STPartyCharacKey::~STPartyCharacKey() throw()
 {
 }
 PartyCharacStatistic::PartyCharacStatistic()
 {
     Reset();
 }
-PartyCharacStatistic::~PartyCharacStatistic()
+PartyCharacStatistic::~PartyCharacStatistic() throw()
 {
 }
 void PartyCharacStatistic::Reset()
@@ -302,14 +302,14 @@ STDeathTowerPlayDataJobStatisticKey::STDeathTowerPlayDataJobStatisticKey()
     m_characJob = 0;
     m_characGrow = 0;
 }
-STDeathTowerPlayDataJobStatisticKey::~STDeathTowerPlayDataJobStatisticKey()
+STDeathTowerPlayDataJobStatisticKey::~STDeathTowerPlayDataJobStatisticKey() throw()
 {
 }
 PlayDataJobStatistic::PlayDataJobStatistic()
 {
     Reset();
 }
-PlayDataJobStatistic::~PlayDataJobStatistic()
+PlayDataJobStatistic::~PlayDataJobStatistic() throw()
 {
 }
 void PlayDataJobStatistic::Reset()
@@ -322,14 +322,14 @@ STDeathTowerPlayDataPartyStatisticKey::STDeathTowerPlayDataPartyStatisticKey()
     m_deathTowerType = 0;
     m_partyCount = 0;
 }
-STDeathTowerPlayDataPartyStatisticKey::~STDeathTowerPlayDataPartyStatisticKey()
+STDeathTowerPlayDataPartyStatisticKey::~STDeathTowerPlayDataPartyStatisticKey() throw()
 {
 }
 PlayDataPartyStatistic::PlayDataPartyStatistic()
 {
     Reset();
 }
-PlayDataPartyStatistic::~PlayDataPartyStatistic()
+PlayDataPartyStatistic::~PlayDataPartyStatistic() throw()
 {
 }
 void PlayDataPartyStatistic::Reset()
@@ -353,7 +353,7 @@ STAssertManagerKey::STAssertManagerKey()
 {
     Reset();
 }
-STAssertManagerKey::~STAssertManagerKey()
+STAssertManagerKey::~STAssertManagerKey() throw()
 {
 }
 void STAssertManagerKey::Reset()
@@ -381,14 +381,14 @@ STHellPartyStatisticItemKey::STHellPartyStatisticItemKey()
     m_dungeonDiff = 0;
     m_hellpartyDiff = 0;
 }
-STHellPartyStatisticItemKey::~STHellPartyStatisticItemKey()
+STHellPartyStatisticItemKey::~STHellPartyStatisticItemKey() throw()
 {
 }
 HellPartyItenmData::HellPartyItenmData()
 {
     Reset();
 }
-HellPartyItenmData::~HellPartyItenmData()
+HellPartyItenmData::~HellPartyItenmData() throw()
 {
 }
 void HellPartyItenmData::Reset()
@@ -415,7 +415,7 @@ STPowerwarFightLoadingKey::STPowerwarFightLoadingKey()
 {
     Reset();
 }
-STPowerwarFightLoadingKey::~STPowerwarFightLoadingKey()
+STPowerwarFightLoadingKey::~STPowerwarFightLoadingKey() throw()
 {
 }
 void STPowerwarFightLoadingKey::Reset()
@@ -427,7 +427,7 @@ STPowerwarFightLoadingData::STPowerwarFightLoadingData()
 {
     Reset();
 }
-STPowerwarFightLoadingData::~STPowerwarFightLoadingData()
+STPowerwarFightLoadingData::~STPowerwarFightLoadingData() throw()
 {
 }
 void STPowerwarFightLoadingData::Reset()
@@ -441,7 +441,7 @@ STPowerwarFightLagKey::STPowerwarFightLagKey()
 {
     Reset();
 }
-STPowerwarFightLagKey::~STPowerwarFightLagKey()
+STPowerwarFightLagKey::~STPowerwarFightLagKey() throw()
 {
 }
 void STPowerwarFightLagKey::Reset()
@@ -453,7 +453,7 @@ STPowerwarFightLagData::STPowerwarFightLagData()
 {
     Reset();
 }
-STPowerwarFightLagData::~STPowerwarFightLagData()
+STPowerwarFightLagData::~STPowerwarFightLagData() throw()
 {
 }
 void STPowerwarFightLagData::Reset()
@@ -485,7 +485,7 @@ STDungeonLagStatistics::STDungeonLagStatistics()
 {
     Reset();
 }
-STDungeonLagStatistics::~STDungeonLagStatistics()
+STDungeonLagStatistics::~STDungeonLagStatistics() throw()
 {
 }
 void STDungeonLagStatistics::Reset()
