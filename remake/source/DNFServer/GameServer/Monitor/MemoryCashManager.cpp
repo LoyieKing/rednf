@@ -98,10 +98,9 @@ char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
                 memset((char*)dbInfo + 5, 0, 0x1e);
                 strncpy((char*)dbInfo + 5, name.c_str(), 0x1d);
             }
-            STMemberDBInfo* memberDb = (STMemberDBInfo*)dbInfo;
-            for (int i = 0; i < (int)memberDb->m_count27; i++)
+            for (int i = 0; i < (int)((STMemberDBInfo*)dbInfo)->m_count27; i++)
             {
-                unsigned int* sub = (unsigned int*)&memberDb->m_lowers[i];
+                unsigned int* sub = (unsigned int*)&((STMemberDBInfo*)dbInfo)->m_lowers[i];
                 if (*sub != 0)
                 {
                     if (QueryUpdatedCharacName(*sub, name))

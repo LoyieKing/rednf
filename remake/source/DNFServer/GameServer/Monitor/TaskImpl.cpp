@@ -107,7 +107,7 @@ void CTask_ChristmasEvent::_DoExecute()
     ((CApplication*)CApplicationInstance())->Get_ServerHandler()->SendAllToGameServer(
         (char*)&pkt, 0x12);
     unsigned int t = MakeEventStartTick(1);
-    if (getEventEndTime() < (long long)t)
+    if ((int)getEventEndTime() < (int)t)
     {
         DNF_LOG_SCOPE_LINE(0xc3, "./log/GameServer", "End X_Mas Event!");
     }

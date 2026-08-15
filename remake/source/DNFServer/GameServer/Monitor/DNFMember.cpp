@@ -74,8 +74,7 @@ unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)&m_dbInfo; }
 
 void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
 {
-    bool invalid = (user == 0 || user->GetGameServer() == 0);
-    if (invalid == 0 && (m_flag & 4) != 0)
+    if (user != 0 && user->GetGameServer() != 0 && (m_flag & 4) != 0)
     {
         Packet_Monitor_Notice_Member_Member_Login_out pkt;
         CUser* member = m_memberManager->FindMemberUser(m_dbInfo.m_member.m_charNo);
@@ -201,7 +200,7 @@ char CMember::IsEmpty()
 void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned char count,
                                                     const hyperlink_item_info* items, CUser* user)
 {
-    if (len < 0x100 && (m_flag & 4) != 0 && IsEmpty() == 0)
+    if (len < 0x100 && (m_flag & 4) != 0 && !IsEmpty())
     {
         Packet_Monitor_Member_Chat_ToUser_Hyper_Link pkt;
         memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
@@ -242,7 +241,7 @@ void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned
 
 void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)
 {
-    if (len < 0x100 && (m_flag & 4) != 0 && IsEmpty() == 0)
+    if (len < 0x100 && (m_flag & 4) != 0 && !IsEmpty())
     {
         Packet_Monitor_Member_Chat_ToUser pkt;
         memcpy(pkt.m_charName, user->GetCharName(), 0x1d);
