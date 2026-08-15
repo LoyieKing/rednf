@@ -1562,11 +1562,9 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
     {
         try
         {
-            Packet_Monitor_Call_Member_List* req =
-                (Packet_Monitor_Call_Member_List*)pkt;
             CUserManager* userMgr = &m_pclApp->m_userManager;
             CMemberManager* memberMgr = &m_pclApp->m_memberManager;
-            CUser* user = userMgr->FindUser_CharNo(req->m_charNo);
+            CUser* user = userMgr->FindUser_CharNo(((Packet_Monitor_Call_Member_List*)pkt)->m_charNo);
             if (user != 0)
             {
                 CMember* member = memberMgr->FindMember(user->GetUniqCharNo());
