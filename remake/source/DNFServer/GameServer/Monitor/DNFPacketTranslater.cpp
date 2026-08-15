@@ -1871,7 +1871,6 @@ void CPacketTranslater::OnUserRepel(PacketHeader* pkt)
         throw CDNFException("CPacketTranslater::OnUserRepel : 0 == m_pclApp");
     }
     CUser* user;
-    unsigned int id;
     Packet_Monitor_User_Repel* pkt2 = (Packet_Monitor_User_Repel*)pkt;
     DNF_LOG_SCOPE_LINE(0x954,"./log/Web", "CPacketTranslater::OnUserRepel m_id(%s) , charNo(%d)\n",
         NumberToString(pkt2->m_idByChannel, 0), pkt2->m_charNo);
@@ -1881,8 +1880,7 @@ void CPacketTranslater::OnUserRepel(PacketHeader* pkt)
     {
         if ((user = userMgr->FindUser_CharNo(pkt2->m_charNo)) == 0) goto onend;
     }
-    id = user->GetIdByChannel();
-    pkt2->m_idByChannel = id;
+    pkt2->m_idByChannel = user->GetIdByChannel();
     user->SendToGameserver((char*)pkt2, 0x12);
 onend:
     ;
@@ -2020,7 +2018,6 @@ void CPacketTranslater::OnWebQueryUserState(PacketHeader* pkt)
 
     CUserManager* userMgr = &m_pclApp->m_userManager;
     Packet_Web_Query_User_State* q = (Packet_Web_Query_User_State*)pkt;
-    int found = 0;
     if (userMgr->FindUser(q->m_dbid) == 0)
     {
         q->m_online = 0;
@@ -4674,7 +4671,7 @@ void CPacketTranslater::OnRegisterEventItem(PacketHeader* pkt)
         {
             if ((int)rpkt->m_idx == 0 || (int)rpkt->m_cnt == 0)
             {
-                CMyFileLog log2("OnRegisterEventItem", 0x1a66);
+                CMyFileLog log2(__FUNCTION__, 0x1a66);
                 log2("./log/OnTimeEvent", "wrong item data", idx, cnt, errortype);
             }
             else if (m_pclApp != 0)
@@ -4686,7 +4683,7 @@ void CPacketTranslater::OnRegisterEventItem(PacketHeader* pkt)
         }
         else
         {
-            CMyFileLog log3("OnRegisterEventItem", 0x1a60);
+            CMyFileLog log3(__FUNCTION__, 0x1a60);
             log3("./log/OnTimeEvent", "db error not item", idx, cnt, errortype);
         }
     }
@@ -4796,7 +4793,7 @@ void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
                 reply.m_type = in->m_type;
                 reply.m_param = in->m_param;
                 reply.packetSize = 0x12;
-                target->SendToGameserver((char*)&reply, 0x12);
+                target->SendToGameserver((char*)&reply, reply.packetSize);
             }
             return;
         }
