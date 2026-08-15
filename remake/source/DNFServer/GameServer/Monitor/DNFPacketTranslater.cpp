@@ -492,7 +492,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                     if (other != 0)
                     {
                         other->SendNoticeBuddyInOut(
-                            ((CServerInterface*)other->GetGameServer())->GetChannelNo(),
+                            ((CServerInterface*)user->GetGameServer())->GetChannelNo(),
                             user->GetUniqCharNo(), user->GetCharName(),
                             (unsigned char)(user->IsBlackUser(*it) != 0), 0, 0);
                     }
@@ -1164,7 +1164,7 @@ void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x5a2,"./log/MemberModify",
             "Err Member Register Restrict : requester(%d:%d) responser(%d:%d)",
             requester->GetUniqCharNo(), requester->IsAbleToRegisterMember(),
-            target->GetUniqCharNo(), requester->IsAbleToRegisterMember());
+            target->GetUniqCharNo(), target->IsAbleToRegisterMember());
         return;
     }
     if (requester->IsBlackUser(target->GetUniqCharNo()) != 0)
@@ -1406,7 +1406,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                                         short l8 = responser->GetLevel();
                                         DNF_LOG_SCOPE_LINE(0x681,"./log/MemberModify",
                                             "CPacketTranslater::OnMemberEnterReply  :  RegisterMember return false , Caller Char id(%d), Caller Member id(%d), Caller Level(%d), Responser Level(%d)!",
-                                            requester->GetUniqCharNo(),
+                                            responser->GetUniqCharNo(),
                                             responser->GetMemberKey(), (int)l8, (int)l7);
                                     }
                                 }
@@ -2547,14 +2547,17 @@ void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
                 result.m_result = 3;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
-            if (user->DeleteToBlackList(db->m_charNo2) != 1)
+            else
             {
-                result.m_result = 2;
+                if (user->DeleteToBlackList(db->m_charNo2) != 1)
+                {
+                    result.m_result = 2;
+                    user->SendToGameserver((char*)&result, result.packetSize);
+                }
+                result.m_result = 1;
+                result.m_charNo = db->m_charNo2;
                 user->SendToGameserver((char*)&result, result.packetSize);
             }
-            result.m_result = 1;
-            result.m_charNo = db->m_charNo2;
-            user->SendToGameserver((char*)&result, result.packetSize);
         }
     }
 
