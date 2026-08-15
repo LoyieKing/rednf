@@ -53,8 +53,7 @@ void TowerOfDespairReloadAPC_Task::SendRequest_DoRandomSelectUserAPC()
     Packet_TOD_DoRandomSelect pkt;
     handler = static_cast<CApplication*>(CApplicationInstance())->Get_ServerHandler();
     first = handler->getfirstLinkedServer();
-    CMyFileLog log2(__FUNCTION__, 0x40);
-    log2("./log/GameServer", "TOD : main GameServerChannel %u\n", first);
+    DNF_LOG_SCOPE_LINE(0x40, "./log/GameServer", "TOD : main GameServerChannel %u\n", first);
     handler->SendToGameServer((unsigned char)first, &pkt);
 }
 

@@ -146,6 +146,7 @@ int CPeer::recv_packet()
 int CPeer::send_packet()
 {
     int ret = 0;
+    char pad[0x10];
     if (m_remainSendLen == 0)
         return 1;
     if ((ret = write(getHandle(), m_data183c, m_remainSendLen)) <= 0)

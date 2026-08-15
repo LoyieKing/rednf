@@ -235,12 +235,10 @@ void CPowerWarCharacInfo::GetStatueRankingUsers(std::vector<STPowerWarCharacInfo
 
 void CPowerWarCharacInfo::PrintDebugInfo()
 {
-    CMyFileLog log1(__FUNCTION__, 0xee);
-    log1("./log/PowerResult",
-         "------ POWER WAR CHARAC DEBUG INFO START --------------------------------------------------------");
-    CMyFileLog log2(__FUNCTION__, 0xef);
-    log2("./log/PowerResult",
-         "------ ALL USER RANKING -------------------------------------------------------------------------");
+    DNF_LOG_SCOPE_LINE(0xee, "./log/PowerResult",
+        "------ POWER WAR CHARAC DEBUG INFO START --------------------------------------------------------");
+    DNF_LOG_SCOPE_LINE(0xef, "./log/PowerResult",
+        "------ ALL USER RANKING -------------------------------------------------------------------------");
     std::vector<STPowerWarCharacInfo*>::iterator it = m_vec.begin();
     int rank = 1;
     for (; it != m_vec.end(); ++it)
@@ -250,9 +248,8 @@ void CPowerWarCharacInfo::PrintDebugInfo()
             info->m_field[0], info->m_field[1]);
         rank++;
     }
-    CMyFileLog log3(__FUNCTION__, 0x100);
-    log3("./log/PowerResult",
-         "------ POWER WAR CHARAC DEBUG INFO END   --------------------------------------------------------");
+    DNF_LOG_SCOPE_LINE(0x100, "./log/PowerResult",
+        "------ POWER WAR CHARAC DEBUG INFO END   --------------------------------------------------------");
 }
 
 int CPowerWarCharacInfo::IsExistCharac(unsigned int charNo)

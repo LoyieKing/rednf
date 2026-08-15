@@ -69,8 +69,7 @@ void CGMAccounts::AppendGM_Sys(unsigned int dbid, char level)
     info.m_level = (int)level;
     m_list.push_back(info);
     register char* mid = NumberToString(dbid, 0);
-    CMyFileLog log(__FUNCTION__, 0xcd);
-    log("./log/Init", "GM List Add mid:%s", mid);
+    DNF_LOG_SCOPE_LINE(0xcd, "./log/Init", "GM List Add mid:%s", mid);
 }
 
 char CGMAccounts::loadGMAccounts(const char* path) { return 1; }

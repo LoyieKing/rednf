@@ -343,8 +343,7 @@ void CGuildWar::RankProcess()
         return;
     }
     m_bRankCnt++;
-    register bool bRanked = ((unsigned char)m_bRankCnt <= 1);
-    if (bRanked)
+    while ((unsigned char)m_bRankCnt <= 1)
     {
         return;
     }

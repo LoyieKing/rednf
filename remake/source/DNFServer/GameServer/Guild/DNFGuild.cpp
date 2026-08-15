@@ -462,7 +462,7 @@ void CGuild::EnableDBSaveFlag()
 
 void CGuild::SetTodayGuildMember(STTodayGuildMember& member)
 {
-    m_board.m_today = *(const CGuildBoard::TodayMemberBlock*)&member;
+    this->m_board.m_today = *(const CGuildBoard::TodayMemberBlock*)&member;
 }
 
 CGuild::CGuild(unsigned int guildKey)

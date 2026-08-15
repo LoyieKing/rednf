@@ -573,11 +573,12 @@ bool CDBManager::OnWriteWebGuildBoard(
     Packet_DB_Load_Request_Web_Guild_Board_Write* req,
     STGuildBoardDBInfo* info)
 {
+    bool ret;
     CDBHandle* h = m_handles[5];    // web db
     h->set_query(0x4f07,
                  "seLect no, charac_no, charac_name, memo, unix_timestamp(create_time), job from guild_memo where no=%u",
                  req->m_no);
-    bool ret = h->exec(0x4f07);
+    ret = h->exec(0x4f07);
     if (!ret)
     {
         CMyFileLog log(__FUNCTION__, 0x2329);
@@ -971,6 +972,7 @@ char CDBManager::OnSavePowerWarStatueRanker(
 bool CDBManager::OnSavePowerWarPointReward(
     Packet_DB_Save_Power_War_Point_Reward* packet)
 {
+    bool ret;
     CDBHandle* h = m_handles[8];    // guild db
     unsigned char serverId = ((PowerWarPointRewardView*)packet)->m_serverId;
     int count = ((PowerWarPointRewardView*)packet)->m_count;
@@ -981,7 +983,7 @@ bool CDBManager::OnSavePowerWarPointReward(
         h->set_query(0x4eab,
                      "upDate guild_info set power_war_point=power_war_point+%d where guild_id=%d and server_id=%d and expire_flag=0",
                      p2, p1, serverId);
-        bool ret = h->exec(0x4eab);
+        ret = h->exec(0x4eab);
         if (!ret)
         {
             CMyFileLog log(__FUNCTION__, 0x192b);
@@ -4565,8 +4567,8 @@ bool CDBManager::QueryGuild(unsigned char serverGroup, unsigned int guildId,
         reply.m_result = 2;
         return 0;
     }
-    unsigned int guildRank;
     STGuildDBInfoOnly* info = &reply.m_guildInfo;
+    unsigned int guildRank;
 #define QG_FAIL() \
     do { \
         reply.m_result = 3; \

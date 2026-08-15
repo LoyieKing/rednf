@@ -320,12 +320,10 @@ int CPowerWarGuildInfo::GetPowerWarPointDBSaveCount()
 
 void CPowerWarGuildInfo::PrintDebugInfo()
 {
-    CMyFileLog log1(__FUNCTION__, 0x187);
-    log1("./log/Power",
-         "------ POWER WAR GUILD DEBUG INFO START ----------------------------------------------------------");
-    CMyFileLog log2(__FUNCTION__, 0x188);
-    log2("./log/Power",
-         "------ ALL GUILD RANKING -------------------------------------------------------------------------");
+    DNF_LOG_SCOPE_LINE(0x187, "./log/Power",
+        "------ POWER WAR GUILD DEBUG INFO START ----------------------------------------------------------");
+    DNF_LOG_SCOPE_LINE(0x188, "./log/Power",
+        "------ ALL GUILD RANKING -------------------------------------------------------------------------");
     std::vector<STPowerWarGuildInfo*>::iterator it = m_vec.begin();
     int rank = 1;
     for (; it != m_vec.end(); ++it)
@@ -336,9 +334,8 @@ void CPowerWarGuildInfo::PrintDebugInfo()
             info->m_field[3], info->m_field[2]);
         rank++;
     }
-    CMyFileLog log3(__FUNCTION__, 0x199);
-    log3("./log/Power",
-         "------ POWER WAR GUILD DEBUG INFO END   ----------------------------------------------------------");
+    DNF_LOG_SCOPE_LINE(0x199, "./log/Power",
+        "------ POWER WAR GUILD DEBUG INFO END   ----------------------------------------------------------");
 }
 
 STPowerWarGuildInfo::STPowerWarGuildInfo()

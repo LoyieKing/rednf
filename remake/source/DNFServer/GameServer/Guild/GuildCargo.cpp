@@ -280,7 +280,7 @@ int CGuildCargo::DeleteItem(DnfItemInfo& info, int slot, int count, unsigned cha
     info = m_info.m_items[slot];
     if (a == 1)
     {
-        info.m_addInfo = b;
+        info.m_addInfo = (int)b;
         int oldCount = m_info.m_items[slot].m_addInfo;
         int subCount = info.m_addInfo;
         if (oldCount < subCount)
