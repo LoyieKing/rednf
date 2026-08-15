@@ -366,7 +366,7 @@ STUserTingTimeCheckKey::STUserTingTimeCheckKey()
 {
     Reset();
 }
-STUserTingTimeCheckKey::~STUserTingTimeCheckKey()
+STUserTingTimeCheckKey::~STUserTingTimeCheckKey() throw()
 {
 }
 void STUserTingTimeCheckKey::Reset()

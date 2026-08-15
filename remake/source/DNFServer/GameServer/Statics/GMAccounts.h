@@ -191,7 +191,7 @@ struct STAssertManagerKey
 struct STUserTingTimeCheckKey
 {
     STUserTingTimeCheckKey();
-    ~STUserTingTimeCheckKey();
+    ~STUserTingTimeCheckKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     void Reset();
     bool operator<(const STUserTingTimeCheckKey& other) const;
     int m_minute;           // +0（user_ting_timecheck.minute = 秒/0x3c）

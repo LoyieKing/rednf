@@ -761,19 +761,13 @@ void StatisticManager::WriteUserTingTImeCheckStatistic(
         int* p = &it->second;
         *p = *p + 1;
     }
-    if ((int)key.m_minute < 0xb && 0 < (int)key.m_minute)
+    if ((int)key.m_minute < 0xb && 0 < (int)key.m_minute && !(1000 < m_tingUser.size()))
     {
-        if (1000 < m_tingUser.size())
+        std::map<unsigned int, int>::iterator it2 =
+            m_tingUser.find(*(unsigned int*)((char*)pkt + 0xe));
+        if (m_tingUser.empty() || it2 == m_tingUser.end())
         {
-        }
-        else
-        {
-            std::map<unsigned int, int>::iterator it2 =
-                m_tingUser.find(*(unsigned int*)((char*)pkt + 0xe));
-            if (m_tingUser.empty() || it2 == m_tingUser.end())
-            {
-                m_tingUser.insert(std::make_pair(*(unsigned int*)((char*)pkt + 0xe), key.m_minute));
-            }
+            m_tingUser.insert(std::make_pair(*(unsigned int*)((char*)pkt + 0xe), key.m_minute));
         }
     }
 }
