@@ -859,7 +859,7 @@ bool CDBManager::SaveGuildWarPointList(int serverId,
                                        unsigned int* guildIds,
                                        unsigned int* points)
 {
-    if (guildIds == 0 && points == 0)
+    if (guildIds == 0 || points == 0)
         return 0;
     CDBHandle* h = m_handles[8];    // guild db
     for (int i = 0; i <= 9; i++)

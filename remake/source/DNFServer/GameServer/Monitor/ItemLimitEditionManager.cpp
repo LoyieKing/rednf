@@ -152,7 +152,7 @@ void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
         for (std::map<unsigned int, CItemLimitEdition*>::const_iterator it = m_items.begin();
              it != m_items.end(); ++it)
         {
-            if (it->second->getSellEndTime() < (unsigned int)now)
+            if ((int)it->second->getSellEndTime() < (int)now)
             {
                 expired[count] = it->second->getIPGNO();
                 count++;

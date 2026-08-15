@@ -96,12 +96,12 @@ void CTcpAcceptThread::dispatch(void* param)
     }
     catch (CDNFException& e)
     {
-        printf("CTcpAcceptThread::dispatch() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd : %s\n", e.what());
-        throw CDNFException("CTcpAcceptThread::dispatch() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd!");
+        printf("CTcpNetworkThread::dispatch() Except Break : %s\n", e.what());
+        throw CDNFException("CTcpNetworkThread::dispatch() Recv  Socket Exception Break!");
     }
     catch (...)
     {
-        puts("CTcpAcceptThread::dispatch() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd");
-        throw CDNFException("CTcpAcceptThread::dispatch() \xbf\xb9\xbf\xdc \xb9\xdf\xbb\xfd!");
+        puts("CTcpNetworkThread::dispatch() Except Break");
+        throw CDNFException("CTcpNetworkThread::dispatch() Recv  Socket Exception Break!");
     }
 }

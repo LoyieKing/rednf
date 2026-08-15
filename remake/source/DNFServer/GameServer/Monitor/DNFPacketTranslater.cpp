@@ -808,7 +808,7 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
                 if (userMgr->InsertUser_CharNo(info->m_charNo, user) != 1)
                 {
                     DNF_LOG_SCOPE_LINE(0x401,"./log/Except",
-                        "uDBID(%d) uCharName(%s) is already exist at m_mapCharNoUsers!",
+                        "Insert Fail!\tChar ID : %d\t\xc4\xb3\xb8\xaf\xc5\xcd \xc0\xcc\xb8\xa7:%s\n",
                         info->m_charNo, info->m_name);
                 }
                 ((CMemoryCashManager*)m_pclApp->Get_MemoryCashManager())
@@ -1072,12 +1072,12 @@ void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
     catch (CDNFException& e)
     {
         printf("CPacketTranslater::OnCoinUpdate() Exception Break : %s\n", e.what());
-        DNF_LOG_SCOPE_LINE(0x4dd, "./log/Except", "CPacketTranslater::OnCoinUpdate() Exception Break : %s\n", e.what());
+        DNF_LOG_SCOPE_LINE(0x4c3, "./log/Except", "CPacketTranslater::OnCoinUpdate() Exception Break : %s\n", e.what());
     }
     catch (...)
     {
         puts("CPacketTranslater::OnCoinUpdate() Exception Break");
-        DNF_LOG_SCOPE_LINE(0x4e3, "./log/Except", "CPacketTranslater::OnCoinUpdate() Exception Break\n");
+        DNF_LOG_SCOPE_LINE(0x4c9, "./log/Except", "CPacketTranslater::OnCoinUpdate() Exception Break\n");
     }
 }
 
@@ -1164,7 +1164,7 @@ void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x5a2,"./log/MemberModify",
             "Err Member Register Restrict : requester(%d:%d) responser(%d:%d)",
             requester->GetUniqCharNo(), requester->IsAbleToRegisterMember(),
-            target->GetUniqCharNo(), target->IsAbleToRegisterMember());
+            target->GetUniqCharNo(), requester->IsAbleToRegisterMember());
         return;
     }
     if (requester->IsBlackUser(target->GetUniqCharNo()) != 0)
@@ -1406,7 +1406,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                                         short l8 = responser->GetLevel();
                                         DNF_LOG_SCOPE_LINE(0x681,"./log/MemberModify",
                                             "CPacketTranslater::OnMemberEnterReply  :  RegisterMember return false , Caller Char id(%d), Caller Member id(%d), Caller Level(%d), Responser Level(%d)!",
-                                            responser->GetUniqCharNo(),
+                                            requester->GetUniqCharNo(),
                                             responser->GetMemberKey(), (int)l8, (int)l7);
                                     }
                                 }
@@ -1527,10 +1527,10 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
                         Packet_Monitor_Member_Secede_To_Seceder spkt;
                         spkt.m_idByChannel = target->GetIdByChannel();
                         spkt.m_uniqCharNo = targetKey;
-                        spkt.m_type = 2;
+                        spkt.m_type = 1;
                         if (result == 1)
                         {
-                            spkt.m_type = 1;
+                            spkt.m_type = 2;
                         }
                         memcpy(spkt.m_name, seceder->GetCharName(), 0x1d);
                         target->SendTcpGameserver(&spkt);
@@ -3648,10 +3648,10 @@ void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
                 reply.m_charNo = cnt->m_charNo;
                 reply.m_fieldE = cnt->m_fieldE;
                 reply.m_field12 = cnt->m_field12;
-                unsigned char count = 0xff;
-                user->GetChannelUserCount((STPvPChannelInfo*)reply.m_channels, count);
+                reply.m_count = 0xff;
+                user->GetChannelUserCount((STPvPChannelInfo*)reply.m_channels, reply.m_count);
                 reply.packetSize =
-                    (unsigned short)((unsigned int)count * 0x10 + 0x18);
+                    (unsigned short)((unsigned int)reply.m_count * 0x10 + 0x18);
                 user->SendTcpGameserver(&reply);
             }
         }
@@ -4410,7 +4410,8 @@ void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
             {
                 tcp->SetChannelNo(regist->m_channel);
                 CGameServer* gs =
-                    m_pclApp->Get_ServerHandler()->GetGameServer(sock);
+                    m_pclApp->Get_ServerHandler()->GetGameServer(
+                        (unsigned int)(unsigned char)info->m_group);
                 gs->SetSocket(regist->m_connNo);
                 out[0xb] = 0;
                 CMyFileLog log2(__FUNCTION__, 0x1930);
