@@ -640,11 +640,9 @@ void CGuild::DBGuildSaveProcess(CServerHandler* handler)
     {
         if (m_members.empty())
         {
-            const char* gname = GetGuildName();
-            unsigned int key = m_guildKey;
             CMyFileLog log(__FUNCTION__, 0x171);
             log("./log/Except", "[SAVE_INTERVAL]  Guild Key : %d\tGuild Name : %s\t\n",
-                key, gname);
+                m_guildKey, GetGuildName());
             m_saveIntervalCnt = 0;
         }
         else
@@ -659,10 +657,9 @@ void CGuild::DBGuildSaveProcess(CServerHandler* handler)
             }
             if (user->GetGameServer() != 0)
             {
-                unsigned int exp = GetGuildExp();
-                unsigned int key = m_guildKey;
                 CMyFileLog log(__FUNCTION__, 0x183);
-                log("./log/Guild", "GUILD EXP   Guild Key : %d, Guild Exp : %d", key, exp);
+                log("./log/Guild", "GUILD EXP   Guild Key : %d, Guild Exp : %d",
+                    m_guildKey, GetGuildExp());
                 SaveGuild((unsigned char)user->GetGameServer()->GetGroupNo(), handler, 0);
                 SendGuildInfoToMembers(false);
                 DBSaveGuildMembers((unsigned char)user->GetGameServer()->GetGroupNo(), handler, 2);
