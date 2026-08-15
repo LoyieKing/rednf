@@ -234,7 +234,7 @@ STPartyJobStatisticKey::STPartyJobStatisticKey()
     m_characJob = (STPartyJobKeyField10)0;
     m_characGrow = 0;
 }
-STPartyJobStatisticKey::~STPartyJobStatisticKey()
+STPartyJobStatisticKey::~STPartyJobStatisticKey() throw()
 {
 }
 STPartyCharacKey::STPartyCharacKey()

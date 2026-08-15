@@ -52,7 +52,7 @@ struct PartyStatistic
 struct STPartyJobStatisticKey
 {
     STPartyJobStatisticKey();
-    ~STPartyJobStatisticKey();
+    ~STPartyJobStatisticKey() throw();  // 与 ORIG 的 EH 区块布局一致（dtor 视为 nothrow）
     bool operator<(const STPartyJobStatisticKey& other) const;
     unsigned short m_channelNo;        // +0（log_dungeon_party_job.channel_no）
     int m_dungeonIndex;                // +4（log_dungeon_party_job.dungeon_index）
