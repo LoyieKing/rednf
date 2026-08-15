@@ -81,8 +81,9 @@ void CIPCounter::setMinIPCount(unsigned char count)
 {
     if (count > 200)
     {
-        m_option = (char)200;
+        count = 200;
     }
+    m_option = (char)count;
 }
 
 void CIPCounter::setOption(unsigned char type, unsigned char opt)
