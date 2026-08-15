@@ -1019,14 +1019,14 @@ bool CDBManager::InsertMail(unsigned int characNo, char* subject,
     if (!InsertLetter(characNo, 0, subject, content, letterNo, occTime))
     {
         CMyFileLog log(__FUNCTION__, 0x1d9e);
-        log("./log/Postal", "InsertLetter Err, %s(%s)", content, subject);
+        log("./log/Postal", "InsertLetter Err, %s(%s)", content, (char*)hE);
         return 0;
     }
     if (!InsertPostal(characNo, 0, 0, hE, h16, h12, 0, subject, occTime,
                       letterNo))
     {
         CMyFileLog log(__FUNCTION__, 0x1da4);
-        log("./log/Postal", "InsertPostal Err, %s(%s)", content, subject);
+        log("./log/Postal", "InsertPostal Err, %s(%s)", content, (char*)hE);
         return 0;
     }
     return 1;
