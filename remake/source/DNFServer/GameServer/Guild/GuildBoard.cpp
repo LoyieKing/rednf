@@ -176,6 +176,7 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     }
     int total = (int)m_board.size();
     Packet_Guild_Reply_Guild_Board reply;
+    Packet_Guild_Reply_Guild_Board replyR;
     if (total == 0)
     {
         reply.m_c = (unsigned short)c;
@@ -208,10 +209,10 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         for (int i = 0; i < 10; i++)
         {
             reply.m_boards[i].m_boardId = it->first;
-            memcpy(&reply.m_boards[i], &it->second, 0x78);
-            reply.m_boards[i].m_guildKey = it->second.m_guildKey;
-            reply.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
-            memcpy(&reply.m_boards[i].m_char, &it->second.m_char, 0x21);
+            memcpy(&replyR.m_boards[i], &it->second, 0x78);
+            replyR.m_boards[i].m_guildKey = it->second.m_guildKey;
+            replyR.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
+            memcpy(&replyR.m_boards[i].m_char, &it->second.m_char, 0x21);
             ++it;
         }
         user->SendTcpGameserver(&reply);
@@ -220,25 +221,25 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
     }
     if (remainder != 0)
     {
-        reply.m_c = (unsigned short)c;
-        reply.m_f = user->GetIdByChannel();
-        reply.m_13 = user->GetUniqCharNo();
-        reply.m_e = (unsigned char)total;
-        reply.m_17 = (unsigned char)remainder;
+        replyR.m_c = (unsigned short)c;
+        replyR.m_f = user->GetIdByChannel();
+        replyR.m_13 = user->GetUniqCharNo();
+        replyR.m_e = (unsigned char)total;
+        replyR.m_17 = (unsigned char)remainder;
         for (int i = 0; i < remainder; i++)
         {
-            reply.m_boards[i].m_boardId = it->first;
-            memcpy(&reply.m_boards[i], &it->second, 0x78);
-            reply.m_boards[i].m_guildKey = it->second.m_guildKey;
-            reply.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
-            memcpy(&reply.m_boards[i].m_char, &it->second.m_char, 0x21);
+            replyR.m_boards[i].m_boardId = it->first;
+            memcpy(&replyR.m_boards[i], &it->second, 0x78);
+            replyR.m_boards[i].m_guildKey = it->second.m_guildKey;
+            replyR.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
+            memcpy(&replyR.m_boards[i].m_char, &it->second.m_char, 0x21);
             ++it;
             if (it == endit)
             {
                 break;
             }
         }
-        user->SendTcpGameserver(&reply);
+        user->SendTcpGameserver(&replyR);
         DNF_LOG_SCOPE_AT(__FUNCTION__, 0xcb,"./log/GuildBoard", "SEND SUCCESS - CODE TYPE:%u, GUILD:%u, CHARAC:%u, COUNT:%u",
             c, a, b, total, remainder);
     }
