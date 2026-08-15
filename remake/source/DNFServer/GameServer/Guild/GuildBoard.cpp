@@ -209,10 +209,10 @@ void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned in
         for (int i = 0; i < 10; i++)
         {
             reply.m_boards[i].m_boardId = it->first;
-            memcpy(&replyR.m_boards[i], &it->second, 0x78);
-            replyR.m_boards[i].m_guildKey = it->second.m_guildKey;
-            replyR.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
-            memcpy(&replyR.m_boards[i].m_char, &it->second.m_char, 0x21);
+            memcpy(&reply.m_boards[i], &it->second, 0x78);
+            reply.m_boards[i].m_guildKey = it->second.m_guildKey;
+            reply.m_boards[i].m_writerCharNo = it->second.m_writerCharNo;
+            memcpy(&reply.m_boards[i].m_char, &it->second.m_char, 0x21);
             ++it;
         }
         user->SendTcpGameserver(&reply);

@@ -1175,11 +1175,7 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
         if (reply.m_a == 0)
         {
             Packet_Monitor_DB_Change_Unconnected_GuildMember_Grade dbPkt;
-            unsigned char group = 0;
-            if (caller->GetGameServer() != 0)
-            {
-                group = caller->GetGameServer()->GetGroupNo();
-            }
+            unsigned char group = caller->GetGameServer()->GetGroupNo();
             dbPkt.ma = group;
             dbPkt.mb = guildKey;
             dbPkt.m32 = pb->m_grade;

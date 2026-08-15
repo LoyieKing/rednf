@@ -280,7 +280,7 @@ int CGuildWar::SameRankWork()
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator it2;
         std::vector<std::pair<unsigned int, STGuildWarInfo*> >::iterator maxItTmp;
         it2 = m_vtGuildWarInfo.begin();
-        memcpy(&maxIt, &it2, sizeof(maxIt));
+        maxIt = it2;
         if ((*maxIt).second == 0)
         {
             return 0;

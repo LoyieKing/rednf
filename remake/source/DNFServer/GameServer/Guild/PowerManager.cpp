@@ -347,8 +347,8 @@ void CPowerManager::SaveDBPowerWarRank()
             memset(guildPkt.m_ranks, 0, 800);
             CPowerWarGuildInfo* guildInfo =
                 m_power[side].GetPowerWarGuildInfo();
-            int count = 0;
-            guildInfo->GetAllGuildRankingInfo(count, (STGuildRank*)((char*)&guildPkt + 0x10));
+            guildInfo->GetAllGuildRankingInfo(
+                *(int*)&guildPkt.m_c, (STGuildRank*)((char*)&guildPkt + 0x10));
             app->Get_ServerHandler()->SendToDB(&guildPkt);
             {
                 DNF_LOG_SCOPE_LINE(0x248,"./log/PowerResult",
@@ -369,7 +369,7 @@ void CPowerManager::SaveDBPowerWarRank()
         {
             if (i < (int)users.size())
             {
-                unsigned int charNo = *(unsigned int*)users[i]->m_data;
+                unsigned int charNo = *(unsigned int*)users.at(i)->m_data;
                 statuePkt.m_rankers[i] = charNo;
                 DNF_LOG_SCOPE_LINE(0x273, "./log/PowerResult", "Last Rank:%d, Charac No:%d", i, charNo);
             }
