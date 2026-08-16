@@ -14,7 +14,7 @@ public:
     {
 
     };
-    char m_fieldA;   // +0xa（ORIG 还原：AddServerMatchData 直接成员位移寻址）
+    char m_serverGroup;   // +0xa（ORIG 还原：AddServerMatchData 直接成员位移寻址）
     char m_fieldB;   // +0xb
     char m_fieldC;   // +0xc
 } __attribute__((packed));

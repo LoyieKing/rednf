@@ -14,7 +14,7 @@ public:
     {
 
     };
-    unsigned int m_field;  // +0xa
+    unsigned int m_channel;  // +0xa
 } __attribute__((packed));
 
 

@@ -14,7 +14,7 @@ public:
     unsigned char m_nameLen;    // +0xe
     char m_name[0x1e];          // +0xf
     unsigned short m_field2e;   // +0x2d
-    unsigned int m_field30;     // +0x2f
+    unsigned int m_accId;     // +0x2f
     Packet_Monitor_Find_Factory_Hub_User() : PacketHeader(0x100e, 0x33),
         m_charNo(0), m_nameLen(0), m_field2e(0), m_field30(0)
     {

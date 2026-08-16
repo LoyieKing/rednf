@@ -20,7 +20,7 @@ public:
     };
     void GetUserList(std::vector<unsigned int>& list);
     unsigned char m_fieldA;        // +0xa
-    unsigned int m_fieldB;         // +0xb
+    unsigned int m_characNo;         // +0xb
     unsigned int m_fieldF;         // +0xf
     unsigned int m_field13;        // +0x13
     unsigned int m_field17;        // +0x17

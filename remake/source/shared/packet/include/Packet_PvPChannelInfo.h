@@ -10,7 +10,7 @@
 class Packet_PvPChannelInfo : public PacketHeader {
 public:
     unsigned int m_charNo;          // +0xa  FindUser_CharNo
-    unsigned int m_fieldE;          // +0xe
+    unsigned int m_uid;          // +0xe
     unsigned int m_field12;         // +0x12
     unsigned char m_channelCount;   // +0x16  inbound request
     unsigned char m_count;          // +0x17  reply

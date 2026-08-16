@@ -29,7 +29,7 @@ public:
     unsigned int m_memberKey;       // +0x1b
     char m_name[0x1e];              // +0x1f
     union {
-        char m_pad3d;                   // +0x3d
+        char m_channel;                   // +0x3d
         unsigned char m_war;            // +0x3d  Guild OnCharLogin
     };
     char m_returnUser;              // +0x3e
