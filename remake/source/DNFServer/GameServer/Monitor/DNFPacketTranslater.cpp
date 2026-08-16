@@ -2711,36 +2711,31 @@ void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
 {
     try
     {
-        CUserManager* userMgr = &m_pclApp->m_userManager;
-        CMemberManager* memberMgr = &m_pclApp->m_memberManager;
-        Packet_Monitor_Notice_Charac_Live_On_Ten_Min* live =
-            (Packet_Monitor_Notice_Charac_Live_On_Ten_Min*)pkt;
-        CUser* user = userMgr->FindUser_CharNo(live->m_charNo);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(((Packet_Monitor_Notice_Charac_Live_On_Ten_Min*)pkt)->m_charNo);
         if (user != 0)
         {
             CMember* member = user->GetMember();
-            CServerHandler* handler = m_pclApp->m_serverHandler2;
-            if (member != 0 && handler != 0)
+            if (member != 0 && m_pclApp->m_serverHandler2 != 0)
             {
-                if (memberMgr->FindMemberUser(
+                if ((&m_pclApp->m_memberManager)->FindMemberUser(
                         (unsigned int)member->GetUpperMember_CharId()) != 0)
                 {
                     unsigned int maxExp =
-                        memberMgr->GetMemberExpTable()->GetMaxMemberExp();
+                        (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
                     unsigned int newExp =
                         (unsigned int)member->IncConnUpperMemberExp(maxExp);
                     if (newExp != 0)
                     {
                         unsigned int upperCharId =
                             (unsigned int)member->GetUpperMember_CharId();
-                        CUser* upperUser = userMgr->FindUser_CharNo(upperCharId);
+                        CUser* upperUser = (&m_pclApp->m_userManager)->FindUser_CharNo(upperCharId);
                         if (upperUser != 0)
                         {
                             CMember* upperMember = upperUser->GetMember();
                             if (upperMember != 0)
                             {
                                 unsigned int max2 =
-                                    memberMgr->GetMemberExpTable()->GetMaxMemberExp();
+                                    (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
                                 unsigned int memberKey =
                                     (unsigned int)member->GetMemberKey();
                                 upperMember->IncConnLowerMemberExp(memberKey, max2);
@@ -2749,11 +2744,11 @@ void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
                         unsigned int upperId =
                             (unsigned int)member->GetUpperMember_CharId();
                         unsigned int key = (unsigned int)member->GetMemberKey();
-                        memberMgr->SaveMemberExp(handler, key, upperId, newExp);
-                        if (memberMgr->IsMemberExpLevelUp(newExp))
+                        (&m_pclApp->m_memberManager)->SaveMemberExp(m_pclApp->m_serverHandler2, key, upperId, newExp);
+                        if ((&m_pclApp->m_memberManager)->IsMemberExpLevelUp(newExp))
                         {
                             unsigned int u = (unsigned int)member->GetUpperMember_CharId();
-                            memberMgr->NoticeLevelUpToLowers(u, newExp);
+                            (&m_pclApp->m_memberManager)->NoticeLevelUpToLowers(u, newExp);
                         }
                     }
                 }
@@ -2763,29 +2758,29 @@ void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
                 while (lowerCount != 0)
                 {
                     lowerCount--;
-                    CMember* lowerMember = memberMgr->FindMember(*proxy);
+                    CMember* lowerMember = (&m_pclApp->m_memberManager)->FindMember(*proxy);
                     if (lowerMember != 0)
                     {
                         unsigned int maxE =
-                            memberMgr->GetMemberExpTable()->GetMaxMemberExp();
+                            (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
                         unsigned int lowerNew =
                             (unsigned int)lowerMember->IncConnUpperMemberExp(maxE);
                         if (lowerNew != 0)
                         {
                             unsigned int maxE2 =
-                                memberMgr->GetMemberExpTable()->GetMaxMemberExp();
+                                (&m_pclApp->m_memberManager)->GetMemberExpTable()->GetMaxMemberExp();
                             member->IncConnLowerMemberExp(idx, *proxy, maxE2);
                             unsigned int lowerUpperId =
                                 (unsigned int)lowerMember->GetUpperMember_CharId();
                             unsigned int lowerKey =
                                 (unsigned int)lowerMember->GetMemberKey();
-                            memberMgr->SaveMemberExp(handler, lowerKey, lowerUpperId,
+                            (&m_pclApp->m_memberManager)->SaveMemberExp(m_pclApp->m_serverHandler2, lowerKey, lowerUpperId,
                                                      lowerNew);
-                            if (memberMgr->IsMemberExpLevelUp(lowerNew))
+                            if ((&m_pclApp->m_memberManager)->IsMemberExpLevelUp(lowerNew))
                             {
                                 unsigned int lu =
                                     (unsigned int)lowerMember->GetUpperMember_CharId();
-                                memberMgr->NoticeLevelUpToLowers(lu, lowerNew);
+                                (&m_pclApp->m_memberManager)->NoticeLevelUpToLowers(lu, lowerNew);
                             }
                         }
                     }
