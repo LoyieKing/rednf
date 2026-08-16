@@ -149,17 +149,8 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
 
 void CServerHandler::Process()
 {
-    bool doHb;
-    int old;
-    if (m_managerServer == 0 || (old = m_heartbeat, m_heartbeat = old + 1, old < 4))
-    {
-        doHb = false;
-    }
-    else
-    {
-        doHb = true;
-    }
-    if (doHb)
+    if (m_managerServer != 0 &&
+        (m_heartbeat = m_heartbeat + 1, !(m_heartbeat - 1 < 4)))
     {
         m_managerServer->SendHeartBeat(GetServerGroupNo() & 0xff);
         m_heartbeat = 0;
@@ -177,16 +168,7 @@ void CServerHandler::Process()
             gs->OnDisconnect();
         }
     }
-    bool dbOk;
     if (m_dbServer == 0 || !m_dbServer->IsValidServer())
-    {
-        dbOk = true;
-    }
-    else
-    {
-        dbOk = false;
-    }
-    if (dbOk)
     {
         return;
     }
@@ -197,16 +179,7 @@ void CServerHandler::Process()
     }
     if (!m_tcpDbServer.IsValidServer())
     {
-        bool canConnect;
         if (*m_tcpDbServer.GetIP() != '\0' && m_tcpDbServer.GetPort() != 0)
-        {
-            canConnect = true;
-        }
-        else
-        {
-            canConnect = false;
-        }
-        if (canConnect)
         {
             m_app->Get_TcpNetSystem()->OpenTcpService(
                 m_tcpDbServer.GetSockRef(), m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
@@ -215,10 +188,8 @@ void CServerHandler::Process()
                 (unsigned int)m_tcpDbServer.GetPort());
         }
     }
-    int hbOld = m_hbCnt;
-    bool hb = hbOld > 3;
-    m_hbCnt = hbOld + 1;
-    if (hb)
+    m_hbCnt = m_hbCnt + 1;
+    if (m_hbCnt - 1 > 3)
     {
         m_tcpDbServer.SendHeartbeat();
         m_hbCnt = 0;
