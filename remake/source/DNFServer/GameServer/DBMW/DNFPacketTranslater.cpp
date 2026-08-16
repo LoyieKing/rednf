@@ -796,11 +796,17 @@ void CPacketTranslater::OnRequestBlackListOnLogin(PacketHeader* header)
             return;
         }
         if (pkt->m_serverType == 0xc9)
-            m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
+        {
+            CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+            ms->SendToServer(
                 (char*)&reply, reply.packetSize);
+        }
         else if (pkt->m_serverType == 0xcb)
-            m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
+        {
+            CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+            gs->SendToServer(
                 (char*)&reply, reply.packetSize);
+        }
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnRequestBlackListOnLogin() Exception Break",
@@ -1024,6 +1030,10 @@ void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* header)
                 pkt, &reply) == 0)
             return;
         CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+        unsigned int size = reply.packetSize;
+        unsigned int len = 0x212;
+        (void)size;
+        (void)len;
         ms->SendToServer((char*)&reply, 0x212);
     }
     DNF_CATCH_LOG("./log/Except",
@@ -1164,7 +1174,8 @@ void CPacketTranslater::OnRequestGuildCreate(PacketHeader* header)
             *(unsigned int*)((char*)&reply + 0xe),
             *(unsigned int*)((char*)&reply + 0x12));
         memcpy((char*)&reply + 0x16, pkt->m_guildName, 0x16);
-        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
+        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+        gs->SendToServer(
             (char*)&reply, reply.packetSize);
         DNF_LOG_SCOPE_LINE(0x65f,
             "./log/GuildModify",
@@ -1331,6 +1342,8 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* header)
         if (tcp)
         {
             char* buf = (char*)tcp->makePacketHeader(0x27fb, 0x1a);
+            char* sendBuf = buf;
+            (void)sendBuf;
             *(int*)(buf + 0xa) = pkt->m_eventType;
             *(int*)(buf + 0xe) = pkt->m_eventFlag;
             *(int*)(buf + 0x12) = pkt->m_serverId;
@@ -1339,8 +1352,8 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* header)
         }
         else
         {
-            m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
-                (char*)pkt, 0x1a);
+            CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+            ms->SendToServer((char*)pkt, 0x1a);
         }
     }
     DNF_CATCH_LOG2("./log/AradOnly",
@@ -1373,6 +1386,8 @@ void CPacketTranslater::onEndGameEventFromServer(PacketHeader* header)
         if (tcp)
         {
             char* buf = (char*)tcp->makePacketHeader(0x27fc, 0x16);
+            char* sendBuf = buf;
+            (void)sendBuf;
             *(int*)(buf + 0xa) = pkt->m_eventType;
             *(int*)(buf + 0x12) = pkt->m_endTime;
             *(int*)(buf + 0xe) = pkt->m_serverId;
@@ -1380,8 +1395,8 @@ void CPacketTranslater::onEndGameEventFromServer(PacketHeader* header)
         }
         else
         {
-            m_pclApp->m_serverHandler->GetMonitorServer()->SendToServer(
-                (char*)pkt, 0x16);
+            CMonitorServer* ms = m_pclApp->m_serverHandler->GetMonitorServer();
+            ms->SendToServer((char*)pkt, 0x16);
         }
     }
     DNF_CATCH_LOG("./log/AradOnly",

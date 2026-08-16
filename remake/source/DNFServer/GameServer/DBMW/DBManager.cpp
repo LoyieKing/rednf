@@ -7082,6 +7082,7 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
         }
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         unsigned int result = 0;
+        unsigned int grade = pkt.m_grade;
         if (!m_pclApp->m_dbManager.QueryGuildMemberGradeByName(
                 *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
                 h + 0x14, pkt.m_grade,
@@ -7091,35 +7092,35 @@ void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (pkt.m_grade == 1)
+        if (grade == 1)
         {
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (pkt.m_grade == 2 && *(unsigned char*)(h + 0x32) == 2 &&
+        if ((grade == 2 || pkt.m_newGrade == 2) &&
             *(unsigned char*)(h + 0x13) != 1)
         {
             pkt.m_result = 0xfe;
             gs->SendToServer((char*)&pkt, pkt.packetSize);
             return;
         }
-        if (*(unsigned char*)(h + 0x32) == pkt.m_grade)
+        if (pkt.m_newGrade == grade)
         {
-            if (!m_pclApp->m_dbManager.ChangeGuildMemberGrade(
-                    *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
-                    *(unsigned char*)(h + 0x32), h + 0x14))
-            {
-                pkt.m_result = 0xff;
-                return;
-            }
             gs->SendToServer((char*)&pkt, pkt.packetSize);
+            return;
         }
-        CMyFileLog log(__FUNCTION__, 0x495);
-        log("./log/GuildModify",
-            "::OnChangeUnconnectedGuildMemberGrade GRADE_CHANGE Guild(%d) UnConnected Name(%s) Grade(%d) Prev(%d)",
-            *(unsigned int*)(h + 0xb), h + 0x14,
-            *(unsigned char*)(h + 0x32),
-            pkt.m_grade);
+        if (m_pclApp->m_dbManager.ChangeGuildMemberGrade(
+                *(unsigned char*)(h + 0xa), *(unsigned int*)(h + 0xb),
+                *(unsigned char*)(h + 0x32), h + 0x14))
+        {
+            gs->SendToServer((char*)&pkt, pkt.packetSize);
+            CMyFileLog log(__FUNCTION__, 0x495);
+            log("./log/GuildModify",
+                "::OnChangeUnconnectedGuildMemberGrade GRADE_CHANGE Guild(%d) UnConnected Name(%s) Grade(%d) Prev(%d)",
+                *(unsigned int*)(h + 0xb), h + 0x14,
+                *(unsigned char*)(h + 0x32),
+                grade);
+        }
     }
     DNF_CATCH_LOG("./log/Except.log",
                   "CPacketTranslater::OnChangeUnconnectedGuildMemberGrade() Exception Break",
