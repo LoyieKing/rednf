@@ -567,6 +567,8 @@ void CVillageAttackedManager::SendCharacRank()
         return;
     }
     {
+        Packet_DBMW_Query_Msg pkt;
+        char* sql = pkt.m_sql;
         std::priority_queue<stUserHuntingPoint> pq;
         for (std::map<unsigned int, stHuntingPoint>::iterator it = m_huntingPoints.begin();
              it != m_huntingPoints.end(); ++it)
@@ -576,7 +578,6 @@ void CVillageAttackedManager::SendCharacRank()
             p.m_characNo = it->first;
             pq.push(p);
         }
-        char sql[0x1001];
         std::string query;
         serverGroup = m_app->Get_ServerGroup();
         unsigned int now = GetNowTime();
@@ -613,7 +614,6 @@ void CVillageAttackedManager::SendCharacRank()
                 count++;
             }
         }
-        Packet_DBMW_Query_Msg pkt;
         pkt.m_handleIdx = 6;
         pkt.m_queryId = 0x4ee4;
         sprintf(pkt.m_sql,
