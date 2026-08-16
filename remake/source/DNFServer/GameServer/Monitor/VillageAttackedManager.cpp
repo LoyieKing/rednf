@@ -177,19 +177,16 @@ void CVillageAttackedManager::InsertTimer(int startTime, int endTime)
 {
     m_startTime = startTime;
     m_endTime = endTime;
-    CVillageAttackedCountdownFirst* t1 =
-        new CVillageAttackedCountdownFirst(startTime - COUNTDOWN_FIRST_TIME, 0, this);
-    m_app->GetTaskScheduler()->AddTask(t1);
-    CVillageAttackedCountdownSecond* t2 =
-        new CVillageAttackedCountdownSecond(startTime - COUNTDOWN_SECOND_TIME, 0, this);
-    m_app->GetTaskScheduler()->AddTask(t2);
-    CVillageAttackedCountdownThird* t3 =
-        new CVillageAttackedCountdownThird(startTime - COUNTDOWN_THIRD_TIME, 0, this);
-    m_app->GetTaskScheduler()->AddTask(t3);
-    CVillageAttackedStart* t4 = new CVillageAttackedStart(startTime, 0, this);
-    m_app->GetTaskScheduler()->AddTask(t4);
-    CVillageAttackedEnd* t5 = new CVillageAttackedEnd(endTime, 0, this);
-    m_app->GetTaskScheduler()->AddTask(t5);
+    m_app->GetTaskScheduler()->AddTask(
+        new CVillageAttackedCountdownFirst(startTime - COUNTDOWN_FIRST_TIME, 0, this));
+    m_app->GetTaskScheduler()->AddTask(
+        new CVillageAttackedCountdownSecond(startTime - COUNTDOWN_SECOND_TIME, 0, this));
+    m_app->GetTaskScheduler()->AddTask(
+        new CVillageAttackedCountdownThird(startTime - COUNTDOWN_THIRD_TIME, 0, this));
+    m_app->GetTaskScheduler()->AddTask(
+        new CVillageAttackedStart(startTime, 0, this));
+    m_app->GetTaskScheduler()->AddTask(
+        new CVillageAttackedEnd(endTime, 0, this));
 }
 
 void CVillageAttackedManager::OnSchedule()
