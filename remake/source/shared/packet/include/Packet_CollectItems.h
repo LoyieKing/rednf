@@ -13,7 +13,7 @@ public:
     unsigned int m_idByChannel;  // +0xa
     unsigned int m_charNo;       // +0xe
     int m_add;                   // +0x12
-    unsigned int m_characNo;        // +0x16
+    unsigned int m_pad16;        // +0x16
     unsigned char m_nameLen;     // +0x1a
     char m_name[0x1e];           // +0x1b
     Packet_CollectItems() : PacketHeader(0x27e6, 0x39),

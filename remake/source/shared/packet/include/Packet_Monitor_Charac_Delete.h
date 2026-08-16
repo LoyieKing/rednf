@@ -9,10 +9,10 @@
 
 class Packet_Monitor_Charac_Delete : public PacketHeader {
 public:
-    unsigned int m_accId;      // +0xa
+    unsigned int m_fieldA;      // +0xa
     unsigned int m_charNo;      // +0xe
     union {
-        unsigned int m_field12;   // +0x12
+        unsigned int m_field12;     // +0x12
         unsigned int m_guildKey;    // +0x12  Guild OnCharacterDelete
     };
     Packet_Monitor_Charac_Delete() : PacketHeader(0x4c2, 0x16){};

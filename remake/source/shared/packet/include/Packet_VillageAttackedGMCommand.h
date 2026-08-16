@@ -9,7 +9,7 @@
 
 class Packet_VillageAttackedGMCommand : public PacketHeader {
 public:
-    unsigned int m_uid;   // +0xa
+    unsigned int m_fieldA;   // +0xa
     unsigned int m_charNo;   // +0xe
     char m_pad[8];           // +0x12
     Packet_VillageAttackedGMCommand() : PacketHeader(0x1779, 0x1a),

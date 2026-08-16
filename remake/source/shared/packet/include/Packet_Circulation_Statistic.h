@@ -11,7 +11,7 @@ class Packet_Circulation_Statistic : public PacketHeader {
 public:
     int m_f0a;        // +0xa
     int m_data[0x30]; // +0xe（0x30 * 4 = 0xc0，总 0xce；ORIG 仅访达 0xce）
-    unsigned short m_channel; // +0xce（ctor 清零）
+    unsigned short m_fieldce; // +0xce（ctor 清零）
 
     Packet_Circulation_Statistic() : PacketHeader(0x17cb, 0xd0),
         m_f0a(0), m_fieldce(0){};

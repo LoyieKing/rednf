@@ -12,15 +12,15 @@
 
 class Packet_Mannerless_User_Accusation : public PacketHeader {
 public:
-    unsigned int m_uid;   // +0xa（ctor = 0xffffffff）
-    int m_characNo;            // +0xe
+    unsigned int m_fieldA;   // +0xa（ctor = 0xffffffff）
+    int m_fieldB;            // +0xe
     int m_fieldC;            // +0x12（ctor = 4）
     char m_pad16[0x8];       // +0x16..+0x1d（ctor 未触碰/布局待定）
-    int m_accId;            // +0x1e
+    int m_fieldD;            // +0x1e
     char m_field22[0x1e];    // +0x22..+0x3f（ctor memset 区域）
     char m_field40[0x1e];    // +0x40..+0x5d（ctor memset 区域）
     char m_field5e[0x100];   // +0x5e..+0x15d（ctor memset 区域）
-    char m_field15e;      // +0x15e
+    char m_field15e;         // +0x15e
 
     Packet_Mannerless_User_Accusation() : PacketHeader(0x1b66, 0x15f),
         m_fieldA(0xffffffff), m_fieldB(0), m_fieldC(4), m_fieldD(0)

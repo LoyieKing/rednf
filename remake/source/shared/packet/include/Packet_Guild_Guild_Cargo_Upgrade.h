@@ -12,8 +12,8 @@ public:
     unsigned int m_guildKey;    // +0xa
     unsigned int m_charNo;      // +0xe
     int m_field12;              // +0x12
-    unsigned int m_field16;      // +0x16
-    unsigned int m_field1a;      // +0x1a
+    unsigned int m_field16;     // +0x16
+    unsigned int m_field1a;     // +0x1a
     Packet_Guild_Guild_Cargo_Upgrade() : PacketHeader(0x713, 0x1e),
         m_guildKey(0), m_charNo(0), m_field12(0), m_field16(0), m_field1a(0)
     {
