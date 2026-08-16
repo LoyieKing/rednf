@@ -1245,14 +1245,12 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
 
     if (m_pclApp != 0)
     {
-        CUserManager* userMgr = &m_pclApp->m_userManager;
-        CMemberManager* memberMgr = &m_pclApp->m_memberManager;
         Packet_Monitor_Member_Enter_Reply* reply =
             (Packet_Monitor_Member_Enter_Reply*)pkt;
-        CUser* requester = userMgr->FindUser_CharNo(reply->m_charNo);
+        CUser* requester = (&m_pclApp->m_userManager)->FindUser_CharNo(reply->m_charNo);
         if (requester != 0)
         {
-            CUser* responser = userMgr->FindUser_CharNo(requester->GetMemberEnterCallerId());
+            CUser* responser = (&m_pclApp->m_userManager)->FindUser_CharNo(requester->GetMemberEnterCallerId());
             if (responser != 0)
             {
                 if (responser->IsAbleToRegisterMember() != 1 ||
@@ -1297,9 +1295,9 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                     else
                     {
                         CMember* responserMember =
-                            memberMgr->FindMember(responser->GetUniqCharNo());
+                            (&m_pclApp->m_memberManager)->FindMember(responser->GetUniqCharNo());
                         CMember* requesterMember =
-                            memberMgr->FindMember(requester->GetUniqCharNo());
+                            (&m_pclApp->m_memberManager)->FindMember(requester->GetUniqCharNo());
                         if (requester->GetMemberEnterCallerId() == 0)
                         {
                             SendRequestMemberEnterResult(requester, '0',
@@ -1310,7 +1308,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                         }
                         else
                         {
-                            int err = memberMgr->CheckMemberEnter(
+                            int err = (&m_pclApp->m_memberManager)->CheckMemberEnter(
                                 responser, responserMember, requester, requesterMember);
                             if (err == 0)
                             {
@@ -1321,26 +1319,26 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                                     if (responserMember == 0)
                                     {
                                         responserMember =
-                                            memberMgr->CreateMemberInJoin(responser);
+                                            (&m_pclApp->m_memberManager)->CreateMemberInJoin(responser);
                                     }
                                     if (requesterMember == 0)
                                     {
                                         requesterMember =
-                                            memberMgr->CreateMemberInJoin(requester);
+                                            (&m_pclApp->m_memberManager)->CreateMemberInJoin(requester);
                                     }
                                     short rl = responser->GetLevel();
-                                    if (memberMgr->RegisterMember(responserMember, rl, requester,
+                                    if ((&m_pclApp->m_memberManager)->RegisterMember(responserMember, rl, requester,
                                                                   true) == 1)
                                     {
                                         short ql = requester->GetLevel();
-                                        if (memberMgr->RegisterMember(requesterMember, ql,
+                                        if ((&m_pclApp->m_memberManager)->RegisterMember(requesterMember, ql,
                                                                       responser, true) == 1)
                                         {
-                                            memberMgr->SendToDBMemberUpdateCharInfo(
+                                            (&m_pclApp->m_memberManager)->SendToDBMemberUpdateCharInfo(
                                                 handler, responser->GetUniqCharNo(), 1);
-                                            memberMgr->SendToDBMemberUpdateCharInfo(
+                                            (&m_pclApp->m_memberManager)->SendToDBMemberUpdateCharInfo(
                                                 handler, requester->GetUniqCharNo(), 1);
-                                            memberMgr->SaveMemberOnConnect(
+                                            (&m_pclApp->m_memberManager)->SaveMemberOnConnect(
                                                 handler, responser, requester, 1);
                                             requester->ResetRequestMemberEnter();
                                             responser->SetMemberRegisterFlag(false);
