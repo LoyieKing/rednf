@@ -1165,8 +1165,7 @@ public:
     Packet_Monitor_ServerEvent_Start() : PacketHeader(0x44e, 0x12) {}
     int m_eventCode;             // +10
     unsigned short m_param1;     // +14
-    unsigned short m_pad16;      // +16
-    unsigned short m_param2;     // +18
+    unsigned short m_param2;     // +16
 } __attribute__((packed));
 
 class Packet_TOD_DoRandomSelect : public PacketHeader
