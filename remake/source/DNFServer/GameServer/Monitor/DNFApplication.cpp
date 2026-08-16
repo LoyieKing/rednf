@@ -309,6 +309,9 @@ void CApplication::Init(int argc, char** argv)
 
 void CApplication::Load(int argc, char** argv)
 {
+    Packet_Item_Limit_Edition_Load_Data_Req pktLoadItemLimit;
+    Packet_Load_Periodic_Message pktLoadPeriodic;
+    LimitNpcBuyItemRequestInfo pktLoadLimitNpc;
     try
     {
         m_memoryCash = new CMemoryCashManager;
@@ -417,11 +420,10 @@ void CApplication::Load(int argc, char** argv)
 
         m_itemLimitMgr = new CItemLimitEditionMgr;
         {
-            Packet_Item_Limit_Edition_Load_Data_Req pkt;
-            pkt.m_fullLoad = 1;
-            pkt.m_serverType = Get_ServerGroup();
-            pkt.m_loadTargetNum = 0;
-            m_serverHandler2->SendToDB(&pkt);
+            pktLoadItemLimit.m_fullLoad = 1;
+            pktLoadItemLimit.m_serverType = Get_ServerGroup();
+            pktLoadItemLimit.m_loadTargetNum = 0;
+            m_serverHandler2->SendToDB(&pktLoadItemLimit);
         }
 
         m_ipCounter = new CIPCounter;
@@ -440,13 +442,11 @@ void CApplication::Load(int argc, char** argv)
         m_gmAccounts = new WongWork::CGMAccounts;
         m_periodicMsg = new CPeriodicMessageMgr;
         {
-            Packet_Load_Periodic_Message pkt;
-            m_serverHandler2->SendToDB(&pkt);
+            m_serverHandler2->SendToDB(&pktLoadPeriodic);
         }
         m_limitNpc = new LimitNpcBuyItemManager;
         {
-            LimitNpcBuyItemRequestInfo pkt;
-            m_serverHandler2->SendToDB(&pkt);
+            m_serverHandler2->SendToDB(&pktLoadLimitNpc);
         }
 
         m_collectItms = new CollectItms;
