@@ -1479,20 +1479,21 @@ void CPacketTranslater::OnCallGuildAllMembers(PacketHeader* pkt)
     try
     {
         THROW_IF_NO_APP("CPacketTranslater::OnCallGuildAllMembers : 0 == m_pclApp")
+        CApplication* app = m_pclApp;
         if (pb->m_guildKey == 0)
         {
             throw CDNFException(
                 "CPacketTranslater::Packet_Monitor_Call_Guild_All_Members : packet->m_uGuildKey == 0");
         }
-        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(
+        CUser* user = (&app->m_userManager)->FindUser_CharNo(
             pb->m_charNo);
         if (user != 0)
         {
-            CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
+            CGuild* guild = (&app->m_guildManager)->FindGuild(
                 pb->m_guildKey);
             if (guild != 0)
             {
-                guild->CallGuildAllMembersProxy(user, m_pclApp->Get_ServerHandler());
+                guild->CallGuildAllMembersProxy(user, app->Get_ServerHandler());
             }
             else
             {
@@ -4922,6 +4923,7 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
 void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
 {
     Packet_Guild_Guild_Cargo_Upgrade* pb = (Packet_Guild_Guild_Cargo_Upgrade*)pkt;
+    PacketHeader* pk = pkt;
     try
     {
     if (m_pclApp == 0)
@@ -4929,8 +4931,10 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x1bd1, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoUpgrade : 0 == m_pclApp");
         return;
     }
+    CUserManager* userMgr = &m_pclApp->m_userManager;
+    CApplication* app = m_pclApp;
     unsigned int charNo = pb->m_charNo;
-    CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
+    CUser* user = userMgr->FindUser_CharNo(charNo);
     if (user == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1bdb, "./log/GuildCargo", "CPacketTranslater::OnGuildCargoUpgrade : 0 == pclUser");
