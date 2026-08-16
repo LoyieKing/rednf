@@ -11,7 +11,7 @@
 class Packet_Disable_User_OneToOneChat_Police : public PacketHeader {
 public:
     unsigned int m_gmId;        // +0xa
-    unsigned int m_fieldE;      // +0xe
+    unsigned int m_fieldE;        // +0xe
     char m_name[0x1e];          // +0x12
     Packet_Disable_User_OneToOneChat_Police() : PacketHeader(0x1f43, 0x30),
         m_gmId(0)

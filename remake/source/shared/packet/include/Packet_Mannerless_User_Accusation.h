@@ -20,7 +20,7 @@ public:
     char m_field22[0x1e];    // +0x22..+0x3f（ctor memset 区域）
     char m_field40[0x1e];    // +0x40..+0x5d（ctor memset 区域）
     char m_field5e[0x100];   // +0x5e..+0x15d（ctor memset 区域）
-    char m_field15e;         // +0x15e
+    char m_field15e;      // +0x15e
 
     Packet_Mannerless_User_Accusation() : PacketHeader(0x1b66, 0x15f),
         m_fieldA(0xffffffff), m_fieldB(0), m_fieldC(4), m_fieldD(0)

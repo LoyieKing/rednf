@@ -245,7 +245,8 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
         {
             resultCode = 0x56;
         }
-        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
+        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+        gs->SendToServer(
             (char*)&reply, reply.packetSize);
         DNF_LOG_SCOPE_LINE(0x636,
             "./log/GuildModify",
@@ -370,7 +371,8 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
         if (reply.m_result == 0)
             m_pclApp->m_dbManager.DeleteJoinListByInvite(
                 join.m_guildId, join.m_characNo);
-        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
+        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+        gs->SendToServer(
             (char*)&reply, reply.packetSize);
         CMyFileLog log2(__FUNCTION__, 0x576);
         log2("./log/GuildModify", "::OnGuildJoin g(%d) c(%d) r(%d)",
@@ -883,7 +885,8 @@ void CPacketTranslater::OnGuildSecede(PacketHeader* header)
             );
 
         }
-        m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
+        CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
+        gs->SendToServer(
             (char*)&reply, reply.packetSize);
         CMyFileLog log2(__FUNCTION__, 0x5ed);
         log2("./log/GuildModify", "::OnGuildSecede g(%d) c(%d) r(%d) f(%d)",
