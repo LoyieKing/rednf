@@ -5228,48 +5228,47 @@ char CDBManager::QueryHWspecCreate(
 {
     time_t now = time(0);
     CDBHandle* h = m_handles[4];    // log db
-    HWspecView* view = (HWspecView*)packet;
-    if (view->m_flag == 0)
+    if (((HWspecView*)packet)->m_flag == 0)
     {
-        for (int i = 0; i < (int)view->m_count; i++)
+        for (int i = 0; i < (int)((HWspecView*)packet)->m_count; i++)
         {
             h->set_query(0x4e78,
                          "upDate log_hardware_ting set total=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
-                         view->m_entries[i].m_total, now,
-                         view->m_entries[i].m_category1,
-                         view->m_entries[i].m_category2,
-                         view->m_entries[i].m_category3);
+                         ((HWspecView*)packet)->m_entries[i].m_total, now,
+                         ((HWspecView*)packet)->m_entries[i].m_category1,
+                         ((HWspecView*)packet)->m_entries[i].m_category2,
+                         ((HWspecView*)packet)->m_entries[i].m_category3);
             if (h->exec(0x4e78) != 1 || h->getAffectedRowCount() == 0)
             {
                 h->set_query(0x4e79,
                              "inSert into log_hardware_ting(occ_time, category1, category2, category3, total) values(from_unixtime(%d), %d, %d, %d, %d)",
-                             now, view->m_entries[i].m_category1,
-                             view->m_entries[i].m_category2,
-                             view->m_entries[i].m_category3,
-                             view->m_entries[i].m_total);
+                             now, ((HWspecView*)packet)->m_entries[i].m_category1,
+                             ((HWspecView*)packet)->m_entries[i].m_category2,
+                             ((HWspecView*)packet)->m_entries[i].m_category3,
+                             ((HWspecView*)packet)->m_entries[i].m_total);
                 if (!h->exec(0x4e79))
                     return 0;
             }
         }
     }
-    else if (view->m_flag == 1)
+    else if (((HWspecView*)packet)->m_flag == 1)
     {
-        for (int i = 0; i < (int)view->m_count; i++)
+        for (int i = 0; i < (int)((HWspecView*)packet)->m_count; i++)
         {
             h->set_query(0x4e7a,
                          "upDate log_hardware_ting set ting=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
-                         view->m_entries[i].m_total, now,
-                         view->m_entries[i].m_category1,
-                         view->m_entries[i].m_category2,
-                         view->m_entries[i].m_category3);
+                         ((HWspecView*)packet)->m_entries[i].m_total, now,
+                         ((HWspecView*)packet)->m_entries[i].m_category1,
+                         ((HWspecView*)packet)->m_entries[i].m_category2,
+                         ((HWspecView*)packet)->m_entries[i].m_category3);
             if (h->exec(0x4e7a) != 1 || h->getAffectedRowCount() == 0)
             {
                 h->set_query(0x4e7b,
                              "inSert into log_hardware_ting(occ_time, category1, category2, category3, ting) values(from_unixtime(%d), %d, %d, %d, %d)",
-                             now, view->m_entries[i].m_category1,
-                             view->m_entries[i].m_category2,
-                             view->m_entries[i].m_category3,
-                             view->m_entries[i].m_total);
+                             now, ((HWspecView*)packet)->m_entries[i].m_category1,
+                             ((HWspecView*)packet)->m_entries[i].m_category2,
+                             ((HWspecView*)packet)->m_entries[i].m_category3,
+                             ((HWspecView*)packet)->m_entries[i].m_total);
                 if (!h->exec(0x4e7b))
                     return 0;
             }
@@ -5277,22 +5276,22 @@ char CDBManager::QueryHWspecCreate(
     }
     else
     {
-        for (int i = 0; i < (int)view->m_count; i++)
+        for (int i = 0; i < (int)((HWspecView*)packet)->m_count; i++)
         {
             h->set_query(0x4e7c,
                          "upDate log_hardware_ting_low set total=%d where occ_time=from_unixtime(%d) and category1=%d and category2=%d and category3=%d",
-                         view->m_entries[i].m_total, now,
-                         view->m_entries[i].m_category1,
-                         view->m_entries[i].m_category2,
-                         view->m_entries[i].m_category3);
+                         ((HWspecView*)packet)->m_entries[i].m_total, now,
+                         ((HWspecView*)packet)->m_entries[i].m_category1,
+                         ((HWspecView*)packet)->m_entries[i].m_category2,
+                         ((HWspecView*)packet)->m_entries[i].m_category3);
             if (h->exec(0x4e7c) != 1 || h->getAffectedRowCount() == 0)
             {
                 h->set_query(0x4e7d,
                              "inSert into log_hardware_ting_low(occ_time, category1, category2, category3, total) values(from_unixtime(%d), %d, %d, %d, %d)",
-                             now, view->m_entries[i].m_category1,
-                             view->m_entries[i].m_category2,
-                             view->m_entries[i].m_category3,
-                             view->m_entries[i].m_total);
+                             now, ((HWspecView*)packet)->m_entries[i].m_category1,
+                             ((HWspecView*)packet)->m_entries[i].m_category2,
+                             ((HWspecView*)packet)->m_entries[i].m_category3,
+                             ((HWspecView*)packet)->m_entries[i].m_total);
                 if (!h->exec(0x4e7d))
                     return 0;
             }
