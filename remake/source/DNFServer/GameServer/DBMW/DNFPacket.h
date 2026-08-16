@@ -1275,7 +1275,7 @@ public:
     Packet_Notice_Guild_Mail_Arrived();
     char m_flag;        // +0xa（OnSendGuildLetter 置 1）
     int m_guildId;      // +0xb
-    char m_rest[0x28];  // +0xf..0x33
+    char m_rest[0x24];  // +0xf..0x32（ORIG ctor size 0x33）
 } __attribute__((packed));
 
 struct ST_MemberProxy
