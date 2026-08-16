@@ -612,25 +612,19 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
                         user->SetSex(entry->m_sex);
                         user->SetSsn(entry->m_ssn);
                         user->SetTcpGameServer(tcpGs);
-                        CMemoryCashManager* cash =
-                            (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
-                        if (cash->QueryCashMemoryBlackList(user) != 1)
+                        if (((CMemoryCashManager*)m_pclApp->Get_MemoryCashManager())->QueryCashMemoryBlackList(user) != 1)
                         {
                             RequestBlackListToDBMW(entry->m_dbid);
                         }
                         if (entry->m_memberKey != 0)
                         {
-                            CMemoryCashManager* cash2 =
-                                (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
-                            if (cash2->QueryCashMemoryMember(user) != 1)
+                            if (((CMemoryCashManager*)m_pclApp->Get_MemoryCashManager())->QueryCashMemoryMember(user) != 1)
                             {
                                 (&m_pclApp->m_memberManager)
                                     ->MemerMemLogin(entry->m_memberKey, user);
                             }
                         }
-                        CMemoryCashManager* cash3 =
-                            (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
-                        if (cash3->QueryCashMemoryBuddyInfo(user) != 1)
+                        if (((CMemoryCashManager*)m_pclApp->Get_MemoryCashManager())->QueryCashMemoryBuddyInfo(user) != 1)
                         {
                             user->QueryBuddyInfo(
                                 m_pclApp->m_serverHandler2);
@@ -638,9 +632,8 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
                     }
                     else
                     {
-                        char* dbid = NumberToString(entry->m_dbid, 0);
                         CMyFileLog log2("OnReplyUserInfo", 0x37a);
-                        log2("./log/Except", "CPacketTranslater::OnReplyUserInfo() : %s\n", dbid);
+                        log2("./log/Except", "CPacketTranslater::OnReplyUserInfo() : %s\n", NumberToString(entry->m_dbid, 0));
                     }
                 }
             }
@@ -1239,12 +1232,14 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
 
     if (m_pclApp != 0)
     {
+        CUserManager* userMgr = &m_pclApp->m_userManager;
+        CMemberManager* memberMgr = &m_pclApp->m_memberManager;
         Packet_Monitor_Member_Enter_Reply* reply =
             (Packet_Monitor_Member_Enter_Reply*)pkt;
-        CUser* requester = (&m_pclApp->m_userManager)->FindUser_CharNo(reply->m_charNo);
+        CUser* requester = userMgr->FindUser_CharNo(reply->m_charNo);
         if (requester != 0)
         {
-            CUser* responser = (&m_pclApp->m_userManager)->FindUser_CharNo(requester->GetMemberEnterCallerId());
+            CUser* responser = userMgr->FindUser_CharNo(requester->GetMemberEnterCallerId());
             if (responser != 0)
             {
                 if (responser->IsAbleToRegisterMember() != 1 ||
@@ -1258,8 +1253,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                 }
                 else if (requester->CheckPrevCallMemberEnter() == 1)
                 {
-                    unsigned char code = reply->m_code;
-                    if (code == 2)
+                    if (reply->m_code == 2)
                     {
                         SendNoticeMemberEnterPacketOk(responser, requester, 2, 0, 0, 0, 0);
                         SendNoticeMemberEnterPacketReply(requester, responser, 2, 0, 0, 0, 0);
@@ -1268,7 +1262,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                             requester->GetUniqCharNo(), responser->GetUniqCharNo());
                         requester->ResetRequestMemberEnter();
                     }
-                    else if (code == 3)
+                    else if (reply->m_code == 3)
                     {
                         SendNoticeMemberEnterPacketOk(responser, requester, 3, 0, 0, 0, 0);
                         SendNoticeMemberEnterPacketReply(requester, responser, 3, 0, 0, 0, 0);
@@ -1277,7 +1271,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                             requester->GetUniqCharNo(), responser->GetUniqCharNo());
                         requester->ResetRequestMemberEnter();
                     }
-                    else if (code == 4)
+                    else if (reply->m_code == 4)
                     {
                         SendNoticeMemberEnterPacketOk(responser, requester, 4, 0, 0, 0, 0);
                         SendNoticeMemberEnterPacketReply(requester, responser, 4, 0, 0, 0, 0);
@@ -1289,9 +1283,9 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                     else
                     {
                         CMember* responserMember =
-                            (&m_pclApp->m_memberManager)->FindMember(responser->GetUniqCharNo());
+                            memberMgr->FindMember(responser->GetUniqCharNo());
                         CMember* requesterMember =
-                            (&m_pclApp->m_memberManager)->FindMember(requester->GetUniqCharNo());
+                            memberMgr->FindMember(requester->GetUniqCharNo());
                         if (requester->GetMemberEnterCallerId() == 0)
                         {
                             SendRequestMemberEnterResult(requester, '0',
@@ -1302,7 +1296,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                         }
                         else
                         {
-                            int err = (&m_pclApp->m_memberManager)->CheckMemberEnter(
+                            int err = memberMgr->CheckMemberEnter(
                                 responser, responserMember, requester, requesterMember);
                             if (err == 0)
                             {
@@ -1313,26 +1307,24 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                                     if (responserMember == 0)
                                     {
                                         responserMember =
-                                            (&m_pclApp->m_memberManager)->CreateMemberInJoin(responser);
+                                            memberMgr->CreateMemberInJoin(responser);
                                     }
                                     if (requesterMember == 0)
                                     {
                                         requesterMember =
-                                            (&m_pclApp->m_memberManager)->CreateMemberInJoin(requester);
+                                            memberMgr->CreateMemberInJoin(requester);
                                     }
-                                    short rl = responser->GetLevel();
-                                    if ((&m_pclApp->m_memberManager)->RegisterMember(responserMember, rl, requester,
+                                    if (memberMgr->RegisterMember(responserMember, responser->GetLevel(), requester,
                                                                   true) == 1)
                                     {
-                                        short ql = requester->GetLevel();
-                                        if ((&m_pclApp->m_memberManager)->RegisterMember(requesterMember, ql,
+                                        if (memberMgr->RegisterMember(requesterMember, requester->GetLevel(),
                                                                       responser, true) == 1)
                                         {
-                                            (&m_pclApp->m_memberManager)->SendToDBMemberUpdateCharInfo(
+                                            memberMgr->SendToDBMemberUpdateCharInfo(
                                                 handler, responser->GetUniqCharNo(), 1);
-                                            (&m_pclApp->m_memberManager)->SendToDBMemberUpdateCharInfo(
+                                            memberMgr->SendToDBMemberUpdateCharInfo(
                                                 handler, requester->GetUniqCharNo(), 1);
-                                            (&m_pclApp->m_memberManager)->SaveMemberOnConnect(
+                                            memberMgr->SaveMemberOnConnect(
                                                 handler, responser, requester, 1);
                                             requester->ResetRequestMemberEnter();
                                             responser->SetMemberRegisterFlag(false);
@@ -1343,59 +1335,43 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
                                                 requester->IsAbleToRegisterMember(),
                                                 responser->GetUniqCharNo(),
                                                 responser->IsAbleToRegisterMember());
-                                            short l1 = requester->GetLevel();
-                                            short l2 = responser->GetLevel();
-                                            if (l2 < l1)
+                                            if (responser->GetLevel() < requester->GetLevel())
                                             {
-                                                unsigned char el =
-                                                    requester->GetUpperMemberExpLevel();
-                                                unsigned char lv =
-                                                    (unsigned char)requester->GetLevel();
                                                 SendNoticeMemberEnterPacketOk(
-                                                    responser, requester, 1, 1, 1, lv, el);
-                                                unsigned char lv2 =
-                                                    (unsigned char)responser->GetLevel();
+                                                    responser, requester, 1, 1, 1,
+                                                    (unsigned char)requester->GetLevel(), requester->GetUpperMemberExpLevel());
                                                 SendNoticeMemberEnterPacketReply(
-                                                    requester, responser, 1, 2, 0, lv2, 0);
+                                                    requester, responser, 1, 2, 0,
+                                                    (unsigned char)responser->GetLevel(), 0);
                                             }
                                             else
                                             {
-                                                short l3 = requester->GetLevel();
-                                                short l4 = responser->GetLevel();
-                                                if (l3 < l4)
+                                                if (requester->GetLevel() < responser->GetLevel())
                                                 {
-                                                    unsigned char lv3 =
-                                                        (unsigned char)requester->GetLevel();
                                                     SendNoticeMemberEnterPacketOk(
-                                                        responser, requester, 1, 2, 0, lv3, 0);
-                                                    unsigned char el2 =
-                                                        responser->GetUpperMemberExpLevel();
-                                                    unsigned char lv4 =
-                                                        (unsigned char)responser->GetLevel();
+                                                        responser, requester, 1, 2, 0,
+                                                        (unsigned char)requester->GetLevel(), 0);
                                                     SendNoticeMemberEnterPacketReply(
-                                                        requester, responser, 1, 1, 1, lv4, el2);
+                                                        requester, responser, 1, 1, 1,
+                                                        (unsigned char)responser->GetLevel(), responser->GetUpperMemberExpLevel());
                                                 }
                                             }
                                         }
                                         else
                                         {
-                                            short l5 = requester->GetLevel();
-                                            short l6 = responser->GetLevel();
                                             DNF_LOG_SCOPE_LINE(0x688,"./log/MemberModify",
                                                 "CPacketTranslater::OnMemberEnterReply  :  RegisterMember return false , Responser Char id(%d), Responser Member id(%d), Caller Level(%d), Responser Level(%d)!",
                                                 requester->GetUniqCharNo(),
-                                                requesterMember->GetMemberKey(), (int)l6,
-                                                (int)l5);
+                                                requesterMember->GetMemberKey(), (int)responser->GetLevel(),
+                                                (int)requester->GetLevel());
                                         }
                                     }
                                     else
                                     {
-                                        short l7 = requester->GetLevel();
-                                        short l8 = responser->GetLevel();
                                         DNF_LOG_SCOPE_LINE(0x681,"./log/MemberModify",
                                             "CPacketTranslater::OnMemberEnterReply  :  RegisterMember return false , Caller Char id(%d), Caller Member id(%d), Caller Level(%d), Responser Level(%d)!",
                                             responser->GetUniqCharNo(),
-                                            responser->GetMemberKey(), (int)l8, (int)l7);
+                                            responser->GetMemberKey(), (int)responser->GetLevel(), (int)requester->GetLevel());
                                     }
                                 }
                             }
@@ -3289,26 +3265,19 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
         }
         else
         {
-            CServerHandler* handler = m_pclApp->Get_ServerHandler();
-            if (handler->GetTcpDBServer()->GetSock() == (int)pkt->m_connNo)
+            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == (int)pkt->m_connNo)
             {
-                handler = m_pclApp->Get_ServerHandler();
-                handler->GetTcpDBServer()->Connected();
+                m_pclApp->Get_ServerHandler()->GetTcpDBServer()->Connected();
             }
             else
             {
-                handler = m_pclApp->Get_ServerHandler();
-                if (handler->GetTcpManagerServer()->GetSock() == (int)pkt->m_connNo)
+                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == (int)pkt->m_connNo)
                 {
-                    unsigned char group = m_pclApp->Get_ServerGroup();
-                    handler = m_pclApp->Get_ServerHandler();
-                    handler->GetTcpManagerServer()->Connected(group);
+                    m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->Connected(m_pclApp->Get_ServerGroup());
                 }
                 else
                 {
-                    unsigned int sock = pkt->m_connNo;
-                    handler = m_pclApp->Get_ServerHandler();
-                    CTcpGameServer* tcp = handler->CreateTcpGameServer(sock);
+                    CTcpGameServer* tcp = m_pclApp->Get_ServerHandler()->CreateTcpGameServer(pkt->m_connNo);
                     if (tcp != 0)
                     {
                         char* buf = tcp->makePacketHeader(8000, 0xc);
@@ -3318,21 +3287,20 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
                             char* out = buf;
                             out[0xb] = (char)m_pclApp->Get_ServerGroup();
                             tcp->SendToGameServer(out);
-                            char* out2 = tcp->makePacketHeader(0x3ea, 0xb);
+                            buf = tcp->makePacketHeader(0x3ea, 0xb);
                             char* out3 = 0;
-                            if (out2 != 0)
+                            if (buf != 0)
                             {
-                                out3 = out2;
+                                out3 = buf;
                             }
                             out3[10] = -0x37;
                             tcp->SendToGameServer(out3);
-                            void* net = m_pclApp->Get_TcpNetSystem();
-                            DNF_LOG_SCOPE_LINE(0x123e, "./log/Tcp", "OnInnerPacketLogin : Network system (%x)", net);
-                            char* out4 = tcp->makePacketHeader(0x1004, 0x7ef);
-                            if (out4 != 0)
+                            DNF_LOG_SCOPE_LINE(0x123e, "./log/Tcp", "OnInnerPacketLogin : Network system (%x)", m_pclApp->Get_TcpNetSystem());
+                            buf = tcp->makePacketHeader(0x1004, 0x7ef);
+                            if (buf != 0)
                             {
-                                out4[10] = 1;
-                                char* out5 = out4;
+                                buf[10] = 1;
+                                char* out5 = buf;
                                 m_pclApp->getItemLimitEditionMgr()
                                     ->makeItemLimitEditionSellStartPacket(
                                         *(Packet_Item_Limit_Edition_Sell_Start*)out5);
@@ -3366,19 +3334,15 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
         }
         else
         {
-            CServerHandler* handler = m_pclApp->Get_ServerHandler();
-            if (handler->GetTcpDBServer()->GetSock() == (int)pkt->m_connNo)
+            if (m_pclApp->Get_ServerHandler()->GetTcpDBServer()->GetSock() == (int)pkt->m_connNo)
             {
-                handler = m_pclApp->Get_ServerHandler();
-                handler->GetTcpDBServer()->DisConnected();
+                m_pclApp->Get_ServerHandler()->GetTcpDBServer()->DisConnected();
             }
             else
             {
-                handler = m_pclApp->Get_ServerHandler();
-                if (handler->GetTcpManagerServer()->GetSock() == (int)pkt->m_connNo)
+                if (m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->GetSock() == (int)pkt->m_connNo)
                 {
-                    handler = m_pclApp->Get_ServerHandler();
-                    handler->GetTcpManagerServer()->DisConnected();
+                    m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->DisConnected();
                 }
                 else
                 {
@@ -3388,13 +3352,10 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
                     unsigned char channel = tcp->GetChannelNo();
                     if (channel != 0)
                     {
-                        handler = m_pclApp->Get_ServerHandler();
-                        handler->UnregistGameServer((unsigned int)channel);
+                        m_pclApp->Get_ServerHandler()->UnregistGameServer((unsigned int)channel);
                     }
-                    handler = m_pclApp->Get_ServerHandler();
-                    handler->DeleteTcpGameServer(pkt->m_connNo);
-                    void* net = m_pclApp->Get_TcpNetSystem();
-                    DNF_LOG_SCOPE_LINE(0x12af, "./log/Tcp", "OnInnerPacketLogout : Network system (%x)", net);
+                    m_pclApp->Get_ServerHandler()->DeleteTcpGameServer(pkt->m_connNo);
+                    DNF_LOG_SCOPE_LINE(0x12af, "./log/Tcp", "OnInnerPacketLogout : Network system (%x)", m_pclApp->Get_TcpNetSystem());
                 }
             }
         }
@@ -3882,14 +3843,11 @@ void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
     {
         Packet_Item_Limit_Edition_Sell_end* end =
             (Packet_Item_Limit_Edition_Sell_end*)pkt;
-        unsigned int stype = end->m_serverType;
-        if (stype == ((unsigned int)m_pclApp->Get_ServerGroup() & 0xff))
+        if (end->m_serverType == ((unsigned int)m_pclApp->Get_ServerGroup() & 0xff))
         {
             for (unsigned int i = 0; i < end->m_sellEndNum; i++)
             {
-                CItemLimitEdition* item = m_pclApp->getItemLimitEditionMgr()->getItemInfo(
-                    end->m_ipgNo[i]);
-                if (item != 0)
+                if (m_pclApp->getItemLimitEditionMgr()->getItemInfo(end->m_ipgNo[i]) != 0)
                 {
                     m_pclApp->getItemLimitEditionMgr()->removeItem(
                         end->m_ipgNo[i]);
@@ -3915,8 +3873,7 @@ void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
         }
         else
         {
-            unsigned int v = end->m_serverType;
-            DNF_LOG_SCOPE_LINE(0x150a, "./log/ItemLimitEdition", "(Ignore another server msg: %d)", v);
+            DNF_LOG_SCOPE_LINE(0x150a, "./log/ItemLimitEdition", "(Ignore another server msg: %d)", end->m_serverType);
         }
     }
     catch (CDNFException& e)
@@ -4213,10 +4170,9 @@ void CPacketTranslater::OnVillageMonsterFightResult(PacketHeader* pkt)
     CUserManager* userMgr = &m_pclApp->m_userManager;
     for (int i = 0; i < 4; i++)
     {
-        unsigned int key = ((MonitorVillageFightPkt*)pkt)->m_keys[i + 4];
-        if (key != 0)
+        if (((MonitorVillageFightPkt*)pkt)->m_keys[i + 4] != 0)
         {
-            users[i] = (unsigned int)userMgr->FindUser_CharNo(key);
+            users[i] = (unsigned int)userMgr->FindUser_CharNo(((MonitorVillageFightPkt*)pkt)->m_keys[i + 4]);
         }
     }
 
@@ -5093,19 +5049,15 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
         }
         Packet_Social_Event_Reward_Item_Response* rpkt =
             (Packet_Social_Event_Reward_Item_Response*)pkt;
-        LimitNpcBuyItemManager* mgr = m_pclApp->getLimitNpcBuyItemManager();
-        mgr->registItemClear();
+        m_pclApp->getLimitNpcBuyItemManager()->registItemClear();
         unsigned int i = 0;
         while (i < rpkt->m_count && i < 0x1e)
         {
-            NpcBuyLimitItem* item = (NpcBuyLimitItem*)&rpkt->m_items[i];
-            mgr = m_pclApp->getLimitNpcBuyItemManager();
-            mgr->registItem(*item);
-            unsigned int c = item->m_sellCount;
-            unsigned int b = item->m_maxCount;
-            unsigned int a = item->m_itemId;
+            m_pclApp->getLimitNpcBuyItemManager()->registItem(*(NpcBuyLimitItem*)&rpkt->m_items[i]);
             DNF_LOG_SCOPE_LINE(0x1dd0,"./log/NpcBuyLimitItem", "Load-> itemId: %d, maxCount: %d, sellCount: %d)",
-                a, b, c);
+                ((NpcBuyLimitItem*)&rpkt->m_items[i])->m_itemId,
+                ((NpcBuyLimitItem*)&rpkt->m_items[i])->m_maxCount,
+                ((NpcBuyLimitItem*)&rpkt->m_items[i])->m_sellCount);
             i++;
         }
         (m_pclApp->m_serverHandler2)
@@ -5137,12 +5089,10 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
             (&m_pclApp->m_userManager)->FindUser(rpkt->m_dbid);
         if (user == 0)
         {
-            unsigned int cn = rpkt->m_charNo;
-            char* s = NumberToString(rpkt->m_dbid, 0);
             DNF_LOG_SCOPE_LINE(0x1dee,"./log/Except",
                 "CPacketTranslater::onSocialEventRewardItemInfo(), buyUser(%s), "
                 "characNo(%u)",
-                s, cn);
+                NumberToString(rpkt->m_dbid, 0), rpkt->m_charNo);
             throw CDNFException(
                 "CPacketTranslater::onSocialEventRewardItemInfo : Not Exist User characNo");
         }
@@ -5156,13 +5106,9 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
             rpkt->m_count = 0;
             rpkt->m_errorNo = (unsigned int)result;
             user->SendTcpGameserver(pkt);
-            unsigned int buyCount = rpkt->m_count;
-            unsigned int itemId = rpkt->m_itemId;
-            unsigned int errorNo = rpkt->m_errorNo;
-            unsigned int charNo = rpkt->m_charNo;
             DNF_LOG_SCOPE_LINE(0x1dfc,"./log/NpcBuyLimitItem",
                 "don\'t sell-> characNo: %u, errorNo: %u, itemId: %u, buyCount: %u)",
-                charNo, errorNo, itemId, buyCount);
+                rpkt->m_charNo, rpkt->m_errorNo, rpkt->m_itemId, rpkt->m_count);
         }
     }
     catch (CDNFException& e)
@@ -5228,18 +5174,13 @@ void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
         LimitNpcBuyItemChangeInfo change;
         if ((int)rpkt->m_errorNo == 0)
         {
-            unsigned int itemId = rpkt->m_itemId;
-            LimitNpcBuyItemManager* mgr = m_pclApp->getLimitNpcBuyItemManager();
-            mgr->getNpcLimitBuyItemCount(itemId, change);
+            m_pclApp->getLimitNpcBuyItemManager()->getNpcLimitBuyItemCount(rpkt->m_itemId, change);
             (m_pclApp->m_serverHandler2)
                 ->SendAllTcpGameServer(&change);
             (m_pclApp->m_serverHandler2)->SendToDB(pkt);
-            unsigned int buyCount = rpkt->m_cancelCount;
-            unsigned int itemId2 = rpkt->m_itemId;
-            unsigned int charNo = rpkt->m_charNo;
             DNF_LOG_SCOPE_LINE(0x1e46,"./log/NpcBuyLimitItem",
-                "DB Update-> characNo: %u, itemId: %u, buyCount: %u)", charNo, itemId2,
-                buyCount);
+                "DB Update-> characNo: %u, itemId: %u, buyCount: %u)", rpkt->m_charNo, rpkt->m_itemId,
+                rpkt->m_cancelCount);
         }
         else
         {
@@ -5343,9 +5284,8 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
             throw CDNFException("CPacketTranslater::onCollectItems");
         }
         Packet_CollectItems* req = (Packet_CollectItems*)pkt;
-        unsigned int cur =
-            ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
-        if (cur < ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_total)
+        if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current <
+            ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_total)
         {
             if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current == 0)
             {
@@ -5354,9 +5294,7 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
             }
             else
             {
-                unsigned int cur2 =
-                    ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
-                if (cur2 + req->m_add >=
+                if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current + req->m_add >=
                     ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_total)
                 {
                     SendColletItemsReward(req->m_charNo, req->m_idByChannel, req->m_name,
@@ -5366,11 +5304,8 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
                 }
                 else
                 {
-                    unsigned int cur3 =
-                        ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
-                    unsigned int rest =
-                        ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current;
-                    if ((cur3 - rest % 0x14) + 0x14 <=
+                    if ((((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current -
+                         ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current % 0x14) + 0x14 <=
                         ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +
                             req->m_add)
                     {

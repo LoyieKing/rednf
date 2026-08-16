@@ -58,15 +58,13 @@ int CBuddyHandle::addDB(CServerHandler* handler, char* name)
     {
         return 4;
     }
-    std::map<std::string, CBuddy*>::iterator it;
     {
         std::allocator<char> alloc;
         std::string key(name, alloc);
-        it = m_buddies.find(key);
-    }
-    if (it != m_buddies.end())
-    {
-        return 0x12;
+        if (m_buddies.find(key) != m_buddies.end())
+        {
+            return 0x12;
+        }
     }
     if (strcmp(name, m_prUser->GetCharName()) == 0)
     {

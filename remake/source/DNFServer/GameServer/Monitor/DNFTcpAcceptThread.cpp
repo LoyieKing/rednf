@@ -77,17 +77,13 @@ void CTcpAcceptThread::dispatch(void* param)
                 if (m_sock.pollReadEvent())
                 {
                     CPeer* peer = m_net->CreatePeer();
-                    TCPSocket* sock = peer->GetTcpSocket();
-                    if (m_sock.accept(*sock) != 1)
+                    if (m_sock.accept(*peer->GetTcpSocket()) != 1)
                     {
-                        printf("Accept GameServer Fail(Port : %d)\n", sock->getHandle());
+                        printf("Accept GameServer Fail(Port : %d)\n", peer->GetTcpSocket()->getHandle());
                     }
-                    printf("Accept GameServer(Port : %d)\n", sock->getHandle());
-                    CMutex* recvB = m_net->Get_TcpRecvBLock();
-                    CMutex* recvQ = m_net->Get_TcpRecvQLock();
-                    void* q = m_net->Get_TcpSwapQPacket()->GetRecvQ();
+                    printf("Accept GameServer(Port : %d)\n", peer->GetTcpSocket()->getHandle());
                     peer->InitPeer(
-                        (std::queue<CTcpRecvBuffer*>*)q, recvQ, recvB);
+                        (std::queue<CTcpRecvBuffer*>*)m_net->Get_TcpSwapQPacket()->GetRecvQ(), m_net->Get_TcpRecvQLock(), m_net->Get_TcpRecvBLock());
                     peer->ConnSig();
                     m_net->InsertAcceptedPeer(peer);
                 }

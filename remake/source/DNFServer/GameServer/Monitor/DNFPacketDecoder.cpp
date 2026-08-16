@@ -281,28 +281,26 @@ char CPacketDecoder::MsgDecode(PacketHeader* pkt)
     {
         return 0;
     }
-    unsigned short id = *(unsigned short*)pkt;
-    if (id < 0x2800 && 999 < id)
+    if (*(unsigned short*)pkt < 0x2800 && 999 < *(unsigned short*)pkt)
     {
         static CPacketCounter<1000, 10240> packet_counter(0, "PacketDispatcher");
-        packet_counter.IncrementPacketCount(id);
-        void* handler = m_handlers[id];
-        if (handler == 0)
+        packet_counter.IncrementPacketCount(*(unsigned short*)pkt);
+        if (m_handlers[*(unsigned short*)pkt] == 0)
         {
             DNF_LOG_SCOPE_LINE(0x1db,"./log/Decoder",
                 "CPacketDecoder::MsgDecode() Game Message with identifier %d has arrived.<0 == m_decodProcFunc>\n",
-                id);
+                *(unsigned short*)pkt);
             return 0;
         }
         packet_counter.BeforeProcess();
-        ((void(*)(PacketHeader*))handler)(pkt);
-        packet_counter.AfterProcess(id);
+        ((void(*)(PacketHeader*))m_handlers[*(unsigned short*)pkt])(pkt);
+        packet_counter.AfterProcess(*(unsigned short*)pkt);
         return 1;
     }
-    printf("Undefined Packet Err : Game Message with identifier %d has arrived.\n", id);
+    printf("Undefined Packet Err : Game Message with identifier %d has arrived.\n", *(unsigned short*)pkt);
     DNF_LOG_SCOPE_LINE(0x1fa,"./log/Decoder",
         "Undefined Packet Err: CPacketDecoder::MsgDecode() Game Message with identifier %d has arrived.\n",
-        id);
+        *(unsigned short*)pkt);
     return 0;
 }
 
