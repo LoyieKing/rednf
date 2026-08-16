@@ -2756,7 +2756,8 @@ bool CDBManager::QueryGuildAllMembersProxy(unsigned int guildId,
             guildId, 0x12c);
         return 0;
     }
-    if (!h->exec(0x4e23))
+    char execOk = h->exec(0x4e23);
+    if (execOk != 1)
         return 0;
     count = (unsigned short)h->get_n_rows();
     if (count > 0x12c)
