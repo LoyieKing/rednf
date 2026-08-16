@@ -699,8 +699,9 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
 
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
-    ((Packet_Request_Revenge_Dungeon*)pkt)->m_rewardType = m_rewardType;
-    ((Packet_Request_Revenge_Dungeon*)pkt)->m_remainTime = GetDungeonRemainTime();
+    Packet_Request_Revenge_Dungeon* p = (Packet_Request_Revenge_Dungeon*)pkt;
+    p->m_rewardType = m_rewardType;
+    p->m_remainTime = GetDungeonRemainTime();
 }
 
 void CVillageAttackedManager::ProcessByMinute()
