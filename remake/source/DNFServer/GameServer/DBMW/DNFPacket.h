@@ -623,7 +623,7 @@ class Packet_Notify_New_Group_Mail : public PacketHeader
 {
 public:
     Packet_Notify_New_Group_Mail();
-    char m_pad[4];            // +0xa..0xd
+    int m_count;              // +0xa
     int m_characNos[0x12c];   // +0xe（ORIG ctor size 0x4be）
 } __attribute__((packed));
 
@@ -879,8 +879,9 @@ class Packet_Reply_Load_Tower_Full_Rank : public PacketHeader
 public:
     Packet_Reply_Load_Tower_Full_Rank();
     char m_batchFlag;         // +0xa（1=首包 0=后续包）
-    char m_count;             // +0xb
-    char m_rest[0x17b3];      // +0xc（ORIG ctor size 0x17bf）
+    int m_count;              // +0xb（本批发送条数）
+    int m_totalCount;         // +0xf（总条数）
+    char m_rest[0x17ac];      // +0x13（ORIG ctor size 0x17bf）
 } __attribute__((packed));
 
 class Packet_Set_ARS_Info : public PacketHeader

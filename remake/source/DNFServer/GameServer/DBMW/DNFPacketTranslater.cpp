@@ -420,6 +420,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
         {
             Packet_Notify_New_Group_Mail notice;
             int n = characNos.size() > 0x12b ? 0x12c : characNos.size();
+            notice.m_count = n;
             for (int i = 0; i < n; i++)
                 notice.m_characNos[i] = characNos.at(i);
             m_pclApp->m_serverHandler->GetGuildServer()->SendToServer(
@@ -957,6 +958,7 @@ void CPacketTranslater::OnSavePowerWarBonusPoint(PacketHeader* header)
             int n = pkt->m_count;
             if (n > 0x12c)
                 n = 0x12c;
+            notice.m_count = n;
             for (int i = 0; i < n; i++)
                 notice.m_characNos[i] = pkt->m_entries[i].m_characNo;
             CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
@@ -2236,6 +2238,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
         reply.m_batchFlag = 1;
         if (pkt->m_limit != 0x2710)
             reply.m_batchFlag = 0;
+        reply.m_totalCount = ranks.size();
         CMyFileLog log1(__FUNCTION__, 0x59b);
         log1("./log/DeathTower", "(tower_idx:%d)(rank count:%d)\n",
              pkt->m_towerIndex, ranks.size());
@@ -2247,7 +2250,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
             i++;
             if (i > 0x3b)
             {
-                reply.m_count = (char)i;
+                reply.m_count = i;
                 reply.packetSize = 0x17bf;
                 ms->SendToServer((char*)&reply, 0x17bf);
                 DNF_LOG_SCOPE_LINE(0x5a8,
@@ -2264,7 +2267,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
         }
         if (i != 0)
         {
-            reply.m_count = (char)i;
+            reply.m_count = i;
             reply.packetSize = (unsigned short)(0x13 + i * 0x65);
             ms->SendToServer((char*)&reply, reply.packetSize);
             DNF_LOG_SCOPE_LINE(0x5b3,
