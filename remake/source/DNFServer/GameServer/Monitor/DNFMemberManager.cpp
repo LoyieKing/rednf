@@ -233,8 +233,7 @@ bool CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned
             "[MEMBER]\tCMemberManager::LoadMember()\tpclUser is Null, member key(%d)\n", key);
         return 0;
     }
-    short level = user->GetLevel();
-    member->LoadMember(info, level, a, b);
+    member->LoadMember(info, user->GetLevel(), a, b);
     if (!member->IsEmpty())
     {
         member->NoticeMemberLogin_Out(user, 1);
@@ -245,10 +244,9 @@ bool CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned
     pkt.m_uniqCharNo = user->GetUniqCharNo();
     user->SendToGameserver((char*)&pkt, 0x12);
     SendToDBMemberUpdateCharInfo(handler, key, 0);
-    unsigned int charNo = user->GetUniqCharNo();
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x285,"./log/Except",
         "CMemberManager::LoadMember, true == pclMember->IsEmpty()\tChar id(%d), Member Key(%d)",
-        charNo, key);
+        user->GetUniqCharNo(), key);
     DeleteMember(user->GetUniqCharNo(), true);
     return 0;
 }

@@ -134,6 +134,7 @@ void CItemLimitEditionMgr::clear()
 
 void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
 {
+    Packet_Item_Limit_Edition_Update pkt2;
     time_t now;
     if (m_items.empty())
     {
@@ -178,7 +179,6 @@ void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
         }
         if (!m_items.empty())
         {
-            Packet_Item_Limit_Edition_Update pkt2;
             pkt2.m_serverGroup = (unsigned int)app->Get_ServerGroup();
             makeItemLimitEditionUpdatePacket(pkt2);
             CServerHandler* h = app->Get_ServerHandler();

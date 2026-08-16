@@ -666,7 +666,7 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
             data.m_i[i * 7 + j].s.m_i /=
                 data.m_a[i] + 1U;
             data.m_i[i * 7 + j].s.m_f /=
-                (float)(data.m_a[i] + 1);
+                (float)(data.m_a[i] + 1U);
         }
         data.m_a[i] += 1;
     }

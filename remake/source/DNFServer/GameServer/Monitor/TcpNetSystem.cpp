@@ -368,8 +368,8 @@ void CTcpNetSystem::CleanTcpSendPacketQ()
 {
     while (true)
     {
-        register CTcpSendBuffer* buf;
-        register int flag;
+        CTcpSendBuffer* buf;
+        int flag;
         {
             CGuard<CMutex> guard1(&m_mutexe8);
             if (m_sendQ.empty())

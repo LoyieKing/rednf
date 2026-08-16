@@ -54,6 +54,8 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int fram
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
     tms tm = {};
+    int u0 = 0, u1 = 0, u2 = 0, u3 = 0;
+    (void)u0; (void)u1; (void)u2; (void)u3;
     m_state = 0;
     if (m_inited == 0)
     {

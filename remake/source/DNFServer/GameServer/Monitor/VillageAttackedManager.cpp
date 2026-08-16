@@ -565,7 +565,7 @@ void CVillageAttackedManager::SendCharacRank()
     }
     {
         Packet_DBMW_Query_Msg pkt;
-        char* sql = pkt.m_sql;
+        char sql[0xff];
         std::priority_queue<stUserHuntingPoint> pq;
         for (std::map<unsigned int, stHuntingPoint>::iterator it = m_huntingPoints.begin();
              it != m_huntingPoints.end(); ++it)
@@ -578,6 +578,7 @@ void CVillageAttackedManager::SendCharacRank()
         std::string query;
         serverGroup = m_app->Get_ServerGroup();
         unsigned int now = GetNowTime();
+        memset(sql, 0, 0xff);
         if ((unsigned int)m_maxHuntingPoint <= (unsigned int)m_curHuntingPoint)
         {
             int rank = 0;
@@ -589,7 +590,8 @@ void CVillageAttackedManager::SendCharacRank()
                 if (user == 0)
                 {
                     pq.pop();
-                    DNF_LOG_SCOPE_AT(__FUNCTION__, 0x238, "./log/village", "User is null [charac_no:%u]", p.m_characNo);
+                    CMyFileLog logUserNull(__FUNCTION__, 0x238);
+                    logUserNull("./log/village", "User is null [charac_no:%u]", p.m_characNo);
                 }
                 else
                 {

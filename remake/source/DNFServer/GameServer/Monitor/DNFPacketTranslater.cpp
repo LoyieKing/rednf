@@ -446,21 +446,16 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                 (unsigned int)(unsigned char)logout->m_channel);
             return;
         }
-        char* name = user->GetCharName();
-        unsigned int memberKey = user->GetMemberKey();
-        unsigned int charNo = user->GetUniqCharNo();
-        char* dbid = NumberToString(logout->m_dbid, 0);
         DNF_LOG_SCOPE_LINE(0x230,"./log/User",
             "LOGOUT : User DB ID(%s), Char No(%d), Member K(%d) , name(%s), F.O.C(%d), Ch(%d)",
-            dbid, charNo, memberKey, name,
+            NumberToString(logout->m_dbid, 0), user->GetUniqCharNo(), user->GetMemberKey(), user->GetCharName(),
             (unsigned int)(unsigned char)logout->m_foc,
             (unsigned int)(unsigned char)logout->m_channel);
         unsigned int memberKey2 = logout->m_memberKey;
         CMemoryCashManager* cash = (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
-        CMember* member = (m_pclApp->Get_MemberManager())->FindMember(logout->m_memberKey);
         bool f1 = false;
         bool f2 = false;
-        cash->InsertCashMemorySetCharacterObject(user, member, f1, f2);
+        cash->InsertCashMemorySetCharacterObject(user, (m_pclApp->Get_MemberManager())->FindMember(logout->m_memberKey), f1, f2);
         if (memberKey2 != 0)
         {
             (m_pclApp->Get_MemberManager())->MemberMemLogout(memberKey2, user, !f2);
@@ -871,13 +866,12 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
     {
         throw CDNFException("CPacketTranslater::OnNoticeBuddyChatMsg : 0 == m_pclApp");
     }
-    CUserManager* userMgr = &m_pclApp->m_userManager;
     Packet_Monitor_Other_Channel_Chat* chat =
         (Packet_Monitor_Other_Channel_Chat*)pkt;
     if (chat->what_0x1b != 0 &&
         (unsigned char)chat->what_0x1b < 0x1e)
     {
-        CUser* target = userMgr->FindUser_CharName(chat->buddy_n_user_id_what);
+        CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(chat->buddy_n_user_id_what);
         chat->what_0x17 =
             target != 0 ? (int)target->GetUniqCharNo() : (int)0xffffffff;
     }
@@ -896,12 +890,12 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
     }
     Packet_Monitor_Other_Channel_Chat_ToUser reply;
     reply.m_senderCharId = (unsigned int)chat->what_0x0a;
-    CUser* sender = userMgr->FindUser_CharNo((unsigned int)chat->what_0x13);
+    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x13);
     if (sender == 0)
     {
         return;
     }
-    CUser* receiver = userMgr->FindUser_CharNo((unsigned int)chat->what_0x17);
+    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x17);
     if (receiver == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
@@ -2137,43 +2131,39 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
             throw CDNFException(
                 "CPacketTranslater::OnNoticeProhibitConnectUser : 0 == m_pclApp");
         }
-        CUserManager* userMgr = &m_pclApp->m_userManager;
-        CServerHandler* handler = m_pclApp->Get_ServerHandler();
         Packet_Web_Prohibit_User_Connect* pu = (Packet_Web_Prohibit_User_Connect*)pkt;
         unsigned int dbid = (unsigned int)pu->m_fieldA;
         exchange_server::CACHE_CHARACTER_TYPE cacheType;
         if (exchange_server::GetInstanceCacheCharacterMgr()->GetCacheCharacter(dbid,
                                                                                &cacheType) != 0)
         {
-            char* s = NumberToString(dbid, 0);
-            DNF_LOG_SCOPE_LINE(0x8cc,"./log/ExchangeServer", "OnNoticeProhibitConnectUser() (%s,%d,%d)\n", s,
+            DNF_LOG_SCOPE_LINE(0x8cc,"./log/ExchangeServer", "OnNoticeProhibitConnectUser() (%s,%d,%d)\n",
+                NumberToString(dbid, 0),
                 cacheType.m_field0, cacheType.m_field4);
         }
         bool notPresent =
-            userMgr->FindUser(dbid) == 0 && userMgr->FindProhibitUser(dbid) == 0;
+            (&m_pclApp->m_userManager)->FindUser(dbid) == 0 && (&m_pclApp->m_userManager)->FindProhibitUser(dbid) == 0;
         pu->m_field11 = notPresent ? 0 : 1;
         if (pu->m_fieldE == 0)
         {
-            CDNFProhibitUser* p = userMgr->FindProhibitUser(dbid);
+            CDNFProhibitUser* p = (&m_pclApp->m_userManager)->FindProhibitUser(dbid);
             if (p == 0)
             {
                 p = new CDNFProhibitUser;
                 p->SetUserConnectableTime(dbid, (short)pu->m_fieldF, -1, true);
-                if (userMgr->InsertProhibitUser(dbid, p) != 1)
+                if ((&m_pclApp->m_userManager)->InsertProhibitUser(dbid, p) != 1)
                 {
-                    char* s = NumberToString(dbid, 0);
                     DNF_LOG_SCOPE_LINE(0x922,"./log/ProhibitUser",
                         "[INSERT_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : "
                         "%s, flag( %d ), time( %d ) \n",
-                        s, (int)(char)pu->m_fieldE,
+                        NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
                         (int)pu->m_fieldF);
                     delete p;
                 }
-                char* s = NumberToString(dbid, 0);
                 DNF_LOG_SCOPE_LINE(0x926,"./log/ProhibitUser",
                     "[INSERT_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser "
                     "m_id : %s, flag( %d ), time( %d ) \n",
-                    s, (int)(char)pu->m_fieldE,
+                    NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
                     (int)pu->m_fieldF);
             }
             else
@@ -2183,42 +2173,38 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
                     pu->m_fieldE = 2;
                     pu->packetId = 0x4c9;
                     pu->m_field12 = (char)m_pclApp->Get_ServerGroup();
-                    handler->GetTcpManagerServer()->SendTcpPacket(pkt);
-                    char* s = NumberToString(dbid, 0);
+                    m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->SendTcpPacket(pkt);
                     DNF_LOG_SCOPE_LINE(0x90a,"./log/ProhibitUser",
                         "[ALREADY_INSERT] CPacketTranslater::OnNoticeProhibitConnectUser m_id "
                         ": %s, flag( %d ), time( %d ) \n",
-                        s, (int)(char)pu->m_fieldE,
+                        NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
                         (int)pu->m_fieldF);
                     return;
                 }
-                char* s = NumberToString(dbid, 0);
                 DNF_LOG_SCOPE_LINE(0x90e,"./log/ProhibitUser",
                     "[ALREADY_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser "
                     "m_id : %s, flag( %d ), time( %d ) \n",
-                    s, (int)(char)pu->m_fieldE,
+                    NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
                     (int)pu->m_fieldF);
             }
             pu->packetId = 0x4c9;
             pu->m_field12 = (char)m_pclApp->Get_ServerGroup();
-            handler->GetTcpManagerServer()->SendTcpPacket(pkt);
+            m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->SendTcpPacket(pkt);
         }
         else
         {
-            if (userMgr->DeleteProhibitUser(dbid, -1) != 1)
+            if ((&m_pclApp->m_userManager)->DeleteProhibitUser(dbid, -1) != 1)
             {
-                char* s = NumberToString(dbid, 0);
                 DNF_LOG_SCOPE_LINE(0x8ef,"./log/ProhibitUser",
                     "[DELETE_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : %s, "
                     "flag( %d ), time( %d ) \n",
-                    s, (int)(char)pu->m_fieldE,
+                    NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
                     (int)pu->m_fieldF);
             }
-            char* s = NumberToString(dbid, 0);
             DNF_LOG_SCOPE_LINE(0x8f2,"./log/ProhibitUser",
                 "[DELETE_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser m_id : "
                 "%s, flag( %d ), time( %d ) \n",
-                s, (int)(char)pu->m_fieldE,
+                NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
                 (int)pu->m_fieldF);
         }
     }
@@ -3580,9 +3566,8 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
 {
     try
     {
-        CUserManager* userMgr = &m_pclApp->m_userManager;
         Packet_PvPChannelInfo* info = (Packet_PvPChannelInfo*)pkt;
-        CUser* user = userMgr->FindUser_CharNo(info->m_charNo);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(info->m_charNo);
         if (user != 0)
         {
             Packet_PvPChannelUserCount pkt2;
@@ -3591,8 +3576,7 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
             pkt2.m_field12 = info->m_field12;
             unsigned int sg = m_pclApp->Get_ServerGroup();
             (void)sg;
-            CServerHandler* handler = m_pclApp->m_serverHandler2;
-            int count = handler->SendAllTcpGameServer(
+            int count = m_pclApp->m_serverHandler2->SendAllTcpGameServer(
                 &pkt2, (int)(unsigned char)info->m_channelCount);
             user->ResetChannelUserCount(count);
             if (count == 0 || (int)info->m_field12 == 0)

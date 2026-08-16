@@ -105,14 +105,12 @@ void CServerHandler::Process()
         }
         if (m_tcpManagerServer.IsValidServer() != 1)
         {
-            const char* ip = m_tcpManagerServer.GetIP();
-            if (*ip == '\0' || m_tcpManagerServer.GetPort() == 0)
+            if (*m_tcpManagerServer.GetIP() == '\0' || m_tcpManagerServer.GetPort() == 0)
             {
             }
             else
             {
-                CTcpNetSystem* net = m_app->Get_TcpNetSystem();
-                net->OpenTcpService(*m_tcpManagerServer.GetSockRef(), m_tcpManagerServer.GetIP(),
+                m_app->Get_TcpNetSystem()->OpenTcpService(*m_tcpManagerServer.GetSockRef(), m_tcpManagerServer.GetIP(),
                                     m_tcpManagerServer.GetPort());
                 DNF_LOG_SCOPE_LINE(0x124,"./log/TcpServer", "try connect to DBMW(%s, %d)",
                     m_tcpManagerServer.GetIP(), m_tcpManagerServer.GetPort());
@@ -125,14 +123,12 @@ void CServerHandler::Process()
         }
         if (m_tcpDbServer.IsValidServer() != 1)
         {
-            const char* ip = m_tcpDbServer.GetIP();
-            if (*ip == '\0' || m_tcpDbServer.GetPort() == 0)
+            if (*m_tcpDbServer.GetIP() == '\0' || m_tcpDbServer.GetPort() == 0)
             {
             }
             else
             {
-                CTcpNetSystem* net = m_app->Get_TcpNetSystem();
-                net->OpenTcpService(*m_tcpDbServer.GetSockRef(), m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
+                m_app->Get_TcpNetSystem()->OpenTcpService(*m_tcpDbServer.GetSockRef(), m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
                 DNF_LOG_SCOPE_LINE(0x13d,"./log/TcpServer", "try connect to DBMW(%s, %d)",
                     m_tcpDbServer.GetIP(), m_tcpDbServer.GetPort());
             }
