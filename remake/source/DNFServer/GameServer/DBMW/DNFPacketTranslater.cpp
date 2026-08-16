@@ -1943,6 +1943,8 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
         CGuildServer* gs = m_pclApp->m_serverHandler->GetGuildServer();
         int count = 0;
         STGuildBoardDBInfo boards[0x32];
+        Packet_DB_Load_Reply_Guild_Board_Open reply;
+        Packet_DB_Load_Reply_Guild_Board_Open replyR;
         if (!m_pclApp->m_dbManager.OnLoadGuildBoard(
                 ((FieldViewP<0xa,int>*)pkt)->v, count, boards))
         {
@@ -1952,7 +1954,6 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
                 0
             );
 
-            Packet_DB_Load_Reply_Guild_Board_Open reply;
             reply.m_result = 1;
             reply.m_count = 1;
             reply.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
@@ -1965,7 +1966,6 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
         int rem = count - pageCount * 10;
         for (int page = 0; page < pageCount; page++)
         {
-            Packet_DB_Load_Reply_Guild_Board_Open reply;
             reply.m_count = 0;
             reply.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
             reply.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
@@ -1986,14 +1986,13 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
         }
         if (rem != 0)
         {
-            Packet_DB_Load_Reply_Guild_Board_Open reply;
-            reply.m_count = 1;
-            reply.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
-            reply.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
-            reply.m_boardCount = (char)rem;
+            replyR.m_count = 1;
+            replyR.m_guildId = ((FieldViewP<0xa,int>*)pkt)->v;
+            replyR.m_charNo = ((FieldViewP<0xe,int>*)pkt)->v;
+            replyR.m_boardCount = (char)rem;
             for (int i = 0; i < rem; i++)
             {
-                char* dst = (char*)&reply + 0x16 + i * 0xa5;
+                char* dst = (char*)&replyR + 0x16 + i * 0xa5;
                 char* src = (char*)boards + (pageCount * 10 + i) * 0xa5;
                 memcpy(dst, src, 0x78);
                 *(int*)(dst + 0x78) = *(int*)(src + 0x78);
@@ -2001,7 +2000,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
                 *(int*)(dst + 0x88) = *(int*)(src + 0x88);
                 memcpy(dst + 0x84, src + 0x84, 0x21);
             }
-            gs->SendToServer((char*)&reply, 0x688);
+            gs->SendToServer((char*)&replyR, 0x688);
         }
     }
     DNF_CATCH_LOG("./log/Except",
