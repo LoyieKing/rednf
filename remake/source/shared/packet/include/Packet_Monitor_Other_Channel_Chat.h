@@ -6,6 +6,7 @@
 #define PACKET_MONITOR_OTHER_CHANNEL_CHAT_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 #pragma pack(push, 1)
 class Packet_Monitor_Other_Channel_Chat : public PacketHeader {
@@ -19,9 +20,12 @@ public:
     char buddy_n_user_id_what[30];  // offset 0x1c
     unsigned char chatLength;       // offset 0x3a（原始：movzx 零扩展）
     char chatContent[256];          // offset 0x3b
-
-    Packet_Monitor_Other_Channel_Chat()
-        : PacketHeader(0x3f3, 0x13b){};
+    Packet_Monitor_Other_Channel_Chat() : PacketHeader(0x3f3, 0x13b),
+        m_id(0), server_id(0), what_0x13(0), what_0x17(0), what_0x1b(0), chatLength(0)
+    {
+    memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
+    memset(chatContent, 0, sizeof(chatContent));
+    };
 } __attribute__((packed));
 #pragma pack(pop)
 

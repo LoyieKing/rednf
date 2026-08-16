@@ -17,8 +17,8 @@ public:
     char m_name[0x1e];              // +0x13
     Packet_Monitor_Member_Secede() : PacketHeader(0x4bb, 0x31)
     {
-        memset(m_name, 0, 0x1e);
-    }
+    memset(m_name, 0, sizeof(m_name));
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Monitor_Member_Secede, 0x31);

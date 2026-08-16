@@ -15,7 +15,11 @@ public:
     int m_toSlot;             // +0x16
     int m_count;              // +0x1a
     int m_type;               // +0x1e
-    Packet_Guild_Guild_Cargo_Move_Item(): PacketHeader(0x70f,0x22) {};
+    Packet_Guild_Guild_Cargo_Move_Item() : PacketHeader(0x70f, 0x22),
+        m_guildKey(0), m_charNo(0), m_fromSlot(0), m_toSlot(0)
+    {
+
+    };
 } __attribute__((packed));
 
 

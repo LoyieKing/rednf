@@ -12,9 +12,11 @@ class Packet_Community_Logout : public PacketHeader {
 public:
     int m_id;  // offset 0xa
     int what_0xe;  // offset 0xe
+    Packet_Community_Logout() : PacketHeader(0x1b59, 0x12),
+        m_id(0), what_0xe(0)
+    {
 
-    Packet_Community_Logout()
-        : PacketHeader(0x1b59, 0x12){};
+    };
 } __attribute__((packed));
 #pragma pack(pop)
 

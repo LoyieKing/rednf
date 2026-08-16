@@ -6,6 +6,7 @@
 #define PACKET_MONITOR_UDP_REPLY_USERINFO_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 struct ST_MonitorReplyUserInfo
 {
@@ -36,7 +37,12 @@ public:
     unsigned char m_count;                      // +0xa
     unsigned char m_channel;                    // +0xb
     ST_MonitorReplyUserInfo m_items[75];        // +0xc
-    Packet_Monitor_UDP_Reply_UserInfo(): PacketHeader(0x3ea,0x16e6) {};
+    Packet_Monitor_UDP_Reply_UserInfo() : PacketHeader(0x3ea, 0x16e6)
+    {
+    *(char*)((char*)this + 0xa) = 0;
+    *(char*)((char*)this + 0xb) = 255;
+    memset((char*)this + 0xc, 0, 0x16da);
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Monitor_UDP_Reply_UserInfo, 0x16e6);

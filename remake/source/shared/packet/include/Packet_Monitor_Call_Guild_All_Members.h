@@ -11,7 +11,11 @@ class Packet_Monitor_Call_Guild_All_Members : public PacketHeader {
 public:
     unsigned int m_charNo;      // +0xa
     unsigned int m_guildKey;    // +0xe
-    Packet_Monitor_Call_Guild_All_Members(): PacketHeader(0x424,0x12) {};
+    Packet_Monitor_Call_Guild_All_Members() : PacketHeader(0x424, 0x12),
+        m_guildKey(0)
+    {
+
+    };
 } __attribute__((packed));
 
 

@@ -9,7 +9,11 @@
 
 class Packet_Request_Power_War_Start_Info : public PacketHeader {
 public:
-    Packet_Request_Power_War_Start_Info(): PacketHeader(0x6b1,0xe) {};
+    Packet_Request_Power_War_Start_Info() : PacketHeader(0x6b1, 0xe),
+        m_field(0)
+    {
+
+    };
     unsigned int m_field;  // +0xa
 } __attribute__((packed));
 

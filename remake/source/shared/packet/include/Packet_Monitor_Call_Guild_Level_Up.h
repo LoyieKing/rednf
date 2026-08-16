@@ -14,7 +14,11 @@ public:
     unsigned int m_guildKey;    // +0x12
     unsigned char m_pad16;      // +0x16
     unsigned int m_fund;        // +0x17
-    Packet_Monitor_Call_Guild_Level_Up(): PacketHeader(0x408,0x1b) {};
+    Packet_Monitor_Call_Guild_Level_Up() : PacketHeader(0x408, 0x1b),
+        m_padA(0xffffffffu), m_charNo(0), m_guildKey(0), m_pad16(0), m_fund(0)
+    {
+
+    };
 } __attribute__((packed));
 
 

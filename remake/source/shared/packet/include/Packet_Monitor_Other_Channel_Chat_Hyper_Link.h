@@ -6,6 +6,7 @@
 #define PACKET_MONITOR_OTHER_CHANNEL_CHAT_HYPER_LINK_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 #pragma pack(push, 1)
 class Packet_Monitor_Other_Channel_Chat_Hyper_Link : public PacketHeader {
@@ -23,9 +24,19 @@ public:
     char what_0x3b[3][0x68];          // offset 0x3b
     unsigned char what_0x173;       // offset 0x173（原始：movzx 零扩展）
     char what_0x174[0x100];         // offset 0x174
-
-    Packet_Monitor_Other_Channel_Chat_Hyper_Link()
-        : PacketHeader(0x2719, 0x274){};
+    Packet_Monitor_Other_Channel_Chat_Hyper_Link() : PacketHeader(0x2719, 0x274)
+    {
+    *(int*)((char*)this + 0xe) = 0;
+    *(char*)((char*)this + 0x12) = 0;
+    *(int*)((char*)this + 0x13) = 0;
+    *(int*)((char*)this + 0x17) = 0;
+    *(char*)((char*)this + 0x1b) = 0;
+    *(char*)((char*)this + 0x3a) = 0;
+    *(char*)((char*)this + 0x173) = 0;
+    memset((char*)this + 0x1c, 0, 0x1e);
+    memset((char*)this + 0x3b, 0, 0x138);
+    memset((char*)this + 0x174, 0, 0x100);
+    };
 } __attribute__((packed));
 #pragma pack(pop)
 

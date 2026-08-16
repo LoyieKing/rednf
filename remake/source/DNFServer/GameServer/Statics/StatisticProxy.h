@@ -3,10 +3,39 @@
 
 #include <string>
 #include <map>
+#include <string.h>
 
 #include "PacketHeader.h"
 
-class StatisticsPacket;
+// df_game_r: StatisticsPacket::StatisticsPacket() @ 0x8610132（0x2720 / 0x89）
+class StatisticsPacket : public PacketHeader {
+public:
+    char m_fieldA[0x21];   // +0xa..+0x2a（ctor memset 区域）
+    char m_field2B[0x21];  // +0x2b..+0x4b（ctor memset 区域）
+    char m_field4C[0x39];  // +0x4c..+0x84（ctor memset 区域）
+    int m_value;           // +0x85
+
+    StatisticsPacket() : PacketHeader(0x2720, 0x89)
+    {
+        memset(m_fieldA, 0, sizeof(m_fieldA));
+        memset(m_field2B, 0, sizeof(m_field2B));
+        memset(m_field4C, 0, sizeof(m_field4C));
+        m_value = 0;
+    }
+} __attribute__((packed));
+
+TEST_CLASS_SIZE(StatisticsPacket, 0x89);
+
+// df_game_r: StatisticsGmCmdPacket::StatisticsGmCmdPacket() @ 0x822c4a2（0x2722 / 0xe）
+class StatisticsGmCmdPacket : public PacketHeader {
+public:
+    int m_fieldA;  // +0xa
+
+    StatisticsGmCmdPacket() : PacketHeader(0x2722, 0xe),
+        m_fieldA(0) {};
+} __attribute__((packed));
+
+TEST_CLASS_SIZE(StatisticsGmCmdPacket, 0xe);
 
 // ---- PacketInsertUpdate（statistc_proxy::Field 组装 SQL 上报用）----
 #pragma pack(push, 1)

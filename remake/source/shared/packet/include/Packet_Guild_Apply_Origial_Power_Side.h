@@ -12,7 +12,11 @@ public:
     unsigned int m_charNo;      // +0xa
     unsigned int m_guildKey;    // +0xe
     unsigned char m_field12;    // +0x12
-    Packet_Guild_Apply_Origial_Power_Side(): PacketHeader(0x6b2,0x13) {};
+    Packet_Guild_Apply_Origial_Power_Side() : PacketHeader(0x6b2, 0x13),
+        m_charNo(0), m_guildKey(0), m_field12(0)
+    {
+
+    };
 } __attribute__((packed));
 
 

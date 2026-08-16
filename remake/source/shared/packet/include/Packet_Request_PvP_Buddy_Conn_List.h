@@ -12,9 +12,11 @@ class Packet_Request_PvP_Buddy_Conn_List : public PacketHeader {
 public:
     int m_id;       // offset 0x0a
     int charac_no;  // offset 0x0e
+    Packet_Request_PvP_Buddy_Conn_List() : PacketHeader(0x1b5a, 0x12),
+        m_id(0), charac_no(0)
+    {
 
-    Packet_Request_PvP_Buddy_Conn_List()
-        : PacketHeader(0x1b5a, 0x12){};
+    };
 } __attribute__((packed));
 #pragma pack(pop)
 

@@ -16,7 +16,11 @@ public:
     int m_count;               // +0x1a
     unsigned char m_itemType;  // +0x1e
     unsigned int m_uit;        // +0x1f
-    Packet_Guild_Guild_Cargo_Pop_Item(): PacketHeader(0x70e,0x23) {};
+    Packet_Guild_Guild_Cargo_Pop_Item() : PacketHeader(0x70e, 0x23),
+        m_guildKey(0), m_charNo(0), m_slot(0), m_id(0), m_count(0), m_itemType(0), m_uit(0)
+    {
+
+    };
 } __attribute__((packed));
 
 

@@ -10,7 +10,11 @@
 class Packet_Register_GM_MID : public PacketHeader {
 public:
     unsigned int m_gmId;            // +0xa
-    Packet_Register_GM_MID() : PacketHeader(0x1f44, 0xe){};
+    Packet_Register_GM_MID() : PacketHeader(0x1f44, 0xe),
+        m_gmId(0)
+    {
+
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Register_GM_MID, 0xe);

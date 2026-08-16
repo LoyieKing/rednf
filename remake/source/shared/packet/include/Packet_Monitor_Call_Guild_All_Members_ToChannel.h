@@ -6,6 +6,7 @@
 #define PACKET_MONITOR_CALL_GUILD_ALL_MEMBERS_TO_CHANNEL_H
 
 #include "PacketHeader.h"
+#include <string.h>
 #include "Packet_Monitor_Call_Guild_Members_ToChannel.h"
 
 class Packet_Monitor_Call_Guild_All_Members_ToChannel : public PacketHeader {

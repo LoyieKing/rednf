@@ -8,10 +8,16 @@
 #include <vector>
 
 #include "PacketHeader.h"
+#include <string.h>
 
 class Packet_Guild_Change_Power_War_Point : public PacketHeader {
 public:
-    Packet_Guild_Change_Power_War_Point(): PacketHeader(0x6a4,0x2d) {};
+    Packet_Guild_Change_Power_War_Point() : PacketHeader(0x6a4, 0x2d),
+        m_fieldA(0), m_field2B(0), m_field2C(0)
+    {
+    memset((char*)this + 0xb, 0, 0x10);
+    memset((char*)this + 0x1b, 0, 0x10);
+    };
     void GetUserList(std::vector<unsigned int>& list);
     unsigned char m_fieldA;        // +0xa
     unsigned int m_fieldB;         // +0xb

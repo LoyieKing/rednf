@@ -6,6 +6,7 @@
 #define PACKET_GUILD_REQUEST_GUILD_SECEDE_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 class Packet_Guild_Request_Guild_Secede : public PacketHeader {
 public:
@@ -13,7 +14,10 @@ public:
     unsigned int m_requesterCharNo;  // +0xe
     unsigned int m_nameLen;          // +0x12
     char m_name[0x1e];               // +0x16
-    Packet_Guild_Request_Guild_Secede(): PacketHeader(0x439,0x34) {};
+    Packet_Guild_Request_Guild_Secede() : PacketHeader(0x439, 0x34)
+    {
+    memset(m_name, 0, sizeof(m_name));
+    };
 } __attribute__((packed));
 
 

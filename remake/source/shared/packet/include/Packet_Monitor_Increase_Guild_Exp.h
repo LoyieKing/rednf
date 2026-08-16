@@ -14,7 +14,11 @@ public:
     unsigned int m_addExp;    // +0x12
     char m_field_16;          // +0x16
     char m_field_17;          // +0x17
-    Packet_Monitor_Increase_Guild_Exp(): PacketHeader(0x40e,0x1c) {};
+    Packet_Monitor_Increase_Guild_Exp() : PacketHeader(0x40e, 0x1c),
+        m_field_17(0)
+    {
+
+    };
 } __attribute__((packed));
 
 

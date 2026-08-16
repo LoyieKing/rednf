@@ -6,6 +6,7 @@
 #define PACKET_GAME_SERVER_REGIST_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 class Packet_Game_Server_Regist : public PacketHeader {
 public:
@@ -14,7 +15,11 @@ public:
     unsigned char m_channel;    // +0xc
     char m_name[0x10];          // +0xd
     unsigned short m_port;      // +0x1d
-    Packet_Game_Server_Regist() : PacketHeader(0x1f41, 0x1f){};
+    Packet_Game_Server_Regist() : PacketHeader(0x1f41, 0x1f),
+        m_type(0), m_group(0), m_channel(0), m_port(0)
+    {
+    memset(m_name, 0, sizeof(m_name));
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Game_Server_Regist, 0x1f);

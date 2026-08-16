@@ -10,7 +10,11 @@
 class Packet_Monitor_Notice_Guild_Dismiss : public PacketHeader {
 public:
     unsigned int m_guildKey;  // +0xa
-    Packet_Monitor_Notice_Guild_Dismiss(): PacketHeader(0x3fc,0xe) {};
+    Packet_Monitor_Notice_Guild_Dismiss() : PacketHeader(0x3fc, 0xe),
+        m_guildKey(0)
+    {
+
+    };
 } __attribute__((packed));
 
 

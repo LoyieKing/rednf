@@ -6,6 +6,7 @@
 #define PACKET_REQUEST_REMOVE_PVP_BUDDY_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 #pragma pack(push, 1)
 class Packet_Request_Remove_PvP_Buddy : public PacketHeader {
@@ -14,8 +15,11 @@ public:
     int charac_no;
     char server_id;
     char buddy_n_user_id_what[30];
-
-    Packet_Request_Remove_PvP_Buddy() : PacketHeader(0x1b60, 0x31){};
+    Packet_Request_Remove_PvP_Buddy() : PacketHeader(0x1b60, 0x31),
+        m_id(0), charac_no(0), server_id(0)
+    {
+    memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
+    };
 } __attribute__((packed));
 #pragma pack(pop)
 

@@ -12,7 +12,11 @@ public:
     unsigned int m_guildKey;  // +0xa
     unsigned int m_charNo;    // +0xe
     unsigned int m_no;        // +0x12
-    Packet_Approve_Join_Guild() : PacketHeader(0x1bc2, 0x16){};
+    Packet_Approve_Join_Guild() : PacketHeader(0x1bc2, 0x16),
+        m_guildKey(0), m_charNo(0), m_no(0)
+    {
+
+    };
 } __attribute__((packed));
 
 #endif  // PACKET_APPROVE_JOIN_GUILD_H

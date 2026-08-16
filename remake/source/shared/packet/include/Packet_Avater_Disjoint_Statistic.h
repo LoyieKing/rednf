@@ -9,7 +9,11 @@
 
 class Packet_Avater_Disjoint_Statistic : public PacketHeader {
 public:
-    Packet_Avater_Disjoint_Statistic(): PacketHeader(0x17a2,0x28) {};
+    Packet_Avater_Disjoint_Statistic() : PacketHeader(0x17a2, 0x28),
+        m_count(0)
+    {
+
+    };
     int m_count;                  // +0xa（0..2）
     struct __attribute__((packed)) Item {
         int m_a;                  // +0

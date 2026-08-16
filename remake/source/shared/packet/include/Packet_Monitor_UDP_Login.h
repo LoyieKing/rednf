@@ -6,6 +6,7 @@
 #define PACKET_MONITOR_UDP_LOGIN_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 class Packet_Monitor_UDP_Login : public PacketHeader {
 public:
@@ -23,7 +24,11 @@ public:
     unsigned int m_cache0;      // +0x24
     unsigned int m_cache4;      // +0x28
     char m_ssn[7];              // +0x2c
-    Packet_Monitor_UDP_Login() : PacketHeader(0x3e8, 0x33){};
+    Packet_Monitor_UDP_Login() : PacketHeader(0x3e8, 0x33),
+        m_channelId(0), m_dbid(0), m_channel(255), m_sex(255)
+    {
+    memset(m_ssn, 0, sizeof(m_ssn));
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Monitor_UDP_Login, 0x33);

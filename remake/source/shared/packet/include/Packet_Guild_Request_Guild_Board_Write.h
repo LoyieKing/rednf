@@ -6,6 +6,7 @@
 #define PACKET_GUILD_REQUEST_GUILD_BOARD_WRITE_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 class Packet_Guild_Request_Guild_Board_Write : public PacketHeader {
 public:
@@ -15,7 +16,11 @@ public:
     unsigned char m_field16;    // +0x16
     unsigned char m_field17;    // +0x17
     char m_info[0x78];          // +0x18
-    Packet_Guild_Request_Guild_Board_Write(): PacketHeader(0x232d,0x90) {};
+    Packet_Guild_Request_Guild_Board_Write() : PacketHeader(0x232d, 0x90),
+        m_guildKey(0), m_boardNo(0), m_charNo(0), m_field16(255), m_field17(255)
+    {
+    memset(m_info, 0, sizeof(m_info));
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Guild_Request_Guild_Board_Write, 0x90);

@@ -12,7 +12,11 @@ public:
     unsigned char m_boardType;  // +0xa
     unsigned int m_guildKey;    // +0xb
     unsigned int m_charNo;      // +0xf
-    Packet_Guild_Request_Guild_Board_Open(): PacketHeader(0x2329,0x13) {};
+    Packet_Guild_Request_Guild_Board_Open() : PacketHeader(0x2329, 0x13),
+        m_boardType(0), m_guildKey(0), m_charNo(0)
+    {
+
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Guild_Request_Guild_Board_Open, 0x13);

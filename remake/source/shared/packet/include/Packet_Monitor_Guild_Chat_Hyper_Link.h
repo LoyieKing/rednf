@@ -6,6 +6,7 @@
 #define PACKET_MONITOR_GUILD_CHAT_HYPER_LINK_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 class Packet_Monitor_Guild_Chat_Hyper_Link : public PacketHeader {
 public:
@@ -15,7 +16,12 @@ public:
     char m_items[0x138];      // +0x13
     unsigned char m_msgLen;   // +0x14b
     char m_msg[0x100];        // +0x14c
-    Packet_Monitor_Guild_Chat_Hyper_Link(): PacketHeader(0x2718,0x24c) {};
+    Packet_Monitor_Guild_Chat_Hyper_Link() : PacketHeader(0x2718, 0x24c),
+        m_charNo(0), m_guildKey(0), m_field_12(0), m_msgLen(0)
+    {
+    memset(m_items, 0, sizeof(m_items));
+    memset(m_msg, 0, sizeof(m_msg));
+    };
 } __attribute__((packed));
 
 

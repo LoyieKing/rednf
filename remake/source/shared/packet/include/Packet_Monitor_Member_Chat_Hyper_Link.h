@@ -6,6 +6,7 @@
 #define PACKET_MONITOR_MEMBER_CHAT_HYPER_LINK_H
 
 #include "PacketHeader.h"
+#include <string.h>
 
 class Packet_Monitor_Member_Chat_Hyper_Link : public PacketHeader {
 public:
@@ -14,7 +15,14 @@ public:
     char m_items[3][0x68];          // +0xf
     unsigned char m_msgLen;         // +0x147
     char m_msg[0x100];              // +0x148
-    Packet_Monitor_Member_Chat_Hyper_Link(): PacketHeader(0x271a,0x248) {};
+    Packet_Monitor_Member_Chat_Hyper_Link() : PacketHeader(0x271a, 0x248)
+    {
+    *(int*)((char*)this + 0xa) = 0;
+    *(char*)((char*)this + 0xe) = 0;
+    *(char*)((char*)this + 0x147) = 0;
+    memset((char*)this + 0xf, 0, 0x138);
+    memset((char*)this + 0x148, 0, 0x100);
+    };
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(Packet_Monitor_Member_Chat_Hyper_Link, 0x248);

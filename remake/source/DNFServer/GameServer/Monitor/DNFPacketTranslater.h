@@ -398,7 +398,7 @@ public:
     unsigned char m_fullLoad;   // +10（Ghidra log "FullLoad: %d"）
     unsigned int m_serverType;  // +11（Ghidra log "ServerType:%d"，与 serverGroup&0xff 比较）
     unsigned int m_loadTargetNum;  // +15（Ghidra log "LoadTargetNum: %d"）
-    unsigned int m_ipgNo[24];   // +19
+    unsigned int m_ipgNo[28];   // +19（ORIG ctor size 0x83）
 } __attribute__((packed));
 
 class Packet_Item_Limit_Edition_Sell_end : public PacketHeader
