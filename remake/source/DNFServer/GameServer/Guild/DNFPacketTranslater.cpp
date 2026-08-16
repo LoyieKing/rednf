@@ -2139,7 +2139,7 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
         size_t nameLen = pb->m_nameLen;
         dbPkt.m_nameLen = nameLen;
         memcpy(dbPkt.m_name, pb->m_name, nameLen);
-        (void)guild->GetMasterId();
+        dbPkt.m_masterId = guild->GetMasterId();
         if (pb->m_nameLen == 0)
         {
             dbPkt.m_flag = 1;

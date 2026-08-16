@@ -121,6 +121,7 @@ public:
 class Packet_DB_Query_On_Guild_Booting : public PacketHeader {
 public:
     Packet_DB_Query_On_Guild_Booting();
+    unsigned char m_group;   // +0xa（ORIG ctor size 0xb）
 };
 
 // from GuildPackets.h

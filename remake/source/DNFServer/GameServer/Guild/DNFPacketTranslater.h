@@ -414,7 +414,7 @@ public:
     unsigned char m_flag;             // +0x12
     unsigned int m_nameLen;           // +0x13
     char m_name[0x1e];                // +0x17
-    char m_pad35[0x4];                // +0x35
+    unsigned int m_masterId;          // +0x35（ORIG 写入 GetMasterId）
 };
 
 // from GuildPackets.h

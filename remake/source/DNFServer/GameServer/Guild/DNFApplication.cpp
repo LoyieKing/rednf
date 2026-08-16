@@ -208,12 +208,7 @@ void CApplication::Load(int argc, char** argv)
         DNF_LOG_SCOPE_LINE(0x180, "./log/TcpServer", "Application TCP cfg empty!");
     }
     Packet_DB_Query_On_Guild_Booting pkt;
-    struct BootingFields
-    {
-        char pad[0xa];
-        unsigned char group;
-    };
-    ((BootingFields*)&pkt)->group = Get_ServerGroup();
+    pkt.m_group = Get_ServerGroup();
     m_serverHandler->SendToDB(&pkt);
     m_powerManager.SetPowerDBFlag(2);
     typedef std::queue<CTcpRecvBuffer*> TcpRecvQueue;
