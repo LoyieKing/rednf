@@ -1200,7 +1200,7 @@ public:
     Packet_Monitor_Call_Member_List_ToUser();
     unsigned int m_idByChannel;     // +10
     unsigned int m_uniqCharNo;      // +14
-    STMemberListInfo m_memberList;  // +18 (0x12)
+    STMemberListInfo m_memberList;  // +18 (0x1cf)
 } __attribute__((packed));
 
 class Packet_Punish_Cancel : public PacketHeader
