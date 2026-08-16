@@ -433,15 +433,11 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
     try
     {
         Packet_Monitor_UDP_Logout* logout = (Packet_Monitor_UDP_Logout*)pkt;
-        CUserManager* userMgr = &m_pclApp->m_userManager;
-        CMemberManager* memberMgr = m_pclApp->Get_MemberManager();
-        CLoginLogoutStatistics* stats =
-            (CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics();
-        if (stats != 0 && logout->m_foc == 0)
+        if (((CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics()) != 0 && logout->m_foc == 0)
         {
-            stats->CountNumOfLoginout((ENUM_LOGIN_LOGOUT)6);
+            ((CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics())->CountNumOfLoginout((ENUM_LOGIN_LOGOUT)6);
         }
-        CUser* user = userMgr->FindUser(logout->m_dbid);
+        CUser* user = (&m_pclApp->m_userManager)->FindUser(logout->m_dbid);
         if (user == 0)
         {
             char* dbid = NumberToString(logout->m_dbid, 0);
@@ -461,17 +457,17 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
             (unsigned int)(unsigned char)logout->m_channel);
         unsigned int memberKey2 = logout->m_memberKey;
         CMemoryCashManager* cash = (CMemoryCashManager*)m_pclApp->Get_MemoryCashManager();
-        CMember* member = memberMgr->FindMember(logout->m_memberKey);
+        CMember* member = (m_pclApp->Get_MemberManager())->FindMember(logout->m_memberKey);
         bool f1 = false;
         bool f2 = false;
         cash->InsertCashMemorySetCharacterObject(user, member, f1, f2);
         if (memberKey2 != 0)
         {
-            memberMgr->MemberMemLogout(memberKey2, user, !f2);
+            (m_pclApp->Get_MemberManager())->MemberMemLogout(memberKey2, user, !f2);
         }
         if (user->GetUniqCharNo() != 0)
         {
-            if (userMgr->DeleteUser_CharNo(user->GetUniqCharNo()) == 1)
+            if ((&m_pclApp->m_userManager)->DeleteUser_CharNo(user->GetUniqCharNo()) == 1)
             {
                 user->GetUniqCharNo();
                 m_pclApp->Remove_GM_id(user->GetUniqCharNo());
@@ -481,14 +477,14 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                     &m_pclApp->m_buddyMgr;
                 for (int i = 0; i < n; i++)
                 {
-                    buddyReg->delBuddyRegister(charNos[i], user->GetUniqCharNo());
+                    (&m_pclApp->m_buddyMgr)->delBuddyRegister(charNos[i], user->GetUniqCharNo());
                 }
                 std::vector<unsigned int> vec;
-                buddyReg->findBuddyRegister(user->GetUniqCharNo(), vec);
+                (&m_pclApp->m_buddyMgr)->findBuddyRegister(user->GetUniqCharNo(), vec);
                 for (std::vector<unsigned int>::iterator it = vec.begin(); it != vec.end();
                      ++it)
                 {
-                    CUser* other = userMgr->FindUser_CharNo(*it);
+                    CUser* other = (&m_pclApp->m_userManager)->FindUser_CharNo(*it);
                     if (other != 0)
                     {
                         other->SendNoticeBuddyInOut(
@@ -514,10 +510,10 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
                 if (stats2 != 0)
                 {
                     stats2->CountNumOfOccupations((ENUM_LOGIN_LOGOUT)4,
-                                                  (int)userMgr->GetSizeOfCharnoUsers());
+                                                  (int)(&m_pclApp->m_userManager)->GetSizeOfCharnoUsers());
                 }
             }
-            userMgr->DeleteUser_CharName(user->GetCharName());
+            (&m_pclApp->m_userManager)->DeleteUser_CharName(user->GetCharName());
             user->ResetCharInfo(!f1);
         }
         if (logout->m_foc != 0)
@@ -538,7 +534,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
             ((CServerInterface*)user->GetGameServer())->GetChannelNo() ==
                 (unsigned char)logout->m_channel)
         {
-            if (userMgr->DeleteUser(user) != 1)
+            if ((&m_pclApp->m_userManager)->DeleteUser(user) != 1)
             {
                 char* dbid3 = NumberToString(logout->m_dbid, 0);
                 CMyFileLog log3(__FUNCTION__, 0x2c5);
@@ -564,7 +560,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
             (CLoginLogoutStatistics*)m_pclApp->GetLoginLogoutStatistics();
         if (stats3 != 0)
         {
-            stats3->CountNumOfOccupations((ENUM_LOGIN_LOGOUT)0, (int)userMgr->Size());
+            stats3->CountNumOfOccupations((ENUM_LOGIN_LOGOUT)0, (int)(&m_pclApp->m_userManager)->Size());
         }
     }
     catch (CDNFException& e)
