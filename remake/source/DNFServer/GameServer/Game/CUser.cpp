@@ -1072,6 +1072,28 @@ void CUser::setMoveSpace(UserSpace::T space)
     m_field8cfcc = space;
 }
 
+int CUser::CheckMoveTown(int vill)
+{
+    if (G_GameWorld()->IsPVPChannel())
+        return 0;
+    if (vill <= 10)
+    {
+        if ((1 << vill) & 0x580)
+            return 0;
+    }
+    Village* village = G_GameWorld()->GetVillage(vill);
+    if (!village)
+        return 8;
+    if (get_charac_level() < village->m_requiredLevel)
+        return 8;
+    if (village->m_questIdx != 0)
+    {
+        if (!getCurCharacQuestR()->isClearQuest(village->m_questIdx))
+            return 7;
+    }
+    return 0;
+}
+
 unsigned char CUser::isUseCraneStart() const
 {
     return m_field8eb98;

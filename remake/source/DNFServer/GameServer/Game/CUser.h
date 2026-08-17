@@ -1447,6 +1447,7 @@ public:
     int getPlayingDungeonIndex();
     void setMoveSpace(UserSpace::T space);
     UserSpace::T getMoveSpace() const;
+    int CheckMoveTown(int vill);
     void setBeforeAreaTime(long t);
     long getBeforeAreaTime() const;
     void setUseCraneStart(bool flag);
