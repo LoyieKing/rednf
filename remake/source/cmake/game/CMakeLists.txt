@@ -7,7 +7,7 @@ project(game CXX)
 # docs/df_game_r_class_topology.md 与 docs/class_func_reports/。
 # 本服务含 yaSSL/TaoCrypt/MySQL（Library3rd/MySQL 自带源码）。
 # ============================================================
-set(CMAKE_CXX_LINK_EXECUTABLE "/usr/bin/g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+set(CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_game_link.sh <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
 
 include(${CMAKE_CURRENT_LIST_DIR}/../../toolchain/cmake/dnf_helpers.cmake)
 
@@ -236,7 +236,7 @@ dnf_service(game
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
         ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a
     LINK_FLAGS
-        -m32 -no-pie -lpthread -ldl -lm
+        -m32 -lpthread -ldl -lm -lrt
 )
 
 target_compile_options(game PRIVATE -std=gnu++0x)
