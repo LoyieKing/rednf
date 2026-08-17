@@ -10,6 +10,7 @@
 
 #include <algorithm>
 
+#include "CUser.h"
 #include "CInventory.h"
 #include "LogManager.h"
 #include "GameWorld.h"
@@ -1668,15 +1669,14 @@ PvpResultType* CUserCharacInfo::getPVPResultRefW()
     enableSavePvP();
     return &m_pvpResult;
 }
-
 const PvpResultType* CUserCharacInfo::getPVPResultRefR() const
 {
-    return (const PvpResultType*)((char*)this + 0x18);
+    return &m_pvpResult;
 }
 
 PvpResultType* CUserCharacInfo::getPVPResultR() const
 {
-    return (PvpResultType*)((char*)this + 0x18);
+    return const_cast<PvpResultType*>(&m_pvpResult);
 }
 
 unsigned char CUserCharacInfo::getMemberDungeonFlag() const
@@ -1709,9 +1709,8 @@ WongWork::CDungeonClear* CUserCharacInfo::getDungeonClearRefW()
 
 const WongWork::CDungeonClear* CUserCharacInfo::getDungeonClearRefR() const
 {
-    return (const WongWork::CDungeonClear*)((char*)this + 0xb4);
+    return &m_dungeonClear;
 }
-
 unsigned char CUserCharacInfo::getDisguiseKind()
 {
     return m_selected ? CUR->m_disguiseKind : 0;
@@ -2105,7 +2104,7 @@ std::map<int, GameResultType>* CUserCharacInfo::getBattleRecordRefW()
 
 const std::map<int, GameResultType>* CUserCharacInfo::getBattleRecordRefR() const
 {
-    return (const std::map<int, GameResultType>*)((char*)this + 0x9c);
+    return &m_battleRecord;
 }
 
 void CUserCharacInfo::enableSaveSkill() { m_saveSkill = 1; }
@@ -2376,7 +2375,7 @@ void CUserCharacInfo::WarAreaKill(int index, int point, float kill)
     }
     ChangeFinishPoint(point);
     CUR->m_warAreaKill[index] += kill;
-    ((cUserHistoryLog*)((char*)this + 0x79700))->FPAdd(
+    ((CUser*)this)->m_historyLog.FPAdd(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal,
         index == 4 ? (eFPAddReason)1 : eFPAddReason_0);
 }
@@ -2408,7 +2407,7 @@ int CUserCharacInfo::UseFinishPoint(int point)
         return 0;
     }
     ChangeFinishPoint(-point);
-    ((cUserHistoryLog*)((char*)this + 0x79700))->FPSub(
+    ((CUser*)this)->m_historyLog.FPSub(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal, eFPSubReason_0);
     return CUR->m_finishPoint;
 }
@@ -2895,7 +2894,7 @@ void CUserCharacInfo::InitFinishPoint()
     CUR->m_finishPoint = 0;
     CUR->m_finishPointTotal = 0;
     memset((char*)CUR + 0xe0e, 0, 0x14);
-    ((cUserHistoryLog*)((char*)this + 0x79700))->FPSub(
+    ((CUser*)this)->m_historyLog.FPSub(
         0, CUR->m_finishPoint, CUR->m_finishPointTotal, (eFPSubReason)1);
     }
 }
@@ -3723,7 +3722,7 @@ void CUserCharacInfo::DecreaseWarPoint(int point)
         if (CUR->m_finishPointTotal < 0)
             CUR->m_finishPointTotal = 0;
     }
-    ((cUserHistoryLog*)((char*)this + 0x79700))->FPSub(
+    ((CUser*)this)->m_historyLog.FPSub(
         point, CUR->m_finishPoint, CUR->m_finishPointTotal, (eFPSubReason)3);
 }
 

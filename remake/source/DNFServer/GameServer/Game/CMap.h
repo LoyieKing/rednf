@@ -4,6 +4,7 @@
 // CMap sizeof = 0x130；STMapScript sizeof = 0x37c。
 #pragma once
 
+#define CMAP_CLASS_DEFINED
 #include <list>
 #include <map>
 #include <string>
@@ -123,8 +124,14 @@ public:
 
 struct STAICharacterMapArrangeData
 {
-    char m_pad[0x38];
-};
+    int m_type;        // +0x00
+    char m_pad4[0xc];  // +0x04
+    int m_level;       // +0x10
+    int m_roleType;    // +0x14
+    int m_field18;     // +0x18
+    char m_unk19;      // +0x19
+    char m_pad1a[0x1e];
+};  // 0x38 字节
 
 struct STRivalMapData
 {

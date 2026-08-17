@@ -521,10 +521,42 @@ int StaticPool<T, N>::GetIndex(T* p)
 // ============================================================================
 // 池化对象桩 ctor/dtor（权威实现属后续批次；CNode ctor/dtor 需非内联符号）
 // ============================================================================
-WongWork::CDeathTower::CDeathTower() { memset(m_pad, 0, sizeof(m_pad)); }
-WongWork::CDeathTower::~CDeathTower() {}
 WongWork::CBossTower::CBossTower() { memset(m_pad, 0, sizeof(m_pad)); }
 WongWork::CBossTower::~CBossTower() {}
+
+// ---- WongWork::CMailBox ----
+WongWork::CMailBox::CMailBox() {}
+WongWork::CMailBox::~CMailBox() {}
+int WongWork::CMailBox::AddNewMail(const stAddNewMailInput&) { return 0; }
+void WongWork::CMailBox::ClearLetterKeepCount() {}
+void WongWork::CMailBox::DecLoadedLetterCount() {}
+int WongWork::CMailBox::DeleteLetterKeepCount(unsigned int) { return 0; }
+int WongWork::CMailBox::FindPackageLoadLack(unsigned int) { return 0; }
+int WongWork::CMailBox::GetLastLoadIdx() { return 0; }
+int WongWork::CMailBox::GetLastLoadLetterIdx() { return 0; }
+int WongWork::CMailBox::GetLetterKeepCount() { return 0; }
+int WongWork::CMailBox::GetLoadedLetterCount() { return 0; }
+WongWork::CMailBox::CMail* WongWork::CMailBox::GetMail(unsigned int) { return 0; }
+int WongWork::CMailBox::GetNotLoadedMailCount() { return 0; }
+int WongWork::CMailBox::GetPackageLoadLack(unsigned int*, unsigned int) { return 0; }
+int WongWork::CMailBox::GetRecvSize() { return 0; }
+int WongWork::CMailBox::GetRemainSize() { return 0; }
+void WongWork::CMailBox::IncNotLoadedMailCount() {}
+void WongWork::CMailBox::Init() {}
+void WongWork::CMailBox::InsertLetterKeepCount(unsigned int) {}
+bool WongWork::CMailBox::IsLoaded() { return false; }
+int WongWork::CMailBox::RemoveMail(unsigned int) { return 0; }
+void WongWork::CMailBox::SetLastLoadLetterIdx(unsigned int) {}
+void WongWork::CMailBox::SetLoadState(bool, long) {}
+void WongWork::CMailBox::SetLoadedLetterCount(int) {}
+void WongWork::CMailBox::SetNotLoadedMailCount(int) {}
+void WongWork::CMailBox::SetPackageLoadLack(const unsigned int*, int, std::set<unsigned int>&) {}
+int WongWork::CMailBox::getMailLoadCount() { return 0; }
+WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail() { return 0; }
+void WongWork::CMailBox::incMailLoadCount() {}
+void WongWork::CMailBox::reset() {}
+void WongWork::CMailBox::setMailIterator() {}
+void WongWork::CDungeonClear::clear() {}
 advancealtar::StageControl::StageControl() { memset(m_pad, 0, sizeof(m_pad)); }
 advancealtar::StageControl::~StageControl() {}
 QuickParty::CQuickParty::CQuickParty() { memset(m_pad, 0, sizeof(m_pad)); }
@@ -543,6 +575,23 @@ template class StaticPool<WongWork::CBossTower, 600>;
 template class StaticPool<advancealtar::StageControl, 600>;
 template class StaticPool<QuickParty::CQuickParty, 300>;
 template class StaticPool<BlueMarble, 300>;
+template class StaticPool<CACHE_CHARACTER_TYPE, 1000>;
+template class StaticPool<_IO_FILE, 50>;
+template class StaticPool<expert_job::CEnchanter, 300>;
+template class StaticPool<expert_job::CDisjointer, 600>;
+template class StaticPool<pvp_assault::CAssaultPlace, 128>;
+template class StaticPool<private_store::CPrivateStore, 300>;
+template class StaticPool<exchange_server::CSession, 300>;
+template class StaticPool<online_preliminary::COnlinePreliminaryTeam, 600>;
+template class StaticPool<WongWork::CMailBox, 600>;
+template class StaticPool<WongWork::CMailBox::CMail, 20>;
+
+// DynamicPool 显式实例化
+template class DynamicPool<PacketBuf>;
+template class DynamicPool<user_creature::CEgg>;
+template class DynamicPool<user_creature::CCreature>;
+template class DynamicPool<WongWork::Avatar_Item>;
+template class DynamicPool<WongWork::IPG::SIPGData>;
 
 // ============================================================================
 // CGameManager 实现

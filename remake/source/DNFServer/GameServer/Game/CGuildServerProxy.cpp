@@ -147,7 +147,7 @@ bool CGuildServerProxy::InitTcp()
     }
     if (m_tcp.m_sock < 0)
     {
-        ret = ((CGuildNetView*)((char*)this + 0x24))
+        ret = ((CGuildNetView*)&m_tcp)
                   ->CreateConnectionSocket(m_ip.c_str(), m_tcpPort);
         while (ret != 0)
         {

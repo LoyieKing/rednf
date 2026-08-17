@@ -414,7 +414,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
     buf->put_byte(*(int*)((char*)dungeon + 0x7cc));
     int index = buf->get_index();
     buf->put_short(0);
-    int uid = *(int*)((char*)this + 0x44);
+    int uid = *(int*)m_mapInfo.m_pad44;
     std::vector<int>* stageMonsterList = (std::vector<int>*)((char*)dungeon + 0x738);
     int monsterCount = (int)((*stageMonsterList)[m_stageIdx] * playerCount) / 6;
     int minCount = 10;
@@ -570,7 +570,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         }
         buf->put_short((int)((double)rewardCount / (0.3 * (double)(playerCount - 1) + 1.0)));
     }
-    *(int*)((char*)this + 0x44) = uid;
+    *(int*)m_mapInfo.m_pad44 = uid;
     m_stageIdx = m_stageIdx + 1;
     buf->put_short(index, (int)m_mapInfo.m_monsterMap.size());
     buf->finalize(true);

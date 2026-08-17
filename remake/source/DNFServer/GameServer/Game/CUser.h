@@ -54,6 +54,10 @@
 #include "CEnvironment.h"
 #include "GameTypes.h"
 
+#ifndef DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
+#define DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
+enum ENUM_PREMIUM_TYPE { ENUM_PREMIUM_TYPE_0 = 0 };
+#endif
 // ---- 共享枚举（守卫；CInventory.h 同值，权威归属 CUser.h） ----
 #ifndef DNF_ENUM_INVEN_TYPE_DEFINED
 #define DNF_ENUM_INVEN_TYPE_DEFINED
@@ -203,7 +207,21 @@ enum ENUM_HACKTYPE { ENUM_HACKTYPE_0 = 0 };
 
 enum ch_state
 {
-    ch_state_0 = 0
+    ch_state0 = 0,
+    ch_state_0 = 0,
+    ch_state1 = 1,
+    ch_state2 = 2,
+    ch_state3 = 3,
+    ch_state_3 = 3,
+    ch_state4 = 4,
+    ch_state_4 = 4,
+    ch_state5 = 5,
+    ch_state6 = 6,
+    ch_state7 = 7,
+    ch_state8 = 8,
+    ch_state9 = 9,
+    ch_state10 = 10,
+    ch_state11 = 11
 };
 
 namespace UserSpace
@@ -365,7 +383,7 @@ public:
     char IsAlter();
 
     CUser* m_pUser;                    // +0x00
-    Inven_Item m_slots[0x37];          // +0x04（0xd58 = 0x37 * 0x3d）
+    Inven_Item m_slots[0x38];          // +0x04（0xd58 = 0x38 * 0x3d）
     unsigned int m_money;              // +0xd5c
     unsigned int m_capacity;           // +0xd60
     char m_alter;                      // +0xd64
@@ -409,7 +427,9 @@ public:
     char m_field5fc;        // +0x5fc
     char m_pad5fd[0xb];     // +0x5fd..0x607
     char m_field608;        // +0x608
-    char m_pad609[0xc00 - 0x609];  // +0x609..0xbff
+    char m_pad609[0xbfc - 0x609];  // +0x609..0xbfb
+    char m_gmUserFlag;      // +0xbfc（isGMUser）
+    char m_padbfd[0xc00 - 0xbfd];  // +0xbfd..0xbff
     int m_gmUpgradeMode;    // +0xc00（0x711dc）
     int m_age;              // +0xc04（0x711e0）
     char m_progLogout;      // +0xc08（0x711e4）
@@ -428,6 +448,13 @@ public:
 
 namespace WongWork
 {
+struct SUserPremiumInfo
+{
+    int m_type;        // +0x00
+    char m_pad4[0xc];  // +0x04
+    int m_field10;     // +0x10
+};
+
 class CUserPremium
 {
 public:
@@ -437,6 +464,9 @@ public:
     unsigned short getOverSkillLevel() const;
     void InitPremium();
     short GetAdvantageFatigueRate() const;
+    void GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type) {}
+    bool CheckPremium(int type) const;
+    int GetAdvPremiumCount() const;
 
     char m_pad[0x97c];      // +0x00
     void* m_mailBox;        // +0x97c
@@ -576,6 +606,8 @@ public:
     ~CDataMgr();
 
     void reset();
+    void ResetDailyMidnight();
+    void ResetDaily();
     CExpandEquipslot* GetData(ENUM_CHARAC_EXPAND_TYPE type) const;
     CExpandEquipslot* GetDataR(ENUM_CHARAC_EXPAND_TYPE& type) const;
 
@@ -591,6 +623,24 @@ public:
     char m_pad[0xc140];  // +0x00
 };
 
+enum QUEST_CONDITION
+{
+    QUEST_CONDITION_0 = 0,
+    QUEST_CONDITION_1 = 1,
+    QUEST_CONDITION_2 = 2,
+    QUEST_CONDITION_3 = 3,
+    QUEST_CONDITION_4 = 4,
+    QUEST_CONDITION_5 = 5
+};
+
+class _Quest_Authen_Data
+{
+public:
+    _Quest_Authen_Data();
+    void reset();
+    char m_pad[0x48];
+};
+
 class UserQuest
 {
 public:
@@ -599,6 +649,7 @@ public:
 
     bool isClearQuest(int questIdx) const;
     void reset();
+    void set_authen_data(QUEST_CONDITION cond, int v1, int v2);
 
     char m_pad[0x761c];  // +0x00
     bool m_field761c;    // +0x761c
@@ -757,7 +808,7 @@ struct STExpReward
     int m_reward;      // +0x00
     char m_field4;     // +0x04
     char m_field5;     // +0x05
-    char m_field6;     // +0x06
+    char m_powerUp;     // +0x06（SetPowerUp）
     int m_localIp;     // +0x07（0x8d254）
     int m_publicIp;    // +0x0b（0x8d258）
     char m_padf[4];    // +0x0f..0x12
@@ -947,6 +998,10 @@ public:
     void PayCoinSub(int coin, int sub, eCoinSubReason reason);
     void pvpMissionClearReward(int expPoint, int exp, int missionKind,
                                int missionIndex);  // ORIG 0x8686a4e
+    void EnterDungeon(const char* dungeonName, int level);
+    void LeaveDungeon(const char* dungeonName, int unk, const char* memberNames, int state);
+    void LeaveDungeon(int dungeonIdx, int unk, const char* memberNames, int state);
+    void DungeonClearInfo(int isLast, int playTimeSec);
     void CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int count, int addInfo,
                          int type, eItemAddReason reason);
     void InitSkill(int treeKind, int level, int sp, int sfp,
@@ -1078,9 +1133,9 @@ public:
     char m_pad8cfdc[4];                                     // +0x8cfdc..0x8cfdf
     int m_guildWarPoint;                                    // +0x8cfe0
     std::set<unsigned int> m_set8cfe4;                      // +0x8cfe4
-    unsigned short m_field8cffc;                            // +0x8cffc
-    unsigned short m_field8cffe;                            // +0x8cffe
-    char m_field8d000;                                      // +0x8d000
+    unsigned short m_posX;                                 // +0x8cffc
+    unsigned short m_posY;                                 // +0x8cffe
+    char m_direction;                                      // +0x8d000
     char m_pad8d001;                                        // +0x8d001
     short m_field8d002;                                     // +0x8d002
     short m_field8d004;                                     // +0x8d004
@@ -1197,7 +1252,7 @@ public:
     bool m_field8ec29;                                      // +0x8ec29
     char m_pad8ec2a[2];                                     // 0x8ec2a..0x8ec2b
     int m_field8ec2c;                                       // +0x8ec2c
-    char m_field8ec30;                                      // +0x8ec30
+    char m_eventCreateDnfReward;                           // +0x8ec30
     char m_field8ec31;                                      // +0x8ec31
     char m_field8ec32;                                      // +0x8ec32
     char m_pad8ec33[1];                                     // +0x8ec33（ORIG CUser = 0x8ec34）
@@ -1207,6 +1262,8 @@ public:
     void ResetCurCharac();
     void ResetDailyData();
     void resetDailyData();
+    void ResetDailyCharacExpandDataMidnight();
+    void ResetDailyCharacExpandData();
     void resetGuildDBInfo();
     void resetBlackList();
     void resetInformNoticeFlag();
@@ -1224,8 +1281,48 @@ public:
     void DBUpdateDBLogItem() const;
     void resetMoneyLog();
     void set_guildwar_point_per_pvpplay(int point);
+    int get_guildwar_point_per_pvpplay();
+    void* getHades();
+    void* GetPVPRoom();
+    void* GetSecretShopData();
+    void* GetPICSMap();
+    char IsPermissionPrivateStore();
+    bool IsEquipAvatar();
+    bool IsHavePremiumAdvantage() const;
+    void RecoverFatigue(int value);
+    void LogHistory(const char* fmt, ...);
+    int get_aura_avatar_option_value(int idx);
+    bool isDuplicationMessage(const std::string& msg);
+    void DimensionInoutUpdate(bool flag1, bool flag2);
+    void SetTradeSpace(int idx);
+    bool CheckFatigue();
+    bool has_within_Mission() const;
+    bool acceptable_within_mission() const;
+    void* getBlueMarble();
+    bool checkLogOutCorrectly();
+    unsigned int find_pvp_masterid_walkingout_me(unsigned int id);
+    void insert_pvp_masterid_walkingout_me(unsigned int id);
+    void update_old_pvp_point();
+    bool update_pvp_rank(const PvpResultType& result);
+    void saveTaxMoneyForUpperMember(int money);
+    int gainExpAsUpperMember(int exp);
+    int gainPowerWarRewardExp(int exp);
+    void add_guild_point_item();
+    void add_inventory_item(unsigned int itemId);
+    bool AddDungeonClear(int dungeonIdx, int clearCount);
+    void SendConditionEventInfo();
+    void ResetCurCharacUsedGiftFatigueQuantity();
+    void SetChangedGiftFatigueQuantity(bool flag);
+    void ResetDailyQuest();
+    void ResetTrainingQuest();
+    void SetSaveRentalInfoToExchange(bool flag);
+    void DeleteRentalItemInfo(int idx);
     unsigned char is_fighting();
+    int CheckMoney(int money);
+    int getDungeonIdxAfterClear();
+    bool isAffectedPremium(ENUM_PREMIUM_TYPE type) const;
     void set_before_area(int area);
+
     const char* getWebAddress();
     WongWork::CSecurityCard* getSecurityCard();
     CGameOption* GetGameOptionRef();
@@ -1242,6 +1339,8 @@ public:
     void processNPCGiftOnLevelUp();
     char* GetUserName();
     char* GetUserEMail();
+    const char* GetSsnString();
+    char getSex();
     void* GetCSHashSet();
     char* GetGuildName();
     unsigned char GetGuildLevel();
@@ -1415,6 +1514,8 @@ public:
     void sendCharacQp();
     void sendCharacQuestPiece();
     void send_MissionList();
+    void send_clear_quest_list();
+    void processReturnUserQuestAutoClear();
     void send_RedeemInfo();
     void sendBingoData();
     void sendBingoAddData();
@@ -1460,7 +1561,7 @@ public:
     bool CheckItemLock(int a, int b) const;
     int GetAccountLastPlayTime();
     ENUM_SERVER_GROUP GetServerGroup() const;
-    bool isBlackUser(int characNo) const;
+    bool isBlackUser(unsigned int accId) const;
     Secu_GoldControl* GetGoldControl();
     CDungeonGainedGold* getDungeonGainedGold();
     WongWork::CHackAnalyzer* getHackAnalyzer();
@@ -1475,6 +1576,8 @@ public:
     int GetCurExpertJobLevel(int exp);
     WongWork::CUserPremium* GetPremiumInfo() const;
     UserQuest* getCurCharacQuestR() const;
+    UserQuest* getCurCharacQuestW();
+    bool gain_exp_sp(int exp, int& sp, int& sfp, eExpAddReason reason, int param, bool flag);
     void makeGuildSkillMessage(const char* skillName, int count);
     void set_grow_type(unsigned char firstGrow, unsigned char secondGrow,
                        char* name, eChangeGrowTypeReason reason);
@@ -1496,14 +1599,15 @@ public:
     bool checkInBlueMarble();
     bool CheckInWarRoom();
     bool checkInDeathTower();
+    void setDeathTowerIndex(short idx);
+    short getDeathTowerIndex();
     bool checkInBossTower();
+    short getBossTowerIndex();
+    void setBossTowerIndex(short index);
     bool checkInAdvanceAltar() const;
     short getAdvanceAltarIndex() const;
     unsigned short getBlueMarbleIndex();
     void setBlueMarbleIndex(short index);
-    short getDeathTowerIndex();
-    short getBossTowerIndex();
-    void setBossTowerIndex(short index);
     short GetPartyIndex();
     bool CheckInPvp();
     short GetPvpIndex();
@@ -1516,11 +1620,19 @@ public:
     void SetIncreID(short id);
     void set_unique_id(unsigned short id);
     void set_position(unsigned short x, unsigned short y, char z);
+    unsigned int get_posX();
+    unsigned int get_posY();
+    char get_direction();
     int GetUserState();
     int GetAge();
     unsigned char IsProgLogout();
     int GetSeedFromDate();
     void SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode);
+    bool isGMUser();
+    bool IsGameMasterMode() const;
+    void SetGameMasterMode(bool flag);
+    char GetEventCreateDnfReward();
+    void SetPowerUp(bool flag);
     int SetETC(short key, int value);
 
     // ---- G1-4 CodeHackCheckStorage / 返回用户 / 预登录数据 ----
@@ -1547,6 +1659,7 @@ public:
     short getAccountMemberBonusFatigue();
     void resetAccountUsedFatigue();
     void incChattingMessageCount(int count);
+    void setChattingMessageCount(int count);
     int getChattingMessageCount();
     void SetGameMasterCharacter(CGameMasterCharacter* pCharac);
     int getStdDropRate();

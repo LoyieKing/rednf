@@ -182,7 +182,7 @@ float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
 int PvpUserTable::Calculate()
 {
     memset(this, 0, 0x100);
-    memset((char*)this + 0x100, 0, 0x20);
+    memset(m_teamPoint, 0, sizeof(m_teamPoint));
     CheckDan();
 
     for (int i = 0; i < 8; ++i)

@@ -77,6 +77,11 @@ dnf_service(game
         ${SVC_DIR}/Stream.cpp
         ${SVC_DIR}/StreamPool.cpp
         ${SVC_DIR}/CStreamGuard.cpp
+        ${SVC_DIR}/PacketDispatcher.cpp
+        ${SVC_DIR}/PacketTypes.cpp
+        ${SVC_DIR}/SigTypes.cpp
+        ${SVC_DIR}/Dispatchers.cpp
+        ${SVC_DIR}/StringTypes.cpp
         ${SVC_DIR}/PacketBuf.cpp
         ${SVC_DIR}/InterfacePacketBuf.cpp
         ${SVC_DIR}/CEnvironment.cpp
@@ -127,8 +132,9 @@ dnf_service(game
         ${SVC_DIR}/CGameManager.cpp
         ${SVC_DIR}/PvP_Room.cpp
         ${SVC_DIR}/WarRoom.cpp
-        ${SVC_DIR}/BlueMarble.cpp
         ${SVC_DIR}/CBattle_Field.cpp
+        ${SVC_DIR}/BlueMarble.cpp
+        ${SVC_DIR}/CDeathTower.cpp
         ${SVC_DIR}/GameWorld.cpp
         ${SVC_DIR}/CRelayBattleMgr.cpp
         ${SVC_DIR}/CTradeSpace.cpp

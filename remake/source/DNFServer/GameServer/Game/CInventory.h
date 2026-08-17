@@ -277,7 +277,7 @@ public:
     void AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user, unsigned int value);
 };
 
-class PacketGuard
+class PacketGuard : public InterfacePacketBuf
 {
 public:
     PacketGuard();
@@ -522,6 +522,7 @@ public:
         short m_field6;  // +0x06
     };
 
+public:
     // ---- 成员布局 ----
     CUser* m_pParent;             // +0x00
     int m_money;                  // +0x04

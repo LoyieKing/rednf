@@ -162,7 +162,7 @@ bool CMissionList_Charac::loadData(CUser* pUser, char* pData)
 void CMissionList_Charac::getData(char* pData) const
 {
     std::memset(pData, 0, 0x14a);
-    std::memcpy(pData, (const char*)this + 0x150, 4);
+    std::memcpy(pData, &m_pad14f[1], 4);
     for (int kind = 0; kind < 36; ++kind)
     {
         *(short*)(pData + kind * 8 + 6) = m_missionList[kind].m_index;
@@ -212,7 +212,7 @@ bool CMissionList_Charac::_saveData(CUser* pUser)
 
 void CMissionList_Charac::_reset()
 {
-    std::memset((char*)this + 5, 0, 0x120);
+    std::memset(m_missionList, 0, sizeof(m_missionList));
     m_clearedFlags.reset();
     m_field148 = 0;
     m_field14a = 0;

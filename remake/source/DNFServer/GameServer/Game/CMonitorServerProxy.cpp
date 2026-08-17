@@ -96,7 +96,7 @@ bool CMonitorServerProxy::InitTcp()
     }
     if (m_tcp.m_sock < 0)
     {
-        int ret = ((CMonitorNetView*)((char*)this + 0xc))
+        int ret = ((CMonitorNetView*)&m_tcp)
                       ->CreateConnectionSocket(m_ip.c_str(), m_tcpPort);
         while (ret != 0)
         {

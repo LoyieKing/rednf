@@ -196,13 +196,12 @@ extern "C" void sub_CUser_acceptable_within_mission(void* self)
 
 // ---- 数组访问宏（ORIG 使用 (i+0xc)*4 等原始偏移形态；成员写法会生成
 //      直接缩放偏移 mov 0xc(%eax,%edx,4)，与 ORIG 的 add+缩放 形态不同）----
-#define P_SEATS(i)   (*(CUser**)((char*)this + ((i) + 0xc) * 4))
-#define P_TEAMS(i)   (*(int*)((char*)this + ((i) + 0x14) * 4))
-#define P_SEATSTATE(i) (*(char*)((char*)this + (i) + 0x70))
-#define P_WIN(i)     (*(bool*)((char*)this + (i) + 0x5c8))
-#define P_TEAMWIN(i) (*(unsigned char*)((char*)this + (i) + 0x5d0))
-#define P_USERS(i)   (*(CUser**)((char*)this + (i) * 4 + 0x30))
-
+#define P_SEATS(i)   (m_seats[i])
+#define P_TEAMS(i)   (m_teams[i])
+#define P_SEATSTATE(i) (m_seatState[i])
+#define P_WIN(i)     (m_winCheck[i])
+#define P_TEAMWIN(i) (m_teamWin[i])
+#define P_USERS(i)   (m_users[i])
 // ============================================================================
 // PvP_Room 实现
 // ============================================================================
@@ -315,19 +314,18 @@ void PvP_Room::unlock()
 
 unsigned int PvP_Room::gen_timer_key(TIMER_MESSAGE msg)
 {
-    return ++*(int*)((char*)this + 0xc + 4 * (0x88 + (int)msg - 0x30));
+    return ++*(int*)((char*)&m_election + 0x40 + (int)msg * 4);
 }
 
 unsigned int PvP_Room::get_timer_key(TIMER_MESSAGE msg)
 {
-    return *(int*)((char*)this + 0xc + 4 * (0x88 + (int)msg - 0x30));
+    return *(int*)((char*)&m_election + 0x40 + (int)msg * 4);
 }
 
 bool PvP_Room::CheckTimerKey(TIMER_MESSAGE msg, int key)
 {
-    return *(int*)((char*)this + 0xc + 4 * (0x88 + (int)msg - 0x30)) == key;
+    return *(int*)((char*)&m_election + 0x40 + (int)msg * 4) == key;
 }
-
 int PvP_Room::IsExistPassword()
 {
     return (unsigned char)m_field604;

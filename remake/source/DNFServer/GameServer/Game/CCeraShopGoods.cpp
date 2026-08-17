@@ -71,9 +71,8 @@ void STCeraShopItem::clear()
 // ---- 拷贝构造 @ 0x8923e28（逐字节拷贝 + COW string 拷贝） ----
 STCeraShopItem::STCeraShopItem(const STCeraShopItem& other)
 {
-    memcpy(this, &other, 0x40);
     new (&m_name) std::string(other.m_name);
-    memcpy((char*)this + 0x44, (const char*)&other + 0x44, 0x88 - 0x44);
+    memcpy(&m_field44, &other.m_field44, sizeof(*this) - offsetof(STCeraShopItem, m_field44));
 }
 
 STCeraShopItem::~STCeraShopItem()
@@ -87,7 +86,7 @@ STCeraShopItem& STCeraShopItem::operator=(const STCeraShopItem& other)
     if (this != &other) {
         memcpy(this, &other, 0x40);
         m_name = other.m_name;
-        memcpy((char*)this + 0x44, (const char*)&other + 0x44, 0x88 - 0x44);
+        memcpy(&m_field44, &other.m_field44, sizeof(*this) - offsetof(STCeraShopItem, m_field44));
     }
     return *this;
 }

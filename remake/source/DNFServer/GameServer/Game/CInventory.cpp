@@ -451,7 +451,7 @@ Inven_Item* CInventory::GetInvenStart(int invenType) const
     switch (invenType)
     {
     case 0:
-        return (Inven_Item*)((char*)this + 0x27e);
+        return const_cast<Inven_Item*>(&m_invenItem[10]);
     case 1:
         return m_pEquipSlot;
     case 2:
@@ -578,7 +578,7 @@ void CInventory::GetInvenData(int invenType, void* out, int size) const
     case 5:
         if (size == 0x2dc)
         {
-            memcpy(out, (char*)this + 0x27e, 0x2dc);
+            memcpy(out, &m_invenItem[10], 0x2dc);
         }
         break;
     }
@@ -1583,11 +1583,11 @@ int CInventory::getAvatarEmptySlot(int itemIdx, int param) const
 int CInventory::getEquipWeaponUpgradeSeparate() const
 {
     // ORIG 以绝对偏移访问（+0x280 标志、+0x2b1 UpgradeSeparateInfo），逐指令还原。
-    if (*(int*)((char*)this + 0x280) == 0)
+    if (m_invenItem[10].m_addInfo == 0)
     {
         return 0;
     }
-    return ((UpgradeSeparateInfo*)((char*)this + 0x2b1))->GetUpgradeSeparate();
+    return m_invenItem[10].m_upgradeSep.GetUpgradeSeparate();
 }
 
 int CInventory::getExistEquipItem(int itemIdx, int count, int slot)
@@ -4106,7 +4106,7 @@ int CInventory::CheckNeedItemList(const std::vector<std::pair<int, int> >& items
             }
             else if (type == 5)
             {
-                if (*(int*)((char*)this + 0x55c) == itemIdx)
+                if (*(int*)((char*)&m_invenItem[22] + 0x0a) == itemIdx)
                 {
                     return 1;
                 }

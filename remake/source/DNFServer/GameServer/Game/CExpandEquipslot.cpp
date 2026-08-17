@@ -70,7 +70,9 @@ public:
     void MakeEquipList(void* packet, bool flag, ENUM_USERINFO info,
                        ENUM_EQUIPSLOT slot) const;
 
-    char m_pad[0x650];
+    char m_pad1c[0x1c];
+    Inven_Item m_invenItem[26];   // +0x1c
+    char m_pad64e[0x650 - 0x64e];
     Inven_Item* m_pEquipSlot;  // +0x650
 };
 
@@ -204,15 +206,15 @@ Inven_Item* CExpandEquipslot::getExpandEquipslotR(ENUM_EQUIPSLOT slot) const
 {
     if (slot == ENUM_EQUIPSLOT_1)
     {
-        return (Inven_Item*)((char*)this + 5);
+        return const_cast<Inven_Item*>(m_equipSlot);
     }
     if (slot == ENUM_EQUIPSLOT_2)
     {
-        return (Inven_Item*)((char*)this + 0x2e1);
+        return const_cast<Inven_Item*>(m_expandEquipSlot);
     }
     if (slot == ENUM_EQUIPSLOT_3)
     {
-        return (Inven_Item*)((char*)this + 0x5bd);
+        return const_cast<Inven_Item*>(m_expandAvatarSlot);
     }
     return 0;
 }
@@ -222,17 +224,17 @@ Inven_Item* CExpandEquipslot::getExpandEquipslotW(ENUM_EQUIPSLOT slot)
     if (slot == ENUM_EQUIPSLOT_1)
     {
         alter();
-        return (Inven_Item*)((char*)this + 5);
+        return m_equipSlot;
     }
     if (slot == ENUM_EQUIPSLOT_2)
     {
         alter();
-        return (Inven_Item*)((char*)this + 0x2e1);
+        return m_expandEquipSlot;
     }
     if (slot == ENUM_EQUIPSLOT_3)
     {
         alter();
-        return (Inven_Item*)((char*)this + 0x5bd);
+        return m_expandAvatarSlot;
     }
     return 0;
 }
@@ -443,21 +445,21 @@ void CExpandEquipslot::SetExpandEquipslot(int type, void* data, int size)
     case 1:
         if (size == 0x2dc)
         {
-            memcpy((char*)this + 5, data, size);
+            memcpy(m_equipSlot, data, size);
             alter();
         }
         break;
     case 2:
         if (size == 0x2dc)
         {
-            memcpy((char*)this + 0x2e1, data, size);
+            memcpy(m_expandEquipSlot, data, size);
             alter();
         }
         break;
     case 3:
         if (size == 0x2dc)
         {
-            memcpy((char*)this + 0x5bd, data, size);
+            memcpy(m_expandAvatarSlot, data, size);
             alter();
         }
         break;
@@ -605,9 +607,9 @@ int CExpandEquipslot::EquipslotSwitch(CUser* pUser, char flag,
         saveEquip.setCopy(slotItem1);
         saveExpand.setCopy(m_equipSlot[1]);
         inven->GetInvenData(5, expandInven, 0x2dc);
-        inven->SetInvenData(5, (char*)this + 5, 0x2dc);
+        inven->SetInvenData(5, m_equipSlot, 0x2dc);
         SetExpandEquipslot(1, expandInven, 0x2dc);
-        ((Inven_Item*)((char*)inven + 0x2bb))->setCopy(saveEquip);
+        inven->m_invenItem[11].setCopy(saveEquip);
         m_equipSlot[1].setCopy(saveExpand);
         CParty* party = pUser->GetParty();
         if (party != 0)

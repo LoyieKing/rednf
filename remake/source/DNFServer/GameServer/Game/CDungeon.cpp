@@ -158,32 +158,31 @@ float CDungeon::get_exp_weight() const
 {
     return *(float*)&m_14;
 }
-
 std::vector<std::pair<int, int> >* CDungeon::getObjectDropItems() const
 {
-    return (std::vector<std::pair<int, int> >*)((char*)this + 0x4c);
+    return const_cast<std::vector<std::pair<int, int> >*>(&m_vec4c);
 }
 
 std::vector<stDungeonAssignItem_t>* CDungeon::getSpecialPassiveObjectItems()
     const
 {
-    return (std::vector<stDungeonAssignItem_t>*)((char*)this + 0x58);
+    return const_cast<std::vector<stDungeonAssignItem_t>*>(&m_vec58);
 }
 
 std::vector<stEventMonster_t>* CDungeon::getEventMonsters() const
 {
-    return (std::vector<stEventMonster_t>*)((char*)this + 0x690);
+    return const_cast<std::vector<stEventMonster_t>*>(&m_eventMonsters);
 }
 
 std::vector<stSecondEventMonster_t>* CDungeon::getSecondEventMonsters() const
 {
-    return (std::vector<stSecondEventMonster_t>*)((char*)this + 0x6a8);
+    return const_cast<std::vector<stSecondEventMonster_t>*>(&m_secondEventMonsters);
 }
 
 std::map<int, std::vector<RandomList> >* CDungeon::getRandomTowerMapIndexes()
     const
 {
-    return (std::map<int, std::vector<RandomList> >*)((char*)this + 0x658);
+    return const_cast<std::map<int, std::vector<RandomList> >*>(&m_map658);
 }
 
 int CDungeon::get_dimension_min_partymem() const
@@ -194,8 +193,7 @@ int CDungeon::get_dimension_min_partymem() const
 std::vector<MazeScript>* CDungeon::GetQuestMazeScriptVector(
     ENUM_MAZE_QUEST_TYPE mazeQuestType) const
 {
-    return (std::vector<MazeScript>*)((char*)this + 0x638 +
-                                      (int)mazeQuestType * 0xc);
+    return &((std::vector<MazeScript>*)&m_mazeList0)[mazeQuestType];
 }
 
 int CDungeon::_do_after_dungeon_start(CUser* user) const

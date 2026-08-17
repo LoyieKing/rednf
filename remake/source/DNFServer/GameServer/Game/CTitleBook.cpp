@@ -118,7 +118,7 @@ class CUser : public CUserCharacInfo
 public:
     unsigned int GetUID() const;
     unsigned int get_acc_id() const;
-    int get_charac_no(int type) const;
+    int get_charac_no(int type);
     int get_unique_id() const;
     CExpandEquipslot* GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE eType) const;
     void Send(PacketGuard& packet);
@@ -180,10 +180,10 @@ void stTitleBook::clear()
 CTitleBook::CTitleBook()
 {
     m_user = 0;
-    m_category[0] = (Inven_Item*)((char*)this + 0xc);
-    m_category[1] = (Inven_Item*)((char*)this + 0x10ba);
-    m_category[2] = (Inven_Item*)((char*)this + 0x4062);
-    m_category[3] = (Inven_Item*)((char*)this + 0x5cfa);
+    m_category[0] = m_book.m_category0;
+    m_category[1] = m_book.m_category1;
+    m_category[2] = m_book.m_category2;
+    m_category[3] = m_book.m_category3;
 }
 
 CTitleBook::~CTitleBook()
@@ -192,17 +192,15 @@ CTitleBook::~CTitleBook()
 
 bool CTitleBook::loadData(CUser* pUser, char* pData)
 {
-    _reset();
     m_user = pUser;
-    std::memcpy((char*)this + 0xc, pData, 0x6b3a);
+    std::memcpy(&m_book, pData, 0x6b3a);
     return 1;
 }
 
 void CTitleBook::getData(char* pData) const
 {
-    std::memcpy(pData, (const char*)this + 0xc, 0x6b3a);
+    std::memcpy(pData, &m_book, 0x6b3a);
 }
-
 bool CTitleBook::_saveData(CUser* pUser)
 {
     CStreamGuard guard(
@@ -215,18 +213,17 @@ bool CTitleBook::_saveData(CUser* pUser)
     {
         std::memset(pData, 0, 0x6b3e);
         pData->m_characNo = pUser->get_charac_no(-1);
-        std::memcpy(pData->m_data, (const char*)this + 0xc, 0x10ae);
-        std::memcpy(pData->m_data + 0x10ae, (const char*)this + 0x10ba,
+        std::memcpy(pData->m_data, m_book.m_category0, 0x10ae);
+        std::memcpy(pData->m_data + 0x10ae, m_book.m_category1,
                     0x2fa8);
-        std::memcpy(pData->m_data + 0x4056, (const char*)this + 0x4062,
+        std::memcpy(pData->m_data + 0x4056, m_book.m_category2,
                     0x1c98);
-        std::memcpy(pData->m_data + 0x5cee, (const char*)this + 0x5cfa,
+        std::memcpy(pData->m_data + 0x5cee, m_book.m_category3,
                     0xe4c);
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
     }
     return bRet;
 }
-
 void CTitleBook::_reset()
 {
     m_user = 0;

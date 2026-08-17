@@ -7,6 +7,8 @@
 //   STWarRoomData ctor 0x0836a1f6 / clear 0x0836a398 / copy 0x0836a578（0x100 字节）
 #pragma once
 
+#define CDUNGEON_CLASS_DEFINED
+
 #include <ext/hash_map>
 #include <list>
 #include <map>
@@ -691,12 +693,7 @@ namespace QuickParty
 class CQuickPartySystemManager;
 }
 
-class CGameManager
-{
-public:
-    QuickParty::CQuickPartySystemManager* GetQuickPartySystemManager();
-};
-
+class CGameManager;
 CGameManager* G_CGameManager();
 
 namespace QuickParty

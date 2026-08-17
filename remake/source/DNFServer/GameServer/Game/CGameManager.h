@@ -85,15 +85,169 @@ private:
     char m_pad[0xf70];
 };
 
+struct map_item;
+struct MSG_MONSTER_DIE;
+
+enum ENUM_TOWER_STATE
+{
+    TOWER_STATE_NONE = 0,
+    TOWER_STATE_READY = 1,
+    TOWER_STATE_PLAYING = 2,
+    TOWER_STATE_CLEAR = 3,
+    TOWER_STATE_REWARD = 4,
+    TOWER_STATE_EPLP = 5,
+};
+
+enum ENUM_STAGE_STATE
+{
+    STAGE_STATE_NONE = 0,
+    STAGE_STATE_START = 1,
+    STAGE_STATE_FINISH = 2,
+};
+
 namespace WongWork
 {
-class CDeathTower
-{
-public:
+    class CDeathTower;
+
+    class CDeathTower
+    {
+    public:
+        class CDungeonMgr
+        {
+        public:
+            void reset();
+            bool initDungeonMgr(int dungeonIdx);
+            CDungeon* getDungeon() const;
+            CMap* getStageMap(int stage);
+            int getEndStage();
+        private:
+            CDungeon* m_pDungeon;
+            char m_pad4[4];
+        };
+
+        class CStage
+        {
+        public:
+            void reset();
+            void resetCurrentStage();
+            bool setState(ENUM_STAGE_STATE state);
+            int getState();
+            bool checkClearStage();
+            int killMonster(int idx, map_monster& monster);
+            bool moveNextStage(unsigned int endStage);
+            void onStartStage();
+            void onFinishStage();
+            int getStageClearTime();
+            int getStageMapIndex();
+            int getCurrentStage();
+            bool peekItem(int idx, map_item& item);
+            bool pickupItem(int idx, map_item& item);
+            int dropItem(const map_item& item);
+            bool consistMap(CDungeonMgr* dungeonMgr, CMap* map, CDeathTower* tower);
+            void makeStagePacket(PacketGuard& packet);
+        private:
+            int m_currentStage;     // +0x00
+            unsigned int m_startTick;  // +0x04
+            unsigned int m_finishTick; // +0x08
+            char m_pad0c[4];         // +0x0c (MapInfo start)
+            int m_stageMapIndex;       // +0x10
+            std::map<int, map_monster> m_monsterMap;  // +0x18
+            char m_pad30[0x18];        // +0x30 - 0x18 = 0x18
+            std::map<int, map_item> m_itemMap;  // +0x30
+            int m_instIdCounter;       // +0x48
+            int m_dropItemCnt;         // +0x4c
+            char m_pad50[0xf8 - 0x50]; // +0x50
+            int m_state;               // +0xf8
+        };
+
+        class CPlayData
+        {
+        public:
+            void reset();
+            int getStartMemberCnt();
+            void makeStartMemberInfo(CParty* party);
+            void resetMemberReady();
+            void setMemberAlive(int idx, bool alive);
+            int isMemberAlive(int idx);
+            int getLastRoutedTurn();
+            void setMemberReady(int idx, bool ready);
+            int isMemberReady(int idx);
+            bool checkEnterStartMap(int idx);
+            bool checkAllMemberReady(int memberCnt);
+            void addPlayTime(unsigned int time);
+            unsigned int getPlayTime();
+            unsigned int getLastPlayTime();
+            Inven_Item* getRewardItem(int idx);
+            int getRewardItemCount(int idx);
+            int getRewardExp(int idx);
+            int m_field0;
+            char m_memberAlive[4];
+            char m_memberReady[4];
+            int m_allReady;
+            unsigned int m_playTime;
+            unsigned int m_lastPlayTime;
+            char m_pad18[0xf0];     // +0x18..+0x108
+            int m_rewardItemCount[4]; // +0x108
+            int m_rewardExp[4];       // +0x118
+            int m_lastRoutedTurn;     // +0x128
+            char m_pad12c[0xa2c - 0x12c];
+        };
     CDeathTower();
     ~CDeathTower();
+
+    void _beginTowerClearProcess(bool);
+    int _checkMemberDie();
+    int _checkMemberReady();
+    int _checkRenewMyRecord(unsigned int, unsigned int, unsigned int, unsigned int, unsigned int);
+    int _checkRenewTopRecord(unsigned int, unsigned int, unsigned int, unsigned int);
+    int _checkStartGameCondition(unsigned char&);
+    int _checkTimerKey(TIMER_MESSAGE, unsigned int);
+    void _destroy();
+    int _genTimerKey(TIMER_MESSAGE);
+    bool _makeDropItem(CUser*, char, int, int, map_item&);
+    void _onClear(bool);
+    void _onFinishDeathTower();
+    void _onFinishStage();
+    void _onPrepareFinishTower();
+    void _onStartDeathTower();
+    void _onStartStage();
+    CUser* _pickupItem(CUser*, char*, int, const map_item&, bool, char, const CItem*);
+    int _pickupItemMoney(CUser*, int, const map_item&, int*, int*);
+    void attachParty(CParty*);
+    void deathTowerCardStatistic(int, CUser*, const Inven_Item*);
+    int genTimerKey(TIMER_MESSAGE);
+    CDungeonMgr* getCDungeonMGr();
+    CStage* getCStage();
+    int getIdx();
+    int getTowerState();
+    int handleDieUser(CUser*);
+    int handleDropItem(CUser*, int, int, char, int, int);
+    int handleFinishLoading(CUser*);
+    int handleKillMonster(CUser*, unsigned short, unsigned short, const MSG_MONSTER_DIE&, int*);
+    int handleLeaveUser(CUser*);
+    int handleMoveMap();
+    int handlePickupItem(CUser*, int, bool, char);
+    int handleSelectEPLPCommand(CUser*, int);
+    int handleStageCommand(CUser*, unsigned char);
+    int handleStartGame(int, char, ENUM_DUNGEON_TYPE);
+    int handleUseStackable(CUser*, ENUM_ITEMSPACE, unsigned short);
+    int onLeaveUser(CUser*);
+    int onTimer(TIMER_MESSAGE, unsigned int);
+    void reset();
+    void setIdx(int);
+    int setTowerState(ENUM_TOWER_STATE);
+
 private:
-    char m_pad[0xb64];
+    CParty* m_party;        // +0x00
+    int m_idx;              // +0x04
+    int m_towerState;       // +0x08
+    CDungeonMgr m_dungeonMgr;  // +0x0c
+    CStage m_stage;         // +0x14
+    char m_pad14[0xfc];     // +0x14..+0x110
+    CPlayData m_playData;   // +0x110
+    char m_pad110[0xa2c];   // +0x110..+0xb3c
+    int m_timerKeys[10];    // +0xb3c (TIMER_MESSAGE 0x48..)
+    char m_pad_end[0x18];   // +0xb64
 };
 
 class CBossTower
@@ -128,6 +282,177 @@ public:
 private:
     char m_pad[0x28];
 };
+}
+
+// ---- 补充 StaticPool 所需类型（占位尺寸，后续按 ORIG 修正）----
+
+class CACHE_CHARACTER_TYPE
+{
+public:
+    CACHE_CHARACTER_TYPE() {}
+    ~CACHE_CHARACTER_TYPE() {}
+private:
+    char m_pad[0x100];
+};
+
+namespace expert_job
+{
+class CEnchanter
+{
+public:
+    CEnchanter() {}
+    ~CEnchanter() {}
+private:
+    char m_pad[0x100];
+};
+
+class CDisjointer
+{
+public:
+    CDisjointer() {}
+    ~CDisjointer() {}
+private:
+    char m_pad[0x100];
+};
+}
+
+namespace pvp_assault
+{
+class CAssaultPlace
+{
+public:
+    CAssaultPlace() {}
+    ~CAssaultPlace() {}
+private:
+    char m_pad[0x100];
+};
+}
+
+namespace private_store
+{
+class CPrivateStore
+{
+public:
+    CPrivateStore() {}
+    ~CPrivateStore() {}
+private:
+    char m_pad[0x100];
+};
+}
+
+namespace exchange_server
+{
+class CSession
+{
+public:
+    CSession() {}
+    ~CSession() {}
+private:
+    char m_pad[0x100];
+};
+}
+
+namespace WongWork
+{
+class CMailBox
+{
+public:
+    struct stAddNewMailInput { char m_pad[0x100]; };
+
+    CMailBox();
+    ~CMailBox();
+
+    class CMail
+    {
+    public:
+        CMail() {}
+        ~CMail() {}
+    private:
+        char m_pad[0x100];
+    };
+
+    int AddNewMail(const stAddNewMailInput&);
+    void ClearLetterKeepCount();
+    void DecLoadedLetterCount();
+    int DeleteLetterKeepCount(unsigned int);
+    int FindPackageLoadLack(unsigned int);
+    int GetLastLoadIdx();
+    int GetLastLoadLetterIdx();
+    int GetLetterKeepCount();
+    int GetLoadedLetterCount();
+    CMail* GetMail(unsigned int);
+    int GetNotLoadedMailCount();
+    int GetPackageLoadLack(unsigned int*, unsigned int);
+    int GetRecvSize();
+    int GetRemainSize();
+    void IncNotLoadedMailCount();
+    void Init();
+    void InsertLetterKeepCount(unsigned int);
+    bool IsLoaded();
+    int RemoveMail(unsigned int);
+    void SetLastLoadLetterIdx(unsigned int);
+    void SetLoadState(bool, long);
+    void SetLoadedLetterCount(int);
+    void SetNotLoadedMailCount(int);
+    void SetPackageLoadLack(const unsigned int*, int, std::set<unsigned int>&);
+    int getMailLoadCount();
+    CMail* getNextMail();
+    void incMailLoadCount();
+    void reset();
+    void setMailIterator();
+
+private:
+    char m_pad[0x100];
+};
+}
+
+#include <cstdio>
+typedef FILE _IO_FILE;
+
+// ---- DynamicPool 所需类型 ----
+namespace user_creature
+{
+class CEgg
+{
+public:
+    CEgg() {}
+    ~CEgg() {}
+private:
+    char m_pad[0x100];
+};
+
+class CCreature
+{
+public:
+    CCreature() {}
+    ~CCreature() {}
+private:
+    char m_pad[0x100];
+};
+}
+
+namespace WongWork
+{
+class Avatar_Item
+{
+public:
+    Avatar_Item() {}
+    ~Avatar_Item() {}
+private:
+    char m_pad[0x100];
+};
+
+namespace IPG
+{
+class SIPGData
+{
+public:
+    SIPGData() {}
+    ~SIPGData() {}
+private:
+    char m_pad[0x100];
+};
+}
 }
 
 // ---- 管理器最小声明（本批只做指针持有 + new/delete）----

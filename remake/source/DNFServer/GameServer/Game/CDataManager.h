@@ -991,11 +991,13 @@ public:
     std::map<int, ItemShopScript> m_shopMap;                        // +0x00
     std::vector<std::pair<int, int> > m_oneADayList;                // +0x18
 };
+class CAICharacter;
 class CAICharacterList
 {
 public:
     ~CAICharacterList();
-    static int get(void* list, unsigned int idx);
+    static CAICharacter* get(void* list, unsigned int idx);
+    int getAPCount() const { return 0; }
 };
 class SlangFilter;
 class CItemGeneratorMgr
@@ -1150,6 +1152,7 @@ public:
     void* getBlueMarbleScript();
     void* get_event_script_mng();
     int get_dimensionInout(int idx);
+    int get_limit_inout_count(int type);
     void GetPvPChannelGrade();               // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
     int GetMaxGradePvPChannel();
     int GetUpgradeRevisionPvPChannel();

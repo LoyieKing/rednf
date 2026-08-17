@@ -27,7 +27,7 @@ CItem* CItem::GetNeedMaterial() const
     {
         return p;
     }
-    return (CItem*)((char*)this + 0x24);
+    return (CItem*)&m_pair24;
 }
 
 bool CItem::checkItemUpgradePossible() const

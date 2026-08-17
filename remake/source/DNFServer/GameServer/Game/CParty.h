@@ -143,11 +143,9 @@ namespace WongWork
 {
 struct stGenerateResult_t;
 }
-
 class CParty
 {
 public:
-    // ---- 嵌套：物品路由数据（0x4c） ----
     class CItemRoutingData
     {
     public:
@@ -268,8 +266,8 @@ public:
     void IncreaseUsedCoinCount();
     int Get_party_overlapped_drop_ratio_rare() const;
     int Get_party_overlapped_drop_ratio_unique() const;
+    void Reset_party_overlapped_drop_ratio();
     void ClearMapHitCount();
-
     // ---- 物品路由 ----
     bool IsRoutingState();
     void SetStartRouting();
@@ -286,7 +284,7 @@ public:
     void init();
     void destroy();
     void init_quick_party_data();
-    CGameManager* getManager();
+    CUser* getManager();
 
     // ---- 成员管理 ----
     void create_party(CUser* user);
@@ -304,9 +302,9 @@ public:
     bool checkValidUser(int idx);
     void enumPartyMember(bool (*func)(CUser*));
     int get_member_count();
+    int getMemberNames(char* buf);
     int get_live_count();
     int get_live_count_enter_map();
-    int get_total_level();
     int get_party_seatno(CUser* user);
     unsigned int GetMemberSlotNo(unsigned int userNo);
     unsigned int GetMemberSlotNo(CUser const* user) const;
@@ -415,7 +413,7 @@ public:
     bool checkUnLimitUsedCoinCondition(CDungeon const* dungeon);
     int getStandardDimensionLevel();
     void setStandardDimensionLevel(CDungeon const* dungeon);
-    void UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* item, int* param);
+    bool UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* item, int* param);
     void UseSealDoorItems(std::vector<int>& itemList);
     bool CheckDestroyConditionSealDoor(CDungeon const* dungeon,
                                        std::vector<int>& list1,
@@ -606,14 +604,15 @@ private:
     char m_selectedEPLPCmd;  // +0x06c
     char m_assaultState;     // +0x06d
     char m_pad6e[2];         // +0x06e
-    char m_pad70[4];         // +0x070
-    void* m_field74;         // +0x074
+    CUser* m_host;           // +0x070
+    CUser* m_manager;        // +0x074
 
     cMember m_member[4];     // +0x078
 
     unsigned char m_padElection[0x40];  // +0x0d8 cElection<int,4,4>
     char m_recvResultFlag;              // +0x118
-    char m_pad119[2];                   // +0x119
+    char m_pad119;                      // +0x119
+    char m_tournamentVictory;           // +0x11a
     char m_titleIndex;                  // +0x11b
     char m_title[0x20];                 // +0x11c
     char m_autoCreated;                 // +0x13c
@@ -622,12 +621,33 @@ private:
     unsigned char m_dungDiffi;          // +0x140
     char m_pad141[7];                   // +0x141
     int m_field148[37];                 // +0x148
-
-    unsigned char m_padRecvFlag[0x34];  // +0x1dc CPartyResultRecvFlag
-    unsigned char m_padTrace[0x94];     // +0x210 CTraceMobDieHack
-    unsigned char m_padShop[0x88];      // +0x2a4 secretshop::SECRET_SHOP_DATA
+    // ---- CPartyResultRecvFlag 区（+0x1dc，0x34 字节） ----
+    unsigned char m_pad1dc[0x4];     // +0x1dc
+    char m_dungeonClearState;        // +0x1e0
+    int m_field1e4[2][4];            // +0x1e4 (compiler aligns to 4)
+    char m_field204[2][4];           // +0x204
+    char m_tournamentDungeonClearState;  // +0x20c
+    unsigned char m_pad20d[0x3];     // +0x20d
+    // ---- CTraceMobDieHack 区（+0x210，0x94 字节） ----
+    unsigned char m_pad210[0x88];    // +0x210
+    int m_memberLevelGap;            // +0x298
+    unsigned short m_straightVictories;  // +0x29c
+    unsigned char m_pad29e[2];       // +0x29e
+    int m_startGamePartyCount;       // +0x2a0
+    unsigned char m_padShop[0x78];   // +0x2a4
+    char m_premiumGoldCardParty;     // +0x31c
+    unsigned char m_pad31d[3];       // +0x31d
+    unsigned int m_premiumGoldCardDefaultItem;  // +0x320
+    char m_firstMapClear;            // +0x324
+    unsigned char m_pad325[3];       // +0x325
+    int m_partyMemberCoinLimit;      // +0x328
     unsigned char m_padBattleData[0x7f8];  // +0x32c BattleData
-    unsigned char m_padBattleField[0xcd0]; // +0xb24 CBattle_Field
+    // ---- CBattle_Field 区（+0xb24，0xcd0 字节） ----
+    unsigned char m_padBattleField1[0x188];  // +0xb24
+    CDungeon* m_dungeon;                    // +0xcac
+    unsigned char m_padcb0[0xac];           // +0xcb0
+    int m_standardDimensionLevel;           // +0xd5c
+    unsigned char m_padd60[0xa94];          // +0xd60
     unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
     unsigned char m_padMap[0x18];       // +0x1844 std::map<int,int>
 
@@ -651,10 +671,17 @@ private:
     int m_field1ab8;        // +0x1ab8
 
     unsigned char m_padSecu[0x14];     // +0x1abc Secu_HackLogCheckByParty
-    unsigned char m_padTelePort[0x24]; // +0x1ad0 CPartyTelePort
+    // ---- CPartyTelePort 区（+0x1ad0，0x24 字节） ----
+    unsigned char m_pad1ad0[0x10];   // +0x1ad0
+    int m_quickPartyIndex;           // +0x1ae0
+    char m_isQuickParty;             // +0x1ae4
+    unsigned char m_pad1ae5[3];      // +0x1ae5
+    int m_field1ae8;                 // +0x1ae8
+    int m_randomBuffType;            // +0x1aec
+    char m_weekendEvent;             // +0x1af0
+    char m_dungeonMapSaving;         // +0x1af1
+    unsigned char m_pad1af2[0x2];    // +0x1af2
     unsigned char m_padPassedMap[0xc]; // +0x1af4 std::vector<MapInfo>
 };
-
 static_assert(sizeof(CParty) == 0x1b00, "CParty size");
-
 #endif  // GAME_CPARTY_H_

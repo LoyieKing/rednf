@@ -287,10 +287,9 @@ bool CEquipItem::check_eType(char eType) const
     }
     return 0;
 }
-
 ExpBonusPointData* CEquipItem::getExpBonusPoint() const
 {
-    return (ExpBonusPointData*)((char*)this + 0x1e8);
+    return (ExpBonusPointData*)&m_field1e8;
 }
 
 int CEquipItem::getGrowthGrade(int level) const
@@ -315,9 +314,8 @@ int CEquipItem::getGrowthRepairCost(int level) const
 
 WpBonusPointData* CEquipItem::getWpBonusPoint() const
 {
-    return (WpBonusPointData*)((char*)this + 0x1e0);
+    return (WpBonusPointData*)&m_field1e0;
 }
-
 int CEquipItem::get_aura_avatar_option_value()
 {
     return m_auraOptionValue;
@@ -759,5 +757,5 @@ int CEquipItem::get_endurance() const
 
 void* CEquipItem::getAvatarTypeSelect() const
 {
-    return (void*)((char*)this + 0x174);
+    return (void*)&m_avatarSelect;
 }

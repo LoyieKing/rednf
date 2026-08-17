@@ -5,8 +5,11 @@
 // ============================================================================
 
 #include <string.h>
+#include <cstdarg>
+#include <cstdio>
 
 #include "CUser.h"
+#include "CGameManager.h"
 #include "CInventory.h"
 #include "SkillSlot.h"
 #include "WarRoom.h"
@@ -16,6 +19,10 @@
 #include "GameWorld.h"
 #include "LogManager.h"
 #include "CItemAmplifier.h"
+#include "CMonitorServerProxy.h"
+#include "CServerProxyMgr.h"
+#include "GlobalData.h"
+#include "Packet_Register_GM_MID.h"
 #include <algorithm>
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
@@ -23,14 +30,6 @@ extern unsigned char _NS_PI_2ND_GetDefaultRandomHashKey();
 
 extern void GetPacketName(unsigned char area, unsigned short packetId);
 
-class CGameManager
-{
-public:
-    static void* GetParty(CGameManager* mgr);
-    static void* GetWarRoom(CGameManager* mgr);
-};
-
-extern CGameManager* G_CGameManager();
 
 namespace ARAD
 {
@@ -53,15 +52,15 @@ public:
 unsigned char _NS_PI_2ND_GetDefaultRandomHashKey() { return 0; }
 void GetPacketName(unsigned char, unsigned short) {}
 void ARAD::DISPATCHER::make_cmd_packetheader_jpn(PacketGuard&, int, int) {}
-void* CGameManager::GetParty(CGameManager* mgr) { return 0; }
-void* CGameManager::GetWarRoom(CGameManager* mgr) { return 0; }
-void WongWork::CDungeonClear::clear() {}
 void WongWork::CMCAPManager::resetExposedCount() {}
 int CUser::AntibotSend(PacketBuf& packet) { return 1; }
 void Secu_AccountHacking::resetInfo() {}
 int item_lock::CItemLock::CheckItemLock(CExpandEquipslot* data) { return 0; }
-short WongWork::CUserPremium::GetAdvantageFatigueRate() const { return 0; }
+
 void cUserHistoryLog::SetUser(CUser* user) {}
+void cUserHistoryLog::InitSkill(int, int, int, int, eSkillInitReason) {}
+_Quest_Authen_Data::_Quest_Authen_Data() { memset(m_pad, 0, sizeof(m_pad)); }
+void _Quest_Authen_Data::reset() { memset(m_pad, 0, sizeof(m_pad)); }
 bool mission_list_is_clear(void* data) { return false; }
 void CInventory_MakeItemPacket(CInventory* inven, int space, int slot,
                                PacketGuard& packet)
@@ -100,11 +99,6 @@ public:
     static unsigned int getRankTable(unsigned int type);
     static void unregistBestRecord(unsigned int table);
     static void unregistRanking(unsigned int table);
-};
-class CMailBox
-{
-public:
-    void Init();
 };
 }
 
@@ -215,6 +209,19 @@ CExpandEquipslot* charac_expand::CDataMgr::GetDataR(ENUM_CHARAC_EXPAND_TYPE& typ
 }
 void CodeHackCheckStorage::reset() {}
 void charac_expand::CDataMgr::reset() {}
+
+extern "C" void _ZN13charac_expand8CDataMgr18ResetDailyMidnightEv(void*);
+extern "C" void _ZN13charac_expand8CDataMgr10ResetDailyEv(void*);
+
+void charac_expand::CDataMgr::ResetDailyMidnight()
+{
+    _ZN13charac_expand8CDataMgr18ResetDailyMidnightEv(this);
+}
+
+void charac_expand::CDataMgr::ResetDaily()
+{
+    _ZN13charac_expand8CDataMgr10ResetDailyEv(this);
+}
 void BingoData::clear() {}
 void APSystem::CActionPointManager::Reset() {}
 GrowthCreatureEvent::GrowthCreatureEvent() {}
@@ -243,7 +250,6 @@ unsigned int WongWork::CDeathTowerRanking::getRankTable(unsigned int type)
 }
 void WongWork::CDeathTowerRanking::unregistBestRecord(unsigned int table) {}
 void WongWork::CDeathTowerRanking::unregistRanking(unsigned int table) {}
-void WongWork::CMailBox::Init() {}
 
 // ============================================================================
 // CUser 实现
@@ -295,7 +301,7 @@ CUser::CUser()
 
 CUser::~CUser()
 {
-    m_expReward.m_field6 = 0;
+    m_expReward.m_powerUp = 0;
 }
 
 void CUser::reset()
@@ -493,6 +499,55 @@ void CUser::set_guildwar_point_per_pvpplay(int point)
     m_guildWarPoint = point;
 }
 
+int CUser::get_guildwar_point_per_pvpplay()
+{
+    return m_guildWarPoint;
+}
+
+void* CUser::getHades()
+{
+    return &m_hades;
+}
+
+void* CUser::GetPVPRoom()
+{
+    if (m_field8d006 < 0)
+        return 0;
+    return G_CGameManager()->GetPvp(m_field8d006, this, 0);
+}
+
+void* CUser::GetSecretShopData()
+{
+    CParty* party = (CParty*)GetParty();
+    if (!party)
+        return 0;
+    return party->GetSecretShopData();
+}
+
+void* CUser::GetPICSMap()
+{
+    return &m_map8eabc;
+}
+
+int CUser::CheckMoney(int money)
+{
+    const char* accName = get_acc_name();
+    int level = get_charac_level();
+    int limit = G_CDataManager()->GetMoneyLimitPerLevel(level, accName);
+    int curMoney = getCurCharacMoney();
+    return curMoney + money <= limit;
+}
+
+extern "C" int _ZN13CBattle_Field17get_dungeon_indexEv(void*);
+
+int CUser::getDungeonIdxAfterClear()
+{
+    CParty* party = (CParty*)GetParty();
+    if (!party)
+        return -1;
+    return _ZN13CBattle_Field17get_dungeon_indexEv((char*)party + 0xb24);
+}
+
 void CUser::resetMoneyLog()
 {
     for (int i = 0; i <= 6; ++i)
@@ -519,14 +574,14 @@ void* CUser::GetParty()
 {
     if (m_field8d004 < 0)
         return 0;
-    return CGameManager::GetParty(G_CGameManager());
+    return G_CGameManager()->GetParty(m_field8d004);
 }
 
 void* CUser::GetWarRoom()
 {
     if (m_field8d008 < 0)
         return 0;
-    return CGameManager::GetWarRoom(G_CGameManager());
+    return G_CGameManager()->GetWarRoom(m_field8d008);
 }
 
 int CUser::get_charac_no(int param)
@@ -721,7 +776,7 @@ int CUser::GetAccountLastPlayTime()
 
 ENUM_SERVER_GROUP CUser::GetServerGroup() const
 {
-    return *(ENUM_SERVER_GROUP*)((char*)this + 0x79630);
+    return *(ENUM_SERVER_GROUP*)((char*)&m_codeHackCheck.m_serverGroup);
 }
 
 CExpandEquipslot* CUser::GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE type) const
@@ -749,6 +804,11 @@ UserQuest* CUser::getCurCharacQuestR() const
     return (UserQuest*)&m_quest;
 }
 
+UserQuest* CUser::getCurCharacQuestW()
+{
+    return (UserQuest*)&m_quest;
+}
+
 void CUser::DecreaseGuildPowerWarPoint(unsigned int point)
 {
     m_guildDB.m_powerWarPoint -= point;
@@ -770,6 +830,186 @@ unsigned char CUser::is_fighting()
 void CUser::set_before_area(int area)
 {
     m_field8cfb8 = area;
+}
+
+void CUser::set_area(int area)
+{
+    set_before_area(m_field8cfbc);
+    m_field8cfbc = area;
+}
+
+int CUser::get_area(bool param)
+{
+    if (param) {
+        if (G_GameWorld()->IsSchoolPvPChannel() &&
+            getCurCharacVill() == 2 &&
+            m_field8cfc0 == 4) {
+            return m_field8cfc0;
+        }
+    }
+    if (param && getCurCharacVill() == 8) {
+        if (m_field8cfc0 == 0 || m_field8cfc0 == 1 ||
+            m_field8cfc0 == 2 || m_field8cfc0 == 3) {
+            return m_field8cfc0;
+        }
+    }
+    return m_field8cfbc;
+}
+
+extern "C" int _ZNK19CMissionList_Charac14getWinningRateEv(void*);
+
+int CUser::get_pvp_WinningRate_relateMission() const
+{
+    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    return _ZNK19CMissionList_Charac14getWinningRateEv(mission);
+}
+
+int CUser::get_aura_avatar_option_value(int idx)
+{
+    const _Charac_info* cur = getCurCharacR();
+    if (!cur)
+        return -1;
+    if (idx < 0 || idx > 2)
+        return -1;
+    return *(const int*)((const char*)cur + (idx + 0x4a0) * 4 + 1);
+}
+
+void CUser::SetTradeSpace(int idx)
+{
+    lock();
+    m_field8d002 = (short)idx;
+    unlock();
+}
+
+bool CUser::CheckFatigue()
+{
+    if (m_field704ac == 0)
+        return true;
+    return getCurCharacTotalFatigue() < getCurCharacTotalMaxFatigue();
+}
+
+extern "C" int _ZNK19CMissionList_Charac15getIndex_byKindEi(void*, int);
+
+bool CUser::has_within_Mission() const
+{
+    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    return _ZNK19CMissionList_Charac15getIndex_byKindEi(mission, 0x1b) != 0;
+}
+
+void* CUser::getBlueMarble()
+{
+    short idx = m_field8d00c;
+    if (idx < 0)
+        return 0;
+    return G_CGameManager()->getBlueMarble(idx);
+}
+
+bool CUser::checkLogOutCorrectly()
+{
+    ((char*)&m_guildAgitDB)[2] = 1;
+    return true;
+}
+
+unsigned int CUser::find_pvp_masterid_walkingout_me(unsigned int id)
+{
+    if (m_set8cfe4.empty())
+        return 0;
+    std::set<unsigned int>::iterator it = m_set8cfe4.find(id);
+    if (it != m_set8cfe4.end())
+        return *it;
+    return 0;
+}
+
+void CUser::insert_pvp_masterid_walkingout_me(unsigned int id)
+{
+    m_set8cfe4.insert(id);
+}
+
+void CUser::update_old_pvp_point()
+{
+    PvpResultType* writable = getPVPResultRefW();
+    const PvpResultType* readable = getPVPResultRefR();
+    writable->m_oldExpPoint = readable->m_expPoint;
+}
+
+void CUser::SetSaveRentalInfoToExchange(bool flag)
+{
+    m_rentalFlag1 = flag;
+}
+
+void CUser::DeleteRentalItemInfo(int idx)
+{
+    m_rentalInfo[idx].clear();
+}
+
+
+
+bool WongWork::CUserPremium::CheckPremium(int type) const
+{
+    return *(const int*)&m_pad[type * 20] != 0;
+}
+
+int WongWork::CUserPremium::GetAdvPremiumCount() const
+{
+    return *(const int*)&m_pad[0x848];
+}
+
+short WongWork::CUserPremium::GetAdvantageFatigueRate() const
+{
+    return *(const short*)&m_pad[0x850];
+}
+
+bool CUser::isAffectedPremium(ENUM_PREMIUM_TYPE type) const
+{
+    return m_premium.CheckPremium((int)type);
+}
+
+char CUser::IsPermissionPrivateStore()
+{
+    return isAffectedPremium((ENUM_PREMIUM_TYPE)8);
+}
+
+void CUser::RecoverFatigue(int value)
+{
+    if (!getCurCharacR())
+        return;
+    setCurCharacPremiumFatigue((unsigned short)value);
+    setCurCharacFatigue(value);
+}
+
+void CUser::LogHistory(const char* fmt, ...)
+{
+    char buf[1024];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+}
+
+bool CUser::isBlackUser(unsigned int accId) const
+{
+    if (m_vec8cef4.empty())
+        return false;
+    for (std::vector<unsigned int>::const_iterator it = m_vec8cef4.begin();
+         it != m_vec8cef4.end(); ++it) {
+        if (*it == accId)
+            return true;
+    }
+    return false;
+}
+
+bool CUser::IsHavePremiumAdvantage() const
+{
+    return m_premium.GetAdvPremiumCount() != 0;
+}
+
+bool CUser::IsEquipAvatar()
+{
+    const _Charac_info* cur = getCurCharacR();
+    if (!cur)
+        return false;
+    const CInventory* inven = (const CInventory*)getCurCharacInvenR();
+    return inven->IsEquipAvatar();
 }
 
 const char* CUser::getWebAddress()
@@ -1214,10 +1454,14 @@ void CUser::setBlueMarbleIndex(short index)
 {
     m_field8d00c = index;
 }
-
 short CUser::getDeathTowerIndex()
 {
     return (short)(unsigned short)m_field8d00e;
+}
+
+void CUser::setDeathTowerIndex(short idx)
+{
+    m_field8d00e = (unsigned short)idx;
 }
 
 short CUser::getBossTowerIndex()
@@ -1289,9 +1533,24 @@ void CUser::set_unique_id(unsigned short id)
 
 void CUser::set_position(unsigned short x, unsigned short y, char z)
 {
-    m_field8cffc = x;
-    m_field8cffe = y;
-    m_field8d000 = z;
+    m_posX = x;
+    m_posY = y;
+    m_direction = z;
+}
+
+unsigned int CUser::get_posX()
+{
+    return m_posX;
+}
+
+unsigned int CUser::get_posY()
+{
+    return m_posY;
+}
+
+char CUser::get_direction()
+{
+    return m_direction;
 }
 
 int CUser::GetUserState()
@@ -1334,6 +1593,38 @@ int CUser::GetSeedFromDate()
 void CUser::SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode)
 {
     m_clientSpec.m_gmUpgradeMode = mode;
+}
+
+bool CUser::isGMUser()
+{
+    return m_clientSpec.m_gmUserFlag;
+}
+
+bool CUser::IsGameMasterMode() const
+{
+    return m_clientSpec.m_gmUserFlag;
+}
+
+void CUser::SetGameMasterMode(bool flag)
+{
+    m_clientSpec.m_gmUserFlag = flag;
+    Packet_Register_GM_MID pkt;
+    if (flag)
+    {
+        unsigned int characNo = getCurCharacNo();
+        ENUM_SERVER_GROUP group = GetServerGroup();
+        CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(group);
+        proxy->SendTcpPacket((char*)&pkt, 0xe);
+    }
+}
+char CUser::GetEventCreateDnfReward()
+{
+    return m_eventCreateDnfReward;
+}
+
+void CUser::SetPowerUp(bool flag)
+{
+    m_expReward.m_powerUp = flag;
 }
 
 int CUser::SetETC(short key, int value)
@@ -1459,6 +1750,11 @@ void CUser::resetAccountUsedFatigue()
 void CUser::incChattingMessageCount(int count)
 {
     m_codeHackCheck.m_field64 += count;
+}
+
+void CUser::setChattingMessageCount(int count)
+{
+    m_codeHackCheck.m_field64 = count;
 }
 
 int CUser::getChattingMessageCount()
@@ -1741,7 +2037,7 @@ unsigned char CUser::isHangameUser()
 
 unsigned char CUser::IsPowerUp()
 {
-    return m_expReward.m_field6;
+    return m_expReward.m_powerUp;
 }
 
 void CUser::SetRating(float rating)
@@ -2247,6 +2543,21 @@ char* CUser::GetUserEMail()
     return m_accName + 0x116;
 }
 
+const char* CUser::GetSsnString()
+{
+    return m_accName + 0x96;
+}
+
+char CUser::getSex()
+{
+    const char* ssn = GetSsnString();
+    if (strlen(ssn) < 0xd)
+        return -1;
+    if (ssn[6] == '2' || ssn[6] == '4')
+        return 0;
+    return 1;
+}
+
 void* CUser::GetCSHashSet()
 {
     return &m_set8eb00;
@@ -2279,7 +2590,7 @@ void* CUser::GetGuildDBInfo()
 
 char* CUser::getGarenaAuthData()
 {
-    return (char*)this + 0x6ef92;
+    return (char*)m_pad6ef92;
 }
 
 void* CUser::GetPISenderManager()
@@ -2324,22 +2635,22 @@ void* CUser::getCharacLevelUpGift_AccountOnce()
 
 void* CUser::GetMailBox()
 {
-    return *(void**)((char*)this + 0x71b98);
+    return *(void**)((char*)&m_premium.m_mailBox);
 }
 
 int CUser::GetMileage()
 {
-    return *(int*)((char*)this + 0x796d4);
+    return *(int*)((char*)m_pad796d4);
 }
 
 int CUser::GetPCRoomNo()
 {
-    return *(int*)((char*)this + 0x79650);
+    return *(int*)((char*)&m_codeHackCheck.m_field54);
 }
 
 unsigned int CUser::GetCeraPoint()
 {
-    return *(unsigned int*)((char*)this + 0x8eadc);
+    return *(unsigned int*)((char*)&m_pad8ead9[3]);
 }
 
 int CUser::getAntibotKey()
@@ -2368,27 +2679,27 @@ void CUser::onDungeonClear(bool flag)
 
 int CUser::GetDebugCommand()
 {
-    return *(int*)((char*)this + 0x8e090);
+    return *(int*)((char*)&m_pad8e08b[5]);
 }
 
 int CUser::GetTradePunishType()
 {
-    return *(int*)((char*)this + 0x79628);
+    return *(int*)((char*)m_codeHackCheck.m_pad2c);
 }
 
 int CUser::getLastLotteryTime()
 {
-    return *(int*)((char*)this + 0x8e938);
+    return *(int*)((char*)m_mcap.m_pad548);
 }
 
 int CUser::GetNonClientRandInt()
 {
-    return *(int*)((char*)this + 0x8eaf8);
+    return *(int*)((char*)&m_piSender + 0xc);
 }
 
 int CUser::GetNonClientFlag()
 {
-    return *(unsigned char*)((char*)this + 0x8eaf4);
+    return *(unsigned char*)((char*)&m_piSender + 8);
 }
 
 int CUser::GetLastLoginCharacNo()
@@ -2413,7 +2724,7 @@ int CUser::getRecipeProbability()
 
 int CUser::get_local_ip_address()
 {
-    return *(int*)((char*)this + 0x8d254);
+    return *(int*)((char*)&m_expReward.m_localIp);
 }
 
 unsigned int CUser::GetGuildCargoCapacity()
@@ -2433,22 +2744,22 @@ long CUser::GetResumeChecksumTime()
 
 CGameMasterCharacter* CUser::GetGameMasterCharacter()
 {
-    return *(CGameMasterCharacter**)((char*)this + 0x7964c);
+    return *(CGameMasterCharacter**)((char*)&m_codeHackCheck.m_gameMasterCharac);
 }
 
 int CUser::getBreakAwayAccureCera()
 {
-    return *(int*)((char*)this + 0x703b0);
+    return *(int*)((char*)m_gameOption.m_pad64c);
 }
 
 int CUser::getBreakAwayRewardOrder()
 {
-    return *(int*)((char*)this + 0x703b8);
+    return *(int*)((char*)m_gameOption.m_pad654b);
 }
 
 int CUser::get_multiboxLotteryItemFailCnt()
 {
-    return *(int*)((char*)this + 0x703bc);
+    return *(int*)((char*)&m_gameOption.m_pad654b[4]);
 }
 
 int CUser::GetCurCharacUsedFatigueQuantity()
@@ -2458,12 +2769,12 @@ int CUser::GetCurCharacUsedFatigueQuantity()
 
 bool CUser::isHumanCertified()
 {
-    return *(unsigned char*)((char*)this + 0x8e100) != 0;
+    return *(unsigned char*)((char*)m_pad8e100) != 0;
 }
 
 bool CUser::isLoadingHackGold()
 {
-    return *(unsigned char*)((char*)this + 0x8e944) != 0;
+    return *(unsigned char*)((char*)&m_mcap.m_pad54d[7]) != 0;
 }
 
 bool CUser::isSaveInformNoticeFlag()
@@ -2481,182 +2792,182 @@ int CUser::CheckMaxLuckyLevel()
 
 void CUser::OnRecvEvent()
 {
-    *(char*)((char*)this + 0x8e408) = 1;
+    *(char*)((char*)&m_mcap.m_field18) = 1;
 }
 
 bool CUser::GetBuyingGold()
 {
-    return *(unsigned char*)((char*)this + 0x8ead8) != 0;
+    return *(unsigned char*)((char*)&m_field8ead8) != 0;
 }
 
 void CUser::SetBuyingGold(bool flag)
 {
-    *(unsigned char*)((char*)this + 0x8ead8) = flag ? 1 : 0;
+    *(unsigned char*)((char*)&m_field8ead8) = flag ? 1 : 0;
 }
 
 bool CUser::GetFirstLogin()
 {
-    return *(unsigned char*)((char*)this + 0x79654) != 0;
+    return *(unsigned char*)((char*)&m_codeHackCheck.m_firstLogin) != 0;
 }
 
 void CUser::SetProgLogout()
 {
-    *(char*)((char*)this + 0x711e4) = 1;
+    *(char*)((char*)&m_clientSpec.m_progLogout) = 1;
 }
 
 bool CUser::isRestingUser()
 {
-    return *(unsigned char*)((char*)this + 0x8e934) != 0;
+    return *(unsigned char*)((char*)&m_mcap.m_field544) != 0;
 }
 
 void CUser::InitReceivedRequestType()
 {
-    *(char*)((char*)this + 0x8ec28) = (char)0xff;
+    *(char*)((char*)&m_field8ec28) = (char)0xff;
 }
 
 bool CUser::isBreakAwayDungeonClear()
 {
-    return *(unsigned char*)((char*)this + 0x703a8) != 0;
+    return *(unsigned char*)((char*)m_gameOption.m_pad644) != 0;
 }
 
 bool CUser::isUsedBreakAwayLuckPoint()
 {
-    return *(unsigned char*)((char*)this + 0x703c1) != 0;
+    return *(unsigned char*)((char*)&m_gameOption.m_pad654b[9]) != 0;
 }
 
 bool CUser::isJoinedSchoolPointEvent()
 {
-    return *(unsigned char*)((char*)this + 0x79640) != 0;
+    return *(unsigned char*)((char*)&m_codeHackCheck.m_field44) != 0;
 }
 
 void CUser::DisableSaveMemberBonusFatigue()
 {
-    *(char*)((char*)this + 0x7965c) = 0;
+    *(char*)((char*)&m_codeHackCheck.m_field60) = 0;
 }
 
 bool CUser::IsEnableSaveMemberBonusFatigue()
 {
-    return *(unsigned char*)((char*)this + 0x7965c) != 0;
+    return *(unsigned char*)((char*)&m_codeHackCheck.m_field60) != 0;
 }
 
 void CUser::SetProperLevelDungeonUser()
 {
-    *(char*)((char*)this + 0x8eb99) = 1;
+    *(char*)((char*)&m_field8eb99) = 1;
 }
 
 void CUser::ClearProperLevelDungeonUser()
 {
-    *(char*)((char*)this + 0x8eb99) = 0;
+    *(char*)((char*)&m_field8eb99) = 0;
 }
 
 bool CUser::IsProperLevelDungeonUser()
 {
-    return *(unsigned char*)((char*)this + 0x8eb99) != 0;
+    return *(unsigned char*)((char*)&m_field8eb99) != 0;
 }
 
 bool CUser::isCharacLinkMessageFlag()
 {
-    return *(unsigned char*)((char*)this + 0x703d8) != 0;
+    return *(unsigned char*)((char*)m_breakAway.m_pad14) != 0;
 }
 
 bool CUser::isLinkCharacDisconnectFlag()
 {
-    return *(unsigned char*)((char*)this + 0x703d9) != 0;
+    return *(unsigned char*)((char*)&m_breakAway.m_pad14[1]) != 0;
 }
 
 unsigned char CUser::getDisconnectLinkCharacSlotIdx()
 {
-    return *(unsigned char*)((char*)this + 0x703da);
+    return *(unsigned char*)((char*)&m_breakAway.m_pad14[2]);
 }
 
 bool CUser::is_update_ontime_last_recv_idx()
 {
-    return *(unsigned char*)((char*)this + 0x8d24c) != 0;
+    return *(unsigned char*)((char*)&m_ceraUserInfo + 0x68) != 0;
 }
 
 void CUser::reset_update_ontime_last_recv_idx()
 {
-    *(char*)((char*)this + 0x8d24c) = 0;
+    *(char*)((char*)&m_ceraUserInfo + 0x68) = 0;
 }
 
 bool CUser::CheckLoadRentalInfoFromExchange()
 {
-    return *(unsigned char*)((char*)this + 0x6ef91) != 0;
+    return *(unsigned char*)((char*)&m_rentalFlag2) != 0;
 }
 
 unsigned char CUser::GetPuUser()
 {
-    return *(unsigned char*)((char*)this + 0x796d8);
+    return *(unsigned char*)((char*)&m_field796d8);
 }
 
 void CUser::SetCeraPoint(unsigned int point)
 {
-    *(unsigned int*)((char*)this + 0x8eadc) = point;
+    *(unsigned int*)((char*)&m_pad8ead9[3]) = point;
 }
 
 void CUser::SetDebugCommand(int cmd)
 {
-    *(int*)((char*)this + 0x8e090) = cmd;
+    *(int*)((char*)&m_pad8e08b[5]) = cmd;
 }
 
 void CUser::decre_check_count()
 {
-    *(short*)((char*)this + 0x8cfc8) = 0;
+    *(short*)((char*)&m_field8cfc8) = 0;
 }
 
 void CUser::setLastLotteryTime(unsigned long t)
 {
-    *(unsigned long*)((char*)this + 0x8e938) = t;
+    *(unsigned long*)((char*)m_mcap.m_pad548) = t;
 }
 
 void CUser::SetNonClientRandInt(int v)
 {
-    *(int*)((char*)this + 0x8eaf8) = v;
+    *(int*)((char*)&m_piSender + 0xc) = v;
 }
 
 void CUser::recipeForceProbability(int v)
 {
-    *(int*)((char*)this + 0x8ec2c) = v;
+    *(int*)((char*)&m_field8ec2c) = v;
 }
 
 void CUser::setBreakAwayAccureCera(int v)
 {
-    *(int*)((char*)this + 0x703b0) = v;
+    *(int*)((char*)m_gameOption.m_pad64c) = v;
 }
 
 void CUser::setCharacAntibotSerialNum(int v)
 {
-    *(int*)((char*)this + 0x8ec24) = v;
+    *(int*)((char*)&m_field8ec24) = v;
 }
 
 void CUser::set_multiboxLotteryItemFailCnt(int v)
 {
-    *(int*)((char*)this + 0x703bc) = v;
+    *(int*)((char*)&m_gameOption.m_pad654b[4]) = v;
 }
 
 void CUser::resetPlayExpAdd()
 {
-    *(int*)((char*)this + 0x703a4) = 0;
+    *(int*)((char*)&m_gameOption.m_playExpAdd) = 0;
 }
 
 void CUser::resetCleanpadFailCnt()
 {
-    *(int*)((char*)this + 0x8e0fc) = 0;
+    *(int*)((char*)&m_humanCertifyErrorCnt) = 0;
 }
 
 bool CUser::isCleanPadVerifyLimit()
 {
-    return *(int*)((char*)this + 0x8e0fc) > 2;
+    return *(int*)((char*)&m_humanCertifyErrorCnt) > 2;
 }
 
 void CUser::resetTotalPcRoomPlayTime()
 {
-    *(int*)((char*)this + 0x8eba0) = 0;
+    *(int*)((char*)m_pad8eba0) = 0;
 }
 
 void CUser::ResetCurCharacUsedFatigueQuantity()
 {
-    *(int*)((char*)this + 0x8eba8) = 0;
+    *(int*)((char*)&m_field8eba8) = 0;
 }
 
 int CUser::get_server_fatigue_day_size()
@@ -2666,37 +2977,37 @@ int CUser::get_server_fatigue_day_size()
 
 void CUser::IncreaseUsedCoinCount()
 {
-    *(int*)((char*)this + 0x8eb1c) = *(int*)((char*)this + 0x8eb1c) + 1;
+    *(int*)((char*)&m_field8eb1c) = *(int*)((char*)&m_field8eb1c) + 1;
 }
 
 void CUser::setLoadHackGold(bool flag)
 {
-    *(unsigned char*)((char*)this + 0x8e944) = flag ? 1 : 0;
+    *(unsigned char*)((char*)&m_mcap.m_pad54d[7]) = flag ? 1 : 0;
 }
 
 void CUser::SetNonClientFlag(bool flag)
 {
-    *(unsigned char*)((char*)this + 0x8eaf4) = flag ? 1 : 0;
+    *(unsigned char*)((char*)&m_piSender + 8) = flag ? 1 : 0;
 }
 
 void CUser::setHumanCertified(bool flag)
 {
-    *(unsigned char*)((char*)this + 0x8e100) = flag ? 1 : 0;
+    *(unsigned char*)((char*)m_pad8e100) = flag ? 1 : 0;
 }
 
 void CUser::incTradeCount()
 {
-    *(int*)((char*)this + 0x8d10c) = *(int*)((char*)this + 0x8d10c) + 1;
+    *(int*)((char*)&m_pad8d0fd[0xf]) = *(int*)((char*)&m_pad8d0fd[0xf]) + 1;
 }
 
 float CUser::GetRating()
 {
-    return *(float*)((char*)this + 0x8e078);
+    return *(float*)((char*)&m_character + 0x44);
 }
 
 void CUser::backupSeed()
 {
-    m_backupSeed = *(int*)((char*)this + 0x796e0);
+    m_backupSeed = *(int*)((char*)&m_pad796da[6]);
 }
 
 void CUser::ResetCharacExpandData()
@@ -2706,7 +3017,7 @@ void CUser::ResetCharacExpandData()
 
 bool CUser::IsExistGuildAgit()
 {
-    return *(unsigned char*)((char*)this + 0x8d0be) != 0;
+    return *(unsigned char*)((char*)&m_guildDB + 0x9e) != 0;
 }
 
 short CUser::GetDailyBadge(ENUM_BADGE_TYPE type)
@@ -2721,5 +3032,267 @@ int CUser::get_charac_count()
 
 bool CUser::isTradePunishOverThirtyDays()
 {
-    return *(unsigned char*)((char*)this + 0x7962c) != 0;
+    return *(unsigned char*)((char*)&m_codeHackCheck.m_field30) != 0;
+}
+
+
+void CUser::sendBlueMarbleEnterCount()
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x1b4);
+    packet.put_byte(getBlueMarbleEnterCount());
+    packet.finalize(true);
+    Send(packet);
+}
+
+void CUser::ResetDailyCharacExpandDataMidnight()
+{
+    m_characExpand.ResetDailyMidnight();
+}
+
+void CUser::ResetDailyCharacExpandData()
+{
+    m_characExpand.ResetDaily();
+}
+
+void CUser::resetNPCRelationShipDailyData() {}
+
+void CUser::sendNPCRelationShipFavor() {}
+
+void CUser::SendProperDungeonClearCount()
+{
+    if (get_state() > 2)
+        return;
+    if (!getCurCharacR())
+        return;
+    PacketGuard packet;
+    packet.put_header(0, 0x10b);
+    packet.put_short(GetProperDungeonClearCount());
+    packet.finalize(true);
+    Send(packet);
+}
+
+extern "C" bool _ZN19CMissionList_Charac24MakeMissionList_JustKindERK5CUserj(void*, void*, unsigned int);
+
+bool CUser::acceptable_within_mission() const
+{
+    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    int grade = get_pvp_grade();
+    int idx = G_CDataManager()->get_WithinMissionIndex(grade);
+    if (idx == 0)
+        return false;
+    return _ZN19CMissionList_Charac24MakeMissionList_JustKindERK5CUserj(mission, (void*)this, 0x1b);
+}
+
+bool CUser::isDuplicationMessage(const std::string& msg)
+{
+    bool dup = (msg == m_str79664[0]) || (msg == m_str79664[1]);
+    unsigned char idx = *(unsigned char*)&m_pad7966c[0];
+    std::string* slot = (std::string*)((char*)this + 0x79670 + idx * 4);
+    *slot = msg;
+    *(unsigned char*)&m_pad7966c[0] = idx ^ 1;
+    return dup;
+}
+
+void CUser::DimensionInoutUpdate(bool flag1, bool flag2)
+{
+    for (int i = 0; i <= 5; i++)
+    {
+        if (flag1)
+        {
+            char value = (char)G_CDataManager()->get_dimensionInout(i);
+            setDemensionInoutValue((char)i, value);
+        }
+    }
+    if (flag2)
+    {
+        char value = (char)G_CDataManager()->get_limit_inout_count(2);
+        setUltimateInoutValue(2, value);
+    }
+}
+
+extern "C" int _ZNK11RefPvpGrade19GetPvpCurrRankPointEi(void*, int);
+extern "C" int _ZNK11RefPvpGrade19GetPvpNextRankPointEi(void*, int);
+
+void CUser::send_pvp_record()
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x30);
+    const PvpResultType* result = getPVPResultRefR();
+    packet.put_int(*(int*)&result->m_pad0[0]);
+    packet.put_int(*(int*)&result->m_pad0[4]);
+    packet.put_int(result->m_expPoint);
+    packet.put_int(_ZNK11RefPvpGrade19GetPvpCurrRankPointEi(GlobalData::s_ref_pvp_grade, result->m_pvpGrade));
+    packet.put_int(_ZNK11RefPvpGrade19GetPvpNextRankPointEi(GlobalData::s_ref_pvp_grade, result->m_pvpGrade));
+    packet.put_byte(result->m_pvpGrade);
+    packet.put_byte(*(unsigned char*)&result->m_pad5c[0]);
+    packet.finalize(true);
+    Send(packet);
+}
+
+extern "C" void const* sub_CQuestClear_getClearedQuest(void const* self)
+    asm("_ZNK8WongWork11CQuestClear15getClearedQuestEv");
+
+void CUser::send_clear_quest_list()
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x163);
+    packet.put_int(0x7530);
+    UserQuest* quest = getCurCharacQuestR();
+    void const* cleared = sub_CQuestClear_getClearedQuest((char*)quest + 4);
+    packet.put_binary((const char*)cleared, 0x7530);
+    packet.finalize(true);
+    Send(packet);
+}
+
+void CUser::processReturnUserQuestAutoClear()
+{
+    if (IsReturnUser() && IsReturnUserFirstLogin())
+    {
+        questAutoClear(get_charac_level() - 1);
+    }
+}
+
+bool CUser::update_pvp_rank(const PvpResultType& result)
+{
+    getPVPResultRefW()->AddNewResult(result);
+    return true;
+}
+
+void CUser::saveTaxMoneyForUpperMember(int money)
+{
+    if (get_charac_memberkey() != 0 && is_connect_upper_member() && money > 0)
+    {
+        add_member_pay_tex_money_to_upper(money);
+    }
+}
+
+int CUser::gainExpAsUpperMember(int exp)
+{
+    if (get_charac_memberkey() == 0)
+        return 0;
+    if (!is_connect_upper_member())
+        return 0;
+    unsigned char level = get_uppermember_exp_level();
+    int result = (int)(exp * (level * 0.1f));
+    if (result > 0)
+        set_charac_member_bonus_exp(result);
+    return result;
+}
+
+int CUser::gainPowerWarRewardExp(int)
+{
+    return 0;
+}
+
+void CUser::add_guild_point_item()
+{
+    int threshold = *(int*)((char*)G_CDataManager() + 0xa510);
+    int rand = get_rand_int(0x2710);
+    if (rand < threshold)
+        add_inventory_item(0xc84);
+}
+
+void CUser::SendMoneyFullReason(ENUM_MONEY_FULL_REASON reason, unsigned long a, unsigned long b)
+{
+    PacketGuard packet;
+    packet.put_header(0, 0x33);
+    packet.put_byte(reason);
+    packet.put_int(a);
+    packet.put_int(b);
+    packet.finalize(true);
+    Send(packet);
+}
+
+bool CUser::AddDungeonClear(int dungeonIdx, int clearCount)
+{
+    const WongWork::CDungeonClear* pClear = getDungeonClearRefR();
+    char curDiff = pClear->getClearedDungeonDiff(dungeonIdx);
+    if (curDiff < clearCount)
+    {
+        getDungeonClearRefW()->addClearedDungeon(dungeonIdx, clearCount);
+        return true;
+    }
+    return false;
+}
+
+extern "C" int _ZN22CConditionEventManager16GetCurEventIndexEv(void*);
+
+void CUser::SendConditionEventInfo()
+{
+    PacketGuard packet;
+    packet.put_header(0, 0xea);
+    void* pMgr = (void*)G_CGameManager()->GetConditionEventManager();
+    if (pMgr)
+    {
+        int eventIdx = _ZN22CConditionEventManager16GetCurEventIndexEv(pMgr);
+        unsigned short step = GetCurConditionEventStep();
+        unsigned short rewardStep = GetCurConditionEventRewardStep();
+        packet.put_short(eventIdx);
+        packet.put_byte(step);
+        packet.put_byte(rewardStep);
+        packet.finalize(true);
+        Send(packet);
+    }
+}
+
+void CUser::ResetCurCharacUsedGiftFatigueQuantity()
+{
+    int* pVal = (int*)((char*)this + 0x8ebac);
+    if (*pVal != 0)
+    {
+        *pVal = 0;
+        SetChangedGiftFatigueQuantity(true);
+    }
+}
+
+void CUser::SetChangedGiftFatigueQuantity(bool flag)
+{
+    *(unsigned char*)((char*)this + 0x8ebb0) = flag ? 1 : 0;
+}
+
+extern "C" void _ZN9QuestList17GetDailyQuestListERSt4listIiSaIiEE(void*, void*);
+extern "C" void _ZN9UserQuest15resetClearQuestEi(void*, int);
+
+void CUser::ResetDailyQuest()
+{
+    std::list<int> questList;
+    void* pQuestList = *(void**)((char*)G_CDataManager() + 0x18);
+    _ZN9QuestList17GetDailyQuestListERSt4listIiSaIiEE(pQuestList, &questList);
+    for (std::list<int>::iterator it = questList.begin(); it != questList.end(); ++it)
+    {
+        int questId = *it;
+        UserQuest* pQuest = getCurCharacQuestR();
+        if (pQuest && pQuest->isClearQuest(questId))
+        {
+            _ZN9UserQuest15resetClearQuestEi(getCurCharacQuestW(), questId);
+        }
+    }
+}
+
+extern "C" void _ZN9QuestList20GetTrainingQuestListERSt6vectorIiSaIiEEs(void*, void*, short);
+
+void CUser::ResetTrainingQuest()
+{
+    std::vector<int> questList;
+    short level = get_charac_level();
+    void* pQuestList = *(void**)((char*)G_CDataManager() + 0x18);
+    _ZN9QuestList20GetTrainingQuestListERSt6vectorIiSaIiEEs(pQuestList, &questList, level);
+    for (std::vector<int>::iterator it = questList.begin(); it != questList.end(); ++it)
+    {
+        int questId = *it;
+        UserQuest* pQuest = getCurCharacQuestR();
+        if (pQuest && pQuest->isClearQuest(questId))
+        {
+            _ZN9UserQuest15resetClearQuestEi(getCurCharacQuestW(), questId);
+        }
+    }
+}
+
+extern "C" void _ZN19CMissionList_Charac16Send_MissionListER5CUser(void*, void*);
+
+void CUser::send_MissionList()
+{
+    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    _ZN19CMissionList_Charac16Send_MissionListER5CUser(mission, this);
 }

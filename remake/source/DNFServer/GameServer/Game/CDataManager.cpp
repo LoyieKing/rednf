@@ -292,7 +292,7 @@ unsigned int CDataManager::GetSpAtLevelUp(int level) const
     {
         return 0;
     }
-    return ((int*)((char*)this + 8))[level + 0x36a2];
+    return ((int*)&m_monsterManager)[level + 0x36a2];
 }
 
 unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGroup) const
@@ -1107,3 +1107,8 @@ CDataManager* G_CDataManager()
 // CMapList/CMonsterManager/CDungeonList/CSkillList/QuestList 实现在
 // CListTables.cpp（G2 第七批）；CChattingEmoticonList 由各自 TU 提供。
 CChattingEmoticonList::~CChattingEmoticonList() {}
+
+int CDataManager::get_limit_inout_count(int type)
+{
+    return (unsigned char)m_padAA80[type];
+}

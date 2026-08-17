@@ -91,6 +91,7 @@ public:
     PvpResultType();
     ~PvpResultType();
     void Clear();
+    void AddNewResult(const PvpResultType& other);
 
     char m_pad0[8];             // +0x00
     int m_expPoint;             // +0x08（get_pvp_result_exp_point）
@@ -114,6 +115,8 @@ public:
     CDungeonClear();
     ~CDungeonClear();
     void clear();
+    char getClearedDungeonDiff(short dungeonIdx) const;
+    void addClearedDungeon(short dungeonIdx, signed char diff);
 
     char m_pad[0x18];
 };

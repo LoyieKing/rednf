@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "CParty.h"
+#include "CDungeon.h"
 #include "InterfacePacketBuf.h"
 
 // ============================================================================
@@ -183,41 +184,41 @@ void CParty::CItemRoutingData::SetMemberRoutingState(int idx, char state)
 CParty::CParty()
 {
     sub_cElection_ctor(&m_padElection);
-    sub_CPartyResultRecvFlag_ctor(&m_padRecvFlag);
-    sub_CTraceMobDieHack_ctor(&m_padTrace);
+    sub_CPartyResultRecvFlag_ctor(&m_pad1dc);
+    sub_CTraceMobDieHack_ctor(&m_pad210);
     sub_SECRET_SHOP_DATA_ctor(&m_padShop);
     sub_BattleData_ctor(&m_padBattleData);
-    sub_CBattle_Field_ctor(&m_padBattleField);
+    sub_CBattle_Field_ctor(&m_padBattleField1);
     sub_GameResultSet_ctor(&m_padResult);
     sub_std_map_ctor(&m_padMap);
     sub_Secu_HackLogCheckByParty_ctor(&m_padSecu);
-    sub_CPartyTelePort_ctor(&m_padTelePort);
+    sub_CPartyTelePort_ctor(&m_pad1ad0);
     sub_std_vector_MapInfo_ctor(&m_padPassedMap);
     for (int i = 0xb; i <= 0x2f; ++i)
         m_field148[i - 0xb] = 0;
     m_usedCoinCount = 0;
-    sub_CBattle_Field_SetParty(&m_padBattleField, this);
+    sub_CBattle_Field_SetParty(&m_padBattleField1, this);
     SetAssaultState(0);
     m_routingData.Reset();
-    sub_CPartyTelePort_init(&m_padTelePort, this);
-    *(int*)((char*)this + 0x1aec) = 0xb;
-    *(char*)((char*)this + 0x1ae4) = 0;
+    sub_CPartyTelePort_init(&m_pad1ad0, this);
+    m_randomBuffType = 0xb;
+    m_isQuickParty = 0;
     init_quick_party_data();
     sub_Secu_HackLogCheckByParty_Init(&m_padSecu, this);
-    *(int*)((char*)this + 0x328) = 0;
+    m_partyMemberCoinLimit = 0;
 }
 
 CParty::~CParty()
 {
     sub_std_vector_MapInfo_dtor(&m_padPassedMap);
-    sub_CPartyTelePort_dtor(&m_padTelePort);
+    sub_CPartyTelePort_dtor(&m_pad1ad0);
     sub_Secu_HackLogCheckByParty_dtor(&m_padSecu);
     sub_std_map_dtor(&m_padMap);
     sub_GameResultSet_dtor(&m_padResult);
-    sub_CBattle_Field_dtor(&m_padBattleField);
+    sub_CBattle_Field_dtor(&m_padBattleField1);
     sub_BattleData_dtor(&m_padBattleData);
     sub_SECRET_SHOP_DATA_dtor(&m_padShop);
-    sub_CTraceMobDieHack_dtor(&m_padTrace);
+    sub_CTraceMobDieHack_dtor(&m_pad210);
 }
 
 void CParty::send_to_party(PacketGuard& packet) {}  // TODO(G2)
@@ -353,18 +354,18 @@ void CParty::setDungDiffi(unsigned char diffi)
 
 char CParty::get_dungeon_clear_state()
 {
-    return *(char*)((char*)this + 0x1e0);
+    return m_dungeonClearState;
 }
 
 void CParty::set_dungeon_clear_state(char state)
 {
     if (state <= 6)
-        *(char*)((char*)this + 0x1e0) = state;
+        m_dungeonClearState = state;
 }
 
 void CParty::reset_recv_flag()
 {
-    sub_CPartyResultRecvFlag_Clear(&m_padRecvFlag);
+    sub_CPartyResultRecvFlag_Clear(&m_pad1dc);
 }
 
 void CParty::SetRecvResultFlag(bool flag)
@@ -374,72 +375,72 @@ void CParty::SetRecvResultFlag(bool flag)
 
 unsigned short CParty::getStraightVictories()
 {
-    return *(unsigned short*)((char*)this + 0x29c);
+    return m_straightVictories;
 }
 
 void CParty::setStraightVictories(unsigned short v)
 {
-    *(unsigned short*)((char*)this + 0x29c) = v;
+    m_straightVictories = v;
 }
 
 void CParty::incStraightVictories()
 {
-    *(unsigned short*)((char*)this + 0x29c) += 1;
+    m_straightVictories += 1;
 }
 
 void CParty::resetStraightVictories()
 {
-    *(unsigned short*)((char*)this + 0x29c) = 0;
+    m_straightVictories = 0;
 }
 
 int CParty::getStartGamePartyCount()
 {
-    return *(int*)((char*)this + 0x2a0);
+    return m_startGamePartyCount;
 }
 
 void CParty::setStartGamePartyCount(int v)
 {
-    *(int*)((char*)this + 0x2a0) = v;
+    m_startGamePartyCount = v;
 }
 
 bool CParty::IsFirstMapClear()
 {
-    return *(char*)((char*)this + 0x324) != 0;
+    return m_firstMapClear != 0;
 }
 
 void CParty::SetFirstMapClear(bool flag)
 {
-    *(char*)((char*)this + 0x324) = flag ? 1 : 0;
+    m_firstMapClear = flag ? 1 : 0;
 }
 
 bool CParty::IsPremiumGoldCardParty()
 {
-    return *(char*)((char*)this + 0x31c) != 0;
+    return m_premiumGoldCardParty != 0;
 }
 
 void CParty::SetPremiumGoldCardParty()
 {
-    *(char*)((char*)this + 0x31c) = 1;
+    m_premiumGoldCardParty = 1;
 }
 
 void CParty::ResetPremiumGoldCardParty()
 {
-    *(char*)((char*)this + 0x31c) = 0;
+    m_premiumGoldCardParty = 0;
 }
 
 unsigned int CParty::GetPremiumGoldCardDefaultItem()
 {
-    return *(unsigned int*)((char*)this + 0x320);
+    return m_premiumGoldCardDefaultItem;
 }
 
 void CParty::SetPremiumGoldCardDefaultItem(unsigned int v)
 {
-    *(unsigned int*)((char*)this + 0x320) = v;
+    m_premiumGoldCardDefaultItem = v;
 }
 
 void CParty::ResetPremiumGoldCardDefaultItem()
 {
-    *(unsigned int*)((char*)this + 0x320) = 0;
+    m_premiumGoldCardDefaultItem = 0;
 }
 
 void* CParty::GetSecretShopData()
@@ -449,72 +450,72 @@ void* CParty::GetSecretShopData()
 
 void CParty::checkBossRoom()
 {
-    sub_CBattle_Field_check_end_point(&m_padBattleField);
+    sub_CBattle_Field_check_end_point(&m_padBattleField1);
 }
 
 void CParty::checkStartRoom()
 {
-    sub_CBattle_Field_check_start_point(&m_padBattleField);
+    sub_CBattle_Field_check_start_point(&m_padBattleField1);
 }
 
 void CParty::DeleteDungeonDropItem(int idx)
 {
-    sub_CBattle_Field_pickup_item(&m_padBattleField, idx);
+    sub_CBattle_Field_pickup_item(&m_padBattleField1, idx);
 }
 
 int CParty::get_quick_party_index()
 {
-    return *(int*)((char*)this + 0x1ae0);
+    return m_quickPartyIndex;
 }
 
 void CParty::set_quick_party_index(int idx)
 {
-    *(int*)((char*)this + 0x1ae0) = idx;
+    m_quickPartyIndex = idx;
 }
 
 bool CParty::is_quick_party()
 {
-    return *(char*)((char*)this + 0x1ae4) != 0;
+    return m_isQuickParty != 0;
 }
 
 void CParty::set_quick_party(bool flag)
 {
-    *(char*)((char*)this + 0x1ae4) = flag ? 1 : 0;
+    m_isQuickParty = flag ? 1 : 0;
 }
 
 void CParty::set_gm_random_buff_type(QuickParty::RandomBuffType type)
 {
-    *(int*)((char*)this + 0x1aec) = (int)type;
+    m_randomBuffType = (int)type;
 }
 
 int CParty::get_random_buff_type()
 {
-    return *(int*)((char*)this + 0x1aec);
+    return m_randomBuffType;
 }
 
 bool CParty::IsWeekendEvent()
 {
-    return *(char*)((char*)this + 0x1af0) != 0;
+    return m_weekendEvent != 0;
 }
 
 void CParty::SetWeekendEvent(bool flag)
 {
-    *(char*)((char*)this + 0x1af0) = flag ? 1 : 0;
+    m_weekendEvent = flag ? 1 : 0;
 }
 
 bool CParty::getDungeonMapSaving()
 {
-    return *(char*)((char*)this + 0x1af1) != 0;
+    return m_dungeonMapSaving != 0;
 }
 
 void CParty::setDungeonMapSaving(bool flag)
 {
-    *(char*)((char*)this + 0x1af1) = flag ? 1 : 0;
+    m_dungeonMapSaving = flag ? 1 : 0;
 }
 
 void* CParty::GetPartyTelePort()
 {
-    return &m_padTelePort;
+    return &m_pad1ad0;
 }
 
 void* CParty::getPassedMapInfoList()
@@ -640,19 +641,19 @@ void CParty::SetRoutingTimerOver()
 // ============================================================================
 void CParty::init_quick_party_data()
 {
-    *(int*)((char*)this + 0x1ae0) = -1;
-    *(int*)((char*)this + 0x1ae8) = 0xb;
+    m_quickPartyIndex = -1;
+    m_field1ae8 = 0xb;
 }
 
-CGameManager* CParty::getManager()
+CUser* CParty::getManager()
 {
-    return (CGameManager*)m_field74;
+    return m_manager;
 }
 
 void CParty::init()
 {
-    sub_CTraceMobDieHack_reportHackInfo(&m_padTrace);
-    sub_CTraceMobDieHack_reset(&m_padTrace);
+    sub_CTraceMobDieHack_reportHackInfo(&m_pad210);
+    sub_CTraceMobDieHack_reset(&m_pad210);
     for (int i = 0; i <= 3; ++i)
     {
         if (_checkValidUser(i) == 1)
@@ -662,7 +663,7 @@ void CParty::init()
             sub_CHackAnalyzer_resetHackInfo(user->getHackAnalyzer());
         }
     }
-    *(int*)((char*)this + 0x298) = -1;
+    m_memberLevelGap = -1;
     m_recvResultFlag = 0;
     memset(m_title, 0, 0x20);
     m_titleIndex = (char)(sub_get_rand_int(0xff) + 1);
@@ -680,30 +681,30 @@ void CParty::init()
     {
         m_member[i].Init();
         for (int j = 0; j <= 1; ++j)
-            *(char*)((char*)this + 4 * j + i + 0x204) = (char)0xff;
-        *(char*)((char*)this + 0x1e0) = 0;
+            m_field204[j][i] = (char)0xff;
+        m_dungeonClearState = 0;
     }
     for (int i = 0; i <= 1; ++i)
         for (int j = 0; j <= 3; ++j)
-            *(int*)((char*)this + 16 * i + 4 * j + 0x1e4) = 0;
+            m_field1e4[i][j] = 0;
     sub_BattleData_SetHellPartyValueTotal(
         &m_padBattleData,
         *(int*)((char*)sub_CDataManager_get_hellparty_script_values(sub_G_CDataManager()) + 8));
-    sub_CBattle_Field_reset_hell_party_value(&m_padBattleField);
+    sub_CBattle_Field_reset_hell_party_value(&m_padBattleField1);
     sub_BattleData_Reset(&m_padBattleData);
-    sub_CBattle_Field_reset_field(&m_padBattleField);
-    sub_CPartyResultRecvFlag_Clear(&m_padRecvFlag);
+    sub_CBattle_Field_reset_field(&m_padBattleField1);
+    sub_CPartyResultRecvFlag_Clear(&m_pad1dc);
     m_usedCoinCount = 0;
     m_field1868 = 0;
-    *(unsigned short*)((char*)this + 0x29c) = 0;
+    m_straightVictories = 0;
     sub_SECRET_SHOP_DATA_clear(&m_padShop);
     ResetPremiumGoldCardParty();
     ResetPremiumGoldCardDefaultItem();
-    *(char*)((char*)this + 0x1af0) = 0;
-    *(int*)((char*)this + 0x1aec) = 0xb;
+    m_weekendEvent = 0;
+    m_randomBuffType = 0xb;
     init_quick_party_data();
-    *(char*)((char*)this + 0x20c) = 0;
-    *(char*)((char*)this + 0x1af1) = 0;
+    m_tournamentDungeonClearState = 0;
+    m_dungeonMapSaving = 0;
 }
 
 void CParty::destroy()
@@ -716,7 +717,7 @@ void CParty::destroy()
         packet.put_short(GetPartyIndex());
         packet.put_byte(3);
         packet.finalize(true);
-        sub_CUser_SendPacket(m_field74, 1, &packet);
+        sub_CUser_SendPacket(m_manager, 1, &packet);
     }
     else
     {
@@ -732,13 +733,13 @@ void CParty::SetEPLPState(char state)
     m_eplpState = state;
     if (state == 2)
     {
-        if (*(CDungeon**)((char*)this + 0xcac) != 0)
+        if (m_dungeon != 0)
         {
             for (int i = 0; i <= 3; ++i)
             {
                 if (_checkValidUser(i))
                 {
-                    int idx = sub_CDungeon_get_index(*(CDungeon**)((char*)this + 0xcac));
+                    int idx = sub_CDungeon_get_index(m_dungeon);
                     sub_CDungeonEntranceLog_DecrementDungeonEntrance(
                         sub_GetInstanceDungeonEntranceLog(), idx, false);
                 }
@@ -767,51 +768,51 @@ int CParty::MemberPenaltyRate()
 
 int CParty::GetPartyMemberCoinLimit()
 {
-    return *(int*)((char*)this + 0x328);
+    return m_partyMemberCoinLimit;
 }
 
 void CParty::SetPartyMemberCoinLimit(int limit)
 {
-    *(int*)((char*)this + 0x328) = limit;
+    m_partyMemberCoinLimit = limit;
 }
 
 int CParty::getStandardDimensionLevel()
 {
-    return *(int*)((char*)this + 0xd5c);
+    return m_standardDimensionLevel;
 }
 
 bool CParty::isTournamentVictory()
 {
-    return *(char*)((char*)this + 0x11a) != 0;
+    return m_tournamentVictory != 0;
 }
 
 char CParty::GetTournamentDungeonClearState()
 {
-    return *(char*)((char*)this + 0x20c);
+    return m_tournamentDungeonClearState;
 }
 
 void CParty::SetTournamentDungeonClearState(char state)
 {
-    if (state < 4)
+    if (state <= 6)
     {
-        *(char*)((char*)this + 0x20c) = state;
+        m_tournamentDungeonClearState = state;
     }
 }
 
 int CParty::set_host()
 {
-    *(int*)((char*)this + 0x70) = *(int*)((char*)this + 0x74);
+    m_host = m_manager;
     return 1;
 }
 
 bool CParty::check_timer_key(TIMER_MESSAGE msg, int param)
 {
-    return *(int*)((char*)this + ((int)msg + 0x45) * 4 + 8) == param;
+    return ((int*)m_title)[(int)msg + 0x45] == param;
 }
 
 int CParty::gen_timer_key(TIMER_MESSAGE msg)
 {
-    int* key = (int*)((char*)this + ((int)msg + 0x45) * 4 + 8);
+    int* key = &((int*)m_title)[(int)msg + 0x45];
     *key = *key + 1;
     return *key;
 }
@@ -820,7 +821,7 @@ void CParty::resetFinishLoadingVar()
 {
     for (int i = 0; i < 4; i++)
     {
-        *(char*)((char*)this + i + 0x37c) = 0;
+        m_padBattleData[i + 0x50] = 0;
     }
 }
 
@@ -838,7 +839,7 @@ void CParty::resetMemberUseCoin()
 {
     for (int i = 0; i < 4; i++)
     {
-        *(int*)((char*)this + i * 0x18 + 0x8c) = 0;
+        m_member[i].m_field14 = 0;
     }
 }
 
@@ -852,7 +853,7 @@ bool CParty::IsSelectCard(char a, eClearRewardCardType_t type)
 {
     for (int i = 0; i < 4; i++)
     {
-        if (*(char*)((char*)this + i + (int)type * 4 + 0x204) == a)
+        if (m_field204[(int)type][i] == a)
         {
             return true;
         }
@@ -862,7 +863,7 @@ bool CParty::IsSelectCard(char a, eClearRewardCardType_t type)
 
 int CParty::_IsCannotConnectP2P(int a, int b)
 {
-    if (*(char*)((char*)this + b + a * 0x18 + 0x86) != 0 && _checkValidUser(b) != 1)
+    if (m_member[a].m_fielde[b] != 0 && _checkValidUser(b) != 1)
     {
         return 0;
     }
@@ -889,7 +890,7 @@ bool CParty::check_allmember_die()
 {
     for (int i = 0; i < 4; i++)
     {
-        if (_checkValidUser(i) == 1 && *(char*)((char*)this + i + 0x380) != 0)
+        if (_checkValidUser(i) == 1 && m_padBattleData[i + 0x54] != 0)
         {
             return false;
         }
@@ -902,7 +903,7 @@ int CParty::get_live_count()
     int count = 0;
     for (int i = 0; i < 4; i++)
     {
-        if (_checkValidUser(i) == 1 && *(char*)((char*)this + i + 0x380) != 0)
+        if (_checkValidUser(i) == 1 && m_padBattleData[i + 0x54] != 0)
         {
             count++;
         }
@@ -915,7 +916,7 @@ int CParty::get_live_count_enter_map()
     int count = 0;
     for (int i = 0; i < 4; i++)
     {
-        if (_checkValidUser(i) == 1 && *(char*)((char*)this + i + 900) != 0)
+        if (_checkValidUser(i) == 1 && m_padBattleData[i + 0x58] != 0)
         {
             count++;
         }
@@ -949,7 +950,7 @@ bool CParty::IsExistUser(CUser* user)
 
 int CParty::_getMemberLevelGap()
 {
-    if (*(int*)((char*)this + 0x298) == -1)
+    if (m_memberLevelGap == -1)
     {
         int minLevel = 99;
         int maxLevel = 0;
@@ -967,9 +968,9 @@ int CParty::_getMemberLevelGap()
         {
             gap = -gap;
         }
-        *(int*)((char*)this + 0x298) = gap;
+        m_memberLevelGap = gap;
     }
-    return *(int*)((char*)this + 0x298);
+    return m_memberLevelGap;
 }
 
 int CParty::getMemberLevelGap()
@@ -979,9 +980,23 @@ int CParty::getMemberLevelGap()
 
 void CParty::increase_dungeon_coin_count(int param)
 {
-    if (*(int*)((char*)this + 0xcac) != 0 &&
-        *(int*)(*(int*)((char*)this + 0xcac) + 0x87c) != -1)
+    if (m_dungeon != 0 &&
+        m_dungeon->m_87c != -1)
     {
         SetUsedCoinCount(param);
     }
 }
+
+bool CParty::IsReturnUserParty() { return false; }
+void CParty::send_invite_bluemarble(int) {}
+int CParty::get_member_count() { return 0; }
+int CParty::getMemberNames(char* buf) { buf[0] = 0; return 0; }
+char CParty::_checkValidUser(int) { return 0; }
+bool CParty::checkValidUser(int) { return false; }
+unsigned int CParty::GetMemberSlotNo(CUser const*) const { return 0; }
+void CParty::Reset_party_overlapped_drop_ratio() {}
+void CParty::ReturnToVillage() {}
+void CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE) {}
+bool CParty::IsEventCharacParty() { return false; }
+bool CParty::CheckEnterAncientDungeon(CDungeon const*, unsigned char&, Inven_Item*, int*) { return false; }
+bool CParty::UseAncientDungeonItems(CDungeon const*, Inven_Item*, int*) { return false; }
