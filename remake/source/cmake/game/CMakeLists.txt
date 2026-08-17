@@ -205,6 +205,7 @@ dnf_service(game
         ${SVC_DIR}/Arad_AvatarRoulette.cpp
         ${SVC_DIR}/CDungeonGainedGold.cpp
         ${SVC_DIR}/CReliablePerson.cpp
+        ${SVC_DIR}/CommonTime.cpp
         ${SVC_DIR}/GameStubs.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"
