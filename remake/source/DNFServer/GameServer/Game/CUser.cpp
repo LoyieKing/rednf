@@ -3289,6 +3289,13 @@ void CUser::ResetTrainingQuest()
     }
 }
 
+void CUser::SetPvpIndex(short idx)
+{
+    lock();
+    *(short*)((char*)this + 0x8d006) = idx;
+    unlock();
+}
+
 extern "C" void _ZN19CMissionList_Charac16Send_MissionListER5CUser(void*, void*);
 
 void CUser::send_MissionList()

@@ -1315,6 +1315,7 @@ public:
     void SetChangedGiftFatigueQuantity(bool flag);
     void ResetDailyQuest();
     void ResetTrainingQuest();
+    void SetPvpIndex(short idx);
     void SetSaveRentalInfoToExchange(bool flag);
     void DeleteRentalItemInfo(int idx);
     unsigned char is_fighting();
