@@ -4585,3 +4585,21 @@ bool CheckEquipable(const Inven_Item& a, const Inven_Item& b)
     }
     return true;
 }
+
+int getItemChecksum(int slot, int itemIdx, int a, int b, int c)
+{
+    int checksum = (itemIdx + a + b + c) * (slot * 10);
+    checksum = checksum / 10;
+    int high = checksum & 0xffff0000;
+    return (high >> 16) + (checksum & 0xffff);
+}
+int finishItemChecksum(int* sum, int money, int coin, int a, int b)
+{
+    if (sum == 0)
+    {
+        return 0;
+    }
+    *sum = *sum + (money + coin + a);
+    *sum = *sum ^ b;
+    return *sum;
+}

@@ -302,7 +302,7 @@ bool checkStackableLimit(unsigned long itemIdx, int count);
 bool IsCreatureItemType(int itemType);
 bool isEquipableItemType(int itemType);
 int getItemChecksum(int slot, int itemIdx, int a, int b, int c);
-void finishItemChecksum(int* sum, int money, int coin, int a, int b);
+int finishItemChecksum(int* sum, int money, int coin, int a, int b);
 int my_compare_unsigned_short(const void* a, const void* b);
 void write_log_gain_money(int reason, int amount, unsigned int user);
 void write_log_use_money(int reason, int amount, unsigned int user);
