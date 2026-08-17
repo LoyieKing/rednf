@@ -173,6 +173,15 @@ const char* CItem::GetItemIconName() const
     return m_strb0.c_str();
 }
 
+bool CItem::IsEnableWorld(ENUM_WORLD_TYPE type) const
+{
+    if (m_setd4.find((int)type) != m_setd4.end())
+    {
+        return true;
+    }
+    return false;
+}
+
 // ===================== 缺失弱访问器（ORIG weak） =====================
 
 bool CItem::isEpicRoutingItem() const
