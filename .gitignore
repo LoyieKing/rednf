@@ -36,3 +36,7 @@ dnf_secsvr/tencrypt_new/test_hash
 *.gzf
 .ghidra/
 dnf_decompile/toolchains/
+
+# Oversized single report (147MB) exceeds GitHub's 100MB/file limit;
+# the gzip-compressed copy (_lt_global_gt_.md.gz) is committed instead.
+dnf_decompile/docs/class_func_reports/_lt_global_gt_.md
