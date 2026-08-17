@@ -10,7 +10,8 @@
 set -e
 
 CXX="/usr/bin/g++"
-ARCHIVE="/tmp/c6root/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a"
+C6ROOT="$(cd "$(dirname "$0")/../../toolchains" && pwd)/c6root"
+ARCHIVE="$C6ROOT/usr/lib/gcc/x86_64-redhat-linux/4.4.4/32/libstdc++.a"
 
 args=""
 inserted=0

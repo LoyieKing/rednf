@@ -4,7 +4,7 @@
 # 原 dbmw 全局 flags 是 4.4.4 头文件 + 4.4.7 gcc 内建头；本脚本把这些
 # 4.4/c6 include 全部剥掉，换成 c5r52tool(4.1.2) gcc 内建头 + c5root C++ 头。
 
-ROOT="${DNF_TC_ROOT:-/tmp}"
+ROOT="${DNF_TC_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)/toolchains}"
 export LD_LIBRARY_PATH="${ROOT}/c5r52tool/usr/lib64:${ROOT}/c5r52tool/usr/lib:${ROOT}/c5root/usr/lib64:${ROOT}/c5root/usr/lib"
 
 C5_GCC="${ROOT}/c5r52tool/usr/lib/gcc/x86_64-redhat-linux/4.1.2/include"

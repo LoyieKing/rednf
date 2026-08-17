@@ -232,9 +232,9 @@ dnf_service(game
         ${DF_C5R52I}/usr/lib/gcc/i386-redhat-linux/4.1.1/libstdc++.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc.a
         ${DF_C5R52T}/usr/lib/gcc/x86_64-redhat-linux/4.1.1/32/libgcc_eh.a
-        /home/loyieking/dnf_workspace/dnf_decompile/toolchains/zlib32/lib/libz.a
-        /home/loyieking/dnf_workspace/dnf_decompile/build/manager/mysqlclient/libmysqlclient.a
-        /home/loyieking/dnf_workspace/dnf_decompile/build/manager/yassl/libyassl.a
+        ${CMAKE_CURRENT_LIST_DIR}/../../../toolchains/zlib32/lib/libz.a
+        ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/mysqlclient/libmysqlclient.a
+        ${CMAKE_CURRENT_LIST_DIR}/../../../build/manager/yassl/libyassl.a
     LINK_FLAGS
         -m32 -no-pie -lpthread -ldl -lm
 )

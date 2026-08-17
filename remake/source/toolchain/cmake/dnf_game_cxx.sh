@@ -3,9 +3,9 @@
 # 初始：全部 c6（c6root 4.4.7 驱动）。
 # 后续按 df_game_r 二进制各 TU 的实际 cc1plus 变体逐步切 c6446r/c6444r，
 # 判定口径：diff_func.py --bin game 逐函数 IDENTICAL/NEAR/DIFF 统计。
-ROOT="${DNF_TC_ROOT:-/tmp}"
-C6="/home/loyieking/dnf_workspace/dnf_decompile/toolchains/c6root/usr/bin/g++"
-TOOLDIR="/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake"
+ROOT="${DNF_TC_ROOT:-$(cd "$(dirname "$0")/../../.." && pwd)/toolchains}"
+C6="${ROOT}/c6root/usr/bin/g++"
+TOOLDIR="$(cd "$(dirname "$0")" && pwd)"
 C6446R="$TOOLDIR/dnf_c6446r_gxx.sh"
 C6444R="$TOOLDIR/dnf_c6444r_gxx.sh"
 

@@ -5,6 +5,7 @@
 # 的文件名实参两侧不一致。本包装把 "-c /abs/path/TU.cpp" 改写为
 # "cd 到源目录 + -c TU.cpp"，并把 -o/-MF/-MT 保持为绝对路径。
 ORIG_PWD=$(pwd)
+_C6446R="$(cd "$(dirname "$0")/../../toolchain/cmake" && pwd)/dnf_c6446r_gxx.sh"
 CFILE=""
 ARGS=""
 PREV=""
@@ -39,4 +40,4 @@ if [ -n "$CFILE" ]; then
     ARGS=$(printf '%s' "$ARGS" | sed "s# -c $CFILE# -c $CBASE#")
     cd "$CDIR" || exit 1
 fi
-exec /home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake/dnf_c6446r_gxx.sh $ARGS
+exec "$_C6446R" $ARGS

@@ -19,7 +19,7 @@
 #   异常规范强制代码），带该 flag 会丢失 pad 导致 DIFF；去掉后
 #   what/D1/D2 全部 IDENTICAL_AE（第 40 轮 c6 验证；R42 在 c6444r 下复验无回归，
 #   同 TU CTableBase 均为 MISSING_ORIG 不统计，无回归）
-ROOT=/home/loyieking/dnf_workspace/dnf_decompile/source/toolchain/cmake
+ROOT="$(cd "$(dirname "$0")" && pwd)"
 C6="$ROOT/dnf_c6_gxx.sh"
 C6444R="$ROOT/dnf_c6444r_gxx.sh"
 C6446R="$ROOT/dnf_c6446r_gxx.sh"

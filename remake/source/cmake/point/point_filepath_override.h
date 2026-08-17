@@ -3,7 +3,7 @@
  * ORIG asserts embed short file names / relative paths (e.g. "Token.cpp",
  * "../../Include/Core/SecureStdio.cpp") because the original build invoked
  * the compiler with those paths.  The CMake reconstruction compiles with
- * absolute paths, so __FILE__ expands to /home/loyieking/... and every assert
+ * absolute paths, so __FILE__ expands to /home/<user>/... and every assert
  * site shows up as a spurious diff.  Each affected TU is compiled with
  * -include <this header> plus -DPOINT_FILEPATH_<TU> so that __FILE__
  * reproduces the exact ORIG string for that translation unit.
