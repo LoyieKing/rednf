@@ -4541,3 +4541,47 @@ bool isEquipableItemType(int itemType)
            itemType == Inven_Item::ITEM_TYPE_CREATURE_EQUIP ||
            itemType == Inven_Item::ITEM_TYPE_ARTIFACT;
 }
+
+int my_compare_unsigned_short(const void* a, const void* b)
+{
+    return *(const unsigned short*)a - *(const unsigned short*)b;
+}
+
+bool checkStackableLimit(unsigned long itemIdx, int count)
+{
+    CItem* item = G_CDataManager()->find_item(itemIdx);
+    if (item != 0 && item->is_stackable())
+    {
+        CStackableItem* sitem = static_cast<CStackableItem*>(item);
+        if (sitem->getStackableLimit() < count || count < 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool CheckEquipable(const Inven_Item& a, const Inven_Item& b)
+{
+    if (a.m_addInfo != 0)
+    {
+        if (a.m_field1 != Inven_Item::ITEM_TYPE_EQUIP &&
+            a.m_field1 != Inven_Item::ITEM_TYPE_AVATAR)
+        {
+            return false;
+        }
+    }
+    if (b.m_addInfo != 0)
+    {
+        if (b.m_field1 != Inven_Item::ITEM_TYPE_EQUIP &&
+            b.m_field1 != Inven_Item::ITEM_TYPE_AVATAR)
+        {
+            return false;
+        }
+    }
+    if (a.m_addInfo == 0 && b.m_addInfo == 0)
+    {
+        return false;
+    }
+    return true;
+}
