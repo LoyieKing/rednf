@@ -11,13 +11,13 @@
 class Packet_Monitor_Call_Guild_All_Members_ToChannel_Next : public PacketHeader {
 public:
     Packet_Monitor_Call_Guild_All_Members_ToChannel_Next() : PacketHeader(0x428, 0x17b7),
-        m_fieldA(0xffffffff), m_fieldB(0), m_fieldC(0), m_fieldD(0)
+        m_channel(0xffffffff), m_charNo(0), m_guildKey(0), m_count(0)
     {
     }
-    unsigned int m_fieldA;            // +0xa
-    unsigned int m_fieldB;            // +0xe
-    unsigned int m_fieldC;            // +0x12
-    unsigned char m_fieldD;           // +0x16
+    unsigned int m_channel;           // +0xa（df_guild_r ReplyGuildAllMembers: user->GetIdByChannel）
+    unsigned int m_charNo;            // +0xe（df_guild_r ReplyGuildAllMembers: user->GetUniqCharNo）
+    unsigned int m_guildKey;          // +0x12（df_guild_r ReplyGuildAllMembers: m_guildKey）
+    unsigned char m_count;            // +0x16（df_guild_r ReplyGuildAllMembers: 本批成员数 cnt2）
     ST_Guild_Mem_Info m_members[96];  // +0x17
 } __attribute__((packed));
 

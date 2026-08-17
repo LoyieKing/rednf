@@ -200,6 +200,7 @@ void CPacketTranslater::OnChangeGuildNotifyMessage(PacketHeader* header)
                   "CPacketTranslater::OnChangeGuildNotifyMessage() Exception Break",
                   0x4b9, 0x4be);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0093 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnGuildMasterDelegate | 详见 function_reports/dbmw/_ZN17CPacketTranslater21OnGuildMasterDelegateEP12PacketHeader.md
 void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -262,6 +263,7 @@ void CPacketTranslater::OnGuildMasterDelegate(PacketHeader* header)
                   "CPacketTranslater::OnGuildMasterDelegate() Exception Break",
                   0x63b, 0x640);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0088 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnSendGuildLetter | 详见 function_reports/dbmw/_ZN17CPacketTranslater17OnSendGuildLetterEP12PacketHeader.md
 void CPacketTranslater::OnSendGuildLetter(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -332,6 +334,7 @@ void CPacketTranslater::OnSendGuildLetter(PacketHeader* header)
                   "CPacketTranslater::OnSendGuildLetter() Exception Break",
                   0x50c, 0x511);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0083 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnGuildJoin | 详见 function_reports/dbmw/_ZN17CPacketTranslater11OnGuildJoinEP12PacketHeader.md
 void CPacketTranslater::OnGuildJoin(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -383,6 +386,7 @@ void CPacketTranslater::OnGuildJoin(PacketHeader* header)
                   "CPacketTranslater::OnGuildJoin() Exception Break",
                   0x57b, 0x580);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0100 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnSendMailCoinGuildEvent | 详见 function_reports/dbmw/_ZN17CPacketTranslater24OnSendMailCoinGuildEventEP12PacketHeader.md
 void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -434,6 +438,7 @@ void CPacketTranslater::OnSendMailCoinGuildEvent(PacketHeader* header)
                   "CPacketTranslater::OnSendMailCoinGuildEvent() Exception Break",
                   0x449, 0x44e);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0107 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDBLoadRequestGuildBoardWrite | 详见 function_reports/dbmw/_ZN17CPacketTranslater30OnDBLoadRequestGuildBoardWriteEP12PacketHeader.md
 void CPacketTranslater::OnDBLoadRequestGuildBoardWrite(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -684,6 +689,7 @@ void CPacketTranslater::OnInsertGuildCargoHistory(PacketHeader* header)
                   "CPacketTranslater::OnInsertGuildCargoHistory() Exception Break",
                   0xa75, 0xa7a);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0090 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDeleteToBlackList | 详见 function_reports/dbmw/_ZN17CPacketTranslater19OnDeleteToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDeleteToBlackList(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -730,6 +736,7 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* header)
                   "CPacketTranslater::OnDeleteToBlackList() Exception Break",
                   0x29c, 0x2a1);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0095 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRegisterToBlackList | 详见 function_reports/dbmw/_ZN17CPacketTranslater21OnRegisterToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnRegisterToBlackList(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -777,6 +784,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* header)
                   "CPacketTranslater::OnRegisterToBlackList() Exception Break",
                   0x266, 0x26b);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0103 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRequestBlackListOnLogin | 详见 function_reports/dbmw/_ZN17CPacketTranslater25OnRequestBlackListOnLoginEP12PacketHeader.md
 void CPacketTranslater::OnRequestBlackListOnLogin(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -852,6 +860,7 @@ void CPacketTranslater::OnSaveGuild(PacketHeader* header)
                          "CPacketTranslater::OnSaveGuild() Exception Break",
                          0xd8, 0xde);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0084 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnGuildSecede | 详见 function_reports/dbmw/_ZN17CPacketTranslater13OnGuildSecedeEP12PacketHeader.md
 void CPacketTranslater::OnGuildSecede(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -944,6 +953,7 @@ void CPacketTranslater::OnSaveGuildWarInfo(PacketHeader* header)
                   "CPacketTranslater::OnSaveGuildWarInfo() Exception Break",
                   0x207, 0x20c);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0099 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnSavePowerWarBonusPoint | 详见 function_reports/dbmw/_ZN17CPacketTranslater24OnSavePowerWarBonusPointEP12PacketHeader.md
 void CPacketTranslater::OnSavePowerWarBonusPoint(PacketHeader* header)
 {
     try
@@ -1022,6 +1032,7 @@ void CPacketTranslater::OnSavePowerWarPointReward(PacketHeader* header)
                   "CPacketTranslater::OnSavePowerWarPoint() Exception Break",
                   0x8cb, 0x8d0);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0094 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnLoadPeriodicMessage | 详见 function_reports/dbmw/_ZN17CPacketTranslater21OnLoadPeriodicMessageEP12PacketHeader.md
 void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1045,6 +1056,7 @@ void CPacketTranslater::OnLoadPeriodicMessage(PacketHeader* header)
                   "CPacketTranslater::OnLoadPeriodicMessage() Exception Break",
                   0x104d, 0x1052);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0085 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWInsertMail | 详见 function_reports/dbmw/_ZN17CPacketTranslater16OnDBMWInsertMailEP12PacketHeader.md
 void CPacketTranslater::OnDBMWInsertMail(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1115,6 +1127,7 @@ void CPacketTranslater::OnQueryMember(PacketHeader* header)
                          "CPacketTranslater::OnQueryMember() Exception Break",
                          0x124, 0x12a);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0089 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnQueryGuildMember | 详见 function_reports/dbmw/_ZN17CPacketTranslater18OnQueryGuildMemberEP12PacketHeader.md
 void CPacketTranslater::OnQueryGuildMember(PacketHeader* header)
 {
     try
@@ -1223,6 +1236,7 @@ void CPacketTranslater::OnSavePowerWarGuildRank(PacketHeader* header)
                   "CPacketTranslater::OnSavePowerWarGuildRank() Exception Break",
                   0x8b2, 0x8b7);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0102 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRequestApproveJoinGuild | 详见 function_reports/dbmw/_ZN17CPacketTranslater25OnRequestApproveJoinGuildEP12PacketHeader.md
 void CPacketTranslater::OnRequestApproveJoinGuild(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1322,6 +1336,7 @@ void CPacketTranslater::OnEndGuildWar(PacketHeader* header)
                   "CPacketTranslater::OnEndGuildWar() Exception Break",
                   0x229, 0x22e);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0104 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::onStartGameEventFromServer | 详见 function_reports/dbmw/_ZN17CPacketTranslater26onStartGameEventFromServerEP12PacketHeader.md
 void CPacketTranslater::onStartGameEventFromServer(PacketHeader* header)
 {
     try
@@ -1366,6 +1381,7 @@ void CPacketTranslater::onStartGameEventFromServer(PacketHeader* header)
                    "CPacketTranslater::onRegistServerEvent Exception Break",
                    0x1583, 0x1588);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0101 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::onEndGameEventFromServer | 详见 function_reports/dbmw/_ZN17CPacketTranslater24onEndGameEventFromServerEP12PacketHeader.md
 void CPacketTranslater::onEndGameEventFromServer(PacketHeader* header)
 {
     try
@@ -1479,6 +1495,7 @@ void CPacketTranslater::OnQueryGuildBooting(PacketHeader* header)
                   "CPacketTranslater::OnRequestGuildCreate() Exception Break",
                   0x689, 0x68e);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0108 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnUpdateTowerOfDespairStatistic | 详见 function_reports/dbmw/_ZN17CPacketTranslater31OnUpdateTowerOfDespairStatisticEP12PacketHeader.md
 void CPacketTranslater::OnUpdateTowerOfDespairStatistic(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1506,6 +1523,7 @@ void CPacketTranslater::OnUpdateTowerOfDespairStatistic(PacketHeader* header)
                        "CPacketTranslater::OnUpdateTowerOfDespairStatistic() Exception Break",
                        0x12ed);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0098 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWVillageAttackRank | 详见 function_reports/dbmw/_ZN17CPacketTranslater23OnDBMWVillageAttackRankEP12PacketHeader.md
 void CPacketTranslater::OnDBMWVillageAttackRank(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1818,6 +1836,7 @@ void CPacketTranslater::OnDBMWDisjointAvatarStatic(PacketHeader* header)
                   "CPacketTranslater::OnDBMWDisjointAvatarStatic() Exception Break",
                   0xd86, 0xd8b);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0091 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::onCollectItemsUpdate | 详见 function_reports/dbmw/_ZN17CPacketTranslater20onCollectItemsUpdateEP12PacketHeader.md
 void CPacketTranslater::onCollectItemsUpdate(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -1952,6 +1971,7 @@ void CPacketTranslater::OnServeQueueLoadStatistic(PacketHeader* header)
                   "CPacketTranslater::OnServeQueueLoadStatistic() Exception Break",
                   0xae8, 0xaed);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0106 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnDBLoadRequestGuildBoardOpen | 详见 function_reports/dbmw/_ZN17CPacketTranslater29OnDBLoadRequestGuildBoardOpenEP12PacketHeader.md
 void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -2027,6 +2047,7 @@ void CPacketTranslater::OnDBLoadRequestGuildBoardOpen(PacketHeader* header)
                   "CPacketTranslater::OnDBLoadRequestGuildBoardOpen() Exception Break",
                   0xf98, 0xf9d);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0096 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnPcRoomPlayTimeReward | 详见 function_reports/dbmw/_ZN17CPacketTranslater22OnPcRoomPlayTimeRewardEP12PacketHeader.md
 void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -2115,6 +2136,7 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* header)
                   "CPacketTranslater::OnAddBuddy() Exception Break",
                   0x2f5, 0x2fa);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0097 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRequestIPCounterList | 详见 function_reports/dbmw/_ZN17CPacketTranslater22OnRequestIPCounterListEP12PacketHeader.md
 void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
 {
     std::vector<st_ip_counter_list> vec1;
@@ -2224,6 +2246,7 @@ void CPacketTranslater::OnRequestIPCounterList(PacketHeader* header)
                   "CPacketTranslater::OnRequestIPCounterList Exception Break",
                   0xbe9, 0xbee);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0092 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::onQueryTowerFullRank | 详见 function_reports/dbmw/_ZN17CPacketTranslater20onQueryTowerFullRankEP12PacketHeader.md
 void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
 {
     if (!m_pclApp)
@@ -2287,6 +2310,7 @@ void CPacketTranslater::onQueryTowerFullRank(PacketHeader* header)
                   "CPacketTranslater::onQueryTowerFullRank() Exception Break",
                   0x5b9, 0x5be);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0086 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnRequestARSInfo | 详见 function_reports/dbmw/_ZN17CPacketTranslater16OnRequestARSInfoEP12PacketHeader.md
 void CPacketTranslater::OnRequestARSInfo(PacketHeader* header)
 {
     std::vector<st_ars_info_list> list;
@@ -2556,6 +2580,7 @@ void CPacketTranslater::OnQueryUnconnGuildMemberProxy(PacketHeader* header)
                   "CPacketTranslater::OnQueryGuildAllMembersProxy() Exception Break",
                   0x3b7, 0x3bc);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0105 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnQueryGuildAllMembersProxy | 详见 function_reports/dbmw/_ZN17CPacketTranslater27OnQueryGuildAllMembersProxyEP12PacketHeader.md
 void CPacketTranslater::OnQueryGuildAllMembersProxy(PacketHeader* header)
 {
     try
@@ -2770,6 +2795,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* header)
                   "CPacketTranslater::OnInnerPacketLogout Exception Break",
                   0xc2f, 0xc34);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0087 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnTcpServerLogin | 详见 function_reports/dbmw/_ZN17CPacketTranslater16OnTcpServerLoginEP12PacketHeader.md
 void CPacketTranslater::OnTcpServerLogin(PacketHeader* header)
 {
     try

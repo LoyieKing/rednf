@@ -82,6 +82,7 @@ CUdpNetworkThread::~CUdpNetworkThread()
     m_lock = 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0100 | guild | 与ORIG差异=DIFF | CUdpNetworkThread::dispatch | 详见 function_reports/guild/_ZN17CUdpNetworkThread8dispatchEPv.md
 void CUdpNetworkThread::dispatch(void* param)
 {
     try

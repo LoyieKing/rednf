@@ -19,7 +19,7 @@ public:
         unsigned int m_serverNo;    // +0xe  Guild OnLogin
     };
     unsigned char m_channel;    // +0x12 FindGameServer
-    char m_pad13[0x10];         // +0x13
+    char m_ip[0x10];            // +0x13（CGuildServerProxy::SendLogin：strncpy(param_4=客户端 IP, 0x10)）
     unsigned char m_sex;        // +0x23
     unsigned int m_cache0;      // +0x24
     unsigned int m_cache4;      // +0x28

@@ -234,6 +234,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0098 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnLogout | 详见 function_reports/guild/_ZN17CPacketTranslater8OnLogoutEP12PacketHeader.md
 void CPacketTranslater::OnLogout(PacketHeader* pkt)
 {
     Packet_Monitor_UDP_Logout* pb = (Packet_Monitor_UDP_Logout*)pkt;
@@ -318,7 +319,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
             CServerHandler* handler = m_pclApp->m_serverHandler;
             if (handler != 0)
             {
-                unsigned char idx = ((Packet_Sync_GM_List*)pb)->m_field_a;
+                unsigned char idx = ((Packet_Sync_GM_List*)pb)->m_pageNo;
                 if (idx == 0xc8)
                 {
                     handler->ResetDBHeartBeat();
@@ -353,7 +354,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
                 else
                 {
                     DNF_LOG_SCOPE_LINE(0x130,"./log/Except", "[ERROR - HEART BEAT] Channel Index(%d) Over.",
-                        (unsigned int)((Packet_Sync_GM_List*)pb)->m_field_a);
+                        (unsigned int)((Packet_Sync_GM_List*)pb)->m_pageNo);
                 }
             }
         }
@@ -372,6 +373,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0029 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnReplyUserInfo | 详见 function_reports/guild/_ZN17CPacketTranslater15OnReplyUserInfoEP12PacketHeader.md
 void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
 {
     try
@@ -615,6 +617,7 @@ void CPacketTranslater::OnDBReplyQueryGuildMember(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0044 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildEnter | 详见 function_reports/guild/_ZN17CPacketTranslater18OnNoticeGuildEnterEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildEnter(PacketHeader* pkt)
 {
     try
@@ -646,6 +649,7 @@ void CPacketTranslater::OnNoticeGuildEnter(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0055 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildSecede | 详见 function_reports/guild/_ZN17CPacketTranslater19OnNoticeGuildSecedeEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildSecede(PacketHeader* pkt)
 {
     Packet_Monitor_Notice_Guild_Secede* pb = (Packet_Monitor_Notice_Guild_Secede*)pkt;
@@ -706,6 +710,7 @@ void CPacketTranslater::OnNoticeGuildSecede(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0073 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildMarkChange | 详见 function_reports/guild/_ZN17CPacketTranslater23OnNoticeGuildMarkChangeEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildMarkChange(PacketHeader* pkt)
 {
     try
@@ -737,6 +742,7 @@ void CPacketTranslater::OnNoticeGuildMarkChange(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0054 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildCreate | 详见 function_reports/guild/_ZN17CPacketTranslater19OnNoticeGuildCreateEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildCreate(PacketHeader* pkt)
 {
     try
@@ -773,6 +779,7 @@ void CPacketTranslater::OnNoticeGuildCreate(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0064 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildDismiss | 详见 function_reports/guild/_ZN17CPacketTranslater20OnNoticeGuildDismissEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildDismiss(PacketHeader* pkt)
 {
     try
@@ -809,6 +816,7 @@ void CPacketTranslater::OnNoticeGuildDismiss(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0063 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildChatMsg | 详见 function_reports/guild/_ZN17CPacketTranslater20OnNoticeGuildChatMsgEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildChatMsg(PacketHeader* pkt)
 {
     try
@@ -844,6 +852,7 @@ void CPacketTranslater::OnNoticeGuildChatMsg(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0093 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildChatMsgHyperLink | 详见 function_reports/guild/_ZN17CPacketTranslater29OnNoticeGuildChatMsgHyperLinkEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildChatMsgHyperLink(PacketHeader* pkt)
 {
     try
@@ -862,7 +871,7 @@ void CPacketTranslater::OnNoticeGuildChatMsgHyperLink(PacketHeader* pkt)
                 const char* name = user->GetCharName();
                 guild->NoticeChatMsgToGuildMembersHyperLink(
                     pb->m_charNo, pb->m_msg, pb->m_msgLen,
-                    pb->m_field_12, (hyperlink_item_info*)pb->m_items, name);
+                    pb->m_itemCount, (hyperlink_item_info*)pb->m_items, name);
             }
         }
     }
@@ -884,6 +893,7 @@ void CPacketTranslater::OnNoticeGuildChatMsgHyperLink(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0042 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnIncreaseGuildExp | 详见 function_reports/guild/_ZN17CPacketTranslater18OnIncreaseGuildExpEP12PacketHeader.md
 void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
 {
     try
@@ -903,24 +913,24 @@ void CPacketTranslater::OnIncreaseGuildExp(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x453,"./log/Guild",
             "GUILD EXP : char no(%d) guild key(%d), add exp(%d), guild exp(%d), book(%d)",
             pb->m_charNo, pb->m_guildKey, addExp, oldExp,
-            (int)(char)pb->m_field_17);
+            (int)(char)pb->m_expType);
         unsigned int max1 = (&m_pclApp->m_guildManager)->GetMaxGuildExp1();
         unsigned int max2 = (&m_pclApp->m_guildManager)->GetMaxGuildExp2();
         unsigned int level = guild->GetGuildLevel();
         int expLevel = (&m_pclApp->m_guildManager)->GetGuildLevelWithExp(oldExp);
         if (level == (unsigned int)expLevel)
         {
-            if (pb->m_field_17 == 0)
+            if (pb->m_expType == 0)
             {
                 unsigned int next = (&m_pclApp->m_guildManager)->GetGuildExpWithLevel(level + 1);
                 unsigned int limit = next < max1 ? next : max1;
                 guild->AddGuildExpUntilLimit(addExp, limit);
             }
-            else if (pb->m_field_17 == 1 || pb->m_field_17 == 2)
+            else if (pb->m_expType == 1 || pb->m_expType == 2)
             {
                 guild->AddGuildExpUntilLimit(addExp, max2);
             }
-            if (pb->m_field_16 != 0)
+            if (pb->m_notify != 0)
             {
                 if (m_pclApp->Get_UserManager()->FindUser_CharNo(
                         pb->m_charNo) != 0)
@@ -1005,6 +1015,7 @@ void CPacketTranslater::OnBuyGuildSkill(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0090 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnSetGuildMemberGradeFromWeb | 详见 function_reports/guild/_ZN17CPacketTranslater28OnSetGuildMemberGradeFromWebEP12PacketHeader.md
 void CPacketTranslater::OnSetGuildMemberGradeFromWeb(PacketHeader* pkt)
 {
     Packet_Monitor_Set_GuildMember_Grade_FromWeb* pb = (Packet_Monitor_Set_GuildMember_Grade_FromWeb*)pkt;
@@ -1116,6 +1127,7 @@ void CPacketTranslater::OnSetGuildMemberGradeFromWeb(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0071 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnSetGuildMemberGrade | 详见 function_reports/guild/_ZN17CPacketTranslater21OnSetGuildMemberGradeEP12PacketHeader.md
 void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
 {
     try
@@ -1269,6 +1281,7 @@ void CPacketTranslater::OnSetGuildMemberGrade(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0079 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnUpdateChangableCharInfo | 详见 function_reports/guild/_ZN17CPacketTranslater25OnUpdateChangableCharInfoEP12PacketHeader.md
 void CPacketTranslater::OnUpdateChangableCharInfo(PacketHeader* pkt)
 {
     try
@@ -1300,6 +1313,7 @@ void CPacketTranslater::OnLoadGuildWarEnterableGuilds(PacketHeader* pkt)
     (void)buf;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0083 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildWarPointChange | 详见 function_reports/guild/_ZN17CPacketTranslater27OnNoticeGuildWarPointChangeEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildWarPointChange(PacketHeader* pkt)
 {
     try
@@ -1335,6 +1349,7 @@ void CPacketTranslater::OnNoticeGuildWarStart(PacketHeader* pkt)
     (void)pb;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0056 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeGuildWarEnd | 详见 function_reports/guild/_ZN17CPacketTranslater19OnNoticeGuildWarEndEP12PacketHeader.md
 void CPacketTranslater::OnNoticeGuildWarEnd(PacketHeader* pkt)
 {
     try
@@ -1344,7 +1359,7 @@ void CPacketTranslater::OnNoticeGuildWarEnd(PacketHeader* pkt)
     if (war->IsGuildWarEventOn() == 1)
     {
         war->SetGuildWarEvent(false,
-                              ((Packet_Notice_Guild_War_End*)pkt)->m_fieldA);
+                              ((Packet_Notice_Guild_War_End*)pkt)->m_channel);
         if (war->Rank() != 1)
         {
             throw CDNFException(
@@ -1385,11 +1400,11 @@ void CPacketTranslater::OnRequestGuildWarInfo(PacketHeader* pkt)
         CUser* user;
         CGuildWar* war = (&m_pclApp->m_guildManager)->GetGuildWar();
         Packet_Notice_Guild_War_Info* pb = (Packet_Notice_Guild_War_Info*)pkt;
-        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_charNo)) == 0)
+        if ((user = (&m_pclApp->m_userManager)->FindUser_CharNo(pb->m_characNo)) == 0)
         {
             DNF_LOG_SCOPE_LINE(0x78d,"./log/Except",
                 "[USER] CPacketTranslater::OnRequestGuildWarInfo : pclUser == 0!\tchar id(%d)",
-                pb->m_charNo);
+                pb->m_characNo);
         }
         else
         {
@@ -1401,6 +1416,7 @@ void CPacketTranslater::OnRequestGuildWarInfo(PacketHeader* pkt)
         "CPacketTranslater::OnRequestGuildWarInfo Exception Break", 0x796, 0x79b);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0033 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCharacterDelete | 详见 function_reports/guild/_ZN17CPacketTranslater17OnCharacterDeleteEP12PacketHeader.md
 void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
 {
     char* pb = (char*)pkt;
@@ -1432,6 +1448,7 @@ void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
     DNF_CATCH_LOG_PRINTF("./log/Except", "CPacketTranslater::OnCharacterDelete Exception Break", 0x7d2, 0x7d8)
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0040 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCallGuildMembers | 详见 function_reports/guild/_ZN17CPacketTranslater18OnCallGuildMembersEP12PacketHeader.md
 void CPacketTranslater::OnCallGuildMembers(PacketHeader* pkt)
 {
     Packet_Monitor_Call_Guild_Members* pb = (Packet_Monitor_Call_Guild_Members*)pkt;
@@ -1473,6 +1490,7 @@ void CPacketTranslater::OnCallGuildMembers(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0067 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCallGuildAllMembers | 详见 function_reports/guild/_ZN17CPacketTranslater21OnCallGuildAllMembersEP12PacketHeader.md
 void CPacketTranslater::OnCallGuildAllMembers(PacketHeader* pkt)
 {
     Packet_Monitor_Call_Guild_Members* pb = (Packet_Monitor_Call_Guild_Members*)pkt;
@@ -1518,6 +1536,7 @@ void CPacketTranslater::OnCallGuildAllMembers(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0075 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBReplyGuildAllMembers | 详见 function_reports/guild/_ZN17CPacketTranslater24OnDBReplyGuildAllMembersEP12PacketHeader.md
 void CPacketTranslater::OnDBReplyGuildAllMembers(PacketHeader* pkt)
 {
     Packet_DB_Reply_Guild_All_Members* pb = (Packet_DB_Reply_Guild_All_Members*)pkt;
@@ -1566,6 +1585,7 @@ void CPacketTranslater::OnDBReplyGuildAllMembers(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0081 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBReplyUnconnGuildMember | 详见 function_reports/guild/_ZN17CPacketTranslater26OnDBReplyUnconnGuildMemberEP12PacketHeader.md
 void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
 {
     try
@@ -1597,6 +1617,7 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
         puts("CPacketTranslater::OnCallGuildMembers() Exception Break");
         DNF_LOG_SCOPE_LINE(0x8bb, "./log/Except", "CPacketTranslater::OnDBReplyUnconnGuildMember() Exception Break\n");
     }
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0031 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCallGuildInvite | 详见 function_reports/guild/_ZN17CPacketTranslater17OnCallGuildInviteEP12PacketHeader.md
 }void CPacketTranslater::OnCallGuildInvite(PacketHeader* pkt)
 {
     Packet_Guild_Call_Guild_Invite* pb = (Packet_Guild_Call_Guild_Invite*)pkt;
@@ -1713,6 +1734,7 @@ void CPacketTranslater::OnDBReplyUnconnGuildMember(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0045 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnReplyGuildInvite | 详见 function_reports/guild/_ZN17CPacketTranslater18OnReplyGuildInviteEP12PacketHeader.md
 void CPacketTranslater::OnReplyGuildInvite(PacketHeader* pkt)
 {
     try
@@ -1825,6 +1847,7 @@ void CPacketTranslater::OnReplyGuildInvite(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0028 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWGuildJoin | 详见 function_reports/guild/_ZN17CPacketTranslater15OnDBMWGuildJoinEP12PacketHeader.md
 void CPacketTranslater::OnDBMWGuildJoin(PacketHeader* pkt)
 {
     Packet_DBMW_Guild_Join* pb = (Packet_DBMW_Guild_Join*)pkt;
@@ -1958,6 +1981,7 @@ void CPacketTranslater::GuildJoin(CGuild* guild, STGuildJoinInfo* joinInfo, unsi
     return;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0076 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnMonitorSendGuildLetter | 详见 function_reports/guild/_ZN17CPacketTranslater24OnMonitorSendGuildLetterEP12PacketHeader.md
 void CPacketTranslater::OnMonitorSendGuildLetter(PacketHeader* pkt)
 {
     try
@@ -2062,6 +2086,7 @@ void CPacketTranslater::SendPacketGuildMail(unsigned char group, unsigned int ch
     m_pclApp->m_serverHandler->SendToDB(&pkt);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0080 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWReplySendGuildLetter | 详见 function_reports/guild/_ZN17CPacketTranslater26OnDBMWReplySendGuildLetterEP12PacketHeader.md
 void CPacketTranslater::OnDBMWReplySendGuildLetter(PacketHeader* pkt)
 {
     try
@@ -2099,6 +2124,7 @@ void CPacketTranslater::OnDBMWReplySendGuildLetter(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0065 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnRequestGuildSecede | 详见 function_reports/guild/_ZN17CPacketTranslater20OnRequestGuildSecedeEP12PacketHeader.md
 void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
 {
     Packet_Guild_Request_Guild_Secede* pb = (Packet_Guild_Request_Guild_Secede*)pkt;
@@ -2179,6 +2205,7 @@ void CPacketTranslater::OnRequestGuildSecede(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0059 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBReplyGuildSecede | 详见 function_reports/guild/_ZN17CPacketTranslater20OnDBReplyGuildSecedeEP12PacketHeader.md
 void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
 {
     Packet_DB_Reply_Guild_Secede* pb = (Packet_DB_Reply_Guild_Secede*)pkt;
@@ -2282,6 +2309,7 @@ void CPacketTranslater::OnDBReplyGuildSecede(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0089 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnRequestGuildMasterDelegate | 详见 function_reports/guild/_ZN17CPacketTranslater28OnRequestGuildMasterDelegateEP12PacketHeader.md
 void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
 {
     Packet_Guild_Request_Guild_Master_Delegate* pb = (Packet_Guild_Request_Guild_Master_Delegate*)pkt;
@@ -2372,6 +2400,7 @@ void CPacketTranslater::OnRequestGuildMasterDelegate(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0085 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBReplyGuildMasterDelegate | 详见 function_reports/guild/_ZN17CPacketTranslater28OnDBReplyGuildMasterDelegateEP12PacketHeader.md
 void CPacketTranslater::OnDBReplyGuildMasterDelegate(PacketHeader* pkt)
 {
     Packet_DB_Reply_Guild_Master_Delegate* pb = (Packet_DB_Reply_Guild_Master_Delegate*)pkt;
@@ -2464,6 +2493,7 @@ void CPacketTranslater::OnDBReplyGuildMasterDelegate(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0087 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildMasterDelegateFromWeb | 详见 function_reports/guild/_ZN17CPacketTranslater28OnGuildMasterDelegateFromWebEP12PacketHeader.md
 void CPacketTranslater::OnGuildMasterDelegateFromWeb(PacketHeader* pkt)
 {
     Packet_Guild_Master_Delegate_FromWeb* pb = (Packet_Guild_Master_Delegate_FromWeb*)pkt;
@@ -2555,6 +2585,7 @@ void CPacketTranslater::OnGuildMasterDelegateFromWeb(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0096 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCheckGuildMemberConnectionFromWeb | 详见 function_reports/guild/_ZN17CPacketTranslater35OnCheckGuildMemberConnectionFromWebEP12PacketHeader.md
 void CPacketTranslater::OnCheckGuildMemberConnectionFromWeb(PacketHeader* pkt)
 {
     Packet_Check_Guild_Member_Connection_From_Web* pb = (Packet_Check_Guild_Member_Connection_From_Web*)pkt;
@@ -2605,6 +2636,7 @@ void CPacketTranslater::OnCheckGuildMemberConnectionFromWeb(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0039 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCallGuildLevelUp | 详见 function_reports/guild/_ZN17CPacketTranslater18OnCallGuildLevelUpEP12PacketHeader.md
 void CPacketTranslater::OnCallGuildLevelUp(PacketHeader* pkt)
 {
     Packet_Monitor_Call_Guild_Level_Up* pb = (Packet_Monitor_Call_Guild_Level_Up*)pkt;
@@ -2660,6 +2692,7 @@ void CPacketTranslater::OnCallGuildLevelUp(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0027 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCallGuildInfo | 详见 function_reports/guild/_ZN17CPacketTranslater15OnCallGuildInfoEP12PacketHeader.md
 void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
 {
     Packet_Monitor_Call_Guild_Info* pb = (Packet_Monitor_Call_Guild_Info*)pkt;
@@ -2677,7 +2710,7 @@ void CPacketTranslater::OnCallGuildInfo(PacketHeader* pkt)
             return;
         }
         Packet_Monitor_Call_Guild_Info_Reply replyPkt;
-        replyPkt.ma = pb->m_fieldA;
+        replyPkt.ma = pb->m_uid;
         replyPkt.me = pb->m_charNo;
         replyPkt.m12 = pb->m_count;
         for (int i = 0; i < (unsigned char)pb->m_count; i++)
@@ -2804,6 +2837,7 @@ void CPacketTranslater::OnEventEnd(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0070 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnRegisterToBlackList | 详见 function_reports/guild/_ZN17CPacketTranslater21OnRegisterToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
 {
     try
@@ -2846,6 +2880,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0050 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDeleteToBlackList | 详见 function_reports/guild/_ZN17CPacketTranslater19OnDeleteToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
 {
     try
@@ -2886,6 +2921,7 @@ void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0046 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnRequestBlackList | 详见 function_reports/guild/_ZN17CPacketTranslater18OnRequestBlackListEP12PacketHeader.md
 void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
 {
     try
@@ -2918,6 +2954,7 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0077 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResisterToBlackList | 详见 function_reports/guild/_ZN17CPacketTranslater25OnDBMWResisterToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
 {
     try
@@ -2976,6 +3013,7 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0009 | guild | 与ORIG差异=NEAR | CPacketTranslater::OnDBMWDeleteToBlackList | 详见 function_reports/guild/_ZN17CPacketTranslater23OnDBMWDeleteToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
 {
     try
@@ -3043,6 +3081,7 @@ void CPacketTranslater::RequestBlackListToDBMW(unsigned int charNo)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0094 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResponseBlackListOnLogin | 详见 function_reports/guild/_ZN17CPacketTranslater30OnDBMWResponseBlackListOnLoginEP12PacketHeader.md
 void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 {
     try
@@ -3084,6 +3123,7 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0097 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade | 详见 function_reports/guild/_ZN17CPacketTranslater39OnDBMWChangeUnconnectedGuildMemberGradeEP12PacketHeader.md
 void CPacketTranslater::OnDBMWChangeUnconnectedGuildMemberGrade(PacketHeader* pkt)
 {
     Packet_DB_Monitor_Change_Unconnected_GuildMember_Grade* pb =
@@ -3204,6 +3244,7 @@ void CPacketTranslater::OnNotifyMessageToGuild(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnNotifyMessageToGuild Exception Break", 0x10bf, 0x10c4);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0008 | guild | 与ORIG差异=NEAR | CPacketTranslater::OnRequestGuildCreate | 详见 function_reports/guild/_ZN17CPacketTranslater20OnRequestGuildCreateEP12PacketHeader.md
 void CPacketTranslater::OnRequestGuildCreate(PacketHeader* pkt)
 {
     try
@@ -3259,6 +3300,7 @@ void CPacketTranslater::OnRequestGuildCreate(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0058 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBReplyGuildCreate | 详见 function_reports/guild/_ZN17CPacketTranslater20OnDBReplyGuildCreateEP12PacketHeader.md
 void CPacketTranslater::OnDBReplyGuildCreate(PacketHeader* pkt)
 {
     Packet_DBMW_Reply_Guild_Create* pbinfo = (Packet_DBMW_Reply_Guild_Create*)pkt;
@@ -3338,15 +3380,16 @@ void CPacketTranslater::OnPowerWarStartInfo(PacketHeader* pkt)
         {
             Packet_Monitor_Event_Start start;
             start.m_eventType = 0x1e;
-            m_pclApp->Get_ServerHandler()->SendToGameServer((unsigned char)pbinfo->m_field,
+            m_pclApp->Get_ServerHandler()->SendToGameServer((unsigned char)pbinfo->m_channel,
                                                             &start);
         }
-        DNF_LOG_SCOPE_LINE(0x119a,"./log/Power", "OnPowerWarStartInfo(%d) - power war %s ", pbinfo->m_field,
+        DNF_LOG_SCOPE_LINE(0x119a,"./log/Power", "OnPowerWarStartInfo(%d) - power war %s ", pbinfo->m_channel,
             pm->IsPowerWarOn() ? "START!" : "END!");
     }
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPowerWarStartInfo Exception Break", 0x119e, 0x11a3);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0068 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnChangePowerWarPoint | 详见 function_reports/guild/_ZN17CPacketTranslater21OnChangePowerWarPointEP12PacketHeader.md
 void CPacketTranslater::OnChangePowerWarPoint(PacketHeader* pkt)
 {
     char* pb = (char*)pkt;
@@ -3360,43 +3403,43 @@ void CPacketTranslater::OnChangePowerWarPoint(PacketHeader* pkt)
         CPowerManager* pm = m_pclApp->GetPowerManager();
         if (pm->IsPowerWarOn() == 1)
         {
-            if (((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA != 1 &&
-                ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA != 2)
+            if (((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide != 1 &&
+                ((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide != 2)
             {
-                if (((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA == 0)
+                if (((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide == 0)
                 {
                     DNF_LOG_SCOPE_LINE(0x11c9,"./log/Power",
                         "ChangePowerWarPoint Invalid Power Side Income(side:%d, 0:%d, 1:%d, 2:%d, 3:%d, pp:%d)",
-                        (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
-                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldB,
-                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldF,
-                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_field13,
-                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_field17,
-                        (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B);
+                        (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide,
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[0],
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[1],
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[2],
+                        ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[3],
+                        (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerPoint);
                     return;
                 }
                 DNF_LOG_SCOPE_LINE(0x11ce,"./log/Power",
                     "ChangePowerWarPoint Invalid Power Side Income(side:%d, 0:%d, 1:%d, 2:%d, 3:%d, pp:%d)",
-                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
-                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldB,
-                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldF,
-                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_field13,
-                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_field17,
-                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B);
-                if (((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA == 3)
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide,
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[0],
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[1],
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[2],
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[3],
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerPoint);
+                if (((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide == 3)
                 {
-                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA = 1;
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide = 1;
                 }
                 else
                 {
-                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA = 2;
+                    ((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide = 2;
                 }
             }
             int winScore = (int)(short)pm->IncPowerScore(
-                (ENUM_POWER_SIDE_TYPE)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
-                ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B);
+                (ENUM_POWER_SIDE_TYPE)((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide,
+                ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerPoint);
             ENUM_POWER_SIDE_TYPE loseSide;
-            if (((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA == 1)
+            if (((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide == 1)
             {
                 loseSide = (ENUM_POWER_SIDE_TYPE)2;
             }
@@ -3405,21 +3448,21 @@ void CPacketTranslater::OnChangePowerWarPoint(PacketHeader* pkt)
                 loseSide = (ENUM_POWER_SIDE_TYPE)1;
             }
             int loseScore = (int)(short)pm->IncPowerScore(
-                loseSide, ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2C);
+                loseSide, ((Packet_Guild_Change_Power_War_Point*)pb)->m_loserPoint);
             {
                 DNF_LOG_SCOPE_LINE(0x11e1,"./log/Power", "win side(%d), win pp(%d, %d), lose pp(%d, %d)",
-                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
-                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B,
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide,
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerPoint,
                     winScore,
-                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_field2C, loseScore);
+                    (unsigned int)((Packet_Guild_Change_Power_War_Point*)pb)->m_loserPoint, loseScore);
             }
             pm->UpdatePowerWarInfo(1,
-                                   (ENUM_POWER_SIDE_TYPE)((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldA,
-                                   ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2B,
-                                   &((Packet_Guild_Change_Power_War_Point*)pb)->m_fieldB);
+                                   (ENUM_POWER_SIDE_TYPE)((Packet_Guild_Change_Power_War_Point*)pb)->m_powerSide,
+                                   ((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerPoint,
+                                   &((Packet_Guild_Change_Power_War_Point*)pb)->m_winnerCharNos[0]);
             pm->UpdatePowerWarInfo(0, loseSide,
-                                   ((Packet_Guild_Change_Power_War_Point*)pb)->m_field2C,
-                                   &((Packet_Guild_Change_Power_War_Point*)pb)->m_field1B);
+                                   ((Packet_Guild_Change_Power_War_Point*)pb)->m_loserPoint,
+                                   &((Packet_Guild_Change_Power_War_Point*)pb)->m_loserCharNos[0]);
             std::vector<unsigned int> users;
             users.reserve(8);
             ((Packet_Guild_Change_Power_War_Point*)pkt)->GetUserList(users);
@@ -3432,6 +3475,7 @@ void CPacketTranslater::OnChangePowerWarPoint(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnChangePowerWarScore Exception Break", 0x1217, 0x121c);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0037 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnPacketJoinPower | 详见 function_reports/guild/_ZN17CPacketTranslater17OnPacketJoinPowerEP12PacketHeader.md
 void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
 {
     try
@@ -3440,7 +3484,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
         Packet_Answer_Join_Power reply;
         reply.m_a = 0;
         reply.m_12 = req->m_charNo;
-        reply.m_16 = req->m_field12;
+        reply.m_16 = req->m_powerSide;
         if (m_pclApp != 0)
         {
             unsigned int charNo = req->m_charNo;
@@ -3462,7 +3506,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
             }
             if (guild->IsSubGuildMaster(charNo) == 1 || guild->IsGuildMaster(charNo) == 1)
             {
-                unsigned char side = req->m_field12 == 1 ? 3 : 4;
+                unsigned char side = req->m_powerSide == 1 ? 3 : 4;
                 guild->SetPowerSide(side);
                 guild->IncPowerJoinCount();
                 CServerInterface* gs = user->GetGameServer();
@@ -3495,6 +3539,7 @@ void CPacketTranslater::OnPacketJoinPower(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0057 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnPacketSecedePower | 详见 function_reports/guild/_ZN17CPacketTranslater19OnPacketSecedePowerEP12PacketHeader.md
 void CPacketTranslater::OnPacketSecedePower(PacketHeader* pkt)
 {
     Packet_Request_Secede_Power* pb = (Packet_Request_Secede_Power*)pkt;
@@ -3671,6 +3716,7 @@ void CPacketTranslater::OnGMPowerWarEnd(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGMPowerWarEnd Exception Break", 0x143d, 0x1442);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0043 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnInnerPacketLogin | 详见 function_reports/guild/_ZN17CPacketTranslater18OnInnerPacketLoginEP12PacketHeader.md
 void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
 {
     if (m_pclApp == 0)
@@ -3735,6 +3781,7 @@ void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnInnerPacketLogout Exception Break", 0x14be, 0x14c3);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0032 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnChangeGuildName | 详见 function_reports/guild/_ZN17CPacketTranslater17OnChangeGuildNameEP12PacketHeader.md
 void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
 {
     try
@@ -3802,6 +3849,7 @@ void CPacketTranslater::OnChangeGuildName(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0030 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnChangeCharName | 详见 function_reports/guild/_ZN17CPacketTranslater16OnChangeCharNameEP12PacketHeader.md
 void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
 {
     Packet_Change_Char_Name* pb = (Packet_Change_Char_Name*)pkt;
@@ -3812,26 +3860,26 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
         DNF_LOG_SCOPE_LINE(0x1544, "./log/Except", "CPacketTranslater::OnChangeGuildName : 0 == m_pclApp");
         return;
     }
-    if (pb->m_field12 == 0)
+    if (pb->m_guildKey == 0)
     {
         DNF_LOG_SCOPE_LINE(0x154c, "./log/ServerUnify", "CPacketTranslater::OnChangeCharName : packet->m_uGuildKey");
         return;
     }
     Packet_UnChangable_GuildInfo_Save save;
-    save.m_guildKey = pb->m_field12;
+    save.m_guildKey = pb->m_guildKey;
     save.m_charNo = pb->m_charNo;
     memcpy(save.m_name, pb->m_name, 0x1d);
     m_pclApp->Get_ServerHandler()->SendToDB(&save);
     STTodayGuildMember* today =
         m_pclApp->Get_GuildManager()->GetTodayMember(
-            pb->m_field12);
+            pb->m_guildKey);
     if (today != 0 && *(int*)today == (int)pb->m_charNo)
     {
         memset((char*)today + 4, 0, 0x1e);
         strncpy((char*)today + 4, pb->m_name, 0x1d);
     }
     CGuild* guild = (&m_pclApp->m_guildManager)->FindGuild(
-        pb->m_field12);
+        pb->m_guildKey);
     if (guild == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1563, "./log/ServerUnify", "CPacketTranslater::OnChangeCharName : 0 == pclGuild");
@@ -3870,6 +3918,7 @@ void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0074 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnChangeGuildNameFromWeb | 详见 function_reports/guild/_ZN17CPacketTranslater24OnChangeGuildNameFromWebEP12PacketHeader.md
 void CPacketTranslater::OnChangeGuildNameFromWeb(PacketHeader* pkt)
 {
     Packet_Change_Guild_Name_From_Web* pb = (Packet_Change_Guild_Name_From_Web*)pkt;
@@ -3905,6 +3954,7 @@ void CPacketTranslater::OnChangeGuildNameFromWeb(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnChangeGuildNameFromWeb Exception Break", 0x15b7, 0x15bc);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0095 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnInCreaseDecreasePowerWarPoint | 详见 function_reports/guild/_ZN17CPacketTranslater31OnInCreaseDecreasePowerWarPointEP12PacketHeader.md
 void CPacketTranslater::OnInCreaseDecreasePowerWarPoint(PacketHeader* pkt)
 {
     Packet_Guild_Increase_Decrease_Power_War_Point* pb = (Packet_Guild_Increase_Decrease_Power_War_Point*)pkt;
@@ -3946,6 +3996,7 @@ void CPacketTranslater::OnInCreaseDecreasePowerWarPoint(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnInCreaseDecreasePowerWarPoint Exception Break", 0x15f1, 0x15f6);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0034 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnCreateGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater17OnCreateGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnCreateGuildAgit(PacketHeader* pkt)
 {
     CGuild* guild = 0;
@@ -3998,6 +4049,7 @@ void CPacketTranslater::OnCreateGuildAgit(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnCreateGuildAgit Exception Break", 0x1630, 0x1635)
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0036 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDeleteGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater17OnDeleteGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
 {
     CGuild* guild = 0;
@@ -4066,6 +4118,7 @@ void CPacketTranslater::OnDeleteGuildAgit(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDeleteGuildAgit Exception Break", 0x167d, 0x1682);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0048 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBCreateGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater19OnDBCreateGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnDBCreateGuildAgit(PacketHeader* pkt)
 {
     Packet_DB_Create_Guild_Agit_Reply* pb = (Packet_DB_Create_Guild_Agit_Reply*)pkt;
@@ -4109,6 +4162,7 @@ void CPacketTranslater::OnDBCreateGuildAgit(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBCreateGuildAgit Exception Break", 0x16c4, 0x16c9);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0049 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBDeleteGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater19OnDBDeleteGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnDBDeleteGuildAgit(PacketHeader* pkt)
 {
     Packet_DB_Delete_Guild_Agit_Reply* pb = (Packet_DB_Delete_Guild_Agit_Reply*)pkt;
@@ -4164,6 +4218,7 @@ void CPacketTranslater::OnPowerWarProcessInfo(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnPowerWarProcessInfo Exception Break", 0x1722, 0x1727);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0035 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBLoadGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater17OnDBLoadGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnDBLoadGuildAgit(PacketHeader* pkt)
 {
     try
@@ -4201,6 +4256,7 @@ void CPacketTranslater::OnDBLoadGuildAgit(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0047 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnUpgradeGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater18OnUpgradeGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnUpgradeGuildAgit(PacketHeader* pkt)
 {
     CGuild* guild = 0;
@@ -4253,6 +4309,7 @@ void CPacketTranslater::OnUpgradeGuildAgit(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnUpgradeGuildAgit Exception Break", 0x1790, 0x1795);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0060 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBUpgradeGuildAgit | 详见 function_reports/guild/_ZN17CPacketTranslater20OnDBUpgradeGuildAgitEP12PacketHeader.md
 void CPacketTranslater::OnDBUpgradeGuildAgit(PacketHeader* pkt)
 {
     Packet_DB_Upgrade_Guild_Agit_Reply* pb = (Packet_DB_Upgrade_Guild_Agit_Reply*)pkt;
@@ -4294,6 +4351,7 @@ void CPacketTranslater::OnGuildExpLimit(PacketHeader* pkt)
     (void)pkt;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0072 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnWriteGuildMemberMemo | 详见 function_reports/guild/_ZN17CPacketTranslater22OnWriteGuildMemberMemoEP12PacketHeader.md
 void CPacketTranslater::OnWriteGuildMemberMemo(PacketHeader* pkt)
 {
     Packet_Guild_Write_Guild_Member_Memo* pb = (Packet_Guild_Write_Guild_Member_Memo*)pkt;
@@ -4395,6 +4453,7 @@ void CPacketTranslater::OnLoadGuildCargoHistory(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0026 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargo | 详见 function_reports/guild/_ZN17CPacketTranslater12OnGuildCargoEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargo(PacketHeader* pkt)
 {
     try
@@ -4465,6 +4524,7 @@ void CPacketTranslater::OnGuildCargo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0051 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargoHistory | 详见 function_reports/guild/_ZN17CPacketTranslater19OnGuildCargoHistoryEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargoHistory(PacketHeader* pkt)
 {
     Packet_Guild_Cargo_Requst* pb = (Packet_Guild_Cargo_Requst*)pkt;
@@ -4517,6 +4577,7 @@ void CPacketTranslater::OnGuildCargoHistory(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGuildCargoHistory Exception Break", 0x191e, 0x1923);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0078 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargoCheckPushItem | 详见 function_reports/guild/_ZN17CPacketTranslater25OnGuildCargoCheckPushItemEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
 {
     Packet_Guild_Check_Guild_Cargo_Push_Item* pb = (Packet_Guild_Check_Guild_Cargo_Push_Item*)pkt;
@@ -4531,13 +4592,13 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
         Packet_Channel_Check_Guild_Cargo_Push_Item reply;
         unsigned int charNo = pb->m_charNo;
         reply.me = charNo;
-        reply.m13 = pb->m_field12;
-        reply.m17 = pb->m_field16;
-        reply.m1b = pb->m_field1a;
-        reply.m23 = pb->m_field22;
-        reply.m1f = pb->m_field1e;
-        reply.m25 = pb->m_field24;
-        reply.m24 = pb->m_field23;
+        reply.m13 = pb->m_slot;
+        reply.m17 = pb->m_itemId;
+        reply.m1b = pb->m_count;
+        reply.m23 = pb->m_stackable;
+        reply.m1f = pb->m_maxStack;
+        reply.m25 = pb->m_invenSlot;
+        reply.m24 = pb->m_invenType;
         unsigned int guildKey = pb->m_guildKey;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
@@ -4584,11 +4645,11 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
         if (grade == 3 || grade == 1 || grade == 2)
         {
             int result = guild->GetGuildCargo()->CheckInsertItem(
-                pb->m_field16,
-                pb->m_field1a,
-                pb->m_field12,
-                pb->m_field22,
-                pb->m_field1e);
+                pb->m_itemId,
+                pb->m_count,
+                pb->m_slot,
+                pb->m_stackable,
+                pb->m_maxStack);
             reply.m12 = (unsigned char)result;
             user->SendTcpGameserver(&reply);
         }
@@ -4611,6 +4672,7 @@ void CPacketTranslater::OnGuildCargoCheckPushItem(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0062 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargoPushItem | 详见 function_reports/guild/_ZN17CPacketTranslater20OnGuildCargoPushItemEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
 {
     try
@@ -4708,6 +4770,7 @@ void CPacketTranslater::OnGuildCargoPushItem(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0052 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargoPopItem | 详见 function_reports/guild/_ZN17CPacketTranslater19OnGuildCargoPopItemEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargoPopItem(PacketHeader* pkt)
 {
     Packet_Guild_Guild_Cargo_Pop_Item* pb = (Packet_Guild_Guild_Cargo_Pop_Item*)pkt;
@@ -4811,6 +4874,7 @@ void CPacketTranslater::OnGuildCargoPopItem(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0061 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargoMoveItem | 详见 function_reports/guild/_ZN17CPacketTranslater20OnGuildCargoMoveItemEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
 {
     Packet_Guild_Guild_Cargo_Move_Item* pb = (Packet_Guild_Guild_Cargo_Move_Item*)pkt;
@@ -4920,6 +4984,7 @@ void CPacketTranslater::OnGuildCargoMoveItem(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0053 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildCargoUpgrade | 详见 function_reports/guild/_ZN17CPacketTranslater19OnGuildCargoUpgradeEP12PacketHeader.md
 void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
 {
     Packet_Guild_Guild_Cargo_Upgrade* pb = (Packet_Guild_Guild_Cargo_Upgrade*)pkt;
@@ -4952,16 +5017,16 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
         if (guild->IsExistGuildAgit() == 1)
         {
             int curCapacity = guild->GetGuildCargo()->GetCapacity();
-            if (pb->m_field12 == curCapacity)
+            if (pb->m_curCapacity == curCapacity)
             {
-                unsigned int reqFund = pb->m_field1a;
+                unsigned int reqFund = pb->m_requiredFund;
                 unsigned int guildFund = guild->GetGuildFund();
                 if (guildFund < reqFund)
                 {
                     DNF_LOG_SCOPE_LINE(0x1c00,"./log/GuildCargo",
                         "CPacketTranslater::OnGuildCargoUpgrade guild fund shortage(c:%d,n:%d, gcapa:%d) Error! Guild(%d), User(%d), ReqFund(%d), CurrFund(%d)",
-                        pb->m_field12,
-                        pb->m_field16, curCapacity,
+                        pb->m_curCapacity,
+                        pb->m_newCapacity, curCapacity,
                         guildKey, charNo, reqFund, guildFund);
                 }
                 else
@@ -4969,13 +5034,13 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
                     guild->SubGuildFund(reqFund);
                     guild->SendGuildInfoToMembers(true);
                     guild->GetGuildCargo()->SetCapacity(
-                        pb->m_field16);
+                        pb->m_newCapacity);
                     CTcpDBServer* tcpDb = m_pclApp->Get_ServerHandler()->GetTcpDBServer();
                     char* buf = tcpDb->makePacketHeader(0x714, 0x16);
                     *(unsigned int*)(buf + 0xa) = guildKey;
                     *(unsigned int*)(buf + 0xe) = charNo;
                     *(unsigned int*)(buf + 0x12) =
-                        pb->m_field16;
+                        pb->m_newCapacity;
                     tcpDb->SendToServer(buf);
                     Packet_Channel_Guild_Cargo_Upgrade reply;
                     reply.m_channel = user->GetIdByChannel();
@@ -4989,8 +5054,8 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
             {
                 DNF_LOG_SCOPE_LINE(0x1bf7,"./log/GuildCargo",
                     "CPacketTranslater::OnGuildCargoUpgrade Capacity(c:%d,n:%d, gcapa:%d) Error! Guild(%d), User(%d)",
-                    pb->m_field12,
-                    pb->m_field16, curCapacity,
+                    pb->m_curCapacity,
+                    pb->m_newCapacity, curCapacity,
                     guildKey, charNo);
             }
         }
@@ -5017,6 +5082,7 @@ void CPacketTranslater::OnGuildCargoUpgrade(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0088 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildRequestGuildBoardOpen | 详见 function_reports/guild/_ZN17CPacketTranslater28OnGuildRequestGuildBoardOpenEP12PacketHeader.md
 void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
 {
     Packet_Guild_Request_Guild_Board_Open* pb = (Packet_Guild_Request_Guild_Board_Open*)pkt;
@@ -5088,6 +5154,7 @@ void CPacketTranslater::OnGuildRequestGuildBoardOpen(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGuildRequestGuildBoardOpen Exception Break", 0x1c89, 0x1c8e);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0082 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBLoadReplyGuildBoardOpen | 详见 function_reports/guild/_ZN17CPacketTranslater27OnDBLoadReplyGuildBoardOpenEP12PacketHeader.md
 void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
 {
     try
@@ -5132,6 +5199,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardOpen(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBLoadReplyGuildBoardOpen Exception Break", 0x1cbf, 0x1cc4);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0092 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildRequestGuildBoardWrite | 详见 function_reports/guild/_ZN17CPacketTranslater29OnGuildRequestGuildBoardWriteEP12PacketHeader.md
 void CPacketTranslater::OnGuildRequestGuildBoardWrite(PacketHeader* pkt)
 {
     try
@@ -5163,8 +5231,8 @@ void CPacketTranslater::OnGuildRequestGuildBoardWrite(PacketHeader* pkt)
         dbPkt.m_b = pb->m_guildKey;
         dbPkt.m_c = pb->m_boardNo;
         dbPkt.m_d = pb->m_charNo;
-        *(unsigned char*)((char*)&dbPkt + 0x9b) = pb->m_field16;
-        *(unsigned char*)((char*)&dbPkt + 0x9c) = pb->m_field17;
+        *(unsigned char*)((char*)&dbPkt + 0x9b) = pb->m_job;
+        *(unsigned char*)((char*)&dbPkt + 0x9c) = pb->m_growType;
         memcpy((char*)&dbPkt + 0x9e, user->GetCharName(), 0x1e);
         memcpy(&dbPkt.m_info, pb->m_info, 0x78);
         m_pclApp->Get_ServerHandler()->SendToDB(&dbPkt);
@@ -5172,6 +5240,7 @@ void CPacketTranslater::OnGuildRequestGuildBoardWrite(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnGuildRequestGuildBoardWrite Exception Break", 0x1cf8, 0x1cfd);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0084 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBLoadReplyGuildBoardWrite | 详见 function_reports/guild/_ZN17CPacketTranslater28OnDBLoadReplyGuildBoardWriteEP12PacketHeader.md
 void CPacketTranslater::OnDBLoadReplyGuildBoardWrite(PacketHeader* pkt)
 {
     try
@@ -5311,6 +5380,7 @@ void CPacketTranslater::OnDBLoadReplyGuildBoardDelete(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnDBLoadReplyGuildBoardDelete Exception Break", 0x1daa, 0x1daf);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0066 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnWebGuildBoardWrite | 详见 function_reports/guild/_ZN17CPacketTranslater20OnWebGuildBoardWriteEP12PacketHeader.md
 void CPacketTranslater::OnWebGuildBoardWrite(PacketHeader* pkt)
 {
     try
@@ -5410,6 +5480,7 @@ void CPacketTranslater::OnWebGuildBoardDelete(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0091 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildApplyOriginalPowerSide | 详见 function_reports/guild/_ZN17CPacketTranslater29OnGuildApplyOriginalPowerSideEP12PacketHeader.md
 void CPacketTranslater::OnGuildApplyOriginalPowerSide(PacketHeader* pkt)
 {
     Packet_Guild_Apply_Origial_Power_Side* pb = (Packet_Guild_Apply_Origial_Power_Side*)pkt;
@@ -5481,6 +5552,7 @@ void CPacketTranslater::OnNotifyNewGroupMail(PacketHeader* pkt)
                   0x1e9f, 0x1ea4);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0041 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGameServerRegist | 详见 function_reports/guild/_ZN17CPacketTranslater18OnGameServerRegistEP12PacketHeader.md
 void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
 {
     Packet_Game_Server_Regist* pb = (Packet_Game_Server_Regist*)pkt;
@@ -5642,6 +5714,7 @@ void CPacketTranslater::OnReplyTodayGuildMember(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnReplyTodayGuildMember Exception Break", 0x1f8a, 0x1f8f);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0038 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnApproveJoinGuild | 详见 function_reports/guild/_ZN17CPacketTranslater18OnApproveJoinGuildEP12PacketHeader.md
 void CPacketTranslater::OnApproveJoinGuild(PacketHeader* pkt)
 {
     Packet_Approve_Join_Guild* pb = (Packet_Approve_Join_Guild*)pkt;
@@ -5679,6 +5752,7 @@ void CPacketTranslater::OnApproveJoinGuild(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnApproveJoinGuild Exception Break", 0x1fbb, 0x1fc0);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0086 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnDBResponseApproveJoinGuild | 详见 function_reports/guild/_ZN17CPacketTranslater28OnDBResponseApproveJoinGuildEP12PacketHeader.md
 void CPacketTranslater::OnDBResponseApproveJoinGuild(PacketHeader* pkt)
 {
     Packet_DB_Response_Approve_Join_Guild* pb = (Packet_DB_Response_Approve_Join_Guild*)pkt;
@@ -5727,6 +5801,7 @@ void CPacketTranslater::OnDBResponseApproveJoinGuild(PacketHeader* pkt)
     DNF_CATCH_LOG("./log/Except", "CPacketTranslater::OnApproveJoinGuild Exception Break", 0x1ff5, 0x1ffa);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0069 | guild | 与ORIG差异=DIFF | CPacketTranslater::OnGuildAttendanceInfo | 详见 function_reports/guild/_ZN17CPacketTranslater21OnGuildAttendanceInfoEP12PacketHeader.md
 void CPacketTranslater::OnGuildAttendanceInfo(PacketHeader* pkt)
 {
     Packet_Guild_Attendance_Info* pb = (Packet_Guild_Attendance_Info*)pkt;
@@ -5744,7 +5819,7 @@ void CPacketTranslater::OnGuildAttendanceInfo(PacketHeader* pkt)
             DNF_LOG_SCOPE_LINE(0x2014, "./log/Guild", "CPacketTranslater::OnGuildAttendanceInfo : 0 == pGuild");
             return;
         }
-        unsigned int charNo = pb->m_charNo;
+        unsigned int charNo = pb->m_characNo;
         CUser* user = (&m_pclApp->m_userManager)->FindUser_CharNo(charNo);
         if (user == 0)
         {
@@ -5825,11 +5900,11 @@ void CPacketTranslater::OnRenew_GM_List(PacketHeader* pkt)
     WongWork::CGMAccounts* gm = (WongWork::CGMAccounts*)m_pclApp->GetGMAccounts();
     if (gm != 0 && pb != 0)
     {
-        if (pb->m_field_a == 0)
+        if (pb->m_pageNo == 0)
         {
             gm->clearGmList();
         }
-        for (int i = 0; i < (char)pb->m_field_b; i++)
+        for (int i = 0; i < (char)pb->m_gmCount; i++)
         {
             gm->AppendGM_Sys(pb->m_gmIds[i], (char)pb->m_gmNames[i]);
         }
@@ -6166,7 +6241,7 @@ Packet_Notice_GuildName_On_Guild_Create::Packet_Notice_GuildName_On_Guild_Create
 
 void Packet_Guild_Change_Power_War_Point::GetUserList(std::vector<unsigned int>& list)
 {
-    unsigned int* users = &m_fieldB;
+    unsigned int* users = &m_winnerCharNos[0];
     for (int i = 0; i < 8; ++i)
     {
         if (users[i] != 0)

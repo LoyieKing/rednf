@@ -60,6 +60,7 @@ unsigned int CTask_ChristmasEvent::getEventStartTime() { return 0x47698650; }
 
 unsigned int CTask_ChristmasEvent::getEventEndTime() { return 0x47726c70; }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0128 | monitor | 与ORIG差异=DIFF | CTask_ChristmasEvent::MakeEventStartTick | 详见 function_reports/monitor/_ZN20CTask_ChristmasEvent18MakeEventStartTickEi.md
 unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
 {
     int eventHour = DecideEventTime();
@@ -98,6 +99,7 @@ unsigned int CTask_ChristmasEvent::MakeEventStartTick(int param_1)
     return (unsigned int)result;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0127 | monitor | 与ORIG差异=DIFF | CTask_ChristmasEvent::_DoExecute | 详见 function_reports/monitor/_ZN20CTask_ChristmasEvent10_DoExecuteEv.md
 void CTask_ChristmasEvent::_DoExecute()
 {
     Packet_Monitor_ServerEvent_Start pkt;

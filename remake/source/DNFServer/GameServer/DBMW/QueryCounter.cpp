@@ -43,6 +43,7 @@ void CQueryCounter::ResetQueryCount()
     memset((char*)this + 0x4, 0, 0x141);
     m_field0 = 0;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0074 | dbmw | 与ORIG差异=DIFF | CQueryCounter::WriteDBLog | 详见 function_reports/dbmw/_ZN13CQueryCounter10WriteDBLogER10CDBManager.md
 void CQueryCounter::WriteDBLog(CDBManager& db)
 {
     m_interval--;

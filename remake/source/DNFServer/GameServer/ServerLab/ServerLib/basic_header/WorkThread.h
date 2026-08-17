@@ -21,7 +21,11 @@ public:
     virtual void loop(void* temp);
     void PushTransaction(IMessageStruct* pMsg);
     IMessageStruct* PopTransaction();
-    IArea* getWorkArea();
+    // ORIG：头内 inline（point 无 out-of-line 符号）
+    IArea* getWorkArea()
+    {
+        return mpArea;
+    }
     void SetArea(IArea* pArea);
     Message* createOrderPool();
     void destroyOrderPool(Message* pMsg);

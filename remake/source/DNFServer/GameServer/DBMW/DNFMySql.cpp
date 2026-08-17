@@ -51,6 +51,7 @@ bool CMySql::init_db_handle()
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0115 | dbmw | 与ORIG差异=DIFF | CMySql::blob_to_str | 详见 function_reports/dbmw/_ZN6CMySql11blob_to_strEiPvi.md
 char* CMySql::blob_to_str(int col, void* buf, int len)
 {
     if (col < 0 || col > 9 || (buf == 0 && len > 0x5fff))
@@ -88,6 +89,7 @@ unsigned long long CMySql::getAffectedRowCount()
 {
     return mysql_affected_rows(m_mysql);
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0014 | dbmw | 与ORIG差异=NEAR | CMySql::get_int | 详见 function_reports/dbmw/_ZN6CMySql7get_intEiRj.md
 bool CMySql::get_int(int col, unsigned int& v)
 {
     return get_uint(col, v);
@@ -115,6 +117,7 @@ char* CMySql::escape_string(char* dst, char const* src)
 {
     return (char*)mysql_real_escape_string(m_mysql, dst, src, strlen(src));
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0114 | dbmw | 与ORIG差异=DIFF | CMySql::exec_query | 详见 function_reports/dbmw/_ZN6CMySql10exec_queryEv.md
 int CMySql::exec_query()
 {
     clear_result_set();
@@ -166,6 +169,7 @@ int CMySql::exec_query()
     }
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0116 | dbmw | 与ORIG差异=DIFF | CMySql::exec | 详见 function_reports/dbmw/_ZN6CMySql4execEj.md
 bool CMySql::exec(unsigned int q)
 {
     int ret;
@@ -333,6 +337,7 @@ bool CMySql::get_binary(int col, void* buf, int len)
     memcpy(buf, m_row[col], copyLen);
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0117 | dbmw | 与ORIG差异=DIFF | CMySql::open | 详见 function_reports/dbmw/_ZN6CMySql4openEPKcS1_S1_S1_.md
 char CMySql::open(const char* host, const char* user, const char* pass, const char* db)
 {
     if (!host || !user || !pass || !db)
@@ -355,6 +360,7 @@ char CMySql::open(const char* host, const char* user, const char* pass, const ch
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0118 | dbmw | 与ORIG差异=DIFF | CMySql::open | 详见 function_reports/dbmw/_ZN6CMySql4openEPKcjS1_S1_S1_.md
 char CMySql::open(const char* host, unsigned int port, const char* user, const char* pass,
                   const char* db)
 {

@@ -182,6 +182,7 @@ CInitAccusationListMgr::CInitAccusationListMgr(CApplication& app)
 
 CInitAccusationListMgr::~CInitAccusationListMgr() {}
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0040 | monitor | 与ORIG差异=DIFF | init_accusation::CInitAccusationListMgr::setSchedule | 详见 function_reports/monitor/_ZN15init_accusation22CInitAccusationListMgr11setScheduleERKb.md
 bool CInitAccusationListMgr::setSchedule(bool const& flag)
 {
     time_t t = GetNowTime();
@@ -307,6 +308,7 @@ void CApplication::Init(int argc, char** argv)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0006 | monitor | 与ORIG差异=DIFF | CApplication::Load | 详见 function_reports/monitor/_ZN12CApplication4LoadEiPPc.md
 void CApplication::Load(int argc, char** argv)
 {
     Packet_Item_Limit_Edition_Load_Data_Req pktLoadItemLimit;
@@ -945,6 +947,7 @@ void CApplication::App_Stop()
     m_loaded = false;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0005 | monitor | 与ORIG差异=DIFF | CApplication::TranslateSignal | 详见 function_reports/monitor/_ZN12CApplication15TranslateSignalEv.md
 void CApplication::TranslateSignal()
 {
     m_serverHandler->Clear_Table();

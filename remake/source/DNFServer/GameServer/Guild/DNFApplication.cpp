@@ -149,6 +149,7 @@ void CApplication::Init(int argc, char** argv)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0010 | guild | 与ORIG差异=DIFF | CApplication::Load | 详见 function_reports/guild/_ZN12CApplication4LoadEiPPc.md
 void CApplication::Load(int argc, char** argv)
 {
     try
@@ -440,6 +441,7 @@ void CApplication::SendTestPacket_1()
 {
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0009 | guild | 与ORIG差异=DIFF | CApplication::TranslateSignal | 详见 function_reports/guild/_ZN12CApplication15TranslateSignalEv.md
 void CApplication::TranslateSignal()
 {
     m_killConfig->Clear_Table();
@@ -485,18 +487,10 @@ void CApplication::TranslateSignal()
             case 8:
             {
                 Packet_Monitor_Set_GuildMember_Grade_FromWeb grade;
-                struct GradeFields
-                {
-                    char pad[0xa];
-                    unsigned int f1;
-                    unsigned int grade;
-                    unsigned char f3;
-                    unsigned int f2;
-                };
-                ((GradeFields*)&grade)->grade = 2;
-                ((GradeFields*)&grade)->f1 = (unsigned int)(*it)->m_param1;
-                ((GradeFields*)&grade)->f2 = (unsigned int)(*it)->m_param2;
-                ((GradeFields*)&grade)->f3 = (unsigned char)(*it)->m_param3;
+                grade.m_masterCharNo = (unsigned int)(*it)->m_param1;
+                grade.m_guildKey = 2;  // 与 ORIG 一致：guildKey 恒为 2
+                grade.m_newGrade = (unsigned char)(*it)->m_param3;
+                grade.m_targetCharNo = (unsigned int)(*it)->m_param2;
                 CPacketTranslater::OnSetGuildMemberGradeFromWeb(&grade);
                 break;
             }

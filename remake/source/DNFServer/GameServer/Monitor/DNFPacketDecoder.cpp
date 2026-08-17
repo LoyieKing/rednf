@@ -197,6 +197,7 @@ void CPacketDecoder::Process()
     TcpProcess();
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0034 | monitor | 与ORIG差异=DIFF | CPacketDecoder::TcpProcess | 详见 function_reports/monitor/_ZN14CPacketDecoder10TcpProcessEv.md
 void CPacketDecoder::TcpProcess()
 {
     if (m_net.m_parseQ == 0 || m_net.m_recvQ == 0)
@@ -236,6 +237,7 @@ void CPacketDecoder::TcpProcess()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0035 | monitor | 与ORIG差异=DIFF | CPacketDecoder::UdpProcess | 详见 function_reports/monitor/_ZN14CPacketDecoder10UdpProcessEv.md
 void CPacketDecoder::UdpProcess()
 {
     if (m_udpParseQ == 0 || m_udpQLock == 0)
@@ -275,6 +277,7 @@ void CPacketDecoder::UdpProcess()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0036 | monitor | 与ORIG差异=DIFF | CPacketDecoder::MsgDecode | 详见 function_reports/monitor/_ZN14CPacketDecoder9MsgDecodeEP12PacketHeader.md
 char CPacketDecoder::MsgDecode(PacketHeader* pkt)
 {
     if (pkt == 0)

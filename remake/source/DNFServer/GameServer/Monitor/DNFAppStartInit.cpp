@@ -36,6 +36,7 @@ CAppInit::~CAppInit() {}
 
 void CAppInit::Init(CApplication* app, int argc, char** argv) {}
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0015 | monitor | 与ORIG差异=DIFF | CAppStartInit::Init | 详见 function_reports/monitor/_ZN13CAppStartInit4InitEP12CApplicationiPPc.md
 CAppStartInit::CAppStartInit() {}
 
 CAppStartInit::~CAppStartInit() {}

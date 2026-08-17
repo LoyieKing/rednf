@@ -148,6 +148,7 @@ void CPacketTranslater::OnClientSpecStatistic(PacketHeader* pkt)
         CMyFileLog(__FUNCTION__, 259)("./log/Except", "CPacketTranslater::OnClientSpecStatistic() Exception Break\n");
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0016 | statics | 与ORIG差异=DIFF | CPacketTranslater::OnFrameLagStatisticsAdd | 详见 function_reports/statics/_ZN17CPacketTranslater23OnFrameLagStatisticsAddEP12PacketHeader.md
 void CPacketTranslater::OnFrameLagStatisticsAdd(PacketHeader* pkt)
 {
     try

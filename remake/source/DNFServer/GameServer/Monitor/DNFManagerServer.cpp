@@ -329,6 +329,7 @@ bool CCacheCharacterMgr::GetCacheCharacter(unsigned int dbid, CACHE_CHARACTER_TY
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0039 | monitor | 与ORIG差异=DIFF | exchange_server::CCacheCharacterMgr::CollectGarbage | 详见 function_reports/monitor/_ZN15exchange_server18CCacheCharacterMgr14CollectGarbageEv.md
 bool CCacheCharacterMgr::CollectGarbage()
 {
     bool result = 0;

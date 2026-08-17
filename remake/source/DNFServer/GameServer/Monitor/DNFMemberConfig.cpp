@@ -81,6 +81,7 @@ CMemberExpTbl::~CMemberExpTbl() {}
 
 void CMemberExpTbl::Load_Table(const std::string& path) {}
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0016 | monitor | 与ORIG差异=DIFF | CMemberExpTbl::Parse_Table | 详见 function_reports/monitor/_ZN13CMemberExpTbl11Parse_TableEPci.md
 bool CMemberExpTbl::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')
@@ -99,6 +100,7 @@ bool CMemberExpTbl::Parse_Table(char* line, int idx)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0017 | monitor | 与ORIG差异=DIFF | CMemberExpTbl::GetMemberExpLevel | 详见 function_reports/monitor/_ZN13CMemberExpTbl17GetMemberExpLevelEj.md
 int CMemberExpTbl::GetMemberExpLevel(unsigned int exp)
 {
     char* p = (char*)m_table;

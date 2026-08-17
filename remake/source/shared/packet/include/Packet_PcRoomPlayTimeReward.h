@@ -9,12 +9,12 @@
 
 class Packet_PcRoomPlayTimeReward : public PacketHeader {
 public:
-    char m_fieldA;  // +a
-    int m_fieldB;  // +b
-    int m_fieldC;  // +f
+    char m_serverGroup;  // +0xa  processEventPcRoomPlayTime: CUser::GetServerGroup（非整合 PvP 用环境 +0x378）
+    int m_accId;         // +0xb  CUser::get_acc_id
+    int m_characNo;      // +0xf  CUserCharacInfo::getCurCharacNo
 
     Packet_PcRoomPlayTimeReward() : PacketHeader(0x27ec, 0x13),
-        m_fieldA(0), m_fieldB(0), m_fieldC(0)
+        m_serverGroup(0), m_accId(0), m_characNo(0)
     {
 
     }

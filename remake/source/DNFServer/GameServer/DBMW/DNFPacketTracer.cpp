@@ -23,6 +23,7 @@
 
 int getErrno();
 
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0072、DNF-DBM-DIFF-0073 | dbmw | 与ORIG差异=DIFF | CPacketTracer::CPacketTracer | 详见 function_reports/dbmw/_ZN13CPacketTracerC1Ev.md、function_reports/dbmw/_ZN13CPacketTracerC2Ev.md
 CPacketTracer::CPacketTracer()
     : m_field0(0), m_timer(0), m_processCount(0)
 {
@@ -59,6 +60,7 @@ void CPacketTracer::AbsoluteWriteLog()
 }
 CPacketTracer* CPacketTracerInstance() { static CPacketTracer instance; return &instance; }
 void CPacketTracer::ResetLog() { m_log.clear(); }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0070 | dbmw | 与ORIG差异=DIFF | CPacketTracer::StartPacketProcessLog | 详见 function_reports/dbmw/_ZN13CPacketTracer21StartPacketProcessLogEj.md
 void CPacketTracer::StartPacketProcessLog(unsigned int id)
 {
     m_timer->SetLastTime();
@@ -72,6 +74,7 @@ void CPacketTracer::StartPacketProcessLog(unsigned int id)
         m_processMap.insert(std::make_pair(id, p));
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0012 | dbmw | 与ORIG差异=NEAR | CPacketTracer::EndPacketProcessLog | 详见 function_reports/dbmw/_ZN13CPacketTracer19EndPacketProcessLogEj.md
 void CPacketTracer::EndPacketProcessLog(unsigned int id)
 {
     std::map<unsigned int, stPacketProcess>::iterator it =
@@ -82,6 +85,7 @@ void CPacketTracer::EndPacketProcessLog(unsigned int id)
         it->second.m_accTime += 1000.0 * m_timer->GetTimeInterval();
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0071 | dbmw | 与ORIG差异=DIFF | CPacketTracer::WritePacketProcessLog | 详见 function_reports/dbmw/_ZN13CPacketTracer21WritePacketProcessLogEv.md
 void CPacketTracer::WritePacketProcessLog()
 {
     m_processCount -= 1;

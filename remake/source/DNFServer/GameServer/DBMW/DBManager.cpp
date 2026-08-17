@@ -434,6 +434,7 @@ struct FrameLagWriteIndexView
 } __attribute__((packed));
 
 // ---- CGuildManager / WongWork ----
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0018 | dbmw | 与ORIG差异=DIFF | CDBManager::GuildMasterDelegate | 详见 function_reports/dbmw/_ZN10CDBManager19GuildMasterDelegateEijjjjPc.md
 bool CDBManager::GuildMasterDelegate(int serverId,
                                      unsigned int guildId,
                                      unsigned int oldMasterNo,
@@ -485,6 +486,7 @@ bool CDBManager::GuildMasterDelegate(int serverId,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0010 | dbmw | 与ORIG差异=DIFF | CDBManager::SendGuildLetter | 详见 function_reports/dbmw/_ZN10CDBManager15SendGuildLetterEijPc.md
 bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
 {
     bool ok;
@@ -531,6 +533,7 @@ bool CDBManager::SendGuildLetter(int serverId, unsigned int guildId, char* msg)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0014 | dbmw | 与ORIG差异=DIFF | CDBManager::OnWriteGuildBoard | 详见 function_reports/dbmw/_ZN10CDBManager17OnWriteGuildBoardEP40Packet_DB_Load_Request_Guild_Board_WriteP18STGuildBoardDBInfo.md
 bool CDBManager::OnWriteGuildBoard(
     Packet_DB_Load_Request_Guild_Board_Write* req, STGuildBoardDBInfo* info)
 {
@@ -625,6 +628,7 @@ bool CDBManager::OnDeleteGuildBoard(unsigned int no)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0004 | dbmw | 与ORIG差异=NEAR | CDBManager::OnLoadGuildAgit | 详见 function_reports/dbmw/_ZN10CDBManager15OnLoadGuildAgitEP25Packet_DB_Load_Guild_AgitR28Packet_Guild_Load_Guild_Agit.md
 bool CDBManager::OnLoadGuildAgit(Packet_DB_Load_Guild_Agit* req,
                                  Packet_Guild_Load_Guild_Agit& reply)
 {
@@ -711,6 +715,7 @@ char CDBManager::OnCreateGuildAgit(Packet_DB_Create_Guild_Agit* req,
     reply.m_result = 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0049 | dbmw | 与ORIG差异=DIFF | CDBManager::OnInsertGuildCargoHistory | 详见 function_reports/dbmw/_ZN10CDBManager25OnInsertGuildCargoHistoryEP36Packet_DB_Insert_Guild_Cargo_History.md
 char CDBManager::OnInsertGuildCargoHistory(
     Packet_DB_Insert_Guild_Cargo_History* req)
 {
@@ -791,6 +796,7 @@ bool CDBManager::QueryBlackList(unsigned int m_id, STBlackUserDBType* list)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0007 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildSkill | 详见 function_reports/dbmw/_ZN10CDBManager14SaveGuildSkillEhjR17STGuildDBInfoOnly.md
 char CDBManager::SaveGuildSkill(unsigned char serverGroup,
                                 unsigned int guildId,
                                 STGuildDBInfoOnly& info)
@@ -815,6 +821,7 @@ char CDBManager::SaveGuildSkill(unsigned char serverGroup,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0009 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildMember | 详见 function_reports/dbmw/_ZN10CDBManager15SaveGuildMemberEhjR18STGuildMemerDBInfojh.md
 char CDBManager::SaveGuildMember(unsigned char serverGroup,
                                  unsigned int guildId,
                                  STGuildMemerDBInfo& info,
@@ -855,6 +862,7 @@ char CDBManager::SaveGuildMember(unsigned char serverGroup,
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0031 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildWarPointList | 详见 function_reports/dbmw/_ZN10CDBManager21SaveGuildWarPointListEiPjS0_.md
 bool CDBManager::SaveGuildWarPointList(int serverId,
                                        unsigned int* guildIds,
                                        unsigned int* points)
@@ -881,6 +889,7 @@ bool CDBManager::SaveGuildWarPointList(int serverId,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0042 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSavePowerWarBonusPoint | 详见 function_reports/dbmw/_ZN10CDBManager24OnSavePowerWarBonusPointEP36Packet_DB_Save_Power_War_Bonus_Point.md
 bool CDBManager::OnSavePowerWarBonusPoint(
     Packet_DB_Save_Power_War_Bonus_Point* packet)
 {
@@ -942,6 +951,7 @@ char CDBManager::SavePowerWarPoint(Packet_DB_Save_Power_War_Point* packet)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0053 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSavePowerWarStatueRanker | 详见 function_reports/dbmw/_ZN10CDBManager26OnSavePowerWarStatueRankerEP38Packet_DB_Save_Power_War_Statue_Ranker.md
 char CDBManager::OnSavePowerWarStatueRanker(
     Packet_DB_Save_Power_War_Statue_Ranker* packet)
 {
@@ -980,6 +990,7 @@ char CDBManager::OnSavePowerWarStatueRanker(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0010 | dbmw | 与ORIG差异=NEAR | CDBManager::OnSavePowerWarPointReward | 详见 function_reports/dbmw/_ZN10CDBManager25OnSavePowerWarPointRewardEP37Packet_DB_Save_Power_War_Point_Reward.md
 bool CDBManager::OnSavePowerWarPointReward(
     Packet_DB_Save_Power_War_Point_Reward* packet)
 {
@@ -1005,6 +1016,7 @@ bool CDBManager::OnSavePowerWarPointReward(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0002 | dbmw | 与ORIG差异=NEAR | CDBManager::InsertMail | 详见 function_reports/dbmw/_ZN10CDBManager10InsertMailEjPcS0_jjii.md
 bool CDBManager::InsertMail(unsigned int characNo, char* subject,
                             char* content, unsigned int hE,
                             unsigned int h12, int h16, int h17)
@@ -1031,6 +1043,7 @@ bool CDBManager::InsertMail(unsigned int characNo, char* subject,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0027 | dbmw | 与ORIG差异=DIFF | CDBManager::OnLoadPeriodicMessage | 详见 function_reports/dbmw/_ZN10CDBManager21OnLoadPeriodicMessageEP28Packet_Load_Periodic_MessageP38Packet_Result_Loading_Periodic_Message.md
 bool CDBManager::OnLoadPeriodicMessage(
     Packet_Load_Periodic_Message* req,
     Packet_Result_Loading_Periodic_Message* reply)
@@ -1139,6 +1152,7 @@ bool CDBManager::QueryGuildMember(unsigned char serverId,
     reply.m_flag = 1;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0007 | dbmw | 与ORIG差异=NEAR | CDBManager::OnSavePowerWarUserRank | 详见 function_reports/dbmw/_ZN10CDBManager22OnSavePowerWarUserRankEP34Packet_DB_Save_Power_War_User_Rank.md
 char CDBManager::OnSavePowerWarUserRank(
     Packet_DB_Save_Power_War_User_Rank* packet)
 {
@@ -1181,6 +1195,7 @@ char CDBManager::OnSavePowerWarUserRank(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0008 | dbmw | 与ORIG差异=NEAR | CDBManager::OnSavePowerWarGuildRank | 详见 function_reports/dbmw/_ZN10CDBManager23OnSavePowerWarGuildRankEP35Packet_DB_Save_Power_War_Guild_Rank.md
 char CDBManager::OnSavePowerWarGuildRank(
     Packet_DB_Save_Power_War_Guild_Rank* packet)
 {
@@ -1264,6 +1279,7 @@ bool CDBManager::DelBuddy(unsigned int m_id, unsigned int characNo)
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0032 | dbmw | 与ORIG差异=DIFF | CDBManager::insertServerGameEvent | 详见 function_reports/dbmw/_ZN10CDBManager21insertServerGameEventEP31Packet_StartGameEventFromServer.md
 bool CDBManager::insertServerGameEvent(
     Packet_StartGameEventFromServer* packet)
 {
@@ -1445,6 +1461,7 @@ bool CDBManager::QueryP2PStatistics(Packet_P2P_Statistics* packet)
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0040 | dbmw | 与ORIG差异=DIFF | CDBManager::OnGoldcardEventStatistic | 详见 function_reports/dbmw/_ZN10CDBManager24OnGoldcardEventStatisticEP35Packet_Goldcard_Event_Statistic_STD.md
 char CDBManager::OnGoldcardEventStatistic(
     Packet_Goldcard_Event_Statistic_STD* packet)
 {
@@ -1481,6 +1498,7 @@ char CDBManager::OnGoldcardEventStatistic(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0044 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryUpdateChannelOccNum | 详见 function_reports/dbmw/_ZN10CDBManager24QueryUpdateChannelOccNumEP27Packet_User_Count_Statistic.md
 bool CDBManager::QueryUpdateChannelOccNum(Packet_User_Count_Statistic* packet)
 {
     if (!packet)
@@ -1589,6 +1607,7 @@ char CDBManager::QueryGuildBooting(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0062 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryHellPartyStatisticItemCreate | 详见 function_reports/dbmw/_ZN10CDBManager33QueryHellPartyStatisticItemCreateEP36Packet_DBMW_HellParty_Statistic_Item.md
 char CDBManager::QueryHellPartyStatisticItemCreate(
     Packet_DBMW_HellParty_Statistic_Item* packet)
 {
@@ -1624,6 +1643,7 @@ char CDBManager::QueryHellPartyStatisticItemCreate(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0050 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSavePacketOverflowWrite | 详见 function_reports/dbmw/_ZN10CDBManager25OnSavePacketOverflowWriteEP37Packet_DBMW_Packet_Overflow_Statistic.md
 char CDBManager::OnSavePacketOverflowWrite(
     Packet_DBMW_Packet_Overflow_Statistic* packet)
 {
@@ -1663,6 +1683,7 @@ char CDBManager::OnSavePacketOverflowWrite(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0059 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryErrorLineStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager29QueryErrorLineStatisticCreateEP37Packet_DBMW_Save_Error_Line_Statistic.md
 char CDBManager::QueryErrorLineStatisticCreate(
     Packet_DBMW_Save_Error_Line_Statistic* packet)
 {
@@ -1693,6 +1714,7 @@ char CDBManager::QueryErrorLineStatisticCreate(
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0057 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryTowerOfDespairStatistic | 详见 function_reports/dbmw/_ZN10CDBManager28QueryTowerOfDespairStatisticEP35Packet_TowerOfDespair_Statistic_STD.md
 bool CDBManager::QueryTowerOfDespairStatistic(
     Packet_TowerOfDespair_Statistic_STD* packet)
 {
@@ -1803,6 +1825,7 @@ int CDBManager::GetMaxHuntingPointServerGroup(int serverId)
         return 0;
     return result;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0017 | dbmw | 与ORIG差异=DIFF | CDBManager::updateCollectItems | 详见 function_reports/dbmw/_ZN10CDBManager18updateCollectItemsEhijh.md
 bool CDBManager::updateCollectItems(unsigned char a, int b, unsigned int c,
                                     unsigned char d)
 {
@@ -1846,6 +1869,7 @@ bool CDBManager::updateCollectItems(unsigned char a, int b, unsigned int c,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0025 | dbmw | 与ORIG差异=DIFF | CDBManager::updateCollectItemsGm | 详见 function_reports/dbmw/_ZN10CDBManager20updateCollectItemsGmEhiij.md
 char CDBManager::updateCollectItemsGm(unsigned char a, int b, int c,
                                       unsigned int d)
 {
@@ -1869,6 +1893,7 @@ char CDBManager::updateCollectItemsGm(unsigned char a, int b, int c,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0047 | dbmw | 与ORIG差异=DIFF | CDBManager::insertHolePunchingResult | 详见 function_reports/dbmw/_ZN10CDBManager24insertHolePunchingResultEP38Packet_GameServer2Statisctics2DBServer.md
 bool CDBManager::insertHolePunchingResult(
     Packet_GameServer2Statisctics2DBServer* packet)
 {
@@ -1895,6 +1920,7 @@ bool CDBManager::insertHolePunchingResult(
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0046 | dbmw | 与ORIG差异=DIFF | CDBManager::UpdateRandomboxStatistic | 详见 function_reports/dbmw/_ZN10CDBManager24UpdateRandomboxStatisticEP29Packet_Randombox_statistic_DB.md
 bool CDBManager::UpdateRandomboxStatistic(
     Packet_Randombox_statistic_DB* packet)
 {
@@ -2025,6 +2051,7 @@ bool CDBManager::UpdateCreateEmblemStatistic(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0034 | dbmw | 与ORIG差异=DIFF | CDBManager::OnWriteGuildMemberMemo | 详见 function_reports/dbmw/_ZN10CDBManager22OnWriteGuildMemberMemoEP33Packet_DB_Write_Guild_Member_Memo.md
 char CDBManager::OnWriteGuildMemberMemo(
     Packet_DB_Write_Guild_Member_Memo* packet)
 {
@@ -2082,6 +2109,7 @@ char CDBManager::OnServerMatchData(Packet_Server_Match_data_DBMW* packet)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0009 | dbmw | 与ORIG差异=NEAR | CDBManager::OnManagerEventTriggerAck | 详见 function_reports/dbmw/_ZN10CDBManager24OnManagerEventTriggerAckEP32Packet_Manager_Event_Trigger_Ack.md
 char CDBManager::OnManagerEventTriggerAck(
     Packet_Manager_Event_Trigger_Ack* packet)
 {
@@ -2115,6 +2143,7 @@ char CDBManager::OnManagerEventTriggerAck(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0036 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSaveLoadingTimeReport | 详见 function_reports/dbmw/_ZN10CDBManager23OnSaveLoadingTimeReportEP31Packet_DBMW_Loading_Time_Report.md
 char CDBManager::OnSaveLoadingTimeReport(
     Packet_DBMW_Loading_Time_Report* packet)
 {
@@ -2136,6 +2165,7 @@ char CDBManager::OnSaveLoadingTimeReport(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0023 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSaveFatigueBattery | 详见 function_reports/dbmw/_ZN10CDBManager20OnSaveFatigueBatteryEP43Packet_DBMW_Fatigue_Battery_Money_Statistic.md
 char CDBManager::OnSaveFatigueBattery(
     Packet_DBMW_Fatigue_Battery_Money_Statistic* packet)
 {
@@ -2458,6 +2488,7 @@ int CDBManager::FindCharProxyInArray(ST_MemberProxy* proxies, unsigned int chara
     }
     return -1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0004 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryMember | 详见 function_reports/dbmw/_ZN10CDBManager11QueryMemberEjR28Packet_DB_Reply_Query_Member.md
 bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member& reply)
 {
     bool cVar1;
@@ -2709,6 +2740,7 @@ bool CDBManager::QueryMember(unsigned int characNo, Packet_DB_Reply_Query_Member
     reply.m_flag = 1;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0029 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryGuildMemberProxy | 详见 function_reports/dbmw/_ZN10CDBManager21QueryGuildMemberProxyEjjR18STGuildMemberProxy.md
 bool CDBManager::QueryGuildMemberProxy(unsigned int guildId, unsigned int characNo,
                                        STGuildMemberProxy& proxy)
 {
@@ -2741,6 +2773,7 @@ bool CDBManager::QueryGuildMemberProxy(unsigned int guildId, unsigned int charac
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0051 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryGuildAllMembersProxy | 详见 function_reports/dbmw/_ZN10CDBManager25QueryGuildAllMembersProxyEjP18STGuildMemberProxyRt.md
 bool CDBManager::QueryGuildAllMembersProxy(unsigned int guildId,
                                            STGuildMemberProxy* proxies,
                                            unsigned short& count)
@@ -2943,6 +2976,7 @@ bool CDBManager::GuildJoin(STGuildJoinInfo* info, unsigned int& result)
     result = 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0013 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveMemberInsert | 详见 function_reports/dbmw/_ZN10CDBManager16SaveMemberInsertEjjh.md
 char CDBManager::SaveMemberInsert(unsigned int masterNo, unsigned int characNo,
                                   unsigned char type)
 {
@@ -3093,6 +3127,7 @@ char CDBManager::SaveMemberDelete(unsigned int characNo, unsigned int masterNo,
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0041 | dbmw | 与ORIG差异=DIFF | CDBManager::OnGuildJoinByListApprove | 详见 function_reports/dbmw/_ZN10CDBManager24OnGuildJoinByListApproveEjcjjR15STGuildJoinInfoRj.md
 bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
                                           char serverId,
                                           unsigned int m_id,
@@ -3200,6 +3235,7 @@ bool CDBManager::OnGuildJoinByListApprove(unsigned int guildId,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0052 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryPartyStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager25QueryPartyStatisticCreateEP35Packet_DBMW_Dungeon_Statistic_Party.md
 char CDBManager::QueryPartyStatisticCreate(
     Packet_DBMW_Dungeon_Statistic_Party* packet)
 {
@@ -3269,6 +3305,7 @@ char CDBManager::QueryPartyStatisticCreate(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0056 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryPartyJobStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager28QueryPartyJobStatisticCreateEP39Packet_DBMW_Dungeon_Statistic_Party_Job.md
 char CDBManager::QueryPartyJobStatisticCreate(
     Packet_DBMW_Dungeon_Statistic_Party_Job* packet)
 {
@@ -3332,6 +3369,7 @@ char CDBManager::QueryPartyJobStatisticCreate(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0061 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryPartyCharacStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager31QueryPartyCharacStatisticCreateEP42Packet_DBMW_Dungeon_Statistic_Party_Charac.md
 char CDBManager::QueryPartyCharacStatisticCreate(
     Packet_DBMW_Dungeon_Statistic_Party_Charac* packet)
 {
@@ -3401,6 +3439,7 @@ char CDBManager::QueryPartyCharacStatisticCreate(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0005 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveGuildInfo | 详见 function_reports/dbmw/_ZN10CDBManager13SaveGuildInfoEhjR17STGuildDBInfoOnly.md
 bool CDBManager::SaveGuildInfo(unsigned char serverGroup, unsigned int guildId,
                                STGuildDBInfoOnly& info)
 {
@@ -3851,6 +3890,7 @@ bool CDBManager::QueryGuildWarPointList(int guildWarPoint, CGuildManager* gm)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0026 | dbmw | 与ORIG差异=DIFF | CDBManager::AwardGuildTitleByMail | 详见 function_reports/dbmw/_ZN10CDBManager21AwardGuildTitleByMailEijjPcj.md
 bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
                                        unsigned int itemId, char* guildName,
                                        unsigned int item)
@@ -3903,6 +3943,7 @@ bool CDBManager::AwardGuildTitleByMail(int guildId, unsigned int characNo,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0021 | dbmw | 与ORIG差异=DIFF | CDBManager::RegisterToBlackList | 详见 function_reports/dbmw/_ZN10CDBManager19RegisterToBlackListEjjPc.md
 bool CDBManager::RegisterToBlackList(unsigned int m_id, unsigned int characNo,
                                      char* characName)
 {
@@ -4018,6 +4059,7 @@ bool CDBManager::RegisterToBlackList(unsigned int m_id, unsigned int characNo,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0003 | dbmw | 与ORIG差异=DIFF | CDBManager::GuildSecede | 详见 function_reports/dbmw/_ZN10CDBManager11GuildSecedeEP30Packet_DB_Request_Guild_SecedeRjS2_S2_.md
 bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
                              unsigned int& characNo, unsigned int& m_id,
                              unsigned int& result)
@@ -4274,6 +4316,7 @@ bool CDBManager::GuildSecede(Packet_DB_Request_Guild_Secede* req,
     result = 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0012 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryGuildCreate | 详见 function_reports/dbmw/_ZN10CDBManager16QueryGuildCreateEP32Packet_DBMW_Request_Guild_CreateRjS2_.md
 bool CDBManager::QueryGuildCreate(Packet_DBMW_Request_Guild_Create* req,
                                   unsigned int& guildId, unsigned int& result)
 {
@@ -4480,6 +4523,7 @@ char* getList2inQuery(unsigned int count, const unsigned int* list, char* out)
     sprintf(out, "%s%d)", out, list[i]);
     return out;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0054 | dbmw | 与ORIG差异=DIFF | CDBManager::onItemLimitEditionLoadData | 详见 function_reports/dbmw/_ZN10CDBManager26onItemLimitEditionLoadDataEPK39Packet_Item_Limit_Edition_Load_Data_ReqP39Packet_Item_Limit_Edition_Load_Data_Rpy.md
 bool CDBManager::onItemLimitEditionLoadData(
     const Packet_Item_Limit_Edition_Load_Data_Req* req,
     Packet_Item_Limit_Edition_Load_Data_Rpy* rpy)
@@ -4539,6 +4583,7 @@ bool CDBManager::onItemLimitEditionLoadData(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0058 | dbmw | 与ORIG差异=DIFF | CDBManager::onItemLimitEditionUpdateData | 详见 function_reports/dbmw/_ZN10CDBManager28onItemLimitEditionUpdateDataEPK32Packet_Item_Limit_Edition_Update.md
 bool CDBManager::onItemLimitEditionUpdateData(
     const Packet_Item_Limit_Edition_Update* packet)
 {
@@ -4568,6 +4613,7 @@ bool CDBManager::onItemLimitEditionUpdateData(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0003 | dbmw | 与ORIG差异=NEAR | CDBManager::QueryGuild | 详见 function_reports/dbmw/_ZN10CDBManager10QueryGuildEhjR27Packet_DB_Reply_Query_Guild.md
 bool CDBManager::QueryGuild(unsigned char serverGroup, unsigned int guildId,
                             Packet_DB_Reply_Query_Guild& reply)
 {
@@ -4866,6 +4912,7 @@ Packet_Result_OnTimeEvent_Idx::Packet_Result_OnTimeEvent_Idx()
     m_maxNo = 0;
     m_result = 0;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0033 | dbmw | 与ORIG差异=DIFF | CDBManager::OnStatisticLoginLogout | 详见 function_reports/dbmw/_ZN10CDBManager22OnStatisticLoginLogoutEP34Packet_DBMW_Statistic_Login_Logout.md
 char CDBManager::OnStatisticLoginLogout(
     Packet_DBMW_Statistic_Login_Logout* packet)
 {
@@ -4920,6 +4967,7 @@ Packet_Frame_Lag_Spec_Delete_Notify::Packet_Frame_Lag_Spec_Delete_Notify()
     : PacketHeader(0xc2e, 0xe)
 {
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0015 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryReloadSpecDb | 详见 function_reports/dbmw/_ZN10CDBManager17QueryReloadSpecDbEP38Packet_Frame_Lag_Statistic_Reload_SpecP17CStatisticsServer.md
 char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
                                    CStatisticsServer* stats)
 {
@@ -5010,6 +5058,7 @@ char CDBManager::QueryReloadSpecDb(Packet_Frame_Lag_Statistic_Reload_Spec* req,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0039 | dbmw | 与ORIG差异=DIFF | CDBManager::InsertFrameLagStatistics | 详见 function_reports/dbmw/_ZN10CDBManager24InsertFrameLagStatisticsEP42Packet_Frame_Lag_Statistic_Write_Lag_IndexP17CStatisticsServer.md
 char CDBManager::InsertFrameLagStatistics(
     Packet_Frame_Lag_Statistic_Write_Lag_Index* packet, CStatisticsServer* stats)
 {
@@ -5100,6 +5149,7 @@ char CDBManager::InsertFrameLagStatistics(
     stats->SendToServer((char*)&pkt, pkt.packetSize);
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0024 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryFirstLoadSpecDb | 详见 function_reports/dbmw/_ZN10CDBManager20QueryFirstLoadSpecDbEP36Packet_Frame_Lag_Statistic_Load_SpecP17CStatisticsServer.md
 char CDBManager::QueryFirstLoadSpecDb(Packet_Frame_Lag_Statistic_Load_Spec* req,
                                       CStatisticsServer* stats)
 {
@@ -5172,6 +5222,7 @@ char CDBManager::QueryFirstLoadSpecDb(Packet_Frame_Lag_Statistic_Load_Spec* req,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0030 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryTodayGuildMember | 详见 function_reports/dbmw/_ZN10CDBManager21QueryTodayGuildMemberEjR31Packet_Reply_Today_Guild_Member.md
 bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
                                        Packet_Reply_Today_Guild_Member& reply)
 {
@@ -5224,6 +5275,7 @@ bool CDBManager::QueryTodayGuildMember(unsigned int guildId,
     vec.clear();
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0005 | dbmw | 与ORIG差异=NEAR | CDBManager::QueryHWspecCreate | 详见 function_reports/dbmw/_ZN10CDBManager17QueryHWspecCreateEP38Packet_DBMW_Save_Client_Spec_Statistic.md
 char CDBManager::QueryHWspecCreate(
     Packet_DBMW_Save_Client_Spec_Statistic* packet)
 {
@@ -5300,6 +5352,7 @@ char CDBManager::QueryHWspecCreate(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0035 | dbmw | 与ORIG差异=DIFF | CDBManager::OnLoadGuildCargoHistory | 详见 function_reports/dbmw/_ZN10CDBManager23OnLoadGuildCargoHistoryEjR37Packet_Guild_Load_Guild_Cargo_History.md
 char CDBManager::OnLoadGuildCargoHistory(
     unsigned int guildId, Packet_Guild_Load_Guild_Cargo_History& reply)
 {
@@ -5410,6 +5463,7 @@ bool CDBManager::DeleteToBlackList(unsigned int m_id, unsigned int characNo)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0011 | dbmw | 与ORIG差异=DIFF | CDBManager::OnLoadGuildBoard | 详见 function_reports/dbmw/_ZN10CDBManager16OnLoadGuildBoardEiRiP18STGuildBoardDBInfo.md
 bool CDBManager::OnLoadGuildBoard(int guildId, int& count,
                                   STGuildBoardDBInfo* boards)
 {
@@ -5455,6 +5509,7 @@ bool CDBManager::OnLoadGuildBoard(int guildId, int& count,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0016 | dbmw | 与ORIG差异=DIFF | CDBManager::selectCollectItems | 详见 function_reports/dbmw/_ZN10CDBManager18selectCollectItemsEhRiS0_RjRh.md
 bool CDBManager::selectCollectItems(unsigned char serverInfo, int& curCount,
                                     int& totalCount, unsigned int& changeFlag,
                                     unsigned char& fullTime)
@@ -5517,6 +5572,7 @@ bool CDBManager::selectCollectItems(unsigned char serverInfo, int& curCount,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0063 | dbmw | 与ORIG差异=DIFF | CDBManager::updateNexonPinPcRoomPlayTimeEvent | 详见 function_reports/dbmw/_ZN10CDBManager33updateNexonPinPcRoomPlayTimeEventEhjRjPcj.md
 bool CDBManager::updateNexonPinPcRoomPlayTimeEvent(
     unsigned char serverInfo, unsigned int m_id, unsigned int& pinNo,
     char* nexonPin, unsigned int len)
@@ -5584,6 +5640,7 @@ bool CDBManager::updateNexonPinPcRoomPlayTimeEvent(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0055 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSaveAssertManagerInfoWrite | 详见 function_reports/dbmw/_ZN10CDBManager28OnSaveAssertManagerInfoWriteEP43Packet_DBMW_Assert_Manager_Info_Write_Query.md
 char CDBManager::OnSaveAssertManagerInfoWrite(
     Packet_DBMW_Assert_Manager_Info_Write_Query* packet)
 {
@@ -5628,6 +5685,7 @@ char CDBManager::OnSaveAssertManagerInfoWrite(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0043 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryCubeStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager24QueryCubeStatisticCreateEP26Packet_DBMW_Cube_Statistic.md
 char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
 {
     time_t now = time(0);
@@ -5691,6 +5749,7 @@ char CDBManager::QueryCubeStatisticCreate(Packet_DBMW_Cube_Statistic* packet)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0045 | dbmw | 与ORIG差异=DIFF | CDBManager::SaveUnchangableGuildInfo | 详见 function_reports/dbmw/_ZN10CDBManager24SaveUnchangableGuildInfoEP33Packet_UnChangable_GuildInfo_Save.md
 char CDBManager::SaveUnchangableGuildInfo(
     Packet_UnChangable_GuildInfo_Save* packet)
 {
@@ -5792,6 +5851,7 @@ bool CDBManager::InsertLetter(unsigned int characNo, unsigned int sendCharacNo,
     letterNo = GetIdentity(h);
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0067 | dbmw | 与ORIG差异=DIFF | CDBManager::AddBuddy | 详见 function_reports/dbmw/_ZN10CDBManager8AddBuddyEjPcR13STBuddyDBInfoRi.md
 char CDBManager::AddBuddy(unsigned int characNo, char* name,
                           STBuddyDBInfo& info, int& result)
 {
@@ -5939,6 +5999,7 @@ bool CDBManager::QueryIPCounter(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0065 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryDeathTowerPlayDataJobStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager41QueryDeathTowerPlayDataJobStatisticCreateEP45Packet_DBMW_DeathTower_Statistic_Playdata_Job.md
 char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     Packet_DBMW_DeathTower_Statistic_Playdata_Job* packet)
 {
@@ -6026,6 +6087,7 @@ char CDBManager::QueryDeathTowerPlayDataJobStatisticCreate(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0064 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryDeathTowerValueStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager35QueryDeathTowerValueStatisticCreateEP38Packet_DBMW_DeathTower_Statistic_Value.md
 char CDBManager::QueryDeathTowerValueStatisticCreate(
     Packet_DBMW_DeathTower_Statistic_Value* packet)
 {
@@ -6119,6 +6181,7 @@ bool CDBManager::queryTowerFullRank(unsigned int towerIndex,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0060 | dbmw | 与ORIG差异=DIFF | CDBManager::UpdateDisjointAvatarStatistic | 详见 function_reports/dbmw/_ZN10CDBManager29UpdateDisjointAvatarStatisticEP35Packet_Avater_Disjoint_Statistic_DB.md
 bool CDBManager::UpdateDisjointAvatarStatistic(
     Packet_Avater_Disjoint_Statistic_DB* packet)
 {
@@ -6191,6 +6254,7 @@ bool CDBManager::UpdateDisjointAvatarStatistic(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0066 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate | 详见 function_reports/dbmw/_ZN10CDBManager43QueryDeathTowerPlayDataPartyStatisticCreateEP47Packet_DBMW_DeathTower_Statistic_Playdata_Party.md
 char CDBManager::QueryDeathTowerPlayDataPartyStatisticCreate(
     Packet_DBMW_DeathTower_Statistic_Playdata_Party* packet)
 {
@@ -6326,6 +6390,7 @@ bool CDBManager::AwardGuildCoinByMail(int guildId, unsigned int serverGroup,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0022 | dbmw | 与ORIG差异=DIFF | CDBManager::SendGuildCoinByMail | 详见 function_reports/dbmw/_ZN10CDBManager19SendGuildCoinByMailEijjjiPcS0_.md
 bool CDBManager::SendGuildCoinByMail(int guildId, unsigned int serverGroup,
                                      unsigned int itemId,
                                      unsigned int endurance, int addInfo,
@@ -6442,6 +6507,7 @@ bool CDBManager::QueryLoadARSInfo(std::vector<st_ars_info_list>& arsList)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0020 | dbmw | 与ORIG差异=DIFF | CDBManager::QuerySubGuildMaster | 详见 function_reports/dbmw/_ZN10CDBManager19QuerySubGuildMasterEhjR27Packet_DB_Reply_Query_Guild.md
 bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
                                      unsigned int guildId,
                                      Packet_DB_Reply_Query_Guild& reply)
@@ -6481,6 +6547,7 @@ bool CDBManager::QuerySubGuildMaster(unsigned char serverGroup,
     reply.m_result = 1;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0011 | dbmw | 与ORIG差异=NEAR | CDBManager::QueryOnTimeEventIdxUpdate | 详见 function_reports/dbmw/_ZN10CDBManager25QueryOnTimeEventIdxUpdateEP34Packet_Req_Ontime_Event_Idx_Update.md
 char CDBManager::QueryOnTimeEventIdxUpdate(
     Packet_Req_Ontime_Event_Idx_Update* packet)
 {
@@ -6544,6 +6611,7 @@ char CDBManager::QueryOnTimeEventItem(Packet_Result_Ontime_Event_Item& reply)
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0006 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryBuddyInfo | 详见 function_reports/dbmw/_ZN10CDBManager14QueryBuddyInfoEjP13STBuddyDBInfoRh.md
 bool CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
                                 unsigned char& count)
 {
@@ -6581,6 +6649,7 @@ bool CDBManager::QueryBuddyInfo(unsigned int characNo, STBuddyDBInfo* buddies,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0006 | dbmw | 与ORIG差异=NEAR | CDBManager::GetCoinEventPerDay | 详见 function_reports/dbmw/_ZN10CDBManager18GetCoinEventPerDayEiiRiS0_.md
 bool CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
                                     int& out2)
 {
@@ -6630,6 +6699,7 @@ bool CDBManager::GetCoinEventPerDay(int serverId, int add, int& out1,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0019 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryCharacNoByName | 详见 function_reports/dbmw/_ZN10CDBManager19QueryCharacNoByNameEPcRjPi.md
 bool CDBManager::QueryCharacNoByName(char* name, unsigned int& characNo,
                                      int* result)
 {
@@ -6688,6 +6758,7 @@ bool CDBManager::QueryCharacNoByName(char* name, unsigned int& characNo,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0048 | dbmw | 与ORIG差异=DIFF | CDBManager::updateCompatibilityIndex | 详见 function_reports/dbmw/_ZN10CDBManager24updateCompatibilityIndexEP31Packet_Stat_Compatibility_Index.md
 bool CDBManager::updateCompatibilityIndex(
     Packet_Stat_Compatibility_Index* packet)
 {
@@ -6737,6 +6808,7 @@ bool CDBManager::updateCompatibilityIndex(
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0028 | dbmw | 与ORIG差异=DIFF | CDBManager::OnSecretShopStatistic | 详见 function_reports/dbmw/_ZN10CDBManager21OnSecretShopStatisticEP28Packet_Secret_Shop_Statistic.md
 char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
 {
     CDBHandle* h = m_handles[4];    // log db
@@ -6777,6 +6849,7 @@ char CDBManager::OnSecretShopStatistic(Packet_Secret_Shop_Statistic* packet)
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0037 | dbmw | 与ORIG差异=DIFF | CDBManager::loadLimitNpcBuyItemInfo | 详见 function_reports/dbmw/_ZN10CDBManager23loadLimitNpcBuyItemInfoEP26LimitNpcBuyItemRequestInfoP25LimitNpcBuyItemResultInfo.md
 bool CDBManager::loadLimitNpcBuyItemInfo(LimitNpcBuyItemRequestInfo* req,
                                          LimitNpcBuyItemResultInfo* result)
 {
@@ -6951,6 +7024,7 @@ bool CDBManager::ChangeGuildMemberGrade(unsigned char serverId,
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0038 | dbmw | 与ORIG差异=DIFF | CDBManager::ChangeGuildNotifyMessage | 详见 function_reports/dbmw/_ZN10CDBManager24ChangeGuildNotifyMessageEijPc.md
 bool CDBManager::ChangeGuildNotifyMessage(int guildId, unsigned int m_id,
                                           char* msg)
 {
@@ -7008,6 +7082,7 @@ bool CDBManager::QueryGuildNotiMessage(unsigned char serverGroup,
         return 0;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0008 | dbmw | 与ORIG差异=DIFF | CDBManager::QueryGuildSkill | 详见 function_reports/dbmw/_ZN10CDBManager15QueryGuildSkillEhjR27Packet_DB_Reply_Query_Guild.md
 bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
                                  unsigned int guildId,
                                  Packet_DB_Reply_Query_Guild& reply)
@@ -7065,6 +7140,7 @@ bool CDBManager::QueryGuildSkill(unsigned char serverGroup,
     reply.m_result = 1;
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0109 | dbmw | 与ORIG差异=DIFF | CPacketTranslater::OnChangeUnconnectedGuildMemberGrade | 详见 function_reports/dbmw/_ZN17CPacketTranslater35OnChangeUnconnectedGuildMemberGradeEP12PacketHeader.md
 void CPacketTranslater::OnChangeUnconnectedGuildMemberGrade(PacketHeader* header)
 {
     if (!m_pclApp)

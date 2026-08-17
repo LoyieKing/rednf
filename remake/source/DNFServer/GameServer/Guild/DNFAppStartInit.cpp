@@ -89,6 +89,7 @@ CAppStartInit::~CAppStartInit()
 {
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0011 | guild | 与ORIG差异=DIFF | CAppStartInit::Init | 详见 function_reports/guild/_ZN13CAppStartInit4InitEP12CApplicationiPPc.md
 void CAppStartInit::Init(CApplication* app, int argc, char** argv)
 {
     srand((unsigned int)time(0));

@@ -317,6 +317,7 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0007 | guild | 与ORIG差异=NEAR | CTcpNetSystem::SendPacket | 详见 function_reports/guild/_ZN13CTcpNetSystem10SendPacketEv.md
 int CTcpNetSystem::SendPacket()
 {
     // R14：ORIG 形态——queue 访问在 guard 内层作用域，flag(esi)/ret(ebx) 寄存器变量，

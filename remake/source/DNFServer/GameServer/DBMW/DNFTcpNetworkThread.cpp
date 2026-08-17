@@ -61,6 +61,7 @@ void CTcpNetworkThread::attach(CTcpNetSystem* net)
         m_sendBLock = net->Get_TcpSendBLock();
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0110 | dbmw | 与ORIG差异=DIFF | CTcpNetworkThread::dispatch | 详见 function_reports/dbmw/_ZN17CTcpNetworkThread8dispatchEPv.md
 void CTcpNetworkThread::dispatch(void* param)
 {
     CPeer* peer = 0;

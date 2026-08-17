@@ -178,6 +178,7 @@ void CUser::GetChannelUserCount(STPvPChannelInfo* out, unsigned char& count)
     count = (unsigned char)idx;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0133 | monitor | 与ORIG差异=DIFF | CUser::MemberEnterProcess | 详见 function_reports/monitor/_ZN5CUser18MemberEnterProcessEv.md
 void CUser::MemberEnterProcess()
 {
     if (m_memberEnterCallerId == 0)

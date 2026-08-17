@@ -51,6 +51,7 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int fram
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0116 | monitor | 与ORIG差异=DIFF | CFrameCountHandler::GetFrameCountInfo | 详见 function_reports/monitor/_ZN18CFrameCountHandler17GetFrameCountInfoEv.md
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
     tms tm = {};

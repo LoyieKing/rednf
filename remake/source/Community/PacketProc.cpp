@@ -47,7 +47,7 @@ int OnLogin(ISessionManager* sessionManager, CNetworkSession* networkSession, Pa
                    packet->gameUserInfo.server_id,
                    packet->gameUserInfo.channel_no,
                    packet->gameUserInfo.charac_no,
-                   packet->gameUserInfo.buddy_n_user_id_what,
+                   packet->gameUserInfo.m_name,
                    packet->buddyCount);
     }
     return 0;
@@ -57,7 +57,7 @@ int OnLogout(ISessionManager* sessionManager, CNetworkSession* networkSession, P
     Packet_Community_Logout* packet = (Packet_Community_Logout*)packetHeader;
     CUser* user = g_user_manager.find_user(packet->m_id);
     // 原始：条件直接物化（mov eax,1; jmp; mov eax,0; test al,al; je）
-    if (user != NULL && user->get_user_info()->charac_no == packet->what_0xe) {
+    if (user != NULL && user->get_user_info()->charac_no == packet->m_characNo) {
         user->notice_login_logout(CUser::eLoginout_Logout);
     }
     // 原始：leave_user == false 提前返回 0x46（xor eax,1; test/je 形态）
@@ -85,11 +85,11 @@ int OnReqAddBuddy(ISessionManager* sessionManager, CNetworkSession* networkSessi
     // 原始：user != NULL && charac_no 匹配 复合条件物化一次（mov eax,1/0 + test al,al + je 到 return 0）
     if (user != NULL && user->get_user_info()->charac_no == packet->charac_no) {
         // 原始：find_buddy 调用结果直接入条件（test eax,eax; setne al; test al,al）
-        if (user->get_buddy_manager()->find_buddy(packet->server_id, packet->buddy_n_user_id_what) != NULL) {
+        if (user->get_buddy_manager()->find_buddy(packet->server_id, packet->m_name) != NULL) {
             // 0x12 means buddy already exists?
             user->notice_add_buddy_fail(0, 0x12);
         } else {
-            CUser* buddyUser = g_user_manager.find_user(packet->server_id, packet->buddy_n_user_id_what);
+            CUser* buddyUser = g_user_manager.find_user(packet->server_id, packet->m_name);
             if (buddyUser == NULL) {
                 // 3 means user not found (not online)?
                 user->notice_add_buddy_fail(0, 3);
@@ -120,11 +120,11 @@ int OnResAddBuddy(ISessionManager* sessionManager, CNetworkSession* networkSessi
     CUser* user = g_user_manager.find_user(packet->m_id);
     // 原始：user != NULL && charac_no 匹配 复合条件直接物化（mov eax,1/0 + test al,al）
     if (user != NULL && user->get_user_info()->charac_no == packet->charac_no) {
-        if (user->get_buddy_manager()->find_buddy(packet->server_id, packet->buddy_n_user_id_what) != NULL) {
+        if (user->get_buddy_manager()->find_buddy(packet->server_id, packet->m_name) != NULL) {
             // 0x12 means buddy already exists?
             user->notice_add_buddy_fail(1, 0x12);
         } else {
-            CUser* buddyUser = g_user_manager.find_user(packet->server_id, packet->buddy_n_user_id_what);
+            CUser* buddyUser = g_user_manager.find_user(packet->server_id, packet->m_name);
             if (buddyUser == NULL) {
                 user->notice_add_buddy_fail(1, 3);
             } else {
@@ -150,7 +150,7 @@ int OnReqRemoveBuddy(ISessionManager* sessionManager, CNetworkSession* networkSe
     ArchiveLog("packet_proc::OnReqRemoveBuddy M_ID(%d)", packet->m_id);
     CUser* user = g_user_manager.find_user(packet->m_id);
     if (user != NULL && user->get_user_info()->charac_no == packet->charac_no) {
-        user->req_remove_buddy(packet->server_id, packet->buddy_n_user_id_what);
+        user->req_remove_buddy(packet->server_id, packet->m_name);
     }
     return 0;
 }

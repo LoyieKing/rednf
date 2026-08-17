@@ -91,6 +91,7 @@ CTcpNetworkThread::~CTcpNetworkThread()
     m_sendBLock = 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0099 | guild | 与ORIG差异=DIFF | CTcpNetworkThread::dispatch | 详见 function_reports/guild/_ZN17CTcpNetworkThread8dispatchEPv.md
 void CTcpNetworkThread::dispatch(void* param)
 {
     CPeer* peer = 0;

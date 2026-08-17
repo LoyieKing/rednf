@@ -48,6 +48,7 @@ CTcpNetSystem::~CTcpNetSystem()
         m_field4 = 0;
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0076 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::OpenTcpService | 详见 function_reports/dbmw/_ZN13CTcpNetSystem14OpenTcpServiceERiPKct.md
 int CTcpNetSystem::OpenTcpService(int& serverCount, const char* ip, unsigned short port)
 {
     CPeer* peer = CreatePeer();
@@ -136,6 +137,7 @@ void CTcpNetSystem::SetEpollConnectedPeer(CPeer* peer)
     }
     m_peerMap.insert(std::make_pair(peer->GetTcpSocket()->getHandle(), peer));
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0079 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::SetEpollAcceptedPeers | 详见 function_reports/dbmw/_ZN13CTcpNetSystem21SetEpollAcceptedPeersEv.md
 void CTcpNetSystem::SetEpollAcceptedPeers()
 {
     CGuard<CMutex> guard(&m_mutex60);
@@ -163,6 +165,7 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
 done:
     ;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0075 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::SendPacket | 详见 function_reports/dbmw/_ZN13CTcpNetSystem10SendPacketEv.md
 int CTcpNetSystem::SendPacket()
 {
     CTcpSendBuffer* buf;
@@ -254,6 +257,7 @@ CTcpSendBuffer* CTcpNetSystem::Acquire_TcpSendBuffer()
     CGuard<CMutex> guard(&m_mutex100);
     return new CTcpSendBuffer;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0077 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::PushTcpSendPacketQ | 详见 function_reports/dbmw/_ZN13CTcpNetSystem18PushTcpSendPacketQEPc.md
 void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
 {
     CGuard<CMutex> guard(&m_mutexE8);
@@ -268,6 +272,7 @@ void CTcpNetSystem::PushTcpSendPacketQ(char* buf)
             ((CTcpSendBuffer*)buf)->m_header.m_connNo);
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0078 | dbmw | 与ORIG差异=DIFF | CTcpNetSystem::CleanTcpSendPacketQ | 详见 function_reports/dbmw/_ZN13CTcpNetSystem19CleanTcpSendPacketQEv.md
 void CTcpNetSystem::CleanTcpSendPacketQ()
 {
     for (;;)

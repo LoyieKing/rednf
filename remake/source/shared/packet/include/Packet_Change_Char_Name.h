@@ -12,10 +12,12 @@ class Packet_Change_Char_Name : public PacketHeader {
 public:
     unsigned int m_idByChannel;     // +0xa
     unsigned int m_charNo;          // +0xe
-    unsigned int m_field12;         // +0x12
+    unsigned int m_guildKey;        // +0x12（guild 接收端 OnChangeCharName 实测：为 0 时日志
+                                    //      "packet->m_uGuildKey" 并 return；Save.m_guildKey/
+                                    //      GetTodayMember/FindGuild 均取该字段，即公会 key）
     char m_name[0x1e];              // +0x16
     Packet_Change_Char_Name() : PacketHeader(0x451, 0x34),
-        m_idByChannel(0), m_charNo(0), m_field12(0)
+        m_idByChannel(0), m_charNo(0), m_guildKey(0)
     {
     memset(m_name, 0, sizeof(m_name));
     };

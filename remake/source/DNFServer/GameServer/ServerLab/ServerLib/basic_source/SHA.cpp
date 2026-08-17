@@ -38,7 +38,8 @@ void CSHA::AddData(const char* pcData, int iDataLength)
 
     uint uiT = m_auiBits[0];
     m_auiBits[0] = iDataLength * 8 + uiT;
-    if (m_auiBits[0] < uiT)
+    register bool bCarry = (m_auiBits[0] < uiT);
+    if (bCarry)
     {
         m_auiBits[1] = m_auiBits[1] + 1;
     }
@@ -112,7 +113,7 @@ void CSHA::Reset()
 
 void CSHA::Bytes2Word(const unsigned char* pcBytes, unsigned int& ruiWord)
 {
-    ruiWord = (unsigned int)pcBytes[3] | ((unsigned int)pcBytes[2] << 8) | ((unsigned int)pcBytes[1] << 0x10) | ((unsigned int)pcBytes[0] << 0x18);
+    ruiWord = (unsigned int)pcBytes[3] | (unsigned int)(pcBytes[2] << 8) | (unsigned int)(pcBytes[1] << 0x10) | (unsigned int)(pcBytes[0] << 0x18);
 }
 
 void CSHA::Word2Bytes(const unsigned int& ruiWord, unsigned char* pcBytes)

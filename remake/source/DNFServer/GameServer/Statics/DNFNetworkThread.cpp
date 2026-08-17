@@ -26,6 +26,7 @@ CNetworkThread::~CNetworkThread()
     m_udp = 0;
     m_lock = 0;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0001 | statics | 与ORIG差异=DIFF | CNetworkThread::dispatch | 详见 function_reports/statics/_ZN14CNetworkThread8dispatchEPv.md
 void CNetworkThread::dispatch(void* param)
 {
 #pragma pack(push,1)

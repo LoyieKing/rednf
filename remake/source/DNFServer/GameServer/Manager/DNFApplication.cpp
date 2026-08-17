@@ -369,9 +369,9 @@ void CApplication::TranslateSignal()
         case 5:
         {
             Packet_Web_Prohibit_User_Connect pkt;
-            pkt.m_fieldA = (*it)->m_field4;
-            pkt.m_fieldE = (char)(*it)->m_field8;
-            pkt.m_fieldF = (unsigned short)(*it)->m_fieldC;
+            pkt.m_id = (*it)->m_field4;
+            pkt.m_flag = (char)(*it)->m_field8;
+            pkt.m_time = (unsigned short)(*it)->m_fieldC;
             CPacketTranslater::OnWebNoticeProhibitConnectUser(&pkt);
             break;
         }

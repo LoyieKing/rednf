@@ -8,13 +8,13 @@
 STGameUserInfo::STGameUserInfo() {
     this->server_id = 0;
     this->user_m_id = 0;
-    // 来自反编译/DWARF 的推断：what_0x5 初始化为 0xffffffff (-1)，不是 0
-    this->what_0x5 = -1;
+    // 来自反编译/DWARF 的推断：m_uid 初始化为 0xffffffff (-1)，不是 0
+    this->m_uid = -1;
     this->channel_no = 0;
     this->charac_no = 0;
-    this->variable_what1 = 0;
-    this->buddy_n_user_what2 = 0;
-    this->variable_what2 = 0;
-    this->buddy_n_user_what3 = 0;
-    memset(this->buddy_n_user_id_what, 0, sizeof(this->buddy_n_user_id_what));
+    this->m_level = 0;
+    this->m_job = 0;
+    this->m_growType = 0;
+    this->m_sex = 0;
+    memset(this->m_name, 0, sizeof(this->m_name));
 }

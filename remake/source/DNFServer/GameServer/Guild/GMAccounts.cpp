@@ -112,6 +112,7 @@ int CGMAccounts::loadGMAccounts(const char* path)
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0016 | guild | 与ORIG差异=NEAR | CGMAccounts::isGM | 详见 function_reports/guild/_ZN8WongWork11CGMAccounts4isGMEj.md
 int CGMAccounts::isGM(unsigned int id)
 {
     stGMInfo_t key = {};

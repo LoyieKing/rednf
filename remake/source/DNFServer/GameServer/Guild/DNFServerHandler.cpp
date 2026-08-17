@@ -147,6 +147,7 @@ void CServerHandler::Load(std::multimap<unsigned int, stServerInfo*>* map)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0025 | guild | 与ORIG差异=DIFF | CServerHandler::Process | 详见 function_reports/guild/_ZN14CServerHandler7ProcessEv.md
 void CServerHandler::Process()
 {
     if (m_managerServer != 0 &&

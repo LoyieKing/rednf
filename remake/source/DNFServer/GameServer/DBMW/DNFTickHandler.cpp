@@ -44,6 +44,7 @@ void CFrameCountHandler::SaveProcess(int n)
         m_field28 = 0;
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0112 | dbmw | 与ORIG差异=DIFF | CFrameCountHandler::InitFrameCountInfo | 详见 function_reports/dbmw/_ZN18CFrameCountHandler18InitFrameCountInfoEP12CApplicationjt.md
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int a, unsigned short b)
 {
     if (a == 0)
@@ -56,6 +57,7 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int a, u
 InitFrameCountInfo_throw:
     throw CDNFException("CFrameCountHandler::InitFrameCountInfo() Exception Break!");
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0111 | dbmw | 与ORIG差异=DIFF | CFrameCountHandler::GetFrameCountInfo | 详见 function_reports/dbmw/_ZN18CFrameCountHandler17GetFrameCountInfoEv.md
 void* CFrameCountHandler::GetFrameCountInfo()
 {
     volatile clock_t dummy0 = 0;

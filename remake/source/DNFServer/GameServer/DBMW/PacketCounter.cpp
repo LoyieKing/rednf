@@ -84,6 +84,7 @@ void CPacketCounter<Lo, Hi>::BeforeProcess()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0081 | dbmw | 与ORIG差异=DIFF | CPacketCounter<1000, 10240>::AfterProcess | 详见 function_reports/dbmw/_ZN14CPacketCounterILi1000ELi10240EE12AfterProcessEi.md
 template<int Lo, int Hi>
 void CPacketCounter<Lo, Hi>::AfterProcess(int id)
 {

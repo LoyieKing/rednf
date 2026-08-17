@@ -284,6 +284,7 @@ void CPowerManager::RewardGuildPowerWarPoint()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0016 | guild | 与ORIG差异=DIFF | CPowerManager::SaveDBPowerWarRank | 详见 function_reports/guild/_ZN13CPowerManager18SaveDBPowerWarRankEv.md
 void CPowerManager::SaveDBPowerWarRank()
 {
     char winnerSide = m_winnerSide;
@@ -522,6 +523,7 @@ void CPowerManager::PrintDebugInfo()
     m_power[2].GetPowerWarGuildInfo()->PrintDebugInfo();
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0017 | guild | 与ORIG差异=DIFF | CPowerManager::SendPowerWarProcessInfo | 详见 function_reports/guild/_ZN13CPowerManager23SendPowerWarProcessInfoEj.md
 void CPowerManager::SendPowerWarProcessInfo(unsigned int charNo)
 {
     CUser* user =
@@ -587,6 +589,7 @@ void CPowerManager::SendPowerWarEndInfo()
     DNF_LOG_SCOPE_LINE(0x41f, "./log/PowerResult", "SEND POWER WAR END INFO END");
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0018 | guild | 与ORIG差异=DIFF | CPowerManager::SendPowerWarEndInfoInSpecificPower | 详见 function_reports/guild/_ZN13CPowerManager34SendPowerWarEndInfoInSpecificPowerEc.md
 void CPowerManager::SendPowerWarEndInfoInSpecificPower(char side)
 {
     DNF_LOG_SCOPE_LINE(0x42a, "./log/Power", "SEND POWER WAR END INFO %d Power START", side);

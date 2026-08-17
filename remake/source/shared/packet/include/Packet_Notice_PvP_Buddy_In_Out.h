@@ -11,21 +11,23 @@
 #pragma pack(push, 1)
 class Packet_Notice_PvP_Buddy_In_Out : public PacketHeader {
 public:
-    int what_0xa;        // offset 0xa
-    int what_0xe;        // offset 0xe
-    char what_0x12;      // offset 0x12
+    int m_characNo;      // offset 0xa（Community CUser::notice_login_logout：接收方 buddy 的 stGameUserInfo.charac_no）
+    int m_uid;           // offset 0xe（notice_login_logout：= 接收方 buddy 的 stGameUserInfo.m_uid
+                         //          （STGameUserInfo offset 0x05），与同族包的 m_uid 字段一致）
+    char m_loginout;     // offset 0x12（notice_login_logout：CUser::eLoginout，0=登录 1=登出）
     char channel_no;      // offset 0x13
     char server_id;      // offset 0x14
-    char buddy_n_user_id_what[30];  // offset 0x15
+    char m_name[30];     // offset 0x15（notice_login_logout：登入/登出者 stGameUserInfo.m_name，
+                         //          memcpy 0x1d）
 
     Packet_Notice_PvP_Buddy_In_Out() : PacketHeader(0x1b62, 0x33) {
         // 初始化行为对齐原始二进制（2026-08-06 反汇编验证）
-        what_0xa = 0;
-        what_0xe = 0;
-        what_0x12 = 0;
+        m_characNo = 0;
+        m_uid = 0;
+        m_loginout = 0;
         channel_no = 0;
         server_id = 0;
-        memset(buddy_n_user_id_what, 0, sizeof(buddy_n_user_id_what));
+        memset(m_name, 0, sizeof(m_name));
     }
 } __attribute__((packed));
 #pragma pack(pop)

@@ -460,6 +460,7 @@ void CGuild::EnableDBSaveFlag()
     m_dBSaveFlag = 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0013 | guild | 与ORIG差异=NEAR | CGuild::SetTodayGuildMember | 详见 function_reports/guild/_ZN6CGuild19SetTodayGuildMemberER18STTodayGuildMember.md
 void CGuild::SetTodayGuildMember(STTodayGuildMember& member)
 {
     this->m_board.m_today = *(const CGuildBoard::TodayMemberBlock*)&member;
@@ -499,6 +500,7 @@ CGuild::~CGuild()
     m_members.clear();
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0113 | guild | 与ORIG差异=DIFF | CGuild::InsertGuildMember | 详见 function_reports/guild/_ZN6CGuild17InsertGuildMemberEjP5CUser.md
 bool CGuild::InsertGuildMember(unsigned int charNo, CUser* user)
 {
     if (user == 0)
@@ -584,6 +586,7 @@ void CGuild::QueryGuild(CServerHandler* handler, unsigned int charNo)
     return;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0146 | guild | 与ORIG差异=DIFF | CGuild::LoadGuild | 详见 function_reports/guild/_ZN6CGuild9LoadGuildER17STGuildDBInfoOnlyPc.md
 void CGuild::LoadGuild(STGuildDBInfoOnly& info, char* name)
 {
     if ((m_guildDBFlag & 4) == 0 && (m_guildDBFlag & 2) != 0)
@@ -627,6 +630,7 @@ void CGuild::SaveGuild(unsigned char flag, CServerHandler* handler, unsigned int
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0117 | guild | 与ORIG差异=DIFF | CGuild::DBGuildSaveProcess | 详见 function_reports/guild/_ZN6CGuild18DBGuildSaveProcessEP14CServerHandler.md
 void CGuild::DBGuildSaveProcess(CServerHandler* handler)
 {
     if (m_dBSaveFlag == 0)
@@ -729,6 +733,7 @@ void CGuild::DBGuildMemberSave(CUser* user, unsigned char flag, CServerHandler* 
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0118 | guild | 与ORIG差异=DIFF | CGuild::DBSaveGuildMembers | 详见 function_reports/guild/_ZN6CGuild18DBSaveGuildMembersEhP14CServerHandlerh.md
 void CGuild::DBSaveGuildMembers(unsigned char flag, CServerHandler* handler, unsigned char param)
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -835,6 +840,7 @@ unsigned int CGuild::GetPowerWarPoint()
     return m_dbInfo.m_info.m_powerWarPoint;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0142 | guild | 与ORIG差异=DIFF | CGuild::NoticeGuildMasterDelegateToMembers | 详见 function_reports/guild/_ZN6CGuild34NoticeGuildMasterDelegateToMembersEPc.md
 void CGuild::NoticeGuildMasterDelegateToMembers(char* name)
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -857,6 +863,7 @@ void CGuild::NoticeGuildMasterDelegateToMembers(char* name)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0124 | guild | 与ORIG差异=DIFF | CGuild::SendGuildInfoToMembers | 详见 function_reports/guild/_ZN6CGuild22SendGuildInfoToMembersEb.md
 void CGuild::SendGuildInfoToMembers(bool flag)
 {
     Packet_Monitor_Notice_Guild_Info pkt;
@@ -884,6 +891,7 @@ void CGuild::SendGuildInfoToMembers(bool flag)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0140 | guild | 与ORIG差异=DIFF | CGuild::SendGuildNameChangeToMembers | 详见 function_reports/guild/_ZN6CGuild28SendGuildNameChangeToMembersEv.md
 void CGuild::SendGuildNameChangeToMembers()
 {
     Packet_Guild_Notice_Guild_Name_Change pkt;
@@ -926,6 +934,7 @@ void CGuild::SendGuildInfoToMemberOnly(CUser* user)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0127 | guild | 与ORIG差异=DIFF | CGuild::SendGuildInfoToManagers | 详见 function_reports/guild/_ZN6CGuild23SendGuildInfoToManagersEv.md
 void CGuild::SendGuildInfoToManagers()
 {
     if ((m_guildDBFlag & 4) != 0)
@@ -953,6 +962,7 @@ void CGuild::SendGuildInfoToManagers()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0119 | guild | 与ORIG差异=DIFF | CGuild::SendToGuildForMail | 详见 function_reports/guild/_ZN6CGuild18SendToGuildForMailEv.md
 void CGuild::SendToGuildForMail()
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -989,6 +999,7 @@ void CGuild::GuildSkillPointUp(unsigned short point)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0110 | guild | 与ORIG差异=DIFF | CGuild::BuyGuildSkill | 详见 function_reports/guild/_ZN6CGuild13BuyGuildSkillEiisj.md
 bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) != 0)
@@ -1055,6 +1066,7 @@ bool CGuild::BuyGuildSkill(int skillId, int slot, short param, unsigned int char
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0109 | guild | 与ORIG差异=DIFF | CGuild::GuildLevelUp | 详见 function_reports/guild/_ZN6CGuild12GuildLevelUpEP14CServerHandlerP5CUser.md
 int CGuild::GuildLevelUp(CServerHandler* handler, CUser* user)
 {
     if (user == 0)
@@ -1120,6 +1132,7 @@ void CGuild::SendToGuild(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0129 | guild | 与ORIG差异=DIFF | CGuild::NoticeEnterToGuildMember | 详见 function_reports/guild/_ZN6CGuild24NoticeEnterToGuildMemberEPc.md
 void CGuild::NoticeEnterToGuildMember(char* info)
 {
     if ((m_guildDBFlag & 4) == 0 && (m_guildDBFlag & 2) == 0)
@@ -1144,6 +1157,7 @@ void CGuild::NoticeEnterToGuildMember(char* info)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0131 | guild | 与ORIG差异=DIFF | CGuild::NoticeSecedeToGuildMember | 详见 function_reports/guild/_ZN6CGuild25NoticeSecedeToGuildMemberEPc.md
 void CGuild::NoticeSecedeToGuildMember(char* info)
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -1167,6 +1181,7 @@ void CGuild::NoticeSecedeToGuildMember(char* info)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0141 | guild | 与ORIG差异=DIFF | CGuild::NoticeMarkChangeToGuildMember | 详见 function_reports/guild/_ZN6CGuild29NoticeMarkChangeToGuildMemberEj.md
 void CGuild::NoticeMarkChangeToGuildMember(unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -1195,6 +1210,7 @@ void CGuild::NoticeMarkChangeToGuildMember(unsigned int charNo)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0139 | guild | 与ORIG差异=DIFF | CGuild::NoticeChatMsgToGuildMembers | 详见 function_reports/guild/_ZN6CGuild27NoticeChatMsgToGuildMembersEjPciPKc.md
 void CGuild::NoticeChatMsgToGuildMembers(unsigned int charNo, char* msg, int len,
                                          const char* name)
 {
@@ -1226,6 +1242,7 @@ void CGuild::NoticeChatMsgToGuildMembers(unsigned int charNo, char* msg, int len
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0145 | guild | 与ORIG差异=DIFF | CGuild::NoticeChatMsgToGuildMembersHyperLink | 详见 function_reports/guild/_ZN6CGuild36NoticeChatMsgToGuildMembersHyperLinkEjPcihPK19hyperlink_item_infoPKc.md
 void CGuild::NoticeChatMsgToGuildMembersHyperLink(unsigned int charNo, char* msg, int len,
                                                   unsigned char type,
                                                   const hyperlink_item_info* link,
@@ -1264,6 +1281,7 @@ void CGuild::NoticeChatMsgToGuildMembersHyperLink(unsigned int charNo, char* msg
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0138 | guild | 与ORIG差异=DIFF | CGuild::DismissGuildMemberAndNotice | 详见 function_reports/guild/_ZN6CGuild27DismissGuildMemberAndNoticeEi.md
 void CGuild::DismissGuildMemberAndNotice(int group)
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -1291,6 +1309,7 @@ void CGuild::DismissGuildMemberAndNotice(int group)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0133 | guild | 与ORIG差异=DIFF | CGuild::NoticeGuildMemberLogin_Out | 详见 function_reports/guild/_ZN6CGuild26NoticeGuildMemberLogin_OutEP5CUserc.md
 void CGuild::NoticeGuildMemberLogin_Out(CUser* user, char flag)
 {
     if (user == 0 || user->GetGameServer() == 0)
@@ -1323,6 +1342,7 @@ void CGuild::NoticeGuildMemberLogin_Out(CUser* user, char flag)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0123 | guild | 与ORIG差异=DIFF | CGuild::ReplyGuildMembersToWeb | 详见 function_reports/guild/_ZN6CGuild22ReplyGuildMembersToWebEP24STGuildMemberWebConnInfo.md
 int CGuild::ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info)
 {
     int count = 0;
@@ -1350,6 +1370,7 @@ int CGuild::ReplyGuildMembersToWeb(STGuildMemberWebConnInfo* info)
     return count;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0114 | guild | 与ORIG差异=DIFF | CGuild::ReplyGuildMembers | 详见 function_reports/guild/_ZN6CGuild17ReplyGuildMembersEP5CUser.md
 void CGuild::ReplyGuildMembers(CUser* user)
 {
     if (user == 0 || (m_guildDBFlag & 4) == 0 || m_members.empty())
@@ -1460,6 +1481,7 @@ void CGuild::QueryUnconnGuildMemberProxy(CServerHandler* handler, unsigned int c
     handler->SendToDB(&pkt);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0120 | guild | 与ORIG差异=DIFF | CGuild::ReplyGuildAllMembers | 详见 function_reports/guild/_ZN6CGuild20ReplyGuildAllMembersEP5CUser.md
 void CGuild::ReplyGuildAllMembers(CUser* user)
 {
     if (user == 0 || (m_guildDBFlag & 4) == 0 || (m_guildDBFlag & 0x10) == 0)
@@ -1468,9 +1490,9 @@ void CGuild::ReplyGuildAllMembers(CUser* user)
     }
     Packet_Monitor_Call_Guild_All_Members_ToChannel pkt;
     char* buf = (char*)&pkt;
-    pkt.m_fieldC = m_guildKey;
+    pkt.m_guildKey = m_guildKey;
     memcpy(buf + 0x16, m_dbInfo.m_info.m_guildName, 0x16);
-    pkt.m_fieldD = m_dbInfo.m_info.m_guildPoint;
+    pkt.m_guildPoint = m_dbInfo.m_info.m_guildPoint;
     pkt.m_totalCnt = m_totalCnt;
     unsigned short total = m_totalCnt;
     int count = 0;
@@ -1621,6 +1643,7 @@ void CGuild::CallGuildAllMembersProxy(CUser* user, CServerHandler* handler)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0128 | guild | 与ORIG差异=DIFF | CGuild::LoadGuildAllMembersProxy | 详见 function_reports/guild/_ZN6CGuild24LoadGuildAllMembersProxyEP18STGuildMemberProxyhh.md
 void CGuild::LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char flag,
                                       unsigned char param)
 {
@@ -1640,6 +1663,7 @@ void CGuild::LoadGuildAllMembersProxy(STGuildMemberProxy* proxy, unsigned char f
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0125 | guild | 与ORIG差异=DIFF | CGuild::LoadGuildOneMemberProxy | 详见 function_reports/guild/_ZN6CGuild23LoadGuildOneMemberProxyEP5CUser.md
 bool CGuild::LoadGuildOneMemberProxy(CUser* user)
 {
     if ((m_guildDBFlag & 4) == 0 || (m_guildDBFlag & 8) == 0)
@@ -1673,6 +1697,7 @@ bool CGuild::LoadGuildOneMemberProxy(CUser* user)
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0126 | guild | 与ORIG差异=DIFF | CGuild::LoadGuildOneMemberProxy | 详见 function_reports/guild/_ZN6CGuild23LoadGuildOneMemberProxyER18STGuildMemberProxy.md
 bool CGuild::LoadGuildOneMemberProxy(STGuildMemberProxy& proxy)
 {
     if ((m_guildDBFlag & 4) == 0 || (m_guildDBFlag & 0x10) == 0)
@@ -1698,6 +1723,7 @@ bool CGuild::LoadGuildOneMemberProxy(STGuildMemberProxy& proxy)
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0111 | guild | 与ORIG差异=DIFF | CGuild::AddGuildMember | 详见 function_reports/guild/_ZN6CGuild14AddGuildMemberER21ST_Notice_Guild_EnterP5CUser.md
 void CGuild::AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user)
 {
     if (user == 0)
@@ -1731,6 +1757,7 @@ void CGuild::AddGuildMember(ST_Notice_Guild_Enter& info, CUser* user)
     m_dbInfo.m_info.m_totalCnt = idx;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0115 | guild | 与ORIG差异=DIFF | CGuild::SecedeProxyMember | 详见 function_reports/guild/_ZN6CGuild17SecedeProxyMemberER22ST_Notice_Guild_Secede.md
 void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
 {
     if ((m_guildDBFlag & 4) != 0 && (m_guildDBFlag & 0x10) != 0 && !m_members.empty())
@@ -1762,6 +1789,7 @@ void CGuild::SecedeProxyMember(ST_Notice_Guild_Secede& info)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0112 | guild | 与ORIG差异=DIFF | CGuild::ChangeGuildMaster | 详见 function_reports/guild/_ZN6CGuild17ChangeGuildMasterEP14CServerHandlerP5CUserj.md
 bool CGuild::ChangeGuildMaster(CServerHandler* handler, CUser* user, unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) == 0 || charNo == 0)
@@ -1801,6 +1829,7 @@ bool CGuild::ChangeGuildName(char* name, int flag)
     return false;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0015 | guild | 与ORIG差异=NEAR | CGuild::ChangeUnconnectedGuildMemberGrade | 详见 function_reports/guild/_ZN6CGuild33ChangeUnconnectedGuildMemberGradeEji.md
 void CGuild::ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade)
 {
     if ((m_guildDBFlag & 4) != 0 && (m_guildDBFlag & 0x10) != 0)
@@ -1817,6 +1846,7 @@ void CGuild::ChangeUnconnectedGuildMemberGrade(unsigned int charNo, int grade)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0014 | guild | 与ORIG差异=NEAR | CGuild::getUnconnectedGuildMemberName | 详见 function_reports/guild/_ZN6CGuild29getUnconnectedGuildMemberNameEj.md
 char* CGuild::getUnconnectedGuildMemberName(unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) != 0)
@@ -1847,6 +1877,7 @@ bool CGuild::IsSubGuildMaster(unsigned int dbid)
     return false;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0116 | guild | 与ORIG差异=DIFF | CGuild::SetSubGuildMaster | 详见 function_reports/guild/_ZN6CGuild17SetSubGuildMasterEjb.md
 void CGuild::SetSubGuildMaster(unsigned int charNo, bool flag)
 {
     if (flag)
@@ -1904,6 +1935,7 @@ void CGuild::SetGuildMessage(char* msg)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0135 | guild | 与ORIG差异=DIFF | CGuild::NotifyMessageToGuildMember | 详见 function_reports/guild/_ZN6CGuild26NotifyMessageToGuildMemberEv.md
 void CGuild::NotifyMessageToGuildMember()
 {
     if ((m_guildDBFlag & 4) != 0)
@@ -1967,6 +1999,7 @@ bool CGuild::InsertGuildMemberChanglableInfo(unsigned int charNo)
     return m_changable.insert(std::make_pair(charNo, info)).second;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0151 | guild | 与ORIG差异=DIFF | CGuild::PopGuildMemberChanglableInfo | 详见 function_reports/guild/_ZNK6CGuild28PopGuildMemberChanglableInfoEjR26STGuildMemberChangableInfo.md
 int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
                                          STGuildMemberChangableInfo& info) const
 {
@@ -1985,6 +2018,7 @@ int CGuild::PopGuildMemberChanglableInfo(unsigned int charNo,
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0137 | guild | 与ORIG差异=DIFF | CGuild::UpdateChangableInfoProcess | 详见 function_reports/guild/_ZN6CGuild26UpdateChangableInfoProcessEv.md
 void CGuild::UpdateChangableInfoProcess()
 {
     if (IsSetGuildDBFlag(4) && IsSetGuildDBFlag(0x10))
@@ -2018,6 +2052,7 @@ bool CGuild::CheckPowerSecedeTime()
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0130 | guild | 与ORIG差异=DIFF | CGuild::ChangeGuildMemberCharName | 详见 function_reports/guild/_ZN6CGuild25ChangeGuildMemberCharNameEjPc.md
 int CGuild::ChangeGuildMemberCharName(unsigned int charNo, char* name)
 {
     bool result = false;
@@ -2063,6 +2098,7 @@ void CGuild::DBSaveGuildMemberUnChangableInfo(CServerHandler* handler, unsigned 
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0121 | guild | 与ORIG差异=DIFF | CGuild::WriteGuildMemberMemo | 详见 function_reports/guild/_ZN6CGuild20WriteGuildMemberMemoEP5CUserPKc.md
 void CGuild::WriteGuildMemberMemo(CUser* user, const char* memo)
 {
     if (user == 0 || memo == 0)
@@ -2164,6 +2200,7 @@ void CGuild::SetGuildAgitInfo(STGuildAgitDBInfo& info)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0136 | guild | 与ORIG差异=DIFF | CGuild::SendGuildAgitInfoToMembers | 详见 function_reports/guild/_ZN6CGuild26SendGuildAgitInfoToMembersEv.md
 void CGuild::SendGuildAgitInfoToMembers()
 {
     Packet_Channel_Guild_Agit_Info pkt;
@@ -2182,6 +2219,7 @@ void CGuild::SendGuildAgitInfoToMembers()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0143 | guild | 与ORIG差异=DIFF | CGuild::NotifyCreateGuildAgitToGuildMember | 详见 function_reports/guild/_ZN6CGuild34NotifyCreateGuildAgitToGuildMemberEj.md
 void CGuild::NotifyCreateGuildAgitToGuildMember(unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -2205,6 +2243,7 @@ void CGuild::NotifyCreateGuildAgitToGuildMember(unsigned int charNo)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0144 | guild | 与ORIG差异=DIFF | CGuild::NotifyDeleteGuildAgitToGuildMember | 详见 function_reports/guild/_ZN6CGuild34NotifyDeleteGuildAgitToGuildMemberEj.md
 void CGuild::NotifyDeleteGuildAgitToGuildMember(unsigned int charNo)
 {
     if ((m_guildDBFlag & 4) == 0)
@@ -2282,6 +2321,7 @@ bool CGuild::IsCompleteGuildFund()
     return false;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0012 | guild | 与ORIG差异=NEAR | CGuild::AddGuildFund | 详见 function_reports/guild/_ZN6CGuild12AddGuildFundEj.md
 void CGuild::AddGuildFund(unsigned int fund)
 {
     if ((m_guildDBFlag & 4) != 0)
@@ -2370,6 +2410,7 @@ unsigned int CGuild::IsAddableGuildFund(unsigned int fund)
     return 0x5f;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0132 | guild | 与ORIG差异=DIFF | CGuild::NotifyAllTodayGuildMember | 详见 function_reports/guild/_ZN6CGuild25NotifyAllTodayGuildMemberEv.md
 void CGuild::NotifyAllTodayGuildMember()
 {
     CUser* user = 0;
@@ -2400,6 +2441,7 @@ void CGuild::NotifyAllTodayGuildMember()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0122 | guild | 与ORIG差异=DIFF | CGuild::NotifyTodayGuildMember | 详见 function_reports/guild/_ZN6CGuild22NotifyTodayGuildMemberEP5CUser.md
 void CGuild::NotifyTodayGuildMember(CUser* user)
 {
     Packet_Notify_Today_Guild_Member pkt;
@@ -2427,6 +2469,7 @@ void CGuild::QueryTodayGuildMember(CServerHandler* handler)
     handler->SendToDB(&pkt);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0134 | guild | 与ORIG差异=DIFF | CGuild::NotifyAllAchieveAttendance | 详见 function_reports/guild/_ZN6CGuild26NotifyAllAchieveAttendanceEjj.md
 void CGuild::NotifyAllAchieveAttendance(unsigned int charNo, unsigned int phase)
 {
     CUser* user = 0;
@@ -2452,6 +2495,7 @@ STGuildSkill::STGuildSkill()
     m4 = 0xff;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0101、DNF-GLD-DIFF-0102 | guild | 与ORIG差异=DIFF | STGuildDBInfoOnly::STGuildDBInfoOnly | 详见 function_reports/guild/_ZN17STGuildDBInfoOnlyC1Ev.md、function_reports/guild/_ZN17STGuildDBInfoOnlyC2Ev.md
 STGuildDBInfoOnly::STGuildDBInfoOnly()
     : m_masterId(0), m_guildLevel(0), m_field1e(0), m_totalCnt(0),
       m_guildPoint(0), m_guildRank(0), m_guildExp(0), m_subMasterCnt(0),

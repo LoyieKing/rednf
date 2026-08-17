@@ -65,6 +65,7 @@ EndEffectTask::EndEffectTask(unsigned int time, unsigned int flag)
 
 EndEffectTask::~EndEffectTask() {}
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0014 | monitor | 与ORIG差异=DIFF | momiji_event::EndEffectTask::_DoExecute | 详见 function_reports/monitor/_ZN12momiji_event13EndEffectTask10_DoExecuteEv.md
 void EndEffectTask::_DoExecute()
 {
     if (m_flag != 0)

@@ -10,8 +10,8 @@
 class Packet_PvPChannelInfo : public PacketHeader {
 public:
     unsigned int m_charNo;          // +0xa  FindUser_CharNo
-    unsigned int m_fieldE;          // +0xe
-    unsigned int m_field12;         // +0x12
+    unsigned int m_uid;             // +0xe  Dispatcher_PvPChannelInfo::dispatch_sig: CUser::GetUID
+    unsigned int m_schoolNo;        // +0x12  dispatch_sig: CUser::GetSchoolNo
     unsigned char m_channelCount;   // +0x16  inbound request
     unsigned char m_count;          // +0x17  reply
     char m_channels[0x17e0];        // +0x18  STPvPChannelInfo[]

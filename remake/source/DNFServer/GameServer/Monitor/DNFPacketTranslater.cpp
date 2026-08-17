@@ -282,6 +282,7 @@ void CPacketTranslater::SendRequestMemberDeleteResult(CUser* user, unsigned char
     user->SendTcpGameserver(&pkt);
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0112 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater7OnLoginEP12PacketHeader.md
 void CPacketTranslater::OnLogin(PacketHeader* pkt)
 {
     if (m_pclApp != 0)
@@ -424,6 +425,7 @@ void CPacketTranslater::OnLogin(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0113 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogout | 详见 function_reports/monitor/_ZN17CPacketTranslater8OnLogoutEP12PacketHeader.md
 void CPacketTranslater::OnLogout(PacketHeader* pkt)
 {
     if (m_pclApp == 0)
@@ -570,6 +572,7 @@ void CPacketTranslater::OnLogout(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0059 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnReplyUserInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater15OnReplyUserInfoEP12PacketHeader.md
 void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
 {
     try
@@ -651,6 +654,7 @@ void CPacketTranslater::OnReplyUserInfo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0053 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnHeartBeat | 详见 function_reports/monitor/_ZN17CPacketTranslater11OnHeartBeatEP12PacketHeader.md
 void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
 {
     Packet_Monitor_UDP_HeartBeat* p = (Packet_Monitor_UDP_HeartBeat*)pkt;
@@ -713,6 +717,7 @@ void CPacketTranslater::OnHeartBeat(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0052 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnCharLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater11OnCharLoginEP12PacketHeader.md
 void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
 {
     if (m_pclApp != 0)
@@ -850,6 +855,7 @@ void CPacketTranslater::OnCharLogin(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0097 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeOtherChannelChatMsg | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnNoticeOtherChannelChatMsgEP12PacketHeader.md
 void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
 {try
 {
@@ -861,34 +867,34 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
     }
     Packet_Monitor_Other_Channel_Chat* chat =
         (Packet_Monitor_Other_Channel_Chat*)pkt;
-    if (chat->what_0x1b != 0 &&
-        (unsigned char)chat->what_0x1b < 0x1e)
+    if (chat->m_buddyNameLen != 0 &&
+        (unsigned char)chat->m_buddyNameLen < 0x1e)
     {
         CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(chat->buddy_n_user_id_what);
-        chat->what_0x17 =
+        chat->m_recverCharId =
             target != 0 ? (int)target->GetUniqCharNo() : (int)0xffffffff;
     }
-    if (chat->what_0x13 == 0 ||
-        chat->what_0x17 == 0 ||
-        chat->chatLength == 0)
+    if (chat->m_characNo == 0 ||
+        chat->m_recverCharId == 0 ||
+        chat->m_msgLen == 0)
     {
         DNF_LOG_SCOPE_LINE(0xb46,"./log/Except",
             "CPacketTranslater::OnNoticeOtherChannelChatMsg, sender(%d), receiver(%d), "
             "msglen(%d)",
-            chat->what_0x13, chat->what_0x17,
-            (unsigned int)(unsigned char)chat->chatLength);
+            chat->m_characNo, chat->m_recverCharId,
+            (unsigned int)(unsigned char)chat->m_msgLen);
         throw CDNFException(
             "CPacketTranslater::OnNoticeOtherChannelChatMsg : packet->m_uSenderCharID &&  "
             "packet->m_uRecverCharID && packet->m_msgLen");
     }
     Packet_Monitor_Other_Channel_Chat_ToUser reply;
-    reply.m_senderCharId = (unsigned int)chat->what_0x0a;
-    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x13);
+    reply.m_senderCharId = (unsigned int)chat->m_chatType;
+    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_characNo);
     if (sender == 0)
     {
         return;
     }
-    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x17);
+    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_recverCharId);
     if (receiver == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
@@ -947,11 +953,11 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
         memcpy(reply.m_name, sender->GetCharName(), 0x1d);
         reply.m_idByChannel = receiver->GetIdByChannel();
         reply.m_uniqCharNo = receiver->GetUniqCharNo();
-        reply.m_msgLen = chat->chatLength;
-        memcpy(reply.m_msg, chat->chatContent,
-               (unsigned int)(unsigned char)chat->chatLength);
+        reply.m_msgLen = chat->m_msgLen;
+        memcpy(reply.m_msg, chat->m_msg,
+               (unsigned int)(unsigned char)chat->m_msgLen);
         reply.packetSize =
-            (unsigned short)((unsigned char)chat->chatLength + 0x37);
+            (unsigned short)((unsigned char)chat->m_msgLen + 0x37);
         receiver->SendToGameserver((char*)&reply, reply.packetSize);
     }
 
@@ -967,6 +973,7 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsg(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0054 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnCeraUpdate | 详见 function_reports/monitor/_ZN17CPacketTranslater12OnCeraUpdateEP12PacketHeader.md
 void CPacketTranslater::OnCeraUpdate(PacketHeader* pkt)
 {try
 {
@@ -1003,6 +1010,7 @@ void CPacketTranslater::OnCeraUpdate(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0067 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnEventItemUpdate | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnEventItemUpdateEP12PacketHeader.md
 void CPacketTranslater::OnEventItemUpdate(PacketHeader* pkt)
 {
     try
@@ -1109,6 +1117,7 @@ end:
     ;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0078 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnRequestMemberEnter | 详见 function_reports/monitor/_ZN17CPacketTranslater20OnRequestMemberEnterEP12PacketHeader.md
 void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
 {try
 {
@@ -1225,6 +1234,7 @@ void CPacketTranslater::OnRequestMemberEnter(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0070 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnMemberEnterReply | 详见 function_reports/monitor/_ZN17CPacketTranslater18OnMemberEnterReplyEP12PacketHeader.md
 void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
 {try
 {
@@ -1411,6 +1421,7 @@ void CPacketTranslater::OnMemberEnterReply(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0056 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnMemberSecede | 详见 function_reports/monitor/_ZN17CPacketTranslater14OnMemberSecedeEP12PacketHeader.md
 void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
 {try
 {
@@ -1520,6 +1531,7 @@ void CPacketTranslater::OnMemberSecede(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0060 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnCallMemberList | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnCallMemberListEP12PacketHeader.md
 void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
 {
     if (m_pclApp != 0)
@@ -1621,6 +1633,7 @@ void CPacketTranslater::OnCallMemberList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0080 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeMemberChatMsg | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnNoticeMemberChatMsgEP12PacketHeader.md
 void CPacketTranslater::OnNoticeMemberChatMsg(PacketHeader* pkt)
 {try
 {
@@ -1667,6 +1680,7 @@ void CPacketTranslater::OnNoticeMemberChatMsg(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0058 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnPayTaxToUpper | 详见 function_reports/monitor/_ZN17CPacketTranslater15OnPayTaxToUpperEP12PacketHeader.md
 void CPacketTranslater::OnPayTaxToUpper(PacketHeader* pkt)
 {
     try
@@ -1781,6 +1795,7 @@ void CPacketTranslater::OnUpdateChangableCharInfo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0062 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnLogoutComplete | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnLogoutCompleteEP12PacketHeader.md
 void CPacketTranslater::OnLogoutComplete(PacketHeader* pkt)
 {try
 {
@@ -1861,6 +1876,7 @@ onend:
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0065 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnCharacterDelete | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnCharacterDeleteEP12PacketHeader.md
 void CPacketTranslater::OnCharacterDelete(PacketHeader* pkt)
 {try
 {
@@ -1972,6 +1988,7 @@ void CPacketTranslater::OnNotifyNewMail(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0075 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebQueryUserState | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnWebQueryUserStateEP12PacketHeader.md
 void CPacketTranslater::OnWebQueryUserState(PacketHeader* pkt)
 {try
 {
@@ -2034,6 +2051,7 @@ void CPacketTranslater::OnNoticeMessage(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0085 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnRelayServerUserCheck | 详见 function_reports/monitor/_ZN17CPacketTranslater22OnRelayServerUserCheckEP12PacketHeader.md
 void CPacketTranslater::OnRelayServerUserCheck(PacketHeader* pkt)
 {try
 {
@@ -2098,6 +2116,7 @@ void CPacketTranslater::OnForbidChat(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0098 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeProhibitConnectUser | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnNoticeProhibitConnectUserEP12PacketHeader.md
 void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
 {
     try
@@ -2108,7 +2127,7 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
                 "CPacketTranslater::OnNoticeProhibitConnectUser : 0 == m_pclApp");
         }
         Packet_Web_Prohibit_User_Connect* pu = (Packet_Web_Prohibit_User_Connect*)pkt;
-        unsigned int dbid = (unsigned int)pu->m_fieldA;
+        unsigned int dbid = (unsigned int)pu->m_id;
         exchange_server::CACHE_CHARACTER_TYPE cacheType;
         if (exchange_server::GetInstanceCacheCharacterMgr()->GetCacheCharacter(dbid,
                                                                                &cacheType) != 0)
@@ -2119,52 +2138,52 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
         }
         bool notPresent =
             (&m_pclApp->m_userManager)->FindUser(dbid) == 0 && (&m_pclApp->m_userManager)->FindProhibitUser(dbid) == 0;
-        pu->m_field11 = notPresent ? 0 : 1;
-        if (pu->m_fieldE == 0)
+        pu->m_bIsConnect = notPresent ? 0 : 1;
+        if (pu->m_flag == 0)
         {
             CDNFProhibitUser* p = (&m_pclApp->m_userManager)->FindProhibitUser(dbid);
             if (p == 0)
             {
                 p = new CDNFProhibitUser;
-                p->SetUserConnectableTime(dbid, (short)pu->m_fieldF, -1, true);
+                p->SetUserConnectableTime(dbid, (short)pu->m_time, -1, true);
                 if ((&m_pclApp->m_userManager)->InsertProhibitUser(dbid, p) != 1)
                 {
                     DNF_LOG_SCOPE_LINE(0x922,"./log/ProhibitUser",
                         "[INSERT_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : "
                         "%s, flag( %d ), time( %d ) \n",
-                        NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
-                        (int)pu->m_fieldF);
+                        NumberToString(dbid, 0), (int)(char)pu->m_flag,
+                        (int)pu->m_time);
                     delete p;
                 }
                 DNF_LOG_SCOPE_LINE(0x926,"./log/ProhibitUser",
                     "[INSERT_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser "
                     "m_id : %s, flag( %d ), time( %d ) \n",
-                    NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
-                    (int)pu->m_fieldF);
+                    NumberToString(dbid, 0), (int)(char)pu->m_flag,
+                    (int)pu->m_time);
             }
             else
             {
                 if (p->GetChannelNo() == -1)
                 {
-                    pu->m_fieldE = 2;
+                    pu->m_flag = 2;
                     pu->packetId = 0x4c9;
-                    pu->m_field12 = (char)m_pclApp->Get_ServerGroup();
+                    pu->m_serverGroup = (char)m_pclApp->Get_ServerGroup();
                     m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->SendTcpPacket(pkt);
                     DNF_LOG_SCOPE_LINE(0x90a,"./log/ProhibitUser",
                         "[ALREADY_INSERT] CPacketTranslater::OnNoticeProhibitConnectUser m_id "
                         ": %s, flag( %d ), time( %d ) \n",
-                        NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
-                        (int)pu->m_fieldF);
+                        NumberToString(dbid, 0), (int)(char)pu->m_flag,
+                        (int)pu->m_time);
                     return;
                 }
                 DNF_LOG_SCOPE_LINE(0x90e,"./log/ProhibitUser",
                     "[ALREADY_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser "
                     "m_id : %s, flag( %d ), time( %d ) \n",
-                    NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
-                    (int)pu->m_fieldF);
+                    NumberToString(dbid, 0), (int)(char)pu->m_flag,
+                    (int)pu->m_time);
             }
             pu->packetId = 0x4c9;
-            pu->m_field12 = (char)m_pclApp->Get_ServerGroup();
+            pu->m_serverGroup = (char)m_pclApp->Get_ServerGroup();
             m_pclApp->Get_ServerHandler()->GetTcpManagerServer()->SendTcpPacket(pkt);
         }
         else
@@ -2174,14 +2193,14 @@ void CPacketTranslater::OnNoticeProhibitConnectUser(PacketHeader* pkt)
                 DNF_LOG_SCOPE_LINE(0x8ef,"./log/ProhibitUser",
                     "[DELETE_ERR] CPacketTranslater::OnNoticeProhibitConnectUser m_id : %s, "
                     "flag( %d ), time( %d ) \n",
-                    NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
-                    (int)pu->m_fieldF);
+                    NumberToString(dbid, 0), (int)(char)pu->m_flag,
+                    (int)pu->m_time);
             }
             DNF_LOG_SCOPE_LINE(0x8f2,"./log/ProhibitUser",
                 "[DELETE_PROHIBIT_USER] CPacketTranslater::OnNoticeProhibitConnectUser m_id : "
                 "%s, flag( %d ), time( %d ) \n",
-                NumberToString(dbid, 0), (int)(char)pu->m_fieldE,
-                (int)pu->m_fieldF);
+                NumberToString(dbid, 0), (int)(char)pu->m_flag,
+                (int)pu->m_time);
         }
     }
     catch (CDNFException& e)
@@ -2236,6 +2255,7 @@ void CPacketTranslater::OnRegisterGM_mid(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0082 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnRegisterToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnRegisterToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
 {try
 {
@@ -2318,6 +2338,7 @@ void CPacketTranslater::OnRegisterToBlackList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0072 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDeleteToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnDeleteToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDeleteToBlackList(PacketHeader* pkt)
 {try
 {
@@ -2410,6 +2431,7 @@ void CPacketTranslater::OnRequestBlackList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0091 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResisterToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater25OnDBMWResisterToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
 {try
 {
@@ -2475,6 +2497,7 @@ void CPacketTranslater::OnDBMWResisterToBlackList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0086 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWDeleteToBlackList | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnDBMWDeleteToBlackListEP12PacketHeader.md
 void CPacketTranslater::OnDBMWDeleteToBlackList(PacketHeader* pkt)
 {try
 {
@@ -2574,6 +2597,7 @@ void CPacketTranslater::SendColletItemsReward(unsigned int charNo, int itemId,
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0104 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDBMWResponseBlackListOnLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater30OnDBMWResponseBlackListOnLoginEP12PacketHeader.md
 void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
 {try
 {
@@ -2624,6 +2648,7 @@ void CPacketTranslater::OnDBMWResponseBlackListOnLogin(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0077 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnExchangeServerInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater20OnExchangeServerInfoEP12PacketHeader.md
 void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
 {
     try
@@ -2663,6 +2688,7 @@ void CPacketTranslater::OnExchangeServerInfo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0089 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeCharLiveOnTenMin | 详见 function_reports/monitor/_ZN17CPacketTranslater24OnNoticeCharLiveOnTenMinEP12PacketHeader.md
 void CPacketTranslater::OnNoticeCharLiveOnTenMin(PacketHeader* pkt)
 {
     try
@@ -2829,6 +2855,7 @@ void CPacketTranslater::OnAddBuddy(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0064 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnAddBuddyDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnAddBuddyDBReplyEP12PacketHeader.md
 void CPacketTranslater::OnAddBuddyDBReply(PacketHeader* pkt)
 {
     try
@@ -2940,6 +2967,7 @@ void CPacketTranslater::OnDelBuddy(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0066 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnDelBuddyDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater17OnDelBuddyDBReplyEP12PacketHeader.md
 void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
 {
     try
@@ -2991,6 +3019,7 @@ void CPacketTranslater::OnDelBuddyDBReply(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0087 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnQueryBuddyInfoDBReply | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnQueryBuddyInfoDBReplyEP12PacketHeader.md
 void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
 {
     try
@@ -3043,6 +3072,7 @@ void CPacketTranslater::OnQueryBuddyInfoDBReply(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0088 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebChangeUserHandicap | 详见 function_reports/monitor/_ZN17CPacketTranslater23OnWebChangeUserHandicapEP12PacketHeader.md
 void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
 {
     PacketHeader* pktLocal = pkt;
@@ -3066,6 +3096,7 @@ void CPacketTranslater::OnWebChangeUserHandicap(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0055 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnGMRequestMid | 详见 function_reports/monitor/_ZN17CPacketTranslater14OnGMRequestMidEP12PacketHeader.md
 void CPacketTranslater::OnGMRequestMid(PacketHeader* pkt)
 {try
 {
@@ -3114,6 +3145,7 @@ end:
     ;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0084 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnUserRepelByCharName | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnUserRepelByCharNameEP12PacketHeader.md
 void CPacketTranslater::OnUserRepelByCharName(PacketHeader* pkt)
 {try
 {
@@ -3153,6 +3185,7 @@ void CPacketTranslater::OnUserRepelByCharName(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0090 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onReplyLoadTowerFullRank | 详见 function_reports/monitor/_ZN17CPacketTranslater24onReplyLoadTowerFullRankEP12PacketHeader.md
 void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
 {
     try
@@ -3187,6 +3220,7 @@ void CPacketTranslater::onReplyLoadTowerFullRank(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0106 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onRequestCharacTowerUpdateRank | 详见 function_reports/monitor/_ZN17CPacketTranslater30onRequestCharacTowerUpdateRankEP12PacketHeader.md
 void CPacketTranslater::onRequestCharacTowerUpdateRank(PacketHeader* pkt)
 {try
 {
@@ -3255,6 +3289,7 @@ void CPacketTranslater::onWebReqReloadAutoPunishRule(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0069 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnInnerPacketLogin | 详见 function_reports/monitor/_ZN17CPacketTranslater18OnInnerPacketLoginEP12PacketHeader.md
 void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
 {
     try
@@ -3324,6 +3359,7 @@ void CPacketTranslater::OnInnerPacketLogin(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0073 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnInnerPacketLogout | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnInnerPacketLogoutEP12PacketHeader.md
 void CPacketTranslater::OnInnerPacketLogout(PacketHeader* pkt)
 {
     try
@@ -3457,6 +3493,7 @@ void CPacketTranslater::onLoadBlackIPMonitorDeleteIP(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0061 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnChangeCharName | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnChangeCharNameEP12PacketHeader.md
 void CPacketTranslater::OnChangeCharName(PacketHeader* pkt)
 {
     try
@@ -3523,6 +3560,7 @@ void CPacketTranslater::OnNotifyAuctionMail(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0008 | monitor | 与ORIG差异=NEAR | CPacketTranslater::OnPvPChannelInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnPvPChannelInfoEP12PacketHeader.md
 void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
 {
     try
@@ -3533,19 +3571,19 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
         {
             Packet_PvPChannelUserCount pkt2;
             pkt2.m_charNo = info->m_charNo;
-            pkt2.m_fieldE = info->m_fieldE;
-            pkt2.m_field12 = info->m_field12;
+            pkt2.m_uid = info->m_uid;
+            pkt2.m_schoolNo = info->m_schoolNo;
             unsigned int sg = m_pclApp->Get_ServerGroup();
             (void)sg;
             int count = m_pclApp->m_serverHandler2->SendAllTcpGameServer(
                 &pkt2, (int)(unsigned char)info->m_channelCount);
             user->ResetChannelUserCount(count);
-            if (count == 0 || (int)info->m_field12 == 0)
+            if (count == 0 || (int)info->m_schoolNo == 0)
             {
                 Packet_PvPChannelInfo reply;
                 reply.m_charNo = info->m_charNo;
-                reply.m_fieldE = info->m_fieldE;
-                reply.m_field12 = info->m_field12;
+                reply.m_uid = info->m_uid;
+                reply.m_schoolNo = info->m_schoolNo;
                 reply.m_count = 0;
                 reply.packetSize =
                     (unsigned short)((reply.m_count << 4) + 0x18);
@@ -3559,6 +3597,7 @@ void CPacketTranslater::OnPvPChannelInfo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0081 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnPvPChannelUserCount | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnPvPChannelUserCountEP12PacketHeader.md
 void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
 {
     try
@@ -3574,8 +3613,8 @@ void CPacketTranslater::OnPvPChannelUserCount(PacketHeader* pkt)
             {
                 Packet_PvPChannelInfo reply;
                 reply.m_charNo = cnt->m_charNo;
-                reply.m_fieldE = cnt->m_fieldE;
-                reply.m_field12 = cnt->m_field12;
+                reply.m_uid = cnt->m_uid;
+                reply.m_schoolNo = cnt->m_schoolNo;
                 reply.m_count = 0xff;
                 user->GetChannelUserCount((STPvPChannelInfo*)reply.m_channels, reply.m_count);
                 reply.packetSize =
@@ -3705,6 +3744,7 @@ void CPacketTranslater::onIPCounterControl(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0101 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onItemLimitEditionLoadDataReq | 详见 function_reports/monitor/_ZN17CPacketTranslater29onItemLimitEditionLoadDataReqEP12PacketHeader.md
 void CPacketTranslater::onItemLimitEditionLoadDataReq(PacketHeader* pkt)
 {
     try
@@ -3758,6 +3798,7 @@ void CPacketTranslater::onItemLimitEditionLoadDataReq(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0102 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onItemLimitEditionLoadDataRpy | 详见 function_reports/monitor/_ZN17CPacketTranslater29onItemLimitEditionLoadDataRpyEP12PacketHeader.md
 void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
 {
     try
@@ -3837,6 +3878,7 @@ void CPacketTranslater::onItemLimitEditionLoadDataRpy(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0092 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onItemLimitEditionSellEnd | 详见 function_reports/monitor/_ZN17CPacketTranslater25onItemLimitEditionSellEndEP12PacketHeader.md
 void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
 {
     try
@@ -3889,6 +3931,7 @@ void CPacketTranslater::onItemLimitEditionSellEnd(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0110 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onItemLimitEditionBuyableRequest | 详见 function_reports/monitor/_ZN17CPacketTranslater32onItemLimitEditionBuyableRequestEP12PacketHeader.md
 void CPacketTranslater::onItemLimitEditionBuyableRequest(PacketHeader* pkt)
 {
     try
@@ -3952,6 +3995,7 @@ void CPacketTranslater::onItemLimitEditionBuyableRequest(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0095 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnMonitorFindFactoryHubUser | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnMonitorFindFactoryHubUserEP12PacketHeader.md
 void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
 {try
 {
@@ -3986,7 +4030,7 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
                 strncpy(reply.m_name, find->m_name,
                         (unsigned int)(unsigned char)find->m_nameLen);
                 reply.m_field2e = find->m_field2e;
-                reply.m_field30 = find->m_field30;
+                reply.m_field30 = find->m_accId;
                 reply.packetSize = 0x34;
                 userA->SendToGameserver((char*)&reply, 0x34);
             }
@@ -3996,7 +4040,7 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
                 reply.m_found = 1;
                 reply.m_nameLen = 0;
                 reply.m_field2e = find->m_field2e;
-                reply.m_field30 = find->m_field30;
+                reply.m_field30 = find->m_accId;
                 reply.packetSize = 0x34;
                 userB->SendToGameserver((char*)&reply, 0x34);
             }
@@ -4019,6 +4063,7 @@ void CPacketTranslater::OnMonitorFindFactoryHubUser(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0071 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnSetCleanPadPoint | 详见 function_reports/monitor/_ZN17CPacketTranslater18OnSetCleanPadPointEP12PacketHeader.md
 void CPacketTranslater::OnSetCleanPadPoint(PacketHeader* pkt)
 {
     try
@@ -4125,6 +4170,7 @@ void CPacketTranslater::OnResponseFullIPCounterList(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0063 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnTakeScreenShot | 详见 function_reports/monitor/_ZN17CPacketTranslater16OnTakeScreenShotEP12PacketHeader.md
 void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
 {
     try
@@ -4161,6 +4207,7 @@ void CPacketTranslater::OnTakeScreenShot(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0099 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnVillageMonsterFightResult | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnVillageMonsterFightResultEP12PacketHeader.md
 void CPacketTranslater::OnVillageMonsterFightResult(PacketHeader* pkt)
 {try
 {
@@ -4251,6 +4298,7 @@ void CPacketTranslater::OnSetARSInfo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0076 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebRequestARSInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnWebRequestARSInfoEP12PacketHeader.md
 void CPacketTranslater::OnWebRequestARSInfo(PacketHeader* pkt)
 {try
 {
@@ -4282,6 +4330,7 @@ void CPacketTranslater::OnWebRequestARSInfo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0094 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnCheckOverlappedAccusation | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnCheckOverlappedAccusationEP12PacketHeader.md
 void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
 {
     Packet_Check_Overlapped_Accusation* acc =
@@ -4305,6 +4354,7 @@ void CPacketTranslater::OnCheckOverlappedAccusation(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0068 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnGameServerRegist | 详见 function_reports/monitor/_ZN17CPacketTranslater18OnGameServerRegistEP12PacketHeader.md
 void CPacketTranslater::OnGameServerRegist(PacketHeader* pkt)
 {
     Packet_Game_Server_Regist* regist = (Packet_Game_Server_Regist*)pkt;
@@ -4583,6 +4633,7 @@ void CPacketTranslater::OnRegisterEventUserIdx(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0074 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnRegisterEventItem | 详见 function_reports/monitor/_ZN17CPacketTranslater19OnRegisterEventItemEP12PacketHeader.md
 void CPacketTranslater::OnRegisterEventItem(PacketHeader* pkt)
 {
     try
@@ -4688,6 +4739,7 @@ void CPacketTranslater::OnGameMonitorGMVillageAttacked(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0079 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnMonitorPunishCancel | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnMonitorPunishCancelEP12PacketHeader.md
 void CPacketTranslater::OnMonitorPunishCancel(PacketHeader* pkt)
 {
     try
@@ -4767,6 +4819,7 @@ void CPacketTranslater::OnBroadcastMsg(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0096 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnMonitorSecuServiceConnWeb | 详见 function_reports/monitor/_ZN17CPacketTranslater27OnMonitorSecuServiceConnWebEP12PacketHeader.md
 void CPacketTranslater::OnMonitorSecuServiceConnWeb(PacketHeader* pkt)
 {
     try
@@ -4822,6 +4875,7 @@ void CPacketTranslater::OnResetTODAPCInfo(PacketHeader* pkt)
     char buf[0x20];
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0105 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeMemberChatMsgHyperLink | 详见 function_reports/monitor/_ZN17CPacketTranslater30OnNoticeMemberChatMsgHyperLinkEP12PacketHeader.md
 void CPacketTranslater::OnNoticeMemberChatMsgHyperLink(PacketHeader* pkt)
 {try
 {
@@ -4870,6 +4924,7 @@ void CPacketTranslater::OnNoticeMemberChatMsgHyperLink(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0111 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink | 详见 function_reports/monitor/_ZN17CPacketTranslater36OnNoticeOtherChannelChatMsgHyperLinkEP12PacketHeader.md
 void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
 {try
 {
@@ -4882,44 +4937,44 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
     }
     Packet_Monitor_Other_Channel_Chat_Hyper_Link* chat =
         (Packet_Monitor_Other_Channel_Chat_Hyper_Link*)pkt;
-    if (chat->what_0x1b != 0 &&
-        (unsigned char)chat->what_0x1b < 0x1e)
+    if (chat->m_buddyNameLen != 0 &&
+        (unsigned char)chat->m_buddyNameLen < 0x1e)
     {
         CUser* target = (&m_pclApp->m_userManager)->FindUser_CharName(chat->buddy_n_user_id_what);
-        chat->what_0x17 =
+        chat->m_recverCharId =
             target != 0 ? (int)target->GetUniqCharNo() : (int)0xffffffff;
     }
-    if (chat->what_0x13 == 0 ||
-        chat->what_0x17 == 0 ||
-        chat->what_0x173 == 0)
+    if (chat->m_characNo == 0 ||
+        chat->m_recverCharId == 0 ||
+        chat->m_msgLen == 0)
     {
         DNF_LOG_SCOPE_LINE(0x1d71,"./log/Except",
             "CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink, sender(%d), "
             "receiver(%d), msglen(%d)",
-            chat->what_0x13, chat->what_0x17,
-            (unsigned int)(unsigned char)chat->what_0x173);
+            chat->m_characNo, chat->m_recverCharId,
+            (unsigned int)(unsigned char)chat->m_msgLen);
         throw CDNFException(
             "CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink : packet->m_uSenderCharID "
             "&&  packet->m_uRecverCharID && packet->m_msgLen");
     }
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link reply;
-    reply.m_senderCharId = (unsigned int)chat->what_0x0a;
-    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x13);
+    reply.m_senderCharId = (unsigned int)chat->m_chatType;
+    CUser* sender = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_characNo);
     if (sender == 0)
     {
         return;
     }
-    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->what_0x17);
+    CUser* receiver = (&m_pclApp->m_userManager)->FindUser_CharNo((unsigned int)chat->m_recverCharId);
     if (receiver == 0)
     {
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         memcpy(reply.m_name, chat->buddy_n_user_id_what, 0x1d);
         reply.m_type = 1;
-        reply.m_itemCount = chat->what_0x3a;
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->what_0x3a; i++)
+        reply.m_itemCount = chat->m_itemCount;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->m_itemCount; i++)
         {
-            memcpy(reply.m_items[i], chat->what_0x3b[i], 0x68);
+            memcpy(reply.m_items[i], chat->m_items[i], 0x68);
         }
         reply.packetSize = 0x170;
         sender->SendToGameserver((char*)&reply, 0x170);
@@ -4941,10 +4996,10 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         reply.m_type = 2;
-        reply.m_itemCount = chat->what_0x3a;
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->what_0x3a; i++)
+        reply.m_itemCount = chat->m_itemCount;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->m_itemCount; i++)
         {
-            memcpy(reply.m_items[i], chat->what_0x3b[i], 0x68);
+            memcpy(reply.m_items[i], chat->m_items[i], 0x68);
         }
         memcpy(reply.m_name, chat->buddy_n_user_id_what, 0x1d);
         reply.packetSize = 0x170;
@@ -4969,10 +5024,10 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         reply.m_idByChannel = sender->GetIdByChannel();
         reply.m_uniqCharNo = sender->GetUniqCharNo();
         reply.m_type = 3;
-        reply.m_itemCount = chat->what_0x3a;
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->what_0x3a; i++)
+        reply.m_itemCount = chat->m_itemCount;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->m_itemCount; i++)
         {
-            memcpy(reply.m_items[i], chat->what_0x3b[i], 0x68);
+            memcpy(reply.m_items[i], chat->m_items[i], 0x68);
         }
         memcpy(reply.m_name, chat->buddy_n_user_id_what, 0x1d);
         reply.packetSize = 0x170;
@@ -4983,16 +5038,16 @@ void CPacketTranslater::OnNoticeOtherChannelChatMsgHyperLink(PacketHeader* pkt)
         memcpy(reply.m_name, sender->GetCharName(), 0x1d);
         reply.m_idByChannel = receiver->GetIdByChannel();
         reply.m_uniqCharNo = receiver->GetUniqCharNo();
-        reply.m_itemCount = chat->what_0x3a;
-        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->what_0x3a; i++)
+        reply.m_itemCount = chat->m_itemCount;
+        for (int i = 0; i < (int)(unsigned int)(unsigned char)chat->m_itemCount; i++)
         {
-            memcpy(reply.m_items[i], chat->what_0x3b[i], 0x68);
+            memcpy(reply.m_items[i], chat->m_items[i], 0x68);
         }
-        reply.m_msgLen = chat->what_0x173;
-        memcpy(reply.m_msg, chat->what_0x174,
-               (unsigned int)(unsigned char)chat->what_0x173);
+        reply.m_msgLen = chat->m_msgLen;
+        memcpy(reply.m_msg, chat->m_msg,
+               (unsigned int)(unsigned char)chat->m_msgLen);
         reply.packetSize =
-            (unsigned short)((unsigned char)chat->what_0x173 + 0x170);
+            (unsigned short)((unsigned char)chat->m_msgLen + 0x170);
         receiver->SendToGameserver((char*)&reply, reply.packetSize);
     }
 
@@ -5039,6 +5094,7 @@ void CPacketTranslater::onSocialEventRewardItemRequest(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0109 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemResponse | 详见 function_reports/monitor/_ZN17CPacketTranslater31onSocialEventRewardItemResponseEP12PacketHeader.md
 void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
 {
     try
@@ -5076,6 +5132,7 @@ void CPacketTranslater::onSocialEventRewardItemResponse(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0100 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemInfo | 详见 function_reports/monitor/_ZN17CPacketTranslater27onSocialEventRewardItemInfoEP12PacketHeader.md
 void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
 {
     try
@@ -5124,6 +5181,7 @@ void CPacketTranslater::onSocialEventRewardItemInfo(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0107 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemInfoAll | 详见 function_reports/monitor/_ZN17CPacketTranslater30onSocialEventRewardItemInfoAllEP12PacketHeader.md
 void CPacketTranslater::onSocialEventRewardItemInfoAll(PacketHeader* pkt)
 {
     try
@@ -5162,6 +5220,7 @@ void CPacketTranslater::onSocialEventRewardItemInfoAll(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0103 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onSocialEventRewardItemUpdate | 详见 function_reports/monitor/_ZN17CPacketTranslater29onSocialEventRewardItemUpdateEP12PacketHeader.md
 void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
 {
     try
@@ -5201,6 +5260,7 @@ void CPacketTranslater::onSocialEventRewardItemUpdate(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0108 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onRequestCharacInfoByCharacName | 详见 function_reports/monitor/_ZN17CPacketTranslater31onRequestCharacInfoByCharacNameEP12PacketHeader.md
 void CPacketTranslater::onRequestCharacInfoByCharacName(PacketHeader* pkt)
 {
     CUser* requester;
@@ -5275,6 +5335,7 @@ void CPacketTranslater::OnWebNoticeInGameAD(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0057 | monitor | 与ORIG差异=DIFF | CPacketTranslater::onCollectItems | 详见 function_reports/monitor/_ZN17CPacketTranslater14onCollectItemsEP12PacketHeader.md
 void CPacketTranslater::onCollectItems(PacketHeader* pkt)
 {
     try
@@ -5289,15 +5350,15 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
         {
             if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current == 0)
             {
-                SendColletItemsReward(req->m_charNo, req->m_idByChannel, req->m_name,
+                SendColletItemsReward(req->m_accId, req->m_idByChannel, req->m_name,
                                       (int)req->m_nameLen, TimeGateRewardType::TYPE_0);
             }
             else
             {
-                if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current + req->m_add >=
+                if (((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current + req->m_itemCount >=
                     ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_total)
                 {
-                    SendColletItemsReward(req->m_charNo, req->m_idByChannel, req->m_name,
+                    SendColletItemsReward(req->m_accId, req->m_idByChannel, req->m_name,
                                           (int)req->m_nameLen, TimeGateRewardType::TYPE_2);
                     ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_time =
                         (long)time(0);
@@ -5307,16 +5368,16 @@ void CPacketTranslater::onCollectItems(PacketHeader* pkt)
                     if ((((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current -
                          ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current % 0x14) + 0x14 <=
                         ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +
-                            req->m_add)
+                            req->m_itemCount)
                     {
-                        SendColletItemsReward(req->m_charNo, req->m_idByChannel, req->m_name,
+                        SendColletItemsReward(req->m_accId, req->m_idByChannel, req->m_name,
                                               (int)req->m_nameLen, TimeGateRewardType::TYPE_1);
                     }
                 }
             }
             ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current =
                 ((MonitorCollectItemsState*)m_pclApp->getCollectItems())->m_current +
-                req->m_add;
+                req->m_itemCount;
         }
     }
     catch (CDNFException& e)
@@ -5414,6 +5475,7 @@ void CPacketTranslater::OnPcRoomPlayTimeReward(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0093 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnWebEmergencyPatchMessage | 详见 function_reports/monitor/_ZN17CPacketTranslater26OnWebEmergencyPatchMessageEP12PacketHeader.md
 void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
 {
     try
@@ -5460,6 +5522,7 @@ void CPacketTranslater::OnWebEmergencyPatchMessage(PacketHeader* pkt)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0083 | monitor | 与ORIG差异=DIFF | CPacketTranslater::OnUpdateMiniCraneSeed | 详见 function_reports/monitor/_ZN17CPacketTranslater21OnUpdateMiniCraneSeedEP12PacketHeader.md
 void CPacketTranslater::OnUpdateMiniCraneSeed(PacketHeader* pkt)
 {
     try

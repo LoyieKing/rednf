@@ -80,6 +80,7 @@ bool CAppConfig::DecryptValue(const char* value, char* dst)
         m_cipher.Decrypt(b2, b1, 0x18); \
         memcpy(m_dbConnInfo[i].m_pass, b1, strlen(b1)); }
 
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0002 | dbmw | 与ORIG差异=DIFF | CAppConfig::Parse_Table | 详见 function_reports/dbmw/_ZN10CAppConfig11Parse_TableEPci.md
 bool CAppConfig::Parse_Table(char* data, int size)
 {
     if (data[0] == '#')

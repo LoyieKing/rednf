@@ -203,6 +203,7 @@ dnf_service(game
         ${SVC_DIR}/CListTables.cpp
         ${SVC_DIR}/AvatarCoin.cpp
         ${SVC_DIR}/Arad_AvatarRoulette.cpp
+        ${SVC_DIR}/CDungeonGainedGold.cpp
         ${SVC_DIR}/GameStubs.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"

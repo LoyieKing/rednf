@@ -59,6 +59,7 @@ char CDNFProhibitUser::GetChannelNo() { return m_channel; }
 
 char CDNFProhibitUser::fromWeb() { return m_flag; }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0042 | monitor | 与ORIG差异=DIFF | CDNFProhibitUser::SetUserConnectableTime | 详见 function_reports/monitor/_ZN16CDNFProhibitUser22SetUserConnectableTimeEjscb.md
 void CDNFProhibitUser::SetUserConnectableTime(unsigned int dbid, short time, char channel,
                                               bool flag)
 {

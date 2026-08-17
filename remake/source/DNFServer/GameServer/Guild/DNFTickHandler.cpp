@@ -73,6 +73,7 @@ CFrameCountHandler::CFrameCountHandler()
     m_app = 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0010 | guild | 与ORIG差异=NEAR | CFrameCountHandler::InitFrameCountInfo | 详见 function_reports/guild/_ZN18CFrameCountHandler18InitFrameCountInfoEP12CApplicationjt.md
 void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int value,
                                             unsigned short tick)
 {
@@ -89,6 +90,7 @@ void CFrameCountHandler::InitFrameCountInfo(CApplication* app, unsigned int valu
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0103 | guild | 与ORIG差异=DIFF | CFrameCountHandler::GetFrameCountInfo | 详见 function_reports/guild/_ZN18CFrameCountHandler17GetFrameCountInfoEv.md
 CFrameCountHandler* CFrameCountHandler::GetFrameCountInfo()
 {
     struct tms t;

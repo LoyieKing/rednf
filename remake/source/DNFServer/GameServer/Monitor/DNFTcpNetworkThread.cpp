@@ -69,6 +69,7 @@ void CTcpNetworkThread::attach(CTcpNetSystem* net)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0114 | monitor | 与ORIG差异=DIFF | CTcpNetworkThread::dispatch | 详见 function_reports/monitor/_ZN17CTcpNetworkThread8dispatchEPv.md
 void CTcpNetworkThread::dispatch(void* param)
 {
     CPeer* peer = 0;

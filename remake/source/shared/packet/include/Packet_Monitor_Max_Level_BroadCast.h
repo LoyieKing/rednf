@@ -10,11 +10,11 @@
 
 class Packet_Monitor_Max_Level_BroadCast : public PacketHeader {
 public:
-    char m_fielda[0x1e];  // +a..+27（ctor memset 区域）
+    char m_name[0x1e];  // +0xa..+0x27  _check_level_up/SetCharacLevel: strncpy(getCurCharacName, 0x1e)
 
     Packet_Monitor_Max_Level_BroadCast() : PacketHeader(0x177e, 0x28)
     {
-    memset(m_fielda, 0, sizeof(m_fielda));
+    memset(m_name, 0, sizeof(m_name));
     }
 } __attribute__((packed));
 TEST_CLASS_SIZE(Packet_Monitor_Max_Level_BroadCast, 0x28);

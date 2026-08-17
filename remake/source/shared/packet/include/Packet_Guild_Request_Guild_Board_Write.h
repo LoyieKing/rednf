@@ -10,14 +10,14 @@
 
 class Packet_Guild_Request_Guild_Board_Write : public PacketHeader {
 public:
-    unsigned int m_guildKey;    // +0xa
-    unsigned int m_boardNo;     // +0xe
-    unsigned int m_charNo;      // +0x12
-    unsigned char m_field16;    // +0x16
-    unsigned char m_field17;    // +0x17
-    char m_info[0x78];          // +0x18
+    unsigned int m_guildKey;    // +0xa（SendGuildBoardWrite param_6 = CUserCharacInfo::get_charac_guildkey）
+    unsigned int m_boardNo;     // +0xe（SendGuildBoardWrite param_2 = CUser::get_acc_id → 实为 accId；旧名保留因 .cpp 引用未同步）
+    unsigned int m_charNo;      // +0x12（SendGuildBoardWrite param_3 = CUserCharacInfo::getCurCharacNo）
+    unsigned char m_job;        // +0x16（SendGuildBoardWrite param_4 = CUserCharacInfo::get_charac_job）
+    unsigned char m_growType;   // +0x17（SendGuildBoardWrite param_5 = CUserCharacInfo::getCurCharacGrowType）
+    char m_info[0x78];          // +0x18（公告内容；SendGuildBoardWrite param_1，memcpy 0x78）
     Packet_Guild_Request_Guild_Board_Write() : PacketHeader(0x232d, 0x90),
-        m_guildKey(0), m_boardNo(0), m_charNo(0), m_field16(255), m_field17(255)
+        m_guildKey(0), m_boardNo(0), m_charNo(0), m_job(255), m_growType(255)
     {
     memset(m_info, 0, sizeof(m_info));
     };

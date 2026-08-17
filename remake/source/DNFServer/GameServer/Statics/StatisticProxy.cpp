@@ -292,15 +292,10 @@ int initialize()
 
 void addStatisticProxy(StatisticsPacket* packet)
 {
-    char* p = (char*)packet + 0xa;
-#pragma pack(push,1)
-    struct PktLayout
-    {
-        char pad[0x85];
-        unsigned int value;
-    };
-#pragma pack(pop)
-    getStatisticProxy()->add((char*)packet + 0x2b, ((PktLayout*)packet)->value, (char*)packet + 0x4c, p);
+    // 与发送端 statistc_proxy::add(table, field, value, fmt, ...) 对应：
+    // name=+0x2b（列名）、value=+0x85、key=+0x4c（条件值）、table=+0xa（表名）
+    getStatisticProxy()->add(packet->m_fieldName, packet->m_value, packet->m_key,
+                             packet->m_tableName);
 }
 
 void sendDBStatisticProxy()

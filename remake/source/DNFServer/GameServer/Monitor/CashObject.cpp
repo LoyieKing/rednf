@@ -100,6 +100,7 @@ void CCashObject::DeleteMemberObject()
     m_memberObject = 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0003 | monitor | 与ORIG差异=NEAR | CCashObject::GetBuddysObject | 详见 function_reports/monitor/_ZN11CCashObject15GetBuddysObjectEPP6CBuddy.md
 int CCashObject::GetBuddysObject(CBuddy** buddies)
 {
     int i = 0;

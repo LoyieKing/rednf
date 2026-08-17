@@ -13,15 +13,15 @@ class Packet_Update_PvP_Buddy : public PacketHeader {
 public:
     char server_id;       // offset 10
     int charac_no;        // offset 0xb
-    char variable_what1;  // offset 0xf
-    char variable_what2;  // offset 0x10
+    char m_level;         // offset 0xf（Community db_update_buddy：= stGameUserInfo.m_level）
+    char m_growType;      // offset 0x10（Community db_update_buddy：= stGameUserInfo.m_growType）
 
     Packet_Update_PvP_Buddy() : PacketHeader(0x1b65, 0x11) {
         // 初始化行为对齐原始二进制（2026-08-06 反汇编验证）
         server_id = 0;
         charac_no = 0;
-        variable_what1 = 0;
-        variable_what2 = 0;
+        m_level = 0;
+        m_growType = 0;
     }
 } __attribute__((packed));
 #pragma pack(pop)

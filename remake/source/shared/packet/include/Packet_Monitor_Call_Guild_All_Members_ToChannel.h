@@ -12,18 +12,20 @@
 class Packet_Monitor_Call_Guild_All_Members_ToChannel : public PacketHeader {
 public:
     Packet_Monitor_Call_Guild_All_Members_ToChannel() : PacketHeader(0x424, 0x17d4),
-        m_fieldA(0xffffffff), m_fieldB(0), m_fieldC(0), m_fieldD(0), m_fieldE(0)
+        m_channel(0xffffffff), m_charNo(0), m_guildKey(0), m_guildPoint(0), m_count(0)
     {
         memset((char*)this + 0x16, 0, 0x17);
     }
-    unsigned int m_fieldA;            // +0xa
-    unsigned int m_fieldB;            // +0xe
-    unsigned int m_fieldC;            // +0x12
-    char m_field16[0x17];             // +0x16..+0x2c
-    unsigned int m_fieldD;            // +0x2d
-    unsigned short m_totalCnt;        // +0x31
-    unsigned char m_fieldE;           // +0x33
+    unsigned int m_channel;           // +0xa  df_guild_r ReplyGuildAllMembers: user->GetIdByChannel
+    unsigned int m_charNo;            // +0xe  user->GetUniqCharNo
+    unsigned int m_guildKey;          // +0x12  m_guildKey
+    char m_guildName[0x17];           // +0x16..+0x2c  memcpy(m_dbInfo.m_info.m_guildName, 0x16)
+    unsigned int m_guildPoint;        // +0x2d  m_dbInfo.m_info.m_guildPoint
+    unsigned short m_totalCnt;        // +0x31  公会成员总数
+    unsigned char m_count;            // +0x33  本批成员数（count）
     ST_Guild_Mem_Info m_members[96];  // +0x34
 } __attribute__((packed));
+
+TEST_CLASS_SIZE(Packet_Monitor_Call_Guild_All_Members_ToChannel, 0x17d4);
 
 #endif  // PACKET_MONITOR_CALL_GUILD_ALL_MEMBERS_TO_CHANNEL_H

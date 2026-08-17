@@ -52,6 +52,7 @@ void CTcpAcceptThread::attach(CTcpNetSystem* net)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0044 | monitor | 与ORIG差异=DIFF | CTcpAcceptThread::dispatch | 详见 function_reports/monitor/_ZN16CTcpAcceptThread8dispatchEPv.md
 void CTcpAcceptThread::dispatch(void* param)
 {
     try

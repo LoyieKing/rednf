@@ -69,6 +69,7 @@ unsigned char CServerHandler::GetServerGroupNo()
     return m_app->Get_ServerGroup();
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0038 | monitor | 与ORIG差异=DIFF | CServerHandler::Process | 详见 function_reports/monitor/_ZN14CServerHandler7ProcessEv.md
 void CServerHandler::Process()
 {
     if (m_managerServer != 0 && m_managerHeartbeatCnt++ > 3)
@@ -220,6 +221,7 @@ void* CServerHandler::GetTcpGameServer(unsigned int id)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0037 | monitor | 与ORIG差异=DIFF | CServerHandler::GetTcpGameServerByCh | 详见 function_reports/monitor/_ZN14CServerHandler20GetTcpGameServerByChEh.md
 CTcpGameServer* CServerHandler::GetTcpGameServerByCh(unsigned char channel)
 {
     for (std::map<unsigned int, CTcpGameServer*>::iterator it = m_tcpGameServers.begin();

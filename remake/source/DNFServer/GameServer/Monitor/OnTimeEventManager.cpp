@@ -145,6 +145,7 @@ void COnTimeEventManager::StartEvent()
     StartEvent(m_eventStart, m_eventDurationMin);
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0123 | monitor | 与ORIG差异=DIFF | COnTimeEventManager::StartEvent | 详见 function_reports/monitor/_ZN19COnTimeEventManager10StartEventEjj.md
 void COnTimeEventManager::StartEvent(unsigned int a, unsigned int b)
 {
     if (b >= a)
@@ -225,6 +226,7 @@ int COnTimeEventManager::GetCurIdxByDBMW()
     return -1;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0125 | monitor | 与ORIG差异=DIFF | COnTimeEventManager::OnRewardStart | 详见 function_reports/monitor/_ZN19COnTimeEventManager13OnRewardStartEv.md
 void COnTimeEventManager::OnRewardStart()
 {
     register time_t t0 = time(0);
@@ -257,6 +259,7 @@ void COnTimeEventManager::OnRewardStart()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0124 | monitor | 与ORIG差异=DIFF | COnTimeEventManager::OnRewardEnd | 详见 function_reports/monitor/_ZN19COnTimeEventManager11OnRewardEndEv.md
 void COnTimeEventManager::OnRewardEnd()
 {
     register time_t t0 = time(0);

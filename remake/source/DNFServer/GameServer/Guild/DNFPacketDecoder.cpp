@@ -73,6 +73,7 @@ CPacketDecoder* CPacketDecoderInstance()
     return &instance;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0023、DNF-GLD-DIFF-0024 | guild | 与ORIG差异=DIFF | CPacketDecoder::CPacketDecoder | 详见 function_reports/guild/_ZN14CPacketDecoderC1Ev.md、function_reports/guild/_ZN14CPacketDecoderC2Ev.md
 CPacketDecoder::CPacketDecoder()
 {
     m_udpParseQ = 0;
@@ -198,6 +199,7 @@ CPacketDecoder::CPacketDecoder()
     m_table[10012] = &CPacketTranslater::OnNoticeGuildChatMsgHyperLink;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0022 | guild | 与ORIG差异=DIFF | CPacketDecoder::MsgDecode | 详见 function_reports/guild/_ZN14CPacketDecoder9MsgDecodeEP12PacketHeader.md
 bool CPacketDecoder::MsgDecode(PacketHeader* pkt)
 {
     if (pkt == 0)
@@ -228,6 +230,7 @@ bool CPacketDecoder::MsgDecode(PacketHeader* pkt)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0021 | guild | 与ORIG差异=DIFF | CPacketDecoder::UdpProcess | 详见 function_reports/guild/_ZN14CPacketDecoder10UdpProcessEv.md
 void CPacketDecoder::UdpProcess()
 {
     if (m_udpParseQ == 0 || m_udpQLock == 0)
@@ -267,6 +270,7 @@ void CPacketDecoder::UdpProcess()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0020 | guild | 与ORIG差异=DIFF | CPacketDecoder::TcpProcess | 详见 function_reports/guild/_ZN14CPacketDecoder10TcpProcessEv.md
 void CPacketDecoder::TcpProcess()
 {
     if (m_tcpParseQ == 0 || m_tcpRecvQLock == 0)

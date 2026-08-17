@@ -82,6 +82,7 @@ void CPeer::DisConnSig()
 
 unsigned int CPeer::get_remain_sendlen() { return m_sendRemain; }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0131 | monitor | 与ORIG差异=DIFF | CPeer::send_packet | 详见 function_reports/monitor/_ZN5CPeer11send_packetEv.md
 int CPeer::send_packet()
 {
     int result = 0;
@@ -141,6 +142,7 @@ int CPeer::send_packet()
     return result;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0012 | monitor | 与ORIG差异=NEAR | CPeer::send_packet | 详见 function_reports/monitor/_ZN5CPeer11send_packetEPci.md
 int CPeer::send_packet(char* buf, int len)
 {
     if (getHandle() < 0)
@@ -236,6 +238,7 @@ void CPeer::ConnSig()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0132 | monitor | 与ORIG差异=DIFF | CPeer::parsing | 详见 function_reports/monitor/_ZN5CPeer7parsingEi.md
 bool CPeer::parsing(int recvLen)
 {
     PacketHeader header(0, 0);

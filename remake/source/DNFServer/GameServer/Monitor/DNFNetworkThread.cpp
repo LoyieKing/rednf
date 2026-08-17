@@ -63,6 +63,7 @@ void CUdpNetworkThread::SetUDPQueue(
     m_recvQ = q;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0115 | monitor | 与ORIG差异=DIFF | CUdpNetworkThread::dispatch | 详见 function_reports/monitor/_ZN17CUdpNetworkThread8dispatchEPv.md
 void CUdpNetworkThread::dispatch(void* param)
 {
     if (m_recvQ == 0 || m_udpHandler == 0 || m_qLock == 0)

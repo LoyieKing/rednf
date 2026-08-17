@@ -224,6 +224,7 @@ int FrameLagCollector::ReLoadSpec(CServerHandler* handler)
     }
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0021 | statics | 与ORIG差异=DIFF | FrameLagCollector::PushOneFrameLagData | 详见 function_reports/statics/_ZN17FrameLagCollector19PushOneFrameLagDataEP30Packet_Frame_Lag_Statistic_Add.md
 int FrameLagCollector::PushOneFrameLagData(Packet_Frame_Lag_Statistic_Add* pkt)
 {
     if (m_field4 != 2)
@@ -356,6 +357,7 @@ int FrameLagCollector::PopMonitoringSpecData(Packet_Frame_Lag_Spec_Delete_Notify
     }
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0022 | statics | 与ORIG差异=DIFF | FrameLagCollector::PushMonitoringSpecData | 详见 function_reports/statics/_ZN17FrameLagCollector22PushMonitoringSpecDataEP43Packet_Frame_Lag_Statistic_Result_Load_Spec.md
 int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_Load_Spec* pkt)
 {
     if (m_field4 != 1)
@@ -401,6 +403,7 @@ int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_
     }
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0023 | statics | 与ORIG差异=DIFF | FrameLagCollector::PushMonitoringSpecData | 详见 function_reports/statics/_ZN17FrameLagCollector22PushMonitoringSpecDataEP45Packet_Frame_Lag_Statistic_Result_Reload_Spec.md
 int FrameLagCollector::PushMonitoringSpecData(Packet_Frame_Lag_Statistic_Result_Reload_Spec* pkt)
 {
     if (m_field4 != 2)
@@ -487,6 +490,7 @@ int FrameLagCollector::SaveDailyBadSpec(CServerHandler* handler)
 {
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0018 | statics | 与ORIG差异=DIFF | FrameLagCollector::SaveFrameLagData | 详见 function_reports/statics/_ZN17FrameLagCollector16SaveFrameLagDataEP14CServerHandler.md
 int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
 {
     if (m_field4 != 2)
@@ -577,6 +581,7 @@ int FrameLagCollector::SaveFrameLagData(CServerHandler* handler)
     }
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0025 | statics | 与ORIG差异=DIFF | FrameLagCollector::SaveCollectedDirectxVersion | 详见 function_reports/statics/_ZN17FrameLagCollector27SaveCollectedDirectxVersionEP14CServerHandler.md
 int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
 {
     if (m_field4 != 2)
@@ -601,6 +606,7 @@ int FrameLagCollector::SaveCollectedDirectxVersion(CServerHandler* handler)
     }
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0024 | statics | 与ORIG差异=DIFF | FrameLagCollector::is_valid_statistic_packet | 详见 function_reports/statics/_ZN17FrameLagCollector25is_valid_statistic_packetEP30Packet_Frame_Lag_Statistic_Add.md
 bool FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add* pkt)
 {
     if ((char)((FrameLagPktHeader*)pkt)->m_module < 0 ||
@@ -623,6 +629,7 @@ bool FrameLagCollector::is_valid_statistic_packet(Packet_Frame_Lag_Statistic_Add
     }
     return 1;
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0019 | statics | 与ORIG差异=DIFF | FrameLagCollector::accFrameLagStruct | 详见 function_reports/statics/_ZN17FrameLagCollector17accFrameLagStructERNS_18FrameLagDataStructEP14FrameLagStruct.md
 void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStruct* pkt)
 {
     for (int i = 0; i < 6; i++)
@@ -671,6 +678,7 @@ void FrameLagCollector::accFrameLagStruct(FrameLagDataStruct& data, FrameLagStru
         data.m_a[i] += 1;
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0017 | statics | 与ORIG差异=DIFF | FrameLagCollector::SaveUsedMemory | 详见 function_reports/statics/_ZN17FrameLagCollector14SaveUsedMemoryEP14CServerHandler.md
 int FrameLagCollector::SaveUsedMemory(CServerHandler* handler)
 {
     m_field1e4++;
@@ -705,6 +713,7 @@ FrameLagCollector::FrameLagDataStruct::FrameLagDataStruct()
 {
     init();
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0020 | statics | 与ORIG差异=DIFF | FrameLagCollector::FrameLagDataStruct::init | 详见 function_reports/statics/_ZN17FrameLagCollector18FrameLagDataStruct4initEv.md
 void FrameLagCollector::FrameLagDataStruct::init()
 {
     m0 = 0;

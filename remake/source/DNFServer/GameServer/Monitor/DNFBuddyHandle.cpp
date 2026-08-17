@@ -43,6 +43,7 @@ void CBuddyHandle::SetBuddyDBFlag(unsigned short flag) { m_buddyDBFlag |= flag; 
 
 CBuddyHandle::~CBuddyHandle() { reset(0, 0); }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0009 | monitor | 与ORIG差异=DIFF | CBuddyHandle::addDB | 详见 function_reports/monitor/_ZN12CBuddyHandle5addDBEP14CServerHandlerPc.md
 int CBuddyHandle::addDB(CServerHandler* handler, char* name)
 {
     if (m_prUser == 0 || m_prUser->GetUniqCharNo() == 0)
@@ -190,6 +191,7 @@ int CBuddyHandle::del(std::string name)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0007 | monitor | 与ORIG差异=DIFF | CBuddyHandle::addFromCash | 详见 function_reports/monitor/_ZN12CBuddyHandle11addFromCashEP6CBuddy.md
 int CBuddyHandle::addFromCash(CBuddy* buddy)
 {
     if (m_buddies.size() > 0x1f)
@@ -242,6 +244,7 @@ CBuddy* CBuddyHandle::findBuddyByCharNo(unsigned int charNo)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0008 | monitor | 与ORIG差异=DIFF | CBuddyHandle::printBuddys | 详见 function_reports/monitor/_ZN12CBuddyHandle11printBuddysEPc.md
 void CBuddyHandle::printBuddys(char* out)
 {
     if (m_prUser != 0)

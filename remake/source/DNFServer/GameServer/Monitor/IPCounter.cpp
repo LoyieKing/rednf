@@ -63,6 +63,7 @@ void CIPCounter::Proc(unsigned int tick)
     m_min = tick + 0x3c;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0001 | monitor | 与ORIG差异=DIFF | CIPCounter::setLoadTerm | 详见 function_reports/monitor/_ZN10CIPCounter11setLoadTermEh.md
 void CIPCounter::setLoadTerm(unsigned char term)
 {
     unsigned int v = (unsigned int)(unsigned char)term * 0x3c;
@@ -77,6 +78,7 @@ void CIPCounter::setLoadTerm(unsigned char term)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0002 | monitor | 与ORIG差异=DIFF | CIPCounter::setMinIPCount | 详见 function_reports/monitor/_ZN10CIPCounter13setMinIPCountEh.md
 void CIPCounter::setMinIPCount(unsigned char count)
 {
     if (count > 200)
@@ -86,6 +88,7 @@ void CIPCounter::setMinIPCount(unsigned char count)
     m_option = (char)count;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0002 | monitor | 与ORIG差异=NEAR | CIPCounter::setOption | 详见 function_reports/monitor/_ZN10CIPCounter9setOptionEhh.md
 void CIPCounter::setOption(unsigned char type, unsigned char opt)
 {
     if (type == 0)

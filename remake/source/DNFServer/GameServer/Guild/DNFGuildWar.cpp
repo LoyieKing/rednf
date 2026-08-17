@@ -157,6 +157,7 @@ void CGuildWar::GetGuildWarInfo(unsigned int* a, unsigned int* b, unsigned short
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0149 | guild | 与ORIG差异=DIFF | CGuildWar::GetGuildWarInfo | 详见 function_reports/guild/_ZN9CGuildWar15GetGuildWarInfoEP22ST_Guild_War_Rank_Info.md
 void CGuildWar::GetGuildWarInfo(ST_Guild_War_Rank_Info* info)
 {
     if (info == 0)
@@ -245,6 +246,7 @@ bool CGuildWar::Rank()
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0147 | guild | 与ORIG差异=DIFF | CGuildWar::SameRankWork | 详见 function_reports/guild/_ZN9CGuildWar12SameRankWorkEv.md
 int CGuildWar::SameRankWork()
 {
     if (m_vtGuildWarInfo.empty())
@@ -356,6 +358,7 @@ void CGuildWar::RankProcess()
     m_bRankWorked = 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0148 | guild | 与ORIG差异=DIFF | CGuildWar::DBSaveProcess | 详见 function_reports/guild/_ZN9CGuildWar13DBSaveProcessEP12CApplication.md
 void CGuildWar::DBSaveProcess(CApplication* app)
 {
     if (!IsGuildWarEventOn())

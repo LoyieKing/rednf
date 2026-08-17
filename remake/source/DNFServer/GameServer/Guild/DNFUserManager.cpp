@@ -314,6 +314,7 @@ CUser* CUserManager::CreateUser(unsigned int dbid, unsigned int charNo, char* ch
     return user;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0004 | guild | 与ORIG差异=NEAR | CUserManager::InsertUser_CharNo | 详见 function_reports/guild/_ZN12CUserManager17InsertUser_CharNoEjP5CUser.md
 bool CUserManager::InsertUser_CharNo(unsigned int charNo, CUser* user)
 {
     if (user != 0)
@@ -333,6 +334,7 @@ bool CUserManager::InsertUser_CharNo(unsigned int charNo, CUser* user)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0003 | guild | 与ORIG差异=NEAR | CUserManager::DeleteUser_CharNo | 详见 function_reports/guild/_ZN12CUserManager17DeleteUser_CharNoEj.md
 int CUserManager::DeleteUser_CharNo(unsigned int charNo)
 {
     if (m_charNoUsers.empty() || charNo == 0)
@@ -358,6 +360,7 @@ CUser* CUserManager::FindUser_CharNo(unsigned int charNo) const
     return it == m_charNoUsers.end() ? 0 : it->second;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0005 | guild | 与ORIG差异=NEAR | CUserManager::InsertUser_CharName | 详见 function_reports/guild/_ZN12CUserManager19InsertUser_CharNameEPcP5CUser.md
 bool CUserManager::InsertUser_CharName(char* name, CUser* user)
 {
     if (user != 0)

@@ -166,6 +166,7 @@ bool CPeer::RecvPacket()
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0106 | guild | 与ORIG差异=DIFF | CPeer::recv_packet | 详见 function_reports/guild/_ZN5CPeer11recv_packetEv.md
 int CPeer::recv_packet()
 {
     if (getHandle() < 0)
@@ -203,6 +204,7 @@ int CPeer::recv_packet()
     return n;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0108 | guild | 与ORIG差异=DIFF | CPeer::parsing | 详见 function_reports/guild/_ZN5CPeer7parsingEi.md
 bool CPeer::parsing(int len)
 {
     PacketHeader hdr(0, 0);
@@ -292,6 +294,7 @@ bool CPeer::parsing(int len)
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0011 | guild | 与ORIG差异=NEAR | CPeer::send_packet | 详见 function_reports/guild/_ZN5CPeer11send_packetEPci.md
 int CPeer::send_packet(char* buf, int len)
 {
     if (getHandle() < 0)
@@ -328,6 +331,7 @@ int CPeer::send_packet(char* buf, int len)
     return send_packet();
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0107 | guild | 与ORIG差异=DIFF | CPeer::send_packet | 详见 function_reports/guild/_ZN5CPeer11send_packetEv.md
 int CPeer::send_packet()
 {
     ssize_t ret = 0;

@@ -32,6 +32,7 @@ StackBufferContext::~StackBufferContext() {}
 // 直接 GS 寻址 mov %gs:0xfffffffc,%eax。
 static __thread StackBufferContext* g_stackBufferContext;
 
+// [DNF-NONIDENTICAL] DNF-DBM-NEAR-0001 | dbmw | 与ORIG差异=NEAR | allocStackBuffer | 详见 function_reports/dbmw/_ZL16allocStackBufferjPPhPi.md
 static bool allocStackBuffer(unsigned int size, unsigned char** buf, int* end)
 {
     if (!g_stackBufferContext)
@@ -103,6 +104,7 @@ static void freeStackBuffer(unsigned char* buf, int end)
             (unsigned)b.m_offset + (unsigned)b.m_size;
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0001 | dbmw | 与ORIG差异=DIFF | freeAllStackBuffers | 详见 function_reports/dbmw/_ZL19freeAllStackBuffersv.md
 static void freeAllStackBuffers()
 {
     if (!g_stackBufferContext)

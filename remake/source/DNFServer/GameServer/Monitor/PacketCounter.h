@@ -306,6 +306,7 @@ void CPacketCounter<A, B>::BeforeProcess()
         m_packetTime[0] = 0;
     }
 }
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0033 | monitor | 与ORIG差异=DIFF | CPacketCounter<1000, 10240>::AfterProcess | 详见 function_reports/monitor/_ZN14CPacketCounterILi1000ELi10240EE12AfterProcessEi.md
 template<int A, int B>
 void CPacketCounter<A, B>::AfterProcess(int id)
 {

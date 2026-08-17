@@ -89,19 +89,9 @@ void LogSendThread::SendLogMsg(char* buf, int len)
     mThreadLock.unlock();
 }
 
-void LogSendThread::SetLogServerIp(char* ip)
-{
-    strcpy(mLogServerIp, ip);
-}
-
 char* LogSendThread::GetLogServerIp()
 {
     return mLogServerIp;
-}
-
-void LogSendThread::SetLogServerPort(int port)
-{
-    mLogServerPort = port;
 }
 
 int LogSendThread::GetLogServerPort()

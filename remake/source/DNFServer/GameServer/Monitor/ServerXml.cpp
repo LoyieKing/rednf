@@ -160,6 +160,7 @@ void CServerXml::EventLoad(TiXmlNode* node)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0022 | monitor | 与ORIG差异=DIFF | np_server_xml::CServerXml::StrPunish | 详见 function_reports/monitor/_ZN13np_server_xml10CServerXml9StrPunishEiPKcNS_12_eStringTypeE.md
 void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
 {
     if (str != 0)

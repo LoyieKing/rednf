@@ -46,6 +46,7 @@ void CNetworkThread::attach(CApplication* app)
         m_udpBLock = app->Get_BLock();
     }
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0080 | dbmw | 与ORIG差异=DIFF | CNetworkThread::dispatch | 详见 function_reports/dbmw/_ZN14CNetworkThread8dispatchEPv.md
 void CNetworkThread::dispatch(void* param)
 {
     try

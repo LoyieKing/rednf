@@ -9,11 +9,11 @@
 
 class Packet_Event_UpgradeJar_Output_Statistic_GTS : public PacketHeader {
 public:
-    int m_fieldA;  // +a
-    int m_fieldB;  // +e
+    int m_itemCode;  // +a（SendEventJarOutputItemStatistics：非罐子 Inven_Item+2 的产出道具 id）
+    int m_itemCount; // +e（Inven_Item+7 罐子数量）
 
     Packet_Event_UpgradeJar_Output_Statistic_GTS() : PacketHeader(0x106e, 0x12),
-        m_fieldA(0), m_fieldB(0)
+        m_itemCode(0), m_itemCount(0)
     {
 
     }

@@ -173,6 +173,7 @@ void CVillageAttackedManager::SendFirstRankerRewardJpn(CUser* user, int rank)
     user->SendToGameserver((char*)&pkt, pkt.packetSize);
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0046 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::InsertTimer | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager11InsertTimerEii.md
 void CVillageAttackedManager::InsertTimer(int startTime, int endTime)
 {
     m_startTime = startTime;
@@ -189,6 +190,7 @@ void CVillageAttackedManager::InsertTimer(int startTime, int endTime)
         new CVillageAttackedEnd(endTime, 0, this));
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0045 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnSchedule | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager10OnScheduleEv.md
 void CVillageAttackedManager::OnSchedule()
 {
     time_t now = GetNowTime();
@@ -324,6 +326,7 @@ void CVillageAttackedManager::Reset()
     m_startTime = 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0049 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnEndVillageAttacked | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager20OnEndVillageAttackedEv.md
 void CVillageAttackedManager::OnEndVillageAttacked()
 {
     if (!m_state24)
@@ -468,6 +471,7 @@ void CVillageAttackedManager::SendMinTime()
     m_app->Get_ServerHandler()->SendToDB(&pkt);
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0051 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::OnServerGroupRewardVillageAttacked | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager34OnServerGroupRewardVillageAttackedEv.md
 void CVillageAttackedManager::OnServerGroupRewardVillageAttacked()
 {
     Packet_DB_VillageAttackedRank pkt;
@@ -499,6 +503,7 @@ void CVillageAttackedManager::ClearDungeonCloseTime()
     m_rewardCloseTime = 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0048 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::UpdateHuntingPoint | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager18UpdateHuntingPointEPP5CUserbPiPj.md
 void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, int* a,
                                                  unsigned int* charNos)
 {
@@ -556,6 +561,7 @@ void CVillageAttackedManager::UpdateHuntingPoint(CUser** users, bool success, in
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0047 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::SendCharacRank | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager14SendCharacRankEv.md
 void CVillageAttackedManager::SendCharacRank()
 {
     unsigned char serverGroup = 0;
@@ -697,6 +703,7 @@ void CVillageAttackedManager::RequestEventPenaltyEnd()
     OnRewardVillageAttacked();
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0050 | monitor | 与ORIG差异=DIFF | village_attacked::CVillageAttackedManager::SendRequestRevengeDungeon | 详见 function_reports/monitor/_ZN16village_attacked23CVillageAttackedManager25SendRequestRevengeDungeonEPc.md
 void CVillageAttackedManager::SendRequestRevengeDungeon(char* pkt)
 {
     Packet_Request_Revenge_Dungeon* p = (Packet_Request_Revenge_Dungeon*)pkt;

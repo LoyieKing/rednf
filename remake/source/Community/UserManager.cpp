@@ -75,7 +75,7 @@ CFindUser::CFindUser(char server_id, char const *user_id_what) {
 }
 
 bool CFindUser::operator()(std::pair<unsigned int, CUser> user) const {
-    if (this->server_id == user.second.stGameUserInfo.server_id && strcmp(this->user_id_what, user.second.stGameUserInfo.buddy_n_user_id_what) == 0) {
+    if (this->server_id == user.second.stGameUserInfo.server_id && strcmp(this->user_id_what, user.second.stGameUserInfo.m_name) == 0) {
         return true;
     }
     return false;

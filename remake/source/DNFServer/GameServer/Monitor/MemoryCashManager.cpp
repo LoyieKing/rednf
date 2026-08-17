@@ -47,6 +47,7 @@ CMemoryCashManager::CMemoryCashManager()
 
 CMemoryCashManager::~CMemoryCashManager() {}
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0117 | monitor | 与ORIG差异=DIFF | CMemoryCashManager::ProcessLifeTimeOut | 详见 function_reports/monitor/_ZN18CMemoryCashManager18ProcessLifeTimeOutEv.md
 void CMemoryCashManager::ProcessLifeTimeOut()
 {
     if (m_app)
@@ -71,6 +72,7 @@ void CMemoryCashManager::ProcessLifeTimeOut()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0118 | monitor | 与ORIG差异=DIFF | CMemoryCashManager::QueryCashMemoryMember | 详见 function_reports/monitor/_ZN18CMemoryCashManager21QueryCashMemoryMemberEP5CUser.md
 char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
 {
     if (m_cashObjects.empty())
@@ -122,6 +124,7 @@ char CMemoryCashManager::QueryCashMemoryMember(CUser* user)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0120 | monitor | 与ORIG差异=DIFF | CMemoryCashManager::QueryCashMemoryBuddyInfo | 详见 function_reports/monitor/_ZN18CMemoryCashManager24QueryCashMemoryBuddyInfoEP5CUser.md
 int CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
 {
     if (m_cashObjects.empty())
@@ -170,6 +173,7 @@ int CMemoryCashManager::QueryCashMemoryBuddyInfo(CUser* user)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0119 | monitor | 与ORIG差异=DIFF | CMemoryCashManager::QueryCashMemoryBlackList | 详见 function_reports/monitor/_ZN18CMemoryCashManager24QueryCashMemoryBlackListEP5CUser.md
 char CMemoryCashManager::QueryCashMemoryBlackList(CUser* user)
 {
     unsigned int dbid = user->GetDBID();
@@ -297,6 +301,7 @@ char CMemoryCashManager::IsRightObject(CUser* user, CMember* member, bool& flag1
     return ret;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0121 | monitor | 与ORIG差异=DIFF | CMemoryCashManager::InsertCashMemorySetCharacterObject | 详见 function_reports/monitor/_ZN18CMemoryCashManager34InsertCashMemorySetCharacterObjectEP5CUserP7CMemberRbS4_.md
 int CMemoryCashManager::InsertCashMemorySetCharacterObject(CUser* user, CMember* member,
                                                            bool& flag1, bool& flag2)
 {

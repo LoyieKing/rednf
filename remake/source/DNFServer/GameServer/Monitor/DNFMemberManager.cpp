@@ -58,6 +58,7 @@ void CMemberManager::Init(CApplication* app, CUserManager* userMgr, CMemberConfi
     m_memberExpTbl = memberExpTbl;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0032 | monitor | 与ORIG差异=DIFF | CMemberManager::MemberRegisterFlagProcess | 详见 function_reports/monitor/_ZN14CMemberManager25MemberRegisterFlagProcessEv.md
 void CMemberManager::MemberRegisterFlagProcess()
 {
     time_t t = time(0);
@@ -90,6 +91,7 @@ char CMemberManager::LoadMemberFromCash(CUser* user, CMember* member)
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0024 | monitor | 与ORIG差异=DIFF | CMemberManager::DeleteMember | 详见 function_reports/monitor/_ZN14CMemberManager12DeleteMemberEjb.md
 int CMemberManager::DeleteMember(unsigned int key, bool cash)
 {
     if (m_members.empty())
@@ -118,6 +120,7 @@ int CMemberManager::DeleteMember(unsigned int key, bool cash)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0028 | monitor | 与ORIG差异=DIFF | CMemberManager::MemberMemLogout | 详见 function_reports/monitor/_ZN14CMemberManager15MemberMemLogoutEjP5CUserb.md
 void CMemberManager::MemberMemLogout(unsigned int key, CUser* user, bool cash)
 {
     if (user == 0 || m_app == 0)
@@ -171,6 +174,7 @@ unsigned int CMemberManager::GetLowerMemberEnterLimit(unsigned int level)
     return (unsigned int)info[idx].m_c;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0030 | monitor | 与ORIG差异=DIFF | CMemberManager::IsPossableMemberEnter | 详见 function_reports/monitor/_ZN14CMemberManager21IsPossableMemberEnterEP5CUserP7CMemberS1_S3_i.md
 int CMemberManager::IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMember* m2,
                                           int mode)
 {
@@ -216,6 +220,7 @@ int CMemberManager::IsPossableMemberEnter(CUser* u1, CMember* m1, CUser* u2, CMe
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0023 | monitor | 与ORIG差异=DIFF | CMemberManager::LoadMember | 详见 function_reports/monitor/_ZN14CMemberManager10LoadMemberEjR14STMemberDBInfojjP14CServerHandler.md
 bool CMemberManager::LoadMember(unsigned int key, STMemberDBInfo& info, unsigned int a,
                                 unsigned int b, CServerHandler* handler)
 {
@@ -337,6 +342,7 @@ CMember* CMemberManager::CreateMemberQuery(unsigned int key, CUser* user, CServe
     return member;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0025 | monitor | 与ORIG差异=DIFF | CMemberManager::InsertMember | 详见 function_reports/monitor/_ZN14CMemberManager12InsertMemberEjP7CMember.md
 int CMemberManager::InsertMember(unsigned int key, CMember* member)
 {
     if (member != 0)
@@ -353,6 +359,7 @@ int CMemberManager::InsertMember(unsigned int key, CMember* member)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0029 | monitor | 与ORIG差异=DIFF | CMemberManager::SaveMemberOnConnect | 详见 function_reports/monitor/_ZN14CMemberManager19SaveMemberOnConnectEP14CServerHandlerP5CUserS3_h.md
 void CMemberManager::SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUser* u2,
                                         unsigned char flag)
 {
@@ -382,6 +389,7 @@ void CMemberManager::SaveMemberOnConnect(CServerHandler* handler, CUser* u1, CUs
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0031 | monitor | 与ORIG差异=DIFF | CMemberManager::SaveMemberOnUnConnect | 详见 function_reports/monitor/_ZN14CMemberManager21SaveMemberOnUnConnectEP14CServerHandlerjjjh.md
 void CMemberManager::SaveMemberOnUnConnect(CServerHandler* handler, unsigned int a,
                                           unsigned int b, unsigned int c, unsigned char flag)
 {
@@ -411,6 +419,7 @@ void CMemberManager::SaveMemberOnUnConnect(CServerHandler* handler, unsigned int
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0027 | monitor | 与ORIG差异=DIFF | CMemberManager::RegisterMember | 详见 function_reports/monitor/_ZN14CMemberManager14RegisterMemberEP7CMembersP5CUserb.md
 int CMemberManager::RegisterMember(CMember* member, short level, CUser* user, bool flag)
 {
     if (member == 0 || user == 0)
@@ -509,6 +518,7 @@ void CMemberManager::GetMemberExpNextLevelNeedExpLevel(unsigned int& exp,
     expNext = expNext - needExp;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0026 | monitor | 与ORIG差异=DIFF | CMemberManager::MemerMemLogin | 详见 function_reports/monitor/_ZN14CMemberManager13MemerMemLoginEjP5CUser.md
 int CMemberManager::MemerMemLogin(unsigned int key, CUser* user)
 {
     if (user == 0 || m_app == 0)

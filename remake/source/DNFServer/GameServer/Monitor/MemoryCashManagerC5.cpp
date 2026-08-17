@@ -5,6 +5,7 @@
 #include "MemoryCashManager.h"
 #include "DNFFileLog.h"
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0009 | monitor | 与ORIG差异=NEAR | CMemoryCashManager::ProcessCashDataPrint | 详见 function_reports/monitor/_ZN18CMemoryCashManager20ProcessCashDataPrintEv.md
 void CMemoryCashManager::ProcessCashDataPrint()
 {
     m_cashCnt34--;

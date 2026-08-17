@@ -116,6 +116,7 @@ void LimitNpcBuyItemManager::getNpcLimitBuyItemInfoAll(LimitNpcBuyItemInfoAll* o
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0129 | monitor | 与ORIG差异=DIFF | LimitNpcBuyItemManager::getNpcLimitBuyItemCount | 详见 function_reports/monitor/_ZN22LimitNpcBuyItemManager23getNpcLimitBuyItemCountEjR25LimitNpcBuyItemChangeInfo.md
 void LimitNpcBuyItemManager::getNpcLimitBuyItemCount(unsigned int itemId,
                                                      LimitNpcBuyItemChangeInfo& out)
 {

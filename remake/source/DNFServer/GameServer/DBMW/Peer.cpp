@@ -225,6 +225,7 @@ int CPeer::send_packet(char* buf, int len)
     m_recvBuf += len;
     return send_packet();
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0113 | dbmw | 与ORIG差异=DIFF | CPeer::parsing | 详见 function_reports/dbmw/_ZN5CPeer7parsingEi.md
 bool CPeer::parsing(int len)
 {
     PacketHeader hdr(0, 0);

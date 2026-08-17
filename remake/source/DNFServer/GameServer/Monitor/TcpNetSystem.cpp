@@ -164,6 +164,7 @@ CTcpNetSystem::~CTcpNetSystem()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0021 | monitor | 与ORIG差异=DIFF | CTcpNetSystem::Init | 详见 function_reports/monitor/_ZN13CTcpNetSystem4InitEt.md
 void CTcpNetSystem::Init(unsigned short port)
 {
     m_port = port;
@@ -182,6 +183,7 @@ void CTcpNetSystem::Init(unsigned short port)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0019 | monitor | 与ORIG差异=DIFF | CTcpNetSystem::OpenTcpService | 详见 function_reports/monitor/_ZN13CTcpNetSystem14OpenTcpServiceERiPKct.md
 bool CTcpNetSystem::OpenTcpService(int& sockRef, const char* ip, unsigned short port)
 {
     CPeer* peer = CreatePeer();
@@ -246,6 +248,7 @@ void CTcpNetSystem::SetEpollAcceptedPeers()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0018 | monitor | 与ORIG差异=DIFF | CTcpNetSystem::SendPacket | 详见 function_reports/monitor/_ZN13CTcpNetSystem10SendPacketEv.md
 int CTcpNetSystem::SendPacket()
 {
     register int ret;
@@ -364,6 +367,7 @@ void CTcpNetSystem::PopDeleteTcpSendPacketQ(CTcpSendBuffer* buf)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0020 | monitor | 与ORIG差异=DIFF | CTcpNetSystem::CleanTcpSendPacketQ | 详见 function_reports/monitor/_ZN13CTcpNetSystem19CleanTcpSendPacketQEv.md
 void CTcpNetSystem::CleanTcpSendPacketQ()
 {
     while (true)

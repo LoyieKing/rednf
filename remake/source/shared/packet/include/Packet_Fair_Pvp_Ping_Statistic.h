@@ -9,11 +9,12 @@
 
 class Packet_Fair_Pvp_Ping_Statistic : public PacketHeader {
 public:
-    short m_fieldA;  // +a
-    short m_fieldB;  // +c
+    unsigned short m_badPing;  // +a（fairPvpPingStat *param_2；statics PushFairPvpPingData 累加到
+                               //      m_fairPvpBadPing / DB fair_pvp_bad_ping）
+    short m_total;             // +c（*param_3 + *param_2；statics 累加到 m_fairPvpTotal / DB fair_pvp_total）
 
     Packet_Fair_Pvp_Ping_Statistic() : PacketHeader(0x27ed, 0xe),
-        m_fieldA(0), m_fieldB(0)
+        m_badPing(0), m_total(0)
     {
 
     }

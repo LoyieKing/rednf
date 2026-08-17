@@ -37,6 +37,7 @@ CUdpHandler::~CUdpHandler() {}
 
 unsigned int CUdpHandler::InetAddr(const char* ip) const { return inet_addr(ip); }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0003 | monitor | 与ORIG差异=DIFF | CUdpHandler::InitServerSocket | 详见 function_reports/monitor/_ZN11CUdpHandler16InitServerSocketEi.md
 int CUdpHandler::InitServerSocket(int port)
 {
     int fd = socket(AF_INET, SOCK_DGRAM, 0x11);
@@ -92,6 +93,7 @@ int CUdpHandler::InitClientSocket()
     return m_clientSock;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0142 | monitor | 与ORIG差异=DIFF | CUdpHandler::RecvFromClient | 详见 function_reports/monitor/_ZNK11CUdpHandler14RecvFromClientEPcPiPjPt.md
 char CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
                                  unsigned short* port) const
 {
@@ -140,6 +142,7 @@ char CUdpHandler::RecvFromClient(char* buf, int* size, unsigned int* addr,
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0140 | monitor | 与ORIG差异=DIFF | CUdpHandler::SendToClient | 详见 function_reports/monitor/_ZNK11CUdpHandler12SendToClientEPcitPKcj.md
 int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const char* ip,
                               unsigned int addr) const
 {
@@ -208,6 +211,7 @@ int CUdpHandler::SendToClient(char* buf, int len, unsigned short port, const cha
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0141 | monitor | 与ORIG差异=DIFF | CUdpHandler::SendToServer | 详见 function_reports/monitor/_ZNK11CUdpHandler12SendToServerEPcitPKc.md
 int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const char* ip) const
 {
     if (m_clientSock == -1)
@@ -264,6 +268,7 @@ int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, const cha
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0143 | monitor | 与ORIG差异=DIFF | CUdpHandler::RecvFromServer | 详见 function_reports/monitor/_ZNK11CUdpHandler14RecvFromServerEPcPiPjPt.md
 char CUdpHandler::RecvFromServer(char* buf, int* size, unsigned int* addr,
                                  unsigned short* port) const
 {

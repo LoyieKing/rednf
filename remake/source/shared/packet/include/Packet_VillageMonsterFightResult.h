@@ -10,9 +10,9 @@
 class Packet_VillageMonsterFightResult : public PacketHeader {
 public:
     unsigned int m_keys[8];  // +0xa（后 4 个为角色号）
-    char m_pad;              // +0x2a
+    unsigned char m_result;  // +0x2a（SendVillageMonsterFightResult 的 bool 参数，战斗结果；同步写入 party 0xf9 包）
     Packet_VillageMonsterFightResult() : PacketHeader(0x1772, 0x2b),
-        m_pad(0)
+        m_result(0)
     {
 
     };

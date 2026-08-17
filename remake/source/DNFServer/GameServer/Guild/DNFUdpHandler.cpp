@@ -87,6 +87,7 @@ CUdpHandler::CUdpHandler()
     m_clientSock = -1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0008 | guild | 与ORIG差异=DIFF | CUdpHandler::InitServerSocket | 详见 function_reports/guild/_ZN11CUdpHandler16InitServerSocketEi.md
 int CUdpHandler::InitServerSocket(int port)
 {
     int err;
@@ -304,6 +305,7 @@ int CUdpHandler::RecvFromServer(char* buf, int* len, unsigned int* ip,
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0150 | guild | 与ORIG差异=DIFF | CUdpHandler::SendToServer | 详见 function_reports/guild/_ZNK11CUdpHandler12SendToServerEPcitPKc.md
 int CUdpHandler::SendToServer(char* buf, int len, unsigned short port, char const* ip) const
 {
     if (m_clientSock == -1)

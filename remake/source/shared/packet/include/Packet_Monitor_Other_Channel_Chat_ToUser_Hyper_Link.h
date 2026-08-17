@@ -11,30 +11,30 @@
 #pragma pack(push, 1)
 class Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link : public PacketHeader {
 public:
-    int what_0x0a;           // offset 0xa
-    char what_0x0e;          // offset 0xe
-    int what_0x0f;           // offset 0xf
-    int what_0x13;           // offset 0x13
-    char what_0x17[30];      // offset 0x17
-    char what_0x35;          // offset 0x35
-    char what_0x36;          // offset 0x36
+    int m_senderCharId;      // offset 0xa（monitor ORIG：reply.m_senderCharId = chat->m_chatType）
+    char m_serverId;         // offset 0xe（monitor ORIG ctor：m_serverId = 0）
+    int m_idByChannel;       // offset 0xf（monitor ORIG：GetIdByChannel；ctor 0xffffffff）
+    int m_uniqCharNo;        // offset 0x13（monitor ORIG：GetUniqCharNo）
+    char m_name[0x1e];       // offset 0x17（monitor memcpy 0x1d：发送者名/好友名）
+    char m_type;             // offset 0x35（封禁类型 1/2/3，0=正常投递）
+    unsigned char m_itemCount;  // offset 0x36（monitor ORIG：reply.m_itemCount = chat->m_itemCount）
     // 原始：0x138 == 3×0x68，按 ORIG 反汇编（循环地址计算拆成 add $0x30 + add $0x7）
     // 还原为 2D 数组形态（布局与 char[0x138] 完全一致，仅类型形态影响代码生成）。
-    char what_0x37[3][0x68];   // offset 0x37
-    char what_0x16f;         // offset 0x16f
-    char what_0x170[0x100];  // offset 0x170
+    char m_items[3][0x68];   // offset 0x37（monitor ORIG：memcpy(reply.m_items[i], chat->m_items[i], 0x68)）
+    unsigned char m_msgLen;  // offset 0x16f（monitor ORIG：reply.m_msgLen = chat->m_msgLen）
+    char m_msg[0x100];       // offset 0x170（monitor ORIG：memcpy(reply.m_msg, chat->m_msg, msgLen)）
 
     Packet_Monitor_Other_Channel_Chat_ToUser_Hyper_Link() : PacketHeader(0x2719, 0x270) {
         // 初始化行为对齐原始二进制（2026-08-06 反汇编验证）
-        what_0x0e = 0;
-        what_0x0f = -1;
-        what_0x13 = 0;
-        what_0x35 = 0;
-        what_0x36 = 0;
-        what_0x16f = 0;
-        memset(what_0x17, 0, sizeof(what_0x17));
-        memset(what_0x170, 0, sizeof(what_0x170));
-        memset(what_0x37, 0, sizeof(what_0x37));
+        m_serverId = 0;
+        m_idByChannel = -1;
+        m_uniqCharNo = 0;
+        m_type = 0;
+        m_itemCount = 0;
+        m_msgLen = 0;
+        memset(m_name, 0, sizeof(m_name));
+        memset(m_msg, 0, sizeof(m_msg));
+        memset(m_items, 0, sizeof(m_items));
     }
 } __attribute__((packed));
 #pragma pack(pop)

@@ -28,6 +28,7 @@
 #include "DNFApplication.h"
 #include "DNFTableBase.h"
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0004 | monitor | 与ORIG差异=DIFF | CAppStopInit::Init | 详见 function_reports/monitor/_ZN12CAppStopInit4InitEP12CApplicationiPPc.md
 CAppStopInit::CAppStopInit() {}
 
 CAppStopInit::~CAppStopInit() {}

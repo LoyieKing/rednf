@@ -107,6 +107,7 @@ void CApplication::Init(int argc, char** argv)
     }
     DNF_CATCH_RETHROW("CApplication::Init() Exception Break");
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0069 | dbmw | 与ORIG差异=DIFF | CApplication::Load | 详见 function_reports/dbmw/_ZN12CApplication4LoadEiPPc.md
 void CApplication::Load(int argc, char** argv)
 {
     try
@@ -406,6 +407,7 @@ void CApplication::Free()
     }
     DNF_CATCH_RETHROW("CApplication::Free() Exception Break");
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0068 | dbmw | 与ORIG差异=DIFF | CApplication::TranslateSignal | 详见 function_reports/dbmw/_ZN12CApplication15TranslateSignalEv.md
 void CApplication::TranslateSignal()
 {
     m_killUsrConfig->Clear_Table();

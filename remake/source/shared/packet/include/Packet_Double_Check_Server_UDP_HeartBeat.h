@@ -9,11 +9,13 @@
 
 class Packet_Double_Check_Server_UDP_HeartBeat : public PacketHeader {
 public:
-    unsigned char m_fieldA;  // +a
-    char m_padb[0x1];  // +b..+b（ctor 未触碰/布局待定）
+    unsigned char m_channel;  // +a（SendHeartBeat param_1；接收端 coserver OnHeartBeat 实测：
+                              //     pkt[0xa] 即 channel，校验 1..0xbe，ResetHeartBeat(group,channel)）
+    unsigned char m_group;    // +b（SendHeartBeat param_2；接收端 coserver OnHeartBeat 实测：
+                              //     pkt[0xb] 即 group，校验 group<=100，FindGameServer(group,channel)）
 
     Packet_Double_Check_Server_UDP_HeartBeat() : PacketHeader(0xbba, 0xc),
-        m_fieldA(255)
+        m_channel(255), m_group(255)
     {
 
     }

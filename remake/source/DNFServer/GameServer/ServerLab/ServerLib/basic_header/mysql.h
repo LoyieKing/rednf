@@ -10,6 +10,19 @@ typedef unsigned int uint;
 typedef unsigned short ushort;
 typedef unsigned char uchar;
 
+enum mysql_option
+{
+  MYSQL_OPT_CONNECT_TIMEOUT, MYSQL_OPT_COMPRESS, MYSQL_OPT_NAMED_PIPE,
+  MYSQL_INIT_COMMAND, MYSQL_READ_DEFAULT_FILE, MYSQL_READ_DEFAULT_GROUP,
+  MYSQL_SET_CHARSET_DIR, MYSQL_SET_CHARSET_NAME, MYSQL_OPT_LOCAL_INFILE,
+  MYSQL_OPT_PROTOCOL, MYSQL_SHARED_MEMORY_BASE_NAME, MYSQL_OPT_READ_TIMEOUT,
+  MYSQL_OPT_WRITE_TIMEOUT, MYSQL_OPT_USE_RESULT,
+  MYSQL_OPT_USE_REMOTE_CONNECTION, MYSQL_OPT_USE_EMBEDDED_CONNECTION,
+  MYSQL_OPT_GUESS_CONNECTION, MYSQL_SET_CLIENT_IP, MYSQL_SECURE_AUTH,
+  MYSQL_REPORT_DATA_TRUNCATION, MYSQL_OPT_RECONNECT,
+  MYSQL_OPT_SSL_VERIFY_SERVER_CERT
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,6 +45,8 @@ unsigned long long mysql_affected_rows(MYSQL* mysql);
 int mysql_ping(MYSQL* mysql);
 unsigned long mysql_real_escape_string(MYSQL* mysql, char* to, const char* from,
                                        unsigned long length);
+const char* mysql_get_server_info(MYSQL* mysql);
+const char* mysql_get_client_info(void);
 
 #ifdef __cplusplus
 }

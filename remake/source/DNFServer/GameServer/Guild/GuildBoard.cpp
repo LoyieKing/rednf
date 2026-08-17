@@ -167,6 +167,7 @@ void CGuildBoard::setGuildBoardData(unsigned int a, unsigned int b, CGuild* guil
     DNF_LOG_SCOPE_AT(__FUNCTION__, 0x5f, "./log/GuildBoard", "SET SUCCESS - GUILD:%u, CHARAC:%u, COUNT:%u", a, b, c);
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0001 | guild | 与ORIG差异=DIFF | CGuildBoard::sendGuildBoardData | 详见 function_reports/guild/_ZN11CGuildBoard18sendGuildBoardDataEjjjP5CUser.md
 void CGuildBoard::sendGuildBoardData(unsigned int a, unsigned int b, unsigned int c,
                                      CUser* user)
 {

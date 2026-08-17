@@ -10,11 +10,12 @@
 class Packet_Request_Power_War_Start_Info : public PacketHeader {
 public:
     Packet_Request_Power_War_Start_Info() : PacketHeader(0x6b1, 0xe),
-        m_field(0)
+        m_channel(0)
     {
 
     };
-    unsigned int m_field;  // +0xa
+    unsigned int m_channel;  // +0xa（SendReqestPowerWarStartInfo：CEnvironment::get_channel_no；
+                             //      guild 侧 OnPowerWarStartInfo 用该值作 SendToGameServer(channel)）
 } __attribute__((packed));
 
 

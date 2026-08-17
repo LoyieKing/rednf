@@ -9,6 +9,12 @@
 
 class Packet_Add_Guild_Fund : public PacketHeader {
 public:
+    enum eFundType
+    {
+        eFundType_NONE = 0,    // 0：普通
+        eFundType_DONATE = 1,  // 1：捐赠（Dispatcher_DonateGuildFund）
+        eFundType_GM = 2       // 2：GM 指令（game_master::CSetGuildFund）
+    };
     unsigned char m_mode;           // +0xa
     unsigned int m_fund;            // +0xb
     unsigned int m_charNo;          // +0xf

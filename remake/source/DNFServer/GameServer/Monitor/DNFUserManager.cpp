@@ -81,6 +81,7 @@ void CUserManager::MemberEnterProcess()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0005 | monitor | 与ORIG差异=NEAR | CUserManager::ProcessByMinute | 详见 function_reports/monitor/_ZN12CUserManager15ProcessByMinuteEv.md
 void CUserManager::ProcessByMinute()
 {
     if (!m_prohibitUsers.empty())
@@ -171,6 +172,7 @@ void CUserManager::ResetBuddyList(unsigned int charNo)
     return;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0012 | monitor | 与ORIG差异=DIFF | CUserManager::DeleteUsersOnGameServerDown | 详见 function_reports/monitor/_ZN12CUserManager27DeleteUsersOnGameServerDownEP11CGameServer.md
 int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
 {
     if (m_users.empty())
@@ -228,6 +230,7 @@ int CUserManager::DeleteUsersOnGameServerDown(CGameServer* gameServer)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0013 | monitor | 与ORIG差异=DIFF | CUserManager::DeleteUsersOnTcpGameServerDown | 详见 function_reports/monitor/_ZN12CUserManager30DeleteUsersOnTcpGameServerDownEP14CTcpGameServer.md
 int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
 {
     if (m_users.empty())
@@ -285,6 +288,7 @@ int CUserManager::DeleteUsersOnTcpGameServerDown(CTcpGameServer* tcpGameServer)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0011 | monitor | 与ORIG差异=DIFF | CUserManager::SendConnectedBuddysList | 详见 function_reports/monitor/_ZN12CUserManager23SendConnectedBuddysListEP5CUser.md
 void CUserManager::SendConnectedBuddysList(CUser* user)
 {
     if (user != 0)
@@ -333,6 +337,7 @@ void CUserManager::SendConnectedBuddysList(CUser* user)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0010 | monitor | 与ORIG差异=DIFF | CUserManager::GetSchoolCount | 详见 function_reports/monitor/_ZN12CUserManager14GetSchoolCountEjPjRh.md
 void CUserManager::GetSchoolCount(unsigned int school, unsigned int* out, unsigned char& idx)
 {
     std::map<const unsigned int, std::map<unsigned char, unsigned int> >::iterator it =
@@ -423,6 +428,7 @@ bool CUserManager::InsertUser(const unsigned int dbid, CUser* user)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0006 | monitor | 与ORIG差异=NEAR | CUserManager::InsertUser_CharNo | 详见 function_reports/monitor/_ZN12CUserManager17InsertUser_CharNoEjP5CUser.md
 bool CUserManager::InsertUser_CharNo(const unsigned int charNo, CUser* user)
 {
     if (user != 0)
@@ -445,6 +451,7 @@ bool CUserManager::InsertUser_CharNo(const unsigned int charNo, CUser* user)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0007 | monitor | 与ORIG差异=NEAR | CUserManager::InsertUser_CharName | 详见 function_reports/monitor/_ZN12CUserManager19InsertUser_CharNameEPcP5CUser.md
 bool CUserManager::InsertUser_CharName(char* name, CUser* user)
 {
     if (user != 0)
@@ -571,6 +578,7 @@ int CUserManager::DeleteUser(CUser* user)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0004 | monitor | 与ORIG差异=NEAR | CUserManager::AddSchoolNo | 详见 function_reports/monitor/_ZN12CUserManager11AddSchoolNoEjh.md
 void CUserManager::AddSchoolNo(unsigned int schoolNo, unsigned char channel)
 {
     std::map<const unsigned int, std::map<unsigned char, unsigned int> >::iterator it =

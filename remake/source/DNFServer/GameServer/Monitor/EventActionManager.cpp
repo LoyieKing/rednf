@@ -116,6 +116,7 @@ CEventActionManager::~CEventActionManager()
     destroy();
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0122 | monitor | 与ORIG差异=DIFF | CEventActionManager::init | 详见 function_reports/monitor/_ZN19CEventActionManager4initEv.md
 void CEventActionManager::init()
 {
     for (int i = 0; i < 0xa6; i++)
@@ -141,6 +142,7 @@ void CEventActionManager::destroy()
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0010 | monitor | 与ORIG差异=NEAR | CEventActionManager::OnStartAction | 详见 function_reports/monitor/_ZN19CEventActionManager13OnStartActionEP26Packet_Monitor_Event_Start.md
 void CEventActionManager::OnStartAction(Packet_Monitor_Event_Start* pkt)
 {
     unsigned int code = pkt->m_eventCode;

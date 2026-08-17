@@ -8,18 +8,21 @@
 #include "PacketHeader.h"
 
 // df_game_r: StatisticsPacket::StatisticsPacket() @ 0x8610132（0x2720 / 0x89）
+// 双向证据：发送端 statistc_proxy::add(CUser*, table, field, value, fmt, ...) @ 0x860fdd2
+// （strcpy 入 +0xa/+0x2b、vsprintf 入 +0x4c、param_4 入 +0x85）；
+// 接收端 addStatisticProxy() -> StatisticProxy::add(name, value, key, table)。
 class StatisticsPacket : public PacketHeader {
 public:
-    char m_fieldA[0x21];   // +0xa..+0x2a（ctor memset 区域）
-    char m_field2B[0x21];  // +0x2b..+0x4b（ctor memset 区域）
-    char m_field4C[0x39];  // +0x4c..+0x84（ctor memset 区域）
-    int m_value;           // +0x85
+    char m_tableName[0x21];  // +0xa..+0x2a：SQL 表名（如 "log_random_option"），发送端 strlen<0x21
+    char m_fieldName[0x21];  // +0x2b..+0x4b：SQL 字段/列名（如 "change_cnt"、"unseal_gold"），strlen<0x21
+    char m_key[0x39];        // +0x4c..+0x84：SQL key（WHERE 条件值，逗号分隔，如 "%d,'%s'" -> level,occ_date），strlen<0x39
+    unsigned int m_value;    // +0x85：statistic value（增量），发送端 param_4 为 uint，接收端按 uint 读
 
     StatisticsPacket() : PacketHeader(0x2720, 0x89)
     {
-        memset(m_fieldA, 0, sizeof(m_fieldA));
-        memset(m_field2B, 0, sizeof(m_field2B));
-        memset(m_field4C, 0, sizeof(m_field4C));
+        memset(m_tableName, 0, sizeof(m_tableName));
+        memset(m_fieldName, 0, sizeof(m_fieldName));
+        memset(m_key, 0, sizeof(m_key));
         m_value = 0;
     }
 } __attribute__((packed));
@@ -27,12 +30,14 @@ public:
 TEST_CLASS_SIZE(StatisticsPacket, 0x89);
 
 // df_game_r: StatisticsGmCmdPacket::StatisticsGmCmdPacket() @ 0x822c4a2（0x2722 / 0xe）
+// 发送端 oldGmRoutine（GM 命令 "statisticlog"/"sl"）：local_34c = getCurCharacNo 正好落在 +0xa
+// 接收端 OnStatisticGmCmd 只触发 sendDBStatisticProxy()+resetStatisticProxy()，字段本身不消费
 class StatisticsGmCmdPacket : public PacketHeader {
 public:
-    int m_fieldA;  // +0xa
+    int m_characNo;  // +0xa：触发统计刷库的玩家角色编号
 
     StatisticsGmCmdPacket() : PacketHeader(0x2722, 0xe),
-        m_fieldA(0) {};
+        m_characNo(0) {};
 } __attribute__((packed));
 
 TEST_CLASS_SIZE(StatisticsGmCmdPacket, 0xe);

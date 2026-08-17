@@ -65,6 +65,7 @@ TowerOfDespairWaitGameServerResponse_Task::TowerOfDespairWaitGameServerResponse_
 
 TowerOfDespairWaitGameServerResponse_Task::~TowerOfDespairWaitGameServerResponse_Task() {}
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0130 | monitor | 与ORIG差异=DIFF | TowerOfDespairWaitGameServerResponse_Task::_DoExecute | 详见 function_reports/monitor/_ZN41TowerOfDespairWaitGameServerResponse_Task10_DoExecuteEv.md
 void TowerOfDespairWaitGameServerResponse_Task::_DoExecute()
 {
     DNF_LOG_SCOPE_LINE(0x46, "./log/GameServer", "TOD : Waiting main GameServer Response...");

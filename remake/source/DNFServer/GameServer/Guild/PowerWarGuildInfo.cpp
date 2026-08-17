@@ -212,6 +212,7 @@ void CPowerWarGuildInfo::GetAllGuildRankingInfo(int& count, STGuildRank* rank)
     count = (int)n;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0104 | guild | 与ORIG差异=DIFF | CPowerWarGuildInfo::RewardGuildPowerWarPoint | 详见 function_reports/guild/_ZN18CPowerWarGuildInfo24RewardGuildPowerWarPointER13CGuildManagerbiiii.md
 void CPowerWarGuildInfo::RewardGuildPowerWarPoint(CGuildManager& gm, bool a, int b, int c,
                                                  int d, int e)
 {
@@ -285,6 +286,7 @@ void CPowerWarGuildInfo::DeleteDBSavePowerWarPoint(STDBSavePowerWarPoint* p)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0105 | guild | 与ORIG差异=DIFF | CPowerWarGuildInfo::MakePacketDBPowerWarPoint | 详见 function_reports/guild/_ZN18CPowerWarGuildInfo25MakePacketDBPowerWarPointEP37Packet_DB_Save_Power_War_Point_Reward.md
 void CPowerWarGuildInfo::MakePacketDBPowerWarPoint(Packet_DB_Save_Power_War_Point_Reward* pkt)
 {
     size_t n = m_vec2.size();

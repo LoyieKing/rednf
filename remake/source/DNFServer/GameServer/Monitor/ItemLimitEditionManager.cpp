@@ -64,6 +64,7 @@ void CItemLimitEditionMgr::makeItemLimitEditionSellStartPacket(
     pkt.m_count = idx;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0011 | monitor | 与ORIG差异=NEAR | CItemLimitEditionMgr::registItem | 详见 function_reports/monitor/_ZN20CItemLimitEditionMgr10registItemERK28stItemLimitEditionItemInfo_t.md
 void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
 {
     std::map<unsigned int, CItemLimitEdition*>::iterator found =
@@ -132,6 +133,7 @@ void CItemLimitEditionMgr::clear()
     m_items.clear();
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0126 | monitor | 与ORIG差异=DIFF | CItemLimitEditionMgr::processScheduledJob | 详见 function_reports/monitor/_ZN20CItemLimitEditionMgr19processScheduledJobEP12CApplicationb.md
 void CItemLimitEditionMgr::processScheduledJob(CApplication* app, bool flag)
 {
     Packet_Item_Limit_Edition_Update pkt2;
@@ -210,6 +212,7 @@ char CItemLimitEdition::isSellComplete() const
     return (char)((int)getSellNum() >= m_sellLimit);
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0013 | monitor | 与ORIG差异=NEAR | CItemLimitEdition::makeItemInfo | 详见 function_reports/monitor/_ZNK17CItemLimitEdition12makeItemInfoER28stItemLimitEditionItemInfo_t.md
 void CItemLimitEdition::makeItemInfo(stItemLimitEditionItemInfo_t& info) const
 {
     info = *((const stItemLimitEditionItemInfo_t*)this);

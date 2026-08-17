@@ -266,6 +266,7 @@ int CGuildCargo::CheckInsertItem(int itemId, int count, int slot, unsigned char 
     return 0xc1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0001 | guild | 与ORIG差异=NEAR | CGuildCargo::DeleteItem | 详见 function_reports/guild/_ZN11CGuildCargo10DeleteItemER11DnfItemInfoiihii.md
 int CGuildCargo::DeleteItem(DnfItemInfo& info, int slot, int count, unsigned char a, int b, int c)
 {
     if (!IsValidSlot(slot))
@@ -357,6 +358,7 @@ void CGuildCargo::SetGuildCargoDBInfo(STGuildCargoDBInfo& info)
     ((GuildCargoLayout*)this)->m_load = 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0005 | guild | 与ORIG差异=DIFF | CGuildCargo::SetGuildCargoHistory | 详见 function_reports/guild/_ZN11CGuildCargo20SetGuildCargoHistoryEjP15STGuildCargoLog.md
 void CGuildCargo::SetGuildCargoHistory(unsigned int idx, STGuildCargoLog* log)
 {
     int c = idx;
@@ -370,6 +372,7 @@ void CGuildCargo::SetGuildCargoHistory(unsigned int idx, STGuildCargoLog* log)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0002 | guild | 与ORIG差异=DIFF | CGuildCargo::SendGuildCargo | 详见 function_reports/guild/_ZN11CGuildCargo14SendGuildCargoEP5CUser.md
 void CGuildCargo::SendGuildCargo(CUser* user)
 {
     if (user == 0)
@@ -397,6 +400,7 @@ void CGuildCargo::PrintCargo(ENUM_GUILD_CARGO_BEHAVIOR behavior)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0003 | guild | 与ORIG差异=DIFF | CGuildCargo::PrintDnfItemInfo | 详见 function_reports/guild/_ZN11CGuildCargo16PrintDnfItemInfoER11DnfItemInfo.md
 const char* CGuildCargo::PrintDnfItemInfo(DnfItemInfo& info)
 {
     static char szBuffer[0x400];
@@ -416,6 +420,7 @@ const char* CGuildCargo::PrintDnfItemInfo(DnfItemInfo& info)
     return szBuffer;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0004 | guild | 与ORIG差异=DIFF | CGuildCargo::SendGuildCargoToDBMW | 详见 function_reports/guild/_ZN11CGuildCargo20SendGuildCargoToDBMWEP14CServerHandleri.md
 void CGuildCargo::SendGuildCargoToDBMW(CServerHandler* handler, int slot)
 {
     CTcpDBServer* db = handler->GetTcpDBServer();
@@ -444,6 +449,7 @@ bool CGuildCargo::IsEmpty()
     return 1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0002 | guild | 与ORIG差异=NEAR | CGuildCargo::InsertHistory | 详见 function_reports/guild/_ZN11CGuildCargo13InsertHistoryE25ENUM_GUILD_CARGO_BEHAVIORiPKciiPK12RandomOption.md
 void CGuildCargo::InsertHistory(ENUM_GUILD_CARGO_BEHAVIOR behavior, int slot, const char* name, int count,
                                 int param, const RandomOption* option)
 {

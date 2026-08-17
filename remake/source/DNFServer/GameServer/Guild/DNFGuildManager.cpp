@@ -296,6 +296,7 @@ bool CGuildManager::IsEmptyGuild(unsigned int guildKey)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0012 | guild | 与ORIG差异=DIFF | CGuildManager::GuildMemLogin | 详见 function_reports/guild/_ZN13CGuildManager13GuildMemLoginEjP5CUser.md
 CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
 {
     if (user == 0 || m_app == 0)
@@ -340,6 +341,7 @@ CGuild* CGuildManager::GuildMemLogin(unsigned int guildKey, CUser* user)
     return guild;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0014 | guild | 与ORIG差异=DIFF | CGuildManager::GuildMemLogout | 详见 function_reports/guild/_ZN13CGuildManager14GuildMemLogoutEjP5CUser.md
 void CGuildManager::GuildMemLogout(unsigned int guildKey, CUser* user)
 {
     if (user == 0 || m_app == 0)
@@ -522,6 +524,7 @@ void CGuildManager::SendGuildInfoToMembers(unsigned int guildKey, bool flag)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0013 | guild | 与ORIG差异=DIFF | CGuildManager::DBGuildProcess | 详见 function_reports/guild/_ZN13CGuildManager14DBGuildProcessEP14CServerHandlerb.md
 void CGuildManager::DBGuildProcess(CServerHandler* handler, bool flag)
 {
     if (handler == 0)
@@ -785,6 +788,7 @@ int CGuildManager::GetAttendancePhase(unsigned int guildKey)
     return -1;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-NEAR-0006 | guild | 与ORIG差异=NEAR | CGuildManager::GetAttendanceExp | 详见 function_reports/guild/_ZN13CGuildManager16GetAttendanceExpEji.md
 int CGuildManager::GetAttendanceExp(unsigned int guildKey, int phase)
 {
     CGuild* guild = FindGuild(guildKey);
@@ -803,6 +807,7 @@ int CGuildManager::GetAttendanceExp(unsigned int guildKey, int phase)
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0015 | guild | 与ORIG差异=DIFF | CGuildManager::GetAttendanceInfo | 详见 function_reports/guild/_ZN13CGuildManager17GetAttendanceInfoEjR16STAttendanceInfo.md
 void CGuildManager::GetAttendanceInfo(unsigned int guildKey, STAttendanceInfo& info)
 {
     struct GAI_Layout {

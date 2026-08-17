@@ -271,6 +271,7 @@ void CServerXml::ProcessLoad(TiXmlNode* node)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-GLD-DIFF-0019 | guild | 与ORIG差异=DIFF | CServerXml::StrPunish | 详见 function_reports/guild/_ZN13np_server_xml10CServerXml9StrPunishEiPKcNS_12_eStringTypeE.md
 void CServerXml::StrPunish(int idx, const char* str, _eStringType type)
 {
     if (str != 0)

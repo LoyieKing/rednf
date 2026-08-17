@@ -614,16 +614,16 @@ void CPacketTranslater::OnMonitorNoticeProhibitConnectUser(PacketHeader* header)
         if ((char)pu->GetMonitorRetPacketCnt() >= m_pclApp->m_serverHandler->GetAlivedMonitorServer())
         {
             Packet_Web_Prohibit_User_Connect pkt;
-            pkt.m_field11 = pu->GetConnectFlag();
-            pkt.m_fieldF = 0;
-            pkt.m_fieldE = 0x7f;
+            pkt.m_bIsConnect = pu->GetConnectFlag();
+            pkt.m_time = 0;
+            pkt.m_flag = 0x7f;
             DNF_LOG_SCOPE_LINE(0x165, "./log/ProhibitUser",
                 "CPacketTranslater::OnMonitorNoticeProhibitConnectUser SendToClient, m_id : %d, ip( %d ), port( %d ), m_bIsConnect(%d)\n",
                 ((ProhibitUserPacket*)hdr)->m_nFieldA,
                 uip,
                 uport,
-                pkt.m_field11);
-            pkt.m_fieldA = ((ProhibitUserPacket*)hdr)->m_nFieldA;
+                pkt.m_bIsConnect);
+            pkt.m_id = ((ProhibitUserPacket*)hdr)->m_nFieldA;
             pkt.packetSize = 0x12;
             if (!((CUdpHandler*)m_pclApp->Get_UdpHandler())
                      ->SendToClient((char*)&pkt, 0x12, uport, 0, uip))

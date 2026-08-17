@@ -151,6 +151,7 @@ CTcpServer* CServerHandler::GetTcpServer(unsigned int socket)
     }
     return 0;
 }
+// [DNF-NONIDENTICAL] DNF-DBM-DIFF-0082 | dbmw | 与ORIG差异=DIFF | CServerHandler::SendAllTcpServer | 详见 function_reports/dbmw/_ZN14CServerHandler16SendAllTcpServerEP12PacketHeader.md
 void CServerHandler::SendAllTcpServer(PacketHeader* header)
 {
     CTcpServer* server = 0;

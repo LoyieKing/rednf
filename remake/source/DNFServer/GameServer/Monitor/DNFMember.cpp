@@ -72,6 +72,7 @@ void CMember::QueryMember(CServerHandler* handler)
 
 unsigned int* CMember::GetMemberDBInfoW() { return (unsigned int*)&m_dbInfo; }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0137 | monitor | 与ORIG差异=DIFF | CMember::NoticeMemberLogin_Out | 详见 function_reports/monitor/_ZN7CMember21NoticeMemberLogin_OutEP5CUserc.md
 void CMember::NoticeMemberLogin_Out(CUser* user, char flag)
 {
     if (user != 0 && user->GetGameServer() != 0 && (m_flag & 4) != 0)
@@ -197,6 +198,7 @@ char CMember::IsEmpty()
     return 0;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0139 | monitor | 与ORIG差异=DIFF | CMember::NoticeChatMsgToMemberMembersHyperLink | 详见 function_reports/monitor/_ZN7CMember37NoticeChatMsgToMemberMembersHyperLinkEPcihPK19hyperlink_item_infoP5CUser.md
 void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned char count,
                                                     const hyperlink_item_info* items, CUser* user)
 {
@@ -239,6 +241,7 @@ void CMember::NoticeChatMsgToMemberMembersHyperLink(char* msg, int len, unsigned
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0138 | monitor | 与ORIG差异=DIFF | CMember::NoticeChatMsgToMemberMembers | 详见 function_reports/monitor/_ZN7CMember28NoticeChatMsgToMemberMembersEPciP5CUser.md
 void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)
 {
     if (len < 0x100 && (m_flag & 4) != 0 && !IsEmpty())
@@ -275,6 +278,7 @@ void CMember::NoticeChatMsgToMemberMembers(char* msg, int len, CUser* user)
     }
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0134 | monitor | 与ORIG差异=DIFF | CMember::LoadMember | 详见 function_reports/monitor/_ZN7CMember10LoadMemberER14STMemberDBInfosjj.md
 void CMember::LoadMember(STMemberDBInfo& info, short level, unsigned int a, unsigned int b)
 {
     if ((m_flag & 2) != 0)
@@ -391,6 +395,7 @@ int CMember::IncConnLowerMemberExp(int index, unsigned int uCharNo, unsigned int
     return proxy->m_exp;
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0136 | monitor | 与ORIG差异=DIFF | CMember::NoticeLevelUpToLowers | 详见 function_reports/monitor/_ZN7CMember21NoticeLevelUpToLowersEj.md
 void CMember::NoticeLevelUpToLowers(unsigned int level)
 {
     int count = (int)m_dbInfo.m_count27;
@@ -444,6 +449,7 @@ unsigned int CMember::GetUpperMemberExpLevel()
     return m_memberManager->GetMemberExpLevel(m_dbInfo.m_member.m_exp);
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-DIFF-0135 | monitor | 与ORIG差异=DIFF | CMember::GetConnLowerMemberCnt | 详见 function_reports/monitor/_ZN7CMember21GetConnLowerMemberCntEv.md
 int CMember::GetConnLowerMemberCnt()
 {
     CUser* user;

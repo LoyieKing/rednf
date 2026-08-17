@@ -16,7 +16,10 @@ public:
     TimeManager();
     ~TimeManager();
     void onTime();
-    void preReservedMap();
+    // ORIG：头内 inline 空实现（point 无 out-of-line 符号）
+    void preReservedMap()
+    {
+    }
     void insert2PeriodQueue(ITimeEntity* ent);
     void delete2PeriodQueue(ITimeEntity* ent);
 

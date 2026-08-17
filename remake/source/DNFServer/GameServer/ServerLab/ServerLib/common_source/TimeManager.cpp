@@ -65,8 +65,4 @@ void TimeManager::onTime()
     last_tick = cur_tick;
 }
 
-void TimeManager::preReservedMap()
-{
-}
-
 } // namespace nsl

@@ -61,6 +61,7 @@ void CAppConfig::Load_Table(const std::string& path)
     throw CDNFException("CAppConfig::Load_Setup_Table() Exception Break!");
 }
 
+// [DNF-NONIDENTICAL] DNF-MON-NEAR-0001 | monitor | 与ORIG差异=NEAR | CAppConfig::Parse_Table | 详见 function_reports/monitor/_ZN10CAppConfig11Parse_TableEPci.md
 bool CAppConfig::Parse_Table(char* line, int idx)
 {
     if (line[0] == '#')

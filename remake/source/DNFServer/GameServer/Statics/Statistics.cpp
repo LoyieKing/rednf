@@ -216,6 +216,7 @@ void StatisticManager::WriteDeathTowerValueStatistic(Packet_DeathTower_Statistic
         *v += value;
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0012 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDeathTowerPlayDataJobStatistic | 详见 function_reports/statics/_ZN16StatisticManager35WriteDeathTowerPlayDataJobStatisticEP40Packet_DeathTower_Statistic_Playdata_Job.md
 void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
     Packet_DeathTower_Statistic_Playdata_Job* pkt)
 {
@@ -247,6 +248,7 @@ void StatisticManager::WriteDeathTowerPlayDataJobStatistic(
         *p += value;
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0013 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDeathTowerPlayDataPartyStatistic | 详见 function_reports/statics/_ZN16StatisticManager37WriteDeathTowerPlayDataPartyStatisticEP42Packet_DeathTower_Statistic_Playdata_Party.md
 void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
     Packet_DeathTower_Statistic_Playdata_Party* pkt)
 {
@@ -274,6 +276,7 @@ void StatisticManager::WriteDeathTowerPlayDataPartyStatistic(
         *p += value;
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0008 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDungeonPartyStatistic | 详见 function_reports/statics/_ZN16StatisticManager26WriteDungeonPartyStatisticEP30Packet_Dungeon_Statistic_Party.md
 void StatisticManager::WriteDungeonPartyStatistic(Packet_Dungeon_Statistic_Party* pkt)
 {
     struct __attribute__((packed)) Wire
@@ -361,6 +364,7 @@ void StatisticManager::WriteDungeonPartyJobStatistic(Packet_Dungeon_Statistic_Pa
         *p += value;
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0011 | statics | 与ORIG差异=DIFF | StatisticManager::WriteDungeonPartyCharacStatistic | 详见 function_reports/statics/_ZN16StatisticManager32WriteDungeonPartyCharacStatisticEP37Packet_Dungeon_Statistic_Party_Charac.md
 void StatisticManager::WriteDungeonPartyCharacStatistic(Packet_Dungeon_Statistic_Party_Charac* pkt)
 {
     struct __attribute__((packed)) Wire
@@ -441,6 +445,7 @@ void StatisticManager::WritePacketOverflowStatistic(Packet_Overflow_Statistic_Ad
         *v += 1;
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0004 | statics | 与ORIG差异=DIFF | StatisticManager::SendDBPartyStatistic | 详见 function_reports/statics/_ZN16StatisticManager20SendDBPartyStatisticEP14CServerHandler.md
 void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party pkt;
@@ -490,6 +495,7 @@ void StatisticManager::SendDBPartyStatistic(CServerHandler* handler)
         }
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0006 | statics | 与ORIG差异=DIFF | StatisticManager::SendDBPartyJobStatistic | 详见 function_reports/statics/_ZN16StatisticManager23SendDBPartyJobStatisticEP14CServerHandler.md
 void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Job pkt;
@@ -532,6 +538,7 @@ void StatisticManager::SendDBPartyJobStatistic(CServerHandler* handler)
         }
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-NEAR-0001 | statics | 与ORIG差异=NEAR | StatisticManager::SendDBPartyCharacStatistic | 详见 function_reports/statics/_ZN16StatisticManager26SendDBPartyCharacStatisticEP14CServerHandler.md
 void StatisticManager::SendDBPartyCharacStatistic(CServerHandler* handler)
 {
     Packet_DBMW_Dungeon_Statistic_Party_Charac pkt;
@@ -896,6 +903,7 @@ void StatisticManager::ResetUserTIngTimeCheckMap()
 {
     m_userTing.clear();
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0009 | statics | 与ORIG差异=DIFF | StatisticManager::WriteHellPartyStatisticItem | 详见 function_reports/statics/_ZN16StatisticManager27WriteHellPartyStatisticItemEP31Packet_HellParty_Statistic_Item.md
 void StatisticManager::WriteHellPartyStatisticItem(Packet_HellParty_Statistic_Item* pkt)
 {
     struct __attribute__((packed)) Wire
@@ -961,6 +969,7 @@ void StatisticManager::SendDBHellPartyStatisticItem(CServerHandler* handler)
         }
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0010 | statics | 与ORIG差异=DIFF | StatisticManager::AddLoadingTimeReportStatistics | 详见 function_reports/statics/_ZN16StatisticManager30AddLoadingTimeReportStatisticsEP37Packet_Loading_Time_Report_Statistics.md
 void StatisticManager::AddLoadingTimeReportStatistics(Packet_Loading_Time_Report_Statistics* pkt)
 {
     for (int i = 0; i <= 8; i++)
@@ -1506,6 +1515,7 @@ void StatisticManager::AddUserCountStatistics(CServerHandler* handler,
 {
     handler->SendToDB((PacketHeader*)pkt);
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0002 | statics | 与ORIG差异=DIFF | StatisticManager::AddLagStatistics | 详见 function_reports/statics/_ZN16StatisticManager16AddLagStatisticsEP26Packet_Stat_Lag_Statistics.md
 void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
 {
     for (int i = 0; i < 8; i++)
@@ -1568,6 +1578,7 @@ void StatisticManager::AddLagStatistics(Packet_Stat_Lag_Statistics* pkt)
         }
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0003 | statics | 与ORIG差异=DIFF | StatisticManager::SendDBLagStatistics | 详见 function_reports/statics/_ZN16StatisticManager19SendDBLagStatisticsEP14CServerHandlerPc.md
 void StatisticManager::SendDBLagStatistics(CServerHandler* handler, char* timeStr)
 {
     Packet_DBMW_TechnicalReport_Common_Query pkt;
@@ -1721,9 +1732,9 @@ void StatisticManager::SendDBCirculationStatistic(CServerHandler* handler)
 }
 void StatisticManager::AddServerMatchData(Packet_Server_Match_data* pkt)
 {
-    m_serverMatch[0] = (int)pkt->m_fieldA;
-    m_serverMatch[1] += (int)pkt->m_fieldB;
-    m_serverMatch[2] += (int)pkt->m_fieldC;
+    m_serverMatch[0] = (int)pkt->m_serverGroup;
+    m_serverMatch[1] += (int)pkt->m_win;
+    m_serverMatch[2] += (int)pkt->m_lose;
 }
 void StatisticManager::ResetServerMatchData()
 {
@@ -1746,6 +1757,7 @@ void StatisticManager::SendDBServerMatchData(CServerHandler* handler)
         break;
     }
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0005 | statics | 与ORIG差异=DIFF | StatisticManager::AddSecretShopStatistic | 详见 function_reports/statics/_ZN16StatisticManager22AddSecretShopStatisticEP28Packet_Secret_Shop_Statistic.md
 void StatisticManager::AddSecretShopStatistic(Packet_Secret_Shop_Statistic* pkt)
 {
     if (pkt->m_count == 0)
@@ -1824,6 +1836,7 @@ void StatisticManager::ResetGoldcardEventStatistic()
 {
     memset(m_goldcard, 0, 0x37b);
 }
+// [DNF-NONIDENTICAL] DNF-STA-DIFF-0007 | statics | 与ORIG差异=DIFF | StatisticManager::AddTowerOfDespairStatistic | 详见 function_reports/statics/_ZN16StatisticManager26AddTowerOfDespairStatisticEP35Packet_TowerOfDespair_Statistic_GTS.md
 void StatisticManager::AddTowerOfDespairStatistic(Packet_TowerOfDespair_Statistic_GTS* pkt)
 {
     if (pkt == 0)
@@ -1975,66 +1988,66 @@ void StatisticManager::avgPing(int& a, int& b, short& c)
 }
 void StatisticManager::AddP2PStatistic(Packet_P2P_Statistics* pkt)
 {
-    m_p2p.m_p2pUser += pkt->m_fieldA;
-    m_p2p.m_relayUser += pkt->m_fieldB;
-    m_p2p.m_serverGroup = pkt->m_fieldC;
+    m_p2p.m_p2pUser += pkt->m_p2pUser;
+    m_p2p.m_relayUser += pkt->m_relayUser;
+    m_p2p.m_serverGroup = pkt->m_serverGroup;
     // ORIG 全部用 lea 直取地址；packed 成员取址会变 add+mov 并级联改寄存器分配，保持裸形态
     minPing(*(short*)((char*)this + 0xb3a), *(short*)((char*)pkt + 0x13));
     maxPing(*(short*)((char*)this + 0xb3c), *(short*)((char*)pkt + 0x15));
     sumPing(*(int*)((char*)this + 0xb40), *(short*)((char*)pkt + 0x17),
             *(int*)((char*)this + 0xb44));
-    m_p2p.m_p2pOverPing100 += pkt->m_fieldG;
-    m_p2p.m_p2pOverPing200 += pkt->m_fieldH;
-    m_p2p.m_p2pOverPing300 += pkt->m_fieldI;
-    m_p2p.m_p2pOverPing400 += pkt->m_fieldJ;
+    m_p2p.m_p2pOverPing100 += pkt->m_p2pOverPing100;
+    m_p2p.m_p2pOverPing200 += pkt->m_p2pOverPing200;
+    m_p2p.m_p2pOverPing300 += pkt->m_p2pOverPing300;
+    m_p2p.m_p2pOverPing400 += pkt->m_p2pOverPing400;
     minPing(*(short*)((char*)this + 0xb58), *(short*)((char*)pkt + 0x29));
     maxPing(*(short*)((char*)this + 0xb5a), *(short*)((char*)pkt + 0x2b));
     sumPing(*(int*)((char*)this + 0xb60), *(short*)((char*)pkt + 0x2d),
             *(int*)((char*)this + 0xb64));
-    m_p2p.m_relayOverPing100 += pkt->m_fieldN;
-    m_p2p.m_relayOverPing200 += pkt->m_fieldO;
-    m_p2p.m_relayOverPing300 += pkt->m_fieldP;
-    m_p2p.m_relayOverPing400 += pkt->m_fieldQ;
+    m_p2p.m_relayOverPing100 += pkt->m_relayOverPing100;
+    m_p2p.m_relayOverPing200 += pkt->m_relayOverPing200;
+    m_p2p.m_relayOverPing300 += pkt->m_relayOverPing300;
+    m_p2p.m_relayOverPing400 += pkt->m_relayOverPing400;
 }
 void StatisticManager::SendDBP2PStatistic(CServerHandler* handler)
 {
     Packet_P2P_Statistics pkt;
-    pkt.m_fieldC = m_p2p.m_serverGroup;
-    pkt.m_fieldA = m_p2p.m_p2pUser;
+    pkt.m_serverGroup = m_p2p.m_serverGroup;
+    pkt.m_p2pUser = m_p2p.m_p2pUser;
     if (m_p2p.m_p2pMinPing == 0x7fff)
     {
-        pkt.m_fieldD = 0;
+        pkt.m_p2pMinPing = 0;
     }
     else
     {
-        pkt.m_fieldD = m_p2p.m_p2pMinPing;
+        pkt.m_p2pMinPing = m_p2p.m_p2pMinPing;
     }
     // ORIG 用 lea 直取地址（见 AddP2PStatistic 注释），保持裸形态
     avgPing(*(int*)((char*)this + 0xb40), *(int*)((char*)this + 0xb44),
             *(short*)((char*)this + 0xb3e));
-    pkt.m_fieldE = m_p2p.m_p2pMaxPing;
-    pkt.m_fieldF = m_p2p.m_p2pAvgPing;
-    pkt.m_fieldG = m_p2p.m_p2pOverPing100;
-    pkt.m_fieldH = m_p2p.m_p2pOverPing200;
-    pkt.m_fieldI = m_p2p.m_p2pOverPing300;
-    pkt.m_fieldJ = m_p2p.m_p2pOverPing400;
-    pkt.m_fieldB = m_p2p.m_relayUser;
+    pkt.m_p2pMaxPing = m_p2p.m_p2pMaxPing;
+    pkt.m_p2pAvgPing = m_p2p.m_p2pAvgPing;
+    pkt.m_p2pOverPing100 = m_p2p.m_p2pOverPing100;
+    pkt.m_p2pOverPing200 = m_p2p.m_p2pOverPing200;
+    pkt.m_p2pOverPing300 = m_p2p.m_p2pOverPing300;
+    pkt.m_p2pOverPing400 = m_p2p.m_p2pOverPing400;
+    pkt.m_relayUser = m_p2p.m_relayUser;
     if (m_p2p.m_relayMinPing == 0x7fff)
     {
-        pkt.m_fieldK = 0;
+        pkt.m_relayMinPing = 0;
     }
     else
     {
-        pkt.m_fieldK = m_p2p.m_relayMinPing;
+        pkt.m_relayMinPing = m_p2p.m_relayMinPing;
     }
     avgPing(*(int*)((char*)this + 0xb60), *(int*)((char*)this + 0xb64),
             *(short*)((char*)this + 0xb5c));
-    pkt.m_fieldL = m_p2p.m_relayMaxPing;
-    pkt.m_fieldM = m_p2p.m_relayAvgPing;
-    pkt.m_fieldN = m_p2p.m_relayOverPing100;
-    pkt.m_fieldO = m_p2p.m_relayOverPing200;
-    pkt.m_fieldP = m_p2p.m_relayOverPing300;
-    pkt.m_fieldQ = m_p2p.m_relayOverPing400;
+    pkt.m_relayMaxPing = m_p2p.m_relayMaxPing;
+    pkt.m_relayAvgPing = m_p2p.m_relayAvgPing;
+    pkt.m_relayOverPing100 = m_p2p.m_relayOverPing100;
+    pkt.m_relayOverPing200 = m_p2p.m_relayOverPing200;
+    pkt.m_relayOverPing300 = m_p2p.m_relayOverPing300;
+    pkt.m_relayOverPing400 = m_p2p.m_relayOverPing400;
     handler->SendToDB((PacketHeader*)&pkt);
 }
 void StatisticManager::ResetP2PStatistic()
