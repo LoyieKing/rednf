@@ -118,7 +118,7 @@ public:
     char getClearedDungeonDiff(short dungeonIdx) const;
     void addClearedDungeon(short dungeonIdx, signed char diff);
 
-    char m_pad[0x18];
+    std::map<short, char> m_map;  // +0x00
 };
 }
 
@@ -435,8 +435,8 @@ public:
     void useWinPoint(int point, eWPSubReason reason);
 
     // ---- 背包 / 技能 / 仓库 / 附加信息 ----
-    Inven_Item* getCurCharacInvenW();
-    const Inven_Item* getCurCharacInvenR() const;
+    CInventory* getCurCharacInvenW();
+    const CInventory* getCurCharacInvenR() const;
     Inven_Item* getCurCharacInvenRefW();
     const Inven_Item* getCurCharacInvenRefR() const;
     char* getCurCharacSkillW();

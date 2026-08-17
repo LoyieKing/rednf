@@ -1878,10 +1878,10 @@ int CUserCharacInfo::getCurCharacLastPlayDungeonIndex()
     return m_selected ? CUR->m_lastPlayDungeonIndex : 0;
 }
 
-Inven_Item* CUserCharacInfo::getCurCharacInvenW()
+CInventory* CUserCharacInfo::getCurCharacInvenW()
 {
     enableSaveInven();
-    return (Inven_Item*)((char*)m_selected + 0xda);
+    return (CInventory*)((char*)m_selected + 0xda);
 }
 
 Inven_Item* CUserCharacInfo::getCurCharacInvenRefW()
@@ -1895,9 +1895,9 @@ const Inven_Item* CUserCharacInfo::getCurCharacInvenRefR() const
     return (const Inven_Item*)((char*)m_selected + 0xda);
 }
 
-const Inven_Item* CUserCharacInfo::getCurCharacInvenR() const
+const CInventory* CUserCharacInfo::getCurCharacInvenR() const
 {
-    return (const Inven_Item*)((char*)m_selected + 0xda);
+    return (const CInventory*)((char*)m_selected + 0xda);
 }
 
 unsigned int CUserCharacInfo::getCurCharacHelpAbuseComputedRatio() const

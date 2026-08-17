@@ -556,7 +556,7 @@ WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail() { return 0; }
 void WongWork::CMailBox::incMailLoadCount() {}
 void WongWork::CMailBox::reset() {}
 void WongWork::CMailBox::setMailIterator() {}
-void WongWork::CDungeonClear::clear() {}
+void WongWork::CDungeonClear::clear() { m_map.clear(); }
 advancealtar::StageControl::StageControl() { memset(m_pad, 0, sizeof(m_pad)); }
 advancealtar::StageControl::~StageControl() {}
 QuickParty::CQuickParty::CQuickParty() { memset(m_pad, 0, sizeof(m_pad)); }

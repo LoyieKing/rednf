@@ -3296,6 +3296,21 @@ void CUser::SetPvpIndex(short idx)
     unlock();
 }
 
+void CUser::add_inventory_item(unsigned int itemId)
+{
+    CItem* pItem = G_CDataManager()->find_item(itemId);
+    if (!pItem)
+        return;
+    Inven_Item invenItem;
+    pItem->make_item(invenItem);
+    invenItem.m_addInfo2 = 1;  // count
+    invenItem.m_addInfo = itemId;  // item id
+    int slot = getCurCharacInvenW()->insertItemIntoInventory(invenItem, (eItemAddReason)0x18, true, true);
+    if (slot == -1)
+        return;
+    // send update item packet
+}
+
 extern "C" void _ZN19CMissionList_Charac16Send_MissionListER5CUser(void*, void*);
 
 void CUser::send_MissionList()
