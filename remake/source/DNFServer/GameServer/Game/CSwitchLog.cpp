@@ -12,6 +12,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
+#include "CLog.h"
 
 class Mutex;
 
@@ -21,18 +22,6 @@ class Guard
 public:
     Guard(T* p);
     ~Guard();
-};
-
-class CLog
-{
-public:
-    static CLog* instance();
-    void logNotice(const char* fmt, ...);
-    void logError(const char* fmt, ...);
-    void logDebug(const char* fmt, ...);
-    void logConsole(const char* fmt, ...);
-    void logMoney(const char* fmt, ...);
-    void logCritical(const char* fmt, ...);
 };
 
 class CSwitchLog

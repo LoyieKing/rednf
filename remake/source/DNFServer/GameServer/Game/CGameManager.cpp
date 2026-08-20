@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r CGameManager（G2 单例对象池/房间管理器）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/CGameManager.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
@@ -33,20 +34,31 @@ class CSchoolMgr;
 class CGuildAgitManager;
 class TimerQueue;
 namespace WongWork { class CLogGameChannel; }
+class CUserGlobalInfoHandle;
+class CEventCharacterHandler;
+class CShutdowManager;
 template <class T> class CServerProxyMgr;
 namespace GlobalData
 {
 extern MsgQueueMgr* s_msgq_mgr;
 extern StreamPool* s_stream_pool;
 extern CServerProxyMgr<CMonitorServerProxy>* s_monitor_proxy_mgr;
+}
+namespace GlobalData
+{
 extern CServerProxyMgr<CGuildServerProxy>* s_guild_proxy_mgr;
 extern CDoubleConnCheckServerProxy* s_double_check_proxy;
 extern WongWork::CLogGameChannel* s_pLogGameChannel;
 extern TimerQueue* s_timerQueue_;
 }
+char* NumberToString(unsigned int value, int radix);
+CUserGlobalInfoHandle* CUserGlobalInfoHandleInstance();
+CEventCharacterHandler* CEventCharacterHandlerInstance();
+CShutdowManager* GetInstanceShutdowManager();
+void* G_EpollHandler();
 extern CSchoolMgr* g_schoolMgr;
 extern CGuildAgitManager* g_guildAgitMgr;
-extern char* NumberToString(unsigned int value, int radix);
+bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime);
 
 // ============================================================================
 // SIG_UPDATE_LINK_CHARAC_CONNECT_STATE（CStreamGuard::GetInBuffer 模板参数，
@@ -78,21 +90,6 @@ private:
 // 外部依赖 asm-label extern（ORIG 符号名；链接桩 = GameStubs / 后续批次）
 // ============================================================================
 
-// ---- 全局单例 ----
-extern "C" void* sub_G_GameWorld() asm("_Z11G_GameWorldv");
-extern "C" void* sub_G_TimerQueue() asm("_Z12G_TimerQueuev");
-extern "C" void* sub_G_CDataManager() asm("_Z14G_CDataManagerv");
-extern "C" void* sub_G_CEnvironment() asm("_Z14G_CEnvironmentv");
-extern "C" void* sub_G_EpollHandler() asm("_Z14G_EpollHandlerv");
-extern "C" void* sub_GetInstanceShutdowManager() asm("_Z25GetInstanceShutdowManagerv");
-extern "C" void* sub_CUserGlobalInfoHandleInstance() asm("_Z29CUserGlobalInfoHandleInstancev");
-extern "C" void* sub_CEventCharacterHandlerInstance() asm("_Z30CEventCharacterHandlerInstancev");
-
-// ---- 全局函数 ----
-extern "C" char* sub_NumberToString(unsigned int value, int radix) asm("_Z14NumberToStringji");
-extern "C" int sub_CheckDailyScheduleTime(long long a, long long b, long long c)
-    asm("_Z22CheckDailyScheduleTimeill");
-extern "C" int sub_get_rand_int(int v) asm("_Z12get_rand_inti");
 
 // ---- GameWorld ----
 extern "C" void sub_GameWorld_send_all(void* world, void* pkt)
@@ -517,35 +514,10 @@ int StaticPool<T, N>::GetIndex(T* p)
         return -1;
     return index;
 }
-
-// ============================================================================
-// 池化对象桩 ctor/dtor（权威实现属后续批次；CNode ctor/dtor 需非内联符号）
-// ============================================================================
-WongWork::CBossTower::CBossTower() { memset(m_pad, 0, sizeof(m_pad)); }
-WongWork::CBossTower::~CBossTower() {}
-
-// ---- WongWork::CMailBox ----
-WongWork::CMailBox::CMailBox() {}
+WongWork::CMailBox::CMailBox() { memset(m_pad, 0, sizeof(m_pad)); }
 WongWork::CMailBox::~CMailBox() {}
-int WongWork::CMailBox::AddNewMail(const stAddNewMailInput&) { return 0; }
-void WongWork::CMailBox::ClearLetterKeepCount() {}
-void WongWork::CMailBox::DecLoadedLetterCount() {}
-int WongWork::CMailBox::DeleteLetterKeepCount(unsigned int) { return 0; }
-int WongWork::CMailBox::FindPackageLoadLack(unsigned int) { return 0; }
-int WongWork::CMailBox::GetLastLoadIdx() { return 0; }
-int WongWork::CMailBox::GetLastLoadLetterIdx() { return 0; }
-int WongWork::CMailBox::GetLetterKeepCount() { return 0; }
-int WongWork::CMailBox::GetLoadedLetterCount() { return 0; }
-WongWork::CMailBox::CMail* WongWork::CMailBox::GetMail(unsigned int) { return 0; }
-int WongWork::CMailBox::GetNotLoadedMailCount() { return 0; }
-int WongWork::CMailBox::GetPackageLoadLack(unsigned int*, unsigned int) { return 0; }
-int WongWork::CMailBox::GetRecvSize() { return 0; }
-int WongWork::CMailBox::GetRemainSize() { return 0; }
-void WongWork::CMailBox::IncNotLoadedMailCount() {}
-void WongWork::CMailBox::Init() {}
-void WongWork::CMailBox::InsertLetterKeepCount(unsigned int) {}
-bool WongWork::CMailBox::IsLoaded() { return false; }
-int WongWork::CMailBox::RemoveMail(unsigned int) { return 0; }
+void WongWork::CMailBox::Init() { reset(); }
+
 void WongWork::CMailBox::SetLastLoadLetterIdx(unsigned int) {}
 void WongWork::CMailBox::SetLoadState(bool, long) {}
 void WongWork::CMailBox::SetLoadedLetterCount(int) {}
@@ -734,11 +706,9 @@ CUser* CGameManager::createUser()
     }
     short nxt = getNextUID();
     user->SetIncreID(nxt);
-    void* handle = sub_CUserGlobalInfoHandleInstance();
-    user->set_unique_id(sub_CUserGlobalInfoHandle_get_uniqueid(handle));
+    user->set_unique_id((unsigned short)user->GetUID());
     return user;
 }
-
 void CGameManager::check_user_var(CUser* user)
 {
     bool b = false;
@@ -1099,12 +1069,12 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
     {
         guard.clear();
         sub_PvP_Room_make_seat_info(room, &guard, ret);
-        sub_GameWorld_send_all(sub_G_GameWorld(), &guard);
+        sub_GameWorld_send_all(G_GameWorld(), &guard);
         if (outFlag)
         {
             guard.clear();
             sub_PvP_Room_make_state_info(room, &guard);
-            sub_GameWorld_send_all(sub_G_GameWorld(), &guard);
+            sub_GameWorld_send_all(G_GameWorld(), &guard);
         }
         if (sub_PvP_Room_get_waiter_count(room) == 0)
         {
@@ -1112,7 +1082,7 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
             PutPvp(room);
             guard.clear();
             sub_PvP_Room_make_state_info(room, &guard);
-            sub_GameWorld_send_all(sub_G_GameWorld(), &guard);
+            sub_GameWorld_send_all(G_GameWorld(), &guard);
         }
     }
     if (!flag && sub_PvP_Room_get_recv_pvp_rank_count(room) > 0)
@@ -1629,7 +1599,7 @@ void CGameManager::checkOutBlueMarble(CUser* user)
 
 void CGameManager::allocBlueMarble()
 {
-    void* dm = sub_G_CDataManager();
+    void* dm = G_CDataManager();
     void* script = sub_CDataManager_getBlueMarbleScript(dm);
     for (int i = 0; i < 300; ++i)
     {
@@ -1645,7 +1615,7 @@ void CGameManager::allocBlueMarble()
 
 BlueMarble* CGameManager::findJoinableBlueMarble()
 {
-    void* dm = sub_G_CDataManager();
+    void* dm = G_CDataManager();
     void* script = sub_CDataManager_getBlueMarbleScript(dm);
     if (script == 0)
         return 0;
@@ -1737,7 +1707,7 @@ void CGameManager::SendPartyList(CUser* user)
             if (type == 0 || type == 1 || type == 2)
             {
                 char matching = sub_GameWorld_is_dungeon_tag_matching_channel(
-                    sub_G_GameWorld(), "[impossible]");
+                    G_GameWorld(), "[impossible]");
                 guard.put_byte((int)matching);
                 if (matching != 0)
                 {
@@ -1754,7 +1724,7 @@ void CGameManager::SendPartyList(CUser* user)
                             for (int j = 0; j < 6; ++j)
                             {
                                 char dim = sub_CDataManager_get_dimensionInout(
-                                    sub_G_CDataManager(), j);
+                                    G_CDataManager(), j);
                                 guard.put_byte((int)dim);
                                 const void* characR = member->getCurCharacR();
                                 guard.put_byte(*(const char*)((const char*)characR + 0xeb9 + j));
@@ -1833,7 +1803,7 @@ void CGameManager::SendWarRoomToAll(int index)
     WarRoom* room = it->second;
     sub_WarRoom_MakeRoomInfo(room, &guard);
     guard.finalize(true);
-    sub_GameWorld_send_all(sub_G_GameWorld(), &guard);
+    sub_GameWorld_send_all(G_GameWorld(), &guard);
 }
 
 void CGameManager::PrintWarRoomList()
@@ -1845,14 +1815,14 @@ void CGameManager::PrintWarRoomList()
 // ============================================================================
 void CGameManager::WarRoomAlloc()
 {
-    void* dm = sub_G_CDataManager();
+    void* dm = G_CDataManager();
     int hourTable = sub_WarAreaCounter_GetCurrenTimeTable((char*)dm + 0x87b4);
     for (int area = 0; area < 10; ++area)
     {
         int count = 0;
         for (;;)
         {
-            void* dm2 = sub_G_CDataManager();
+            void* dm2 = G_CDataManager();
             int need = sub_WarAreaCounter_GetWarRoomCountAtPeekTime(
                 (char*)dm2 + 0x87b4, area);
             if (need <= count)
@@ -1861,7 +1831,7 @@ void CGameManager::WarRoomAlloc()
             *(char*)room = (char)area;
             *((char*)room + 1) = (char)count;
             sub_WarRoom_Prepare(room);
-            void* dm3 = sub_G_CDataManager();
+            void* dm3 = G_CDataManager();
             if (count < *(int*)((char*)dm3 + 8 + (hourTable * 10 + area + 0x223c) * 4))
                 sub_WarRoom_SetState(room, 0);
             else
@@ -1874,9 +1844,9 @@ void CGameManager::WarRoomAlloc()
 
 void CGameManager::WarRoomCountAdjustByChannelInfo()
 {
-    void* dm = sub_G_CDataManager();
+    void* dm = G_CDataManager();
     void* script = sub_CDataManager_GetChannelScript(dm);
-    void* env = sub_G_CEnvironment();
+    void* env = G_CEnvironment();
     unsigned int channelNo = ((CEnvironment*)env)->get_channel_no();
     int info = sub_channel_script_t_getChannelInfo(
         script, *(unsigned char*)((char*)env + 0x378), channelNo);
@@ -1884,9 +1854,9 @@ void CGameManager::WarRoomCountAdjustByChannelInfo()
     {
         for (int b = 0; b < 0x18; ++b)
         {
-            void* dm2 = sub_G_CDataManager();
+            void* dm2 = G_CDataManager();
             float f = *(float*)((char*)info + 8 + (a + 4) * 4);
-            void* dm3 = sub_G_CDataManager();
+            void* dm3 = G_CDataManager();
             *(int*)((char*)dm2 + 8 + (b * 10 + a + 0x223c) * 4) =
                 (int)(*(float*)((char*)dm3 + 4 + (b + 0x21ec) * 4) * f);
         }
@@ -1906,7 +1876,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         int n = 0;
         for (;;)
         {
-            void* dm = sub_G_CDataManager();
+            void* dm = G_CDataManager();
             int need = sub_WarAreaCounter_GetWarRoomCountAtPeekTime(
                 (char*)dm + 0x87b4, area);
             if (need <= n)
@@ -1930,7 +1900,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     int hourTable;
     if (hourIndex == -1)
     {
-        void* dm = sub_G_CDataManager();
+        void* dm = G_CDataManager();
         hourTable = sub_WarAreaCounter_GetCurrenTimeTable((char*)dm + 0x87b4);
     }
     else
@@ -1953,14 +1923,14 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             {
                 guard.put_short(index, totalDiff);
                 guard.finalize(true);
-                sub_GameWorld_send_all(sub_G_GameWorld(), &guard);
+                sub_GameWorld_send_all(G_GameWorld(), &guard);
                 PrintWarRoomList();
                 cMyTrace tr3("void CGameManager::WarRoomCountManage(int)", 0x30cf, 0);
                 tr3("WarRoomCountManage end");
             }
             return;
         }
-        void* dm = sub_G_CDataManager();
+        void* dm = G_CDataManager();
         int diff = *(int*)((char*)dm + 8 + (hourTable * 10 + area + 0x223c) * 4) -
                    current[area];
         cMyTrace tr2("void CGameManager::WarRoomCountManage(int)", 0x3097, 0);
@@ -1968,7 +1938,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         if (diff < 0)
         {
             int need = diff < 0 ? -diff : diff;
-            void* dm2 = sub_G_CDataManager();
+            void* dm2 = G_CDataManager();
             int lastIdx = sub_WarAreaCounter_GetWarRoomCountLastIndex(
                 (char*)dm2 + 0x87b4, area);
             while (need != 0)
@@ -1991,7 +1961,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         else if (diff > 0)
         {
             unsigned int need = (unsigned int)diff;
-            void* dm2 = sub_G_CDataManager();
+            void* dm2 = G_CDataManager();
             int firstIdx = sub_WarAreaCounter_GetWarRoomCountFirstIndex(
                 (char*)dm2 + 0x87b4, area);
             while (need != 0)
@@ -2026,7 +1996,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
         int n = 0;
         for (;;)
         {
-            void* dm = sub_G_CDataManager();
+            void* dm = G_CDataManager();
             int need = sub_WarAreaCounter_GetWarRoomCountAtPeekTime(
                 (char*)dm + 0x87b4, area);
             if (need <= n)
@@ -2055,13 +2025,13 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
     int totalDiff = 0;
     for (int area = 0; area < 10; ++area)
     {
-        void* dm = sub_G_CDataManager();
+        void* dm = G_CDataManager();
         int diff = *(int*)((char*)dm + 8 + (hourTable * 10 + area + 0x223c) * 4) -
                    current[area];
         if (diff < 0)
         {
             int need = diff < 0 ? -diff : diff;
-            void* dm2 = sub_G_CDataManager();
+            void* dm2 = G_CDataManager();
             int lastIdx = sub_WarAreaCounter_GetWarRoomCountLastIndex(
                 (char*)dm2 + 0x87b4, area);
             while (need != 0)
@@ -2082,7 +2052,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
         else if (diff > 0)
         {
             unsigned int need = (unsigned int)diff;
-            void* dm2 = sub_G_CDataManager();
+            void* dm2 = G_CDataManager();
             int firstIdx = sub_WarAreaCounter_GetWarRoomCountFirstIndex(
                 (char*)dm2 + 0x87b4, area);
             while (need != 0)
@@ -2105,7 +2075,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
     {
         guard.put_short(index, totalDiff);
         guard.finalize(true);
-        sub_GameWorld_send_all(sub_G_GameWorld(), &guard);
+        sub_GameWorld_send_all(G_GameWorld(), &guard);
         PrintWarRoomList();
     }
 }
@@ -2176,7 +2146,7 @@ CSharedServerMessageManager* CGameManager::GetSharedServerMessageManager()
 {
     if (m_pSharedServerMessageMgr == 0)
     {
-        void* dm = sub_G_CDataManager();
+        void* dm = G_CDataManager();
         void* pMgr = new (std::nothrow) char[0x18];
         sub_CSharedServerMessageManager_ctor(pMgr, (char*)dm + 0x7d8);
         m_pSharedServerMessageMgr = (CSharedServerMessageManager*)pMgr;
@@ -2246,8 +2216,8 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
     Packet_Monitor_UDP_Reply_UserInfo pkt;
     sub_Packet_Monitor_UDP_Reply_UserInfo_ctor(&pkt);
     char* p = pkt.m_buf;
-    p[11] = (char)((CEnvironment*)sub_G_CEnvironment())->get_channel_no();
-    if (sub_GameWorld_IsIntegratedPvPBaseChannel(sub_G_GameWorld()) && channelType == 0xc9)
+    p[11] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    if (sub_GameWorld_IsIntegratedPvPBaseChannel(G_GameWorld()) && channelType == 0xc9)
     {
         int idx = 0;
         int group = sub_CServerProxyMgrMonitor_GetStartIndex(GlobalData::s_monitor_proxy_mgr);
@@ -2256,9 +2226,9 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
             Packet_ChannelType ctype;
             sub_Packet_ChannelType_ctor(&ctype);
             *(unsigned int*)(ctype.m_buf + 0xc) =
-                (unsigned int)((CEnvironment*)sub_G_CEnvironment())->get_channel_no();
+                (unsigned int)((CEnvironment*)G_CEnvironment())->get_channel_no();
             *(unsigned int*)(ctype.m_buf + 0x10) =
-                (unsigned int)sub_GameWorld_GetChannelType(sub_G_GameWorld());
+                (unsigned int)sub_GameWorld_GetChannelType(G_GameWorld());
             void* proxy = sub_CServerProxyMgrMonitor_GetServerProxy(
                 GlobalData::s_monitor_proxy_mgr, group);
             sub_CMonitorServerProxy_SendTcpPacket(
@@ -2334,8 +2304,8 @@ void CGameManager::send_userinfos_to_cutoff_server()
         new (&buckets[i]) STTempUsers();
     Packet_CutOff_UDP_Reply_UserInfo pkt;
     sub_Packet_CutOff_UDP_Reply_UserInfo_ctor(&pkt);
-    pkt.m_buf[12] = (char)((CEnvironment*)sub_G_CEnvironment())->get_channel_no();
-    pkt.m_buf[13] = *(char*)((char*)sub_G_CEnvironment() + 0x378);
+    pkt.m_buf[12] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    pkt.m_buf[13] = *(char*)((char*)G_CEnvironment() + 0x378);
     if (!m_userByAccId.empty())
     {
         std::map<unsigned int, CUser*>::iterator it = m_userByAccId.begin();
@@ -2435,8 +2405,8 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     int curSec2 = GlobalData::s_systemTime_.getCurSec();
     const void* characR2 = user->getCurCharacR();
     long lastPlay = *(long*)((char*)characR2 + 0x7b);
-    void* env = sub_G_CEnvironment();
-    if (sub_CheckDailyScheduleTime(
+    void* env = G_CEnvironment();
+    if (CheckDailyScheduleTime(
             *(int*)((char*)env + 0x37c), lastPlay, curSec2))
     {
         std::vector<std::pair<int, int> > vecC;
@@ -2484,11 +2454,11 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (sub_GameWorld_GetChannelType(sub_G_GameWorld()) == 0xe)
+    if (sub_GameWorld_GetChannelType(G_GameWorld()) == 0xe)
     {
         user->set_charac_guildkey(0);
     }
-    if (sub_GameWorld_reach_game_world(sub_G_GameWorld(), user) != 1)
+    if (sub_GameWorld_reach_game_world(G_GameWorld(), user) != 1)
     {
         cMyTrace tr("bool CGameManager::insert_game_world(CUser*)", 0xfa2, 0);
         tr("CGameManager::insert_game_world , !G_GameWorld()->reach_game_world( pUser ) , USER : %d(%s)",
@@ -2502,18 +2472,14 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     int eventGrow = (int)user->getCurCharacEventCharacterGrowtype();
     if (eventGrow > 0)
     {
-        void* handler = sub_CEventCharacterHandlerInstance();
-        sub_CEventCharacterHandler__makeEventCharacter(handler, user, 0x28);
+        sub_CEventCharacterHandler__makeEventCharacter((void*)CEventCharacterHandlerInstance(), user, 0x28);
     }
     CExpandEquipslot* expandSlot = user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_9);
-    if (sub_GameWorld_IsEquipSlotSwitchChannel(sub_G_GameWorld()) == 0)
+    if (user->getCurChannelEquipslotSwitch() == 1)
     {
-        if (user->getCurChannelEquipslotSwitch() == 1)
-        {
-            char c = user->getCurExpandEquipslotSwitch();
-            char d = user->getCurChannelEquipslotSwitch();
-            sub_CExpandEquipslot_EquipslotSwitch(expandSlot, user, 0, d, c);
-        }
+        char c = user->getCurExpandEquipslotSwitch();
+        char d = user->getCurChannelEquipslotSwitch();
+        sub_CExpandEquipslot_EquipslotSwitch(expandSlot, user, 0, d, c);
     }
     else
     {
@@ -2524,7 +2490,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
             sub_CExpandEquipslot_EquipslotSwitch(expandSlot, user, 0, d, c);
         }
     }
-    int channelType = sub_GameWorld_GetChannelType(sub_G_GameWorld());
+    int channelType = sub_GameWorld_GetChannelType(G_GameWorld());
     if (channelType == 0xf || channelType == 0x10)
     {
         void* mission = user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
@@ -2536,7 +2502,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     guard.put_short(1);
     user->make_basic_info((char*)&guard, 0);
     guard.finalize(true);
-    sub_GameWorld_send_all_user(sub_G_GameWorld(), &guard, user);
+    sub_GameWorld_send_all_user(G_GameWorld(), &guard, user);
     user->send_skill_info();
     guard.clear();
     guard.put_header(0, 2);
@@ -2554,7 +2520,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     sub_CTitleBook_sendList(user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)14));
     sub_CAchievement_sendList(user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)15));
     sub_CItemLock_SendItemLockList(user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2), user);
-    if (sub_GameWorld_GetChannelType(sub_G_GameWorld()) != 0xf)
+    if (sub_GameWorld_GetChannelType(G_GameWorld()) != 0xf)
     {
         SendPvpList(user);
     }
@@ -2582,8 +2548,8 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     char monitor[0x3f];
     sub_Packet_Monitor_Char_Info_ctor(monitor);
     *(unsigned int*)(monitor + 0xa) = user->get_acc_id();
-    monitor[0xe] = (char)((CEnvironment*)sub_G_CEnvironment())->get_channel_no();
-    monitor[0x3d] = (char)sub_GameWorld_GetChannelType(sub_G_GameWorld());
+    monitor[0xe] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    monitor[0x3d] = (char)sub_GameWorld_GetChannelType(G_GameWorld());
     *(unsigned int*)(monitor + 0xf) = (unsigned int)user->get_charac_no(-1);
     *(unsigned int*)(monitor + 0x13) = user->get_charac_guildkey();
     monitor[0x17] = user->get_charac_job();
@@ -2615,7 +2581,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
         TimerEntry::OBJ_TYPE_0, 0, (TIMER_MESSAGE)2, 0x3c, loginTick, uid);
     int characNo2 = user->getCurCharacNo();
     int loginTick2 = user->GetLoginTick();
-    int randSec = sub_get_rand_int(300) + 600;
+    int randSec = get_rand_int(300) + 600;
     unsigned int uid2 = user->GetUID();
     GlobalData::s_timerQueue_->InsertTimer(
         TimerEntry::OBJ_TYPE_0, 0, (TIMER_MESSAGE)1, randSec, loginTick2, uid2);
@@ -2649,7 +2615,7 @@ void CGameManager::user_disconnect(CUser* user)
     if (user->get_state() != 0)
     {
         sub_CUser_prepareDisconnect(user);
-        sub_GameWorld_EraseLoginUser(sub_G_GameWorld(), user);
+        sub_GameWorld_EraseLoginUser(G_GameWorld(), user);
         sub_CUser_SetSaveRentalInfoToExchange(user, false);
         if (user->get_state() < 3)
         {
@@ -2668,7 +2634,7 @@ void CGameManager::user_disconnect(CUser* user)
             checkOutBossTower(user);
             checkOutAdvanceAltar(user);
             checkOutBlueMarble(user);
-            sub_GameWorld_leave_game_world(sub_G_GameWorld(), user);
+            sub_GameWorld_leave_game_world(G_GameWorld(), user);
             sub_CUser_SetGameMasterMode(user, false);
             user->UpdateData();
             user->LogoutCachedCharacter(0);
@@ -2679,126 +2645,18 @@ void CGameManager::user_disconnect(CUser* user)
             sub_CUser_doLinkCharacDisconnect(user);
             returnUserPool(user);
         }
-        void* mgr = sub_GetInstanceShutdowManager();
-        sub_CShutdowManager_SendLastMsgDBQueue(mgr);
-    }
 }
-
-bool CGameManager::user_exit(CUser* user)
-{
-    if (user == 0)
-    {
-        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x1271, 5);
-        tr("USER_EXIT [%s][%d]", "bool CGameManager::user_exit(CUser*)", 0x1271);
-        return 0;
-    }
-    if (user->get_state() == 0)
-    {
-        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x127a, 5);
-        tr("USER_EXIT STATE NONE [%s][%d]mid(%d)",
-           "bool CGameManager::user_exit(CUser*)", 0x127a, user->get_acc_id());
-        return 0;
-    }
-    sub_HistoryLog_LogClose(*(void**)((char*)user + 0x796f8));
-    sub_CUser_prepareDisconnect(user);
-    sub_GameWorld_EraseLoginUser(sub_G_GameWorld(), user);
-    if (user->get_state() < 3)
-    {
-        sub_CUser_SetSaveRentalInfoToExchange(user, false);
-        user->LogoutCachedCharacter(0);
-        user->UpdateLogout(false);
-    }
-    else
-    {
-        CheckOutTrade(user);
-        CheckOutParty(user, false);
-        CheckOutPvp(user, false);
-        CheckOutWarRoom(user);
-        checkOutDeathTower(user);
-        checkOutBossTower(user);
-        checkOutAdvanceAltar(user);
-        checkOutBlueMarble(user);
-        sub_GameWorld_leave_game_world(sub_G_GameWorld(), user);
-        sub_CUser_SetGameMasterMode(user, false);
-        user->UpdateData();
-        user->LogoutCachedCharacter(0);
-        user->UpdateLogout(false);
-        cMyTrace tr("bool CGameManager::user_exit(CUser*)", 0x12dc, 0);
-        tr("ID: %s - UID: %d from Logout",
-           user->getCurCharacName(), user->get_unique_id() & 0xffff);
-        int err = 0;
-        int sock = ((CNetwork<4096, 450000>*)((char*)user + 0xe0))->get_socket();
-        err = sub_EpollHandler_ResetEpoll(sub_G_EpollHandler(), sock);
-        if (err != 0)
-        {
-            LogManager::logFormat(
-                1, "App.cpp", "bool CGameManager::user_exit(CUser*)", 0x12e3,
-                "(m_id: %s) G_EpollHandler()->ResetEpoll(pUser->get_socket(%d)) %d(%s)",
-                NumberToString(user->get_acc_id(), 0),
-                ((CNetwork<4096, 450000>*)((char*)user + 0xe0))->get_socket(),
-                err, strerror(err));
-        }
-        user->ResetCurCharac();
-        sub_CUser_doLinkCharacDisconnect(user);
-        returnUserPool(user);
-        sub_CUser_checkLogOutCorrectly(user);
-    }
-    return 1;
 }
-
-// ============================================================================
-// 构造 / 析构
-// ============================================================================
 CGameManager::CGameManager()
+    : m_mutex(), m_uid(0), m_pad1a(), m_noGameGuard(), m_gameGuard2(),
+      m_userPool(), m_tradeSpacePool(), m_partyPool(), m_pvpRoomPool(),
+      m_warRoomPool(), m_deathTowerPool(), m_bossTowerPool(), m_stagePool(),
+      m_quickPartyPool(), m_blueMarblePool(), m_userByAccId(), m_userByAccId2(),
+      m_pvpRoomMap(), m_partyMap(), m_warRoomMap(), m_deathTowerMap(), m_bossTowerMap(),
+      m_stageMap(), m_quickPartyMap(), m_blueMarbleMap(), m_pQuickPartySystemMgr(0),
+      m_pQuickPartyRewardMgr(0), m_pPremiumLetheMgr(0), m_pSharedServerMessageMgr(0),
+      m_pConditionEventMgr(0), m_pSpecialItemRoutingMgr(0), m_pAuctionAveragePriceMgr(0),
+      m_pCraneMinigameMgr(0)
 {
-    m_uid = 0;
-    m_noGameGuard.insert(std::string("testman820"));
-    m_gameGuard2.insert(std::string("htilil"));
-    m_noGameGuard.insert(std::string("azzuman"));
-    m_gameGuard2.insert(std::string("cuwaki"));
-    m_noGameGuard.insert(std::string("slainer"));
-    m_gameGuard2.insert(std::string("mrsbscom"));
-    m_noGameGuard.insert(std::string("arandra"));
-    m_gameGuard2.insert(std::string("krucef"));
-    m_noGameGuard.insert(std::string("dnftest126"));
-    m_gameGuard2.insert(std::string("dnftest127"));
-    m_noGameGuard.insert(std::string("dnftest128"));
-    m_gameGuard2.insert(std::string("59.10.138.244"));
-    m_noGameGuard.insert(std::string("218.145.141.85"));
-    m_gameGuard2.insert(std::string("121.134.32.42"));
-    m_pQuickPartySystemMgr = 0;
-    m_pQuickPartyRewardMgr = 0;
-    m_pPremiumLetheMgr = 0;
-    m_pSharedServerMessageMgr = 0;
-    m_pConditionEventMgr = 0;
-    m_pSpecialItemRoutingMgr = 0;
-    m_pAuctionAveragePriceMgr = 0;
-    m_pCraneMinigameMgr = 0;
 }
 
-CGameManager::~CGameManager()
-{
-    if (m_pQuickPartySystemMgr != 0)
-    {
-        sub_CQuickPartySystemManager_dtor(m_pQuickPartySystemMgr);
-        operator delete(m_pQuickPartySystemMgr);
-    }
-    m_pQuickPartySystemMgr = 0;
-    if (m_pQuickPartyRewardMgr != 0)
-    {
-        sub_CQuickPartyRewardManager_dtor(m_pQuickPartyRewardMgr);
-        operator delete(m_pQuickPartyRewardMgr);
-    }
-    m_pQuickPartyRewardMgr = 0;
-    if (m_pAuctionAveragePriceMgr != 0)
-    {
-        sub_CAuctionAveragePrice_dtor(m_pAuctionAveragePriceMgr);
-        operator delete(m_pAuctionAveragePriceMgr);
-        m_pAuctionAveragePriceMgr = 0;
-    }
-    if (m_pCraneMinigameMgr != 0)
-    {
-        sub_CraneMinigameManager_dtor(m_pCraneMinigameMgr);
-        operator delete(m_pCraneMinigameMgr);
-    }
-}

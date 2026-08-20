@@ -24,12 +24,14 @@
 #include "GameTypes.h"
 #include "Inven_Item.h"
 #include "CUser.h"
+#include "CPartyResultRecvFlag.h"
+#include "CTraceMobDieHack.h"
 
 // ---- 本批次临时类型（主 agent 集成后迁移到权威头） ----
-enum ENUM_PARTY_INFO_TYPE
-{
-    ENUM_PARTY_INFO_TYPE_0 = 0
-};
+#ifndef DNF_ENUM_PARTY_INFO_TYPE_DEFINED
+#define DNF_ENUM_PARTY_INFO_TYPE_DEFINED
+enum ENUM_PARTY_INFO_TYPE { ENUM_PARTY_INFO_TYPE_0 = 0 };
+#endif
 
 enum ENUM_WALKOUT_TYPE
 {

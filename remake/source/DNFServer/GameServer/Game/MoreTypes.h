@@ -61,6 +61,7 @@ struct PURCHASE_COUNT_CHECK { char m_pad[0x100]; };
 }
 }
 
+namespace TaiwanInternalPack { enum T { PACKET_0 = 0 }; }
 namespace Taiwan {
 struct SigUpdateExitTime { char m_pad[0x100]; };
 struct SigLoadGeolocation { char m_pad[0x100]; };
@@ -68,7 +69,7 @@ struct SigLoadRestrictPolicy { char m_pad[0x100]; };
 struct SigResetStayTimeEvent { char m_pad[0x100]; };
 struct SigLoadHeroMissionData { char m_pad[0x100]; };
 struct SigSaveHeroMissionData { char m_pad[0x100]; };
-struct SigStayTimeEvent { char m_pad[0x100]; };
+struct SigStayTimeEvent { void init(); void set(unsigned int accId); unsigned int m_accId; char m_pad[0x1c]; };
 }
 
 namespace arad {

@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r 还原 —— MySQL（D4 批次）
 // 参照 docs/class_func_reports/MySQL.md；源文件 DBMgr.cpp（ORIG 日志文件名）。
 #include "MySQL.h"

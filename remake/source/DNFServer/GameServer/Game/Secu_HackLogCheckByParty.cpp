@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // ============================================================================
 // df_game_r Secu_HackLogCheckByParty 还原（G2-5 批次，自包含 TU）
 // 逐函数对照 docs/class_func_reports/Secu_HackLogCheckByParty.md 与 ORIG 反汇编。
@@ -62,10 +63,6 @@ extern "C" char sub_CMap_checkFitInPathObject(void* self, int x, int y)
 
 extern "C" char* sub_NumberToString(unsigned int value, int radix)
     asm("_Z14NumberToStringji");
-extern "C" void sub_LogManager_logFormat(int level, const char* file,
-                                         const char* func, int line,
-                                         const char* fmt, ...)
-    asm("_ZN10LogManager9logFormatEiPKcS1_iS1_z");
 extern "C" void sub_CHackAnalyzer_addServerHackCnt(void* self, void* user,
                                                    int hackType,
                                                    unsigned int a, unsigned int b,
@@ -157,7 +154,7 @@ void Secu_HackLogCheckByParty::CheckMoveMapFitInPathHackCnt(
     {
         unsigned int acc = sub_CUser_get_acc_id(user);
         char* accStr = sub_NumberToString(acc, 0);
-        sub_LogManager_logFormat(
+        LogManager::logFormat(
             1, "Secu_HackLogCheckByParty.cpp",
             "void Secu_HackLogCheckByParty::CheckMoveMapFitInPathHackCnt(CUser*, CParty*, unsigned int, unsigned int, int)",
             0x2c, "Path gate position error. (User: %s %d,%d)", accStr, a, b);

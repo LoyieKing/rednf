@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // ============================================================================
 // df_game_r 还原 —— CUser（G1-3 批次，在线用户会话聚合根）
 // 布局见 CUser.h；本文件按 ORIG 反汇编（docs/class_func_reports/CUser.md）
@@ -9,6 +10,7 @@
 #include <cstdio>
 
 #include "CUser.h"
+#include "CMailBox.h"
 #include "CGameManager.h"
 #include "CInventory.h"
 #include "SkillSlot.h"
@@ -3339,4 +3341,21 @@ void CUser::send_MissionList()
 {
     void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
     _ZN19CMissionList_Charac16Send_MissionListER5CUser(mission, this);
+}
+
+void CUser::send_aura_avatar_option()
+{
+    if (getCurCharacR() == 0) return;
+    PacketGuard packet;
+    packet.put_header(0, 0x17a);
+    packet.put_byte(3);
+    for (int idx = 0; idx < 3; ++idx) {
+        packet.put_byte((char)idx);
+        int now = GlobalData::s_systemTime_.getCurSec();
+        const _Charac_info* cur = getCurCharacR();
+        int expire = *(const int*)((const char*)cur + (idx + 0x4a0) * 4 + 1);
+        packet.put_int(now < expire ? expire - now : 0);
+    }
+    packet.finalize(true);
+    Send(packet);
 }

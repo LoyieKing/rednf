@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // ============================================================================
 // df_game_r 还原 —— CTradeSpace（交易空间，G2-4 批次）
 // 参照 docs/class_func_reports/CTradeSpace.md + ORIG 弱符号反汇编。

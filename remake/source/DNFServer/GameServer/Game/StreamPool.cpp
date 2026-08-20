@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r 还原 —— StreamPool / SmallStreamPool / BigStreamPool（S1 组）
 #include "CEnvironment.h"
 #include "StreamPool.h"

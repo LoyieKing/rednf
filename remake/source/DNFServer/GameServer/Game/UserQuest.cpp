@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // ============================================================================
 // df_game_r UserQuest（G2-5 批次）逐函数还原
 // 语义依据：docs/class_func_reports/UserQuest.md（汇编为准）+ ORIG 反汇编直读。
@@ -143,7 +144,8 @@ struct SIG_LOAD_QUEST
 // ---- Quest 布局（仅本 TU 访问到的字段）----
 struct Quest
 {
-    char m_pad00[8];                                  // +0x00
+    char m_pad00[4];                                  // +0x00
+    int m_index;                                      // +0x04
     int m_type;                                       // +0x08
     char m_pad0c[0x10];                               // +0x0c
     int m_field1c;                                    // +0x1c
@@ -187,9 +189,27 @@ extern "C" void sub_QuestList_allowable_questlist_as_npc(
     void* selectParam, void const* cleared, bool b)
     asm("_ZN9QuestList26allowable_questlist_as_npcERSt4listIiSaIiEERKSt8multimapIiiSt4lessIiESaISt4pairIKiiEEER18stSelectQuestParamRKN8WongWork11CQuestClearEb");
 
-extern "C" bool sub_checkAcceptableQuest(void const* quest, void const* cleared,
-                                         void const* selectParam)
-    asm("_Z20checkAcceptableQuestPK5QuestRKN8WongWork11CQuestClearERK18stSelectQuestParam");
+extern "C" char sub_Quest_exposeQuest(void const* self) asm("_ZNK5Quest11exposeQuestEv");
+extern "C" char sub_Quest_check_possible(void const* self, void const* param) asm("_ZNK5Quest14check_possibleERK18stSelectQuestParam");
+extern "C" bool sub_QuestList_check_clear(void* self, int idx, void const* clear) asm("_ZN9QuestList11check_clearEiRKN8WongWork11CQuestClearE");
+extern "C" bool sub_QuestList_check_ahead(void* self, int idx, void const* clear) asm("_ZN9QuestList17check_ahead_questEiRKN8WongWork11CQuestClearE");
+extern "C" bool sub_QuestList_check_anti(void* self, int idx, void const* clear) asm("_ZN9QuestList16check_anti_questEiRKN8WongWork11CQuestClearE");
+
+
+extern "C" bool sub_Quest_isRepeatableQuest(void const* self)
+    asm("_ZNK5Quest17isRepeatableQuestEv");
+bool checkAcceptableQuest(const Quest* quest,
+                          const WongWork::CQuestClear& cleared,
+                          const stSelectQuestParam& param)
+{
+    if (quest->m_index == 0x3f8) return true;
+    if (!sub_Quest_exposeQuest(quest) || !sub_Quest_check_possible(quest, &param)) return false;
+    void* list = QUEST_LIST_MGR();
+    if (!sub_Quest_isRepeatableQuest(quest) &&
+        !sub_QuestList_check_clear(list, quest->m_index, &cleared)) return false;
+    return sub_QuestList_check_ahead(list, quest->m_index, &cleared) &&
+           sub_QuestList_check_anti(list, quest->m_index, &cleared);
+}
 
 extern "C" void sub_CQuestClear_C1(void* self) asm("_ZN8WongWork11CQuestClearC1Ev");
 extern "C" void sub_CQuestClear_D1(void* self) asm("_ZN8WongWork11CQuestClearD1Ev");
@@ -207,8 +227,6 @@ extern "C" void const* sub_CQuestClear_getClearedQuest(void const* self)
 
 extern "C" void sub_Quest_Authen_Data_C1(void* self) asm("_ZN18_Quest_Authen_DataC1Ev");
 
-extern "C" bool sub_Quest_isRepeatableQuest(void const* self)
-    asm("_ZNK5Quest17isRepeatableQuestEv");
 extern "C" int sub_Quest_get_init_trigger(void const* self)
     asm("_ZNK5Quest16get_init_triggerEv");
 extern "C" int sub_Quest_get_appearmap(void const* self, int a, int b)
@@ -285,9 +303,6 @@ extern "C" char sub_CPowerManager_GetWinnerSide(void* self)
 
 extern "C" void* sub_CBattle_Field_getMaze(void* self) asm("_ZN13CBattle_Field7getMazeEv");
 
-extern "C" void sub_LogManager_logFormat(int level, char const* file, char const* func,
-                                         int line, char const* fmt, ...)
-    asm("_ZN10LogManager9logFormatEiPKcS1_iS1_z");
 
 extern "C" void sub_cMyTrace_C1(void* self, char const* func, int line, int flag)
     asm("_ZN8cMyTraceC1EPKcii");
@@ -534,7 +549,7 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
 {
     if (m_user == 0)
     {
-        sub_LogManager_logFormat(1, "user_quest.cpp",
+        LogManager::logFormat(1, "user_quest.cpp",
                                  "int UserQuest::accept_quest(int, char*, int&)", 0x1e8,
                                  "user is null");
         return 1;
@@ -550,7 +565,7 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
     Quest* quest = sub_CDataManager_find_quest(sub_G_CDataManager(), questIdx);
     if (quest == 0)
     {
-        sub_LogManager_logFormat(1, "user_quest.cpp",
+        LogManager::logFormat(1, "user_quest.cpp",
                                  "int UserQuest::accept_quest(int, char*, int&)", 0x1f8,
                                  "G_CDataManager()->find_quest(%d)", questIdx);
         return 1;
@@ -578,7 +593,7 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
     {
         sub_stSelectQuestParam_C1(&selectParam, m_user);
         UserQuest* cur = sub_CUser_getCurCharacQuestR(m_user);
-        if (!sub_checkAcceptableQuest(quest, &cur->m_cleared, &selectParam))
+        if (!checkAcceptableQuest(quest, cur->m_cleared, selectParam))
         {
             sub_CHackAnalyzer_addServerHackCnt(sub_CUser_getHackAnalyzer(m_user), m_user,
                                                WongWork::ENUM_HACK_TYPE_QUEST, 1, 0, 0);
@@ -869,7 +884,7 @@ int UserQuest::check_quest_condition(int questIdx)
     Quest* quest = sub_QuestList_find_quest(QUEST_LIST_MGR(), questIdx);
     if (quest == 0)
     {
-        sub_LogManager_logFormat(
+        LogManager::logFormat(
             1, "user_quest.cpp", "bool UserQuest::check_quest_condition(int)", 0x403,
             "G_CDataManager()->m_pQuestList->find_quest(%d) fail", questIdx);
         return 0;

@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r 还原 —— CMonitorServerProxy（监视服务器客户端代理）实现。
 // 参照 docs/class_func_reports/CMonitorServerProxy.md；单 TU 编译后经
 // check_tu_game_orig.sh 与 df_game_r ORIG 对比（AE 口径）。

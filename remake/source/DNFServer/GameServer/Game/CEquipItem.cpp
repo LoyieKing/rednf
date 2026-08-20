@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r CEquipItem 还原（I1 批次，2026-08-16）。
 // 函数形态以 docs/class_func_reports/CEquipItem.md + ORIG weak 反汇编为准
 // （AE 口径：调用目标归一；字段偏移/常量逐条一致）。

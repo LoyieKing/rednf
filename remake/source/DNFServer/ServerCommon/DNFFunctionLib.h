@@ -31,6 +31,7 @@ static bool comp_by_time(STGuildCargoLog const& a, STGuildCargoLog const& b) {
 }
 
 unsigned int timeGetTime();
+int get_rand_int(int range);
 char* NumberToString(unsigned int value, int index);
 char* NumberToString(unsigned long long value, int index);
 void PrintBackTrace();

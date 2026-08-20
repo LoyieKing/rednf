@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r CDataManager（全服数据仓库）还原（2026-08-16）。
 // 函数形态/成员偏移以 ORIG 汇编为准；ST*Script 类实现属后续脚本批次，
 // 本 TU 只声明其 C1/D1 并调用。

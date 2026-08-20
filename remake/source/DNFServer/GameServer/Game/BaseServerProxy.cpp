@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r 还原 —— BaseServerProxy（E1 批次）。
 // 参照 docs/class_func_reports/BaseServerProxy.md。
 #include "BaseServerProxy.h"

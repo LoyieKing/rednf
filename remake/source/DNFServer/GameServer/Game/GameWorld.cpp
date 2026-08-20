@@ -36,6 +36,7 @@
 #include "StreamPool.h"
 #include "CStreamGuard.h"
 #include "Stream.h"
+#include "TaiwanInternal.h"
 #include "LogManager.h"
 #include "CServerProxyMgr.h"
 
@@ -90,13 +91,6 @@ extern "C" int sub_ServerParameterScript_GetMaxCleanChattingCount(void* self)
     asm("_ZN23ServerParameterScript25GetMaxCleanChattingCountEv");
 
 // ---- Taiwan 事件流（CEventStayTime::RewardGoGoFighter 依赖）----
-extern "C" void sub_Taiwan_internal_stream(void* guard, int packet, int uid)
-    asm("_ZN6Taiwan15internal_streamER12CStreamGuardN18TaiwanInternalPack1TEi");
-extern "C" void* sub_CStreamGuard_GetInBuffer_SigStayTimeEvent(void* self)
-    asm("_ZN12CStreamGuard11GetInBufferIN6Taiwan16SigStayTimeEventEEEPT_v");
-extern "C" void sub_SigStayTimeEvent_init(void* self) asm("_ZN6Taiwan16SigStayTimeEvent4initEv");
-extern "C" void sub_SigStayTimeEvent_set(void* self, unsigned int accId)
-    asm("_ZN6Taiwan16SigStayTimeEvent3setEj");
 
 // ============================================================================
 // 全局数据（ORIG：MAX_VILLAGE_NUM 0948b2b0 / g_townScriptFileList 09500ea0）
@@ -3825,17 +3819,16 @@ public:
     };
 };
 
-class InterSelectCreateDnfEventInfo
+namespace InterSelectCreateDnfEventInfo
+{
+class Reward
 {
 public:
-    class Reward
-    {
-    public:
-        void operator()(CUser* user);
-        unsigned short m_0;
-        char m_2;
-    };
+    void operator()(CUser* user);
+    unsigned short m_0;
+    char m_2;
 };
+}
 
 void CEventStayTime::RewardGoGoFighter::operator()(CUser* user)
 {
@@ -3850,14 +3843,14 @@ void CEventStayTime::RewardGoGoFighter::operator()(CUser* user)
     }
     CStreamGuard guard(((StreamPool*)0x940bd6c)->Acquire("GameWorld.cpp", 0x1e),
                        true);
-    sub_Taiwan_internal_stream(&guard, 5, user->GetUID());
-    void* evt = sub_CStreamGuard_GetInBuffer_SigStayTimeEvent(guard.operator->());
+    Taiwan::internal_stream(guard, static_cast<TaiwanInternalPack::T>(5), user->GetUID());
+    Taiwan::SigStayTimeEvent* evt = guard.GetInBuffer<Taiwan::SigStayTimeEvent>();
     if (evt != 0)
     {
         cMyTrace trace("CEventStayTime::RewardGoGoFighter::operator()", 0x24, 0);
         trace("%d", user->get_acc_id());
-        sub_SigStayTimeEvent_init(evt);
-        sub_SigStayTimeEvent_set(evt, user->get_acc_id());
+        evt->init();
+        evt->set(user->get_acc_id());
         ((MsgQueueMgr*)0x940bd68)->put(MsgQueueMgr::QUEUE_IDX(2), guard);
     }
 }

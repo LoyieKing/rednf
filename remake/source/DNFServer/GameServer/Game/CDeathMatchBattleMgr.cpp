@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // ============================================================================
 // df_game_r CDeathMatchBattleMgr（G2-5 批次，PvP_Room +0x69c，尺寸 0x44）
 // 逐函数对照 docs/class_func_reports/CDeathMatchBattleMgr.md 与 ORIG 反汇编还原。
@@ -48,9 +49,6 @@ extern "C" void* sub_G_TimerQueue()
 extern "C" void sub_TimerQueue_InsertTimer(
     void* self, int objType, int a, int msg, int b, unsigned int key, unsigned int c)
     asm("_ZN10TimerQueue11InsertTimerEN10TimerEntry8OBJ_TYPEEi13TIMER_MESSAGEiij");
-extern "C" void sub_LogManager_logFormat(
-    int level, const char* file, const char* func, int line, const char* fmt, ...)
-    asm("_ZN10LogManager9logFormatEiPKcS1_iS1_z");
 
 // ---- std::pair 排序比较器（ORIG 085df55f T） ----
 bool funDeathMatchKillCntCompare(const std::pair<int, int>& a,
@@ -209,7 +207,7 @@ int CDeathMatchBattleMgr::checkGameOverForTeamPlay(
             else if (teamWin[i] == 2)
                 killTeam2 += m_killCount[i];
             else
-                sub_LogManager_logFormat(
+                LogManager::logFormat(
                     1, "pvp.cpp",
                     "bool CDeathMatchBattleMgr::checkGameOverForTeamPlay(CUser**, int, unsigned char*)",
                     0x157f,
@@ -265,7 +263,7 @@ void CDeathMatchBattleMgr::checkWinnerForTeamPlay(
             else if (teamWin[i] == 2)
                 killTeam2 += m_killCount[i];
             else
-                sub_LogManager_logFormat(
+                LogManager::logFormat(
                     1, "pvp.cpp",
                     "void CDeathMatchBattleMgr::checkWinnerForTeamPlay(CUser**, bool*, unsigned char*, PvpUserTable&)",
                     0x1617,

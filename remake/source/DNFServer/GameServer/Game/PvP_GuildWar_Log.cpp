@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // ============================================================================
 // df_game_r PvP_GuildWar_Log（G2-4 公会战 PvP 日志，0x68 字节）
 // 逐函数对照 docs/class_func_reports/PvP_GuildWar_Log.md 与 ORIG 反汇编实现；
@@ -28,10 +29,6 @@ extern "C" unsigned int sub_CUserCharacInfo_get_charac_guildkey(void* self)
 extern "C" void* sub_G_CEnvironment() asm("_Z14G_CEnvironmentv");
 extern "C" const char* sub_CEnvironment_get_file_name(void* self)
     asm("_ZN12CEnvironment13get_file_nameEv");
-extern "C" void sub_LogManager_logFormat(int level, const char* file,
-                                         const char* func, int line,
-                                         const char* fmt, ...)
-    asm("_ZN10LogManager9logFormatEiPKcS1_iS1_z");
 
 // ---- CMyFileLog（ORIG ctor 0810786c / operator() 08107898，外部定义）----
 class CMyFileLog
@@ -173,7 +170,7 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
     }
     else
     {
-        sub_LogManager_logFormat(
+        LogManager::logFormat(
             1, "pvp.cpp",
             "void PvP_GuildWar_Log::WriteGuildWarPvPLog(int, char, CUser**)",
             0x12cc,

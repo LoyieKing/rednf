@@ -62,20 +62,18 @@ enum ENUM_CHARAC_EXPAND_TYPE
 };
 #endif
 
-enum eWPSubReason
-{
-    eWPSubReason_0 = 0
-};
-
-enum eFPAddReason
-{
-    eFPAddReason_0 = 0
-};
-
-enum eFPSubReason
-{
-    eFPSubReason_0 = 0
-};
+#ifndef DNF_ENUM_EWPSUBREASON_DEFINED
+#define DNF_ENUM_EWPSUBREASON_DEFINED
+enum eWPSubReason { eWPSubReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_EFPADDREASON_DEFINED
+#define DNF_ENUM_EFPADDREASON_DEFINED
+enum eFPAddReason { eFPAddReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_EFPSUBREASON_DEFINED
+#define DNF_ENUM_EFPSUBREASON_DEFINED
+enum eFPSubReason { eFPSubReason_0 = 0 };
+#endif
 
 // ---- 前向声明（真实定义属其它 TU / 后续批次） ----
 struct _Charac_info;

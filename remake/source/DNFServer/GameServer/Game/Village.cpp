@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // ============================================================================
 // df_game_r Village（G2-5 村庄对象，sizeof 0x34）
 // 逐函数对照 docs/class_func_reports/Village.md 与 ORIG 反汇编还原。
@@ -78,10 +79,6 @@ extern "C" void sub_CGuildAgitManager_SetGuildAgitAreaDomain(void* self,
                                                              int end)
     asm("_ZN17CGuildAgitManager22SetGuildAgitAreaDomainEii");
 
-extern "C" void sub_LogManager_logFormat(int level, const char* file,
-                                         const char* func, int line,
-                                         const char* fmt, ...)
-    asm("_ZN10LogManager9logFormatEiPKcS1_iS1_z");
 extern "C" void sub_cMyTrace_ctor(void* self, const char* func, int line,
                                   int level)
     asm("_ZN8cMyTraceC1EPKcii");
@@ -217,7 +214,7 @@ bool Village::set_village(TownScript& script)
     m_areaCount = (int)sub_town_map_size(script.m_areaScripts);
     if (m_areaCount == 0)
     {
-        sub_LogManager_logFormat(
+        LogManager::logFormat(
             1, "world.cpp", "bool Village::set_village(TownScript&)", 0x2d0,
             "town.townAreaScripts_.size() == 0");
         return false;
@@ -395,7 +392,7 @@ void Village::get_user_id_list(
 {
     if (area < 0 || area >= m_areaCount)
     {
-        sub_LogManager_logFormat(
+        LogManager::logFormat(
             1, "world.cpp",
             "void Village::get_user_id_list(int, std::vector<short unsigned "
             "int, std::allocator<short unsigned int> >&)",
@@ -412,7 +409,7 @@ void Village::send_to_area(int area, PacketGuard& pkt)
 {
     if (area < 0 || area >= m_areaCount)
     {
-        sub_LogManager_logFormat(
+        LogManager::logFormat(
             1, "world.cpp", "void Village::send_to_area(int, PacketGuard&)",
             0x360, "area(%d) < 0 || area >= m_iAreaCount(%d)", area,
             m_areaCount);

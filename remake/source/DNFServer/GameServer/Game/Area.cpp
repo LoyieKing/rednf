@@ -1,3 +1,5 @@
+#include "LogManager.h"
+#include "GameRand.h"
 // ============================================================================
 // df_game_r Area（sizeof 0x98）G2-5 批次还原
 //
@@ -148,11 +150,6 @@ extern "C" void* sub_CNPCScriptList_find(const void* self, unsigned int id)
 extern "C" char sub_CNPCScript_isExistRole(const void* self, ENUM_NPC_ROLE role)
     asm("_ZNK10CNPCScript11isExistRoleE13ENUM_NPC_ROLE");
 
-extern "C" void sub_LogManager_logFormat(int level, const char* file,
-                                         const char* func, int line,
-                                         const char* fmt, ...)
-    asm("_ZN10LogManager9logFormatEiPKcS1_iS1_z");
-extern "C" int sub_get_rand_int(int n) asm("_Z12get_rand_inti");
 extern "C" void sub_createLotteryInfo(void* lottery, std::vector<int>* counts)
     asm("_Z17createLotteryInfoP11LotteryInfoPSt6vectorIiSaIiEE");
 
@@ -437,7 +434,7 @@ void Area::insert_user(CUser* user)
     unsigned short id = sub_CUser_get_unique_id(user);
     if (m_UsersInArea.find(id) != m_UsersInArea.end())
     {
-        sub_LogManager_logFormat(1, "world.cpp",
+        LogManager::logFormat(1, "world.cpp",
                                  "void Area::insert_user(CUser*)", 0x1a7,
                                  "m_UsersInArea.find(%d)", (int)id);
         return;
@@ -665,7 +662,7 @@ int Area::take_fish()
         return -1;
 
     int result = 0;
-    int randVal = sub_get_rand_int(100000);
+    int randVal = get_rand_int(100000);
     int sum = 0;
     std::pair<int, int> cur;
 

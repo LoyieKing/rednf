@@ -36,7 +36,9 @@ struct map_item
     int m_ownerId;            // +0x50（ctor=0）
 
     map_item();
+    map_item(const map_item& other);
     ~map_item();
+    map_item& operator=(const map_item& other);
 };
 
 // ---- map_monster（0x34c 字节；ctor 081511c8） ----
@@ -89,17 +91,59 @@ struct map_monster
     bool isNamedMonster() const;            // ORIG 08151182
 };
 
+
+// ---- MapInfo 支撑结构（0x18/0x10；init ORIG 081512ec/0815132c） ----
+struct stMapMonsterKillChecker_t
+{
+    unsigned int m_useSkillMaterialTime;   // +0x00
+    unsigned int m_lastMobDieTime;         // +0x04
+    int m_uncontinuallyMobDieCnt;          // +0x08
+    int m_dieCnt;                          // +0x0c
+    int m_field10;                         // +0x10
+    int m_field14;                         // +0x14
+    void init();                           // ORIG 081512ec
+};
+
+// 4 个 int（0x10 字节）
+struct stMapPlayInfo_t
+{
+    unsigned int m_startTick;   // +0x00
+    unsigned int m_clearTick;   // +0x04
+    int m_useItemType2Count;    // +0x08
+    int m_useItemOtherCount;    // +0x0c
+    void init();               // ORIG 0815132c
+};
 // ---- MapInfo（0xec 字节；ctor 08151394） ----
 struct MapInfo
 {
-    char m_pad0[4];                        // +0x00
-    int m_mapIndex;                        // +0x04
-    char m_pad8[4];                        // +0x08
+    char m_key;                       // +0x00
+    char m_visited;                   // +0x01
+    char m_visitedGoto;               // +0x02
+    char m_pad3[1];                   // +0x03
+    int m_mapIndex;                   // +0x04
+    char m_gridValue;                 // +0x08
+    char m_pad9[3];                   // +0x09
     std::map<int, map_monster> m_monsterMap;   // +0x0c
     std::map<int, map_item> m_itemMap;         // +0x24
-    int m_assignItemIdx;                       // +0x3c
-    int m_dropItemCnt;                         // +0x40
-    char m_pad44[0xec - 0x44];                 // +0x44..+0xec
+    int m_assignItemIdx;              // +0x3c
+    int m_dropItemCnt;                // +0x40
+    char m_mapType;                   // +0x44
+    char m_dummyBossMap;              // +0x45
+    char m_pad46[2];                  // +0x46
+    int m_mapBasisLevel;              // +0x48
+    stMapMonsterKillChecker_t m_killChecker1;  // +0x4c（0x18）
+    stMapMonsterKillChecker_t m_killChecker2;  // +0x64（0x18）
+    stMapPlayInfo_t m_playInfo;               // +0x7c（0x10）
+    std::map<int, int> m_hellPartyGroup;      // +0x8c
+    char m_assignNPCByPotion;         // +0xa4
+    char m_padA5[3];                  // +0xa5
+    std::map<int, int> m_mapA8;       // +0xa8
+    std::vector<int> m_vecC0;         // +0xc0
+    short m_cc;                       // +0xcc
+    char m_padCE[2];                  // +0xce
+    std::multimap<int, map_monster> m_tournamentMob;  // +0xd0
+    char m_layeredMap;                // +0xe8
+    char m_padE9[3];                  // +0xe9
 
     MapInfo();                                // ORIG 08151394
     MapInfo(const MapInfo& other);            // ORIG 08235d40
@@ -108,6 +152,7 @@ struct MapInfo
     void Clear();                             // ORIG 081514ae
     void Add_Mob(map_monster mob);            // ORIG 08151612（按值）
     void Add_Item(map_item item);             // ORIG 081517e0（按值）
+    void SelectDonsterItemDropLimit(unsigned int limit);  // ORIG 0830e800
 };
 
 // ---- WarField（0xf8 字节；WarRoom +0x34） ----

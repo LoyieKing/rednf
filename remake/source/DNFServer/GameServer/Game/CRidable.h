@@ -9,7 +9,10 @@
 #include <vector>
 
 class RidableScript;
-enum eRidableObjectState;
+#ifndef DNF_ENUM_ERIDABLEOBJECTSTATE_DEFINED
+#define DNF_ENUM_ERIDABLEOBJECTSTATE_DEFINED
+enum eRidableObjectState { eRidableObjectState_0 = 0 };
+#endif
 
 class CRidable
 {

@@ -8,16 +8,8 @@
 
 #include <vector>
 
-enum ENUM_DUNGEON_CLEAR_CONDITION_TYPE
-{
-    ENUM_DUNGEON_CLEAR_CONDITION_TYPE_0 = 0
-};
-
-// 真布局属 CMap 批（脚本条件表项）；本批只传递 vector 引用，无需精确尺寸。
-struct DungeonClearCondition
-{
-    char m_pad[0x28];
-};
+#include "DungeonClearCondition.h"
+#include "GameEnums.h"
 
 class CClearCondition
 {

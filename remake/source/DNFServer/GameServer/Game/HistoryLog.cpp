@@ -15,6 +15,23 @@
 void get_str_datetime(char* buf, int len);
 void get_str_date(char* buf, int len, char sep);
 char* NumberToString(unsigned int value, int radix);
+void get_str_date(char* buf, int len, char sep)
+{
+    (void)len;
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm value;
+    localtime_r(&now, &value);
+    if (sep == 0) sprintf(buf, "%04d-%02d-%02d", value.tm_year + 1900, value.tm_mon + 1, value.tm_mday);
+    else sprintf(buf, "%04d%c%02d%c%02d", value.tm_year + 1900, sep, value.tm_mon + 1, sep, value.tm_mday);
+}
+void get_str_datetime(char* buf, int len)
+{
+    (void)len;
+    time_t now = GlobalData::s_systemTime_.getCurSec();
+    struct tm value;
+    localtime_r(&now, &value);
+    sprintf(buf, "%04d-%02d-%02d %02d:%02d:%02d", value.tm_year + 1900, value.tm_mon + 1, value.tm_mday, value.tm_hour, value.tm_min, value.tm_sec);
+}
 
 // ---- 格式串（ORIG rodata 逐字节） ----
 static const char FMT_BUY_ITEM[] =

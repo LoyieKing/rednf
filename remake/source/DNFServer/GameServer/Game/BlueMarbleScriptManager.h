@@ -1,0 +1,4 @@
+#ifndef GAME_BLUEMARBLE_SCRIPTMANAGER_H_
+#define GAME_BLUEMARBLE_SCRIPTMANAGER_H_
+#include "PvPTypes.h"
+#endif

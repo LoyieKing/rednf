@@ -280,6 +280,8 @@ unsigned int DNFFLib::get_rand_int(int divide) {
     return result;
 }
 
+int get_rand_int(int range) { return static_cast<int>(DNFFLib::get_rand_int(range)); }
+
 int DNFFLib::ExplodeString(char* str, char* delims, char** out, int maxCount) {
     // ORIG DWARF 局部：iTokenCnt(158)/pToken(159)/pLast(160)/pTail(160)。
     int iTokenCnt = 0;

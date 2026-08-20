@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r GlobalData（D1 组）还原。
 // 函数形态/字符串/池尺寸均取自 ORIG 反汇编与 Ghidra C。
 // 外部类（后续批次）仅在本 TU 以最小 stub 声明，符号留给 ORIG/后续 TU。

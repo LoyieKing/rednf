@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r WarRoom（G2-3 PvP 链，战场房间，池化 40）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/WarRoom.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。

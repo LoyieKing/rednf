@@ -17,7 +17,7 @@
 #include <vector>
 
 #include "CDataManager.h"
-
+#include "CClearCondition.h"
 class CUser;
 class CMap;
 
@@ -68,17 +68,6 @@ public:
     int m_0;                                // +0x00
     char m_4;                               // +0x04
     std::vector<RidableObject> m_objects;   // +0x08
-};
-
-struct DungeonClearCondition
-{
-    int m_0;   // +0x00
-    int m_4;   // +0x04
-    int m_8;   // +0x08
-
-    DungeonClearCondition();
-    ~DungeonClearCondition();
-    void clear();
 };
 
 // MazeScript（0x74 字节，由 ORIG ctor/copy/dtor 逐字段实证）

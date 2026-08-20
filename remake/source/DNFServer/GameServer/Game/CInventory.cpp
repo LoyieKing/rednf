@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // df_game_r CInventory 还原（第八批 H3，2026-08-16）。
 // 布局/语义以 docs/class_func_reports/CInventory.md 逐条对照（AE 口径）。
 // 依赖类（Inven_Item/CItem/CUser/CAvatarItemMgr/CCreatureMgr 等）由

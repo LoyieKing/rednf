@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r CStackableItem 还原（I1 批次，2026-08-17）。
 // 函数形态以 docs/class_func_reports/CStackableItem.md + ORIG weak 反汇编为准
 // （AE 口径：调用目标归一；字段偏移/常量逐条一致）。
@@ -10,10 +11,8 @@
 #include <string.h>
 #include <time.h>
 
-#include "CSystemTime.h"
-#include "GameTypes.h"
+#include "../../ServerCommon/DNFFunctionLib.h"
 
-// ===================== 外部依赖（其它 TU 提供） =====================
 
 // 最小构造/析构（ORIG 逐成员构造属后续精修批次；保证可链接）
 CStackableItem::CStackableItem()
@@ -70,8 +69,13 @@ public:
     int randInt(const unsigned long& range);
 };
 
-class CSystemTime;
-int getLevelLinearAbility(int a, int b, int c, int d, int level);
+#include "CSystemTime.h"
+class cMyTrace
+{
+public:
+    cMyTrace(const char* name, int line, int flag);
+    void operator()(const char* fmt, ...);
+};
 
 struct itemGloballyUniqueIdentifier_t
 {
@@ -85,13 +89,6 @@ public:
     void generate(itemGloballyUniqueIdentifier_t* id, int field);
 };
 
-class CodePage
-{
-public:
-    static const char* script();
-    static const char* database();
-    static bool script2Database(const char* src, char* dst);
-};
 
 class GameWorld;
 extern GameWorld* G_GameWorld();
@@ -716,7 +713,10 @@ void CStackableItem::set_item(STStackableScript& script)
         "rep stosl\n\t"
         : : "b"(buf) : "eax", "edx", "ecx", "edi", "memory");
     strcpy(buf, script.m_strac.c_str());
-    if (!CodePage::script2Database(script.m_strac.c_str(), buf))
+    char scriptText[256];
+    strncpy(scriptText, script.m_strac.c_str(), sizeof(scriptText) - 1);
+    scriptText[sizeof(scriptText) - 1] = '\0';
+    if (!CodePage::script2Database(scriptText, buf))
     {
         cMyTrace trace("void CStackableItem::set_item(STStackableScript&)",
                        0x80, 5);

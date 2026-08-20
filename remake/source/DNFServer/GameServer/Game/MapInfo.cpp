@@ -14,113 +14,128 @@
 #include <map>
 #include <utility>
 #include <vector>
-
-// ---- 支撑结构（最小复刻，布局与 ORIG 一致） ----
-
-// 6 个 int（0x18 字节）；init ORIG 081512ec（CBattle_Field TU）
-struct stMapMonsterKillChecker_t
-{
-    unsigned int m_useSkillMaterialTime;   // +0x00
-    unsigned int m_lastMobDieTime;         // +0x04
-    int m_uncontinuallyMobDieCnt;          // +0x08
-    int m_dieCnt;                          // +0x0c
-    int m_field10;                         // +0x10
-    int m_field14;                         // +0x14
-
-    void init();
-};
-
-// 4 个 int（0x10 字节）；init ORIG 0815132c（CBattle_Field TU）
-struct stMapPlayInfo_t
-{
-    unsigned int m_startTick;   // +0x00
-    unsigned int m_clearTick;   // +0x04
-    int m_useItemType2Count;    // +0x08
-    int m_useItemOtherCount;    // +0x0c
-
-    void init();
-};
-
-// map_monster（0x34c 字节；ctor 081511c8，其它 TU）
-struct map_monster
-{
-    int m_mobId;       // +0x00
-    int m_instId;      // +0x04
-    char m_pad08[4];   // +0x08
-    int m_mobIndex;    // +0x0c
-    char m_pad10[0x339];  // +0x10..+0x348
-    char m_isBoss;     // +0x349
-    char m_bloodRound; // +0x34a
-    char m_pad34b[1];  // +0x34b
-
-    map_monster();
-    map_monster(const map_monster& other);
-    ~map_monster();
-    map_monster& operator=(const map_monster& other);
-};
-
-// map_item（0x54 字节；ctor 081512cc，其它 TU）
-struct map_item
-{
-    int m_count;          // +0x00
-    int m_itemIndex;      // +0x04
-    char m_pad08[0x4c];   // +0x08..+0x53
-
-    map_item();
-    map_item(const map_item& other);
-    ~map_item();
-    map_item& operator=(const map_item& other);
-};
+#include <cstring>
+#include "WarField.h"
 
 // 日志（ORIG Add_Mob/Add_Item 调用 LogManager::logFormat，本 TU 外部引用）
-class LogManager
-{
-public:
-    static void logFormat(int level, const char* section, int line,
-                          const char* msg, ...);
-};
 
-// ---- MapInfo（0xec 字节） ----
-struct MapInfo
-{
-    char m_key;                       // +0x00
-    char m_visited;                   // +0x01
-    char m_visitedGoto;               // +0x02
-    char m_pad3[1];                   // +0x03
-    int m_mapIndex;                   // +0x04
-    char m_gridValue;                 // +0x08
-    char m_pad9[3];                   // +0x09
-    std::map<int, map_monster> m_monsterMap;   // +0x0c
-    std::map<int, map_item> m_itemMap;         // +0x24
-    int m_assignItemIdx;              // +0x3c
-    int m_dropItemCnt;                // +0x40
-    char m_mapType;                   // +0x44
-    char m_dummyBossMap;              // +0x45
-    char m_pad46[2];                  // +0x46
-    int m_mapBasisLevel;              // +0x48
-    stMapMonsterKillChecker_t m_killChecker1;  // +0x4c（0x18）
-    stMapMonsterKillChecker_t m_killChecker2;  // +0x64（0x18）
-    stMapPlayInfo_t m_playInfo;               // +0x7c（0x10）
-    std::map<int, int> m_hellPartyGroup;      // +0x8c
-    char m_assignNPCByPotion;         // +0xa4
-    char m_padA5[3];                  // +0xa5
-    std::map<int, int> m_mapA8;       // +0xa8
-    std::vector<int> m_vecC0;         // +0xc0
-    short m_cc;                       // +0xcc
-    char m_padCE[2];                  // +0xce
-    std::multimap<int, map_monster> m_tournamentMob;  // +0xd0
-    char m_layeredMap;                // +0xe8
-    char m_padE9[3];                  // +0xe9
+class LogManager { public: static void logFormat(int, const char*, int, const char*, ...); };
 
-    MapInfo();
-    MapInfo(const MapInfo& other);
-    ~MapInfo();
-    MapInfo& operator=(const MapInfo& other);
-    void Clear();
-    void Add_Mob(map_monster mob);
-    void Add_Item(map_item item);
-    void SelectDonsterItemDropLimit(unsigned int limit);
-};
+// ============================================================================
+// map_item / map_monster 生命周期（ORIG 081512cc / 081512dc / 081511c8 /
+// 081515ae / 08151aea / 08151d3a；布局以 WarField.h 为权威）
+// ============================================================================
+
+map_item::map_item()
+    : m_count(0), m_itemIndex(0), m_dropIndex(0), m_createTick(0),
+      m_item(), m_ownerId(0) {}
+
+map_item::map_item(const map_item& other)
+    : m_count(other.m_count), m_itemIndex(other.m_itemIndex),
+      m_dropIndex(other.m_dropIndex), m_createTick(other.m_createTick),
+      m_item(other.m_item), m_ownerId(other.m_ownerId) {}
+
+map_item::~map_item() {}
+
+map_item& map_item::operator=(const map_item& other)
+{
+    if (this != &other)
+    {
+        m_count = other.m_count;
+        m_itemIndex = other.m_itemIndex;
+        m_dropIndex = other.m_dropIndex;
+        m_createTick = other.m_createTick;
+        m_item = other.m_item;
+        m_ownerId = other.m_ownerId;
+    }
+    return *this;
+}
+
+map_monster::map_monster()
+    : m_mobId(0), m_instId(0), m_roleType(0), m_mobIndex(0), m_level(0),
+      m_field11(0), m_field13(0), m_field14(0), m_field15(0), m_field16(0),
+      m_field17(0), m_field18(0), m_field1c(0), m_field20(0), m_field24(0),
+      m_field28(0), m_dropCnt(0), m_dropRate(100), m_flag34(0), m_active(),
+      m_mobList(), m_hellPartyGroupIdx(0), m_hellPartyGroupOrder(0),
+      m_hellPartyScriptIdx(0), m_pad339(0), m_bloodSmallRoundOrder(0),
+      m_bloodPhaseTime(0), m_bloodRoundOrder(0), m_bloodSpawnIdx(0),
+      m_bloodPhaseIdx(0), m_bloodKillFlag(0), m_bloodDifficulty(0),
+      m_bloodRoundOrder2(0), m_bloodSpawned(0), m_isBoss(0), m_bloodRound(0),
+      m_bloodRoundFlag(0) {}
+
+map_monster::map_monster(const map_monster& other)
+    : m_mobId(other.m_mobId), m_instId(other.m_instId),
+      m_roleType(other.m_roleType), m_mobIndex(other.m_mobIndex),
+      m_level(other.m_level), m_field11(other.m_field11),
+      m_field13(other.m_field13), m_field14(other.m_field14),
+      m_field15(other.m_field15), m_field16(other.m_field16),
+      m_field17(other.m_field17), m_field18(other.m_field18),
+      m_field1c(other.m_field1c), m_field20(other.m_field20),
+      m_field24(other.m_field24), m_field28(other.m_field28),
+      m_dropCnt(other.m_dropCnt), m_dropRate(other.m_dropRate),
+      m_flag34(other.m_flag34), m_active(other.m_active),
+      m_mobList(other.m_mobList),
+      m_hellPartyGroupIdx(other.m_hellPartyGroupIdx),
+      m_hellPartyGroupOrder(other.m_hellPartyGroupOrder),
+      m_hellPartyScriptIdx(other.m_hellPartyScriptIdx),
+      m_pad339(other.m_pad339),
+      m_bloodSmallRoundOrder(other.m_bloodSmallRoundOrder),
+      m_bloodPhaseTime(other.m_bloodPhaseTime),
+      m_bloodRoundOrder(other.m_bloodRoundOrder),
+      m_bloodSpawnIdx(other.m_bloodSpawnIdx),
+      m_bloodPhaseIdx(other.m_bloodPhaseIdx),
+      m_bloodKillFlag(other.m_bloodKillFlag),
+      m_bloodDifficulty(other.m_bloodDifficulty),
+      m_bloodRoundOrder2(other.m_bloodRoundOrder2),
+      m_bloodSpawned(other.m_bloodSpawned), m_isBoss(other.m_isBoss),
+      m_bloodRound(other.m_bloodRound), m_bloodRoundFlag(other.m_bloodRoundFlag) {}
+
+map_monster::~map_monster() {}
+
+map_monster& map_monster::operator=(const map_monster& other)
+{
+    if (this != &other)
+    {
+        m_mobId = other.m_mobId;
+        m_instId = other.m_instId;
+        m_roleType = other.m_roleType;
+        m_mobIndex = other.m_mobIndex;
+        m_level = other.m_level;
+        m_field11 = other.m_field11;
+        m_field13 = other.m_field13;
+        m_field14 = other.m_field14;
+        m_field15 = other.m_field15;
+        m_field16 = other.m_field16;
+        m_field17 = other.m_field17;
+        m_field18 = other.m_field18;
+        m_field1c = other.m_field1c;
+        m_field20 = other.m_field20;
+        m_field24 = other.m_field24;
+        m_field28 = other.m_field28;
+        m_dropCnt = other.m_dropCnt;
+        m_dropRate = other.m_dropRate;
+        m_flag34 = other.m_flag34;
+        m_active = other.m_active;
+        m_mobList = other.m_mobList;
+        m_hellPartyGroupIdx = other.m_hellPartyGroupIdx;
+        m_hellPartyGroupOrder = other.m_hellPartyGroupOrder;
+        m_hellPartyScriptIdx = other.m_hellPartyScriptIdx;
+        m_pad339 = other.m_pad339;
+        m_bloodSmallRoundOrder = other.m_bloodSmallRoundOrder;
+        m_bloodPhaseTime = other.m_bloodPhaseTime;
+        m_bloodRoundOrder = other.m_bloodRoundOrder;
+        m_bloodSpawnIdx = other.m_bloodSpawnIdx;
+        m_bloodPhaseIdx = other.m_bloodPhaseIdx;
+        m_bloodKillFlag = other.m_bloodKillFlag;
+        m_bloodDifficulty = other.m_bloodDifficulty;
+        m_bloodRoundOrder2 = other.m_bloodRoundOrder2;
+        m_bloodSpawned = other.m_bloodSpawned;
+        m_isBoss = other.m_isBoss;
+        m_bloodRound = other.m_bloodRound;
+        m_bloodRoundFlag = other.m_bloodRoundFlag;
+    }
+    return *this;
+}
 
 MapInfo::MapInfo()
 {

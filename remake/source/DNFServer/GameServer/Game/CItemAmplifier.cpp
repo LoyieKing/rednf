@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r CItemAmplifier 还原（2026-08-16）。
 // 构造/checkInvestableItem/generateAmplifyItem 依 ORIG 反汇编；
 // stAmplifyItemScript_t / upgrade_table_t 构造为数据表占位（后续批次细化）。

@@ -147,25 +147,22 @@ enum ENUM_CMDPACKET
     ENUM_CMDPACKET_0 = 0
 };
 
-enum ENUM_NOTIPACKET
-{
-    ENUM_NOTIPACKET_0 = 0
-};
-
-enum ENUM_MONEY_FULL_REASON
-{
-    ENUM_MONEY_FULL_REASON_0 = 0
-};
-
-enum ENUM_USERINFO
-{
-    ENUM_USERINFO_0 = 0
-};
-
-enum ENUM_EQUIPSLOT
-{
-    ENUM_EQUIPSLOT_0 = 0
-};
+#ifndef DNF_ENUM_NOTIPACKET_DEFINED
+#define DNF_ENUM_NOTIPACKET_DEFINED
+enum ENUM_NOTIPACKET { ENUM_NOTIPACKET_0 = 0 };
+#endif
+#ifndef DNF_ENUM_MONEY_FULL_REASON_DEFINED
+#define DNF_ENUM_MONEY_FULL_REASON_DEFINED
+enum ENUM_MONEY_FULL_REASON { ENUM_MONEY_FULL_REASON_0 = 0 };
+#endif
+#ifndef DNF_ENUM_USERINFO_DEFINED
+#define DNF_ENUM_USERINFO_DEFINED
+enum ENUM_USERINFO { ENUM_USERINFO_0 = 0 };
+#endif
+#ifndef DNF_ENUM_EQUIPSLOT_DEFINED
+#define DNF_ENUM_EQUIPSLOT_DEFINED
+enum ENUM_EQUIPSLOT { ENUM_EQUIPSLOT_0 = 0 };
+#endif
 
 enum ENUM_PEER_REQUEST_TYPE
 {
@@ -182,22 +179,38 @@ enum PAY_TYPE
     PAY_TYPE_0 = 0
 };
 
-enum eExpAddReason
-{
-    eExpAddReason_0 = 0
-};
-
-enum eWPAddReason
-{
-    eWPAddReason_0 = 0
-};
-
+#ifndef DNF_ENUM_EEXPADDREASON_DEFINED
+#define DNF_ENUM_EEXPADDREASON_DEFINED
+enum eExpAddReason { eExpAddReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_EWPADDREASON_DEFINED
+#define DNF_ENUM_EWPADDREASON_DEFINED
+enum eWPAddReason { eWPAddReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_ESKILLINITREASON_DEFINED
+#define DNF_ENUM_ESKILLINITREASON_DEFINED
 enum eSkillInitReason { eSkillInitReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_ESKILLADDREASON_DEFINED
+#define DNF_ENUM_ESKILLADDREASON_DEFINED
 enum eSkillAddReason { eSkillAddReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_ESKILLDELREASON_DEFINED
+#define DNF_ENUM_ESKILLDELREASON_DEFINED
 enum eSkillDelReason { eSkillDelReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_ESPADDREASON_DEFINED
+#define DNF_ENUM_ESPADDREASON_DEFINED
 enum eSPAddReason { eSPAddReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_ESPSUBREASON_DEFINED
+#define DNF_ENUM_ESPSUBREASON_DEFINED
 enum eSPSubReason { eSPSubReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_ECHANGEGROWTYPEREASON_DEFINED
+#define DNF_ENUM_ECHANGEGROWTYPEREASON_DEFINED
 enum eChangeGrowTypeReason { eChangeGrowTypeReason_0 = 0 };
+#endif
 
 namespace WongWork
 {

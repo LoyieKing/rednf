@@ -1,3 +1,5 @@
+#include "LogManager.h"
+#include "GameRand.h"
 // df_game_r CItemList 还原（2026-08-16 / 2026-08-17 第九批 I1 收尾）。
 // 成员布局以 ORIG 构造/析构为基准；函数形态以 class_func_reports/CItemList.md
 // 与 class_func_reports/sync_script__CSyncScript.md 逐条对照

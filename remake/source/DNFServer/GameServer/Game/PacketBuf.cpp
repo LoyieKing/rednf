@@ -1,3 +1,4 @@
+#include "LogManager.h"
 #include "PacketBuf.h"
 
 #include <cstring>

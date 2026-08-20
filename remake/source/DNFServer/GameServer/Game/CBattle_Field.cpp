@@ -34,7 +34,7 @@ private:
 extern "C" GridScript* sub_MazeScript_getGridR(void* maze, int x, int y)
     asm("_ZNK10MazeScript8getGridREii");
 CDataManager* G_CDataManager();
-extern "C" int sub_CSystemTime_getCurTickCount(void* self) asm("_ZN11CSystemTime15getCurTickCountEv");
+extern "C" unsigned int sub_CSystemTime_getCurTickCount(void* self) asm("_ZN11CSystemTime15getCurTickCountEv");
 extern "C" void sub_CRidable_CheckAppearRidableObject(
     void* self, void* party, int x, int y, void* packet)
     asm("_ZN8CRidable24CheckAppearRidableObjectEP6CPartyiiP11PacketGuard");

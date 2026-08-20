@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r 任务模板 Quest 实现（G3-2 批次，2026-08-17）。
 // 语义依据 docs/class_func_reports/Quest.md（Ghidra C）+ ORIG 反汇编。
 #include <utility>

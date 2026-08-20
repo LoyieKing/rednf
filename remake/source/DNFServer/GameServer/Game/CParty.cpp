@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r CParty（G2 队伍聚合根）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/CParty.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
@@ -9,6 +10,7 @@
 #include <map>
 #include <utility>
 #include <vector>
+#include <new>
 
 #include "CParty.h"
 #include "CDungeon.h"
@@ -33,13 +35,6 @@ private:
 // 依赖子对象 / 外部函数（asm-label extern；链接桩由主 agent / 后续批次提供）
 // ============================================================================
 extern "C" void sub_cElection_ctor(void* thisp) asm("_ZN9cElectionIiLi4ELi4EEC1Ev");
-extern "C" void sub_CPartyResultRecvFlag_ctor(void* thisp) asm("_ZN20CPartyResultRecvFlagC1Ev");
-extern "C" void sub_CPartyResultRecvFlag_Clear(void* thisp) asm("_ZN20CPartyResultRecvFlag5ClearEv");
-extern "C" void sub_CPartyResultRecvFlag_SetRecvFlag(void* thisp, int v) asm("_ZN20CPartyResultRecvFlag11SetRecvFlagEi");
-extern "C" void sub_CTraceMobDieHack_ctor(void* thisp) asm("_ZN16CTraceMobDieHackC1Ev");
-extern "C" void sub_CTraceMobDieHack_dtor(void* thisp) asm("_ZN16CTraceMobDieHackD1Ev");
-extern "C" void sub_CTraceMobDieHack_reset(void* thisp) asm("_ZN16CTraceMobDieHack5resetEv");
-extern "C" void sub_CTraceMobDieHack_reportHackInfo(void* thisp) asm("_ZN16CTraceMobDieHack14reportHackInfoEv");
 extern "C" void sub_SECRET_SHOP_DATA_ctor(void* thisp) asm("_ZN10secretshop16SECRET_SHOP_DATAC1Ev");
 extern "C" void sub_SECRET_SHOP_DATA_dtor(void* thisp) asm("_ZN10secretshop16SECRET_SHOP_DATAD1Ev");
 extern "C" void sub_SECRET_SHOP_DATA_clear(void* thisp) asm("_ZN10secretshop16SECRET_SHOP_DATA5clearEv");
@@ -77,7 +72,6 @@ extern "C" void sub_CHackAnalyzer_resetHackInfo(void* analyzer) asm("_ZN8WongWor
 extern "C" int sub_CDungeon_get_index(void* dungeon) asm("_ZNK8CDungeon9get_indexEv");
 extern "C" void* sub_GetInstanceDungeonEntranceLog() asm("_Z29GetInstanceDungeonEntranceLogv");
 extern "C" void sub_CDungeonEntranceLog_DecrementDungeonEntrance(void* log, int idx, bool flag) asm("_ZN19CDungeonEntranceLog24DecrementDungeonEntranceEib");
-extern "C" int sub_get_rand_int(int v) asm("_Z12get_rand_inti");
 
 // CUserCharacInfo（CUser.h 权威头已有方法；无权威头的走 asm extern）
 extern "C" int sub_CUserCharacInfo_get_charac_level(void* uci) asm("_ZNK15CUserCharacInfo16get_charac_levelEv");
@@ -184,8 +178,6 @@ void CParty::CItemRoutingData::SetMemberRoutingState(int idx, char state)
 CParty::CParty()
 {
     sub_cElection_ctor(&m_padElection);
-    sub_CPartyResultRecvFlag_ctor(&m_pad1dc);
-    sub_CTraceMobDieHack_ctor(&m_pad210);
     sub_SECRET_SHOP_DATA_ctor(&m_padShop);
     sub_BattleData_ctor(&m_padBattleData);
     sub_CBattle_Field_ctor(&m_padBattleField1);
@@ -218,7 +210,6 @@ CParty::~CParty()
     sub_CBattle_Field_dtor(&m_padBattleField1);
     sub_BattleData_dtor(&m_padBattleData);
     sub_SECRET_SHOP_DATA_dtor(&m_padShop);
-    sub_CTraceMobDieHack_dtor(&m_pad210);
 }
 
 void CParty::send_to_party(PacketGuard& packet) {}  // TODO(G2)
@@ -365,7 +356,7 @@ void CParty::set_dungeon_clear_state(char state)
 
 void CParty::reset_recv_flag()
 {
-    sub_CPartyResultRecvFlag_Clear(&m_pad1dc);
+    reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();
 }
 
 void CParty::SetRecvResultFlag(bool flag)
@@ -652,8 +643,8 @@ CUser* CParty::getManager()
 
 void CParty::init()
 {
-    sub_CTraceMobDieHack_reportHackInfo(&m_pad210);
-    sub_CTraceMobDieHack_reset(&m_pad210);
+    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->reportHackInfo();
+    reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->reset();
     for (int i = 0; i <= 3; ++i)
     {
         if (_checkValidUser(i) == 1)
@@ -666,7 +657,7 @@ void CParty::init()
     m_memberLevelGap = -1;
     m_recvResultFlag = 0;
     memset(m_title, 0, 0x20);
-    m_titleIndex = (char)(sub_get_rand_int(0xff) + 1);
+    m_titleIndex = (char)(get_rand_int(0xff) + 1);
     m_userMax = 4;
     m_dungIndex = (unsigned short)0xffff;
     m_dungDiffi = 0xff;
@@ -693,7 +684,7 @@ void CParty::init()
     sub_CBattle_Field_reset_hell_party_value(&m_padBattleField1);
     sub_BattleData_Reset(&m_padBattleData);
     sub_CBattle_Field_reset_field(&m_padBattleField1);
-    sub_CPartyResultRecvFlag_Clear(&m_pad1dc);
+    reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();
     m_usedCoinCount = 0;
     m_field1868 = 0;
     m_straightVictories = 0;

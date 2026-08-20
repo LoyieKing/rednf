@@ -1,185 +1,23 @@
-// ============================================================================
-// df_game_r CPartyTelePort 还原（G2-5 批次，自包含 TU）
-// 逐函数对照 docs/class_func_reports/CPartyTelePort.md 与 ORIG 反汇编实现。
-// 布局（ORIG 构造/析构/弱 getter 推导，sizeof 0x24，CParty +0x1ad0）：
-//   +0x00 CParty* m_party
-//   +0x04 stPartyTelePort m_tp（0xc 字节：state/village/area/pad/x/y/dir/pad）
-//   +0x10 保留区（0x14 字节）
-// 成员状态存于 CParty::GetMember() 数组（每项 0x18，状态 +0x12）。
-// 跨类调用一律 extern "C" asm("_ZN...")，mangled 名与 ORIG 完全一致。
-// ============================================================================
-
+// ==========================================================================
 #include <vector>
+#include "CPartyTelePort.h"
+#include "CParty.h"
+#include "CUser.h"
+#include "GameWorld.h"
+#include "CSystemTime.h"
+#include "GameTypes.h"
+#include "PacketGuard.h"
 
-class CParty;
-class CUser;
-
-// ---- stPartyTelePort（0xc；reset 由 ORIG/桩提供 _ZN15stPartyTelePort5resetEv）----
-class stPartyTelePort
+struct TeleportEffect
 {
-public:
-    void reset();
-
-    char m_state;              // +0x00（CPartyTelePort 绝对 +0x04）
-    unsigned char m_village;   // +0x01
-    unsigned char m_areaIndex; // +0x02
-    char m_pad1;               // +0x03
-    short m_posx;              // +0x04
-    short m_posy;              // +0x06
-    unsigned char m_direction; // +0x08
-    char m_pad2[3];            // +0x09..0x0b
+    char village;
+    int area;
+    std::vector<unsigned short> users;
 };
-
-// ---- PacketGuard（0xc；C1/D1 由 ORIG/桩提供，本 TU 手动调用）----
-class PacketGuard
-{
-public:
-    char m_pad[0xc];
-};
-
-// ---- effect_data（0x14：village + area + vector<unsigned short>；C1/D1 外部）----
-class effect_data
-{
-public:
-    effect_data();
-    ~effect_data();
-
-    char m_village;                  // +0x00
-    char m_pad[3];                   // +0x01..0x03
-    int m_area;                      // +0x04
-    std::vector<unsigned short> m_users;  // +0x08
-};
-
-// ---- cMyTrace（局部占位；C1/operator() 由 ORIG/桩提供）----
-class cMyTrace
-{
-public:
-    char m_pad[0x10];
-};
-
-class CSystemTime
-{
-public:
-    int getCurSec();
-};
-
-class GameWorld;
-
-// ============================================================================
-// 跨类调用（asm-label extern，mangled 名与 ORIG 一致）
-// ============================================================================
-extern "C" void sub_stPartyTelePort_reset(void* self)
-    asm("_ZN15stPartyTelePort5resetEv");
-extern "C" void sub_PacketGuard_C1(void* self)
-    asm("_ZN11PacketGuardC1Ev");
-extern "C" void sub_PacketGuard_D1(void* self)
-    asm("_ZN11PacketGuardD1Ev");
-
-extern "C" void sub_IPB_clear(void* self)
-    asm("_ZN18InterfacePacketBuf5clearEv");
-extern "C" void sub_IPB_put_header(void* self, int a, int b)
-    asm("_ZN18InterfacePacketBuf10put_headerEii");
-extern "C" void sub_IPB_put_byte(void* self, int v)
-    asm("_ZN18InterfacePacketBuf8put_byteEi");
-extern "C" void sub_IPB_put_short(void* self, int v)
-    asm("_ZN18InterfacePacketBuf9put_shortEi");
-extern "C" void sub_IPB_finalize(void* self, bool b)
-    asm("_ZN18InterfacePacketBuf8finalizeEb");
-
-extern "C" void sub_cMyTrace_C1(void* self, const char* file, int line, int level)
-    asm("_ZN8cMyTraceC1EPKcii");
-extern "C" void sub_cMyTrace_op(void* self, const char* fmt, ...)
-    asm("_ZN8cMyTraceclEPKcz");
-
-// CParty
-extern "C" char sub_CParty_checkValidUser(void* self, int idx)
-    asm("_ZN6CParty14checkValidUserEi");
-extern "C" void* sub_CParty_get_user(void* self, int idx)
-    asm("_ZN6CParty8get_userEi");
-extern "C" void* sub_CParty_GetMember(void* self)
-    asm("_ZN6CParty9GetMemberEv");
-extern "C" void* sub_CParty_getManager(void* self)
-    asm("_ZN6CParty10getManagerEv");
-extern "C" int sub_CParty_GetMemberSlotNo(const void* self, const void* user)
-    asm("_ZNK6CParty15GetMemberSlotNoEPK5CUser");
-extern "C" void sub_CParty_send_to_party(void* self, void* pg)
-    asm("_ZN6CParty13send_to_partyER11PacketGuard");
-
-// CUser
-extern "C" int sub_CUser_get_state(void* self)
-    asm("_ZN5CUser9get_stateEv");
-extern "C" unsigned short sub_CUser_get_unique_id(const void* self)
-    asm("_ZNK5CUser13get_unique_idEv");
-extern "C" int sub_CUser_get_area(void* self, bool b)
-    asm("_ZN5CUser8get_areaEb");
-extern "C" int sub_CUser_is_equip_aura_avatar(void* self, char c, int* out)
-    asm("_ZN5CUser20is_equip_aura_avatarEcRi");
-extern "C" int sub_CUser_get_aura_avatar_option_value(void* self, int idx)
-    asm("_ZN5CUser28get_aura_avatar_option_valueEi");
-extern "C" void sub_CUser_UpdateAuraAvatarOption(void* self, int a, int b)
-    asm("_ZN5CUser22UpdateAuraAvatarOptionEii");
-
-// CUserCharacInfo（方法在 CUser* 上调用的 this-call）
-extern "C" void sub_CUserCharacInfo_set_charac_visible_teleport(void* self, bool b)
-    asm("_ZN15CUserCharacInfo28set_charac_visible_teleport_Eb");
-extern "C" int sub_CUserCharacInfo_getCurCharacNo(const void* self)
-    asm("_ZNK15CUserCharacInfo14getCurCharacNoEv");
-extern "C" char sub_CUserCharacInfo_getCurCharacVill(const void* self)
-    asm("_ZNK15CUserCharacInfo16getCurCharacVillEv");
-extern "C" void sub_CUserCharacInfo_set_aura_avatar_option_value(void* self, int a, int b)
-    asm("_ZN15CUserCharacInfo28set_aura_avatar_option_valueEii");
-
-// GameWorld
-extern "C" void* sub_G_GameWorld()
-    asm("_Z11G_GameWorldv");
-extern "C" int sub_GameWorld_check_move_area(void* self, void* user, int village,
-                                             int area, int x, int y, int dir,
-                                             bool a, int b)
-    asm("_ZN9GameWorld15check_move_areaEP5CUseriiiiibi");
-extern "C" char sub_GameWorld_move_area(void* self, void* user, int village,
-                                        int area, int x, int y, int dir,
-                                        bool a, int b, int c, int d)
-    asm("_ZN9GameWorld9move_areaEP5CUseriiiiibiii");
-extern "C" char sub_GameWorld_IsPVPChannel(void* self)
-    asm("_ZNK9GameWorld12IsPVPChannelEv");
-extern "C" void sub_GameWorld_send_to_area(void* self, int village, int area, void* pg)
-    asm("_ZN9GameWorld12send_to_areaEiiR11PacketGuard");
 
 // ============================================================================
 // CPartyTelePort（sizeof 0x24）
 // ============================================================================
-class CPartyTelePort
-{
-public:
-    CPartyTelePort();
-    ~CPartyTelePort();
-
-    void init(CParty* party);
-    void set_teleport_data(unsigned char village, unsigned char area,
-                           short posx, short posy,
-                           unsigned char direction, char state);
-    void set_teleport_state(char state);
-    void send_teleport_status(unsigned char status);
-    void set_teleport_member_state(int idx, char state);
-    void reset_teleport_data();
-    char check_cur_teleport_state();
-    char process_teleport();
-    void process_leave_user_at_teleport(CUser* user);
-    void send_teleport_effect_at_different_place(int param);
-    void send_teleport_effect_at_equal_place(int param);
-
-    unsigned int get_teleport_member_state(int idx);
-    unsigned char get_teleport_village();
-    unsigned char get_teleport_area_index();
-    short get_teleport_posx();
-    short get_teleport_posy();
-    unsigned char get_teleport_direction();
-    char get_teleport_state();
-
-    CParty* m_party;         // +0x00
-    stPartyTelePort m_tp;    // +0x04（0xc）
-    char m_pad[0x14];        // +0x10..+0x23
-};
 
 // ============================================================================
 // 实现
@@ -235,7 +73,7 @@ unsigned int CPartyTelePort::get_teleport_member_state(int idx)
     {
         return (unsigned int)-1;
     }
-    unsigned char* members = (unsigned char*)sub_CParty_GetMember(m_party);
+    unsigned char* members = (unsigned char*)m_party->GetMember();
     return members[idx * 0x18 + 0x12];
 }
 
@@ -253,7 +91,7 @@ void CPartyTelePort::set_teleport_member_state(int idx, char state)
     {
         return;
     }
-    unsigned char* members = (unsigned char*)sub_CParty_GetMember(m_party);
+    unsigned char* members = (unsigned char*)m_party->GetMember();
     members[idx * 0x18 + 0x12] = state;
 }
 
@@ -295,31 +133,31 @@ void CPartyTelePort::send_teleport_status(unsigned char status)
     }
 
     PacketGuard pg;
-    sub_PacketGuard_C1(&pg);
-    sub_IPB_clear(&pg);
-    sub_IPB_put_header(&pg, 0, 0x179);
-    sub_IPB_put_byte(&pg, (int)get_teleport_village());
-    sub_IPB_put_byte(&pg, (int)get_teleport_state());
+
+    pg.clear();
+    pg.put_header(0, 0x179);
+    pg.put_byte((int)get_teleport_village());
+    pg.put_byte((int)get_teleport_state());
     for (int i = 0; i <= 3; ++i)
     {
         short uid = -1;
         unsigned char mstate = 0;
-        if (sub_CParty_checkValidUser(m_party, i) != 0)
+        if (m_party->checkValidUser(i) != 0)
         {
-            CUser* u = (CUser*)sub_CParty_get_user(m_party, i);
+            CUser* u = (CUser*)m_party->get_user(i);
             if (u != 0)
             {
-                uid = (short)sub_CUser_get_unique_id(u);
+                uid = (short)u->get_unique_id();
                 mstate = (unsigned char)get_teleport_member_state(i);
             }
         }
-        sub_IPB_put_short(&pg, (int)uid);
-        sub_IPB_put_byte(&pg, (int)mstate);
+        pg.put_short((int)uid);
+        pg.put_byte((int)mstate);
     }
-    sub_IPB_put_byte(&pg, (int)status);
-    sub_IPB_finalize(&pg, true);
-    sub_CParty_send_to_party(m_party, &pg);
-    sub_PacketGuard_D1(&pg);
+    pg.put_byte((int)status);
+    pg.finalize(true);
+    m_party->send_to_party(pg);
+
 }
 
 void CPartyTelePort::reset_teleport_data()
@@ -344,7 +182,7 @@ char CPartyTelePort::check_cur_teleport_state()
         result = 1;
         for (int i = 0; i <= 3; ++i)
         {
-            if (sub_CParty_checkValidUser(m_party, i) != 1)
+            if (m_party->checkValidUser(i) != 1)
             {
                 continue;
             }
@@ -381,7 +219,7 @@ char CPartyTelePort::process_teleport()
     {
         for (int i = 0; i <= 3; ++i)
         {
-            if (sub_CParty_checkValidUser(m_party, i) != 1)
+            if (m_party->checkValidUser(i) != 1)
             {
                 continue;
             }
@@ -389,7 +227,7 @@ char CPartyTelePort::process_teleport()
             {
                 continue;
             }
-            CUser* user = (CUser*)sub_CParty_get_user(m_party, i);
+            CUser* user = (CUser*)m_party->get_user(i);
             if (user == 0)
             {
                 continue;
@@ -399,12 +237,11 @@ char CPartyTelePort::process_teleport()
             int posx = (int)get_teleport_posx();
             unsigned char area = get_teleport_area_index();
             unsigned char village = get_teleport_village();
-            moveResult = sub_GameWorld_check_move_area(
-                sub_G_GameWorld(), user, (int)village, (int)area, posx, posy,
+            moveResult = G_GameWorld()->check_move_area(user, (int)village, (int)area, posx, posy,
                 dir, true, 0);
-            if (sub_CParty_getManager(m_party) == user)
+            if (m_party->getManager() == user)
             {
-                moveResult = sub_CUser_is_equip_aura_avatar(user, 0, &auraAvatarTime);
+                moveResult = user->get_aura_avatar_option_value(0);
             }
             if (moveResult > 0)
             {
@@ -419,7 +256,7 @@ char CPartyTelePort::process_teleport()
             send_teleport_effect_at_different_place(1);
             for (int i = 0; i <= 3; ++i)
             {
-                if (sub_CParty_checkValidUser(m_party, i) != 1)
+                if (m_party->checkValidUser(i) != 1)
                 {
                     continue;
                 }
@@ -427,29 +264,27 @@ char CPartyTelePort::process_teleport()
                 {
                     continue;
                 }
-                CUser* user = (CUser*)sub_CParty_get_user(m_party, i);
+                CUser* user = (CUser*)m_party->get_user(i);
                 if (user == 0)
                 {
                     continue;
                 }
-                sub_CUserCharacInfo_set_charac_visible_teleport(user, true);
+                user->set_charac_visible_teleport_(true);
                 int dir = (int)get_teleport_direction();
                 int posy = (int)get_teleport_posy();
                 int posx = (int)get_teleport_posx();
                 unsigned char area = get_teleport_area_index();
                 unsigned char village = get_teleport_village();
-                char moved = sub_GameWorld_move_area(
-                    sub_G_GameWorld(), user, (int)village, (int)area, posx, posy,
+                char moved = G_GameWorld()->move_area(user, (int)village, (int)area, posx, posy,
                     dir, true, 1, 0, 0);
                 if (moved != 1)
                 {
-                    int charNo = sub_CUserCharacInfo_getCurCharacNo(user);
-                    cMyTrace tr;
-                    sub_cMyTrace_C1(&tr, "bool CPartyTelePort::process_teleport()",
+                    int charNo = user->getCurCharacNo();
+                    cMyTrace tr("bool CPartyTelePort::process_teleport()",
                                     0x43f9, 5);
-                    sub_cMyTrace_op(&tr, "party_teleport_error:(char_no:%d)", charNo);
+                    tr("party_teleport_error:(char_no:%d)", charNo);
                 }
-                sub_CUserCharacInfo_set_charac_visible_teleport(user, false);
+                user->set_charac_visible_teleport_(false);
             }
             send_teleport_effect_at_equal_place(2);
         }
@@ -462,19 +297,18 @@ char CPartyTelePort::process_teleport()
     if (get_teleport_state() == 1)
     {
         reset_teleport_data();
-        CUser* manager = (CUser*)sub_CParty_getManager(m_party);
+        CUser* manager = (CUser*)m_party->getManager();
         if (manager != 0)
         {
             int curSec = ((CSystemTime*)0x941f714)->getCurSec();
             int newTime = curSec + auraAvatarTime;
-            sub_CUserCharacInfo_set_aura_avatar_option_value(manager, 0, newTime);
-            int optValue = sub_CUser_get_aura_avatar_option_value(manager, 0);
-            sub_CUser_UpdateAuraAvatarOption(manager, 0, optValue);
-            int charNo = sub_CUserCharacInfo_getCurCharacNo(manager);
-            cMyTrace tr;
-            sub_cMyTrace_C1(&tr, "bool CPartyTelePort::process_teleport()",
+            manager->set_aura_avatar_option_value(0,newTime);
+            int optValue = manager->get_aura_avatar_option_value(0);
+            manager->send_aura_avatar_option();
+            int charNo = manager->getCurCharacNo();
+            cMyTrace tr("bool CPartyTelePort::process_teleport()",
                             0x4419, 0);
-            sub_cMyTrace_op(&tr, "party_teleport_success:(char_no:%d)", charNo);
+            tr("party_teleport_success:(char_no:%d)", charNo);
         }
     }
     return result;
@@ -494,7 +328,7 @@ void CPartyTelePort::process_leave_user_at_teleport(CUser* user)
     {
         return;
     }
-    if (sub_CUser_get_state(user) != 3)
+    if (user->get_state() != 3)
     {
         return;
     }
@@ -503,7 +337,7 @@ void CPartyTelePort::process_leave_user_at_teleport(CUser* user)
         return;
     }
 
-    int slot = sub_CParty_GetMemberSlotNo(m_party, user);
+    int slot = m_party->GetMemberSlotNo(user);
     if (slot < 0)
     {
         return;
@@ -512,12 +346,12 @@ void CPartyTelePort::process_leave_user_at_teleport(CUser* user)
     {
         return;
     }
-    if (sub_CParty_checkValidUser(m_party, slot) != 1)
+    if (m_party->checkValidUser(slot) != 1)
     {
         return;
     }
 
-    if (sub_CParty_getManager(m_party) == user)
+    if (m_party->getManager() == user)
     {
         set_teleport_member_state(slot, 0);
         set_teleport_state(2);
@@ -542,37 +376,35 @@ void CPartyTelePort::send_teleport_effect_at_different_place(int param)
         return;
     }
 
-    std::vector<effect_data> effects;
+    std::vector<TeleportEffect> effects;
     for (int i = 0; i <= 3; ++i)
     {
-        if (sub_CParty_checkValidUser(m_party, i) != 1)
+        if (m_party->checkValidUser(i) != 1)
         {
             continue;
         }
-        CUser* user = (CUser*)sub_CParty_get_user(m_party, i);
+        CUser* user = (CUser*)m_party->get_user(i);
         if (user == 0)
         {
             continue;
         }
 
         bool found = false;
-        for (std::vector<effect_data>::iterator it = effects.begin();
+        for (std::vector<TeleportEffect>::iterator it = effects.begin();
              it != effects.end(); ++it)
         {
-            if (it->m_area == sub_CUser_get_area(user, false) &&
-                it->m_village == sub_CUserCharacInfo_getCurCharacVill(user))
+            if (it->area == user->get_area(false) &&
+                it->village == user->getCurCharacVill())
             {
                 found = true;
-                it->m_users.push_back(sub_CUser_get_unique_id(user));
+                it->users.push_back(user->get_unique_id());
                 break;
             }
         }
         if (!found)
         {
-            effect_data ed;
-            ed.m_area = sub_CUser_get_area(user, false);
-            ed.m_village = sub_CUserCharacInfo_getCurCharacVill(user);
-            ed.m_users.push_back(sub_CUser_get_unique_id(user));
+            TeleportEffect ed = { user->getCurCharacVill(), user->get_area(false),
+                std::vector<unsigned short>(1, user->get_unique_id()) };
             effects.push_back(ed);
         }
     }
@@ -580,20 +412,20 @@ void CPartyTelePort::send_teleport_effect_at_different_place(int param)
     for (unsigned int i = 0; i < effects.size(); ++i)
     {
         PacketGuard pg;
-        sub_PacketGuard_C1(&pg);
-        sub_IPB_put_header(&pg, 0, 0x17b);
-        sub_IPB_put_byte(&pg, (int)(char)param);
-        int cnt = (int)effects[i].m_users.size();
-        sub_IPB_put_byte(&pg, (int)(char)cnt);
+
+        pg.put_header(0, 0x17b);
+        pg.put_byte((int)(char)param);
+        int cnt = (int)effects[i].users.size();
+        pg.put_byte((int)(char)cnt);
         for (int j = 0; j < cnt; ++j)
         {
-            sub_IPB_put_short(&pg, (int)effects[i].m_users[j]);
+            pg.put_short((int)effects[i].users[j]);
         }
-        sub_IPB_finalize(&pg, true);
-        sub_GameWorld_send_to_area(sub_G_GameWorld(),
-                                   (int)effects[i].m_village,
-                                   effects[i].m_area, &pg);
-        sub_PacketGuard_D1(&pg);
+        pg.finalize(true);
+        G_GameWorld()->send_to_area(
+                                   (int)effects[i].village,
+                                   effects[i].area, pg);
+
     }
 }
 
@@ -603,47 +435,47 @@ void CPartyTelePort::send_teleport_effect_at_equal_place(int param)
     {
         return;
     }
-    CUser* manager = (CUser*)sub_CParty_getManager(m_party);
+    CUser* manager = (CUser*)m_party->getManager();
     if (manager == 0)
     {
         return;
     }
-    if (sub_GameWorld_IsPVPChannel(sub_G_GameWorld()) != 0)
+    if (G_GameWorld()->IsPVPChannel() != 0)
     {
         return;
     }
 
     PacketGuard pg;
-    sub_PacketGuard_C1(&pg);
-    sub_IPB_put_header(&pg, 0, 0x17b);
-    sub_IPB_put_byte(&pg, (int)(char)param);
+
+    pg.put_header(0, 0x17b);
+    pg.put_byte((int)(char)param);
 
     std::vector<unsigned short> users;
     for (int i = 0; i <= 3; ++i)
     {
-        if (sub_CParty_checkValidUser(m_party, i) == 1)
+        if (m_party->checkValidUser(i) == 1)
         {
-            CUser* u = (CUser*)sub_CParty_get_user(m_party, i);
+            CUser* u = (CUser*)m_party->get_user(i);
             if (u != 0)
             {
-                users.push_back(sub_CUser_get_unique_id(u));
+                users.push_back(u->get_unique_id());
             }
         }
     }
 
     char cnt = (char)users.size();
-    sub_IPB_put_byte(&pg, (int)cnt);
+    pg.put_byte((int)cnt);
     for (int j = 0; j < (int)cnt; ++j)
     {
-        sub_IPB_put_short(&pg, (int)users[j]);
+        pg.put_short((int)users[j]);
     }
-    sub_IPB_finalize(&pg, true);
+    pg.finalize(true);
 
-    if (sub_CUser_get_state(manager) == 3)
+    if (manager->get_state() == 3)
     {
-        int area = sub_CUser_get_area(manager, false);
-        char vill = sub_CUserCharacInfo_getCurCharacVill(manager);
-        sub_GameWorld_send_to_area(sub_G_GameWorld(), (int)vill, area, &pg);
+        int area = manager->get_area(false);
+        char vill = manager->getCurCharacVill();
+        G_GameWorld()->send_to_area( (int)vill, area, pg);
     }
-    sub_PacketGuard_D1(&pg);
+
 }

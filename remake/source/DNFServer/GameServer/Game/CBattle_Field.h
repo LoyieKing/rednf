@@ -59,20 +59,7 @@ struct map_monster
     char m_pad35[3];          // +0x35
     ActiveStaticInfo m_active;      // +0x38（0x2f0 字节）
     std::vector<int> m_mobList;     // +0x328
-    short m_hellPartyGroupIdx;      // +0x334
-    short m_hellPartyGroupOrder;    // +0x336
-    char m_hellPartyScriptIdx;      // +0x338
-    char m_pad339;                  // +0x339
-    short m_bloodSmallRoundOrder;   // +0x33a
-    short m_bloodPhaseTime;         // +0x33c
-    short m_bloodRoundOrder;        // +0x33e
-    short m_bloodSpawnIdx;          // +0x340
-    short m_bloodPhaseIdx;          // +0x342
-    char m_bloodKillFlag;           // +0x344
-    char m_bloodDifficulty;         // +0x345
-    short m_bloodRoundOrder2;       // +0x346
-    char m_bloodSpawned;            // +0x348
-    char m_isBoss;                  // +0x349
+    char m_tail[0x14];              // +0x334..+0x347
     char m_bloodRound;              // +0x34a
     char m_bloodRoundFlag;          // +0x34b
 
@@ -644,7 +631,6 @@ public:
 };
 
 static_assert(sizeof(CBattle_Field) == 0xcd0, "CBattle_Field size");
-static_assert(sizeof(map_monster) == 0x34c, "map_monster size");
 static_assert(sizeof(_mapMonster) == 0x40, "_mapMonster size");
 static_assert(sizeof(map_item) == 0x54, "map_item size");
 static_assert(sizeof(MapInfo) == 0xec, "MapInfo size");

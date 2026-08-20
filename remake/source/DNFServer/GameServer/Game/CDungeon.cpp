@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r 还原 —— CDungeon / CDungeon_TowerOfDespair / STDungeonScript
 //（G2 副本链）。
 // 逐函数对照 docs/class_func_reports/CDungeon.md、CDungeon_TowerOfDespair.md

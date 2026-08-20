@@ -1,3 +1,4 @@
+#include "LogManager.h"
 // ============================================================================
 // df_game_r 还原 —— CExpandEquipslot（G1-2 扩展装备槽，26 符号）
 // 参照 docs/class_func_reports/CExpandEquipslot.md + ORIG 反汇编逐函数核对。

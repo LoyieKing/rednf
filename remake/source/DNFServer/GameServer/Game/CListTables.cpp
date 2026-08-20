@@ -1,3 +1,5 @@
+#include "LogManager.h"
+#include "GameRand.h"
 // df_game_r 列表/脚本表类还原（G2 第七批）。
 // CSkillList / QuestList / CDungeonList / CMapList / CMonsterManager。
 // 布局以 ORIG 构造/析构汇编为准；函数形态对照 class_func_reports/

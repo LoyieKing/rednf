@@ -73,13 +73,14 @@ dnf_service(game
         ${COMMON}/tinyxmlparser.cpp
         # ---- Game 入口（最小桩，翻译 DNFApplication 时替换）----
         ${SVC_DIR}/GameMain.cpp
+        ${SVC_DIR}/MissionTypes.cpp
         # ---- Game 底层类（第二层，2026-08-16）----
         ${SVC_DIR}/Stream.cpp
         ${SVC_DIR}/StreamPool.cpp
         ${SVC_DIR}/CStreamGuard.cpp
         ${SVC_DIR}/PacketDispatcher.cpp
         ${SVC_DIR}/PacketTypes.cpp
-        ${SVC_DIR}/SigTypes.cpp
+        ${SVC_DIR}/TaiwanInternal.cpp
         ${SVC_DIR}/Dispatchers.cpp
         ${SVC_DIR}/StringTypes.cpp
         ${SVC_DIR}/PacketBuf.cpp
@@ -163,6 +164,7 @@ dnf_service(game
         ${SVC_DIR}/CPartyResultRecvFlag.cpp
         ${SVC_DIR}/CPartyTelePort.cpp
         ${SVC_DIR}/CSharedServerMessageManager.cpp
+        ${SVC_DIR}/CLog.cpp
         ${SVC_DIR}/CSwitchLog.cpp
         ${SVC_DIR}/CTraceMobDieHack.cpp
         ${SVC_DIR}/CUserGlobalInfoHandle.cpp
@@ -212,6 +214,7 @@ dnf_service(game
         ${SVC_DIR}/CDungeonGainedGold.cpp
         ${SVC_DIR}/CReliablePerson.cpp
         ${SVC_DIR}/CommonTime.cpp
+        ${SVC_DIR}/ActiveStaticInfo.cpp
         ${SVC_DIR}/GameStubs.cpp
     INCLUDES
         "-I${SERVERLIB}/basic_header" "-I${SERVERLIB}/common_header"

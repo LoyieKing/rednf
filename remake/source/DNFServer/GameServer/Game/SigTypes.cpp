@@ -605,6 +605,8 @@ template Taiwan::SigLoadHeroMissionData* Stream::GetOutBuffer<Taiwan::SigLoadHer
 template Taiwan::SigSaveHeroMissionData* Stream::GetInBuffer<Taiwan::SigSaveHeroMissionData>();
 template Taiwan::SigSaveHeroMissionData* Stream::GetOutBuffer<Taiwan::SigSaveHeroMissionData>();
 template Taiwan::SigStayTimeEvent* Stream::GetOutBuffer<Taiwan::SigStayTimeEvent>();
+template Taiwan::SigStayTimeEvent* Stream::GetInBuffer<Taiwan::SigStayTimeEvent>();
+template Taiwan::SigStayTimeEvent* CStreamGuard::GetInBuffer<Taiwan::SigStayTimeEvent>();
 template arad::SigServerState* Stream::GetOutBuffer<arad::SigServerState>();
 template arad::SigAradEventItemLog* Stream::GetOutBuffer<arad::SigAradEventItemLog>();
 template arad::SigLoadRewardEventItem* Stream::GetOutBuffer<arad::SigLoadRewardEventItem>();

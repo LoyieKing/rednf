@@ -1,3 +1,4 @@
+#include "GameRand.h"
 // df_game_r 还原 —— WongWork::CDeathTower（死亡之塔）
 // 基于 ORIG 反汇编逐函数实现语义。
 #include "CGameManager.h"
@@ -145,6 +146,32 @@ extern "C" void sub_CDeathTowerRanking_checkRenewMyRecord(void* rankTable, unsig
 extern "C" int sub_CDeathTowerRanking_checkRenewTopRecord(void* rankTable, unsigned int towerIdx, unsigned int a, unsigned int b) asm("_ZN8WongWork18CDeathTowerRanking19checkRenewTopRecordEjjj");
 extern "C" int sub_CDeathTowerRanking_getVirtualRank(void* rankTable, unsigned int towerIdx, unsigned int stage, unsigned int playTime) asm("_ZN8WongWork18CDeathTowerRanking14getVirtualRankEjjj");
 namespace WongWork {
+
+extern "C" void sub_CBossStage_reset(void*)
+    asm("_ZN8WongWork10CBossStage5resetEv");
+
+CBossTower::CBossTower()
+{
+    sub_CBossStage_reset(this);
+    memset((char*)this + 0xaf0, 0, 4);
+    *(int*)((char*)this + 8) = 0;
+    memset((char*)this + 0xd, 0, 4);
+    memset((char*)this + 0x9f0, 0, 4);
+    *(int*)((char*)this + 4) = 0;
+    memset((char*)this + 0xb00, 0, 0x18);
+}
+
+CBossTower::~CBossTower()
+{
+    sub_CBossStage_reset(this);
+    memset((char*)this + 0xaf0, 0, 4);
+    *(int*)((char*)this + 8) = 0;
+    memset((char*)this + 0xd, 0, 4);
+    memset((char*)this + 0x9f0, 0, 4);
+    *(int*)((char*)this + 4) = 0;
+    memset((char*)this + 0xb00, 0, 0x18);
+}
+
 
 // CDeathTowerRanking 方法桩（待后续按 ORIG 实现）
 unsigned int sub_CDeathTowerRanking_makeDungeonIdx2TowerIdx(unsigned int dungeonIdx) { return 0; }
