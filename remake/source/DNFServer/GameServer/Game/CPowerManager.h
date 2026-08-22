@@ -36,18 +36,38 @@ public:
     char GetWinnerSide();
     bool IsWinerSide(char side);
 
-    char m_winnerSide;
-    char m_pad01[3];
-    int m_side1Point;
-    int m_side2Point;
-    int m_side1ChannelPoint;
-    int m_side2ChannelPoint;
-    char m_pad14[4];
-    int m_side1UserCount;
-    int m_side2UserCount;
-    char m_pad20[8];
-    struct RankingEntry { char m_pad00[4]; unsigned int m_characNo; char m_pad08[0x7c]; } m_rankings[3];
-    char m_pad1b4[0x54];
+    char m_winnerSide;          // +0x00
+    char m_pad01[3];            // +0x01..+0x03
+    int m_side1Point;           // +0x04（SetPowerInfo 写 +0x04）
+    int m_side2Point;           // +0x08
+    int m_side1ChannelPoint;    // +0x0c
+    int m_side2ChannelPoint;    // +0x10
+    int m_side1UserCount;       // +0x14（GetPowerUserCount: side==1 -> +0x14）
+    int m_side2UserCount;       // +0x18
+    int m_field1c;              // +0x1c（Init 置 0）
+    int m_field20;              // +0x20（Init 置 0）
+    unsigned char m_powerWarStartTime[4]; // +0x24（SetPowerWarStartTime 写 0x24..0x27）
+
+    // STPowerWarStatueRankerInfo：雕像排行条目，3 条，+0x28 起，entry 0x84。
+    // 布局依据 ORIG GetRankingByCharacNo(+0x2c 读 characNo) / CheckCompleteDBLoadStatueInfo
+    // (+0x28 读 flag) / SendPowerWarUserStatueInfo(+0x30 name, +0x4e job, +0x4f level,
+    // +0x50 grow, +0x51 guildName, +0x7c guildId, +0x80..equipment[11]) 推导。
+    struct RankerEntry
+    {
+        unsigned char m_flag;           // +0x00 (1=已加载)
+        char m_pad01[3];
+        unsigned int m_characNo;        // +0x04
+        char m_name[0x1e];              // +0x08（30B）
+        char m_job;                     // +0x26
+        char m_level;                   // +0x27
+        char m_grow;                    // +0x28
+        char m_guildName[0x28];         // +0x29（40B）
+        int m_guildId;                  // +0x51（对齐到 +0x54）
+        int m_equipment[11];            // +0x58（0x80 起，11 槽）
+    };
+    RankerEntry m_rankings[3];
+    char m_pad1b4[0x54];                // +0x1b4（CPowerWarLog 0x1b4 / CPowerWarPacketLog 0x1f0 占位）
+
 };
 
 #endif

@@ -12,6 +12,7 @@
 #include <vector>
 #include <cstdlib>
 #include <cmath>
+#include <ctime>
 
 #include "Inven_Item.h"
 #include "CDataManager.h"
@@ -45,15 +46,27 @@ class CMTRand
 {
 public:
     CMTRand();
+    CMTRand(const unsigned long& s);   // ORIG _ZN7CMTRandC1ERKm（CMTRand.cpp 定义）
     void seed(unsigned long s);
     int randInt();
     int randInt(const unsigned long& range);
 private:
     char m_pad[0x9c8];
 };
+// ---- SECRET_SHOP_STATISTIC_DATA（0x14，全局类型，Statics/GMAccounts.h 权威） ----
+// ORIG 的 std::map<int,SECRET_SHOP_STATISTIC_DATA> 按全局类型 mangled
+// （26SECRET_SHOP_STATISTIC_DATA，无 secretshop:: 前缀）；ctor 定义于
+// GMAccounts.cpp（此处仅声明，避免重复符号）。
+struct SECRET_SHOP_STATISTIC_DATA
+{
+    SECRET_SHOP_STATISTIC_DATA();
+    int m_data[5];   // [0]=dungeonIdx [1]=showCount [2]=showPrice
+                     // [3]=buyCount [4]=buyPrice
+} __attribute__((packed));
 
 namespace secretshop
 {
+
 
 // ---- SALE_INFO（0x1c）/ BUY_INFO（0x8） ----
 struct SALE_INFO
@@ -161,21 +174,13 @@ void SHOPPER::BuyItem(int itemIdx, int count)
 class SECRET_SHOP_INFO
 {
 public:
+    SALE_INFO* GetSaleInfo(int itemIdx);   // 定义于 SECRET_SHOP_DATA.cpp
     RETAILER m_retailer;  // +0x00
     SHOPPER m_shopper;    // +0x0c
     char m_bClear;        // +0x18
     char m_pad[3];        // +0x19
 };
 
-// ---- CSecretShopStatistic（3 张地图，ORIG +0x00/+0x18/+0x30） ----
-struct SECRET_SHOP_STATISTIC_DATA
-{
-    int m_dungeonIdx;  // +0x00
-    int m_showCount;   // +0x04
-    int m_showPrice;   // +0x08
-    int m_buyCount;    // +0x0c
-    int m_buyPrice;    // +0x10
-};
 
 class CSecretShopStatistic
 {
@@ -239,11 +244,11 @@ int CSecretShopStatistic::GetDungeonData(int npcIdx, int dungeonIdx)
     if (it != m.end())
         return (int)&it->second;
     SECRET_SHOP_STATISTIC_DATA data;
-    data.m_dungeonIdx = dungeonIdx;
-    data.m_showCount = 0;
-    data.m_showPrice = 0;
-    data.m_buyCount = 0;
-    data.m_buyPrice = 0;
+    data.m_data[0] = dungeonIdx;
+    data.m_data[1] = 0;
+    data.m_data[2] = 0;
+    data.m_data[3] = 0;
+    data.m_data[4] = 0;
     it = m.insert(std::make_pair(dungeonIdx, data)).first;
     return (int)&it->second;
 }
@@ -252,23 +257,24 @@ void CSecretShopStatistic::RecordShow(int npcIdx, int dungeonIdx, int price)
 {
     SECRET_SHOP_STATISTIC_DATA* data =
         (SECRET_SHOP_STATISTIC_DATA*)GetDungeonData(npcIdx, dungeonIdx);
-    data->m_showCount += 1;
-    data->m_showPrice += price;
+    data->m_data[1] += 1;
+    data->m_data[2] += price;
 }
 
 void CSecretShopStatistic::RecordBuy(int npcIdx, int dungeonIdx)
 {
     SECRET_SHOP_STATISTIC_DATA* data =
         (SECRET_SHOP_STATISTIC_DATA*)GetDungeonData(npcIdx, dungeonIdx);
-    data->m_buyCount += 1;
+    data->m_data[3] += 1;
 }
 
 void CSecretShopStatistic::RecordPrice(int npcIdx, int dungeonIdx, int price)
 {
     SECRET_SHOP_STATISTIC_DATA* data =
         (SECRET_SHOP_STATISTIC_DATA*)GetDungeonData(npcIdx, dungeonIdx);
-    data->m_buyPrice += price;
+    data->m_data[4] += price;
 }
+
 
 void CSecretShopStatistic::SendSecretShopStatistic()
 {
@@ -298,10 +304,10 @@ void CSecretShopStatistic::SendSecretShopStatistic()
              it != m_pos[pos].end(); ++it, ++count) {
             int* out = (int*)packet.m_items + count * 5;
             out[0] = it->first;
-            out[1] = it->second.m_showCount;
-            out[2] = it->second.m_showPrice;
-            out[3] = it->second.m_buyCount;
-            out[4] = it->second.m_buyPrice;
+            out[1] = it->second.m_data[1];
+            out[2] = it->second.m_data[2];
+            out[3] = it->second.m_data[3];
+            out[4] = it->second.m_data[4];
         }
         packet.m_count = count;
         void* proxy = sub_CServerProxyMgr_GetServerProxy(
@@ -311,14 +317,16 @@ void CSecretShopStatistic::SendSecretShopStatistic()
 }
 
 // ---- IBuyRule（购买规则基类） ----
+// ORIG ABI：基类仅一个 virtual（BuyItem 纯虚，位于 vtable 槽 0），无 virtual
+// 析构；ctor 接收 CSecretShopStatistic& 存入 +0x04。派生类无额外成员、无
+// virtual 析构，规则指针在 CSecretShop::~CSecretShop 中用 ::operator delete
+// （_ZdlPv）直接释放（ORIG 反汇编确认 BuyItem 为 vtable[0]）。
 class IBuyRule
 {
 public:
-    IBuyRule() {}
-    virtual ~IBuyRule() {}
-
+    IBuyRule(CSecretShopStatistic& statistic) : m_pStatistic(&statistic) {}
     virtual bool BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
-                         int count) = 0;
+                         int count) = 0;   // vtable 槽 0（唯一 virtual）
 
     int CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& remain);
     int InsertItemIntoInventory(CUser* user, int itemIdx, int count,
@@ -327,7 +335,10 @@ public:
                                int b, int c);
     void LogCubeStatistic(CUser* user, std::pair<int, int>& item);
     void LogValueStatistic(CUser* user, unsigned int value);
+
+    CSecretShopStatistic* m_pStatistic;   // +0x04
 };
+
 
 int IBuyRule::CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& remain)
 {
@@ -388,32 +399,38 @@ void IBuyRule::SendSecretShopBuyItem(CUser* user, int slot, Inven_Item& item,
 
 void IBuyRule::LogCubeStatistic(CUser* user, std::pair<int, int>& item)
 {
-    // 统计接口（ORIG 0x85fb8b2，CCubeStatistic）
+    // ORIG 0x85fb8b2：
+    // GetInstanceCubeStatistic()->collectCubeStatistics(
+    //     item.first, item.second, user, (CUBE_STATISTIC_FIELD)0x6a)
+    extern void* GetInstanceCubeStatistic() asm("_Z24GetInstanceCubeStatisticv");
+    extern void collectCubeStatistics(void* stat, int a, int b, CUser* u, int field)
+        asm("_ZN14CCubeStatistic21collectCubeStatisticsEiiP5CUser20CUBE_STATISTIC_FIELD");
+    collectCubeStatistics(GetInstanceCubeStatistic(), item.first, item.second,
+                          user, 0x6a);
 }
 
 void IBuyRule::LogValueStatistic(CUser* user, unsigned int value)
 {
-    // 统计接口（ORIG 0x85fb886，CValueStatistic）
+    // ORIG 0x85fb886：
+    // GetInstanceValueStatistic()->AddValueStatistic(
+    //     (VALUE_STATISTIC_FIELD)0xd, user, value)
+    CValueStatistic* s = GetInstanceValueStatistic();
+    s->AddValueStatistic((VALUE_STATISTIC_FIELD)0xd, user, value);
 }
 
-// ---- CBuyItembyGold（金币购买规则，+0x04 引用统计） ----
+// ---- CBuyItembyGold（金币购买规则） ----
+// 无 virtual 析构；ctor 委托 IBuyRule(CSecretShopStatistic&) 存 +0x04，vptr 置
+// &_ZTVN10secretshop14CBuyItembyGoldE+0x8（BuyItem 于 vtable[0]，ORIG 确认）。
 class CBuyItembyGold : public IBuyRule
 {
 public:
     CBuyItembyGold(CSecretShopStatistic& statistic);
-    virtual ~CBuyItembyGold();
     virtual bool BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                          int count);
-
-    CSecretShopStatistic* m_pStatistic;   // +0x04
 };
 
 CBuyItembyGold::CBuyItembyGold(CSecretShopStatistic& statistic)
-{
-    m_pStatistic = &statistic;
-}
-
-CBuyItembyGold::~CBuyItembyGold()
+    : IBuyRule(statistic)
 {
 }
 
@@ -457,23 +474,18 @@ bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
 }
 
 // ---- CBuyItembyRecipe（配方购买规则） ----
+// 无 virtual 析构；ctor 委托 IBuyRule(CSecretShopStatistic&)，vptr 置
+// &_ZTVN10secretshop16CBuyItembyRecipeE+0x8（BuyItem 于 vtable[0]，ORIG 确认）。
 class CBuyItembyRecipe : public IBuyRule
 {
 public:
     CBuyItembyRecipe(CSecretShopStatistic& statistic);
-    virtual ~CBuyItembyRecipe();
     virtual bool BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                          int count);
-
-    CSecretShopStatistic* m_pStatistic;   // +0x04
 };
 
 CBuyItembyRecipe::CBuyItembyRecipe(CSecretShopStatistic& statistic)
-{
-    m_pStatistic = &statistic;
-}
-
-CBuyItembyRecipe::~CBuyItembyRecipe()
+    : IBuyRule(statistic)
 {
 }
 
@@ -545,7 +557,7 @@ public:
     void SendSecretShopStatistic();
 
     std::map<eBuyRule, IBuyRule*> m_rules;   // +0x00
-    CMTRand* m_pRand;                        // +0x18
+    ::CMTRand* m_pRand;                   // +0x18（全局 CMTRand，ORIG）
     CSecretShopStatistic m_statistic;        // +0x1c
 };
 
@@ -562,25 +574,31 @@ extern "C" void sub_SecretShopScript_GetNpcByDungeonLev(void* script, int* out,
 
 CSecretShop::CSecretShop()
 {
-    m_rules[(eBuyRule)0] = new CBuyItembyGold(m_statistic);
-    m_rules[(eBuyRule)1] = new CBuyItembyRecipe(m_statistic);
-    m_pRand = new CMTRand(0);
+    // ORIG：map.insert(pair)（非 operator[]）；m_pRand = new ::CMTRand(time(0))
+    // （全局 CMTRand 的 const unsigned long& 种子 ctor，符号 _ZN7CMTRandC1ERKm）。
+    m_rules.insert(std::make_pair((eBuyRule)0, new CBuyItembyGold(m_statistic)));
+    m_rules.insert(std::make_pair((eBuyRule)1, new CBuyItembyRecipe(m_statistic)));
+    m_pRand = new ::CMTRand(time(0));
 }
 
 CSecretShop::~CSecretShop()
 {
+    // ORIG 顺序：先 ::operator delete(m_pRand)（_ZdlPv），再遍历 map 用
+    // ::operator delete 释放每个无 virtual 析构的 IBuyRule 指针，
+    // m_rules/m_statistic 的析构由成员声明顺序自动完成。
+    ::operator delete(m_pRand);
     for (std::map<eBuyRule, IBuyRule*>::iterator it = m_rules.begin();
          it != m_rules.end(); ++it)
-        delete it->second;
-    delete m_pRand;
+        ::operator delete(it->second);
 }
 
 IBuyRule* CSecretShop::GetRule(eBuyRule rule)
 {
+    // ORIG：`if (it != end) return it->second; return 0;`（ne 比较，非 eq+取反）。
     std::map<eBuyRule, IBuyRule*>::iterator it = m_rules.find(rule);
-    if (it == m_rules.end())
-        return 0;
-    return it->second;
+    if (it != m_rules.end())
+        return it->second;
+    return 0;
 }
 
 int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
@@ -616,7 +634,7 @@ void CSecretShop::CheckLottery()
 
 void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int count)
 {
-    SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
+    SALE_INFO* sale = info.GetSaleInfo(itemIdx);
     if (sale == 0)
         return;
     IBuyRule* rule = GetRule((eBuyRule)sale->m_rule);

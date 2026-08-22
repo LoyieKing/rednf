@@ -220,10 +220,20 @@ struct stAvatarTypeSelectFull
     int m_field0; int m_field4; int m_field8; int m_fieldc;
     int m_field10; unsigned short m_ushort14[8];
 };
+// ORIG STEquipmentAniScript 局部镜像；本 TU 仅 insert_equiptment_item_to_db 读取
+// 动画帧号（+0x0c/+0x10/+0x30/+0x34，格式化为 "%02d%02d"）。注意 setEquipmentAniScriptLay
+// （ORIG 0x89c1cb9）对同一区段（+0xc..+0x40）写入 std::string；两函数对该区的解读不同
+// 【推断】——此处镜像以 insert 函数读法具名，保持既有 int 读行为可审计。
 struct STEquipmentAniScript
 {
-    char m_pad[0x60];
-    std::string m_str60;                     // +0x60
+    char m_pad0[0xc];        // +0x00
+    int m_aniFrame0c;        // +0x0c（insert 读取帧号 a）
+    int m_aniFrame10;        // +0x10（insert 读取帧号 a+1）
+    char m_pad14[0x1c];      // +0x14 .. +0x30
+    int m_aniFrame30;        // +0x30（insert 读取帧号 b）
+    int m_aniFrame34;        // +0x34（insert 读取帧号 b+1）
+    char m_pad38[0x28];      // +0x38 .. +0x60
+    std::string m_str60;     // +0x60
 };
 
 // ORIG STEquipmentScript 字段镜像（insert_equiptment_item_to_db 访问位）。
@@ -592,10 +602,10 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         {
             continue;
         }
-        int f30 = *(int*)((char*)&(*anis)[0] + 0x30);
-        int f34 = *(int*)((char*)&(*anis)[0] + 0x34);
-        int fc_ = *(int*)((char*)&(*anis)[0] + 0xc);
-        int f10 = *(int*)((char*)&(*anis)[0] + 0x10);
+        int f30 = (*anis)[0].m_aniFrame30;
+        int f34 = (*anis)[0].m_aniFrame34;
+        int fc_ = (*anis)[0].m_aniFrame0c;
+        int f10 = (*anis)[0].m_aniFrame10;
         if ((f30 != -1 || f34 != -1) && (fc_ == -1 && f10 == -1))
         {
             char tmp[256] = {0};
@@ -650,6 +660,9 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
             char t3[8] = {0};
             sprintf(t3, "*%d", 0);
             strcat(tmp, t3);
+            // anis 实际指向 EquipmentAniInfoScript（ORIG 0x898d03e 布局：+0x00 与
+            // +0x18 各一个 vector<STEquipmentAniScript>）；+0x18 为第二动画 vector。
+            // 局部镜像未建模双 vector 外层，故保留地址形式，锚定偏移【推断】。
             std::vector<STEquipmentAniScript>* sub =
                 (std::vector<STEquipmentAniScript>*)((char*)anis + 0x18);
             for (std::vector<STEquipmentAniScript>::iterator ait =

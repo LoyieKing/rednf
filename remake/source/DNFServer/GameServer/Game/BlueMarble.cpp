@@ -53,7 +53,7 @@ class CInventory
 public:
     int insertItemIntoInventory(Inven_Item item, eItemAddReason reason,
                                 bool bLog, bool b);
-    void MakeItemPacket(int invenType, int slot, PacketGuard& packet) const;
+    void MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
 };
 
 // ---- CGameManager 最小声明（CheckOutParty / 单例；CGameManager.cpp 提供定义） ----
@@ -1255,7 +1255,7 @@ int BlueMarble::sendUpdateItemInfo(int seat, int idx) const
     packet.put_short(1);
     CInventory* inven =
         (CInventory*)m_users[seat].getUser()->getCurCharacInvenR();
-    inven->MakeItemPacket(1, idx, packet);
+    inven->MakeItemPacket(INVEN_TYPE_EQUIP, idx, packet);
     packet.finalize(true);
     m_users[seat].getUser()->Send(packet);
 }

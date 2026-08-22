@@ -435,6 +435,7 @@ class CRevengeDungeon
 {
 public:
     CRevengeDungeon();
+    bool IsOpenRevengeDungeon();   // ORIG W 0x8234ff6：读 +0x0 字节
 private:
     char m_pad[8];
 };
@@ -1263,6 +1264,10 @@ village_attacked::CRevengeDungeon::CRevengeDungeon()
 {
     memset(m_pad, 0, sizeof(m_pad));
 }  // TODO(后续批次)
+bool village_attacked::CRevengeDungeon::IsOpenRevengeDungeon()  // ORIG 0x8234ff6：读 +0x0 字节
+{
+    return m_pad[0] != 0;
+}
 InstanceRentalSystem::InstanceRentalSystem()
 {
     memset(m_pad, 0, sizeof(m_pad));

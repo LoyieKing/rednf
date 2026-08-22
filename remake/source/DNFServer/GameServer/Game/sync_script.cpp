@@ -162,7 +162,8 @@ const char* CSyncScript::GetURL(const char* str, int len, int idx)
     strUrl.clear();
     int start = 0;
     int end = 0;
-    for (int i = 0; i < len; ++i)
+    int i = 0;
+    for (i = 0; i < len; ++i)
     {
         if (str[i] == '/')
         {
@@ -174,7 +175,7 @@ const char* CSyncScript::GetURL(const char* str, int len, int idx)
         }
     }
     strUrl.insert(0, str + start, end - start);
-    char tmp[16];
+    char tmp[16] = {0};
     sprintf(tmp, "/%05d.png", idx);
     strUrl += tmp;
     return strUrl.c_str();
@@ -361,7 +362,11 @@ bool CSyncScript::truncate_skill_index()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table skill_index");
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::trancate_skill_info()
@@ -373,7 +378,11 @@ bool CSyncScript::trancate_skill_info()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table skill_info; ");
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_skill_info(STSkillScript* script, int job, int type)
@@ -439,7 +448,11 @@ bool CSyncScript::truncate_quest_category()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table quest_category");
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_charac_quest_category(unsigned int origin,
@@ -453,7 +466,11 @@ bool CSyncScript::insert_charac_quest_category(unsigned int origin,
         (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
     db->set_query("inSert into charac_quest_ref(origin_idx, mapped_idx) values(%d, %d)",
                   origin, mapped);
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::truncate_charac_quest_ref()
@@ -465,7 +482,11 @@ bool CSyncScript::truncate_charac_quest_ref()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table charac_quest_ref; ");
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_exp_level_to_db(unsigned int exp, int level)
@@ -477,7 +498,11 @@ bool CSyncScript::insert_exp_level_to_db(unsigned int exp, int level)
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     db->set_query("inSert into exp_level_ref(exp, lev) values(%u, %d)", exp, level);
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::truncate_exp_level_ref_table()
@@ -489,7 +514,11 @@ bool CSyncScript::truncate_exp_level_ref_table()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table exp_level_ref");
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_item_parts_set(int index, STEquipmentPartSetPiece& piece)
@@ -503,7 +532,11 @@ bool CSyncScript::insert_item_parts_set(int index, STEquipmentPartSetPiece& piec
     db->set_query("inSert into item_part_set(part_set_index, part_name, part_type, part_grade, part_rarity) values(%d, '%s',%d,%d,%d)",
                   index, piece.m_name.c_str(), piece.m_field4, piece.m_field8,
                   piece.m_fieldc);
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::trancate_item_parts_set()
@@ -515,7 +548,11 @@ bool CSyncScript::trancate_item_parts_set()
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     db->set_query("trUncate table item_part_set");
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_aicharacter_info_to_db(int idx,
@@ -554,7 +591,11 @@ bool CSyncScript::truncate_aicharacter_info_table()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_town_info_to_db(const TownScript& script)
@@ -592,7 +633,11 @@ bool CSyncScript::truncate_town_info_table()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_monster_info_to_db(const STMonsterScript& script)
@@ -630,7 +675,11 @@ bool CSyncScript::truncate_monster_info_table()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_creature_info_to_db(unsigned int id,
@@ -700,7 +749,11 @@ bool CSyncScript::truncate_creature_info_table()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
@@ -817,7 +870,11 @@ bool CSyncScript::truncate_item_info_master_table()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_old_equip_info_to_db()
@@ -874,7 +931,11 @@ bool CSyncScript::truncate_old_equip_info_table()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_mapping_equip_info_to_db(std::map<int, int>& mapping)
@@ -913,7 +974,11 @@ bool CSyncScript::truncate_mapping_equip_info_table()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_random_option_ref()
@@ -966,7 +1031,11 @@ bool CSyncScript::truncate_random_option_ref()
     {
         return false;
     }
-    return db->exec(true);
+    if (!db->exec(true))
+    {
+        return false;
+    }
+    return true;
 }
 
 bool CSyncScript::insert_charac_action_point_desc()

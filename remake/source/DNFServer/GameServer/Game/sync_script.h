@@ -237,8 +237,15 @@ public:
         int m_idx;    // +0x04
         bool operator<(const SWEAPONTYPE& o) const
         {
-            return m_job < o.m_job ||
-                   (m_job == o.m_job && m_idx < o.m_idx);
+            if (m_job < o.m_job)
+            {
+                return true;
+            }
+            if (m_job == o.m_job && m_idx < o.m_idx)
+            {
+                return true;
+            }
+            return false;
         }
     };
 
@@ -248,10 +255,18 @@ public:
         std::string m_str4;      // +0x04
         bool operator<(const SARMORTYPE& o) const
         {
-            return m_field0 < o.m_field0 ||
-                   (m_field0 == o.m_field0 && m_str4 < o.m_str4);
+            if (m_field0 < o.m_field0)
+            {
+                return true;
+            }
+            if (m_field0 == o.m_field0 && m_str4.compare(o.m_str4) < 0)
+            {
+                return true;
+            }
+            return false;
         }
     };
+
 
     bool m_field0;                            // +0x00
     std::vector<unsigned char> m_vec1;        // +0x04

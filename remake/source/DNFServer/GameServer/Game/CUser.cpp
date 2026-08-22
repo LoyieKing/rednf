@@ -13,6 +13,7 @@
 #include "CMailBox.h"
 #include "CGameManager.h"
 #include "CInventory.h"
+#include "CParty.h"
 #include "SkillSlot.h"
 #include "WarRoom.h"
 #include "PacketBuf.h"
@@ -569,6 +570,15 @@ void* CUser::GetParty()
     if (m_field8d004 < 0)
         return 0;
     return G_CGameManager()->GetParty(m_field8d004);
+}
+
+// CUser::GetUserPosInParty @ 0x08688638 —— 返回 own 在队伍中的槽位，不在返回 -1。
+int CUser::GetUserPosInParty()
+{
+    CParty* party = (CParty*)GetParty();
+    if (party == 0)
+        return -1;
+    return party->GetUserPosition(this);
 }
 
 void* CUser::GetWarRoom()
@@ -1479,14 +1489,11 @@ extern "C" char sub_Redeem_CRedeemItem_isAddableFilter(void*, const Inven_Item&)
     asm("_ZN11Redeem_Item11CRedeemItem15isAddableFilterERK10Inven_Item");
 extern "C" int sub_Redeem_CRedeemItem_AddRedeemList(void*, const Inven_Item&, int, bool)
     asm("_ZN11Redeem_Item11CRedeemItem13AddRedeemListERK10Inven_Itemib");
-extern "C" void sub_cUserHistoryLog_RedeemItemAdd(void*, int, int)
-    asm("_ZN15cUserHistoryLog13RedeemItemAddEii");
 
 // TODO(delegated: Redeem_Item__CRedeemItem)：这些 ORIG 强符号的真正实现由
 // 对应集群还原；Add_RedeemInfo 的 Store 调用方不消费其返回值。
 char sub_Redeem_CRedeemItem_isAddableFilter(void*, const Inven_Item&) { return 1; }
 int  sub_Redeem_CRedeemItem_AddRedeemList(void*, const Inven_Item&, int, bool) { return 1; }
-void sub_cUserHistoryLog_RedeemItemAdd(void*, int, int) {}
 
 int CUser::Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem)
 {
@@ -1497,9 +1504,9 @@ int CUser::Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem)
 
     CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
     if (pItem && pItem->is_stackable())
-        sub_cUserHistoryLog_RedeemItemAdd((char*)this + 0x79700, item.m_addInfo, item.get_add_info());
+        m_historyLog.RedeemItemAdd(item.m_addInfo, item.get_add_info());
     else
-        sub_cUserHistoryLog_RedeemItemAdd((char*)this + 0x79700, item.m_addInfo, 1);
+        m_historyLog.RedeemItemAdd(item.m_addInfo, 1);
 
     return sub_Redeem_CRedeemItem_AddRedeemList(cdata, item, count, isRedeem);
 }
@@ -2697,17 +2704,17 @@ void* CUser::GetMailBox()
 
 int CUser::GetMileage()
 {
-    return *(int*)((char*)m_pad796d4);
+    return m_mileage;
 }
 
 int CUser::GetPCRoomNo()
 {
-    return *(int*)((char*)&m_codeHackCheck.m_field54);
+    return m_codeHackCheck.m_field54;
 }
 
 unsigned int CUser::GetCeraPoint()
 {
-    return *(unsigned int*)((char*)&m_pad8ead9[3]);
+    return m_ceraPoint;
 }
 
 int CUser::getAntibotKey()
@@ -2736,27 +2743,27 @@ void CUser::onDungeonClear(bool flag)
 
 int CUser::GetDebugCommand()
 {
-    return *(int*)((char*)&m_pad8e08b[5]);
+    return m_debugCommand;
 }
 
 int CUser::GetTradePunishType()
 {
-    return *(int*)((char*)m_codeHackCheck.m_pad2c);
+    return m_codeHackCheck.m_tradePunishType;
 }
 
 int CUser::getLastLotteryTime()
 {
-    return *(int*)((char*)m_mcap.m_pad548);
+    return m_mcap.m_lastLotteryTime;
 }
 
 int CUser::GetNonClientRandInt()
 {
-    return *(int*)((char*)&m_piSender + 0xc);
+    return m_piSender.m_nonClientRandInt;
 }
 
 int CUser::GetNonClientFlag()
 {
-    return *(unsigned char*)((char*)&m_piSender + 8);
+    return m_piSender.m_nonClientFlag;
 }
 
 int CUser::GetLastLoginCharacNo()
@@ -2959,12 +2966,12 @@ unsigned char CUser::GetPuUser()
 
 void CUser::SetCeraPoint(unsigned int point)
 {
-    *(unsigned int*)((char*)&m_pad8ead9[3]) = point;
+    m_ceraPoint = point;
 }
 
 void CUser::SetDebugCommand(int cmd)
 {
-    *(int*)((char*)&m_pad8e08b[5]) = cmd;
+    m_debugCommand = cmd;
 }
 
 void CUser::decre_check_count()
@@ -2974,12 +2981,12 @@ void CUser::decre_check_count()
 
 void CUser::setLastLotteryTime(unsigned long t)
 {
-    *(unsigned long*)((char*)m_mcap.m_pad548) = t;
+    m_mcap.m_lastLotteryTime = (int)t;
 }
 
 void CUser::SetNonClientRandInt(int v)
 {
-    *(int*)((char*)&m_piSender + 0xc) = v;
+    m_piSender.m_nonClientRandInt = v;
 }
 
 void CUser::recipeForceProbability(int v)
@@ -3044,7 +3051,7 @@ void CUser::setLoadHackGold(bool flag)
 
 void CUser::SetNonClientFlag(bool flag)
 {
-    *(unsigned char*)((char*)&m_piSender + 8) = flag ? 1 : 0;
+    m_piSender.m_nonClientFlag = flag ? 1 : 0;
 }
 
 void CUser::setHumanCertified(bool flag)
@@ -3059,7 +3066,7 @@ void CUser::incTradeCount()
 
 float CUser::GetRating()
 {
-    return *(float*)((char*)&m_character + 0x44);
+    return m_character.m_f44;
 }
 
 void CUser::backupSeed()
@@ -3705,4 +3712,31 @@ void CUser::ProcPremiumFatigue()
 bool CUser::IsPremiumUser() const
 {
     return false;
+}
+
+// 0x0864fe52（ORIG CUser::SaveInventory()）
+// ORIG 反编译控制流（docs/class_func_reports/CUser/SaveInventory.md）：
+//   1) isLocked4DataLoad() 非零 → cMyTrace 报错 "Can not save character until
+//      loading done(m_id: %s, charac_no: %d" 并返回 0；
+//   2) G_GameWorld()->GetChannelType()==7 → 返回 0；
+//   3) 否则 BigStreamPool::Acquire + CStreamGuard 序列化 0xad99 字节的
+//      SIG_SAVE_INVENTORY（背包/邮箱/cargo 内容）→ MsgQueueMgr::put 回传 → 返回 1。
+// 说明：深层序列化依赖（BigStreamPool/CStreamGuard/SIG_SAVE_INVENTORY 真实布局/
+//       CInventory::GetInvenStart/RemoveKCItem/CCargo::get_cargo_start/
+//       MsgQueueMgr::put）在重建工程中尚未实现；此处按 ORIG 保持可观察控制流
+//       （两个早退守卫 + 成功返 1），序列化体留待依赖补齐后细化（推断）。
+int CUser::SaveInventory()
+{
+    if (isLocked4DataLoad())
+    {
+        // ORIG cMyTrace 报错分支；此处仅保持返回 0 的可观察行为。
+        return 0;
+    }
+    if (G_GameWorld()->GetChannelType() == 7)
+    {
+        return 0;
+    }
+    // TODO(推断)：序列化 SIG_SAVE_INVENTORY 待 BigStreamPool/CStreamGuard 等
+    // 依赖补齐后按 ORIG 细化。
+    return 1;
 }

@@ -239,9 +239,6 @@ public:
     void lock();
     void unlock();
 
-    // 服务器环境布局由 ORIG +0x198 固定；GameWorld 等协议组装代码需要语义字段。
-    Server_Envir m_serverEnvir;                 // +0x198（0x22c 字节）
-
 private:
     friend class StreamPool;
     friend class SmallStreamPool;
@@ -252,6 +249,11 @@ private:
     std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> m_dbConnInfo;                             // +0x68
     std::map<ENUM_SERVER_GROUP, std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> > m_dbConnInfoByGroup;  // +0x80
     char m_dbTblFile[0x100];                    // +0x98
+public:
+    // 服务器环境布局由 ORIG +0x198 固定；必须声明在 m_dbTblFile 之后（声明于
+    // public 区起始会使其落在 +0x04，导致 GameWorld 等协议组装代码偏移全部错误）。
+    Server_Envir m_serverEnvir;                 // +0x198（0x22c 字节）
+private:
     Mutex m_lock;                               // +0x3c4（0x18 字节）
     bool m_suspendState;                        // +0x3dc
 };

@@ -142,6 +142,15 @@ namespace WongWork {
 extern "C" void sub_CBossStage_reset(void*)
     asm("_ZN8WongWork10CBossStage5resetEv");
 
+// CBossTower 布局位于 CGameManager.h 的 `WongWork::CBossTower`（未命名 m_pad[0xb18]），
+// 且派生于不透明 CBossStage（经 sub_CBossStage_reset 桥接）。以下各偏移均为
+// CBossStage 基类/内嵌子对象字段，尚无具名成员【推断】，因此保留地址形式并按 ORIG
+// （0x81429b4 ctor / 0x8142a74 附近 dtor）逐条注明：
+//   +0xb00  CBossDungeonEntranceLog 子对象（ORIG ctor 调其 ctor；此处按 0x18 零填）
+//   +0xaf0  CBossStage 基类字段（ctor 置 0）
+//   +0x9f0  CBossStage 基类字段（reset 之外 ctor 额外置 0）
+//   +0xd    4 字节 CBossStage 字段（ctor memset 0）
+//   +8 / +4 CBossStage 基类首部字段（vtable 之后）
 CBossTower::CBossTower()
 {
     sub_CBossStage_reset(this);
@@ -165,7 +174,10 @@ CBossTower::~CBossTower()
 }
 
 
-// CDeathTowerRanking 方法桩（待后续按 ORIG 实现）
+// CDeathTowerRanking 方法桩（待后续按 ORIG 实现）。rankTable 为 CDeathTowerRanking
+// 的 getRankTable 返回的外部数据区（每塔 0x390 记录）；以下 +0x98/+0x128/+0x7058/
+// +0x70ec 等均为该外部记录字段偏移，非本类成员，保留地址形式。
+
 unsigned int sub_CDeathTowerRanking_makeDungeonIdx2TowerIdx(unsigned int dungeonIdx) { return 0; }
 void* sub_CDeathTowerRanking_getRankTable(unsigned int memberCnt) { return 0; }
 void sub_CDeathTowerRanking_checkRenewMyRecord(void* rankTable, unsigned int towerIdx, unsigned int key, unsigned int clearTime, unsigned int playTime)
@@ -648,10 +660,14 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
 
             if (monster.m_roleType == 5)
             {
+                // G_CDataManager +0x5198 = m_deathTower（stDeathTower_t 未建模）内
+                // 魔王怪 EXP 倍率 float 字段【推断】
                 float* ratePtr = (float*)((char*)G_CDataManager() + 0x5198);
                 mobExp = (unsigned int)(*ratePtr * mobExp);
             }
 
+            // G_CDataManager +0x5e1c = m_deathTower 内部 EXP 倍率 float 字段
+            // （stDeathTower_t m_pad[0xc98] 未建模；+0x5e1c = +0x5198 + 0x484）【推断】
             float* ratePtr2 = (float*)((char*)G_CDataManager() + 0x5e1c);
             mobExp = (unsigned int)(*ratePtr2 * mobExp);
 
@@ -808,8 +824,10 @@ void CDeathTower::_onClear(bool isLast)
         {
             CUser* user = m_party->get_user(i);
             user->setChattingMessageCount(0);
+            // CUser +0x79700：cUserHistoryLog 子对象（未建模，CUser.h 无具名成员）【推断】
             cUserHistoryLog* log = (cUserHistoryLog*)((char*)user + 0x79700);
             log->DungeonClearInfo((int)isLast, playTime / 1000);
+
         }
     }
 }
@@ -875,10 +893,12 @@ void CDeathTower::_onStartDeathTower()
             int state = m_party->get_party_type();
             CDungeon* dungeon = m_dungeonMgr.getDungeon();
             const char* dungeonName = dungeon->GetDungeonName();
+            // CUser +0x79700：cUserHistoryLog 子对象（同 _onClear）【推断】
             cUserHistoryLog* log = (cUserHistoryLog*)((char*)user + 0x79700);
             log->EnterDungeon(dungeonName, state);
 
             UserQuest* quest = user->getCurCharacQuestW();
+            // UserQuest +0x75d8：_Quest_Authen_Data 内嵌子对象（UserQuest 未建模）【推断】
             _Quest_Authen_Data* authData = (_Quest_Authen_Data*)((char*)quest + 0x75d8);
             authData->reset();
 
@@ -957,7 +977,7 @@ CUser* CDeathTower::_pickupItem(CUser* user, char* a2, int slot, const map_item&
     }
 
     // Determine if item should be routed
-    bool isFromMap = (*(const char*)&item) != 0;
+    bool isFromMap = ((unsigned char)item.m_count) != 0;
     bool routeFlag = !isFromMap;
 
     if (citem)
@@ -1013,7 +1033,7 @@ void CDeathTower::deathTowerCardStatistic(int count, CUser* user, const Inven_It
 
     for (int i = 0; i < count; ++i)
     {
-        const Inven_Item* item = (const Inven_Item*)((const char*)items + i * 0x3d);
+        const Inven_Item* item = &items[i];   // Inven_Item 打包尺寸 0x3d（等价于 items+i*0x3d）
         int itemId = item->m_addInfo;
         if (itemId == 0)
         {
@@ -1049,7 +1069,7 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
         {
             // money item
             item.m_item.m_field1 = 0;
-            *(char*)&item.m_item.m_amp = 2;
+            item.m_item.m_amp.m_abilityType = 2;
             item.m_item.set_add_info(0);
             item.m_item.ResetItemAttr();
         }
@@ -1430,6 +1450,8 @@ int CDeathTower::handlePickupItem(CUser* user, int idx, bool a3, char a4)
         return 0;
     }
 
+    // ORIG：map_item.m_item（+0x10 Inven_Item 打包首 4 字节）作为 itemId 判定金钱物品。
+    // 打包区跨 m_field0/m_field1/m_addInfo，无单一具名成员，保留地址形式【推断】。
     int itemId = *(int*)((char*)&item + 0x10);
     if (itemId == 0)
     {
@@ -1721,7 +1743,8 @@ int CDeathTower::handleUseStackable(CUser* user, ENUM_ITEMSPACE itemSpace, unsig
     CDungeon* dungeon = m_dungeonMgr.getDungeon();
     if (dungeon->limitOfStackableItemInTower())
     {
-        unsigned int itemId = *(unsigned int*)((char*)item + 2);
+        // ORIG：Inven_Item +0x02 即 m_addInfo（itemId）
+        unsigned int itemId = (unsigned int)item->m_addInfo;
         if (!((itemId < 0x1964 || itemId > 6999) && itemId != 0x18))
         {
             return 1;
@@ -1866,7 +1889,9 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                 for (int j = 0; j < rewardCnt; ++j)
                 {
                     Inven_Item* rewardItem = m_playData.getRewardItem(i);
-                    int itemId = *(int*)((char*)rewardItem + j * 0x3d + 2);
+                    // ORIG：rewardItem 为成员奖励 Inven_Item 数组；`+ j*0x3d + 2` = rewardItem[j].
+                    // m_addInfo（Inven_Item +0x02，打包 0x3d 字节）。
+                    int itemId = rewardItem[j].m_addInfo;
                     if (itemId != -1)
                     {
                         int slot = -1;

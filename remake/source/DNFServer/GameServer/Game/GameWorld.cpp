@@ -242,54 +242,76 @@ bool GameWorld::init()
 // ============================================================================
 void GameWorld::InsertChannel(int gcNo, ENUM_SERVER_GROUP group)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("world.cpp", 0x11a0);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("world.cpp", 0x11a0),
+                       true);
     **guard << 0x2d;
     **guard << -1;
 
-    char buf[0x5c];
-    memset(buf, 0, 0x5c);
-    *(int*)(buf + 0x00) = gcNo;
-    *(int*)(buf + 0x58) = (int)group;
-    *(unsigned short*)(buf + 0x04) = 0;
+    struct stChannelInsertInfo
+    {
+        int m_gcNo;                 // +0x00
+        unsigned short m_zero;      // +0x04
+        char m_serverIP[0x10];      // +0x06
+        unsigned short m_tcpPort;   // +0x16
+        unsigned short m_maxUserNum;// +0x18
+        char m_serverGroup;         // +0x1a
+        char m_channelName[0x1e];   // +0x1b
+        unsigned short m_channelNo; // +0x39
+        char m_channelInfo[0x19];   // +0x3b
+        int m_field54;              // +0x54
+        int m_group;                // +0x58
+    };
+    stChannelInsertInfo buf;
+    memset(&buf, 0, 0x5c);
+    buf.m_gcNo = gcNo;
+    buf.m_group = (int)group;
+    buf.m_zero = 0;
 
-    CEnvironment* env = G_CEnvironment();
-    const Server_Envir& server = env->m_serverEnvir;
-    memcpy(buf + 0x06, server.m_channelName, strlen(server.m_channelName));
-    *(unsigned short*)(buf + 0x16) = (unsigned short)server.m_gcNo;
-    *(unsigned short*)(buf + 0x18) = (unsigned short)server.m_avatarTime;
-    *(char*)(buf + 0x1a) = (char)server.m_channelType;
-    memcpy(buf + 0x1b, server.m_fileName, strlen(server.m_fileName));
-    *(unsigned short*)(buf + 0x39) = (unsigned short)server.m_serverGroup;
+    memcpy(buf.m_serverIP, G_CEnvironment()->m_serverEnvir.m_serverIP,
+           strlen(G_CEnvironment()->m_serverEnvir.m_serverIP));
+    buf.m_tcpPort = (unsigned short)G_CEnvironment()->m_serverEnvir.m_tcpPort;
+    buf.m_maxUserNum =
+        (unsigned short)G_CEnvironment()->m_serverEnvir.m_maxUserNum;
+    buf.m_serverGroup = (char)G_CEnvironment()->m_serverEnvir.m_serverGroup;
+    memcpy(buf.m_channelName, G_CEnvironment()->m_serverEnvir.m_channelName,
+           strlen(G_CEnvironment()->m_serverEnvir.m_channelName));
+    buf.m_channelNo =
+        (unsigned short)G_CEnvironment()->m_serverEnvir.m_channelNo;
 
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
     void* channelInfo = sub_channel_script_t_getChannelInfo(
-        channelScript, (unsigned char)*(int*)((char*)G_CEnvironment() + 0x378),
+        channelScript,
+        (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
         G_CEnvironment()->get_channel_no());
     if (channelInfo != NULL)
     {
-        strncpy(buf + 0x3b, (const char*)channelInfo + 8, 0x19);
-        *(int*)(buf + 0x54) = *(int*)((char*)channelInfo + 4);
+        strncpy(buf.m_channelInfo, (const char*)channelInfo + 8, 0x19);
+        buf.m_field54 = *(int*)((char*)channelInfo + 4);
     }
 
-    guard->put_binary(buf, 0x5c);
+    guard->put_binary(&buf, 0x5c);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 }
 
 void GameWorld::DeleteChannel(int gcNo, ENUM_SERVER_GROUP group)
 {
-    Stream* stream = GlobalData::s_stream_pool->Acquire("world.cpp", 0x11bc);
-    CStreamGuard guard(stream, true);
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("world.cpp", 0x11bc),
+                       true);
     **guard << 0x2f;
     **guard << -1;
 
-    char buf[0xc];
-    memset(buf, 0, 0xc);
-    *(int*)(buf + 0x00) = gcNo;
-    *(int*)(buf + 0x04) = (int)group;
+    struct stChannelDeleteInfo
+    {
+        int m_gcNo;     // +0x00
+        int m_group;    // +0x04
+    };
+    stChannelDeleteInfo buf;
+    memset(&buf, 0, 0xc);
+    buf.m_gcNo = gcNo;
+    buf.m_group = (int)group;
 
-    guard->put_binary(buf, 0xc);
+    guard->put_binary(&buf, 0xc);
     GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
 
     cMyTrace trace("void GameWorld::DeleteChannel(int, ENUM_SERVER_GROUP)", 0x11c7, 0);
@@ -482,7 +504,8 @@ bool GameWorld::IsFreePvPChannel() const
 
 bool GameWorld::IsSchoolPvPChannel() const
 {
-    return m_channelType >= 9 && m_channelType <= 10;
+    if ((unsigned int)(m_channelType - 9) <= 1) return true;
+    return false;
 }
 
 bool GameWorld::IsWinPointPvPChannel() const
@@ -492,28 +515,32 @@ bool GameWorld::IsWinPointPvPChannel() const
 
 bool GameWorld::IsPvPSkilTreeChannel() const
 {
-    return m_channelType >= 14 && m_channelType <= 16;
+    if ((unsigned int)(m_channelType - 0xe) <= 2) return true;
+    return false;
 }
 
 bool GameWorld::IsEquipSlotSwitchChannel() const
 {
-    return m_channelType >= 14 && m_channelType <= 16;
+    if ((unsigned int)(m_channelType - 0xe) <= 2) return true;
+    return false;
 }
 
 bool GameWorld::IsPvPVillageMapChannel() const
 {
-    return m_channelType >= 14 && m_channelType <= 16;
+    if ((unsigned int)(m_channelType - 0xe) <= 2) return true;
+    return false;
 }
 
 bool GameWorld::IsCharacterPvPExpRevisionChannel() const  // ORIG 085dfa76
 {
-    return m_channelType == 0xf;
+    if (m_channelType == 0xf) return true;
+    return false;
 }
 
 bool GameWorld::IsCharacterLevelRevisionChannel() const  // ORIG 084ed128
 {
-    unsigned int t = static_cast<unsigned int>(m_channelType);
-    return t - 0xe <= 2;  // m_channelType ∈ [0xe, 0x10]
+    if ((unsigned int)(m_channelType - 0xe) <= 2) return true;  // ∈ [0xe, 0x10]
+    return false;
 }
 
 bool GameWorld::is_dungeon_tag_matching_channel(char* channel)
@@ -638,7 +665,7 @@ bool GameWorld::reach_game_world(CUser* user)
     }
 
     if ((int)m_UserInWorld.size() + 1 >
-        G_CEnvironment()->m_serverEnvir.m_avatarTime)
+        G_CEnvironment()->m_serverEnvir.m_maxUserNum)
     {
         return false;
     }
@@ -772,23 +799,24 @@ unsigned short GameWorld::make_unique_id()
 
 unsigned short GameWorld::find_session(unsigned int accId)
 {
-    std::map<unsigned int, unsigned short>::iterator it =
-        m_sessionList.find(accId);
-    if (it != m_sessionList.end())
+    std::map<unsigned int, unsigned short>::iterator it;
+    it = m_sessionList.find(accId);
+    if (it == m_sessionList.end())
     {
-        return it->second;
+        return 0;
     }
-    return 0;
+    return it->second;
 }
 
 CUser* GameWorld::find_from_world(unsigned short uniqueId)
 {
-    std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.find(uniqueId);
-    if (it != m_UserInWorld.end())
+    std::map<unsigned short, CUser*>::iterator it;
+    it = m_UserInWorld.find(uniqueId);
+    if (it == m_UserInWorld.end())
     {
-        return it->second;
+        return NULL;
     }
-    return NULL;
+    return it->second;
 }
 
 CUser* GameWorld::find_user_from_world_byaccid(unsigned int accId)
@@ -881,13 +909,18 @@ void GameWorld::arrange_users()
 
 int GameWorld::CheckUserCount(int add)
 {
-    return (int)m_UserInWorld.size() + add <=
-           G_CEnvironment()->m_serverEnvir.m_avatarTime;
+    unsigned int size = m_UserInWorld.size();
+    int maxUserNum = G_CEnvironment()->m_serverEnvir.m_maxUserNum;
+    if ((int)size + add > maxUserNum)
+    {
+        return false;
+    }
+    return true;
 }
 
 int GameWorld::GetUserCount(int vill, int area) const
 {
-    if (vill < 0 || MAX_VILLAGE_NUM <= vill)
+    if (vill < 0 || vill >= MAX_VILLAGE_NUM)
     {
         return 0;
     }
@@ -1328,7 +1361,7 @@ void GameWorld::send_power_war_hp_of_vill(int vill)
 // ============================================================================
 Village* GameWorld::GetVillage(int vill)
 {
-    if (vill < 0 || MAX_VILLAGE_NUM <= vill)
+    if (vill < 0 || vill >= MAX_VILLAGE_NUM)
     {
         return NULL;
     }
@@ -1341,8 +1374,8 @@ Village* GameWorld::getUserVillage(CUser* user)
     {
         return NULL;
     }
-    int vill = (int)user->getCurCharacVill();
-    if (vill < 1 || MAX_VILLAGE_NUM <= vill)
+    int vill = (int)(signed char)user->getCurCharacVill();
+    if (vill < 1 || vill >= MAX_VILLAGE_NUM)
     {
         return NULL;
     }
@@ -1351,7 +1384,7 @@ Village* GameWorld::getUserVillage(CUser* user)
 
 Village* GameWorld::getUserVillage(int vill)
 {
-    if (vill < 1 || MAX_VILLAGE_NUM <= vill)
+    if (vill < 1 || vill >= MAX_VILLAGE_NUM)
     {
         return NULL;
     }
@@ -1360,7 +1393,7 @@ Village* GameWorld::getUserVillage(int vill)
 
 int GameWorld::get_gate_area(int vill) const
 {
-    if (vill < 0 || MAX_VILLAGE_NUM <= vill)
+    if (vill < 0 || vill >= MAX_VILLAGE_NUM)
     {
         return -1;
     }
@@ -2897,11 +2930,17 @@ void GameWorld::AddDailyItem()
 
 bool GameWorld::ReselectDailyQuest()
 {
-    return sub_CDataManager_reselectDailyTrainingQuest(G_CDataManager()) == 1;
+    if (!sub_CDataManager_reselectDailyTrainingQuest(G_CDataManager()))
+    {
+        return false;
+    }
+    return true;
 }
 
 void GameWorld::DailyEventModify()
 {
+    char buf[0x140];
+    (void)buf;
 }
 
 void GameWorld::ResetCraneItemNeedMaterial(int param)
@@ -2963,10 +3002,11 @@ void GameWorld::UpdateMiniCraneSeed()
 {
     // Packet_MiniCraneSeed：PacketHeader(0x27f8, 0xe) + m_data(+0x0a)。内联 ctor
     // 产出 ORIG 弱 W 符号 _ZN20Packet_MiniCraneSeedC1Ev（@0x086d1d18）。
+    int group = sub_CEnvironment_get_server_group(G_CEnvironment());
     Packet_MiniCraneSeed packet;
     sub_CMonitorServerProxy_SendTcpPacket(
         sub_CServerProxyMgr_GetServerProxy_monitor(&GlobalData::s_monitor_proxy_mgr,
-            sub_CEnvironment_get_server_group(G_CEnvironment())),
+            (ENUM_SERVER_GROUP)group),
         (char*)&packet, 0xe);
 }
 
@@ -2977,7 +3017,8 @@ void GameWorld::UpdateMiniCraneSeed()
 bool GameWorld::InitChannelType()
 {
     m_channelType = _GetChannelType();
-    return m_channelType != 0x13;
+    if (m_channelType == 0x13) return false;
+    return true;
 }
 
 bool GameWorld::IsSameTeamChannelJoin()
@@ -2994,12 +3035,20 @@ bool GameWorld::IsSameTeamChannelJoin()
 
 bool GameWorld::IsEnchantRevisionChannel()
 {
-    return m_channelType == 7 || m_channelType == 0xe;
+    switch (m_channelType)
+    {
+    case 7:
+    case 0xe:
+        return true;
+    default:
+        return false;
+    }
 }
 
 bool GameWorld::IsCheckUnusableEquipmentChannel()
 {
-    return m_channelType == 0xe;
+    if (m_channelType == 0xe) return true;
+    return false;
 }
 
 StatisticsPvP* GameWorld::getStatisticsPvP()
@@ -3084,6 +3133,9 @@ void GameWorld::SendPowerUpList(int activateType, std::vector<CUser*>& list)
 
 void GameWorld::OnEndPowerWar(PacketGuard& packet)
 {
+    int var0 = 0;
+    std::map<unsigned short, CUser*>::iterator it;
+    int var1 = 0;
     packet.put_byte(sub_CPowerManager_GetWinnerSide(&GlobalData::s_power_manager));
     packet.put_short(0);
 }

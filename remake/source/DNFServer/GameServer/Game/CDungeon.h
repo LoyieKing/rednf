@@ -242,6 +242,7 @@ public:
 
     std::vector<_RewardItem> m_vec0;    // +0x00
     std::vector<_RewardItem> m_vecc;    // +0x0c
+    std::vector<_RewardItem> m_vec18;   // +0x18（ORIG ctor 构造 3 个 vector，sizeof 0x24）
 };
 
 struct RoundRewardData
@@ -258,7 +259,7 @@ public:
     ~SurvivalRewardData();
     SurvivalRewardData& operator=(const SurvivalRewardData& other);
 
-    std::vector<RoundRewardData> m_vec;  // +0x00
+    std::vector<RoundRewardData> m_vec;  // +0x00（ORIG sizeof 0xc，operator= 仅复制 vector）
 };
 }
 
@@ -285,6 +286,7 @@ public:
 
     std::vector<TournamentRewardItem> m_items;  // +0x00
     int m_c;                                    // +0x0c
+    int m_10;                                   // +0x10（ORIG sizeof 0x14）
 };
 
 struct STNamedMonsterMapPos
@@ -376,16 +378,17 @@ public:
     void AddDailSchedule(const std::vector<_DailySchedule>& schedule);
 };
 
-// ---- STDungeonScript（sizeof 0x50a，ORIG ctor 0x0836b5e2 / dtor 0x0836bd5c）----
+// ---- STDungeonScript（sizeof 0x50a，ORIG ctor 0x0836b5e2 / dtor 0x0836bd5c / Clear 0x0836abc6）----
+// 布局依据 ORIG Clear/set_dungeon 反汇编；32 位 std::string = 4 字节（COW 指针）。
 struct STDungeonScript
 {
     int m_0;                                // +0x00
     int m_4;                                // +0x04
     int m_8;                                // +0x08
-    int m_c;                                // +0x0c
+    char m_c;                               // +0x0c
     std::string m_str10;                    // +0x10
     int m_14;                               // +0x14
-    int m_18;                               // +0x18
+    int m_18;                               // +0x18（dungeon index）
     std::string m_str1c;                    // +0x1c
     std::string m_str20;                    // +0x20
     std::string m_str24;                    // +0x24
@@ -398,52 +401,65 @@ struct STDungeonScript
     std::vector<std::string> m_vec48;       // +0x48
     std::string m_str54;                    // +0x54
     std::string m_str58;                    // +0x58
+    int m_5c[6];                            // +0x5c
     std::string m_str74;                    // +0x74
-    int m_78;                               // +0x78
+    int m_78;                               // +0x78（标准等级源）
     RequiredItem m_requiredItem7c;          // +0x7c
-    char m_88;                              // +0x88
+    unsigned char m_88;                              // +0x88
     RequiredItem m_requiredItem8c;          // +0x8c
     std::vector<std::pair<int, int> > m_vec98;   // +0x98
     int m_a4;                               // +0xa4
     int m_a8;                               // +0xa8
     int m_ac;                               // +0xac
-    int m_b0;                               // +0xb0
+    float m_b0;                             // +0xb0（set_dungeon 位模式复制到 CDungeon.m_14）
+    int m_b4[5];                            // +0xb4（5 个 int，set_dungeon 复制到 CDungeon+0x6e0）
     std::vector<std::pair<int, int> > m_vecc8;   // +0xc8
     std::vector<std::pair<int, int> > m_vecd4;   // +0xd4
     std::vector<std::pair<int, int> > m_vece0;   // +0xe0
     std::vector<stDungeonAssignItem_t> m_vecec;  // +0xec
-    char m_140;                             // +0x140
-    char m_141;                             // +0x141
-    char m_142;                             // +0x142
+    char m_padF8[0x30];                     // +0xf8（POD 区，ORIG 无构造）
+    int m_128[5];                           // +0x128（set_dungeon copy 到 CDungeon+0x880）
+    int m_13c;                              // +0x13c
+    unsigned char m_140;                             // +0x140
+    unsigned char m_141;                             // +0x141
+    unsigned char m_142;                             // +0x142
     std::vector<std::pair<int, int> > m_vec144;  // +0x144
-    char m_150;                             // +0x150
+    unsigned char m_150;                             // +0x150
     int m_154;                              // +0x154
-    char m_158;                             // +0x158
-    char m_159;                             // +0x159
+    unsigned char m_158;                             // +0x158
+    unsigned char m_159;                             // +0x159
     std::vector<int> m_vec15c;              // +0x15c
+    int m_168;                              // +0x168
+    int m_16c;                              // +0x16c
     std::vector<MazeScript> m_mazeList170;  // +0x170
     std::string m_str17c;                   // +0x17c
     STDeadTowerData m_deadTower180;         // +0x180
     STWarRoomData m_warRoom18c;             // +0x18c
     std::map<AbsoluteChangeStat::T, float> m_statMap290;  // +0x290
-    char m_2a8;                             // +0x2a8
-    char m_2a9;                             // +0x2a9
-    char m_2aa;                             // +0x2aa
-    char m_2ab;                             // +0x2ab
+    unsigned char m_28c;                             // +0x28c
+    unsigned char m_28d;                             // +0x28d
+    unsigned char m_28e;                             // +0x28e
+    unsigned char m_2a8;                             // +0x2a8
+    unsigned char m_2a9;                             // +0x2a9
+    unsigned char m_2aa;                             // +0x2aa
+    unsigned char m_2ab;                             // +0x2ab
     int m_2ac;                              // +0x2ac
     int m_2b0[3];                           // +0x2b0
     int m_2bc[3];                           // +0x2bc
     std::vector<int> m_vec2c8;              // +0x2c8
     advancealtar::ClearRewardData m_clearReward2d4;  // +0x2d4
     advancealtar::SurvivalRewardData m_survival2f8;  // +0x2f8
+    unsigned char m_304;                             // +0x304
+    unsigned char m_305;                             // +0x305
+    unsigned char m_306;                             // +0x306
     std::vector<DimensionPartyCount> m_dimension308; // +0x308
-    char m_314;                             // +0x314
-    char m_315;                             // +0x315
-    char m_316;                             // +0x316
-    char m_317;                             // +0x317
+    unsigned char m_314;                             // +0x314
+    unsigned char m_315;                             // +0x315
+    unsigned char m_316;                             // +0x316
+    unsigned char m_317;                             // +0x317
     std::vector<_DailySchedule> m_dailySchedule;     // +0x318
-    char m_324;                             // +0x324
-    char m_325;                             // +0x325
+    unsigned char m_324;                             // +0x324
+    unsigned char m_325;                             // +0x325
     stConditionEnterBossRoom_t m_bossRoom328;        // +0x328
     int m_338;                              // +0x338
     int m_33c;                              // +0x33c
@@ -463,6 +479,7 @@ struct STDungeonScript
     int m_3b8;                              // +0x3b8
     int m_3bc;                              // +0x3bc
     int m_3c0;                              // +0x3c0
+    int m_3c4;                              // +0x3c4
     std::vector<STNamedMonsterMapPos> m_vec3c8;      // +0x3c8
     int m_3d4;                              // +0x3d4
     int m_3d8;                              // +0x3d8
@@ -473,35 +490,37 @@ struct STDungeonScript
     int m_3f4;                              // +0x3f4
     std::vector<stSecondEventMonster_t> m_vec3f8;    // +0x3f8
     std::vector<std::vector<float> > m_vec404;       // +0x404
+    int m_410[5];                           // +0x410
+    int m_424[5];                           // +0x424
     int m_438;                              // +0x438
     int m_43c;                              // +0x43c
     int m_440;                              // +0x440
     int m_444;                              // +0x444
     std::string m_str448;                   // +0x448
-    char m_44c;                             // +0x44c
+    unsigned char m_44c;                             // +0x44c
     int m_450;                              // +0x450
     int m_454;                              // +0x454
     std::vector<int> m_vec458;              // +0x458
     std::vector<int> m_vec464;              // +0x464
     std::vector<int> m_vec470;              // +0x470
-    char m_47c;                             // +0x47c
+    unsigned char m_47c;                             // +0x47c
     int m_480;                              // +0x480
     int m_484;                              // +0x484
     int m_488;                              // +0x488
-    char m_48c;                             // +0x48c
+    unsigned char m_48c;                             // +0x48c
     int m_490;                              // +0x490
-    char m_494;                             // +0x494
+    unsigned char m_494;                             // +0x494
     int m_498;                              // +0x498
     std::map<int, TournamentRewardRate> m_map49c;    // +0x49c
     TournamentRewardItemRate m_itemRate4b4;          // +0x4b4
     int m_4c4;                              // +0x4c4
     std::map<unsigned char, unsigned int> m_map4c8;  // +0x4c8
-    char m_4e0;                             // +0x4e0
+    unsigned char m_4e0;                             // +0x4e0
     std::map<int, UseCoinDungeonDiff> m_map4e4;      // +0x4e4
     int m_4fc;                              // +0x4fc
     int m_500;                              // +0x500
-    char m_504;                             // +0x504
-    char m_505;                             // +0x505
+    unsigned char m_504;                             // +0x504
+    unsigned char m_505;                             // +0x505
     char m_508;                             // +0x508
     char m_509;                             // +0x509
 
@@ -515,7 +534,7 @@ class CDungeon
 {
 public:
     CDungeon();
-    virtual ~CDungeon();
+    ~CDungeon();   // ORIG 非虚：vtable 无 dtor 槽（0x8c34a08 仅 _do_after_dungeon_start）
 
     virtual int _do_after_dungeon_start(CUser* user) const;
 
@@ -534,7 +553,7 @@ public:
     int limitOfStackableItemInTower() const;
     int isNoFatigueDungeon() const;
     int GetType_DungeonInHeritance() const;
-    int isTowerOfDespairDungeon() const;
+    bool isTowerOfDespairDungeon() const;
     int getQuestNpcDungeon() const;
     int getAICharacterAppearRate() const;
     int getEventMonsterTotalProb() const;
@@ -574,7 +593,7 @@ public:
     bool VerifyMaze(const MazeScript& maze) const;
     bool get_dimension_member_count(DimensionPartyCount& out) const;
     int isRiskDungeon() const;
-    int isTournamentDungeon() const;
+    bool isTournamentDungeon() const;
     int getTournamentRoundFatigue() const;
     int getLimitCoinDiff(int diff, int& out) const;
     bool checkFreeRevivalCondition(int diff) const;
@@ -587,15 +606,15 @@ public:
     int m_index;                    // +0x08
     int m_c;                        // +0x0c
     int m_10;                       // +0x10
-    int m_14;                       // +0x14
+    float m_14;                     // +0x14（get_exp_weight；set_dungeon 以位模式复制）
     std::string m_name;             // +0x18
     std::map<int, int> m_clearItemMap; // +0x1c
     int m_34;                       // +0x34
-    char m_38;                      // +0x38
-    char m_39;                      // +0x39
-    char m_3a;                      // +0x3a
-    char m_3b;                      // +0x3b
-    char m_3c;                      // +0x3c
+    unsigned char m_38;             // +0x38
+    unsigned char m_39;             // +0x39
+    unsigned char m_3a;             // +0x3a
+    unsigned char m_3b;             // +0x3b
+    unsigned char m_3c;             // +0x3c
     std::vector<std::pair<int, int> > m_vec40; // +0x40
     std::vector<std::pair<int, int> > m_vec4c; // +0x4c
     std::vector<stDungeonAssignItem_t> m_vec58; // +0x58
@@ -603,11 +622,10 @@ public:
     std::multimap<int, CMap*> m_map1a4[16];       // +0x1a4
     std::multimap<int, CMap*> m_dummyMap324[16];  // +0x324
     std::multimap<int, CMap*> m_dummyMap4a4[16];  // +0x4a4
-    char m_624;                     // +0x624
+    unsigned char m_624;            // +0x624
     int m_628;                      // +0x628
     std::vector<MazeScript> m_mazeList;  // +0x62c
-    std::vector<MazeScript> m_mazeList0; // +0x638
-    std::vector<MazeScript> m_mazeList1; // +0x644
+    std::vector<MazeScript> m_mazeList0[2]; // +0x638（ORIG 数组循环构造/析构）
     int m_650;                      // +0x650
     int m_654;                      // +0x654
     std::map<int, std::vector<RandomList> > m_map658; // +0x658
@@ -622,17 +640,17 @@ public:
     int m_6a0;                      // +0x6a0
     int m_6a4;                      // +0x6a4
     std::vector<stSecondEventMonster_t> m_secondEventMonsters; // +0x6a8
-    char m_6b4;                     // +0x6b4
-    char m_6b5;                     // +0x6b5
+    unsigned char m_6b4;            // +0x6b4
+    unsigned char m_6b5;            // +0x6b5
     int m_6b8;                      // +0x6b8
     std::vector<DimensionPartyCount> m_dimensionPartyCount; // +0x6bc
-    char m_6c8;                     // +0x6c8
-    char m_6c9;                     // +0x6c9
+    unsigned char m_6c8;            // +0x6c8
+    unsigned char m_6c9;            // +0x6c9
     int m_6cc;                      // +0x6cc
-    char m_6d0;                     // +0x6d0
-    char m_6d1;                     // +0x6d1
+    bool m_6d0;                     // +0x6d0
+    bool m_6d1;                     // +0x6d1
     std::vector<int> m_vec6d4;      // +0x6d4
-    char m_pad6e0[0x6f4 - 0x6e0];   // +0x6e0
+    int m_6e0[5];                   // +0x6e0（set_dungeon 从 script+0xb4 复制 5 个 int）
     STWarRoomData m_warRoomData;    // +0x6f4
     RequiredItem m_requiredItem1;   // +0x7f4
     char m_800;                     // +0x800
@@ -642,6 +660,7 @@ public:
     int m_820[3];                   // +0x820
     advancealtar::ClearRewardData m_clearReward; // +0x82c
     advancealtar::SurvivalRewardData m_survivalReward; // +0x850
+    char m_85c;                     // +0x85c（set_dungeon 从 script+0x88 复制）
     RequiredItem m_requiredItem2;   // +0x860
     std::vector<std::pair<int, int> > m_vec86c; // +0x86c
     char m_878;                     // +0x878
@@ -652,18 +671,18 @@ public:
     int m_880[5];                   // +0x880
     int m_894;                      // +0x894
     int m_898;                      // +0x898
-    char m_89c;                     // +0x89c
-    char m_89d;                     // +0x89d
-    char m_89e;                     // +0x89e
-    char m_89f;                     // +0x89f
+    unsigned char m_89c;            // +0x89c
+    unsigned char m_89d;            // +0x89d
+    unsigned char m_89e;            // +0x89e
+    unsigned char m_89f;            // +0x89f
     int m_8a0;                      // +0x8a0
     int m_8a4;                      // +0x8a4
-    char m_8a8;                     // +0x8a8
+    unsigned char m_8a8;            // +0x8a8
     std::map<int, TournamentRewardRate> m_map8ac; // +0x8ac
     TournamentRewardItemRate m_itemRate8c4;       // +0x8c4
     std::map<unsigned char, unsigned int> m_map8d8; // +0x8d8
     std::vector<STNamedMonsterMapPos> m_vec8f0;   // +0x8f0
-    char m_8fc;                     // +0x8fc
+    unsigned char m_8fc;            // +0x8fc
     std::vector<std::vector<float> > m_vec900;    // +0x900
     stConditionEnterBossRoom_t m_bossRoom90c;     // +0x90c
     std::map<int, UseCoinDungeonDiff> m_map91c;   // +0x91c
@@ -673,7 +692,7 @@ class CDungeon_TowerOfDespair : public CDungeon
 {
 public:
     CDungeon_TowerOfDespair();
-    virtual ~CDungeon_TowerOfDespair();
+    ~CDungeon_TowerOfDespair();   // ORIG 非虚
     virtual int _do_after_dungeon_start(CUser* user) const;
 };
 

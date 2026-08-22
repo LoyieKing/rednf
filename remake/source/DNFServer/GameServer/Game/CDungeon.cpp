@@ -15,6 +15,7 @@
 #include "CMap.h"
 #include "GameTypes.h"
 #include "LogManager.h"
+#include "DNFFunctionLib.h"
 
 // ============================================================================
 // 支撑类型：GridScript / RidableObject / RidableScript / DungeonClearCondition
@@ -157,7 +158,7 @@ int CDungeon::GetPartyMemberCoinLimit() const
 
 float CDungeon::get_exp_weight() const
 {
-    return *(float*)&m_14;
+    return m_14;
 }
 std::vector<std::pair<int, int> >* CDungeon::getDropItems() const
 {
@@ -198,60 +199,19 @@ int CDungeon::get_dimension_min_partymem() const
 std::vector<MazeScript>* CDungeon::GetQuestMazeScriptVector(
     ENUM_MAZE_QUEST_TYPE mazeQuestType) const
 {
-    return &((std::vector<MazeScript>*)&m_mazeList0)[mazeQuestType];
+    return const_cast<std::vector<MazeScript>*>(&m_mazeList0[mazeQuestType]);
 }
 
 // ---- 迁移自 GameStubs.cpp 的 CDungeon 桩方法（ORIG 弱符号，签名已核对）----
 CDungeon::CDungeon()
+    : m_flag4(0),
+      m_6c9(0),
+      m_6cc(0),
+      m_6d0(0),
+      m_6d1(0)
 {
-    // ORIG 0x08373f3c：构造容器/初始化 POD 字段；std 成员自动构造。
-    m_flag4 = 0;
-    m_index = 0;
-    m_c = 0;
-    m_10 = 0;
-    m_14 = 0;
-    m_34 = 0;
-    m_38 = 0;
-    m_39 = 0;
-    m_3a = 0;
-    m_3b = 0;
-    m_3c = 0;
-    m_624 = 0;
-    m_628 = 0;
-    m_650 = 0;
-    m_654 = 0;
-    m_670 = 0;
-    m_680 = 0;
-    m_684 = 0;
-    m_688 = 0;
-    m_68c = 0;
-    m_69c = 0;
-    m_6a0 = 0;
-    m_6a4 = 0;
-    m_6b4 = 0;
-    m_6b5 = 0;
-    m_6b8 = 0;
-    m_6c8 = 0;
-    m_6c9 = 0;
-    m_6cc = 0;
-    m_6d0 = 0;
-    m_6d1 = 0;
-    m_804 = 0;
-    m_878 = 0;
-    m_879 = 0;
-    m_87a = 0;
-    m_87b = 0;
-    m_87c = 0;
-    m_894 = 0;
-    m_898 = 0;
-    m_89c = 0;
-    m_89d = 0;
-    m_89e = 0;
-    m_89f = 0;
-    m_8a0 = 0;
-    m_8a4 = 0;
-    m_8a8 = 0;
-    m_8fc = 0;
+    // ORIG 0x08373f3c：初始化列表按成员声明位置赋值（vtable 后立即 m_flag4，
+    // 0x6bc vector 构造后 0x6c9/0x6cc/0x6d0/0x6d1），其它 POD 不初始化。
 }
 
 CDungeon::~CDungeon()
@@ -285,36 +245,246 @@ const char* CDungeon::GetDungeonName() const
 
 int CDungeon::get_dimension_possible() const
 {
-    // ORIG 0x0826b938：return (bool)m_38（movzbl 0x38）
-    return (unsigned char)m_38;
+    // ORIG 0x0826b938：return m_38（movzbl 0x38）
+    return m_38;
 }
 
-int CDungeon::isTowerOfDespairDungeon() const
+bool CDungeon::isTowerOfDespairDungeon() const
 {
     // ORIG 0x0822b4fa：return GetType_DungeonInHeritance() == 1
     return GetType_DungeonInHeritance() == 1;
 }
 
-int CDungeon::isTournamentDungeon() const
+bool CDungeon::isTournamentDungeon() const
 {
-    // ORIG 0x0836520a：返回 +0x8a8 位标志（1=普通赛, 2=特殊）
-    return m_8a8;
+    // ORIG 0x0836520a：+0x8a8 位标志（1=普通赛, 2=特殊）
+    return m_8a8 != 0 && m_8a8 <= 1;
 }
 
 bool CDungeon::IsEnterEachMap() const
 {
     // ORIG 0x08365278：return (bool)m_6d0（movzbl 0x6d0）
-    return (bool)(unsigned char)m_6d0;
+    return m_6d0;
 }
+
+// ORIG _ZN12CDataManager18set_dimensionInoutEic / _ZN12CDataManager21set_limit_inout_countEc15ENUM_BLOOD_TYPE
+// 重建工程缺少这两个 setter，以 asm label 绑定 ORIG 符号（GCC 32 位成员函数 = cdecl ABI）。
+extern "C" void CDungeon_set_dimensionInout(CDataManager* mgr, int idx, char value)
+    asm("_ZN12CDataManager18set_dimensionInoutEic");
+extern "C" void CDungeon_set_limit_inout_count(CDataManager* mgr, char value, int type)
+    asm("_ZN12CDataManager21set_limit_inout_countEc15ENUM_BLOOD_TYPE");
 
 void CDungeon::set_dungeon(STDungeonScript& script)
 {
-    // ORIG 0x0834acc4：从脚本复制字段到副本
+    // ORIG 0x0834acc4：从脚本复制全部字段（顺序按 ORIG 汇编）
     m_index = script.m_18;
     m_10 = script.m_ac;
     m_c = script.m_78;
     m_14 = script.m_b0;
-    m_name = script.m_str1c;
+
+    char nameBuf[500] = {0};
+    strcpy(nameBuf, script.m_str1c.c_str());
+    if (!CodePage::script2Database((char*)script.m_str1c.c_str(), nameBuf))
+    {
+        cMyTrace(__PRETTY_FUNCTION__, 0x58a, 5)(
+            "Error!!! %s->%s [%s][%s][%d]",
+            CodePage::script(), CodePage::database(),
+            script.m_str1c.c_str(), __PRETTY_FUNCTION__, 0x58a);
+    }
+    m_name = nameBuf;
+
+    for (int i = 0; i < 5; ++i)
+        m_6e0[i] = script.m_b4[i];
+
+    m_34 = script.m_14;
+    m_38 = script.m_304;
+    m_39 = script.m_305;
+    m_3a = script.m_306;
+    if (m_38 != 0)
+    {
+        CDungeon_set_dimensionInout(
+            G_CDataManager(), (int)(char)m_38 - 1, (char)m_39);
+        G_CDataManager()->set_original_dimensionInout(
+            (int)(char)m_38 - 1, (char)m_39);
+    }
+    m_3b = script.m_324;
+    m_3c = script.m_325;
+    if (m_index == 0x2aff)
+    {
+        CDungeon_set_limit_inout_count(G_CDataManager(), (char)m_3c, 2);
+    }
+    if (m_index == 0x2afe)
+    {
+        CDungeon_set_limit_inout_count(G_CDataManager(), (char)m_3c, 1);
+    }
+
+    for (std::vector<MazeScript>::iterator mit = script.m_mazeList170.begin();
+         mit != script.m_mazeList170.end(); ++mit)
+    {
+        MazeScript* maze = &(*mit);
+        if (maze->m_4c == 0)
+        {
+            m_mazeList0[0].push_back(*maze);
+        }
+        else
+        {
+            if (maze->m_4c == 1)
+            {
+                m_mazeList0[1].push_back(*maze);
+            }
+            else if (maze->m_4c == -1)
+            {
+                m_mazeList.push_back(*maze);
+            }
+        }
+    }
+
+    int totalRate = 0;
+    m_clearItemMap.clear();
+    std::vector<std::pair<int, int> >::const_iterator cit =
+        script.m_vecc8.begin();
+    std::pair<int, int> p;
+    do
+    {
+        do
+        {
+            if (cit == script.m_vecc8.end())
+                goto copy_rest;
+            p = *cit;
+        } while (p.first == 0);
+        totalRate = p.second + totalRate;
+        m_clearItemMap.insert(std::make_pair(totalRate, p.first));
+        if (totalRate > 100)
+        {
+            LogManager::logFormat(
+                1, "data_manager.cpp",
+                "void CDungeon::set_dungeon(STDungeonScript&)", 0x5e1,
+                "total_rate(%d) > 100", totalRate);
+            goto copy_rest;
+        }
+        ++cit;
+    } while (true);
+
+copy_rest:
+    m_vec40 = script.m_vecd4;
+    m_vec4c = script.m_vece0;
+    m_vec58 = script.m_vecec;
+    script.m_warRoom18c.copy(&m_warRoomData);
+    m_requiredItem1 = script.m_requiredItem7c;
+    m_85c = script.m_88;
+    m_requiredItem2 = script.m_requiredItem8c;
+    m_vec86c = script.m_vec98;
+    m_878 = script.m_314;
+    m_879 = script.m_315;
+    m_87b = script.m_317;
+    if (script.m_316)
+        m_87a = 1;
+    else
+        m_87a = 0;
+    m_87c = script.m_a4;
+    m_bossRoom90c.m_0 = script.m_bossRoom328.m_0;
+    m_bossRoom90c.m_vec4 = script.m_bossRoom328.m_vec4;
+    std::copy(script.m_128, script.m_128 + 5, m_880);
+    m_894 = script.m_13c;
+    m_898 = script.m_168;
+    m_89c = script.m_28c;
+    m_89d = script.m_140;
+    m_89e = script.m_28d;
+    m_89f = script.m_28e;
+    m_800 = script.m_2ab;
+    m_804 = script.m_2ac;
+    memcpy(m_808, script.m_2b0, sizeof(m_808));
+    memcpy(m_820, script.m_2bc, sizeof(m_820));
+    m_vec814 = script.m_vec2c8;
+    m_clearReward = script.m_clearReward2d4;
+    m_survivalReward = script.m_survival2f8;
+    m_624 = 0;
+    m_628 = script.m_16c;
+    m_650 = script.m_338;
+    m_670 = script.m_358;
+    m_680 = script.m_368;
+    if (m_680 != 0)
+    {
+        m_vec674.reserve(m_680 + 1);
+        for (unsigned int i = 0; i < script.m_vec35c.size(); ++i)
+            m_vec674[script.m_vec35c.at(i).first] =
+                script.m_vec35c.at(i).second;
+    }
+    m_654 = script.m_33c;
+    if (m_654 != 0)
+    {
+        m_map658.clear();
+        for (std::map<int, std::vector<RandomList> >::const_iterator rit =
+                 script.m_map340.begin();
+             rit != script.m_map340.end(); ++rit)
+        {
+            m_map658.insert(std::make_pair(rit->first, rit->second));
+        }
+    }
+    m_8a0 = script.m_3c4;
+    m_vec8f0 = script.m_vec3c8;
+    m_684 = script.m_3d4;
+    m_688 = script.m_3d8;
+    m_68c = script.m_3dc;
+    m_eventMonsters = script.m_vec3e0;
+    m_69c = script.m_3ec;
+    m_6a0 = script.m_3f0;
+    m_6a4 = script.m_3f4;
+    m_secondEventMonsters = script.m_vec3f8;
+    m_6b4 = (script.m_380 == 1);
+    m_6b5 = (script.m_3b4 == 1);
+    m_6b8 = script.m_3b8;
+    m_vec900 = script.m_vec404;
+    m_6c8 = script.m_48c;
+    if (script.m_2a9 != 0)
+    {
+        m_flag4 = 1;
+    }
+    m_8fc = script.m_2aa;
+    m_8a8 = script.m_494;
+    m_8a4 = script.m_498;
+    m_itemRate8c4 = script.m_itemRate4b4;
+    m_map8ac = script.m_map49c;
+    m_itemRate8c4.m_10 = script.m_4c4;
+    m_map8d8 = script.m_map4c8;
+    m_map91c = script.m_map4e4;
+    m_dimensionPartyCount.swap(script.m_dimension308);
+    m_6c9 = script.m_4e0;
+    m_6cc = script.m_4fc;
+    m_6d0 = script.m_504;
+    m_6d1 = script.m_505;
+}
+
+// ORIG _ZN12CDataManager18set_dimensionInoutEic：m_dimensionInout[idx]=value（idx 0..5）
+// 注：CDataManager.h union 布局暂差 0x18（+0xaa5c vs ORIG +0xaa74），
+// 用局部镜像结构按 ORIG 偏移直接寻址（不修改 CDataManager.h）。
+struct CDungeon_CDataMirror
+{
+    char m_pad[0xaa74];
+    char m_dimensionInout[6];      // +0xaa74
+    char m_padAA7a[6];             // +0xaa7a
+    char m_limitInoutCount[4];     // +0xaa80
+};
+void CDungeon_set_dimensionInout(CDataManager* mgr, int idx, char value)
+{
+    if (idx > 5)
+    {
+    }
+    else if (idx < 0)
+    {
+    }
+    else
+    {
+        reinterpret_cast<CDungeon_CDataMirror*>(mgr)->m_dimensionInout[idx] =
+            value;
+    }
+}
+
+// ORIG _ZN12CDataManager21set_limit_inout_countEc15ENUM_BLOOD_TYPE
+void CDungeon_set_limit_inout_count(CDataManager* mgr, char value, int type)
+{
+    reinterpret_cast<CDungeon_CDataMirror*>(mgr)->m_limitInoutCount[type] =
+        value;
 }
 
 // ---- CDungeon_TowerOfDespair（迁移自 GameStubs.cpp；ORIG W 0x08377606）----
@@ -359,62 +529,86 @@ int CDungeon::GetRandMazebyPartyCount(int partyCount) const
         return (int)&m_mazeList[0];
 
     std::vector<MazeScript*> candidates;
-    for (size_t i = 0; i < m_mazeList.size(); ++i)
+    unsigned int i = 0;
+    while (i < m_mazeList.size())
     {
-        if (m_mazeList[i].m_68 <= partyCount &&
-            partyCount <= m_mazeList[i].m_6c)
-            candidates.push_back(const_cast<MazeScript*>(&m_mazeList[i]));
+        MazeScript* maze = const_cast<MazeScript*>(&m_mazeList[i]);
+        if (maze->m_68 <= partyCount && partyCount <= maze->m_6c)
+        {
+            MazeScript* mazeTmp = maze;
+            candidates.push_back(mazeTmp);
+        }
+        ++i;
     }
+    unsigned int r = 0;
     if (!candidates.empty())
     {
         if (candidates.size() == 1)
             return (int)candidates[0];
-        return (int)candidates[rand() % candidates.size()];
+        r = rand() % candidates.size();
+        return (int)candidates[r];
     }
-    return (int)&m_mazeList[rand() % m_mazeList.size()];
+    else
+    {
+        r = rand() % m_mazeList.size();
+        return (int)&m_mazeList[r];
+    }
 }
 
 int CDungeon::GetStartMap(int direction) const
 {
-    if (direction < 0 || direction >= 0x10)
-        return -1;
-    const __gnu_cxx::hash_map<int, CMap*>& ml = m_maplist[direction];
-    if (ml.size() == 0)
+    if (direction < 0x10 && direction >= 0)
     {
-        LogManager::logFormat(
-            1, "data_manager.cpp", "int CDungeon::GetStartMap(int) const",
-            0x79a,
-            "CDungeon::GetStartMap() : direction(%d), dungeon index(%d), "
-            "start_maplist_[direction].size() == 0, May be Script Error!",
-            direction, m_index);
-        return -1;
-    }
-    int r = get_rand_int(ml.size());
-    __gnu_cxx::hash_map<int, CMap*>::const_iterator it = ml.begin();
-    for (int i = 0; i < r; ++i, ++it)
-    {
-        if (it == ml.end())
+        if (m_maplist[direction].size() == 0)
+        {
+            LogManager::logFormat(
+                1, "data_manager.cpp", "int CDungeon::GetStartMap(int) const",
+                0x79a,
+                "CDungeon::GetStartMap() : direction(%d), dungeon index(%d), "
+                "start_maplist_[direction].size() == 0, May be Script Error!",
+                direction, m_index);
             return -1;
+        }
+        int r = get_rand_int(m_maplist[direction].size());
+        __gnu_cxx::hash_map<int, CMap*>::const_iterator it =
+            m_maplist[direction].begin();
+        for (int i = 0; i < r; ++i)
+        {
+            ++it;
+            if (it == m_maplist[direction].end())
+                return -1;
+        }
+        return it->first;
     }
-    return it->first;
+    return -1;
 }
 
 int CDungeon::get_clear_item() const
 {
+    // ORIG 0x0834c8c0：ret 先置栈、迭代器默认构造、lower_bound 到临时再赋值
+    int ret = 0;
+    std::map<int, int>::const_iterator it;
     int key = get_rand_int(100) + 1;
-    std::map<int, int>::const_iterator it = m_clearItemMap.lower_bound(key);
+    it = m_clearItemMap.lower_bound(key);
     if (it == m_clearItemMap.end())
-        return -2;
-    return it->second;
+        ret = -2;
+    else
+        ret = it->second;
+    return ret;
 }
 
 int CDungeon::get_clear_item(int level) const
 {
+    // ORIG 0x0834c95c：同 get_clear_item()，key = level + 1
+    int ret = 0;
+    std::map<int, int>::const_iterator it;
     int key = level + 1;
-    std::map<int, int>::const_iterator it = m_clearItemMap.lower_bound(key);
+    it = m_clearItemMap.lower_bound(key);
     if (it == m_clearItemMap.end())
-        return -2;
-    return it->second;
+        ret = -2;
+    else
+        ret = it->second;
+    return ret;
 }
 
 int CDungeon::getLimitCoinDiff(int diff, int& out) const
@@ -445,13 +639,13 @@ int CDungeon::getTournamentRoundFatigue() const
 
 bool CDungeon::get_dimension_member_count(DimensionPartyCount& out) const
 {
-    for (size_t i = 0; i < m_dimensionPartyCount.size(); ++i)
+    // ORIG 0x0834d220：std::find 匹配 m_0/m_1，命中复制 m_2 返回 true
+    std::vector<DimensionPartyCount>::const_iterator it = std::find(
+        m_dimensionPartyCount.begin(), m_dimensionPartyCount.end(), out);
+    if (it != m_dimensionPartyCount.end())
     {
-        if (m_dimensionPartyCount[i] == out)
-        {
-            out.m_2 = m_dimensionPartyCount[i].m_2;
-            return true;
-        }
+        out.m_2 = it->m_2;
+        return true;
     }
     return false;
 }

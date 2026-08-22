@@ -7,6 +7,7 @@
 #include "Quest.h"
 #include "CUser.h"
 #include "CDataManager.h"
+#include "LogManager.h"
 
 // ============================================================================
 // 其它 TU 提供的符号（ORIG 真实符号）
@@ -166,13 +167,14 @@ char Quest::check_power_side(char side)
             return 1;
         }
     }
-    else if (m_powerSide != 1)
-    {
-        // ORIG 此处日志：Quest Script Error q_index(%d)
-        return 0;
-    }
     else
     {
+        if (m_powerSide != 1)
+        {
+            LogManager::logFormat(1, "data_manager.cpp", __PRETTY_FUNCTION__,
+                                  0x1161, "Quest Script Error q_index(%d)", m_index);
+            return 0;
+        }
         winner = sub_CPowerManager_GetWinnerSide();
         if (winner != side)
         {
@@ -232,9 +234,9 @@ bool Quest::check_clear_item(int itemIdx, int dungeonIdx) const
 {
     if (m_clearItems.size() != 0)
     {
-        for (unsigned int i = 0; i < m_clearItems.size(); ++i)
+        for (int i = 0; i < (int)m_clearItems.size(); ++i)
         {
-            const DungeonClearItem& item = m_clearItems[i];
+            DungeonClearItem item = m_clearItems.at(i);
             if (item.m_dungeonIdx == -1)
             {
                 if (item.m_itemIdx == itemIdx)
@@ -331,46 +333,66 @@ bool Quest::get_init_achievement_trigger(unsigned short& t0,
                                          unsigned short& t1,
                                          unsigned short& t2) const
 {
-    if (m_type == 7)
+    if (m_type != 7)
     {
-        unsigned short* out[3];
-        out[0] = &t0;
-        out[1] = &t1;
-        out[2] = &t2;
-        t0 = 1;
-        t1 = 0;
-        t2 = 0;
-        unsigned int n = m_field90.size();
-        if (n > 3)
-        {
-            n = 3;
-        }
-        for (unsigned int i = 0; i < n; ++i)
-        {
-            *out[i] = (unsigned short)m_field90[i];
-        }
+        return 0;
+    }
+    unsigned short* out[3] = { 0, 0, 0 };
+    out[0] = &t0;
+    out[1] = &t1;
+    out[2] = &t2;
+    *out[0] = 1;
+    *out[1] = 0;
+    *out[2] = 0;
+    for (unsigned int i = 0;
+         i < (m_field90.size() < 3 ? m_field90.size() : 3); ++i)
+    {
+        *out[i] = (unsigned short)m_field90[i];
+    }
+    return 1;
+}
+
+int Quest::get_title_reward() const
+{
+    if (m_type != 7)
+    {
+        return 0;
+    }
+    if (m_titleReward.size() == 0)
+    {
+        return 0;
+    }
+    return m_titleReward[0].m_itemIdx;
+}
+
+bool Quest::isRepeatableQuest() const
+{
+    if ((m_type == 4) || (m_type == 8))
+    {
         return 1;
     }
     return 0;
 }
 
-int Quest::get_title_reward() const
+int Quest::get_appearmap(int mapA, int mapB) const
 {
-    if (m_type == 7)
+    if (m_appearMap.m_mapB == -1)
     {
-        if (m_titleReward.empty())
+        if ((m_appearMap.m_mapA == mapA) &&
+            (get_rand_int(100) <= m_appearMap.m_percent))
         {
-            return 0;
+            return m_appearMap.m_appearMap;
         }
-        return m_titleReward[0].m_itemIdx;
+    }
+    else if ((m_appearMap.m_mapB == mapA) &&
+             (m_appearMap.m_mapB == mapB) &&
+             (get_rand_int(100) <= m_appearMap.m_percent))
+    {
+        return m_appearMap.m_appearMap;
     }
     return 0;
 }
 
-bool Quest::isRepeatableQuest() const
-{
-    return (m_type == 4) || (m_type == 8);
-}
 
 unsigned int Quest::ConvertRewardSelectIndex(const CUser* user, int index)
 {
@@ -472,23 +494,6 @@ bool Quest::IsOpenScheduleQuest() const
     return (state == 1) || (state == 2);
 }
 
-int Quest::get_appearmap(int mapA, int mapB) const
-{
-    if (m_appearMap.m_mapB == -1)
-    {
-        if ((m_appearMap.m_mapA == mapA) &&
-            (get_rand_int(100) <= m_appearMap.m_percent))
-        {
-            return m_appearMap.m_appearMap;
-        }
-    }
-    else if ((m_appearMap.m_mapA == mapA) && (m_appearMap.m_mapB == mapB) &&
-             (get_rand_int(100) <= m_appearMap.m_percent))
-    {
-        return m_appearMap.m_appearMap;
-    }
-    return 0;
-}
 
 void Quest::set_quest(QuestScript script)
 {

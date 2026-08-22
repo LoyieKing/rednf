@@ -226,10 +226,16 @@ CTradeSpace::CTradeSpace()
 {
     sub_Mutex_C1(m_mutex);
     m_bTrading = 0;
+    char* row = m_slotsData;
+    for (int t = 1; t != -1; --t) {
+        char* slot = row;
+        for (int s = 0x1a; s != -1; --s) {
+            sub_TradeSlot_C1(slot);
+            slot += 0x48;
+        }
+        row += 0x798;
+    }
     m_bLocked = 0;
-    for (int t = 1; t != -1; --t)
-        for (int s = 0x1a; s != -1; --s)
-            sub_TradeSlot_C1(&m_slotsData[t * 0x798 + s * 0x48]);
 }
 
 CTradeSpace::~CTradeSpace()
@@ -258,13 +264,14 @@ char CTradeSpace::IsLocked()
 
 void CTradeSpace::_SetLock(bool flag)
 {
-    m_bLocked = flag ? 1 : 0;
+    m_bLocked = flag;
 }
 
 char CTradeSpace::is_empty()
 {
-    return !m_bTrading;
+    return m_bTrading ^ 1;
 }
+
 
 int CTradeSpace::get_index()
 {
@@ -301,14 +308,15 @@ void CTradeSpace::cancel_trade_by_dis(CUser* user)
     cancel_trade_for_china(user);
 }
 
-// ---- GetOppositeUser @ 0x08529a72 ----
 CUser* CTradeSpace::GetOppositeUser(CUser* user)
 {
-    if (!m_bTrading)
-        return 0;
-    if (m_pTraders[0] == user)
-        return m_pTraders[1];
-    return m_pTraders[0];
+    if (m_bTrading != 0) {
+        if (m_pTraders[0] == user)
+            return m_pTraders[1];
+        else
+            return m_pTraders[0];
+    }
+    return 0;
 }
 
 // ---- _CheckTrade4SameAvatar @ 0x08529d48 ----
@@ -328,38 +336,29 @@ int CTradeSpace::_CheckTrade4SameAvatar(const TradeSlot* slots,
 int CTradeSpace::check_item_exist(int traderIdx, int itemId)
 {
     for (int i = 3; i <= 0x1a; ++i) {
-        if (((TradeSlot*)&m_slotsData[traderIdx * 0x798])[i].m_item.m_addInfo == itemId)
+        if (((TradeSlot*)&m_slotsData[i * 0x48 + traderIdx * 0x798])->m_item.m_addInfo == itemId)
             return i;
     }
     return -1;
 }
 
-// ---- get_empty_itemslot @ 0x085299c0 ----
 int CTradeSpace::get_empty_itemslot(int traderIdx)
 {
     for (int i = 3; i <= 0x1a; ++i) {
-        if (((TradeSlot*)&m_slotsData[traderIdx * 0x798])[i].m_item.m_addInfo == 0)
+        if (((TradeSlot*)&m_slotsData[i * 0x48 + traderIdx * 0x798])->m_item.m_addInfo == 0)
             return i;
     }
     return -1;
 }
-
-// ---- check_trade_possibility @ 0x0852993c ----
 int CTradeSpace::check_trade_possibility()
 {
-    if (m_bTrading == 1) {
-        int i2 = m_pTraders[0]->GetTradeSpace();
-        int i3 = m_pTraders[1]->GetTradeSpace();
-        if (i2 == i3) {
-            int s2 = m_pTraders[0]->get_state();
-            int s3 = m_pTraders[1]->get_state();
-            if (s2 == s3)
-                return 1;
-            return 0;
-        }
+    if (m_bTrading != 1)
         return 0;
-    }
-    return 0;
+    if (m_pTraders[0]->GetTradeSpace() != m_pTraders[1]->GetTradeSpace())
+        return 0;
+    if (m_pTraders[0]->get_state() != m_pTraders[1]->get_state())
+        return 0;
+    return 1;
 }
 
 // ---- _IsTradable @ 0x08529dce ----
@@ -398,7 +397,7 @@ int CTradeSpace::add_item(int traderIdx, TradeSlot slot, int count)
     ret = -1;
     lock();
     if (!slot.m_item.isEquipableItemType()) {
-        int idx = check_item_exist(traderIdx, *(int*)((char*)&slot + 0x1b));
+        int idx = check_item_exist(traderIdx, slot.m_item.m_addInfo);
         if (idx == -1) {
             idx = get_empty_itemslot(traderIdx);
             if (idx != -1) {
@@ -564,104 +563,171 @@ static inline TradeSlot* TradeSlotAt(char* slots, int trader, int idx)
 }
 
 // ---- checkTrade @ 0x08530210 ----
-// 校验交易可完成：双方物品/金钱都能进入对方背包。
+// 校验交易可完成：对双方背包做副本，模拟把对方注册物品/金钱插入各自副本，
+// 任一插入失败即整体不可完成（返回 0）。
 int CTradeSpace::checkTrade()
 {
-    if (!m_bTrading)
-        return 0;
-    if (m_pTraders[0] == 0 || m_pTraders[1] == 0)
-        return 0;
-    if (m_pTraders[0]->getCurCharacR() == 0 || m_pTraders[1]->getCurCharacR() == 0)
-        return 0;
+    CInventory copy[2];
+    char mem[2][0xc140];
+    memset(mem, 0, sizeof(mem));
+    copy[0].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[0]));
+    copy[1].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[1]));
+    copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenW());
+    copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenW());
     for (int trader = 0; trader < 2; ++trader) {
-        CInventory* dst =
-            (CInventory*)m_pTraders[1 - trader]->getCurCharacInvenW();
-        int need = 0;
+        CInventory& dst = copy[1 - trader];
+        if (m_nMoney[trader] > 0 && m_pTraders[1 - trader] != 0) {
+            if (dst.gain_money(m_nMoney[trader], (eMoneyAddReason)1, 0, 0) !=
+                m_nMoney[trader])
+                return 0;
+        }
         for (int s = 3; s <= 0x1a; ++s) {
             TradeSlot* slot = TradeSlotAt(m_slotsData, trader, s);
-            if (slot->m_item.m_addInfo != 0)
-                need += 1;
+            if (slot->m_item.m_addInfo == 0)
+                continue;
+            int ret;
+            Inven_Item item = slot->m_item;
+            if (slot->m_item.m_field1 == (unsigned char)8) {
+                ret = dst.insertAvatarIntoInventory(item, (eAvatarItemAddReason)1, 0);
+            } else if (slot->m_field08 == 7) {
+                ret = dst.insertItemIntoCreature(item, (eItemAddReason)0x1a, 0, 1);
+            } else {
+                ret = dst.insertItemIntoInventory(item, (eItemAddReason)1, 0, 1);
+            }
+            if (ret < 0) {
+                if (slot->m_item.m_field1 == (unsigned char)8) {
+                    cMyTrace tr("bool CTradeSpace::checkTrade()", 0xba7, 5);
+                    tr("try insert_item(INVEN_TYPE_AVATAR) fail - fatal! ch=%d",
+                       m_pTraders[1 - trader]->getCurCharacNo());
+                } else {
+                    cMyTrace tr("bool CTradeSpace::checkTrade()", 0xbab, 5);
+                    tr("try insert_item(INVEN_TYPE_INVENTORY) fail - fatal! ch=%d",
+                       m_pTraders[1 - trader]->getCurCharacNo());
+                }
+                return 0;
+            }
         }
-        if (m_nMoney[trader] > 0)
-            need += 1;
-        if (dst->QuickEmptyCount() < need)
-            return 0;
     }
     return 1;
 }
 
 // ---- checkCancelTrade @ 0x0852dbb8 ----
-// 校验取消交易可行：双方注册物品/金钱都能退回各自背包。
+// 校验取消交易可行：对双方背包做副本，模拟把各交易者自己的注册物品/金钱
+// 插回其自身副本，任一插入失败即整体不可取消（返回 0）。
 int CTradeSpace::checkCancelTrade()
 {
-    if (m_pTraders[0]->getCurCharacR() == 0 ||
-        m_pTraders[1]->getCurCharacR() == 0) {
+    if (m_pTraders[0]->getCurCharacR() == 0 || m_pTraders[1]->getCurCharacR() == 0) {
         cMyTrace tr("bool CTradeSpace::checkCancelTrade()", 0x674, 5);
         tr("CTradeSpace::cancel_trade()\t0 == m_pTraders[0]->getCurCharacR() || m_pTraders[1]->getCurCharacR()");
         return 0;
     }
+    CInventory copy[2];
+    char mem[2][0xc140];
+    memset(mem, 0, sizeof(mem));
+    copy[0].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[0]));
+    copy[1].SetInventoryMemory(reinterpret_cast<InventoryMemory*>(mem[1]));
+    copy[0].setCopy(*m_pTraders[0]->getCurCharacInvenW());
+    copy[1].setCopy(*m_pTraders[1]->getCurCharacInvenW());
     for (int trader = 0; trader < 2; ++trader) {
-        CInventory* inv = (CInventory*)m_pTraders[trader]->getCurCharacInvenW();
-        int need = 0;
+        CInventory& own = copy[trader];
+        if (m_nMoney[trader] > 0 && m_pTraders[trader] != 0)
+            own.gain_money(m_nMoney[trader], (eMoneyAddReason)2, 0, 0);
         for (int s = 3; s <= 0x1a; ++s) {
             TradeSlot* slot = TradeSlotAt(m_slotsData, trader, s);
-            if (slot->m_item.m_addInfo != 0)
-                need += 1;
+            if (slot->m_item.m_addInfo == 0)
+                continue;
+            int ret;
+            Inven_Item item = slot->m_item;
+            if (slot->m_field08 == 0) {
+                ret = own.insertItemIntoInventory(item, (eItemAddReason)2, 0, 1);
+            } else if (slot->m_field08 == 1) {
+                ret = own.insertAvatarIntoInventory(item, (eAvatarItemAddReason)3, 0);
+            } else if (slot->m_field08 == 7) {
+                ret = own.insertItemIntoCreature(item, (eItemAddReason)0x1c, 0, 1);
+            } else {
+                ret = own.insertItemIntoEquipment(item, (eItemAddReason)2, 0, 1);
+            }
+            if (ret < 0) {
+                cMyTrace tr("bool CTradeSpace::checkCancelTrade()", 0x6af, 5);
+                tr("try insert_item(INVEN_TYPE_INVENTORY) fail - [Fail]Insert_item - fatal! canceled ch=%d",
+                   m_pTraders[trader]->getCurCharacNo());
+                return 0;
+            }
         }
-        if (m_nMoney[trader] > 0)
-            need += 1;
-        if (inv->QuickEmptyCount() < need)
-            return 0;
     }
     return 1;
 }
 
 // ---- cancel_trade_for_china @ 0x0852e544 ----
-// 取消交易：金钱退回各自背包，注册物品按类型插回，失败走邮件补偿。
+// 取消交易：金钱退回各自背包，注册物品按 TradeSlot.m_field08 分类插回
+// （0=背包 / 1=头像 / 7=宠物 / 其它=装备），失败走邮件补偿；
+// 构建取消回执包（header 0x10）发给非触发方交易者。
 int CTradeSpace::cancel_trade_for_china(CUser* user)
 {
+    PacketGuard packet[2];
     for (int trader = 0; trader < 2; ++trader) {
         CUser* owner = m_pTraders[trader];
         if (owner == 0)
             continue;
         CInventory* inv = (CInventory*)owner->getCurCharacInvenW();
-        if (m_nMoney[trader] >= 1) {
+        InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet[trader];
+        buf->clear();
+        buf->put_header(0, 0x10);
+        int cnt = 0;
+        for (int s = 3; s <= 0x1a; ++s)
+            if (TradeSlotAt(m_slotsData, trader, s)->m_item.m_addInfo != 0)
+                cnt += 1;
+        if (m_nMoney[trader] < 1) {
+            buf->put_short(cnt);
+        } else {
+            cnt += 1;
+            if (owner->getCurCharacR() == 0) {
+                cMyTrace tr("bool CTradeSpace::cancel_trade_for_china(CUser*)", 0x71c, 5);
+                tr("CTradeSpace::cancel_trade()\tm_pTraders[user_index]->getCurCharacR()");
+                return 0;
+            }
             inv->gain_money(m_nMoney[trader], (eMoneyAddReason)2, 1, 0);
             m_nMoney[trader] = 0;
+            buf->put_short(cnt);
+            buf->put_short(0);
+            buf->put_byte(0);
+            buf->put_short(0);
         }
         for (int s = 3; s <= 0x1a; ++s) {
             TradeSlot* slot = TradeSlotAt(m_slotsData, trader, s);
-            if (slot->m_item.m_addInfo != 0) {
-                Inven_Item item = slot->m_item;
-                int ret = -1;
-                if (slot->m_item.m_field1 == 1) {
-                    ret = inv->insertItemIntoEquipment(item, (eItemAddReason)2, 1, 1);
-                } else if (slot->m_item.isAvatarItemType()) {
-                    ret = inv->insertAvatarIntoInventory(
-                        item, (eAvatarItemAddReason)3, 1);
-                } else if (slot->m_item.IsCreatureItemType()) {
-                    ret = inv->insertItemIntoCreature(item, (eItemAddReason)0x1c, 1, 1);
-                } else {
-                    ret = inv->insertItemIntoInventory(item, (eItemAddReason)2, 1, 1);
-                }
-                if (ret < 0)
-                    send_lose_item_for_china(owner, slot->m_item);
-                slot->m_item.reset();
+            if (slot->m_item.m_addInfo == 0)
+                continue;
+            buf->put_short(s);
+            Inven_Item item = slot->m_item;
+            int ret = -1;
+            unsigned char kind = (unsigned char)slot->m_field08;
+            if (kind == 1) {
+                ret = inv->insertAvatarIntoInventory(item, (eAvatarItemAddReason)3, 1);
+                buf->put_byte(1);
+            } else if (kind == 7) {
+                ret = inv->insertItemIntoCreature(item, (eItemAddReason)0x1c, 1, 1);
+                buf->put_byte(7);
+            } else if (kind == 0) {
+                ret = inv->insertItemIntoInventory(item, (eItemAddReason)2, 1, 1);
+                buf->put_byte(0);
+            } else {
+                ret = inv->insertItemIntoEquipment(item, (eItemAddReason)2, 1, 1);
+                buf->put_byte(3);
             }
+            if (ret < 0)
+                send_lose_item_for_china(owner, slot->m_item);
+            slot->m_item.reset();
+            buf->put_short(ret);
         }
+        buf->finalize(true);
     }
     for (int trader = 0; trader < 2; ++trader) {
         CUser* owner = m_pTraders[trader];
         if (owner == 0)
             continue;
         if (owner != user) {
-            // 通知对方交易已取消（物品清单回执）
-            PacketGuard packet;
-            InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-            buf->put_header(0, 0x10);
-            buf->put_short(0);
-            buf->finalize(true);
-            owner->Send(packet);
+            owner->Send(packet[trader]);
+            owner->send_equip(0);
         }
         sub_cUserHistoryLog_TradeEnd((char*)owner + 0x79700, 0, 0, 0, 0, 0);
     }

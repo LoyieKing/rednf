@@ -56,7 +56,7 @@ struct CharacInfoFields
     unsigned char m_job;               // +0x26
     short m_level;                      // +0x27
     GrowTypeBits m_growType;           // +0x29（位域）
-    unsigned char m_growTypeChanging;  // +0x2a
+    GrowTypeBits m_growTypeChanging;  // +0x2a
     int m_exp;                         // +0x2b
     int m_partyBonusExp;               // +0x2f
     unsigned short m_fatigue;          // +0x33
@@ -110,10 +110,10 @@ struct CharacInfoFields
         unsigned char m_visibleValues;              // +0xe40（整字节）
         struct
         {
-            unsigned int visible : 1;               // bit0
-            unsigned int growAvatar : 1;            // bit1
-            unsigned int teleport : 1;              // bit2
-            unsigned int m_padBits : 5;
+            signed int visible : 1;                 // bit0
+            signed int growAvatar : 1;              // bit1
+            signed int teleport : 1;                // bit2
+            signed int m_padBits : 5;
         } m_visibleBits;
     };
     int m_assaultPlace;                // +0xe41
@@ -494,7 +494,7 @@ void CUserCharacInfo::setWeekendBonusExp(unsigned int exp, int percent)
 {
     if (m_selected)
     {
-        CUR->m_weekendBonusExp = (int)(long long)((double)exp * (percent / 100.0f));
+        CUR->m_weekendBonusExp = (int)((double)exp * (percent / 100.0f));
     }
 }
 
@@ -706,7 +706,8 @@ bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
         enableSaveCharacStat();
         if (flag < 0x20)
         {
-            if ((CUR->m_tutorialFlags & (1u << (unsigned char)flag)) != 0)
+            unsigned int mask = 1u << flag;
+            if ((CUR->m_tutorialFlags & mask) != 0)
                 return false;
             CUR->m_tutorialFlags |= 1u << flag;
             return true;
@@ -717,7 +718,7 @@ bool CUserCharacInfo::setCurCharacTutorialFlag(unsigned int flag)
             int byteIndex = (int)(((unsigned int)(index >> 0x1f) >> 0x1d) + index) >> 3;
             if (byteIndex >= 0 && byteIndex < 0x10)
             {
-                unsigned char bit = (unsigned char)(flag % 8);
+                unsigned char bit = (unsigned char)(index % 8);
                 if ((((signed char)CUR->m_tutorialFlags2[byteIndex]) >> bit & 1) != 0)
                     return false;
                 CUR->m_tutorialFlags2[byteIndex] =
@@ -898,10 +899,8 @@ void CUserCharacInfo::setCurCharGrowthType(char first, char second)
     if (second > 2)
         return;
     enableSaveCharacInfo();
-    CUR->m_growType.byte = (unsigned char)(
-        (CUR->m_growType.byte & 0xf0) | ((char)(first << 4) >> 4 & 0xf));
-    CUR->m_growType.byte = (unsigned char)(
-        (CUR->m_growType.byte & 0x8f) | (((char)(second << 5) >> 5 & 7) << 4));
+    CUR->m_growType.first = first;
+    CUR->m_growType.second = second;
 }
 
 
@@ -912,10 +911,8 @@ void CUserCharacInfo::setCurCharChangingGrowthType(char first, char second)
         return;
     if (second > 2)
         return;
-    CUR->m_growTypeChanging = (unsigned char)(
-        (CUR->m_growTypeChanging & 0xf0) | ((char)(first << 4) >> 4 & 0xf));
-    CUR->m_growTypeChanging = (unsigned char)(
-        (CUR->m_growTypeChanging & 0x8f) | (((char)(second << 5) >> 5 & 7) << 4));
+    CUR->m_growTypeChanging.first = first;
+    CUR->m_growTypeChanging.second = second;
 }
 
 
@@ -1963,7 +1960,8 @@ int CUserCharacInfo::getCurCharacEscaladeTutorialFlag(unsigned int flag)
         return 0;
     if (flag < 0x20)
     {
-        if ((CUR->m_tutorialFlags & (1u << (unsigned char)flag)) != 0)
+        unsigned int mask = 1u << flag;
+        if ((CUR->m_tutorialFlags & mask) != 0)
             return 1;
         return 0;
     }
@@ -1974,7 +1972,7 @@ int CUserCharacInfo::getCurCharacEscaladeTutorialFlag(unsigned int flag)
         if (byteIndex >= 0 && byteIndex < 0x10)
         {
             return (int)((signed char)CUR->m_tutorialFlags2[byteIndex]) >>
-                       (flag % 8 & 0x1f) & 1;
+                       (index % 8 & 0x1f) & 1;
         }
         return 0;
     }
@@ -2199,7 +2197,9 @@ void CUserCharacInfo::checkBonusPoint()
     for (int slot = 10; slot < 0x16; ++slot)
     {
         invenItem = ((CInventory*)(Inven_Item*)getCurCharacInvenR())->GetInvenRef(0, slot);
-        if (invenItem == 0 || invenItem->m_addInfo == 0)
+        if (invenItem == 0)
+            continue;
+        if (invenItem->m_addInfo == 0)
             continue;
         CItem* found = G_CDataManager()->find_item(invenItem->m_addInfo);
         if (found == 0)
@@ -2965,13 +2965,19 @@ void CUserCharacInfo::IncFatigueBatteryCharging(short value)
     if (m_selected)
     {
         enableSaveCharacStat();
-        ServerParameterScript* serverParam = (ServerParameterScript*)((char*)G_CDataManager() + 0x68);
+        struct ServerParamBatteryView
+        {
+            char pad[0x5c0];
+            unsigned short m_maxFatigueBattery;   // +0x5c0
+        };
+        ServerParamBatteryView* sp =
+            (ServerParamBatteryView*)((char*)G_CDataManager() + 0x68);
         unsigned short old = CUR->m_fatigueBattery;
         CUR->m_fatigueBattery = (unsigned short)(CUR->m_fatigueBattery + value);
         if ((short)CUR->m_fatigueBattery < (short)old ||
-            (int)(short)CUR->m_fatigueBattery > *(unsigned short*)((char*)serverParam + 0x5c0))
+            (int)(short)CUR->m_fatigueBattery > (int)sp->m_maxFatigueBattery)
         {
-            CUR->m_fatigueBattery = *(unsigned short*)((char*)serverParam + 0x5c0);
+            CUR->m_fatigueBattery = sp->m_maxFatigueBattery;
         }
     }
 }
@@ -3204,7 +3210,7 @@ void CUserCharacInfo::SetIsInitSkillFlag(bool flag)
 {
     if (m_selected)
     {
-        CUR->m_isInitSkillFlag = flag ? 1 : 0;
+        CUR->m_isInitSkillFlag = flag;
     }
 }
 
@@ -3212,7 +3218,7 @@ void CUserCharacInfo::SetIsInitSkillFlag2ND(bool flag)
 {
     if (m_selected)
     {
-        CUR->m_isInitSkillFlag2ND = flag ? 1 : 0;
+        CUR->m_isInitSkillFlag2ND = flag;
     }
 }
 

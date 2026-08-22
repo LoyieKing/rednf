@@ -19,7 +19,7 @@
 
 int get_rand_int(int range);
 
-class CEnvironment;
+#include "CEnvironment.h"  // m_serverEnvir.m_gcNo（+0x198）
 extern CEnvironment* G_CEnvironment();
 
 class CDataManager
@@ -436,13 +436,18 @@ void CEquipItem::make_item(Inven_Item& item) const
         }
     }
     item.m_fieldd = 0;
-    ((itemGloballyUniqueIdentifier_t*)((char*)&item + 0x15))->reset();
+    // ORIG（make_item）：(`inven` + 0x15) 处 0x11 字节打包全局唯一标识，位于
+    // Inven_Item 的 m_amp(+0x11).m_pad4 起始（即 &item + 0x15），跨 ampen/pad 与
+    // m_random 的交叠打包区。保留地址形式（打包交叠区非独立具名成员），锚定到
+    // 具名子成员 m_amp.m_pad4 使偏移可审计。
+    itemGloballyUniqueIdentifier_t* guid =
+        (itemGloballyUniqueIdentifier_t*)(char*)&item.m_amp.m_pad4[0];
+    guid->reset();
     if ((unsigned int)m_itemType < 0x1a &&
         ((1 << m_itemType) & 0x3bffc00U) != 0)
     {
         ((CItemGloballyUniqueIdentifierGenerator*)0x9494d68)
-            ->generate((itemGloballyUniqueIdentifier_t*)((char*)&item + 0x15),
-                       *(int*)((char*)G_CEnvironment() + 0x198));
+            ->generate(guid, G_CEnvironment()->m_serverEnvir.m_gcNo);
     }
     item.m_amp.reset();
 }

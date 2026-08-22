@@ -130,6 +130,7 @@ class CDungeon;
 class CGameManager;
 class Quest;
 class CLuckPoint;
+class CWorldMap;
 class CTournamentDungeonReward;
 class GameResultSet;
 struct MSG_MONSTER_DIE;
@@ -292,16 +293,17 @@ public:
     // ---- 成员管理 ----
     void create_party(CUser* user);
     void join_user(CUser* user);
-    void leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type);
+    int leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type);
     void walkout_member(CUser* user, int param);
     void change_manager(CUser* user, int slot);
-    void change_manager();
+    int change_manager();
+    void battle_data_reset();     // 0x859aec2
     int set_host();
     void set_single_play(CUser* user);
     void game_start(CUser* user);
     bool IsExistUser(CUser* user);
     int isMyMember(unsigned int userNo);
-    char _checkValidUser(int idx);
+    bool _checkValidUser(int idx);
     bool checkValidUser(int idx);
     void enumPartyMember(bool (*func)(CUser*));
     int get_member_count();
@@ -356,7 +358,7 @@ public:
     void ConnectP2P(CUser* user, char* ip, int port);
     void _ClearConnectP2PAbsolute(int slot);
     void _ClearConnectP2PRelative(int slot);
-    int _IsCannotConnectP2P(int a, int b);
+    bool _IsCannotConnectP2P(int a, int b);
     int _GetConnectP2PPoint(int slot);
     void _GetConnectP2PMaxMinPoint(int& max, int& min);
     void send_party_ipinfo();
@@ -366,8 +368,9 @@ public:
     void send_to_alive_member(PacketGuard& packet);
     void send_to_party_cmd_error(ENUM_CMDPACKET cmd, unsigned char error);
     void send_host_info();
-    void send_party_realtime_info();
-    void get_party_realtime_info(PacketGuard& packet);
+    int get_party_realtime_info(PacketGuard& packet);
+    void send_party_realtime_info();   // 0x859cd24
+
     void send_invite_pvp(int mapIdx);
     void send_invite_warroom(int mapIdx);
     void send_invite_bluemarble(int mapIdx);
@@ -391,25 +394,25 @@ public:
     // ---- 副本流程 ----
     void dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype);
     void do_after_dungeon_start(CDungeon const* dungeon, CUser* user);
-    bool check_dungeon_start(CDungeon const* dungeon);
+    int check_dungeon_start(CDungeon const* dungeon);
     bool check_dungeon_start(CDungeon const* dungeon, int& param);
     bool CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag,
                                 Inven_Item* item, int* param);
     bool CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& flag,
                                   Inven_Item* item, int* param);
-    bool CheckEnterDimensionDungeon(CDungeon const* dungeon);
+    int CheckEnterDimensionDungeon(CDungeon const* dungeon);
     bool CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
                                     char mode);
     bool CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
                                     bool flag2);
-    bool CheckEnterVillageAttackRevenge(CDungeon const* dungeon);
+    int CheckEnterVillageAttackRevenge(CDungeon const* dungeon);
     void CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
-    void CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
+    bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
     void CheckHellCoinLimint(int param);
-    void checkDugeonInoutTime(int param);
+    int checkDugeonInoutTime(int param);
     bool checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
                                     ENUM_CMDPACKET cmd);
-    bool checkInoutConditionDungeon();
+    int checkInoutConditionDungeon();
     void checkDungeonDifficulty(char difficulty, CDungeon const* dungeon);
     bool checkFreeRevivalCondition(CDungeon const* dungeon);
     bool checkLimitUsedCoinCondition(CDungeon const* dungeon);
@@ -418,9 +421,9 @@ public:
     void setStandardDimensionLevel(CDungeon const* dungeon);
     bool UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* item, int* param);
     void UseSealDoorItems(std::vector<int>& itemList);
-    bool CheckDestroyConditionSealDoor(CDungeon const* dungeon,
-                                       std::vector<int>& list1,
-                                       std::vector<int>& list2);
+    int CheckDestroyConditionSealDoor(CDungeon const* dungeon,
+                                     std::vector<int>& list1,
+                                     std::vector<int>& list2);
     void CheckClearQuestHellParty(std::vector<int>& list);
     void do_after_dungeon_start_checkndelete_item(RequiredItem const& item,
                                                   CUser* user);
@@ -579,7 +582,7 @@ public:
     void isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
     void is_limit_minimum_age(int age, int& param);
     void is_limit_minimum_level(int level, int& param);
-    void CheckMemberFatigue();
+    int CheckMemberFatigue();
     void CheckMemberLastTryAssaultTime();
     void GetFirstValidMemberState();
     void GetValidPartyMember(std::vector<int>& list);
@@ -596,6 +599,8 @@ public:
     bool isHelpAbuseParty();
 
 private:
+    char* _getMemberNames(char* buf);   // ORIG 0x85b4bde
+
     CItemRoutingData m_routingData;   // +0x000
     Mutex m_mutex;                    // +0x04c
 
@@ -613,12 +618,12 @@ private:
     cMember m_member[4];     // +0x078
 
     unsigned char m_padElection[0x40];  // +0x0d8 cElection<int,4,4>
-    char m_recvResultFlag;              // +0x118
+    bool m_recvResultFlag;              // +0x118
     char m_pad119;                      // +0x119
-    char m_tournamentVictory;           // +0x11a
+    bool m_tournamentVictory;           // +0x11a
     char m_titleIndex;                  // +0x11b
     char m_title[0x20];                 // +0x11c
-    char m_autoCreated;                 // +0x13c
+    bool m_autoCreated;                 // +0x13c
     unsigned char m_userMax;            // +0x13d
     unsigned short m_dungIndex;         // +0x13e
     unsigned char m_dungDiffi;          // +0x140
@@ -638,17 +643,23 @@ private:
     unsigned char m_pad29e[2];       // +0x29e
     int m_startGamePartyCount;       // +0x2a0
     unsigned char m_padShop[0x78];   // +0x2a4
-    char m_premiumGoldCardParty;     // +0x31c
+    bool m_premiumGoldCardParty;     // +0x31c
     unsigned char m_pad31d[3];       // +0x31d
     unsigned int m_premiumGoldCardDefaultItem;  // +0x320
-    char m_firstMapClear;            // +0x324
+    bool m_firstMapClear;            // +0x324
     unsigned char m_pad325[3];       // +0x325
     int m_partyMemberCoinLimit;      // +0x328
-    unsigned char m_padBattleData[0x7f8];  // +0x32c BattleData
+    unsigned char m_padBattleData[0x50];   // +0x32c BattleData 前半（占位）
+    char m_finishLoadingFlag[4];           // +0x37c（resetFinishLoadingVar）
+    char m_liveFlag[4];                    // +0x380（get_live_count / check_allmember_die）
+    char m_enterMapFlag[4];                // +0x384（get_live_count_enter_map）
+    unsigned char m_padBattleData2[0x79c]; // +0x388 BattleData 余下（占位，至 0xb24）
     // ---- CBattle_Field 区（+0xb24，0xcd0 字节） ----
     unsigned char m_padBattleField1[0x188];  // +0xb24
     CDungeon* m_dungeon;                    // +0xcac
-    unsigned char m_padcb0[0x28];           // +0xcb0
+    unsigned char m_padcb0[0x14];           // +0xcb0
+    char m_fieldCC4;                        // +0xcc4（CheckEnterDimensionDungeon 直读，维度模式）
+    unsigned char m_padcc5[0x13];           // +0xcc5
     int m_partyType;                        // +0xcd8
     unsigned char m_padcdc[0x80];           // +0xcdc
     int m_standardDimensionLevel;           // +0xd5c
@@ -660,7 +671,7 @@ private:
     int m_field185c;        // +0x185c
     int m_usedCoinCount;    // +0x1860
     int m_field1864;        // +0x1864
-    int m_field1868;        // +0x1868
+    CWorldMap* m_hellWorldMap;  // +0x1868（CheckHellDungeonFreepassItemHaveAndDel 缓存的世界地图指针）
     int m_overlapRare;      // +0x186c
     int m_overlapUnique;    // +0x1870
     int m_mapHitCount;      // +0x1874
@@ -680,12 +691,12 @@ private:
     // ---- CPartyTelePort 区（+0x1ad0，0x24 字节） ----
     unsigned char m_pad1ad0[0x10];   // +0x1ad0
     int m_quickPartyIndex;           // +0x1ae0
-    char m_isQuickParty;             // +0x1ae4
+    bool m_isQuickParty;             // +0x1ae4
     unsigned char m_pad1ae5[3];      // +0x1ae5
     int m_field1ae8;                 // +0x1ae8
     int m_randomBuffType;            // +0x1aec
-    char m_weekendEvent;             // +0x1af0
-    char m_dungeonMapSaving;         // +0x1af1
+    bool m_weekendEvent;             // +0x1af0
+    bool m_dungeonMapSaving;         // +0x1af1
     unsigned char m_pad1af2[0x2];    // +0x1af2
     unsigned char m_padPassedMap[0xc]; // +0x1af4 std::vector<MapInfo>
 };

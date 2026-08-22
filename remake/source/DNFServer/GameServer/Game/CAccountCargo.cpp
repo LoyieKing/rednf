@@ -155,7 +155,10 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         if (item.m_field1 == 4 || item.m_field1 == 5 || item.m_field1 == 6 ||
             item.m_field1 == 7 || item.m_field1 == 8)
             return 0;
-        if ((unsigned int)item.m_addInfo < 0x1964 || 6999 < (unsigned int)item.m_addInfo)
+        // ORIG 0x8289a4a +0xe7/+0xed：m_addInfo 落在 [0x1964, 0x1b57](6999) 区间内才
+        // 直接返回 0；区间之外继续后续检查（GETATTACH 等）。
+        if ((unsigned int)item.m_addInfo >= 0x1964 &&
+            (unsigned int)item.m_addInfo <= 0x1b57)
             return 0;
         switch (ci->GetAttachType()) {
         case 1:
@@ -169,16 +172,20 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         if (item.m_upgradeSep.IsTradeRestriction())
             return 0;
         if (!sub_CUser_isGMUser((void*)m_pUser) && !ci->IsCreatureItem()) {
-            int usable = ci->getUsablePeriod();
-            if ((usable == 0 && ci->getExpirationDate() == 0)) {
+            // ORIG 0x194..0x1c8 + 0x1c2..0x1ec：两段相同的期限判定。
+            // 第一段两字段均为 0 → 无期限放行；否则第二段再判，两字段仍均 0 →
+            // （不可达）持久时限检查，否则（有期限物品）返回 0 不允许存入。
+            if ((ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0)) {
                 // 无期限物品可存入
             } else {
-                if (usable == 0 && ci->getExpirationDate() == 0)
+                if ((ci->getUsablePeriod() == 0 && ci->getExpirationDate() == 0)) {
+                    unsigned short endurance = item.m_fieldb;
+                    int curSec = GlobalData::s_systemTime_.getCurSec();
+                    if ((int)((unsigned int)endurance * 0x15180 + 0x44a54a80) <= curSec)
+                        return 0;
+                } else {
                     return 0;
-                unsigned short endurance = item.m_fieldb;
-                int curSec = GlobalData::s_systemTime_.getCurSec();
-                if ((int)((unsigned int)endurance * 0x15180 + 0x44a54a80) <= curSec)
-                    return 0;
+                }
             }
         }
         return 1;
@@ -335,8 +342,10 @@ int CAccountCargo::DepositMoney(unsigned int money)
 {
     CUser* user = m_pUser;
     void* mgr = sub_Singleton_ServiceRestrictManager_Get();
-    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x1a))
+    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x1a)) {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0xd1);
         return 0;
+    }
     unsigned int err = CSecu_ProtectionField::Check(
         GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)2);
     if (err != 0) {
@@ -367,8 +376,10 @@ int CAccountCargo::WithdrawMoney(unsigned int money)
 {
     CUser* user = m_pUser;
     void* mgr = sub_Singleton_ServiceRestrictManager_Get();
-    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x1a))
+    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x1a)) {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 0xd1);
         return 0;
+    }
     unsigned int err = CSecu_ProtectionField::Check(
         GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)3);
     if (err != 0) {
@@ -425,7 +436,7 @@ int CAccountCargo::SendItemList()
             buf->put_byte(m_slots[i].m_field0);
             GameWorld* world = G_GameWorld();
             if (!world->IsEnchantRevisionChannel())
-                buf->put_int(*(int*)&m_slots[i].m_amp);
+                buf->put_int(m_slots[i].m_fieldd);
             else
                 buf->put_int(0);
             buf->put_byte(m_slots[i].m_amp.getAbilityType() & 0xff);
@@ -461,7 +472,7 @@ void CAccountCargo::MakeItemPacket(PacketGuard* packet, int slot) const
         buf->put_byte(m_slots[slot].m_field0);
         GameWorld* world = G_GameWorld();
         if (!world->IsEnchantRevisionChannel())
-            buf->put_int(*(int*)&m_slots[slot].m_amp);
+            buf->put_int(m_slots[slot].m_fieldd);
         else
             buf->put_int(0);
         buf->put_byte(m_slots[slot].m_amp.getAbilityType() & 0xff);
@@ -603,11 +614,11 @@ void CAccountCargo::SendNotifyRecipe(CUser* user, int slot, bool flag)
     buf->put_byte(0);
     if (flag) {
         buf->put_short(2);
-        ((CInventory*)user->getCurCharacInvenR())->MakeItemPacket(1, slot, packet);
+        ((CInventory*)user->getCurCharacInvenR())->MakeItemPacket(INVEN_TYPE_EQUIP, slot, packet);
     } else {
         buf->put_short(1);
     }
-    ((CInventory*)user->getCurCharacInvenR())->MakeItemPacket(1, 0, packet);
+    ((CInventory*)user->getCurCharacInvenR())->MakeItemPacket(INVEN_TYPE_EQUIP, 0, packet);
     buf->finalize(true);
     user->Send(packet);
 }

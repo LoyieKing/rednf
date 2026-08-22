@@ -78,8 +78,9 @@ bool CCargo::set_cargo(void* data)
         m_sorted = 0;
         memcpy(m_pItems, data, 0x2438);
         _GetItemCount();
+        return 1;
     }
-    return 0 < m_capacity;
+    return 0;
 }
 
 // ---- get_cargo @ 0x850b164 ----
@@ -87,8 +88,9 @@ bool CCargo::get_cargo(void* out) const
 {
     if (0 < m_capacity) {
         memcpy(out, m_pItems, 0x2438);
+        return 1;
     }
-    return 0 < m_capacity;
+    return 0;
 }
 
 // ---- 槽位访问 ----
@@ -114,17 +116,18 @@ bool CCargo::IsOperatorable(int idx) const
 
 Inven_Item* CCargo::GetCargoRef(int idx) const
 {
-    if (IsOperatorable(idx))
-        return &m_pItems[idx];
-    return 0;
+    if (!IsOperatorable(idx))
+        return 0;
+    return &m_pItems[idx];
 }
 
 Inven_Item* CCargo::GetCargoRef(int idx)
 {
-    if (IsOperatorable(idx))
-        return &m_pItems[idx];
-    return 0;
+    if (!IsOperatorable(idx))
+        return 0;
+    return &m_pItems[idx];
 }
+
 
 // ---- get_cargo_slot @ 0x850b2b4（按值返回 Inven_Item） ----
 Inven_Item CCargo::get_cargo_slot(int idx) const
@@ -278,30 +281,29 @@ int CCargo::insert_item_special_slot(Inven_Item& item, int slot)
 // ---- 删除 ----
 int CCargo::delete_item(int idx, int count, eItemDelReason reason)
 {
-    if (IsOperatorable(idx)) {
-        if (m_pItems[idx].m_addInfo == 0)
-            return 0;
-        if (count < 1)
-            return 0;
-        m_sorted = 0;
-        if (!m_pItems[idx].isEquipableItemType()) {
-            if (m_pItems[idx].m_addInfo2 == count) {
-                _ResetSlot(idx, reason);
-            } else {
-                int cur = m_pItems[idx].m_addInfo2;
-                if (cur == count || cur - count < 0)
-                    return 0;
-                m_pItems[idx].m_addInfo2 = cur - count;
-                sub_CUserHistoryLog_ItemDelCargo(
-                    (char*)m_pParent + 0x79700, m_pItems[idx].m_addInfo, count,
-                    m_pItems[idx].m_addInfo2, reason);
-            }
-        } else {
+    if (!IsOperatorable(idx))
+        return 0;
+    if (m_pItems[idx].m_addInfo == 0)
+        return 0;
+    if (count < 1)
+        return 0;
+    m_sorted = 0;
+    if (!m_pItems[idx].isEquipableItemType()) {
+        if (m_pItems[idx].m_addInfo2 == count) {
             _ResetSlot(idx, reason);
+        } else {
+            int cur = m_pItems[idx].m_addInfo2;
+            if (cur == count || cur - count < 0)
+                return 0;
+            m_pItems[idx].m_addInfo2 = cur - count;
+            sub_CUserHistoryLog_ItemDelCargo(
+                (char*)m_pParent + 0x79700, m_pItems[idx].m_addInfo, count,
+                m_pItems[idx].m_addInfo2, reason);
         }
-        return 1;
+    } else {
+        _ResetSlot(idx, reason);
     }
-    return 0;
+    return 1;
 }
 
 // ---- _ResetSlot @ 0x850b1a0 ----
@@ -337,21 +339,20 @@ int CCargo::move_item(int from, int to)
 
 void CCargo::update_item(int idx, const Inven_Item& item)
 {
-    if (IsOperatorable(idx)) {
-        if (m_pItems[idx].m_addInfo == 0) {
-            _AddItem(item, idx);
-        } else {
-            memcpy(&m_pItems[idx], &item, sizeof(Inven_Item));
-        }
+    if (!IsOperatorable(idx))
+        return;
+    if (m_pItems[idx].m_addInfo == 0) {
+        _AddItem(item, idx);
+    } else {
+        memcpy(&m_pItems[idx], &item, sizeof(Inven_Item));
     }
 }
-
 // ---- 查询 ----
 int CCargo::check_slot_empty(int idx) const
 {
-    if (IsOperatorable(idx))
-        return m_pItems[idx].m_addInfo == 0 ? 1 : 0;
-    return 0;
+    if (!IsOperatorable(idx))
+        return 0;
+    return m_pItems[idx].m_addInfo == 0 ? 1 : 0;
 }
 
 int CCargo::check_item_exist(int itemIdx) const
@@ -415,22 +416,25 @@ int CCargo::FindItemLock(unsigned char lock, ENUM_ITEMSPACE& space, int& slot) c
 // ---- 扩容 / 排序 ----
 int CCargo::UpgradeCargo(int capacity)
 {
-    if (m_capacity == 0 || capacity < m_capacity)
+    if (m_capacity == 0 || capacity < m_capacity) {
         return 0;
-    if (m_capacity < capacity) {
+    } else if (m_capacity < capacity) {
         m_capacity = capacity;
         return 1;
+    } else {
+        return 0;
     }
-    return 0;
 }
 
 int CCargo::isUpgradable(int capacity) const
 {
-    if (m_capacity == 0 || capacity < m_capacity)
+    if (m_capacity == 0 || capacity < m_capacity) {
         return 0;
-    if (m_capacity < capacity)
+    } else if (m_capacity < capacity) {
         return capacity < 0x99 ? 1 : 0;
-    return 0;
+    } else {
+        return 0;
+    }
 }
 
 int CCargo::_CompareSlot(const void* a, const void* b)
@@ -452,7 +456,7 @@ int CCargo::_CompareSlot(const void* a, const void* b)
 
 void CCargo::sort()
 {
-    if (m_sorted != 1) {
+    if (!m_sorted) {
         qsort(m_pItems, 0x98, sizeof(Inven_Item), _CompareSlot);
         m_sorted = 1;
     }

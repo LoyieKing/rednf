@@ -130,19 +130,21 @@ struct AppearMap
     }
 };
 
-// ---- 邮件奖励（16 字节：标题/内容/类型） ----
+// ---- 邮件奖励（16 字节：标题/内容/道具idx/addInfo） ----
 struct PostalReward
 {
     std::string m_title;     // +0x00
     std::string m_contents;  // +0x04
-    int m_rewardType;        // +0x0c
+    int m_itemIdx;           // +0x08
+    int m_addInfo;           // +0x0c
 
-    PostalReward() : m_rewardType(0) {}
+    PostalReward() : m_itemIdx(0), m_addInfo(0) {}
     void clear()
     {
         m_title.clear();
         m_contents.clear();
-        m_rewardType = 0;
+        m_itemIdx = 0;
+        m_addInfo = 0;
     }
 };
 

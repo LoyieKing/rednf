@@ -138,10 +138,6 @@ public:
     void send_equip(int slot);
 };
 
-static Inven_Item* GetTitleSlotRaw(CTitleBook* book, int category, int slot)
-{
-    return book->m_category[category] + slot;
-}
 
 const int TITLE_BOOK_MAX[4] = { 0x46, 0xc8, 0x78, 0x3c };
 
@@ -183,16 +179,14 @@ stTitleBook::stTitleBook()
 
 void stTitleBook::clear()
 {
-    std::memset(this, 0, sizeof(*this));
+    std::memset(m_category0, 0, sizeof(m_category0));
+    std::memset(m_category1, 0, sizeof(m_category1));
+    std::memset(m_category2, 0, sizeof(m_category2));
+    std::memset(m_category3, 0, sizeof(m_category3));
 }
 
-// ============================================================================
-// CTitleBook
-// ============================================================================
-
-CTitleBook::CTitleBook()
+CTitleBook::CTitleBook() : m_user(0)
 {
-    m_user = 0;
     m_category[0] = m_book.m_category0;
     m_category[1] = m_book.m_category1;
     m_category[2] = m_book.m_category2;
@@ -205,6 +199,7 @@ CTitleBook::~CTitleBook()
 
 bool CTitleBook::loadData(CUser* pUser, char* pData)
 {
+    _reset();
     m_user = pUser;
     std::memcpy(&m_book, pData, 0x6b3a);
     return 1;
@@ -212,7 +207,7 @@ bool CTitleBook::loadData(CUser* pUser, char* pData)
 
 void CTitleBook::getData(char* pData) const
 {
-    std::memcpy(pData, &m_book, 0x6b3a);
+    std::memcpy(pData, (const char*)this + 0xc, 0x6b3a);
 }
 bool CTitleBook::_saveData(CUser* pUser)
 {
@@ -253,7 +248,7 @@ Inven_Item* CTitleBook::getTitleSlot(ENUM_TITLE_BOOK_CATEGORY category,
                                      int slot)
 {
     alter();
-    return GetTitleSlotRaw(this, (int)category, slot);
+    return m_category[(int)category] + slot;
 }
 
 Inven_Item CTitleBook::getTitleSlotR(ENUM_TITLE_BOOK_CATEGORY category,
@@ -720,14 +715,13 @@ int CTitleBook::putTitleOnly(CUser* user, int itemIdx,
 Inven_Item* CTitleBook::_getTitle(ENUM_TITLE_BOOK_CATEGORY category, int slot)
 {
     alter();
-    return GetTitleSlotRaw(this, (int)category, slot);
+    return m_category[(int)category] + slot;
 }
 
 Inven_Item CTitleBook::_getTitleR(ENUM_TITLE_BOOK_CATEGORY category, int slot)
 {
     Inven_Item out;
-    std::memmove(&out, GetTitleSlotRaw((CTitleBook*)this, (int)category, slot),
-                 0x3d);
+    std::memmove(&out, m_category[(int)category] + slot, 0x3d);
     return out;
 }
 
@@ -735,13 +729,13 @@ void CTitleBook::_insertTitle(ENUM_TITLE_BOOK_CATEGORY category, int slot,
                               Inven_Item* item)
 {
     alter();
-    GetTitleSlotRaw(this, (int)category, slot)->setCopy(*item);
+    m_category[(int)category][slot].setCopy(*item);
 }
 
 void CTitleBook::_deleteTitle(ENUM_TITLE_BOOK_CATEGORY category, int slot)
 {
     alter();
-    GetTitleSlotRaw(this, (int)category, slot)->reset();
+    m_category[(int)category][slot].reset();
 }
 
 bool CTitleBook::_checkInsertTitle(ENUM_TITLE_BOOK_CATEGORY category,
@@ -806,7 +800,7 @@ int CTitleBook::_getCategoryItemCount(ENUM_TITLE_BOOK_CATEGORY category)
     int count = 0;
     for (int i = 0; i < TITLE_BOOK_MAX[(int)category]; ++i)
     {
-        if (GetTitleSlotRaw(this, (int)category, i)->m_addInfo != 0)
+        if (m_category[(int)category][i].m_addInfo != 0)
         {
             ++count;
         }
@@ -820,7 +814,7 @@ bool CTitleBook::_empty()
     {
         for (int i = 0; i < TITLE_BOOK_MAX[category]; ++i)
         {
-            if (GetTitleSlotRaw(this, category, i)->m_addInfo != 0)
+            if (m_category[category][i].m_addInfo != 0)
             {
                 return 0;
             }
@@ -858,7 +852,7 @@ void CTitleBook::_sendCategoryData(CUser* user, unsigned short extra,
     packet.put_int(count);
     for (int i = 0; i < TITLE_BOOK_MAX[(int)category]; ++i)
     {
-        Inven_Item* item = GetTitleSlotRaw(this, (int)category, i);
+        Inven_Item* item = m_category[(int)category] + i;
         if (item->m_addInfo != 0)
         {
             _putItemData(packet, (short)i, *item);

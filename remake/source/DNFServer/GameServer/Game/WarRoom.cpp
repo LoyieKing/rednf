@@ -432,7 +432,7 @@ void WarRoom::CurSpawnStepReset()
 int WarRoom::Create(CUser* user, char* name, short idx)
 {
     m_state = 0;
-    m_slots[0] = (int)name;
+    m_slots[0] = (int)user;
     m_slotState[0] = 1;
     user->SetWarRoomIndex((short)m_index);
     return 0;
@@ -504,7 +504,7 @@ void WarRoom::Reset()
     for (int i = 0; i <= 5; ++i)
     {
         m_slots[i] = 0;
-        m_slotState[i + 1] = 0xff;
+        m_slotState[i] = 0xff;
         m_slotData[i] = 0;
     }
 }
@@ -520,7 +520,7 @@ void WarRoom::InvalidUserCheck()
                 short idx = ((CUser*)m_slots[i])->GetWarRoomIndex();
                 cMyTrace trace("void WarRoom::InvalidUserCheck()", 0x236, 5);
                 trace("WarRoom::InvalidUserCheck slot(%d) warRoomIndex(%d)", i, (int)idx);
-                m_slotState[i + 1] = 0xff;
+                m_slotState[i] = 0xff;
                 m_slots[i] = 0;
                 m_pad184[i] = 0;
             }
@@ -530,18 +530,19 @@ void WarRoom::InvalidUserCheck()
 
 int WarRoom::IsJoinable(CUser* user)
 {
-    int st = GetState();
-    if ((st == 4) || (st == 3) || (st == -1) || (st == 2))
+    if ((GetState() == 4) || (GetState() == 3) || (GetState() == -1) ||
+        (GetState() == 2))
         return 0x13;
     if (sub_CUser_isCompetitionMercenary(user) != 0)
         return 0x15;
     if (user->getCurCharacMoney() <
-        *(int*)((char*)G_CDataManager() + 4 + (m_levelBand + 0x221c) * 4))
+        *(int*)((char*)G_CDataManager() + 4 +
+                ((unsigned char)m_levelBand + 0x221c) * 4))
         return 10;
     if (sub_CUser_CheckFatigue(user) == 1)
     {
         int level = user->get_charac_level();
-        switch (m_levelBand)
+        switch ((unsigned char)m_levelBand)
         {
         case 2:
             if ((level < 0x14) || (0x1d < level))
@@ -571,7 +572,7 @@ int WarRoom::IsJoinable(CUser* user)
             return 0x1e;
         for (int i = 0; i <= 5; ++i)
         {
-            if ((m_slots[i] == 0) && (m_slotState[i + 1] == 0xff))
+            if ((m_slots[i] == 0) && (m_slotState[i] == 0xff))
                 return 0;
         }
         return 4;
@@ -591,7 +592,7 @@ int WarRoom::WalkOutUserBySlot(int slot)
     CUser* user = (CUser*)m_slots[slot];
     sub_CHackAnalyzer_reportHackInfo(user->getHackAnalyzer());
     sub_CHackAnalyzer_resetHackInfo(user->getHackAnalyzer());
-    m_slotState[slot + 1] = 0xff;
+    m_slotState[slot] = 0xff;
     sub_GameWorld_out_from_warroom(G_GameWorld(), user);
     if (m_pDungeon != 0)
     {
@@ -666,7 +667,7 @@ int WarRoom::ShutDown()
 void WarRoom::Prepare()
 {
     int dungeonIdx =
-        *(int*)((char*)G_CDataManager() + 4 + (m_levelBand + 0x2228) * 4);
+        *(int*)((char*)G_CDataManager() + 0xc + (m_levelBand + 0x2228) * 4);
     void* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
     if (dungeon == 0)
     {
@@ -745,7 +746,6 @@ void WarRoom::RemoveKC()
 
 void WarRoom::CancelAllTimer()
 {
-    int dummy;
     for (int i = 0x40; i <= 0x47; ++i)
         GenTimerKey((TIMER_MESSAGE)i);
 }
@@ -808,6 +808,7 @@ int WarRoom::HostChangeWarRoom(CUser* user, char a, unsigned long b)
 
 void WarRoom::CheckHostChange()
 {
+    bool sent = false;
     if (m_userCount > 1)
     {
         PacketGuard packet;
@@ -828,17 +829,14 @@ void WarRoom::CheckHostChange()
             packet.put_byte(bestSlot);
             packet.finalize(true);
             SendToRoom(packet);
-        }
-        else
-        {
-            goto end;
+            sent = true;
         }
     }
+    if (!sent)
+        return;
     for (int i = 0; i <= 5; ++i)
         ((int*)m_pad14)[i] = -1;
     m_userCount = 0;
-end:
-    ;
 }
 
 void WarRoom::HandleTimerTimeBomb()
@@ -903,7 +901,7 @@ void WarRoom::MakeRoomInfo(char* buf)
         ((InterfacePacketBuf*)buf)->put_short(*(int*)((char*)m_pDungeon + 0x704));
     for (int i = 0; i <= 5; ++i)
     {
-        ((InterfacePacketBuf*)buf)->put_byte(m_slotState[i + 1]);
+        ((InterfacePacketBuf*)buf)->put_byte(m_slotState[i]);
         if (m_slots[i] == 0)
             ((InterfacePacketBuf*)buf)->put_short(0xffff);
         else
@@ -930,7 +928,7 @@ void WarRoom::MakeSlotInfo(char* buf, int seat)
             if (m_slots[i] != 0)
             {
                 ((InterfacePacketBuf*)buf)->put_byte(i);
-                ((InterfacePacketBuf*)buf)->put_byte(m_slotState[i + 1]);
+                ((InterfacePacketBuf*)buf)->put_byte(m_slotState[i]);
                 ((InterfacePacketBuf*)buf)->put_short(((CUser*)m_slots[i])->get_unique_id());
             }
         }
@@ -939,7 +937,7 @@ void WarRoom::MakeSlotInfo(char* buf, int seat)
     {
         ((InterfacePacketBuf*)buf)->put_byte(1);
         ((InterfacePacketBuf*)buf)->put_byte(seat);
-        ((InterfacePacketBuf*)buf)->put_byte(m_slotState[seat + 1]);
+        ((InterfacePacketBuf*)buf)->put_byte(m_slotState[seat]);
         if (m_slots[seat] == 0)
             ((InterfacePacketBuf*)buf)->put_short(0xffff);
         else
@@ -1023,7 +1021,7 @@ void WarRoom::OnEnterState()
             else
                 m_pad184[i] = 1;
         }
-        if (GetWaiterCount() < 3)
+        if (GetWaiterCount() <= 2)
         {
             bool hasGM = false;
             for (int i = 0; i <= 5; ++i)
@@ -1063,7 +1061,8 @@ void WarRoom::OnEnterState()
             packet.clear();
             int count = GetWaiterCount();
             sub_WarField_ConsistMap((char*)&m_field, &packet, m_pDungeon,
-                                    (void*)m_fp, (m_levelBand + 1) * 10, count);
+                                    (void*)m_fp, ((unsigned char)m_levelBand + 1) * 10,
+                                    count);
             SendToRoom(packet);
             for (int i = 0; i <= 5; ++i)
             {
@@ -1101,10 +1100,10 @@ void WarRoom::OnEnterState()
                 if (m_slots[i] != 0)
                 {
                     int fp = ((CUser*)m_slots[i])->GetFinishPointTotal();
-                    int dm = *(int*)((char*)G_CDataManager() + 0x88ec);
-                    if (dm < fp)
+                    if (*(int*)((char*)G_CDataManager() + 0x88ec) < fp)
                     {
-                        ((CUser*)m_slots[i])->DecreaseWarPoint(dm);
+                        ((CUser*)m_slots[i])->DecreaseWarPoint(
+                            *(int*)((char*)G_CDataManager() + 0x88ec));
                     }
                     else
                     {
@@ -1186,10 +1185,10 @@ void WarRoom::CalcGuildFP()
     {
         if (m_slots[local_28] != 0)
         {
-            local_40[local_28] =
-                ((CUser*)m_slots[local_28])->get_charac_guildkey();
             ((int*)m_pad1a4)[local_28] =
                 ((CUser*)m_slots[local_28])->GetFinishPointTotal();
+            local_40[local_28] =
+                ((CUser*)m_slots[local_28])->get_charac_guildkey();
             if (local_40[local_28] == 0)
                 local_4c[local_28 + 6] = 1;
         }
@@ -1330,12 +1329,12 @@ void WarRoom::ClearReward()
                          ->GetCreatureMgrR()) != 0)
                     ? 0.05f
                     : 0.0f;
-            int expDouble = 0;
             int channelExp = 0;
             int serverExp = 0;
-            int burningExp = 0;
             int avatarExp = 0;
+            int eventExp = 0;
             int creatureExp = 0;
+            int premiumExp = 0;
             float expFactor = 0.0f;
             void* evt = sub_CEventManager_GetRepeatEvent(GlobalData::s_event_manager, 3);
             if ((*(unsigned char (**)(void*, int))(*(char**)evt + 0x34))(evt, 0) != 0)
@@ -1356,7 +1355,7 @@ void WarRoom::ClearReward()
             {
                 avatarExp = std::max((unsigned int)((float)baseExp * avatarRate), 1u);
             }
-            burningExp = (int)((float)baseExp * expFactor);
+            eventExp = (int)((float)baseExp * expFactor);
             if (creatureRate != 0.0f)
             {
                 creatureExp = std::max((unsigned int)((float)baseExp * creatureRate), 1u);
@@ -1366,7 +1365,7 @@ void WarRoom::ClearReward()
                 float premiumRate =
                     (float)(((CUser*)m_slots[i])->GetPremiumInfo()->GetAdvantageExpRate()) /
                     100.0f;
-                burningExp += (int)((float)baseExp * premiumRate);
+                premiumExp = (int)((float)baseExp * premiumRate);
             }
             int burningBonus = 0;
             void* burning =
@@ -1379,8 +1378,8 @@ void WarRoom::ClearReward()
                 if (rate2 != 0)
                     burningBonus = (rate2 * baseExp) / 100;
             }
-            int total = avatarExp + baseExp + burningExp + serverExp + channelExp + burningBonus +
-                        creatureExp;
+            int total = avatarExp + baseExp + premiumExp + serverExp + channelExp +
+                        burningBonus + creatureExp;
             int upperExp = sub_CUser_gainExpAsUpperMember((void*)m_slots[i], baseExp);
             total += upperExp;
             int guildExp = sub_CUser_gainGuildSkillExp((void*)m_slots[i], baseExp);
@@ -1402,7 +1401,7 @@ void WarRoom::ClearReward()
             packet1.put_int(((CUser*)m_slots[i])->GetFinishPointTotal());
             packet1.put_int(baseExp + serverExp + burningBonus);
             packet1.put_int(avatarExp);
-            packet1.put_int(burningExp);
+            packet1.put_int(premiumExp);
             packet1.put_int(channelExp);
             packet1.put_int(upperExp);
             packet1.put_int(creatureExp);
@@ -1453,7 +1452,7 @@ int WarRoom::Join(CUser* user, int& seat)
     int slot = -1;
     for (int i = 0; i <= 5; ++i)
     {
-        if ((m_slots[i] == 0) && (m_slotState[i + 1] == 0xff))
+        if ((m_slots[i] == 0) && (m_slotState[i] == 0xff))
         {
             slot = i;
             m_slots[i] = (int)user;
@@ -1474,7 +1473,7 @@ int WarRoom::Join(CUser* user, int& seat)
                                          m_pDungeon->GetDungeonName(),
                                          (unsigned char)m_levelBand);
     }
-    m_slotState[slot + 1] = 0;
+    m_slotState[slot] = 0;
     m_pad184[slot] = 1;
     packet1.clear();
     packet1.put_header(0, 2);
@@ -1515,12 +1514,12 @@ int WarRoom::Join(CUser* user, int& seat)
 
 void WarRoom::SetCharacterLive(int seat, CUser* user, bool live, bool a, short b, int c)
 {
-    m_pad184[seat] = live ? 1 : 0;
+    m_pad184[seat] = live;
     PacketGuard packet;
     packet.put_header(0, 0x5f);
     packet.put_byte(GetUserSlot(user));
-    packet.put_byte(live ? 1 : 0);
-    packet.put_byte(a ? 1 : 0);
+    packet.put_byte(live);
+    packet.put_byte(a);
     if (((c == 0xff) || (c < 0)) || (c > 5) || (m_slots[c] == 0))
     {
         packet.put_short(0);
@@ -1553,7 +1552,7 @@ int WarRoom::SetSlotState(CUser* user, int seat, ENUM_SEAT_STATE state, CUser** 
         else
         {
             *out = (CUser*)m_slots[seat];
-            m_slotState[seat + 1] = 0xff;
+            m_slotState[seat] = 0xff;
             m_slots[seat] = 0;
             m_pad184[seat] = 0;
             a = true;
@@ -1839,11 +1838,7 @@ int WarRoom::HandleWpPerMonster(CUser* user, int a, int b, CUser* killer)
         {
             if (m_slots[i] != 0)
             {
-                if ((killer == 0) || ((CUser*)m_slots[i] != killer))
-                {
-                    // 非击杀者：跳过
-                }
-                else
+                if ((killer != 0) && ((CUser*)m_slots[i] == killer))
                 {
                     wp = sub_WarField_HandleWpPerMonster((char*)&m_field, killer, a,
                                                          b, &monster);
@@ -1895,7 +1890,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
         user->Send(packet);
         result = 0;
     }
-    else if (fieldItem.m_itemIndex == 0)
+    else if (fieldItem.m_item.m_addInfo == 0)
     {
         int money = fieldItem.m_item.get_add_info();
         packet.put_header(0, 0x5d);
@@ -1933,7 +1928,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
     }
     else
     {
-        int itemIdx = fieldItem.m_itemIndex;
+        int itemIdx = fieldItem.m_item.m_addInfo;
         CItem* item = G_CDataManager()->find_item(itemIdx);
         if (item == 0)
         {
@@ -1996,7 +1991,7 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                             (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)5,
                             user->getCurCharacNo(), ipg);
                         added = user->addAvatarItem(
-                            (unsigned long)fieldItem.m_itemIndex, 0,
+                            (unsigned long)fieldItem.m_item.m_addInfo, 0,
                             *(char*)((char*)&fieldItem.m_item + 0x0b), ipg,
                             (eAvatarItemAddReason)0x11);
                     }
@@ -2076,10 +2071,10 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         if (d == 0)
         {
             field.m_count = 0;
-            field.m_pad1[1] = 2;
-            field.m_itemIndex = 0;
+            field.m_item.m_field1 = 2;
+            field.m_item.m_addInfo = 0;
             field.m_item.set_add_info(e);
-            field.m_dropIndex = 0;
+            field.m_item.m_fieldb = 0;
             field.m_item.ResetItemAttr();
         }
         else
@@ -2124,8 +2119,8 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
             return 0x17;
         }
         field.m_count = 0;
-        field.m_pad1[1] = item.m_field1;
-        field.m_itemIndex = itemIdx;
+        field.m_item.m_field1 = item.m_field1;
+        field.m_item.m_addInfo = itemIdx;
         if (item.isEquipableItemType() != 0)
         {
             field.m_item.set_add_info(item.m_addInfo2);
@@ -2135,10 +2130,19 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
             field.m_item.set_add_info(e);
         }
         field.m_item.SetItemAttr(item.GetItemAttr());
-        field.m_dropIndex = *(unsigned short*)((char*)&item + 0x0c);
-        field.m_item = item;
-        *(int*)((char*)&field.m_item + 0x0d) = *(int*)((char*)&item + 0x0d);
-        field.m_item.m_amp = item.m_amp;
+        field.m_item.m_fieldb = item.m_fieldb;
+        field.m_item.m_field0 = item.m_field0;
+        field.m_item.m_fieldd = item.m_fieldd;
+        *(int*)((char*)&field.m_item + 0x15) = *(int*)((char*)&item + 0x15);
+        *(int*)((char*)&field.m_item + 0x19) = *(int*)((char*)&item + 0x19);
+        *(unsigned short*)((char*)&field.m_item + 0x1d) =
+            *(unsigned short*)((char*)&item + 0x1d);
+        *(int*)((char*)&field.m_item + 0x11) = *(int*)((char*)&item + 0x11);
+        *(int*)((char*)&field.m_item + 0x25) = *(int*)((char*)&item + 0x25);
+        *(int*)((char*)&field.m_item + 0x29) = *(int*)((char*)&item + 0x29);
+        *(int*)((char*)&field.m_item + 0x2d) = *(int*)((char*)&item + 0x2d);
+        *(unsigned short*)((char*)&field.m_item + 0x31) =
+            *(unsigned short*)((char*)&item + 0x31);
         sub_UpgradeSeparateInfo_SetUpgradeSeparate(
             &field.m_item.m_upgradeSep, item.m_upgradeSep.GetUpgradeSeparate());
         int price2;
@@ -2225,13 +2229,13 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
     }
     if (item.m_field1 != 1)
     {
-        if ((field.m_itemIndex != 0) && (field.m_item.get_add_info() > 0x7d0))
+        if ((field.m_item.m_addInfo != 0) && (field.m_item.get_add_info() > 0x7d0))
         {
             cMyTrace trace(
                 "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xb00,
                 4);
             trace("war room drop item(%d) stack size over %d add_info(%d)",
-                  field.m_itemIndex, 0x7d0, field.m_item.get_add_info());
+                  field.m_item.m_addInfo, 0x7d0, field.m_item.get_add_info());
         }
     }
     int dropIdx = sub_WarField_DropItem((char*)&m_field, field);
@@ -2243,7 +2247,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
     packet.put_short(a);
     packet.put_short(b);
     packet.put_short(dropIdx);
-    packet.put_int(field.m_itemIndex);
+    packet.put_int(field.m_item.m_addInfo);
     packet.put_byte(field.m_item.GetItemAttr());
     packet.put_int(field.m_item.get_add_info());
     packet.put_short(*(unsigned short*)((char*)&field.m_item + 0x0b));

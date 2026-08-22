@@ -2809,13 +2809,22 @@ int PvP_Room::reset()
 int PvP_Room::calculate_pvp_point()
 {
     m_userTable.Clear();
-    for (int local_f4 = 0; local_f4 < 8; local_f4 = local_f4 + 1)
+    for (int local_10 = 0; local_10 < 8; local_10 = local_10 + 1)
     {
-        if (P_SEATS(local_f4) != 0)
+        if ((P_SEATS(local_10) != 0) &&
+            (IsPvpObserver(local_10) == 0))
         {
-            m_userTable.Set(get_team(local_f4), P_SEATS(local_f4));
+            if ((m_pvpBattleMode == 1) || (m_pvpBattleMode == 4))
+            {
+                m_userTable.Set(local_10, P_SEATS(local_10));
+            }
+            else
+            {
+                m_userTable.Set(P_TEAMWIN(local_10), P_SEATS(local_10));
+            }
         }
     }
+    m_userTable.Calculate();
 }
 
 int PvP_Room::update_pvp_point()

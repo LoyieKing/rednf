@@ -82,6 +82,13 @@ enum ENUM_QUEST_ENEMY_TYPE { ENUM_QUEST_ENEMY_TYPE_0 = 0 };
 #ifndef DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
 #define DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
 enum ENUM_PREMIUM_TYPE { ENUM_PREMIUM_TYPE_0 = 0 };
+
+// ENUM_DUNGEON_MODE：与 CBattle_Field_deps.h / CParty.h 共享守卫，避免重定义；
+// cUserHistoryLog::DungeonClearInfo 声明需要（GameEnums.h 并无此类型）。
+#ifndef DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
+#define DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
+enum ENUM_DUNGEON_MODE { ENUM_DUNGEON_MODE_0 = 0 };
+#endif
 #endif
 
 struct STPremiumItemData
@@ -609,7 +616,7 @@ public:
     bool m_field544;   // +0x544（0x8e934 setRestingUserRestrict）
     char m_pad545[1];  // +0x545
     short m_field546;  // +0x546（0x8e936 setPunishTradeAlert）
-    char m_pad548[0x54c - 0x548];
+    int m_lastLotteryTime;  // +0x548（0x8e938 getLastLotteryTime）
     char m_field54c;   // +0x54c
     char m_pad54d[0x561 - 0x54d];
     bool m_field561;   // +0x561（0x8e951 isARSUserKick）
@@ -638,7 +645,7 @@ public:
 
     char m_pad[0x28];    // +0x00..0x27
     int m_field28;       // +0x28（0x79624 getStdDropRate）
-    char m_pad2c[4];     // +0x2c..0x2f
+    int m_tradePunishType;  // +0x2c（0x79628 GetTradePunishType）
     char m_field30;      // +0x30
     bool m_field31;      // +0x31（0x7962d tournament account）
     char m_pad32[2];     // +0x32..0x33
@@ -870,6 +877,13 @@ public:
 };
 
 // 用户侧限购数据（CUser +0x8d1e4，尺寸 0x69）
+// 注意：map 类型须在 pack 外先行实例化（GCC 4.4 pack 会压缩模板内部布局），
+// 使 pack(1) 仅压缩 UserInfo 自身成员对齐（无尾部填充，0x69）。
+struct CerashopUserInfoMapPrelude {
+    std::map<unsigned int, paramDaily*> preludeDaily;
+    std::map<unsigned int, unsigned int> preludeUInt;
+};
+#pragma pack(push, 1)
 class UserInfo
 {
 public:
@@ -887,6 +901,7 @@ public:
     int m_ontimeLastRecvIdx;                             // +0x64
     bool m_updateOntime;                                 // +0x68
 };
+#pragma pack(pop)
 }
 
 #pragma pack(push, 1)
@@ -1070,7 +1085,10 @@ public:
     PISenderManager();
     ~PISenderManager();
 
-    char m_pad[0x10];  // +0x00
+    char m_pad[8];       // +0x00..0x07
+    unsigned char m_nonClientFlag;   // +0x08（0x8eaf4 GetNonClientFlag）
+    char m_pad9[3];      // +0x09..0x0b
+    int m_nonClientRandInt;          // +0x0c（0x8eaf8 GetNonClientRandInt）
     unsigned char m_field10;  // +0x10
     char m_pad11[3];   // +0x11..0x14
 };
@@ -1165,7 +1183,7 @@ struct MSG_MAILBOX_SEND;
 class cUserHistoryLog
 {
 public:
-    cUserHistoryLog() {}
+    cUserHistoryLog();               // ORIG 0x8695fe4：清零 m_user（C1/C2 同址）
     ~cUserHistoryLog() {}
 
     void SetUser(CUser* user);
@@ -1177,6 +1195,8 @@ public:
                  const Inven_Item& item, eItemDelReason reason);
     void MoneyAdd(int money, int add, eMoneyAddReason reason);
     void MoneySub(int money, int sub, eMoneySubReason reason);
+    void MoneyAddTrade(int money, int add, eMoneyAddReason reason);  // ORIG 0x8683ae0
+    void MoneySubTrade(int money, int sub, eMoneySubReason reason);  // ORIG 0x8683b38
     void CoinSub(int coin, int sub, eCoinSubReason reason);
     void EventCoinSub(int coin, int sub, eCoinSubReason reason);
     void PayCoinSub(int coin, int sub, eCoinSubReason reason);
@@ -1186,7 +1206,10 @@ public:
     void LeaveDungeon(const char* dungeonName, int level);
     void LeaveDungeon(const char* dungeonName, int unk, const char* memberNames, int state);
     void LeaveDungeon(int dungeonIdx, int unk, const char* memberNames, int state);
-    void DungeonClearInfo(int isLast, int playTimeSec);
+    void DungeonClearInfo(int isLast, long playTimeSec);  // ORIG 0x8684ac4
+    void DungeonClearInfo(int isLast, long playTimeSec, int idx, int mode2,
+                          int val2, ENUM_DUNGEON_MODE dungeonMode,
+                          const char* name, int val3);     // ORIG 0x8684a6e
     void CreatureItemAdd(INVEN_TYPE invenType, int itemIdx, int count, int addInfo,
                          int type, eItemAddReason reason);
     void InitSkill(int treeKind, int level, int sp, int sfp,
@@ -1222,10 +1245,15 @@ public:
     void TradeEnd(eTradeEndReason reason, int a, int b, int c, int d);
     void TradeItemAddFail(int a, int b);
     void AchievementComplete(int idx);
+    void RedeemItemAdd(int a, int b);   // ORIG 0x8686990
     void pvpMissionAdd(int a, int b, int c, int d);
     void pvpMissionDel(int a, int b);
 
-    char m_pad[0x44];  // +0x00
+    // ---- 布局（ORIG 尺寸 0x44：+0x22/+0x04 字符串 + 尾部对齐） ----
+    CUser* m_user;                   // +0x00（SetUser 写入 / ctor 清零）
+    char m_traderAccount[0x1e];      // +0x04（SetTrader param2 / strncpy 0x1e）
+    char m_traderCharac[0x1e];       // +0x22（SetTrader param1 / strncpy 0x1e，首字节当标志）
+    char m_pad[0x04];                // +0x40
 };
 
 class CUser : public CUserCharacInfo
@@ -1300,7 +1328,7 @@ public:
     char m_field796cc;                                      // +0x796cc
     char m_pad796cd[3];                                     // +0x796cd..0x796cf
     int m_field796d0;                                       // +0x796d0
-    char m_pad796d4[4];                                     // +0x796d4..0x796d7
+    int m_mileage;                                          // +0x796d4 (GetMileage/SetMileage)
     char m_field796d8;                                      // +0x796d8
     char m_field796d9;                                      // +0x796d9
     char m_pad796da[0xa];                                   // +0x796da..0x796e3
@@ -1398,7 +1426,9 @@ public:
     std::string m_str8e080;                                 // +0x8e080
     short m_dailyBadge[3];                                  // +0x8e084..0x8e089
     unsigned char m_tutorialSkipable;                       // +0x8e08a
-    char m_pad8e08b[9];                                     // +0x8e08b..0x8e093
+    char m_pad8e08b;                                        // +0x8e08b
+    int m_field8e08c;                                       // +0x8e08c（FatigueUp 写入）
+    int m_debugCommand;                                     // +0x8e090（GetDebugCommand/SetDebugCommand）
     unsigned int m_field8e094;                              // +0x8e094
     char m_pad8e098[0x60];                                  // +0x8e098..0x8e0f7
     int m_humanCertifyTimerKey;                             // +0x8e0f8
@@ -1413,7 +1443,8 @@ public:
     std::map<std::pair<char, char>, int> m_map8eabc;        // +0x8eabc
     char m_pad8ead4[4];                                     // +0x8ead4..0x8ead7
     char m_field8ead8;                                      // +0x8ead8
-    char m_pad8ead9[7];                                     // +0x8ead9..0x8eadf
+    char m_pad8ead9[3];                                     // +0x8ead9..0x8eadb
+    unsigned int m_ceraPoint;                               // +0x8eadc（GetCeraPoint/SetCeraPoint）
     bool m_field8eae0;                                      // +0x8eae0
     char m_pad8eae1[3];                                     // +0x8eae1..0x8eae3
     PIReceiverManager m_piReceiver;                         // +0x8eae4
@@ -1799,6 +1830,7 @@ public:
     int get_unique_id() const;
     int get_pvp_WinningRate_relateMission() const;  // ORIG 0x86626e0
     void* GetParty();
+    int GetUserPosInParty();      // 0x08688638
     void* GetWarRoom();
     void set_growth_power_exp_reward(int reward);
     int get_growth_power_exp_reward();
@@ -2052,6 +2084,7 @@ public:
     void deleteSpecificItems(const std::vector<std::pair<int, int> >* list);   // (末尾)
     void ProcPremiumFatigue();                                                 // 0x0867cbe4
     bool IsPremiumUser() const;                                                // 0x0867cd20
+    int SaveInventory();                                                       // 0x0864fe52
 
 };
 

@@ -360,7 +360,9 @@ void CMissionList_Charac::Update_RecvPacket_event(
                 if (mission)
                 {
                     int kind = mission->GetMissionKind();
-                    if ((kind != 6) && (kind != 0x15))
+                    // ORIG 0x85e5caa: 只对 kind 6/0x15（偷窃技能任务）执行 check_mission_kind；
+                    // 其它 kind 记 HackUser 日志（本实现省略该 trace 副作用，不影响核心逻辑）
+                    if ((kind == 6) || (kind == 0x15))
                     {
                         check_mission_kind(kind, user, param, values);
                     }
@@ -558,7 +560,8 @@ bool CMissionList_Charac::MakeMissionList_JustKind(const CUser& user,
 
 void CMissionList_Charac::addNewMission(const MissionInfo& info)
 {
-    if (G_CDataManager()->find_mission(info.m_kind))
+    // ORIG 0x85e4c6c: find_mission 以 MissionInfo.index（+2）判定存在性，slot 以 kind（+0）索引
+    if (G_CDataManager()->find_mission(info.m_index))
     {
         m_missionList[info.m_kind].m_kind = info.m_kind;
         m_missionList[info.m_kind].m_index = info.m_index;

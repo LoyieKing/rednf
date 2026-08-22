@@ -25,6 +25,7 @@ class CDungeon;
 class CItem;
 class CMonster;
 class CSkill;
+class CWorldMap;
 class Quest;
 class CMTRand;   // 全局 MT19937（PvP_deps.h/CMTRand.cpp 定义）
 
@@ -596,8 +597,9 @@ class CWorldMapList
 public:
     CWorldMapList();
     ~CWorldMapList();
+    CWorldMap* find_world_map(int idx) const;  // ORIG T 0x83647a2（const）
 private:
-    char m_pad[0x18];
+    std::map<int, CWorldMap*> m_map;   // +0x00（ORIG CWorldMapList 即一个 map<int,CWorldMap*>）
 };
 
 class StageMapList
@@ -619,7 +621,14 @@ public:
     int GetWarRoomCountFirstIndex(int idx);
     int GetWarRoomCountLastIndex(int idx);
 private:
-    char m_pad[0x504];
+    // 布局依据 ORIG 构造/GetCurrenTimeTable/GetWarRoomCountAtPeekTime
+    // 直访偏移推导（WarField.cpp 原以 (char*)this+0x.. 裸偏移访问，现改为具名）。
+    int m_timeHourList[34];        // +0x60..+0xe7（当日各时段起始小时，34 int）
+    int m_curHourIdx;              // +0xe8（当前时段索引）
+    char m_pad_ec[0x140 - 0xe8 - 4]; // +0xec..+0x13f（补齐）
+    int m_num;                     // +0x140（时段数）
+    int m_warRoomCount[10][10];    // +0x144..+0x2d3（[curHourIdx][idx] 目标房间数）
+    char m_pad_2d4[0x504 - 0x144 - 100 * 4]; // +0x2d4..+0x503（补齐 sizeof 0x504）
 };
 
 class QuestParameterScript
@@ -918,10 +927,12 @@ private:
 struct pvp_channel_info_t
 {
     pvp_channel_info_t();
-    char m_pad[0xc];
-    int m_upgradeRevision;      // +0x0c
+    char m_pad8[0x8];       // +0x00 (头部；+0x8 为 max grade 字段)
+    int m_maxGrade;         // +0x08（GetMaxGradePvPChannel ORIG 0x822b65a 返回）
+    int m_upgradeRevision;  // +0x0c
     char m_pad10[0x14];
-    PvP_MissionSystem* m_pvpMissionSystem;        // +0x24
+    PvP_MissionSystem* m_pvpMissionSystem;  // +0x24
+
 };
 
 class stItemMakingSkill

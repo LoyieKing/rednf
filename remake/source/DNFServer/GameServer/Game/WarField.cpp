@@ -752,14 +752,14 @@ void* WarAreaCounter::GetCurrenTimeTable()
     struct tm tmbuf;
     struct tm* ptm = localtime_r(&t, &tmbuf);
     int curHour = ptm->tm_hour;
-    int num = *(int*)((char*)this + 0x140);
+    int num = m_num;
     int i = 0;
     for (; i < num - 1; ++i)
     {
-        int t0 = *(int*)((char*)this + 0x60 + i * 4);
+        int t0 = m_timeHourList[i];
         if (t0 > curHour)
             continue;
-        int t1 = *(int*)((char*)this + 0x60 + (i + 1) * 4);
+        int t1 = m_timeHourList[i + 1];
         if (t1 > curHour)
             break;
     }
@@ -777,8 +777,8 @@ int WarAreaCounter::GetWarRoomCountAtPeekTime(int idx)
             "WarAreaCounter GetWarRoomCountAtPeekTime error idx(%d)", idx);
         return 0;
     }
-    int cur = *(int*)((char*)this + 0xe8);
-    return *(int*)((char*)this + 0x144 + (cur * 10 + idx) * 4);
+    int cur = m_curHourIdx;
+    return m_warRoomCount[cur][idx];
 }
 
 // ORIG 0x82a3df4 W（_ZN14WarAreaCounter25GetWarRoomCountFirstIndexEi）：
@@ -792,11 +792,11 @@ int WarAreaCounter::GetWarRoomCountFirstIndex(int idx)
             "WarAreaCounter GetWarRoomCountFirstIndex error idx(%d)", idx);
         return 0;
     }
-    int cur = *(int*)((char*)this + 0xe8);
+    int cur = m_curHourIdx;
     int sum = 0;
     for (int j = 0; j < idx; ++j)
     {
-        sum += *(int*)((char*)this + 0x144 + (cur * 10 + j) * 4);
+        sum += m_warRoomCount[cur][j];
     }
     return sum;
 }
@@ -812,11 +812,11 @@ int WarAreaCounter::GetWarRoomCountLastIndex(int idx)
             "WarAreaCounter GetWarRoomCountLastIndex error idx(%d)", idx);
         return 0;
     }
-    int cur = *(int*)((char*)this + 0xe8);
+    int cur = m_curHourIdx;
     int sum = 0;
     for (int j = 0; j <= idx; ++j)
     {
-        sum += *(int*)((char*)this + 0x144 + (cur * 10 + j) * 4);
+        sum += m_warRoomCount[cur][j];
     }
     return sum;
 }

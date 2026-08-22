@@ -195,6 +195,8 @@ dnf_service(game
         ${SVC_DIR}/Statistics.cpp
         ${SVC_DIR}/StatisticsNatType.cpp
         ${SVC_DIR}/StatisticsPvP.cpp
+        ${SVC_DIR}/CCubeStatistic.cpp
+
         ${SVC_DIR}/StatisticsShusiaService.cpp
         ${SVC_DIR}/StatisticsToObserveCrash.cpp
         ${SVC_DIR}/TournamentMonster.cpp
@@ -267,6 +269,7 @@ dnf_service(game
         ${SVC_DIR}/BestClearTime.cpp
         ${SVC_DIR}/EventAvatarListScript.cpp
         ${SVC_DIR}/EventCharacterParameterScript.cpp
+        ${SVC_DIR}/EventNewCharacterReward.cpp
         ${SVC_DIR}/GameUtils.cpp
         ${SVC_DIR}/CItemDictionary.cpp
         ${SVC_DIR}/STNameList.cpp

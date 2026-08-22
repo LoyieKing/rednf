@@ -580,40 +580,57 @@ CGameManager* G_CGameManager()
 
 bool CGameManager::init()
 {
-    void* pMgr = new (std::nothrow) char[0x6c];
-    sub_CraneMinigameManager_ctor(pMgr);
+    void* pMgr = operator new(0x6c);
+    try
+    {
+        sub_CraneMinigameManager_ctor(pMgr);
+    }
+    catch (...)
+    {
+        operator delete(pMgr);
+        throw;
+    }
     m_pCraneMinigameMgr = (CraneMinigameManager*)pMgr;
-    pMgr = (void*)GetCraneMinigameManager();
-    return sub_CraneMinigameManager_init(pMgr) == 1;
+    return sub_CraneMinigameManager_init((void*)GetCraneMinigameManager()) == 1;
 }
 
 short CGameManager::getNextUID()
 {
-    m_uid = m_uid + 1;
-    short v = m_uid;
-    if (v == 0x7fff || v < 0)
+    m_uid = (short)(m_uid + 1);
+    unsigned short v = m_uid;
+    if (m_uid == 0x7fff || m_uid < 0)
         m_uid = 0;
-    return v;
+    return (short)v;
 }
 
 int CGameManager::GetIdx(CUser* user)
 {
-    return m_userPool.GetIndex(user);
+    int idx = m_userPool.GetIndex(user);
+    return idx;
 }
 
 CUser* CGameManager::GetUserByAccId(unsigned int accId)
 {
-    std::map<unsigned int, CUser*>::iterator it = m_userByAccId.find(accId);
+    std::map<unsigned int, CUser*>::iterator it;
+    it = m_userByAccId.find(accId);
+    CUser* user;
     if (it == m_userByAccId.end())
-        return 0;
-    CUser* user = it->second;
-    if (user->get_acc_id() != accId)
     {
-        cMyTrace tr("CUser* CGameManager::GetUserByAccId(memberIdentificationNumber_t)", 0x9ab, 5);
-        tr("[%s][%d][IN m_id: %s][Map m_id: %s]",
-           "CUser* CGameManager::GetUserByAccId(memberIdentificationNumber_t)", 0x9ab,
-           NumberToString(accId, 0), NumberToString(user->get_acc_id(), 1));
         user = 0;
+    }
+    else
+    {
+        user = it->second;
+        if (user->get_acc_id() != accId)
+        {
+            const char* mapId = NumberToString(user->get_acc_id(), 1);
+            const char* inId = NumberToString(accId, 0);
+            cMyTrace tr("CUser* CGameManager::GetUserByAccId(memberIdentificationNumber_t)", 0x9ab, 5);
+            tr("[%s][%d][IN m_id: %s][Map m_id: %s]",
+               "CUser* CGameManager::GetUserByAccId(memberIdentificationNumber_t)", 0x9ab,
+               inId, mapId);
+            user = 0;
+        }
     }
     return user;
 }
@@ -632,30 +649,38 @@ bool CGameManager::FindUserByUnique::operator()(
 
 CUser* CGameManager::getUserByUnique(short uniqueId)
 {
-    std::map<unsigned int, CUser*>::iterator it = std::find_if(
-        m_userByAccId.begin(), m_userByAccId.end(), FindUserByUnique(uniqueId));
-    if (it == m_userByAccId.end())
-        return 0;
-    return it->second;
+    std::map<unsigned int, CUser*>::iterator it;
+    it = std::find_if(m_userByAccId.begin(), m_userByAccId.end(),
+                      FindUserByUnique(uniqueId));
+    if (it != m_userByAccId.end())
+        return it->second;
+    return 0;
 }
 
 CUser* CGameManager::getUser(int slotId, int increId)
 {
-    short slot = (short)((unsigned int)increId >> 0x10);
-    short id = (short)increId;
+    short slot = (short)(slotId >> 0x10);
+    short id = (short)slotId;
     Guard<Mutex> guard(&m_mutex);
     CUser* user = m_userPool.Get((int)slot);
     if (user == 0)
     {
         cMyTrace tr("CUser* CGameManager::getUser(int, int)", 0x95c, 5);
         tr(" No way! getUser , slot_id(%d) is abnormal!", (int)slot);
-        return 0;
+        user = 0;
     }
-    short incre = user->GetIncreID();
-    if (incre == 0)
-        return 0;
-    if (incre != id && incre != 0 && id != 0)
-        return 0;
+    else
+    {
+        short incre = user->GetIncreID();
+        if (incre == 0)
+        {
+            user = 0;
+        }
+        else if (incre != id && incre != 0 && id != 0)
+        {
+            user = 0;
+        }
+    }
     return user;
 }
 
@@ -666,8 +691,9 @@ void CGameManager::insertUserByAccID(CUser* user)
     unsigned int accId2 = user->get_acc_id();
     if (accId2 == 0)
     {
+        const char* name = user->get_acc_name();
         cMyTrace tr("void CGameManager::insertUserByAccID(CUser*)", 0x91d, 5);
-        tr("[QQID_ERROR]CGameManager::insertUserByAccID  qq_id:%s", user->get_acc_name());
+        tr("[QQID_ERROR]CGameManager::insertUserByAccID  qq_id:%s", name);
     }
     else
     {
@@ -695,23 +721,30 @@ CUser* CGameManager::createUser()
     {
         cMyTrace tr("CUser* CGameManager::createUser()", 0x8e3, 5);
         tr("createUser Failed! need to restart!");
-        return 0;
+        user = 0;
     }
-    unsigned int uid = user->GetUID();
-    unsigned int accId = user->get_acc_id();
-    check_user_var(user);
-    int idx = GetIdx(user);
-    user->SetSlotIDX((short)idx);
-    int err = m_userPool.GetLastErrorCode();
-    if (err != 0)
+    else
     {
-        cMyTrace tr("CUser* CGameManager::createUser()", 0x8f6, 0);
-        tr("STATIC MEMORY_POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
-           err, user, NumberToString(accId, 0), uid, user->GetUID());
+        unsigned int uid = user->GetUID();
+        unsigned int accId = user->get_acc_id();
+        check_user_var(user);
+        int idx = GetIdx(user);
+        user->SetSlotIDX((short)idx);
+        int err = m_userPool.GetLastErrorCode();
+        if (err != 0)
+        {
+            unsigned int newUid = user->GetUID();
+            const char* lastId = NumberToString(accId, 0);
+            cMyTrace tr("CUser* CGameManager::createUser()", 0x8f6, 0);
+            tr("STATIC MEMORY_POOL createUser error(%d), user(%x), last user m_acc_id(%s), idx(%d), new user idx(%d)",
+               err, user, lastId, uid, newUid);
+        }
+        short nxt = getNextUID();
+        user->SetIncreID(nxt);
+        unsigned short uniqueId =
+            sub_CUserGlobalInfoHandle_get_uniqueid(CUserGlobalInfoHandleInstance());
+        user->set_unique_id(uniqueId);
     }
-    short nxt = getNextUID();
-    user->SetIncreID(nxt);
-    user->set_unique_id((unsigned short)user->GetUID());
     return user;
 }
 void CGameManager::check_user_var(CUser* user)
@@ -776,32 +809,34 @@ void CGameManager::check_user_var(CUser* user)
 
 void CGameManager::returnUserPool(CUser* user)
 {
-    if (user == 0)
-        return;
-    unsigned int accId = user->get_acc_id();
-    std::map<unsigned int, CUser*>::iterator it = m_userByAccId.find(accId);
-    if (it != m_userByAccId.end())
+    if (user != 0)
     {
-        m_userByAccId.erase(it);
-        sub_CLogGameChannel_IncOutUser(GlobalData::s_pLogGameChannel);
-    }
-    unsigned int accId2 = user->get_acc_id();
-    std::map<unsigned int, CUser*>::iterator it2 = m_userByAccId2.find(accId2);
-    if (it2 != m_userByAccId2.end())
-    {
-        m_userByAccId2.erase(it2);
-    }
-    unsigned int uid = user->GetUID();
-    unsigned int accId3 = user->get_acc_id();
-    sub_CUser_log_out(user);
-    Guard<Mutex> guard(&m_mutex);
-    m_userPool.Free(user);
-    int err = m_userPool.GetLastErrorCode();
-    if (err != 0)
-    {
-        cMyTrace tr("void CGameManager::returnUserPool(CUser*)", 0xa0e, 0);
-        tr("STATIC MEMORY_POOL returnUserPool error(%d), user(%x), last user m_acc_id(%s), idx(%d)",
-           err, user, NumberToString(accId3, 0), uid);
+        unsigned int accId = user->get_acc_id();
+        std::map<unsigned int, CUser*>::iterator it = m_userByAccId.find(accId);
+        if (it != m_userByAccId.end())
+        {
+            m_userByAccId.erase(it);
+            sub_CLogGameChannel_IncOutUser(GlobalData::s_pLogGameChannel);
+        }
+        unsigned int accId2 = user->get_acc_id();
+        std::map<unsigned int, CUser*>::iterator it2 = m_userByAccId2.find(accId2);
+        if (it2 != m_userByAccId2.end())
+        {
+            m_userByAccId2.erase(it2);
+        }
+        unsigned int uid = user->GetUID();
+        unsigned int accId3 = user->get_acc_id();
+        sub_CUser_log_out(user);
+        Guard<Mutex> guard(&m_mutex);
+        m_userPool.Free(user);
+        int err = m_userPool.GetLastErrorCode();
+        if (err != 0)
+        {
+            const char* lastId = NumberToString(accId3, 0);
+            cMyTrace tr("void CGameManager::returnUserPool(CUser*)", 0xa0e, 0);
+            tr("STATIC MEMORY_POOL returnUserPool error(%d), user(%x), last user m_acc_id(%s), idx(%d)",
+               err, user, lastId, uid);
+        }
     }
 }
 
@@ -813,16 +848,15 @@ CParty* CGameManager::GetParty()
     CParty* party = m_partyPool.Acquire();
     if (party == 0)
         return 0;
-    int idx = m_partyPool.GetIndex(party);
-    party->SetIDX(idx);
+    party->SetIDX(m_partyPool.GetIndex(party));
     int partyIndex = party->GetPartyIndex();
     __gnu_cxx::hash_map<int, CParty*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<CParty*> >::iterator it = m_partyMap.find(partyIndex);
     if (it == m_partyMap.end())
     {
-        int key = party->GetPartyIndex();
-        m_partyMap[key] = party;
+        m_partyMap[party->GetPartyIndex()] = party;
+        return party;
     }
     else
     {
@@ -844,7 +878,8 @@ CParty* CGameManager::GetParty(int index)
 
 int CGameManager::GetPartyIdx(CParty* party)
 {
-    return m_partyPool.GetIndex(party);
+    int idx = m_partyPool.GetIndex(party);
+    return idx;
 }
 
 void CGameManager::PutParty(CParty* party)
@@ -865,43 +900,47 @@ void CGameManager::PutParty(CParty* party)
 
 void CGameManager::CheckOutParty(CUser* user, bool flag)
 {
-    if (user->CheckInParty() != 1)
-        return;
-    user->GetPartyIndex();
-    CParty* party = GetParty();
-    if (party == 0)
-        return;
-    bool bVar1 = false;
-    void* dungeon = *(void**)((char*)party + 0xcac);
-    if (dungeon != 0)
+    if (user->CheckInParty() == 1)
     {
-        bVar1 = *(char*)((char*)dungeon + 0x89f) > 0;
-        if (sub_CDungeon_isTowerOfDespairDungeon(dungeon))
-            bVar1 = true;
+        CParty* party = GetParty(user->GetPartyIndex());
+        if (party != 0)
+        {
+            bool bVar1 = false;
+            void* dungeon = *(void**)((char*)party + 0xcac);
+            if (dungeon != 0)
+            {
+                bVar1 = *(char*)((char*)dungeon + 0x89f) > 0;
+                if (sub_CDungeon_isTowerOfDespairDungeon(dungeon))
+                    bVar1 = true;
+            }
+            bool bVar2 = false;
+            if (dungeon != 0)
+            {
+                char c = sub_CDungeon_get_dimension_possible(dungeon);
+                if (c < 1 && *(char*)((char*)dungeon + 0x89c) == 0 &&
+                    !sub_CDungeon_isTournamentDungeon(dungeon))
+                    bVar2 = false;
+                else
+                    bVar2 = true;
+                if (bVar2)
+                    bVar1 = true;
+            }
+            sub_CDungeonClearTracer_Trace((char*)party + 0xc7c,
+                                          "void CGameManager::CheckOutParty(CUser*, bool)");
+            if (*(int*)((char*)party + 0xcd8) != 1 && party->get_state() == 2)
+            {
+                bVar2 = false;
+                if (dungeon != 0 && *(char*)((char*)dungeon + 0x85c) != 0)
+                    bVar2 = true;
+                bool bVar3 = false;
+                if (dungeon != 0 && *(char*)((char*)dungeon + 0x87a) != 0)
+                    bVar3 = true;
+                if (!bVar1 && bVar2 && bVar3)
+                    sub_CUser_giveup_panalty(user);
+            }
+            sub_CParty_leave_user(party, user, 2);
+        }
     }
-    if (dungeon != 0)
-    {
-        char c = sub_CDungeon_get_dimension_possible(dungeon);
-        if (c < 1 && *(char*)((char*)dungeon + 0x89c) == 0 &&
-            !sub_CDungeon_isTournamentDungeon(dungeon))
-            bVar1 = bVar1 || false;
-        else
-            bVar1 = true;
-    }
-    sub_CDungeonClearTracer_Trace((char*)party + 0xc7c,
-                                  "void CGameManager::CheckOutParty(CUser*, bool)");
-    if (*(int*)((char*)party + 0xcd8) != 1 && party->get_state() == 2)
-    {
-        bool bVar2 = false;
-        if (dungeon != 0 && *(char*)((char*)dungeon + 0x85c) != 0)
-            bVar2 = true;
-        bool bVar3 = false;
-        if (dungeon != 0 && *(char*)((char*)dungeon + 0x87a) != 0)
-            bVar3 = true;
-        if (!bVar1 && bVar2 && bVar3)
-            sub_CUser_giveup_panalty(user);
-    }
-    sub_CParty_leave_user(party, user, 2);
 }
 
 unsigned int CGameManager::CheckOutQuickParty(CParty* party, bool flag)
@@ -909,8 +948,8 @@ unsigned int CGameManager::CheckOutQuickParty(CParty* party, bool flag)
     unsigned int ret = 0;
     if (party != 0)
     {
-        void* mgr = (void*)GetQuickPartySystemManager();
-        ret = (unsigned int)sub_CQuickPartySystemManager_cancel_quick_party(mgr, party, flag, 0);
+        ret = (unsigned int)sub_CQuickPartySystemManager_cancel_quick_party(
+            (void*)G_CGameManager()->GetQuickPartySystemManager(), party, flag, 0);
         ret = ret ^ 1;
     }
     return ret;
@@ -924,8 +963,7 @@ CTradeSpace* CGameManager::GetTradeSpace()
     CTradeSpace* tradeSpace = m_tradeSpacePool.Acquire();
     if (tradeSpace == 0)
         return 0;
-    int idx = m_tradeSpacePool.GetIndex(tradeSpace);
-    sub_CTradeSpace_SetIDX(tradeSpace, idx);
+    sub_CTradeSpace_SetIDX(tradeSpace, m_tradeSpacePool.GetIndex(tradeSpace));
     return tradeSpace;
 }
 
@@ -939,7 +977,8 @@ CTradeSpace* CGameManager::GetTradeSpace(int index)
 
 int CGameManager::GetTradeIdx(CTradeSpace* tradeSpace)
 {
-    return m_tradeSpacePool.GetIndex(tradeSpace);
+    int idx = m_tradeSpacePool.GetIndex(tradeSpace);
+    return idx;
 }
 
 void CGameManager::PutTradeSpace(CTradeSpace* tradeSpace)
@@ -952,12 +991,12 @@ void CGameManager::PutTradeSpace(CTradeSpace* tradeSpace)
 
 void CGameManager::CheckOutTrade(CUser* user)
 {
-    if (user->CheckInTrade() != 1)
-        return;
-    int idx = user->GetTradeSpace();
-    CTradeSpace* tradeSpace = m_tradeSpacePool.Get(idx);
-    sub_CTradeSpace_cancel_trade_by_dis(tradeSpace, user);
-    PutTradeSpace(tradeSpace);
+    if (user->CheckInTrade() == 1)
+    {
+        CTradeSpace* tradeSpace = m_tradeSpacePool.Get(user->GetTradeSpace());
+        sub_CTradeSpace_cancel_trade_by_dis(tradeSpace, user);
+        PutTradeSpace(tradeSpace);
+    }
 }
 
 // ============================================================================
@@ -966,32 +1005,33 @@ void CGameManager::CheckOutTrade(CUser* user)
 PvP_Room* CGameManager::GetPvp()
 {
     PvP_Room* room = m_pvpRoomPool.Acquire();
+    int roomIdx;
     if (room == 0)
         return 0;
-    int idx = m_pvpRoomPool.GetIndex(room);
-    sub_PvP_Room_SetIDX(room, idx);
+    sub_PvP_Room_SetIDX(room, m_pvpRoomPool.GetIndex(room));
     int roomIndex = sub_PvP_Room_get_index(room);
     __gnu_cxx::hash_map<int, PvP_Room*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(roomIndex);
     if (it == m_pvpRoomMap.end())
     {
+        roomIdx = sub_PvP_Room_get_index(room);
         {
             CSwitchLog log("PvP_Room* CGameManager::GetPvp()", 0xaa9, 0, 0);
-            log("pvp@log room(%d) new alloc", sub_PvP_Room_get_index(room));
+            log("pvp@log room(%d) new alloc", roomIdx);
         }
-        int key = sub_PvP_Room_get_index(room);
-        m_pvpRoomMap[key] = room;
+        m_pvpRoomMap[sub_PvP_Room_get_index(room)] = room;
+        return room;
     }
     else
     {
+        roomIdx = sub_PvP_Room_get_index(room);
         {
             CSwitchLog log("PvP_Room* CGameManager::GetPvp()", 0xab2, 0, 0);
-            log("pvp@log room(%d) already alloc", sub_PvP_Room_get_index(room));
+            log("pvp@log room(%d) already alloc", roomIdx);
         }
-        room = 0;
+        return 0;
     }
-    return room;
 }
 
 PvP_Room* CGameManager::GetPvp(int index, CUser* user, int param)
@@ -999,103 +1039,118 @@ PvP_Room* CGameManager::GetPvp(int index, CUser* user, int param)
     __gnu_cxx::hash_map<int, PvP_Room*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(index);
+    PvP_Room* room;
     if (it == m_pvpRoomMap.end())
-        return 0;
-    const char* name;
-    const char* accName;
-    if (user == 0)
     {
-        name = 0;
-        accName = 0;
+        room = 0;
     }
     else
     {
-        name = user->getCurCharacName();
-        accName = user->get_acc_name();
+        int roomIdx = sub_PvP_Room_get_index(it->second);
+        const char* name;
+        const char* accName;
+        if (user == 0)
+        {
+            name = "";
+            accName = "";
+        }
+        else
+        {
+            name = user->getCurCharacName();
+            accName = user->get_acc_name();
+        }
+        {
+            CSwitchLog log("PvP_Room* CGameManager::GetPvp(int, CUser*, int)", 0xacc, 0, 0);
+            log("pvp@log %s,%s, room(%d), %d", accName, name, roomIdx, param);
+        }
+        room = it->second;
     }
-    {
-        CSwitchLog log("PvP_Room* CGameManager::GetPvp(int, CUser*, int)", 0xacc, 0, 0);
-        log("pvp@log %s,%s, room(%d), %d",
-            accName, name, sub_PvP_Room_get_index(it->second), param);
-    }
-    return it->second;
+    return room;
 }
 
 int CGameManager::GetPvpIdx(PvP_Room* room)
 {
-    return m_pvpRoomPool.GetIndex(room);
+    int idx = m_pvpRoomPool.GetIndex(room);
+    return idx;
 }
 
 void CGameManager::PutPvp(PvP_Room* room)
 {
-    if (room == 0)
-        return;
+    if (room != 0)
     {
-        CSwitchLog log("void CGameManager::PutPvp(PvP_Room*)", 0xae4, 0, 0);
-        log("pvp@log room(%d)", sub_PvP_Room_get_index(room));
-    }
-    int key = sub_PvP_Room_get_index(room);
-    __gnu_cxx::hash_map<int, PvP_Room*,
-        __gnu_cxx::hash<int>, std::equal_to<int>,
-        std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(key);
-    if (it != m_pvpRoomMap.end())
-    {
-        int eraseKey = sub_PvP_Room_get_index(room);
-        m_pvpRoomMap.erase(eraseKey);
-        m_pvpRoomPool.Free(room);
+        int roomIndex = sub_PvP_Room_get_index(room);
+        {
+            CSwitchLog log("void CGameManager::PutPvp(PvP_Room*)", 0xae4, 0, 0);
+            log("pvp@log room(%d)", roomIndex);
+        }
+        int key = sub_PvP_Room_get_index(room);
+        __gnu_cxx::hash_map<int, PvP_Room*,
+            __gnu_cxx::hash<int>, std::equal_to<int>,
+            std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(key);
+        if (it != m_pvpRoomMap.end())
+        {
+            int eraseKey = sub_PvP_Room_get_index(room);
+            m_pvpRoomMap.erase(eraseKey);
+            m_pvpRoomPool.Free(room);
+        }
     }
 }
 
 void CGameManager::CheckOutPvp(CUser* user, bool flag)
 {
-    if (user->CheckInPvp() != 1)
-        return;
-    short pvpIdx = user->GetPvpIndex();
-    PvP_Room* room = GetPvp((int)pvpIdx, user, 0);
-    if (room == 0)
-        return;
-    PacketGuard guard;
-    bool outFlag = false;
-    int ret = sub_PvP_Room_leave_room(room, user, &outFlag);
+    if (user->CheckInPvp() == 1)
     {
-        CSwitchLog log("void CGameManager::CheckOutPvp(CUser*, bool)", 0x11a1, 0, 0);
-        log("pvp@log %s,%s, room(%d),%d,%d",
-            user->get_acc_name(), user->getCurCharacName(),
-            sub_PvP_Room_get_index(room), sub_PvP_Room_get_pvp_battle_mode(room), outFlag);
-    }
-    if (ret < 0)
-    {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutPvp(CUser*, bool)", 0x11bd,
-                              "pvp@log room(%d) user(%s) leave fail",
-                              sub_PvP_Room_get_index(room),
-                              NumberToString(user->get_acc_id(), 0));
-    }
-    else
-    {
-        guard.clear();
-        sub_PvP_Room_make_seat_info(room, &guard, ret);
-        sub_GameWorld_send_all(G_GameWorld(), &guard);
-        if (outFlag)
+        PvP_Room* room = GetPvp((int)user->GetPvpIndex(), user, 0);
+        if (room != 0)
         {
-            guard.clear();
-            sub_PvP_Room_make_state_info(room, &guard);
-            sub_GameWorld_send_all(G_GameWorld(), &guard);
-        }
-        if (sub_PvP_Room_get_waiter_count(room) == 0)
-        {
-            sub_PvP_Room_destroy_room(room, 0);
-            PutPvp(room);
-            guard.clear();
-            sub_PvP_Room_make_state_info(room, &guard);
-            sub_GameWorld_send_all(G_GameWorld(), &guard);
-        }
-    }
-    if (!flag && sub_PvP_Room_get_recv_pvp_rank_count(room) > 0)
-    {
-        if (sub_PvP_Room_IsInsertTimerRecvPvpRank(room) != 1 &&
-            sub_PvP_Room_IsEndPvpBattle(room) != 1)
-        {
-            sub_PvP_Room_send_pvp_end(room);
+            PacketGuard guard;
+            bool outFlag = false;
+            int ret = sub_PvP_Room_leave_room(room, user, &outFlag);
+            int outFlagInt = outFlag;
+            int battleMode = sub_PvP_Room_get_pvp_battle_mode(room);
+            int roomIdx = sub_PvP_Room_get_index(room);
+            const char* characName = user->getCurCharacName();
+            const char* accName = user->get_acc_name();
+            {
+                CSwitchLog log("void CGameManager::CheckOutPvp(CUser*, bool)", 0x11a1, 0, 0);
+                log("pvp@log %s,%s, room(%d),%d,%d",
+                    accName, characName, roomIdx, battleMode, outFlagInt);
+            }
+            if (ret < 0)
+            {
+                LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutPvp(CUser*, bool)", 0x11bd,
+                                      "pvp@log room(%d) user(%s) leave fail",
+                                      sub_PvP_Room_get_index(room),
+                                      NumberToString(user->get_acc_id(), 0));
+            }
+            else
+            {
+                guard.clear();
+                sub_PvP_Room_make_seat_info(room, &guard, ret);
+                sub_GameWorld_send_all(G_GameWorld(), &guard);
+                if (outFlag)
+                {
+                    guard.clear();
+                    sub_PvP_Room_make_state_info(room, &guard);
+                    sub_GameWorld_send_all(G_GameWorld(), &guard);
+                }
+                if (sub_PvP_Room_get_waiter_count(room) == 0)
+                {
+                    sub_PvP_Room_destroy_room(room, 0);
+                    PutPvp(room);
+                    guard.clear();
+                    sub_PvP_Room_make_state_info(room, &guard);
+                    sub_GameWorld_send_all(G_GameWorld(), &guard);
+                }
+            }
+            if (!flag && sub_PvP_Room_get_recv_pvp_rank_count(room) > 0)
+            {
+                if (sub_PvP_Room_IsInsertTimerRecvPvpRank(room) != 1 &&
+                    sub_PvP_Room_IsEndPvpBattle(room) != 1)
+                {
+                    sub_PvP_Room_send_pvp_end(room);
+                }
+            }
         }
     }
 }
@@ -1131,8 +1186,7 @@ QuickParty::CQuickParty* CGameManager::GetQuickParty()
     QuickParty::CQuickParty* qp = m_quickPartyPool.Acquire();
     if (qp == 0)
         return 0;
-    int idx = m_quickPartyPool.GetIndex(qp);
-    sub_CQuickParty_set_quick_party_index(qp, idx);
+    sub_CQuickParty_set_quick_party_index(qp, m_quickPartyPool.GetIndex(qp));
     int qpIndex = sub_CQuickParty_get_quick_party_index(qp);
     __gnu_cxx::hash_map<int, QuickParty::CQuickParty*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
@@ -1140,8 +1194,8 @@ QuickParty::CQuickParty* CGameManager::GetQuickParty()
             m_quickPartyMap.find(qpIndex);
     if (it == m_quickPartyMap.end())
     {
-        int key = sub_CQuickParty_get_quick_party_index(qp);
-        m_quickPartyMap[key] = qp;
+        m_quickPartyMap[sub_CQuickParty_get_quick_party_index(qp)] = qp;
+        return qp;
     }
     else
     {
@@ -1166,7 +1220,8 @@ QuickParty::CQuickParty* CGameManager::GetQuickParty(int index)
 
 int CGameManager::GetQuickPartyIdx(QuickParty::CQuickParty* qp)
 {
-    return m_quickPartyPool.GetIndex(qp);
+    int idx = m_quickPartyPool.GetIndex(qp);
+    return idx;
 }
 
 void CGameManager::PutQuickParty(QuickParty::CQuickParty* qp)
@@ -1195,22 +1250,20 @@ WarRoom* CGameManager::GetWarRoom()
     WarRoom* room = m_warRoomPool.Acquire();
     if (room == 0)
         return 0;
-    int idx = m_warRoomPool.GetIndex(room);
-    sub_WarRoom_SetIndex(room, idx);
+    sub_WarRoom_SetIndex(room, m_warRoomPool.GetIndex(room));
     int roomIndex = sub_WarRoom_GetIndex(room);
     __gnu_cxx::hash_map<int, WarRoom*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WarRoom*> >::iterator it = m_warRoomMap.find(roomIndex);
     if (it == m_warRoomMap.end())
     {
-        int key = sub_WarRoom_GetIndex(room);
-        m_warRoomMap[key] = room;
+        m_warRoomMap[sub_WarRoom_GetIndex(room)] = room;
+        return room;
     }
     else
     {
-        room = 0;
+        return 0;
     }
-    return room;
 }
 
 WarRoom* CGameManager::GetWarRoom(int index)
@@ -1225,7 +1278,8 @@ WarRoom* CGameManager::GetWarRoom(int index)
 
 int CGameManager::GetWarRoomIdx(WarRoom* room)
 {
-    return m_warRoomPool.GetIndex(room);
+    int idx = m_warRoomPool.GetIndex(room);
+    return idx;
 }
 
 void CGameManager::PutWarRoom(WarRoom* room)
@@ -1246,20 +1300,21 @@ void CGameManager::PutWarRoom(WarRoom* room)
 
 void CGameManager::CheckOutWarRoom(CUser* user)
 {
-    if (user->CheckInWarRoom() != 1)
-        return;
-    user->GetWarRoomIndex();
-    WarRoom* room = GetWarRoom();
-    if (room == 0)
-        return;
-    int ret = sub_WarRoom_WalkOutUser(room, user);
-    if (ret == 4)
+    if (user->CheckInWarRoom() == 1)
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutWarRoom(CUser*)", 0x117b,
-                              "CGameManager::CheckOutWarRoom Can't find user charno(%d)",
-                              user->get_charac_no(-1));
+        WarRoom* room = GetWarRoom(user->GetWarRoomIndex());
+        if (room != 0)
+        {
+            int ret = sub_WarRoom_WalkOutUser(room, user);
+            if (ret == 4)
+            {
+                LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutWarRoom(CUser*)", 0x117b,
+                                      "CGameManager::CheckOutWarRoom Can't find user charno(%d)",
+                                      user->get_charac_no(-1));
+            }
+            sub_WarRoom_CheckState(room);
+        }
     }
-    sub_WarRoom_CheckState(room);
 }
 
 WarRoom* CGameManager::FindJoinableWarRoom(CUser* user)
@@ -1267,15 +1322,17 @@ WarRoom* CGameManager::FindJoinableWarRoom(CUser* user)
     __gnu_cxx::hash_map<int, WarRoom*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WarRoom*> >::iterator it = m_warRoomMap.begin();
+    WarRoom* room;
     for (;;)
     {
         if (it == m_warRoomMap.end())
             return 0;
-        WarRoom* room = it->second;
+        room = it->second;
         if (room != 0 && sub_WarRoom_IsJoinable(room, user) == 0)
-            return room;
-        ++it;
+            break;
+        it++;
     }
+    return room;
 }
 
 // ============================================================================
@@ -1286,8 +1343,7 @@ WongWork::CDeathTower* CGameManager::getDeathTower()
     WongWork::CDeathTower* tower = m_deathTowerPool.Acquire();
     if (tower == 0)
         return 0;
-    int idx = m_deathTowerPool.GetIndex(tower);
-    sub_CDeathTower_setIdx(tower, idx);
+    sub_CDeathTower_setIdx(tower, m_deathTowerPool.GetIndex(tower));
     int towerIdx = sub_CDeathTower_getIdx(tower);
     __gnu_cxx::hash_map<int, WongWork::CDeathTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
@@ -1295,15 +1351,14 @@ WongWork::CDeathTower* CGameManager::getDeathTower()
             m_deathTowerMap.find(towerIdx);
     if (it == m_deathTowerMap.end())
     {
-        int key = sub_CDeathTower_getIdx(tower);
-        m_deathTowerMap[key] = tower;
+        m_deathTowerMap[sub_CDeathTower_getIdx(tower)] = tower;
         sub_CDeathTower_reset(tower);
+        return tower;
     }
     else
     {
-        tower = 0;
+        return 0;
     }
-    return tower;
 }
 
 WongWork::CDeathTower* CGameManager::getDeathTower(int index)
@@ -1319,7 +1374,8 @@ WongWork::CDeathTower* CGameManager::getDeathTower(int index)
 
 int CGameManager::getDeathTowerIdx(WongWork::CDeathTower* tower)
 {
-    return m_deathTowerPool.GetIndex(tower);
+    int idx = m_deathTowerPool.GetIndex(tower);
+    return idx;
 }
 
 void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
@@ -1341,17 +1397,16 @@ void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
 
 void CGameManager::checkOutDeathTower(CUser* user)
 {
-    if (sub_CUser_checkInDeathTower(user) != 1)
-        return;
-    user->getDeathTowerIndex();
-    WongWork::CDeathTower* tower = getDeathTower();
-    if (tower != 0 &&
-        sub_CDeathTower_onLeaveUser(tower, user) != 1)
+    if (sub_CUser_checkInDeathTower(user) == 1)
     {
-        LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutDeathTower(CUser*)", 0x123a,
-                              "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
-                              sub_CDeathTower_getIdx(tower),
-                              NumberToString(user->get_acc_id(), 0));
+        WongWork::CDeathTower* tower = getDeathTower(user->getDeathTowerIndex());
+        if (tower != 0 && sub_CDeathTower_onLeaveUser(tower, user) != 1)
+        {
+            LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutDeathTower(CUser*)", 0x123a,
+                                  "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
+                                  sub_CDeathTower_getIdx(tower),
+                                  NumberToString(user->get_acc_id(), 0));
+        }
     }
 }
 
@@ -1360,8 +1415,7 @@ WongWork::CBossTower* CGameManager::getBossTower()
     WongWork::CBossTower* tower = m_bossTowerPool.Acquire();
     if (tower == 0)
         return 0;
-    int idx = m_bossTowerPool.GetIndex(tower);
-    sub_CBossTower_setIdx(tower, idx);
+    sub_CBossTower_setIdx(tower, m_bossTowerPool.GetIndex(tower));
     int towerIdx = sub_CBossTower_getIdx(tower);
     __gnu_cxx::hash_map<int, WongWork::CBossTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
@@ -1369,15 +1423,14 @@ WongWork::CBossTower* CGameManager::getBossTower()
             m_bossTowerMap.find(towerIdx);
     if (it == m_bossTowerMap.end())
     {
-        int key = sub_CBossTower_getIdx(tower);
-        m_bossTowerMap[key] = tower;
+        m_bossTowerMap[sub_CBossTower_getIdx(tower)] = tower;
         sub_CBossStage_reset(tower);
+        return tower;
     }
     else
     {
-        tower = 0;
+        return 0;
     }
-    return tower;
 }
 
 WongWork::CBossTower* CGameManager::getBossTower(int index)
@@ -1393,7 +1446,8 @@ WongWork::CBossTower* CGameManager::getBossTower(int index)
 
 int CGameManager::getBossTowerIdx(WongWork::CBossTower* tower)
 {
-    return m_bossTowerPool.GetIndex(tower);
+    int idx = m_bossTowerPool.GetIndex(tower);
+    return idx;
 }
 
 void CGameManager::returnBossTower(WongWork::CBossTower* tower)
@@ -1415,20 +1469,20 @@ void CGameManager::returnBossTower(WongWork::CBossTower* tower)
 
 void CGameManager::checkOutBossTower(CUser* user)
 {
-    if (user->checkInBossTower() != 1)
-        return;
-    user->getBossTowerIndex();
-    WongWork::CBossTower* tower = getBossTower();
-    if (tower != 0)
+    if (user->checkInBossTower() == 1)
     {
-        typedef char (*LeaveFn)(void*, void*);
-        LeaveFn leave = *(LeaveFn*)(*(void**)tower + 0x14);
-        if (leave(tower, user) != 1)
+        WongWork::CBossTower* tower = getBossTower(user->getBossTowerIndex());
+        if (tower != 0)
         {
-            LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutBossTower(CUser*)", 0x11d9,
-                                  "BossTower checkOutBossTower ID[%d] ACCID[%s]",
-                                  sub_CBossTower_getIdx(tower),
-                                  NumberToString(user->get_acc_id(), 0));
+            typedef char (*LeaveFn)(void*, void*);
+            LeaveFn leave = *(LeaveFn*)(*(void**)tower + 0x14);
+            if (leave(tower, user) != 1)
+            {
+                LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutBossTower(CUser*)", 0x11d9,
+                                      "BossTower checkOutBossTower ID[%d] ACCID[%s]",
+                                      sub_CBossTower_getIdx(tower),
+                                      NumberToString(user->get_acc_id(), 0));
+            }
         }
     }
 }
@@ -1438,8 +1492,7 @@ advancealtar::StageControl* CGameManager::getAdvanceAltar()
     advancealtar::StageControl* control = m_stagePool.Acquire();
     if (control == 0)
         return 0;
-    int idx = m_stagePool.GetIndex(control);
-    sub_StageControl_setIndex(control, idx);
+    sub_StageControl_setIndex(control, m_stagePool.GetIndex(control));
     int ctrlIdx = sub_StageControl_getIndex(control);
     __gnu_cxx::hash_map<int, advancealtar::StageControl*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
@@ -1447,15 +1500,14 @@ advancealtar::StageControl* CGameManager::getAdvanceAltar()
             m_stageMap.find(ctrlIdx);
     if (it == m_stageMap.end())
     {
-        int key = sub_StageControl_getIndex(control);
-        m_stageMap[key] = control;
+        m_stageMap[sub_StageControl_getIndex(control)] = control;
         sub_StageControl_reset(control);
+        return control;
     }
     else
     {
-        control = 0;
+        return 0;
     }
-    return control;
 }
 
 advancealtar::StageControl* CGameManager::getAdvanceAltar(int index)
@@ -1471,7 +1523,8 @@ advancealtar::StageControl* CGameManager::getAdvanceAltar(int index)
 
 int CGameManager::getAdvanceAltarIndex(advancealtar::StageControl* control)
 {
-    return m_stagePool.GetIndex(control);
+    int idx = m_stagePool.GetIndex(control);
+    return idx;
 }
 
 void CGameManager::returnAdvanceAltar(advancealtar::StageControl* control)
@@ -1495,8 +1548,8 @@ void CGameManager::checkOutAdvanceAltar(CUser* user)
 {
     if (user != 0 && user->checkInAdvanceAltar() == 1)
     {
-        user->getAdvanceAltarIndex();
-        advancealtar::StageControl* control = getAdvanceAltar();
+        advancealtar::StageControl* control =
+            getAdvanceAltar(user->getAdvanceAltarIndex());
         if (control != 0 && sub_StageControl_leaveUser(control) != 1)
         {
             LogManager::logFormat(1, "App.cpp",
@@ -1519,14 +1572,14 @@ void CGameManager::onTimeAdvanceAltar()
         advancealtar::StageControl* control = it->second;
         if (sub_StageControl_onTimerStageTick(control) == 1)
         {
-            ++it;
+            it++;
         }
         else
         {
             __gnu_cxx::hash_map<int, advancealtar::StageControl*,
                 __gnu_cxx::hash<int>, std::equal_to<int>,
                 std::allocator<advancealtar::StageControl*> >::iterator eraseIt = it;
-            ++it;
+            it++;
             m_stageMap.erase(eraseIt);
             m_stagePool.Free(control);
         }
@@ -1538,8 +1591,7 @@ BlueMarble* CGameManager::getBlueMarble()
     BlueMarble* marble = m_blueMarblePool.Acquire();
     if (marble == 0)
         return 0;
-    int idx = m_blueMarblePool.GetIndex(marble);
-    sub_BlueMarble_setMemoryPoolIndex(marble, idx);
+    sub_BlueMarble_setMemoryPoolIndex(marble, m_blueMarblePool.GetIndex(marble));
     int marbleIdx = sub_BlueMarble_getMemoryPoolIndex(marble);
     __gnu_cxx::hash_map<int, BlueMarble*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
@@ -1547,14 +1599,13 @@ BlueMarble* CGameManager::getBlueMarble()
             m_blueMarbleMap.find(marbleIdx);
     if (it == m_blueMarbleMap.end())
     {
-        int key = sub_BlueMarble_getMemoryPoolIndex(marble);
-        m_blueMarbleMap[key] = marble;
+        m_blueMarbleMap[sub_BlueMarble_getMemoryPoolIndex(marble)] = marble;
+        return marble;
     }
     else
     {
-        marble = 0;
+        return 0;
     }
-    return marble;
 }
 
 BlueMarble* CGameManager::getBlueMarble(int index)
@@ -1570,7 +1621,8 @@ BlueMarble* CGameManager::getBlueMarble(int index)
 
 int CGameManager::getBlueMarbleIdx(BlueMarble* marble)
 {
-    return m_blueMarblePool.GetIndex(marble);
+    int idx = m_blueMarblePool.GetIndex(marble);
+    return idx;
 }
 
 void CGameManager::putBlueMarble(BlueMarble* marble)
@@ -1592,13 +1644,13 @@ void CGameManager::putBlueMarble(BlueMarble* marble)
 
 void CGameManager::checkOutBlueMarble(CUser* user)
 {
-    if (user->checkInBlueMarble() != 1)
-        return;
-    user->getBlueMarbleIndex();
-    BlueMarble* marble = getBlueMarble();
-    if (marble != 0)
+    if (user->checkInBlueMarble() == 1)
     {
-        sub_BlueMarble_leaveUser(marble, user);
+        BlueMarble* marble = getBlueMarble(user->getBlueMarbleIndex());
+        if (marble != 0)
+        {
+            sub_BlueMarble_leaveUser(marble, user);
+        }
     }
 }
 
@@ -1739,7 +1791,7 @@ void CGameManager::SendPartyList(CUser* user)
                 }
             }
         }
-        ++it;
+        it++;
     }
     guard.put_short(index, count);
     guard.finalize(true);
@@ -1754,8 +1806,10 @@ void CGameManager::SendPvpList(CUser* user)
     __gnu_cxx::hash_map<int, PvP_Room*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.begin();
-    while (it != m_pvpRoomMap.end())
+    while (true)
     {
+        if (it == m_pvpRoomMap.end())
+            break;
         PvP_Room* room = it->second;
         if (room != 0)
         {
@@ -1764,7 +1818,7 @@ void CGameManager::SendPvpList(CUser* user)
                 sub_PvP_Room_make_room_info(room, &guard);
             }
         }
-        ++it;
+        it++;
     }
     guard.finalize(true);
     user->Send(guard);
@@ -1780,15 +1834,17 @@ void CGameManager::SendWarRoomList(CUser* user)
     __gnu_cxx::hash_map<int, WarRoom*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WarRoom*> >::iterator it = m_warRoomMap.begin();
-    while (it != m_warRoomMap.end())
+    while (true)
     {
+        if (it == m_warRoomMap.end())
+            break;
         WarRoom* room = it->second;
         if (room != 0)
         {
             sub_WarRoom_MakeRoomInfo(room, &guard);
             count = count + 1;
         }
-        ++it;
+        it++;
     }
     guard.put_short(index, count);
     guard.finalize(true);
@@ -2118,8 +2174,16 @@ QuickParty::CQuickPartySystemManager* CGameManager::GetQuickPartySystemManager()
 {
     if (m_pQuickPartySystemMgr == 0)
     {
-        void* pMgr = new (std::nothrow) char[0x18];
-        sub_CQuickPartySystemManager_ctor(pMgr);
+        void* pMgr = operator new(0x18);
+        try
+        {
+            sub_CQuickPartySystemManager_ctor(pMgr);
+        }
+        catch (...)
+        {
+            operator delete(pMgr);
+            throw;
+        }
         m_pQuickPartySystemMgr = (QuickParty::CQuickPartySystemManager*)pMgr;
     }
     return m_pQuickPartySystemMgr;
@@ -2129,7 +2193,7 @@ QuickParty::CQuickPartyRewardManager* CGameManager::GetQuickPartyRewardManager()
 {
     if (m_pQuickPartyRewardMgr == 0)
     {
-        void* pMgr = new (std::nothrow) char[0x228];
+        void* pMgr = operator new(0x228);
         sub_CQuickPartyRewardManager_ctor(pMgr);
         m_pQuickPartyRewardMgr = (QuickParty::CQuickPartyRewardManager*)pMgr;
     }
@@ -2140,7 +2204,7 @@ CPremiumLetheManager* CGameManager::GetPremiumLetheManager()
 {
     if (m_pPremiumLetheMgr == 0)
     {
-        void* pMgr = new (std::nothrow) char[1];
+        void* pMgr = operator new(1);
         sub_CPremiumLetheManager_ctor(pMgr);
         m_pPremiumLetheMgr = (CPremiumLetheManager*)pMgr;
     }
@@ -2152,7 +2216,7 @@ CSharedServerMessageManager* CGameManager::GetSharedServerMessageManager()
     if (m_pSharedServerMessageMgr == 0)
     {
         void* dm = G_CDataManager();
-        void* pMgr = new (std::nothrow) char[0x18];
+        void* pMgr = operator new(0x18);
         sub_CSharedServerMessageManager_ctor(pMgr, (char*)dm + 0x7d8);
         m_pSharedServerMessageMgr = (CSharedServerMessageManager*)pMgr;
     }
@@ -2163,7 +2227,7 @@ CSpecialItemRoutingManager* CGameManager::GetSpecialItemRoutingManager()
 {
     if (m_pSpecialItemRoutingMgr == 0)
     {
-        void* pMgr = new (std::nothrow) char[1];
+        void* pMgr = operator new(1);
         sub_CSpecialItemRoutingManager_ctor(pMgr);
         m_pSpecialItemRoutingMgr = (CSpecialItemRoutingManager*)pMgr;
     }
@@ -2174,7 +2238,7 @@ CConditionEventManager* CGameManager::GetConditionEventManager()
 {
     if (m_pConditionEventMgr == 0)
     {
-        void* pMgr = new (std::nothrow) char[1];
+        void* pMgr = operator new(1);
         sub_CConditionEventManager_ctor(pMgr);
         m_pConditionEventMgr = (CConditionEventManager*)pMgr;
     }
@@ -2185,8 +2249,11 @@ CAuctionAveragePrice* CGameManager::GetAuctionAveragePriceManager()
 {
     if (m_pAuctionAveragePriceMgr == 0)
     {
-        void* pMgr = new (std::nothrow) char[0x18];
-        sub_CAuctionAveragePrice_ctor(pMgr);
+        void* pMgr = operator new(0x18, std::nothrow);
+        if (pMgr != 0)
+        {
+            sub_CAuctionAveragePrice_ctor(pMgr);
+        }
         m_pAuctionAveragePriceMgr = (CAuctionAveragePrice*)pMgr;
     }
     return m_pAuctionAveragePriceMgr;

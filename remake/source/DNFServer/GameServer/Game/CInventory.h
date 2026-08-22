@@ -270,6 +270,7 @@ class CExpandEquipslot
 public:
     Inven_Item* GetInvenRefR(INVEN_TYPE type, int slot) const;
     Inven_Item* getExpandEquipslotW(ENUM_EQUIPSLOT slot);
+    Inven_Item GetInvenSlot(INVEN_TYPE type, int slot) const;
     bool FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;
 };
 
@@ -422,9 +423,9 @@ public:
         Inven_Item& outItem) const;
     bool CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
                                      stEquipConditionForChronicle& cond) const;
-    int MakeItemList(int invenType, void* out) const;
-    void MakeItemPacket(int invenType, int slot, PacketGuard& packet) const;
-    void MakeSecuRewarditemPacket(int invenType, int slot, PacketGuard& packet) const;
+    int MakeItemList(INVEN_TYPE invenType, void* out) const;
+    void MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
+    void MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
     void MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
                        ENUM_EQUIPSLOT equipSlot) const;
     void getHashCode(unsigned char* out);
@@ -440,7 +441,7 @@ public:
         STItemScript::SEXPERTJOB::stExpertCompoundResultVariation& out) const;
     float GetExpertJobSelfDisjointBigWinRate(ENUM_EXPERT_JOB_TYPE type, int param) const;
     float GetExpertJobSelfDisjointResultVariation(ENUM_EXPERT_JOB_TYPE type, int param) const;
-    int getEquipWeaponUpgradeSeparate() const;
+    unsigned char getEquipWeaponUpgradeSeparate() const;
     int getValidMoney(int add);
 
     // ---- 货币 ----

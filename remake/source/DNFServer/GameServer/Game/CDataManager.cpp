@@ -294,7 +294,10 @@ unsigned int CDataManager::GetSpAtLevelUp(int level) const
     {
         return 0;
     }
-    return ((int*)&m_monsterManager)[level + 0x36a2];
+    // ORIG 0x8360cb8：`*(int*)(this + (level+0x36a2)*4 + 8)` = SP-at-level-up 表
+    // （位于本类尾部未建模区 this+0xda94+4*(level-1)）。无对应具名成员，保留
+    // 地址形式，用 ORIG 偏移直译（原写法错误地借 &m_monsterManager(+0x08) 伪装）。
+    return *(int*)((char*)this + (level + 0x36a2) * 4 + 8);
 }
 
 unsigned int CDataManager::GetMoneyLimitPerLevel(int level, const char* serverGroup) const
@@ -1241,9 +1244,11 @@ void CDataManager::set_lottery_use_cost(unsigned int cost)
 
 void* CDataManager::GetExpertJobScript(int job)
 {
-    // ORIG 0x0822b5f2 W：(CExpertJobList*)(this+0x5090)->get(job)。
-    // CExpertJobList 仅有前置声明，先返回其所在偏移指针，待类型完整后补 get() 调用。
-    return (void*)((char*)this + 0x5090);
+    // ORIG 0x0822b5f2 W：(CExpertJobList*)(this+0x5090)->get(job)。+0x5090 即
+    // m_regeneration.m_expertJobList（RegenerationROI +0x50）。CExpertJobList 仅
+    // 有前置声明，先返回其成员地址，待类型完整后补 get() 调用。
+    return (void*)&m_regeneration.m_expertJobList;
+
 }
 
 void* CDataManager::GetChannelScript() const
@@ -1280,8 +1285,9 @@ void CDataManager::GetPvPChannelGrade()
 
 int CDataManager::GetMaxGradePvPChannel()
 {
-    // ORIG 0x0822b65a W：return *(int*)(this+0xb438)（m_pvpChannel 内 +0x8 字段）
-    return *(int*)((char*)this + 0xb438);
+    // ORIG 0x0822b65a W：返回 m_pvpChannel(+0xb430) 内 +0x8 字段。
+    return m_pvpChannel.m_maxGrade;
+
 }
 
 const char* CDataManager::GetCeraShopGoodsName()

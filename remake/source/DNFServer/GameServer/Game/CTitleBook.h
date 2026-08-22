@@ -116,8 +116,9 @@ struct stItemLockRef
 // CTitleBook
 // ============================================================================
 
-#pragma pack(push, 1)
-
+// 注意：CTitleBook 不使用 pack(1)，采用自然对齐以保证 ORIG 布局
+// （CData 基类 pack 后为 5 字节，m_user 对齐到 +0x08 / m_book +0x0c /
+// m_category[4] +0x6b48，sizeof 0x6b58，与 ORIG ctor/_saveData 反汇编一致）。
 class CTitleBook : public charac_expand::CData
 {
 public:
@@ -183,7 +184,5 @@ public:
     stTitleBook m_book;            // +0x0c
     Inven_Item* m_category[4];     // +0x6b48..0x6b54
 };
-
-#pragma pack(pop)
 
 #endif  // GAME_CTITLEBOOK_H_

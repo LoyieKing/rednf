@@ -5,6 +5,7 @@
 #include "CStackableItem.h"
 #include "CItem.h"
 #include "GlobalData.h"
+#include "CWorldMap.h"
 #include <cstring>
 
 #define ZERO_POD(T) T::T() { memset(this, 0, sizeof(*this)); } T::~T() {}
@@ -617,13 +618,42 @@ stNewAccountLevelUpToJobScript::stNewAccountLevelUpToJobScript()
     memset(m_pad, 0, sizeof(m_pad));
 }
 stNewAccountLevelUpToJobScript::~stNewAccountLevelUpToJobScript() {}
-
 // ---- CWorldMapList / StageMapList / WarAreaCounter----
-CWorldMapList::CWorldMapList() { memset(m_pad, 0, sizeof(m_pad)); }
+// ORIG CWorldMapList（0x837480a ctor / 0x837481e dtor / 0x8374752 destroy）即一个
+// map<int,CWorldMap*>，成员 m_map 位于偏移 0。
+CWorldMapList::CWorldMapList() : m_map() {}
 CWorldMapList::~CWorldMapList() {}
+
+// ORIG 0x83647a2：map<int,CWorldMap*>::find(idx)，命中返回 second，否则 0。
+CWorldMap* CWorldMapList::find_world_map(int idx) const
+{
+    std::map<int, CWorldMap*>::const_iterator it = m_map.find(idx);
+    return (it == m_map.end()) ? 0 : it->second;
+}
+
+// ---- CWorldMap 访问器（ORIG 无独立报告；按 objdump 直读字节字段实现） ----
+bool CWorldMap::IsInHellDungeon()   // ORIG W 0x830e6ba：movzbl 0x4(%eax)（非 const）
+{
+    return m_isHellDungeon != 0;
+}
+
+bool CWorldMap::hasDeathTower() const     // ORIG W 0x822b520：movzbl 0xc(%eax)
+{
+    return m_hasDeathTower != 0;
+}
+
 StageMapList::StageMapList() { memset(m_pad, 0, sizeof(m_pad)); }
 StageMapList::~StageMapList() {}
-WarAreaCounter::WarAreaCounter() { memset(m_pad, 0, sizeof(m_pad)); }
+WarAreaCounter::WarAreaCounter()
+{
+    // 布局 = 具名成员（CDataManager.h），全部零初始化
+    memset(m_timeHourList, 0, sizeof(m_timeHourList));
+    m_curHourIdx = 0;
+    memset(m_pad_ec, 0, sizeof(m_pad_ec));
+    m_num = 0;
+    memset(m_warRoomCount, 0, sizeof(m_warRoomCount));
+    memset(m_pad_2d4, 0, sizeof(m_pad_2d4));
+}
 WarAreaCounter::~WarAreaCounter() {}
 
 // ---- stEquipmentGradeSample（4×vector<uint> 默认构造；ORIG 0x837c810）----
@@ -673,10 +703,12 @@ stConditionEventInfo::stConditionEventInfo()
 }
 stConditionEventInfo::~stConditionEventInfo() {}
 
-// ---- pvp_channel_info_t（m_pad + 2 字段；无析构声明）----
+// ---- pvp_channel_info_t（m_pad8 + m_maxGrade + m_upgradeRevision + m_pad10 + m_pvpMissionSystem）----
 pvp_channel_info_t::pvp_channel_info_t()
 {
-    memset(m_pad, 0, sizeof(m_pad));
+    memset(m_pad8, 0, sizeof(m_pad8));
+    m_maxGrade = 0;
     m_upgradeRevision = 0;
-    m_pvpMissionSystem = 0;
+    memset(m_pad10, 0, sizeof(m_pad10));
+    memset(&m_pvpMissionSystem, 0, sizeof(m_pvpMissionSystem));
 }

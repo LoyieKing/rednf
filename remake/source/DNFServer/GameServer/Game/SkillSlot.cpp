@@ -1236,7 +1236,7 @@ int SkillSlot::check_skill_list(
             pair = *it;
             int skillIdx = pair.first;
             int reqLevel = pair.second;
-            skill = G_CDataManager()->find_skill(job, 0);
+            skill = G_CDataManager()->find_skill(job, skillIdx);
             if (skill == 0)
             {
                 LogManager::logFormat(
@@ -1404,7 +1404,8 @@ void SkillSlot::calcUsedSP(const _Mastered_skill* buf, int& sp, int& sfp) const
             {
                 CSkill* skill = 0;
                 int job = ((CUserCharacInfo*)m_parent)->get_charac_job();
-                skill = G_CDataManager()->find_skill(job, 0);
+                skill = G_CDataManager()->find_skill(job,
+                                                     (unsigned char)buf[i].m_index);
                 if (skill == 0)
                 {
                     break;
