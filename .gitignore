@@ -1,44 +1,45 @@
-1:# C/C++ build artifacts (reconstruction workspace)
-2:dnf_decompile/build/
-3:dnf_decompile/source/build/
-4:dnf_decompile/source/build-*/
-5:dnf_decompile/source/cmake-build-*/
-6:dnf_decompile/source/**/CMakeFiles/
-7:dnf_decompile/source/**/CMakeCache.txt
-8:dnf_decompile/source/**/compile_commands.json
-9:dnf_decompile/source/**/cmake_install.cmake
-10:**/*.o
-11:**/*.obj
-12:**/*.so
-13:**/*.a
-14:**/*.la
-15:**/*.lo
-16:**/*.out
-17:
-18:# GCC toolchain build outputs
-19:gcc-4.1.2/
-20:gcc-4.1.2/build/
-21:gcc-4.1.2-install/
-22:
-23:# Logs and temp
-24:**/*.log
-25:**/.DS_Store
-26:dnf_decompile/gccdump.s
-27:**/__pycache__/
-28:*.pyc
-29:dnf_secsvr/sizecheck.cpp.t01.class
-30:dnf_secsvr/tencrypt_new/test_hash
-31:
-32:# Ghidra project files
-33:*.gpr
-34:*.gpr.lock
-35:*.rep/
-36:*.gzf
-37:.ghidra/
-38:dnf_decompile/toolchains/
-39:
-40:# Oversized single report (147MB) exceeds GitHub's 100MB/file limit;
-41:# the gzip-compressed copy (_lt_global_gt_.md.gz) is committed instead.
+# C/C++ build artifacts (reconstruction workspace)
+dnf_decompile/build/
+dnf_decompile/source/build/
+dnf_decompile/source/build-*/
+dnf_decompile/source/cmake-build-*/
+dnf_decompile/source/**/CMakeFiles/
+dnf_decompile/source/**/CMakeCache.txt
+dnf_decompile/source/**/compile_commands.json
+dnf_decompile/source/**/cmake_install.cmake
+**/*.o
+**/*.obj
+**/*.so
+**/*.a
+**/*.la
+**/*.lo
+**/*.out
+
+# GCC toolchain build outputs
+gcc-4.1.2/
+gcc-4.1.2/build/
+gcc-4.1.2-install/
+
+# Logs and temp
+**/*.log
+**/.DS_Store
+dnf_decompile/gccdump.s
+**/__pycache__/
+*.pyc
+dnf_secsvr/sizecheck.cpp.t01.class
+dnf_secsvr/tencrypt_new/test_hash
+
+# Ghidra project files
+*.gpr
+*.gpr.lock
+*.rep/
+*.gzf
+.ghidra/
+dnf_decompile/toolchains/
+
+# Oversized single report (147MB) exceeds GitHub's 100MB/file limit;
+# the gzip-compressed copy (_lt_global_gt_.md.gz) is committed instead.
 dnf_decompile/docs/class_func_reports/_lt_global_gt_.md
-# 全局函数拆成每函数一份后数量极大，不入库。
+
+# 逐函数拆分报告(体积大, 不入库; 主文件 _lt_global_gt_.md.gz 已提交)
 dnf_decompile/docs/class_func_reports/_lt_global_gt_/
