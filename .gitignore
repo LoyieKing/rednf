@@ -1,4 +1,3 @@
-[.gitignore#6302]
 1:# C/C++ build artifacts (reconstruction workspace)
 2:dnf_decompile/build/
 3:dnf_decompile/source/build/
