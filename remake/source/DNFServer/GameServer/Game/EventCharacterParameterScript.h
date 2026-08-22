@@ -21,7 +21,10 @@ struct STEventCharacterInfo
     char m_pad2[2];
     std::vector<std::pair<int, int> > m_skillList;
     std::vector<STEventCharacterItem> m_itemList;
-    STEventCharacterInfo() : m_growType(0), m_secondGrowType(0) {}
+    // ORIG: _ZN20STEventCharacterInfoC1Ev @ 0848ecce / _ZN20STEventCharacterInfoD1Ev @ 083ce3ee
+    // 非内联定义于 EventCharacterParameterScript.cpp，产生真实 mangled 符号（替代 GameStubs asm 桥接）。
+    STEventCharacterInfo();
+    ~STEventCharacterInfo();
 };
 
 struct STEventCharacterInfo_level {

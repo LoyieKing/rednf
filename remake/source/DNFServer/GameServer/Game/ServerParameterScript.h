@@ -133,11 +133,11 @@ struct EventRewardItemInfo
 #ifndef GAME_CDATAMANAGER_H_
 struct sItemGenRef
 {
-    int m_field0;   // +0x00
-    int m_field4;   // +0x04
-    int m_field8;   // +0x08
-    int m_fieldc;   // +0x0c
-    int m_field10;  // +0x10
+    int m_field0;    // +0x00
+    int m_field4;    // +0x04
+    int m_field8;    // +0x08
+    int m_fieldc;    // +0x0c
+    int m_dropRate;  // +0x10 掉落率倍率（float 位模式，SetItemDropRate 按比例缩放）
 };
 #endif
 
@@ -320,6 +320,9 @@ public:
     int m_49e8;                                                 // +0x49e8
     int m_49ec;                                                 // +0x49ec
     int m_49f0;                                                 // +0x49f0
+    // ORIG ServerParameterScript 尺寸 0x4ae0（比本类旧基线 0x49f4 多 0xec）；
+    // 末尾缺失 0xec 字节导致 CDataManager 自 m_inGameAd 起所有字段偏移少 0xec。
+    char m_pad49f4[0xec];                                       // +0x49f4..0x4ae0
 };
 
 bool importServerParameterScript(ServerParameterScript* script,

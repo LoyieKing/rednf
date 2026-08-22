@@ -26,6 +26,9 @@
 namespace nsl {
 
 char configpath[256];
+ServiceFactory* pApp = 0;
+bool is_config_changed = false;
+bool is_config_reloaded = false;
 
 Threads::Threads()
 {

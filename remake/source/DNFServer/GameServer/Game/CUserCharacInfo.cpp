@@ -235,6 +235,7 @@ struct CharacInfoFields
     unsigned char m_cubePremiumSaved;      // +0x14d0
 };
 #pragma pack(pop)
+int DEFAULT_MAX_FATIGUE = 0;  // ORIG 全局（0x9370f5c），原 GameStubs.cpp 定义迁移
 
 #define CUR ((CharacInfoFields*)m_selected)
 
@@ -1305,6 +1306,11 @@ unsigned char CUserCharacInfo::isJoinPowerWar() const
     return m_selected ? CUR->m_joinPower : 0;
 }
 
+unsigned short CUserCharacInfo::getPowerWarHP()
+{
+    return m_selected ? CUR->m_powerWarHP : 0;
+}
+
 bool CUserCharacInfo::isExistItem(int itemIdx)
 {
     if (!m_selected)
@@ -1565,39 +1571,46 @@ _Charac_info* CUserCharacInfo::getTagCharacW() { return m_tag; }
 
 char* CUserCharacInfo::getTagCharacSkillW()
 {
-    return (char*)((char*)m_tag + 0x892);
+    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
+    return (char*)((CharacInfoFields*)m_tag)->m_skill;
 }
 
 const char* CUserCharacInfo::getTagCharacSkillR() const
 {
-    return (const char*)((char*)m_tag + 0x892);
+    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
+    return (const char*)((CharacInfoFields*)m_tag)->m_skill;
 }
 
 const _Charac_info* CUserCharacInfo::getTagCharacR() const { return m_tag; }
 
 Inven_Item* CUserCharacInfo::getTagCharacInvenW()
 {
-    return (Inven_Item*)((char*)m_tag + 0xda);
+    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
+    return (Inven_Item*)((CharacInfoFields*)m_tag)->m_inven;
 }
 
 const Inven_Item* CUserCharacInfo::getTagCharacInvenR() const
 {
-    return (const Inven_Item*)((char*)m_tag + 0xda);
+    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
+    return (const Inven_Item*)((CharacInfoFields*)m_tag)->m_inven;
 }
 
 CCargo* CUserCharacInfo::getTagCharacCargoW()
 {
-    return (CCargo*)((char*)m_tag + 0xdaa);
+    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
+    return (CCargo*)((CharacInfoFields*)m_tag)->m_cargo;
 }
 
 const CCargo* CUserCharacInfo::getTagCharacCargoR() const
 {
-    return (const CCargo*)((char*)m_tag + 0xdaa);
+    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
+    return (const CCargo*)((CharacInfoFields*)m_tag)->m_cargo;
 }
 
 const void* CUserCharacInfo::getTagCharacAddInfoR() const
 {
-    return (const char*)m_tag + 0x88;
+    // ORIG（0x14）读 m_tag（tag 角色），非 m_selected（CUR）
+    return (const void*)((CharacInfoFields*)m_tag)->m_addInfo;
 }
 
 unsigned short CUserCharacInfo::getStraightVictories() const
@@ -1607,7 +1620,7 @@ unsigned short CUserCharacInfo::getStraightVictories() const
 
 const char* CUserCharacInfo::getSkillCommand() const
 {
-    return m_selected ? (const char*)CUR + 0x1254 : 0;
+    return m_selected ? (const char*)CUR->m_skillCommand : 0;
 }
 
 seriaRoom_AniDeco CUserCharacInfo::getSeriaRoomAniDecoInfo()
@@ -1805,12 +1818,12 @@ unsigned char CUserCharacInfo::getCurCharacStamina() const
 char* CUserCharacInfo::getCurCharacSkillW()
 {
     enableSaveSkill();
-    return (char*)((char*)m_selected + 0x892);
+    return (char*)CUR->m_skill;
 }
 
 const char* CUserCharacInfo::getCurCharacSkillR() const
 {
-    return (const char*)((char*)m_selected + 0x892);
+    return (const char*)CUR->m_skill;
 }
 
 int CUserCharacInfo::getCurCharacSchoolPoint()
@@ -1881,23 +1894,23 @@ int CUserCharacInfo::getCurCharacLastPlayDungeonIndex()
 CInventory* CUserCharacInfo::getCurCharacInvenW()
 {
     enableSaveInven();
-    return (CInventory*)((char*)m_selected + 0xda);
+    return (CInventory*)CUR->m_inven;
 }
 
 Inven_Item* CUserCharacInfo::getCurCharacInvenRefW()
 {
     enableSaveInven();
-    return (Inven_Item*)((char*)m_selected + 0xda);
+    return (Inven_Item*)CUR->m_inven;
 }
 
 const Inven_Item* CUserCharacInfo::getCurCharacInvenRefR() const
 {
-    return (const Inven_Item*)((char*)m_selected + 0xda);
+    return (const Inven_Item*)CUR->m_inven;
 }
 
 const CInventory* CUserCharacInfo::getCurCharacInvenR() const
 {
-    return (const CInventory*)((char*)m_selected + 0xda);
+    return (const CInventory*)CUR->m_inven;
 }
 
 unsigned int CUserCharacInfo::getCurCharacHelpAbuseComputedRatio() const
@@ -1975,7 +1988,7 @@ unsigned char* CUserCharacInfo::getCurCharacEscaladeTutorialFlag()
 
 long CUserCharacInfo::getCurCharacCreateTime() const
 {
-    return ((const CommonTime*)((const char*)m_selected + 0x39))->operator long();
+    return CUR->m_createTime.operator long();
 }
 
 unsigned int CUserCharacInfo::getCurCharacCoin() const
@@ -1990,34 +2003,34 @@ unsigned int CUserCharacInfo::getCurCharacCoin() const
 CCargo* CUserCharacInfo::getCurCharacCargoW()
 {
     enableSaveCargo();
-    return (CCargo*)((char*)m_selected + 0xdaa);
+    return (CCargo*)CUR->m_cargo;
 }
 
 const CCargo* CUserCharacInfo::getCurCharacCargoR() const
 {
-    return (const CCargo*)((char*)m_selected + 0xdaa);
+    return (const CCargo*)CUR->m_cargo;
 }
 
 void* CUserCharacInfo::getCurCharacAddInfoW()
 {
     enableSaveCharacInfo();
-    return (char*)m_selected + 0x88;
+    return (void*)CUR->m_addInfo;
 }
 
 void* CUserCharacInfo::getCurCharacAddInfoRefW()
 {
     enableSaveCharacInfo();
-    return (char*)m_selected + 0x88;
+    return (void*)CUR->m_addInfo;
 }
 
 const void* CUserCharacInfo::getCurCharacAddInfoRefR() const
 {
-    return (const char*)m_selected + 0x88;
+    return (const void*)CUR->m_addInfo;
 }
 
 const void* CUserCharacInfo::getCurCharacAddInfoR() const
 {
-    return (const char*)m_selected + 0x88;
+    return (const void*)CUR->m_addInfo;
 }
 
 char CUserCharacInfo::getCurCharSecondGrowType() const
@@ -3932,3 +3945,14 @@ void CUserCharacInfo::AddCurCharacChaosPoint(int point)
 
 
 void CUserCharacInfo::enableSaveCharacStat() { m_saveCharacStat = 1; }
+
+// ============================================================================
+// GetTenThousandPercentage（ORIG 0x8550fc9 W）
+// 万分比计算：value * percent / 10000（编译器以 0x68db8bad 魔数除法实现，
+// 反汇编确认 = imul 后魔数除法，语义即 value*percent/10000）。
+// 声明见 CUserCharacInfo.h（SetCurCharacLuckPoint 使用）。
+// ============================================================================
+int GetTenThousandPercentage(int value, int percent)
+{
+    return value * percent / 10000;
+}

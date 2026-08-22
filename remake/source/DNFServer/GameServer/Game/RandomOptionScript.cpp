@@ -120,6 +120,29 @@ std::string RandomOptionScript::getPrefix(int prefix, bool flag)
     return out;
 }
 
+// ORIG 0x08a73956 RandomOptionScript::getPrefix(int,int,bool)
+// 按 flag 选择 m_prefixNormal(+0x1a8) / m_prefixPremium(+0x1c0) map，
+// 以第一个 int(prefix) 为 key find；返回向量下标
+// getPrefixGrade(grade)（flag 时 +3）处的字符串。
+std::string RandomOptionScript::getPrefix(int prefix, int grade, bool flag)
+{
+    std::string out;
+    const std::map<int, std::vector<std::string> >& map =
+        flag ? m_prefixPremium : m_prefixNormal;
+    int idx = getPrefixGrade(grade);
+    if (flag)
+    {
+        idx += 3;
+    }
+    std::map<int, std::vector<std::string> >::const_iterator it =
+        map.find(prefix);
+    if (it != map.end() && idx >= 0 && idx < (int)it->second.size())
+    {
+        out = it->second[idx];
+    }
+    return out;
+}
+
 int RandomOptionScript::getOptionModificationCost(short level, int rarity) const
 {
     for (std::vector<OPTION_MODIFICATION_COST>::const_iterator it =

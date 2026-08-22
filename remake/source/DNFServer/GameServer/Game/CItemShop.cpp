@@ -8,8 +8,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include <ctime>
 
 #include "CDataManager.h"
+#include "DNFLexWrapper.h"
 #include "LogManager.h"
 #include "CSystemTime.h"
 
@@ -24,12 +26,136 @@ class STScriptFileList
 public:
     std::map<int, std::string> m_fileMap;   // +0x00
 };
-extern STScriptFileList g_itemShopScriptFileList;
+STScriptFileList g_itemShopScriptFileList;  // ORIG 全局（0x94fe260），原 GameStubs.cpp 定义迁移
 extern "C" int sub_STScriptFileList_FindIndexByFullScan(const STScriptFileList* self,
                                                         const char* path)
     asm("_ZNK16STScriptFileList19FindIndexByFullScanEPKc");
 extern "C" int importItemShopScript(ItemShopScript* script, const char* path)
     asm("_Z20importItemShopScriptP14ItemShopScriptPKc");
+
+// ORIG 0x89dc5b4：脚本目录全局缓冲（initItemShopScript 0x89dc4f8 填充；
+// 本 TU 提供符号，空目录等价 loadRDARScriptFile("", path)）。
+char g_itemShopScriptDir[0x100];
+
+// ORIG 0x8514046：清零标量字段、清空容器；m_lastUpdateTime 保留旧值。
+void ItemShopScript::clear()
+{
+    m_shopId = 0;
+    m_limitType = 0;
+    m_limitCount = 0;
+    m_field0c = 0;
+    m_shopName = "";
+    m_curItemList.clear();
+    m_strList.clear();
+    m_limitNpcBuyList.clear();
+    m_dailyList.clear();
+    m_isOneADay = 0;
+}
+
+extern "C" int importItemShopScript(ItemShopScript* script, const char* path)
+{
+    if (!loadRDARScriptFile(g_itemShopScriptDir, path))
+        return 0;
+    script->clear();
+    std::string line;
+    std::string line2;
+    int value = 0;
+    bool ok = false;
+    while (ScanType(line, true))
+    {
+        if (line == "[NPC]")
+        {
+            script->m_limitCount = ScanInt(&ok);
+        }
+        else if (line == "[message]")
+        {
+            ScanStr(&script->m_shopName);
+        }
+        else if (line == "[type]")
+        {
+            ScanStr(&line2);
+            if (line2 == "[etc shop]")
+                script->m_limitType = 0;
+            else if (line2 == "[weapon shop]")
+                script->m_limitType = 1;
+            else if (line2 == "[disjoint shop]")
+                script->m_limitType = 2;
+        }
+        else if (line == "[only buy]")
+        {
+            script->m_field0c = (char)(ScanInt(&ok) != 0);
+        }
+        else if (line == "[sell item]")
+        {
+            script->m_curItemList.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
+                script->m_curItemList.push_back(value);
+            }
+        }
+        else if (line == "[sell limit item]")
+        {
+            script->m_limitNpcBuyList.clear();
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
+                script->m_limitNpcBuyList.push_back(value);
+            }
+        }
+        else if (line == "[tab name]")
+        {
+            std::string tab;
+            while (ScanStr(&tab))
+                script->m_strList.push_back(tab);
+        }
+        else if (line == "[one a day start time]")
+        {
+            time_t rawTime = time(0);
+            struct tm* tmInfo = localtime(&rawTime);
+            value = ScanInt(&ok);
+            if (!ok)
+                break;
+            tmInfo->tm_year = value - 1900;
+            value = ScanInt(&ok);
+            if (!ok)
+                break;
+            tmInfo->tm_mon = value - 1;
+            value = ScanInt(&ok);
+            if (!ok)
+                break;
+            tmInfo->tm_mday = value;
+            value = ScanInt(&ok);
+            if (!ok)
+                break;
+            tmInfo->tm_hour = value;
+            tmInfo->tm_min = 0;
+            tmInfo->tm_sec = 0;
+            script->m_lastUpdateTime = (int)mktime(tmInfo);
+        }
+        else if (line == "[one a day item]")
+        {
+            std::vector<int> items;
+            for (;;)
+            {
+                value = ScanInt(&ok);
+                if (!ok)
+                    break;
+                items.push_back(value);
+            }
+            script->m_dailyList.push_back(items);
+        }
+    }
+    script->m_shopId =
+        sub_STScriptFileList_FindIndexByFullScan(&g_itemShopScriptFileList, path);
+    if (!script->m_dailyList.empty())
+        script->m_isOneADay = 1;
+    return 1;
+}
 
 // ============================================================================
 // 构造（ORIG 0x8374e76，weak）

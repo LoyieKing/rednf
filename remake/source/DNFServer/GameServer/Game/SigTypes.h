@@ -981,6 +981,25 @@ struct stCeraShopIPGRequest_t
     char m_pad[0x100];
 };
 
+// 金币控制统计结构（Secu_GoldControl 用），ORIG sizeof = 0x3c。
+// 6 组 64 位值（gold/import/sub/importSub/auctionAdd/auctionSub），后随 6 个计数器。
+struct user_gold_info
+{
+    unsigned int m_goldLow;        // +0x00
+    unsigned int m_goldHigh;       // +0x04
+    unsigned int m_importLow;      // +0x08
+    unsigned int m_importHigh;     // +0x0c
+    unsigned int m_subLow;         // +0x10
+    unsigned int m_subHigh;        // +0x14
+    unsigned int m_importSubLow;   // +0x18
+    unsigned int m_importSubHigh;  // +0x1c
+    unsigned int m_auctionAddLow;  // +0x20
+    unsigned int m_auctionAddHigh; // +0x24
+    unsigned int m_auctionSubLow;  // +0x28
+    unsigned int m_auctionSubHigh; // +0x2c
+    unsigned short m_count[6];     // +0x30..0x3a
+};
+
 #endif  // DNF_GAME_SIG_TYPES_H_
 
 // ---- Additional types for GetOutBuffer instantiations ----

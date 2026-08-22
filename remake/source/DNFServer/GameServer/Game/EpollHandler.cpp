@@ -1,5 +1,6 @@
 // df_game_r EpollHandler 实现（ORIG 0x857c084-0x857c2e3，AE 口径还原）。
 #include "EpollHandler.h"
+#include "CEnvironment.h"
 
 #include <errno.h>
 #include <ostream>
@@ -94,3 +95,12 @@ epoll_event* EpollHandler::GetEpollEvents()
 {
     return m_events;
 }
+
+// ---- 全局单例访问器 ----
+// ORIG 0x82a70ab W（_Z13G_EpollHandlerv）：GlobalInstance<EpollHandler>::inst_ptr()
+// （create 惰性 new 并缓存至 m_p，ORIG m_p 位于 BSS 0x941f89c）。
+EpollHandler* G_EpollHandler()
+{
+    return GlobalInstance<EpollHandler>::inst_ptr();
+}
+template class GlobalInstance<EpollHandler>;

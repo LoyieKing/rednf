@@ -12,6 +12,7 @@ public:
     ~CMonster();
     long deathTowerSpecifyItemDrop() const;
     int get_index();
+    int get_index() const;
     static void* getMonsterScript(CMonster* self);
     void* getMonsterScript() const;
     void set_monster(STMonsterScript& script);

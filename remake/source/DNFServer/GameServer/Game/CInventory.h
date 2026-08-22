@@ -21,6 +21,7 @@
 #include <stddef.h>
 #include <utility>
 #include <vector>
+#include <map>
 
 #include "CItem.h"
 #include "CStackableItem.h"
@@ -184,9 +185,23 @@ public:
     int UseItem(Inven_Item* item, int slot);  // ORIG _ZN13user_creature12CCreatureMgr7UseItemEP10Inven_Itemi
     bool SwapCreatureItem(Inven_Item* a, int slotA, int typeA,
                           Inven_Item* b, int slotB, int typeB);
+    void GainExp(int exp);                               // ORIG _ZN13user_creature12CCreatureMgr7GainExpEi
+    bool IsEquippedCreature() const;                     // ORIG _ZNK13user_creature12CCreatureMgr18IsEquippedCreatureEv
+    bool IsGrowCreature_Equipped_Creature() const;       // ORIG _ZNK13user_creature12CCreatureMgr32IsGrowCreature_Equipped_CreatureEv
+    bool InsertCreatureItem(Inven_Item* item, int a,     // ORIG _ZN13user_creature12CCreatureMgr18InsertCreatureItemEP10Inven_Itemiiii
+                            int b, int c, int d);
     char m_pad[0x4c];  // ORIG 尺寸 0x4c（+0x6e8..+0x733）
 };
 }
+class AvatarCoin
+{
+public:
+    AvatarCoin() {}
+    void Set(unsigned int) {}
+    void Add(unsigned int) {}
+    unsigned int Use() { return 0; }
+    char m_pad[4];
+};
 
 namespace WongWork
 {
@@ -199,30 +214,17 @@ public:
     };
     static void genIPGNo(ENUM_IPGNO_TYPE type, unsigned int characNo, char* out);
 };
-
 class CAvatarItemMgr
 {
 public:
     void Reset();
-    unsigned long RegistNotAssignedAvatarItem(int itemIdx, int tick, const char* ipgAgency,
-                                              bool b, const stAvatarEmblemInfo_t& emblem);
-    int GetExpireDate(int avatarUid) const;
-    const char* GetIPGAgencyNo(int addInfo) const;
-    char m_pad[0x4c];  // +0x734 起
+    unsigned long RegistNotAssignedAvatarItem(int, int, const char*, bool, const stAvatarEmblemInfo_t&);
+    int GetExpireDate(int) const;
+    const char* GetIPGAgencyNo(int) const;
+    int GetRemainDate(int, int) const;
+    char m_pad[0x4c];
 };
-
 }
-
-class AvatarCoin
-{
-public:
-    AvatarCoin();
-    void Set(unsigned int value);
-    void Add(unsigned int value);
-    unsigned int Use();
-    char m_pad[4];  // ORIG 尺寸 4（+0x658..+0x65b）
-};
-
 // ---- 外部依赖（其它 TU 提供；成员签名按 ORIG nm 核对） ----
 class CSlotBoundChecker;
 class CExpandEquipslot;
@@ -242,6 +244,11 @@ public:
     // 但 ChangeEquip 调用点按 3 参形态（field,user,type）压栈——按调用点 ABI 声明，
     // 链接桩由主 agent 提供。
     static int Check(CSecu_ProtectionField* field, CUser* user, SECURITY_PROTCTION type);
+    int GetOppositeErr(int err);
+    unsigned int GetProtectionType(SECURITY_PROTCTION type);
+    int CheckRestoreType(CUser* user, unsigned int protType);
+    int CheckTradingType(CUser* user, unsigned int protType, SECURITY_PROTCTION type);
+    int CheckEtcType(CUser* user, SECURITY_PROTCTION type);
 };
 
 namespace GlobalData
@@ -252,6 +259,8 @@ extern CSecu_ProtectionField* s_pSecuProtectionField;
 class CSlotBoundChecker
 {
 public:
+    void init();
+    void insert(int slot, int capacity, Inven_Item::ITEM_TYPE type, bool a, bool b);
     bool get_slot_bound(Inven_Item::ITEM_TYPE type, int capacity, int& start, int& end) const;
     bool get_item_type(int slot, int capacity, Inven_Item::ITEM_TYPE& outType) const;
 };
@@ -267,14 +276,35 @@ public:
 class Store
 {
 public:
-    void GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count, bool flag,
-                          int& outPrice);
+    // ORIG 符号（nm -C 核对）：
+    //   GetSellItemPrice(Inven_Item&, CItem const*, short, bool, int&) 0x08618ea0
+    //   GetSellItemPrice(CUser*, char, short, short, bool, int&, int&)  0x08619008
+    //   user_buy_item(CUser*, int, int)                                 0x08618a44
+    //   user_sell_item(CUser*, char, short, short)                      0x086193f8
+    //   repair_equip(CUser*, char, short, unsigned short, unsigned short&)
+    //                                                                   0x08619cec
+    int GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count,
+                         bool flag, int& outPrice);
+    int GetSellItemPrice(CUser* user, char invenType, short slot, short count,
+                         bool flag, int& outPrice, int& outCount);
+    int user_buy_item(CUser* user, int itemId, int count);
+    int user_sell_item(CUser* user, char invenType, short slot, short count);
+    int repair_equip(CUser* user, char invenType, short slot,
+                     unsigned short count, unsigned short& outEndurance);
 };
 
 class CValueStatistic
 {
 public:
+    struct stValueStatistic
+    {
+        int m_values[0x47][0x1e];  // +0x00 [level][field]（0x47×0x1e int）
+        void reset();
+    };
     void AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user, unsigned int value);
+    int InsertValueStatistic();
+private:
+    std::map<ENUM_SERVER_GROUP, stValueStatistic> m_data;
 };
 
 class PacketGuard : public InterfacePacketBuf
@@ -304,13 +334,13 @@ bool isEquipableItemType(int itemType);
 int getItemChecksum(int slot, int itemIdx, int a, int b, int c);
 int finishItemChecksum(int* sum, int money, int coin, int a, int b);
 int my_compare_unsigned_short(const void* a, const void* b);
-void write_log_gain_money(int reason, int amount, unsigned int user);
-void write_log_use_money(int reason, int amount, unsigned int user);
+void write_log_gain_money(eMoneyAddReason reason, int amount, CUser* user);
+void write_log_use_money(eMoneySubReason reason, int amount, CUser* user);
 char* NumberToString(unsigned int value, int radix);
 bool isGainedGoldFromDungeonReason(eMoneyAddReason reason);
 extern int _CompareSlot(const void* a, const void* b);
 extern int _S_CHARAC_JOB_MASTARY[];
-const char* GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);
+int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);  // ORIG 返回 int（INVEN_TYPE），非 const char*
 int GetInvenTypeFromItemSpace(int space);
 
 class CInventory
@@ -349,7 +379,7 @@ public:
     Inven_Item* GetInvenRef(int invenType, int slot);
     const Inven_Item* GetInvenRef(int invenType, int slot) const;
     Inven_Item* GetInvenStart(int invenType) const;
-    int GetInvenSlot(int invenType, int slot) const;
+    Inven_Item GetInvenSlot(int invenType, int slot) const;
     int GetInvenSlotByRef(int invenType, int slot, Inven_Item& item);
     void GetInvenData(int invenType, void* out, int size) const;
     int GetInvenData(int itemIdx, Inven_Item& out) const;
@@ -427,7 +457,7 @@ public:
     int delete_item(INVEN_TYPE invenType, int slot, int count, eItemDelReason reason,
                     bool bLog);
     void update_item(INVEN_TYPE invenType, int slot, Inven_Item item);
-    int move_item(int invenType, int slot, int dstType, int dstSlot);
+    int move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, int dstSlot);
     int MoveItemToEmptySlotOfInventory(int slot, int start, int end);
     int ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot);
     int insertItemIntoInventory(Inven_Item item, eItemAddReason reason, bool bLog,

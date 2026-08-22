@@ -24,7 +24,9 @@
 #include "CStackableItem.h"
 #include "CEquipItem.h"
 #include "CDataManager.h"
+#include "CDungeonClear.h"
 #include "PacketBuf.h"      // GameWorld / G_GameWorld / G_CDataManager
+#include "CPowerManager.h"   // 权威 CPowerManager 声明（GlobalData::s_power_manager 完整类型）
 
 // ---- 枚举（ORIG mangling 需要类型名；与 CInventory.h 共享守卫） ----
 #ifndef DNF_ENUM_ITEMSPACE_DEFINED
@@ -104,21 +106,6 @@ public:
 class GameResultType
 {
 };
-
-namespace WongWork
-{
-class CDungeonClear
-{
-public:
-    CDungeonClear();
-    ~CDungeonClear();
-    void clear();
-    char getClearedDungeonDiff(short dungeonIdx) const;
-    void addClearedDungeon(short dungeonIdx, signed char diff);
-
-    std::map<short, char> m_map;  // +0x00
-};
-}
 
 class CommonTime
 {
@@ -209,13 +196,6 @@ struct stBloodBestRecord
     unsigned int m_time; // +0x04
 };
 
-class CPowerManager
-{
-public:
-    bool IsPowerWarEventOn();
-    float GetPowerWarResponPenalty(CUser* user);
-    int GetPowerWarGhostTime(CUser* user, float f);
-};
 
 class InventoryMemory;
 class PacketGuard;
@@ -431,6 +411,7 @@ public:
     unsigned char getUserEventCharacterFlag();
     void setUserEventCharacterFlag(unsigned char flag);
     void useWinPoint(int point, eWPSubReason reason);
+    unsigned short getPowerWarHP();
 
     // ---- 背包 / 技能 / 仓库 / 附加信息 ----
     CInventory* getCurCharacInvenW();

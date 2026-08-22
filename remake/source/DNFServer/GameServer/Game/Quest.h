@@ -20,20 +20,26 @@ enum ENUM_CHARACTERJOB
     ENUM_CHARACTERJOB_0 = 0
 };
 
+#ifndef DNF_ENUM_QUEST_ENEMY_TYPE_DEFINED
+#define DNF_ENUM_QUEST_ENEMY_TYPE_DEFINED
 enum ENUM_QUEST_ENEMY_TYPE
 {
     ENUM_QUEST_ENEMY_TYPE_0 = 0
 };
+#endif
 
 enum ENUM_QUEST_EXCEPTION_TYPE
 {
     ENUM_QUEST_EXCEPTION_TYPE_0 = 0
 };
 
+#ifndef DNF_ENUM_DAILYSCHEDULETYPE_DEFINED
+#define DNF_ENUM_DAILYSCHEDULETYPE_DEFINED
 enum _DailyScheduleType
 {
     _DailyScheduleType_0 = 0
 };
+#endif
 
 // ---- 任务目标职业/成长（12 字节） ----
 struct stQuestTargetCharacter_t

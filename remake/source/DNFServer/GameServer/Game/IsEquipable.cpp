@@ -5,7 +5,10 @@
 #include "SkillSlot.h"
 #include "InterfacePacketBuf.h"
 
-int _S_CHARAC_JOB_MASTARY[57] = {
+// ORIG _ZL21_S_CHARAC_JOB_MASTARY（file-local static）：checkEquipmentState 按
+// (a*5+b)（a<9,b<5 → 最大 44）与 a*0x14（a<9 → 最大 160）索引，需 ≥161 项；
+// 此处为全局定义（CInventory.h extern int[]），尺寸取 0xC0。
+int _S_CHARAC_JOB_MASTARY[0xC0] = {
     3,2,0,3,4, 2,0,2,3,2, 1,1,3,0,1,
     0,0,0,1,1, 3,4,2,0,3, 1,1,3,0,1,
     1,1,2,1,1, 2,0,2,3,2, 0,0,1,0,0,

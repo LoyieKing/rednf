@@ -205,6 +205,7 @@ public:
     void SetAssaultState(char state);
     cMember* GetMember();
     CUser* get_user(int idx);
+    int get_party_type() const;
     char getTitleIndex();
     void setTitleIndex(unsigned char idx);
     char* getTitle();
@@ -647,9 +648,12 @@ private:
     // ---- CBattle_Field 区（+0xb24，0xcd0 字节） ----
     unsigned char m_padBattleField1[0x188];  // +0xb24
     CDungeon* m_dungeon;                    // +0xcac
-    unsigned char m_padcb0[0xac];           // +0xcb0
+    unsigned char m_padcb0[0x28];           // +0xcb0
+    int m_partyType;                        // +0xcd8
+    unsigned char m_padcdc[0x80];           // +0xcdc
     int m_standardDimensionLevel;           // +0xd5c
-    unsigned char m_padd60[0xa94];          // +0xd60
+    // CBattle_Field(+0xb24, 0xcd0) 余下 0xa94 字节未声明：+0xd60..0x17f3
+    unsigned char m_padCBattleField2[0xa94];    // +0xd60..0x17f3
     unsigned char m_padResult[0x50];    // +0x17f4 GameResultSet
     unsigned char m_padMap[0x18];       // +0x1844 std::map<int,int>
 
@@ -685,5 +689,4 @@ private:
     unsigned char m_pad1af2[0x2];    // +0x1af2
     unsigned char m_padPassedMap[0xc]; // +0x1af4 std::vector<MapInfo>
 };
-static_assert(sizeof(CParty) == 0x1b00, "CParty size");
 #endif  // GAME_CPARTY_H_

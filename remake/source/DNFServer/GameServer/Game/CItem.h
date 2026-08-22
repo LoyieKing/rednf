@@ -87,6 +87,8 @@ public:
     bool check_low_level(int level) const;
     bool IsHiddenOption() const;
     bool isExpertJobUsable(ENUM_EXPERT_JOB_TYPE type, int level) const;
+    int get_need_skill() const;            // ORIG 0850d27a（返回 +0x58）
+    int getFootControlRateLimit() const;   // ORIG 0850d286（返回 +0x5c）
     float GetExpertJobCompoundMaterialVariation() const;
     float GetExpertJobCompoundRateVariation() const;
     void GetExpertJobCompoundResultVariation(
@@ -96,6 +98,8 @@ public:
     void GetExpertJobAdditionalExp(
         STItemScript::SEXPERTJOB::stExpertJobAdditionalExp& out) const;
     int GetFinishPointPrice() const;
+    int GetSellPrice() const;   // ORIG 0x08473612（W），返回 +0x30
+    int get_price() const;      // ORIG 0x0822c84a（W），返回 +0x0c
 
     int m_index;                          // +0x04
     int m_grade;                          // +0x08

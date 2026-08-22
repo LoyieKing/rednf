@@ -28,6 +28,10 @@ extern "C" void* GlobalData_s_monitor_proxy_mgr
 extern "C" void* sub_CServerProxyMgr_GetServerProxy_Monitor(void* self, int group)
     asm("_ZN15CServerProxyMgrI19CMonitorServerProxyE14GetServerProxyE17ENUM_SERVER_GROUP");
 extern "C" void* sub_G_GameWorld(void) asm("_Z11G_GameWorldv");
+extern "C" void sub_GameWorld_send_to_area(void* gw, int a, int b, void* packet)
+    asm("_ZN9GameWorld12send_to_areaEiiR11PacketGuard");   // 086c8168
+extern "C" void sub_CMonitorServerProxy_SendTcpPacket(void* self, void* buf, int len)
+    asm("_ZN19CMonitorServerProxy13SendTcpPacketEPci");    // 08470e44
 // ORIG 该符号返回 bool(m_field04 != 0)；GameStubs_remaining.cpp 当前为 void stub
 // （TODO G3），此处按 ORIG 调用语义声明为 char。
 extern "C" char sub_village_Mgr_OnEvent(void* self)
@@ -143,9 +147,9 @@ public:
 //            it == end -> return 0x15
 //            return it->second.OnKillVillageMonster(0, c, d);
 // ============================================================================
-void CVillageMonsterMgr::OnMoveArea(CUser*) {}
-void CVillageMonsterMgr::OnEvent() {}
-void CVillageMonsterMgr::InsertVillageMonster(int, int, int, int, std::vector<STAttackedMonster>*, std::vector<MapArea>*) {}
+
+// OnMoveArea / OnEvent / InsertVillageMonster 由已登记的 CVillageMonsterMgr.cpp
+// 提供定义（本 TU 不再重复定义，避免多重定义）。
 
 int CVillageMonsterMgr::OnKillVillageMonster(int a, int b, unsigned short c, bool d)
 {

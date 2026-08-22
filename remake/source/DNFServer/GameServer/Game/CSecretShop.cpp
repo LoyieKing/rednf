@@ -10,12 +10,13 @@
 
 #include <map>
 #include <vector>
+#include <cstdlib>
+#include <cmath>
 
 #include "Inven_Item.h"
 #include "CDataManager.h"
 #include "CInventory.h"
 #include "CUser.h"
-
 // ---- eBuyRule（ORIG 全局枚举，mangled 8eBuyRule） ----
 enum eBuyRule
 {
@@ -37,6 +38,19 @@ namespace GlobalData
 {
 extern void* s_statistic_proxy_mgr;
 }
+// ---- 全局 CMTRand（PvP_deps.h/CMTRand.cpp 权威类，0x9c8） ----
+// GetItemByDungeonIdx/Lev 的 ORIG 形参 mangled 为 P7CMTRand（全局），故此处补全
+// 全局 CMTRand 声明（CDataManager.h 仅前向声明），供本 TU 成员方法调用 randInt。
+class CMTRand
+{
+public:
+    CMTRand();
+    void seed(unsigned long s);
+    int randInt();
+    int randInt(const unsigned long& range);
+private:
+    char m_pad[0x9c8];
+};
 
 namespace secretshop
 {
@@ -542,12 +556,9 @@ extern "C" char sub_SecretShopScript_GetNpcByDungeonIdx(void* script, int* out,
 extern "C" void sub_SecretShopScript_GetNpcByDungeonLev(void* script, int* out,
                                                        int a, int b)
     asm("_ZN16SecretShopScript18GetNpcByDungeonLevERiii");
-extern "C" char sub_SecretShopScript_GetItemByDungeonIdx(
-    void* script, CMTRand* rand, std::vector<SALE_INFO>& out, int a, int b, bool c)
-    asm("_ZN16SecretShopScript21GetItemByDungeonIdxEP7CMTRandRSt6vectorIN10secretshop9SALE_INFOSaIS4_EEEiib");
-extern "C" void sub_SecretShopScript_GetItemByDungeonLev(
-    void* script, CMTRand* rand, std::vector<SALE_INFO>& out, int a, int b, bool c)
-    asm("_ZN16SecretShopScript21GetItemByDungeonLevEP7CMTRandRSt6vectorIN10secretshop9SALE_INFOSaIS4_EEEiib");
+// （GetItemByDungeonIdx/Lev 已由下方真实 C++ 方法实现，ORIG mangled 前缀为 19，
+//   不再使用 21 错拼 asm 桥接。）
+
 
 CSecretShop::CSecretShop()
 {
@@ -589,11 +600,13 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
 void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
                                int level, int price)
 {
-    void* script = (char*)G_CDataManager() + 0xa700;
-    if (!sub_SecretShopScript_GetItemByDungeonIdx(script, m_pRand, out,
-                                                  dungeonIdx, level, false))
-        sub_SecretShopScript_GetItemByDungeonLev(script, m_pRand, out,
-                                                 dungeonIdx, price, false);
+    SecretShopScript* script = (SecretShopScript*)((char*)G_CDataManager() + 0xa700);
+    // m_pRand 为 secretshop::CMTRand*（ABI 与全局 CMTRand 一致的 MT19937）；
+    // GetItemByDungeonIdx/Lev 形参为全局 CMTRand*（ORIG mangled P7CMTRand）。
+    if (!script->GetItemByDungeonIdx((::CMTRand*)m_pRand, out,
+                                     dungeonIdx, level, false))
+        script->GetItemByDungeonLev((::CMTRand*)m_pRand, out,
+                                    dungeonIdx, price, false);
 }
 
 void CSecretShop::CheckLottery()
@@ -601,8 +614,7 @@ void CSecretShop::CheckLottery()
     // ORIG 0x85fad20：按村庄商店位轮换抽取商品并广播
 }
 
-void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
-                          int count)
+void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int count)
 {
     SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
     if (sale == 0)
@@ -658,6 +670,159 @@ void CSecretShop::SendSecretShopStatistic()
 }
 
 }  // namespace secretshop
+// ============================================================================
+// SecretShopScript::GetItemByDungeonIdx / GetItemByDungeonLev（ORIG 0x08a82a0e /
+// 0x08a82b34）。依赖链：GetItems -> CopyItem/IsExistItem/GetDomainRate，GetLevelIdx，
+// GetItemByEvent -> GetItems。全部按 class_func_reports/SecretShopScript 忠实转写。
+// ============================================================================
+char SecretShopScript::GetItemByDungeonIdx(CMTRand* rand,
+                                           std::vector<secretshop::SALE_INFO>& out,
+                                           int dungeonIdx, int level, bool event)
+{
+    std::map<int, stNpcSales>::iterator npcIt = m_dungeonNpcMap.find(dungeonIdx);
+    if (npcIt == m_dungeonNpcMap.end())
+        return 0;
+    std::map<int, stDungeonSales>::iterator dunIt =
+        npcIt->second.m_dungeonSales.find(level);
+    if (dunIt == npcIt->second.m_dungeonSales.end())
+        return 0;
+    if (GetItems(rand, out, dunIt->second)) {
+        if (event)
+            GetItemByEvent(rand, out);
+        return 1;
+    }
+    return 0;
+}
+
+char SecretShopScript::GetItemByDungeonLev(CMTRand* rand,
+                                           std::vector<secretshop::SALE_INFO>& out,
+                                           int dungeonIdx, int level, bool event)
+{
+    std::map<int, stNpcSales>::iterator npcIt = m_dungeonNpcMap.find(dungeonIdx);
+    if (npcIt == m_dungeonNpcMap.end())
+        return 0;
+    int levelIdx = GetLevelIdx(level);
+    std::map<int, stDungeonSales>::iterator dunIt =
+        npcIt->second.m_dungeonSales.find(levelIdx);
+    if (dunIt == npcIt->second.m_dungeonSales.end())
+        return 0;
+    if (GetItems(rand, out, dunIt->second)) {
+        if (event)
+            GetItemByEvent(rand, out);
+        return 1;
+    }
+    return 0;
+}
+
+char SecretShopScript::GetItemByEvent(CMTRand* rand,
+                                      std::vector<secretshop::SALE_INFO>& out)
+{
+    std::vector<secretshop::SALE_INFO> list;
+    if (GetItems(rand, list, m_eventDungeonSales)) {
+        for (unsigned int i = 0; i < list.size(); ++i) {
+            list[i].m_field18 = 1;
+            out.push_back(list[i]);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+char SecretShopScript::GetItems(CMTRand* rand,
+                                std::vector<secretshop::SALE_INFO>& out,
+                                stDungeonSales& sales)
+{
+    if ((int)sales.m_sales.size() < sales.m_maxCount) {
+        // 商品数少于上限：直接全部列出
+        for (std::map<int, stSaleInfo>::iterator it = sales.m_sales.begin();
+             it != sales.m_sales.end(); ++it) {
+            secretshop::SALE_INFO sale;
+            CopyItem(sale, it->second);
+            out.push_back(sale);
+        }
+    }
+    else {
+        // 按权重随机抽取，直到填满 m_maxCount 或商品重复
+        unsigned long total = 0;    // 累计 rate
+        unsigned long target = 0;
+        int guard = 0;
+        do {
+            if ((int)out.size() >= sales.m_maxCount)
+                return 1;
+            total = (unsigned long)GetDomainRate(sales);
+            target = (unsigned long)rand->randInt(total);
+            unsigned long acc = 0;
+            for (std::map<int, stSaleInfo>::iterator it = sales.m_sales.begin();
+                 it != sales.m_sales.end(); ++it) {
+                acc += (unsigned long)it->second.m_rate;
+                if (target < acc) {
+                    if (!IsExistItem(out, it->second.m_itemIdx)) {
+                        secretshop::SALE_INFO sale;
+                        CopyItem(sale, it->second);
+                        out.push_back(sale);
+                    }
+                    break;
+                }
+            }
+            ++guard;
+        } while (guard <= 0x2710);
+    }
+    return 1;
+}
+
+bool SecretShopScript::IsExistItem(std::vector<secretshop::SALE_INFO>& out,
+                                   int itemIdx)
+{
+    for (unsigned int i = 0; i < out.size(); ++i)
+        if (out[i].m_itemIdx == itemIdx)
+            return true;
+    return false;
+}
+
+int SecretShopScript::GetDomainRate(stDungeonSales& sales)
+{
+    int total = 0;
+    for (std::map<int, stSaleInfo>::iterator it = sales.m_sales.begin();
+         it != sales.m_sales.end(); ++it)
+        total += it->second.m_rate;
+    return total;
+}
+
+int SecretShopScript::GetLevelIdx(int level)
+{
+    for (std::set<stLevelSection>::iterator it = m_levelSections.begin();
+         it != m_levelSections.end(); ++it) {
+        if ((*it).m_minLev <= level && level <= (*it).m_maxLev)
+            return (*it).m_levelIdx;
+    }
+    return 0;
+}
+
+int SecretShopScript::GetRandItemPrice(int price)
+{
+    int r = rand();
+    int m = r % 3;
+    if (m == 0)
+        return price + (int)((double)m_priceVarPercent / 100.0 *
+                             (double)price + 0.5);
+    if (m == 1)
+        return price - (int)((double)m_priceVarPercent / 100.0 *
+                             (double)price + 0.5);
+    return price;
+}
+
+void SecretShopScript::CopyItem(secretshop::SALE_INFO& sale, stSaleInfo& info)
+{
+    sale.m_itemIdx = info.m_itemIdx;
+    sale.m_rule = info.m_rule;
+    sale.m_limit = info.m_limit;
+    if (sale.m_rule == (char)0) {
+        sale.m_price = GetRandItemPrice(info.m_price);
+    } else if (sale.m_rule == (char)1) {
+        sale.m_material = info.m_price;
+        sale.m_materialCount = info.m_materialCount;
+    }
+}
 
 // ---- importSecretShopScript（ORIG 0x8a81cf0） ----
 extern "C" int importSecretShopScript(SecretShopScript* script, const char* path)

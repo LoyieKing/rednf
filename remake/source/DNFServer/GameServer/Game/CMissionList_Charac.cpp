@@ -45,8 +45,25 @@ extern "C" void sub_cUserHistoryLog_pvpMissionDel(void* self, int kind,
     asm("_ZN15cUserHistoryLog13pvpMissionDelEii");
 
 // 全局辅助（数据域 TU）：bitset <-> 存档字节串、每日排程判定
-void BitsetToStr(const std::bitset<256>& bitset, unsigned char* out);
-void StrToBitset(unsigned char* data, std::bitset<256>& bitset);
+// ORIG 0x8a5a989：逐字节/位转换
+void StrToBitset(unsigned char* data, std::bitset<256>& bitset)
+{
+    for (int i = 0; i < 32; ++i)
+        for (int j = 0; j < 8; ++j)
+            bitset[i * 8 + j] = (data[i] >> j) & 1;
+}
+// ORIG 0x8a5a90a：bitset → 32 字节
+void BitsetToStr(const std::bitset<256>& bitset, unsigned char* out)
+{
+    for (int i = 0; i < 32; ++i)
+    {
+        unsigned char byte = 0;
+        for (int j = 0; j < 8; ++j)
+            if (bitset[i * 8 + j])
+                byte |= (1 << j);
+        out[i] = byte;
+    }
+}
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime,
                             long lCurTime);
 

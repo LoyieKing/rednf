@@ -24,6 +24,8 @@ class CUser;
 class CInventory;
 
 // ---- 枚举（值以 ORIG 立即数为准；与 CInventory.h 同名枚举待主 agent 合并）----
+#ifndef DNF_ENUM_INVEN_TYPE_DEFINED
+#define DNF_ENUM_INVEN_TYPE_DEFINED
 enum INVEN_TYPE
 {
     INVEN_TYPE_INVEN = 0,
@@ -33,7 +35,10 @@ enum INVEN_TYPE
     INVEN_TYPE_5 = 5,
     INVEN_TYPE_6 = 6
 };
+#endif
 
+#ifndef DNF_ENUM_EQUIPSLOT_DEFINED
+#define DNF_ENUM_EQUIPSLOT_DEFINED
 enum ENUM_EQUIPSLOT
 {
     ENUM_EQUIPSLOT_0 = 0,
@@ -41,23 +46,33 @@ enum ENUM_EQUIPSLOT
     ENUM_EQUIPSLOT_2 = 2,
     ENUM_EQUIPSLOT_3 = 3
 };
+#endif
 
+#ifndef DNF_ENUM_ITEMSPACE_DEFINED
+#define DNF_ENUM_ITEMSPACE_DEFINED
 enum ENUM_ITEMSPACE
 {
     ENUM_ITEMSPACE_0 = 0,
     ENUM_ITEMSPACE_0x12 = 0x12
 };
+#endif
 
+#ifndef DNF_ENUM_USERINFO_DEFINED
+#define DNF_ENUM_USERINFO_DEFINED
 enum ENUM_USERINFO
 {
     ENUM_USERINFO_0 = 0
 };
+#endif
 
+#ifndef DNF_ENUM_SECURITY_PROTCTION_DEFINED
+#define DNF_ENUM_SECURITY_PROTCTION_DEFINED
 enum SECURITY_PROTCTION
 {
     SECURITY_PROTCTION_0 = 0,
     SECURITY_PROTCTION_0x16 = 0x16
 };
+#endif
 
 // ---- CExpandEquipslot（0x899 字节，pack(1)）----
 #pragma pack(push, 1)

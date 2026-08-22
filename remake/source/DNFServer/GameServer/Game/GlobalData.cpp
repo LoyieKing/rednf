@@ -12,12 +12,15 @@
 #include <string.h>
 #include <time.h>
 #include <pthread.h>
+#include <algorithm>
 #include <map>
 #include <string>
 #include <deque>
 #include <math.h>
 
 #include "CEnvironment.h"
+#include "GameTypes.h"
+#include "PacketGuard.h"
 #include "CRijndael.h"
 #include "Cipher.h"
 #include "BaseServerProxy.h"
@@ -30,6 +33,7 @@
 #include "CMonitorServerProxy.h"
 #include "CServerProxyMgr.h"
 #include "CItemAmplifier.h"
+#include "CPowerManager.h"   // 权威 CPowerManager 类（替代下方本地 stub，解除 ODR）
 
 // ============================================================================
 // 依赖类最小 stub（符号/布局属后续批次；本 TU 只用于还原 GlobalData 函数）
@@ -72,16 +76,7 @@ private:
 };
 }
 
-class PacketPool
-{
-public:
-    PacketPool();
-    ~PacketPool();
-    pthread_t getThreadID();
-    void setThreadID(unsigned long threadID);
-private:
-    char m_pad[8];
-};
+class PacketPool;
 
 class DBThread : public Thread
 {
@@ -195,16 +190,6 @@ private:
     char m_pad[0x30e10];
 };
 
-class CPowerManager
-{
-public:
-    CPowerManager();
-    bool Init();
-    static void LoadPowerWarInfo();
-    static void LoadRankerInfo();
-private:
-    char m_pad[0x208];
-};
 
 class CFatigueBatteryHandle
 {
@@ -1091,10 +1076,19 @@ ARAD::Arad_ServerStateManager::Arad_ServerStateManager()
     memset(m_pad, 0, sizeof(m_pad));
 }  // TODO(后续批次)
 
-PacketPool::PacketPool() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-PacketPool::~PacketPool() {}  // TODO(后续批次)
-pthread_t PacketPool::getThreadID() { return 0; }  // TODO(后续批次)
-void PacketPool::setThreadID(unsigned long) {}  // TODO(后续批次)
+PacketPool::PacketPool() : m_pool(new DynamicPool<PacketBuf>(0)), m_threadID(0) {}
+PacketPool::~PacketPool() { delete m_pool; }
+pthread_t PacketPool::getThreadID() { return m_threadID; }
+void PacketPool::setThreadID(unsigned long tid) { m_threadID = tid; }
+PacketBuf* PacketPool::Acquire()
+{
+    return m_pool ? m_pool->Acquire() : 0;
+}
+void PacketPool::Free(PacketBuf* packet)
+{
+    if (m_pool)
+        m_pool->Free(packet);
+}
 
 // ---- CServerProxyMgr<CMonitorServerProxy>/<CGuildServerProxy> ----
 // 由 CServerProxyMgr.h 真实模板在下方 new/delete 处隐式实例化
@@ -1105,6 +1099,14 @@ CServerProxyMgr<CStatisticServerProxy>::CServerProxyMgr()
     memset(m_pad, 0, sizeof(m_pad));
 }  // TODO(后续批次)
 CServerProxyMgr<CStatisticServerProxy>::~CServerProxyMgr() {}  // TODO(后续批次)
+
+// CServerProxyMgr<CMonitorServerProxy> 的 GetStartIndex/GetEndIndex/GetNextIndex
+// 仅被 CGameManager.cpp 经 sub_CServerProxyMgrMonitor_* asm 桥接引用（ORIG
+// 符号 _ZN15CServerProxyMgrI19CMonitorServerProxyE13GetStartIndexEv 等），
+// 无法在调用 TU 隐式实例化，故在此显式实例化（对齐 CStatisticServerProxy.cpp 模式）。
+template int CServerProxyMgr<CMonitorServerProxy>::GetStartIndex();
+template int CServerProxyMgr<CMonitorServerProxy>::GetEndIndex();
+template int CServerProxyMgr<CMonitorServerProxy>::GetNextIndex(int&);
 
 // ---- ServerProxy（BaseServerProxy/CHadesServerProxy 属 E1 批次，见
 //      BaseServerProxy.cpp/CHadesServerProxy.cpp）----
@@ -1121,10 +1123,6 @@ CCommunityServerProxy::CCommunityServerProxy(char*, int)
 {
     memset(m_pad, 0, sizeof(m_pad));
 }  // TODO(后续批次)
-CPowerManager::CPowerManager() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-bool CPowerManager::Init() { return true; }  // TODO(后续批次)
-void CPowerManager::LoadPowerWarInfo() {}  // TODO(后续批次)
-void CPowerManager::LoadRankerInfo() {}  // TODO(后续批次)
 
 CFatigueBatteryHandle::CFatigueBatteryHandle() { m_pad[0] = 0; }  // TODO(后续批次)
 CmmChannelProxy::CmmChannelProxy(std::string, int)
@@ -1134,9 +1132,20 @@ CmmChannelProxy::CmmChannelProxy(std::string, int)
 bool CmmChannelProxy::Init() { return true; }  // TODO(后续批次)
 
 // ---- WongWork ----
-WongWork::CGMAccounts::CGMAccounts() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-WongWork::CGMAccounts::~CGMAccounts() {}  // TODO(后续批次)
-bool WongWork::CGMAccounts::isGM(unsigned int) { return false; }  // TODO(后续批次)
+// CGMAccounts：ORIG isGM 0x08109346 —— 在 m_gmList 中查找 {mid, type=3}。
+WongWork::CGMAccounts::CGMAccounts()
+{
+}
+WongWork::CGMAccounts::~CGMAccounts()
+{
+}
+bool WongWork::CGMAccounts::isGM(unsigned int mid)
+{
+    WongWork::stGMInfo_t key(mid, 3);
+    std::list<WongWork::stGMInfo_t>::iterator it =
+        std::find(m_gmList.begin(), m_gmList.end(), key);
+    return it != m_gmList.end();
+}
 WongWork::CLogGameChannel::CLogGameChannel()
 {
     memset(m_pad, 0, sizeof(m_pad));
@@ -1223,7 +1232,7 @@ bool CSyncSlangFilter::HasSlangName(std::string&) { return false; }  // TODO(后
 void CSyncSlangFilter::FreeInstance() {}  // TODO(后续批次)
 
 // ---- 事件/GM/统计 ----
-CEventManager::CEventManager() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
+// CEventManager 构造/析构已移入 CEventManager.cpp（独立 TU）。
 Gm_List::Gm_List() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
 CGM_Manager::CGM_Manager() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
 CGM_Manager::~CGM_Manager() {}  // TODO(后续批次)
@@ -1355,6 +1364,7 @@ CRijndael* GlobalData::s_pcryptRijndael_MousePassword_ = 0;
 Cipher* GlobalData::s_secu_cipher_keystring_manager_[0x4e20] = {0};
 CTEA* GlobalData::s_pcryptTEA_MousePassword_ = 0;
 CTEA* GlobalData::s_pcryptTEA_SecurityCard_ = 0;
+char GlobalData::g_SPremiumInfo[0x7740];
 WongWork::CSimpleSSO* GlobalData::s_psimpleSSO = 0;
 WongWork::CSecurityCardCenter* GlobalData::s_securityCardCenter = 0;
 WongWork::CGMAccounts* GlobalData::s_pGMAccounts_ = 0;

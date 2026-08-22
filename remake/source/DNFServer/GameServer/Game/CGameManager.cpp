@@ -49,8 +49,16 @@ namespace GlobalData
 extern CServerProxyMgr<CGuildServerProxy>* s_guild_proxy_mgr;
 extern CDoubleConnCheckServerProxy* s_double_check_proxy;
 extern WongWork::CLogGameChannel* s_pLogGameChannel;
+TimerQueue* s_timerQueue_;  // ORIG 全局（GlobalData::s_timerQueue_），原 GameStubs.cpp 定义迁移
+}
+CSchoolMgr* g_schoolMgr;          // ORIG 全局，原 GameStubs.cpp 定义迁移
+CGuildAgitManager* g_guildAgitMgr;  // ORIG 全局，原 GameStubs.cpp 定义迁移
+namespace GlobalData
+{
 extern TimerQueue* s_timerQueue_;
 }
+
+
 char* NumberToString(unsigned int value, int radix);
 CUserGlobalInfoHandle* CUserGlobalInfoHandleInstance();
 CEventCharacterHandler* CEventCharacterHandlerInstance();
@@ -351,8 +359,7 @@ extern "C" void sub_Packet_CutOff_UDP_Reply_UserInfo_ctor(void* pkt)
 extern "C" void sub_Packet_Monitor_Char_Info_ctor(void* pkt)
     asm("_ZN24Packet_Monitor_Char_InfoC1Ev");
 extern "C" void sub_Packet_ChannelType_ctor(void* pkt) asm("_ZN18Packet_ChannelTypeC1Ev");
-extern "C" void sub_SendUserInfoToUpperServer(void* pkt, unsigned char type, void* user, int group)
-    asm("_Z25SendUserInfoToUpperServerR33Packet_Monitor_UDP_Reply_UserInfohP5CUser17ENUM_SERVER_GROUP");
+// SendUserInfoToUpperServer 真实定义见本 TU（ORIG 0x829611a），删除 asm 别名。
 
 // ---- CSwitchLog（PvP 日志；桩由主 agent / 后续批次提供）----
 class CSwitchLog
@@ -528,11 +535,9 @@ WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail() { return 0; }
 void WongWork::CMailBox::incMailLoadCount() {}
 void WongWork::CMailBox::reset() {}
 void WongWork::CMailBox::setMailIterator() {}
-void WongWork::CDungeonClear::clear() { m_map.clear(); }
+// void WongWork::CDungeonClear::clear() 已由 CDungeonClear.cpp 提供（合并移除）
 advancealtar::StageControl::StageControl() { memset(m_pad, 0, sizeof(m_pad)); }
 advancealtar::StageControl::~StageControl() {}
-QuickParty::CQuickParty::CQuickParty() { memset(m_pad, 0, sizeof(m_pad)); }
-QuickParty::CQuickParty::~CQuickParty() {}
 
 // ============================================================================
 // 显式实例化（本 TU 池成员使用）
@@ -2200,6 +2205,30 @@ struct Packet_Monitor_UDP_Reply_UserInfo
     char m_buf[0x16e6];
 };
 
+// ORIG 0x829611a _Z25SendUserInfoToUpperServerR33Packet_Monitor_UDP_Reply_UserInfohP5CUser17ENUM_SERVER_GROUP
+// 按 type 选择上层代理发送（0xcb→公会代理 / 0xc9→监控代理），
+// 发送后清空 pkt+0xc 起的 0x16da 字节负载。CUser* 形参为死参（ORIG 不读取）。
+void SendUserInfoToUpperServer(Packet_Monitor_UDP_Reply_UserInfo& pkt,
+                               unsigned char type, CUser*, 
+                               ENUM_SERVER_GROUP group)
+{
+    if (type == 0xcb)
+    {
+        unsigned short len = *(unsigned short*)((char*)&pkt + 2);
+        void* proxy = sub_CServerProxyMgrGuild_GetServerProxy(
+            GlobalData::s_guild_proxy_mgr, (int)group);
+        sub_CGuildServerProxy_SendTcpPacket(proxy, &pkt, len);
+    }
+    else if (type == 0xc9)
+    {
+        unsigned short len = *(unsigned short*)((char*)&pkt + 2);
+        void* proxy = sub_CServerProxyMgrMonitor_GetServerProxy(
+            GlobalData::s_monitor_proxy_mgr, (int)group);
+        sub_CMonitorServerProxy_SendTcpPacket(proxy, &pkt, len);
+    }
+    memset((char*)&pkt + 0xc, 0, 0x16da);
+}
+
 struct Packet_CutOff_UDP_Reply_UserInfo
 {
     char m_buf[0xb10];
@@ -2273,7 +2302,7 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                     {
                         *(unsigned short*)(p + 2) = 0x16e6;
                         p[10] = (char)userCount;
-                        sub_SendUserInfoToUpperServer(&pkt, channelType, user, group);
+                        SendUserInfoToUpperServer(pkt, channelType, user, (ENUM_SERVER_GROUP)group);
                         userCount = 0;
                     }
                 }
@@ -2282,7 +2311,7 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
             {
                 *(unsigned short*)(p + 2) = (short)(userCount * 0x4e + 0xc);
                 p[10] = (char)userCount;
-                sub_SendUserInfoToUpperServer(&pkt, channelType, lastUser, group);
+                SendUserInfoToUpperServer(pkt, channelType, lastUser, (ENUM_SERVER_GROUP)group);
                 userCount = 0;
             }
             group = sub_CServerProxyMgrMonitor_GetNextIndex(

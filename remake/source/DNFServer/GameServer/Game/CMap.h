@@ -5,6 +5,7 @@
 #pragma once
 
 #define CMAP_CLASS_DEFINED
+#include <cstring>
 #include <list>
 #include <map>
 #include <string>
@@ -13,10 +14,6 @@
 
 class CDataManager;
 class CMap;
-
-int get_rand_int(int range);
-int isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2]);
-CDataManager* G_CDataManager();
 
 namespace advancealtar
 {
@@ -29,14 +26,25 @@ public:
 class TimeLine
 {
 public:
-    TimeLine();
-    ~TimeLine();
-    TimeLine& operator=(const TimeLine& other);
+    TimeLine() { std::memset(this, 0, sizeof(*this)); }
+    ~TimeLine() {}
+    TimeLine& operator=(const TimeLine& other)
+    {
+        if (this != &other)
+            std::memcpy(this, &other, sizeof(*this));
+        return *this;
+    }
 private:
     char m_pad[0x1c];
 };
 
 }
+
+int get_rand_int(int range);
+int isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2]);
+CDataManager* G_CDataManager();
+
+
 
 // ---- CMap 支撑类型（尺寸来自 ORIG 容器函数 / 构造体）----
 
@@ -203,7 +211,9 @@ struct STMapScript
     char m_pad6c[0x100 - 0x6c];                // +0x6c
     int m_pathArea1[8];       // +0x100
     int m_pathArea2[8];       // +0x120
-    char m_pad140[0x250 - 0x140];              // +0x140
+    char m_pad140[0x178 - 0x140];              // +0x140
+    int m_178;                // +0x178  (set_map 读取 → CMap::m_110)
+    char m_pad17c[0x250 - 0x17c];              // +0x17c
     std::vector<STRivalMapData> m_vec250;      // +0x250
     std::vector<STAICharacterMapArrangeData> m_vec25c; // +0x25c
     int m_268;                // +0x268
@@ -232,8 +242,8 @@ class CMap
 public:
     CMap();
     ~CMap();
-    int destroy();
-    int destory();
+    void destroy();
+    void destory();
     int set_map(STMapScript script);
     int insert_monster(STAssignMonster monster, int area);
     void insert_condition_monster(STAssignMonster monster);

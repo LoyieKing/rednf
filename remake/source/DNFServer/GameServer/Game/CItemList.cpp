@@ -189,26 +189,37 @@ struct StackScriptFull
 struct EquipParamInfo
 {
     char m_pad00[0x188];
-    std::vector< ::ItemAuraInfo> m_vec188;   // +0x188
+    std::vector< ::ItemAuraInfo> m_vec188;
     char m_pad194[0x1b8 - 0x194];
-    std::vector< ::EquipmentSkillDataUp> m_vec1b8;  // +0x1b8
+    std::vector< ::EquipmentSkillDataUp> m_vec1b8;
     char m_pad1c4[0x24c - 0x1c4];
-    std::vector< ::LevelUpSkill> m_levelUpSkills;  // +0x24c
+    std::vector< ::LevelUpSkill> m_levelUpSkills;
     char m_pad258[0x264 - 0x258];
-    std::vector< ::STAvatarAbilityVariation> m_vec264;  // +0x264
+    std::vector< ::STAvatarAbilityVariation> m_vec264;
     char m_pad270[0x480 - 0x270];
+    int m_field4; int m_fieldc; int m_field14; int m_field18;
+    int m_field1c; int m_field24; int m_field54; int m_field5c;
+    int m_field64; int m_field6c; int m_fieldb0; int m_fieldb4;
+    int m_fieldb8; int m_fieldbc; int m_fieldc0; int m_fieldc4;
+    int m_fieldc8; int m_fieldcc; int m_fieldd0; int m_fieldd4;
+    int m_fieldd8; int m_fielddc; int m_fielde0; int m_fielde4;
+    int m_fielde8; int m_fieldec; int m_fieldf0; int m_fieldf4;
+    int m_fieldf8; int m_fieldfc; int m_field100; int m_field104;
+    int m_field108; int m_field10c; int m_field110; int m_field114;
+    int m_field11c; int m_field128; int m_field12c; int m_field130;
+    int m_field134; int m_field144; float m_field148; int m_field14c;
+    int m_field220; int m_field224; unsigned char m_field23c;
+    unsigned char m_field23d; float m_field138; float m_field228;
+    unsigned char m_field22c; float m_field274; float m_field13c;
+    int m_field74; int m_field78; float m_field7c; int m_field80;
+    int m_field84; float m_field88;
 };
 
 struct stAvatarTypeSelectFull
 {
-    int m_field0;                            // +0x00
-    int m_field4;                            // +0x04
-    int m_field8;                            // +0x08
-    int m_fieldc;                            // +0x0c
-    int m_field10;                           // +0x10
-    unsigned short m_ushort14[8];            // +0x14
+    int m_field0; int m_field4; int m_field8; int m_fieldc;
+    int m_field10; unsigned short m_ushort14[8];
 };
-
 struct STEquipmentAniScript
 {
     char m_pad[0x60];
@@ -218,63 +229,50 @@ struct STEquipmentAniScript
 // ORIG STEquipmentScript 字段镜像（insert_equiptment_item_to_db 访问位）。
 struct EquipScriptFull
 {
-    int m_field0;                          // +0x00
-    int m_field4;                          // +0x04
-    int m_field8;                          // +0x08
-    int m_fieldc;                          // +0x0c
-    int m_field10;                         // +0x10
-    int m_field14;                         // +0x14
-    int m_field18;                         // +0x18
-    int m_field1c;                         // +0x1c
-    int m_field20;                         // +0x20
-    int m_field24;                         // +0x24
-    int m_field28;                         // +0x28
-    int m_field2c;                         // +0x2c
-    int m_field30;                         // +0x30
-    int m_field34;                         // +0x34
-    char m_aniFlags[0xb];              // +0x38（11 个 ani 标志字节）
-    char m_pad43[0xb4 - 0x43];
-    std::string m_strb4;               // +0xb4
-    std::string m_strbc;                   // +0xbc
-    int m_fieldc0;                         // +0xc0
-    int m_fieldc4;                         // +0xc4
-    char m_padc8[0x184 - 0xc8];
-    int m_field184;                        // +0x184
-    char m_pad188[0x198 - 0x188];
-    std::vector<int> m_vec198;             // +0x198
-    char m_pad1a4[0x1b4 - 0x1a4];
-    int m_field1b4;                        // +0x1b4
-    int m_field1b8;                        // +0x1b8
-    char m_pad1bc[0x1c0 - 0x1bc];
-    EquipParamInfo m_equipParam;           // +0x1c0（0x480 字节 → +0x640）
-    char m_pad640[0x658 - 0x640];
-    std::vector<std::string> m_vec658;     // +0x658
-    std::string m_str664;                  // +0x664
-    std::string m_str668;                  // +0x668
-    std::vector<int> m_vec66c;             // +0x66c
-    std::map<int, EquipParamInfo> m_map678;  // +0x678
-    char m_pad690[0x6a0 - 0x690];
-    int m_field6a0;                        // +0x6a0
-    std::string m_str6a4;                  // +0x6a4
-    std::string m_str6a8;                  // +0x6a8
-    std::string m_str6ac;                  // +0x6ac
-    std::string m_str6b0;                  // +0x6b0
-    std::string m_str6b4;                  // +0x6b4
-    std::string m_str6b8;                  // +0x6b8
-    char m_pad6bc[0x6c0 - 0x6bc];
-    std::vector<stAvatarTypeSelectFull> m_vec6c0;  // +0x6c0
-    std::vector<unsigned short> m_vec6cc;  // +0x6cc
-    char m_pad6d8[0x768 - 0x6d8];
-    std::vector<ENUM_EQUIPMENTTYPE> m_vec768;   // +0x768
-    std::vector<int> m_vec774;             // +0x774
-    std::vector<int> m_vec780;             // +0x780
-    int m_field78c;                        // +0x78c
-    int m_field790;                        // +0x790
-    int m_field794;                        // +0x794
-    int m_field798;                        // +0x798
-    int m_field79c;                        // +0x79c
-    char m_pad7a0[0x878 - 0x7a0];
-    std::string m_str878;                  // +0x878
+    int m_field0; int m_field4; int m_field8; int m_fieldc;
+    int m_field10; int m_field14; int m_field18; int m_field1c;
+    int m_field20; int m_field24; int m_field28; int m_field2c;
+    int m_field30; int m_field34;
+    char m_aniFlags[0xb]; char m_pad43[0x19];
+    int m_field5c; char m_pad60[8]; int m_field68;
+    char m_pad6c[0x118];
+    std::vector<int> m_vec198;
+    char m_pad1a4[0x18]; int m_field1b4; int m_field1b8;
+    int m_field1bc; int m_field1c4; int m_field1cc;
+    int m_field1d4; int m_field1d8; int m_field1dc;
+    std::string m_strb4; std::string m_strbc;
+    int m_field184;
+    char m_pad1e0[4]; int m_field1e4; char m_pad1e8[0x2c];
+    int m_field214; char m_pad218[4]; int m_field21c;
+    char m_pad220[4]; int m_field224;
+    char m_pad228[4]; int m_field22c;
+    char m_pad230[0x40]; int m_field270; int m_field274;
+    int m_field278; int m_field27c; int m_field280; int m_field284;
+    int m_field288; int m_field28c; int m_field290; int m_field294;
+    int m_field298; int m_field29c; int m_field2a0; int m_field2a4;
+    int m_field2a8; int m_field2ac; int m_field2b0; int m_field2b4;
+    int m_field2b8; int m_field2bc; int m_field2c0; int m_field2c4;
+    int m_field2c8; int m_field2cc; int m_field2d0;
+    int m_field2d4; char m_pad2d8[4]; int m_field2dc;
+    int m_field2f0; int m_field2f4; int m_field2f8; float m_field2fc;
+    int m_field304; float m_field308; int m_field30c;
+    char m_pad310[0xd0]; int m_field3e0; int m_field3e4;
+    float m_field3e8; unsigned char m_field3ec;
+    char m_pad3ed[0xf]; unsigned char m_field3fc; unsigned char m_field3fd;
+    float m_field434; int m_field440; int m_field444;
+    int m_field448; int m_field44c; int m_field450; int m_field454; int m_field458;
+    int m_field798; int m_field70; int m_fieldc4;
+    int m_field234; int m_field238; float m_field23c; int m_field240; int m_field244; float m_field248;
+    EquipParamInfo m_equipParam;
+    char m_pad640[0x18]; std::vector<std::string> m_vec658;
+    std::string m_str664; std::string m_str668; std::vector<int> m_vec66c;
+    char m_pad690[0x10]; int m_field6a0;
+    std::string m_str6a4; std::string m_str6a8; std::string m_str6ac;
+    std::string m_str6b0; std::string m_str6b4; std::string m_str6b8;
+    char m_pad6bc[4]; std::vector<stAvatarTypeSelectFull> m_vec6c0;
+    std::vector<unsigned short> m_vec6cc; char m_pad6d8[0x90];
+    std::vector<ENUM_EQUIPMENTTYPE> m_vec768;
+    std::map<int, EquipParamInfo> m_map678;
 };
 
 std::vector<STEquipmentAniScript>* AniInfoVector(void* script, int job)
@@ -742,78 +740,67 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     buf << ", " << local_154;
     buf << ", '" << UsableCharString(this, script) << "'";
     buf << ", " << es->m_field4;
-    buf << ", '" << AttachTypeString(this, es->m_field8) << "'";
-    buf << ", " << *(int*)((char*)es + 0x5c);
-    buf << ", " << *(int*)((char*)es + 0x184);
+    buf << ", " << es->m_field5c;
+    buf << ", " << es->m_field184;
     buf << ", " << es->m_fieldc;
     buf << ", " << es->m_field10;
     buf << ", " << es->m_field34;
-    buf << ", " << es->m_field14;
-    buf << ", " << es->m_field18;
     buf << ", " << es->m_field1c;
-    buf << ", " << *(int*)((char*)es + 0x1bc);
-    buf << ", " << *(int*)((char*)es + 0x68);
-    buf << ", " << *(int*)((char*)es + 0x1c4);
-    buf << ", " << *(int*)((char*)es + 0x1cc);
-    buf << ", " << *(int*)((char*)es + 0x1d4);
-    buf << ", " << *(int*)((char*)es + 0x1d8);
-    buf << ", " << *(int*)((char*)es + 0x1dc);
-    buf << ", " << *(int*)((char*)es + 0x1e4);
-    buf << ", " << *(int*)((char*)es + 0x214);
-    buf << ", " << *(int*)((char*)es + 0x21c);
-    buf << ", " << *(int*)((char*)es + 0x224);
-    buf << ", " << *(int*)((char*)es + 0x22c);
-    buf << ", " << *(int*)((char*)es + 0x270);
-    buf << ", " << *(int*)((char*)es + 0x274);
-    buf << ", " << *(int*)((char*)es + 0x278);
-    buf << ", " << *(int*)((char*)es + 0x27c);
-    buf << ", " << *(int*)((char*)es + 0x280);
-    buf << ", " << *(int*)((char*)es + 0x284);
-    buf << ", " << *(int*)((char*)es + 0x288);
-    buf << ", " << *(int*)((char*)es + 0x28c);
-    buf << ", " << *(int*)((char*)es + 0x290);
-    buf << ", " << *(int*)((char*)es + 0x294);
-    buf << ", " << *(int*)((char*)es + 0x298);
-    buf << ", " << *(int*)((char*)es + 0x29c);
-    buf << ", " << *(int*)((char*)es + 0x2a0);
-    buf << ", " << *(int*)((char*)es + 0x2a4);
-    buf << ", " << *(int*)((char*)es + 0x2a8);
-    buf << ", " << *(int*)((char*)es + 0x2ac);
-    buf << ", " << *(int*)((char*)es + 0x2b0);
-    buf << ", " << *(int*)((char*)es + 0x2b4);
-    buf << ", " << *(int*)((char*)es + 0x2b8);
-    buf << ", " << *(int*)((char*)es + 0x2bc);
-    buf << ", " << *(int*)((char*)es + 0x2c0);
-    buf << ", " << *(int*)((char*)es + 0x2c4);
-    buf << ", " << *(int*)((char*)es + 0x2c8);
-    buf << ", " << *(int*)((char*)es + 0x2cc);
-    buf << ", " << *(int*)((char*)es + 0x2d0);
-    buf << ", " << *(int*)((char*)es + 0x2d4);
-    buf << ", " << *(int*)((char*)es + 0x2dc);
-    buf << ", " << *(int*)((char*)es + 0x2e8);
-    buf << ", " << *(int*)((char*)es + 0x2ec);
-    buf << ", " << *(int*)((char*)es + 0x2f0);
-    buf << ", " << *(int*)((char*)es + 0x2f4);
-    buf << ", '" << AttackElementString(this, &es->m_equipParam) << "'";
-    buf << ", " << *(int*)((char*)es + 0x304);
-    buf << ", " << *(float*)((char*)es + 0x308);
-    buf << ", " << *(int*)((char*)es + 0x30c);
-    buf << ", " << *(int*)((char*)es + 0x3e0);
-    buf << ", " << *(int*)((char*)es + 0x3e4);
-    buf << ", " << (unsigned int)(unsigned char)*(char*)((char*)es + 0x3ec);
-    buf << ", " << (unsigned int)(unsigned char)*(char*)((char*)es + 0x3fc);
-    buf << ", " << (unsigned int)(unsigned char)*(char*)((char*)es + 0x3fd);
-    buf << ", " << *(float*)((char*)es + 0x2f8);
-    buf << ", " << *(float*)((char*)es + 0x3e8);
-    buf << ", " << (unsigned int)(unsigned char)*(char*)((char*)es + 0x3ec);
+    buf << ", " << es->m_field1bc;
+    buf << ", " << es->m_field68;
+    buf << ", " << es->m_field1c4;
+    buf << ", " << es->m_field1cc;
+    buf << ", " << es->m_field1d4;
+    buf << ", " << es->m_field1d8;
+    buf << ", " << es->m_field1dc;
+    buf << ", " << es->m_field1e4;
+    buf << ", " << es->m_field214;
+    buf << ", " << es->m_field21c;
+    buf << ", " << es->m_field224;
+    buf << ", " << es->m_field22c;
+    buf << ", " << es->m_field270;
+    buf << ", " << es->m_field274;
+    buf << ", " << es->m_field278;
+    buf << ", " << es->m_field27c;
+    buf << ", " << es->m_field280;
+    buf << ", " << es->m_field284;
+    buf << ", " << es->m_field288;
+    buf << ", " << es->m_field28c;
+    buf << ", " << es->m_field290;
+    buf << ", " << es->m_field294;
+    buf << ", " << es->m_field298;
+    buf << ", " << es->m_field29c;
+    buf << ", " << es->m_field2a0;
+    buf << ", " << es->m_field2a4;
+    buf << ", " << es->m_field2a8;
+    buf << ", " << es->m_field2ac;
+    buf << ", " << es->m_field2b0;
+    buf << ", " << es->m_field2b4;
+    buf << ", " << es->m_field2b8;
+    buf << ", " << es->m_field2bc;
+    buf << ", " << es->m_field2c0;
+    buf << ", " << es->m_field2c4;
+    buf << ", " << es->m_field2c8;
+    buf << ", " << es->m_field2f0;
+    buf << ", " << es->m_field2f4;
+    buf << ", " << es->m_field304;
+    buf << ", " << es->m_field308;
+    buf << ", " << es->m_field30c;
+    buf << ", " << es->m_field3e0;
+    buf << ", " << es->m_field3e4;
+    buf << ", " << (unsigned int)es->m_field3ec;
+    buf << ", " << (unsigned int)es->m_field3fc;
+    buf << ", " << (unsigned int)es->m_field3fd;
+    buf << ", " << es->m_field2f8;
+    buf << ", " << es->m_field3e8;
+    buf << ", " << (unsigned int)es->m_field3ec;
     buf << ", '"
         << std::for_each(es->m_equipParam.m_levelUpSkills.begin(), es->m_equipParam.m_levelUpSkills.end(),
                          StringMaker()).c_str()
         << "'";
     const char* yn = "n";
     if (es->m_str668.empty() && es->m_vec66c.empty() &&
-        *(int*)((char*)es + 0x6a0) == -1 &&
-        *(int*)((char*)es + 0x798) == -1)
+        es->m_field6a0 == -1 && es->m_field798 == -1)
     {
         yn = "n";
     }
@@ -833,31 +820,30 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     buf << ", '"
         << EscapeDB(db, (char*)es->m_str6b8.c_str(), local_3e90 + iVar)
         << "'";
-    buf << ", " << *(int*)((char*)es + 0x440);
-    buf << ", " << *(int*)((char*)es + 0x24);
-    buf << ", " << *(int*)((char*)es + 0x184);
-    buf << ", '" << *(int*)((char*)es + 0x28) << ","
-        << *(int*)((char*)es + 0x2c) << "'";
-    buf << ", " << *(int*)((char*)es + 0x234);
-    buf << ", " << *(int*)((char*)es + 0x238);
-    buf << ", " << *(float*)((char*)es + 0x23c);
-    buf << ", " << *(int*)((char*)es + 0x240);
-    buf << ", " << *(int*)((char*)es + 0x244);
-    buf << ", " << *(float*)((char*)es + 0x248);
-    buf << ", " << *(int*)((char*)es + 0x448);
-    buf << ", " << *(int*)((char*)es + 0x44c);
-    buf << ", " << *(int*)((char*)es + 0x450);
-    buf << ", " << *(int*)((char*)es + 0x454);
-    buf << ", " << *(int*)((char*)es + 0x458);
-    buf << ", " << *(int*)((char*)es + 0x2ac);
-    buf << ", " << *(int*)((char*)es + 0x2c4);
-    buf << ", " << *(int*)((char*)es + 0x2c8);
-    buf << ", " << *(int*)((char*)es + 0x444);
+    buf << ", " << es->m_field440;
+    buf << ", " << es->m_field24;
+    buf << ", " << es->m_field184;
+    buf << ", '" << es->m_field28 << "," << es->m_field2c << "'";
+    buf << ", " << es->m_field234;
+    buf << ", " << es->m_field238;
+    buf << ", " << es->m_field23c;
+    buf << ", " << es->m_field240;
+    buf << ", " << es->m_field244;
+    buf << ", " << es->m_field248;
+    buf << ", " << es->m_field448;
+    buf << ", " << es->m_field44c;
+    buf << ", " << es->m_field450;
+    buf << ", " << es->m_field454;
+    buf << ", " << es->m_field458;
+    buf << ", " << es->m_field2ac;
+    buf << ", " << es->m_field2c4;
+    buf << ", " << es->m_field2c8;
+    buf << ", " << es->m_field444;
     buf << ", '"
         << std::for_each(es->m_equipParam.m_vec188.begin(), es->m_equipParam.m_vec188.end(),
                          StringMaker()).c_str()
         << "'";
-    buf << ", " << *(float*)((char*)es + 0x2fc);
+    buf << ", " << es->m_field2fc;
     iVar = local_68 * 0x400;
     ++local_68;
     buf << ", '"
@@ -882,7 +868,7 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
     buf << ", '"
         << EscapeDB(db, (char*)es->m_str6ac.c_str(), local_3e90 + iVar)
         << "'";
-    buf << ", " << *(int*)((char*)es + 0x798);
+    buf << ", " << es->m_field798;
     buf << ", '" << local_1fc << "'";
     buf << ", '"
         << std::for_each(es->m_equipParam.m_vec1b8.begin(), es->m_equipParam.m_vec1b8.end(),
@@ -892,12 +878,12 @@ bool CSyncScript::insert_equiptment_item_to_db(STEquipmentScript* script,
         << std::for_each(es->m_vec198.begin(), es->m_vec198.end(),
                          StringMaker()).c_str()
         << "'";
-    buf << ", " << *(float*)((char*)es + 0x434);
+    buf << ", " << es->m_field434;
     buf << ", '"
         << URLString(this, (char*)es->m_str6ac.c_str(),
-                     (int)es->m_str6ac.length(), *(int*)((char*)es + 0x70))
+                     (int)es->m_str6ac.length(), es->m_field70)
         << "'";
-    buf << ", " << *(int*)((char*)es + 0xc4);
+    buf << ", " << es->m_fieldc4;
     db->set_query(
         "inSert into dnf_item_info(it_no, it_name, it_eng_name, it_explain, "
         "master_type, sub_type, job, class, revert, level, skill, "
@@ -1088,24 +1074,25 @@ bool CSyncScript::insert_stackable_item_to_db(STStackableScript* script)
     }
     else
     {
-        buf << ", " << *(int*)((char*)ep + 4);
+        buf << ", " << ep->m_field4;
         e2 = ep;
-        buf << ", " << *(int*)((char*)e2 + 0xc);
-        buf << ", " << *(int*)((char*)e2 + 0x14);
-        buf << ", " << *(int*)((char*)e2 + 0x18);
-        buf << ", " << *(int*)((char*)e2 + 0x1c);
-        buf << ", " << *(int*)((char*)e2 + 0x24);
-        buf << ", " << *(int*)((char*)e2 + 0x54);
-        buf << ", " << *(int*)((char*)e2 + 0x5c);
-        buf << ", " << *(int*)((char*)e2 + 0x64);
-        buf << ", " << *(int*)((char*)e2 + 0x6c);
-        buf << ", " << *(int*)((char*)e2 + 0xb0);
-        buf << ", " << *(int*)((char*)e2 + 0xb4);
-        buf << ", " << *(int*)((char*)e2 + 0xb8);
-        buf << ", " << *(int*)((char*)e2 + 0xbc);
-        buf << ", " << *(int*)((char*)e2 + 0xc0);
-        buf << ", " << *(int*)((char*)e2 + 0xc4);
-        buf << ", " << *(int*)((char*)e2 + 0xc8);
+        buf << ", " << e2->m_fieldc;
+        buf << ", " << e2->m_field14;
+        buf << ", " << e2->m_field18;
+        buf << ", " << e2->m_field1c;
+        buf << ", " << e2->m_field24;
+        buf << ", " << e2->m_field54;
+        buf << ", " << e2->m_field5c;
+        buf << ", " << e2->m_field64;
+        buf << ", " << e2->m_field6c;
+        buf << ", " << e2->m_fieldb0;
+        buf << ", " << e2->m_fieldb4;
+        buf << ", " << e2->m_fieldb8;
+        buf << ", " << e2->m_fieldbc;
+        buf << ", " << e2->m_fieldc0;
+        buf << ", " << e2->m_fieldc4;
+        buf << ", " << e2->m_fieldc8;
+        buf << ", " << e2->m_fieldcc;
         buf << ", " << *(int*)((char*)e2 + 0xcc);
         buf << ", " << *(int*)((char*)e2 + 0xd0);
         buf << ", " << *(int*)((char*)e2 + 0xd4);
@@ -1808,4 +1795,119 @@ bool CItemList::Load_Goods_File(const char* path)
         }
     }
     return true;
+}
+
+// ============================================================================
+// Arad_GiftItem_Set::open（ORIG 0x081a2f1e，_ZN17Arad_GiftItem_Set4openEP17STStackableScript）
+// 语义：解析 ST_EVENT_GIFT_ITEM* 脚本，把可用的"礼物槽位"登记进 this+0x04 的
+// map<long long, Data>。key = ((long long)kind << 32) | ((uint)field5c + (slot << 16))。
+// 返回 0 表示成功；0x122 表示 key 已存在（重复登记）；脚本未启用/未知类型返回 0。
+// 依据 docs/class_func_reports/Arad_GiftItem_Set/open.md 逐分支恢复。
+// ============================================================================
+int Arad_GiftItem_Set::open(STStackableScript* script)
+{
+    // ORIG：if (*(int*)(param_1 + 0x178) != 0) —— Arad_STStackableScript.m_0（+0x178）
+    if (script->m_arad178.m_0 == 0)
+    {
+        return 0;
+    }
+
+    // ORIG：enum = str_to_enum(c_str(script + 0x180))；构造函数把
+    // "ST_EVENT_GIFT_ITEM"[1..6] 填入 this+0x1c 的 map<string,int>，此处内联等价映射。
+    const char* name = script->m_arad178.m_str8.c_str();
+    int kind = 0;
+    if (strcmp(name, "ST_EVENT_GIFT_ITEM") == 0)       kind = 1;
+    else if (strcmp(name, "ST_EVENT_GIFT_ITEM2") == 0) kind = 2;
+    else if (strcmp(name, "ST_EVENT_GIFT_ITEM3") == 0) kind = 3;
+    else if (strcmp(name, "ST_EVENT_GIFT_ITEM4") == 0) kind = 4;
+    else if (strcmp(name, "ST_EVENT_GIFT_ITEM5") == 0) kind = 5;
+    else if (strcmp(name, "ST_EVENT_GIFT_ITEM6") == 0) kind = 6;
+    if (kind == 0)
+    {
+        return 0;
+    }
+
+    const int itemId = script->m_field0;                      // *(param_1 + 0x00)
+    const unsigned int base = (unsigned int)script->m_field5c; // *(param_1 + 0x5c)
+
+    // ORIG：for (local_10 = 0; local_10 != 0xb; ++local_10)，读取 +0x38 起 11 字节
+    for (int i = 0; i != 0xb; ++i)
+    {
+        if (((const char*)script + 0x38)[i] != 0)
+        {
+            const long long key =
+                (long long)base +
+                (long long)(unsigned int)(i << 16) +
+                ((long long)kind << 32);
+            Data data;
+            data.m_item = itemId;
+            data.m_str4 = script->m_arad178.m_strc;   // +0x184
+            data.m_str8 = script->m_arad178.m_str10;  // +0x188
+            std::pair<std::map<long long, Data>::iterator, bool> inserted =
+                m_map.insert(std::make_pair(key, data));
+            if (!inserted.second)
+            {
+                return 0x122;   // 重复登记
+            }
+        }
+    }
+
+    cMyTrace("int Arad_GiftItem_Set::open(STStackableScript*)", 0x127, 0)(
+        "[!] Arad GiftItem Loding Sucess!! Item:%d", itemId);
+    return 0;
+}
+
+// ============================================================================
+// ExtreamDungeon::CCompound_ExtreamDun_Item::after_addItem
+// ORIG 0x832de18 T（_ZN14ExtreamDungeon25CCompound_ExtreamDun_Item13after_addItemEv）
+// ============================================================================
+// 类布局（ctor 0x832c402 实证）：+0x00 CMTRand*、+0x04 BindCube_ScriptData
+// （内含 vector<OUTPUT_ITEM_STR> 数组，行步 0x30/4 个列向量、列步 12）、
+// +0xb8c BindCube_LvBonusScriptData[2]（各 0x30）。after_addItem 对
+// 0x34+i*0x30+j*12（i=1..0x3a，j=0..3）与 0xb44+k*12（k=0..3）处的
+// vector 各做一次升序排序；比较器 OUTPUT_ITEM_STR::operator<（先 a 后 b）。
+namespace ExtreamDungeon
+{
+struct OUTPUT_ITEM_STR
+{
+    int m_field0;  // +0x00
+    int m_field4;  // +0x04
+
+    bool operator<(const OUTPUT_ITEM_STR& other) const
+    {
+        if (m_field0 != other.m_field0)
+            return m_field0 < other.m_field0;
+        return m_field4 < other.m_field4;
+    }
+};
+
+void CCompound_ExtreamDun_Item::after_addItem()
+{
+    char* base = (char*)this;
+    for (int i = 1; i <= 0x3a; ++i)
+    {
+        for (int j = 0; j <= 3; ++j)
+        {
+            std::vector<OUTPUT_ITEM_STR>* vec =
+                (std::vector<OUTPUT_ITEM_STR>*)(base + 0x34 + i * 0x30 + j * 12);
+            std::sort(vec->begin(), vec->end());
+        }
+    }
+    for (int k = 0; k <= 3; ++k)
+    {
+        std::vector<OUTPUT_ITEM_STR>* vec =
+            (std::vector<OUTPUT_ITEM_STR>*)(base + 0xb44 + k * 12);
+        std::sort(vec->begin(), vec->end());
+    }
+}
+
+// ---- check_N_addItem（ORIG 0x832db00）/ ForceResultItemRule_Setting（ORIG 0x832d784）
+// 自 GameStubs.cpp 迁移。当前为空桩（原 GameStubs 亦为空），语义补齐属
+// 后续批次；符号由本 TU 提供以匹配 ORIG。
+void CCompound_ExtreamDun_Item::check_N_addItem(CEquipItem&)
+{
+}  // TODO(G1 物品批次)
+void CCompound_ExtreamDun_Item::ForceResultItemRule_Setting(int, bool, int)
+{
+}  // TODO(G1 物品批次)
 }

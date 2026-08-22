@@ -39,6 +39,28 @@
 #include "TaiwanInternal.h"
 #include "LogManager.h"
 #include "CServerProxyMgr.h"
+#include "CHackLog_InvalidAreaMove.h"
+#include "Arad_EventPeriodDataManager.h"
+#include "Packet_MiniCraneSeed.h"
+
+// ============================================================================
+// CStreamGuard::GetInBuffer 模板实参（全局类型：C++98 不允许局部类型作为模板
+// 实参；全局同名类型使 guard.GetInBuffer<SIG_*>() 自然产生 ORIG 模板实例符号
+// _ZN12CStreamGuard11GetInBufferI24SIG_UPDATE_STATISTIC4LEVEEPT_v 与
+// _ZN12CStreamGuard11GetInBufferI17SIG_NAT_TYPE_USEREEPT_v）
+// ============================================================================
+struct SIG_UPDATE_STATISTIC4LEV
+{
+    int m_gcNo;
+    int m_count[70];
+    int m_time;
+};
+struct SIG_NAT_TYPE_USER
+{
+    int m_type;
+    int m_count;
+    int m_time;
+};
 
 // ============================================================================
 // PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
@@ -62,33 +84,19 @@ extern "C" int sub_CInventory_insertItemIntoInventory(
     void* self, Inven_Item item, int reason, bool bLog, bool bSlot)
     asm("_ZN10CInventory23insertItemIntoInventoryE10Inven_Item14eItemAddReasonbb");
 
-// ---- CEventManager（GlobalData 成员；PvP_Room/WarRoom 本地声明签名不一致，
-//      此处按本 TU 使用声明，asm 名一致不产生跨 TU 冲突）----
-extern "C" void* sub_CEventManager_GetRepeatEvent(void* self, int idx)
-    asm("_ZN13CEventManager13GetRepeatEventEi");
-extern "C" void sub_CEventManager_TriggerEventStart(void* self, int idx, int param)
-    asm("_ZN13CEventManager16TriggerEventStartEii");
-extern "C" void sub_CEventManager_TriggerEventEnd(void* self, int idx)
-    asm("_ZN13CEventManager14TriggerEventEndEi");
+
 
 // ---- CUser 缺失方法（asm 名直调；CUser TU 翻译后移除）----
-extern "C" void sub_CUser_deleteSpecificItems(
-    void* user, const std::vector<std::pair<int, int> >* list)
-    asm("_ZN5CUser18deleteSpecificItemsEPKSt6vectorISt4pairIiiESaIS2_EE");
-extern "C" int sub_CUser_GetServerGroup(void* user) asm("_ZN5CUser14GetServerGroupEv");
+// CUser::deleteSpecificItems 现由真实 CUser.cpp（19 长度符号）提供，旧 18 错拼桥接已删除。
+extern "C" int sub_CUser_GetServerGroup(void* user) asm("_ZNK5CUser14GetServerGroupEv");
 extern "C" char sub_CUser_getPowerSide(void* user) asm("_ZN5CUser12getPowerSideEv");
 extern "C" char sub_CUser_GetEventCreateDnfReward(void* user)
     asm("_ZN5CUser23GetEventCreateDnfRewardEv");
 extern "C" char sub_CGM_Manager_IsGm(void* self, unsigned int accId)
-    asm("_ZN11CGM_Manager5IsGmEj");
+    asm("_ZN11CGM_Manager4IsGmEj");
 
-// ---- ServerParameterScript（G_CDataManager + 0x68）----
-extern "C" int sub_ServerParameterScript_GetCleanChattingCount(void* self, int level)
-    asm("_ZN23ServerParameterScript21GetCleanChattingCountEi");
-extern "C" int sub_ServerParameterScript_GetPaneltyDupMessage(void* self)
-    asm("_ZN23ServerParameterScript20GetPaneltyDupMessageEv");
-extern "C" int sub_ServerParameterScript_GetMaxCleanChattingCount(void* self)
-    asm("_ZN23ServerParameterScript25GetMaxCleanChattingCountEv");
+// ServerParameterScript 方法现由真实 ServerParameterScript.h 提供（m_serverParameter 成员），
+// 旧 23 错拼长度 asm 桥接已随调用迁移删除。
 
 // ---- Taiwan 事件流（CEventStayTime::RewardGoGoFighter 依赖）----
 
@@ -246,12 +254,13 @@ void GameWorld::InsertChannel(int gcNo, ENUM_SERVER_GROUP group)
     *(unsigned short*)(buf + 0x04) = 0;
 
     CEnvironment* env = G_CEnvironment();
-    memcpy(buf + 0x06, (char*)env + 0x1b4, strlen((char*)env + 0x1b4));
-    *(unsigned short*)(buf + 0x16) = (unsigned short)*(int*)((char*)env + 0x1c8);
-    *(unsigned short*)(buf + 0x18) = (unsigned short)*(int*)((char*)env + 0x3c0);
-    *(char*)(buf + 0x1a) = (char)*(int*)((char*)env + 0x378);
-    memcpy(buf + 0x1b, (char*)env + 0x384, strlen((char*)env + 0x384));
-    *(unsigned short*)(buf + 0x39) = (unsigned short)*(int*)((char*)env + 0x1b0);
+    const Server_Envir& server = env->m_serverEnvir;
+    memcpy(buf + 0x06, server.m_channelName, strlen(server.m_channelName));
+    *(unsigned short*)(buf + 0x16) = (unsigned short)server.m_gcNo;
+    *(unsigned short*)(buf + 0x18) = (unsigned short)server.m_avatarTime;
+    *(char*)(buf + 0x1a) = (char)server.m_channelType;
+    memcpy(buf + 0x1b, server.m_fileName, strlen(server.m_fileName));
+    *(unsigned short*)(buf + 0x39) = (unsigned short)server.m_serverGroup;
 
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
@@ -376,22 +385,13 @@ void GameWorld::updateDetailChannelServiceInfo()
         GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
     }
 }
-
 void GameWorld::UpdateStatistic4ChannelUserLev()
 {
-    struct SIG_UPDATE_STATISTIC4LEV
-    {
-        int m_gcNo;
-        int m_count[70];
-        int m_time;
-    };
-
     Stream* stream = GlobalData::s_stream_pool->Acquire("world.cpp", 0x14ab);
     CStreamGuard guard(stream, true);
     **guard << 0x6b;
     **guard << -1;
-    SIG_UPDATE_STATISTIC4LEV* sig =
-        (SIG_UPDATE_STATISTIC4LEV*)sub_CStreamGuard_GetInBuffer_lev(&guard);
+    SIG_UPDATE_STATISTIC4LEV* sig = guard.GetInBuffer<SIG_UPDATE_STATISTIC4LEV>();
     memset(sig, 0, 0x124);
     sig->m_gcNo = *(int*)((char*)G_CEnvironment() + 0x1b0);
     sig->m_time = GlobalData::s_systemTime_.getCurSec();
@@ -443,15 +443,16 @@ int GameWorld::GetChannelUserCount(ENUM_SERVER_GROUP group, stOccStatisticByAge&
 int GameWorld::_GetChannelType()
 {
     CEnvironment* env = G_CEnvironment();
-    if (*(int*)((char*)env + 0x30c) <= 0x12)
+    const Server_Envir& server = env->m_serverEnvir;
+    if (server.m_channelType <= 0x12)
     {
-        return *(int*)((char*)env + 0x30c);
+        return server.m_channelType;
     }
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
     void* info = sub_channel_script_t_getChannelInfo(
-        channelScript, (unsigned char)*(int*)((char*)G_CEnvironment() + 0x378),
-        *(unsigned int*)((char*)G_CEnvironment() + 0x1b0));
+        channelScript, (unsigned char)server.m_channelType,
+        (unsigned int)server.m_serverGroup);
     if (info == NULL)
     {
         return 0x13;
@@ -502,6 +503,17 @@ bool GameWorld::IsEquipSlotSwitchChannel() const
 bool GameWorld::IsPvPVillageMapChannel() const
 {
     return m_channelType >= 14 && m_channelType <= 16;
+}
+
+bool GameWorld::IsCharacterPvPExpRevisionChannel() const  // ORIG 085dfa76
+{
+    return m_channelType == 0xf;
+}
+
+bool GameWorld::IsCharacterLevelRevisionChannel() const  // ORIG 084ed128
+{
+    unsigned int t = static_cast<unsigned int>(m_channelType);
+    return t - 0xe <= 2;  // m_channelType ∈ [0xe, 0x10]
 }
 
 bool GameWorld::is_dungeon_tag_matching_channel(char* channel)
@@ -626,7 +638,7 @@ bool GameWorld::reach_game_world(CUser* user)
     }
 
     if ((int)m_UserInWorld.size() + 1 >
-        *(int*)((char*)G_CEnvironment() + 0x3c0))
+        G_CEnvironment()->m_serverEnvir.m_avatarTime)
     {
         return false;
     }
@@ -870,7 +882,7 @@ void GameWorld::arrange_users()
 int GameWorld::CheckUserCount(int add)
 {
     return (int)m_UserInWorld.size() + add <=
-           *(int*)((char*)G_CEnvironment() + 0x3c0);
+           G_CEnvironment()->m_serverEnvir.m_avatarTime;
 }
 
 int GameWorld::GetUserCount(int vill, int area) const
@@ -902,12 +914,6 @@ void GameWorld::UpdateNatTypeUser()
     }
 
     int time = GlobalData::s_systemTime_.getCurSec();
-    struct SIG_NAT_TYPE_USER
-    {
-        int m_type;
-        int m_count;
-        int m_time;
-    };
     std::map<int, int>::iterator nit;
     for (nit = natMap.begin(); nit != natMap.end(); nit++)
     {
@@ -915,9 +921,7 @@ void GameWorld::UpdateNatTypeUser()
         CStreamGuard guard(stream, true);
         **guard << 0x84;
         **guard << -1;
-        SIG_NAT_TYPE_USER* sig =
-            (SIG_NAT_TYPE_USER*)sub_CStreamGuard_GetInBuffer_nat(&guard);
-        memset(sig, 0, 0xc);
+        SIG_NAT_TYPE_USER* sig = guard.GetInBuffer<SIG_NAT_TYPE_USER>();
         sig->m_type = nit->first;
         sig->m_count = nit->second;
         sig->m_time = time;
@@ -984,8 +988,7 @@ void GameWorld::send_all_dungeon_inout_message(int dungeonIdx)
     PacketGuard packet;
     packet.put_header(0, 0x127);
     packet.put_int(dungeonIdx);
-    packet.put_byte((int)sub_ServerParameterScript_isDungeonOpen(
-        (void*)((char*)G_CDataManager() + 0x68)));
+    packet.put_byte((int)G_CDataManager()->m_serverParameter.isDungeonOpen(dungeonIdx));
     packet.finalize(true);
 
     int minLevel = getDungeonMinimumRequiredLevel(dungeonIdx);
@@ -1800,14 +1803,14 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
             {
                 if (now - before < 3)
                 {
-                    if (sub_CHackLog_InvalidAreaMove_IsInvalidMovableArea(
+                    if (CHackLog_InvalidAreaMove::IsInvalidMovableArea(
                             curVill, curArea, vill, area) &&
-                        !sub_CHackLog_InvalidAreaMove_isMovableRoute(
+                        !CHackLog_InvalidAreaMove::isMovableRoute(
                             prevVill2, prevArea2, curVill, curArea, vill, area) &&
                         prevVill2 != vill && prevArea2 != area)
                     {
-                        sub_WongWork_CHackAnalyzer_addServerHackCnt(
-                            (void*)user->getHackAnalyzer(), user, 0x1fc, 1, 0, 0);
+                        user->getHackAnalyzer()->addServerHackCnt(
+                            user, (WongWork::ENUM_HACK_TYPE)0x1fc, 1, 0, 0);
                     }
                 }
             }
@@ -1816,14 +1819,14 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
             if (param == 0)
             {
                 if (!curAreaObj->IsMovalbeArea(vill, area) &&
-                    sub_CHackLog_InvalidAreaMove_IsInvalidMovableArea(
+                    CHackLog_InvalidAreaMove::IsInvalidMovableArea(
                         curVill, curArea, vill, area) &&
                     curVill == prevVill && curArea == prevArea)
                 {
-                    sub_WongWork_CHackAnalyzer_addServerHackCnt(
-                        (void*)user->getHackAnalyzer(), user,
-                        sub_CHackLog_InvalidAreaMove_GetHackType(), 1,
-                        prevVill, prevArea);
+                    user->getHackAnalyzer()->addServerHackCnt(
+                        user,
+                        (WongWork::ENUM_HACK_TYPE)CHackLog_InvalidAreaMove::GetHackType(),
+                        1, prevVill, prevArea);
                 }
             }
         }
@@ -1959,7 +1962,7 @@ void GameWorld::out_from_dungeon(CUser* user)
             packet.finalize(true);
             send_all(packet, user);
             sub_CUser_SendFatigue(user);
-            sub_XNuclear_CHades_Send_ReturnToVillage(sub_CUser_getHades(user));
+            static_cast<XNuclear::CHades*>(user->getHades())->Send_ReturnToVillage();
         }
         else
         {
@@ -2649,7 +2652,7 @@ void GameWorld::ResetAllPassPadFailCount()
 
 void GameWorld::ResetAllEventData()
 {
-    sub_CEventManager_dailyresetData(&GlobalData::s_event_manager);
+    GlobalData::s_event_manager->dailyresetData();
 }
 
 void GameWorld::ResetAllFatigue()
@@ -2714,7 +2717,10 @@ void GameWorld::ResetAllFatigue()
                 std::string name("Arad_EventPeriodDataManager");
                 void* dataMgr = sub_ARAD_Singleton_Arad_DataManager_Get();
                 void* script = sub_ARAD_DataManager_findGameScript(dataMgr, name);
-                bApplied = sub_ARAD_EventPeriodDataManager_isApplied(script, 0x8e,
+                ARAD::Arad_EventPeriodDataManager* evtMgr =
+                    static_cast<ARAD::Arad_EventPeriodDataManager*>(script);
+                bApplied = evtMgr->isApplied(
+                    (ENUM_REPEAT_EVENT_CODE)0x8e,
                     GlobalData::s_systemTime_.getCurSec()) != 0;
             }
             if (bApplied)
@@ -2784,7 +2790,7 @@ void GameWorld::ResetEntireReliablePerson()
 
 void GameWorld::ResetOneADayItemShop()
 {
-    if (sub_CEventManager_GetRepeatEvent(&GlobalData::s_event_manager, 0x6d) != 0)
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x6d) != 0)
     {
         sub_CItemShop_updateOneADayItemList((char*)G_CDataManager() + 0x8cbc);
         for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -2802,7 +2808,7 @@ void GameWorld::ResetOneADayItemShop()
 
 void GameWorld::testResetOneADayItemShop()
 {
-    if (sub_CEventManager_GetRepeatEvent(&GlobalData::s_event_manager, 0x6d) != 0)
+    if (GlobalData::s_event_manager->GetRepeatEvent(0x6d) != 0)
     {
         sub_CItemShop_testupdateOneADayItemList((char*)G_CDataManager() + 0x8cbc);
         for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
@@ -2826,16 +2832,21 @@ void GameWorld::SetWeekendBounsEvent()
     if ((local.tm_wday == 6 && local.tm_hour > 5) || local.tm_wday == 0 ||
         (local.tm_wday == 1 && local.tm_hour < 6))
     {
-        if (sub_CEventManager_GetRepeatEvent(&GlobalData::s_event_manager, 0x57) == 0)
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x57) == 0)
         {
-            sub_CEventManager_TriggerEventStart(&GlobalData::s_event_manager, 0x57, 0);
+            Word_Param param;
+            param.m_duration = 0;
+            param.m_field2 = 0;
+            GlobalData::s_event_manager->TriggerEventStart(0x57, param);
         }
+
+
     }
     else if (local.tm_wday == 1 && local.tm_hour > 5)
     {
-        if (sub_CEventManager_GetRepeatEvent(&GlobalData::s_event_manager, 0x57) != 0)
+        if (GlobalData::s_event_manager->GetRepeatEvent(0x57) != 0)
         {
-            sub_CEventManager_TriggerEventEnd(&GlobalData::s_event_manager, 0x57);
+            GlobalData::s_event_manager->TriggerEventEnd(0x57);
         }
     }
 }
@@ -2915,7 +2926,7 @@ void GameWorld::deleteSpecificItems(const std::vector<std::pair<int, int> >* lis
          it != m_UserInWorld.end(); ++it)
     {
         CUser* user = it->second;
-        sub_CUser_deleteSpecificItems(user, list);
+        user->deleteSpecificItems(list);
     }
 }
 
@@ -2950,12 +2961,13 @@ void GameWorld::UpdateServerSnapShot()
 
 void GameWorld::UpdateMiniCraneSeed()
 {
-    char packet[0xe];
-    sub_Packet_MiniCraneSeed_C1(packet);
+    // Packet_MiniCraneSeed：PacketHeader(0x27f8, 0xe) + m_data(+0x0a)。内联 ctor
+    // 产出 ORIG 弱 W 符号 _ZN20Packet_MiniCraneSeedC1Ev（@0x086d1d18）。
+    Packet_MiniCraneSeed packet;
     sub_CMonitorServerProxy_SendTcpPacket(
         sub_CServerProxyMgr_GetServerProxy_monitor(&GlobalData::s_monitor_proxy_mgr,
             sub_CEnvironment_get_server_group(G_CEnvironment())),
-        packet, 0xe);
+        (char*)&packet, 0xe);
 }
 
 // ============================================================================
@@ -3491,17 +3503,15 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         }
         if (needClean)
         {
-            int cleanCount = sub_ServerParameterScript_GetCleanChattingCount(
-                (char*)G_CDataManager() + 0x68, from->get_charac_level());
+            int cleanCount = G_CDataManager()->m_serverParameter.GetCleanChattingCount(
+                from->get_charac_level());
             std::string smsg(msg);
             int add = sub_CUser_isDuplicationMessage(from, smsg) != 0
-                          ? sub_ServerParameterScript_GetPaneltyDupMessage(
-                                (char*)G_CDataManager() + 0x68)
+                          ? G_CDataManager()->m_serverParameter.GetPaneltyDupMessage()
                           : 1;
             sub_CUser_incChattingMessageCount(from, add * cleanCount);
             if (sub_CUser_getChattingMessageCount(from) >
-                sub_ServerParameterScript_GetMaxCleanChattingCount(
-                    (char*)G_CDataManager() + 0x68))
+                G_CDataManager()->m_serverParameter.GetMaxCleanChattingCount())
             {
                 sub_CUser_setChattingMessageCount(from, 0);
                 sub_CUser_reqHumanCertify4ClearMap(from, false);

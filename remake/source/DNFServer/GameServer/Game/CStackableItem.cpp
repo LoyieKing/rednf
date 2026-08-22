@@ -8,6 +8,7 @@
 #include "CStackableItem.h"
 
 #include <algorithm>
+#include <string>
 #include <string.h>
 #include <time.h>
 
@@ -21,6 +22,27 @@ CStackableItem::CStackableItem()
 
 CStackableItem::~CStackableItem()
 {
+}
+
+// ORIG 0x85150f2：逐成员复制（vector + map）
+stStackableBooster_t& stStackableBooster_t::operator=(
+    const stStackableBooster_t& other)
+{
+    m_elements = other.m_elements;
+    m_map = other.m_map;
+    return *this;
+}
+
+// ORIG 0x8515128：逐字段复制（3 int + vector<string> + char）
+BoosterSelectInfo& BoosterSelectInfo::operator=(
+    const BoosterSelectInfo& other)
+{
+    m_field0 = other.m_field0;
+    m_field4 = other.m_field4;
+    m_field8 = other.m_field8;
+    m_nameVec = other.m_nameVec;
+    m_field18 = other.m_field18;
+    return *this;
 }
 
 int get_rand_int(int range);
@@ -113,7 +135,37 @@ public:
     char getCurCharFirstGrowType() const;
 };
 
-int GetEquipmentTypeStringToEnum(std::string& type);
+// ORIG 0x8a86d28：26 项字符串→枚举映射，默认 0x16
+int GetEquipmentTypeStringToEnum(std::string& type)
+{
+    if (type == "[hat avatar]")    return 0;
+    if (type == "[hair avatar]")   return 1;
+    if (type == "[face avatar]")   return 2;
+    if (type == "[coat avatar]")   return 3;
+    if (type == "[pants avatar]")  return 4;
+    if (type == "[shoes avatar]")  return 5;
+    if (type == "[breast avatar]") return 6;
+    if (type == "[waist avatar]")  return 7;
+    if (type == "[skin avatar]")   return 8;
+    if (type == "[aurora avatar]") return 9;
+    if (type == "[weapon]")        return 10;
+    if (type == "[title name]")    return 11;
+    if (type == "[coat]")          return 12;
+    if (type == "[shoulder]")      return 13;
+    if (type == "[pants]")         return 14;
+    if (type == "[shoes]")         return 15;
+    if (type == "[waist]")         return 16;
+    if (type == "[amulet]")        return 17;
+    if (type == "[wrist]")         return 18;
+    if (type == "[ring]")          return 19;
+    if (type == "[support]")       return 20;
+    if (type == "[magic stone]")   return 21;
+    if (type == "[creature]")      return 22;
+    if (type == "[artifact red]")  return 23;
+    if (type == "[artifact blue]") return 24;
+    if (type == "[artifact green]")return 25;
+    return 0x16;
+}
 
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
                       std::vector<std::pair<int, int> >* extra);
@@ -123,7 +175,58 @@ void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo::MultiBoxLotteryInfoBody* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
     std::vector<int>* c);
-void createGlobalEffectInfo(std::vector<char>& out, std::vector<int>* source);
+int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
+                           std::vector<int>* source);
+
+
+// createRecipeInfo（自 GameStubs.cpp 迁移；当前为空桩，TODO(G1 物品批次)）
+void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
+                      std::vector<std::pair<int, int> >* extra) {}  // TODO(G1 物品批次)
+// ============================================================================
+// LotteryInfo 生命周期 + 解析辅助（自 GameStubs.cpp 迁移，保持 ORIG 语义）：
+//   LotteryInfo C1/D1/clear（ORIG 0x83706d4 / 0x837069c）
+//   createLotteryInfo（ORIG 0x89babc5）
+//   createStackableMultiBoxLotteryInfo（ORIG 0x89bafd1；当前桩，TODO(G1 物品批次)）
+// ============================================================================
+LotteryInfo::LotteryInfo() : m_defaultIdx(0), m_items(), m_defaultCount(0), m_counts()
+{
+    clear();
+}
+LotteryInfo::~LotteryInfo() {}
+// ORIG 0x837069c
+void LotteryInfo::clear()
+{
+    m_defaultIdx = 0;
+    m_items.clear();
+    m_defaultCount = 0;
+    m_counts.clear();
+}
+// ORIG 0x89babc5：src 相邻元素配对填充 m_items，m_counts 每对补 1；奇数时 break
+void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
+{
+    info->clear();
+    std::vector<int>::iterator it = source->begin();
+    info->m_defaultIdx = *it;
+    ++it;
+    info->m_defaultCount = 1;
+    while (it != source->end())
+    {
+        std::pair<int, int> p;
+        p.first = *it;
+        ++it;
+        if (it == source->end())
+            break;
+        p.second = *it;
+        ++it;
+        info->m_items.push_back(p);
+        info->m_counts.push_back(1);
+    }
+}
+// ORIG 0x89bafd1：当前为空桩，TODO(G1 物品批次)。迁移自 GameStubs.cpp 保持现状。
+void createStackableMultiBoxLotteryInfo(
+    MultiBoxLotteryInfo::MultiBoxLotteryInfoBody* info,
+    std::vector<std::vector<int> >* a, std::vector<int>* b,
+    std::vector<int>* c) {}  // TODO(G1 物品批次)
 
 class CChattingEmoticonList
 {
@@ -585,20 +688,15 @@ void CStackableItem::get_lotto_item(char* out)
     unsigned long range = 100000;
     int rand = m_pRand->randInt(range);
     int sum = 0;
-    __gnu_cxx::__normal_iterator<std::pair<int, int>*,
-                                 std::vector<std::pair<int, int> > > it;
-    int count = 1;
+    std::vector<std::pair<int, int> >::iterator pairIt = m_lotto.m_items.begin();
     std::vector<int>::const_iterator countIt = m_lotto.m_counts.begin();
-    std::pair<int, int> cur;
-    std::vector<std::pair<int, int> >::iterator pairIt =
-        m_lotto.m_items.begin();
+    int count = 1;
     while (pairIt != m_lotto.m_items.end())
     {
-        cur = std::pair<int, int>(*pairIt);
-        sum += cur.second;
+        sum += pairIt->second;
         if (rand < sum)
         {
-            itemIdx = cur.first;
+            itemIdx = pairIt->first;
             count = *countIt;
             break;
         }
@@ -607,8 +705,8 @@ void CStackableItem::get_lotto_item(char* out)
     }
     if (itemIdx == 0 && count > 0)
     {
-        *(int*)(out + 2) = 0;
-        *(int*)(out + 7) = count;
+        pItem->m_addInfo = 0;
+        pItem->m_addInfo2 = count;
     }
     else if (itemIdx == -1)
     {
@@ -616,19 +714,19 @@ void CStackableItem::get_lotto_item(char* out)
         count = m_lotto.m_defaultCount;
         if (itemIdx == 0)
         {
-            *(int*)(out + 2) = 0;
-            *(int*)(out + 7) = count;
+            pItem->m_addInfo = 0;
+            pItem->m_addInfo2 = count;
             return;
         }
-        *(int*)(out + 2) = itemIdx;
+        pItem->m_addInfo = itemIdx;
         G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, *(Inven_Item*)out, count);
+            (ENUM_ITEM_CREATE_TYPE)2, *pItem, count);
     }
     else
     {
-        *(int*)(out + 2) = itemIdx;
+        pItem->m_addInfo = itemIdx;
         G_CDataManager()->m_itemList->create_item(
-            (ENUM_ITEM_CREATE_TYPE)2, *(Inven_Item*)out, count);
+            (ENUM_ITEM_CREATE_TYPE)2, *pItem, count);
     }
 }
 
@@ -1181,4 +1279,18 @@ unsigned long CStackableItem::get_parent_booster_item_id() const
 int CStackableItem::getTradeLimitCount() const
 {
     return m_tradeLimitCount;
+}
+
+// ===================== 简单访问器 / 状态（ORIG weak） =====================
+
+// ORIG 0x822c9fc：返回 this+0x28c
+int CStackableItem::getStackableLimit() const
+{
+    return m_int28c;
+}
+
+// ORIG 0x8694736：返回 this+0x2e7 字节非零（movzbl 0x2e7(%eax); ret）
+bool CStackableItem::IsExpAffect()
+{
+    return m_char2e7 != 0;
 }

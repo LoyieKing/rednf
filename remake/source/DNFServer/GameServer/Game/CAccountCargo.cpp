@@ -42,7 +42,7 @@ extern "C" void sub_DB_UpgradeAccountCargo_makeRequest(int uid, unsigned int acc
     asm("_ZN22DB_UpgradeAccountCargo11makeRequestEijj");
 
 extern unsigned int GetIntegratedPvPItemAttr(const Inven_Item& item);
-extern Inven_Item g_emptySlot;
+Inven_Item g_emptySlot;  // ORIG 全局（0x943ddc0），原 GameStubs.cpp 定义迁移
 
 // ============================================================================
 // 构造 / 基础存取（ORIG 0x8289794 / 0x8289816 / 0x828986c / 0x82898c0）

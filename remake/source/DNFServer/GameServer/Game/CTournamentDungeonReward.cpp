@@ -1,35 +1,18 @@
 #include "CTournamentDungeonReward.h"
-#include "PacketGuard.h"
+#include <cstring>
 
-void CTournamentDungeonReward::MakeSelectPacket(PacketGuard* packet)
+// ORIG ctor 0x8284770：写虚表 0x8c0cbf0；D1 0x82847dc；ResetReward 0x8284820。
+// 本 TU 仅提供 CBattle_Field 构造/析构链与 ResetReward 所需符号（ORIG 0x8284820）。
+// 其余成员（MakeSelectPacket/_MakeRewardPacket/MakeRewardPacket 等）在头为 G2
+// 占位布局时未声明成员，故不在此定义，属后续批次。
+CTournamentDungeonReward::CTournamentDungeonReward()
 {
-    for (int type = 0; type < 2; ++type)
-    {
-        packet->put_byte(2);
-        for (int member = 0; member < 2; ++member)
-            packet->put_byte((int)(char)m_reward[type][member].m_select);
-    }
+    memset(m_pad, 0, sizeof(m_pad));
 }
 
-void CTournamentDungeonReward::_MakeRewardPacket(
-    ENUM_TOURNAMENT_REWARD_CARD_TYPE type, PacketGuard* packet)
-{
-    if ((int)type > 1)
-        return;
-    packet->put_byte(2);
-    for (int member = 0; member < 2; ++member)
-    {
-        packet->put_int(m_reward[(int)type][member].m_itemIdx);
-        packet->put_int(m_reward[(int)type][member].m_count);
-        packet->put_short(0);
-    }
-}
+CTournamentDungeonReward::~CTournamentDungeonReward() {}
 
-void CTournamentDungeonReward::MakeRewardPacket(PacketGuard* packet, bool both)
+void CTournamentDungeonReward::ResetReward()
 {
-    _MakeRewardPacket(ENUM_TOURNAMENT_REWARD_CARD_TYPE_0, packet);
-    if (both)
-        _MakeRewardPacket(ENUM_TOURNAMENT_REWARD_CARD_TYPE_1, packet);
-    else
-        packet->put_byte(0);
+    memset(m_pad, 0, sizeof(m_pad));
 }

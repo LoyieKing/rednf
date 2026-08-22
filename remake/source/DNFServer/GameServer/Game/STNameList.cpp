@@ -5,6 +5,7 @@
 //   GetID         0x088baf48（m_map.get(name)，未命中 0xffffffff）
 // ============================================================================
 
+#include <cstring>
 #include "STNameList.h"
 
 STNameList::STNameList()

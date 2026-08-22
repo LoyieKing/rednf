@@ -10,11 +10,14 @@
 #include <utility>
 #include <vector>
 #include <cstdlib>
+#include <time.h>
 
 #include "WarField.h"
 #include "CSystemTime.h"
 #include "GameTypes.h"
 #include "InterfacePacketBuf.h"
+#include "CDataManager.h"
+#include "LogManager.h"
 
 int get_rand_int(int range);  // ORIG T 0x86b1b87
 
@@ -98,18 +101,7 @@ public:
 
 namespace WongWork
 {
-class CItemGeneratorMgr
-{
-public:
-    enum eGenerateType_t
-    {
-        eGenerateType_0 = 0,
-        eGenerateType_3 = 3,
-        eGenerateType_4 = 4
-    };
-
-    CItemGenerator* getGenerator(eGenerateType_t type);  // ORIG W 0x814a7d0
-};
+// CItemGeneratorMgr 权威声明见 CItemGeneratorMgr.h（经 CDataManager.h 引入），此处不再重复定义。
 }
 
 namespace RestrictCategory
@@ -544,8 +536,7 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         mob.m_roleType = (char)type;
         mob.m_mobIndex = monster->get_index();
         mob.m_level = (char)b;
-        *(char*)((char*)&mob + 0x11) = 1;
-        *(char*)((char*)&mob + 0x12) = 1;
+        mob.m_field11 = 0x0101;   // 字节 +0x11 与 +0x12 均置 1（ORIG ConsistMap 逐字节写）
         mob.m_field18 = *(float*)((char*)dungeon + 0x7b0) * (float)(6 - playerCount) + 1.0f;
         mob.m_field28 = *(float*)((char*)dungeon + 0x7b4) * (float)(6 - playerCount) + 1.0f;
         map_monster mobCopy(mob);
@@ -641,8 +632,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     *(char*)((char*)&refData + 0x36) = fieldMob->m_level;
     *(char*)((char*)&refData + 0x37) = 0;
     *(char*)((char*)&refData + 0x38) = 1;
-    *(char*)((char*)&refData + 0x39) = *(char*)((char*)fieldMob + 0x12);
-    *(int*)((char*)&refData + 0x3c) = moneyRatio;
+    *(char*)((char*)&refData + 0x39) = (char)(fieldMob->m_field11 >> 8);   // 字节 +0x12（short 高位）
     *(char*)((char*)&refData + 0x40) = 1;
     *(char*)((char*)&refData + 0x41) = 0;
     stGenerateResult_t result;
@@ -651,8 +641,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     gen->GenerateA(&refData, &result);
     *(int*)((char*)&refData + 0x38) = fieldMob->m_mobIndex;
     *(char*)((char*)&refData + 0x3c) = fieldMob->m_roleType;
-    *(char*)((char*)&refData + 0x3d) = *(char*)((char*)fieldMob + 0x11);
-    *(char*)((char*)&refData + 0x3e) = 1;
+    *(char*)((char*)&refData + 0x3d) = (char)fieldMob->m_field11;         // 字节 +0x11（short 低位）
     *(char*)((char*)&refData + 0x36) = 0;
     *(char*)((char*)&refData + 0x35) = fieldMob->m_level;
     *(char*)((char*)&refData + 0x40) = 0;
@@ -742,4 +731,92 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     }
     m_mapInfo.m_monsterMap.erase(it);
     return 1;
+}
+
+// ============================================================================
+// WarAreaCounter（ORIG 0x83708c6 C1 / 0x83707a4 clear / Get* 族；类定义见
+// CDataManager.h，C1/D1 位于 GameStubs.cpp）。布局（clear 实证）：
+//   +0x60  int m_table[24]（时段边界，GetCurrenTimeTable 遍历）
+//   +0xc0  int m_fieldC0[10]          +0xe8 int m_curIdx（当前时段行号）
+//   +0xec/+0xf0/+0xf4 int             +0xf8 int m_fieldF8[10]
+//   +0x120 std::map<int,stWarPoint>   +0x138/+0x13c int
+//   +0x140 int m_num（时段边界数）    +0x144 int m_countTable[240]
+//       （10 行 × 10 列 = 每时段 10 个 WarRoom 区的计数表，行号 = m_curIdx）
+// ============================================================================
+
+// ORIG 0x89024c4 T（_ZN14WarAreaCounter18GetCurrenTimeTableEv）：
+// 取当前小时，在 m_table[0..m_num-2] 中查找所在时段，返回时段索引。
+void* WarAreaCounter::GetCurrenTimeTable()
+{
+    time_t t = time(NULL);
+    struct tm tmbuf;
+    struct tm* ptm = localtime_r(&t, &tmbuf);
+    int curHour = ptm->tm_hour;
+    int num = *(int*)((char*)this + 0x140);
+    int i = 0;
+    for (; i < num - 1; ++i)
+    {
+        int t0 = *(int*)((char*)this + 0x60 + i * 4);
+        if (t0 > curHour)
+            continue;
+        int t1 = *(int*)((char*)this + 0x60 + (i + 1) * 4);
+        if (t1 > curHour)
+            break;
+    }
+    return (void*)(size_t)i;
+}
+
+// ORIG 0x82a3d80 W（_ZN14WarAreaCounter25GetWarRoomCountAtPeekTimeEi）：
+// 返回当前时段（m_curIdx）第 idx 个 WarRoom 区的目标房间数；idx 越界记日志返 0。
+int WarAreaCounter::GetWarRoomCountAtPeekTime(int idx)
+{
+    if (idx < 0 || idx > 9)
+    {
+        LogManager::logFormat(1, "WarField.cpp",
+            "int WarAreaCounter::GetWarRoomCountAtPeekTime(int)", 0x317,
+            "WarAreaCounter GetWarRoomCountAtPeekTime error idx(%d)", idx);
+        return 0;
+    }
+    int cur = *(int*)((char*)this + 0xe8);
+    return *(int*)((char*)this + 0x144 + (cur * 10 + idx) * 4);
+}
+
+// ORIG 0x82a3df4 W（_ZN14WarAreaCounter25GetWarRoomCountFirstIndexEi）：
+// 当前时段前 idx 个区的计数和（供 WarRoom 扩容定位首索引）。
+int WarAreaCounter::GetWarRoomCountFirstIndex(int idx)
+{
+    if (idx < 0 || idx > 9)
+    {
+        LogManager::logFormat(1, "WarField.cpp",
+            "int WarAreaCounter::GetWarRoomCountFirstIndex(int)", 0x320,
+            "WarAreaCounter GetWarRoomCountFirstIndex error idx(%d)", idx);
+        return 0;
+    }
+    int cur = *(int*)((char*)this + 0xe8);
+    int sum = 0;
+    for (int j = 0; j < idx; ++j)
+    {
+        sum += *(int*)((char*)this + 0x144 + (cur * 10 + j) * 4);
+    }
+    return sum;
+}
+
+// ORIG 0x82a3e90 W（_ZN14WarAreaCounter24GetWarRoomCountLastIndexEi）：
+// 当前时段前 idx+1 个区的计数和（供 WarRoom 收缩定位末索引）。
+int WarAreaCounter::GetWarRoomCountLastIndex(int idx)
+{
+    if (idx < 0 || idx > 9)
+    {
+        LogManager::logFormat(1, "WarField.cpp",
+            "int WarAreaCounter::GetWarRoomCountLastIndex(int)", 0x32f,
+            "WarAreaCounter GetWarRoomCountLastIndex error idx(%d)", idx);
+        return 0;
+    }
+    int cur = *(int*)((char*)this + 0xe8);
+    int sum = 0;
+    for (int j = 0; j <= idx; ++j)
+    {
+        sum += *(int*)((char*)this + 0x144 + (cur * 10 + j) * 4);
+    }
+    return sum;
 }

@@ -6,7 +6,7 @@ class CraneMinigameManager
 public:
     CraneMinigameManager();
     ~CraneMinigameManager();
-    void init();
+    bool init();
     void updateCraneItemNeedMaterial(int);
 };
 

@@ -155,7 +155,6 @@ class Dispatcher_Teleport : public IPacketDispatcher<MSG_TELEPORT, stTeleportPar
 public:
     Dispatcher_Teleport();
     virtual ~Dispatcher_Teleport();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -199,7 +198,6 @@ public:
     virtual ~Dispatcher_SkillInit();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int process_skill_init();
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -260,7 +258,6 @@ class Dispatcher_ComboSkill : public IPacketDispatcher<MSG_COMBO_SKILL, stComboS
 public:
     Dispatcher_ComboSkill();
     virtual ~Dispatcher_ComboSkill();
-    int checkComboSkillIndex();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -282,7 +279,6 @@ class Dispatcher_GuildCargo : public IPacketDispatcher<MSG_BASE, stGuildCargoPar
 public:
     Dispatcher_GuildCargo();
     virtual ~Dispatcher_GuildCargo();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -323,7 +319,6 @@ public:
     Dispatcher_PurifyItem();
     virtual ~Dispatcher_PurifyItem();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int processPurifyType();
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
 
@@ -403,11 +398,7 @@ class Dispatcher_EPLPCommand : public IPacketDispatcher<MSG_BASE, ParamBase, ch_
 public:
     Dispatcher_EPLPCommand();
     virtual ~Dispatcher_EPLPCommand();
-    int _BroadCastPacket();
-    int _SendEPLPError();
     int dispatch_sig(CUser* user, PacketBuf& packet);
-    int excludeEplpState();
-    int isReTurnToVillage();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -417,7 +408,6 @@ class Dispatcher_ModItemAttr : public IPacketDispatcher<MSG_BASE, ParamBase, ch_
 public:
     Dispatcher_ModItemAttr();
     virtual ~Dispatcher_ModItemAttr();
-    int _SendResult();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -489,7 +479,6 @@ class Dispatcher_BossDieCheck : public IPacketDispatcher<MSG_BOSS_DIE_CHECK, stB
 public:
     Dispatcher_BossDieCheck();
     virtual ~Dispatcher_BossDieCheck();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -510,7 +499,6 @@ class Dispatcher_CollectItems : public IPacketDispatcher<MSG_COLLECT_ITEMS, stCo
 public:
     Dispatcher_CollectItems();
     virtual ~Dispatcher_CollectItems();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -593,7 +581,6 @@ class Dispatcher_MailBox_Send : public IPacketDispatcher<MSG_MAILBOX_SEND, stMai
 public:
     Dispatcher_MailBox_Send();
     virtual ~Dispatcher_MailBox_Send();
-    int GuildMailCheck();
     int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -655,7 +642,6 @@ class Dispatcher_SoloTeleport : public IPacketDispatcher<MSG_SOLO_TELEPORT, stSo
 public:
     Dispatcher_SoloTeleport();
     virtual ~Dispatcher_SoloTeleport();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -694,7 +680,6 @@ class Dispatcher_UseLimitCube : public IPacketDispatcher<MSG_USE_LIMIT_CUBE, stU
 public:
     Dispatcher_UseLimitCube();
     virtual ~Dispatcher_UseLimitCube();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -726,7 +711,6 @@ public:
     Dispatcher_ChangeEmotion();
     virtual ~Dispatcher_ChangeEmotion();
     int check_error(CUser* user, MSG_BASE& msg);
-    int isVaildEmotionValue();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -767,7 +751,6 @@ class Dispatcher_EnchantByBead : public IPacketDispatcher<MSG_ENCHANT_BY_BEAD, s
 public:
     Dispatcher_EnchantByBead();
     virtual ~Dispatcher_EnchantByBead();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -827,11 +810,8 @@ class Dispatcher_MouseRegister : public IPacketDispatcher<MSG_TEMP_STRUCT, TempP
 public:
     Dispatcher_MouseRegister();
     virtual ~Dispatcher_MouseRegister();
-    int checkValiedPassword();
     int check_error(CUser* user, MSG_BASE& msg);
-    int decryptPassword();
     int dispatch_sig(CUser* user, PacketBuf& packet);
-    int doPassPadReplay();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -964,7 +944,6 @@ class Dispatcher_CompoundEmblem : public IPacketDispatcher<MSG_BASE, ParamBase, 
 public:
     Dispatcher_CompoundEmblem();
     virtual ~Dispatcher_CompoundEmblem();
-    int SendCreateEmblemInfo();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -975,8 +954,6 @@ class Dispatcher_DisJointAvatar : public IPacketDispatcher<MSG_BASE, ParamBase, 
 public:
     Dispatcher_DisJointAvatar();
     virtual ~Dispatcher_DisJointAvatar();
-    int SendCreateEmblemInfo();
-    int SendDisjointAvatarInfo();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -1049,7 +1026,6 @@ public:
     Dispatcher_PcRoomRentItem();
     virtual ~Dispatcher_PcRoomRentItem();
     int check_error(CUser* user, MSG_BASE& msg);
-    int giveDimensionItems();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1091,12 +1067,9 @@ class Dispatcher_UseBoosterItem : public IPacketDispatcher<MSG_BASE, ParamBase, 
 public:
     Dispatcher_UseBoosterItem();
     virtual ~Dispatcher_UseBoosterItem();
-    int _onBoosterItemUseResult();
-    int _onBoosterItemUseResult_OnlyOne();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int sendBroadCastItems();
 };
 
 class Dispatcher_UserHistoryLog : public IPacketDispatcher<MSG_USER_HISTORY_LOG, ParamBase, ch_state0>
@@ -1116,7 +1089,6 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int useCountDownCoinInFreeCoinDungeon();
 };
 
 class Dispatcher_CallGuildInvite : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1127,7 +1099,6 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int send_packet_guild_invite();
 };
 
 class Dispatcher_CancelJoinGuild : public IPacketDispatcher<MSG_CANCEL_JOIN_GUILD, ParamBase, ch_state0>
@@ -1265,11 +1236,7 @@ class Dispatcher_MonstercardBind : public IPacketDispatcher<MSG_MONSTERCARD_BIND
 public:
     Dispatcher_MonstercardBind();
     virtual ~Dispatcher_MonstercardBind();
-    int _bind_process();
-    int calcurate_rarity();
     int check_error(CUser* user, MSG_BASE& msg);
-    int check_need_slot();
-    int get_bind_result();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1381,7 +1348,6 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int send_packet_guild_levelup();
 };
 
 class Dispatcher_CallGuildMembers : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -1722,7 +1688,6 @@ class Dispatcher_GuildCargoHistory : public IPacketDispatcher<MSG_BASE, stGuildC
 public:
     Dispatcher_GuildCargoHistory();
     virtual ~Dispatcher_GuildCargoHistory();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1733,7 +1698,6 @@ class Dispatcher_GuildCargoPopItem : public IPacketDispatcher<MSG_GUILD_CARGO_PO
 public:
     Dispatcher_GuildCargoPopItem();
     virtual ~Dispatcher_GuildCargoPopItem();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1784,7 +1748,6 @@ class Dispatcher_SecretShopBuyItem : public IPacketDispatcher<MSG_SECRET_SHOP_BU
 public:
     Dispatcher_SecretShopBuyItem();
     virtual ~Dispatcher_SecretShopBuyItem();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1875,7 +1838,6 @@ class Dispatcher_Cancel_Quick_Party : public IPacketDispatcher<MSG_BASE, stQuick
 public:
     Dispatcher_Cancel_Quick_Party();
     virtual ~Dispatcher_Cancel_Quick_Party();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1925,7 +1887,6 @@ class Dispatcher_CloseDisjointStore : public IPacketDispatcher<MSG_BASE, stClose
 public:
     Dispatcher_CloseDisjointStore();
     virtual ~Dispatcher_CloseDisjointStore();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1936,7 +1897,6 @@ class Dispatcher_CompatibilityIndex : public IPacketDispatcher<MSG_COMPATIBILITY
 public:
     Dispatcher_CompatibilityIndex();
     virtual ~Dispatcher_CompatibilityIndex();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -1976,7 +1936,6 @@ class Dispatcher_EnterDisjointStore : public IPacketDispatcher<MSG_ENTER_DISJOIN
 public:
     Dispatcher_EnterDisjointStore();
     virtual ~Dispatcher_EnterDisjointStore();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -1997,7 +1956,6 @@ class Dispatcher_GuildCargoMoveItem : public IPacketDispatcher<MSG_GUILD_CARGO_M
 public:
     Dispatcher_GuildCargoMoveItem();
     virtual ~Dispatcher_GuildCargoMoveItem();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2008,7 +1966,6 @@ class Dispatcher_GuildCargoPushItem : public IPacketDispatcher<MSG_GUILD_CARGO_P
 public:
     Dispatcher_GuildCargoPushItem();
     virtual ~Dispatcher_GuildCargoPushItem();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2060,7 +2017,6 @@ class Dispatcher_Request_Seria_Buff : public IPacketDispatcher<MSG_BASE, stGrowt
 public:
     Dispatcher_Request_Seria_Buff();
     virtual ~Dispatcher_Request_Seria_Buff();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2111,7 +2067,6 @@ class Dispatcher_UnsealRandomOption : public IPacketDispatcher<MSG_BASE, ParamBa
 public:
     Dispatcher_UnsealRandomOption();
     virtual ~Dispatcher_UnsealRandomOption();
-    int _check_unseal_scroll_item();
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -2123,7 +2078,6 @@ public:
     Dispatcher_ValidateScriptHash();
     virtual ~Dispatcher_ValidateScriptHash();
     int check_error(CUser* user, MSG_BASE& msg);
-    int get_hack_type();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -2173,7 +2127,6 @@ class Dispatcher_CreateDisjointStore : public IPacketDispatcher<MSG_CREATE_DISJO
 public:
     Dispatcher_CreateDisjointStore();
     virtual ~Dispatcher_CreateDisjointStore();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2224,7 +2177,6 @@ public:
     Dispatcher_New_Gmdebug_Command();
     virtual ~Dispatcher_New_Gmdebug_Command();
     int dispatch_sig(CUser* user, PacketBuf& packet);
-    int oldGmRoutine();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -2275,7 +2227,6 @@ class Dispatcher_RequestDisjointItem : public IPacketDispatcher<MSG_REQUEST_DISJ
 public:
     Dispatcher_RequestDisjointItem();
     virtual ~Dispatcher_RequestDisjointItem();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2306,7 +2257,6 @@ class Dispatcher_SecretShopOpenClose : public IPacketDispatcher<MSG_SECRET_SHOP_
 public:
     Dispatcher_SecretShopOpenClose();
     virtual ~Dispatcher_SecretShopOpenClose();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2451,7 +2401,6 @@ public:
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
-    int send_packet_guildcreateright();
 };
 
 class Dispatcher_Check3rdPartyConcent : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -2479,7 +2428,6 @@ public:
     Dispatcher_Compound_ExtreamItem();
     virtual ~Dispatcher_Compound_ExtreamItem();
     int _push_newitem();
-    int _read_packet();
     int _remove_victim();
     int _reset();
     int _send_result();
@@ -2555,7 +2503,6 @@ class Dispatcher_PrecheckSoloTeleport : public IPacketDispatcher<MSG_SOLO_TELEPO
 public:
     Dispatcher_PrecheckSoloTeleport();
     virtual ~Dispatcher_PrecheckSoloTeleport();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2575,7 +2522,6 @@ class Dispatcher_Register_Quick_Party : public IPacketDispatcher<MSG_QUICK_PARTY
 public:
     Dispatcher_Register_Quick_Party();
     virtual ~Dispatcher_Register_Quick_Party();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2689,7 +2635,6 @@ class Dispatcher_RepairDisjointMachine : public IPacketDispatcher<MSG_BASE, stRe
 public:
     Dispatcher_RepairDisjointMachine();
     virtual ~Dispatcher_RepairDisjointMachine();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -2873,7 +2818,6 @@ class Dispatcher_UpgradeDisjointMachine : public IPacketDispatcher<MSG_BASE, stU
 public:
     Dispatcher_UpgradeDisjointMachine();
     virtual ~Dispatcher_UpgradeDisjointMachine();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3005,7 +2949,6 @@ public:
     Dispatcher_Enchant_3rdChronicleItem();
     virtual ~Dispatcher_Enchant_3rdChronicleItem();
     int check_error(CUser* user, MSG_BASE& msg);
-    int check_state();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3098,7 +3041,6 @@ class Dispatcher_Select_Item_Grwoth_Power : public IPacketDispatcher<MSG_GROWTH_
 public:
     Dispatcher_Select_Item_Grwoth_Power();
     virtual ~Dispatcher_Select_Item_Grwoth_Power();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3217,7 +3159,6 @@ public:
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
-    int sendRewardItemSystemMail();
 };
 
 class Dispatcher_CallPartyMemberRealtimeInfo : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state3>
@@ -3236,7 +3177,6 @@ class Dispatcher_Direct_Entrance_Quick_Party : public IPacketDispatcher<MSG_BASE
 public:
     Dispatcher_Direct_Entrance_Quick_Party();
     virtual ~Dispatcher_Direct_Entrance_Quick_Party();
-    int check_error(CUser* user, MSG_BASE& msg);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3442,7 +3382,6 @@ class Dispatcher_Select_3rdChronicleItem_ForEnchant : public IPacketDispatcher<M
 public:
     Dispatcher_Select_3rdChronicleItem_ForEnchant();
     virtual ~Dispatcher_Select_3rdChronicleItem_ForEnchant();
-    int check_state();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
 };
@@ -3453,9 +3392,7 @@ public:
     Dispatcher_GrowthCreatureChangeInfinityCreature();
     virtual ~Dispatcher_GrowthCreatureChangeInfinityCreature();
     int check_error(CUser* user, MSG_BASE& msg);
-    int check_error_event();
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
-    int process_event();
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
 };
@@ -3478,7 +3415,6 @@ class Dispatcher_AvartarRoulette : public IPacketDispatcher<MSG_BASE, ParamBase,
 public:
     Dispatcher_AvartarRoulette();
     virtual ~Dispatcher_AvartarRoulette();
-    int checkWorkState(CUser* user);
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -3500,7 +3436,6 @@ class Dispatcher_AradAvatarConvert : public IPacketDispatcher<MSG_BASE, ParamBas
 public:
     Dispatcher_AradAvatarConvert();
     virtual ~Dispatcher_AradAvatarConvert();
-    int checkWorkState(CUser* user);
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -3511,7 +3446,6 @@ class Dispatcher_AradEmblemCompound : public IPacketDispatcher<MSG_BASE, ParamBa
 public:
     Dispatcher_AradEmblemCompound();
     virtual ~Dispatcher_AradEmblemCompound();
-    int checkWorkState(CUser* user);
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -3522,7 +3456,6 @@ class Dispatcher_AradJumpingCharacter : public IPacketDispatcher<MSG_BASE, Param
 public:
     Dispatcher_AradJumpingCharacter();
     virtual ~Dispatcher_AradJumpingCharacter();
-    int checkWorkState(CUser* user);
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -3533,7 +3466,6 @@ class Dispatcher_AradUseAvatarRecharge : public IPacketDispatcher<MSG_BASE, Para
 public:
     Dispatcher_AradUseAvatarRecharge();
     virtual ~Dispatcher_AradUseAvatarRecharge();
-    int checkWorkState(CUser* user);
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -3554,7 +3486,6 @@ class Dispatcher_AvartarHiddenOptionChange : public IPacketDispatcher<MSG_BASE, 
 public:
     Dispatcher_AvartarHiddenOptionChange();
     virtual ~Dispatcher_AvartarHiddenOptionChange();
-    int checkWorkState(CUser* user);
     int dispatch_sig(CUser* user, PacketBuf& packet);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
@@ -3578,11 +3509,7 @@ class Arad_Dispatcher_Manager : public IPacketDispatcher<MSG_BASE, ParamBase, ch
 public:
     Arad_Dispatcher_Manager();
     virtual ~Arad_Dispatcher_Manager();
-    int db_dispatch();
-    int inter_dispatch();
     int open();
-    int register_dispatcher();
-    int unregister_dispatcher();
 };
 
 class Arad_Dispatcher_Login_Impl : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -3590,12 +3517,6 @@ class Arad_Dispatcher_Login_Impl : public IPacketDispatcher<MSG_BASE, ParamBase,
 public:
     Arad_Dispatcher_Login_Impl();
     virtual ~Arad_Dispatcher_Login_Impl();
-    int account_password_check();
-    int db_dispatch();
-    int inter_dispatch();
-    int pad_certifiaction_check();
-    int premium_info_set();
-    int punish_user_check();
 };
 
 class Arad_Dispatcher_BuyItemCheck_Impl : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -3603,8 +3524,6 @@ class Arad_Dispatcher_BuyItemCheck_Impl : public IPacketDispatcher<MSG_BASE, Par
 public:
     Arad_Dispatcher_BuyItemCheck_Impl();
     virtual ~Arad_Dispatcher_BuyItemCheck_Impl();
-    int db_dispatch();
-    int inter_dispatch();
 };
 
 }

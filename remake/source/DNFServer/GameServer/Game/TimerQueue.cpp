@@ -1,6 +1,7 @@
 // df_game_r TimerQueue 实现（ORIG ctor 0x80f63ac / dtor 0x82a42b8 /
 // InsertTimer 0x8630cec / GetTimerMess 0x8630ecc，AE 口径还原）。
 #include "TimerQueue.h"
+#include "CEnvironment.h"
 
 #include <stdio.h>
 #include <string>
@@ -16,6 +17,11 @@ struct GlobalData
 {
     static CSystemTime s_systemTime_;
 };
+// TimerEntry（ORIG 0x8630e60 族调用方无 EH 清理块，throw() 对齐）
+TimerEntry::TimerEntry() throw()
+{
+}
+bool TimerEntry::operator<(const TimerEntry&) const throw() { return false; }
 
 TimerQueue::TimerQueue() throw()
 {
@@ -124,3 +130,12 @@ void TimerQueue::write_timer_queue_log() throw()
         trace("TIMER_QUEUE_LOG : %s", log.c_str());
     }
 }
+
+// ---- 全局单例访问器 ----
+// ORIG 0x80f647c W（_Z12G_TimerQueuev）：GlobalInstance<TimerQueue>::inst_ptr()
+// （create 惰性 new 并缓存至 m_p，ORIG m_p 位于 BSS 0x93facc4）。
+TimerQueue* G_TimerQueue()
+{
+    return GlobalInstance<TimerQueue>::inst_ptr();
+}
+template class GlobalInstance<TimerQueue>;

@@ -283,6 +283,11 @@ CUser* CParty::get_user(int idx)
     return m_member[idx].m_pUser;
 }
 
+int CParty::get_party_type() const
+{
+    return m_partyType;
+}
+
 char CParty::getTitleIndex()
 {
     return m_titleIndex;

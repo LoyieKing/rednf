@@ -16,16 +16,50 @@
 #include "CDataManager.h"
 #include "CInventory.h"
 #include "InterfacePacketBuf.h"
+#include "Arad_DataManager.h"
+
+// DB 商城限购请求类（权威定义见 DB_CerashopAddRestrict.cpp，ORIG T @ 0x080e1ff6/0x080e17ba）。
+class DB_LoadCerashopAddRestrictType
+{
+public:
+    static void makeRequest(CUser* user);
+};
+class DB_SaveCerashopAddRestrictType
+{
+public:
+    static void makeRequest(CUser* user, CerashopAddRestrict::DBInputData& data);
+};
+
+
+// ARAD::Singleton 模板定义（与 GlobalData.cpp 一致；模板允许跨 TU 重复定义）。
+// 供 ARAD::Singleton<CerashopAddRestrict::Manager>::Get() 实例化，产出 ORIG 符号
+// _ZN4ARAD9SingletonIN19CerashopAddRestrict7ManagerEE3GetEv（W @ 0x080e274d）。
+namespace ARAD
+{
+template <class T> T* Singleton<T>::Get()
+{
+    static T inst;
+    return &inst;
+}
+}
+
+// 全局 C++ 权威签名（由 DNFLexWrapperHelpers.cpp 提供，匹配 ORIG mangled 符号）：
+bool loadRDARScriptFile(const char* directory, const char* path);
+bool ScanType(std::string& token, bool consume);
+int ScanInt(bool* ok);
+bool ScanStr(std::string* value);
+
+// DB 请求类（定义于 DB_CerashopAddRestrict.cpp，ORIG 0x080e1ff6/0x080e17ba）。
+// 全局作用域类；SAVE 参数类型为 CerashopAddRestrict::DBInputData。
+class DB_LoadCerashopAddRestrictType;
+class DB_SaveCerashopAddRestrictType;
 
 namespace CerashopAddRestrict
 {
 
 int ScriptLoader::LoadScript()
 {
-    extern char loadRDARScriptFile(const char* a, const char* b);
-    extern int ScanType(std::string& s, bool& flag);
-    extern int ScanInt(bool& flag);
-    extern void ScanStr(std::string& s);
+
 
     if (!loadRDARScriptFile("Etc/", "NewCashShop_Restrict.etc"))
         return -1;
@@ -43,16 +77,16 @@ int ScriptLoader::LoadScript()
 
 void ScriptLoader::LoadScriptDaily(RestrictType type)
 {
-    extern int ScanInt(bool& flag);
+
     bool ok = false;
     while (true) {
-        int v0 = ScanInt(ok);
+        int v0 = ScanInt(&ok);
         if (!ok)
             break;
         InfoDaily* info = new InfoDaily;
         info->m_type = type;
         info->m_ipgNo = (unsigned int)v0;
-        info->m_field8 = ScanInt(ok);
+        info->m_field8 = ScanInt(&ok);
         short timeBuf[8];
         extern int readTime(short* buf);
         readTime(timeBuf);
@@ -60,8 +94,8 @@ void ScriptLoader::LoadScriptDaily(RestrictType type)
         info->m_start = (int)uint32Time(timeBuf);
         readTime(timeBuf);
         info->m_end = (int)uint32Time(timeBuf);
-        info->m_limit = ScanInt(ok);
-        info->m_field18 = ScanInt(ok);
+        info->m_limit = ScanInt(&ok);
+        info->m_field18 = ScanInt(&ok);
         m_infoMap[info->m_ipgNo] = info;
     }
 }
@@ -87,19 +121,19 @@ bool ScriptLoader::FindIpgNo(unsigned int ipgNo)
 // ---- readTime / uint32Time / GetCalcDay ----
 int readTime(short* out)
 {
-    extern int ScanInt(bool& flag);
+
     bool ok = false;
     int n = 0;
-    out[n++] = (short)ScanInt(ok);
+    out[n++] = (short)ScanInt(&ok);
     if (!ok)
         return n;
-    out[n++] = (short)ScanInt(ok);
+    out[n++] = (short)ScanInt(&ok);
     if (!ok)
         return n;
-    out[n++] = (short)ScanInt(ok);
+    out[n++] = (short)ScanInt(&ok);
     if (!ok)
         return n;
-    out[n++] = (short)ScanInt(ok);
+    out[n++] = (short)ScanInt(&ok);
     return n;
 }
 
@@ -192,11 +226,10 @@ void Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
 void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
                                         unsigned int itemIdx)
 {
-    extern void DB_SaveCerashopAddRestrictType_makeRequest(CUser* user,
-                                                           DBInputData* data);
+    // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e17ba）。
     DBInputData data;
     if (InputBuyInfo(user, ipgNo, itemIdx, data) != 0) {
-        DB_SaveCerashopAddRestrictType_makeRequest(user, &data);
+        DB_SaveCerashopAddRestrictType::makeRequest(user, data);
         SendSyncPacket(user);
     }
 }
@@ -212,15 +245,14 @@ void Manager::ClearBuyRestrictItem(CUser* user)
 
 void Manager::LoadRequestBuyRestrictItem(CUser* user)
 {
-    extern void DB_LoadCerashopAddRestrictType_makeRequest(CUser* user);
-    DB_LoadCerashopAddRestrictType_makeRequest(user);
+    // DB 请求经 DB_CerashopAddRestrict.cpp 的真实成员函数投递（ORIG 0x080e1ff6）。
+    DB_LoadCerashopAddRestrictType::makeRequest(user);
 }
-
 void Manager::SendSyncPacket(CUser* user)
 {
-    extern void* sub_Singleton_CerashopAddRestrict_Manager_Get()
-        asm("_ZN4ARAD9SingletonI24CerashopAddRestrict7ManagerE3GetEv");
-    ((Manager*)sub_Singleton_CerashopAddRestrict_Manager_Get())->makeSyncPacket(user);
+    // ORIG：ARAD::Singleton<CerashopAddRestrict::Manager>::Get()->makeSyncPacket(user)
+    // 符号 _ZN4ARAD9SingletonIN19CerashopAddRestrict7ManagerEE3GetEv（W @ 0x080e274d）
+    ARAD::Singleton<CerashopAddRestrict::Manager>::Get()->makeSyncPacket(user);
 }
 
 void Manager::makeSyncPacket(CUser* user)

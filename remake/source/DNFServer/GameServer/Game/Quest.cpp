@@ -26,8 +26,27 @@ namespace GlobalData
 extern CDailyScheduleManager s_DailyScheduleManager;  // ORIG 0x941f784
 }
 
+// ORIG 0x8352203：src 按相邻元素配对填充 RewardItemInfo{field0,field4}；
+// 奇数元素时记录错误并返回
 void makeRewardItemInfo(const std::vector<int>& src,
-                        std::vector<RewardItemInfo>& out);
+                        std::vector<RewardItemInfo>& out)
+{
+    RewardItemInfo item;
+    std::vector<int>::const_iterator it = src.begin();
+    while (it != src.end())
+    {
+        item.m_itemIdx = *it;
+        ++it;
+        if (it == src.end())
+        {
+            // ORIG cMyTrace("_it == data.rewardSelectItems_.end()")
+            return;
+        }
+        item.m_count = *it;
+        ++it;
+        out.push_back(item);
+    }
+}
 int get_rand_int(int range);
 
 // stQuestTriggerState_t 辅助（ORIG 0x836dce0/0x836dd68：9 位触发值打包）

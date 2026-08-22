@@ -25,7 +25,9 @@ class CDataManager;
 extern CDataManager* G_CDataManager();
 extern GameWorld* G_GameWorld();
 
-// ---- 技能树枚举（mangling 20ENUM_SKILL_TREE_KIND）----
+// ---- 技能树枚举（mangling 20ENUM_SKILL_TREE_KIND；与 GameEnums.h 同值同 guard）----
+#ifndef DNF_ENUM_SKILL_TREE_KIND_DEFINED
+#define DNF_ENUM_SKILL_TREE_KIND_DEFINED
 enum ENUM_SKILL_TREE_KIND
 {
     SKILL_TREE_NONE = -1,
@@ -34,6 +36,7 @@ enum ENUM_SKILL_TREE_KIND
     SKILL_TREE_SFP_1 = 2,
     SKILL_TREE_SFP_2 = 3
 };
+#endif
 
 // ---- 已学技能（2 字节：索引 + 等级）----
 struct _Mastered_skill
@@ -136,13 +139,7 @@ public:
 };
 }
 
-class CCharacter
-{
-public:
-    char get_give_skill(int firstGrow, int secondGrow,
-                        std::vector<std::pair<int, int> >& out,
-                        unsigned int flag) const;
-};
+#include "CCharacter.h"  // 权威 CCharacter（get_give_skill 定义，独立 TU CCharacter.cpp）
 
 extern void addSkillOnCreateCharacter(_Mastered_skill* skill, int job);
 extern int getSkillChecksum(int slot, int skillIdx, int level);

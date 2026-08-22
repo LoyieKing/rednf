@@ -8,6 +8,7 @@
 // 本文件只声明必要接口并调用。
 
 #include "CDataManager.h"
+#include "CMap.h"
 
 #include <ext/hash_map>
 #include <stdio.h>
@@ -77,16 +78,6 @@ class CDungeon_TowerOfDespair : public CDungeon
 public:
     CDungeon_TowerOfDespair();
     ~CDungeon_TowerOfDespair();
-};
-
-class CMap
-{
-public:
-    CMap();
-    ~CMap();
-    int get_index() const;
-    int get_map_type() const;
-    char m_pad[0x2d8];
 };
 
 class Quest
@@ -249,7 +240,7 @@ public:
     CNRDScriptData();
     ~CNRDScriptData();
     void import(const char* path);
-    int getInt(const char* key);
+    int getInt(const char* key) const;
     char m_pad[0xa4];
 };
 

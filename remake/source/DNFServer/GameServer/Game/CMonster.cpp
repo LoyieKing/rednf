@@ -38,6 +38,11 @@ int CMonster::get_index()
     return m_index;
 }
 
+int CMonster::get_index() const
+{
+    return m_index;
+}
+
 void CMonster::set_monster(STMonsterScript& script)
 {
     m_index = script.m_field0;

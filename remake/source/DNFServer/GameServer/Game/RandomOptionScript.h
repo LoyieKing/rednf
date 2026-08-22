@@ -127,6 +127,8 @@ public:
     void clear();
     int getPrefixGrade(int level) const;
     std::string getPrefix(int prefix, bool flag);
+    std::string getPrefix(int prefix, int grade, bool flag);  // ORIG 0x08a73956
+
     int getOptionModificationCost(short level, int rarity) const;
 
     // ---- 成员布局（0x230 字节） ----

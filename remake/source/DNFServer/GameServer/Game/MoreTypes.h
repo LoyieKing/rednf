@@ -82,8 +82,9 @@ struct SigAradAvatarEnduranceSave { char m_pad[0x100]; };
 struct SigAradAvatarHiddenOptionSave { char m_pad[0x100]; };
 }
 
+#include "APSystemTypes.h"
+
 namespace APSystem {
-struct _SIG_LOAD_ACTION_POINT { char m_pad[0x100]; };
 struct _SIG_LOAD_REWARD_MEDAL { char m_pad[0x100]; };
 struct _SIG_UPDATE_REWARD_MEDAL { char m_pad[0x100]; };
 }

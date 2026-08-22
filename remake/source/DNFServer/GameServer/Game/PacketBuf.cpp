@@ -5,6 +5,7 @@
 
 #include "CDataManager.h"
 #include "GameWorld.h"
+#include "md5.h"
 
 // ===========================================================================
 // 生命周期
@@ -796,4 +797,57 @@ void PacketBuf::put_packet(const Inven_Item& item)
     }
 
     put_byte(((const UpgradeSeparateInfo*)((const char*)&item + 0x33))->IsTradeRestriction());
+}
+
+// ===========================================================================
+// _NS_PI_MakeHash_NOTI（ORIG 0x82746f3 T）
+// 包尾哈希：对包体（m_ptr + 0xf 起，长度 = get_index() - 0xf）计算 MD5，
+// 将 16 字节摘要按 _NS_MakeHash_Pcs（ORIG 0x808c8b5）的规则折叠为 4 字节：
+//   d[0] ^= d[10] ^ d[8] ^ d[11] ^ 0x81
+//   d[1] ^= d[12] ^ d[5] ^ d[7]  ^ 0x78
+//   d[2] ^= d[14] ^ d[6] ^ d[10] ^ 0x1a
+//   d[3] ^= d[13] ^ d[5] ^ d[9]  ^ 0xbf
+// 折叠结果以小端写入包尾（put_int）。len 越界（<=0 或 >0x190）时不写。
+// ===========================================================================
+
+static bool ns_make_hash_pcs(const char* data, short len, int& out)
+{
+    if (len <= 0 || len > 0x190)
+    {
+        return false;
+    }
+    unsigned char digest[16];
+    md5_context ctx;
+    md5_starts(&ctx);
+    md5_update(&ctx, (unsigned char*)data, len);
+    md5_finish(&ctx, digest);
+
+    digest[0] = digest[0] ^ digest[10] ^ digest[8] ^ digest[11] ^ 0x81;
+    digest[1] = digest[1] ^ digest[12] ^ digest[5] ^ digest[7] ^ 0x78;
+    digest[2] = digest[2] ^ digest[14] ^ digest[6] ^ digest[10] ^ 0x1a;
+    digest[3] = digest[3] ^ digest[13] ^ digest[5] ^ digest[9] ^ 0xbf;
+
+    // 小端组装 4 字节结果（与 ORIG `mov (%eax),%edx` 读 dword 一致）
+    out = (unsigned char)digest[0] | ((unsigned char)digest[1] << 8) |
+          ((unsigned char)digest[2] << 16) | ((unsigned char)digest[3] << 24);
+    return true;
+}
+
+void _NS_PI_MakeHash_NOTI(PacketBuf* packet)
+{
+    if (packet == 0)
+    {
+        return;
+    }
+    char* base = packet->get_packet(0);
+    // ORIG：读取包首 +1 处的 ushort 字段（本函数内不使用，仅为对齐 ORIG 读取行为）
+    unsigned short headerField = *(unsigned short*)(base + 1);
+    (void)headerField;
+    const char* region = base + 0xf;
+    int idx = packet->get_index() - 0xf;
+    int hash = 0;
+    if (ns_make_hash_pcs(region, (short)idx, hash))
+    {
+        packet->put_int(hash);
+    }
 }

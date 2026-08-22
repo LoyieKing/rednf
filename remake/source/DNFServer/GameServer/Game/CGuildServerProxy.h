@@ -18,6 +18,7 @@
 // ============================================================================
 
 #include <map>
+#include <list>
 #include <string>
 
 #include "CNetwork.h"
@@ -63,6 +64,14 @@ class PacketGuard;
 class CDelivery;
 class DeliveryMsg;
 
+// stADDINFO（CEventBase +0x04，sizeof 4）：两个 ushort，ctor 0x0810af10 置 0xffff。
+struct stADDINFO
+{
+    stADDINFO();          // 0x0810af10（CEventBase TU 内联或独立 TU）
+    unsigned short m_info0;   // +0x00
+    unsigned short m_info1;   // +0x02
+};
+
 // CEventBase（ORIG vtable 0x08b4bae0）：0/1 = 虚析构，2/3 = StartEvent()/
 // EndEvent() 纯虚，4 = StartEvent(Word_Param)（基类弱实现），5..13 =
 // StartAction/AppendInfo/GetAddInfo/changeCharacName/dailyresetData/
@@ -71,6 +80,7 @@ class DeliveryMsg;
 class CEventBase
 {
 public:
+    CEventBase();                          // 0x0810ae2c
     virtual ~CEventBase();
     virtual void StartEvent() = 0;              // vtable+0x10
     virtual void EndEvent() = 0;                // vtable+0x14
@@ -86,19 +96,68 @@ public:
     virtual void delivery(DeliveryMsg& msg);    // vtable+0x38
     virtual bool IsEventing(CUser* user) const; // vtable+0x3c
     void SetEventFlag(bool flag);               // 非虚 0x080c84e2
+
+protected:
+    // ORIG 布局：+0x00 vptr，+0x04 stADDINFO，+0x08 eventing flag 字节。
+    stADDINFO m_addInfo;    // +0x04
+    bool m_isEventing;      // +0x08
+};
+
+// CDelivery（ORIG sizeof 0x18）：int → CEventBase* 列表 的分发表。
+class CDelivery
+{
+public:
+    CDelivery();                                 // 0x08116386
+    ~CDelivery();                                // 0x0811639a
+    bool checkAddress(int type);                 // 0x081163dc
+    void attach(int type, CEventBase* event);    // 0x081163fa
+    void detach(int type, CEventBase* event);    // 0x081165fa
+    void notify(int type, DeliveryMsg& msg);     // 0x08116682
+
+private:
+    std::map<int, std::list<CEventBase*> > m_eventMap;   // +0x00
 };
 
 class CEventManager
 {
 public:
-    CEventManager();                       // 0x08114ce4 T（独立 TU）
+    CEventManager();                       // 0x08114ce4 T（CEventManager.cpp）
+    ~CEventManager();                      // 0x08114d4e T（CEventManager.cpp）
     CEventBase* GetRepeatEvent(int type);  // 0x08115998
+    int AddEvent(int type, CEventBase* event);            // 0x08115982
+    void dailyresetData();                                 // 0x0811630e
+    bool LoadEventFromDB();                                // 0x081159b6
+    int TriggerEventEnd(int idx);                          // 0x08115d60
+    bool InitEventManager();                               // 0x08114dcc
+    void MakeNotiEventInfo(PacketGuard& packet, CUser* user); // 0x08115de2
+    int TriggerEventStart(int idx, Word_Param param);      // 0x08115cc6
+    void BroadcastEventInfo();                             // 0x08116108
+    void eventDeliveryNotify(int type, DeliveryMsg& msg);  // 0x08116874
+
 private:
+    // ORIG 布局：+0x00..+0x297 事件指针数组（0xa6 x CEventBase*），
+    // +0x298 CDelivery*（heap 分配，ctor 内 new）。sizeof = 0x29c。
     char m_pad[0x29c];
 };
 
 namespace WongWork
 {
+// GM 账号条目（8 字节）：账号 id + GM 类型。
+// isGM/getGMInfo 以 {mid, type=3} 在 m_gmList 中查找（ORIG isGM 0x08109346）。
+struct stGMInfo_t
+{
+    unsigned int mid;    // +0x00
+    unsigned int type;   // +0x04
+
+    stGMInfo_t() : mid(0), type(0) {}
+    stGMInfo_t(unsigned int m, unsigned int t) : mid(m), type(t) {}
+
+    bool operator==(const stGMInfo_t& o) const
+    {
+        return mid == o.mid && type == o.type;
+    }
+};
+
 class CGMAccounts
 {
 public:
@@ -106,7 +165,7 @@ public:
     ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
     bool isGM(unsigned int mid);           // 0x08109346
 private:
-    char m_pad[8];
+    std::list<stGMInfo_t> m_gmList;        // +0x00（sizeof 8，与 ORIG 一致）
 };
 }
 

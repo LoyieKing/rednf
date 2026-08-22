@@ -17,6 +17,12 @@ public:
     cMyTraceNoop();
     void operator()(const char* fmt, ...);
 };
+// ---- CDnFTimer / CDnFTimerFactory（G7 计时族，ORIG 弱符号；算法正确即可）----
+void CDnFTimer::SetLastTime() {}
+double CDnFTimer::GetTimeInterval() { return 0.0; }
+CDnFTimer* CDnFTimerFactory::CreateDnFTimer() { return new CDnFTimer; }
+void CDnFTimerFactory::DestroyDnFTimer(CDnFTimer* timer) { delete timer; }
+
 
 MySQL::MySQL() throw()
 {
@@ -445,4 +451,30 @@ int MySQL::exec_query()
         return 1;
     }
     return 0;
+}
+
+// ============================================================================
+// GetIdentityFromDB（ORIG 0x83fbc66 T）
+// 包装 WongWork::DBCommon::GetIdentity（0x83f9ad4）：查询 @@identity（上次
+// INSERT 的自增 ID），供 CQueryCounter::insertCounter 取 q_id 使用。
+// ORIG 流程：set_query("seLect @@identity") → exec(true) → fetch() →
+// get_uint(0, &out)；任一步失败返回 0。
+// ============================================================================
+int GetIdentityFromDB(MySQL* mysql)
+{
+    mysql->set_query("seLect @@identity");
+    if (mysql->exec(true) == false)
+    {
+        return 0;
+    }
+    if (mysql->fetch() == false)
+    {
+        return 0;
+    }
+    unsigned int identity = 0;
+    if (mysql->get_uint(0, identity) == false)
+    {
+        return 0;
+    }
+    return (int)identity;
 }

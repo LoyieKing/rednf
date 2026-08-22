@@ -27,10 +27,10 @@ extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
 extern "C" bool sub_ScanType(std::string& line, bool value)
     asm("_Z8ScanTypeRSsb");
 extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-extern "C" bool sub_ScanStr(std::string& out) asm("_Z7ScanStrRSs");
+extern "C" bool sub_ScanStr(std::string* out) asm("_Z7ScanStrPSs");
 extern "C" const char* sub_toMbcs(const char* src) asm("_Z6toMbcsPKc");
 extern "C" void sub_GetEscapeString(MySQL* db, const char* src, char* dst)
-    asm("_Z16GetEscapeStringP5MySQLPKcPc");
+    asm("_Z15GetEscapeStringP5MySQLPKcPc");
 extern "C" int sub_getCharacterJob(const char* name)
     asm("_Z15getCharacterJobPKc");
 
@@ -106,14 +106,13 @@ const char* GetAttackElementString(int element)
 namespace sync_script
 {
 
-CSyncScript::CSyncScript()
-{
-    m_field0 = 0;
-}
+// ---- CListTables.cpp / CDungeonList.cpp 引用的全局表（原 GameStubs.cpp 桩） ----
+std::map<int, std::string> g_dungeonInfoTable;    // ORIG 0x94f6ea0
+std::map<int, std::string> g_monsterInfoTable;    // ORIG 0x94ff260
+std::map<int, std::string> g_questInfoTable;      // ORIG 0x9500480
+std::map<int, std::string> g_skillInfoTable[11];  // ORIG 0x9500820
 
-CSyncScript::~CSyncScript()
-{
-}
+// CSyncScript 构造/析构由 CItemList.cpp（ORIG 0x861cbb4 区）提供；本 TU 不重复定义。
 
 bool CSyncScript::GetType(std::string name, int job, int idx, int& out1,
                           int& out2, bool flag)
@@ -266,7 +265,7 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         if (line == "[master type]")
         {
             int value = sub_ScanInt(0);
-            sub_ScanStr(str);
+            sub_ScanStr(&str);
             m_map64[(unsigned char)value] = str;
         }
         else if (line == "[type addition]")
@@ -282,17 +281,17 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         else if (line == "[material type]")
         {
             int value = sub_ScanInt(0);
-            sub_ScanStr(str);
+            sub_ScanStr(&str);
             m_map7c[(unsigned char)value] = str;
         }
         else if (line == "[weapon type]")
         {
-            sub_ScanStr(str);
+            sub_ScanStr(&str);
             int type = sub_ScanInt(0);
             int subType = sub_ScanInt(0);
             int value = sub_ScanInt(0);
             std::string name;
-            sub_ScanStr(name);
+            sub_ScanStr(&name);
             int job = sub_getCharacterJob(str.c_str());
             SWEAPONTYPE wp;
             wp.m_job = job;
@@ -303,12 +302,12 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         }
         else if (line == "[armor type]")
         {
-            sub_ScanStr(str);
+            sub_ScanStr(&str);
             int type = sub_ScanInt(0);
             int subType = sub_ScanInt(0);
             int value = sub_ScanInt(0);
             std::string name;
-            sub_ScanStr(name);
+            sub_ScanStr(&name);
             SARMORTYPE ap;
             ap.m_field0 = (unsigned char)subType;
             ap.m_str4 = str;
@@ -318,16 +317,17 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         }
         else if (line == "[item type]")
         {
-            sub_ScanStr(str);
+            sub_ScanStr(&str);
             int type = sub_ScanInt(0);
             int subType = sub_ScanInt(0);
             int value = sub_ScanInt(0);
             int extra = sub_ScanInt(0);
             std::string name;
-            sub_ScanStr(name);
+            sub_ScanStr(&name);
             m_itemTypeMap[str] = SITEMTYPE(type != 0, (unsigned char)subType,
                                            (unsigned char)value,
                                            (unsigned short)extra, name);
+
         }
     }
     return true;

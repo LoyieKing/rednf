@@ -1,4 +1,5 @@
 #include "CDataManager.h"
+#include "CMission.h"
 
 CMission* PvP_MissionSystem::find_mission(int idx)
 {
@@ -6,13 +7,24 @@ CMission* PvP_MissionSystem::find_mission(int idx)
     return it == m_missionMap.end() ? 0 : it->second;
 }
 
+// ORIG 0x85e2f00：遍历 m_kindMissionList[0x1b]，首个 GetRankRange().gradeMin == idx
+// 的 CMission 返回其 GetMissionIndex()；无匹配返回 0。
 int PvP_MissionSystem::get_WithinMissionIndex(int idx) const
 {
-    for (std::vector<unsigned int>::size_type i = 0;
-         i < m_dailyMissionIndices.size(); ++i)
-        if (m_dailyMissionIndices[i] == static_cast<unsigned int>(idx))
-            return static_cast<int>(i);
-    return -1;
+    if (m_kindMissionList.size() <= 0x1b)
+        return 0;
+    const std::list<CMission*>& list = m_kindMissionList[0x1b];
+    for (std::list<CMission*>::const_iterator it = list.begin();
+         it != list.end(); ++it)
+    {
+        if (!*it)
+            continue;
+        int grade[2] = {0, 0};
+        (*it)->GetRankRange(grade);
+        if (grade[0] == idx)
+            return (*it)->GetMissionIndex();
+    }
+    return 0;
 }
 
 std::list<CMission*>& PvP_MissionSystem::get_kind_mission_list(unsigned int idx)
@@ -26,7 +38,7 @@ std::bitset<32> PvP_MissionSystem::get_daily_mission_kind() const
     return m_dailyMissionKind;
 }
 
-int PvP_MissionSystem::get_BaseMissionExp_byRank(unsigned short rank)
+int PvP_MissionSystem::get_BaseMissionExp_byRank(unsigned short rank) const
 {
     return rank < m_baseMissionExp.size() ? static_cast<int>(m_baseMissionExp[rank]) : 0;
 }

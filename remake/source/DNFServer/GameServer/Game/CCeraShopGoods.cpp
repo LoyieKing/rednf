@@ -231,10 +231,11 @@ bool CCeraShopGoods::isStackBuyable() const
 // 语义：加载 RDAR 商城脚本；按分区扫描商品行（每行首字段为条目序号），
 // 以 STCeraShopItem 逐项填入商品向量；[limit] 类分区填限购映射。
 // ============================================================================
-extern "C" bool loadRDARScriptFile(const char* a, const char* b);
-extern "C" int ScanType(std::string& s, bool& flag);
-extern "C" int ScanInt(bool& flag);
-extern "C" void ScanStr(std::string& s);
+// 全局 C++ 权威签名（由 DNFLexWrapperHelpers.cpp 提供，匹配 ORIG mangled 符号）：
+bool loadRDARScriptFile(const char* directory, const char* path);
+bool ScanType(std::string& token, bool consume);
+int ScanInt(bool* ok);
+bool ScanStr(std::string* value);
 
 bool importCashShopItemList(
     char* path, std::vector<STCeraShopItem>* itemList,
@@ -253,15 +254,15 @@ bool importCashShopItemList(
     STCeraShopItem item;
     bool eof = false;
     while (true) {
-        int v0 = ScanInt(eof);
+        int v0 = ScanInt(&eof);
         if (!eof)
             break;
         item.clear();
         item.m_field14 = v0;
-        int v1 = ScanInt(eof);
-        int v2 = ScanInt(eof);
-        int v3 = ScanInt(eof);
-        int v4 = ScanInt(eof);
+        int v1 = ScanInt(&eof);
+        int v2 = ScanInt(&eof);
+        int v3 = ScanInt(&eof);
+        int v4 = ScanInt(&eof);
         if (eof) {
             item.m_fieldc = v1;
             item.m_field10 = v2;

@@ -78,13 +78,17 @@ namespace
     }
 }
 
+
 CEventManager::CEventManager()
 {
     std::memset(m_pad, 0, sizeof(m_pad));
-    void* delivery = ::operator new(0x18);
-    sub_CDelivery_C1(delivery);
-    *reinterpret_cast<CDelivery**>(m_pad + 0x298) = reinterpret_cast<CDelivery*>(delivery);
+    // ORIG 0x08114ce4：memset 0x298，operator new(0x18) 后调 CDelivery::CDelivery()
+    // （0x08116386），存 CDelivery* 于 +0x298。此处用真实 CDelivery 构造。
+    CDelivery* delivery = new CDelivery;
+    *reinterpret_cast<CDelivery**>(m_pad + 0x298) = delivery;
 }
+
+
 
 CEventManager::~CEventManager()
 {
@@ -97,8 +101,7 @@ CEventManager::~CEventManager()
     CDelivery* delivery = getDelivery(this);
     if (delivery != 0)
     {
-        sub_CDelivery_D1(delivery);
-        ::operator delete(delivery);
+        delete delivery;
     }
 }
 

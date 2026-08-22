@@ -30,10 +30,12 @@ enum T
 
 struct stAvatarTypeSelect_t
 {
-    int m_field0;    // +0x00
-    int m_field4;    // +0x04
-    int m_field8;    // +0x08
-    int m_fieldc;    // +0x0c
+    int m_field0;       // +0x00
+    int m_field4;       // +0x04
+    int m_field8;       // +0x08
+    int m_fieldc;       // +0x0c
+    int m_field10;      // +0x10
+    unsigned short m_socketType[4];  // +0x14
 };
 #endif
 

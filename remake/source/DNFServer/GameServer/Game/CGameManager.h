@@ -267,6 +267,11 @@ class StageControl
 public:
     StageControl();
     ~StageControl();
+    int getIndex() const;         // ORIG 0x81348ba
+    void setIndex(int idx);       // ORIG 0x82a669c
+    void leaveUser();             // ORIG 0x812fc4e
+    void onTimerStageTick();      // ORIG 0x812fb98
+    void reset();                 // ORIG 0x812fa54
 private:
     char m_pad[0xc0];
 };
@@ -404,10 +409,127 @@ public:
 private:
     char m_pad[0x100];
 };
-}
 
-#include <cstdio>
-typedef FILE _IO_FILE;
+// 全局占位类型（ORIG 全局符号签名所需；布局待细化）
+#ifndef DNF_GAME_ENUM_ERROR_DEFINED
+#define DNF_GAME_ENUM_ERROR_DEFINED
+enum ENUM_ERROR { ENUM_ERROR_NONE = 0 };
+#endif
+#ifndef DNF_GAME_MSG_CHECK_MAIL_RECEIVER_DEFINED
+#define DNF_GAME_MSG_CHECK_MAIL_RECEIVER_DEFINED
+struct MSG_CHECK_MAIL_RECEIVER { char m_pad[0x100]; };
+#endif
+
+class MSG_MAILBOX_SEND;  // PacketTypes.h 实定义
+
+struct SIG_MAILBOX_LIST;
+struct SIG_MAILBOX_SEND_NEW_MAIL;
+class CMailBoxHelper
+{
+public:
+    // ---- 生命周期 / 池 ----
+    static CMailBox* AssignMailBox();                  // ORIG 0x08697838 (W)
+    static void      FreeMailBox(CMailBox* box);       // ORIG 0x0869786a (W)
+    static bool      IsCeraPointItem(unsigned long);   // ORIG 0x08553912
+
+    // ---- 用户侧取件 ----
+    static void GetPackege(CUser* user, unsigned int mailIndex);
+    static void ReqDBLoadMail(CUser* user, unsigned int mailIndex);
+    static void ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, bool a);
+    static void SetPeriodCheckTimer(CUser* user);
+    static void CheckMailTimeout(CUser* user, PacketGuard* packet);
+    static void MakeMailBoxListPacket(CUser* user, PacketGuard* packet);
+    static void SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info);
+
+    // ---- 取件内部实现 ----
+    static void _DoGetPackage(CUser* user, CMailBox::CMail const* mail,
+                              std::vector<std::pair<int, int> >& out,
+                              bool bReset, ENUM_ERROR& err);
+    static void _DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
+                                  std::vector<std::pair<int, int> >& out,
+                                  bool bReset, ENUM_ERROR& err);
+    static void _DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
+                                  std::vector<std::pair<int, int> >& out,
+                                  bool bReset, ENUM_ERROR& err);
+    static void _DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mail,
+                                    std::vector<std::pair<int, int> >& out,
+                                    bool bReset, ENUM_ERROR& err);
+    static void _DoGetPackageCreature(CUser* user, CMailBox::CMail const* mail,
+                                      std::vector<std::pair<int, int> >& out,
+                                      bool bReset, ENUM_ERROR& err);
+
+    // ---- 收件人校验 ----
+    static void ReqDBCheckReceiver(CUser* user, const char* name,
+                                   MSG_CHECK_MAIL_RECEIVER* msg);
+    static void ReqDBCheckReceiver_forchina(CUser* user, const char* name,
+                                            MSG_CHECK_MAIL_RECEIVER* msg);
+    static void ReqChangeLetterStat(CUser* user, int a, int b);
+
+    // ---- 发信 ----
+    static void ReqDBSendNewMail(CUser* user, Inven_Item const& item,
+                                 unsigned int nCharacNo, unsigned int nAmount,
+                                 bool bA, const char* pTitle, int nTitleLen);
+    static void ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
+                                 unsigned int nCharacNo, bool bA,
+                                 unsigned int nB, int nC);
+    static void ReqDBSendNewMailCashShop(CUser* user, Inven_Item const& item,
+                                         unsigned int nCharacNo,
+                                         unsigned int nAmount, bool bA,
+                                         const char* pTitle, int nTitleLen);
+    static void ReqDBSendStoredMail(CUser* user);
+    static void _DoSendNewMail(CUser* user, Inven_Item const& item,
+                               unsigned int nCharacNo, unsigned int nAmount,
+                               bool bA, const char* pTitle, int nTitleLen,
+                               int nType);
+    static void _makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
+                                  const char* pSender, int nSenderLen,
+                                  Inven_Item const& item, unsigned int nCharacNo,
+                                  unsigned int nAmount, const char* pTitle,
+                                  int nTitleLen, unsigned int nB, int nType);
+    static void MakeSystemMultiMailPostal(
+        std::vector<std::pair<int, int> >& items, Inven_Item* itemBase,
+        unsigned int nCount);
+
+    // ---- 系统邮件 ----
+    static void ReqDBSendNewAvatarMail(CUser* user, int nCharacNo, int nItemIdx,
+                                       int nExpireDate, char cA, char cB,
+                                       const char* pAgency, const char* pTitle,
+                                       int nTitleLen);
+    static void ReqDBSendNewAvatarMailCashShop(CUser* user, int nCharacNo,
+                                               int nItemIdx, int nExpireDate,
+                                               char cA, char cB,
+                                               const char* pAgency,
+                                               const char* pTitle, int nTitleLen);
+    static void ReqDBSendNewCreatureMail(CUser* user, int nCharacNo,
+                                         Inven_Item const& item,
+                                         const char* pTitle, int nTitleLen);
+    static void ReqDBSendNewCreatureMailCashShop(CUser* user, int nCharacNo,
+                                                 Inven_Item const& item,
+                                                 const char* pTitle,
+                                                 int nTitleLen);
+    static void ReqDBSendNewSystemMail(const char* pSender, Inven_Item const& item,
+                                       unsigned int nA, unsigned int nCharacNo,
+                                       const char* pTitle, int nTitleLen,
+                                       unsigned int nB,
+                                       ENUM_SERVER_GROUP nServerGroup,
+                                       bool bA, bool bB);
+    static void ReqDBSendNewSystemMultiMail(const char* pSender,
+                                            Inven_Item const* itemBase,
+                                            unsigned int nCount,
+                                            unsigned int nA,
+                                            unsigned int nCharacNo,
+                                            const char* pTitle, int nTitleLen,
+                                            unsigned int nB,
+                                            ENUM_SERVER_GROUP nServerGroup,
+                                            bool bA);
+};
+ }
+ 
+ #include <cstdio>
+ typedef FILE _IO_FILE;
+
+
+
 
 // ---- DynamicPool 所需类型 ----
 namespace user_creature

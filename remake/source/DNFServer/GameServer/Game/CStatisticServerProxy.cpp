@@ -31,3 +31,13 @@ void CStatisticServerProxy::SendFileStatistic(const char* file, const char* key)
                           (key && *key) ? " " : "", key ? key : "");
     if (n > 0) SendPacket(packet, n);
 }
+
+// CServerProxyMgr<CStatisticServerProxy> 方法模板在 CServerProxyMgr.h 定义，此处强制实例化（原 GameStubs.cpp 提供）。
+
+// CServerProxyMgr<CStatisticServerProxy> 的 4 个方法此前由 GameStubs.cpp 的模板实例化提供，
+// 迁移到本 TU 显式实例化（仅实例化 ORIG 需要的方法，避免 createServerProxy/Init 签名冲突）。
+#include "CServerProxyMgr.h"
+template int CServerProxyMgr<CStatisticServerProxy>::GetStartIndex();
+template int CServerProxyMgr<CStatisticServerProxy>::GetEndIndex();
+template int CServerProxyMgr<CStatisticServerProxy>::GetNextIndex(int&);
+template CStatisticServerProxy* CServerProxyMgr<CStatisticServerProxy>::GetServerProxy(ENUM_SERVER_GROUP);

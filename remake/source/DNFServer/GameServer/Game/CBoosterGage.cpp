@@ -69,6 +69,10 @@ public:
     virtual bool IsCreatureItem() const = 0;
 };
 
+#ifndef DNF_ENUM_SERVER_GROUP_DEFINED
+#define DNF_ENUM_SERVER_GROUP_DEFINED
+enum ENUM_SERVER_GROUP { E_SERVER_GROUP_NONE = 0 };
+#endif
 namespace WongWork
 {
 class CAvatarItemMgr
@@ -89,7 +93,7 @@ public:
     static void ReqDBSendNewSystemMail(const char* pSender, const Inven_Item& item,
                                        unsigned int nA, unsigned int nCharacNo,
                                        const char* pTitle, int nTitleLen,
-                                       unsigned int nB, char nServerGroup,
+                                       unsigned int nB, ENUM_SERVER_GROUP nServerGroup,
                                        bool bA, bool bB);
 };
 }
@@ -214,7 +218,7 @@ public:
     std::string GetServerString(int nIndex, bool* pFlag) const;
 };
 
-extern CServerXml g_ServerString_;
+CServerXml g_ServerString_;  // ORIG 全局（0x93fa660，np_server_xml::g_ServerString_），原 GameStubs.cpp 定义迁移
 }
 
 class cMyTrace
@@ -288,7 +292,7 @@ void CBoosterGage::make_postar(CUser* pUser, const Inven_Item& item,
         {
             WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
                 szTitle, item, 0, pUser->getCurCharacNo(), szPost,
-                (int)strlen(szPost), 0, pUser->GetServerGroup(), 0, 0);
+                (int)strlen(szPost), 0, (ENUM_SERVER_GROUP)pUser->GetServerGroup(), 0, 0);
         }
     }
 }

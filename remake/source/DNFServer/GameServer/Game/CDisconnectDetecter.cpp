@@ -7,6 +7,9 @@
 // map value = 最后收包时间（CSystemTime::getCurSec），超时 30s 判断线。
 #include <map>
 #include <utility>
+#include "TimerQueue.h"
+
+TimerQueue* G_TimerQueue();  // ORIG W 0x80f647c
 
 // ---------------------------------------------------------------------------
 // 外部依赖最小声明（实现属其它 TU）
@@ -38,16 +41,22 @@ public:
 
 CGameManager* G_CGameManager();       // 0x080cc18e
 
-extern "C" void sub_TimerDetectDisconnect_registNextTimer()
-    asm("_ZN21TimerDetectDisconnect15registNextTimerEv");
-
-// ---- cMyTrace（GameTypes.h 声明；实现属独立 TU） ----
-class cMyTrace
+class TimerDetectDisconnect
 {
 public:
-    cMyTrace(const char* name, int line, int flag);   // 0x0854f718
-    void operator()(const char* fmt, ...);            // 0x0854f788
+    static void registNextTimer();  // ORIG T 0x086374e0
 };
+
+// ---- TimerDetectDisconnect::registNextTimer @ 0x086374e0 ----
+// 断线检测器定时器：10 秒后触发 dispatch_sig(0x6d)，若 DoDetectingDisconnect
+// 仍检测到断线用户则再次登记（自续期），见 TimerDetectDisconnect 报告。
+void TimerDetectDisconnect::registNextTimer()
+{
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
+                                (TIMER_MESSAGE)0x6d, 10, 0, 0);
+}
+
+// cMyTrace 由 TimerQueue.h 间接引入的 GameTypes.h 声明（实现属独立 TU）。
 
 namespace disconnect_detecter
 {
@@ -139,7 +148,7 @@ bool CDisconnectDetecter::RegisterUser(CUser* user)
     }
     if (mapSize == 0)
     {
-        sub_TimerDetectDisconnect_registNextTimer();
+        TimerDetectDisconnect::registNextTimer();
     }
     return 1;
 }

@@ -118,7 +118,7 @@ int CNRDScriptData::import(const char* path)
         {
             while (ScanStr(&token))
             {
-                float f = ScanFloatBool((bool*)0);
+                float f = ScanFloat((bool*)0);
                 m_floatMap.insert(token.c_str(), f);
             }
         }
@@ -134,7 +134,7 @@ int CNRDScriptData::import(const char* path)
         {
             while (ScanStr(&token))
             {
-                float f = ScanFloatBool((bool*)0);
+                float f = ScanFloat((bool*)0);
                 m_cfloatMap.insert(token.c_str(), f);
             }
         }

@@ -97,6 +97,8 @@ public:
     bool IsPvPSkilTreeChannel() const;
     bool IsEquipSlotSwitchChannel() const;
     bool IsEnchantRevisionChannel();
+    bool IsCharacterPvPExpRevisionChannel() const;   // ORIG 085dfa76（返回 m_channelType==0xf）
+    bool IsCharacterLevelRevisionChannel() const;    // ORIG 084ed128（m_channelType∈[0xe,0x10]）
     bool IsCheckUnusableEquipmentChannel();
     bool IsPvPVillageMapChannel() const;
     bool is_dungeon_tag_matching_channel(char* channel);

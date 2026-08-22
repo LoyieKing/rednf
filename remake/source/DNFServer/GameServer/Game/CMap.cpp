@@ -7,6 +7,13 @@ template <> int cElection<int,8,8>::GetElected() const { return m_elected; }
 template <> void cElection<int,8,8>::Vote(int, int candidate) { m_elected = candidate; }
 template <> void cElection<int,8,8>::CancelVoter(int) {}
 template <> void cElection<int,8,8>::CancelCandidate(int candidate) { if (m_elected == candidate) m_elected = -1; }
+// cElection<int,4,4>：CParty.cpp 子对象（m_padElection@+0xd8，0x40 字节）通过
+// asm-label extern 调用 _ZN9cElectionIiLi4ELi4EE* 符号；在此 TU 显式实例化。
+template <> cElection<int,4,4>::cElection() : m_elected(-1) {}
+template <> int cElection<int,4,4>::GetElected() const { return m_elected; }
+template <> void cElection<int,4,4>::Vote(int, int candidate) { m_elected = candidate; }
+template <> void cElection<int,4,4>::CancelVoter(int) {}
+template <> void cElection<int,4,4>::CancelCandidate(int candidate) { if (m_elected == candidate) m_elected = -1; }
 
 // df_game_r Game/ CMap 实现（G2 地图链）。
 // 逻辑依据 docs/class_func_reports/CMap.md；成员访问统一使用语义字段。
@@ -91,40 +98,9 @@ void makeMapMonster(_mapMonster& out, const STAssignMonster& in)
 }
 }
 
-_mapMonster::_mapMonster()
-    : m_mobId(0), m_flag04(0), m_level(0), m_spawnType(0),
-      m_levelAdd(0), m_field14(0), m_roleType(0), m_champion(0),
-      m_posX(0), m_pad24(0), m_hpPct(0), m_orderIdx(0)
-{
-}
-
-_mapMonster::~_mapMonster()
-{
-}
-
 CMap::CMap()
     : m_bossCount(0), m_assignedNpcCount(0)
 {
-}
-
-int CMap::getAssignedNPCCount() const
-{
-    return m_assignedNpcCount;
-}
-
-int CMap::GetBossCount() const
-{
-    return m_bossCount;
-}
-
-std::list<_mapMonster> CMap::get_monster_list() const
-{
-    return m_monsterList;
-}
-
-std::list<_mapItem> CMap::get_item_list() const
-{
-    return m_itemList;
 }
 
 CMap::~CMap()

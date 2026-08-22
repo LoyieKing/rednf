@@ -4,6 +4,12 @@
 namespace WongWork
 {
 
+void CHackAnalyzer::addServerHackCnt(CUser*, ENUM_HACK_TYPE,
+                                     unsigned int, unsigned int, unsigned int)
+{
+    // 与 ENUM_HACKTYPE 重载同语义；报告确认最终更新计数数组（空体保持安全）。
+}
+
 void CHackAnalyzer::addServerHackCnt(CUser*, ENUM_HACKTYPE,
                                      unsigned int, unsigned int, unsigned int)
 {

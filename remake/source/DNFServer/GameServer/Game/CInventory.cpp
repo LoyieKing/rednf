@@ -11,6 +11,190 @@
 
 #include "GameTypes.h"
 #include "STItemScript.h"
+#include "CCirculationStatistic.h"
+#include "LogManager.h"
+
+// ============================================================================
+// 三个自由辅助函数（ORIG 全局符号，Money 簇自由函数）
+//   isGainedGoldFromDungeonReason  @0x850d32a (W)  : reason==4 || reason==0xf
+//   write_log_gain_money           @0x84febd9 (T)  : AddGold + 流通统计跳表
+//   write_log_use_money            @0x84fed9b (T)  : SubGold + 流通/Value统计跳表
+// 语义依据 CInventory.md 逐条对照；amount<0 日志分支忠实 ORIG logFormat 串。
+// 注：ORIG 各 case 额外调用 CUser::AddMoneyPlus/AddMoneyMinus(@0x868f266/
+//   @0x868f310)，该符号尚未在源实现，此处省略以避免引入新未定义。
+// ============================================================================
+bool isGainedGoldFromDungeonReason(eMoneyAddReason reason)
+{
+    return (int)reason == 4 || (int)reason == 0xf;
+}
+
+void write_log_gain_money(eMoneyAddReason reason, int amount, CUser* user)
+{
+    if (amount > 0)
+    {
+        if (user != 0)
+        {
+            user->GetGoldControl()->AddGold((unsigned int)amount, reason);
+        }
+        switch ((int)reason)
+        {
+        case 0:
+        case 2:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)2, user, (unsigned int)amount);
+            break;
+        case 3:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)3, user, (unsigned int)amount);
+            break;
+        case 4:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0, user, (unsigned int)amount);
+            break;
+        case 0xc:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)7, user, (unsigned int)amount);
+            break;
+        case 0x11:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)6, user, (unsigned int)amount);
+            break;
+        case 0x1a:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0xe, user, (unsigned int)amount);
+            break;
+        default:
+            break;
+        }
+    }
+    else if (amount < 0)
+    {
+        LogManager::logFormat(1, "inventory.cpp",
+            "void write_log_gain_money(eMoneyAddReason, int, CUser*)", 0xd71,
+            "write_log_gain_money() reason(%d), gold(%d), gold(%d)",
+            (int)reason, amount, user->get_charac_level());
+    }
+}
+
+void write_log_use_money(eMoneySubReason reason, int amount, CUser* user)
+{
+    if (amount > 0)
+    {
+        if (user != 0)
+        {
+            user->GetGoldControl()->SubGold((unsigned int)amount, reason);
+        }
+        switch ((int)reason)
+        {
+        case 0:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x12, user, (unsigned int)amount);
+            break;
+        case 1:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x13, user, (unsigned int)amount);
+            break;
+        case 2:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x14, user, (unsigned int)amount);
+            break;
+        case 4:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x16, user, (unsigned int)amount);
+            GetInstanceValueStatistic()->AddValueStatistic(
+                (VALUE_STATISTIC_FIELD)0x18, user, (unsigned int)amount);
+            break;
+        case 5:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x18, user, (unsigned int)amount);
+            break;
+        case 6:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x19, user, (unsigned int)amount);
+            break;
+        case 7:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x1a, user, (unsigned int)amount);
+            break;
+        case 8:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x1b, user, (unsigned int)amount);
+            break;
+        case 9:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x1e, user, (unsigned int)amount);
+            break;
+        case 10:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x1f, user, (unsigned int)amount);
+            break;
+        case 11:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x20, user, (unsigned int)amount);
+            break;
+        case 12:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x21, user, (unsigned int)amount);
+            break;
+        case 13:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x23, user, (unsigned int)amount);
+            break;
+        case 14:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x24, user, (unsigned int)amount);
+            break;
+        case 15:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x25, user, (unsigned int)amount);
+            break;
+        case 16:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x27, user, (unsigned int)amount);
+            break;
+        case 17:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x28, user, (unsigned int)amount);
+            break;
+        case 18:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x29, user, (unsigned int)amount);
+            break;
+        case 19:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x2b, user, (unsigned int)amount);
+            GetInstanceValueStatistic()->AddValueStatistic(
+                (VALUE_STATISTIC_FIELD)0x1d, user, (unsigned int)amount);
+            break;
+        case 20:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x2c, user, (unsigned int)amount);
+            break;
+        case 21:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x2d, user, (unsigned int)amount);
+            break;
+        case 22:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x2e, user, (unsigned int)amount);
+            break;
+        case 23:
+            GetInstanceCirculationStatistic()->AddCirculationStatistic(
+                (CIRCULATION_STATISTIC_FIELD)0x2f, user, (unsigned int)amount);
+            break;
+        default:
+            break;
+        }
+    }
+    else if (amount < 0)
+    {
+        LogManager::logFormat(1, "inventory.cpp",
+            "void write_log_use_money(eMoneySubReason, int, CUser*)", 0xde9,
+            "write_log_use_money() reason(%d), gold(%d), gold(%d)",
+            (int)reason, amount, user->get_charac_level());
+    }
+}
+
 
 // ---- 发包依赖（StreamPool/CStreamGuard 经 GameBase.h 链已可见；MsgQueueMgr/GlobalData 本地声明） ----
 class MsgQueueMgr
@@ -54,39 +238,8 @@ static Inven_Item GetInvenSlotByRefHelper(CExpandEquipslot* self, INVEN_TYPE typ
     return item;
 }
 
-// CInventory::GetInvenSlot 的 TU 内形态替身（ORIG 隐藏返回指针约定；
-// CInventory.h 声明为 int 返回，头文件改为 Inven_Item 后可直接换回成员调用）。
-static Inven_Item GetInvenSlotSelfHelper(CInventory* self, int invenType, int slot)
-{
-    Inven_Item item;
-    if (self->CheckValidSlot(invenType, slot) != 1)
-    {
-        return item;
-    }
-    switch (invenType)
-    {
-    case 0:
-        item = self->m_invenItem[slot];
-        break;
-    case 1:
-        item = self->m_pEquipSlot[slot];
-        break;
-    case 2:
-        item = self->m_pAvatarSlot[slot];
-        break;
-    case 3:
-        item = self->m_pCreatureSlot[slot];
-        break;
-    case 5:
-        item = GetInvenSlotByRefHelper(
-            self->m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9),
-            (INVEN_TYPE)5, slot);
-        break;
-    default:
-        break;
-    }
-    return item;
-}
+// 原 GetInvenSlotSelfHelper（ORIG 隐藏返回指针形态）已并入成员
+// CInventory::GetInvenSlot（CInventory.h 返回 Inven_Item），删除替身。
 
 unsigned int CInventory::GetCoin() const
 {
@@ -219,7 +372,20 @@ void CInventory::SetClearAvatar(unsigned long* arr)
     }
 }
 
+// ORIG 0x8504d0d：比较两个槽位；槽项类型字段 +1，有效标志 +2，空槽→0xb
+int _CompareSlot(const void* va, const void* vb)
+{
+    const unsigned char* a = (const unsigned char*)va;
+    const unsigned char* b = (const unsigned char*)vb;
+    int sa = (*(const int*)(a + 2) != 0) ? (int)a[1] : 0xb;
+    int sb = (*(const int*)(b + 2) != 0) ? (int)b[1] : 0xb;
+    if (sa < sb) return -1;
+    if (sa > sb) return 1;
+    return 0;
+}
+
 // ===================== 构造 / 析构 / 复制 =====================
+
 
 CInventory::CInventory()
 {
@@ -469,50 +635,36 @@ Inven_Item* CInventory::GetInvenStart(int invenType) const
     return 0;
 }
 
-int CInventory::GetInvenSlot(int invenType, int slot) const
+Inven_Item CInventory::GetInvenSlot(int invenType, int slot) const
 {
     Inven_Item item;
-    if (CheckValidSlot(invenType, slot))
+    if (CheckValidSlot(invenType, slot) != 1)
     {
-        if (m_pEquipSlot == 0 || m_pAvatarSlot == 0 || m_pCreatureSlot == 0)
-        {
-            memcpy(&item, &item, sizeof(item));
-            return 0;
-        }
-        switch (invenType)
-        {
-        case 0:
-            memcpy(&item, &m_invenItem[slot], 0x3d);
-            break;
-        case 1:
-            memcpy(&item, &m_pEquipSlot[slot], 0x3d);
-            break;
-        case 2:
-            memcpy(&item, &m_pAvatarSlot[slot], 0x3d);
-            break;
-        case 3:
-            memcpy(&item, &m_pCreatureSlot[slot], 0x3d);
-            break;
-        default:
-            memcpy(&item, &item, sizeof(item));
-            break;
-        case 5:
-            int expand = (int)m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
-            if (expand == 0)
-            {
-                memcpy(&item, &item, sizeof(item));
-            }
-            else
-            {
-                memcpy(&item,
-                       m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9)
-                           ->GetInvenRefR((INVEN_TYPE)5, slot),
-                       0x3d);
-            }
-            break;
-        }
+        return item;
     }
-    return item.m_addInfo;
+    switch (invenType)
+    {
+    case 0:
+        item = m_invenItem[slot];
+        break;
+    case 1:
+        item = m_pEquipSlot[slot];
+        break;
+    case 2:
+        item = m_pAvatarSlot[slot];
+        break;
+    case 3:
+        item = m_pCreatureSlot[slot];
+        break;
+    case 5:
+        item = GetInvenSlotByRefHelper(
+            m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9),
+            (INVEN_TYPE)5, slot);
+        break;
+    default:
+        break;
+    }
+    return item;
 }
 
 int CInventory::GetInvenSlotByRef(int invenType, int slot, Inven_Item& item)
@@ -546,6 +698,16 @@ int CInventory::GetInvenSlotByRef(int invenType, int slot, Inven_Item& item)
         break;
     }
     return 1;
+}
+
+// ORIG 调用点怪癖：CTitleBook.cpp / CAchievement.cpp 以 4 参自由函数形态调用
+// GetInvenSlot（压栈 out,this,invenType,slot），隐藏返回指针指向成员
+// _ZNK10CInventory12GetInvenSlotEii。此桥接（非 ORIG 符号名）委托真实成员。
+int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot)
+{
+    if (out && self)
+        *out = self->GetInvenSlot(invenType, slot);
+    return out ? out->m_addInfo : 0;
 }
 
 void CInventory::GetInvenData(int invenType, void* out, int size) const
@@ -1308,7 +1470,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
                 }
                 else
                 {
-                    ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->PayCoinSub(m_payCoin, 1, reason);
+                    m_pParent->m_historyLog.PayCoinSub(m_payCoin, 1, reason);
                 }
             }
         }
@@ -1321,7 +1483,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
             }
             else
             {
-                ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->EventCoinSub(m_eventCoin, 1, reason);
+                m_pParent->m_historyLog.EventCoinSub(m_eventCoin, 1, reason);
             }
         }
     }
@@ -1334,7 +1496,7 @@ int CInventory::UseCoin(eCoinSubReason reason)
         }
         else
         {
-            ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->CoinSub(m_coin, 1, reason);
+            m_pParent->m_historyLog.CoinSub(m_coin, 1, reason);
         }
     }
     return m_coin;
@@ -1416,17 +1578,17 @@ int CInventory::gain_money(int amount, eMoneyAddReason reason, bool bLog, int pa
     }
     if (bLog && m_pParent != 0)
     {
-        ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->MoneyAdd(m_money, amount, reason);
+        m_pParent->m_historyLog.MoneyAdd(m_money, amount, reason);
     }
     if (m_pParent != 0)
     {
         if (reason == 4 || reason == 0x1a)
         {
-            write_log_gain_money(reason, m_money - oldMoney - param, (unsigned int)m_pParent);
+            write_log_gain_money(reason, m_money - oldMoney - param, m_pParent);
         }
         else
         {
-            write_log_gain_money(reason, m_money - oldMoney, (unsigned int)m_pParent);
+            write_log_gain_money(reason, m_money - oldMoney, m_pParent);
         }
         if (m_money - oldMoney > 0)
         {
@@ -1467,7 +1629,7 @@ int CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
     }
     if (m_pParent != 0)
     {
-        write_log_use_money(reason, oldMoney - m_money, (unsigned int)m_pParent);
+        write_log_use_money(reason, oldMoney - m_money, m_pParent);
         if (oldMoney != m_money && oldMoney - m_money > 0)
         {
             m_pParent->GetGoldControl()->SubGold(oldMoney - m_money, reason);
@@ -1475,7 +1637,7 @@ int CInventory::use_money(int amount, eMoneySubReason reason, bool bLog)
     }
     if (bLog && m_pParent != 0 && amount > 0)
     {
-        ((cUserHistoryLog*)((char*)m_pParent + 0x79700))->MoneySub(m_money, amount, reason);
+        m_pParent->m_historyLog.MoneySub(m_money, amount, reason);
     }
     return 1;
 }
@@ -4482,7 +4644,7 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         {
             return 0x15;
         }
-        Inven_Item slotItem1 = GetInvenSlotSelfHelper(this, 1, slot);
+        Inven_Item slotItem1 = GetInvenSlot(1, slot);
         if (slotItem1.m_field0 != 0)
         {
             int secuResult = CSecu_ProtectionField::Check(
@@ -4495,7 +4657,7 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         if (m_pParent != 0)
         {
             if (m_pParent->CheckItemLock(invenType, slot) &&
-                GetInvenSlotSelfHelper(this, 1, slot).m_field0 != 0)
+                GetInvenSlot(1, slot).m_field0 != 0)
             {
                 return 0xd5;
             }
@@ -4603,4 +4765,42 @@ int finishItemChecksum(int* sum, int money, int coin, int a, int b)
     *sum = *sum + (money + coin + a);
     *sum = *sum ^ b;
     return *sum;
+}
+
+// ---- 迁移自 GameStubs.cpp 的 CInventory 桩方法（ORIG 符号签名已核对）----
+void CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
+                                 const stAvatarEmblemInfo_t& emblem,
+                                 const char* agency, unsigned long hidden,
+                                 const stAvatarExpansionInfo_t& expansion)
+{
+    // ORIG 0x08509e78：保存/扩展头像槽位。最小化迁移，后续细化头像逻辑。
+}
+
+int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, int dstSlot)
+{
+    // ORIG 0x08500688：移动槽位物品。最小化迁移，后续细化。
+    return 0;
+}
+
+void CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
+                               ENUM_EQUIPSLOT equipSlot) const
+{
+    // ORIG 0x084fe2e2：构造装备列表 packet。最小化迁移，后续细化。
+}
+
+int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
+                            eItemDelReason reason, bool bLog)
+{
+    // ORIG 0x0850400c：删除指定槽位物品。最小化迁移，后续细化。
+    return 0;
+}
+
+int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& items,
+                                   std::vector<int>& outSlots, eMoneyAddReason moneyReason,
+                                   eItemAddReason itemReason, bool bLog,
+                                   const char* a, const char* b)
+{
+    // ORIG 0x08506bb2：插入活动物品。最小化迁移，后续细化。
+    outSlots.clear();
+    return 0;
 }

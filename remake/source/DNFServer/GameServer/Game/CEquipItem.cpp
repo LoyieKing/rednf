@@ -6,8 +6,10 @@
 // 依赖的辅助类（CodePage/CSystemTime/CMTRand 等）由 GameStubs.cpp 提供桩。
 
 #include "CEquipItem.h"
+#include "GamePODTypes.h"
 
 #include <set>
+#include <math.h>
 #include <string.h>
 
 #include "CSystemTime.h"
@@ -27,7 +29,19 @@ public:
 };
 extern CDataManager* G_CDataManager();
 
-int getLevelLinearAbility(int a, int b, int c, int d, int level);
+// ORIG 0x898c79d：线性插值
+int getLevelLinearAbility(int a, int b, int c, int d, int level)
+{
+    double ratio = (double)(level - a) / (double)(b - a);
+    if (ratio > 1.0)
+        ratio = 1.0;
+    double result = floor(ratio * 1000000.0);
+    double result2 = (result / 1000000.0) * (double)(d - c);
+    int out = (int)((double)c + result2);
+    if (out < 0)
+        out = 0;
+    return out;
+}
 
 struct itemGloballyUniqueIdentifier_t
 {
@@ -41,13 +55,7 @@ public:
     void generate(itemGloballyUniqueIdentifier_t* id, int field);
 };
 
-class CodePage
-{
-public:
-    static const char* script();
-    static const char* database();
-    static bool script2Database(const char* src, char* dst);
-};
+#include "../../ServerCommon/DNFFunctionLib.h"
 
 namespace user_creature
 {
@@ -468,7 +476,7 @@ void CEquipItem::set_item(STEquipmentScript& script)
         "rep stosl\n\t"
         : : "b"(buf) : "eax", "edx", "ecx", "edi", "memory");
     strcpy(buf, script.m_strac.c_str());
-    if (!CodePage::script2Database(script.m_strac.c_str(), buf))
+    if (!CodePage::script2Database((char*)script.m_strac.c_str(), buf))
     {
         cMyTrace trace("void CEquipItem::set_item(STEquipmentScript&)", 0x553,
                        5);
@@ -759,4 +767,87 @@ int CEquipItem::get_endurance() const
 void* CEquipItem::getAvatarTypeSelect() const
 {
     return (void*)&m_avatarSelect;
+}
+int CEquipItem::getAvatarPeriod(unsigned char a) const
+{
+    // ORIG 0x8151120：result 默认 = getUsablePeriod(); 若 a < avatarSelect.size()，
+    // 则 result = avatarSelect[a].m_field0
+    int result = getUsablePeriod();
+    if (a < m_avatarSelect.size())
+        result = m_avatarSelect[a].m_field0;
+    return result;
+}
+
+// ORIG 0x8150f36：填充 emblem 的小孔类型。
+// 1) 先将 m_vec180（vector<ushort>）逐项写入 emblem.stEmblemSocket[i].emblemSocketType_
+// 2) 依 slot 选择 m_avatarSelect 项并写入其 socketType 数组（index 续接）
+void CEquipItem::getAvatarSocket(int slot, stAvatarEmblemInfo_t& emblem) const
+{
+    size_t index = 0;
+    for (std::vector<unsigned short>::const_iterator it = m_vec180.begin();
+         it != m_vec180.end() && index < 5; ++it, ++index)
+        emblem.stEmblemSocket[index].emblemSocketType_ = *it;
+
+    if (slot < -1 || (unsigned)slot >= m_avatarSelect.size() ||
+        m_avatarSelect.empty())
+        return;
+
+    int selIndex = slot;
+    if (slot == -1)
+    {
+        // 找第一个 m_field10 > 0 的选项
+        std::vector<stAvatarTypeSelect_t>::const_iterator it =
+            m_avatarSelect.begin();
+        while (it != m_avatarSelect.end())
+        {
+            ++selIndex;
+            if (it->m_field10 > 0)
+                break;
+            ++it;
+        }
+        if (it == m_avatarSelect.end())
+            return;
+    }
+
+    const stAvatarTypeSelect_t* p = &m_avatarSelect[selIndex];
+    if (index + (size_t)p->m_field10 > 4)
+        return;
+
+    for (int i = 0; i < p->m_field10; ++i, ++index)
+        emblem.stEmblemSocket[index].emblemSocketType_ = p->m_socketType[i];
+}
+
+int CEquipItem::GetUsableMaxLevel() const  // ORIG 084e9700
+{
+    return m_field1c0;
+}
+
+// ORIG 0x833eecc：返回 this+0x160（脚本写入的 sub type 选择值，见 set_item 报告）
+int CEquipItem::get_sub_type() const
+{
+    return m_randomTable.m_field18;
+}
+
+// ===================== RandomItemTable::Set（G6 物品表；ORIG T 0x89bba40）=====================
+// ORIG 反汇编（89bba40）语义：
+//   1. m_vec4.clear(); m_field0 = 0;
+//   2. 遍历 source：取 pr.first = *it 后自增；若已到 end 则 break；
+//      否则 m_field0 += *it（累加后一个元素），m_vec4.push_back(pr)（second 保持 0），再自增。
+//   即：相邻元素配对，偶下标进 pair.first（second=0），奇下标累加进 m_field0；奇数长度时末尾丢弃。
+void RandomItemTable::Set(std::vector<int>* source)
+{
+    m_vec4.clear();
+    m_field0 = 0;
+    std::vector<int>::iterator it = source->begin();
+    while (it != source->end())
+    {
+        std::pair<int, int> pr;
+        pr.first = *it;
+        ++it;
+        if (it == source->end())
+            break;
+        m_field0 += *it;
+        m_vec4.push_back(pr);
+        ++it;
+    }
 }

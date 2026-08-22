@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "EventCharacterParameterScript.h"
 #include "GlobalData.h"
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
@@ -111,39 +112,20 @@ public:
 };
 }
 
+// ORIG T 0x086b02fe。PC 房高级会员设置入口：isAffectedPremium+handleSetUserPremium
+// 设置 + TimerQueue 定时 + handleNotifyPremiumInfo/handlePremiumEffect + 租赁
+// 物品包，依赖 CUserPremium 链路（AddPremium/RemovePremium/ReCalcAdvantage/
+// RecalcAdditionalInfo）与 handleSetUserPremium/handleNotifyPremiumInfo/
+// handlePremiumEffect 组件，待 CHandlePremium 组件批次落地后按 ORIG 补全。
+void WongWork::CHandlePremium::handleSetUserPCRoom(CUser* user, long start, long end)
+{
+}  // TODO(G2)：按 ORIG 0x086b02fe 细化
+
 struct stBuySkillInfo
 {
     char m_field0;      // +0x00
     char m_skillIdx;    // +0x01
     char m_count;       // +0x02
-};
-
-class STEventCharacterItem
-{
-public:
-    unsigned long m_itemIdx;  // +0x00
-    int m_count;              // +0x04
-    int m_reason;             // +0x08
-};
-
-class STEventCharacterInfo
-{
-public:
-    STEventCharacterInfo();
-    ~STEventCharacterInfo();
-
-    unsigned char m_growType;       // +0x00
-    unsigned char m_secondGrowType; // +0x01
-    char m_pad2[2];
-    std::vector<std::pair<int, int> > m_skillList;   // +0x04
-    std::vector<STEventCharacterItem> m_itemList;    // +0x10
-};
-
-class EventCharacterParameterScript
-{
-public:
-    bool GetEventCharacterInfo(int type, int level,
-                               STEventCharacterInfo& info) const;
 };
 
 class CDataManager

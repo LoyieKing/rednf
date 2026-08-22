@@ -22,6 +22,11 @@ struct TeleportEffect
 // ============================================================================
 // 实现
 // ============================================================================
+// ---- stPartyTelePort（ORIG 0x822d764，memset 0，清 4 字节状态头）----
+void stPartyTelePort::reset()
+{
+    memset(this, 0, 4);
+}
 
 CPartyTelePort::CPartyTelePort()
 {

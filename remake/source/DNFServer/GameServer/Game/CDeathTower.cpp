@@ -10,6 +10,7 @@
 #include "TimerQueue.h"
 #include "LogManager.h"
 #include "CInventory.h"
+#include "CCirculationStatistic.h"
 #include "CDataManager.h"
 #include "CMap.h"
 #include "GameWorld.h"
@@ -30,6 +31,9 @@ public:
     long deathTowerSpecifyItemDrop() { return 0xfffffffe; }
 };
 CAICharacter* CAICharacterList::get(void* list, unsigned int idx) { return 0; }
+// CAICharacterList::~CAICharacterList（自 GameStubs.cpp 迁移；空白析构，ORIG 底层批次）
+CAICharacterList::~CAICharacterList() {}
+
 // ---- stMapMonsterKillChecker_t（0x18 字节；来自 CBattle_Field_deps.h） ----
 struct stMapMonsterKillChecker_t
 {
@@ -123,18 +127,6 @@ struct map_monster
 extern "C" void* sub_GetInstanceDungeonEntranceLog() asm("_Z29GetInstanceDungeonEntranceLogv");
 
 int GetInvenTypeFromItemSpace(int space) { return space; }
-
-class CCirculationStatistic
-{
-public:
-    void AddCirculationStatistic(int type, CUser* user, int value) {}
-};
-
-CCirculationStatistic* GetInstanceCirculationStatistic()
-{
-    static CCirculationStatistic s;
-    return &s;
-}
 
 extern "C" void* sub_GetInstanceDungeonEntranceLog() asm("_Z29GetInstanceDungeonEntranceLogv");
 extern "C" void sub_CDungeonEntranceLog_DecrementDungeonEntrance(void* log, int idx, bool flag) asm("_ZN19CDungeonEntranceLog24DecrementDungeonEntranceEib");
@@ -425,7 +417,7 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
 
     _onClear(isLast);
 
-    int partyState = *(int*)((char*)m_party + 0xcd8);
+    int partyState = m_party->get_party_type();
     if (partyState == 1)
     {
         setTowerState((ENUM_TOWER_STATE)5);
@@ -541,7 +533,7 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
                 for (size_t i = 0; i < premiumList.size(); i++)
                 {
                     int type = premiumList[i].m_type;
-                    if (type >= 0x17 && type <= 0x1b && premiumList[i].m_field10 == 1)
+                    if (type >= 0x17 && type <= 0x1b && premiumList[i].m_state == 1)
                     {
                         isPremium = true;
                         break;
@@ -641,7 +633,7 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
             continue;
         }
 
-        if (*(int*)((char*)m_party + 0xcd8) != 1)
+        if (m_party->get_party_type() != 1)
         {
             unsigned int mobExp = 0;
             int charLevel = partyUser->get_charac_level();
@@ -880,7 +872,7 @@ void CDeathTower::_onStartDeathTower()
         if (m_party->checkValidUser(i))
         {
             CUser* user = m_party->get_user(i);
-            int state = *(int*)((char*)m_party + 0xcd8);
+            int state = m_party->get_party_type();
             CDungeon* dungeon = m_dungeonMgr.getDungeon();
             const char* dungeonName = dungeon->GetDungeonName();
             cUserHistoryLog* log = (cUserHistoryLog*)((char*)user + 0x79700);
@@ -1175,7 +1167,7 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
             }
             user->set_state((ch_state)10);
             m_playData.setMemberAlive(i, true);
-            int partyState = *(int*)((char*)m_party + 0xcd8);
+            int partyState = m_party->get_party_type();
             sub_CDungeonEntranceLog_IncrementDungeonEntrance(
                 sub_GetInstanceDungeonEntranceLog(), dungeonIdx, partyState == 1);
         }
@@ -1892,11 +1884,11 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                             int dungeonIdx = dungeon->get_index();
                             if (dungeonIdx == 11000)
                             {
-                                GetInstanceCirculationStatistic()->AddCirculationStatistic(4, user, gained);
+                                GetInstanceCirculationStatistic()->AddCirculationStatistic((CIRCULATION_STATISTIC_FIELD)4, user, (unsigned int)gained);
                             }
                             else
                             {
-                                GetInstanceCirculationStatistic()->AddCirculationStatistic(5, user, gained);
+                                GetInstanceCirculationStatistic()->AddCirculationStatistic((CIRCULATION_STATISTIC_FIELD)5, user, (unsigned int)gained);
                             }
                         }
                         else

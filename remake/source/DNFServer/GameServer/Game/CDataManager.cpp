@@ -4,6 +4,7 @@
 // 本 TU 只声明其 C1/D1 并调用。
 
 #include "CDataManager.h"
+#include "CGameOption.h"  // CChattingEmoticonConfig 完整类型（ReCalc 需要）
 
 #include <algorithm>
 #include <stdio.h>
@@ -187,7 +188,7 @@ Quest* CDataManager::find_quest(int idx) const
     return m_questList->find_quest(idx);
 }
 
-void* CDataManager::find_dungeon(int idx) const
+CDungeon* CDataManager::find_dungeon(int idx) const
 {
     return m_dungeonList->find_dungeon(idx);
 }
@@ -466,14 +467,14 @@ void CDataManager::SetItemDropRate(float rate)
         m_itemGeneratorMgr->setDropRatio(rate);
         for (unsigned int i = 0; i < m_serverParameter.m_genRefs1.size(); ++i)
         {
-            *(int*)((char*)&m_serverParameter.m_genRefs1[i] + 0x10) =
-                (int)((float)*(int*)((char*)&m_serverParameter.m_genRefs1[i] + 0x10) *
+            m_serverParameter.m_genRefs1[i].m_dropRate =
+                (int)((float)m_serverParameter.m_genRefs1[i].m_dropRate *
                       (rate / old));
         }
         for (unsigned int i = 0; i < m_serverParameter.m_genRefs0.size(); ++i)
         {
-            *(int*)((char*)&m_serverParameter.m_genRefs0[i] + 0x10) =
-                (int)((float)*(int*)((char*)&m_serverParameter.m_genRefs0[i] + 0x10) *
+            m_serverParameter.m_genRefs0[i].m_dropRate =
+                (int)((float)m_serverParameter.m_genRefs0[i].m_dropRate *
                       (rate / old));
         }
     }
@@ -554,9 +555,9 @@ int CDataManager::get_WithinMissionIndex(int idx) const
     return m_pvpChannel.m_pvpMissionSystem->get_WithinMissionIndex(idx);
 }
 
-int CDataManager::get_kind_mission_list(int idx) const
+std::list<CMission*>* CDataManager::get_kind_mission_list(int idx) const
 {
-    return m_pvpChannel.m_pvpMissionSystem->get_kind_mission_list(idx);
+    return &m_pvpChannel.m_pvpMissionSystem->get_kind_mission_list(idx);
 }
 
 void CDataManager::get_New_DailyMission(
@@ -813,7 +814,114 @@ void CDataManager::reset_dimensionInout()
 
 // ===================== 情感/过滤 =====================
 
-void CDataManager::ReCalcEmoticonConf(void* config, const CUser* user)
+// ---- ChattingEmoticonBase 基类虚函数（ORIG 0x80e5f46/0x80e5dde）----
+bool ChattingEmoticonBase::isCommonEmoticon(const CUser& user) const
+{
+    // ORIG 0x80e5f46：vtable+0x08（isUsable）转发。
+    return isUsable(user);
+}
+
+void ChattingEmoticonBase::AddPremiumIndex(int index)
+{
+    // ORIG 0x80e5dde：特定 index 映射到 premium 槽位集合。
+    if (index < 0x2898bf)
+        return;
+    if (index <= 0x2898c0)
+    {
+        m_set.insert(0x53);
+        return;
+    }
+    if (index > 0x2898c2)
+        return;
+    m_set.insert(0x57);
+}
+
+// ---- CChattingEmoticonList（ORIG find_emoticon 0x80e581c / ReCalc 0x80e5880）----
+ChattingEmoticonBase* CChattingEmoticonList::find_emoticon(int idx)
+{
+    std::map<int, ChattingEmoticonBase*>::iterator it = m_map.find(idx);
+    if (it == m_map.end())
+        return 0;
+    return it->second;
+}
+
+void CChattingEmoticonList::ReCalc(CChattingEmoticonConfig& config, const CUser& user)
+{
+    // ORIG 0x80e5880：两轮扫描。
+    // 1) 遍历 config 行（0x17+1 行），对每行 +0x14 的 emoticon idx 查表；
+    //    命中且 isCommonEmoticon(user) 为真的行收集到 rows，idx 记录到 locked。
+    // 2) config.clear() 后，把 rows 按各 emoticon 的 [GetStartArrayIndex,
+    //    GetEndArrayIndex] 槽位范围填回 config 空槽（+0x14 == 0）；
+    //    最后遍历 m_map，把未锁定且 common 的 emoticon idx 填入空槽。
+    std::vector<CChattingEmoticonConfigRow> rows;
+    std::set<int> locked;
+
+    for (int i = 0; i <= 0x17; ++i)
+    {
+        const unsigned short idx =
+            *reinterpret_cast<const unsigned short*>(
+                reinterpret_cast<const char*>(&config) + i * 0x16 + 0x14);
+        ChattingEmoticonBase* e = find_emoticon(idx);
+        if (e == 0)
+            continue;
+        if (e->isCommonEmoticon(user) == false)
+            continue;
+        rows.push_back(*reinterpret_cast<const CChattingEmoticonConfigRow*>(
+            reinterpret_cast<const char*>(&config) + i * 0x16));
+        locked.insert(idx);
+    }
+
+    config.clear();
+
+    for (int j = 0; j < static_cast<int>(rows.size()); ++j)
+    {
+        const unsigned short idx =
+            *reinterpret_cast<const unsigned short*>(
+                reinterpret_cast<const char*>(&rows[j]) + 0x14);
+        ChattingEmoticonBase* e = find_emoticon(idx);
+        if (e == 0)
+            continue;
+        int k = e->GetStartArrayIndex();
+        while (e->GetEndArrayIndex() >= k)
+        {
+            unsigned short* slot =
+                reinterpret_cast<unsigned short*>(
+                    reinterpret_cast<char*>(&config) + k * 0x16 + 0x14);
+            if (*slot == 0)
+            {
+                memcpy(reinterpret_cast<char*>(&config) + k * 0x16, &rows[j], 0x16);
+                break;
+            }
+            ++k;
+        }
+    }
+
+    for (std::map<int, ChattingEmoticonBase*>::iterator it = m_map.begin();
+         it != m_map.end(); ++it)
+    {
+        ChattingEmoticonBase* e = it->second;
+        const int idx = e->GetIndex();
+        if (locked.find(idx) != locked.end())
+            continue;
+        if (e->isCommonEmoticon(user) == false)
+            continue;
+        int k = e->GetStartArrayIndex();
+        while (e->GetEndArrayIndex() >= k)
+        {
+            unsigned short* slot =
+                reinterpret_cast<unsigned short*>(
+                    reinterpret_cast<char*>(&config) + k * 0x16 + 0x14);
+            if (*slot == 0)
+            {
+                *slot = static_cast<unsigned short>(idx);
+                break;
+            }
+            ++k;
+        }
+    }
+}
+
+void CDataManager::ReCalcEmoticonConf(CChattingEmoticonConfig& config, const CUser& user)
 {
     m_emoticonList->ReCalc(config, user);
 }
@@ -1112,4 +1220,108 @@ CChattingEmoticonList::~CChattingEmoticonList() {}
 int CDataManager::get_limit_inout_count(int type)
 {
     return (unsigned char)m_padAA80[type];
+}
+
+// ============================================================================
+// 迁移自 GameStubs.cpp 的 CDataManager 桩方法（ORIG 符号/偏移已核对）
+// ============================================================================
+
+void CDataManager::set_AuctionRegFreeCeraItem(unsigned int idx)
+{
+    // ORIG 0x08513fbc W：m_choiceSet(+0xb4ac).insert(idx)
+    m_choiceSet.insert(idx);
+}
+
+void CDataManager::set_lottery_use_cost(unsigned int cost)
+{
+    // 重建便捷 1 参版本（CStackableItem.cpp 调用，script.m_field0）。
+    // ORIG 无此 1 参符号；2 参版本见本 TU 上方，语义为 add_lottery_needMoney。
+    m_lotteryNeedMoney.add_lottery_needMoney(0, cost);
+}
+
+void* CDataManager::GetExpertJobScript(int job)
+{
+    // ORIG 0x0822b5f2 W：(CExpertJobList*)(this+0x5090)->get(job)。
+    // CExpertJobList 仅有前置声明，先返回其所在偏移指针，待类型完整后补 get() 调用。
+    return (void*)((char*)this + 0x5090);
+}
+
+void* CDataManager::GetChannelScript() const
+{
+    // ORIG 0x0814a6f8 W：return &m_channelScript（+0xb3f4）
+    return const_cast<channel_script_t*>(&m_channelScript);
+}
+
+void* CDataManager::getBlueMarbleScript()
+{
+    // ORIG 0x08365eea T（非 const void*）。最小化迁移，后续细化。
+    return 0;
+}
+
+void* CDataManager::get_event_script_mng()
+{
+    // ORIG 0x08110b62 W：return (void*)m_liveServerInfo.m_eventScriptMng
+    return reinterpret_cast<void*>(m_liveServerInfo.m_eventScriptMng);
+}
+
+
+int CDataManager::get_dimensionInout(int idx)
+{
+    // ORIG 0x0822b612 W：idx 越界(0..5)返回 0，否则返回 m_dimensionInout(idx)
+    if (idx < 0 || idx > 5)
+        return 0;
+    return m_dimensionInout[idx];
+}
+
+void CDataManager::GetPvPChannelGrade()
+{
+    // ORIG 0x08357e9e T。最小化迁移，后续细化。
+}
+
+int CDataManager::GetMaxGradePvPChannel()
+{
+    // ORIG 0x0822b65a W：return *(int*)(this+0xb438)（m_pvpChannel 内 +0x8 字段）
+    return *(int*)((char*)this + 0xb438);
+}
+
+const char* CDataManager::GetCeraShopGoodsName()
+{
+    // ORIG 0x08513fe6 W：return m_scriptPackPath.c_str()（+0x8cb8）
+    return m_scriptPackPath.c_str();
+}
+
+const char* CDataManager::SuddenShopFileName1()
+{
+    // ORIG 0x08513ffe W：return m_packName2.c_str()（+0xa8c4）
+    return m_packName2.c_str();
+}
+
+const char* CDataManager::SuddenShopFileName2()
+{
+    // ORIG 0x08514016 W：return m_packName3.c_str()（+0xa8c8）
+    return m_packName3.c_str();
+}
+
+const char* CDataManager::SuddenShopFileName3()
+{
+    // ORIG 0x0851402e W：return m_packName4.c_str()（+0xa8cc）
+    return m_packName4.c_str();
+}
+
+int CDataManager::VerifyMap(const CMap& map, int idx) const
+{
+    // ORIG 0x083620ee T。最小化迁移（返回 1 表示校验通过），后续细化。
+    return 1;
+}
+
+void* CDataManager::get_dungeon(int idx)
+{
+    // ORIG 0x086d18c8 W：return find_dungeon(idx)
+    return find_dungeon(idx);
+}
+
+int CDataManager::reselectDailyTrainingQuest()
+{
+    // ORIG 0x08363ce0 T。最小化迁移，后续细化。
+    return 0;
 }

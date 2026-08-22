@@ -230,6 +230,20 @@ class Arad_GiftItem_Set
 {
 public:
     int open(STStackableScript* script);
+
+    // ORIG Arad_GiftItem_Set::Data（open 插入/ find 返回的对象）：
+    //   +0x00 item_id；+0x04/+0x08 两个 std::string（脚本 +0x184/+0x188）。
+    struct Data
+    {
+        Data() : m_item(0) {}
+        int m_item;          // +0x00
+        std::string m_str4;  // +0x04
+        std::string m_str8;  // +0x08
+    };
+
+    // ORIG this+0x04：map<long long, Data>。
+    // key = ((long long)kind << 32) | ((uint)field5c + ((uint)slot << 16))。
+    std::map<long long, Data> m_map;
 };
 
 namespace ExtreamDungeon

@@ -21,6 +21,7 @@
 #include "InterfacePacketBuf.h"
 #include "TimerQueue.h"
 #include "GameWorld.h"
+#include "CDataManager.h"
 
 // ============================================================================
 // PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
@@ -51,20 +52,47 @@ private:
 };
 
 // ============================================================================
-// 外部数据（ORIG：PVP_NORMAL_BATTLE_TIME 0x93f4ee0 / PVP_DM_BATTLE_TIME
-// 0x93f4ee8，各 [2] int；PVPMAP_ONLY_* 0x94f7108/0x94f711c，各 0x14 char。
-// 数据引用在 AE 口径下归 <A>，链接桩由主 agent 提供）
+// PvP 全局数据（ORIG 定义；从 GameStubs.cpp 迁移）：
+//   PVP_NORMAL_BATTLE_TIME 0x93f4ee0 / PVP_DM_BATTLE_TIME 0x93f4ee8，各 [2] int
+//   PVPMAP_DEATHMATCH_MODE 0x94f70e0 / PVPMAP_ONLY_NORMAL_EXPOSURE 0x94f7108
+//   PVPMAP_ONLY_TOURNAMENT_RANDOM 0x94f711c，各 0x14 char（零初始化 BSS）
 // ============================================================================
-extern int PVP_NORMAL_BATTLE_TIME[];
-extern int PVP_DM_BATTLE_TIME[];
-extern char PVPMAP_ONLY_NORMAL_EXPOSURE[];
-extern char PVPMAP_ONLY_TOURNAMENT_RANDOM[];
+int PVP_NORMAL_BATTLE_TIME[2] = {0, 0};
+int PVP_DM_BATTLE_TIME[2] = {0, 0};
+char PVPMAP_DEATHMATCH_MODE[0x14] = {0};
+char PVPMAP_ONLY_NORMAL_EXPOSURE[0x14] = {0};
+char PVPMAP_ONLY_TOURNAMENT_RANDOM[0x14] = {0};
 
 // ============================================================================
-// 自由函数（asm-label extern；链接桩由主 agent / 后续批次提供）
+// 自由函数
 // ============================================================================
-extern "C" int sub_IsDeathMatchMap(int mapNo, bool& flag) asm("_Z15IsDeathMatchMapiRb");
+// ORIG 0x85d4690：查 PvP map；onlyDeathMatch = info.m_playable；
+// mapNo∈[0,0x13] 时返回 PVPMAP_DEATHMATCH_MODE[mapNo]
+bool IsDeathMatchMap(int mapNo, bool& onlyDeathMatch)
+{
+    PvPMapInfo info;
+    if (!CMapList::GetPvpMapInfo(mapNo, info))
+        return false;
+    onlyDeathMatch = info.m_playable != 0;
+    if (mapNo > 0x13 || mapNo < 0)
+        return false;
+    return PVPMAP_DEATHMATCH_MODE[mapNo] != 0;
+}
 extern "C" int sub_GetMatchingType() asm("_Z15GetMatchingTypev");
+// ORIG 0x855c8f4：按频道类型返回匹配类型（9→2, 10→3, 14→4, 15→5, 其余→0）
+int GetMatchingType()
+{
+    int type = 0;
+    switch (G_GameWorld()->GetChannelType())
+    {
+    case 9:  type = 2; break;
+    case 10: type = 3; break;
+    case 14: type = 4; break;
+    case 15: type = 5; break;
+    default: type = 0;
+    }
+    return type;
+}
 extern "C" TimerQueue* sub_G_TimerQueue() asm("_Z12G_TimerQueuev");
 extern "C" void* sub_GetInstanceCommonStatisticsMgr() asm("_Z30GetInstanceCommonStatisticsMgrv");
 extern "C" void* sub_G_CGameManager() asm("_Z14G_CGameManagerv");
@@ -2389,7 +2417,7 @@ int PvP_Room::ChangePvPMode(int mapNo)
 {
     bool local_d;
     local_d = false;
-    char cVar1 = (char)sub_IsDeathMatchMap(mapNo, local_d);
+    char cVar1 = (char)IsDeathMatchMap(mapNo, local_d);
     if (cVar1 == 0)
     {
         if (m_pvpBattleMode == 4)
@@ -2420,7 +2448,7 @@ int PvP_Room::CheckPvPMapMode(CUser* user, int mapNo, bool& flag)
     {
         return 1;
     }
-    char cVar1 = (char)sub_IsDeathMatchMap(mapNo, flag);
+    char cVar1 = (char)IsDeathMatchMap(mapNo, flag);
     if ((cVar1 != 0) && (flag == false) && (m_pvpBattleMode == 4))
     {
         return 1;
@@ -2571,7 +2599,7 @@ int PvP_Room::GetCandidateMapIndexList(std::vector<int>& out)
         {
             break;
         }
-        char cVar2 = (char)sub_IsDeathMatchMap(local_14, local_d);
+        char cVar2 = (char)IsDeathMatchMap(local_14, local_d);
         if ((cVar2 == 0) ||
             ((m_pvpBattleMode != 3) &&
              (((m_pvpBattleMode != 1 && m_pvpBattleMode != 4) ||
@@ -3517,7 +3545,7 @@ int PvP_Room::DrawRandomMapIndex(std::vector<int>& out)
     std::vector<int>::iterator it = out.begin();
     while (it != out.end())
     {
-        if (sub_IsDeathMatchMap(*it, local_21) != 0)
+        if (IsDeathMatchMap(*it, local_21) != 0)
         {
             local_30.push_back(*it);
             it = out.erase(it);

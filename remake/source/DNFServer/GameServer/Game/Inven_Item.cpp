@@ -139,6 +139,12 @@ unsigned char UpgradeSeparateInfo::GetUpgradeSeparate() const
     return m_field & 0x1f;
 }
 
+void UpgradeSeparateInfo::SetUpgradeSeparate(unsigned char value)
+{
+    // ORIG 0x84e906a：低 5 位写入 value & 0x1f，保留高 3 位（bit5=IsTradeRestriction）
+    m_field = (unsigned char)((m_field & 0xe0) | (value & 0x1f));
+}
+
 bool UpgradeSeparateInfo::IsTradeRestriction() const
 {
     return (m_field >> 5) & 1;

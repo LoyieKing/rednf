@@ -2,7 +2,9 @@
 #define GAME_PACKETGUARD_H
 
 #include "InterfacePacketBuf.h"
+#include "GameTypes.h"
 
+// ORIG：PacketPool +0x00 DynamicPool<PacketBuf>*，+0x04 线程 ID（sizeof 8）。
 class PacketPool
 {
 public:
@@ -13,7 +15,8 @@ public:
     unsigned long getThreadID();
     void setThreadID(unsigned long threadID);
 private:
-    char m_pad[8];
+    DynamicPool<PacketBuf>* m_pool;  // +0x00
+    unsigned long m_threadID;        // +0x04
 };
 
 // ORIG 858dd4c/858de4a/858de80：InterfacePacketBuf 子类，sizeof=12。

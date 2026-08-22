@@ -4,16 +4,39 @@
 #include "CItem.h"
 #include "Inven_Item.h"
 #include "PacketGuard.h"
+#include "GlobalData.h"
 
+#include <cstring>
 
+// 类声明见 CDataManager.h（WongWork::CItemUpgrade）。
 namespace WongWork
 {
-class CItemUpgrade
+CItemUpgrade::~CItemUpgrade()
 {
-public:
-    void make3rdChroniclePacket(CUser* user, const Inven_Item& item,
-                                PacketGuard* packet);
-};
+    // ORIG 0x85462c6：析构 +0x4e8 的 CMTRand*（构造时 new，见 0x8546247）。
+    void** pRand = reinterpret_cast<void**>(reinterpret_cast<char*>(this) + 0x4e8);
+    if (*pRand)
+    {
+        ::operator delete(*pRand);
+        *pRand = 0;
+    }
+}
+
+float CItemUpgrade::getUpgradeItemRepairCostRate(int idx, bool flag) const
+{
+    // ORIG 0x8549148：
+    //   flag==true  → GlobalData::s_itemAmplifier_->getUpgradeInfoTable()（=+0x100）
+    //   flag==false → this+0x04（CItemUpgradeTable 子对象，getUpgradeInfoTable 返回自身）
+    //   返回 table[idx + 0x9c] 的第 4 字节偏移处 float。
+    const char* table;
+    if (flag)
+        table = reinterpret_cast<const char*>(GlobalData::s_itemAmplifier_) + 0x100;
+    else
+        table = reinterpret_cast<const char*>(this) + 0x04;
+    float rate = 0.0f;
+    memcpy(&rate, table + (idx + 0x9c) * 4 + 4, sizeof(rate));
+    return rate;
+}
 
 void CItemUpgrade::make3rdChroniclePacket(CUser* user,
                                           const Inven_Item& item,

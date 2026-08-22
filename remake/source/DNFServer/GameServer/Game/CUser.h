@@ -46,18 +46,51 @@
 #include <set>
 #include <string>
 #include <utility>
-#include <vector>
+#include <time.h>
 
 #include "CUserCharacInfo.h"
 #include "CNetwork.h"
 #include "CGameOption.h"
 #include "CEnvironment.h"
 #include "GameTypes.h"
+#include "STEquipmentScript.h"
+#include "GameEnums.h"      // ENUM_SKILL_TREE_KIND（master_new_skills 声明所需）
+struct _Mastered_skill;     // 完整定义见 SkillSlot.h（避免循环包含）
+
+struct stBuySkillInfo;  // forward decl（ORIG stub 传递引用；完整定义见 CEventCharacterHandler.cpp）
+
+
+// ---- 局部守卫枚举（值对齐 GameEnums.h；避免整头 include 引发的同名冲突） ----
+#ifndef DNF_ENUM_DISCONN_SIG_DEFINED
+#define DNF_ENUM_DISCONN_SIG_DEFINED
+enum DISCONN_SIG
+{
+    DISCONN_SIG_0 = 0,
+    DISCONN_SIG_5 = 5,
+    DISCONN_SIG_0x30 = 0x30,
+    DISCONN_SIG_0x31 = 0x31,
+    DISCONN_SIG_0x32 = 0x32
+};
+#endif
+#ifndef DNF_ENUM_QUEST_ENEMY_TYPE_DEFINED
+#define DNF_ENUM_QUEST_ENEMY_TYPE_DEFINED
+enum ENUM_QUEST_ENEMY_TYPE { ENUM_QUEST_ENEMY_TYPE_0 = 0 };
+#endif
+
+
 
 #ifndef DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
 #define DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
 enum ENUM_PREMIUM_TYPE { ENUM_PREMIUM_TYPE_0 = 0 };
 #endif
+
+struct STPremiumItemData
+{
+    int m_value0;   // +0x00
+    int m_value4;   // +0x04
+    int m_value8;   // +0x08
+    int m_valuec;   // +0x0c
+};
 // ---- 共享枚举（守卫；CInventory.h 同值，权威归属 CUser.h） ----
 #ifndef DNF_ENUM_INVEN_TYPE_DEFINED
 #define DNF_ENUM_INVEN_TYPE_DEFINED
@@ -216,6 +249,7 @@ namespace WongWork
 {
 enum ENUM_HACK_TYPE { ENUM_HACK_TYPE_0 = 0 };
 enum ENUM_HACKTYPE { ENUM_HACKTYPE_0 = 0 };
+class CDeathTower;   // 完整定义见 CDeathTower.h（getDeathTower 返回指针）
 }
 
 enum ch_state
@@ -263,6 +297,7 @@ class CSlotBoundChecker;
 class GameWorld;
 class CGameManager;
 class CGameMasterCharacter;
+struct user_gold_info;   // 完整定义见 SigTypes.h
 enum ENUM_GM_ITEM_UPGRADE { E_GM_ITEM_UPGRADE_NONE = 0 };
 
 #pragma pack(push, 1)
@@ -464,8 +499,18 @@ namespace WongWork
 struct SUserPremiumInfo
 {
     int m_type;        // +0x00
-    char m_pad4[0xc];  // +0x04
-    int m_field10;     // +0x10
+    int m_start;       // +0x04
+    int m_end;         // +0x08
+    int m_flag;        // +0x0c
+    int m_state;       // +0x10
+};
+
+enum ENUM_PREMIUM_STATE
+{
+    ENUM_PREMIUM_STATE_0 = 0,
+    ENUM_PREMIUM_STATE_1 = 1,   // 生效中
+    ENUM_PREMIUM_STATE_2 = 2,   // 等待开始
+    ENUM_PREMIUM_STATE_3 = 3    // 已过期
 };
 
 class CUserPremium
@@ -474,12 +519,32 @@ public:
     CUserPremium() {}
     ~CUserPremium() {}
 
+    // ---- 基础访问器（ORIG W 弱符号，const）----
     unsigned short getOverSkillLevel() const;
-    void InitPremium();
+    int GetAdvantageExpRate() const;
     short GetAdvantageFatigueRate() const;
-    void GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type) {}
-    bool CheckPremium(int type) const;
     int GetAdvPremiumCount() const;
+    int GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const;
+
+    // ---- 生命周期 / 状态操作（ORIG T）----
+    void InitPremium();
+    void AddPremium(int type, int start, int end, int flag);
+    void RemovePremium(int type);
+    int startPremium(int type, bool force);
+    void ReCalcAdvantage();
+    void setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state);
+    bool _CheckApply(int type, tm t);
+    void RecalcAdditionalInfo(CUser const* user);
+    int SetPremiumItemData(unsigned long key, const struct STPremiumItemData& data);
+
+    // ---- 查询（ORIG T const）----
+    SUserPremiumInfo* GetPremiumInfo(int type) const;
+    SUserPremiumInfo CheckPremiumTimeout() const;
+    void GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type) const;
+    int GetReturnItemRate(int type) const;
+    bool CheckPremium(int type) const;
+    bool IsRestrictedPremium(int type);
+    std::vector<std::pair<int, int> > GetAdvantageItem(int type);
 
     char m_pad[0x97c];      // +0x00
     void* m_mailBox;        // +0x97c
@@ -498,18 +563,19 @@ public:
 
     void addServerHackCnt(CUser* user, ENUM_HACK_TYPE type, unsigned int count,
                           unsigned int a, unsigned int b);
+    void addServerHackCnt(CUser* user, ENUM_HACKTYPE type, unsigned int count,
+                          unsigned int a, unsigned int b);
     void resetHackInfo();
     void resetServerHackAccumulatedCnt(ENUM_HACKTYPE type);
+    void reportHackInfo();
+    void beginCollectHackInfo(CUser* user);
+    void setLastMonsterDeadTime(long t);
 
     char m_pad[0x7a3c];  // +0x00
 };
 
 class CMailBox;
-class CMailBoxHelper
-{
-public:
-    static void FreeMailBox(CMailBox* box);
-};
+class CMailBoxHelper;  // 完整声明见 CGameManager.h（含 CMailBox::CMail 依赖）
 
 class CSecurityCard
 {
@@ -606,8 +672,11 @@ public:
 
     void reset();
     void enableSaveCharacView();
+    void disableSaveCharacView();
+    bool isSaveCharacView();
 
-    char m_pad[4];  // +0x00
+    bool m_bSaveCharacView;  // +0x00
+    char m_pad1[3];
 };
 
 namespace charac_expand
@@ -713,6 +782,13 @@ class CPad
 public:
     CPad() {}
     ~CPad() {}
+
+    int getCancelCnt();
+    void setCancelCnt(int count);
+    int getRequestState();
+    bool isActivate() const;
+    int getFailCnt();
+    void setFailCnt(int cnt);
 
     char m_pad[0x48];  // +0x00（其后为 CUser::._379 @ +0x8d1a8）
 };
@@ -839,6 +915,8 @@ public:
     ~CActionPointManager() {}
 
     void Reset();
+    int GetActionPoint() const;
+    void GM_Set(CUser& user, unsigned int point);
 
     char m_pad[0xcfc];  // +0x00
 };
@@ -864,6 +942,8 @@ public:
     CHades() {}
     ~CHades() {}
 
+    void Send_ReturnToVillage();  // ORIG 0x084b9386（纯空函数）
+
     char m_pad[0x28];   // +0x00..0x27
     bool m_secuReward;  // +0x28（0x8e97c）
     unsigned char m_secuType;    // +0x29（0x8e97d）
@@ -878,10 +958,92 @@ public:
     Secu_GoldControl() {}
     ~Secu_GoldControl() {}
 
+    void Init(CUser* user);
+    void SetInfo(user_gold_info& info);
+    void SetMailCharName(const char* name);
+    void resetRangeMoney(user_gold_info& dst, const user_gold_info& src);
     void AddGold(unsigned int value, eMoneyAddReason reason);
     void SubGold(unsigned int value, eMoneySubReason reason);
+    void AddMoney(unsigned int value);
+    void SubMoney(unsigned int value);
+    void AddImportMoney(unsigned int value);
+    void SubImportMoney(unsigned int value);
+    void AddAuctionMoney(unsigned int value);
+    void SubAuctionMoney(unsigned int value);
+    void MailComplete(bool flag);
+    void TradeComplete(int subValue, int addValue);
+    void MailGold(unsigned int value, bool flag);
+    void MailSameMid();
+    void SavetoDB(bool a, bool b, bool c);
+    void CheckMoneyRange();
+    void* GetGoldInfo();
+    void CheckDate();
+    void UseFatigue(int count);
 
-    char m_pad[0xe8];  // +0x00
+    CUser* m_pUser;                                // +0x00
+    // 总金币统计（ORIG user_gold_info @ +0x04）
+    unsigned int m_totalGoldLow;                   // +0x04
+    unsigned int m_totalGoldHigh;                  // +0x08
+    unsigned int m_totalImportGoldLow;             // +0x0c
+    unsigned int m_totalImportGoldHigh;            // +0x10
+    unsigned int m_totalSubGoldLow;                // +0x14
+    unsigned int m_totalSubGoldHigh;               // +0x18
+    unsigned int m_totalImportSubLow;              // +0x1c
+    unsigned int m_totalImportSubHigh;             // +0x20
+    unsigned int m_totalAuctionAddLow;             // +0x24
+    unsigned int m_totalAuctionAddHigh;            // +0x28
+    unsigned int m_totalAuctionSubLow;             // +0x2c
+    unsigned int m_totalAuctionSubHigh;            // +0x30
+    unsigned short m_counter34;                    // +0x34
+    unsigned short m_counter36;                    // +0x36
+    unsigned short m_counter38;                    // +0x38
+    unsigned short m_counter3a;                    // +0x3a
+    unsigned short m_counter3c;                    // +0x3c
+    unsigned short m_counter3e;                    // +0x3e
+    // 当前金币统计（ORIG user_gold_info @ +0x40）
+    unsigned int m_goldLow;                        // +0x40
+    unsigned int m_goldHigh;                       // +0x44
+    unsigned int m_importGoldLow;                  // +0x48
+    unsigned int m_importGoldHigh;                 // +0x4c
+    unsigned int m_subGoldLow;                     // +0x50
+    unsigned int m_subGoldHigh;                    // +0x54
+    unsigned int m_importSubLow;                   // +0x58
+    unsigned int m_importSubHigh;                  // +0x5c
+    unsigned int m_auctionAddLow;                  // +0x60
+    unsigned int m_auctionAddHigh;                 // +0x64
+    unsigned int m_auctionSubLow;                  // +0x68
+    unsigned int m_auctionSubHigh;                 // +0x6c
+    unsigned short m_counter70;                    // +0x70
+    unsigned short m_counter72;                    // +0x72
+    unsigned short m_counter74;                    // +0x74
+    unsigned short m_counter76;                    // +0x76
+    unsigned short m_counter78;                    // +0x78
+    unsigned short m_counter7a;                    // +0x7a
+    // 备份金币统计（ORIG user_gold_info @ +0x7c..0xb8）
+    unsigned int m_backupGoldLow;                  // +0x7c
+    unsigned int m_backupGoldHigh;                 // +0x80
+    unsigned int m_backupImportLow;                // +0x84
+    unsigned int m_backupImportHigh;               // +0x88
+    unsigned int m_backupSubLow;                   // +0x8c
+    unsigned int m_backupSubHigh;                  // +0x90
+    unsigned int m_backupImportSubLow;             // +0x94
+    unsigned int m_backupImportSubHigh;            // +0x98
+    unsigned int m_backupAuctionAddLow;            // +0x9c
+    unsigned int m_backupAuctionAddHigh;           // +0xa0
+    unsigned int m_backupAuctionSubLow;            // +0xa4
+    unsigned int m_backupAuctionSubHigh;           // +0xa8
+    unsigned short m_counterac;                    // +0xac
+    unsigned short m_counterae;                    // +0xae
+    unsigned short m_counterb0;                    // +0xb0
+    unsigned short m_counterb2;                    // +0xb2
+    unsigned short m_counterb4;                    // +0xb4
+    unsigned short m_counterb6;                    // +0xb6
+    int m_fieldb8;                                 // +0xb8
+    int m_fieldbc;                                 // +0xbc
+    unsigned int m_dateFlag;                       // +0xc0
+    int m_mailGold;                                // +0xc4
+    char m_mailCharName[0x1e];                     // +0xc8
+    unsigned char m_fielde6;                       // +0xe6
 };
 
 class Secu_HackLogCheck
@@ -991,6 +1153,15 @@ public:
 };
 
 // ---- 用户行为日志门面（CUser +0x79700，0x44 字节） ----
+#ifndef DNF_ENUM_ETRADEENDREASON_DEFINED
+#define DNF_ENUM_ETRADEENDREASON_DEFINED
+enum eTradeEndReason { eTradeEndReason_0 = 0 };
+#endif
+#ifndef DNF_ENUM_EAVATARITEMDELREASON_DEFINED
+#define DNF_ENUM_EAVATARITEMDELREASON_DEFINED
+enum eAvatarItemDelReason { eAvatarItemDelReason_0 = 0 };
+#endif
+struct MSG_MAILBOX_SEND;
 class cUserHistoryLog
 {
 public:
@@ -1012,6 +1183,7 @@ public:
     void pvpMissionClearReward(int expPoint, int exp, int missionKind,
                                int missionIndex);  // ORIG 0x8686a4e
     void EnterDungeon(const char* dungeonName, int level);
+    void LeaveDungeon(const char* dungeonName, int level);
     void LeaveDungeon(const char* dungeonName, int unk, const char* memberNames, int state);
     void LeaveDungeon(int dungeonIdx, int unk, const char* memberNames, int state);
     void DungeonClearInfo(int isLast, int playTimeSec);
@@ -1026,8 +1198,32 @@ public:
     void SPAdd(int treeKind, int remainSP, int sp, eSPAddReason reason);
     void SPSub(int treeKind, int remainSP, int sp, eSPSubReason reason);
     void SFPAdd(int treeKind, int remainSFP, int sfp, eSPAddReason reason);
+    void SFPSub(int treeKind, int remainSFP, int sfp, eSPSubReason reason);
     void FPAdd(int a, int b, int c, eFPAddReason reason);
     void FPSub(int a, int b, int c, eFPSubReason reason);
+
+    void AvatarItemDel(int itemIdx, int avatarUid, const char* agency,
+                       eAvatarItemDelReason reason);
+    void CreatureItemDel(INVEN_TYPE invenType, int itemIdx, int count,
+                         int addInfo, int type, eItemDelReason reason);
+    void ChangeGrowType(int a, int b, int c, int d, int e,
+                        eChangeGrowTypeReason reason);
+    void ClearUsedQP(int before, int after, int initCount, int unused);
+    void DeleteInvaildItem(const std::string& str, int a, int b);
+    void ItemDelCargo(int a, int b, int c, eItemDelReason reason);
+    void LevelDown(int a, int b);
+    void LevelUp(int a, int b);
+    void Logout(const char* a, const char* b, unsigned short c, int d, int e, int f);
+    void MoveArea(int a, int b, int c, int d, int e);
+    void RequestCleanPad(int a, int b);
+    void SendMail(MSG_MAILBOX_SEND* mail, unsigned int a);
+    void SetTrader(const char* accName, const char* characName);
+    void TradeBegin();
+    void TradeEnd(eTradeEndReason reason, int a, int b, int c, int d);
+    void TradeItemAddFail(int a, int b);
+    void AchievementComplete(int idx);
+    void pvpMissionAdd(int a, int b, int c, int d);
+    void pvpMissionDel(int a, int b);
 
     char m_pad[0x44];  // +0x00
 };
@@ -1311,6 +1507,7 @@ public:
     bool CheckFatigue();
     bool has_within_Mission() const;
     bool acceptable_within_mission() const;
+    bool isCompetitionMercenary() const;
     void* getBlueMarble();
     bool checkLogOutCorrectly();
     unsigned int find_pvp_masterid_walkingout_me(unsigned int id);
@@ -1616,6 +1813,8 @@ public:
     bool checkInDeathTower();
     void setDeathTowerIndex(short idx);
     short getDeathTowerIndex();
+    WongWork::CDeathTower* getDeathTower();          // ORIG 0x086552a4
+    int Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem);  // ORIG 0x086472c0
     bool checkInBossTower();
     short getBossTowerIndex();
     void setBossTowerIndex(short index);
@@ -1640,6 +1839,7 @@ public:
     char get_direction();
     int GetUserState();
     int GetAge();
+    bool IsOverBirthDay();
     unsigned char IsProgLogout();
     int GetSeedFromDate();
     void SetGMUpgradeMode(ENUM_GM_ITEM_UPGRADE mode);
@@ -1812,6 +2012,47 @@ public:
     void SetCharacViewState(int characNo, int state);
     int GetCharacViewState(int idx) const;
     bool SetCharacViewStateByCharacNo(int characNo, int state);
+
+    // ---- GameStubs 迁移（ORIG 逐符号，强符号 T） ----
+    void DisConnSig(DISCONN_SIG sig, bool flag, int param);                    // 0x086489f4
+    void master_new_skill(stBuySkillInfo& info, bool flag);                    // 0x0866afa2
+    bool master_new_skills(_Mastered_skill* skills,                          // 0x0866b53e
+                           ENUM_SKILL_TREE_KIND kind);
+    void ChangeGrowType_GM(int a, int b);                                      // 0x0867b048
+    int AddItem(int itemIdx, int count, eItemAddReason reason,                 // 0x0867b6d4
+                ENUM_ITEMSPACE& space, int slot);
+    void ReCalcChattingEmoticon();                                             // 0x08689a22
+    void ResetItemByScript(std::vector<std::pair<int, int> >& list);           // 0x08689010
+    void SendChattingEmoticon();                                               // 0x08689b90
+    void deleteDailyStackableItem(std::vector<std::pair<int, int> >& list,     // 0x0867e734
+                                  int a, int b);
+    void deleteSpecificItem(const std::vector<std::pair<int, int> >& list,     // 0x0867dba0
+                            std::vector<std::pair<int, int> >& out);
+    void doLinkCharacDisconnect();                                             // 0x08652c8e
+    void giveup_panalty();                                                     // 0x086786be
+    void log_out();                                                            // 0x08658910
+    void prepareDisconnect();                                                  // 0x086487ea
+    bool CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type);          // 0x0866cb04
+    void FatigueUp(int v);                                                     // 0x08655c60
+    void add_guild_pvp_result(int v);                                          // 0x0865c936
+    void add_pvp_play_info(unsigned int a, unsigned int b);                    // 0x0865d986
+    void add_pvp_result(bool flag, unsigned int* out);                         // 0x0865c678
+    void gainGuildSkillExp(int exp);                                           // 0x0864fb3a
+    void update_pvp_point(int v);                                              // 0x0865cfd8
+    void RecoverCoin(unsigned int v);                                          // 0x08657f10
+    void RewardItem2DeleteInvalidItem(const std::string& name,                 // 0x086931c4
+                                      const std::vector<std::pair<int, int> >& list);
+    void AddDailyItem();                                                       // 0x08656caa
+    void SendOneADayItemShopIndex(                                             // 0x0868aaea
+        const std::vector<std::pair<int, int> >& list);
+    void UpdateAuraAvatarOption(int a, int b);                                 // 0x0868de0a
+    char is_equip_aura_avatar(char slot, int& out);                            // 0x0868dff8
+    void processDelDailyItem();                                                // 0x0867e092
+    void reqHumanCertify4ClearMap(bool flag);                                  // 0x086802b8
+    void deleteSpecificItems(const std::vector<std::pair<int, int> >* list);   // (末尾)
+    void ProcPremiumFatigue();                                                 // 0x0867cbe4
+    bool IsPremiumUser() const;                                                // 0x0867cd20
+
 };
 
 #endif  // GAME_CUSER_H_

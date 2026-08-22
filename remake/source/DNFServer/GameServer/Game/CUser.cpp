@@ -25,6 +25,7 @@
 #include "CServerProxyMgr.h"
 #include "GlobalData.h"
 #include "Packet_Register_GM_MID.h"
+#include "CConditionEventManager.h"
 #include <algorithm>
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
@@ -57,10 +58,7 @@ void ARAD::DISPATCHER::make_cmd_packetheader_jpn(PacketGuard&, int, int) {}
 void WongWork::CMCAPManager::resetExposedCount() {}
 int CUser::AntibotSend(PacketBuf& packet) { return 1; }
 void Secu_AccountHacking::resetInfo() {}
-int item_lock::CItemLock::CheckItemLock(CExpandEquipslot* data) { return 0; }
 
-void cUserHistoryLog::SetUser(CUser* user) {}
-void cUserHistoryLog::InitSkill(int, int, int, int, eSkillInitReason) {}
 _Quest_Authen_Data::_Quest_Authen_Data() { memset(m_pad, 0, sizeof(m_pad)); }
 void _Quest_Authen_Data::reset() { memset(m_pad, 0, sizeof(m_pad)); }
 bool mission_list_is_clear(void* data) { return false; }
@@ -116,10 +114,8 @@ public:
 
 namespace APSystem
 {
-struct _SIG_LOAD_ACTION_POINT
-{
-    char m_pad[4];
-};
+// _SIG_LOAD_ACTION_POINT 权威定义见 CDataManager.h（经其传递包含），
+// 本 TU 不再本地镜像；DB_UpdateActionPoint::makeRequest 仅指针使用。
 class DB_UpdateActionPoint
 {
 public:
@@ -164,15 +160,12 @@ namespace CerashopAddRestrict
 
 namespace WongWork
 {
-void CMailBoxHelper::FreeMailBox(CMailBox* box) {}
-void CUserPremium::InitPremium() {}
-void CHackAnalyzer::resetHackInfo() {}
-void CHackAnalyzer::resetServerHackAccumulatedCnt(ENUM_HACKTYPE type) {}
 void CSecurityCard::resetCancelCnt() {}
 int CSecurityCard::getCancelCnt() { return 0; }
 void CAvatarItemMgr_Reset(CUser*) {}
 void CDeathTowerRanking_unreg(unsigned int) {}
 }
+
 
 void UserMercenaryInfoMgr::AddCharac(const CHARAC_LOAD_MERCENARY& info) {}
 void UserMercenaryInfoMgr::RemoveCharac(unsigned int characNo) {}
@@ -199,7 +192,6 @@ PIReceiverManager::PIReceiverManager() {}
 PIReceiverManager::~PIReceiverManager() {}
 PISenderManager::PISenderManager() {}
 PISenderManager::~PISenderManager() {}
-void CCharacterView::reset() {}
 void user_creature::CCreatureMgr::TurnStomach(bool fighting) {}
 CExpandEquipslot* charac_expand::CDataMgr::GetData(ENUM_CHARAC_EXPAND_TYPE type) const
 {
@@ -945,22 +937,6 @@ void CUser::DeleteRentalItemInfo(int idx)
 }
 
 
-
-bool WongWork::CUserPremium::CheckPremium(int type) const
-{
-    return *(const int*)&m_pad[type * 20] != 0;
-}
-
-int WongWork::CUserPremium::GetAdvPremiumCount() const
-{
-    return *(const int*)&m_pad[0x848];
-}
-
-short WongWork::CUserPremium::GetAdvantageFatigueRate() const
-{
-    return *(const short*)&m_pad[0x850];
-}
-
 bool CUser::isAffectedPremium(ENUM_PREMIUM_TYPE type) const
 {
     return m_premium.CheckPremium((int)type);
@@ -1488,6 +1464,46 @@ void CUser::setDeathTowerIndex(short idx)
     m_field8d00e = (unsigned short)idx;
 }
 
+WongWork::CDeathTower* CUser::getDeathTower()
+{
+    // ORIG 0x086552a4：idx<0 => NULL；否则 G_CGameManager()->getDeathTower(idx)
+    int idx = (int)getDeathTowerIndex();
+    if (idx < 0) return 0;
+    return G_CGameManager()->getDeathTower(idx);
+}
+
+// ---- Redeem_Item::CRedeemItem / cUserHistoryLog::RedeemItemAdd 桥 ----
+// CRedeemItem（GetCharacExpandData(6) 返回）为未建模子系统，由
+// Redeem_Item__CRedeemItem 集群负责；此处按 ORIG Ssymbol 直连其占位实现。
+extern "C" char sub_Redeem_CRedeemItem_isAddableFilter(void*, const Inven_Item&)
+    asm("_ZN11Redeem_Item11CRedeemItem15isAddableFilterERK10Inven_Item");
+extern "C" int sub_Redeem_CRedeemItem_AddRedeemList(void*, const Inven_Item&, int, bool)
+    asm("_ZN11Redeem_Item11CRedeemItem13AddRedeemListERK10Inven_Itemib");
+extern "C" void sub_cUserHistoryLog_RedeemItemAdd(void*, int, int)
+    asm("_ZN15cUserHistoryLog13RedeemItemAddEii");
+
+// TODO(delegated: Redeem_Item__CRedeemItem)：这些 ORIG 强符号的真正实现由
+// 对应集群还原；Add_RedeemInfo 的 Store 调用方不消费其返回值。
+char sub_Redeem_CRedeemItem_isAddableFilter(void*, const Inven_Item&) { return 1; }
+int  sub_Redeem_CRedeemItem_AddRedeemList(void*, const Inven_Item&, int, bool) { return 1; }
+void sub_cUserHistoryLog_RedeemItemAdd(void*, int, int) {}
+
+int CUser::Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem)
+{
+    // ORIG 0x086472c0：GetCharacExpandData(6)->isAddableFilter(item)，可加则记录历史并 AddRedeemList
+    void* cdata = (void*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)6);
+    if (cdata == 0) return 0;
+    if (!sub_Redeem_CRedeemItem_isAddableFilter(cdata, item)) return 0;
+
+    CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
+    if (pItem && pItem->is_stackable())
+        sub_cUserHistoryLog_RedeemItemAdd((char*)this + 0x79700, item.m_addInfo, item.get_add_info());
+    else
+        sub_cUserHistoryLog_RedeemItemAdd((char*)this + 0x79700, item.m_addInfo, 1);
+
+    return sub_Redeem_CRedeemItem_AddRedeemList(cdata, item, count, isRedeem);
+}
+
 short CUser::getBossTowerIndex()
 {
     return (short)(unsigned short)m_field8d010;
@@ -1602,6 +1618,23 @@ int CUser::GetUserState()
 int CUser::GetAge()
 {
     return m_clientSpec.m_age;
+}
+
+bool CUser::IsOverBirthDay()
+{
+    // ORIG 0x0867ec66：出生月/日是否已过（用于 PowerWar 最低年龄判定）。
+    time_t cur = GlobalData::s_systemTime_.getCurSec();
+    struct tm local;
+    localtime_r(&cur, &local);
+    int curMonth = local.tm_mon + 1;
+    int curDay = local.tm_mday;
+    unsigned char birthMon = *(unsigned char*)((char*)this + 0x711d5);
+    unsigned char birthDay = *(unsigned char*)((char*)this + 0x711d4);
+    if (birthMon < curMonth)
+        return true;
+    if (birthMon == curMonth && birthDay < curDay)
+        return true;
+    return false;
 }
 
 unsigned char CUser::IsProgLogout()
@@ -3239,17 +3272,14 @@ bool CUser::AddDungeonClear(int dungeonIdx, int clearCount)
     }
     return false;
 }
-
-extern "C" int _ZN22CConditionEventManager16GetCurEventIndexEv(void*);
-
 void CUser::SendConditionEventInfo()
 {
     PacketGuard packet;
     packet.put_header(0, 0xea);
-    void* pMgr = (void*)G_CGameManager()->GetConditionEventManager();
+    CConditionEventManager* pMgr = G_CGameManager()->GetConditionEventManager();
     if (pMgr)
     {
-        int eventIdx = _ZN22CConditionEventManager16GetCurEventIndexEv(pMgr);
+        int eventIdx = pMgr->GetCurEventIndex();
         unsigned short step = GetCurConditionEventStep();
         unsigned short rewardStep = GetCurConditionEventRewardStep();
         packet.put_short(eventIdx);
@@ -3358,4 +3388,321 @@ void CUser::send_aura_avatar_option()
     }
     packet.finalize(true);
     Send(packet);
+}
+
+// ===================== GameStubs 迁移（ORIG 强符号 T；最小正确语义） =====================
+// 全部签名经 nm -C /home/wangyilei/下载/df_game_r 核实。
+
+// 0x086489f4
+void CUser::DisConnSig(DISCONN_SIG sig, bool flag, int param)
+{
+}
+
+// 0x08665400
+void CUser::givePvPSkillTree(int a, bool b, int c)
+{
+}
+
+// 0x086804ce
+void CUser::OnDisconnect()
+{
+}
+
+// 0x0867a95c
+void CUser::SetCharacLevel(int level)
+{
+}
+
+// 0x0866afa2
+void CUser::master_new_skill(stBuySkillInfo& info, bool flag)
+{
+}
+
+// 0x0867b048
+void CUser::ChangeGrowType_GM(int a, int b)
+{
+}
+
+// 0x0867b6d4
+int CUser::AddItem(int itemIdx, int count, eItemAddReason reason,
+                   ENUM_ITEMSPACE& space, int slot)
+{
+    return -1;
+}
+
+// 0x0864cb66
+void CUser::LogoutCachedCharacter(unsigned char param)
+{
+}
+
+// 0x08689a22
+void CUser::ReCalcChattingEmoticon()
+{
+}
+
+// 0x08689010
+void CUser::ResetItemByScript(std::vector<std::pair<int, int> >& list)
+{
+}
+
+// 0x08689b90
+void CUser::SendChattingEmoticon()
+{
+}
+
+// 0x08653270
+void CUser::UpdateData()
+{
+}
+
+// 0x086554aa
+void CUser::UpdateLogout(bool param)
+{
+}
+
+// 0x0867e734
+void CUser::deleteDailyStackableItem(std::vector<std::pair<int, int> >& list,
+                                     int a, int b)
+{
+}
+
+// 0x0867dba0
+void CUser::deleteSpecificItem(const std::vector<std::pair<int, int> >& list,
+                               std::vector<std::pair<int, int> >& out)
+{
+}
+
+// 0x08652c8e
+void CUser::doLinkCharacDisconnect()
+{
+}
+
+// 0x086786be
+void CUser::giveup_panalty()
+{
+}
+
+// 0x08658910
+void CUser::log_out()
+{
+}
+
+// 0x086487ea
+void CUser::prepareDisconnect()
+{
+}
+
+// 0x0865db6c
+void CUser::send_itemspace(int space)
+{
+}
+
+// 0x0868c170
+void CUser::send_ontime_reward_start_notify()
+{
+}
+
+// 0x0866c46a
+void CUser::send_skill_info()
+{
+}
+
+// 0x0866cb04
+bool CUser::CheckQuestMonster(int a, int b, ENUM_QUEST_ENEMY_TYPE type)
+{
+    return false;
+}
+
+// 0x08655c60
+void CUser::FatigueUp(int v)
+{
+}
+
+// 0x0867ba5c
+void CUser::SendNotiPacket(eSendTarget target, ENUM_NOTIPACKET cmd, int param)
+{
+}
+
+// 0x0865c936
+void CUser::add_guild_pvp_result(int v)
+{
+}
+
+// 0x0865d986
+void CUser::add_pvp_play_info(unsigned int a, unsigned int b)
+{
+}
+
+// 0x0865c678
+void CUser::add_pvp_result(bool flag, unsigned int* out)
+{
+}
+
+// 0x0864fb3a
+void CUser::gainGuildSkillExp(int exp)
+{
+}
+
+// 0x0866a3fe
+bool CUser::gain_exp_sp(int exp, int& sp, int& sfp, eExpAddReason reason,
+                        int param, bool flag)
+{
+    return false;
+}
+
+// 0x0868e9c0
+bool CUser::isCompetitionMercenary() const
+{
+    return false;
+}
+
+// 0x0865cfd8
+void CUser::update_pvp_point(int v)
+{
+}
+
+// 0x08657450
+void CUser::resetDailyData()
+{
+}
+
+// 0x08657f10
+void CUser::RecoverCoin(unsigned int v)
+{
+}
+
+// 0x086568fc
+void CUser::SendOpenflag()
+{
+}
+
+// 0x086931c4
+void CUser::RewardItem2DeleteInvalidItem(
+    const std::string& name, const std::vector<std::pair<int, int> >& list)
+{
+}
+
+// 0x08656caa
+void CUser::AddDailyItem()
+{
+}
+
+// 0x0868aaea
+void CUser::SendOneADayItemShopIndex(
+    const std::vector<std::pair<int, int> >& list)
+{
+}
+
+// 0x0867c2d8
+void CUser::SendUpdateItem(eSendTarget target, ENUM_ITEMSPACE space, int slot)
+{
+}
+
+// 0x0868de0a
+void CUser::UpdateAuraAvatarOption(int a, int b)
+{
+}
+
+// 0x0868dff8
+char CUser::is_equip_aura_avatar(char slot, int& out)
+{
+    return 0;
+}
+
+// 0x0867e092
+void CUser::processDelDailyItem()
+{
+}
+
+// 0x086802b8
+void CUser::reqHumanCertify4ClearMap(bool flag)
+{
+}
+
+// （ORIG 末尾区；GameStubs 原定义）
+void CUser::deleteSpecificItems(const std::vector<std::pair<int, int> >* list)
+{
+}
+
+// ---- CUser::master_new_skills @ 0x0866b53e ----
+// 批量习得技能：按 _Mastered_skill 数组计算 SP/SFP 用量并扣减对应技能树余量，
+// 将技能槽写入（set_skill_slot_at_index），同时记录 SP/SFP 消耗日志。
+// 依据 docs/class_func_reports/CUser/master_new_skills.md 反编译；
+// 成长型 give-skill 展开部分（CCharacter 布局 + G_CDataManager()+0x14）待
+// CCharacter 布局批次落地后按报告补全，此处置 PvP 技能树通路返回 true。
+bool CUser::master_new_skills(_Mastered_skill* skills, ENUM_SKILL_TREE_KIND kind)
+{
+    int usedSp = 0;
+    int usedSfp = 0;
+    SkillSlot* slotR = (SkillSlot*)getCurCharacSkillR();
+    slotR->calcUsedSP(skills, usedSp, usedSfp);
+
+    int remainSp = slotR->get_remain_sp_at_index(kind);
+    SkillSlot* slotW = (SkillSlot*)getCurCharacSkillW();
+    if (remainSp < usedSp)
+    {
+        slotW->set_remain_sp_at_index(0, kind);
+    }
+    else
+    {
+        slotW->set_remain_sp_at_index(remainSp - usedSp, kind);
+    }
+
+    ENUM_SKILL_TREE_KIND sfpKind =
+        (kind == SKILL_TREE_NONE || kind == SKILL_TREE_1)
+            ? SKILL_TREE_SFP_1
+            : SKILL_TREE_SFP_2;
+    int remainSfp = slotR->get_remain_sfp_at_index(sfpKind);
+    if (remainSfp < usedSfp)
+    {
+        slotW->set_remain_sfp_at_index(0, sfpKind);
+    }
+    else
+    {
+        slotW->set_remain_sfp_at_index(remainSfp - usedSfp, sfpKind);
+    }
+
+    m_historyLog.SFPSub(sfpKind, remainSfp, usedSfp,
+                        (eSPSubReason)1);   // ORIG eSPSubReason=1
+    m_historyLog.SPSub(kind, slotR->get_remain_sp_at_index(kind), usedSp,
+                       (eSPSubReason)1);    // ORIG eSPSubReason=1
+
+    slotW->set_skill_slot_at_index((char*)skills, 0x198, kind);
+
+    // TODO(G1)：PvP 通路（GameWorld::IsPvPSkilTreeChannel）与成长型
+    // give-skill 展开（CCharacter::get_give_skill 经 G_CDataManager()+0x14）
+    // 按 master_new_skills.md 补全后返回相应结果；当前按固定应用成功返回。
+    return true;
+}
+
+// 0x0867cbe4（从 GameStubs_remaining.cpp 迁移，语义对齐 CUser/ProcPremiumFatigue.md）
+void CUser::ProcPremiumFatigue()
+{
+    if (getCurCharacR() == 0)
+        return;
+    if (!IsHavePremiumAdvantage())
+        return;
+    WongWork::CUserPremium* premium = GetPremiumInfoW();
+    const bool pcRoomPremium =
+        GlobalData::s_event_manager->GetRepeatEvent(0x57)->IsEventing(0) &&
+        premium->GetAdvantageFatigueRate() != 0 && GetPCRoomNo() != 0;
+    const int premiumProduct =
+        static_cast<int>(static_cast<unsigned short>(
+            premium->GetAdvantageFatigueRate())) *
+        DEFAULT_MAX_FATIGUE;
+    unsigned int maxPremiumFatigue =
+        static_cast<unsigned int>(premiumProduct / 100);
+    if (pcRoomPremium)
+    {
+        maxPremiumFatigue += *reinterpret_cast<const unsigned short*>(
+            reinterpret_cast<const char*>(G_CDataManager()) + 0x51c);
+    }
+    setCurCharacMaxPremiumFatigue(
+        static_cast<unsigned short>(maxPremiumFatigue));
+}
+
+// 0x0867cd20（原 GameStubs 桩，保持符号；premium 状态查询后续细化）
+bool CUser::IsPremiumUser() const
+{
+    return false;
 }

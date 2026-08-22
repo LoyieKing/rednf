@@ -91,7 +91,6 @@ int Dispatcher_ChangeHp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_Teleport::Dispatcher_Teleport() {}
 Dispatcher_Teleport::~Dispatcher_Teleport() {}
-int Dispatcher_Teleport::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_Teleport::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Teleport::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Teleport::send(CUser* user, ParamBase& param) {}
@@ -119,7 +118,6 @@ Dispatcher_SkillInit::Dispatcher_SkillInit() {}
 Dispatcher_SkillInit::~Dispatcher_SkillInit() {}
 int Dispatcher_SkillInit::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_SkillInit::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_SkillInit::process_skill_init() { return 0; }
 int Dispatcher_SkillInit::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_SkillInit::send(CUser* user, ParamBase& param) {}
 
@@ -156,7 +154,6 @@ int Dispatcher_ChangeHost::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ComboSkill::Dispatcher_ComboSkill() {}
 Dispatcher_ComboSkill::~Dispatcher_ComboSkill() {}
-int Dispatcher_ComboSkill::checkComboSkillIndex() { return 0; }
 int Dispatcher_ComboSkill::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_ComboSkill::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ComboSkill::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -170,7 +167,6 @@ int Dispatcher_GM_Command::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GuildCargo::Dispatcher_GuildCargo() {}
 Dispatcher_GuildCargo::~Dispatcher_GuildCargo() {}
-int Dispatcher_GuildCargo::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_GuildCargo::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GuildCargo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_GuildCargo::send(CUser* user, ParamBase& param) {}
@@ -195,7 +191,6 @@ int Dispatcher_MoveToGate::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 Dispatcher_PurifyItem::Dispatcher_PurifyItem() {}
 Dispatcher_PurifyItem::~Dispatcher_PurifyItem() {}
 int Dispatcher_PurifyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_PurifyItem::processPurifyType() { return 0; }
 int Dispatcher_PurifyItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_RedeemList::Dispatcher_RedeemList() {}
@@ -243,17 +238,12 @@ int Dispatcher_CranePickUp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_EPLPCommand::Dispatcher_EPLPCommand() {}
 Dispatcher_EPLPCommand::~Dispatcher_EPLPCommand() {}
-int Dispatcher_EPLPCommand::_BroadCastPacket() { return 0; }
-int Dispatcher_EPLPCommand::_SendEPLPError() { return 0; }
 int Dispatcher_EPLPCommand::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_EPLPCommand::excludeEplpState() { return 0; }
-int Dispatcher_EPLPCommand::isReTurnToVillage() { return 0; }
 int Dispatcher_EPLPCommand::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_EPLPCommand::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ModItemAttr::Dispatcher_ModItemAttr() {}
 Dispatcher_ModItemAttr::~Dispatcher_ModItemAttr() {}
-int Dispatcher_ModItemAttr::_SendResult() { return 0; }
 int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_ModItemAttr::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ModItemAttr::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -297,7 +287,6 @@ int Dispatcher_Back2Village::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 
 Dispatcher_BossDieCheck::Dispatcher_BossDieCheck() {}
 Dispatcher_BossDieCheck::~Dispatcher_BossDieCheck() {}
-int Dispatcher_BossDieCheck::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_BossDieCheck::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_BossDieCheck::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_BossDieCheck::send(CUser* user, ParamBase& param) {}
@@ -310,7 +299,6 @@ int Dispatcher_CodeCheckSum::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 
 Dispatcher_CollectItems::Dispatcher_CollectItems() {}
 Dispatcher_CollectItems::~Dispatcher_CollectItems() {}
-int Dispatcher_CollectItems::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_CollectItems::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CollectItems::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_CollectItems::send(CUser* user, ParamBase& param) {}
@@ -361,7 +349,6 @@ void Dispatcher_MailBox_Open::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_MailBox_Send::Dispatcher_MailBox_Send() {}
 Dispatcher_MailBox_Send::~Dispatcher_MailBox_Send() {}
-int Dispatcher_MailBox_Send::GuildMailCheck() { return 0; }
 int Dispatcher_MailBox_Send::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_MailBox_Send::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_MailBox_Send::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -399,7 +386,6 @@ int Dispatcher_Secede_Power::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 
 Dispatcher_SoloTeleport::Dispatcher_SoloTeleport() {}
 Dispatcher_SoloTeleport::~Dispatcher_SoloTeleport() {}
-int Dispatcher_SoloTeleport::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_SoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SoloTeleport::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_SoloTeleport::send(CUser* user, ParamBase& param) {}
@@ -422,7 +408,6 @@ int Dispatcher_UpgradeCargo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 
 Dispatcher_UseLimitCube::Dispatcher_UseLimitCube() {}
 Dispatcher_UseLimitCube::~Dispatcher_UseLimitCube() {}
-int Dispatcher_UseLimitCube::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UseLimitCube::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_UseLimitCube::send(CUser* user, ParamBase& param) {}
@@ -442,7 +427,6 @@ int Dispatcher_CallGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0;
 Dispatcher_ChangeEmotion::Dispatcher_ChangeEmotion() {}
 Dispatcher_ChangeEmotion::~Dispatcher_ChangeEmotion() {}
 int Dispatcher_ChangeEmotion::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_ChangeEmotion::isVaildEmotionValue() { return 0; }
 int Dispatcher_ChangeEmotion::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ChangeEmotion::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_ChangeEmotion::send(CUser* user, ParamBase& param) {}
@@ -467,7 +451,6 @@ int Dispatcher_DenyJoinGuild::read(PacketBuf& packet, MSG_BASE& msg) { return 0;
 
 Dispatcher_EnchantByBead::Dispatcher_EnchantByBead() {}
 Dispatcher_EnchantByBead::~Dispatcher_EnchantByBead() {}
-int Dispatcher_EnchantByBead::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_EnchantByBead::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_EnchantByBead::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_EnchantByBead::send(CUser* user, ParamBase& param) {}
@@ -503,11 +486,8 @@ int Dispatcher_JoinGuildInfo::read(PacketBuf& packet, MSG_BASE& msg) { return 0;
 
 Dispatcher_MouseRegister::Dispatcher_MouseRegister() {}
 Dispatcher_MouseRegister::~Dispatcher_MouseRegister() {}
-int Dispatcher_MouseRegister::checkValiedPassword() { return 0; }
 int Dispatcher_MouseRegister::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_MouseRegister::decryptPassword() { return 0; }
 int Dispatcher_MouseRegister::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_MouseRegister::doPassPadReplay() { return 0; }
 int Dispatcher_MouseRegister::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_MouseRegister::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_MouseRegister::send(CUser* user, ParamBase& param) {}
@@ -588,15 +568,12 @@ int Dispatcher_CheckJoinGuild::read(PacketBuf& packet, MSG_BASE& msg) { return 0
 
 Dispatcher_CompoundEmblem::Dispatcher_CompoundEmblem() {}
 Dispatcher_CompoundEmblem::~Dispatcher_CompoundEmblem() {}
-int Dispatcher_CompoundEmblem::SendCreateEmblemInfo() { return 0; }
 int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_CompoundEmblem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CompoundEmblem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_DisJointAvatar::Dispatcher_DisJointAvatar() {}
 Dispatcher_DisJointAvatar::~Dispatcher_DisJointAvatar() {}
-int Dispatcher_DisJointAvatar::SendCreateEmblemInfo() { return 0; }
-int Dispatcher_DisJointAvatar::SendDisjointAvatarInfo() { return 0; }
 int Dispatcher_DisJointAvatar::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_DisJointAvatar::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_DisJointAvatar::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -641,7 +618,6 @@ int Dispatcher_P2P_Statistics::read(PacketBuf& packet, MSG_BASE& msg) { return 0
 Dispatcher_PcRoomRentItem::Dispatcher_PcRoomRentItem() {}
 Dispatcher_PcRoomRentItem::~Dispatcher_PcRoomRentItem() {}
 int Dispatcher_PcRoomRentItem::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_PcRoomRentItem::giveDimensionItems() { return 0; }
 int Dispatcher_PcRoomRentItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PcRoomRentItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_PcRoomRentItem::send(CUser* user, ParamBase& param) {}
@@ -667,12 +643,9 @@ void Dispatcher_RenameCreature::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_UseBoosterItem::Dispatcher_UseBoosterItem() {}
 Dispatcher_UseBoosterItem::~Dispatcher_UseBoosterItem() {}
-int Dispatcher_UseBoosterItem::_onBoosterItemUseResult() { return 0; }
-int Dispatcher_UseBoosterItem::_onBoosterItemUseResult_OnlyOne() { return 0; }
 int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_UseBoosterItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UseBoosterItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-int Dispatcher_UseBoosterItem::sendBroadCastItems() { return 0; }
 
 Dispatcher_UserHistoryLog::Dispatcher_UserHistoryLog() {}
 Dispatcher_UserHistoryLog::~Dispatcher_UserHistoryLog() {}
@@ -684,14 +657,12 @@ Dispatcher_BuyCeraShopItem::~Dispatcher_BuyCeraShopItem() {}
 int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_BuyCeraShopItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_BuyCeraShopItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-int Dispatcher_BuyCeraShopItem::useCountDownCoinInFreeCoinDungeon() { return 0; }
 
 Dispatcher_CallGuildInvite::Dispatcher_CallGuildInvite() {}
 Dispatcher_CallGuildInvite::~Dispatcher_CallGuildInvite() {}
 int Dispatcher_CallGuildInvite::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_CallGuildInvite::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildInvite::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-int Dispatcher_CallGuildInvite::send_packet_guild_invite() { return 0; }
 
 Dispatcher_CancelJoinGuild::Dispatcher_CancelJoinGuild() {}
 Dispatcher_CancelJoinGuild::~Dispatcher_CancelJoinGuild() {}
@@ -773,11 +744,7 @@ void Dispatcher_MailBox_Extract::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_MonstercardBind::Dispatcher_MonstercardBind() {}
 Dispatcher_MonstercardBind::~Dispatcher_MonstercardBind() {}
-int Dispatcher_MonstercardBind::_bind_process() { return 0; }
-int Dispatcher_MonstercardBind::calcurate_rarity() { return 0; }
 int Dispatcher_MonstercardBind::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_MonstercardBind::check_need_slot() { return 0; }
-int Dispatcher_MonstercardBind::get_bind_result() { return 0; }
 int Dispatcher_MonstercardBind::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_MonstercardBind::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_MonstercardBind::send(CUser* user, ParamBase& param) {}
@@ -845,7 +812,6 @@ Dispatcher_CallGuildLevelUp::~Dispatcher_CallGuildLevelUp() {}
 int Dispatcher_CallGuildLevelUp::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_CallGuildLevelUp::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildLevelUp::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-int Dispatcher_CallGuildLevelUp::send_packet_guild_levelup() { return 0; }
 
 Dispatcher_CallGuildMembers::Dispatcher_CallGuildMembers() {}
 Dispatcher_CallGuildMembers::~Dispatcher_CallGuildMembers() {}
@@ -1050,14 +1016,12 @@ void Dispatcher_FatigueAttendance::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_GuildCargoHistory::Dispatcher_GuildCargoHistory() {}
 Dispatcher_GuildCargoHistory::~Dispatcher_GuildCargoHistory() {}
-int Dispatcher_GuildCargoHistory::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_GuildCargoHistory::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GuildCargoHistory::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_GuildCargoHistory::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_GuildCargoPopItem::Dispatcher_GuildCargoPopItem() {}
 Dispatcher_GuildCargoPopItem::~Dispatcher_GuildCargoPopItem() {}
-int Dispatcher_GuildCargoPopItem::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_GuildCargoPopItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GuildCargoPopItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_GuildCargoPopItem::send(CUser* user, ParamBase& param) {}
@@ -1088,7 +1052,6 @@ int Dispatcher_RequestItemUnlock::read(PacketBuf& packet, MSG_BASE& msg) { retur
 
 Dispatcher_SecretShopBuyItem::Dispatcher_SecretShopBuyItem() {}
 Dispatcher_SecretShopBuyItem::~Dispatcher_SecretShopBuyItem() {}
-int Dispatcher_SecretShopBuyItem::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_SecretShopBuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SecretShopBuyItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_SecretShopBuyItem::send(CUser* user, ParamBase& param) {}
@@ -1143,7 +1106,6 @@ int Dispatcher_BiddingRoutingItem::read(PacketBuf& packet, MSG_BASE& msg) { retu
 
 Dispatcher_Cancel_Quick_Party::Dispatcher_Cancel_Quick_Party() {}
 Dispatcher_Cancel_Quick_Party::~Dispatcher_Cancel_Quick_Party() {}
-int Dispatcher_Cancel_Quick_Party::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_Cancel_Quick_Party::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Cancel_Quick_Party::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Cancel_Quick_Party::send(CUser* user, ParamBase& param) {}
@@ -1173,14 +1135,12 @@ int Dispatcher_CharacterStatistic::read(PacketBuf& packet, MSG_BASE& msg) { retu
 
 Dispatcher_CloseDisjointStore::Dispatcher_CloseDisjointStore() {}
 Dispatcher_CloseDisjointStore::~Dispatcher_CloseDisjointStore() {}
-int Dispatcher_CloseDisjointStore::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_CloseDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CloseDisjointStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_CloseDisjointStore::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_CompatibilityIndex::Dispatcher_CompatibilityIndex() {}
 Dispatcher_CompatibilityIndex::~Dispatcher_CompatibilityIndex() {}
-int Dispatcher_CompatibilityIndex::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_CompatibilityIndex::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CompatibilityIndex::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
@@ -1204,7 +1164,6 @@ int Dispatcher_DungeonNPCBuffInfo::read(PacketBuf& packet, MSG_BASE& msg) { retu
 
 Dispatcher_EnterDisjointStore::Dispatcher_EnterDisjointStore() {}
 Dispatcher_EnterDisjointStore::~Dispatcher_EnterDisjointStore() {}
-int Dispatcher_EnterDisjointStore::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_EnterDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_EnterDisjointStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_EnterDisjointStore::send(CUser* user, ParamBase& param) {}
@@ -1217,14 +1176,12 @@ int Dispatcher_FrameLagStatistics::read(PacketBuf& packet, MSG_BASE& msg) { retu
 
 Dispatcher_GuildCargoMoveItem::Dispatcher_GuildCargoMoveItem() {}
 Dispatcher_GuildCargoMoveItem::~Dispatcher_GuildCargoMoveItem() {}
-int Dispatcher_GuildCargoMoveItem::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_GuildCargoMoveItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GuildCargoMoveItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_GuildCargoMoveItem::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_GuildCargoPushItem::Dispatcher_GuildCargoPushItem() {}
 Dispatcher_GuildCargoPushItem::~Dispatcher_GuildCargoPushItem() {}
-int Dispatcher_GuildCargoPushItem::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_GuildCargoPushItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_GuildCargoPushItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_GuildCargoPushItem::send(CUser* user, ParamBase& param) {}
@@ -1256,7 +1213,6 @@ void Dispatcher_RequestMemberEnter::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_Request_Seria_Buff::Dispatcher_Request_Seria_Buff() {}
 Dispatcher_Request_Seria_Buff::~Dispatcher_Request_Seria_Buff() {}
-int Dispatcher_Request_Seria_Buff::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_Request_Seria_Buff::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Request_Seria_Buff::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Request_Seria_Buff::send(CUser* user, ParamBase& param) {}
@@ -1287,7 +1243,6 @@ int Dispatcher_TitleBookOtherUser::read(PacketBuf& packet, MSG_BASE& msg) { retu
 
 Dispatcher_UnsealRandomOption::Dispatcher_UnsealRandomOption() {}
 Dispatcher_UnsealRandomOption::~Dispatcher_UnsealRandomOption() {}
-int Dispatcher_UnsealRandomOption::_check_unseal_scroll_item() { return 0; }
 int Dispatcher_UnsealRandomOption::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_UnsealRandomOption::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UnsealRandomOption::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -1295,7 +1250,6 @@ int Dispatcher_UnsealRandomOption::read(PacketBuf& packet, MSG_BASE& msg) { retu
 Dispatcher_ValidateScriptHash::Dispatcher_ValidateScriptHash() {}
 Dispatcher_ValidateScriptHash::~Dispatcher_ValidateScriptHash() {}
 int Dispatcher_ValidateScriptHash::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_ValidateScriptHash::get_hack_type() { return 0; }
 int Dispatcher_ValidateScriptHash::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_ValidateScriptHash::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
@@ -1325,7 +1279,6 @@ int Dispatcher_CompleteLoadAssault::read(PacketBuf& packet, MSG_BASE& msg) { ret
 
 Dispatcher_CreateDisjointStore::Dispatcher_CreateDisjointStore() {}
 Dispatcher_CreateDisjointStore::~Dispatcher_CreateDisjointStore() {}
-int Dispatcher_CreateDisjointStore::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_CreateDisjointStore::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CreateDisjointStore::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_CreateDisjointStore::send(CUser* user, ParamBase& param) {}
@@ -1356,7 +1309,6 @@ int Dispatcher_GuildMasterDelegate::read(PacketBuf& packet, MSG_BASE& msg) { ret
 Dispatcher_New_Gmdebug_Command::Dispatcher_New_Gmdebug_Command() {}
 Dispatcher_New_Gmdebug_Command::~Dispatcher_New_Gmdebug_Command() {}
 int Dispatcher_New_Gmdebug_Command::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_New_Gmdebug_Command::oldGmRoutine() { return 0; }
 int Dispatcher_New_Gmdebug_Command::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_New_Gmdebug_Command::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
@@ -1387,7 +1339,6 @@ void Dispatcher_RequestAssaultPrice::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_RequestDisjointItem::Dispatcher_RequestDisjointItem() {}
 Dispatcher_RequestDisjointItem::~Dispatcher_RequestDisjointItem() {}
-int Dispatcher_RequestDisjointItem::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_RequestDisjointItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestDisjointItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_RequestDisjointItem::send(CUser* user, ParamBase& param) {}
@@ -1406,7 +1357,6 @@ int Dispatcher_SaveCharacterOption::read(PacketBuf& packet, MSG_BASE& msg) { ret
 
 Dispatcher_SecretShopOpenClose::Dispatcher_SecretShopOpenClose() {}
 Dispatcher_SecretShopOpenClose::~Dispatcher_SecretShopOpenClose() {}
-int Dispatcher_SecretShopOpenClose::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_SecretShopOpenClose::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_SecretShopOpenClose::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_SecretShopOpenClose::send(CUser* user, ParamBase& param) {}
@@ -1495,7 +1445,6 @@ Dispatcher_CallGuildCreateRight::~Dispatcher_CallGuildCreateRight() {}
 int Dispatcher_CallGuildCreateRight::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_CallGuildCreateRight::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_CallGuildCreateRight::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-int Dispatcher_CallGuildCreateRight::send_packet_guildcreateright() { return 0; }
 
 Dispatcher_Check3rdPartyConcent::Dispatcher_Check3rdPartyConcent() {}
 Dispatcher_Check3rdPartyConcent::~Dispatcher_Check3rdPartyConcent() {}
@@ -1511,7 +1460,6 @@ int Dispatcher_CheckGuildNameDouble::read(PacketBuf& packet, MSG_BASE& msg) { re
 Dispatcher_Compound_ExtreamItem::Dispatcher_Compound_ExtreamItem() {}
 Dispatcher_Compound_ExtreamItem::~Dispatcher_Compound_ExtreamItem() {}
 int Dispatcher_Compound_ExtreamItem::_push_newitem() { return 0; }
-int Dispatcher_Compound_ExtreamItem::_read_packet() { return 0; }
 int Dispatcher_Compound_ExtreamItem::_remove_victim() { return 0; }
 int Dispatcher_Compound_ExtreamItem::_reset() { return 0; }
 int Dispatcher_Compound_ExtreamItem::_send_result() { return 0; }
@@ -1559,7 +1507,6 @@ void Dispatcher_PcRoomPlayTimeReward::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_PrecheckSoloTeleport::Dispatcher_PrecheckSoloTeleport() {}
 Dispatcher_PrecheckSoloTeleport::~Dispatcher_PrecheckSoloTeleport() {}
-int Dispatcher_PrecheckSoloTeleport::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_PrecheckSoloTeleport::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_PrecheckSoloTeleport::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_PrecheckSoloTeleport::send(CUser* user, ParamBase& param) {}
@@ -1571,7 +1518,6 @@ int Dispatcher_PvpMissionComboClear::read(PacketBuf& packet, MSG_BASE& msg) { re
 
 Dispatcher_Register_Quick_Party::Dispatcher_Register_Quick_Party() {}
 Dispatcher_Register_Quick_Party::~Dispatcher_Register_Quick_Party() {}
-int Dispatcher_Register_Quick_Party::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_Register_Quick_Party::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Register_Quick_Party::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Register_Quick_Party::send(CUser* user, ParamBase& param) {}
@@ -1641,7 +1587,6 @@ int Dispatcher_OpenGuildCreateWindow::read(PacketBuf& packet, MSG_BASE& msg) { r
 
 Dispatcher_RepairDisjointMachine::Dispatcher_RepairDisjointMachine() {}
 Dispatcher_RepairDisjointMachine::~Dispatcher_RepairDisjointMachine() {}
-int Dispatcher_RepairDisjointMachine::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_RepairDisjointMachine::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RepairDisjointMachine::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_RepairDisjointMachine::send(CUser* user, ParamBase& param) {}
@@ -1753,7 +1698,6 @@ void Dispatcher_TournamentRewardSelect::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_UpgradeDisjointMachine::Dispatcher_UpgradeDisjointMachine() {}
 Dispatcher_UpgradeDisjointMachine::~Dispatcher_UpgradeDisjointMachine() {}
-int Dispatcher_UpgradeDisjointMachine::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_UpgradeDisjointMachine::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_UpgradeDisjointMachine::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_UpgradeDisjointMachine::send(CUser* user, ParamBase& param) {}
@@ -1833,7 +1777,6 @@ int Dispatcher_CompleteLoadAfterAssault::read(PacketBuf& packet, MSG_BASE& msg) 
 Dispatcher_Enchant_3rdChronicleItem::Dispatcher_Enchant_3rdChronicleItem() {}
 Dispatcher_Enchant_3rdChronicleItem::~Dispatcher_Enchant_3rdChronicleItem() {}
 int Dispatcher_Enchant_3rdChronicleItem::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_Enchant_3rdChronicleItem::check_state() { return 0; }
 int Dispatcher_Enchant_3rdChronicleItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Enchant_3rdChronicleItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Enchant_3rdChronicleItem::send(CUser* user, ParamBase& param) {}
@@ -1890,7 +1833,6 @@ int Dispatcher_SelectUltimateDifficulty::read(PacketBuf& packet, MSG_BASE& msg) 
 
 Dispatcher_Select_Item_Grwoth_Power::Dispatcher_Select_Item_Grwoth_Power() {}
 Dispatcher_Select_Item_Grwoth_Power::~Dispatcher_Select_Item_Grwoth_Power() {}
-int Dispatcher_Select_Item_Grwoth_Power::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_Select_Item_Grwoth_Power::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Select_Item_Grwoth_Power::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Select_Item_Grwoth_Power::send(CUser* user, ParamBase& param) {}
@@ -1965,7 +1907,6 @@ int Dispatcher_RequestIngameAdvertisement::check_error(CUser* user, MSG_BASE& ms
 int Dispatcher_RequestIngameAdvertisement::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_RequestIngameAdvertisement::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_RequestIngameAdvertisement::send(CUser* user, ParamBase& param) {}
-int Dispatcher_RequestIngameAdvertisement::sendRewardItemSystemMail() { return 0; }
 
 Dispatcher_CallPartyMemberRealtimeInfo::Dispatcher_CallPartyMemberRealtimeInfo() {}
 Dispatcher_CallPartyMemberRealtimeInfo::~Dispatcher_CallPartyMemberRealtimeInfo() {}
@@ -1976,7 +1917,6 @@ void Dispatcher_CallPartyMemberRealtimeInfo::send(CUser* user, ParamBase& param)
 
 Dispatcher_Direct_Entrance_Quick_Party::Dispatcher_Direct_Entrance_Quick_Party() {}
 Dispatcher_Direct_Entrance_Quick_Party::~Dispatcher_Direct_Entrance_Quick_Party() {}
-int Dispatcher_Direct_Entrance_Quick_Party::check_error(CUser* user, MSG_BASE& msg) { return 0; }
 int Dispatcher_Direct_Entrance_Quick_Party::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Direct_Entrance_Quick_Party::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_Direct_Entrance_Quick_Party::send(CUser* user, ParamBase& param) {}
@@ -2102,16 +2042,13 @@ void Dispatcher_ComboSkillExtensionQuickSlotReset::send(CUser* user, ParamBase& 
 
 Dispatcher_Select_3rdChronicleItem_ForEnchant::Dispatcher_Select_3rdChronicleItem_ForEnchant() {}
 Dispatcher_Select_3rdChronicleItem_ForEnchant::~Dispatcher_Select_3rdChronicleItem_ForEnchant() {}
-int Dispatcher_Select_3rdChronicleItem_ForEnchant::check_state() { return 0; }
 int Dispatcher_Select_3rdChronicleItem_ForEnchant::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_Select_3rdChronicleItem_ForEnchant::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_GrowthCreatureChangeInfinityCreature::Dispatcher_GrowthCreatureChangeInfinityCreature() {}
 Dispatcher_GrowthCreatureChangeInfinityCreature::~Dispatcher_GrowthCreatureChangeInfinityCreature() {}
 int Dispatcher_GrowthCreatureChangeInfinityCreature::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_GrowthCreatureChangeInfinityCreature::check_error_event() { return 0; }
 int Dispatcher_GrowthCreatureChangeInfinityCreature::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_GrowthCreatureChangeInfinityCreature::process_event() { return 0; }
 int Dispatcher_GrowthCreatureChangeInfinityCreature::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 void Dispatcher_GrowthCreatureChangeInfinityCreature::send(CUser* user, ParamBase& param) {}
 
@@ -2126,7 +2063,6 @@ namespace ARAD {
 namespace DISPATCHER {
 Dispatcher_AvartarRoulette::Dispatcher_AvartarRoulette() {}
 Dispatcher_AvartarRoulette::~Dispatcher_AvartarRoulette() {}
-int Dispatcher_AvartarRoulette::checkWorkState(CUser* user) { return 0; }
 int Dispatcher_AvartarRoulette::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_AvartarRoulette::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AvartarRoulette::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -2140,28 +2076,24 @@ int Dispatcher_AvartarCoinCount::read(PacketBuf& packet, MSG_BASE& msg) { return
 
 Dispatcher_AradAvatarConvert::Dispatcher_AradAvatarConvert() {}
 Dispatcher_AradAvatarConvert::~Dispatcher_AradAvatarConvert() {}
-int Dispatcher_AradAvatarConvert::checkWorkState(CUser* user) { return 0; }
 int Dispatcher_AradAvatarConvert::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_AradAvatarConvert::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AradAvatarConvert::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_AradEmblemCompound::Dispatcher_AradEmblemCompound() {}
 Dispatcher_AradEmblemCompound::~Dispatcher_AradEmblemCompound() {}
-int Dispatcher_AradEmblemCompound::checkWorkState(CUser* user) { return 0; }
 int Dispatcher_AradEmblemCompound::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_AradEmblemCompound::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AradEmblemCompound::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_AradJumpingCharacter::Dispatcher_AradJumpingCharacter() {}
 Dispatcher_AradJumpingCharacter::~Dispatcher_AradJumpingCharacter() {}
-int Dispatcher_AradJumpingCharacter::checkWorkState(CUser* user) { return 0; }
 int Dispatcher_AradJumpingCharacter::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_AradJumpingCharacter::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AradJumpingCharacter::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_AradUseAvatarRecharge::Dispatcher_AradUseAvatarRecharge() {}
 Dispatcher_AradUseAvatarRecharge::~Dispatcher_AradUseAvatarRecharge() {}
-int Dispatcher_AradUseAvatarRecharge::checkWorkState(CUser* user) { return 0; }
 int Dispatcher_AradUseAvatarRecharge::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_AradUseAvatarRecharge::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AradUseAvatarRecharge::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -2174,7 +2106,6 @@ int Dispatcher_EventCreateDnfRequest::read(PacketBuf& packet, MSG_BASE& msg) { r
 
 Dispatcher_AvartarHiddenOptionChange::Dispatcher_AvartarHiddenOptionChange() {}
 Dispatcher_AvartarHiddenOptionChange::~Dispatcher_AvartarHiddenOptionChange() {}
-int Dispatcher_AvartarHiddenOptionChange::checkWorkState(CUser* user) { return 0; }
 int Dispatcher_AvartarHiddenOptionChange::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
 int Dispatcher_AvartarHiddenOptionChange::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
 int Dispatcher_AvartarHiddenOptionChange::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
@@ -2190,25 +2121,13 @@ int Dispatcher_RequestPrcoomDayilyReward::read(PacketBuf& packet, MSG_BASE& msg)
 namespace ARAD {
 Arad_Dispatcher_Manager::Arad_Dispatcher_Manager() {}
 Arad_Dispatcher_Manager::~Arad_Dispatcher_Manager() {}
-int Arad_Dispatcher_Manager::db_dispatch() { return 0; }
-int Arad_Dispatcher_Manager::inter_dispatch() { return 0; }
 int Arad_Dispatcher_Manager::open() { return 0; }
-int Arad_Dispatcher_Manager::register_dispatcher() { return 0; }
-int Arad_Dispatcher_Manager::unregister_dispatcher() { return 0; }
 
 Arad_Dispatcher_Login_Impl::Arad_Dispatcher_Login_Impl() {}
 Arad_Dispatcher_Login_Impl::~Arad_Dispatcher_Login_Impl() {}
-int Arad_Dispatcher_Login_Impl::account_password_check() { return 0; }
-int Arad_Dispatcher_Login_Impl::db_dispatch() { return 0; }
-int Arad_Dispatcher_Login_Impl::inter_dispatch() { return 0; }
-int Arad_Dispatcher_Login_Impl::pad_certifiaction_check() { return 0; }
-int Arad_Dispatcher_Login_Impl::premium_info_set() { return 0; }
-int Arad_Dispatcher_Login_Impl::punish_user_check() { return 0; }
 
 Arad_Dispatcher_BuyItemCheck_Impl::Arad_Dispatcher_BuyItemCheck_Impl() {}
 Arad_Dispatcher_BuyItemCheck_Impl::~Arad_Dispatcher_BuyItemCheck_Impl() {}
-int Arad_Dispatcher_BuyItemCheck_Impl::db_dispatch() { return 0; }
-int Arad_Dispatcher_BuyItemCheck_Impl::inter_dispatch() { return 0; }
 
 }
 namespace APSystem {

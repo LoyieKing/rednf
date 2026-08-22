@@ -43,6 +43,9 @@ public:
 
 extern ServiceFactory* pApp;
 
+extern bool is_config_changed;
+extern bool is_config_reloaded;
+
 } // namespace nsl
 
 #endif // NSL_SERVICEFACTORY_H_

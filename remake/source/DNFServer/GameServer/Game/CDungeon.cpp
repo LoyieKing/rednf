@@ -159,6 +159,10 @@ float CDungeon::get_exp_weight() const
 {
     return *(float*)&m_14;
 }
+std::vector<std::pair<int, int> >* CDungeon::getDropItems() const
+{
+    return const_cast<std::vector<std::pair<int, int> >*>(&m_vec40);
+}
 std::vector<std::pair<int, int> >* CDungeon::getObjectDropItems() const
 {
     return const_cast<std::vector<std::pair<int, int> >*>(&m_vec4c);
@@ -197,6 +201,140 @@ std::vector<MazeScript>* CDungeon::GetQuestMazeScriptVector(
     return &((std::vector<MazeScript>*)&m_mazeList0)[mazeQuestType];
 }
 
+// ---- 迁移自 GameStubs.cpp 的 CDungeon 桩方法（ORIG 弱符号，签名已核对）----
+CDungeon::CDungeon()
+{
+    // ORIG 0x08373f3c：构造容器/初始化 POD 字段；std 成员自动构造。
+    m_flag4 = 0;
+    m_index = 0;
+    m_c = 0;
+    m_10 = 0;
+    m_14 = 0;
+    m_34 = 0;
+    m_38 = 0;
+    m_39 = 0;
+    m_3a = 0;
+    m_3b = 0;
+    m_3c = 0;
+    m_624 = 0;
+    m_628 = 0;
+    m_650 = 0;
+    m_654 = 0;
+    m_670 = 0;
+    m_680 = 0;
+    m_684 = 0;
+    m_688 = 0;
+    m_68c = 0;
+    m_69c = 0;
+    m_6a0 = 0;
+    m_6a4 = 0;
+    m_6b4 = 0;
+    m_6b5 = 0;
+    m_6b8 = 0;
+    m_6c8 = 0;
+    m_6c9 = 0;
+    m_6cc = 0;
+    m_6d0 = 0;
+    m_6d1 = 0;
+    m_804 = 0;
+    m_878 = 0;
+    m_879 = 0;
+    m_87a = 0;
+    m_87b = 0;
+    m_87c = 0;
+    m_894 = 0;
+    m_898 = 0;
+    m_89c = 0;
+    m_89d = 0;
+    m_89e = 0;
+    m_89f = 0;
+    m_8a0 = 0;
+    m_8a4 = 0;
+    m_8a8 = 0;
+    m_8fc = 0;
+}
+
+CDungeon::~CDungeon()
+{
+    // ORIG 0x08376fd8：析构 std 容器成员（自动）。
+}
+
+int CDungeon::get_index() const
+{
+    // ORIG 0x080fdcf0：return m_index（+0x08）
+    return m_index;
+}
+
+int CDungeon::get_min_level() const
+{
+    // ORIG 0x0814559a：return m_c（+0x0c）
+    return m_c;
+}
+
+int CDungeon::get_standard_level() const
+{
+    // ORIG 0x080f9810：return m_10（+0x10）
+    return m_10;
+}
+
+const char* CDungeon::GetDungeonName() const
+{
+    // ORIG 0x081455a6：return m_name.c_str()（m_name +0x18）
+    return m_name.c_str();
+}
+
+int CDungeon::get_dimension_possible() const
+{
+    // ORIG 0x0826b938：return (bool)m_38（movzbl 0x38）
+    return (unsigned char)m_38;
+}
+
+int CDungeon::isTowerOfDespairDungeon() const
+{
+    // ORIG 0x0822b4fa：return GetType_DungeonInHeritance() == 1
+    return GetType_DungeonInHeritance() == 1;
+}
+
+int CDungeon::isTournamentDungeon() const
+{
+    // ORIG 0x0836520a：返回 +0x8a8 位标志（1=普通赛, 2=特殊）
+    return m_8a8;
+}
+
+bool CDungeon::IsEnterEachMap() const
+{
+    // ORIG 0x08365278：return (bool)m_6d0（movzbl 0x6d0）
+    return (bool)(unsigned char)m_6d0;
+}
+
+void CDungeon::set_dungeon(STDungeonScript& script)
+{
+    // ORIG 0x0834acc4：从脚本复制字段到副本
+    m_index = script.m_18;
+    m_10 = script.m_ac;
+    m_c = script.m_78;
+    m_14 = script.m_b0;
+    m_name = script.m_str1c;
+}
+
+// ---- CDungeon_TowerOfDespair（迁移自 GameStubs.cpp；ORIG W 0x08377606）----
+CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
+{
+}
+
+CDungeon_TowerOfDespair::~CDungeon_TowerOfDespair()
+{
+}
+
+int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
+{
+    // ORIG 0x0834d8ec：进入绝望之塔时递增 TOD_UserState 进入计数。
+    // 依赖 TOD_UserState::IncreaseEnterCount（未实现），此处保留 null 检查 + 成功返回，
+    // 待 TOD_UserState 补齐后续细化。
+    if (user == 0)
+        return 0;
+    return 1;
+}
 int CDungeon::_do_after_dungeon_start(CUser* user) const
 {
     return 1;

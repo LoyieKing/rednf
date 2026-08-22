@@ -1,334 +1,243 @@
-// df_game_r Game/ CUserPremium 实现（独立 TU，从 GameStubs.cpp 拆出）。
-// 声明以 CUser.h 为准。
+// df_game_r Game/ CUserPremium 实现（独立 TU）。
+// 声明以 CUser.h 为准；布局沿用 CUser.h 的 m_pad[0x97c] 模型，本 TU 通过
+// 明确偏移访问 ORIG 字段（参照 docs/class_func_reports/WongWork__CUserPremium）。
 #include "CUser.h"
 #include "GlobalData.h"
+
+#include <map>
+#include <string.h>
+#include <time.h>
+
+
 namespace WongWork
 {
+
+// ---- 文件级容器近似（ORIG 中 returnItemMap 为 CUserPremium+0x964 的 std::map，
+//      premiumItemDataMap 为全局 g_map_premium_item_data；LoadPremiumInfo 未实现，
+//      容器按空处理，仅保证编译与安全访问）----
+static std::map<int, int> s_returnItemMap;
+static std::map<unsigned long, STPremiumItemData> s_premiumItemDataMap;
+// ---------------------------------------------------------------------------
+// g_SPremiumInfo 分区视图。g_SPremiumInfo[type] 定义每类 premium，stride 0x120。
+// ---------------------------------------------------------------------------
 #pragma pack(push, 1)
 struct PremiumItemView
 {
-    int m_itemIndex;
-    int m_count;
+    int m_itemIndex;   // +0x00
+    int m_count;       // +0x04
 };
 
 struct PremiumDefinitionView
 {
-    int m_type;
-    int m_enabled;
-    PremiumItemView m_items[5];
-    char m_reserved34[0x40];
-    unsigned short m_advantageExpRate;
-    int m_advantageFatigueRate;
-    int m_advantagePremiumCount;
-    int m_needDailyCheck;
-    char m_reserved84[0x1c];
-    char m_overEquipFlag;
-    char m_reserveda1[0xb];
-    int m_applyDayMask;
-    char m_reserveda9[3];
-    int m_fieldAc;
-    char m_reservedb0[0x70];
-};
-struct UserAdditionalInfoView
-{
-    int m_value0;
-    int m_value1;
-    unsigned short m_value2;
-    unsigned short m_value3;
-    unsigned short m_value4;
-    unsigned short m_value5;
-    int m_value10;
-    char m_reserved14[0x26];
-    int m_value3a;
-    unsigned short m_value3e;
-    union
-    {
-        unsigned short m_loopValues[4];
-        struct
-        {
-            int m_value42;
-            unsigned short m_value46;
-        };
-    };
-    short m_value4a;
-    char m_reserved4c[0x14];
-};
-
-struct PremiumAdditionalView
-{
-    int m_base0;
-    int m_base1;
-    unsigned short m_baseRate[4];
-    unsigned short m_scale[4];
-    char m_reserved18[0x22];
-    int m_multiplier0;
-    short m_multiplier1;
-    short m_multiplier2;
-    int m_multiplier3;
-    short m_multiplier4;
-    short m_multiplier5;
-    short m_multiplier6;
-    short m_multiplier7;
-    char m_reserved4e[4];
-    unsigned int m_output0;
-    unsigned int m_output1;
-    unsigned short m_output2;
-    unsigned short m_output3;
-    unsigned short m_output4;
-    unsigned short m_output5;
-    unsigned short m_output6[4];
-    char m_reserved6a[0x22];
-    int m_output10;
-    short m_output11;
-    short m_output12;
-    unsigned int m_output13;
-    short m_output14;
-    short m_output15;
-    short m_output16;
-    short m_output17;
+    int m_type;                 // +0x00
+    int m_enabled;              // +0x04
+    PremiumItemView m_items[5]; // +0x08（5 * 8 = 0x28）
+    char m_reserved30[0x40];    // +0x30 .. +0x6f
+    unsigned short m_advantageExpRate;      // +0x70
+    int m_advantageFatigueRate;             // +0x74
+    int m_advantagePremiumCount;            // +0x78
+    int m_needDailyCheck;                   // +0x7c
+    char m_reserved80[0x18];                // +0x80 .. +0x97
+    char m_overEquipFlag;                   // +0x98
+    char m_reserved99[0x0b];                // +0x99 .. +0xa3
+    int m_applyDayMask[7];                  // +0xac（7 天允许掩码；[0]==-1 表示每天）
+    char m_reservedc8[0x58];                // +0xc8 .. +0x11f
 };
 #pragma pack(pop)
 
-static PremiumDefinitionView* GetPremiumDefinition(int type)
+static const PremiumDefinitionView* GetPremiumDefinition(int type)
 {
-    return &reinterpret_cast<PremiumDefinitionView*>(GlobalData::g_SPremiumInfo)[type];
+    return &reinterpret_cast<const PremiumDefinitionView*>(GlobalData::g_SPremiumInfo)[type];
+}
+
+// ---------------------------------------------------------------------------
+// CUserPremium 字段（ORIG 偏移，位于 m_pad 内）
+//   0x000 entries[0x69]   0x848 normalCount   0x84c restrictedCount
+//   0x850 outFatigueRate  0x854 outPremiumCount  0x858 outExpRate
+//   0x85c overEquipFlag   0x85e overSkillLevel   0x860 field860   0x862 field862
+//   0x864 additionalInfo[0x58]  0x8bc field8bc   0x8bd additionalBase   0x90f additionalOut
+//   0x964 returnItemMap（ORIG 为 std::map<int,int>；本 TU 用文件级 map 近似）
+// ---------------------------------------------------------------------------
+static SUserPremiumInfo* Entries(CUserPremium* self)
+{
+    return reinterpret_cast<SUserPremiumInfo*>(self->m_pad);
 }
 
 unsigned short CUserPremium::getOverSkillLevel() const
 {
-    return m_overSkillLevel;
+    return *reinterpret_cast<const unsigned short*>(&m_pad[0x85e]);
 }
 
 int CUserPremium::GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const
 {
-    (void)type;
-    return m_premium.m_overEquipFlag != 0 ? 10 : 0;
+    return *reinterpret_cast<const int*>(&m_pad[0x218 + (int)type * 4 + 4]);
 }
 
-void CUserPremium::InitPremium()
+int CUserPremium::GetAdvantageExpRate() const
 {
-    memset(m_entryPrefix, 0, sizeof(m_entryPrefix));
-    memset(m_entries, 0, sizeof(m_entries));
-    m_premium.m_normalCount = 0;
-    m_premium.m_restrictedCount = 0;
-    m_premium.m_advantageExpRate = 0;
-    m_premium.m_advantageFatigueRate = 0;
-    m_premium.m_advantagePremiumCount = 0;
-    m_premium.m_needDailyCheck = 0;
-    m_premium.m_field85e = 0;
-    m_premium.m_field860 = 0;
-    m_premium.m_field862 = 0;
-    memset(m_premium.m_additionalInfo, 0, sizeof(m_premium.m_additionalInfo));
-    m_premium.m_overEquipFlag = 0;
-    m_premium.m_additionalBase[0] = 0;
-    m_premium.m_returnItemMap.clear();
+    return *reinterpret_cast<const int*>(&m_pad[0x858]);
 }
 
 short CUserPremium::GetAdvantageFatigueRate() const
 {
-    return static_cast<short>(m_premium.m_advantageFatigueRate);
-}
-
-short CUserPremium::GetAdvantageExpRate() const
-{
-    return static_cast<short>(m_premium.m_advantageExpRate);
-}
-
-bool CUserPremium::CheckPremium(int type) const
-{
-    SUserPremiumInfo* info = GetPremiumInfo(type);
-    return info->m_type != 0 && info->m_state != 3;
+    return *reinterpret_cast<const short*>(&m_pad[0x850]);
 }
 
 int CUserPremium::GetAdvPremiumCount() const
 {
-    return m_premium.m_advantagePremiumCount;
+    return *reinterpret_cast<const int*>(&m_pad[0x848]);
+}
+
+void CUserPremium::InitPremium()
+{
+    // ORIG：memset(this, 0, 0x848) —— 前缀 + entries
+    memset(m_pad, 0, 0x848);
+    *(int*)&m_pad[0x848] = 0;                // normalCount
+    *(int*)&m_pad[0x84c] = 0;                // restrictedCount
+    *(short*)&m_pad[0x850] = 0;              // outFatigueRate
+    *(int*)&m_pad[0x854] = 0;                // outPremiumCount
+    *(int*)&m_pad[0x858] = 0;                // outExpRate
+    m_pad[0x85c] = 0;                        // overEquipFlag
+    *(short*)&m_pad[0x85e] = 0;              // overSkillLevel
+    *(short*)&m_pad[0x860] = 0;              // field860
+    m_pad[0x862] = 0;                        // field862
+    memset(&m_pad[0x864], 0, 0x58);          // additionalInfo[0x58]
+    m_pad[0x8bc] = 0;                        // field8bc
+    memset(&m_pad[0x8bd], 0, 0x58);          // additionalBase
+    memset(&m_pad[0x90f], 0, 0x55);          // additionalOut
+    s_returnItemMap.clear();                 // returnItemMap
 }
 
 void CUserPremium::AddPremium(int type, int start, int end, int flag)
 {
-    SUserPremiumInfo* entry = GetPremiumInfo(type);
+    SUserPremiumInfo* entry = Entries(this);
+    entry += type;
     if (entry->m_type != 0)
         RemovePremium(type);
     entry->m_type = type;
     entry->m_start = start;
     entry->m_end = end;
     entry->m_flag = flag;
-    if (GetPremiumDefinition(type)->m_fieldAc != -1)
-        m_premium.m_field862 = 1;
+    const PremiumDefinitionView* def = GetPremiumDefinition(type);
+    if (def->m_applyDayMask[0] != -1)
+        m_pad[0x862] = 1;
     startPremium(type, true);
 }
 
 void CUserPremium::RemovePremium(int type)
 {
-    SUserPremiumInfo* entry = GetPremiumInfo(type);
-    if (entry->m_state != 2)
+    SUserPremiumInfo* entry = Entries(this);
+    if (entry[type].m_state != 2)
     {
-        entry->m_type = 0;
-        PremiumDefinitionView* premiumInfo = GetPremiumDefinition(type);
-        if (premiumInfo->m_type == 1)
+        entry[type].m_type = 0;
+        const PremiumDefinitionView* def = GetPremiumDefinition(type);
+        if (def->m_type == 1)
         {
-            --m_premium.m_normalCount;
-            if (m_premium.m_normalCount < 0)
-                m_premium.m_normalCount = 0;
+            int c = *(int*)&m_pad[0x848] - 1;
+            *(int*)&m_pad[0x848] = c > 0 ? c : 0;
         }
         else
         {
-            --m_premium.m_restrictedCount;
-            if (m_premium.m_restrictedCount < 0)
-                m_premium.m_restrictedCount = 0;
+            int c = *(int*)&m_pad[0x84c] - 1;
+            *(int*)&m_pad[0x84c] = c > 0 ? c : 0;
         }
     }
 }
 
 int CUserPremium::startPremium(int type, bool force)
 {
-    SUserPremiumInfo* entry = GetPremiumInfo(type);
-    if (!force && entry->m_state != 2)
+    SUserPremiumInfo* entry = Entries(this);
+    if (!force && entry[type].m_state != 2)
         return 0;
     int curTime = GlobalData::s_systemTime_.getCurSec();
-    PremiumDefinitionView* premiumInfo = GetPremiumDefinition(type);
-    if (premiumInfo->m_enabled != 0)
+    const PremiumDefinitionView* def = GetPremiumDefinition(type);
+    if (def->m_enabled != 0)
     {
-        if (curTime < entry->m_start)
+        if (curTime < entry[type].m_start)
         {
-            entry->m_state = 2;
+            entry[type].m_state = 2;
             return 0;
         }
-        if (entry->m_end <= curTime)
+        if (entry[type].m_end <= curTime)
             return 0;
     }
-    if (premiumInfo->m_type == 1)
-        ++m_premium.m_normalCount;
+    if (def->m_type == 1)
+        ++(*(int*)&m_pad[0x848]);
     else
-        ++m_premium.m_restrictedCount;
-    entry->m_state = 1;
+        ++(*(int*)&m_pad[0x84c]);
+    entry[type].m_state = 1;
     return 1;
 }
 
 void CUserPremium::ReCalcAdvantage()
 {
-    m_premium.m_advantageExpRate = 0;
-    m_premium.m_advantageFatigueRate = 0;
-    m_premium.m_advantagePremiumCount = 0;
-    m_premium.m_needDailyCheck = 0;
-    m_premium.m_overEquipFlag = 0;
-    memset(m_premium.m_additionalInfo, 0, sizeof(m_premium.m_additionalInfo));
-    m_premium.m_field85e = 0;
-    m_premium.m_field860 = 0;
-    m_premium.m_returnItemMap.clear();
+    *(short*)&m_pad[0x850] = 0;   // outFatigueRate
+    *(int*)&m_pad[0x854] = 0;     // outPremiumCount
+    *(int*)&m_pad[0x858] = 0;     // outExpRate
+    m_pad[0x85c] = 0;             // overEquipFlag
+    m_pad[0x8bc] = 0;             // field8bc
+    memset(&m_pad[0x864], 0, 0x58);
+    memset(&m_pad[0x8bd], 0, 0x58);
+    memset(&m_pad[0x90f], 0, 0x55);
+    *(short*)&m_pad[0x85e] = 0;   // overSkillLevel
+    *(short*)&m_pad[0x860] = 0;   // field860
+    s_returnItemMap.clear();
 
-    for (int type = 1; type < 0x6a; ++type)
+    int now = GlobalData::s_systemTime_.getCurSec();
+    tm localTm;
+    time_t nowT = (time_t)now;
+    localtime_r(&nowT, &localTm);
+
+    SUserPremiumInfo* entries = Entries(this);
+    for (int type = 1; type <= 0x69; ++type)
     {
-        SUserPremiumInfo* entry = GetPremiumInfo(type);
-        int entryType = entry->m_type;
+        int entryType = entries[type].m_type;
         if (entryType == 0 || entryType >= 0x6a)
             continue;
-        PremiumDefinitionView* premiumInfo = GetPremiumDefinition(entryType);
-        if (premiumInfo->m_type != 1)
+        if (entries[type].m_state == 2)
             continue;
-        if (premiumInfo->m_needDailyCheck != 0)
-            m_premium.m_needDailyCheck = 1;
-        m_premium.m_advantageExpRate += premiumInfo->m_advantageExpRate;
-        m_premium.m_advantagePremiumCount += premiumInfo->m_advantagePremiumCount;
-        m_premium.m_advantageFatigueRate += premiumInfo->m_advantageFatigueRate;
-        if (premiumInfo->m_overEquipFlag != 0)
-            m_premium.m_overEquipFlag = 1;
+        const PremiumDefinitionView* def = GetPremiumDefinition(entryType);
+        if (def->m_type != 1)
+            continue;
+        if (!_CheckApply(entryType, localTm))
+            continue;
+        if (def->m_needDailyCheck != 0)
+            m_pad[0x85c] = 1;
+        *(int*)&m_pad[0x858] += def->m_advantageExpRate;
+        *(int*)&m_pad[0x854] += def->m_advantagePremiumCount;
+        *(short*)&m_pad[0x850] =
+            (short)(*(short*)&m_pad[0x850] + def->m_advantageFatigueRate);
+        if (def->m_overEquipFlag != 0)
+            m_pad[0x8bc] = 1;
     }
 }
 
-
-
-void CUserPremium::RecalcAdditionalInfo(CUser* user)
+void CUserPremium::setPremiumState(ENUM_PREMIUM_TYPE type, ENUM_PREMIUM_STATE state)
 {
-    if (user->getCurCharacR() == 0 || GetAdvPremiumCount() == 0)
-        return;
-
-    const UserAdditionalInfoView* addInfo =
-        reinterpret_cast<const UserAdditionalInfoView*>(user->getCurCharacAddInfoR());
-    PremiumAdditionalView* premium =
-        reinterpret_cast<PremiumAdditionalView*>(m_premium.m_additionalBase);
-    premium->m_output0 = static_cast<unsigned int>(premium->m_base0 * addInfo->m_value0) / 100;
-    premium->m_output1 = static_cast<unsigned int>(premium->m_base1 * addInfo->m_value1) / 100;
-    premium->m_output2 = static_cast<short>(
-        (static_cast<unsigned int>(addInfo->m_value2) * premium->m_baseRate[0]) / 100);
-    premium->m_output3 = static_cast<short>(
-        (static_cast<unsigned int>(addInfo->m_value3) * premium->m_baseRate[1]) / 100);
-    premium->m_output4 = static_cast<short>(
-        (static_cast<unsigned int>(addInfo->m_value4) * premium->m_baseRate[2]) / 100);
-    premium->m_output5 = static_cast<short>(
-        (static_cast<unsigned int>(addInfo->m_value5) * premium->m_baseRate[3]) / 100);
-    for (int i = 0; i < 4; ++i)
-    {
-        premium->m_output6[i] = static_cast<short>(
-            (static_cast<int>(addInfo->m_loopValues[i]) * premium->m_scale[i]) / 100);
-    }
-    premium->m_output10 = (addInfo->m_value3a * premium->m_multiplier0) / 100;
-    premium->m_output11 = static_cast<short>(addInfo->m_value3e * premium->m_multiplier1 / 100);
-    premium->m_output12 = static_cast<short>(addInfo->m_value10 * premium->m_multiplier2 / 100);
-    premium->m_output13 = static_cast<unsigned int>(premium->m_multiplier3 * addInfo->m_value42) / 100;
-    premium->m_output14 = static_cast<short>(addInfo->m_value46 * premium->m_multiplier4 / 100);
-    premium->m_output15 = static_cast<short>(addInfo->m_loopValues[3] * premium->m_multiplier5 / 100);
-    premium->m_output16 = static_cast<short>(addInfo->m_value4a * premium->m_multiplier6 / 100);
-    premium->m_output17 = static_cast<short>(addInfo->m_loopValues[1] * premium->m_multiplier7 / 100);
+    Entries(this)[(int)type].m_state = (int)state;
 }
 
-SUserPremiumInfo* CUserPremium::CheckPremiumTimeout(SUserPremiumInfo* out) const
+bool CUserPremium::_CheckApply(int type, tm t)
 {
-    int curTime = GlobalData::s_systemTime_.getCurSec();
-    out->m_type = 0;
-    for (int i = 1; i <= 0x69; ++i)
-    {
-        const SUserPremiumInfo& entry = m_entries[i - 1];
-        PremiumDefinitionView* definition = GetPremiumDefinition(entry.m_type);
-        if (entry.m_type != 0 && definition->m_enabled != 0 &&
-            entry.m_state != 3 && entry.m_end <= curTime)
-        {
-            *out = entry;
-            return out;
-        }
-    }
-    return out;
-}
-
-void CUserPremium::setPremiumState(int type, int state)
-{
-    if (type >= 1 && type <= 0x69)
-        m_entries[type - 1].m_state = state;
-}
-
-bool CUserPremium::_CheckApply(int type, int yday)
-{
-    PremiumDefinitionView* definition = GetPremiumDefinition(type);
-    if (definition->m_applyDayMask == -1)
+    const PremiumDefinitionView* def = GetPremiumDefinition(type);
+    if (def->m_applyDayMask[0] == -1)
         return true;
-    return definition->m_applyDayMask == yday;
-}
-
-void CUserPremium::GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type)
-{
-    list.clear();
-    for (int i = 0; i < 0x69; ++i)
+    for (int i = 0; i < 7; ++i)
     {
-        const SUserPremiumInfo& entry = m_entries[i];
-        if (entry.m_type != 0 && (type == 0x270f || entry.m_type == type))
-            list.push_back(entry);
+        if (def->m_applyDayMask[i] == t.tm_yday)
+            return true;
     }
+    return false;
 }
 
-SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
+int CUserPremium::SetPremiumItemData(unsigned long key, const STPremiumItemData& data)
 {
-    if (type >= 1 && type <= 0x69)
-        return const_cast<SUserPremiumInfo*>(&m_entries[type - 1]);
-    return const_cast<SUserPremiumInfo*>(m_entries);
-}
-
-int CUserPremium::GetReturnItemRate(int type) const
-{
-    std::map<int, int>::const_iterator it = m_premium.m_returnItemMap.find(type);
-    if (it == m_premium.m_returnItemMap.end())
+    if (key == 0)
+        return 1;
+    if (s_premiumItemDataMap.find(key) != s_premiumItemDataMap.end())
         return 0;
-    return it->second;
+    s_premiumItemDataMap[key] = data;
+    return 1;
 }
 
 bool CUserPremium::IsRestrictedPremium(int type)
@@ -336,37 +245,151 @@ bool CUserPremium::IsRestrictedPremium(int type)
     return (type >= 60000 && type <= 69999);
 }
 
-void CUserPremium::GetAdvantageItem(int type, std::vector<std::pair<int, int> >& items)
+void CUserPremium::RecalcAdditionalInfo(CUser const* user)
 {
-    items.clear();
-    SUserPremiumInfo* entry = GetPremiumInfo(type);
-    if (entry->m_type == 0 || entry->m_type >= 0x6a)
+    if (user->getCurCharacR() == 0 || GetAdvPremiumCount() == 0)
         return;
-    PremiumDefinitionView* premiumInfo = GetPremiumDefinition(entry->m_type);
-    if (premiumInfo->m_type != 1)
-        return;
-    for (int i = 0; i < 5; ++i)
+
+    const unsigned char* addInfo =
+        reinterpret_cast<const unsigned char*>(user->getCurCharacAddInfoR());
+    const unsigned char* base =
+        reinterpret_cast<const unsigned char*>(&m_pad[0x8bd]);
+    unsigned char* out = reinterpret_cast<unsigned char*>(&m_pad[0x90f]);
+
+    int v0 = *(const int*)(addInfo + 0x00);
+    int v1 = *(const int*)(addInfo + 0x04);
+    unsigned short v2 = *(const unsigned short*)(addInfo + 0x08);
+    unsigned short v3 = *(const unsigned short*)(addInfo + 0x0a);
+    unsigned short v4 = *(const unsigned short*)(addInfo + 0x0c);
+    unsigned short v5 = *(const unsigned short*)(addInfo + 0x0e);
+
+    // base rates / multipliers（ORIG 存储于 0x8bd 区域）
+    int b0 = *(const int*)(base + 0x00);
+    int b1 = *(const int*)(base + 0x04);
+    unsigned short br[4];
+    for (int i = 0; i < 4; ++i)
     {
-        if (premiumInfo->m_items[i].m_itemIndex != 0)
+        br[i] = *(const unsigned short*)(base + 0x08 + i * 2);
+    }
+    unsigned short sc[4];
+    for (int i = 0; i < 4; ++i)
+    {
+        sc[i] = *(const unsigned short*)(base + 0x10 + i * 2);
+    }
+
+    *(int*)(out + 0x00) = (unsigned int)(b0 * v0) / 100;
+    *(int*)(out + 0x04) = (unsigned int)(b1 * v1) / 100;
+    *(unsigned short*)(out + 0x08) = (unsigned short)(v2 * br[0] / 100);
+    *(unsigned short*)(out + 0x0a) = (unsigned short)(v3 * br[1] / 100);
+    *(unsigned short*)(out + 0x0c) = (unsigned short)(v4 * br[2] / 100);
+    *(unsigned short*)(out + 0x0e) = (unsigned short)(v5 * br[3] / 100);
+    for (int i = 0; i < 4; ++i)
+    {
+        int loopVal = *(const int*)(addInfo + 0x10 + i * 4);
+        *(unsigned short*)(out + 0x10 + i * 2) =
+            (unsigned short)(loopVal * sc[i] / 100);
+    }
+
+    int m0 = *(const int*)(addInfo + 0x3a);
+    unsigned short m1 = *(const unsigned short*)(addInfo + 0x3e);
+    unsigned short m2 = *(const unsigned short*)(addInfo + 0x40);
+    int m3 = *(const int*)(addInfo + 0x42);
+    unsigned short m4 = *(const unsigned short*)(addInfo + 0x46);
+    unsigned short m5 = *(const unsigned short*)(addInfo + 0x48);
+    unsigned short m6 = *(const unsigned short*)(addInfo + 0x4a);
+
+    int q0 = *(const int*)(base + 0x3a);     // multiplier0
+    unsigned short q1 = *(const unsigned short*)(base + 0x3e);
+    unsigned short q2 = *(const unsigned short*)(base + 0x40);
+    int q3 = *(const int*)(base + 0x42);
+    unsigned short q4 = *(const unsigned short*)(base + 0x46);
+    unsigned short q5 = *(const unsigned short*)(base + 0x48);
+    unsigned short q6 = *(const unsigned short*)(base + 0x4a);
+
+    *(int*)(out + 0x34) = (m0 * q0) / 100;
+    *(unsigned short*)(out + 0x38) = (unsigned short)(m1 * q1 / 100);
+    *(unsigned short*)(out + 0x3a) = (unsigned short)(m2 * q2 / 100);
+    *(int*)(out + 0x3c) = (unsigned int)(q3 * m3) / 100;
+    *(unsigned short*)(out + 0x40) = (unsigned short)(m4 * q4 / 100);
+    *(unsigned short*)(out + 0x42) = (unsigned short)(m5 * q5 / 100);
+    *(unsigned short*)(out + 0x44) = (unsigned short)(m6 * q6 / 100);
+}
+
+SUserPremiumInfo CUserPremium::CheckPremiumTimeout() const
+{
+    SUserPremiumInfo result;
+    result.m_type = 0;
+    int curTime = GlobalData::s_systemTime_.getCurSec();
+    const SUserPremiumInfo* entries = Entries(const_cast<CUserPremium*>(this));
+    for (int i = 1; i <= 0x69; ++i)
+    {
+        const SUserPremiumInfo& entry = entries[i];
+        if (entry.m_type == 0)
+            continue;
+        if (GetPremiumDefinition(entry.m_type)->m_enabled == 0)
+            continue;
+        if (entry.m_state == 3)
+            continue;
+        if (entry.m_end <= curTime)
         {
-            items.push_back(std::make_pair(premiumInfo->m_items[i].m_itemIndex,
-                                            premiumInfo->m_items[i].m_count));
+            result = entry;
+            break;
         }
+    }
+    return result;
+}
+
+void CUserPremium::GetPremiumInfoList(std::vector<SUserPremiumInfo>& list, int type) const
+{
+    list.clear();
+    const SUserPremiumInfo* entries = Entries(const_cast<CUserPremium*>(this));
+    for (int i = 1; i < 0x6a; ++i)
+    {
+        const SUserPremiumInfo& entry = entries[i];
+        if (entry.m_type != 0 && (type == 0x270f || entry.m_type == type))
+            list.push_back(entry);
     }
 }
 
-int CUserPremium::SetPremiumItemData(unsigned long key, const void* data)
+SUserPremiumInfo* CUserPremium::GetPremiumInfo(int type) const
 {
-    if (key == 0)
-        return 1;
+    if (type < 0x6a && type != 0x270f)
+        return Entries(const_cast<CUserPremium*>(this)) + type;
+    return Entries(const_cast<CUserPremium*>(this));
+}
 
-    static std::map<unsigned long, const void*> s_premiumItemDataMap;
-    std::map<unsigned long, const void*>::iterator it = s_premiumItemDataMap.find(key);
-    if (it != s_premiumItemDataMap.end())
+int CUserPremium::GetReturnItemRate(int type) const
+{
+    std::map<int, int>::const_iterator it = s_returnItemMap.find(type);
+    if (it == s_returnItemMap.end())
         return 0;
+    return it->second;
+}
 
-    s_premiumItemDataMap[key] = data;
-    return 1;
+bool CUserPremium::CheckPremium(int type) const
+{
+    const SUserPremiumInfo* info = GetPremiumInfo(type);
+    return info->m_type != 0 && info->m_state != 3;
+}
+
+std::vector<std::pair<int, int> > CUserPremium::GetAdvantageItem(int type)
+{
+    std::vector<std::pair<int, int> > items;
+    SUserPremiumInfo* entry = Entries(this);
+    if (entry[type].m_type == 0 || entry[type].m_type >= 0x6a)
+        return items;
+    const PremiumDefinitionView* def = GetPremiumDefinition(entry[type].m_type);
+    if (def->m_type != 1)
+        return items;
+    for (int i = 0; i < 5; ++i)
+    {
+        if (def->m_items[i].m_itemIndex != 0)
+        {
+            items.push_back(std::make_pair(def->m_items[i].m_itemIndex,
+                                           def->m_items[i].m_count));
+        }
+    }
+    return items;
 }
 
 } // namespace WongWork

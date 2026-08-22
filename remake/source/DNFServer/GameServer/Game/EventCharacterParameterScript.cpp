@@ -22,6 +22,11 @@ bool next_int(std::istream& in, int& value)
 }
 }
 
+// ORIG 0848ecce：m_growType/m_secondGrowType 清零 + 两个 vector 默认构造
+// ORIG 083ce3ee：先析构 m_itemList(+0x10) 再 m_skillList(+0x04)
+STEventCharacterInfo::STEventCharacterInfo() : m_growType(0), m_secondGrowType(0) {}
+STEventCharacterInfo::~STEventCharacterInfo() {}
+
 EventCharacterParameterScript::EventCharacterParameterScript() {}
 EventCharacterParameterScript::~EventCharacterParameterScript() {}
 EventCharacterParameterScript::ScriptFileList& EventCharacterParameterScript::script_file_list() { return g_files; }

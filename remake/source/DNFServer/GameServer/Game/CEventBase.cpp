@@ -9,6 +9,13 @@
 //   changeCharacName/dailyresetData/deliveryStart/deliveryEnd/delivery 空。
 #include "CGuildServerProxy.h"
 
+// ORIG 0x0810af10：两个 ushort 均置 0xffff。
+stADDINFO::stADDINFO()
+{
+    m_info0 = 0xffff;
+    m_info1 = 0xffff;
+}
+
 CEventBase::CEventBase()
     : m_addInfo()
 {

@@ -30,10 +30,12 @@ enum T
 
 struct stAvatarTypeSelect_t
 {
-    int m_field0;    // +0x00
-    int m_field4;    // +0x04
-    int m_field8;    // +0x08
-    int m_fieldc;    // +0x0c
+    int m_field0;       // +0x00
+    int m_field4;       // +0x04
+    int m_field8;       // +0x08
+    int m_fieldc;       // +0x0c
+    int m_field10;      // +0x10（ORIG：此选择项小孔数/数组长度）
+    unsigned short m_socketType[4];  // +0x14
 };
 
 struct stAvatarEmblemInfo_t;  // 定义在 CInventory.h / AuctionItem.h（30B，pack(1)）
@@ -70,6 +72,8 @@ public:
 
 class CEquipItem : public CItem
 {
+public:
+    int GetUsableMaxLevel() const;  // ORIG 084e9700（返回 +0x1c0）
 public:
     CEquipItem();
     virtual ~CEquipItem();
@@ -114,6 +118,7 @@ public:
     void* getAvatarTypeSelect() const;
     void set_item(STEquipmentScript& script);
     bool verify();
+    int getAvatarPeriod(unsigned char a) const;  // ORIG W 0x08151120
 
     RandomItemTable m_randomTable;         // +0x148
     std::vector<stAvatarTypeSelect_t> m_avatarSelect;  // +0x174

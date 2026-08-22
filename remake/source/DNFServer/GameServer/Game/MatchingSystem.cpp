@@ -9,7 +9,7 @@ CMatchingSystem::CMatchingSystem()
 
 CMatchingSystem::~CMatchingSystem() {}
 
-IMatchingSystem* CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE)
+void* CMatchingSystem::GetMatchingSystem(ENUM_PVP_MATCHING_TYPE)
 {
     return 0;
 }

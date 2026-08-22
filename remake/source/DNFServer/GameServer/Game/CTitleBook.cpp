@@ -22,8 +22,21 @@
 // 本 TU 需要而其它 TU 提供的符号（ORIG 真实符号）
 // ============================================================================
 
-extern "C" int sub_CDataManager_GetInvenTypeFromItemSpace(int space)
-    asm("_Z25GetInvenTypeFromItemSpace14ENUM_ITEMSPACE");
+// ORIG 0x80f7845（W，mangled _Z25GetInvenTypeFromItemSpace14ENUM_ITEMSPACE）：
+// switch 跳表（0x8b3c7b0），返回 INVEN_TYPE：0→1, 1→2, 2→4, 3→0, 7→3, 18→5，
+// 其余/越界(>0x12)→6。原 GameStubs.cpp 定义迁移。
+int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
+{
+    switch (space) {
+    case (ENUM_ITEMSPACE)0:   return 1;
+    case (ENUM_ITEMSPACE)1:   return 2;
+    case (ENUM_ITEMSPACE)2:   return 4;
+    case (ENUM_ITEMSPACE)3:   return 0;
+    case (ENUM_ITEMSPACE)7:   return 3;
+    case (ENUM_ITEMSPACE)0x12: return 5;
+    default:  return 6;
+    }
+}
 extern "C" unsigned int sub_GetIntegratedPvPItemAttr(const void* item)
     asm("_Z24GetIntegratedPvPItemAttrRK10Inven_Item");
 extern "C" char* sub_NumberToString_uint(unsigned int value, int flag)
@@ -506,7 +519,7 @@ int CTitleBook::getTitle(CUser* user, ENUM_TITLE_BOOK_CATEGORY category,
     }
 
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    int invenType = sub_CDataManager_GetInvenTypeFromItemSpace((int)space);
+    int invenType = GetInvenTypeFromItemSpace(space);
     Inven_Item title = *book->_getTitle(category, slot);
     if ((itemIdx != 0) && (title.m_addInfo != itemIdx))
     {
@@ -583,7 +596,7 @@ int CTitleBook::putTitle(CUser* user, ENUM_ITEMSPACE space, int slot,
         space = (ENUM_ITEMSPACE)3;
     }
     CInventory* inven = (CInventory*)user->getCurCharacInvenW();
-    int invenType = sub_CDataManager_GetInvenTypeFromItemSpace((int)space);
+    int invenType = GetInvenTypeFromItemSpace(space);
 
     Inven_Item invenItem;
     GetInvenSlot(&invenItem, inven, invenType, slot);

@@ -85,8 +85,20 @@ struct stLimitCubeInfo
     std::vector<stLimitCubeResult> m_results;        // +0x14
 };
 
+// ORIG 全局效果结构（0xc 字节；createGlobalEffectInfo 0x89bae94 按
+// int + int + float/10000.0f 填充，mangled 名 stGlobalEffect_t）
+struct stGlobalEffect_t
+{
+    int m_field0;    // +0x00
+    int m_field4;    // +0x04
+    float m_field8;  // +0x08
+};
+
 struct LotteryInfo
 {
+    LotteryInfo();
+    ~LotteryInfo();
+    void clear();
     int m_defaultIdx;                        // +0x00
     std::vector<std::pair<int, int> > m_items;   // +0x04
     int m_defaultCount;                      // +0x10
@@ -155,7 +167,11 @@ struct RecipeInfo
 struct BoosterSelectInfo
 {
     BoosterSelectInfo& operator=(const BoosterSelectInfo& other);
-    char m_pad[0x1c];
+    int m_field0;                       // +0x00
+    int m_field4;                       // +0x04
+    int m_field8;                       // +0x08
+    std::vector<std::string> m_nameVec; // +0x0c
+    char m_field18;                     // +0x18
 };
 
 class CStackableItem : public CItem
@@ -216,7 +232,7 @@ public:
     std::vector<std::vector<char> > m_pkg234;  // +0x234
     stStackableBooster_t m_booster;       // +0x240
     BoosterSelectInfo m_boosterSelect;    // +0x264
-    std::vector<char> m_vec280;           // +0x280
+    std::vector<stGlobalEffect_t> m_vec280;  // +0x280
     int m_int28c;                         // +0x28c
     stLimitCubeInfo m_limitCube;          // +0x290
     int m_nItemType;                      // +0x2b0

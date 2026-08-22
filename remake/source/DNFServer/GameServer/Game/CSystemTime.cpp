@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "CSystemTime.h"
+#include "GlobalData.h"
 
 // 构造：仅记录 m_lastSec 与毫秒（m_sec 留待 update 首次填充）
 CSystemTime::CSystemTime()
@@ -40,4 +41,18 @@ void CSystemTime::update()
     gettimeofday(&m_tv, 0);
     m_sec = m_tv.tv_sec;
     m_msec = (m_sec - m_lastSec) * 1000 + m_tv.tv_usec / 1000;
+}
+
+// ============================================================================
+// OS_API::GetDateTimeTick（ORIG 0x858c802 T）
+// 返回全局 CSystemTime（ORIG 0x941f714 = GlobalData::s_systemTime_）的
+// getCurSec()，即当前 Unix 秒（已由 update 周期刷新）。
+// 声明见 CInventory.h：namespace OS_API { int GetDateTimeTick(); }
+// ============================================================================
+namespace OS_API
+{
+int GetDateTimeTick()
+{
+    return GlobalData::s_systemTime_.getCurSec();
+}
 }

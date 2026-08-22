@@ -1,39 +1,15 @@
-// df_game_r Game/ ARAD 命名空间类实现（独立 TU，从 GameStubs.cpp 拆出）。
+// df_game_r Game/ ARAD 命名空间类实现（批3：从 GameStubs.cpp 迁移，收拢到独立头文件）。
+#include "AradServerStateMessage.h"
+#include "Arad_EventPeriodDataManager.h"
+#include "Arad_DataManager.h"
 #include "CUser.h"
-#include <string>
-
-class AradServerStateMessage
-{
-public:
-    AradServerStateMessage();
-};
-
-class Arad_EventPeriodDataManager
-{
-public:
-    bool isApplied(int a, int b) const;
-};
 
 namespace ARAD
 {
-
-class Arad_DataManager
-{
-public:
-    void* findGameScript(const std::string& name);
-};
-
 void* Arad_DataManager::findGameScript(const std::string&)
 {
     return 0;
 }
-
-template <class T>
-class Singleton
-{
-public:
-    static T* Get();
-};
 
 template <class T>
 T* Singleton<T>::Get()
@@ -46,10 +22,6 @@ template class Singleton<Arad_DataManager>;
 
 void notifyOpenMessageDialog(CUser*, int, int, AradServerStateMessage&)
 {
+    // TODO(G2)
 }
-
 }  // namespace ARAD
-
-AradServerStateMessage::AradServerStateMessage()
-{
-}

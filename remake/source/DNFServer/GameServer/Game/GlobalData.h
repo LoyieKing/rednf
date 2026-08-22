@@ -183,6 +183,7 @@ extern CSystemTime s_systemTime_;                            // 0941f714 (0x14)
 extern XNuclear::CHades_GameSvr s_hades_;                    // 0941f728 (8)
 extern CEventManager* s_event_manager;                       // 0941f730
 extern WongWork::IPG::CIPGHelper* s_pIPGHelper;              // 0941f734
+extern char g_SPremiumInfo[0x7740];                          // 09483a40
 extern void* s_rentalSystem;                                 // 0941f738
 extern RefPvpGrade* s_ref_pvp_grade;                         // 0941f73c
 extern WongWork::CLogGameChannel* s_pLogGameChannel;         // 0941f740

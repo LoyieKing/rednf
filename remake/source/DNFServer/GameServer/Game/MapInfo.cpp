@@ -16,10 +16,10 @@
 #include <vector>
 #include <cstring>
 #include "WarField.h"
+#include "LogManager.h"
+// 日志：使用真实 LogManager.h 的 5 参 logFormat(level,file,func,line,fmt,...)。
+// 原 ORIG 4 参符号（_ZN10LogManager9logFormatEiPKciS1_z）为旧签名，桥接已随迁移删除。
 
-// 日志（ORIG Add_Mob/Add_Item 调用 LogManager::logFormat，本 TU 外部引用）
-
-class LogManager { public: static void logFormat(int, const char*, int, const char*, ...); };
 
 // ============================================================================
 // map_item / map_monster 生命周期（ORIG 081512cc / 081512dc / 081511c8 /
@@ -229,7 +229,7 @@ void MapInfo::Add_Mob(map_monster mob)
 {
     if (m_monsterMap.find(mob.m_instId) != m_monsterMap.end())
     {
-        LogManager::logFormat(1, "MapInfo.cpp", 0x1f2,
+        LogManager::logFormat(1, "MapInfo.cpp", "MapInfo::Add_Mob", 0x1f2,
                               "duplicated mob instance", mob.m_instId);
         return;
     }
@@ -249,7 +249,7 @@ void MapInfo::Add_Item(map_item item)
 {
     if (m_itemMap.find(item.m_itemIndex) != m_itemMap.end())
     {
-        LogManager::logFormat(1, "MapInfo.cpp", 0x206,
+        LogManager::logFormat(1, "MapInfo.cpp", "MapInfo::Add_Item", 0x206,
                               "duplicated item index", item.m_itemIndex);
         return;
     }

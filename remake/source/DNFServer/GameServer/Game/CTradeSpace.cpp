@@ -60,9 +60,30 @@ extern "C" unsigned int sub_CSecu_ProtectionField_Check(void* field, CUser* user
 extern "C" unsigned char sub_CSecu_ProtectionField_GetOppositeErr(void* field,
                                                                   unsigned int err)
     asm("_ZN21CSecu_ProtectionField14GetOppositeErrEi");
-extern "C" void sub_SendChangeTradeState(PacketGuard& packet, CUser* user,
-                                         CUser* target, int state)
-    asm("_Z20SendChangeTradeStateR11PacketGuardP5CUserS2_15ENUM_TRADESTATE");
+// ---- 交易状态枚举（ORIG ENUM_TRADESTATE；mangling 编码类型名 15ENUM_TRADESTATE）----
+enum ENUM_TRADESTATE
+{
+    ENUM_TRADESTATE_0 = 0,  // 解除锁定
+    ENUM_TRADESTATE_1 = 1,  // 锁定
+    ENUM_TRADESTATE_2 = 2,
+    ENUM_TRADESTATE_3 = 3,
+    ENUM_TRADESTATE_4 = 4
+};
+
+// SendChangeTradeState（本 TU 实现，ORIG 0x852f0a0；替换原 asm-label extern）
+void SendChangeTradeState(PacketGuard& packet, CUser* user, CUser* target,
+                          ENUM_TRADESTATE state)
+{
+    // ORIG 0x852f0a0：清空 → 头部(0, 0x11) → unique_id(short) → state(byte)
+    // → finalize(true) → 双方各 Send 一次。
+    packet.clear();
+    packet.put_header(0, 0x11);
+    packet.put_short(user->get_unique_id());
+    packet.put_byte(state);
+    packet.finalize(true);
+    user->Send(packet);
+    target->Send(packet);
+}
 extern "C" void sub_CUserHistoryLog_TradeItemAddFail(void* log, int itemIdx,
                                                      int count)
     asm("_ZN15cUserHistoryLog16TradeItemAddFailEii");
@@ -668,7 +689,7 @@ int CTradeSpace::change_trade_state(CUser* user, int state)
         if (!IsLocked()) {
             m_nState[me] = 0;
             PacketGuard packet;
-            sub_SendChangeTradeState(packet, user, target, 0);
+            SendChangeTradeState(packet, user, target, ENUM_TRADESTATE_0);
         } else {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1a, 7);
         }
@@ -693,7 +714,7 @@ int CTradeSpace::change_trade_state(CUser* user, int state)
             if (checkTrade()) {
                 m_nState[me] = 1;
                 PacketGuard packet;
-                sub_SendChangeTradeState(packet, user, target, 1);
+                SendChangeTradeState(packet, user, target, ENUM_TRADESTATE_1);
                 if (m_nState[opp] == 1)
                     _SetLock(1);
             } else {

@@ -137,6 +137,15 @@ int CItem::get_grade() const
 {
     return m_grade;
 }
+int CItem::GetSellPrice() const
+{
+    return m_field30;
+}
+
+int CItem::get_price() const
+{
+    return m_field0c;
+}
 
 int CItem::getItemGroupName() const
 {
@@ -197,6 +206,12 @@ bool CItem::check_low_level(int level) const
 bool CItem::IsHiddenOption() const
 {
     return m_boolF8;
+}
+
+// ORIG 0x828b5b4：（movzbl 0x60(%eax); sete %al）即 this+0x60 字节 == 1
+bool CItem::isPackagable() const
+{
+    return m_char60 == 0x1;
 }
 
 bool CItem::isExpertJobUsable(ENUM_EXPERT_JOB_TYPE type, int level) const
@@ -265,4 +280,14 @@ void CItem::GetExpertJobAdditionalExp(
 int CItem::GetFinishPointPrice() const
 {
     return m_field64;
+}
+
+int CItem::get_need_skill() const  // ORIG 0850d27a
+{
+    return m_int58;
+}
+
+int CItem::getFootControlRateLimit() const  // ORIG 0850d286
+{
+    return m_int5c;
 }

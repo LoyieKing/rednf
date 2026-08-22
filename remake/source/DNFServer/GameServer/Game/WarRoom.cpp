@@ -287,8 +287,6 @@ extern "C" int sub_CExpDoubleEvent_GetExpFactor(void* self)
 extern "C" int sub_CBurningFatigueEvent_getBonusExpRate(void* self, unsigned short v)
     asm("_ZNK20CBurningFatigueEvent15getBonusExpRateEt");
 extern "C" int sub_CServerEvent_GetExpRate() asm("_ZN12CServerEvent10GetExpRateEv");
-extern "C" int sub_CUserPremium_GetAdvantageExpRate(void* self)
-    asm("_ZNK8WongWork12CUserPremium19GetAdvantageExpRateEv");
 extern "C" void sub_CValueStatistic_AddValueStatistic(void* self, int field, void* user,
                                                       unsigned v)
     asm("_ZN15CValueStatistic17AddValueStatisticE21VALUE_STATISTIC_FIELDP5CUserj");
@@ -1366,8 +1364,7 @@ void WarRoom::ClearReward()
             if (sub_CUser_IsHavePremiumAdvantage((void*)m_slots[i]) != 0)
             {
                 float premiumRate =
-                    (float)sub_CUserPremium_GetAdvantageExpRate(
-                        ((CUser*)m_slots[i])->GetPremiumInfo()) /
+                    (float)(((CUser*)m_slots[i])->GetPremiumInfo()->GetAdvantageExpRate()) /
                     100.0f;
                 burningExp += (int)((float)baseExp * premiumRate);
             }

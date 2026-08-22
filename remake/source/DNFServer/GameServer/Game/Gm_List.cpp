@@ -16,7 +16,7 @@ public:
 class Gm_List
 {
 public:
-    static void SendGMList_To_UpperServer(int serverGroup);
+    void SendGMList_To_UpperServer(int serverGroup);
 };
 
 void Gm_List::SendGMList_To_UpperServer(int serverGroup)

@@ -33,11 +33,101 @@ struct _Charac_info_nibble_field
     signed char m_padNibble : 4;
 };
 
-// ---- 依赖的全局函数（真实定义属其它 TU）----
-extern void addSkillOnCreateCharacter(_Mastered_skill* skill, int job);
-extern int getSkillChecksum(int slot, int skillIdx, int level);
-extern int finishSkillChecksum(int* sum, int key);
-extern int getSkillSpendSPOnSteal(int sp, int penalty);
+// ---- 依赖的全局函数（真实定义在本 TU，ORIG 符号）----
+// ORIG T 0x8604fe2：创建角色时按 job 追加默认技能。
+// 逻辑（对照 0x8604fe2 反汇编）：
+//   job ∉ [0,10] → 直接返回；从 G_CDataManager()->m_characList + job*0x7dc
+//   + 0x240 拷贝该职业默认技能表（vector<pair<int,int>>，pair = 技能idx/等级）；
+//   逐条 find_skill(job, idx)；CSkill 为主动技能时优先写 [0,6) 空槽，
+//   否则（含主动技能无空槽）按 get_group() 落入对应区间
+//   （g0:[6,0x36) g1:[0x36,0x66) g2:[0x66,0x96) g3:[0x96,0xc6)），
+//   在区间内写第一个空槽；其余 group 值打 cMyTrace 日志。
+void addSkillOnCreateCharacter(_Mastered_skill* skill, int job)
+{
+    if (job < 0 || job > 10)
+    {
+        return;
+    }
+    CDataManager* dm = G_CDataManager();
+    const std::vector<std::pair<int, int> >& skillList =
+        *(std::vector<std::pair<int, int> >*)(
+            (char*)dm->m_characList + job * 0x7dc + 0x240);
+    for (std::vector<std::pair<int, int> >::const_iterator it =
+             skillList.begin();
+         it != skillList.end(); ++it)
+    {
+        int skillIdx = it->first;
+        int level = it->second;
+        CSkill* s = dm->find_skill(job, skillIdx);
+        if (s == 0)
+        {
+            continue;
+        }
+        int start = 0;
+        int end = 0;
+        bool foundEmpty = false;
+        if (s->is_active_skill())
+        {
+            start = 0;
+            end = 6;
+            for (int i = 0; i < 6; ++i)
+            {
+                if (skill[i].m_index == 0)
+                {
+                    foundEmpty = true;
+                    break;
+                }
+            }
+        }
+        if (!foundEmpty)
+        {
+            int group = s->get_group();
+            switch (group)
+            {
+            case 0:
+                start = 6;
+                end = 0x36;
+                break;
+            case 1:
+                start = 0x36;
+                end = 0x66;
+                break;
+            case 2:
+                start = 0x66;
+                end = 0x96;
+                break;
+            case 3:
+                start = 0x96;
+                end = 0xc6;
+                break;
+            default:
+                cMyTrace trace("addSkillOnCreateCharacter", 0x549, 5);
+                trace("[%s][%d]", "addSkillOnCreateCharacter", group);
+                break;
+            }
+        }
+        for (int i = start; i < end; ++i)
+        {
+            if (skill[i].m_index == 0)
+            {
+                skill[i].m_index = (unsigned char)skillIdx;
+                skill[i].m_level = (char)level;
+                break;
+            }
+        }
+    }
+}
+// ORIG 0x88923f1：skill>0x95→0；否则 (level+flag)*skill*10/100
+int getSkillChecksum(int skill, int level, int flag)
+{
+    if (skill > 0x95)
+        return 0;
+    return (level + flag) * skill * 10 / 100;
+}
+// ORIG T 0x8892445
+int finishSkillChecksum(int* sum, int key) { return 0; }
+// ORIG T 0x8a9afa2
+int getSkillSpendSPOnSteal(int sp, int penalty) { return 0; }
 
 _Mastered_skill::_Mastered_skill()
 {
