@@ -532,6 +532,9 @@ public:
     short GetAdvantageFatigueRate() const;
     int GetAdvPremiumCount() const;
     int GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const;
+    int GetAdvantageCoin() const;           // 0x0864f8e0（推断实现，见 CUser.cpp）
+    int GetGoldBonus(int level) const;      // ORIG 存在（推断实现，见 CUser.cpp）
+    bool isAffectedUnlimitFatigue() const;  // ORIG 存在（推断实现，见 CUser.cpp）
 
     // ---- 生命周期 / 状态操作（ORIG T）----
     void InitPremium();
@@ -834,6 +837,7 @@ public:
     DBInputData() {}
     ~DBInputData() {}
 
+    int m_result;         // +0x00（InputBuyInfo 写入结果：1=已登记）
     InfoDaily* m_pInfo;   // +0x04
     char m_pad[0xc];
 };
@@ -845,7 +849,7 @@ public:
     ~ScriptLoader() {}
 
     int LoadScript();
-    void LoadScriptDaily(RestrictType type);
+    int LoadScriptDaily(RestrictType type);
     void ClearScript();
     InfoDaily* GetRestrictInfo(unsigned int ipgNo);
     bool FindIpgNo(unsigned int ipgNo);
@@ -861,9 +865,9 @@ public:
 
     bool Load();
     int Destroy();
-    void FindIpgNo(unsigned int ipgNo);
-    void CheckBuyableProduct(CUser* user, unsigned int ipgNo,
-                             unsigned int itemIdx, int type);
+    bool FindIpgNo(unsigned int ipgNo);
+    int CheckBuyableProduct(CUser* user, unsigned int ipgNo,
+                            unsigned int itemIdx, int type);
     void UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,
                                    unsigned int itemIdx);
     static void ClearBuyRestrictItem(CUser* user);
@@ -904,22 +908,7 @@ public:
 #pragma pack(pop)
 }
 
-#pragma pack(push, 1)
-struct STExpReward
-{
-    STExpReward() {}
-
-    int m_reward;      // +0x00
-    char m_field4;     // +0x04
-    char m_field5;     // +0x05
-    char m_powerUp;     // +0x06（SetPowerUp）
-    int m_localIp;     // +0x07（0x8d254）
-    int m_publicIp;    // +0x0b（0x8d258）
-    char m_padf[4];    // +0x0f..0x12
-    bool m_hangameUser;  // +0x13（0x8d260）
-    char m_pad14[0x17 - 0x14];  // +0x14..0x17
-};
-#pragma pack(pop)
+// STExpReward 已迁移至 CDataManager.h（本头经 CUserCharacInfo.h include）。
 
 namespace APSystem
 {
@@ -1202,7 +1191,8 @@ public:
     void PayCoinSub(int coin, int sub, eCoinSubReason reason);
     void pvpMissionClearReward(int expPoint, int exp, int missionKind,
                                int missionIndex);  // ORIG 0x8686a4e
-    void EnterDungeon(const char* dungeonName, int level);
+    void EnterDungeon(const char* dungeonName, int level);  // ORIG 0x8684a16
+    void EnterDungeon(const char* dungeonName, int unk, const char* memberNames, int state);  // ORIG 0x86849a2
     void LeaveDungeon(const char* dungeonName, int level);
     void LeaveDungeon(const char* dungeonName, int unk, const char* memberNames, int state);
     void LeaveDungeon(int dungeonIdx, int unk, const char* memberNames, int state);
@@ -1646,6 +1636,7 @@ public:
     bool IsProperLevelDungeonUser();
     bool isCharacLinkMessageFlag();
     bool isLinkCharacDisconnectFlag();
+    void setLinkCharacDisconnectFlag(bool flag);   // ORIG 0x086973dc
     unsigned char getDisconnectLinkCharacSlotIdx();
     bool is_update_ontime_last_recv_idx();
     void reset_update_ontime_last_recv_idx();
@@ -1748,7 +1739,7 @@ public:
     void SendRestrictedGoods(bool param, int itemIdx);
     void send_skill_info();
     void send_equip(int slot);
-    void send_itemspace(int space);
+    int send_itemspace(int space);
     void sendCharacOption();
     void send_pvp_record();
     void sendEventInfo();
@@ -2069,7 +2060,8 @@ public:
     void add_guild_pvp_result(int v);                                          // 0x0865c936
     void add_pvp_play_info(unsigned int a, unsigned int b);                    // 0x0865d986
     void add_pvp_result(bool flag, unsigned int* out);                         // 0x0865c678
-    void gainGuildSkillExp(int exp);                                           // 0x0864fb3a
+    int gainGuildSkillExp(int exp);                                           // 0x0864fb3a
+    bool IsGuildSkillLearn(int skillIdx);                                      // 0x0864fac4
     void update_pvp_point(int v);                                              // 0x0865cfd8
     void RecoverCoin(unsigned int v);                                          // 0x08657f10
     void RewardItem2DeleteInvalidItem(const std::string& name,                 // 0x086931c4

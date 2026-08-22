@@ -6,6 +6,7 @@
 class CStatisticServerProxy : public BaseServerProxy
 {
 public:
+    CStatisticServerProxy();                        // ORIG W 0x082a6b72
     CStatisticServerProxy(std::string ip, int port);
     bool Init();
     void SendPacket(char* packet, int size);

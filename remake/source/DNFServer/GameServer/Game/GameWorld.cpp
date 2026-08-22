@@ -854,20 +854,22 @@ CUser* GameWorld::find_user_from_world_byaccid_loop(unsigned int accId)
     return NULL;
 }
 
-CUser* GameWorld::find_user_by_charac_name(const char* name)
-{
-    std::map<unsigned short, CUser*>::iterator it;
-    for (it = m_UserInWorld.begin(); it != m_UserInWorld.end(); it++)
-    {
-        CUserCharacInfo* info = it->second;
-        if (info != NULL && info->getCurCharacR() != NULL &&
-            strcmp(info->getCurCharacName(), name) == 0)
-        {
-            return (CUser*)info;
-        }
-    }
-    return NULL;
-}
+ CUser* GameWorld::find_user_by_charac_name(const char* name)
+ {
+     std::map<unsigned short, CUser*>::iterator it;
+     for (it = m_UserInWorld.begin(); it != m_UserInWorld.end(); it++)
+     {
+         CUser* user = it->second;
+         // ORIG 条件：user!=0 && get_state()>2 && getCurCharacR()!=0 && strcmp(name)==0
+         if (user != NULL && user->get_state() > 2 &&
+             user->getCurCharacR() != NULL &&
+             strcmp(user->getCurCharacName(), name) == 0)
+         {
+             return user;
+         }
+     }
+     return NULL;
+ }
 
 void GameWorld::arrange_users()
 {
@@ -2983,6 +2985,16 @@ void GameWorld::UpdateServerSnapShot()
             {
                 dungIdx = party->getDungIndex();
             }
+            // ORIG 用 boost::posix_time::second_clock::local_time()
+            // 生成 iso_extended(date) 与 to_simple_string(time)，再以 "%s %s" 写入快照。
+            // 还原为等价的本地时间格式化（%Y-%m-%d 与 %H:%M:%S），不引入 boost 依赖。
+            time_t now = GlobalData::s_systemTime_.getCurSec();
+            struct tm local;
+            localtime_r(&now, &local);
+            char dateStr[16];
+            char timeStr[16];
+            strftime(dateStr, sizeof(dateStr), "%Y-%m-%d", &local);
+            strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &local);
             cMyTrace trace("void GameWorld::UpdateServerSnapShot()", 0x1b61, 8);
             trace("%u,%d,%u,%d,%d,%d,%d,%d,%s %s",
                   user->get_acc_id(),
@@ -2993,7 +3005,7 @@ void GameWorld::UpdateServerSnapShot()
                   dungIdx,
                   user->getCurCharacExp(),
                   user->getCurCharacMoney(),
-                  "", "");
+                  dateStr, timeStr);
         }
     }
 }

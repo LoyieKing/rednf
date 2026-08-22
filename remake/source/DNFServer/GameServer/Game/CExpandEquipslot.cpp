@@ -18,6 +18,7 @@
 #include "GameTypes.h"
 #include "InterfacePacketBuf.h"
 #include "Stream.h"
+#include "CTitleBook.h"   // item_lock::stItemLockRef 权威定义
 
 // ---- PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char）----
 class PacketGuard : public InterfacePacketBuf
@@ -80,23 +81,7 @@ public:
 bool CheckEquipable(const Inven_Item& a, const Inven_Item& b);
 int IsEquipable(CUser* user, const CItem* item, int slot);
 
-// ---- item_lock（EquipslotSwitch 迭代用，最小声明）----
-namespace item_lock
-{
-struct stItemLockRef
-{
-    char m_field0;    // +0x00
-    char m_space;     // +0x01
-    unsigned short m_slot;  // +0x02
-};
-
-class CItemLock
-{
-public:
-    std::vector<stItemLockRef>& GetItemLockRefVec();
-};
-}
-
+// ---- item_lock（EquipslotSwitch 迭代用，权威定义在 CTitleBook.h）----
 class CParty
 {
 public:

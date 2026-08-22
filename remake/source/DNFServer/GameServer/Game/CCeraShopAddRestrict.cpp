@@ -59,23 +59,22 @@ namespace CerashopAddRestrict
 
 int ScriptLoader::LoadScript()
 {
-
-
     if (!loadRDARScriptFile("Etc/", "NewCashShop_Restrict.etc"))
         return -1;
     std::string section;
-    bool flag = false;
-    while (ScanType(section, flag)) {
+    while (ScanType(section, true)) {
         if (section == "[account restrict]") {
-            LoadScriptDaily(RestrictType_Account);
-        } else if (section == "[charac restrict]") {
-            LoadScriptDaily(RestrictType_Charac);
+            if (LoadScriptDaily(RestrictType_Account) < 0)
+                return -1;
+        } else if (section == "[character restrict]") {
+            if (LoadScriptDaily(RestrictType_Charac) < 0)
+                return -1;
         }
     }
     return 0;
 }
 
-void ScriptLoader::LoadScriptDaily(RestrictType type)
+int ScriptLoader::LoadScriptDaily(RestrictType type)
 {
 
     bool ok = false;
@@ -98,6 +97,7 @@ void ScriptLoader::LoadScriptDaily(RestrictType type)
         info->m_field18 = ScanInt(&ok);
         m_infoMap[info->m_ipgNo] = info;
     }
+    return 0;
 }
 
 void ScriptLoader::ClearScript()
@@ -174,13 +174,13 @@ int Manager::Destroy()
     return 1;
 }
 
-void Manager::FindIpgNo(unsigned int ipgNo)
+bool Manager::FindIpgNo(unsigned int ipgNo)
 {
-    m_loader.FindIpgNo(ipgNo);
+    return m_loader.FindIpgNo(ipgNo);
 }
 
-void Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
-                                  unsigned int itemIdx, int type)
+int Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
+                                 unsigned int itemIdx, int type)
 {
     if (type == 0) {
         UserCeraInfo(user).m_field30.clear();
@@ -188,7 +188,7 @@ void Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
     }
     InfoDaily* info = m_loader.GetRestrictInfo(ipgNo);
     if (info == 0)
-        return;
+        return 1;
     if (info->m_type == 0) {
         // 账号级：检查/登记账号限购记录
         std::map<unsigned int, paramDaily*>& m = UserCeraInfo(user).m_accountDaily;
@@ -221,6 +221,7 @@ void Manager::CheckBuyableProduct(CUser* user, unsigned int ipgNo,
         UserCeraInfo(user).m_field48[itemIdx] =
             daily ? (unsigned int)daily->m_count : 0;
     }
+    return 1;
 }
 
 void Manager::UpdateBuyableRestrictItem(CUser* user, unsigned int ipgNo,

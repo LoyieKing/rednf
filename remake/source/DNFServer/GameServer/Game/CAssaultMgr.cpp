@@ -15,6 +15,16 @@ void CAssaultMgr::SendPacket(CUser*, bool, PacketGuard*)
     // TODO(G3)
 }
 
+void CAssaultMgr::OnLeaveAssaultPlace(CUser* user, bool flag)
+{
+    // ORIG 0x082ef176 T：CUserCharacInfo::GetAssaultPlace(user)（值弃）→
+    // _GetAssaultPlace(this) 取得袭击区域 → CAssaultPlace::LeaveAssaultPlace(place,
+    // user, flag)，返回 1。CAssaultPlace（CGameManager.h 桩）与 LeaveAssaultPlace/
+    // _GetAssaultPlace 尚未还原，提供签名匹配骨架（推断），避免引入额外未定义符号。
+    (void)user;
+    (void)flag;
+}
+
 CAssaultMgr* GetInstanceAssaultMgr()
 {
     static CAssaultMgr s;

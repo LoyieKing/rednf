@@ -76,18 +76,7 @@ CDataManager* G_CDataManager();
 
 int IsEquipable(CUser* user, const CItem* item, int slot);
 
-// ---- 最小 CInventory / PacketGuard（完整声明属背包域 TU） ----
-enum INVEN_TYPE
-{
-    INVEN_TYPE_0 = 0,
-    INVEN_TYPE_1 = 1
-};
-
-enum eItemDelReason
-{
-    eItemDelReason_0x2b = 0x2b
-};
-
+// INVEN_TYPE / eItemDelReason 定义于 GameEnums.h（经 CTitleBook.h include）。
 class CInventory
 {
 public:

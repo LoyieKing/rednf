@@ -22,7 +22,20 @@ public:
     unsigned int getIdx() const { return 0; }
     int getAppearancePoint() const { return 0; }
     void deathTowerSpecifyItemDrop(std::vector<unsigned long>& dropIds) {}
-    int getPvPWinPoint() const { return 0; }
+    // ORIG 0x0834a240 _ZNK12CAICharacter14getPvPWinPointEv：
+    // 返回 PvP 胜点。+0x1c=最小胜点，+0x20=最大胜点；等则返回该值，
+    // 否则返回 min + get_rand_int(max - min + 1)。
+    int getPvPWinPoint() const
+    {
+        if (m_pvpWinLow == m_pvpWinHigh)
+            return m_pvpWinLow;
+        return m_pvpWinLow + get_rand_int(m_pvpWinHigh - m_pvpWinLow + 1);
+    }
+
+private:
+    char m_pad[0x1c];       // +0x00..+0x1b（保持 ORIG AI 布局）
+    int m_pvpWinLow;        // +0x1c
+    int m_pvpWinHigh;       // +0x20
 };
 
 class CMonster
@@ -1230,8 +1243,16 @@ void CDeathTower::CDungeonMgr::reset()
     memset(this, 0, sizeof(*this));
 }
 
-bool CDeathTower::CDungeonMgr::initDungeonMgr(int dungeonIdx) { return true; }
-CMap* CDeathTower::CDungeonMgr::getStageMap(int stage)
+bool CDeathTower::CDungeonMgr::initDungeonMgr(int dungeonIdx)
+{
+    // ORIG 0x084605a2：m_pDungeon = G_CDataManager()->find_dungeon(dungeonIdx)；
+    // 为空返回 false；否则 m_pad4(+4) = getDeathTowerMaxStage()，返回 true。
+    m_pDungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+    if (m_pDungeon == 0)
+        return false;
+    *(int*)m_pad4 = m_pDungeon->getDeathTowerMaxStage();
+    return true;
+}CMap* CDeathTower::CDungeonMgr::getStageMap(int stage)
 {
     CDungeon* dungeon = getDungeon();
     if (!dungeon) return NULL;
@@ -2055,7 +2076,28 @@ void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
 
 void CDeathTower::CPlayData::reset()
 {
-    memset(this, 0, sizeof(*this));
+    // ORIG 0x08461f18：+0x10/+0x14/+0x00 清零；4 成员 alive/ready 清 0；
+    // stRewardItem_t[4]（+0x18，步长 0x268）逐个 reset（内联：首字段 0，
+    // 10 个 Inven_Item@+4+i*0x3d reset + itemIdx@+6 置 -1）；
+    // +0x9b8+i*4（stRewardItem 区尾）清 0；+0xa28 起 4 字节清 0。
+    *(int*)((char*)this + 0x10) = 0;
+    *(int*)((char*)this + 0x14) = 0;
+    *(int*)((char*)this + 0x0) = 0;
+    for (int i = 0; i < 4; ++i)
+    {
+        ((char*)this)[4 + i] = 0;
+        ((char*)this)[8 + i] = 0;
+        char* reward = (char*)this + i * 0x268 + 0x18;
+        *(int*)reward = 0;
+        for (int j = 0; j < 10; ++j)
+        {
+            reinterpret_cast<Inven_Item*>(reward + j * 0x3d + 4)->reset();
+            *(int*)(reward + j * 0x3d + 6) = -1;
+        }
+        *(int*)((char*)this + (i + 0x26c) * 4 + 8) = 0;
+    }
+    for (int i = 0; i < 4; ++i)
+        ((char*)this)[0xa28 + i] = 0;
 }
 
 int CDeathTower::CPlayData::getStartMemberCnt()
@@ -2065,12 +2107,29 @@ int CDeathTower::CPlayData::getStartMemberCnt()
 
 void CDeathTower::CPlayData::makeStartMemberInfo(CParty* party)
 {
-    for (int i = 0; i < 4; ++i)
+    // ORIG 0x08461d02：memset(+0x9cc, 0, 0x5c)；遍历 0..3 个队伍槽，
+    // 有效成员（get_user 非空且 checkValidUser==1）把名字 strcpy 到
+    // +0x9cc+i*0x17，level/job/growType 写到 +0x9e0/+0x9e1/+0x9e2（步长 0x17）；
+    // 结束时 +0x9c8 = get_member_count()。
+    memset((char*)this + 0x9cc, 0, 0x5c);
+    int count = 0;
+    int i = 0;
+    while (i < 4)
     {
-        m_memberAlive[i] = 0;
-        m_memberReady[i] = 0;
+        CUserCharacInfo* info = (CUserCharacInfo*)party->get_user(i);
+        if (info != 0 && party->checkValidUser(i) == 1)
+        {
+            const char* name = info->getCurCharacName();
+            if (name != 0)
+                strcpy((char*)this + count * 0x17 + 0x9cc, name);
+            ((char*)this)[count * 0x17 + 0x9e0] = (char)info->get_charac_level();
+            ((char*)this)[count * 0x17 + 0x9e1] = (char)info->get_charac_job();
+            ((char*)this)[count * 0x17 + 0x9e2] = (char)info->getCurCharacGrowType();
+            ++count;
+        }
+        ++i;
     }
-    m_allReady = 0;
+    *(int*)((char*)this + 0x9c8) = party->get_member_count();
 }
 
 void CDeathTower::CPlayData::resetMemberReady()

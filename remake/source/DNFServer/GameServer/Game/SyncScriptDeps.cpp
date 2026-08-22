@@ -83,13 +83,38 @@ bool CSyncScript::InsertDescTable()
 
 // ==================== advancealtar::SyncScript desc ====================
 
+#include <cstdio>
+#include <cstring>
+#include <map>
+#include <vector>
+
+#include "CDataManager.h"
+#include "DNFFunctionLib.h"  // CodePage::script2Database
+
 namespace advancealtar
 {
+// BuyUpgradeData / BuyShopData 权威定义在 CDataManager.h（namespace advancealtar）。
+
+namespace AdvanceAltarShopType
+{
+enum T
+{
+    T_0 = 0,
+    T_1 = 1,
+    T_2 = 2
+};
+}
+
 class SyncScript
 {
 public:
     bool insertItemDescTable();
     bool truncateItemDescTable();
+
+    // ORIG 0x08134132：把 ridableId/type 下 BuyShopData 各 BuyUpgradeData
+    // 生成 "(%d,%d,%d,'%s')" 元组追加到 out（项间 ", "），全部成功返回 1。
+    static int getItemValueStirng(int ridableId, const BuyShopData& data,
+                                  AdvanceAltarShopType::T type, std::string& out);
 };
 
 // ORIG 0x08133e44：GetDBHandle(3,0) → "trUncate table charac_advance_altar_item_desc"。
@@ -101,13 +126,102 @@ bool SyncScript::truncateItemDescTable()
     return db->exec(true) == 1;
 }
 
-// ORIG 0x08133ea6：遍历 G_CDataManager()+0x631c 的 advancealtar::Manager
-// BuyShopData map，经 getItemValueStirng 生成 item_desc 后 INSERT
-// charac_advance_altar_item_desc(ridable_id, item_type, item_id, item_desc)。
-// 该数据源/辅助（BuyShopData 表、getItemValueStirng）尚未建模，暂以空实现
-// 占位（保持符号 T）；对应 truncateItemDescTable 已真实实现。
+// ORIG 0x08134132：见头注。type==1→+0x10 vec；type==2→+0x1c vec；type==0→+0x04 vec；
+// 其它 type 直接返回 0。逐项 CodePage::script2Database 转换 desc 后 sprintf 元组，
+// 项间追加 ", "；任一项转换失败返回 0（ORIG 走错误日志路径）。
+int SyncScript::getItemValueStirng(int ridableId, const BuyShopData& data,
+                                   AdvanceAltarShopType::T type, std::string& out)
+{
+    const std::vector<BuyUpgradeData>* vec = 0;
+    switch (type)
+    {
+    case AdvanceAltarShopType::T_1: vec = &data.m_vecT1; break;
+    case AdvanceAltarShopType::T_2: vec = &data.m_vecT2; break;
+    case AdvanceAltarShopType::T_0: vec = &data.m_vecT0; break;
+    default: return 0;
+    }
+
+    char tuple[1024];
+    char conv[1024];
+    for (int i = 0; i < (int)vec->size(); ++i)
+    {
+        const BuyUpgradeData& item = (*vec)[i];
+        memset(conv, 0, sizeof(conv));
+        if (CodePage::script2Database((char*)item.m_strDesc.c_str(), conv))
+        {
+            sprintf(tuple, "(%d,%d,%d,'%s')", ridableId, (int)type,
+                    item.m_nItemId, conv);
+            out += tuple;
+            if (i < (int)vec->size() - 1)
+            {
+                out += ", ";
+            }
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+// ORIG 0x08133ea6：遍历 G_CDataManager()+0x631c 的 map<int,BuyShopData>
+// （advancealtar::AdvanceAltarShopParameter m_altarShop 的 +0 表），对每个
+// ridable_id 依次生成 type 0/1/2 的 values 元组（项间以 "," 分隔），拼装
+// "inSert into charac_advance_altar_item_desc (ridable_id, item_type,
+// item_id, item_desc) values " 后 INSERT；任一行失败返回 0，全部成功返回 1。
 bool SyncScript::insertItemDescTable()
 {
+    CDataManager* dm = G_CDataManager();
+    if (dm == 0)
+    {
+        return false;
+    }
+
+    // ORIG：数据源位于 CDataManager+0x631c（m_altarShop 占位对象 +0）。
+    // [推断] CDataManager.h 中 m_altarShop 为 pad[0x30] 占位；此处按 ORIG
+    // 偏移访问其 +0 的 map<int,BuyShopData>（importAdvanceAltarShopParameter
+    // 填充）。若该表未填充，循环体不会执行，返回 true（与 ORIG 空表行为一致）。
+    typedef std::map<int, BuyShopData> BuyShopDataMap;
+    BuyShopDataMap* shopMap =
+        reinterpret_cast<BuyShopDataMap*>(reinterpret_cast<char*>(dm) + 0x631c);
+
+    std::string query;
+    std::string values;
+    for (BuyShopDataMap::const_iterator it = shopMap->begin();
+         it != shopMap->end(); ++it)
+    {
+        query =
+            "inSert into charac_advance_altar_item_desc \t\t\t\t  "
+            "(ridable_id, item_type, item_id, item_desc) values ";
+        values.clear();
+        if (getItemValueStirng(it->first, it->second,
+                               AdvanceAltarShopType::T_0, values) == 0)
+        {
+            return false;
+        }
+        values += ",";
+        if (getItemValueStirng(it->first, it->second,
+                               AdvanceAltarShopType::T_1, values) == 0)
+        {
+            return false;
+        }
+        values += ",";
+        if (getItemValueStirng(it->first, it->second,
+                               AdvanceAltarShopType::T_2, values) == 0)
+        {
+            return false;
+        }
+        query += values;
+
+        MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
+            (ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
+        db->set_query(query.c_str());
+        if (db->exec(true) != 1)
+        {
+            return false;
+        }
+    }
     return true;
 }
 }  // namespace advancealtar

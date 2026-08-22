@@ -159,9 +159,22 @@ struct RecipeInfo
     RecipeInfo();
     ~RecipeInfo();
     void additionalInfo(STStackableScript& script);
-    char m_pad[0x28];
+    void clear();
+
+    // ORIG C1 0x8513c6a / clear 0x8513bf2 / D1 0x85144f4，sizeof 0x4c：
+    // +0x00/+0x0c/+0x18/+0x28/+0x40 vector<pair<int,int>>
+    // +0x24 char +0x25 char +0x34/+0x38/+0x3c int
+    std::vector<std::pair<int, int> > m_vec0;    // +0x00
+    std::vector<std::pair<int, int> > m_vecC;    // +0x0c
+    std::vector<std::pair<int, int> > m_vec18;   // +0x18
+    char m_field24;                              // +0x24
+    char m_field25;                              // +0x25
+    char m_pad26[2];                             // +0x26
     std::vector<std::pair<int, int> > m_vec28;   // +0x28
-    char m_pad34[0x4c - 0x34];
+    int m_field34;                               // +0x34
+    int m_field38;                               // +0x38
+    int m_field3c;                               // +0x3c
+    std::vector<std::pair<int, int> > m_vec40;   // +0x40
 };
 
 struct BoosterSelectInfo

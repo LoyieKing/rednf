@@ -380,14 +380,14 @@ int ServerParameterScript::GetAdmissionIncrease(int idx)
     return m_vec7a0[idx].second;
 }
 
-int ServerParameterScript::GetPvPPenaltyRevision(int grade)
+float ServerParameterScript::GetPvPPenaltyRevision(int grade)
 {
     std::map<int, int>::const_iterator it = m_mapb0.find(grade);
     if (it == m_mapb0.end())
     {
-        return 0;
+        return 0.0f;
     }
-    return it->second;
+    return (float)it->second;
 }
 
 int ServerParameterScript::getRecoverStaminaPrice(int idx, int price)

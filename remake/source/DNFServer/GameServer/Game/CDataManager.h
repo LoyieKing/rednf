@@ -127,6 +127,205 @@ struct stDBLogItem
     int m_value;             // +0x08
 };
 
+// ===================== 脚本子结构 POD（ORIG 全局作用域） =====================
+// 各元素仅承载 vector/map 模板参数名以匹配 ORIG mangled 符号；字段布局未逐字段
+// 确认（仅容器语义），元素体为最小占位（[推断]）。
+
+// sItemGenRef：ServerParameterScript.h 的 m_genRefs 元素类型，须先于其定义。
+struct sItemGenRef
+{
+    int m_field0;    // +0x00
+    int m_field4;    // +0x04
+    int m_field8;    // +0x08
+    int m_fieldc;    // +0x0c
+    int m_dropRate;  // +0x10 掉落率倍率（float 位模式，SetItemDropRate 按比例缩放）
+};
+
+// EventRewardSection/EventRewardItemInfo 定义于 ServerParameterScript.h。
+#include "ServerParameterScript.h"
+#include "advancealtar.h"
+// stTitleBookInfo 的 stTitleSection/stTitleElement/stAdjust/stTitleRewardBasis 定义于本头。
+#include "CTitleBook.h"
+
+// STExpReward 原定义于 CUser.h；因 STGrowthPowerData（本头）需要完整类型且
+// CUserCharacInfo.h→CDataManager.h include 顺序靠前，迁移至本头（pack(1) 保持 ORIG）。
+#pragma pack(push, 1)
+struct STExpReward
+{
+    STExpReward() {}
+
+    int m_reward;      // +0x00
+    char m_field4;     // +0x04
+    char m_field5;     // +0x05
+    char m_powerUp;    // +0x06（SetPowerUp）
+    int m_localIp;     // +0x07（0x8d254）
+    int m_publicIp;    // +0x0b（0x8d258）
+    char m_padf[4];    // +0x0f..0x12
+    bool m_hangameUser;  // +0x13（0x8d260）
+    char m_pad14[0x17 - 0x14];  // +0x14..0x17
+};
+#pragma pack(pop)
+
+struct STAgitUpgradeInfo          { int m_field0; };                       // [推断]
+struct STGuildStorageUpgradeInfo  { int m_field0; };                       // [推断]
+struct stCustomConditionMsg       { int m_field0; };                       // [推断]
+struct stMercenaryCompetitionArea { int m_field0; };                       // [推断]
+struct STBreakAwaySection         { int m_field0; };                       // [推断]
+struct stCharacLinkSystemData     { int m_field0; };                       // [推断]
+struct pieceQuestRewardStatus     { int m_field0; };                       // [推断]
+struct stClearTimeAverage         { int m_field0; };                       // [推断]
+struct stBonusPointValues         { int m_field0; };                       // [推断]
+struct stDungeonClearTimeData     { int m_field0; };                       // [推断]
+struct stComboIntervalBoundary    { int m_field0; };                       // [推断]
+struct stUnlimitChallengeRewardInfo    { int m_field0; };                  // [推断]
+struct stUnlimitChallengeMessageInfo   { int m_field0; };                  // [推断]
+struct stUnlimitChallengeItem     { int m_field0; };                       // [推断]
+struct PvPSkillTreeValue          { int m_field0; };                       // [推断]
+struct FAIR_PVP_SKILL_TREE_SKILL_PER_POINT { int m_field0; };              // [推断]
+struct stMonsterIndependentDrop_t { char m_pad[0x30]; };                    // [推断]
+struct IndependentDropListInfo    { int m_field0; };                       // [推断]
+struct stIndependentDropInfo
+{
+    int m_field0;                    // +0x00
+    int m_monsterIndex;              // +0x04
+    stMonsterIndependentDrop_t m_drop;  // +0x08
+};
+struct stIndependentDropRateControl { int m_field0; };                     // [推断]
+struct itemData                   { int m_field0; };                       // [推断]
+struct SlotBound                  { int m_field0; };                       // [推断]
+struct stConditionEventRewardInfo { int m_field0; };                       // [推断]
+struct stUpgradeWithCompound      { int m_field0; };                       // [推断]
+struct STUltimateRewardProb       { int m_field0; };                       // [推断]
+struct StackableItemData          { int m_field0; };                       // [推断]
+struct LevelUpRewardItemData      { int m_field0; };                       // [推断]
+struct stOneBuff_t                { int m_field0; };                       // [推断]
+struct str_index_to_itemgroup     { int m_field0; };                       // [推断]
+struct _str_cost                  { int m_field0; };                       // [推断]
+struct _str_option_value_ratio    { int m_field0; };                       // [推断]
+struct stVictoryPenalty           { int m_field0; };                       // [推断]
+
+// map key 类型（需要 operator<；字段布局 [推断]）
+struct stClearTimeAverageMapKey
+{
+    int m_a;   // [推断]
+    int m_b;   // [推断]
+    bool operator<(const stClearTimeAverageMapKey& o) const
+    {
+        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+    }
+};
+
+struct stUnlimitChallengeKey
+{
+    int m_a;   // [推断]
+    int m_b;   // [推断]
+    bool operator<(const stUnlimitChallengeKey& o) const
+    {
+        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+    }
+};
+
+struct PvPSkillTreeKey
+{
+    int m_a;   // [推断]
+    int m_b;   // [推断]
+    bool operator<(const PvPSkillTreeKey& o) const
+    {
+        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+    }
+};
+
+struct rewardKey
+{
+    int m_a;   // [推断]
+    int m_b;   // [推断]
+    bool operator<(const rewardKey& o) const
+    {
+        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+    }
+};
+
+struct SlotBoundKey
+{
+    int m_a;   // [推断]
+    int m_b;   // [推断]
+    bool operator<(const SlotBoundKey& o) const
+    {
+        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+    }
+};
+
+struct LevelUpRewardItemTableKey
+{
+    int m_a;   // [推断]
+    int m_b;   // [推断]
+    bool operator<(const LevelUpRewardItemTableKey& o) const
+    {
+        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
+    }
+};
+
+// 嵌套 vector 容器子类型（ORIG D1 仅析构各自 vector/map 成员）：
+struct stLimitItemUsageInfo
+{
+    struct LimitInfo { int m_field0; };   // [推断]
+    std::vector<LimitInfo> m_list;        // +0x00
+};
+
+struct stResetItemInfo
+{
+    struct ResetItem { int m_field0; };   // [推断]
+    std::vector<ResetItem> m_list;        // +0x00
+};
+
+struct stRefillItemInfo
+{
+    struct RefillItem { int m_field0; };  // [推断]
+    std::vector<RefillItem> m_list;       // +0x00
+};
+
+// stNPCCommonData_t（ORIG C1 0x837612e / D1 0x83761c6 / clear 0x89fae9e）：
+// +0x00 ushort[10] +0x18 vector<int> +0x24 vector<int>
+// +0x30 ushort +0x32 ushort +0x34 ushort +0x38 vector<int>
+// +0x44 vector<pair<int,stOneBuff_t>>，sizeof 0x50
+struct stNPCCommonData_t
+{
+    unsigned short m_field0[10];                       // +0x00
+    char m_pad14[4];                                   // +0x14
+    std::vector<int> m_vec18;                          // +0x18
+    std::vector<int> m_vec24;                          // +0x24
+    char m_pad2c[4];                                   // +0x2c
+    unsigned short m_field30;                          // +0x30
+    unsigned short m_field32;                          // +0x32
+    unsigned short m_field34;                          // +0x34
+    char m_pad36[2];                                   // +0x36
+    std::vector<int> m_vec38;                          // +0x38
+    std::vector<std::pair<int, stOneBuff_t> > m_vec44; // +0x44
+};
+
+// RandomOptionItem_Regenerator（ORIG D1 0x85f97e2）：
+// +0x00 map<int,str_index_to_itemgroup> +0x18 map<int,map<int,_str_cost>>
+// +0x30 vector<int> +0x3c vector<_str_option_value_ratio>，sizeof 0x48
+struct RandomOptionItem_Regenerator
+{
+    std::map<int, str_index_to_itemgroup> m_map0;      // +0x00
+    std::map<int, std::map<int, _str_cost> > m_map18;  // +0x18
+    std::vector<int> m_vec30;                          // +0x30
+    std::vector<_str_option_value_ratio> m_vec3c;      // +0x3c
+    char m_pad48[4];                                   // +0x48
+};
+
+// DimensionActivationRewardData（ORIG C1 0x8371348 / D1 0x83713b4）：
+// +0x00 vector<EventRewardSection> +0x0c map<int,vector<vector<EventRewardItemInfo>>>
+// +0x24 map<pair<int,int>,vector<vector<EventRewardItemInfo>>>，sizeof 0x3c
+struct DimensionActivationRewardData
+{
+    std::vector<EventRewardSection> m_vec0;                                // +0x00
+    std::map<int, std::vector<std::vector<EventRewardItemInfo> > > m_mapC; // +0x0c
+    std::map<std::pair<int, int>,
+             std::vector<std::vector<EventRewardItemInfo> > > m_map24;     // +0x24
+};
+
 // ===================== ST* 脚本占位类型（后续批次实现） =====================
 
 class reseal_table_t
@@ -142,18 +341,9 @@ private:
 };
 
 #ifndef GAME_SERVERPARAMETERSCRIPT_H_
-struct sItemGenRef
-{
-    int m_field0;    // +0x00
-    int m_field4;    // +0x04
-    int m_field8;    // +0x08
-    int m_fieldc;    // +0x0c
-    int m_dropRate;  // +0x10 掉落率倍率（float 位模式，SetItemDropRate 按比例缩放）
-};
 #endif
 
-// ServerParameterScript 定义于 ServerParameterScript.h（尺寸 0x49f4）。
-#include "ServerParameterScript.h"
+// ServerParameterScript 定义于 ServerParameterScript.h（尺寸 0x49f4，已在上方 include）。
 #include "APSystemTypes.h"
 
 class InGameAdvertisementScript
@@ -169,8 +359,16 @@ class PcBangItemRentarData
 public:
     PcBangItemRentarData();
     ~PcBangItemRentarData();
-private:
-    char m_pad[0x24];
+
+    // ORIG D1 0x837c2c0：+0x00 vector<EventRewardSection>
+    // +0x0c map<int,vector<vector<EventRewardItemInfo>>>，sizeof 0x24
+    std::vector<EventRewardSection> m_vec0;                     // +0x00
+    std::map<int, std::vector<std::vector<EventRewardItemInfo> > > m_mapC;  // +0x0c
+};
+
+struct DimensionCoinInfo
+{
+    int m_field0;   // [推断]
 };
 
 class DimensionActivationData
@@ -178,8 +376,13 @@ class DimensionActivationData
 public:
     DimensionActivationData();
     ~DimensionActivationData();
-private:
-    char m_pad[0x58];
+
+    // ORIG C1 0x8371422 / D1 0x837c306：+0x00 int（=0）+0x04
+    // map<int,DimensionCoinInfo> +0x1c DimensionActivationRewardData（0x3c），
+    // sizeof 0x58
+    int m_field0;                                       // +0x00
+    std::map<int, DimensionCoinInfo> m_coinMap;         // +0x04
+    DimensionActivationRewardData m_rewardData;         // +0x1c
 };
 
 class seriaRoomDecoEventScript
@@ -275,8 +478,16 @@ public:
     stUnlimitChallengeInfo();
     ~stUnlimitChallengeInfo();
 
-    char m_pad[0x4c];
-    int m_field4c;   // +0x4c
+    // ORIG C1 0x837c53c：+0x00 int +0x04 vector<int> +0x10 vector<int>
+    // +0x1c vector<stUnlimitChallengeRewardInfo> +0x28 vector<stUnlimitChallengeMessageInfo>
+    // +0x34 multimap<stUnlimitChallengeKey,stUnlimitChallengeItem>，sizeof 0x4c
+    int m_field0;                                       // +0x00
+    std::vector<int> m_vec4;                            // +0x04
+    std::vector<int> m_vec10;                           // +0x10
+    std::vector<stUnlimitChallengeRewardInfo> m_vec1c;  // +0x1c
+    std::vector<stUnlimitChallengeMessageInfo> m_vec28; // +0x28
+    std::multimap<stUnlimitChallengeKey,
+                  stUnlimitChallengeItem> m_multiMap34; // +0x34
 };
 
 class stLimitItemUsageInfoEx
@@ -284,8 +495,19 @@ class stLimitItemUsageInfoEx
 public:
     stLimitItemUsageInfoEx();
     ~stLimitItemUsageInfoEx();
-private:
-    char m_pad[0x24];
+
+    // ORIG D1 0x837c7a2：+0x00 stLimitItemUsageInfo +0x0c stResetItemInfo
+    // +0x18 stRefillItemInfo，sizeof 0x24
+    stLimitItemUsageInfo m_info0;   // +0x00
+    stResetItemInfo m_resetC;       // +0x0c
+    stRefillItemInfo m_refill18;    // +0x18
+};
+
+// stNPCRelationEventInfo 元素布局未确认（[推断]）；ORIG D1 0x890ce34：
+// 遍历 map<unsigned short, stNPCRelationEventInfo*> 删除各节点，再析构 map。
+struct stNPCRelationEventInfo
+{
+    int m_field0;   // [推断]
 };
 
 class CNPCRelationEventManager
@@ -294,7 +516,8 @@ public:
     CNPCRelationEventManager();
     ~CNPCRelationEventManager();
 
-    char m_pad[0x18];
+    // ORIG D1 0x890ce34：+0x00 map<unsigned short, stNPCRelationEventInfo*>
+    std::map<unsigned short, stNPCRelationEventInfo*> m_npcEventMap;  // +0x00
     int m_itemLimitEditionMgr;   // +0x18
 };
 
@@ -342,8 +565,15 @@ class stConditionEventInfo
 public:
     stConditionEventInfo();
     ~stConditionEventInfo();
-private:
-    char m_pad[0x50];
+
+    // ORIG D1 0x837c938：+0x08 map<int,pair<int,int>> +0x20
+    // multimap<int,stConditionEventRewardInfo> +0x38
+    // multimap<int,stConditionEventRewardInfo>，sizeof 0x50
+    int m_field0;                                      // +0x00
+    int m_field4;                                      // +0x04
+    std::map<int, std::pair<int, int> > m_map8;        // +0x08
+    std::multimap<int, stConditionEventRewardInfo> m_multiMap20;  // +0x20
+    std::multimap<int, stConditionEventRewardInfo> m_multiMap38;  // +0x38
 };
 
 class ConditionLevelChkDungeon
@@ -380,8 +610,11 @@ public:
     RegenerationROI();
     ~RegenerationROI();
 
-    char m_pad[0x50];
-    int m_expertJobList;   // +0x50
+    // ORIG D1 0x85f8506：+0x00 void*（非空 delete）+0x04
+    // RandomOptionItem_Regenerator（0x48）+0x50 int，sizeof 0x54
+    void* m_regeneratorPtr;                    // +0x00
+    RandomOptionItem_Regenerator m_regenerator;  // +0x04
+    int m_expertJobList;                       // +0x50
 };
 
 class stSeriaBlessingScript
@@ -393,13 +626,26 @@ private:
     char m_pad[0x18];
 };
 
+// stLevelUpRewardItemScript / stStepRewardStackableItemScript（ORIG D1
+// 0x8371530 / 0x837151c：各含一个 map 成员，sizeof 0x18）。
 class stLevelUpRewardItemScript
 {
 public:
     stLevelUpRewardItemScript();
     ~stLevelUpRewardItemScript();
-private:
-    char m_pad[0x18];
+
+    std::map<LevelUpRewardItemTableKey, LevelUpRewardItemData> m_map0;  // +0x00
+    char m_pad18[0xc];                                                 // +0x18
+};
+
+class stStepRewardStackableItemScript
+{
+public:
+    stStepRewardStackableItemScript();
+    ~stStepRewardStackableItemScript();
+
+    std::map<int, std::vector<StackableItemData> > m_map0;  // +0x00
+    char m_pad18[0xc];                                      // +0x18
 };
 
 class stGrowthCapsuleScript
@@ -411,15 +657,38 @@ public:
     char m_pad18[0x2c];
 };
 
+struct stDungeonRankSystem_t
+{
+    stDungeonRankSystem_t();
+    ~stDungeonRankSystem_t();
+    void clear();
+
+    // ORIG C1 0x8370dcc / clear 0x8370e34：+0x00 map<stClearTimeAverageMapKey,
+    // stClearTimeAverage> +0x18 vector<stBonusPointValues>
+    // +0x24 ushort[8] m_rankLevel（getRankIndex 读）+ memset 0x12 字节，sizeof 0x38
+    std::map<stClearTimeAverageMapKey, stClearTimeAverage> m_map0;  // +0x00
+    std::vector<stBonusPointValues> m_vec18;                        // +0x18
+    unsigned short m_rankLevel[8];                                  // +0x24
+    char m_pad34[2];                                                // +0x34
+    char m_pad36[2];                                                // +0x36
+};
+
 class stRankSystemInfo
 {
 public:
     stRankSystemInfo();
     ~stRankSystemInfo();
+    void clear();
 
-    char m_pad[0x24];
-    unsigned short m_rankLevel[8];   // +0x24
-    char m_pad34[0x44];              // +0x34
+    // ORIG C1 0x8370eba / D1 0x837ce4c：+0x00 stDungeonRankSystem_t（0x38）
+    // +0x38 vector<stDungeonClearTimeData> +0x44 map<int,int>
+    // +0x5c vector<int> +0x68 vector<stComboIntervalBoundary>，sizeof 0x78
+    stDungeonRankSystem_t m_dungeonRank;                           // +0x00
+    std::vector<stDungeonClearTimeData> m_vec38;                   // +0x38
+    std::map<int, int> m_map44;                                    // +0x44
+    std::vector<int> m_vec5c;                                      // +0x5c
+    std::vector<stComboIntervalBoundary> m_vec68;                  // +0x68
+    int m_field74;                                                 // +0x74
 };
 
 struct stDeathTower_t
@@ -432,7 +701,19 @@ struct stBloodDungeon_t
 {
     stBloodDungeon_t();
     ~stBloodDungeon_t();
-    char m_pad[0x370];
+    void clear();
+
+    // ORIG C1 0x8370a3a / clear 0x8370b02：+0x00 float[200]（clear 置 1.0f）
+    // +0x320 int（=1）+0x324 int[3] +0x330 float（=1.0f）
+    // +0x334 vector<float> +0x340 char[0x18] +0x358 map<int,STUltimateRewardProb>
+    // sizeof 0x370
+    float m_rate[200];                                    // +0x00
+    int m_field320;                                       // +0x320
+    int m_field324[3];                                    // +0x324
+    float m_field330;                                     // +0x330
+    std::vector<float> m_vec334;                          // +0x334
+    char m_pad340[0x18];                                  // +0x340
+    std::map<int, STUltimateRewardProb> m_map358;         // +0x358
 };
 
 struct stVillageAttacked_t
@@ -468,11 +749,39 @@ struct stCharacLinkSystem_t
 {
     stCharacLinkSystem_t();
     ~stCharacLinkSystem_t();
-    char m_pad[0x34];
+
+    // ORIG C1 0x837cf46：+0x00 int +0x04/+0x10/+0x1c/+0x28
+    // vector<stCharacLinkSystemData>，sizeof 0x34
+    int m_field0;                                          // +0x00
+    std::vector<stCharacLinkSystemData> m_vec4;            // +0x04
+    std::vector<stCharacLinkSystemData> m_vec10;           // +0x10
+    std::vector<stCharacLinkSystemData> m_vec1c;           // +0x1c
+    std::vector<stCharacLinkSystemData> m_vec28;           // +0x28
 };
 
 namespace advancealtar
 {
+
+// _SummonObject/_StarRestFeeByGold/BuyShopData 元素布局确认（推断自 ORIG）。
+struct _SummonObject { int m_field0; };        // [推断]
+struct ActionDefine { int m_field0; };         // [推断]
+struct _StarRestFeeByGold { int m_field0; };   // [推断]
+// ORIG BuyUpgradeData（getItemValueStirng @ 0x8134132）：+0x00 itemId int + 8B + string。
+struct BuyUpgradeData
+{
+    int m_nItemId;          // +0x00
+    char m_pad04[8];        // +0x04..+0x0b（getFieldData map 区，未建模）
+    std::string m_strDesc;  // +0x0c
+};
+// ORIG BuyShopData（reset @ 0x88a1090）：+0x00 int；三 vector<BuyUpgradeData> 于 +0x04/+0x10/+0x1c。
+struct BuyShopData
+{
+    int m_nField0;                       // +0x00
+    std::vector<BuyUpgradeData> m_vecT0; // +0x04（T_0）
+    std::vector<BuyUpgradeData> m_vecT1; // +0x10（T_1）
+    std::vector<BuyUpgradeData> m_vecT2; // +0x1c（T_2）
+};
+
 class StageTimeLineParameter
 {
 public:
@@ -481,8 +790,13 @@ public:
     void reset();
     int importStageTimeLineParameter(const char* path);
     void debugLog();
-private:
-    char m_pad[0x4c];
+
+    // ORIG D1 0x8899e88：+0x00 map<int,_SummonObject> +0x18
+    // map<int,ActionDefine> +0x30 TimeLine（0x1c），sizeof 0x4c
+    std::map<int, _SummonObject> m_summonMap;    // +0x00
+    std::map<int, ActionDefine> m_actionMap;     // +0x18
+    TimeLine m_timeLine;                         // +0x30
+    char m_pad4c[0x4c - 0x30 - 0x1c];            // +0x4c..0x4b（补齐 0x4c）
 };
 
 class AdvanceAltarShopParameter
@@ -490,8 +804,11 @@ class AdvanceAltarShopParameter
 public:
     AdvanceAltarShopParameter();
     ~AdvanceAltarShopParameter();
-private:
-    char m_pad[0x30];
+
+    // ORIG D1 0x88a0fa2：+0x00 map<int,BuyShopData> +0x18
+    // map<int,_StarRestFeeByGold>，sizeof 0x30
+    std::map<int, BuyShopData> m_buyShopMap;     // +0x00
+    std::map<int, _StarRestFeeByGold> m_starRestMap;  // +0x18
 };
 
 class RewardParameter
@@ -554,8 +871,20 @@ public:
     InvalidCharData();
     ~InvalidCharData();
 
-    char m_pad[0x30];
-    int m_slangFilter;   // +0x30
+    // ORIG C1 0x837d168 / D1 0x837d1fa：+0x00 vector<unsigned char>
+    // +0x0c vector<stRangeElement<unsigned char>> +0x18 vector<unsigned short>
+    // +0x24 vector<stRangeElement<unsigned short>> +0x30 int，sizeof 0x34
+    template <typename T>
+    struct stRangeElement
+    {
+        T m_min;   // [推断]
+        T m_max;   // [推断]
+    };
+    std::vector<unsigned char> m_charList;                // +0x00
+    std::vector<stRangeElement<unsigned char> > m_charRange;  // +0x0c
+    std::vector<unsigned short> m_shortList;              // +0x18
+    std::vector<stRangeElement<unsigned short> > m_shortRange;  // +0x24
+    int m_slangFilter;                                    // +0x30
 };
 
 // STStackablePackageData 定义于 STStackableScript.h（本头已 include CItemList.h）。
@@ -565,19 +894,32 @@ class STGrowthPowerData
 public:
     STGrowthPowerData();
     ~STGrowthPowerData();
-private:
-    char m_pad[0x30];
+
+    // ORIG C1 0x83711fe / D1 0x837d290：+0x00 vector<STBreakAwaySection>
+    // +0x0c vector<STExpReward>
+    // +0x18 map<int, vector<vector<STStackablePackageData>>>，sizeof 0x30
+    std::vector<STBreakAwaySection> m_vec0;              // +0x00
+    std::vector<STExpReward> m_vecC;                     // +0x0c
+    std::map<int, std::vector<std::vector<STStackablePackageData> > > m_map18;  // +0x18
 };
 
 namespace AvatarVariation
 {
+
+struct colorRGB
+{
+    int m_field0;   // [推断]
+};
+
 class AvatarColorInfo
 {
 public:
     AvatarColorInfo();
     ~AvatarColorInfo();
-private:
-    char m_pad[0x30];
+
+    // ORIG D1 0x837d358：+0x00 map<int,colorRGB> +0x18 map<int,string>，sizeof 0x30
+    std::map<int, colorRGB> m_colorMap;      // +0x00
+    std::map<int, std::string> m_nameMap;    // +0x18
 };
 }
 
@@ -636,8 +978,19 @@ class QuestParameterScript
 public:
     QuestParameterScript();
     ~QuestParameterScript();
-private:
-    char m_pad[0x6c];
+    void clear();
+
+    // ORIG C1 0x836f1c2 / clear 0x836f130 / D1 0x837d3ca：+0x00 map<char,int>
+    // +0x18 int[3] +0x24 vector<int> +0x30 vector<int> +0x3c map<int,int>
+    // +0x54 map<int,vector<pieceQuestRewardStatus>>，sizeof 0x6c
+    std::map<char, int> m_map0;                              // +0x00
+    int m_field18;                                           // +0x18
+    int m_field1c;                                           // +0x1c
+    int m_field20;                                           // +0x20
+    std::vector<int> m_vec24;                                // +0x24
+    std::vector<int> m_vec30;                                // +0x30
+    std::map<int, int> m_map3c;                              // +0x3c
+    std::map<int, std::vector<pieceQuestRewardStatus> > m_map54;  // +0x54
 };
 
 class TrainingQuestScript
@@ -655,12 +1008,33 @@ class GuildParameterScript
 public:
     GuildParameterScript();
     ~GuildParameterScript();
-    // 2026-08-16 补充（CGuildServerProxy::SendGuildExpLimit ORIG 直访，
-    // 8B [guild levelup cost] 记录：循环 i=0..16 读 [i][0]；m_guildExpLimit8/
-    // m_guildExpLimit16 同址重复读取 record[8][0] / record[16][0]）：
-    char m_pad[0x60];                  // +0x00
-    int m_levelUpCost[0x11][2];        // +0x60（+0xa0 = record[8][0]，+0xe0 = record[16][0]）
-    char m_padE8[0x11c - 0xe8];        // +0xe8..+0x11b（补齐 0x11c）
+    void clear();
+
+    // ORIG C1 0x837058a / clear 0x83704ae / D1 0x837d542，sizeof 0x11c：
+    // +0x00 int +0x04 int +0x08 char +0x0c int +0x10 map<int,int>
+    // +0x28 int +0x2c vector<STAgitUpgradeInfo> +0x38
+    // vector<STGuildStorageUpgradeInfo> +0x44 map<int,int>
+    // +0x5c int[0x11][2]（getGuildLevelUpParam 以 +0x5c+(n-1)*8 访问）
+    // +0xe4 vector<pair<int,double>> +0xf0 vector<pair<int,vector<int>>>
+    // +0xfc double +0x104 int +0x108 int +0x10c int +0x110 double
+    int m_field0;                                   // +0x00
+    int m_field4;                                   // +0x04
+    char m_field8;                                  // +0x08
+    int m_fieldC;                                   // +0x0c
+    std::map<int, int> m_map10;                     // +0x10
+    int m_field28;                                  // +0x28
+    std::vector<STAgitUpgradeInfo> m_vec2c;         // +0x2c
+    std::vector<STGuildStorageUpgradeInfo> m_vec38; // +0x38
+    std::map<int, int> m_map44;                     // +0x44
+    int m_levelUpCost[0x11][2];                     // +0x5c（16 项有效，[17] 含）
+    std::vector<std::pair<int, double> > m_vecE4;   // +0xe4
+    std::vector<std::pair<int, std::vector<int> > > m_vecF0;  // +0xf0
+    double m_fieldFC;                               // +0xfc
+    int m_field104;                                 // +0x104
+    int m_field108;                                 // +0x108
+    int m_field10c;                                 // +0x10c
+    double m_field110;                              // +0x110
+    char m_pad118[4];                               // +0x118
 };
 
 class PowerParameterScript
@@ -670,15 +1044,20 @@ public:
     ~PowerParameterScript();
 
 public:
-    // 布局依据 ORIG ctor (0x08371a26) / clear (0x0837187a) / importPowerParameterScript
-    // (0x08a592bc) / checkPowerWarServer (0x08a59db4, 读 +0x9c) 推导，sizeof 保持 0xd8。
+    // 布局依据 ORIG ctor (0x08371a26) / clear (0x0837187a) / D1 (0x0837d634) /
+    // importPowerParameterScript (0x08a592bc) / checkPowerWarServer (0x08a59db4,
+    // 读 +0x9c) 推导，sizeof 保持 0xd8。D1 析构 7 个容器成员：
+    // +0xc8 vector<int> +0xbc vector<stVictoryPenalty> +0xac vector<int>
+    // +0x9c vector<pair<int,int>> +0x70 vector<pair<int,int>>
+    // +0x38 vector<int> +0x20 vector<int>
     char m_pad00[0x14];                                     // +0x00..+0x13
     int m_ghostTime;                                        // +0x14（getPowerWarGhostTime 读 CDataManager+0xa63c）
     int m_penaltyThreshold;                                 // +0x18（GetPowerWarResponPenalty 读 +0xa640）
     int m_pad1c;                                            // +0x1c
-    char m_pad20[0x14];                                     // +0x20..+0x33（ORIG vector<int> 区）
+    std::vector<int> m_vec20;                               // +0x20
+    char m_pad2c[8];                                        // +0x2c..+0x33
     int m_pad34;                                            // +0x34
-    char m_pad38[0xc];                                      // +0x38..+0x43（ORIG vector<int> 区）
+    std::vector<int> m_vec38;                               // +0x38（ORIG vector<int> 区）
     int m_pad44;                                            // +0x44
     int m_pad48;                                            // +0x48
     int m_pad4c;                                            // +0x4c
@@ -690,13 +1069,14 @@ public:
     int m_minEnterLevel;                                    // +0x64（CheckPowerWarEnterLimit 读 +0xa68c）
     int m_minEnterAge;                                      // +0x68（CheckPowerWarEnterLimit 读 +0xa690）
     int m_pad6c;                                            // +0x6c
-    char m_pad70[0x2c];                                     // +0x70..+0x9b（ORIG vector<pair> + ints + pair 区）
+    std::vector< std::pair<int, int> > m_vec70;             // +0x70
+    char m_pad7c[0x20];                                     // +0x7c..+0x9b（8 int）
     std::vector< std::pair<int, int> > m_powerWarServerList; // +0x9c（checkPowerWarServer 读 +0xa6c4）
     int m_padA8;                                            // +0xa8
-    char m_padAC[0xc];                                      // +0xac..+0xb7（ORIG vector<int> 区）
+    std::vector<int> m_vecAC;                               // +0xac
     int m_powerWarCooldownMinutes;                          // +0xb8（ProcessJoinPowerWar 读 +0xa6e0）
-    char m_padBC[0xc];                                      // +0xbc..+0xc7（ORIG vector<stVictoryPenalty> 区）
-    char m_padC8[0xc];                                      // +0xc8..+0xd3（ORIG vector<int> 区）
+    std::vector<stVictoryPenalty> m_vecBC;                  // +0xbc
+    std::vector<int> m_vecC8;                               // +0xc8
     int m_padD4;                                            // +0xd4
 };
 
@@ -795,8 +1175,18 @@ class stTitleBookInfo
 public:
     stTitleBookInfo();
     ~stTitleBookInfo();
-private:
-    char m_pad[0x58];
+
+    // ORIG C1 0x837d828 / D1 0x837d906：+0x00 vector<int>
+    // +0x0c vector<stTitleSection> +0x18 map<int,vector<stTitleElement>>
+    // +0x30 vector<stCustomConditionMsg> +0x3c vector<stAdjust>
+    // +0x48 vector<stTitleRewardBasis*>，sizeof 0x58
+    std::vector<int> m_vec0;                                  // +0x00
+    std::vector<stTitleSection> m_vecC;                       // +0x0c
+    std::map<int, std::vector<stTitleElement> > m_map18;      // +0x18
+    std::vector<stCustomConditionMsg> m_vec30;                // +0x30
+    std::vector<stAdjust> m_vec3c;                            // +0x3c
+    std::vector<stTitleRewardBasis*> m_vec48;                 // +0x48
+    char m_pad54[4];                                          // +0x54
 };
 
 class AccountCargoScript
@@ -833,8 +1223,21 @@ public:
                          bool flag) const;
     void getGiveSkill(int job, int firstGrow, int secondGrow,
                       std::vector<std::pair<int, int> >& out) const;
-private:
-    char m_pad[0x6c];
+    void clear();
+
+    // ORIG C1 0x8371eee / D1 0x837da02：+0x00 map<PvPSkillTreeKey,
+    // map<int,PvPSkillTreeValue>> +0x18 map<int,map<int,int>> +0x30
+    // map<PvPSkillTreeKey,FAIR_PVP_SKILL_TREE_SKILL_PER_POINT>
+    // +0x54 map<int,int>，sizeof 0x6c
+    std::map<PvPSkillTreeKey, std::map<int, PvPSkillTreeValue> > m_map0;  // +0x00
+    std::map<int, std::map<int, int> > m_map18;                           // +0x18
+    std::map<PvPSkillTreeKey,
+             FAIR_PVP_SKILL_TREE_SKILL_PER_POINT> m_map30;                // +0x30
+    int m_field48;                                                        // +0x48
+    int m_field4c;                                                        // +0x4c
+    char m_field50;                                                       // +0x50
+    char m_pad51[3];                                                      // +0x51
+    std::map<int, int> m_map54;                                           // +0x54
 };
 
 class EventCharacterParameterScript
@@ -851,8 +1254,15 @@ class IndependentDropParameterScript
 public:
     IndependentDropParameterScript();
     ~IndependentDropParameterScript();
-private:
-    char m_pad[0x3c];
+    void clear();
+
+    // ORIG C1 0x8372d46 / D1 0x837daac：+0x00 vector<IndependentDropListInfo>
+    // +0x0c vector<stIndependentDropInfo> +0x18 vector<stIndependentDropRateControl>
+    // +0x24 map<int,pair<int,int>>，sizeof 0x3c
+    std::vector<IndependentDropListInfo> m_vec0;           // +0x00
+    std::vector<stIndependentDropInfo> m_vecC;             // +0x0c
+    std::vector<stIndependentDropRateControl> m_vec18;     // +0x18
+    std::map<int, std::pair<int, int> > m_map24;           // +0x24
 };
 
 class stMercenarySystemInfo
@@ -860,8 +1270,21 @@ class stMercenarySystemInfo
 public:
     stMercenarySystemInfo();
     ~stMercenarySystemInfo();
-private:
-    char m_pad[0x4c];
+
+    // ORIG C1 0x8373328：+0x00 int（=0xe10）+0x04 ushort（=0xc8）
+    // +0x08 vector<pair<int,pair<int,int>>> +0x14 vector<pair<int,float>>
+    // +0x20 vector<pair<int,float>> +0x2c string +0x30 vector<pair<int,float>>
+    // +0x3c int（=0）+0x40 vector<stMercenaryCompetitionArea>，sizeof 0x4c
+    int m_field0;                                          // +0x00（0xe10）
+    unsigned short m_field4;                               // +0x04（0xc8）
+    char m_pad6[2];                                        // +0x06
+    std::vector<std::pair<int, std::pair<int, int> > > m_vec8;   // +0x08
+    std::vector<std::pair<int, float> > m_vec14;           // +0x14
+    std::vector<std::pair<int, float> > m_vec20;           // +0x20
+    std::string m_str2c;                                   // +0x2c
+    std::vector<std::pair<int, float> > m_vec30;           // +0x30
+    int m_field3c;                                         // +0x3c（0）
+    std::vector<stMercenaryCompetitionArea> m_vec40;       // +0x40
 };
 
 struct channel_info_t
@@ -940,8 +1363,12 @@ class stItemMakingSkill
 public:
     stItemMakingSkill();
     ~stItemMakingSkill();
-private:
-    char m_pad[0x30];
+
+    // ORIG D1 0x837dce2：+0x00 map<int,stUpgradeWithCompound>
+    // +0x18 vector<pair<int,int>>，sizeof 0x30
+    std::map<int, stUpgradeWithCompound> m_map0;    // +0x00
+    std::vector<std::pair<int, int> > m_vec18;      // +0x18
+    char m_pad24[0xc];                              // +0x24
 };
 
 class ChoiceItemInfo
@@ -1010,8 +1437,12 @@ class EventEtcScript
 public:
     EventEtcScript();
     ~EventEtcScript();
-private:
-    char m_pad[0x24];
+    void clear();
+
+    // ORIG C1 0x8372e66 / clear 0x8372ece / D1 0x837dda0：+0x00 vector<int>
+    // +0x0c map<uint,uint>，sizeof 0x24
+    std::vector<int> m_vec0;            // +0x00
+    std::map<unsigned int, unsigned int> m_mapC;  // +0x0c
 };
 
 class stReturnUserRewardScript
@@ -1028,8 +1459,14 @@ class stBingoScript
 public:
     stBingoScript();
     ~stBingoScript();
-private:
-    char m_pad[0x54];
+
+    // ORIG C1 0x83715b6 / D1 0x837ddfc：+0x00 map<int,int> +0x18
+    // map<int,vector<int>> +0x30 map<int,pair<int,int>> +0x48 vector<int>
+    // sizeof 0x54
+    std::map<int, int> m_map0;                     // +0x00
+    std::map<int, std::vector<int> > m_map18;      // +0x18
+    std::map<int, std::pair<int, int> > m_map30;   // +0x30
+    std::vector<int> m_vec48;                      // +0x48
 };
 
 class stBroadCastItemScript
@@ -1037,8 +1474,10 @@ class stBroadCastItemScript
 public:
     stBroadCastItemScript();
     ~stBroadCastItemScript();
-private:
-    char m_pad[0x24];
+
+    // ORIG D1 0x837de92：+0x00 vector<int> +0x0c map<int,vector<int>>，sizeof 0x24
+    std::vector<int> m_vec0;                     // +0x00
+    std::map<int, std::vector<int> > m_mapC;     // +0x0c
 };
 
 class stNewAccountLevelUpToJobScript
@@ -1046,8 +1485,12 @@ class stNewAccountLevelUpToJobScript
 public:
     stNewAccountLevelUpToJobScript();
     ~stNewAccountLevelUpToJobScript();
-private:
-    char m_pad[0x48];
+
+    // ORIG D1 0x837df44：+0x00 stStepRewardStackableItemScript（0x18）
+    // +0x18/+0x30 stLevelUpRewardItemScript（0x18），sizeof 0x48
+    stStepRewardStackableItemScript m_stepReward;  // +0x00
+    stLevelUpRewardItemScript m_levelUp18;         // +0x18
+    stLevelUpRewardItemScript m_levelUp30;         // +0x30
 };
 
 class eventReward
@@ -1055,8 +1498,13 @@ class eventReward
 public:
     eventReward();
     ~eventReward();
-private:
-    char m_pad[0x30];
+
+    // ORIG D1 0x837dfb2：+0x00 map<rewardKey,map<int,vector<itemData>>>
+    // +0x18 CSlotBoundChecker（ORIG 为 map<SlotBoundKey,SlotBound>；重建
+    // CSlotBoundChecker 采用静态数组实现（CInventory.h/CSlotBoundChecker.cpp），
+    // 无 per-instance 成员，+0x18 以 pad 占位保持 sizeof 0x30）[推断]
+    std::map<rewardKey, std::map<int, std::vector<itemData> > > m_map0;  // +0x00
+    char m_pad18[0x18];                                                  // +0x18
 };
 
 class DeleteInvalidItemScript
@@ -1191,9 +1639,13 @@ class CNPCScriptList
 {
 public:
     ~CNPCScriptList();
+    void _destroy();
     int find(unsigned int idx) const;
-private:
+
+    // ORIG D1 0x83762a8 / _destroy 0x8581784：+0x00
+    // hash_map<uint,CNPCScript*> +0x14 stNPCCommonData_t（0x50），sizeof 0x64
     __gnu_cxx::hash_map<unsigned int, CNPCScript*> m_npcMap;  // +0x00（ORIG 0x8581680）
+    stNPCCommonData_t m_npcCommon;                            // +0x14
 };
 
 // ============================================================================
@@ -1410,6 +1862,7 @@ public:
     void testActionType();
     void testBingo();
     void* GetExpertJobScript(int job);
+    void* GetExpertJobEtcScript();   // ORIG CDataManager::GetExpertJobEtcScript（CUser 使用）
     void* GetChannelScript() const;
     void* getBlueMarbleScript();
     void* get_event_script_mng();

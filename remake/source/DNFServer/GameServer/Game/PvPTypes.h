@@ -203,6 +203,7 @@ public:
     virtual int v70(...) = 0; virtual int v74(...) = 0; virtual int v7c(...) = 0;
 };
 
+class IMatch;
 class CMatchingSystem
 {
 public:
@@ -210,7 +211,7 @@ public:
     ~CMatchingSystem();
     IMatchingSystem* GetMatchingSystem(ENUM_PVP_MATCHING_TYPE type);
 private:
-    char m_pad[0x18];
+    IMatch* m_systems[6];   // +0x00（0x18）
 };
 
 // ---- WarField（0xf8，WarRoom +0x34；复杂方法经 asm-label extern 调用） ----

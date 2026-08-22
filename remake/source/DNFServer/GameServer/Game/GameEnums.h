@@ -36,7 +36,8 @@ enum eMoneyAddReason
 enum eItemDelReason
 {
     eItemDelReason_0 = 0,
-    eItemDelReason_3 = 3
+    eItemDelReason_3 = 3,
+    eItemDelReason_0x2b = 0x2b
 };
 #endif
 #ifndef DNF_ENUM_EMONEYSUBREASON_DEFINED

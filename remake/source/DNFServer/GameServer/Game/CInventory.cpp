@@ -5042,3 +5042,64 @@ int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& item
     outSlots.clear();
     return 0;
 }
+
+// ---- TSV 修复：SendItemLockList / SendItemLockListInven（ORIG 0x084fae0a / 0x084faf8e）----
+extern "C" void sub_CItemLock_MakeItemLockPacket(void* self, PacketGuard& packet,
+                                                 unsigned char lock)
+    asm("_ZNK9item_lock9CItemLock18MakeItemLockPacketER11PacketGuardh");
+
+void CInventory::SendItemLockList(const Inven_Item* items, int count,
+                                  ENUM_ITEMSPACE space) const
+{
+    if (m_pParent == 0)
+        return;
+    PacketGuard packet;
+    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
+    buf->clear();
+    buf->put_header(0, 0xfb);
+    int countIdx = buf->get_index();
+    int cnt = 0;
+    buf->put_short(0);
+    for (int i = 0; i < count; ++i) {
+        if (items[i].m_amp.GetLock() != 0) {
+            buf->put_byte((int)space);
+            buf->put_short(i);
+            items[i].m_amp.GetLock();
+            CExpandEquipslot* expand = m_pParent->GetCharacExpandDataR(
+                (ENUM_CHARAC_EXPAND_TYPE)2);
+            sub_CItemLock_MakeItemLockPacket(expand, packet, (unsigned char)items[i].m_amp.GetLock());
+            ++cnt;
+        }
+    }
+    buf->put_byte(countIdx, cnt);
+    buf->finalize(true);
+    m_pParent->Send(packet);
+}
+
+void CInventory::SendItemLockListInven() const
+{
+    SendItemLockList(m_pEquipSlot, 0x138, (ENUM_ITEMSPACE)0);
+}
+
+// ============================================================================
+// CInventory::MakeItemList（TSV 修复，ORIG 0x084fd7b6 T）。
+// ORIG：m_pParent 为空 → cMyTrace 报错并返回 0；否则 interface packet 写头 0xd，
+// 然后按 INVEN_TYPE 分发（1=equip+inven、2=avatar、3=creature），逐槽位写
+// 物品字段（addInfo/addInfo2/ItemAttr/fieldb/m_amp/GetIntegratedPvPItemAttr/
+// make3rdChroniclePacket 等），各类型末尾 put_short(count) 后 finalize 返回 1。
+// 依赖未建模的 CAvatarItemMgr::GetRemainDate/getJewelSocketData、CCreatureMgr::
+// GetRemainDate、WongWork::CItemUpgrade::make3rdChroniclePacket、CountGuard 等
+// 完整序列化链；此处提供可链接的签名匹配骨架，保留头/guard/返回语义（推断）。
+// ============================================================================
+int CInventory::MakeItemList(INVEN_TYPE invenType, void* out) const
+{
+    if (m_pParent == 0)
+        return 0;
+    InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
+    buf->clear();
+    buf->put_header(0, 0xd);
+    // TODO(推断)：按 docs/class_func_reports/CInventory/MakeItemList.md 逐槽位序列化。
+    // 依赖 CAvatarItemMgr/CCreatureMgr/CItemUpgrade 完整接口后按 ORIG 细化。
+    buf->finalize(true);
+    return 1;
+}

@@ -29,6 +29,7 @@ struct stServerIndex
 struct stLuckPoint_t
 {
     int m_field0;   // +0x00
+    int m_field1;   // +0x04
 };
 
 struct stLuckPointDeduction_t
@@ -186,7 +187,7 @@ public:
     int getAssaultPrice(int idx);
     float getChaosPointWeight(int idx);
     int GetAdmissionIncrease(int idx);
-    int GetPvPPenaltyRevision(int grade);
+    float GetPvPPenaltyRevision(int grade);
     int getRecoverStaminaPrice(int idx, int price);
     int GetPvPChannelGradePenalty(int grade);
     int GetDailyMatchCount() { return m_f8; }
@@ -291,7 +292,7 @@ public:
     char m_pad5b0[0x1bc];                                       // +0x5b0
     int m_76c;                                                  // +0x76c
     stSharedServerMessageInfo m_shared770;                      // +0x770
-    stBloodDungeonRewardInfo m_blood794;                        // +0x794
+    std::vector<std::pair<int, int> > m_vec794;                 // +0x794（ORIG GetPriceAverage 作为 vector<pair<int,int>> 访问）
     std::vector<std::pair<int, int> > m_vec7a0;                 // +0x7a0
     std::vector<std::pair<int, int> > m_vec7ac;                 // +0x7ac
     int m_7b8;                                                  // +0x7b8

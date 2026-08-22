@@ -175,18 +175,6 @@ public:
     char m_isTowerOfDespair;            // +0x509
 };
 
-struct stMonsterIndependentDrop_t
-{
-    char m_pad[0x30];
-};
-
-struct stIndependentDropInfo
-{
-    int m_field0;                       // +0x00
-    int m_monsterIndex;                 // +0x04
-    stMonsterIndependentDrop_t m_drop;  // +0x08
-};
-
 class STMonsterScript
 {
 public:

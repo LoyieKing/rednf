@@ -284,11 +284,7 @@ public:
     char m_pad[3];          // +0x11
 };
 
-class CTitleBook
-{
-public:
-    bool findItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;
-};
+class CTitleBook;   // 权威定义见 CTitleBook.h（本头经 CDataManager.h include）
 
 int GetTenThousandPercentage(int value, int percent);
 

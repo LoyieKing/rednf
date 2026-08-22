@@ -46,6 +46,21 @@ public:
     void makeRequest(unsigned int a, unsigned int b, char* c);
 };
 
+// DB_PassPadUpdateCancelCnt / DB_SecurityCardUpdateCancelCnt（TSV 修复，与 ORIG
+// 符号一致）：_ZN25DB_PassPadUpdateCancelCnt11makeRequestEjjPKc、
+// _ZN30DB_SecurityCardUpdateCancelCnt11makeRequestEjj。
+class DB_SecurityCardUpdateCancelCnt
+{
+public:
+    void makeRequest(unsigned int a, unsigned int b);
+};
+
+class DB_PassPadUpdateCancelCnt
+{
+public:
+    void makeRequest(unsigned int a, unsigned int b, const char* c);
+};
+
 // APSystem 命名空间：_SIG_LOAD_ACTION_POINT 无独立 TU，在此定义。
 namespace APSystem
 {

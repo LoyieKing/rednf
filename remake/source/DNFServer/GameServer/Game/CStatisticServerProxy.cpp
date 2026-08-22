@@ -7,6 +7,12 @@ CStatisticServerProxy::CStatisticServerProxy(std::string ip, int port)
 {
 }
 
+CStatisticServerProxy::CStatisticServerProxy()
+    : BaseServerProxy(const_cast<char*>(""), 0, const_cast<char*>("statistic"))
+{
+    // ORIG W 0x082a6b72：CServerProxyMgr 内嵌默认代理的默认构造。
+}
+
 bool CStatisticServerProxy::Init()
 {
     return BaseServerProxy::Init();

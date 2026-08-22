@@ -487,39 +487,39 @@ void CDataManager::SetItemDropRate(float rate)
 
 unsigned short CDataManager::getRankIndex(int idx)
 {
-    if (m_rankSystem.m_rankLevel[0] <= idx) return m_rankSystem.m_rankLevel[0];
-    if (m_rankSystem.m_rankLevel[1] <= idx) return m_rankSystem.m_rankLevel[1];
-    if (m_rankSystem.m_rankLevel[2] <= idx) return m_rankSystem.m_rankLevel[2];
-    if (m_rankSystem.m_rankLevel[3] <= idx) return m_rankSystem.m_rankLevel[3];
-    if (m_rankSystem.m_rankLevel[4] <= idx) return m_rankSystem.m_rankLevel[4];
-    if (m_rankSystem.m_rankLevel[5] <= idx) return m_rankSystem.m_rankLevel[5];
-    if (m_rankSystem.m_rankLevel[6] <= idx) return m_rankSystem.m_rankLevel[6];
-    if (m_rankSystem.m_rankLevel[7] <= idx) return m_rankSystem.m_rankLevel[7];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[0] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[0];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[1] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[1];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[2] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[2];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[3] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[3];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[4] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[4];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[5] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[5];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[6] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[6];
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[7] <= idx) return m_rankSystem.m_dungeonRank.m_rankLevel[7];
     return 0;
 }
 
 
 unsigned int CDataManager::getNewRankIndex(int idx) const
 {
-    if (m_rankSystem.m_rankLevel[0] <= idx) return 0;
-    if (m_rankSystem.m_rankLevel[1] <= idx) return 1;
-    if (m_rankSystem.m_rankLevel[2] <= idx) return 2;
-    if (m_rankSystem.m_rankLevel[3] <= idx) return 3;
-    if (m_rankSystem.m_rankLevel[4] <= idx) return 4;
-    if (m_rankSystem.m_rankLevel[5] <= idx) return 5;
-    if (m_rankSystem.m_rankLevel[6] <= idx) return 6;
-    if (m_rankSystem.m_rankLevel[7] <= idx) return 7;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[0] <= idx) return 0;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[1] <= idx) return 1;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[2] <= idx) return 2;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[3] <= idx) return 3;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[4] <= idx) return 4;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[5] <= idx) return 5;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[6] <= idx) return 6;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[7] <= idx) return 7;
     return 8;
 }
 
 
 int CDataManager::getRankBonusIndex(int idx) const
 {
-    if (m_rankSystem.m_rankLevel[0] <= idx) return 4;
-    if (m_rankSystem.m_rankLevel[1] <= idx) return 3;
-    if (m_rankSystem.m_rankLevel[2] <= idx) return 2;
-    if (m_rankSystem.m_rankLevel[3] <= idx) return 1;
-    if (m_rankSystem.m_rankLevel[4] <= idx) return 0;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[0] <= idx) return 4;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[1] <= idx) return 3;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[2] <= idx) return 2;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[3] <= idx) return 1;
+    if (m_rankSystem.m_dungeonRank.m_rankLevel[4] <= idx) return 0;
     return -1;
 }
 
@@ -1249,6 +1249,15 @@ void* CDataManager::GetExpertJobScript(int job)
     // 有前置声明，先返回其成员地址，待类型完整后补 get() 调用。
     return (void*)&m_regeneration.m_expertJobList;
 
+}
+
+void* CDataManager::GetExpertJobEtcScript()
+{
+    // ORIG 0x0849f516 W：((CExpertJobList*)(this+0x5090))->get_etc()，get_etc() 原子：
+    //   return this + 0x18（CExpertJobList 内 ·etc 脚本位于 +0x18）。
+    // 与 GetExpertJobScript 保持一致：以 &m_regeneration.m_expertJobList（+0x5090）为基址，
+    // get_etc 返回基址 +0x18。CUser 将其作 std::map<uchar,short>（等级→所需角色等级）。
+    return (char*)&m_regeneration.m_expertJobList + 0x18;
 }
 
 void* CDataManager::GetChannelScript() const

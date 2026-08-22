@@ -83,11 +83,10 @@ STCeraShopItem::~STCeraShopItem()
 // ---- operator= @ 0x892408a ----
 STCeraShopItem& STCeraShopItem::operator=(const STCeraShopItem& other)
 {
-    if (this != &other) {
-        memcpy(this, &other, 0x40);
-        m_name = other.m_name;
-        memcpy(&m_field44, &other.m_field44, sizeof(*this) - offsetof(STCeraShopItem, m_field44));
-    }
+    // ORIG @ 0x892408a（无自赋值守卫，逐字段字节拷贝 + COW string 赋值）。
+    memcpy(this, &other, 0x40);
+    m_name = other.m_name;
+    memcpy(&m_field44, &other.m_field44, sizeof(*this) - offsetof(STCeraShopItem, m_field44));
     return *this;
 }
 

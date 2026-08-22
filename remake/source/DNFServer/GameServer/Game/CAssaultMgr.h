@@ -11,6 +11,7 @@ class CAssaultMgr
 {
 public:
     void OnMoveArea(CUser* user);
+    void OnLeaveAssaultPlace(CUser* user, bool flag);   // ORIG _ZN11pvp_assault11CAssaultMgr20OnLeaveAssaultPlaceEP5CUserb
     void SendPacket(CUser* user, bool flag, PacketGuard* packet);
 };
 

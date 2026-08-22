@@ -18,6 +18,7 @@
 #include "CBoosterGage.h"   // charac_expand::CData（pack(1) 基类）
 #include "Inven_Item.h"     // Inven_Item（0x3d 字节）
 #include "CItemAmplifier.h" // stAmplifyOption_t
+#include "GameEnums.h"      // ENUM_TITLE_BOOK_INFO_TYPE 等
 
 #ifndef DNF_ENUM_ITEMSPACE_DEFINED
 #define DNF_ENUM_ITEMSPACE_DEFINED
@@ -30,6 +31,7 @@ enum ENUM_ITEMSPACE
 class CUser;
 class PacketGuard;
 class CInventory;
+class CExpandEquipslot;
 
 // ---- 称号簿分类 / 信息类型 ----
 enum ENUM_TITLE_BOOK_CATEGORY
@@ -40,10 +42,7 @@ enum ENUM_TITLE_BOOK_CATEGORY
     ENUM_TITLE_BOOK_CATEGORY_3 = 3
 };
 
-enum ENUM_TITLE_BOOK_INFO_TYPE
-{
-    ENUM_TITLE_BOOK_INFO_TYPE_0 = 0
-};
+// ENUM_TITLE_BOOK_INFO_TYPE 定义于 GameEnums.h。
 
 // 各类称号槽上限（ORIG .rodata 0x8ae5a98：{0x46, 0xc8, 0x78, 0x3c}）
 extern const int TITLE_BOOK_MAX[4];
@@ -109,6 +108,17 @@ struct stItemLockRef
     unsigned char m_lock;  // +0x00
     char m_space;          // +0x01
     short m_slot;          // +0x02
+};
+
+// CItemLock：方法集与 CItemLock.cpp 定义一致（跨 TU 统一）。
+class CItemLock
+{
+public:
+    std::vector<stItemLockRef>& GetItemLockRefVec();
+    void SendItemLockList(CUser* user);
+    bool CheckItemLock(unsigned char b) const;
+    void MakeItemLockPacket(PacketGuard& packet, unsigned char b) const;
+    static int CheckItemLock(CExpandEquipslot* data);
 };
 }
 

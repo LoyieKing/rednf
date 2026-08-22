@@ -5,6 +5,36 @@
 #include "DNFFunctionLib.h"   // NumberToString
 #include <cstring>            // strncpy
 
+
+// ---- 本地辅助（ORIG 依赖 CItemGloballyUniqueIdentifierPrint / getItemXPos / getItemYPos，
+//      三者均未在重建源码中还原，故此处在文件内实现等价行为并标「推断」）----
+// GUID 十六进制串：ORIG 用 CItemGloballyUniqueIdentifierPrint::operator() 把
+// item+0x15 的 0x11 字节 GUID 渲染为大写 hex 字符串（返回指针供 %s）。此处等价复刻。【推断】
+static const char* itemGUIDToHex(const Inven_Item& item)
+{
+    static char s_buf[17 * 2 + 1];
+    static const char hex[] = "0123456789ABCDEF";
+    const unsigned char* p = (const unsigned char*)&item + 0x15;
+    for (int i = 0; i < 17; ++i)
+    {
+        s_buf[i * 2]     = hex[(p[i] >> 4) & 0xf];
+        s_buf[i * 2 + 1] = hex[p[i] & 0xf];
+    }
+    s_buf[34] = 0;
+    return s_buf;
+}
+
+// item X/Y 网格坐标：ORIG 从 (m_user + 0x79700) 读取（该地址实为用户自身 cUserHistoryLog
+// 子对象，原 getItemXPos/getItemYPos 全局函数体未还原）。此处按报告口径从入参首字节读取
+// ushort 作占位，语义待 getItemXPos/getItemYPos 还原后替换。【推断】
+static unsigned short getItemXPos(const void* p)
+{
+    return *(const unsigned short*)p;
+}
+static unsigned short getItemYPos(const void* p)
+{
+    return *((const unsigned short*)p + 1);
+}
 // 构造：仅清零 m_user（ORIG 0x8695fe4，C1/C2 同址）
 cUserHistoryLog::cUserHistoryLog()
 {

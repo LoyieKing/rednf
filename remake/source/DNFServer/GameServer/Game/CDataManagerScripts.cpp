@@ -6,28 +6,146 @@
 #include "CItem.h"
 #include "GlobalData.h"
 #include "CWorldMap.h"
+#include "NPCScript.h"   // CNPCScript 完整类型（_destroy 中 delete）
 #include <cstring>
 
+// ============================================================================
+// 脚本 POD 生命周期（ORIG 语义，见 docs/class_func_reports 与 ORIG 反汇编）。
+// 各 ctor 构造 STL 容器成员（必要时调 clear()），dtor 逆序析构。
+// ============================================================================
+
 #define ZERO_POD(T) T::T() { memset(this, 0, sizeof(*this)); } T::~T() {}
-ZERO_POD(QuestParameterScript)
-ZERO_POD(GuildParameterScript)
+
+// ---- QuestParameterScript（ORIG C1 0x836f1c2 / clear 0x836f130 / D1 0x837d3ca）----
+QuestParameterScript::QuestParameterScript()
+{
+    clear();
+}
+QuestParameterScript::~QuestParameterScript() {}
+void QuestParameterScript::clear()
+{
+    m_map0.clear();
+    m_field18 = 0;
+    m_field1c = 0;
+    m_field20 = 0;
+    m_vec24.clear();
+    m_vec30.clear();
+    m_map3c.clear();
+    m_map54.clear();
+}
+
+// ---- GuildParameterScript（ORIG C1 0x837058a / clear 0x83704ae / D1 0x837d542）----
+GuildParameterScript::GuildParameterScript()
+{
+    clear();
+}
+GuildParameterScript::~GuildParameterScript() {}
+void GuildParameterScript::clear()
+{
+    m_field0 = 0;
+    m_field4 = 0;
+    m_field8 = 0;
+    m_fieldC = 0;
+    m_map10.clear();
+    m_field28 = 0;
+    m_vec2c.clear();
+    m_vec38.clear();
+    m_vecE4.clear();
+    m_vecF0.clear();
+    m_fieldFC = 0.0;
+    m_field104 = 0;
+    m_field108 = 0;
+    m_field10c = 0;
+    m_field110 = 0.0;
+    memset(m_levelUpCost, 0, sizeof(m_levelUpCost));  // ORIG：+0x5c memset 0x88
+}
+
+// ---- AccountCargoScript ----
 AccountCargoScript::AccountCargoScript()
     : m_reqLevel(0), m_itemIdx(0), m_upgradeMap()
 {
 }
 AccountCargoScript::~AccountCargoScript() {}
-ZERO_POD(PvPSkillTreeParameterScript)
-ZERO_POD(IndependentDropParameterScript)
-ZERO_POD(stMercenarySystemInfo)
+
+// ---- PvPSkillTreeParameterScript（ORIG C1 0x8371eee / clear 0x8371e5a / D1 0x837da02）----
+PvPSkillTreeParameterScript::PvPSkillTreeParameterScript()
+{
+    clear();
+}
+PvPSkillTreeParameterScript::~PvPSkillTreeParameterScript() {}
+void PvPSkillTreeParameterScript::clear()
+{
+    m_map0.clear();
+    m_map18.clear();
+    m_map30.clear();
+    m_field48 = 0;
+    m_field4c = 0;
+    m_field50 = 0;
+    m_map54.clear();
+}
+
+// ---- IndependentDropParameterScript（ORIG C1 0x8372d46 / clear 0x8372dfa / D1 0x837daac）----
+IndependentDropParameterScript::IndependentDropParameterScript()
+{
+    clear();
+}
+IndependentDropParameterScript::~IndependentDropParameterScript() {}
+void IndependentDropParameterScript::clear()
+{
+    m_vecC.clear();  // ORIG clear 仅清 +0x0c vector
+}
+
+// ---- stMercenarySystemInfo（ORIG C1 0x8373328 / D1 0x837db42）----
+stMercenarySystemInfo::stMercenarySystemInfo()
+    : m_field0(0xe10), m_field4(0xc8), m_vec8(), m_vec14(), m_vec20(),
+      m_str2c(), m_vec30(), m_field3c(0), m_vec40()
+{
+}
+stMercenarySystemInfo::~stMercenarySystemInfo() {}
+
+// ---- channel_script_t ----
 channel_script_t::channel_script_t() : m_channelDungeonMap(), m_channelMap() {}
 channel_script_t::~channel_script_t() {}
-ZERO_POD(stBroadCastItemScript)
-ZERO_POD(eventReward)
+
+// ---- stBroadCastItemScript / eventReward ----
+stBroadCastItemScript::stBroadCastItemScript() : m_vec0(), m_mapC() {}
+stBroadCastItemScript::~stBroadCastItemScript() {}
+
+eventReward::eventReward() : m_map0()
+{
+    // ORIG C1 0x83738a2：构造 map + CSlotBoundChecker 后 clear map。
+    // CSlotBoundChecker 重建为静态数组实现（无 per-instance 成员），+0x18 保持 pad。
+    m_map0.clear();
+}
+eventReward::~eventReward()
+{
+    // ORIG D1 0x837dfb2：析构 map + CSlotBoundChecker（后者静态实现无成员，跳过）
+}
+
+// ---- ConditionLevelChkDungeon / FairPvPStatScript / RegenerationROI ----
 ZERO_POD(ConditionLevelChkDungeon)
 ZERO_POD(FairPvPStatScript)
-ZERO_POD(RegenerationROI)
+RegenerationROI::RegenerationROI()
+    : m_regeneratorPtr(0), m_regenerator(), m_expertJobList(0)
+{
+}
+RegenerationROI::~RegenerationROI()
+{
+    // ORIG D1 0x85f8506：+0x00 非空则 delete，置 0，析构 +0x04 regenerator
+    if (m_regeneratorPtr != 0)
+    {
+        ::operator delete(m_regeneratorPtr);
+    }
+    m_regeneratorPtr = 0;
+}
 ZERO_POD(stSeriaBlessingScript)
-ZERO_POD(stLevelUpRewardItemScript)
+
+// stLevelUpRewardItemScript / stStepRewardStackableItemScript（ORIG D1
+// 0x8371530 / 0x837151c：成员为 map，默认构造即可）
+stLevelUpRewardItemScript::stLevelUpRewardItemScript() : m_map0() {}
+stLevelUpRewardItemScript::~stLevelUpRewardItemScript() {}
+stStepRewardStackableItemScript::stStepRewardStackableItemScript() : m_map0() {}
+stStepRewardStackableItemScript::~stStepRewardStackableItemScript() {}
 stGrowthCapsuleScript::stGrowthCapsuleScript() { memset(this, 0, sizeof(*this)); }
 CLottery_NeedMoney::CLottery_NeedMoney() : m_needMoneyMap() {}
 CLottery_NeedMoney::~CLottery_NeedMoney() {}
@@ -81,16 +199,42 @@ int CNPCScriptList::find(unsigned int idx) const
     return it == m_npcMap.end() ? 0 : reinterpret_cast<int>(it->second);
 }
 
-CNPCScriptList::~CNPCScriptList() {}
+// ORIG _destroy 0x8581784：遍历 hash_map delete 各 CNPCScript*（调 D1 + operator delete），
+// 再 clear()。
+void CNPCScriptList::_destroy()
+{
+    __gnu_cxx::hash_map<unsigned int, CNPCScript*>::iterator it = m_npcMap.begin();
+    while (it != m_npcMap.end())
+    {
+        CNPCScript* script = it->second;
+        if (script != 0)
+            delete script;
+        ++it;
+    }
+    m_npcMap.clear();
+}
+
+CNPCScriptList::~CNPCScriptList()
+{
+    // ORIG D1 0x83762a8：_destroy() + stNPCCommonData_t D1 + hash_map D1
+    _destroy();
+}
 
 namespace WongWork
 {
 CItemGeneratorMgr::~CItemGeneratorMgr() {}
 void CItemGeneratorMgr::setDropRatio(float ratio)
 {
-    // ORIG：遍历 m_generators[8] 逐生成器下发。CItemGenerator 完整类型未落地
-    // （仅前向声明，见 CItemGeneratorMgr.h），暂无法安全虚调用；保留空实现。
-    (void)ratio;
+    // ORIG 0x8534278：遍历 i=0..7，调用 m_generators[i] 虚表 +0x0（float 形参）。
+    // CItemGenerator 完整类型未落地（仅前向声明），按虚表手动跳转。
+    for (int i = 0; i < 8; ++i)
+    {
+        CItemGenerator* gen = m_generators[i];
+        // gen → 虚表指针 → vtable[0]（第一个虚函数）
+        void (*fn)(CItemGenerator*, float) =
+            (*reinterpret_cast<void (***)(CItemGenerator*, float)>(gen))[0];
+        fn(gen, ratio);
+    }
 }
 // getGenerator 已由 CItemGeneratorMgr.cpp 真实定义，不重复。
 }
@@ -375,9 +519,25 @@ int GetIntegratedPvPItemAttr(const Inven_Item& item)
 // CItemList.h（BaseItemKey/BaseItemValue）。
 // ============================================================================
 
-// ---- RecipeInfo（CStackableItem.h，含 vector 成员 → 默认构造）----
-RecipeInfo::RecipeInfo() {}
+// ---- RecipeInfo（CStackableItem.h；ORIG C1 0x8513c6a / clear 0x8513bf2 / D1 0x85144f4）----
+RecipeInfo::RecipeInfo()
+{
+    clear();
+}
 RecipeInfo::~RecipeInfo() {}
+void RecipeInfo::clear()
+{
+    m_vec0.clear();
+    m_vecC.clear();
+    m_vec18.clear();
+    m_field24 = 0;
+    m_field25 = 0;
+    m_vec28.clear();
+    m_field34 = 0;
+    m_field38 = 0;
+    m_field3c = 0;
+    m_vec40.clear();
+}
 
 // ---- RandomItemTable（CEquipItem.h；ORIG W 0x8515468 / 0x8514b46）----
 RandomItemTable::RandomItemTable() {}
@@ -408,8 +568,13 @@ BaseItemValue::BaseItemValue(int value) : m_field0(value) {}
 seriaRoomDecoEventScript::seriaRoomDecoEventScript() {}
 seriaRoomDecoEventScript::~seriaRoomDecoEventScript() {}
 
-// ---- growthEquipmentScript（含 map 成员 → 默认构造）----
-growthEquipmentScript::growthEquipmentScript() {}
+// ---- growthEquipmentScript（ORIG C1 0x8372fbc）----
+growthEquipmentScript::growthEquipmentScript()
+    : m_rewardMap(), m_giftBox(-1), m_materialItem(-1),
+      m_materialMax(0), m_eventBubbleMax(0), m_eventSandMax(0)
+{
+    m_rewardMap.clear();  // ORIG C1 构造 map 后 clear
+}
 growthEquipmentScript::~growthEquipmentScript() {}
 
 // ---- createChracScript（纯 pad）----
@@ -428,14 +593,65 @@ CharacterCreateCreatureGiftScript::~CharacterCreateCreatureGiftScript() {}
 seriaRoomDecoAniEventScript::seriaRoomDecoAniEventScript() {}
 seriaRoomDecoAniEventScript::~seriaRoomDecoAniEventScript() {}
 
-// ---- stRankSystemInfo / stDeathTower_t / stBloodDungeon_t / stVillageAttacked_t----
-stRankSystemInfo::stRankSystemInfo() { memset(m_pad, 0, sizeof(m_pad)); }
+// ---- stRankSystemInfo（ORIG C1 0x8370eba / clear 0x8370f94 / D1 0x837ce4c）----
+stDungeonRankSystem_t::stDungeonRankSystem_t() : m_map0(), m_vec18()
+{
+    clear();
+}
+stDungeonRankSystem_t::~stDungeonRankSystem_t() {}
+void stDungeonRankSystem_t::clear()
+{
+    // ORIG 0x8370e34：清 map/vector + memset +0x24 0x12 字节
+    m_map0.clear();
+    m_vec18.clear();
+    memset(m_rankLevel, 0, sizeof(m_rankLevel));
+    memset(m_pad34, 0, sizeof(m_pad34));
+}
+
+stRankSystemInfo::stRankSystemInfo() : m_dungeonRank(), m_vec38(), m_map44(),
+                                       m_vec5c(), m_vec68(), m_field74(0)
+{
+    clear();
+}
 stRankSystemInfo::~stRankSystemInfo() {}
-stDeathTower_t::stDeathTower_t() { memset(m_pad, 0, sizeof(m_pad)); }
-stBloodDungeon_t::stBloodDungeon_t() { memset(m_pad, 0, sizeof(m_pad)); }
+void stRankSystemInfo::clear()
+{
+    m_vec38.clear();
+    m_map44.clear();
+    m_vec5c.clear();
+    m_vec68.clear();
+    m_field74 = 0;
+}
+
+// ---- stBloodDungeon_t（ORIG C1 0x8370a3a / clear 0x8370b02 / D1 0x8370ab0）----
+stBloodDungeon_t::stBloodDungeon_t() : m_vec334(), m_map358()
+{
+    clear();
+}
 stBloodDungeon_t::~stBloodDungeon_t() {}
+void stBloodDungeon_t::clear()
+{
+    // ORIG：+0x00..+0x31f 置 1.0f（200 float）；+0x320 = 1；
+    // +0x324..+0x32f 清 0；+0x330 = 1.0f；+0x334 vector.clear()；
+    // +0x340..+0x357 清 0；+0x358 map.clear()
+    for (int i = 0; i < 200; ++i)
+        m_rate[i] = 1.0f;
+    m_field320 = 1;
+    memset(m_field324, 0, sizeof(m_field324));
+    m_field330 = 1.0f;
+    m_vec334.clear();
+    memset(m_pad340, 0, sizeof(m_pad340));
+    m_map358.clear();
+}
 stVillageAttacked_t::stVillageAttacked_t() { memset(m_pad, 0, sizeof(m_pad)); }
 stVillageAttacked_t::~stVillageAttacked_t() {}
+
+// ---- stDeathTower_t（ORIG C1 0x08370970，0xc98 字节清零）----
+stDeathTower_t::stDeathTower_t() { memset(m_pad, 0, sizeof(m_pad)); }
+
+// ---- live_server_info_t（ORIG C1 0x0837dd64 / D1 0x0837dd78）----
+live_server_info_t::live_server_info_t() { memset(m_pad, 0, sizeof(m_pad)); m_eventScriptMng = 0; }
+live_server_info_t::~live_server_info_t() {}
 
 // ---- stQuestShop / WorldDropInfo / SlangNameData / InvalidCharData----
 stQuestShop::stQuestShop() { memset(m_pad, 0, sizeof(m_pad)); }
@@ -444,18 +660,31 @@ WorldDropInfo::WorldDropInfo() { memset(m_pad, 0, sizeof(m_pad)); }
 WorldDropInfo::~WorldDropInfo() {}
 SlangNameData::SlangNameData() {}  // 含 2×vector 成员 → 默认构造
 SlangNameData::~SlangNameData() {}
-InvalidCharData::InvalidCharData() { memset(m_pad, 0, sizeof(m_pad)); }
+InvalidCharData::InvalidCharData()
+    : m_charList(), m_charRange(), m_shortList(), m_shortRange(), m_slangFilter(0)
+{
+}
 InvalidCharData::~InvalidCharData() {}
 
-// ---- STGrowthPowerData / AvatarColorInfo / BoosterGageData----
-STGrowthPowerData::STGrowthPowerData() { memset(m_pad, 0, sizeof(m_pad)); }
-STGrowthPowerData::~STGrowthPowerData() {}
-AvatarVariation::AvatarColorInfo::AvatarColorInfo()
+// ---- STGrowthPowerData（ORIG C1 0x83711fe / D1 0x837d290）----
+STGrowthPowerData::STGrowthPowerData() : m_vec0(), m_vecC(), m_map18()
 {
-    memset(m_pad, 0, sizeof(m_pad));
+    // ORIG C1 构造后 clear 各容器
+    m_vec0.clear();
+    m_vecC.clear();
+    m_map18.clear();
+}
+STGrowthPowerData::~STGrowthPowerData() {}
+
+// ---- AvatarColorInfo（ORIG D1 0x837d358）----
+AvatarVariation::AvatarColorInfo::AvatarColorInfo() : m_colorMap(), m_nameMap()
+{
 }
 AvatarVariation::AvatarColorInfo::~AvatarColorInfo() {}
-BoosterGageData::BoosterGageData() { memset(m_pad, 0, sizeof(m_pad)); }
+BoosterGageData::BoosterGageData()
+    : m_BoosterPoint(), m_cMaxBoosterGage(0), m_cFieldD(0), m_cMultiboxCount(0)
+{
+}
 BoosterGageData::~BoosterGageData() {}
 
 // ============================================================================
@@ -478,52 +707,72 @@ InGameAdvertisementScript::InGameAdvertisementScript()
     memset(m_pad, 0, sizeof(m_pad));
 }
 
-// ---- PcBangItemRentarData / DimensionActivationData----
-PcBangItemRentarData::PcBangItemRentarData()
+// ---- PcBangItemRentarData（ORIG D1 0x837c2c0）----
+PcBangItemRentarData::PcBangItemRentarData() : m_vec0(), m_mapC()
 {
-    memset(m_pad, 0, sizeof(m_pad));
 }
 PcBangItemRentarData::~PcBangItemRentarData() {}
+
+// ---- DimensionActivationData（ORIG C1 0x8371422 / D1 0x837c306）----
 DimensionActivationData::DimensionActivationData()
+    : m_field0(0), m_coinMap(), m_rewardData()
 {
-    memset(m_pad, 0, sizeof(m_pad));
+    // ORIG C1：+0x00 = 0，构造 map/rewardData 后清 coinMap
+    m_coinMap.clear();
 }
 DimensionActivationData::~DimensionActivationData() {}
 
-// ---- stUnlimitChallengeInfo / stLimitItemUsageInfoEx / CNPCRelationEventManager----
+// ---- stUnlimitChallengeInfo（ORIG C1 0x837c53c / D1 0x837c5fa）----
 stUnlimitChallengeInfo::stUnlimitChallengeInfo()
+    : m_field0(0), m_vec4(), m_vec10(), m_vec1c(), m_vec28(), m_multiMap34()
 {
-    memset(m_pad, 0, sizeof(m_pad));
 }
 stUnlimitChallengeInfo::~stUnlimitChallengeInfo() {}
+
+// ---- stLimitItemUsageInfoEx（ORIG D1 0x837c7a2）----
 stLimitItemUsageInfoEx::stLimitItemUsageInfoEx()
+    : m_info0(), m_resetC(), m_refill18()
 {
-    memset(m_pad, 0, sizeof(m_pad));
 }
 stLimitItemUsageInfoEx::~stLimitItemUsageInfoEx() {}
-CNPCRelationEventManager::CNPCRelationEventManager()
-{
-    memset(m_pad, 0, sizeof(m_pad));
-}
-CNPCRelationEventManager::~CNPCRelationEventManager() {}
 
-// ---- stCharacLinkSystem_t----
-stCharacLinkSystem_t::stCharacLinkSystem_t()
+// ---- CNPCRelationEventManager（ORIG D1 0x890ce34：遍历 map 删除节点后析构 map）----
+CNPCRelationEventManager::CNPCRelationEventManager()
+    : m_npcEventMap(), m_itemLimitEditionMgr(0)
 {
-    memset(m_pad, 0, sizeof(m_pad));
+}
+CNPCRelationEventManager::~CNPCRelationEventManager()
+{
+    std::map<unsigned short, stNPCRelationEventInfo*>::iterator it =
+        m_npcEventMap.begin();
+    while (it != m_npcEventMap.end())
+    {
+        stNPCRelationEventInfo* node = it->second;
+        if (node != 0)
+            delete node;
+        ++it;
+    }
+    m_npcEventMap.clear();
+}
+
+// ---- stCharacLinkSystem_t（ORIG C1 0x837cf46 / D1 0x837cfde）----
+stCharacLinkSystem_t::stCharacLinkSystem_t()
+    : m_field0(0), m_vec4(), m_vec10(), m_vec1c(), m_vec28()
+{
 }
 stCharacLinkSystem_t::~stCharacLinkSystem_t() {}
 
-// ---- advancealtar 四类（StageTimeLineParameter/AdvanceAltarShopParameter/
+// ---- advancealtar（StageTimeLineParameter D1 0x8899e88 /
+//      AdvanceAltarShopParameter D1 0x88a0fa2：析构 map 成员；
 //      RewardParameter 清 pad；ConfigParameter 按 ORIG 0x889b662）----
 advancealtar::StageTimeLineParameter::StageTimeLineParameter()
+    : m_summonMap(), m_actionMap(), m_timeLine()
 {
-    memset(m_pad, 0, sizeof(m_pad));
 }
 advancealtar::StageTimeLineParameter::~StageTimeLineParameter() {}
 advancealtar::AdvanceAltarShopParameter::AdvanceAltarShopParameter()
+    : m_buyShopMap(), m_starRestMap()
 {
-    memset(m_pad, 0, sizeof(m_pad));
 }
 advancealtar::AdvanceAltarShopParameter::~AdvanceAltarShopParameter() {}
 advancealtar::RewardParameter::RewardParameter()
@@ -542,15 +791,13 @@ advancealtar::ConfigParameter::ConfigParameter()
 }
 advancealtar::ConfigParameter::~ConfigParameter() {}
 
-// ---- PowerParameterScript（ORIG 0x08371a26 结构初始化）----
+// ---- PowerParameterScript（ORIG C1 0x08371a26 结构初始化 / D1 0x0837d634）----
 PowerParameterScript::PowerParameterScript()
 {
     m_ghostTime = 0;
     m_penaltyThreshold = 0;
     m_pad1c = 0;
-    memset(m_pad20, 0, sizeof(m_pad20));
     m_pad34 = 0;
-    memset(m_pad38, 0, sizeof(m_pad38));
     m_pad44 = 0;
     m_pad48 = 0;
     m_pad4c = 0;
@@ -562,24 +809,30 @@ PowerParameterScript::PowerParameterScript()
     m_minEnterLevel = 0;
     m_minEnterAge = 0;
     m_pad6c = 0;
-    memset(m_pad70, 0, sizeof(m_pad70));
     m_padA8 = 0;
-    memset(m_padAC, 0, sizeof(m_padAC));
     m_powerWarCooldownMinutes = 0;
-    memset(m_padBC, 0, sizeof(m_padBC));
-    memset(m_padC8, 0, sizeof(m_padC8));
     m_padD4 = 0;
 }
-PowerParameterScript::~PowerParameterScript() {}
+PowerParameterScript::~PowerParameterScript()
+{
+    // ORIG D1：逆序析构 7 个容器成员（+0xc8/+0xbc/+0xac/+0x9c/+0x70/+0x38/+0x20）
+}
 
 // ---- SecretShopScript（成员默认构造）----
 SecretShopScript::SecretShopScript() {}
 SecretShopScript::~SecretShopScript() {}
 
-// ---- stTitleBookInfo / stItemMakingSkill----
-stTitleBookInfo::stTitleBookInfo() { memset(m_pad, 0, sizeof(m_pad)); }
+// ---- stTitleBookInfo（ORIG C1 0x837d828 / D1 0x837d906）----
+stTitleBookInfo::stTitleBookInfo()
+    : m_vec0(), m_vecC(), m_map18(), m_vec30(), m_vec3c(), m_vec48()
+{
+}
 stTitleBookInfo::~stTitleBookInfo() {}
-stItemMakingSkill::stItemMakingSkill() { memset(m_pad, 0, sizeof(m_pad)); }
+
+// ---- stItemMakingSkill（ORIG D1 0x837dce2）----
+stItemMakingSkill::stItemMakingSkill() : m_map0(), m_vec18()
+{
+}
 stItemMakingSkill::~stItemMakingSkill() {}
 
 // ---- ChoiceItemInfo / ImageCommunicationData（无析构声明）----
@@ -599,11 +852,17 @@ ARAD::SCRIPT::AradJumping_Script::AradJumping_Script()
 }
 ARAD::SCRIPT::AradJumping_Script::~AradJumping_Script() {}
 
-// ---- live_server_info_t / EventEtcScript----
-live_server_info_t::live_server_info_t() { memset(m_pad, 0, sizeof(m_pad)); }
-live_server_info_t::~live_server_info_t() {}
-EventEtcScript::EventEtcScript() { memset(m_pad, 0, sizeof(m_pad)); }
+// ---- EventEtcScript（ORIG C1 0x8372e66 / clear 0x8372ece / D1 0x837dda0）----
+EventEtcScript::EventEtcScript() : m_vec0(), m_mapC()
+{
+    clear();
+}
 EventEtcScript::~EventEtcScript() {}
+void EventEtcScript::clear()
+{
+    m_vec0.clear();
+    m_vec0.reserve(7);
+}
 
 // ---- stReturnUserRewardScript / stBingoScript / stNewAccountLevelUpToJobScript----
 stReturnUserRewardScript::stReturnUserRewardScript()
@@ -611,11 +870,18 @@ stReturnUserRewardScript::stReturnUserRewardScript()
     memset(m_pad, 0, sizeof(m_pad));
 }
 stReturnUserRewardScript::~stReturnUserRewardScript() {}
-stBingoScript::stBingoScript() { memset(m_pad, 0, sizeof(m_pad)); }
+stBingoScript::stBingoScript() : m_map0(), m_map18(), m_map30(), m_vec48()
+{
+    // ORIG C1：构造 4 容器后各自 clear()
+    m_map0.clear();
+    m_map18.clear();
+    m_map30.clear();
+    m_vec48.clear();
+}
 stBingoScript::~stBingoScript() {}
 stNewAccountLevelUpToJobScript::stNewAccountLevelUpToJobScript()
+    : m_stepReward(), m_levelUp18(), m_levelUp30()
 {
-    memset(m_pad, 0, sizeof(m_pad));
 }
 stNewAccountLevelUpToJobScript::~stNewAccountLevelUpToJobScript() {}
 // ---- CWorldMapList / StageMapList / WarAreaCounter----
@@ -696,10 +962,10 @@ void stEmotionTypeTagsInfo::clear()
     m_data.clear();
 }
 
-// ---- stConditionEventInfo----
+// ---- stConditionEventInfo（ORIG D1 0x837c938）----
 stConditionEventInfo::stConditionEventInfo()
+    : m_field0(0), m_field4(0), m_map8(), m_multiMap20(), m_multiMap38()
 {
-    memset(m_pad, 0, sizeof(m_pad));
 }
 stConditionEventInfo::~stConditionEventInfo() {}
 
@@ -711,4 +977,51 @@ pvp_channel_info_t::pvp_channel_info_t()
     m_upgradeRevision = 0;
     memset(m_pad10, 0, sizeof(m_pad10));
     memset(&m_pvpMissionSystem, 0, sizeof(m_pvpMissionSystem));
+}
+
+// ============================================================================
+// STExpertJobScript::isBoundaryExpValue（TSV 修复，ORIG 0x0849f420 T）。
+// ORIG：遍历 vector<ExpertJobExp>（元素尺寸 12，见 _ZNSt6vectorI12ExpertJobExpSaIS0_EEixEj
+// 乘法 i*12），任一元素首整数字段 == exp 返回 true，否则 false。
+// CUser::GetCurExpertJobLevel 经 asm 桥 _ZN17STExpertJobScript19isBoundaryExpValueEi 调用。
+// ============================================================================
+namespace
+{
+struct ExpertJobExp
+{
+    int m_exp;    // +0x00
+    int m_field4; // +0x04
+    int m_field8; // +0x08   （尺寸 12，匹配 ORIG operator[] i*12）
+};
+}
+
+class STExpertJobScript
+{
+public:
+    bool isBoundaryExpValue(int exp);
+    int GetLevel(unsigned int exp);
+
+    std::vector<ExpertJobExp> m_expVec; // +0x00
+};
+
+bool STExpertJobScript::isBoundaryExpValue(int exp)
+{
+    for (size_t i = 0; i < m_expVec.size(); ++i)
+    {
+        if (m_expVec[i].m_exp == exp)
+            return true;
+    }
+    return false;
+}
+
+// STExpertJobScript::GetLevel（TSV 修复发明符号：_ZN17STExpertJobScript8GetLevelEj，ORIG 0x08693ba0）。
+// ORIG：遍历 vector<ExpertJobExp>，返回首个 v[i].m_exp > exp 的 i+1；无则返回 size()。
+int STExpertJobScript::GetLevel(unsigned int exp)
+{
+    for (size_t i = 0; i < m_expVec.size(); ++i)
+    {
+        if ((unsigned int)m_expVec[i].m_exp > exp)
+            return (int)i + 1;
+    }
+    return (int)m_expVec.size();
 }

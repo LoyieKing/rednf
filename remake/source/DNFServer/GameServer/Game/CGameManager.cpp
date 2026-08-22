@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <list>
 #include <map>
 #include <set>
 #include <string>
@@ -17,6 +18,7 @@
 #include "CGameManager.h"
 #include "CStreamGuard.h"
 #include "CSystemTime.h"
+#include "Inven_Item.h"
 #include "InterfacePacketBuf.h"
 #include "LogManager.h"
 #include "MsgQueueMgr.h"
@@ -521,9 +523,97 @@ int StaticPool<T, N>::GetIndex(T* p)
         return -1;
     return index;
 }
-WongWork::CMailBox::CMailBox() { memset(m_pad, 0, sizeof(m_pad)); }
-WongWork::CMailBox::~CMailBox() {}
-void WongWork::CMailBox::Init() { reset(); }
+// ============================================================================
+// WongWork::CMailBox —— ORIG 布局（反汇编 0x8551d98/0x85579b2 核对）：
+//   +0x00 bool        m_bInit
+//   +0x04 int         m_mailLoadCount
+//   +0x08 int         m_loadedLetterCount
+//   +0x10 StaticPool<CMail,20> m_mailPool
+//   +0x40 map<unsigned int, CMail*> m_mailMap
+//   +0x58 list<Stream*> m_streamList            （GCC4.4 list=8 字节）
+//   +0x60 map::const_iterator m_mailIterator    （4 字节）
+//   +0x64 map<int,bool> m_letterKeepCount
+//   +0x7c int          m_xxx（Init 置 0）
+//   +0x80 int          m_xxx（Init 置 0）
+//   +0x84 vector<unsigned int> m_xxx
+//   +0x90 map<unsigned int, SIG_LETTER_INFO> m_letterInfo
+// 头文件仍为 m_pad[0x100]（ABI 大小一致），此处以偏移访问实现真实语义。
+// ============================================================================
+typedef std::map<unsigned int, WongWork::CMailBox::CMail*> CMailBoxMailMap;
+typedef std::list<Stream*> CMailBoxStreamList;
+typedef std::map<int, bool> CMailBoxKeepMap;
+typedef std::vector<unsigned int> CMailBoxUIntVec;
+struct SIG_LETTER_INFO
+{
+    char m_pad[0x12c];  // 大小推断自 SetMailBoxInfo 栈帧（300 字节左右）
+};
+typedef std::map<unsigned int, SIG_LETTER_INFO> CMailBoxLetterMap;
+
+WongWork::CMailBox::CMailBox()
+{
+    // ORIG 0x085579b2：按布局顺序构造 7 个成员（StaticPool/map/list/iter/map/vector/map）
+    new (m_pad + 0x10) StaticPool<CMail, 20>();
+    new (m_pad + 0x40) CMailBoxMailMap();
+    new (m_pad + 0x58) CMailBoxStreamList();
+    new (m_pad + 0x60) CMailBoxMailMap::const_iterator();
+    new (m_pad + 0x64) CMailBoxKeepMap();
+    new (m_pad + 0x84) CMailBoxUIntVec();
+    new (m_pad + 0x90) CMailBoxLetterMap();
+}
+
+WongWork::CMailBox::~CMailBox()
+{
+    // ORIG 0x08557aac：逆序析构 7 个成员
+    reinterpret_cast<CMailBoxLetterMap*>(m_pad + 0x90)->~CMailBoxLetterMap();
+    reinterpret_cast<CMailBoxUIntVec*>(m_pad + 0x84)->~CMailBoxUIntVec();
+    reinterpret_cast<CMailBoxKeepMap*>(m_pad + 0x64)->~CMailBoxKeepMap();
+    reinterpret_cast<CMailBoxStreamList*>(m_pad + 0x58)->~CMailBoxStreamList();
+    reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40)->~CMailBoxMailMap();
+    reinterpret_cast<StaticPool<CMail, 20>*>(m_pad + 0x10)->~StaticPool<CMail, 20>();
+}
+
+void WongWork::CMailBox::Init()
+{
+    // ORIG 0x08551d98：若已初始化（m_bInit==1）则清理全部邮件/流/信标状态
+    if (m_pad[0] == 1)
+    {
+        CMailBoxMailMap& mailMap = *reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40);
+        StaticPool<CMail, 20>& pool = *reinterpret_cast<StaticPool<CMail, 20>*>(m_pad + 0x10);
+        for (CMailBoxMailMap::iterator it = mailMap.begin(); it != mailMap.end(); ++it)
+        {
+            CMail* mail = it->second;
+            if (mail != 0)
+            {
+                // 内联 CMail::ResetPackage（ORIG 0x085519fe）：
+                // +0x08=0; +0x28=0; Inven_Item@+0x2c reset; +0x70=0; +0x74=0
+                char* mb = (char*)mail;
+                *(char*)(mb + 0x8) = 0;
+                *(int*)(mb + 0x28) = 0;
+                reinterpret_cast<Inven_Item*>(mb + 0x2c)->reset();
+                *(int*)(mb + 0x70) = 0;
+                *(char*)(mb + 0x74) = 0;
+                pool.Free(mail);
+            }
+        }
+        mailMap.clear();
+        m_pad[0] = 0;
+        *(int*)(m_pad + 0x4) = 0;
+        *(int*)(m_pad + 0x8) = 0;
+        CMailBoxStreamList& streamList = *reinterpret_cast<CMailBoxStreamList*>(m_pad + 0x58);
+        for (CMailBoxStreamList::iterator it = streamList.begin(); it != streamList.end(); ++it)
+        {
+            Stream* s = *it;
+            if (s != 0)
+                GlobalData::s_stream_pool->Free(s);
+        }
+        streamList.clear();
+        reinterpret_cast<CMailBoxKeepMap*>(m_pad + 0x64)->clear();
+        *(int*)(m_pad + 0x7c) = 0;
+        *(int*)(m_pad + 0x80) = 0;
+        reinterpret_cast<CMailBoxUIntVec*>(m_pad + 0x84)->clear();
+        reinterpret_cast<CMailBoxLetterMap*>(m_pad + 0x90)->clear();
+    }
+}
 
 void WongWork::CMailBox::SetLastLoadLetterIdx(unsigned int) {}
 void WongWork::CMailBox::SetLoadState(bool, long) {}
@@ -531,10 +621,27 @@ void WongWork::CMailBox::SetLoadedLetterCount(int) {}
 void WongWork::CMailBox::SetNotLoadedMailCount(int) {}
 void WongWork::CMailBox::SetPackageLoadLack(const unsigned int*, int, std::set<unsigned int>&) {}
 int WongWork::CMailBox::getMailLoadCount() { return 0; }
-WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail() { return 0; }
+WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail()
+{
+    // ORIG 0x0855236a：迭代器 @0x60 指向 m_mailMap（+0x40）；未到 end 则返回
+    // second 并前移，否则返回 0。
+    CMailBoxMailMap& mailMap = *reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40);
+    CMailBoxMailMap::const_iterator& it =
+        *reinterpret_cast<CMailBoxMailMap::const_iterator*>(m_pad + 0x60);
+    if (it == mailMap.end())
+        return 0;
+    CMail* mail = it->second;
+    ++it;
+    return mail;
+}
 void WongWork::CMailBox::incMailLoadCount() {}
 void WongWork::CMailBox::reset() {}
-void WongWork::CMailBox::setMailIterator() {}
+void WongWork::CMailBox::setMailIterator()
+{
+    // ORIG 0x0855232e：迭代器 @0x60 = m_mailMap.begin()
+    CMailBoxMailMap& mailMap = *reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40);
+    *reinterpret_cast<CMailBoxMailMap::const_iterator*>(m_pad + 0x60) = mailMap.begin();
+}
 // void WongWork::CDungeonClear::clear() 已由 CDungeonClear.cpp 提供（合并移除）
 advancealtar::StageControl::StageControl() { memset(m_pad, 0, sizeof(m_pad)); }
 advancealtar::StageControl::~StageControl() {}

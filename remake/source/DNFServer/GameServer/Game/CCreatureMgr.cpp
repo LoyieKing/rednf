@@ -65,4 +65,14 @@ bool CCreatureMgr::IsGrowCreature_Equipped_Creature() const
     return false;
 }
 
+// SendCreatureItemList（ORIG 0x0833bdd2 T）：从 CCreature.cpp 迁入（该 TU 类未建模暂不入构建）。
+// ORIG：构造 CPacketRespondent(this+0x1c 的 CUser*, 0, 0)，调
+// MakeNotipacketCreatureItemList(map* this, -1) 后 Send()。CPacketRespondent 尚未重建，
+// 此处提供可链接的签名匹配骨架（推断），避免额外未定义符号。
+char CCreatureMgr::SendCreatureItemList() const
+{
+    // 推断：CPacketRespondent 未建模，暂不构造/发包。
+    return 0;
+}
+
 }  // namespace user_creature

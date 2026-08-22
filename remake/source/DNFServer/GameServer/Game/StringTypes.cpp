@@ -154,26 +154,81 @@ void CharString::concat(const CharString& other, const char* str)
     concat(other.c_str(), CharString(str));
 }
 
-void CharString::concat(const CharString& other, const char* str, int)
+void CharString::concat(const CharString& other, const char* str, int len)
 {
-    concat(other, str);
+    /* 推断：ORIG 语义——other 为空则结果为 str[0,len)；len==0 则结果为 other；否则 other+str 前 len 字节。 */
+    if (other.length() == 0)
+        assign(str, len);
+    else if (len == 0)
+        assign(other);
+    else
+    {
+        int len1 = other.length();
+        char* buf = new char[len1 + len + 1];
+        memcpy(buf, other.c_str(), len1);
+        if (str) memcpy(buf + len1, str, len);
+        buf[len1 + len] = 0;
+        assign(buf, len1 + len);
+        delete[] buf;
+    }
 }
 
 void CharString::concat(const CharString& other, const CharString& other2)
 {
-    concat(other.c_str(), other2);
+    /* ORIG 语义：任一侧为空则直接取另一侧；否则拼接。 */
+    if (other.length() == 0)
+        assign(other2);
+    else if (other2.length() == 0)
+        assign(other);
+    else
+    {
+        int len1 = other.length();
+        int len2 = other2.length();
+        char* buf = new char[len1 + len2 + 1];
+        memcpy(buf, other.c_str(), len1);
+        memcpy(buf + len1, other2.c_str(), len2);
+        buf[len1 + len2] = 0;
+        assign(buf, len1 + len2);
+        delete[] buf;
+    }
 }
 
 void CharString::concat(const CharString& other, char c)
 {
-    char buf[2] = {c, 0};
-    concat(other, buf);
+    /* ORIG 语义：other 为空则结果为单字符 c；c=='\0' 则结果为 other；否则 other+c。 */
+    if (other.length() == 0)
+        assign(c);
+    else if (c == '\0')
+        assign(other);
+    else
+    {
+        int len = other.length();
+        char* buf = new char[len + 2];
+        memcpy(buf, other.c_str(), len);
+        buf[len] = c;
+        buf[len + 1] = 0;
+        assign(buf, len + 1);
+        delete[] buf;
+    }
 }
 
 void CharString::concat(char c, const CharString& other)
 {
-    char buf[2] = {c, 0};
-    concat(buf, other);
+    /* ORIG 语义：c=='\0' 则结果为 other；other 为空则结果为单字符 c；否则 c+other。 */
+    if (c == '\0')
+        assign(other);
+    else if (other.length() == 0)
+        assign(c);
+    else
+    {
+        int len = other.length();
+        char* buf = new char[len + 2];
+        buf[0] = c;
+        memcpy(buf + 1, other.c_str(), len);
+        buf[len + 1] = 0;
+        assign(buf, len + 1);
+        delete[] buf;
+    }
 }
 
 int CharString::compare(const char* str, const CharString& other) const
@@ -212,9 +267,25 @@ void CharString::setAt(int index, char c)
         m_data->m_data[index] = c;
 }
 
-int CharString::pattern(const char* str, int)
+int CharString::pattern(const char* str, int count)
 {
-    return 0;
+    /* 推断：ORIG 语义 —— 生成 pattern 重复 count 次的字符串。
+       ORIG 返回 CharString（构造于 return storage）；本重建头文件签名为 int，
+       故把结果写入 *this，返回生成的总长度作为可观察值。 */
+    int slen = str ? (int)strlen(str) : 0;
+    if (slen == 0 || count < 1)
+    {
+        clear();
+        return 0;
+    }
+    int total = slen * count;
+    char* buf = new char[total + 1];
+    for (int i = 0; i < count; ++i)
+        memcpy(buf + i * slen, str, slen);
+    buf[total] = 0;
+    assign(buf, total);
+    delete[] buf;
+    return total;
 }
 
 void CharString::format(const char* fmt, ...)
@@ -409,7 +480,22 @@ void WideString::concat(const WideString& other, const wchar_t* str)
 
 void WideString::concat(const WideString& other, const WideString& other2)
 {
-    concat(other.c_str(), other2);
+    /* ORIG 语义：任一侧为空则直接取另一侧；否则拼接。 */
+    if (other.length() == 0)
+        assign(other2);
+    else if (other2.length() == 0)
+        assign(other);
+    else
+    {
+        int len1 = other.length();
+        int len2 = other2.length();
+        wchar_t* buf = new wchar_t[len1 + len2 + 1];
+        wmemcpy(buf, other.c_str(), len1);
+        wmemcpy(buf + len1, other2.c_str(), len2);
+        buf[len1 + len2] = 0;
+        assign(buf, len1 + len2);
+        delete[] buf;
+    }
 }
 
 int WideString::compare(const wchar_t* str, const WideString& other) const

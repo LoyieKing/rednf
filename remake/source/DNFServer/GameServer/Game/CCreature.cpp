@@ -704,4 +704,8 @@ CArtifact* CCreatureMgr::GetArtifact(int type)
     return &m_artifacts[idx];
 }
 
+// 注：CCreature::Reset / CCreatureMgr 域类（CStomach/CCreatureItem/CCreature/
+// CCreatureItemFactory）的类定义尚未在头建模，本 TU 暂不入 CMake（等待类定义补齐）。
+// SendCreatureItemList 已迁至 CCreatureMgr.cpp。
+
 }  // namespace user_creature

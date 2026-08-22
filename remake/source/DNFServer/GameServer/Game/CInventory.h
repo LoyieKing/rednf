@@ -190,6 +190,11 @@ public:
     bool IsGrowCreature_Equipped_Creature() const;       // ORIG _ZNK13user_creature12CCreatureMgr32IsGrowCreature_Equipped_CreatureEv
     bool InsertCreatureItem(Inven_Item* item, int a,     // ORIG _ZN13user_creature12CCreatureMgr18InsertCreatureItemEP10Inven_Itemiiii
                             int b, int c, int d);
+    int GetCreatureItemId() const;                 // ORIG _ZNK13user_creature12CCreatureMgr17GetCreatureItemIdEv
+    const char* GetCreatureName() const;           // ORIG _ZNK13user_creature12CCreatureMgr15GetCreatureNameEv
+    bool IsDieCreature() const;                    // ORIG _ZNK13user_creature12CCreatureMgr13IsDieCreatureEv
+    int GetEquipedCreatureLevel() const;           // ORIG _ZNK13user_creature12CCreatureMgr24GetEquipedCreatureLevelEv
+    char SendCreatureItemList() const;             // ORIG _ZNK13user_creature12CCreatureMgr21SendCreatureItemListEv
     char m_pad[0x4c];  // ORIG 尺寸 0x4c（+0x6e8..+0x733）
 };
 }

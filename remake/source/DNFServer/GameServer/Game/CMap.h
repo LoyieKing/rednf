@@ -11,34 +11,10 @@
 #include <string>
 #include <utility>
 #include <vector>
+#include "advancealtar.h"   // advancealtar::TimeLine（STMapScript 成员）
 
 class CDataManager;
 class CMap;
-
-namespace advancealtar
-{
-class ActionDefine
-{
-public:
-    char m_pad[4];
-};
-
-class TimeLine
-{
-public:
-    TimeLine() { std::memset(this, 0, sizeof(*this)); }
-    ~TimeLine() {}
-    TimeLine& operator=(const TimeLine& other)
-    {
-        if (this != &other)
-            std::memcpy(this, &other, sizeof(*this));
-        return *this;
-    }
-private:
-    char m_pad[0x1c];
-};
-
-}
 
 int get_rand_int(int range);
 int isInPathArea(int x, int y, const int (*area1)[2], const int (*area2)[2]);

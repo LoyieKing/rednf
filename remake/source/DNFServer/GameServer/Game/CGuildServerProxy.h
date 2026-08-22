@@ -164,6 +164,7 @@ public:
     CGMAccounts();                         // 0x082a73a4 W（独立 TU）
     ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
     bool isGM(unsigned int mid);           // 0x08109346
+    void removeGM(unsigned int mid, unsigned int param);  // 0x081093fc
 private:
     std::list<stGMInfo_t> m_gmList;        // +0x00（sizeof 8，与 ORIG 一致）
 };
