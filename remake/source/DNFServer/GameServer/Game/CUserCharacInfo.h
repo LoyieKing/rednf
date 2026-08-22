@@ -27,6 +27,7 @@
 #include "CDungeonClear.h"
 #include "PacketBuf.h"      // GameWorld / G_GameWorld / G_CDataManager
 #include "CPowerManager.h"   // 权威 CPowerManager 声明（GlobalData::s_power_manager 完整类型）
+#include "GameResultType.h"   // 权威 GameResultType（唯一声明点；取代本文件内空占位）
 
 // ---- 枚举（ORIG mangling 需要类型名；与 CInventory.h 共享守卫） ----
 #ifndef DNF_ENUM_ITEMSPACE_DEFINED
@@ -92,6 +93,7 @@ public:
     ~PvpResultType();
     void Clear();
     void AddNewResult(const PvpResultType& other);
+    int GetTotalScore() const;   // ORIG _ZNK13PvpResultType13GetTotalScoreEv 0x85d5efe
 
     char m_pad0[8];             // +0x00
     int m_expPoint;             // +0x08（get_pvp_result_exp_point）
@@ -103,9 +105,7 @@ public:
     char m_pad5c[0x84 - 0x5c];  // +0x5c..0x84
 };
 
-class GameResultType
-{
-};
+// GameResultType 权威定义见 GameResultType.h（上方已 include）；不再用空占位。
 
 class CommonTime
 {
@@ -180,6 +180,8 @@ public:
 
 struct WpBonusPointResult
 {
+    WpBonusPointResult();   // ORIG W _ZN18WpBonusPointResultC1Ev 08695c78（定义在 WpBonusPointResult.cpp，调用 clear）
+
     int m_base;   // +0x00
     int m_add;    // +0x04
 };

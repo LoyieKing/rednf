@@ -18,6 +18,11 @@
 #include "CDataManager.h"
 #include "CInventory.h"
 #include "CUser.h"
+#include "CServerProxyMgr.h"
+#include "CStatisticServerProxy.h"
+#include "CCubeStatistic.h"
+#include "GlobalData.h"
+#include "SECRET_SHOP_DATA.h"
 // ---- eBuyRule（ORIG 全局枚举，mangled 8eBuyRule） ----
 enum eBuyRule
 {
@@ -25,21 +30,7 @@ enum eBuyRule
     eBuyRule_1 = 1
 };
 
-// ---- CUser 跨类符号（ORIG 真实符号，头文件未覆盖） ----
-extern "C" int sub_CUser_getDungeonIdxAfterClear(void* user)
-    asm("_ZN5CUser23getDungeonIdxAfterClearEv");
-extern "C" void* sub_CUser_GetSecretShopData(void* user)
-    asm("_ZN5CUser17GetSecretShopDataEv");
-extern "C" void* sub_CServerProxyMgr_GetServerProxy(void* mgr, int group)
-    asm("_ZN15CServerProxyMgrI21CStatisticServerProxyE14GetServerProxyE17ENUM_SERVER_GROUP");
-extern "C" void sub_CStatisticServerProxy_SendPacket(void* proxy, char* packet, int len)
-    asm("_ZN21CStatisticServerProxy10SendPacketEPci");
-
-namespace GlobalData
-{
-extern void* s_statistic_proxy_mgr;
-}
-// ---- 全局 CMTRand（PvP_deps.h/CMTRand.cpp 权威类，0x9c8） ----
+// ---- 全局 CMTRand（PvPTypes.h 权威类，0x9c8；实现见 CMTRand.cpp） ----
 // GetItemByDungeonIdx/Lev 的 ORIG 形参 mangled 为 P7CMTRand（全局），故此处补全
 // 全局 CMTRand 声明（CDataManager.h 仅前向声明），供本 TU 成员方法调用 randInt。
 class CMTRand
@@ -67,38 +58,8 @@ struct SECRET_SHOP_STATISTIC_DATA
 namespace secretshop
 {
 
-
-// ---- SALE_INFO（0x1c）/ BUY_INFO（0x8） ----
-struct SALE_INFO
-{
-    int m_itemIdx;    // +0x00
-    char m_rule;      // +0x04（eBuyRule）
-    char m_pad05[3];  // +0x05
-    int m_price;      // +0x08
-    int m_limit;      // +0x0c
-    int m_material;   // +0x10（配方材料 itemIdx）
-    int m_materialCount;  // +0x14
-    char m_field18;   // +0x18
-    char m_pad19[3];  // +0x19
-};
-
-struct BUY_INFO
-{
-    int m_itemIdx;    // +0x00
-    int m_count;      // +0x04
-};
-
-// ---- RETAILER（vector<SALE_INFO>） ----
-class RETAILER
-{
-public:
-    RETAILER();
-    ~RETAILER();
-    void clear();
-    SALE_INFO* GetSaleInfo(int itemIdx);
-
-    std::vector<SALE_INFO> m_sales;   // +0x00
-};
+// SALE_INFO/BUY_INFO/RETAILER/SHOPPER/SECRET_SHOP_INFO 类声明见
+// SECRET_SHOP_DATA.h（唯一声明点）；此处仅保留方法实现。
 
 RETAILER::RETAILER()
 {
@@ -121,19 +82,6 @@ SALE_INFO* RETAILER::GetSaleInfo(int itemIdx)
     }
     return 0;
 }
-
-// ---- SHOPPER（vector<BUY_INFO>） ----
-class SHOPPER
-{
-public:
-    SHOPPER();
-    ~SHOPPER();
-    void clear();
-    BUY_INFO* GetBuyInfo(int itemIdx);
-    void BuyItem(int itemIdx, int count);
-
-    std::vector<BUY_INFO> m_buys;   // +0x00
-};
 
 SHOPPER::SHOPPER()
 {
@@ -169,18 +117,6 @@ void SHOPPER::BuyItem(int itemIdx, int count)
         m_buys.push_back(b);
     }
 }
-
-// ---- SECRET_SHOP_INFO（布局见 SECRET_SHOP_DATA.cpp，方法由其 TU 定义） ----
-class SECRET_SHOP_INFO
-{
-public:
-    SALE_INFO* GetSaleInfo(int itemIdx);   // 定义于 SECRET_SHOP_DATA.cpp
-    RETAILER m_retailer;  // +0x00
-    SHOPPER m_shopper;    // +0x0c
-    char m_bClear;        // +0x18
-    char m_pad[3];        // +0x19
-};
-
 
 class CSecretShopStatistic
 {
@@ -310,9 +246,10 @@ void CSecretShopStatistic::SendSecretShopStatistic()
             out[4] = it->second.m_data[4];
         }
         packet.m_count = count;
-        void* proxy = sub_CServerProxyMgr_GetServerProxy(
-            GlobalData::s_statistic_proxy_mgr, 0);
-        sub_CStatisticServerProxy_SendPacket(proxy, (char*)&packet, 0xfb2);
+        CStatisticServerProxy* proxy =
+            GlobalData::s_statistic_proxy_mgr->GetServerProxy(
+                (ENUM_SERVER_GROUP)0);
+        proxy->SendPacket((char*)&packet, 0xfb2);
     }
 }
 
@@ -402,11 +339,8 @@ void IBuyRule::LogCubeStatistic(CUser* user, std::pair<int, int>& item)
     // ORIG 0x85fb8b2：
     // GetInstanceCubeStatistic()->collectCubeStatistics(
     //     item.first, item.second, user, (CUBE_STATISTIC_FIELD)0x6a)
-    extern void* GetInstanceCubeStatistic() asm("_Z24GetInstanceCubeStatisticv");
-    extern void collectCubeStatistics(void* stat, int a, int b, CUser* u, int field)
-        asm("_ZN14CCubeStatistic21collectCubeStatisticsEiiP5CUser20CUBE_STATISTIC_FIELD");
-    collectCubeStatistics(GetInstanceCubeStatistic(), item.first, item.second,
-                          user, 0x6a);
+    GetInstanceCubeStatistic()->collectCubeStatistics(
+        item.first, item.second, user, (CUBE_STATISTIC_FIELD)0x6a);
 }
 
 void IBuyRule::LogValueStatistic(CUser* user, unsigned int value)
@@ -467,9 +401,9 @@ bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     SendSecretShopBuyItem(user, slot, item, -1, 0, remain);
     LogValueStatistic(user, total);
     info.m_shopper.BuyItem(itemIdx, count);
-    int dungeonIdx = sub_CUser_getDungeonIdxAfterClear(user);
+    int dungeonIdx = user->getDungeonIdxAfterClear();
     CSecretShopStatistic* stat = m_pStatistic;
-    stat->RecordPrice(*(int*)sub_CUser_GetSecretShopData(user), dungeonIdx, total);
+    stat->RecordPrice(*(int*)user->GetSecretShopData(), dungeonIdx, total);
     return 1;
 }
 
@@ -528,7 +462,7 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     return 1;
 }
 
-// ---- CMTRand（PvP_deps.h 权威类；此处仅声明本 TU 用到的接口） ----
+// ---- CMTRand（PvPTypes.h 权威类；此处仅声明本 TU 用到的接口） ----
 class CMTRand
 {
 public:
@@ -561,16 +495,8 @@ public:
     CSecretShopStatistic m_statistic;        // +0x1c
 };
 
-// ---- SecretShopScript 跨类方法（CDataManager +0xa700，ORIG 真实符号） ----
-extern "C" char sub_SecretShopScript_GetNpcByDungeonIdx(void* script, int* out,
-                                                       int a, int b)
-    asm("_ZN16SecretShopScript18GetNpcByDungeonIdxERiii");
-extern "C" void sub_SecretShopScript_GetNpcByDungeonLev(void* script, int* out,
-                                                       int a, int b)
-    asm("_ZN16SecretShopScript18GetNpcByDungeonLevERiii");
-// （GetItemByDungeonIdx/Lev 已由下方真实 C++ 方法实现，ORIG mangled 前缀为 19，
-//   不再使用 21 错拼 asm 桥接。）
-
+// ---- SecretShopScript 跨类方法（CDataManager +0xa700，ORIG 真实符号；
+//      声明见 CDataManager.h，本 TU 直接真实调用） ----
 
 CSecretShop::CSecretShop()
 {
@@ -607,9 +533,9 @@ int CSecretShop::LotteryNpc(int dungeonIdx, int level, int price)
     out[1] = 10000;
     out[2] = m_pRand->randInt((const unsigned long&)out[1]);
     out[0] = 1000;
-    void* script = (char*)G_CDataManager() + 0xa700;
-    if (!sub_SecretShopScript_GetNpcByDungeonIdx(script, out, out[2], level))
-        sub_SecretShopScript_GetNpcByDungeonLev(script, out, out[2], level);
+    SecretShopScript* script = (SecretShopScript*)((char*)G_CDataManager() + 0xa700);
+    if (!script->GetNpcByDungeonIdx(out[0], out[2], level))
+        script->GetNpcByDungeonLev(out[0], out[2], level);
     if (out[0] != 0 && out[0] != 1000)
         m_statistic.RecordShow(out[0], dungeonIdx, price);
     return out[0];
@@ -647,8 +573,8 @@ void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int 
         count = 1;
     if (rule->BuyItem(user, info, itemIdx, count) &&
         info.m_bClear != 1) {
-        int dungeonIdx = sub_CUser_getDungeonIdxAfterClear(user);
-        int npcIdx = *(int*)sub_CUser_GetSecretShopData(user);
+        int dungeonIdx = user->getDungeonIdxAfterClear();
+        int npcIdx = *(int*)user->GetSecretShopData();
         m_statistic.RecordBuy(npcIdx, dungeonIdx);
         info.m_bClear = 1;
     }
@@ -842,12 +768,10 @@ void SecretShopScript::CopyItem(secretshop::SALE_INFO& sale, stSaleInfo& info)
     }
 }
 
-// ---- importSecretShopScript（ORIG 0x8a81cf0） ----
-extern "C" int importSecretShopScript(SecretShopScript* script, const char* path)
-    asm("_Z22importSecretShopScriptP16SecretShopScriptPKc");
+// ---- importSecretShopScript（ORIG 0x8a81cf0，_Z22importSecretShopScriptP16SecretShopScriptPKc） ----
 
 // 语义：加载商城脚本（RDAR），填充 SecretShopScript 数据。
-extern "C" int importSecretShopScript(SecretShopScript* script, const char* path)
+int importSecretShopScript(SecretShopScript* script, const char* path)
 {
     return 1;
 }

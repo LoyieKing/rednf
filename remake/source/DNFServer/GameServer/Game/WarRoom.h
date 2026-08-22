@@ -16,9 +16,8 @@
 // 方法签名以 ORIG mangled 名为准（/tmp/warroom_syms.txt 与报告）。
 // ============================================================================
 
-#include <map>
-
-#include "PvP_deps.h"
+#include "WarField.h"   // 权威 WarField（+0x34 值成员 m_field 需完整类型；PvPTypes.h 亦引入 WarField.h）
+#include "PvPTypes.h"   // PvP 子对象权威声明（原 PvP_deps.h 已并入；约束2 删除 *_deps.h）
 #include "InterfacePacketBuf.h"
 #include "TimerQueue.h"
 

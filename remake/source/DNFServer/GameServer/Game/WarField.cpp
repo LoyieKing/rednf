@@ -18,19 +18,17 @@
 #include "InterfacePacketBuf.h"
 #include "CDataManager.h"
 #include "LogManager.h"
+#include "CUser.h"            // 权威 CUser / CUserCharacInfo / 共享枚举
+#include "CInventory.h"       // stAvatarEmblemInfo_t / stAvatarExpansionInfo_t（含 init）
+#include "CEquipItem.h"
+#include "CDungeon.h"
+#include "GlobalData.h"       // 权威 GlobalData::s_systemTime_
 
 int get_rand_int(int range);  // ORIG T 0x86b1b87
 
 // ============================================================================
 // 本地支撑类型（名称/布局与 ORIG 一致；成员在各自批次 TU 定义）
 // ============================================================================
-
-// 怪物类型刷新概率（ORIG vector<STMonsterTypeSpawnProb> 元素 0x10 字节，
-// ConsistMap 按 int[4] 读）
-struct STMonsterTypeSpawnProb
-{
-    int m_prob[4];
-};
 
 // 对战地图数据（ORIG vector<STRivalMapData> 元素 0xc 字节，+8 为权重）
 struct STRivalMapData
@@ -45,28 +43,6 @@ struct stWarPoint
 {
     int m_0;          // +0x00
     int m_pts[3];     // +0x04
-};
-
-struct WpBonusPointResult
-{
-    int m_base;   // +0x00
-    int m_add;    // +0x04
-};
-
-#pragma pack(push, 1)
-struct stAvatarEmblemInfo_t
-{
-    void init();  // ORIG W 0x81506e8
-
-    char m_pad[30];
-};
-#pragma pack(pop)
-
-struct stAvatarExpansionInfo_t
-{
-    void init();  // ORIG W 0x833421e
-
-    char m_pad[4];
 };
 
 // 掉落生成引用/结果（ctor/dtor 由 WongWork 批次 TU 提供）
@@ -135,59 +111,6 @@ public:
     int get_index();  // ORIG T 0x83748ce
 };
 
-class CDataManager;
-CDataManager* G_CDataManager();  // ORIG T 0x80cc19b
-
-// ============================================================================
-// 跨类方法（asm-label extern；mangled 名与 ORIG 一致）
-// ============================================================================
-extern "C" unsigned int sub_CUser_get_unique_id(const void* self)
-    asm("_ZNK5CUser13get_unique_idEv");
-extern "C" const char* sub_CUser_get_acc_name(const void* self)
-    asm("_ZNK5CUser12get_acc_nameEv");
-extern "C" int sub_CUser_getStdDropRate(void* self)
-    asm("_ZN5CUser14getStdDropRateEv");
-extern "C" bool sub_CUser_isGMUser(void* self)
-    asm("_ZN5CUser8isGMUserEv");
-extern "C" unsigned char sub_CUser_getForceDropFlag(void* self)
-    asm("_ZN5CUser16getForceDropFlagEv");
-
-extern "C" int sub_CUserCharacInfo_get_charac_level(const void* self)
-    asm("_ZNK15CUserCharacInfo16get_charac_levelEv");
-extern "C" int sub_CUserCharacInfo_getCurCharacMoney(const void* self)
-    asm("_ZNK15CUserCharacInfo17getCurCharacMoneyEv");
-extern "C" void sub_CUserCharacInfo_checkBonusPoint(void* self)
-    asm("_ZN15CUserCharacInfo15checkBonusPointEv");
-extern "C" void sub_CUserCharacInfo_getWpBonusPoint(void* self, WpBonusPointResult* out)
-    asm("_ZN15CUserCharacInfo15getWpBonusPointER18WpBonusPointResult");
-
-extern "C" void* sub_CDataManager_find_monster(const CDataManager* self, int idx)
-    asm("_ZNK12CDataManager12find_monsterEi");
-extern "C" void* sub_CDataManager_find_item(const CDataManager* self, int idx)
-    asm("_ZNK12CDataManager9find_itemEi");
-extern "C" int sub_CDataManager_GetMoneyLimitPerLevel(const CDataManager* self,
-                                                      int level, const char* name)
-    asm("_ZNK12CDataManager21GetMoneyLimitPerLevelEiPKc");
-extern "C" WongWork::CItemGeneratorMgr* sub_CDataManager_getItemGenerator(CDataManager* self)
-    asm("_ZN12CDataManager16getItemGeneratorEv");
-
-extern "C" void* sub_CDungeon_getDropItems(const void* self)
-    asm("_ZNK8CDungeon12getDropItemsEv");
-
-extern "C" void sub_WpBonusPointResult_C1(void* self) asm("_ZN18WpBonusPointResultC1Ev");
-extern "C" void sub_stAvatarEmblemInfo_t_init(void* self) asm("_ZN20stAvatarEmblemInfo_t4initEv");
-extern "C" void sub_stAvatarExpansionInfo_t_init(void* self)
-    asm("_ZN23stAvatarExpansionInfo_t4initEv");
-extern "C" int sub_CEquipItem_getAvatarPeriod(const void* self, unsigned char a)
-    asm("_ZNK10CEquipItem15getAvatarPeriodEh");
-extern "C" void sub_CEquipItem_getAvatarSocket(const void* self, int slot,
-                                               stAvatarEmblemInfo_t* emblem)
-    asm("_ZNK10CEquipItem15getAvatarSocketEiR20stAvatarEmblemInfo_t");
-extern "C" void sub_CSystemTime_getCurSec(void* self) asm("_ZN11CSystemTime9getCurSecEv");
-
-// ---- GlobalData::s_systemTime_（真实符号 _ZN10GlobalData13s_systemTime_E） ----
-extern CSystemTime GlobalData_s_systemTime_ asm("_ZN10GlobalData13s_systemTime_E");
-
 // ============================================================================
 // 构造/析构（ORIG 086c0b8e / 086c0ba4：仅 MapInfo 子对象）
 // ============================================================================
@@ -244,7 +167,7 @@ int WarField::CheckPickupItem(int idx, int owner,
     {
         return 0x15;
     }
-    int curSec = GlobalData_s_systemTime_.getCurSec();
+    int curSec = GlobalData::s_systemTime_.getCurSec();
     if (curSec - it->second.m_createTick < 10)
     {
         if (it->second.m_dropIndex != (unsigned short)-1 &&
@@ -370,9 +293,8 @@ int WarField::HandleWpPerMonster(CUser* user, int monsterIdx, int wp,
     }
     int total = 0;
     WpBonusPointResult bonus;
-    sub_WpBonusPointResult_C1(&bonus);
-    sub_CUserCharacInfo_checkBonusPoint(user);
-    sub_CUserCharacInfo_getWpBonusPoint(user, &bonus);
+    user->checkBonusPoint();
+    user->getWpBonusPoint(bonus);
     while (it3 != it2 && it3 != warMap->end())
     {
         total += it3->second.m_pts[mob->m_roleType];
@@ -459,8 +381,8 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         for (int i = 0; i < listSize; i = i + 1)
         {
             int mobIdx = mobList->at(i);
-            CMonster* monster = (CMonster*)sub_CDataManager_find_monster(
-                G_CDataManager(), mobIdx);
+            CMonster* monster = (CMonster*)((const CDataManager*)G_CDataManager())
+                                    ->find_monster(mobIdx);
             if (monster == 0)
             {
                 LogManager::logFormat(
@@ -493,8 +415,8 @@ void WarField::ConsistMap(void* packet, const CDungeon* dungeon, const CMap* map
         }
         int sel = i2;
         int mobIdx = mobList->at(sel);
-        CMonster* monster = (CMonster*)sub_CDataManager_find_monster(
-            G_CDataManager(), mobIdx);
+        CMonster* monster = (CMonster*)((const CDataManager*)G_CDataManager())
+                                ->find_monster(mobIdx);
         if (monster == 0)
         {
             LogManager::logFormat(
@@ -578,11 +500,11 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     unsigned short userUid = 0xffff;
     if (user != 0)
     {
-        userUid = (unsigned short)sub_CUser_get_unique_id(user);
-        const char* accName = sub_CUser_get_acc_name(user);
-        int level = sub_CUserCharacInfo_get_charac_level(user);
-        int moneyLimit = sub_CDataManager_GetMoneyLimitPerLevel(
-            G_CDataManager(), level, accName);
+        userUid = (unsigned short)user->get_unique_id();
+        const char* accName = user->get_acc_name();
+        int level = user->get_charac_level();
+        int moneyLimit = (int)((const CDataManager*)G_CDataManager())
+                             ->GetMoneyLimitPerLevel(level, accName);
         if (moneyLimit < 1)
         {
             cMyTrace trace(
@@ -592,7 +514,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
         }
         else
         {
-            moneyRatio = (sub_CUserCharacInfo_getCurCharacMoney(user) * 100) / moneyLimit;
+            moneyRatio = (user->getCurCharacMoney() * 100) / moneyLimit;
         }
     }
     std::map<int, map_monster>::iterator it = m_mapInfo.m_monsterMap.find(uid);
@@ -601,8 +523,8 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
         return 0;
     }
     map_monster* fieldMob = &it->second;
-    CMonster* monster = (CMonster*)sub_CDataManager_find_monster(
-        G_CDataManager(), fieldMob->m_mobIndex);
+    CMonster* monster = (CMonster*)((const CDataManager*)G_CDataManager())
+                            ->find_monster(fieldMob->m_mobIndex);
     if (monster == 0)
     {
         LogManager::logFormat(
@@ -616,7 +538,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     buf->put_header(0, 0x26);
     buf->put_short(uid);
     std::list<map_item> itemList;
-    int curSec = GlobalData_s_systemTime_.getCurSec();
+    int curSec = GlobalData::s_systemTime_.getCurSec();
     stGenerateRefData_t refData;
     if (user != 0)
     {
@@ -624,7 +546,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
         ServiceRestrictManager* srm = ARAD::Singleton<ServiceRestrictManager>::Get();
         if (srm->isRestricted(RestrictCategory::Enum_3, 1))
         {
-            refData.m_dropRate = sub_CUser_getStdDropRate(user);
+            refData.m_dropRate = user->getStdDropRate();
         }
     }
     *(char*)((char*)&refData + 0x34) = fieldMob->m_level;
@@ -636,8 +558,9 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     *(char*)((char*)&refData + 0x40) = 1;
     *(char*)((char*)&refData + 0x41) = 0;
     stGenerateResult_t result;
-    CItemGenerator* gen = (CItemGenerator*)sub_CDataManager_getItemGenerator(
-        G_CDataManager())->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
+    CItemGenerator* gen = (CItemGenerator*)G_CDataManager()
+                              ->getItemGenerator()
+                              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
     gen->GenerateA(&refData, &result);
     *(int*)((char*)&refData + 0x38) = fieldMob->m_mobIndex;
     *(char*)((char*)&refData + 0x3c) = fieldMob->m_roleType;
@@ -648,22 +571,25 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     *(char*)((char*)&refData + 0x41) = 0;
     *(char*)((char*)&refData + 0x43) = 0;
     *(char*)((char*)&refData + 0x44) = 0;
-    if (user != 0 && sub_CUser_isGMUser(user))
+    if (user != 0 && user->isGMUser())
     {
-        refData.m_forceDrop = sub_CUser_getForceDropFlag(user);
+        refData.m_forceDrop = user->getForceDropFlag();
     }
-    gen = (CItemGenerator*)sub_CDataManager_getItemGenerator(
-        G_CDataManager())->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
+    gen = (CItemGenerator*)G_CDataManager()
+              ->getItemGenerator()
+              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
     gen->GenerateB(&refData, &result);
-    void* drops = sub_CDungeon_getDropItems(dungeon);
+    void* drops = (void*)dungeon->getDropItems();
     (void)drops;
-    gen = (CItemGenerator*)sub_CDataManager_getItemGenerator(
-        G_CDataManager())->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4);
+    gen = (CItemGenerator*)G_CDataManager()
+              ->getItemGenerator()
+              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4);
     gen->GenerateB(&refData, &result);
     *(char*)((char*)&refData + 0x34) = 1;
     *(char*)((char*)&refData + 0x35) = fieldMob->m_level;
-    gen = (CItemGenerator*)sub_CDataManager_getItemGenerator(
-        G_CDataManager())->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_3);
+    gen = (CItemGenerator*)G_CDataManager()
+              ->getItemGenerator()
+              ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_3);
     gen->GenerateA(&refData, &result);
     for (std::vector<Inven_Item>::iterator itemIt = result.m_dropItems.begin();
          itemIt != result.m_dropItems.end(); ++itemIt)
@@ -680,7 +606,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     }
     buf->put_byte((int)itemList.size());
     stAvatarEmblemInfo_t emblem;
-    sub_stAvatarEmblemInfo_t_init(&emblem);
+    emblem.init();
     for (std::list<map_item>::iterator itemIt = itemList.begin();
          itemIt != itemList.end(); ++itemIt)
     {
@@ -694,19 +620,18 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
         }
         else
         {
-            void* equip = sub_CDataManager_find_item(
-                G_CDataManager(), mi.m_item.m_addInfo);
+            void* equip = G_CDataManager()->find_item(mi.m_item.m_addInfo);
             if (equip == 0)
             {
                 buf->put_int(mi.m_item.get_add_info());
             }
             else
             {
-                buf->put_int(sub_CEquipItem_getAvatarPeriod(
-                                 equip, (unsigned char)mi.m_item.m_fieldb) *
-                             0x15180);
-                sub_stAvatarEmblemInfo_t_init(&emblem);
-                sub_CEquipItem_getAvatarSocket(equip, mi.m_item.m_fieldb, &emblem);
+                buf->put_int(((CEquipItem*)equip)->getAvatarPeriod(
+                                  (unsigned char)mi.m_item.m_fieldb) *
+                              0x15180);
+                emblem.init();
+                ((CEquipItem*)equip)->getAvatarSocket(mi.m_item.m_fieldb, emblem);
             }
         }
         buf->put_short(mi.m_item.m_fieldb);
@@ -723,7 +648,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
             buf->put_int(0x1e);
             buf->put_binary((const char*)&emblem, 0x1e);
             stAvatarExpansionInfo_t expansion;
-            sub_stAvatarExpansionInfo_t_init(&expansion);
+            expansion.init();
             buf->put_int(4);
             buf->put_binary((const char*)&expansion, 4);
         }
@@ -746,7 +671,7 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
 
 // ORIG 0x89024c4 T（_ZN14WarAreaCounter18GetCurrenTimeTableEv）：
 // 取当前小时，在 m_table[0..m_num-2] 中查找所在时段，返回时段索引。
-void* WarAreaCounter::GetCurrenTimeTable()
+int WarAreaCounter::GetCurrenTimeTable()
 {
     time_t t = time(NULL);
     struct tm tmbuf;
@@ -763,7 +688,7 @@ void* WarAreaCounter::GetCurrenTimeTable()
         if (t1 > curHour)
             break;
     }
-    return (void*)(size_t)i;
+    return i;
 }
 
 // ORIG 0x82a3d80 W（_ZN14WarAreaCounter25GetWarRoomCountAtPeekTimeEi）：

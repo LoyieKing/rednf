@@ -8,7 +8,7 @@
 // ImportMonsterBaseTable 0x08a3c736 / getMonsterTableIndex 0x088ba1c8 /
 // setBasicAbilityByLevel 0x088b9603 / getRandomChampionElement 0x088b9cce /
 // exportMonsterScript 0x08a22520（语义简化实现）。
-// 注意：CBattle_Field_deps.h 另有部分声明（本头独立定义镜像，避免 ODR 冲突）。
+// 怪物能力自由函数（upgradeAbilityBy*/makeChampionFeatureList）权威声明见本头。
 // ============================================================================
 
 #include <map>
@@ -43,5 +43,17 @@ void setBasicAbilityByLevel(STMonsterScript* script, ActiveStaticInfo* info,
                             unsigned int level, int dungeonIdx, int roleType,
                             bool a, bool b);
 int getRandomChampionElement(STMonsterScript* script, int seed);
+
+// ---- 怪物能力升级自由函数（ORIG 实现见 CBattle_Field_unresolved.cpp）----
+void upgradeAbilityByMonsterParameterCategory(std::vector<int>& vec,
+                                              ActiveStaticInfo* info,
+                                              bool isChampion);
+void upgradeAbilityByDifficultyOfDungeon(int diff, ActiveStaticInfo* info,
+                                         unsigned int level, std::vector<int>& vec);
+void upgradeAbilityByBossFeature(ActiveStaticInfo* info);
+void makeChampionFeatureList(std::vector<int>& out, unsigned int level, int seed,
+                             std::vector<int>& tmp, int diff);
+void upgradeAbilityByChampionFeature(int elem, int roleType, std::vector<int>& vec,
+                                     ActiveStaticInfo* info);
 
 #endif  // GAME_STMONSTERSCRIPT_H_

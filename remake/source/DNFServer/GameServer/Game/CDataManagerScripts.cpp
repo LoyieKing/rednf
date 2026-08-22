@@ -7,6 +7,7 @@
 #include "GlobalData.h"
 #include "CWorldMap.h"
 #include "NPCScript.h"   // CNPCScript 完整类型（_destroy 中 delete）
+#include "STExpertJobScript.h"  // 权威 STExpertJobScript（唯一声明点）
 #include <cstring>
 
 // ============================================================================
@@ -420,7 +421,7 @@ void SetLightServerFlag(bool flag)
 
 // ============================================================================
 // _checkTimeoutItem（ORIG 0x867cf8d T，G3 任务域辅助）
-// CTitleBook 通过 extern asm sub_checkTimeoutItem 调用：检查物品是否过期。
+// CTitleBook 通过 _checkTimeoutItem 直接调用：检查物品是否过期。
 // ORIG 逻辑（逐步核对 0x867cf8d 反汇编）：
 //   find_item(item.m_addInfo) 失败 → 0；usablePeriod/expirationDate 任一非 0 → 0；
 //   虚表 +0x10（IsCreatureItem）非 0 → 0；
@@ -983,26 +984,8 @@ pvp_channel_info_t::pvp_channel_info_t()
 // STExpertJobScript::isBoundaryExpValue（TSV 修复，ORIG 0x0849f420 T）。
 // ORIG：遍历 vector<ExpertJobExp>（元素尺寸 12，见 _ZNSt6vectorI12ExpertJobExpSaIS0_EEixEj
 // 乘法 i*12），任一元素首整数字段 == exp 返回 true，否则 false。
-// CUser::GetCurExpertJobLevel 经 asm 桥 _ZN17STExpertJobScript19isBoundaryExpValueEi 调用。
+// 权威声明见 STExpertJobScript.h（CUser::GetCurExpertJobLevel 真实调用）。
 // ============================================================================
-namespace
-{
-struct ExpertJobExp
-{
-    int m_exp;    // +0x00
-    int m_field4; // +0x04
-    int m_field8; // +0x08   （尺寸 12，匹配 ORIG operator[] i*12）
-};
-}
-
-class STExpertJobScript
-{
-public:
-    bool isBoundaryExpValue(int exp);
-    int GetLevel(unsigned int exp);
-
-    std::vector<ExpertJobExp> m_expVec; // +0x00
-};
 
 bool STExpertJobScript::isBoundaryExpValue(int exp)
 {

@@ -324,6 +324,12 @@ dnf_service(game
         ${SVC_DIR}/AvatarItem.cpp
         ${SVC_DIR}/CAvatarItemMgr.cpp
         ${SVC_DIR}/DNFLexWrapperHelpers.cpp
+        ${SVC_DIR}/DNFLexWrapper.cpp
+        ${SVC_DIR}/DNFLexWrapperStream.cpp
+        ${SVC_DIR}/DNFLexWrapperLoadStream.cpp
+        ${SVC_DIR}/DNFLexCore.cpp
+        ${SVC_DIR}/CompiledDNFLexCore.cpp
+        ${SVC_DIR}/FlexLexerEngine.cpp   # vendored flex 2.5.35 引擎（原 FlexLexerCore.cpp 已删）
         ${SVC_DIR}/DB_AccountCargoSync.cpp
         ${SVC_DIR}/md5.cpp
         ${SVC_DIR}/STItemScriptNested.cpp
@@ -349,6 +355,7 @@ dnf_service(game
         ${SVC_DIR}/STScriptFileList.cpp
         ${SVC_DIR}/PacketCtor_Classes.cpp
         ${SVC_DIR}/MSG_STAT_RANKRES.cpp
+        ${SVC_DIR}/Redeem_Item__CRedeemItem.cpp
         ${SVC_DIR}/APSystem_MSG_ACTION_POINT.cpp
         ${SVC_DIR}/sync_script.cpp
         ${SVC_DIR}/SyncScriptDeps.cpp

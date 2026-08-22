@@ -160,11 +160,13 @@ void CMailBoxHelper::ReqDBSendNewCreatureMailCashShop(CUser*, int,
 {
 }
 
-void CMailBoxHelper::ReqDBSendNewSystemMail(const char*, Inven_Item const&,
-                                            unsigned int, unsigned int,
-                                            const char*, int, unsigned int,
-                                            ENUM_SERVER_GROUP, bool, bool)
+int CMailBoxHelper::ReqDBSendNewSystemMail(const char*, Inven_Item const&,
+                                           unsigned int, unsigned int,
+                                           const char*, int, unsigned int,
+                                           ENUM_SERVER_GROUP, bool, bool)
 {
+    // ORIG 0x085555e8：返回 undefined4（成功 0）。当前为占位实现。
+    return 0;
 }
 
 void CMailBoxHelper::ReqDBSendNewSystemMultiMail(const char*, Inven_Item const*,

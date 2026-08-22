@@ -9,12 +9,7 @@
 #include <string.h>
 
 #include "CMap.h"
-
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
+#include "DNFLexWrapper.h"
 
 STMapScript::STMapScript()
 {
@@ -86,23 +81,23 @@ void STMapScript::Clear()
 
 bool ImportMapScript(STMapScript* script, const char* path)
 {
-    if (!sub_loadRDARScriptFile("Script/MapScript", path))
+    if (!loadRDARScriptFile("Script/MapScript", path))
     {
         return false;
     }
     script->Clear();
     std::string line;
     int value = 0;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return false;
     }
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return false;
     }
     script->m_0 = value;
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return false;
     }

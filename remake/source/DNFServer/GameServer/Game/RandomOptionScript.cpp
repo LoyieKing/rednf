@@ -10,11 +10,7 @@
 
 #include <string.h>
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
+#include "DNFLexWrapper.h"
 
 void OPTION_VALUE_RATIO::clear()
 {
@@ -170,7 +166,7 @@ int RandomOptionScript::getOptionModificationCost(short level, int rarity) const
 
 bool importRandomOptionScript(RandomOptionScript& script, const char* path)
 {
-    if (!sub_loadRDARScriptFile("Script/RandomOptionScript", path))
+    if (!loadRDARScriptFile("Script/RandomOptionScript", path))
     {
         return false;
     }
@@ -178,22 +174,22 @@ bool importRandomOptionScript(RandomOptionScript& script, const char* path)
 
     std::string line;
     int value = 0;
-    while (sub_ScanType(line, true))
+    while (ScanType(line, true))
     {
         if (line == "[option modification cost]")
         {
             OPTION_MODIFICATION_COST cost;
-            if (!sub_ScanInt(&value))
+            if (!ScanInt(&value))
             {
                 break;
             }
             cost.m_level = (short)value;
-            if (!sub_ScanInt(&value))
+            if (!ScanInt(&value))
             {
                 break;
             }
             cost.m_cost2 = value;
-            if (!sub_ScanInt(&value))
+            if (!ScanInt(&value))
             {
                 break;
             }
@@ -203,17 +199,17 @@ bool importRandomOptionScript(RandomOptionScript& script, const char* path)
         else if (line == "[choose prefix]")
         {
             ChoosePrefix cp;
-            if (!sub_ScanInt(&value))
+            if (!ScanInt(&value))
             {
                 break;
             }
             cp.m_min = value;
-            if (!sub_ScanInt(&value))
+            if (!ScanInt(&value))
             {
                 break;
             }
             cp.m_max = value;
-            if (!sub_ScanInt(&value))
+            if (!ScanInt(&value))
             {
                 break;
             }
@@ -224,7 +220,7 @@ bool importRandomOptionScript(RandomOptionScript& script, const char* path)
         {
             int grade = 0;
             std::vector<std::string> names;
-            while (sub_ScanType(line, true))
+            while (ScanType(line, true))
             {
                 if (line[0] == '[')
                 {

@@ -22,6 +22,14 @@ public:
     static T* Get();
 };
 
+// 模板定义（唯一；各 TU 隐式/显式实例化。ARAD.cpp/CCeraShopAddRestrict.cpp 不得再定义）。
+template <class T>
+T* Singleton<T>::Get()
+{
+    static T instance;
+    return &instance;
+}
+
 void notifyOpenMessageDialog(CUser* user, int a, int b,
                              AradServerStateMessage& msg);
 }

@@ -15,6 +15,8 @@
 #include <map>
 #include <vector>
 
+#include "Arad_DataManager.h"   // ARAD::Singleton 模板唯一声明点（定义/实例化见 ARAD.cpp）
+
 class CUser;
 
 namespace HeroMissionCondition
@@ -81,21 +83,5 @@ private:
     std::map<unsigned int, std::vector<HeroMissionValue> >
         m_values;              // +0x24
 };
-
-// ---- ARAD::Singleton 模板（与 GlobalData.cpp 定义逐字一致，ODR 合规）----
-namespace ARAD
-{
-template <class T> class Singleton
-{
-public:
-    static T* Get();
-};
-
-template <class T> T* Singleton<T>::Get()
-{
-    static T inst;
-    return &inst;
-}
-}
 
 #endif  // GAME_HEROMISSIONEVENT_H_

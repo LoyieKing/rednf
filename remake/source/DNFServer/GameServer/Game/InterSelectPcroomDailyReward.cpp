@@ -6,14 +6,12 @@
 
 #include "CInventory.h"   // PacketGuard 完整定义（含 InterfacePacketBuf 基础方法）
 #include "CUser.h"
+#include "InterSelectPcroomDailyReward.h"
 
-class InterSelectPcroomDailyReward
+namespace InterSelectPcroomDailyReward
 {
-public:
-    void SendPacket(CUser* user);
-};
 
-void InterSelectPcroomDailyReward::SendPacket(CUser* user)
+void SendPacket(CUser* user)
 {
     if (user != 0)
     {
@@ -24,3 +22,5 @@ void InterSelectPcroomDailyReward::SendPacket(CUser* user)
         user->Send(guard);
     }
 }
+
+}  // namespace InterSelectPcroomDailyReward

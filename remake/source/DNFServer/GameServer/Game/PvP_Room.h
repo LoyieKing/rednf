@@ -26,7 +26,7 @@
 
 #include <vector>
 
-#include "PvP_deps.h"
+#include "PvPTypes.h"   // PvP 子对象权威声明（原 PvP_deps.h 已并入；约束2 删除 *_deps.h）
 #include "InterfacePacketBuf.h"
 #include "TimerQueue.h"
 

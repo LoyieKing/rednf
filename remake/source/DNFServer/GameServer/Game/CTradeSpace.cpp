@@ -20,46 +20,14 @@
 #include "CInventory.h"
 #include "CDataManager.h"
 #include "InterfacePacketBuf.h"
+// 跨类符号：CUser/cUserHistoryLog(CUser.h)、CSecu_ProtectionField(CInventory.h)、
+// Mutex(GameTypes.h)、CMailBoxHelper/G_CGameManager(CGameManager.h)、
+// DB_AvatarChangeOwner(DB_AvatarChangeOwner.h)。
+#include "CGameManager.h"
+#include "DB_AvatarChangeOwner.h"
+#include "CTradeSpace.h"   // 类/布局唯一声明点（CGameManager.h 亦 include）
+#include "RDARScriptStringManager.h"   // RDARScriptStringManager/g_scriptStringManager_（CleanFAsm 新建）
 
-// ---- 跨类符号声明（真实符号，定义在其它 TU；头文件缺失或签名不符者用
-//      asm-label extern）----
-extern "C" void sub_CUser_SetTradeSpace(void* user, int idx)
-    asm("_ZN5CUser13SetTradeSpaceEi");
-extern "C" void sub_CUser_IncrementTradeGold(void* user, unsigned int gold,
-                                             unsigned int flag)
-    asm("_ZN5CUser18IncrementTradeGoldEji");
-extern "C" void sub_CUser_gainMoneyFromHackUser(void* user, unsigned long a,
-                                                unsigned char b, unsigned long c,
-                                                unsigned char d)
-    asm("_ZN5CUser21gainMoneyFromHackUserEjyjy");
-extern "C" void* sub_G_CGameManager() asm("_Z14G_CGameManagerv");
-extern "C" void sub_CGameManager_PutTradeSpace(void* mgr, void* tradeSpace)
-    asm("_ZN12CGameManager13PutTradeSpaceEP11CTradeSpace");
-
-// cUserHistoryLog（CUser +0x79700；头文件类缺少交易方法，用 asm-label）
-extern "C" void sub_cUserHistoryLog_SetTrader(void* log, const char* accName,
-                                              const char* characName)
-    asm("_ZN15cUserHistoryLog9SetTraderEPKcS1_");
-extern "C" void sub_cUserHistoryLog_TradeBegin(void* log)
-    asm("_ZN15cUserHistoryLog10TradeBeginEv");
-extern "C" void sub_cUserHistoryLog_TradeEnd(void* log, int reason, int a, int b,
-                                             int c, int d)
-    asm("_ZN15cUserHistoryLog8TradeEndE15eTradeEndReasoniiii");
-
-// DB_AvatarChangeOwner
-extern "C" void sub_DB_AvatarChangeOwner_makeRequest(unsigned int a,
-                                                     unsigned int b,
-                                                     unsigned int c,
-                                                     unsigned char d)
-    asm("_ZN20DB_AvatarChangeOwner11makeRequestEjjjh");
-
-// CSecu_ProtectionField（头文件按 3 参调用点形态声明，与本类调用点不符，asm）
-extern "C" unsigned int sub_CSecu_ProtectionField_Check(void* field, CUser* user,
-                                                        unsigned int type)
-    asm("_ZN21CSecu_ProtectionField5CheckEP5CUser18SECURITY_PROTCTION");
-extern "C" unsigned char sub_CSecu_ProtectionField_GetOppositeErr(void* field,
-                                                                  unsigned int err)
-    asm("_ZN21CSecu_ProtectionField14GetOppositeErrEi");
 // ---- 交易状态枚举（ORIG ENUM_TRADESTATE；mangling 编码类型名 15ENUM_TRADESTATE）----
 enum ENUM_TRADESTATE
 {
@@ -70,7 +38,7 @@ enum ENUM_TRADESTATE
     ENUM_TRADESTATE_4 = 4
 };
 
-// SendChangeTradeState（本 TU 实现，ORIG 0x852f0a0；替换原 asm-label extern）
+// SendChangeTradeState（本 TU 实现，ORIG 0x852f0a0）
 void SendChangeTradeState(PacketGuard& packet, CUser* user, CUser* target,
                           ENUM_TRADESTATE state)
 {
@@ -84,77 +52,11 @@ void SendChangeTradeState(PacketGuard& packet, CUser* user, CUser* target,
     user->Send(packet);
     target->Send(packet);
 }
-extern "C" void sub_CUserHistoryLog_TradeItemAddFail(void* log, int itemIdx,
-                                                     int count)
-    asm("_ZN15cUserHistoryLog16TradeItemAddFailEii");
-namespace GlobalData
-{
-extern CSecu_ProtectionField* s_pSecuProtectionField;
-}
 
 // get_rand_int（CItemList.h 已有 C++ 链接声明）
 int get_rand_int(int max);
 
-// WongWork::CHackAnalyzer::addServerHackCnt（头文件参数类型名不符，asm）
-namespace WongWork
-{
-extern "C" void sub_CHackAnalyzer_addServerHackCnt(void* analyzer, CUser* user,
-                                                   int type, unsigned int a,
-                                                   unsigned int b,
-                                                   unsigned int c)
-    asm("_ZN8WongWork13CHackAnalyzer16addServerHackCntEP5CUserNS_13ENUM_HACKTYPEEjjj");
-extern "C" int sub_CAvatarItemMgr_GetExpireDate(void* mgr, int slot)
-    asm("_ZN8WongWork14CAvatarItemMgr12GetExpireDateEi");
-extern "C" char sub_CAvatarItemMgr_IsTempKey(void* mgr, int key)
-    asm("_ZN8WongWork14CAvatarItemMgr9IsTempKeyEi");
-}  // namespace WongWork
 
-// user_creature::CCreatureMgr（头文件缺方法，asm）
-namespace user_creature
-{
-extern "C" void sub_CCreatureMgr_ChangeSlotNo(void* mgr, Inven_Item* item,
-                                              int a, int b)
-    asm("_ZN13user_creature12CCreatureMgr12ChangeSlotNoEP10Inven_Itemii");
-extern "C" void sub_CCreatureMgr_ChangeOwner(void* mgr, Inven_Item* item,
-                                             int a, int b, int c, int d)
-    asm("_ZN13user_creature12CCreatureMgr11ChangeOwnerEP10Inven_Itemiiii");
-extern "C" int sub_CCreatureMgr_DeleteCreatureItem(void* mgr, int a, int b)
-    asm("_ZN13user_creature12CCreatureMgr18DeleteCreatureItemEii");
-extern "C" char sub_CCreatureMgr_IsCreatureEquipmentScope(void* mgr, int a)
-    asm("_ZN13user_creature12CCreatureMgr24IsCreatureEquipmentScopeEi");
-}  // namespace user_creature
-
-// 邮件（send_lose_item_for_china；CMailBoxHelper 头文件类缺方法，asm）
-class RDARScriptStringManager
-{
-public:
-    const char* findString(int table, const char* key, bool* flag) const;
-};
-extern RDARScriptStringManager g_scriptStringManager_;
-extern "C" void sub_CMailBoxHelper_ReqDBSendNewSystemMail(
-    const char* title, const Inven_Item& item, unsigned int a,
-    unsigned int characNo, const char* msg, int msgLen, unsigned int b,
-    ENUM_SERVER_GROUP group, bool c, bool d)
-    asm("_ZN8WongWork14CMailBoxHelper22ReqDBSendNewSystemMailEPKcRK10Inven_ItemjjS2_ij17ENUM_SERVER_GROUPbb");
-extern "C" int sub_CUser_GetServerGroup(void* user)
-    asm("_ZNK5CUser14GetServerGroupEv");
-extern "C" void sub_Inven_Item_C1(void* item) asm("_ZN10Inven_ItemC1Ev");
-extern "C" void sub_TradeSlot_C1(void* slot) asm("_ZN9TradeSlotC1Ev");
-
-// ---- TradeSlot（0x48；Inven_Item 位于 +0x09）----
-#pragma pack(push, 1)
-struct TradeSlot
-{
-    int m_field00;   // +0x00
-    int m_field04;   // +0x04
-    char m_field08;  // +0x08
-    Inven_Item m_item;  // +0x09（0x3d）
-    char m_pad[0x48 - 0x09 - 0x3d];
-
-    TradeSlot();
-    void Reset();
-};
-#pragma pack(pop)
 
 TradeSlot::TradeSlot()
 {
@@ -169,68 +71,17 @@ void TradeSlot::Reset()
     m_field08 = 0;
 }
 
-// ---- CTradeSpace ----
-class CTradeSpace
-{
-public:
-    CTradeSpace();
-    ~CTradeSpace();
-
-    CUser* GetOppositeUser(CUser* user);
-    int _CheckTrade4SameAvatar(const TradeSlot* slots, const Inven_Item& item);
-    int _IsTradable(const Inven_Item& item);
-    void _SaveAvatarItemOwnerChange(unsigned int a, unsigned int b,
-                                    unsigned int c, unsigned char d);
-    int add_item(int traderIdx, TradeSlot slot, int count);
-    int cancel_trade();
-    void cancel_trade_by_dis(CUser* user);
-    int cancel_trade_for_china(CUser* user);
-    int change_trade_state(CUser* user, int state);
-    int checkCancelTrade();
-    int checkTrade();
-    int check_item_exist(int traderIdx, int itemId);
-    int check_trade_possibility();
-    int get_empty_itemslot(int traderIdx);
-    int proceed_trade();
-    int regist_item(CUser* user, int type, int a, int b);
-    int remove_item(CUser* user, int a, int b, int c, int d);
-    void reset();
-    int send_lose_item_for_china(CUser* user, Inven_Item& item);
-    void set_traders(CUser* a, CUser* b);
-
-    void SetIDX(int idx);
-    void lock();
-    void unlock();
-    char IsLocked();
-    void _SetLock(bool flag);
-    char is_empty();
-    int get_index();
-
-private:
-    char m_mutex[0x18];       // +0x00
-    int m_index;              // +0x18
-    char m_bTrading;          // +0x1c
-    char m_bLocked;           // +0x1d
-    CUser* m_pTraders[2];     // +0x20
-    int m_nState[2];          // +0x28
-    char m_slotsData[2 * 0x798];  // +0x30（行距 0x798 = 27 * 0x48；手写构造）
-    int m_nMoney[2];          // +0xf60
-    char m_pad[0xf70 - 0xf68];
-};
-
-extern "C" void sub_Mutex_C1(void* m) asm("_ZN5MutexC1Ev");
-extern "C" void sub_Mutex_D1(void* m) asm("_ZN5MutexD1Ev");
 
 // ---- 构造 / 析构（ORIG 0x082a416c / 0x082a41e0）----
 CTradeSpace::CTradeSpace()
 {
-    sub_Mutex_C1(m_mutex);
+    new (m_mutex) Mutex;
     m_bTrading = 0;
     char* row = m_slotsData;
     for (int t = 1; t != -1; --t) {
         char* slot = row;
         for (int s = 0x1a; s != -1; --s) {
-            sub_TradeSlot_C1(slot);
+            new (slot) TradeSlot;
             slot += 0x48;
         }
         row += 0x798;
@@ -240,7 +91,7 @@ CTradeSpace::CTradeSpace()
 
 CTradeSpace::~CTradeSpace()
 {
-    sub_Mutex_D1(m_mutex);
+    reinterpret_cast<Mutex*>(m_mutex)->~Mutex();
 }
 
 // ---- 弱符号访问器族（ORIG 0x082a41f4 起）----
@@ -285,12 +136,12 @@ void CTradeSpace::reset()
     _SetLock(0);
     m_bTrading = 0;
     if (m_pTraders[0] != 0) {
-        sub_CUser_SetTradeSpace(m_pTraders[0], -1);
-        sub_cUserHistoryLog_SetTrader((char*)m_pTraders[0] + 0x79700, "", "");
+        m_pTraders[0]->SetTradeSpace(-1);
+        m_pTraders[0]->m_historyLog.SetTrader("", "");
     }
     if (m_pTraders[1] != 0) {
-        sub_CUser_SetTradeSpace(m_pTraders[1], -1);
-        sub_cUserHistoryLog_SetTrader((char*)m_pTraders[1] + 0x79700, "", "");
+        m_pTraders[1]->SetTradeSpace(-1);
+        m_pTraders[1]->m_historyLog.SetTrader("", "");
     }
     m_nMoney[0] = 0;
     m_nMoney[1] = 0;
@@ -385,7 +236,7 @@ int CTradeSpace::_IsTradable(const Inven_Item& item)
 void CTradeSpace::_SaveAvatarItemOwnerChange(unsigned int a, unsigned int b,
                                              unsigned int c, unsigned char d)
 {
-    sub_DB_AvatarChangeOwner_makeRequest(a, b, c, d);
+    DB_AvatarChangeOwner::makeRequest(a, b, c, d);
 }
 
 // ---- add_item @ 0x08529aa2 ----
@@ -452,13 +303,13 @@ void CTradeSpace::set_traders(CUser* a, CUser* b)
     if (ok) {
         const char* name1 = m_pTraders[1]->getCurCharacName();
         const char* acc1 = m_pTraders[1]->get_acc_name();
-        sub_cUserHistoryLog_SetTrader((char*)m_pTraders[0] + 0x79700, acc1, name1);
+        m_pTraders[0]->m_historyLog.SetTrader(acc1, name1);
         const char* name0 = m_pTraders[0]->getCurCharacName();
         const char* acc0 = m_pTraders[0]->get_acc_name();
-        sub_cUserHistoryLog_SetTrader((char*)m_pTraders[1] + 0x79700, acc0, name0);
+        m_pTraders[1]->m_historyLog.SetTrader(acc0, name0);
     }
-    sub_CUser_SetTradeSpace(a, m_index);
-    sub_CUser_SetTradeSpace(b, m_index);
+    a->SetTradeSpace(m_index);
+    b->SetTradeSpace(m_index);
     m_nMoney[0] = 0;
     m_nMoney[1] = 0;
     m_nState[0] = 0;
@@ -467,8 +318,8 @@ void CTradeSpace::set_traders(CUser* a, CUser* b)
     memset(&m_slotsData[0x798], 0, 0x798);
     memset(m_pad, 0, sizeof(m_pad));
     unlock();
-    sub_cUserHistoryLog_TradeBegin((char*)a + 0x79700);
-    sub_cUserHistoryLog_TradeBegin((char*)b + 0x79700);
+    a->m_historyLog.TradeBegin();
+    b->m_historyLog.TradeBegin();
 }
 
 // ---- cancel_trade @ 0x0852effa ----
@@ -542,11 +393,11 @@ int CTradeSpace::send_lose_item_for_china(CUser* user, Inven_Item& item)
     strncpy(title, s1, 0x1d);
     const char* s2 = g_scriptStringManager_.findString(4, "game_server_msg_288", 0);
     strncpy(msg, s2, 0xff);
-    ENUM_SERVER_GROUP group = (ENUM_SERVER_GROUP)sub_CUser_GetServerGroup(user);
+    ENUM_SERVER_GROUP group = user->GetServerGroup();
     size_t len = strlen(msg);
     unsigned int characNo = (unsigned int)user->getCurCharacNo();
-    sub_CMailBoxHelper_ReqDBSendNewSystemMail(
-        title, item, 0, characNo, msg, (int)len, 0, group, 0, 0);
+    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+        title, item, 0, characNo, msg, (int)len, 0, group, false, false);
     return 1;
 }
 
@@ -729,7 +580,7 @@ int CTradeSpace::cancel_trade_for_china(CUser* user)
             owner->Send(packet[trader]);
             owner->send_equip(0);
         }
-        sub_cUserHistoryLog_TradeEnd((char*)owner + 0x79700, 0, 0, 0, 0, 0);
+        owner->m_historyLog.TradeEnd((eTradeEndReason)0, 0, 0, 0, 0);
     }
     return 1;
 }
@@ -767,8 +618,7 @@ int CTradeSpace::change_trade_state(CUser* user, int state)
             if (err != 0) {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1a, (unsigned char)err);
                 unsigned char oppErr =
-                    sub_CSecu_ProtectionField_GetOppositeErr(
-                        GlobalData::s_pSecuProtectionField, err);
+                    GlobalData::s_pSecuProtectionField->GetOppositeErr(err);
                 target->SendCmdErrorPacket((ENUM_CMDPACKET)0x1a, oppErr);
                 return 0;
             }
@@ -792,8 +642,7 @@ int CTradeSpace::change_trade_state(CUser* user, int state)
         if (cancel_trade() == 0) {
             user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1a, 1);
         } else {
-            void* mgr = sub_G_CGameManager();
-            sub_CGameManager_PutTradeSpace(mgr, this);
+            G_CGameManager()->PutTradeSpace(this);
         }
         break;
     case 3:  // 完成交易
@@ -911,8 +760,7 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
             delRet = inven->delete_item((INVEN_TYPE)0, a, b, (eItemDelReason)0x1b, 1);
     }
     if (delRet != 1) {
-        sub_CUserHistoryLog_TradeItemAddFail((char*)user + 0x79700,
-                                             item.m_addInfo, b);
+        user->m_historyLog.TradeItemAddFail(item.m_addInfo, b);
         return -10;
     }
 
@@ -930,8 +778,7 @@ int CTradeSpace::regist_item(CUser* user, int type, int a, int b)
                                                    (eMoneyAddReason)0,
                                                    (eItemAddReason)0);
         if (back < 0)
-            sub_CUserHistoryLog_TradeItemAddFail((char*)user + 0x79700,
-                                                 item.m_addInfo, b);
+            user->m_historyLog.TradeItemAddFail(item.m_addInfo, b);
         return -0xb;
     }
     m_nState[trader] = 0;

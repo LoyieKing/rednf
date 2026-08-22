@@ -79,6 +79,7 @@ public:
     ~MazeScript();
     MazeScript& operator=(const MazeScript& other);
     int getGrid(int x, int y);
+    const GridScript& getGridR(int x, int y) const;  // ORIG 0822adc2（实现在 MazeScript.cpp）
     void clear();
 
     int m_width;                              // +0x00
@@ -704,6 +705,7 @@ class CQuickPartySystemManager;
 class CGameManager;
 CGameManager* G_CGameManager();
 
+#ifndef QUICKPARTY_H
 namespace QuickParty
 {
 class CQuickPartySystemManager
@@ -712,3 +714,4 @@ public:
     void init_quick_party_pool(const CDungeon* dungeon);
 };
 }
+#endif  // QUICKPARTY_H（QuickParty.h 已定义完整类时跳过本地最小声明）

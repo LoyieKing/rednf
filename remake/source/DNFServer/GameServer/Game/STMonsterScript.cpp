@@ -7,11 +7,7 @@
 #include <stdio.h>
 #include <string.h>
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
+#include "DNFLexWrapper.h"
 
 // ---- 类态方法（ORIG ctor 0x8368e14 / dtor 0x8378dac / op= 0x8377994 /
 //      Clear 0x08a398aa）。
@@ -69,7 +65,7 @@ int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
 
     // ORIG 目录全局 g_szMonsterScriptBaseDirectory 未在重建源定义，
     // 以等价字面量 "Script/MonsterScript" 代替（「推断」）。
-    if (!sub_loadRDARScriptFile("Script/MonsterScript", path))
+    if (!loadRDARScriptFile("Script/MonsterScript", path))
     {
         return 0;
     }
@@ -79,24 +75,24 @@ int ImportMonsterScript(STMonsterScript* script, int type, const char* path,
     int value = 0;
 
     // 头部：模块标签行。ORIG 首先对标签行 processModuleTagSet 分派。
-    if (!sub_ScanType(tag, true))
+    if (!ScanType(tag, true))
     {
         return 0;
     }
 
     // 数值 id → m_field0（ORIG 首列即脚本/怪物索引；「推断」：镜像首成员即该索引）。
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return 0;
     }
     script->m_field0 = value;
 
     // 能力/系数行：ScanType(label) + 若干整数列 → m_vec7c（镜像能力参数向量，
-    // 与 CBattle_Field_deps 的 upgradeAbilityByMonsterParameterCategory 入参对应）。
+    // 与 upgradeAbilityByMonsterParameterCategory（STMonsterScript.h）入参对应）。
     // 「推断」：ORIG 各系数列依 tag 分派到众多成员，镜像仅能以 m_vec7c 承接。
-    while (sub_ScanType(tag, true))
+    while (ScanType(tag, true))
     {
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             break;
         }

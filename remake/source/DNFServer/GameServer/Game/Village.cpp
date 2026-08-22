@@ -10,168 +10,42 @@
 //   +0x24 int    m_areaCount
 //   +0x28 Area*  m_pAreas         （new[] 数组，前 4 字节存元素个数）
 //   +0x2c int    m_field2c        （set_village 写入 town script +0x3c）
-//   +0x30 int    m_field30        （set_village 写入 town script +0x40）
-// 跨类调用全部走 extern "C" asm 标签（Area/TownAreaScript/STMapScript/
-// std::map/LogManager/cMyTrace 等），符号由 ORIG/GameStubs 提供。
+//   +0x30 int    m_questIdx        （set_village 写入 town script +0x40；CheckMoveTown 读作 quest idx）
+// 跨类调用一律 include 真实头（CDataManager.h / GameWorld.h / GameTypes.h /
+// PacketGuard.h / TownAreaScript.h），std::map/vector 使用真实容器，
+// 不再使用 extern asm 桥。
 // ============================================================================
 
-namespace std
-{
-template <class T> class allocator;
-template <class T, class A> class vector;
-}
+#include "GameTypes.h"        // cMyTrace
+#include "CDataManager.h"     // G_CDataManager / CDataManager::get_dungeon
+#include "PacketGuard.h"      // PacketGuard
+#include "TownAreaScript.h"   // TownAreaScript
+#include "CSchoolMgr.h"       // CSchoolMgr::SetSchoolArea / g_schoolMgr
+#include "CGuildAgitManager.h" // CGuildAgitManager::SetGuildAgitAreaDomain / g_guildAgitMgr
+#include "GameWorld.h"        // GameWorld::IsSchoolPvPChannel / G_GameWorld
+#include "Village.h"          // Village（本 TU 实现）
+#include "Area.h"             // Area（0x98 权威头）
+#include "STQuestScript.h"    // TownScript（0x44 权威头）
+#include "CMap.h"             // STMapScript（0x37c 权威头）
 
-class CUser;
-class PacketGuard;
-class TownScript;
-class Area;
-class TownAreaScript;
-class STMapScript;
+#include <map>
+#include <new>
+#include <string>
+#include <vector>
 
-// ---- 跨类 extern（真实符号，asm 标签按 ORIG mangling）----
-extern "C" void sub_map_ushort_ctor(void* self)
-    asm("_ZNSt3mapItP5CUserSt4lessItESaISt4pairIKtS1_EEEC1Ev");
-extern "C" void sub_map_ushort_dtor(void* self)
-    asm("_ZNSt3mapItP5CUserSt4lessItESaISt4pairIKtS1_EEED1Ev");
-
-extern "C" void sub_Area_ctor(void* self) asm("_ZN4AreaC1Ev");
-extern "C" void sub_Area_dtor(void* self) asm("_ZN4AreaD1Ev");
-extern "C" int sub_Area_GetUserCount(void* self)
-    asm("_ZNK4Area12GetUserCountEv");
-extern "C" void sub_Area_get_user_id_list(void* self, void* list)
-    asm("_ZN4Area16get_user_id_listERSt6vectorItSaItEE");
-extern "C" void sub_Area_send_to_all(void* self, void* pkt)
-    asm("_ZN4Area11send_to_allER11PacketGuard");
-extern "C" void sub_Area_set_area(void* self, int villageId, void* areaScript,
-                                  void* mapScript)
-    asm("_ZN4Area8set_areaEiR14TownAreaScriptR11STMapScript");
-
-extern "C" unsigned int sub_town_map_size(void* self)
-    asm("_ZNKSt3mapIi14TownAreaScriptSt4lessIiESaISt4pairIKiS0_EEE4sizeEv");
-extern "C" void sub_town_map_begin(void* sret, void* self)
-    asm("_ZNSt3mapIi14TownAreaScriptSt4lessIiESaISt4pairIKiS0_EEE5beginEv");
-extern "C" void sub_town_map_end(void* sret, void* self)
-    asm("_ZNSt3mapIi14TownAreaScriptSt4lessIiESaISt4pairIKiS0_EEE3endEv");
-extern "C" void* sub_town_iter_deref(void* self)
-    asm("_ZNKSt17_Rb_tree_iteratorISt4pairIKi14TownAreaScriptEEptEv");
-extern "C" void sub_town_iter_pp(void* sret, void* self, int dummy)
-    asm("_ZNSt17_Rb_tree_iteratorISt4pairIKi14TownAreaScriptEEppEi");
-extern "C" bool sub_town_iter_ne(void* self, void* other)
-    asm("_ZNKSt17_Rb_tree_iteratorISt4pairIKi14TownAreaScriptEEneERKS4_");
-
-extern "C" const char* sub_Ss_c_str(void* self) asm("_ZNKSs5c_strEv");
-extern "C" bool sub_ImportMapScript(void* self, const char* mapName)
-    asm("_Z15ImportMapScriptP11STMapScriptPKc");
-
-extern "C" void* sub_G_CDataManager() asm("_Z14G_CDataManagerv");
-extern "C" void* sub_CDataManager_get_dungeon(void* self, int dungeonId)
-    asm("_ZN12CDataManager11get_dungeonEi");
-extern "C" void sub_vector_int_push_back(void* self, const int* value)
-    asm("_ZNSt6vectorIiSaIiEE9push_backERKi");
-
-extern "C" void* sub_G_GameWorld() asm("_Z11G_GameWorldv");
-extern "C" bool sub_GameWorld_IsSchoolPvPChannel(void* self)
-    asm("_ZNK9GameWorld18IsSchoolPvPChannelEv");
-extern "C" void sub_CSchoolMgr_SetSchoolArea(void* self, int begin, int end)
-    asm("_ZN10CSchoolMgr13SetSchoolAreaEii");
-extern "C" void sub_CGuildAgitManager_SetGuildAgitAreaDomain(void* self,
-                                                             int begin,
-                                                             int end)
-    asm("_ZN17CGuildAgitManager22SetGuildAgitAreaDomainEii");
-
-extern "C" void sub_cMyTrace_ctor(void* self, const char* func, int line,
-                                  int level)
-    asm("_ZN8cMyTraceC1EPKcii");
-extern "C" void sub_cMyTrace_log(void* self, const char* fmt, ...)
-    asm("_ZN8cMyTraceclEPKcz");
-
-extern "C" void* sub_operator_new_array(unsigned int size)
-    asm("_Znaj");
-extern "C" void sub_operator_delete_array(void* p)
-    asm("_ZdaPv");
-
-// ---- Area（0x98 字节；成员经 asm 标签调用，本 TU 不定义其字段）----
-class Area
-{
-public:
-    char m_pad[0x98];
-};
-
-// ---- TownAreaScript（0x30：int areaIndex_ + string mapName_ 等；0x30 由
-// set_village 栈布局 -0x98/-0x68 推导）。构造/赋值/析构由 ORIG 提供。----
-class TownAreaScript
-{
-public:
-    TownAreaScript();
-    TownAreaScript(const TownAreaScript& other);
-    TownAreaScript& operator=(const TownAreaScript& other);
-    ~TownAreaScript();
-
-    int m_areaIndex;   // +0x00
-    char m_pad[0x2c];  // +0x04（string mapName_ 位于 +0x04，c_str 经 asm 调用）
-};
-
-// ---- STMapScript（892 字节，构造/析构由 ORIG 提供）----
-class STMapScript
-{
-public:
-    STMapScript();
-    ~STMapScript();
-
-    char m_pad[0x37c];
-};
-
-// ---- TownScript（跨类只读：+0 类型、+0x18 dungeon、+0x20 map、+0x3c/+0x40）----
-class TownScript
-{
-public:
-    int m_id;                  // +0x00
-    char m_pad04[0x14];        // +0x04
-    int m_dungeonId;           // +0x18
-    char m_pad1c[0x04];        // +0x1c
-    char m_areaScripts[0x18];  // +0x20 map<int, TownAreaScript>
-    char m_pad38[0x04];        // +0x38
-    int m_field3c;             // +0x3c
-    int m_field40;             // +0x40
-};
-
-// ---- Village（sizeof 0x34）----
-class Village
-{
-public:
-    Village();
-    ~Village();
-    void destroy();
-    bool set_village(TownScript& script);
-    int get_gate_area();
-    Area* getArea(int area);
-    void get_user_id_list(int area,
-                          std::vector<unsigned short,
-                                      std::allocator<unsigned short> >& list);
-    void send_to_area(int area, PacketGuard& pkt);
-    int GetUserCount(int area) const;
-
-    int m_villageId;      // +0x00
-    char m_pad04[4];      // +0x04
-    char m_users[0x18];   // +0x08 std::map<unsigned short, CUser*>
-    bool m_bEnabled;      // +0x20
-    char m_pad21[3];      // +0x21
-    int m_areaCount;      // +0x24
-    Area* m_pAreas;       // +0x28
-    int m_field2c;        // +0x2c
-    int m_field30;        // +0x30
-};
+// ImportMapScript（ORIG 0x089dcf54，自由函数；定义于 STMapScript.cpp，无权威头）
+bool ImportMapScript(STMapScript* script, const char* path);
 
 Village::Village()
 {
-    sub_map_ushort_ctor(m_users);
+    // m_users（map）由编译器隐式构造（ORIG 086c32e0：map C1 于 +0x08）
     m_pAreas = 0;
 }
 
 Village::~Village()
 {
     destroy();
-    sub_map_ushort_dtor(m_users);
+    // m_users（map）由编译器隐式析构（ORIG：destroy() 后 map D1）
 }
 
 void Village::destroy()
@@ -185,9 +59,9 @@ void Village::destroy()
             while (pEnd != m_pAreas)
             {
                 pEnd = (Area*)((char*)pEnd - 0x98);
-                sub_Area_dtor(pEnd);
+                pEnd->~Area();
             }
-            sub_operator_delete_array((char*)m_pAreas - 4);
+            ::operator delete[]((char*)m_pAreas - 4);
         }
         m_pAreas = 0;
     }
@@ -197,21 +71,20 @@ bool Village::set_village(TownScript& script)
 {
     bool result = false;
 
-    m_villageId = script.m_id;
-    if (script.m_dungeonId == -1)
+    m_villageId = script.m_field0;
+    if (script.m_18 == -1)
     {
         m_bEnabled = false;
     }
     else
     {
         m_bEnabled = true;
-        void* dungeon =
-            sub_CDataManager_get_dungeon(sub_G_CDataManager(),
-                                         script.m_dungeonId);
-        sub_vector_int_push_back((char*)dungeon + 0x6d4, &m_villageId);
+        void* dungeon = G_CDataManager()->get_dungeon(script.m_18);
+        std::vector<int>* v = (std::vector<int>*)((char*)dungeon + 0x6d4);
+        v->push_back(m_villageId);
     }
 
-    m_areaCount = (int)sub_town_map_size(script.m_areaScripts);
+    m_areaCount = (int)script.m_areas.size();
     if (m_areaCount == 0)
     {
         LogManager::logFormat(
@@ -220,104 +93,94 @@ bool Village::set_village(TownScript& script)
         return false;
     }
 
-    bool bSchool = sub_GameWorld_IsSchoolPvPChannel(sub_G_GameWorld()) != 0 &&
-                   script.m_id == 2;
+    bool bSchool = G_GameWorld()->IsSchoolPvPChannel() != 0 &&
+                   script.m_field0 == 2;
     if (bSchool)
     {
         int count = m_areaCount;
         int total = count + 600;
-        int* raw = (int*)sub_operator_new_array((total * 0x26 + 1) * 4);
+        int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
         raw[0] = total;
         Area* pArea = (Area*)(raw + 1);
         for (int i = total - 1; i != -1; --i)
         {
-            sub_Area_ctor(pArea);
+            ::new (pArea) Area();
             pArea = (Area*)((char*)pArea + 0x98);
         }
         m_pAreas = (Area*)(raw + 1);
-        sub_CSchoolMgr_SetSchoolArea((void*)0x943e080, m_areaCount,
-                                     m_areaCount + 600);
+        g_schoolMgr->SetSchoolArea(m_areaCount, m_areaCount + 600);
     }
-    else if (script.m_id == 8)
+    else if (script.m_field0 == 8)
     {
         int count = m_areaCount;
         int total = count + 0x960;
-        int* raw = (int*)sub_operator_new_array((total * 0x26 + 1) * 4);
+        int* raw = (int*)::operator new[]((total * 0x26 + 1) * 4);
         raw[0] = total;
         Area* pArea = (Area*)(raw + 1);
         for (int i = total - 1; i != -1; --i)
         {
-            sub_Area_ctor(pArea);
+            ::new (pArea) Area();
             pArea = (Area*)((char*)pArea + 0x98);
         }
         m_pAreas = (Area*)(raw + 1);
-        sub_CGuildAgitManager_SetGuildAgitAreaDomain((void*)0x943e0e0,
-                                                     m_areaCount, total);
+        g_guildAgitMgr->SetGuildAgitAreaDomain(m_areaCount, total);
     }
     else
     {
         int count = m_areaCount;
-        int* raw = (int*)sub_operator_new_array((count * 0x26 + 1) * 4);
+        int* raw = (int*)::operator new[]((count * 0x26 + 1) * 4);
         raw[0] = count;
         Area* pArea = (Area*)(raw + 1);
         for (int i = count - 1; i != -1; --i)
         {
-            sub_Area_ctor(pArea);
+            ::new (pArea) Area();
             pArea = (Area*)((char*)pArea + 0x98);
         }
         m_pAreas = (Area*)(raw + 1);
     }
 
-    m_field2c = script.m_field3c;
-    m_field30 = script.m_field40;
+    m_field2c = script.m_3c;
+    m_questIdx = script.m_40;
 
     TownAreaScript temp;
     bool bSuccess = false;
-    char iterBuf[4];
-    char iterTmp[4];
-    char endBuf[4];
 
-    sub_town_map_begin(iterBuf, script.m_areaScripts);
+    std::map<int, TownAreaScript>::iterator it = script.m_areas.begin();
     for (;;)
     {
-        sub_town_map_end(endBuf, script.m_areaScripts);
-        if (!sub_town_iter_ne(iterBuf, endBuf))
+        if (it == script.m_areas.end())
             break;
 
-        void* pairPtr = sub_town_iter_deref(iterBuf);
         {
-            TownAreaScript copy(*(TownAreaScript*)((char*)pairPtr + 4));
+            TownAreaScript copy(it->second);
             temp = copy;
         }
 
         int areaIndex = temp.m_areaIndex;
         if (areaIndex < 0 || areaIndex >= m_areaCount)
         {
-            char trace[16];
-            sub_cMyTrace_ctor(trace, "bool Village::set_village(TownScript&)",
-                              0x32e, 5);
-            sub_cMyTrace_log(trace, "temp_area.areaIndex_ %d", areaIndex);
+            cMyTrace trace("bool Village::set_village(TownScript&)",
+                           0x32e, 5);
+            trace("temp_area.areaIndex_ %d", areaIndex);
         }
         else
         {
             STMapScript mapScript;
-            const char* mapName = sub_Ss_c_str((char*)&temp + 4);
-            if (sub_ImportMapScript(&mapScript, mapName) == 1)
+            const char* mapName = temp.m_mapName.c_str();
+            if (ImportMapScript(&mapScript, mapName) == 1)
             {
-                sub_Area_set_area((char*)m_pAreas + areaIndex * 0x98,
-                                  m_villageId, &temp, &mapScript);
-                if (sub_GameWorld_IsSchoolPvPChannel(sub_G_GameWorld()) != 0 &&
-                    script.m_id == 2 && areaIndex == 4)
+                m_pAreas[areaIndex].set_area(m_villageId, temp, mapScript);
+                if (G_GameWorld()->IsSchoolPvPChannel() != 0 &&
+                    script.m_field0 == 2 && areaIndex == 4)
                 {
                     for (int i = m_areaCount; i < m_areaCount + 600; ++i)
                     {
                         temp.m_areaIndex = i;
-                        sub_Area_set_area((char*)m_pAreas + i * 0x98,
-                                          m_villageId, &temp, &mapScript);
+                        m_pAreas[i].set_area(m_villageId, temp, mapScript);
                     }
                     m_areaCount += 600;
                 }
-                if (script.m_id == 8 && areaIndex < 4)
+                if (script.m_field0 == 8 && areaIndex < 4)
                 {
                     int nEnd = m_areaCount + 0x960;
                     int nStart = 0;
@@ -340,8 +203,7 @@ bool Village::set_village(TownScript& script)
                     for (int i = nStart; i < nEnd; i += 4)
                     {
                         temp.m_areaIndex = i;
-                        sub_Area_set_area((char*)m_pAreas + i * 0x98,
-                                          m_villageId, &temp, &mapScript);
+                        m_pAreas[i].set_area(m_villageId, temp, mapScript);
                     }
                 }
                 bSuccess = true;
@@ -355,7 +217,7 @@ bool Village::set_village(TownScript& script)
                 goto cleanup;
         }
 
-        sub_town_iter_pp(iterTmp, iterBuf, 0);
+        ++it;
     }
     result = true;
 
@@ -367,7 +229,7 @@ int Village::get_gate_area()
 {
     for (int i = 0; i < m_areaCount; ++i)
     {
-        if (*(int*)((char*)m_pAreas + i * 0x98 + 0x68) == 1)
+        if (m_pAreas[i].m_areaType == 1)
             return i;
     }
     return 1;
@@ -377,13 +239,12 @@ Area* Village::getArea(int area)
 {
     if (area < 0 || area >= m_areaCount)
     {
-        char trace[16];
-        sub_cMyTrace_ctor(trace, "Area* Village::getArea(int)", 0x356, 5);
-        sub_cMyTrace_log(trace, "area(%d) < 0 || area >= m_iAreaCount(%d)",
-                         area, m_areaCount);
+        cMyTrace trace("Area* Village::getArea(int)", 0x356, 5);
+        trace("area(%d) < 0 || area >= m_iAreaCount(%d)",
+              area, m_areaCount);
         return 0;
     }
-    return (Area*)((char*)m_pAreas + area * 0x98);
+    return &m_pAreas[area];
 }
 
 void Village::get_user_id_list(
@@ -401,7 +262,7 @@ void Village::get_user_id_list(
     }
     else
     {
-        sub_Area_get_user_id_list((char*)m_pAreas + area * 0x98, &list);
+        m_pAreas[area].get_user_id_list(list);
     }
 }
 
@@ -416,7 +277,7 @@ void Village::send_to_area(int area, PacketGuard& pkt)
     }
     else
     {
-        sub_Area_send_to_all((char*)m_pAreas + area * 0x98, &pkt);
+        m_pAreas[area].send_to_all(pkt);
     }
 }
 
@@ -424,5 +285,5 @@ int Village::GetUserCount(int area) const
 {
     if (area < 0 || area >= m_areaCount)
         return 0;
-    return sub_Area_GetUserCount((char*)m_pAreas + area * 0x98);
+    return m_pAreas[area].GetUserCount();
 }

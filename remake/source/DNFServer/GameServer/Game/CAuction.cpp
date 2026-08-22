@@ -9,6 +9,7 @@
 
 #include "BaseServerProxy.h"
 #include "CNetwork.h"
+#include "CEnvironment.h"
 #include "PacketDesign.h"
 
 // ---- 拍卖服务器注册包（ORIG 弱符号 ctor，尺寸 0x16） ----
@@ -138,7 +139,6 @@ void CAuctionServerProxy::SendRegistPacket()
 {
     PCK_AUCTION_REGIST_GA packet;
     int envField = 0;
-    extern void* G_CEnvironment();
     envField = *(int*)((char*)G_CEnvironment() + 0x198);
     SendPacket((nsl::PACKET_HEADER*)&packet);
 }
@@ -215,7 +215,6 @@ void CCeraAuctionServerProxy::SendPacket(nsl::PACKET_HEADER* packet)
 void CCeraAuctionServerProxy::SendRegistPacket()
 {
     PCK_AUCTION_REGIST_GP packet;
-    extern void* G_CEnvironment();
     int envField = *(int*)((char*)G_CEnvironment() + 0x198);
     SendPacket((nsl::PACKET_HEADER*)&packet);
 }
@@ -242,49 +241,6 @@ void CCeraAuctionServerProxy::SetRunning(bool flag)
 // ============================================================================
 namespace
 {
-// Inter_Auction* 处理器（ORIG 真实符号，G7 分发域 TU 提供）
-extern "C" int sub_Inter_AuctionResultRegist_dispatch_sig(void* self, void* user,
-                                                         char* data, int len)
-    asm("_ZN22Inter_AuctionResultRegist12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultBidding_dispatch_sig(void* self, void* user,
-                                                           char* data, int len)
-    asm("_ZN22Inter_AuctionResultBidding12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultAskPrice_dispatch_sig(void* self, void* user,
-                                                            char* data, int len)
-    asm("_ZN27Inter_AuctionResultAskPrice12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultAskRegistedItemNum_dispatch_sig(
-    void* self, void* user, char* data, int len)
-    asm("_ZN36Inter_AuctionResultAskRegistedItemNum12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultRegistCancel_dispatch_sig(
-    void* self, void* user, char* data, int len)
-    asm("_ZN29Inter_AuctionResultRegistCancel12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultMyBidding_dispatch_sig(void* self, void* user,
-                                                             char* data, int len)
-    asm("_ZN25Inter_AuctionResultMyBidding12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultMyRegistedItems_dispatch_sig(
-    void* self, void* user, char* data, int len)
-    asm("_ZN31Inter_AuctionResultMyRegistedItems12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultItemList_dispatch_sig(void* self, void* user,
-                                                            char* data, int len)
-    asm("_ZN26Inter_AuctionResultItemList12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionResultBuyItemApiece_dispatch_sig(
-    void* self, void* user, char* data, int len)
-    asm("_ZN30Inter_AuctionResultBuyItemApiece12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionLogMessage_dispatch_sig(void* self, void* user,
-                                                        char* data, int len)
-    asm("_ZN23Inter_AuctionLogMessage12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_AuctionNotifyAuctionService_dispatch_sig(
-    void* self, void* user, char* data, int len)
-    asm("_ZN34Inter_AuctionNotifyAuctionService12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_NotifyAuctionMail_dispatch_sig(void* self, void* user,
-                                                        char* data, int len)
-    asm("_ZN23Inter_NotifyAuctionMail12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_PointAuctionChargeCeraPoint_dispatch_sig(
-    void* self, void* user, char* data, int len)
-    asm("_ZN34Inter_PointAuctionChargeCeraPoint12dispatch_sigEP5CUserPci");
-extern "C" int sub_Inter_PointAuctionLogMessage_dispatch_sig(void* self, void* user,
-                                                             char* data, int len)
-    asm("_ZN27Inter_PointAuctionLogMessage12dispatch_sigEP5CUserPci");
 }
 
 // 简化语义：按首短字（sig id）路由到对应 Inter 处理器；
@@ -306,10 +262,7 @@ void CDispatchServerPacket::dispatchAuctionPacket(char* data)
     dispatchBySig(data, *(unsigned short*)data);
 }
 
-// dispatchPointPacket（ORIG 符号；CNetwork.h 未声明，asm 直补）
-extern "C" void sub_CDispatchServerPacket_dispatchPointPacket(char* data)
-    asm("_ZN21CDispatchServerPacket18dispatchPointPacketEPc");
-void sub_CDispatchServerPacket_dispatchPointPacket(char* data)
+void CDispatchServerPacket::dispatchPointPacket(char* data)
 {
     dispatchBySig(data, *(unsigned short*)data);
 }

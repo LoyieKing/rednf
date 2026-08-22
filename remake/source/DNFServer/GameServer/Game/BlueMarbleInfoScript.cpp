@@ -6,17 +6,7 @@
 #include <string>
 
 #include "BlueMarbleInfoScript.h"
-
-// ============================================================================
-// 脚本解析方法（asm-label extern）
-// ============================================================================
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" bool sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-extern "C" int sub_ScanIntBool(bool* out) asm("_Z7ScanIntPb");
-extern "C" float sub_ScanFloat(float* out) asm("_Z9ScanFloatPf");
+#include "DNFLexWrapper.h"   // loadRDARScriptFile/ScanType/ScanInt/ScanFloat（真实符号，§9）
 
 // ============================================================================
 // BlueMarbleInfoScript 实现
@@ -118,7 +108,7 @@ int BlueMarbleInfoScript::getDungeonDifficulty(int dungeon)
 
 int BlueMarbleInfoScript::importScript(const char* dir, const char* path)
 {
-    if (!sub_loadRDARScriptFile(dir, path))
+    if (!loadRDARScriptFile(dir, path))
     {
         return 0;
     }
@@ -135,13 +125,13 @@ int BlueMarbleInfoScript::importScript(const char* dir, const char* path)
     int loopFlag = 0;
     (void)loopFlag;
 
-    while (sub_ScanType(line, true))
+    while (ScanType(line, true))
     {
         if (line == "[dungeon list]")
         {
             m_randomDungeonList.clear();
-            while (sub_ScanInt(&d4.m_minLevel) && sub_ScanInt(&d4.m_maxLevel) &&
-                   sub_ScanInt(&d4.m_dungeonIndex))
+            while (ScanInt(&d4.m_minLevel) && ScanInt(&d4.m_maxLevel) &&
+                   ScanInt(&d4.m_dungeonIndex))
             {
                 m_randomDungeonList.push_back(d4);
             }
@@ -149,8 +139,8 @@ int BlueMarbleInfoScript::importScript(const char* dir, const char* path)
         else if (line == "[boss dungeon list]")
         {
             m_bossDungeonList.clear();
-            while (sub_ScanInt(&d3.m_minLevel) && sub_ScanInt(&d3.m_maxLevel) &&
-                   sub_ScanInt(&d3.m_dungeonIndex))
+            while (ScanInt(&d3.m_minLevel) && ScanInt(&d3.m_maxLevel) &&
+                   ScanInt(&d3.m_dungeonIndex))
             {
                 m_bossDungeonList.push_back(d3);
             }
@@ -158,7 +148,7 @@ int BlueMarbleInfoScript::importScript(const char* dir, const char* path)
         else if (line == "[item list]")
         {
             m_randomItemList.clear();
-            while (sub_ScanInt(&ri.m_itemIndex) && sub_ScanInt(&ri.m_weight))
+            while (ScanInt(&ri.m_itemIndex) && ScanInt(&ri.m_weight))
             {
                 m_itemWeightTotal += ri.m_weight;
                 m_randomItemList.push_back(ri);
@@ -166,33 +156,33 @@ int BlueMarbleInfoScript::importScript(const char* dir, const char* path)
         }
         else if (line == "[player max]")
         {
-            m_playerMax = sub_ScanIntBool((bool*)0);
+            m_playerMax = ScanInt((bool*)0);
         }
         else if (line == "[enter level]")
         {
-            m_enterLevel = sub_ScanIntBool((bool*)0);
+            m_enterLevel = ScanInt((bool*)0);
         }
         else if (line == "[enter max level]")
         {
-            m_enterMaxLevel = sub_ScanIntBool((bool*)0);
+            m_enterMaxLevel = ScanInt((bool*)0);
         }
         else if (line == "[enter count]")
         {
-            m_enterCount = sub_ScanIntBool((bool*)0);
+            m_enterCount = ScanInt((bool*)0);
         }
         else if (line == "[die count]")
         {
-            m_dieCount = sub_ScanIntBool((bool*)0);
+            m_dieCount = ScanInt((bool*)0);
         }
         else if (line == "[dice value]")
         {
-            sub_ScanInt(&m_diceMin);
-            sub_ScanInt(&m_diceMax);
+            ScanInt(&m_diceMin);
+            ScanInt(&m_diceMax);
         }
         else if (line == "[reward item]")
         {
             m_rewardList.clear();
-            while (sub_ScanInt(&rw.m_a) && sub_ScanInt(&rw.m_b))
+            while (ScanInt(&rw.m_a) && ScanInt(&rw.m_b))
             {
                 m_rewardList.push_back(rw);
             }
@@ -200,51 +190,51 @@ int BlueMarbleInfoScript::importScript(const char* dir, const char* path)
         else if (line == "[tile pos]")
         {
             m_tilePosList.clear();
-            while (sub_ScanInt(&tp.m_a) && sub_ScanInt(&tp.m_b))
+            while (ScanInt(&tp.m_a) && ScanInt(&tp.m_b))
             {
                 m_tilePosList.push_back(tp);
             }
         }
         else if (line == "[dungeon difficulty]")
         {
-            m_dungeonDifficulty = sub_ScanIntBool((bool*)0);
+            m_dungeonDifficulty = ScanInt((bool*)0);
         }
         else if (line == "[dungeon difficulty list]")
         {
             m_dungeonDifficultyList.clear();
-            while (sub_ScanInt(&d2.m_dungeon) && sub_ScanInt(&d2.m_difficulty))
+            while (ScanInt(&d2.m_dungeon) && ScanInt(&d2.m_difficulty))
             {
                 m_dungeonDifficultyList.push_back(d2);
             }
         }
         else if (line == "[super armor time]")
         {
-            m_superArmorTime = sub_ScanIntBool((bool*)0);
+            m_superArmorTime = ScanInt((bool*)0);
         }
         else if (line == "[unique dungeon list]")
         {
             m_uniqueDungeonList.clear();
-            while (sub_ScanInt(&d1.m_minLevel) && sub_ScanInt(&d1.m_maxLevel) &&
-                   sub_ScanInt(&d1.m_dungeonIndex))
+            while (ScanInt(&d1.m_minLevel) && ScanInt(&d1.m_maxLevel) &&
+                   ScanInt(&d1.m_dungeonIndex))
             {
                 m_uniqueDungeonList.push_back(d1);
             }
         }
         else if (line == "[buff max value]")
         {
-            m_buffMaxValue = sub_ScanIntBool((bool*)0);
+            m_buffMaxValue = ScanInt((bool*)0);
         }
         else if (line == "[gold base]")
         {
-            m_goldBase = sub_ScanFloat((float*)0);
+            m_goldBase = ScanFloat((float*)0);
         }
         else if (line == "[gold multi]")
         {
-            m_goldMulti = sub_ScanFloat((float*)0);
+            m_goldMulti = ScanFloat((float*)0);
         }
         else if (line == "[equipment upgrade max]")
         {
-            m_equipmentUpgradeMax = sub_ScanIntBool((bool*)0);
+            m_equipmentUpgradeMax = ScanInt((bool*)0);
         }
     }
     return 1;

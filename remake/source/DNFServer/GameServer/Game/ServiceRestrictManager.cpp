@@ -9,28 +9,11 @@
 // 依赖：InterfaceServicePolicy / Taiwan::GarenaAuthData / CUser::getGarenaAuthData。
 // 当前为占位实现（符号 T，不引入未实现的完整策略语义）；后续按
 //   docs/class_func_reports/ServiceRestrictManager.md 精修。
+// 类型声明统一于 ServiceRestrictManager.h（唯一声明点）。
 // ============================================================================
 
 #include "CUser.h"
-
-// RestrictCategory：ORIG 枚举/字符串（enumStringRestrict 表 0x93700a0 仅 ORIG 数据）。
-class RestrictCategory
-{
-public:
-    enum Enum
-    {
-        ENUM_0 = 0,
-        Enum_3 = 3
-    };
-};
-
-// ------------------------------------------------ ServiceRestrictManager ----
-class ServiceRestrictManager
-{
-public:
-    bool isRestricted(CUser* user, RestrictCategory::Enum category, int v);
-    bool isRestricted(RestrictCategory::Enum category, int v);
-};
+#include "ServiceRestrictManager.h"
 
 bool ServiceRestrictManager::isRestricted(CUser* user,
                                           RestrictCategory::Enum category,

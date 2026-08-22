@@ -626,14 +626,6 @@ private:
     char m_pad[0x24];
 };
 
-class CRevengeDungeon
-{
-public:
-    CRevengeDungeon();
-    bool IsOpenRevengeDungeon();   // ORIG W 0x8234ff6：读 +0x0 字节
-private:
-    char m_pad[8];
-};
 }
 
 // IRentalMachine 抽象（ORIG 虚表 vtable[1]=dtor）。

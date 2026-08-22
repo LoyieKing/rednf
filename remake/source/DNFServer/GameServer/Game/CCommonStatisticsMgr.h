@@ -35,4 +35,7 @@ public:
     CStatisticContainer* m_container[3];
 };
 
+// ORIG 0x860e765 T（_Z30GetInstanceCommonStatisticsMgrv）：函数内静态单例。
+CCommonStatisticsMgr* GetInstanceCommonStatisticsMgr();
+
 #endif  // DNF_GAME_COMMON_STATISTICS_MGR_H_

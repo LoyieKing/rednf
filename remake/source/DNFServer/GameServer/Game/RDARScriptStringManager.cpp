@@ -1,5 +1,5 @@
 // ============================================================================
-// RDARScriptStringManager（G2 字符串表批次）
+// df_game_r RDARScriptStringManager（G2 字符串表批次）
 // ----------------------------------------------------------------------------
 // 全局 g_scriptStringManager_ 由 CTradeSpace.cpp 引用（findString(key) 邮件文案）。
 // ORIG：
@@ -9,14 +9,10 @@
 // LogManager::logFormat / toTString / ss_sprintf，当前重建缺失 StringDictionary
 // 类型与表结构，完整语义无法在独立批恢复。本 TU 提供符号与最小生命周期，
 // 保持 GameStubs 迁移前的返回行为（空串），并记录阻塞依赖。
+// 类型声明统一于 RDARScriptStringManager.h（唯一声明点）。
 // ============================================================================
 
-class RDARScriptStringManager
-{
-public:
-    RDARScriptStringManager();
-    const char* findString(int table, const char* key, bool* flag) const;
-};
+#include "RDARScriptStringManager.h"
 
 RDARScriptStringManager::RDARScriptStringManager()
 {

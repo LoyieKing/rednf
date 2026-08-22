@@ -1220,9 +1220,9 @@ CDataManager* G_CDataManager()
 // CListTables.cpp（G2 第七批）；CChattingEmoticonList 由各自 TU 提供。
 CChattingEmoticonList::~CChattingEmoticonList() {}
 
-int CDataManager::get_limit_inout_count(int type)
+int CDataManager::get_limit_inout_count(ENUM_BLOOD_TYPE type)
 {
-    return (unsigned char)m_padAA80[type];
+    return (unsigned char)m_limitInoutCount[type];
 }
 
 // ============================================================================

@@ -7,22 +7,8 @@
 
 #include "BlueMarbleMapScript.h"
 #include "BlueMarbleTileScript.h"
-
-class BlueMarbleScriptManager;
-
-// ============================================================================
-// 跨类 / 脚本解析方法（asm-label extern）
-// ============================================================================
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" bool sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-
-extern "C" BlueMarbleScriptManager* sub_BSM_getInsance()
-    asm("_ZN23BlueMarbleScriptManager10getInsanceEv");
-extern "C" BlueMarbleTileScript* sub_BSM_getTile(BlueMarbleScriptManager* self, int idx)
-    asm("_ZN23BlueMarbleScriptManager7getTileEi");
+#include "BlueMarbleScriptManager.h"   // BlueMarbleScriptManager::getInsance/getTile（§9）
+#include "DNFLexWrapper.h"             // loadRDARScriptFile/ScanType/ScanInt（§9）
 
 // ============================================================================
 // BlueMarbleMapScript 实现
@@ -64,7 +50,7 @@ BlueMarbleTileScript* BlueMarbleMapScript::getTile(unsigned int zone)
 
 int BlueMarbleMapScript::importScript(const char* path)
 {
-    if (!sub_loadRDARScriptFile("", path))
+    if (!loadRDARScriptFile("", path))
     {
         return 0;
     }
@@ -75,7 +61,7 @@ int BlueMarbleMapScript::importScript(const char* path)
     BlueMarbleTileScript* t;
     for (;;)
     {
-        if (!sub_ScanType(line, true))
+        if (!ScanType(line, true))
         {
             break;
         }
@@ -84,16 +70,16 @@ int BlueMarbleMapScript::importScript(const char* path)
             m_tiles.clear();
             for (;;)
             {
-                if (!sub_ScanInt(&value))
+                if (!ScanInt(&value))
                 {
                     break;
                 }
-                tile = sub_BSM_getTile(sub_BSM_getInsance(), value);
+                tile = BlueMarbleScriptManager::getInsance()->getTile(value);
                 if (tile == 0)
                 {
                     return 0;
                 }
-                if (!sub_ScanInt(&value))
+                if (!ScanInt(&value))
                 {
                     break;
                 }

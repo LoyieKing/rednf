@@ -7,6 +7,9 @@
 
 #include <string.h>
 
+#include "Statistics.h"
+#include "MSG_STAT_RANKRES.h"   // 权威 MSG_STAT_RANKRES/GameResultType（唯一声明点）
+
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 class StatisticsShusiaService
 {
@@ -30,58 +33,9 @@ public:
 
 GameWorld* G_GameWorld();
 
-// MSG_STAT_RANKRES：+0x00..+0x18 七个整型 + +0x1c GameResultType(0x50)，
-// 总尺寸 0x6c。ctor/dtor 属其它 TU（ORIG 0x8610798/0x86107ae）。
-class GameResultType
-{
-public:
-    GameResultType();
-    ~GameResultType();
-
-    char m_data[0x50];  // +0x00
-};
-
-class MSG_STAT_RANKRES
-{
-public:
-    MSG_STAT_RANKRES();
-    ~MSG_STAT_RANKRES();
-
-    unsigned int m_a;      // +0x00
-    unsigned int m_b;      // +0x04
-    int m_c;               // +0x08
-    int m_d;               // +0x0c
-    int m_e;               // +0x10
-    int m_f;               // +0x14
-    int m_g;               // +0x18
-    GameResultType m_result;  // +0x1c
-};
-
 // ----------------------------------------------------------------------------
-// Statistics
+// Statistics（声明见 Statistics.h）
 // ----------------------------------------------------------------------------
-class Statistics
-{
-public:
-    Statistics();
-    ~Statistics();
-
-    static void SendSignal(int signal, void* data, int len);
-
-    void BreakJar(unsigned int a, unsigned int b, int c);
-    void Composition(unsigned int a, unsigned int b, int c);
-    void Decomposition(unsigned int a, unsigned int b, int c);
-    void UseCoin(unsigned int a, unsigned int b, int c);
-    void PvpPlay(unsigned int a, unsigned int b, int c, int d);
-    void RankResult(unsigned int a, unsigned int b, int c, int d, int e,
-                    int f, int g, GameResultType& result);
-    void DungeonClear(unsigned int a, unsigned int b, int c, int d, int e, int f);
-    void DungeonGiveUp(unsigned int a, unsigned int b, int c, int d, int e, int f);
-    void DungeonFail(int dungeonIdx);
-    void UseShusiaService(int value);
-    void PVPPlay2(int a, int b, int c);
-};
-
 Statistics::Statistics() {}
 Statistics::~Statistics() {}
 

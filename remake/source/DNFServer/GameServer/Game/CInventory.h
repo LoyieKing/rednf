@@ -519,8 +519,10 @@ public:
                            eMoneySubReason moneyReason, eItemDelReason itemReason,
                            bool bLog);
     bool tryDeleteEventItems(const std::vector<std::pair<int, int> >& items);
-    void erase_repeated_item(const std::vector<std::pair<int, int> >& items,
-                             std::vector<std::pair<int, int> >& out);
+    // ORIG 返回 out.size()（accept_quest 使用返回 %eax；Ghidra 误标 void，见
+    // docs/class_func_reports/CInventory/erase_repeated_item.md 尾部 size() 调用）
+    int erase_repeated_item(const std::vector<std::pair<int, int> >& items,
+                            std::vector<std::pair<int, int> >& out);
 
     // ---- 排序 ----
     int sort(INVEN_TYPE invenType);

@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 
 #include "CGameManager.h"
+#include "HistoryLog.h"
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 void get_str_datetime(char* buf, int len);
@@ -92,41 +93,8 @@ static const char FMT_CREATE_CH[] =
     "\367\072\045\144\015\012";
 
 // ----------------------------------------------------------------------------
-// HistoryLog
+// HistoryLog 类声明见 HistoryLog.h（唯一声明点）
 // ----------------------------------------------------------------------------
-class HistoryLog
-{
-public:
-    static bool Init();
-    static FILE* LogOpen(unsigned int chNo);
-    static void LogClose(FILE* file);
-    static bool CheckFD(FILE* file);
-
-    static void WriteCreateCh(FILE* file, char* name, int job, int level, int growType);
-    static void WriteDeleteCh(FILE* file, char* name, int job, int level, int growType);
-    static void WriteSelectCh(FILE* file, const char* name, int job, int level,
-                              int growType);
-    static void WriteLevelUp(FILE* file, int level);
-    static void WriteChat(FILE* file, int type, char* content, int level);
-    static void WriteFineQuest(FILE* file, int questIdx);
-    static void WriteLearnSkill(FILE* file, int skillIdx, int level);
-    static void WriteDunStart(FILE* file, int job, int level, int growType);
-    static void WriteKillMob(FILE* file, int mobType);
-    static void WriteDie(FILE* file);
-    static void WriteGiveUp(FILE* file, const char* reason);
-    static void WriteUseCoin(FILE* file, const char* reason);
-    static void WriteDunClear(FILE* file);
-    static void WriteTradeUp(FILE* file, int itemIdx, int count);
-    static void WriteTradeDown(FILE* file, int itemIdx, int count);
-    static void WriteDisJoint(FILE* file, int itemIdx);
-    static void WriteComposition(FILE* file, int itemIdx);
-    static void WriteBuyItem(FILE* file, int itemIdx, int count);
-    static void WriteSellItem(FILE* file, int itemIdx, int count);
-
-    static StaticPool<_IO_FILE, 50> logfiles_;  // 0943dd00
-    static int count_;                          // 0943dd30
-    static char time[0x10];                     // 0943dd34
-};
 
 StaticPool<_IO_FILE, 50> HistoryLog::logfiles_;
 int HistoryLog::count_;

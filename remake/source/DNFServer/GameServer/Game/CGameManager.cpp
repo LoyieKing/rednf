@@ -15,6 +15,8 @@
 #include <utility>
 #include <vector>
 
+#include "CAchievement.h"   // 先于 CGameManager.h：Quest.h 先定义 ENUM_CHARACTERJOB（STEquipmentScript.h 有 #ifndef GAME_QUEST_H_ 守卫）
+#include "CTitleBook.h"
 #include "CGameManager.h"
 #include "CStreamGuard.h"
 #include "CSystemTime.h"
@@ -23,6 +25,39 @@
 #include "LogManager.h"
 #include "MsgQueueMgr.h"
 #include "StreamPool.h"
+
+// ---- 跨类真实类型头（替代 extern "C" asm 桥；符号与 ORIG mangled 一致）----
+#include "GameWorld.h"
+#include "CDataManager.h"
+#include "CMissionList_Charac.h"
+#include "CEventCharacterHandler.h"
+#include "CDungeon.h"
+#include "CDungeonClearTracer.h"
+#include "CLogGameChannel.h"
+#include "CMonitorServerProxy.h"
+#include "CGuildServerProxy.h"
+#include "CServerProxyMgr.h"
+#include "QuickParty.h"
+#include "CBossStage.h"
+#include "CExpandEquipslot.h"
+#include "CUserGlobalInfoHandle.h"
+#include "HistoryLog.h"
+#include "CSchoolMgr.h"
+#include "CGuildAgitManager.h"
+#include "CDoubleConnCheckServerProxy.h"
+#include "Inter_MonitorGuildPointDel.h"
+#include "DB_AccountCargoSync.h"
+#include "Packet_ChannelType.h"
+#include "Packet_Monitor_Char_Info.h"
+#include "Packet_CutOff_UDP_Reply_UserInfo.h"
+#include "Packet_Monitor_UDP_Reply_UserInfo.h"
+#include "CraneMinigameManager.h"
+#include "CQuickPartyRewardManager.h"
+#include "CPremiumLetheManager.h"
+#include "CConditionEventManager.h"
+#include "CSpecialItemRoutingManager.h"
+#include "CAuctionAveragePrice.h"
+#include "CSharedServerMessageManager.h"
 
 // ---- GlobalData / 全局单例（CUserCharacInfo.h 已有 namespace GlobalData，
 //      与 GlobalData.h 的 class 声明互斥，本 TU 以 namespace extern 对齐符号）----
@@ -97,273 +132,10 @@ private:
 };
 
 // ============================================================================
-// 外部依赖 asm-label extern（ORIG 符号名；链接桩 = GameStubs / 后续批次）
+// 外部依赖已全部换为真实头 include + 直接调用（约束12：不允许 extern C asm 桥）。
 // ============================================================================
 
-
-// ---- GameWorld ----
-extern "C" void sub_GameWorld_send_all(void* world, void* pkt)
-    asm("_ZN9GameWorld8send_allER11PacketGuard");
-extern "C" void sub_GameWorld_send_all_user(void* world, void* pkt, void* user)
-    asm("_ZN9GameWorld8send_allER11PacketGuardP5CUser");
-extern "C" char sub_GameWorld_reach_game_world(void* world, void* user)
-    asm("_ZN9GameWorld16reach_game_worldEP5CUser");
-extern "C" void sub_GameWorld_EraseLoginUser(void* world, void* user)
-    asm("_ZN9GameWorld14EraseLoginUserEP5CUser");
-extern "C" void sub_GameWorld_leave_game_world(void* world, void* user)
-    asm("_ZN9GameWorld16leave_game_worldEP5CUser");
-extern "C" char sub_GameWorld_is_dungeon_tag_matching_channel(void* world, char* tag)
-    asm("_ZN9GameWorld31is_dungeon_tag_matching_channelEPc");
-extern "C" int sub_GameWorld_GetChannelType(void* world) asm("_ZNK9GameWorld14GetChannelTypeEv");
-extern "C" char sub_GameWorld_IsEquipSlotSwitchChannel(void* world)
-    asm("_ZNK9GameWorld24IsEquipSlotSwitchChannelEv");
-extern "C" char sub_GameWorld_IsIntegratedPvPBaseChannel(void* world)
-    asm("_ZNK9GameWorld26IsIntegratedPvPBaseChannelEv");
-
-// ---- CEnvironment / channel_script_t ----
-extern "C" int sub_channel_script_t_getChannelInfo(void* script, unsigned char a, unsigned int b)
-    asm("_ZNK16channel_script_t14getChannelInfoEhj");
-
-// ---- CDataManager ----
-extern "C" char sub_CDataManager_get_dimensionInout(void* dm, int idx)
-    asm("_ZN12CDataManager18get_dimensionInoutEi");
-extern "C" void* sub_CDataManager_getBlueMarbleScript(void* dm)
-    asm("_ZN12CDataManager19getBlueMarbleScriptEv");
-extern "C" void* sub_CDataManager_GetChannelScript(void* dm)
-    asm("_ZNK12CDataManager16GetChannelScriptEv");
-
-// ---- WarAreaCounter ----
-extern "C" int sub_WarAreaCounter_GetCurrenTimeTable(void* counter)
-    asm("_ZN14WarAreaCounter18GetCurrenTimeTableEv");
-extern "C" int sub_WarAreaCounter_GetWarRoomCountAtPeekTime(void* counter, int idx)
-    asm("_ZN14WarAreaCounter25GetWarRoomCountAtPeekTimeEi");
-extern "C" int sub_WarAreaCounter_GetWarRoomCountLastIndex(void* counter, int idx)
-    asm("_ZN14WarAreaCounter24GetWarRoomCountLastIndexEi");
-extern "C" int sub_WarAreaCounter_GetWarRoomCountFirstIndex(void* counter, int idx)
-    asm("_ZN14WarAreaCounter25GetWarRoomCountFirstIndexEi");
-
-// ---- CTradeSpace ----
-extern "C" void sub_CTradeSpace_SetIDX(void* ts, int idx) asm("_ZN11CTradeSpace6SetIDXEi");
-extern "C" void sub_CTradeSpace_reset(void* ts) asm("_ZN11CTradeSpace5resetEv");
-extern "C" void sub_CTradeSpace_cancel_trade_by_dis(void* ts, void* user)
-    asm("_ZN11CTradeSpace19cancel_trade_by_disEP5CUser");
-
-// ---- PvP_Room ----
-extern "C" int sub_PvP_Room_leave_room(void* room, void* user, bool* flag)
-    asm("_ZN8PvP_Room10leave_roomEP5CUserRb");
-extern "C" void sub_PvP_Room_destroy_room(void* room, int v)
-    asm("_ZN8PvP_Room12destroy_roomEi");
-extern "C" void sub_PvP_Room_send_pvp_end(void* room) asm("_ZN8PvP_Room12send_pvp_endEv");
-extern "C" char sub_PvP_Room_IsEndPvpBattle(void* room) asm("_ZN8PvP_Room14IsEndPvpBattleEv");
-extern "C" void sub_PvP_Room_make_room_info(void* room, void* buf)
-    asm("_ZN8PvP_Room14make_room_infoEPc");
-extern "C" void sub_PvP_Room_make_seat_info(void* room, void* buf, int seat)
-    asm("_ZN8PvP_Room14make_seat_infoEPci");
-extern "C" char sub_PvP_Room_IsExistPassword(void* room) asm("_ZN8PvP_Room15IsExistPasswordEv");
-extern "C" void sub_PvP_Room_make_state_info(void* room, void* buf)
-    asm("_ZN8PvP_Room15make_state_infoEPc");
-extern "C" int sub_PvP_Room_get_pvp_battle_mode(void* room)
-    asm("_ZN8PvP_Room19get_pvp_battle_modeEv");
-extern "C" char sub_PvP_Room_IsQuickJoinablePVPRoom(void* room, void* user)
-    asm("_ZN8PvP_Room22IsQuickJoinablePVPRoomEP5CUser");
-extern "C" int sub_PvP_Room_get_recv_pvp_rank_count(void* room)
-    asm("_ZN8PvP_Room23get_recv_pvp_rank_countEv");
-extern "C" char sub_PvP_Room_IsInsertTimerRecvPvpRank(void* room)
-    asm("_ZN8PvP_Room24IsInsertTimerRecvPvpRankEv");
-extern "C" void sub_PvP_Room_SetIDX(void* room, int idx) asm("_ZN8PvP_Room6SetIDXEi");
-extern "C" int sub_PvP_Room_get_index(void* room) asm("_ZN8PvP_Room9get_indexEv");
-extern "C" int sub_PvP_Room_get_waiter_count(void* room)
-    asm("_ZNK8PvP_Room16get_waiter_countEv");
-
-// ---- WarRoom ----
-extern "C" void sub_WarRoom_CheckState(void* room) asm("_ZN7WarRoom10CheckStateEv");
-extern "C" int sub_WarRoom_IsJoinable(void* room, void* user) asm("_ZN7WarRoom10IsJoinableEP5CUser");
-extern "C" int sub_WarRoom_WalkOutUser(void* room, void* user) asm("_ZN7WarRoom11WalkOutUserEP5CUser");
-extern "C" void sub_WarRoom_MakeRoomInfo(void* room, void* buf) asm("_ZN7WarRoom12MakeRoomInfoEPc");
-extern "C" void sub_WarRoom_MakeStateInfo(void* room, void* buf)
-    asm("_ZN7WarRoom13MakeStateInfoEPc");
-extern "C" void sub_WarRoom_Open(void* room) asm("_ZN7WarRoom4OpenEv");
-extern "C" void sub_WarRoom_Prepare(void* room) asm("_ZN7WarRoom7PrepareEv");
-extern "C" int sub_WarRoom_GetIndex(void* room) asm("_ZN7WarRoom8GetIndexEv");
-extern "C" int sub_WarRoom_GetState(void* room) asm("_ZN7WarRoom8GetStateEv");
-extern "C" void sub_WarRoom_SetIndex(void* room, int idx) asm("_ZN7WarRoom8SetIndexEi");
-extern "C" void sub_WarRoom_SetState(void* room, int state) asm("_ZN7WarRoom8SetStateE13WARROOM_STATE");
-extern "C" char sub_WarRoom_ShutDown(void* room) asm("_ZN7WarRoom8ShutDownEv");
-
-// ---- 死亡塔 / 领主塔 ----
-extern "C" void sub_CDeathTower_setIdx(void* tower, int idx)
-    asm("_ZN8WongWork11CDeathTower6setIdxEi");
-extern "C" int sub_CDeathTower_getIdx(void* tower) asm("_ZN8WongWork11CDeathTower6getIdxEv");
-extern "C" void sub_CDeathTower_reset(void* tower) asm("_ZN8WongWork11CDeathTower5resetEv");
-extern "C" char sub_CDeathTower_onLeaveUser(void* tower, void* user)
-    asm("_ZN8WongWork11CDeathTower11onLeaveUserEP5CUser");
-extern "C" void sub_CBossTower_setIdx(void* tower, int idx)
-    asm("_ZN8WongWork10CBossTower6setIdxEi");
-extern "C" int sub_CBossTower_getIdx(void* tower) asm("_ZN8WongWork10CBossTower6getIdxEv");
-extern "C" void sub_CBossStage_reset(void* tower) asm("_ZN8WongWork10CBossStage5resetEv");
-extern "C" char sub_CBossTower_onLeaveUser(void* tower, void* user)
-    asm("_ZN8WongWork10CBossTower10onLeaveUserEP5CUser");
-
-// ---- 前置祭坛 ----
-extern "C" void sub_StageControl_setIndex(void* control, int idx)
-    asm("_ZN12advancealtar12StageControl8setIndexEi");
-extern "C" int sub_StageControl_getIndex(void* control)
-    asm("_ZNK12advancealtar12StageControl8getIndexEv");
-extern "C" void sub_StageControl_reset(void* control)
-    asm("_ZN12advancealtar12StageControl5resetEv");
-extern "C" char sub_StageControl_leaveUser(void* control)
-    asm("_ZN12advancealtar12StageControl9leaveUserEv");
-extern "C" char sub_StageControl_onTimerStageTick(void* control)
-    asm("_ZN12advancealtar12StageControl16onTimerStageTickEv");
-
-// ---- 快速队伍 ----
-extern "C" void sub_CQuickParty_set_quick_party_index(void* qp, int idx)
-    asm("_ZN10QuickParty11CQuickParty21set_quick_party_indexEi");
-extern "C" int sub_CQuickParty_get_quick_party_index(void* qp)
-    asm("_ZNK10QuickParty11CQuickParty21get_quick_party_indexEv");
-extern "C" void sub_CQuickParty_init(void* qp) asm("_ZN10QuickParty11CQuickParty4initEv");
-
-// ---- 蓝弹珠 ----
-extern "C" void sub_BlueMarble_setMemoryPoolIndex(void* bm, int idx)
-    asm("_ZN10BlueMarble18setMemoryPoolIndexEi");
-extern "C" int sub_BlueMarble_getMemoryPoolIndex(void* bm)
-    asm("_ZNK10BlueMarble18getMemoryPoolIndexEv");
-extern "C" void sub_BlueMarble_setUserInfo(void* bm, void* script)
-    asm("_ZN10BlueMarble11setUserInfoEP23BlueMarbleScriptManager");
-extern "C" void sub_BlueMarble_setScript(void* bm, void* script)
-    asm("_ZN10BlueMarble9setScriptEP23BlueMarbleScriptManager");
-extern "C" char sub_BlueMarble_checkJoin(void* bm) asm("_ZN10BlueMarble9checkJoinEv");
-extern "C" void sub_BlueMarble_leaveUser(void* bm, void* user) asm("_ZN10BlueMarble9leaveUserEP5CUser");
-extern "C" int sub_BlueMarble_getWaitUserCount(void* bm)
-    asm("_ZNK10BlueMarble16getWaitUserCountEv");
-
-// ---- CParty 缺失方法 ----
-extern "C" void* sub_CParty_getManager(void* party) asm("_ZN6CParty10getManagerEv");
-extern "C" char sub_CParty_IsReturnUserParty(void* party) asm("_ZN6CParty17IsReturnUserPartyEv");
-extern "C" char sub_CParty_IsEventCharacParty(void* party) asm("_ZN6CParty18IsEventCharacPartyEv");
-extern "C" void sub_CParty_leave_user(void* party, void* user, int type)
-    asm("_ZN6CParty10leave_userEP5CUser20ENUM_PARTY_INFO_TYPE");
-
-// ---- CUser 缺失方法 ----
-extern "C" char sub_CUser_checkInDeathTower(void* user) asm("_ZN5CUser17checkInDeathTowerEv");
-extern "C" char sub_CUser_getSex(void* user) asm("_ZN5CUser6getSexEv");
-extern "C" void sub_CUser_giveup_panalty(void* user) asm("_ZN5CUser14giveup_panaltyEv");
-extern "C" void* sub_CUser_GetSsnString(void* user) asm("_ZN5CUser12GetSsnStringEv");
-extern "C" void* sub_CUser_GetPICSMap(void* user) asm("_ZN5CUser10GetPICSMapEv");
-extern "C" void sub_CUser_ReCalcChattingEmoticon(void* user)
-    asm("_ZN5CUser22ReCalcChattingEmoticonEv");
-extern "C" void sub_CUser_SendChattingEmoticon(void* user)
-    asm("_ZN5CUser20SendChattingEmoticonEv");
-extern "C" void sub_CUser_log_out(void* user) asm("_ZN5CUser7log_outEv");
-extern "C" void sub_CUser_ResetItemByScript(void* user, void* vec)
-    asm("_ZN5CUser17ResetItemByScriptERSt6vectorISt4pairIiiESaIS2_EE");
-extern "C" void sub_CUser_deleteDailyStackableItem(void* user, void* vec, int a, int b)
-    asm("_ZN5CUser24deleteDailyStackableItemERSt6vectorISt4pairIiiESaIS2_EEii");
-extern "C" void sub_CUser_deleteSpecificItem(void* user, void* vecA, void* vecB)
-    asm("_ZN5CUser18deleteSpecificItemERKSt6vectorISt4pairIiiESaIS2_EERS4_");
-extern "C" void sub_CUser_prepareDisconnect(void* user) asm("_ZN5CUser17prepareDisconnectEv");
-extern "C" void sub_CUser_SetSaveRentalInfoToExchange(void* user, bool flag)
-    asm("_ZN5CUser27SetSaveRentalInfoToExchangeEb");
-extern "C" void sub_CUser_SetGameMasterMode(void* user, bool flag)
-    asm("_ZN5CUser17SetGameMasterModeEb");
-extern "C" void sub_CUser_DeleteRentalItemInfo(void* user, int v)
-    asm("_ZN5CUser20DeleteRentalItemInfoEi");
-extern "C" void sub_CUser_doLinkCharacDisconnect(void* user)
-    asm("_ZN5CUser22doLinkCharacDisconnectEv");
-extern "C" void sub_CUser_checkLogOutCorrectly(void* user)
-    asm("_ZN5CUser20checkLogOutCorrectlyEv");
-extern "C" void sub_CUser_processReturnUserQuestAutoClear(void* user)
-    asm("_ZN5CUser31processReturnUserQuestAutoClearEv");
-extern "C" void sub_CUser_send_clear_quest_list(void* user)
-    asm("_ZN5CUser21send_clear_quest_listEv");
-extern "C" char sub_CUser_checkInAdvanceAltar(void* user) asm("_ZNK5CUser19checkInAdvanceAltarEv");
-extern "C" char sub_CUser_send_itemspace(void* user, int space)
-    asm("_ZN5CUser14send_itemspaceEi");
-
-// ---- 角色扩展数据 / 事件角色 ----
-extern "C" void sub_CEventCharacterHandler__makeEventCharacter(void* handler, void* user, int type)
-    asm("_ZN22CEventCharacterHandler19_makeEventCharacterEP5CUseri");
-extern "C" void sub_CExpandEquipslot_EquipslotSwitch(void* slot, void* user,
-                                                     char a, char b, char c)
-    asm("_ZN16CExpandEquipslot15EquipslotSwitchEP5CUserccc");
-extern "C" void sub_CExpandEquipslot_Send_Expand_Equip_Info(void* slot, void* user)
-    asm("_ZN16CExpandEquipslot22Send_Expand_Equip_InfoEP5CUser");
-extern "C" void sub_CMissionList_Charac_Update_EnterWorld_event(void* mission, void* user)
-    asm("_ZN19CMissionList_Charac23Update_EnterWorld_eventER5CUser");
-extern "C" unsigned short sub_CUserGlobalInfoHandle_get_uniqueid(void* handle)
-    asm("_ZN21CUserGlobalInfoHandle12get_uniqueidEv");
-extern "C" char sub_CCharacterView_isSaveCharacView(void* view)
-    asm("_ZN14CCharacterView16isSaveCharacViewEv");
-
-// ---- 技能/称号/成就/物品锁/任务 ----
-extern "C" void sub_CTitleBook_sendList(void* book) asm("_ZN10CTitleBook8sendListEv");
-extern "C" void sub_CAchievement_sendList(void* ach) asm("_ZN12CAchievement8sendListEv");
-extern "C" void sub_CItemLock_SendItemLockList(void* lock, void* user)
-    asm("_ZN9item_lock9CItemLock16SendItemLockListEP5CUser");
-extern "C" void sub_UserQuest_get_quest_info(void* quest, void* buf)
-    asm("_ZNK9UserQuest14get_quest_infoEPc");
-
-// ---- 公会/学校 ----
-extern "C" void sub_CSchoolMgr_AddUser(void* mgr, void* user) asm("_ZN10CSchoolMgr7AddUserEP5CUser");
-extern "C" void sub_CGuildAgitManager_AllocGuildAgitArea(void* mgr, unsigned int key)
-    asm("_ZN17CGuildAgitManager18AllocGuildAgitAreaEj");
-extern "C" void sub_DB_GuildExpBookDelete_makeRequest(unsigned int a, int b, int c)
-    asm("_ZN21DB_GuildExpBookDelete11makeRequestEji17ENUM_SERVER_GROUP");
-
-// ---- 监视/公会代理 ----
-extern "C" int sub_CServerProxyMgrMonitor_GetStartIndex(void* mgr)
-    asm("_ZN15CServerProxyMgrI19CMonitorServerProxyE13GetStartIndexEv");
-extern "C" int sub_CServerProxyMgrMonitor_GetEndIndex(void* mgr)
-    asm("_ZN15CServerProxyMgrI19CMonitorServerProxyE11GetEndIndexEv");
-extern "C" int sub_CServerProxyMgrMonitor_GetNextIndex(void* mgr, int* idx)
-    asm("_ZN15CServerProxyMgrI19CMonitorServerProxyE12GetNextIndexERi");
-extern "C" void* sub_CServerProxyMgrMonitor_GetServerProxy(void* mgr, int group)
-    asm("_ZN15CServerProxyMgrI19CMonitorServerProxyE14GetServerProxyE17ENUM_SERVER_GROUP");
-extern "C" void* sub_CServerProxyMgrGuild_GetServerProxy(void* mgr, int group)
-    asm("_ZN15CServerProxyMgrI17CGuildServerProxyE14GetServerProxyE17ENUM_SERVER_GROUP");
-extern "C" void sub_CMonitorServerProxy_SendTcpPacket(void* proxy, void* pkt, int len)
-    asm("_ZN19CMonitorServerProxy13SendTcpPacketEPci");
-extern "C" void sub_CGuildServerProxy_SendTcpPacket(void* proxy, void* pkt, int len)
-    asm("_ZN17CGuildServerProxy13SendTcpPacketEPci");
-extern "C" void sub_CDoubleConnCheckServerProxy_SendPacket(void* proxy, void* pkt, int len)
-    asm("_ZN27CDoubleConnCheckServerProxy10SendPacketEPci");
-
-// ---- 日志/杂项 ----
-extern "C" void sub_HistoryLog_LogClose(void* fp) asm("_ZN10HistoryLog8LogCloseEP8_IO_FILE");
-extern "C" void sub_CLogGameChannel_IncInUser(void* log) asm("_ZN8WongWork15CLogGameChannel9IncInUserEv");
-extern "C" void sub_CLogGameChannel_IncOutUser(void* log)
-    asm("_ZN8WongWork15CLogGameChannel10IncOutUserEv");
-extern "C" void sub_CDungeonClearTracer_Trace(void* tracer, const char* msg)
-    asm("_ZN19CDungeonClearTracer5TraceEPKc");
-extern "C" char sub_CDungeon_isTournamentDungeon(void* dungeon)
-    asm("_ZNK8CDungeon19isTournamentDungeonEv");
-extern "C" char sub_CDungeon_get_dimension_possible(void* dungeon)
-    asm("_ZNK8CDungeon22get_dimension_possibleEv");
-extern "C" char sub_CDungeon_isTowerOfDespairDungeon(void* dungeon)
-    asm("_ZNK8CDungeon23isTowerOfDespairDungeonEv");
-extern "C" void sub_CShutdowManager_SendLastMsgDBQueue(void* mgr)
-    asm("_ZN15CShutdowManager18SendLastMsgDBQueueEP5CUser");
-extern "C" int sub_EpollHandler_ResetEpoll(void* handler, int fd)
-    asm("_ZN12EpollHandler10ResetEpollEi");
-extern "C" long long sub_Inter_MonitorGuildPointDel_getLastDeleteTime()
-    asm("_ZN26Inter_MonitorGuildPointDel17getLastDeleteTimeEv");
-
-// ---- 快速队伍系统/奖励管理器 ----
-extern "C" char sub_CQuickPartySystemManager_cancel_quick_party(
-    void* mgr, void* party, bool flag, void* user)
-    asm("_ZN10QuickParty24CQuickPartySystemManager18cancel_quick_partyEP6CPartybP5CUser");
-
-// ---- 发包数据类 ctor ----
-extern "C" void sub_Packet_Monitor_UDP_Reply_UserInfo_ctor(void* pkt)
-    asm("_ZN33Packet_Monitor_UDP_Reply_UserInfoC1Ev");
-extern "C" void sub_Packet_CutOff_UDP_Reply_UserInfo_ctor(void* pkt)
-    asm("_ZN32Packet_CutOff_UDP_Reply_UserInfoC1Ev");
-extern "C" void sub_Packet_Monitor_Char_Info_ctor(void* pkt)
-    asm("_ZN24Packet_Monitor_Char_InfoC1Ev");
-extern "C" void sub_Packet_ChannelType_ctor(void* pkt) asm("_ZN18Packet_ChannelTypeC1Ev");
-// SendUserInfoToUpperServer 真实定义见本 TU（ORIG 0x829611a），删除 asm 别名。
-
-// ---- CSwitchLog（PvP 日志；桩由主 agent / 后续批次提供）----
+// ---- CSwitchLog（PvP 日志；实现见 CSwitchLog.cpp）----
 class CSwitchLog
 {
 public:
@@ -371,27 +143,6 @@ public:
     void operator()(const char* fmt, ...);
     char m_pad[0x10];
 };
-
-// ---- 管理器类 ----
-extern "C" void sub_CQuickPartySystemManager_ctor(void* mgr)
-    asm("_ZN10QuickParty24CQuickPartySystemManagerC1Ev");
-extern "C" void sub_CQuickPartySystemManager_dtor(void* mgr)
-    asm("_ZN10QuickParty24CQuickPartySystemManagerD1Ev");
-extern "C" void sub_CQuickPartyRewardManager_ctor(void* mgr)
-    asm("_ZN10QuickParty24CQuickPartyRewardManagerC1Ev");
-extern "C" void sub_CQuickPartyRewardManager_dtor(void* mgr)
-    asm("_ZN10QuickParty24CQuickPartyRewardManagerD1Ev");
-extern "C" void sub_CPremiumLetheManager_ctor(void* mgr) asm("_ZN20CPremiumLetheManagerC1Ev");
-extern "C" void sub_CConditionEventManager_ctor(void* mgr) asm("_ZN22CConditionEventManagerC1Ev");
-extern "C" void sub_CSpecialItemRoutingManager_ctor(void* mgr)
-    asm("_ZN26CSpecialItemRoutingManagerC1Ev");
-extern "C" void sub_CSharedServerMessageManager_ctor(void* mgr, void* info)
-    asm("_ZN27CSharedServerMessageManagerC1EP25stSharedServerMessageInfo");
-extern "C" void sub_CAuctionAveragePrice_ctor(void* mgr) asm("_ZN20CAuctionAveragePriceC1Ev");
-extern "C" void sub_CAuctionAveragePrice_dtor(void* mgr) asm("_ZN20CAuctionAveragePriceD1Ev");
-extern "C" void sub_CraneMinigameManager_ctor(void* mgr) asm("_ZN20CraneMinigameManagerC1Ev");
-extern "C" void sub_CraneMinigameManager_dtor(void* mgr) asm("_ZN20CraneMinigameManagerD1Ev");
-extern "C" char sub_CraneMinigameManager_init(void* mgr) asm("_ZN20CraneMinigameManager4initEv");
 
 // ============================================================================
 // StaticPool<T,N> —— ORIG 真实实现（objdump 0x82ae390 起逐函数核对）
@@ -690,7 +441,7 @@ bool CGameManager::init()
     void* pMgr = operator new(0x6c);
     try
     {
-        sub_CraneMinigameManager_ctor(pMgr);
+        new (pMgr) CraneMinigameManager();
     }
     catch (...)
     {
@@ -698,7 +449,7 @@ bool CGameManager::init()
         throw;
     }
     m_pCraneMinigameMgr = (CraneMinigameManager*)pMgr;
-    return sub_CraneMinigameManager_init((void*)GetCraneMinigameManager()) == 1;
+    return GetCraneMinigameManager()->init() == 1;
 }
 
 short CGameManager::getNextUID()
@@ -805,7 +556,7 @@ void CGameManager::insertUserByAccID(CUser* user)
     else
     {
         m_userByAccId2[accId2] = user;
-        sub_CLogGameChannel_IncInUser(GlobalData::s_pLogGameChannel);
+        GlobalData::s_pLogGameChannel->IncInUser();
     }
 }
 
@@ -849,7 +600,7 @@ CUser* CGameManager::createUser()
         short nxt = getNextUID();
         user->SetIncreID(nxt);
         unsigned short uniqueId =
-            sub_CUserGlobalInfoHandle_get_uniqueid(CUserGlobalInfoHandleInstance());
+            CUserGlobalInfoHandleInstance()->get_uniqueid();
         user->set_unique_id(uniqueId);
     }
     return user;
@@ -902,7 +653,7 @@ void CGameManager::check_user_var(CUser* user)
         LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x941,
                               "[CHECK_USER_VAR] RESET PROG LOGOUT ERROR!");
     }
-    if (sub_CCharacterView_isSaveCharacView((char*)user + 0x796f4))
+    if (user->m_characterView.isSaveCharacView())
     {
         LogManager::logFormat(1, "App.cpp", "void CGameManager::check_user_var(CUser*)", 0x944,
                               "[CHECK_USER_VAR] RESET CHARACTER VIEW ERROR!");
@@ -923,7 +674,7 @@ void CGameManager::returnUserPool(CUser* user)
         if (it != m_userByAccId.end())
         {
             m_userByAccId.erase(it);
-            sub_CLogGameChannel_IncOutUser(GlobalData::s_pLogGameChannel);
+            GlobalData::s_pLogGameChannel->IncOutUser();
         }
         unsigned int accId2 = user->get_acc_id();
         std::map<unsigned int, CUser*>::iterator it2 = m_userByAccId2.find(accId2);
@@ -933,7 +684,7 @@ void CGameManager::returnUserPool(CUser* user)
         }
         unsigned int uid = user->GetUID();
         unsigned int accId3 = user->get_acc_id();
-        sub_CUser_log_out(user);
+        user->log_out();
         Guard<Mutex> guard(&m_mutex);
         m_userPool.Free(user);
         int err = m_userPool.GetLastErrorCode();
@@ -1017,23 +768,22 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
             if (dungeon != 0)
             {
                 bVar1 = *(char*)((char*)dungeon + 0x89f) > 0;
-                if (sub_CDungeon_isTowerOfDespairDungeon(dungeon))
+                if (((CDungeon*)dungeon)->isTowerOfDespairDungeon())
                     bVar1 = true;
             }
             bool bVar2 = false;
             if (dungeon != 0)
             {
-                char c = sub_CDungeon_get_dimension_possible(dungeon);
+                char c = ((CDungeon*)dungeon)->get_dimension_possible();
                 if (c < 1 && *(char*)((char*)dungeon + 0x89c) == 0 &&
-                    !sub_CDungeon_isTournamentDungeon(dungeon))
+                    !((CDungeon*)dungeon)->isTournamentDungeon())
                     bVar2 = false;
                 else
                     bVar2 = true;
                 if (bVar2)
                     bVar1 = true;
             }
-            sub_CDungeonClearTracer_Trace((char*)party + 0xc7c,
-                                          "void CGameManager::CheckOutParty(CUser*, bool)");
+            ((CDungeonClearTracer*)((char*)party + 0xc7c))->Trace("void CGameManager::CheckOutParty(CUser*, bool)");
             if (*(int*)((char*)party + 0xcd8) != 1 && party->get_state() == 2)
             {
                 bVar2 = false;
@@ -1043,9 +793,9 @@ void CGameManager::CheckOutParty(CUser* user, bool flag)
                 if (dungeon != 0 && *(char*)((char*)dungeon + 0x87a) != 0)
                     bVar3 = true;
                 if (!bVar1 && bVar2 && bVar3)
-                    sub_CUser_giveup_panalty(user);
+                    user->giveup_panalty();
             }
-            sub_CParty_leave_user(party, user, 2);
+            party->leave_user(user, (ENUM_PARTY_INFO_TYPE)2);
         }
     }
 }
@@ -1055,8 +805,7 @@ unsigned int CGameManager::CheckOutQuickParty(CParty* party, bool flag)
     unsigned int ret = 0;
     if (party != 0)
     {
-        ret = (unsigned int)sub_CQuickPartySystemManager_cancel_quick_party(
-            (void*)G_CGameManager()->GetQuickPartySystemManager(), party, flag, 0);
+        ret = (unsigned int)G_CGameManager()->GetQuickPartySystemManager()->cancel_quick_party(party, flag, 0);
         ret = ret ^ 1;
     }
     return ret;
@@ -1070,7 +819,7 @@ CTradeSpace* CGameManager::GetTradeSpace()
     CTradeSpace* tradeSpace = m_tradeSpacePool.Acquire();
     if (tradeSpace == 0)
         return 0;
-    sub_CTradeSpace_SetIDX(tradeSpace, m_tradeSpacePool.GetIndex(tradeSpace));
+    tradeSpace->SetIDX(m_tradeSpacePool.GetIndex(tradeSpace));
     return tradeSpace;
 }
 
@@ -1092,7 +841,7 @@ void CGameManager::PutTradeSpace(CTradeSpace* tradeSpace)
 {
     if (tradeSpace == 0)
         return;
-    sub_CTradeSpace_reset(tradeSpace);
+    tradeSpace->reset();
     m_tradeSpacePool.Free(tradeSpace);
 }
 
@@ -1101,7 +850,7 @@ void CGameManager::CheckOutTrade(CUser* user)
     if (user->CheckInTrade() == 1)
     {
         CTradeSpace* tradeSpace = m_tradeSpacePool.Get(user->GetTradeSpace());
-        sub_CTradeSpace_cancel_trade_by_dis(tradeSpace, user);
+        tradeSpace->cancel_trade_by_dis(user);
         PutTradeSpace(tradeSpace);
     }
 }
@@ -1115,24 +864,24 @@ PvP_Room* CGameManager::GetPvp()
     int roomIdx;
     if (room == 0)
         return 0;
-    sub_PvP_Room_SetIDX(room, m_pvpRoomPool.GetIndex(room));
-    int roomIndex = sub_PvP_Room_get_index(room);
+    room->SetIDX(m_pvpRoomPool.GetIndex(room));
+    int roomIndex = room->get_index();
     __gnu_cxx::hash_map<int, PvP_Room*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(roomIndex);
     if (it == m_pvpRoomMap.end())
     {
-        roomIdx = sub_PvP_Room_get_index(room);
+        roomIdx = room->get_index();
         {
             CSwitchLog log("PvP_Room* CGameManager::GetPvp()", 0xaa9, 0, 0);
             log("pvp@log room(%d) new alloc", roomIdx);
         }
-        m_pvpRoomMap[sub_PvP_Room_get_index(room)] = room;
+        m_pvpRoomMap[room->get_index()] = room;
         return room;
     }
     else
     {
-        roomIdx = sub_PvP_Room_get_index(room);
+        roomIdx = room->get_index();
         {
             CSwitchLog log("PvP_Room* CGameManager::GetPvp()", 0xab2, 0, 0);
             log("pvp@log room(%d) already alloc", roomIdx);
@@ -1153,7 +902,7 @@ PvP_Room* CGameManager::GetPvp(int index, CUser* user, int param)
     }
     else
     {
-        int roomIdx = sub_PvP_Room_get_index(it->second);
+        int roomIdx = it->second->get_index();
         const char* name;
         const char* accName;
         if (user == 0)
@@ -1185,18 +934,18 @@ void CGameManager::PutPvp(PvP_Room* room)
 {
     if (room != 0)
     {
-        int roomIndex = sub_PvP_Room_get_index(room);
+        int roomIndex = room->get_index();
         {
             CSwitchLog log("void CGameManager::PutPvp(PvP_Room*)", 0xae4, 0, 0);
             log("pvp@log room(%d)", roomIndex);
         }
-        int key = sub_PvP_Room_get_index(room);
+        int key = room->get_index();
         __gnu_cxx::hash_map<int, PvP_Room*,
             __gnu_cxx::hash<int>, std::equal_to<int>,
             std::allocator<PvP_Room*> >::iterator it = m_pvpRoomMap.find(key);
         if (it != m_pvpRoomMap.end())
         {
-            int eraseKey = sub_PvP_Room_get_index(room);
+            int eraseKey = room->get_index();
             m_pvpRoomMap.erase(eraseKey);
             m_pvpRoomPool.Free(room);
         }
@@ -1212,10 +961,10 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
         {
             PacketGuard guard;
             bool outFlag = false;
-            int ret = sub_PvP_Room_leave_room(room, user, &outFlag);
+            int ret = room->leave_room(user, outFlag);
             int outFlagInt = outFlag;
-            int battleMode = sub_PvP_Room_get_pvp_battle_mode(room);
-            int roomIdx = sub_PvP_Room_get_index(room);
+            int battleMode = room->get_pvp_battle_mode();
+            int roomIdx = room->get_index();
             const char* characName = user->getCurCharacName();
             const char* accName = user->get_acc_name();
             {
@@ -1227,35 +976,35 @@ void CGameManager::CheckOutPvp(CUser* user, bool flag)
             {
                 LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutPvp(CUser*, bool)", 0x11bd,
                                       "pvp@log room(%d) user(%s) leave fail",
-                                      sub_PvP_Room_get_index(room),
+                                      room->get_index(),
                                       NumberToString(user->get_acc_id(), 0));
             }
             else
             {
                 guard.clear();
-                sub_PvP_Room_make_seat_info(room, &guard, ret);
-                sub_GameWorld_send_all(G_GameWorld(), &guard);
+                room->make_seat_info((char*)&guard, ret);
+                G_GameWorld()->send_all(guard);
                 if (outFlag)
                 {
                     guard.clear();
-                    sub_PvP_Room_make_state_info(room, &guard);
-                    sub_GameWorld_send_all(G_GameWorld(), &guard);
+                    room->make_state_info((char*)&guard);
+                    G_GameWorld()->send_all(guard);
                 }
-                if (sub_PvP_Room_get_waiter_count(room) == 0)
+                if (room->get_waiter_count() == 0)
                 {
-                    sub_PvP_Room_destroy_room(room, 0);
+                    room->destroy_room(0);
                     PutPvp(room);
                     guard.clear();
-                    sub_PvP_Room_make_state_info(room, &guard);
-                    sub_GameWorld_send_all(G_GameWorld(), &guard);
+                    room->make_state_info((char*)&guard);
+                    G_GameWorld()->send_all(guard);
                 }
             }
-            if (!flag && sub_PvP_Room_get_recv_pvp_rank_count(room) > 0)
+            if (!flag && room->get_recv_pvp_rank_count() > 0)
             {
-                if (sub_PvP_Room_IsInsertTimerRecvPvpRank(room) != 1 &&
-                    sub_PvP_Room_IsEndPvpBattle(room) != 1)
+                if (room->IsInsertTimerRecvPvpRank() != 1 &&
+                    room->IsEndPvpBattle() != 1)
                 {
-                    sub_PvP_Room_send_pvp_end(room);
+                    room->send_pvp_end();
                 }
             }
         }
@@ -1272,11 +1021,11 @@ PvP_Room* CGameManager::FindQuickJoinablePvPRoom(bool quick, CUser* user)
         if (it == m_pvpRoomMap.end())
             return 0;
         PvP_Room* room = it->second;
-        if (room != 0 && sub_PvP_Room_get_pvp_battle_mode(room) != 6)
+        if (room != 0 && room->get_pvp_battle_mode() != 6)
         {
             bool ok = true;
-            if ((quick && sub_PvP_Room_IsExistPassword(room) == 1) ||
-                sub_PvP_Room_IsQuickJoinablePVPRoom(room, user) == 0)
+            if ((quick && room->IsExistPassword() == 1) ||
+                room->IsQuickJoinablePVPRoom(user) == 0)
                 ok = false;
             if (ok)
                 return room;
@@ -1293,15 +1042,15 @@ QuickParty::CQuickParty* CGameManager::GetQuickParty()
     QuickParty::CQuickParty* qp = m_quickPartyPool.Acquire();
     if (qp == 0)
         return 0;
-    sub_CQuickParty_set_quick_party_index(qp, m_quickPartyPool.GetIndex(qp));
-    int qpIndex = sub_CQuickParty_get_quick_party_index(qp);
+    qp->set_quick_party_index(m_quickPartyPool.GetIndex(qp));
+    int qpIndex = qp->get_quick_party_index();
     __gnu_cxx::hash_map<int, QuickParty::CQuickParty*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<QuickParty::CQuickParty*> >::iterator it =
             m_quickPartyMap.find(qpIndex);
     if (it == m_quickPartyMap.end())
     {
-        m_quickPartyMap[sub_CQuickParty_get_quick_party_index(qp)] = qp;
+        m_quickPartyMap[qp->get_quick_party_index()] = qp;
         return qp;
     }
     else
@@ -1309,7 +1058,7 @@ QuickParty::CQuickParty* CGameManager::GetQuickParty()
         LogManager::logFormat(1, "App.cpp",
                               "QuickParty::CQuickParty* CGameManager::GetQuickParty()", 0xb64,
                               "quick party index(%d) already alloc",
-                              sub_CQuickParty_get_quick_party_index(qp));
+                              qp->get_quick_party_index());
     }
     return qp;
 }
@@ -1335,17 +1084,17 @@ void CGameManager::PutQuickParty(QuickParty::CQuickParty* qp)
 {
     if (qp == 0)
         return;
-    int key = sub_CQuickParty_get_quick_party_index(qp);
+    int key = qp->get_quick_party_index();
     __gnu_cxx::hash_map<int, QuickParty::CQuickParty*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<QuickParty::CQuickParty*> >::iterator it =
             m_quickPartyMap.find(key);
     if (it != m_quickPartyMap.end())
     {
-        int eraseKey = sub_CQuickParty_get_quick_party_index(qp);
+        int eraseKey = qp->get_quick_party_index();
         m_quickPartyMap.erase(eraseKey);
         m_quickPartyPool.Free(qp);
-        sub_CQuickParty_init(qp);
+        qp->init();
     }
 }
 
@@ -1357,14 +1106,14 @@ WarRoom* CGameManager::GetWarRoom()
     WarRoom* room = m_warRoomPool.Acquire();
     if (room == 0)
         return 0;
-    sub_WarRoom_SetIndex(room, m_warRoomPool.GetIndex(room));
-    int roomIndex = sub_WarRoom_GetIndex(room);
+    room->SetIndex(m_warRoomPool.GetIndex(room));
+    int roomIndex = room->GetIndex();
     __gnu_cxx::hash_map<int, WarRoom*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WarRoom*> >::iterator it = m_warRoomMap.find(roomIndex);
     if (it == m_warRoomMap.end())
     {
-        m_warRoomMap[sub_WarRoom_GetIndex(room)] = room;
+        m_warRoomMap[room->GetIndex()] = room;
         return room;
     }
     else
@@ -1393,13 +1142,13 @@ void CGameManager::PutWarRoom(WarRoom* room)
 {
     if (room == 0)
         return;
-    int key = sub_WarRoom_GetIndex(room);
+    int key = room->GetIndex();
     __gnu_cxx::hash_map<int, WarRoom*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WarRoom*> >::iterator it = m_warRoomMap.find(key);
     if (it != m_warRoomMap.end())
     {
-        int eraseKey = sub_WarRoom_GetIndex(room);
+        int eraseKey = room->GetIndex();
         m_warRoomMap.erase(eraseKey);
         m_warRoomPool.Free(room);
     }
@@ -1412,14 +1161,14 @@ void CGameManager::CheckOutWarRoom(CUser* user)
         WarRoom* room = GetWarRoom(user->GetWarRoomIndex());
         if (room != 0)
         {
-            int ret = sub_WarRoom_WalkOutUser(room, user);
+            int ret = room->WalkOutUser(user);
             if (ret == 4)
             {
                 LogManager::logFormat(1, "App.cpp", "void CGameManager::CheckOutWarRoom(CUser*)", 0x117b,
                                       "CGameManager::CheckOutWarRoom Can't find user charno(%d)",
                                       user->get_charac_no(-1));
             }
-            sub_WarRoom_CheckState(room);
+            room->CheckState();
         }
     }
 }
@@ -1435,7 +1184,7 @@ WarRoom* CGameManager::FindJoinableWarRoom(CUser* user)
         if (it == m_warRoomMap.end())
             return 0;
         room = it->second;
-        if (room != 0 && sub_WarRoom_IsJoinable(room, user) == 0)
+        if (room != 0 && room->IsJoinable(user) == 0)
             break;
         it++;
     }
@@ -1450,16 +1199,16 @@ WongWork::CDeathTower* CGameManager::getDeathTower()
     WongWork::CDeathTower* tower = m_deathTowerPool.Acquire();
     if (tower == 0)
         return 0;
-    sub_CDeathTower_setIdx(tower, m_deathTowerPool.GetIndex(tower));
-    int towerIdx = sub_CDeathTower_getIdx(tower);
+    tower->setIdx(m_deathTowerPool.GetIndex(tower));
+    int towerIdx = tower->getIdx();
     __gnu_cxx::hash_map<int, WongWork::CDeathTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WongWork::CDeathTower*> >::iterator it =
             m_deathTowerMap.find(towerIdx);
     if (it == m_deathTowerMap.end())
     {
-        m_deathTowerMap[sub_CDeathTower_getIdx(tower)] = tower;
-        sub_CDeathTower_reset(tower);
+        m_deathTowerMap[tower->getIdx()] = tower;
+        tower->reset();
         return tower;
     }
     else
@@ -1489,14 +1238,14 @@ void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
 {
     if (tower == 0)
         return;
-    int key = sub_CDeathTower_getIdx(tower);
+    int key = tower->getIdx();
     __gnu_cxx::hash_map<int, WongWork::CDeathTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WongWork::CDeathTower*> >::iterator it =
             m_deathTowerMap.find(key);
     if (it != m_deathTowerMap.end())
     {
-        int eraseKey = sub_CDeathTower_getIdx(tower);
+        int eraseKey = tower->getIdx();
         m_deathTowerMap.erase(eraseKey);
         m_deathTowerPool.Free(tower);
     }
@@ -1504,14 +1253,14 @@ void CGameManager::returnDeathTower(WongWork::CDeathTower* tower)
 
 void CGameManager::checkOutDeathTower(CUser* user)
 {
-    if (sub_CUser_checkInDeathTower(user) == 1)
+    if (user->checkInDeathTower() == 1)
     {
         WongWork::CDeathTower* tower = getDeathTower(user->getDeathTowerIndex());
-        if (tower != 0 && sub_CDeathTower_onLeaveUser(tower, user) != 1)
+        if (tower != 0 && tower->onLeaveUser(user) != 1)
         {
             LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutDeathTower(CUser*)", 0x123a,
                                   "DeathTower checkOutDeathTower ID[%d] ACCID[%s]",
-                                  sub_CDeathTower_getIdx(tower),
+                                  tower->getIdx(),
                                   NumberToString(user->get_acc_id(), 0));
         }
     }
@@ -1522,16 +1271,16 @@ WongWork::CBossTower* CGameManager::getBossTower()
     WongWork::CBossTower* tower = m_bossTowerPool.Acquire();
     if (tower == 0)
         return 0;
-    sub_CBossTower_setIdx(tower, m_bossTowerPool.GetIndex(tower));
-    int towerIdx = sub_CBossTower_getIdx(tower);
+    tower->setIdx(m_bossTowerPool.GetIndex(tower));
+    int towerIdx = tower->getIdx();
     __gnu_cxx::hash_map<int, WongWork::CBossTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WongWork::CBossTower*> >::iterator it =
             m_bossTowerMap.find(towerIdx);
     if (it == m_bossTowerMap.end())
     {
-        m_bossTowerMap[sub_CBossTower_getIdx(tower)] = tower;
-        sub_CBossStage_reset(tower);
+        m_bossTowerMap[tower->getIdx()] = tower;
+        ((WongWork::CBossStage*)tower)->reset();
         return tower;
     }
     else
@@ -1561,14 +1310,14 @@ void CGameManager::returnBossTower(WongWork::CBossTower* tower)
 {
     if (tower == 0)
         return;
-    int key = sub_CBossTower_getIdx(tower);
+    int key = tower->getIdx();
     __gnu_cxx::hash_map<int, WongWork::CBossTower*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<WongWork::CBossTower*> >::iterator it =
             m_bossTowerMap.find(key);
     if (it != m_bossTowerMap.end())
     {
-        int eraseKey = sub_CBossTower_getIdx(tower);
+        int eraseKey = tower->getIdx();
         m_bossTowerMap.erase(eraseKey);
         m_bossTowerPool.Free(tower);
     }
@@ -1587,7 +1336,7 @@ void CGameManager::checkOutBossTower(CUser* user)
             {
                 LogManager::logFormat(1, "App.cpp", "void CGameManager::checkOutBossTower(CUser*)", 0x11d9,
                                       "BossTower checkOutBossTower ID[%d] ACCID[%s]",
-                                      sub_CBossTower_getIdx(tower),
+                                      tower->getIdx(),
                                       NumberToString(user->get_acc_id(), 0));
             }
         }
@@ -1599,16 +1348,16 @@ advancealtar::StageControl* CGameManager::getAdvanceAltar()
     advancealtar::StageControl* control = m_stagePool.Acquire();
     if (control == 0)
         return 0;
-    sub_StageControl_setIndex(control, m_stagePool.GetIndex(control));
-    int ctrlIdx = sub_StageControl_getIndex(control);
+    control->setIndex(m_stagePool.GetIndex(control));
+    int ctrlIdx = control->getIndex();
     __gnu_cxx::hash_map<int, advancealtar::StageControl*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<advancealtar::StageControl*> >::iterator it =
             m_stageMap.find(ctrlIdx);
     if (it == m_stageMap.end())
     {
-        m_stageMap[sub_StageControl_getIndex(control)] = control;
-        sub_StageControl_reset(control);
+        m_stageMap[control->getIndex()] = control;
+        control->reset();
         return control;
     }
     else
@@ -1638,14 +1387,14 @@ void CGameManager::returnAdvanceAltar(advancealtar::StageControl* control)
 {
     if (control == 0)
         return;
-    int key = sub_StageControl_getIndex(control);
+    int key = control->getIndex();
     __gnu_cxx::hash_map<int, advancealtar::StageControl*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<advancealtar::StageControl*> >::iterator it =
             m_stageMap.find(key);
     if (it != m_stageMap.end())
     {
-        int eraseKey = sub_StageControl_getIndex(control);
+        int eraseKey = control->getIndex();
         m_stageMap.erase(eraseKey);
         m_stagePool.Free(control);
     }
@@ -1657,12 +1406,12 @@ void CGameManager::checkOutAdvanceAltar(CUser* user)
     {
         advancealtar::StageControl* control =
             getAdvanceAltar(user->getAdvanceAltarIndex());
-        if (control != 0 && sub_StageControl_leaveUser(control) != 1)
+        if (control != 0 && control->leaveUser() != 1)
         {
             LogManager::logFormat(1, "App.cpp",
                                   "void CGameManager::checkOutAdvanceAltar(CUser*)", 0x11ef,
                                   "invalid user : advance altar logout ID[%d] ACCID[%s]",
-                                  sub_StageControl_getIndex(control),
+                                  control->getIndex(),
                                   NumberToString(user->get_acc_id(), 0));
         }
     }
@@ -1677,7 +1426,7 @@ void CGameManager::onTimeAdvanceAltar()
     while (it != m_stageMap.end())
     {
         advancealtar::StageControl* control = it->second;
-        if (sub_StageControl_onTimerStageTick(control) == 1)
+        if (control->onTimerStageTick() == 1)
         {
             it++;
         }
@@ -1698,15 +1447,15 @@ BlueMarble* CGameManager::getBlueMarble()
     BlueMarble* marble = m_blueMarblePool.Acquire();
     if (marble == 0)
         return 0;
-    sub_BlueMarble_setMemoryPoolIndex(marble, m_blueMarblePool.GetIndex(marble));
-    int marbleIdx = sub_BlueMarble_getMemoryPoolIndex(marble);
+    marble->setMemoryPoolIndex(m_blueMarblePool.GetIndex(marble));
+    int marbleIdx = marble->getMemoryPoolIndex();
     __gnu_cxx::hash_map<int, BlueMarble*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<BlueMarble*> >::iterator it =
             m_blueMarbleMap.find(marbleIdx);
     if (it == m_blueMarbleMap.end())
     {
-        m_blueMarbleMap[sub_BlueMarble_getMemoryPoolIndex(marble)] = marble;
+        m_blueMarbleMap[marble->getMemoryPoolIndex()] = marble;
         return marble;
     }
     else
@@ -1736,14 +1485,14 @@ void CGameManager::putBlueMarble(BlueMarble* marble)
 {
     if (marble == 0)
         return;
-    int key = sub_BlueMarble_getMemoryPoolIndex(marble);
+    int key = marble->getMemoryPoolIndex();
     __gnu_cxx::hash_map<int, BlueMarble*,
         __gnu_cxx::hash<int>, std::equal_to<int>,
         std::allocator<BlueMarble*> >::iterator it =
             m_blueMarbleMap.find(key);
     if (it != m_blueMarbleMap.end())
     {
-        int eraseKey = sub_BlueMarble_getMemoryPoolIndex(marble);
+        int eraseKey = marble->getMemoryPoolIndex();
         m_blueMarbleMap.erase(eraseKey);
         m_blueMarblePool.Free(marble);
     }
@@ -1756,7 +1505,7 @@ void CGameManager::checkOutBlueMarble(CUser* user)
         BlueMarble* marble = getBlueMarble(user->getBlueMarbleIndex());
         if (marble != 0)
         {
-            sub_BlueMarble_leaveUser(marble, user);
+            marble->leaveUser(user);
         }
     }
 }
@@ -1764,23 +1513,23 @@ void CGameManager::checkOutBlueMarble(CUser* user)
 void CGameManager::allocBlueMarble()
 {
     void* dm = G_CDataManager();
-    void* script = sub_CDataManager_getBlueMarbleScript(dm);
+    void* script = ((CDataManager*)dm)->getBlueMarbleScript();
     for (int i = 0; i < 300; ++i)
     {
         BlueMarble* marble = getBlueMarble();
-        sub_BlueMarble_getMemoryPoolIndex(marble);
+        marble->getMemoryPoolIndex();
         for (int j = 0; j < *(int*)((char*)script + 0x30); ++j)
         {
-            sub_BlueMarble_setUserInfo(marble, script);
+            marble->setUserInfo((BlueMarbleScriptManager*)script);
         }
-        sub_BlueMarble_setScript(marble, script);
+        marble->setScript((BlueMarbleScriptManager*)script);
     }
 }
 
 BlueMarble* CGameManager::findJoinableBlueMarble()
 {
     void* dm = G_CDataManager();
-    void* script = sub_CDataManager_getBlueMarbleScript(dm);
+    void* script = ((CDataManager*)dm)->getBlueMarbleScript();
     if (script == 0)
         return 0;
     int count = *(int*)((char*)script + 0x30);
@@ -1796,8 +1545,8 @@ BlueMarble* CGameManager::findJoinableBlueMarble()
             BlueMarble* marble = it->second;
             if (marble != 0)
             {
-                if (sub_BlueMarble_checkJoin(marble) &&
-                    sub_BlueMarble_getWaitUserCount(marble) == count - 1)
+                if (marble->checkJoin() &&
+                    marble->getWaitUserCount() == count - 1)
                     return marble;
             }
         }
@@ -1835,11 +1584,11 @@ void CGameManager::SendPartyList(CUser* user)
                     guard.put_int((int)strlen(party->getTitle()));
                     guard.put_str(party->getTitle(), (int)strlen(party->getTitle()));
                 }
-                guard.put_byte(sub_CParty_IsReturnUserParty(party) ? 1 : 0);
+                guard.put_byte(party->IsReturnUserParty() ? 1 : 0);
                 guard.put_byte(party->getUserMax() & 0xff);
                 guard.put_short(party->getDungIndex() & 0xffff);
                 guard.put_byte(party->getDungDiffi() & 0xff);
-                guard.put_byte(sub_CParty_IsEventCharacParty(party) ? 1 : 0);
+                guard.put_byte(party->IsEventCharacParty() ? 1 : 0);
             }
             if (type == 0 || type == 2)
             {
@@ -1855,23 +1604,22 @@ void CGameManager::SendPartyList(CUser* user)
                     else
                     {
                         guard.put_short(member->get_unique_id() & 0xffff);
-                        if (sub_CParty_getManager(party) == member)
+                        if (party->getManager() == member)
                             managerIdx = i;
-                        char sex = sub_CUser_getSex(member);
+                        char sex = member->getSex();
                         if (sex == -1)
                             sex = 1;
                         guard.put_byte((int)sex);
                     }
                 }
-                guard.put_byte(sub_CParty_IsReturnUserParty(party) ? 1 : 0);
+                guard.put_byte(party->IsReturnUserParty() ? 1 : 0);
                 guard.put_byte(managerIdx);
                 guard.put_byte(party->is_quick_party() & 0xff);
-                guard.put_byte(sub_CParty_IsEventCharacParty(party) ? 1 : 0);
+                guard.put_byte(party->IsEventCharacParty() ? 1 : 0);
             }
             if (type == 0 || type == 1 || type == 2)
             {
-                char matching = sub_GameWorld_is_dungeon_tag_matching_channel(
-                    G_GameWorld(), "[impossible]");
+                char matching = G_GameWorld()->is_dungeon_tag_matching_channel("[impossible]");
                 guard.put_byte((int)matching);
                 if (matching != 0)
                 {
@@ -1887,8 +1635,7 @@ void CGameManager::SendPartyList(CUser* user)
                             guard.put_byte(6);
                             for (int j = 0; j < 6; ++j)
                             {
-                                char dim = sub_CDataManager_get_dimensionInout(
-                                    G_CDataManager(), j);
+                                char dim = ((CDataManager*)G_CDataManager())->get_dimensionInout(j);
                                 guard.put_byte((int)dim);
                                 const void* characR = member->getCurCharacR();
                                 guard.put_byte(*(const char*)((const char*)characR + 0xeb9 + j));
@@ -1920,9 +1667,9 @@ void CGameManager::SendPvpList(CUser* user)
         PvP_Room* room = it->second;
         if (room != 0)
         {
-            if (sub_PvP_Room_get_waiter_count(room) > 0)
+            if (room->get_waiter_count() > 0)
             {
-                sub_PvP_Room_make_room_info(room, &guard);
+                room->make_room_info((char*)&guard);
             }
         }
         it++;
@@ -1948,7 +1695,7 @@ void CGameManager::SendWarRoomList(CUser* user)
         WarRoom* room = it->second;
         if (room != 0)
         {
-            sub_WarRoom_MakeRoomInfo(room, &guard);
+            room->MakeRoomInfo((char*)&guard);
             count = count + 1;
         }
         it++;
@@ -1969,9 +1716,9 @@ void CGameManager::SendWarRoomToAll(int index)
     if (it == m_warRoomMap.end())
         return;
     WarRoom* room = it->second;
-    sub_WarRoom_MakeRoomInfo(room, &guard);
+    room->MakeRoomInfo((char*)&guard);
     guard.finalize(true);
-    sub_GameWorld_send_all(G_GameWorld(), &guard);
+    G_GameWorld()->send_all(guard);
 }
 
 void CGameManager::PrintWarRoomList()
@@ -1984,26 +1731,25 @@ void CGameManager::PrintWarRoomList()
 void CGameManager::WarRoomAlloc()
 {
     void* dm = G_CDataManager();
-    int hourTable = sub_WarAreaCounter_GetCurrenTimeTable((char*)dm + 0x87b4);
+    int hourTable = ((CDataManager*)dm)->m_warAreaCounter.GetCurrenTimeTable();
     for (int area = 0; area < 10; ++area)
     {
         int count = 0;
         for (;;)
         {
             void* dm2 = G_CDataManager();
-            int need = sub_WarAreaCounter_GetWarRoomCountAtPeekTime(
-                (char*)dm2 + 0x87b4, area);
+            int need = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountAtPeekTime(area);
             if (need <= count)
                 break;
             WarRoom* room = GetWarRoom();
             *(char*)room = (char)area;
             *((char*)room + 1) = (char)count;
-            sub_WarRoom_Prepare(room);
+            room->Prepare();
             void* dm3 = G_CDataManager();
             if (count < *(int*)((char*)dm3 + 8 + (hourTable * 10 + area + 0x223c) * 4))
-                sub_WarRoom_SetState(room, 0);
+                room->SetState((WARROOM_STATE)0);
             else
-                sub_WarRoom_SetState(room, -1);
+                room->SetState((WARROOM_STATE)-1);
             count = count + 1;
         }
     }
@@ -2013,11 +1759,10 @@ void CGameManager::WarRoomAlloc()
 void CGameManager::WarRoomCountAdjustByChannelInfo()
 {
     void* dm = G_CDataManager();
-    void* script = sub_CDataManager_GetChannelScript(dm);
+    void* script = ((CDataManager*)dm)->GetChannelScript();
     void* env = G_CEnvironment();
     unsigned int channelNo = ((CEnvironment*)env)->get_channel_no();
-    int info = sub_channel_script_t_getChannelInfo(
-        script, *(unsigned char*)((char*)env + 0x378), channelNo);
+    channel_info_t* info = ((channel_script_t*)script)->getChannelInfo(*(unsigned char*)((char*)env + 0x378), channelNo);
     for (int a = 0; a < 10; ++a)
     {
         for (int b = 0; b < 0x18; ++b)
@@ -2045,8 +1790,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         for (;;)
         {
             void* dm = G_CDataManager();
-            int need = sub_WarAreaCounter_GetWarRoomCountAtPeekTime(
-                (char*)dm + 0x87b4, area);
+            int need = ((CDataManager*)dm)->m_warAreaCounter.GetWarRoomCountAtPeekTime(area);
             if (need <= n)
                 break;
             total = total + 1;
@@ -2059,7 +1803,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             }
             else
             {
-                if (sub_WarRoom_GetState(room) != -1)
+                if (room->GetState() != -1)
                     current[area] = current[area] + 1;
             }
             n = n + 1;
@@ -2069,7 +1813,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
     if (hourIndex == -1)
     {
         void* dm = G_CDataManager();
-        hourTable = sub_WarAreaCounter_GetCurrenTimeTable((char*)dm + 0x87b4);
+        hourTable = ((CDataManager*)dm)->m_warAreaCounter.GetCurrenTimeTable();
     }
     else
     {
@@ -2091,7 +1835,7 @@ void CGameManager::WarRoomCountManage(int hourIndex)
             {
                 guard.put_short(index, totalDiff);
                 guard.finalize(true);
-                sub_GameWorld_send_all(G_GameWorld(), &guard);
+                G_GameWorld()->send_all(guard);
                 PrintWarRoomList();
                 cMyTrace tr3("void CGameManager::WarRoomCountManage(int)", 0x30cf, 0);
                 tr3("WarRoomCountManage end");
@@ -2107,21 +1851,20 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         {
             int need = diff < 0 ? -diff : diff;
             void* dm2 = G_CDataManager();
-            int lastIdx = sub_WarAreaCounter_GetWarRoomCountLastIndex(
-                (char*)dm2 + 0x87b4, area);
+            int lastIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountLastIndex(area);
             while (need != 0)
             {
                 lastIdx = lastIdx - 1;
                 WarRoom* room = G_CGameManager()->GetWarRoom();
                 if (room == 0)
                     break;
-                if (room == 0 || sub_WarRoom_GetState(room) == -1)
-                    ;
+                if (room == 0 || room->GetState() == -1)
+                ;
                 else
                 {
-                    char shut = sub_WarRoom_ShutDown(room);
+                    char shut = room->ShutDown();
                     if (shut != 0)
-                        sub_WarRoom_MakeStateInfo(room, &guard);
+                        room->MakeStateInfo((char*)&guard);
                     need = need - 1;
                 }
             }
@@ -2130,20 +1873,19 @@ void CGameManager::WarRoomCountManage(int hourIndex)
         {
             unsigned int need = (unsigned int)diff;
             void* dm2 = G_CDataManager();
-            int firstIdx = sub_WarAreaCounter_GetWarRoomCountFirstIndex(
-                (char*)dm2 + 0x87b4, area);
+            int firstIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountFirstIndex(area);
             while (need != 0)
             {
                 firstIdx = firstIdx + 1;
                 WarRoom* room = G_CGameManager()->GetWarRoom();
                 if (room == 0)
                     break;
-                if (room == 0 || sub_WarRoom_GetState(room) != -1)
-                    ;
+                if (room == 0 || room->GetState() != -1)
+                ;
                 else
                 {
-                    sub_WarRoom_Open(room);
-                    sub_WarRoom_MakeStateInfo(room, &guard);
+                    room->Open();
+                    room->MakeStateInfo((char*)&guard);
                     need = need - 1;
                 }
             }
@@ -2165,8 +1907,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
         for (;;)
         {
             void* dm = G_CDataManager();
-            int need = sub_WarAreaCounter_GetWarRoomCountAtPeekTime(
-                (char*)dm + 0x87b4, area);
+            int need = ((CDataManager*)dm)->m_warAreaCounter.GetWarRoomCountAtPeekTime(area);
             if (need <= n)
                 break;
             total = total + 1;
@@ -2179,7 +1920,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
             }
             else
             {
-                if (sub_WarRoom_GetState(room) != -1)
+                if (room->GetState() != -1)
                     current[area] = current[area] + 1;
             }
             n = n + 1;
@@ -2200,19 +1941,18 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
         {
             int need = diff < 0 ? -diff : diff;
             void* dm2 = G_CDataManager();
-            int lastIdx = sub_WarAreaCounter_GetWarRoomCountLastIndex(
-                (char*)dm2 + 0x87b4, area);
+            int lastIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountLastIndex(area);
             while (need != 0)
             {
                 lastIdx = lastIdx - 1;
                 WarRoom* room = G_CGameManager()->GetWarRoom();
-                if (room == 0 || sub_WarRoom_GetState(room) == -1)
-                    ;
+                if (room == 0 || room->GetState() == -1)
+                ;
                 else
                 {
-                    char shut = sub_WarRoom_ShutDown(room);
+                    char shut = room->ShutDown();
                     if (shut != 0)
-                        sub_WarRoom_MakeStateInfo(room, &guard);
+                        room->MakeStateInfo((char*)&guard);
                     need = need - 1;
                 }
             }
@@ -2221,18 +1961,17 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
         {
             unsigned int need = (unsigned int)diff;
             void* dm2 = G_CDataManager();
-            int firstIdx = sub_WarAreaCounter_GetWarRoomCountFirstIndex(
-                (char*)dm2 + 0x87b4, area);
+            int firstIdx = ((CDataManager*)dm2)->m_warAreaCounter.GetWarRoomCountFirstIndex(area);
             while (need != 0)
             {
                 firstIdx = firstIdx + 1;
                 WarRoom* room = G_CGameManager()->GetWarRoom();
-                if (room == 0 || sub_WarRoom_GetState(room) != -1)
-                    ;
+                if (room == 0 || room->GetState() != -1)
+                ;
                 else
                 {
-                    sub_WarRoom_Open(room);
-                    sub_WarRoom_MakeStateInfo(room, &guard);
+                    room->Open();
+                    room->MakeStateInfo((char*)&guard);
                     need = need - 1;
                 }
             }
@@ -2243,7 +1982,7 @@ void CGameManager::WarRoomCountManageTest(int hourIndex)
     {
         guard.put_short(index, totalDiff);
         guard.finalize(true);
-        sub_GameWorld_send_all(G_GameWorld(), &guard);
+        G_GameWorld()->send_all(guard);
         PrintWarRoomList();
     }
 }
@@ -2284,7 +2023,7 @@ QuickParty::CQuickPartySystemManager* CGameManager::GetQuickPartySystemManager()
         void* pMgr = operator new(0x18);
         try
         {
-            sub_CQuickPartySystemManager_ctor(pMgr);
+            new (pMgr) QuickParty::CQuickPartySystemManager();
         }
         catch (...)
         {
@@ -2301,7 +2040,7 @@ QuickParty::CQuickPartyRewardManager* CGameManager::GetQuickPartyRewardManager()
     if (m_pQuickPartyRewardMgr == 0)
     {
         void* pMgr = operator new(0x228);
-        sub_CQuickPartyRewardManager_ctor(pMgr);
+        new (pMgr) QuickParty::CQuickPartyRewardManager();
         m_pQuickPartyRewardMgr = (QuickParty::CQuickPartyRewardManager*)pMgr;
     }
     return m_pQuickPartyRewardMgr;
@@ -2312,7 +2051,7 @@ CPremiumLetheManager* CGameManager::GetPremiumLetheManager()
     if (m_pPremiumLetheMgr == 0)
     {
         void* pMgr = operator new(1);
-        sub_CPremiumLetheManager_ctor(pMgr);
+        new (pMgr) CPremiumLetheManager();
         m_pPremiumLetheMgr = (CPremiumLetheManager*)pMgr;
     }
     return m_pPremiumLetheMgr;
@@ -2324,7 +2063,7 @@ CSharedServerMessageManager* CGameManager::GetSharedServerMessageManager()
     {
         void* dm = G_CDataManager();
         void* pMgr = operator new(0x18);
-        sub_CSharedServerMessageManager_ctor(pMgr, (char*)dm + 0x7d8);
+        new (pMgr) CSharedServerMessageManager((stSharedServerMessageInfo*)((char*)dm + 0x7d8));
         m_pSharedServerMessageMgr = (CSharedServerMessageManager*)pMgr;
     }
     return m_pSharedServerMessageMgr;
@@ -2335,7 +2074,7 @@ CSpecialItemRoutingManager* CGameManager::GetSpecialItemRoutingManager()
     if (m_pSpecialItemRoutingMgr == 0)
     {
         void* pMgr = operator new(1);
-        sub_CSpecialItemRoutingManager_ctor(pMgr);
+        new (pMgr) CSpecialItemRoutingManager();
         m_pSpecialItemRoutingMgr = (CSpecialItemRoutingManager*)pMgr;
     }
     return m_pSpecialItemRoutingMgr;
@@ -2346,7 +2085,7 @@ CConditionEventManager* CGameManager::GetConditionEventManager()
     if (m_pConditionEventMgr == 0)
     {
         void* pMgr = operator new(1);
-        sub_CConditionEventManager_ctor(pMgr);
+        new (pMgr) CConditionEventManager();
         m_pConditionEventMgr = (CConditionEventManager*)pMgr;
     }
     return m_pConditionEventMgr;
@@ -2359,7 +2098,7 @@ CAuctionAveragePrice* CGameManager::GetAuctionAveragePriceManager()
         void* pMgr = operator new(0x18, std::nothrow);
         if (pMgr != 0)
         {
-            sub_CAuctionAveragePrice_ctor(pMgr);
+            new (pMgr) CAuctionAveragePrice();
         }
         m_pAuctionAveragePriceMgr = (CAuctionAveragePrice*)pMgr;
     }
@@ -2374,10 +2113,6 @@ CraneMinigameManager* CGameManager::GetCraneMinigameManager()
 // ============================================================================
 // 用户信息上报
 // ============================================================================
-struct Packet_Monitor_UDP_Reply_UserInfo
-{
-    char m_buf[0x16e6];
-};
 
 // ORIG 0x829611a _Z25SendUserInfoToUpperServerR33Packet_Monitor_UDP_Reply_UserInfohP5CUser17ENUM_SERVER_GROUP
 // 按 type 选择上层代理发送（0xcb→公会代理 / 0xc9→监控代理），
@@ -2389,62 +2124,47 @@ void SendUserInfoToUpperServer(Packet_Monitor_UDP_Reply_UserInfo& pkt,
     if (type == 0xcb)
     {
         unsigned short len = *(unsigned short*)((char*)&pkt + 2);
-        void* proxy = sub_CServerProxyMgrGuild_GetServerProxy(
-            GlobalData::s_guild_proxy_mgr, (int)group);
-        sub_CGuildServerProxy_SendTcpPacket(proxy, &pkt, len);
+        CGuildServerProxy* proxy = GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)(int)group);
+        proxy->SendTcpPacket((char*)&pkt, len);
     }
     else if (type == 0xc9)
     {
         unsigned short len = *(unsigned short*)((char*)&pkt + 2);
-        void* proxy = sub_CServerProxyMgrMonitor_GetServerProxy(
-            GlobalData::s_monitor_proxy_mgr, (int)group);
-        sub_CMonitorServerProxy_SendTcpPacket(proxy, &pkt, len);
+        CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)(int)group);
+        proxy->SendTcpPacket((char*)&pkt, len);
     }
     memset((char*)&pkt + 0xc, 0, 0x16da);
 }
 
-struct Packet_CutOff_UDP_Reply_UserInfo
-{
-    char m_buf[0xb10];
-};
 
-struct Packet_ChannelType
-{
-    char m_buf[0x14];
-};
 
 void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
 {
     int userCount = 0;
     Packet_Monitor_UDP_Reply_UserInfo pkt;
-    sub_Packet_Monitor_UDP_Reply_UserInfo_ctor(&pkt);
-    char* p = pkt.m_buf;
+    char* p = (char*)&pkt;
     p[11] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
-    if (sub_GameWorld_IsIntegratedPvPBaseChannel(G_GameWorld()) && channelType == 0xc9)
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel() && channelType == 0xc9)
     {
         int idx = 0;
-        int group = sub_CServerProxyMgrMonitor_GetStartIndex(GlobalData::s_monitor_proxy_mgr);
-        while (idx < sub_CServerProxyMgrMonitor_GetEndIndex(GlobalData::s_monitor_proxy_mgr))
+        int group = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
+        while (idx < GlobalData::s_monitor_proxy_mgr->GetEndIndex())
         {
             Packet_ChannelType ctype;
-            sub_Packet_ChannelType_ctor(&ctype);
-            *(unsigned int*)(ctype.m_buf + 0xc) =
+            *(unsigned int*)((char*)&ctype + 0xc) =
                 (unsigned int)((CEnvironment*)G_CEnvironment())->get_channel_no();
-            *(unsigned int*)(ctype.m_buf + 0x10) =
-                (unsigned int)sub_GameWorld_GetChannelType(G_GameWorld());
-            void* proxy = sub_CServerProxyMgrMonitor_GetServerProxy(
-                GlobalData::s_monitor_proxy_mgr, group);
-            sub_CMonitorServerProxy_SendTcpPacket(
-                proxy, &ctype, *(unsigned short*)(ctype.m_buf + 8));
-            group = sub_CServerProxyMgrMonitor_GetNextIndex(
-                GlobalData::s_monitor_proxy_mgr, &idx);
+            *(unsigned int*)((char*)&ctype + 0x10) =
+                (unsigned int)G_GameWorld()->GetChannelType();
+            CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)group);
+            proxy->SendTcpPacket((char*)&ctype, *(unsigned short*)((char*)&ctype + 8));
+            group = GlobalData::s_monitor_proxy_mgr->GetNextIndex(idx);
         }
     }
     if (!m_userByAccId.empty())
     {
         int groupIdx = 0;
-        int group = sub_CServerProxyMgrMonitor_GetStartIndex(GlobalData::s_monitor_proxy_mgr);
-        while (groupIdx < sub_CServerProxyMgrMonitor_GetEndIndex(GlobalData::s_monitor_proxy_mgr))
+        int group = GlobalData::s_monitor_proxy_mgr->GetStartIndex();
+        while (groupIdx < GlobalData::s_monitor_proxy_mgr->GetEndIndex())
         {
             CUser* lastUser = 0;
             std::map<unsigned int, CUser*>::iterator it = m_userByAccId.begin();
@@ -2464,8 +2184,8 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                     *(unsigned short*)(p + 30 + n * 0x4e) = user->get_charac_level();
                     *(unsigned int*)(p + 62 + n * 0x4e) = user->get_charac_memberkey();
                     strcpy(p + 32 + n * 0x4e, user->getCurCharacName());
-                    p[82 + n * 0x4e] = sub_CUser_getSex(user);
-                    memcpy(p + 83 + n * 0x4e, sub_CUser_GetSsnString(user), 6);
+                    p[82 + n * 0x4e] = user->getSex();
+                    memcpy(p + 83 + n * 0x4e, user->GetSsnString(), 6);
                     char ipBuf[16];
                     ((CNetwork<4096, 450000>*)((char*)user + 0xe0))
                         ->GetPeerIP2(ipBuf, 0x10);
@@ -2488,8 +2208,7 @@ void CGameManager::Send_userinfos_to_upper_server(unsigned char channelType)
                 SendUserInfoToUpperServer(pkt, channelType, lastUser, (ENUM_SERVER_GROUP)group);
                 userCount = 0;
             }
-            group = sub_CServerProxyMgrMonitor_GetNextIndex(
-                GlobalData::s_monitor_proxy_mgr, &groupIdx);
+            group = GlobalData::s_monitor_proxy_mgr->GetNextIndex(groupIdx);
         }
     }
 }
@@ -2506,9 +2225,8 @@ void CGameManager::send_userinfos_to_cutoff_server()
     for (int i = 9; i != -1; --i)
         new (&buckets[i]) STTempUsers();
     Packet_CutOff_UDP_Reply_UserInfo pkt;
-    sub_Packet_CutOff_UDP_Reply_UserInfo_ctor(&pkt);
-    pkt.m_buf[12] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
-    pkt.m_buf[13] = *(char*)((char*)G_CEnvironment() + 0x378);
+    ((char*)&pkt)[12] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    ((char*)&pkt)[13] = *(char*)((char*)G_CEnvironment() + 0x378);
     if (!m_userByAccId.empty())
     {
         std::map<unsigned int, CUser*>::iterator it = m_userByAccId.begin();
@@ -2529,18 +2247,16 @@ void CGameManager::send_userinfos_to_cutoff_server()
         {
             if (*(unsigned short*)((char*)buckets + i * 0x964) != 0)
             {
-                *(unsigned short*)(pkt.m_buf + 2) =
+                *(unsigned short*)((char*)&pkt + 2) =
                     *(unsigned short*)((char*)buckets + i * 0x964) * 4 + 0xe;
-                *(unsigned int*)(pkt.m_buf + 6) =
+                *(unsigned int*)((char*)&pkt + 6) =
                     *(unsigned int*)((char*)buckets + 4 + i * 0x964);
-                *(unsigned short*)(pkt.m_buf + 10) =
+                *(unsigned short*)((char*)&pkt + 10) =
                     *(unsigned short*)((char*)buckets + i * 0x964);
-                memcpy(pkt.m_buf + 16,
+                memcpy((char*)&pkt + 16,
                        (char*)buckets + 4 + i * 0x964,
                        (unsigned int)*(unsigned short*)((char*)buckets + i * 0x964) * 4);
-                sub_CDoubleConnCheckServerProxy_SendPacket(
-                    GlobalData::s_double_check_proxy, &pkt,
-                    (unsigned int)*(unsigned short*)((char*)buckets + i * 0x964) * 4 + 0xe);
+                GlobalData::s_double_check_proxy->SendPacket((char*)&pkt, (unsigned int)*(unsigned short*)((char*)buckets + i * 0x964) * 4 + 0xe);
             }
         }
     }
@@ -2575,11 +2291,11 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     std::vector<std::pair<int, int> > vecA;
     std::vector<std::pair<int, int> > vecB;
     bool bGuildPointDel = false;
-    if (curSec < sub_Inter_MonitorGuildPointDel_getLastDeleteTime())
+    if (curSec < Inter_MonitorGuildPointDel::getLastDeleteTime())
     {
         bGuildPointDel = false;
     }
-    else if (sub_Inter_MonitorGuildPointDel_getLastDeleteTime() <=
+    else if (Inter_MonitorGuildPointDel::getLastDeleteTime() <=
              user->getCurCharacLastPlayTick())
     {
         bGuildPointDel = false;
@@ -2600,11 +2316,9 @@ unsigned int CGameManager::insert_game_world(CUser* user)
             std::make_pair((ENUM_HARDCODE_ITEM)0, 0x4b0);
         vecA.push_back(std::move(p));
         user->setCurCharacGuildSecede(0);
-        sub_DB_GuildExpBookDelete_makeRequest(
-            (unsigned int)user->get_charac_no(-1), 0,
-            (int)(size_t)user->GetServerGroup());
+        DB_GuildExpBookDelete::makeRequest((unsigned int)user->get_charac_no(-1), 0, (ENUM_SERVER_GROUP)(size_t)user->GetServerGroup());
     }
-    sub_CUser_ResetItemByScript(user, &vecA);
+    user->ResetItemByScript(vecA);
     int curSec2 = GlobalData::s_systemTime_.getCurSec();
     const void* characR2 = user->getCurCharacR();
     long lastPlay = *(long*)((char*)characR2 + 0x7b);
@@ -2613,11 +2327,11 @@ unsigned int CGameManager::insert_game_world(CUser* user)
             *(int*)((char*)env + 0x37c), lastPlay, curSec2))
     {
         std::vector<std::pair<int, int> > vecC;
-        sub_CUser_deleteDailyStackableItem(user, &vecC, 3, 8);
-        sub_CUser_deleteDailyStackableItem(user, &vecC, 0x39, 0x68);
+        user->deleteDailyStackableItem(vecC, 3, 8);
+        user->deleteDailyStackableItem(vecC, 0x39, 0x68);
     }
-    sub_CUser_deleteSpecificItem(user, &vecA, &vecB);
-    if (sub_CUser_send_itemspace(user, 0xc) != 1)
+    user->deleteSpecificItem(vecA, vecB);
+    if (user->send_itemspace(0xc) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
                               "bool CGameManager::insert_game_world(CUser*)", 0xf58,
@@ -2625,7 +2339,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (sub_CUser_send_itemspace(user, 0) != 1)
+    if (user->send_itemspace(0) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
                               "bool CGameManager::insert_game_world(CUser*)", 0xf5f,
@@ -2633,7 +2347,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (sub_CUser_send_itemspace(user, 1) != 1)
+    if (user->send_itemspace(1) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
                               "bool CGameManager::insert_game_world(CUser*)", 0xf64,
@@ -2641,7 +2355,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (sub_CUser_send_itemspace(user, 2) != 1)
+    if (user->send_itemspace(2) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
                               "bool CGameManager::insert_game_world(CUser*)", 0xf69,
@@ -2649,7 +2363,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (sub_CUser_send_itemspace(user, 7) != 1)
+    if (user->send_itemspace(7) != 1)
     {
         LogManager::logFormat(1, "App.cpp",
                               "bool CGameManager::insert_game_world(CUser*)", 0xf7a,
@@ -2657,11 +2371,11 @@ unsigned int CGameManager::insert_game_world(CUser* user)
                               NumberToString(user->get_acc_id(), 0));
         return 0;
     }
-    if (sub_GameWorld_GetChannelType(G_GameWorld()) == 0xe)
+    if (G_GameWorld()->GetChannelType() == 0xe)
     {
         user->set_charac_guildkey(0);
     }
-    if (sub_GameWorld_reach_game_world(G_GameWorld(), user) != 1)
+    if (G_GameWorld()->reach_game_world(user) != 1)
     {
         cMyTrace tr("bool CGameManager::insert_game_world(CUser*)", 0xfa2, 0);
         tr("CGameManager::insert_game_world , !G_GameWorld()->reach_game_world( pUser ) , USER : %d(%s)",
@@ -2675,14 +2389,14 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     int eventGrow = (int)user->getCurCharacEventCharacterGrowtype();
     if (eventGrow > 0)
     {
-        sub_CEventCharacterHandler__makeEventCharacter((void*)CEventCharacterHandlerInstance(), user, 0x28);
+        CEventCharacterHandlerInstance()->_makeEventCharacter(user, 0x28);
     }
     CExpandEquipslot* expandSlot = user->GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE_9);
     if (user->getCurChannelEquipslotSwitch() == 1)
     {
         char c = user->getCurExpandEquipslotSwitch();
         char d = user->getCurChannelEquipslotSwitch();
-        sub_CExpandEquipslot_EquipslotSwitch(expandSlot, user, 0, d, c);
+        expandSlot->EquipslotSwitch(user, 0, d, c);
     }
     else
     {
@@ -2690,14 +2404,14 @@ unsigned int CGameManager::insert_game_world(CUser* user)
         {
             char c = user->getCurExpandEquipslotSwitch();
             char d = user->getCurChannelEquipslotSwitch();
-            sub_CExpandEquipslot_EquipslotSwitch(expandSlot, user, 0, d, c);
+            expandSlot->EquipslotSwitch(user, 0, d, c);
         }
     }
-    int channelType = sub_GameWorld_GetChannelType(G_GameWorld());
+    int channelType = G_GameWorld()->GetChannelType();
     if (channelType == 0xf || channelType == 0x10)
     {
         void* mission = user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
-        sub_CMissionList_Charac_Update_EnterWorld_event(mission, user);
+        ((CMissionList_Charac*)mission)->Update_EnterWorld_event(*user);
     }
     PacketGuard guard;
     guard.put_header(0, 2);
@@ -2705,7 +2419,7 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     guard.put_short(1);
     user->make_basic_info((char*)&guard, 0);
     guard.finalize(true);
-    sub_GameWorld_send_all_user(G_GameWorld(), &guard, user);
+    G_GameWorld()->send_all(guard, user);
     user->send_skill_info();
     guard.clear();
     guard.put_header(0, 2);
@@ -2714,16 +2428,16 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     user->make_basic_info((char*)&guard, 1);
     guard.finalize(true);
     user->Send(guard);
-    sub_CExpandEquipslot_Send_Expand_Equip_Info(expandSlot, user);
-    sub_CUser_processReturnUserQuestAutoClear(user);
-    sub_CUser_send_clear_quest_list(user);
+    expandSlot->Send_Expand_Equip_Info(user);
+    user->processReturnUserQuestAutoClear();
+    user->send_clear_quest_list();
     guard.clear();
-    sub_UserQuest_get_quest_info(user->getCurCharacQuestR(), &guard);
+    user->getCurCharacQuestR()->get_quest_info((char*)&guard);
     user->Send(guard);
-    sub_CTitleBook_sendList(user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)14));
-    sub_CAchievement_sendList(user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)15));
-    sub_CItemLock_SendItemLockList(user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2), user);
-    if (sub_GameWorld_GetChannelType(G_GameWorld()) != 0xf)
+    ((CTitleBook*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)14))->sendList();
+    ((CAchievement*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)15))->sendList();
+    ((item_lock::CItemLock*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)2))->SendItemLockList(user);
+    if (G_GameWorld()->GetChannelType() != 0xf)
     {
         SendPvpList(user);
     }
@@ -2744,38 +2458,34 @@ unsigned int CGameManager::insert_game_world(CUser* user)
     guard.finalize(true);
     user->Send(guard);
     std::map<std::pair<char, char>, int>* pics =
-        (std::map<std::pair<char, char>, int>*)sub_CUser_GetPICSMap(user);
+        (std::map<std::pair<char, char>, int>*)user->GetPICSMap();
     pics->clear();
-    sub_CUser_ReCalcChattingEmoticon(user);
-    sub_CUser_SendChattingEmoticon(user);
-    char monitor[0x3f];
-    sub_Packet_Monitor_Char_Info_ctor(monitor);
-    *(unsigned int*)(monitor + 0xa) = user->get_acc_id();
-    monitor[0xe] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
-    monitor[0x3d] = (char)sub_GameWorld_GetChannelType(G_GameWorld());
-    *(unsigned int*)(monitor + 0xf) = (unsigned int)user->get_charac_no(-1);
-    *(unsigned int*)(monitor + 0x13) = user->get_charac_guildkey();
-    monitor[0x17] = user->get_charac_job();
-    monitor[0x18] = user->getCurCharacGrowType();
-    *(unsigned short*)(monitor + 0x19) = user->get_charac_level();
-    *(unsigned int*)(monitor + 0x1b) = user->get_charac_memberkey();
+    user->ReCalcChattingEmoticon();
+    user->SendChattingEmoticon();
+        Packet_Monitor_Char_Info monitor;  // ORIG ctor 0x82a3ffa
+    *(unsigned int*)((char*)&monitor + 0xa) = user->get_acc_id();
+    ((char*)&monitor)[0xe] = (char)((CEnvironment*)G_CEnvironment())->get_channel_no();
+    ((char*)&monitor)[0x3d] = (char)G_GameWorld()->GetChannelType();
+    *(unsigned int*)((char*)&monitor + 0xf) = (unsigned int)user->get_charac_no(-1);
+    *(unsigned int*)((char*)&monitor + 0x13) = user->get_charac_guildkey();
+    ((char*)&monitor)[0x17] = user->get_charac_job();
+    ((char*)&monitor)[0x18] = user->getCurCharacGrowType();
+    *(unsigned short*)((char*)&monitor + 0x19) = user->get_charac_level();
+    *(unsigned int*)((char*)&monitor + 0x1b) = user->get_charac_memberkey();
     const char* name = user->getCurCharacName();
     int nameLen = (int)strlen(name);
-    memcpy(monitor + 0x1f, user->getCurCharacName(), nameLen);
-    monitor[0x3e] = user->IsReturnUserFirstLogin();
+    memcpy((char*)&monitor + 0x1f, user->getCurCharacName(), nameLen);
+    ((char*)&monitor)[0x3e] = user->IsReturnUserFirstLogin();
     int serverGroup = (int)(size_t)user->GetServerGroup();
-    void* monitorProxy = sub_CServerProxyMgrMonitor_GetServerProxy(
-        GlobalData::s_monitor_proxy_mgr, serverGroup);
-    sub_CMonitorServerProxy_SendTcpPacket(monitorProxy, monitor, 0x3f);
+    CMonitorServerProxy* monitorProxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)serverGroup);
+    monitorProxy->SendTcpPacket((char*)&monitor, 0x3f);
     int guildGroup = (int)(size_t)user->GetServerGroup();
-    void* guildProxy = sub_CServerProxyMgrGuild_GetServerProxy(
-        GlobalData::s_guild_proxy_mgr, guildGroup);
-    sub_CGuildServerProxy_SendTcpPacket(guildProxy, monitor, 0x3f);
-    sub_CSchoolMgr_AddUser(g_schoolMgr, user);
+    CGuildServerProxy* guildProxy = GlobalData::s_guild_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)guildGroup);
+    guildProxy->SendTcpPacket((char*)&monitor, 0x3f);
+    g_schoolMgr->AddUser(user);
     if (user->get_charac_guildkey() != 0)
     {
-        sub_CGuildAgitManager_AllocGuildAgitArea(
-            g_guildAgitMgr, user->get_charac_guildkey());
+        g_guildAgitMgr->AllocGuildAgitArea(user->get_charac_guildkey());
     }
     int characNo = user->getCurCharacNo();
     int loginTick = user->GetLoginTick();
@@ -2814,15 +2524,15 @@ void CGameManager::user_disconnect(CUser* user)
            "void CGameManager::user_disconnect(CUser*)", 0x138b);
         return;
     }
-    sub_HistoryLog_LogClose(*(void**)((char*)user + 0x796f8));
+    HistoryLog::LogClose((FILE*)user->m_field796f8);
     if (user->get_state() != 0)
     {
-        sub_CUser_prepareDisconnect(user);
-        sub_GameWorld_EraseLoginUser(G_GameWorld(), user);
-        sub_CUser_SetSaveRentalInfoToExchange(user, false);
+        user->prepareDisconnect();
+        G_GameWorld()->EraseLoginUser(user);
+        user->SetSaveRentalInfoToExchange(false);
         if (user->get_state() < 3)
         {
-            sub_CUser_SetSaveRentalInfoToExchange(user, false);
+            user->SetSaveRentalInfoToExchange(false);
             user->LogoutCachedCharacter(0);
             user->UpdateLogout(true);
             returnUserPool(user);
@@ -2837,15 +2547,15 @@ void CGameManager::user_disconnect(CUser* user)
             checkOutBossTower(user);
             checkOutAdvanceAltar(user);
             checkOutBlueMarble(user);
-            sub_GameWorld_leave_game_world(G_GameWorld(), user);
-            sub_CUser_SetGameMasterMode(user, false);
+            G_GameWorld()->leave_game_world(user);
+            user->SetGameMasterMode(false);
             user->UpdateData();
             user->LogoutCachedCharacter(0);
             user->UpdateLogout(true);
-            sub_CUser_DeleteRentalItemInfo(user, 1);
-            sub_CUser_DeleteRentalItemInfo(user, 2);
+            user->DeleteRentalItemInfo(1);
+            user->DeleteRentalItemInfo(2);
             user->ResetCurCharac();
-            sub_CUser_doLinkCharacDisconnect(user);
+            user->doLinkCharacDisconnect();
             returnUserPool(user);
         }
 }

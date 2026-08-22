@@ -83,17 +83,7 @@ struct SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD
     unsigned char m_treeKind;        // +0x1a6
 };
 
-// ---- CUser 未声明方法（ORIG mangling 精确符号；真实定义属其它 TU） ----
-extern "C" bool sub_CUser_isAffectedPremium(void* self, int premiumType)
-    asm("_ZNK5CUser17isAffectedPremiumE17ENUM_PREMIUM_TYPE");
-extern "C" bool sub_CUser_master_new_skills(void* self, void* skills, int kind)
-    asm("_ZN5CUser17master_new_skillsEP15_Mastered_skill20ENUM_SKILL_TREE_KIND");
-extern "C" void sub_CUser_givePvPSkillTree(void* self, int a, bool b, int c)
-    asm("_ZN5CUser16givePvPSkillTreeEibi");
-extern "C" void sub_CUser_send_skill_info(void* self)
-    asm("_ZN5CUser15send_skill_infoEv");
-extern "C" int sub_CUser_GetCurExpertJobLevel(void* self, int exp)
-    asm("_ZN5CUser20GetCurExpertJobLevelEi");
+// ---- CUser 方法声明见 CUser.h（本 TU 直接真实调用） ----
 
 CPremiumLetheManager::CPremiumLetheManager()
 {
@@ -109,7 +99,7 @@ bool CPremiumLetheManager::ResetSkillReq(CUser* user)
     {
         return false;
     }
-    if (!sub_CUser_isAffectedPremium(user, 0x21))
+    if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
     {
         return false;
     }
@@ -123,7 +113,7 @@ bool CPremiumLetheManager::ConfirmSkillReq(CUser* user)
     {
         return false;
     }
-    if (!sub_CUser_isAffectedPremium(user, 0x21))
+    if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
     {
         return false;
     }
@@ -142,7 +132,7 @@ bool CPremiumLetheManager::BackToPre(CUser* user, _Mastered_skill* skills,
         return false;
     }
     InitSkill(user, false, kind);
-    if (!sub_CUser_master_new_skills(user, skills, kind))
+    if (!user->master_new_skills(skills, kind))
     {
         return false;
     }
@@ -187,7 +177,7 @@ bool CPremiumLetheManager::UpdateBackupSkillFlag(CUser* user,
 bool CPremiumLetheManager::InitLetheSkill(CUser* user,
                                           ENUM_SKILL_TREE_KIND kind)
 {
-    if (!sub_CUser_isAffectedPremium(user, 0x21))
+    if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
     {
         return false;
     }
@@ -217,7 +207,7 @@ void CPremiumLetheManager::_resetSkill(CUser* user)
     }
     else
     {
-        if (!sub_CUser_isAffectedPremium(user, 0x21))
+        if (!user->isAffectedPremium((ENUM_PREMIUM_TYPE)0x21))
         {
         }
         else
@@ -247,7 +237,7 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
         {
             kind2 = 2;
         }
-        sub_CUser_givePvPSkillTree(user, 0, true, kind2);
+        user->givePvPSkillTree(0, true, kind2);
         int grade = user->get_pvp_grade();
         int second = (signed char)user->getCurCharSecondGrowType();
         int first = (signed char)user->getCurCharFirstGrowType();
@@ -259,7 +249,7 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
         slot->set_remain_sp_at_index(point, kind);
         if (flag)
         {
-            sub_CUser_send_skill_info(user);
+            user->send_skill_info();
             const char* name = user->getCurCharacName();
             cMyTrace trace("void CPremiumLetheManager::InitSkill(CUser*, bool, ENUM_SKILL_TREE_KIND)",
                            0xb1, 0);
@@ -309,8 +299,8 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
                 for (i2 = 0; i2 < expertVec->size(); ++i2)
                 {
                     int level =
-                        sub_CUser_GetCurExpertJobLevel(
-                            user, user->GetCurCharacExpertJobExp());
+                        user->GetCurExpertJobLevel(
+                            user->GetCurCharacExpertJobExp());
                     int skillIdx = (*expertVec)[i2].first;
                     slot = (SkillSlot*)user->getCurCharacSkillW();
                     slot->growtype_skill(user->get_charac_job(), skillIdx, level,
@@ -326,7 +316,7 @@ void CPremiumLetheManager::InitSkill(CUser* user, bool flag,
             changer.SkillInitialize(user, kind3, false);
             if (flag)
             {
-                sub_CUser_send_skill_info(user);
+                user->send_skill_info();
                 const char* name = user->getCurCharacName();
                 cMyTrace trace("void CPremiumLetheManager::InitSkill(CUser*, bool, ENUM_SKILL_TREE_KIND)",
                                0xf7, 0);

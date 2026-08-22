@@ -13,43 +13,9 @@
 #include <stack>
 #include <deque>
 
-// ---------------------------------------------------------------------------
-// CGuildAgitArea
-// ---------------------------------------------------------------------------
-class CGuildAgitArea
-{
-public:
-    CGuildAgitArea();                 // 0x0856f24c W
-    ~CGuildAgitArea();                // 0x0856f100 W
+#include "CGuildAgitManager.h"
 
-    void AllocGuildAgitArea(unsigned int guildKey);   // 0x082aa324 W
-    int GetArea();                                    // 0x082aa35a W
-    void SetAreaMapping(unsigned int guildKey, int areaIdx);  // 0x082aa3ca W
-    void SetGuildAgitAreaDomain(int start, int end);  // 0x086d249e W
-    int GetGuildAgitAreaIndex(unsigned int guildKey, int start);  // 0x086d24da W
-    void ReleaseGuildAgitArea(unsigned int guildKey);  // 0x086d2542 W
-
-    std::map<unsigned int, int> m_areaMap;   // +0x00
-    std::stack<int> m_areaStack;             // +0x18
-};
-
-// ---------------------------------------------------------------------------
-// CGuildAgitManager
-// ---------------------------------------------------------------------------
-class CGuildAgitManager
-{
-public:
-    CGuildAgitManager();              // 0x0856f2c6 W
-    ~CGuildAgitManager();             // 0x0856f146 W
-
-    void AllocGuildAgitArea(unsigned int guildKey);       // 0x082aa41c W
-    void SetGuildAgitAreaDomain(int start, int end);      // 0x086d2642 W
-    int GetGuildAgitAreaIndex(unsigned int guildKey, int start);  // 0x086d2666 W
-    void ReleaseGuildAgitArea(unsigned int guildKey);     // 0x086d268a W
-
-    std::map<unsigned int, unsigned int> m_guildCountMap;  // +0x00
-    CGuildAgitArea m_area;                                 // +0x18
-};
+// CGuildAgitArea / CGuildAgitManager 类声明见 CGuildAgitManager.h（唯一声明点）
 
 // ============================================================================
 // CGuildAgitArea 实现

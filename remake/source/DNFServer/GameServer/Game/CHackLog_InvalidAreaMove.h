@@ -28,4 +28,7 @@ private:
     static char IsSeriaRoom(int a, int b);
 };
 
+// ORIG 0x086c4568：商业交易限制区域判定（自由函数；定义见 CHackLog_InvalidAreaMove.cpp）
+bool Is_restrictive_commercial_transaction_zone(int x1, int y1, int x2, int y2);
+
 #endif // CHACKLOG_INVALIDAREAMOVE_H

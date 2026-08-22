@@ -32,6 +32,7 @@ class CDispatchServerPacket
 public:
     static void dispatchPacket(char* p);
     static void dispatchAuctionPacket(char* p);
+    static void dispatchPointPacket(char* p);   // ORIG 0847c1fe
 };
 
 template <int N1, int N2>

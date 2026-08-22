@@ -268,11 +268,19 @@ bool CDungeon::IsEnterEachMap() const
 }
 
 // ORIG _ZN12CDataManager18set_dimensionInoutEic / _ZN12CDataManager21set_limit_inout_countEc15ENUM_BLOOD_TYPE
-// 重建工程缺少这两个 setter，以 asm label 绑定 ORIG 符号（GCC 32 位成员函数 = cdecl ABI）。
-extern "C" void CDungeon_set_dimensionInout(CDataManager* mgr, int idx, char value)
-    asm("_ZN12CDataManager18set_dimensionInoutEic");
-extern "C" void CDungeon_set_limit_inout_count(CDataManager* mgr, char value, int type)
-    asm("_ZN12CDataManager21set_limit_inout_countEc15ENUM_BLOOD_TYPE");
+// 真实 C++ 成员实现（权威声明在 CDataManager.h），语义按 ORIG 反汇编：
+//   set_dimensionInout：idx∈[0,5] 写 m_dimensionInout[idx]（080eed82 W）
+//   set_limit_inout_count：写 m_limitInoutCount[type]（08374c82 W）
+void CDataManager::set_dimensionInout(int idx, char value)
+{
+    if (idx >= 0 && idx <= 5)
+        m_dimensionInout[idx] = value;
+}
+
+void CDataManager::set_limit_inout_count(char value, ENUM_BLOOD_TYPE type)
+{
+    m_limitInoutCount[type] = value;
+}
 
 void CDungeon::set_dungeon(STDungeonScript& script)
 {
@@ -302,8 +310,7 @@ void CDungeon::set_dungeon(STDungeonScript& script)
     m_3a = script.m_306;
     if (m_38 != 0)
     {
-        CDungeon_set_dimensionInout(
-            G_CDataManager(), (int)(char)m_38 - 1, (char)m_39);
+        G_CDataManager()->set_dimensionInout((int)(char)m_38 - 1, (char)m_39);
         G_CDataManager()->set_original_dimensionInout(
             (int)(char)m_38 - 1, (char)m_39);
     }
@@ -311,11 +318,11 @@ void CDungeon::set_dungeon(STDungeonScript& script)
     m_3c = script.m_325;
     if (m_index == 0x2aff)
     {
-        CDungeon_set_limit_inout_count(G_CDataManager(), (char)m_3c, 2);
+        G_CDataManager()->set_limit_inout_count((char)m_3c, (ENUM_BLOOD_TYPE)2);
     }
     if (m_index == 0x2afe)
     {
-        CDungeon_set_limit_inout_count(G_CDataManager(), (char)m_3c, 1);
+        G_CDataManager()->set_limit_inout_count((char)m_3c, (ENUM_BLOOD_TYPE)1);
     }
 
     for (std::vector<MazeScript>::iterator mit = script.m_mazeList170.begin();
@@ -458,35 +465,6 @@ copy_rest:
 // ORIG _ZN12CDataManager18set_dimensionInoutEic：m_dimensionInout[idx]=value（idx 0..5）
 // 注：CDataManager.h union 布局暂差 0x18（+0xaa5c vs ORIG +0xaa74），
 // 用局部镜像结构按 ORIG 偏移直接寻址（不修改 CDataManager.h）。
-struct CDungeon_CDataMirror
-{
-    char m_pad[0xaa74];
-    char m_dimensionInout[6];      // +0xaa74
-    char m_padAA7a[6];             // +0xaa7a
-    char m_limitInoutCount[4];     // +0xaa80
-};
-void CDungeon_set_dimensionInout(CDataManager* mgr, int idx, char value)
-{
-    if (idx > 5)
-    {
-    }
-    else if (idx < 0)
-    {
-    }
-    else
-    {
-        reinterpret_cast<CDungeon_CDataMirror*>(mgr)->m_dimensionInout[idx] =
-            value;
-    }
-}
-
-// ORIG _ZN12CDataManager21set_limit_inout_countEc15ENUM_BLOOD_TYPE
-void CDungeon_set_limit_inout_count(CDataManager* mgr, char value, int type)
-{
-    reinterpret_cast<CDungeon_CDataMirror*>(mgr)->m_limitInoutCount[type] =
-        value;
-}
-
 // ---- CDungeon_TowerOfDespair（迁移自 GameStubs.cpp；ORIG W 0x08377606）----
 CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
 {

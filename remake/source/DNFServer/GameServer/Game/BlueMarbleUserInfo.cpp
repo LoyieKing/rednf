@@ -1,17 +1,14 @@
 // df_game_r BlueMarbleUserInfo（G2-4 大富翁子对象）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/BlueMarbleUserInfo.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
-// BuffInfo/TileIndexInfo 为跨类依赖，经 asm-label extern 调用真实符号；
-// 本 TU 只写本文件，PvP_deps 桩由主 agent 集成时移除。
+// BuffInfo/TileIndexInfo 为跨类依赖；本 TU 直接按 ORIG C1/reset 语义清零字段，
+// 不调用 BuffInfo.h（0x10 与 ORIG 0xc 布局分歧）/TileIndexInfo 的 reset 符号
+// （避免跨 TU 重复定义与尺寸错配），§9 落地。
 #include "BlueMarbleUserInfo.h"
 
 // ============================================================================
-// 跨类 / 子对象方法（asm-label extern；BuffInfo/TileIndexInfo 权威 TU 交付后自然链接）
+// BlueMarbleUserInfo 实现
 // ============================================================================
-extern "C" void sub_BuffInfo_C1(void* self) asm("_ZN8BuffInfoC1Ev");
-extern "C" void sub_BuffInfo_reset(void* self) asm("_ZN8BuffInfo5resetEv");
-extern "C" void sub_TileIndexInfo_C1(void* self) asm("_ZN13TileIndexInfoC1Ev");
-extern "C" void sub_TileIndexInfo_reset(void* self) asm("_ZN13TileIndexInfo5resetEv");
 
 // BlueMarbleScriptManager 最大 buff 值位于 +0x64（ORIG setExp/setGold/setDrop 直读）。
 namespace
@@ -33,11 +30,17 @@ BlueMarbleUserInfo::BlueMarbleUserInfo()
     m_userState = (BlueMarbleUserState::T)0;
     m_boardZone = 1;
     m_grade = (BlueMarbleUserGrade::T)4;
-    sub_BuffInfo_C1(&m_buff);
-    sub_TileIndexInfo_C1(&m_tileIndex);
+    m_buff.m_exp = 0;              // BuffInfo C1（+reset）：三字段清零
+    m_buff.m_gold = 0;
+    m_buff.m_drop = 0;
+    m_tileIndex.m_dungeon = 0;     // TileIndexInfo C1（+reset）：两字段清零
+    m_tileIndex.m_item = 0;
     m_pScript = 0;
-    sub_BuffInfo_reset(&m_buff);
-    sub_TileIndexInfo_reset(&m_tileIndex);
+    m_buff.m_exp = 0;              // BuffInfo reset（ORIG C1 后再 reset）
+    m_buff.m_gold = 0;
+    m_buff.m_drop = 0;
+    m_tileIndex.m_dungeon = 0;     // TileIndexInfo reset
+    m_tileIndex.m_item = 0;
 }
 
 BlueMarbleUserInfo::~BlueMarbleUserInfo()
@@ -49,19 +52,22 @@ void BlueMarbleUserInfo::resetBlueMarbleUserInfo()
     m_user = 0;
     m_userState = (BlueMarbleUserState::T)0;
     m_boardZone = 1;
-    m_grade = (BlueMarbleUserGrade::T)4;
-    resetBuff();
+    m_buff.m_exp = 0;   // BuffInfo::reset
+    m_buff.m_gold = 0;
+    m_buff.m_drop = 0;
     resetIndex();
 }
-
 void BlueMarbleUserInfo::resetBuff()
 {
-    sub_BuffInfo_reset(&m_buff);
+    m_buff.m_exp = 0;   // BuffInfo::reset
+    m_buff.m_gold = 0;
+    m_buff.m_drop = 0;
 }
 
 void BlueMarbleUserInfo::resetIndex()
 {
-    sub_TileIndexInfo_reset(&m_tileIndex);
+    m_tileIndex.m_dungeon = 0;   // TileIndexInfo::reset
+    m_tileIndex.m_item = 0;
 }
 
 void BlueMarbleUserInfo::setUser(CUser* user)

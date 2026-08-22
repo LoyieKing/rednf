@@ -6,21 +6,7 @@
 
 #include <string.h>
 
-class CUserGlobalInfoHandle
-{
-public:
-    CUserGlobalInfoHandle();
-    ~CUserGlobalInfoHandle();
-
-    int find_uniqueid();
-    int get_uniqueid();
-    void reset_uniqueid_flag(unsigned short uniqueid);
-
-    bool m_used[0x10000];  // +0x00
-    int m_next;            // +0x10000
-};
-
-CUserGlobalInfoHandle* CUserGlobalInfoHandleInstance();
+#include "CUserGlobalInfoHandle.h"
 
 CUserGlobalInfoHandle::CUserGlobalInfoHandle()
 {

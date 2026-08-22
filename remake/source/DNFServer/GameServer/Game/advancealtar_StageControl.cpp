@@ -30,17 +30,17 @@ void StageControl::setIndex(int idx)
 //   GameWorld::out_from_dungeon(user) → 广播 basic_info(0,2) →
 //   send_itemspace(0) → SendItemLockListInven() → setAdvanceAltarIndex(-1)
 //   （CUser+0x8d012）→ StageControl::destroy（未建模，推断跳过）→ 1。
-void StageControl::leaveUser()
+char StageControl::leaveUser()
 {
     char* cd = (char*)this + 0x98;
     CUser* user = *(CUser**)cd;  // CharacData+0x00 m_pUser
     if (user == 0)
     {
-        return;
+        return 0;
     }
     if (user->getCurCharacR() == 0)
     {
-        return;
+        return 0;
     }
     // [推断] ORIG 调 HistoryLog::leaveDungeon(user, getProcStage(this))
     // （HistoryLog 未建模）与 StageControl::destroy()（CGameManager.h 未声明），
@@ -56,13 +56,14 @@ void StageControl::leaveUser()
     user->send_itemspace(0);
     user->getCurCharacInvenW()->SendItemLockListInven();
     user->m_field8d012 = -1;  // ORIG CUser::setAdvanceAltarIndex(user,-1)
+    return 1;  // ORIG uVar4 = 1
 }
 
 // ORIG 0x812fb98：onTimerStageTick —— ProcStage+0x04 state 为 3/4 时推进
 //   CharacData::upGage（+0x98 处）与 ProcStage::procTimeLine（+0x04 处）。
 //   [推断] sendTestCheckGage（upGage 尾部发包）与 procTimeLine 依赖
 //   ProcSummonObjectMs 内部（未建模），暂不执行；state 检查与 upGage 真实。
-void StageControl::onTimerStageTick()
+char StageControl::onTimerStageTick()
 {
     char* procStage = (char*)this + 0x04;
     int state = *(int*)(procStage + 0x04);
@@ -89,6 +90,7 @@ void StageControl::onTimerStageTick()
         // [推断] ORIG 此处调 CharacData::sendTestCheckGage() 与
         // ProcStage::procTimeLine()（均依赖未建模内部），暂不执行。
     }
+    return 1;  // ORIG 恒返回 1
 }
 
 void StageControl::reset()

@@ -19,14 +19,20 @@
 #include "GameWorld.h"
 #include "CUser.h"
 #include "CUserCharacInfo.h"
+#include "CInventory.h"   // 权威 CInventory/PacketGuard（本文件原本地 PacketGuard 已删除）
 #include "CItemList.h"
 #include "Inven_Item.h"
 #include "CDataManager.h"
+#include "CraneMinigameManager.h"  // CraneMinigameManager::updateCraneItemNeedMaterial
+#include "CUserProc.h"       // APSystem::CUserProc::SetTodayActionAndCheckMedalReward
+#include "QuickParty.h"      // QuickParty::CQuickPartySystemManager（CDungeon.h 本地最小声明在前置）
+#include "CDungeon.h"        // CDungeon::get_min_level（getDungeonMinimumRequiredLevel）
 #include "CEnvironment.h"
 #include "PvP_Room.h"
 #include "CGameManager.h"
 #include "CMonitorServerProxy.h"
 #include "CGuildServerProxy.h"
+#include "CGM_Manager.h"  // 权威 CGM_Manager::IsGm（s_GM_Manager 指针解引用）
 #include "CNetwork.h"
 #include "CSystemTime.h"
 #include "CParty.h"
@@ -39,9 +45,29 @@
 #include "TaiwanInternal.h"
 #include "LogManager.h"
 #include "CServerProxyMgr.h"
+#include "CStatisticServerProxy.h"   // CServerProxyMgr<CStatisticServerProxy> 完整类型
 #include "CHackLog_InvalidAreaMove.h"
 #include "Arad_EventPeriodDataManager.h"
 #include "Packet_MiniCraneSeed.h"
+#include "STQuestScript.h"      // initTownScript / importTownScript / TownScript
+#include "CPrivateStoreMgr.h"   // private_store::GetInstancePrivateStoreMgr
+#include "CSchoolMgr.h"         // g_schoolMgr
+#include "CGuildAgitManager.h"  // g_guildAgitMgr
+#include "CPowerManager.h"      // GlobalData::s_power_manager 方法
+#include "CAssaultMgr.h"        // pvp_assault::GetInstanceAssaultMgr
+#include "CSyncSlangFilter.h"   // CSyncSlangFilter::GetInstance / Filter
+#include "CTitleBook.h"         // CTitleBook::sendListOtherUser
+#include "CMyFileLog.h"         // CMyFileLog
+#include "CFatigueBatteryHandle.h"
+#include "CBoosterGage.h"
+#include "CEventScriptMng.h"    // EventClassify::CEventScriptMng
+#include "CTimeGate.h"
+#include "CPartyTelePort.h"     // CPartyTelePort::get_teleport_state
+#include "Arad_DataManager.h"   // ARAD::Arad_DataManager / Singleton / notifyOpenMessageDialog
+#include "HeroMissionEvent.h"   // ARAD::Singleton<HeroMissionEvent>
+#include "AradServerStateMessage.h"
+#include "InterSelectPcroomDailyReward.h"
+#include "DB_AccountCargoSync.h" // DB_PassPadUpdateFailCnt / APSystem::DB_UpdateActionPoint
 
 // ============================================================================
 // CStreamGuard::GetInBuffer 模板实参（全局类型：C++98 不允许局部类型作为模板
@@ -63,37 +89,29 @@ struct SIG_NAT_TYPE_USER
 };
 
 // ============================================================================
-// PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供定义）
+// sync_script::CSyncScript 最小声明（不 include sync_script.h：其 ST* 镜像
+// 声明与本 TU 经 CUser.h/CDataManager.h 引入的权威 STEquipmentScript/
+// EquipmentParameterInfo 冲突；本 TU 仅需 GetInstanceSyncScript +
+// truncate/insert_town_info，声明与 sync_script.h 同签名（ORIG mangled 一致））
 // ============================================================================
-class PacketGuard : public InterfacePacketBuf
+namespace sync_script
+{
+class CSyncScript
 {
 public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
+    bool insert_town_info_to_db(const TownScript& script);  // _ZN11sync_script11CSyncScript22insert_town_info_to_dbERK10TownScript
+    bool truncate_town_info_table();                        // _ZN11sync_script11CSyncScript24truncate_town_info_tableEv
 };
+CSyncScript* GetInstanceSyncScript();   // _ZN11sync_script21GetInstanceSyncScriptEv
+}
 
-// CInventory::insertItemIntoInventory（CInventory.h 的 PacketGuard 与本 TU 本地
-// 类冲突，经 ORIG asm 名直调，符号 _ZN10CInventory23insertItemIntoInventoryE
-// 10Inven_Item14eItemAddReasonbb；CInventory TU 翻译后移除）
-extern "C" int sub_CInventory_insertItemIntoInventory(
-    void* self, Inven_Item item, int reason, bool bLog, bool bSlot)
-    asm("_ZN10CInventory23insertItemIntoInventoryE10Inven_Item14eItemAddReasonbb");
+// ============================================================================
+// 跨类方法（原 extern "C" asm 桥已删除；均改用权威头真实调用：
+//   CInventory::insertItemIntoInventory — CInventory.h
+//   CUser::GetServerGroup / getPowerSide / GetEventCreateDnfReward — CUser.h
+//   CGM_Manager::IsGm — CGM_Manager.h（s_GM_Manager 为指针，按 ORIG 解引用））
+// ============================================================================
 
-
-
-// ---- CUser 缺失方法（asm 名直调；CUser TU 翻译后移除）----
-// CUser::deleteSpecificItems 现由真实 CUser.cpp（19 长度符号）提供，旧 18 错拼桥接已删除。
-extern "C" int sub_CUser_GetServerGroup(void* user) asm("_ZNK5CUser14GetServerGroupEv");
-extern "C" char sub_CUser_getPowerSide(void* user) asm("_ZN5CUser12getPowerSideEv");
-extern "C" char sub_CUser_GetEventCreateDnfReward(void* user)
-    asm("_ZN5CUser23GetEventCreateDnfRewardEv");
-extern "C" char sub_CGM_Manager_IsGm(void* self, unsigned int accId)
-    asm("_ZN11CGM_Manager4IsGmEj");
 
 // ServerParameterScript 方法现由真实 ServerParameterScript.h 提供（m_serverParameter 成员），
 // 旧 23 错拼长度 asm 桥接已随调用迁移删除。
@@ -158,15 +176,15 @@ void GameWorld::destroy()
 bool GameWorld::init()
 {
     sync_script::CSyncScript* syncScript =
-        (sync_script::CSyncScript*)sub_GetInstanceSyncScript();
-    if (sub_CSyncScript_truncate_town_info_table(syncScript) != 1)
+        sync_script::GetInstanceSyncScript();
+    if (syncScript->truncate_town_info_table() != 1)
     {
         puts("Fail truncate_town_info_tablef");
         return false;
     }
 
     m_uniqueId = 0;
-    sub_initTownScript((char*)"Town/", (char*)"Town.lst");
+    initTownScript((char*)"Town/", (char*)"Town.lst");
 
     TownScript tempTown;
     const char* fileName = NULL;
@@ -179,16 +197,13 @@ bool GameWorld::init()
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
         int index = 0;
-        int gcNo = sub_CServerProxyMgr_GetStartIndex(
-            GlobalData::s_statistic_proxy_mgr);
-        while (index < sub_CServerProxyMgr_GetEndIndex(
-                           GlobalData::s_statistic_proxy_mgr))
+        int gcNo = GlobalData::s_statistic_proxy_mgr->GetStartIndex();
+        while (index < GlobalData::s_statistic_proxy_mgr->GetEndIndex())
         {
             CEnvironment* env = G_CEnvironment();
             InsertChannel(env->get_gc_no_hardcode((ENUM_SERVER_GROUP)gcNo),
                           (ENUM_SERVER_GROUP)gcNo);
-            gcNo = sub_CServerProxyMgr_GetNextIndex(
-                GlobalData::s_statistic_proxy_mgr, &index);
+            gcNo = GlobalData::s_statistic_proxy_mgr->GetNextIndex(index);
         }
     }
     else
@@ -205,26 +220,25 @@ bool GameWorld::init()
         {
             break;
         }
-        if (!sub_importTownScript(&tempTown, fileName))
+        if (!importTownScript(&tempTown, fileName))
         {
             LogManager::logFormat(1, "world.cpp", "bool GameWorld::init()", 0x3d4,
                                   "importTownScript() fail - filename(%s)", fileName);
             return false;
         }
-        if (!sub_CSyncScript_insert_town_info_to_db(
-                sub_GetInstanceSyncScript(), &tempTown))
+        if (!sync_script::GetInstanceSyncScript()->insert_town_info_to_db(tempTown))
         {
             printf("insert_town_category Error: %s\n", fileName);
             return false;
         }
-        if (m_iVillCount < tempTown.m_0)
+        if (m_iVillCount < tempTown.m_field0)
         {
             LogManager::logFormat(1, "world.cpp", "bool GameWorld::init()", 0x3e3,
                                   "tempTown.townIndex_(%d) > m_iVillCount(%d) - file(%s)",
-                                  tempTown.m_0, m_iVillCount, fileName);
+                                  tempTown.m_field0, m_iVillCount, fileName);
             return false;
         }
-        if (!m_pVill[tempTown.m_0].set_village(tempTown))
+        if (!m_pVill[tempTown.m_field0].set_village(tempTown))
         {
             LogManager::logFormat(1, "world.cpp", "bool GameWorld::init()", 0x3e9,
                                   "m_pVill[tempTown.townIndex_].set_village() fail - file(%s)",
@@ -280,8 +294,7 @@ void GameWorld::InsertChannel(int gcNo, ENUM_SERVER_GROUP group)
 
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
-    void* channelInfo = sub_channel_script_t_getChannelInfo(
-        channelScript,
+    channel_info_t* channelInfo = channelScript->getChannelInfo(
         (unsigned char)G_CEnvironment()->m_serverEnvir.m_serverGroup,
         G_CEnvironment()->get_channel_no());
     if (channelInfo != NULL)
@@ -382,7 +395,7 @@ void GameWorld::updateDetailChannelServiceInfo()
     }
 
     int privateStoreSize =
-        (int)sub_private_store_GetPrivateStoreSize(sub_private_store_GetInstancePrivateStoreMgr());
+        (int)private_store::GetInstancePrivateStoreMgr()->GetPrivateStoreSize();
     if (0 < privateStoreSize)
     {
         countMap[0] = countMap[0] - privateStoreSize;
@@ -472,8 +485,8 @@ int GameWorld::_GetChannelType()
     }
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
-    void* info = sub_channel_script_t_getChannelInfo(
-        channelScript, (unsigned char)server.m_channelType,
+    channel_info_t* info = channelScript->getChannelInfo(
+        (unsigned char)server.m_channelType,
         (unsigned int)server.m_serverGroup);
     if (info == NULL)
     {
@@ -547,8 +560,8 @@ bool GameWorld::is_dungeon_tag_matching_channel(char* channel)
 {
     channel_script_t* channelScript =
         (channel_script_t*)G_CDataManager()->GetChannelScript();
-    void* info = sub_channel_script_t_getChannelInfo(
-        channelScript, (unsigned char)*(int*)((char*)G_CEnvironment() + 0x378),
+    channel_info_t* info = channelScript->getChannelInfo(
+        (unsigned char)*(int*)((char*)G_CEnvironment() + 0x378),
         G_CEnvironment()->get_channel_no());
     if (info == NULL)
     {
@@ -660,7 +673,7 @@ bool GameWorld::reach_game_world(CUser* user)
         LogManager::logFormat(1, "world.cpp",
                               "bool GameWorld::reach_game_world(CUser*)", 0x51d,
                               "session_list.find() fail accid(%s)",
-                              sub_NumberToString(user->get_acc_id(), 0));
+                              NumberToString(user->get_acc_id(), 0));
         return false;
     }
 
@@ -688,15 +701,14 @@ bool GameWorld::reach_game_world(CUser* user)
     user->set_state((ch_state)3);
     EraseLoginUser(user);
     send_AllBasicInfo(user);
-    if (sub_CUser_IsPermissionPrivateStore(user))
+    if (user->IsPermissionPrivateStore())
     {
-        (*(void (**)(void*, void*))(*(void**)sub_private_store_GetInstancePrivateStoreMgr()
-                                    ))(sub_private_store_GetInstancePrivateStoreMgr(), user);
+        (*(void (**)(void*, void*))(*(void**)private_store::GetInstancePrivateStoreMgr()
+                                    ))(private_store::GetInstancePrivateStoreMgr(), user);
     }
     else
     {
-        sub_private_store_LoadPrivateStore(
-            sub_private_store_GetInstancePrivateStoreMgr(), user);
+        private_store::GetInstancePrivateStoreMgr()->LoadPrivateStore(user);
     }
     if (user->isHangameUser())
     {
@@ -711,11 +723,10 @@ bool GameWorld::reach_game_world(CUser* user)
 
 bool GameWorld::leave_game_world(CUser* user)
 {
-    if (sub_CGM_Manager_GetCurrentGmMode(GlobalData::s_GM_Manager,
-                                         user->get_acc_id()))
+    if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()))
     {
-        sub_CUser_SetGameMasterMode(user, false);
-        sub_CGM_Manager_TurnGmMode(GlobalData::s_GM_Manager, user->get_acc_id());
+        user->SetGameMasterMode(false);
+        GlobalData::s_GM_Manager->TurnGmMode(user->get_acc_id());
     }
 
     std::map<unsigned short, CUser*>::iterator userIt =
@@ -757,21 +768,19 @@ bool GameWorld::leave_game_world(CUser* user)
         LogManager::logFormat(1, "world.cpp",
                               "bool GameWorld::leave_game_world(CUser*)", 0x588,
                               "session_list.find(%s)",
-                              sub_NumberToString(user->get_acc_id(), 0));
+                              NumberToString(user->get_acc_id(), 0));
         return false;
     }
 
     m_sessionList.erase(user->get_acc_id());
-    sub_CSchoolMgr_DelUser(NULL, user);
+    g_schoolMgr->DelUser(user);
     if (user->get_charac_guildkey() != 0)
     {
-        sub_CGuildAgitManager_ReleaseGuildAgitArea(
-            NULL, user->get_charac_guildkey());
+        g_guildAgitMgr->ReleaseGuildAgitArea(user->get_charac_guildkey());
     }
     if (user->isJoinPowerWar())
     {
-        sub_CPowerManager_DecreasePowerUserCount(
-            GlobalData::s_power_manager, (char)user->getPowerSide());
+        GlobalData::s_power_manager->DecreasePowerUserCount((char)user->getPowerSide());
     }
     if (user->isHangameUser())
     {
@@ -828,7 +837,7 @@ CUser* GameWorld::find_user_from_world_byaccid(unsigned int accId)
             1, "world.cpp",
             "CUser* GameWorld::find_user_from_world_byaccid(memberIdentificationNumber_t)",
             0x4f2, "session_list.find() fail accid(%s)",
-            sub_NumberToString(accId, 0));
+            NumberToString(accId, 0));
     }
     CUser* user = find_from_world(session);
     if (user == NULL)
@@ -881,24 +890,21 @@ void GameWorld::arrange_users()
         {
             cMyTrace trace("void GameWorld::arrange_users()", 0x10a6, 0);
             trace("GameWorld::arrange_users ACCID: %s",
-                  sub_NumberToString(user->get_acc_id(), 0));
-            sub_CUser_DisConnSig(user, 7, 1, 0);
+                  NumberToString(user->get_acc_id(), 0));
+            user->DisConnSig((DISCONN_SIG)7, 1, 0);
         }
     }
 
     if (G_GameWorld()->IsIntegratedPvPBaseChannel())
     {
         int index = 0;
-        int gcNo = sub_CServerProxyMgr_GetStartIndex(
-            GlobalData::s_statistic_proxy_mgr);
-        while (index < sub_CServerProxyMgr_GetEndIndex(
-                           GlobalData::s_statistic_proxy_mgr))
+        int gcNo = GlobalData::s_statistic_proxy_mgr->GetStartIndex();
+        while (index < GlobalData::s_statistic_proxy_mgr->GetEndIndex())
         {
             CEnvironment* env = G_CEnvironment();
             DeleteChannel(env->get_gc_no_hardcode((ENUM_SERVER_GROUP)gcNo),
                           (ENUM_SERVER_GROUP)gcNo);
-            gcNo = sub_CServerProxyMgr_GetNextIndex(
-                GlobalData::s_statistic_proxy_mgr, &index);
+            gcNo = GlobalData::s_statistic_proxy_mgr->GetNextIndex(index);
         }
     }
     else
@@ -1164,7 +1170,7 @@ void GameWorld::send_server_group(PacketGuard& packet, char group)
 
 void GameWorld::send_party_info_to_all(CParty* party, int flag)
 {
-    int memberCount = sub_CParty_get_member_count(party);
+    int memberCount = party->get_member_count();
     if (memberCount < 1)
     {
         LogManager::logFormat(
@@ -1177,24 +1183,24 @@ void GameWorld::send_party_info_to_all(CParty* party, int flag)
     PacketGuard packet;
     packet.put_header(0, 9);
     packet.put_short(1);
-    packet.put_short((int)sub_CParty_GetPartyIndex(party));
+    packet.put_short((short)party->GetPartyIndex());
     packet.put_byte(flag);
 
     if (flag == 0 || flag == 1)
     {
-        packet.put_byte((unsigned char)sub_CParty_getTitleIndex(party));
-        if (sub_CParty_getTitleIndex(party) == 0)
+        packet.put_byte((unsigned char)party->getTitleIndex());
+        if (party->getTitleIndex() == 0)
         {
-            char* title = sub_CParty_getTitle(party);
+            char* title = party->getTitle();
             int titleLen = strlen(title);
             packet.put_int(titleLen);
             packet.put_str(title, titleLen);
         }
-        packet.put_byte((unsigned char)sub_CParty_IsReturnUserParty(party));
-        packet.put_byte((unsigned char)sub_CParty_getUserMax(party));
-        packet.put_short(sub_CParty_getDungIndex(party));
-        packet.put_byte((unsigned char)sub_CParty_getDungDiffi(party));
-        packet.put_byte((unsigned char)sub_CParty_IsEventCharacParty(party));
+        packet.put_byte((unsigned char)party->IsReturnUserParty());
+        packet.put_byte((unsigned char)party->getUserMax());
+        packet.put_short(party->getDungIndex());
+        packet.put_byte((unsigned char)party->getDungDiffi());
+        packet.put_byte((unsigned char)party->IsEventCharacParty());
     }
 
     if (flag == 0 || flag == 2)
@@ -1202,7 +1208,7 @@ void GameWorld::send_party_info_to_all(CParty* party, int flag)
         int managerIdx = 0;
         for (int i = 0; i < 4; i++)
         {
-            CUser* member = (CUser*)sub_CParty_get_user(party, i);
+            CUser* member = party->get_user(i);
             if (member == NULL)
             {
                 packet.put_short(0xffff);
@@ -1211,11 +1217,11 @@ void GameWorld::send_party_info_to_all(CParty* party, int flag)
             else
             {
                 packet.put_short((unsigned short)member->get_unique_id());
-                if ((CUser*)sub_CParty_getManager(party) == member)
+                if (party->getManager() == member)
                 {
                     managerIdx = i;
                 }
-                char sex = sub_CUser_getSex(member);
+                char sex = member->getSex();
                 if (sex == -1)
                 {
                     sex = 1;
@@ -1223,10 +1229,10 @@ void GameWorld::send_party_info_to_all(CParty* party, int flag)
                 packet.put_byte((int)sex);
             }
         }
-        packet.put_byte((unsigned char)sub_CParty_IsReturnUserParty(party));
+        packet.put_byte((unsigned char)party->IsReturnUserParty());
         packet.put_byte(managerIdx);
-        packet.put_byte((unsigned char)sub_CParty_is_quick_party(party));
-        packet.put_byte((unsigned char)sub_CParty_IsEventCharacParty(party));
+        packet.put_byte((unsigned char)party->is_quick_party());
+        packet.put_byte((unsigned char)party->IsEventCharacParty());
     }
 
     if (flag == 0 || flag == 1 || flag == 2)
@@ -1237,7 +1243,7 @@ void GameWorld::send_party_info_to_all(CParty* party, int flag)
         {
             for (int i = 0; i < 4; i++)
             {
-                CUserCharacInfo* info = (CUserCharacInfo*)sub_CParty_get_user(party, i);
+                CUserCharacInfo* info = (CUserCharacInfo*)party->get_user(i);
                 if (info == NULL)
                 {
                     packet.put_byte(0);
@@ -1291,7 +1297,7 @@ void GameWorld::send_AllBasicInfo(CUser* user)
             else if (info->IsCurCharacVisible())
             {
                 int index = packet.get_index();
-                if (sub_CUser_make_basic_info((CUser*)info, (char*)&packet, 0) != 1)
+                if (((CUser*)info)->make_basic_info((char*)&packet, 0) != 1)
                 {
                     cMyTrace trace("void GameWorld::send_AllBasicInfo(CUser*)", 0xbe3, 5);
                     trace("[%s][%d]", "void GameWorld::send_AllBasicInfo(CUser*)", 0xbe3);
@@ -1489,7 +1495,7 @@ bool GameWorld::isDungeonEntranceArea(CUser* user)
     {
         return true;
     }
-    return area->m_field68 == 4;
+    return area->m_areaType == 4;
 }
 
 int GameWorld::getDungeonMinimumRequiredLevel(int dungeonIdx)
@@ -1499,7 +1505,7 @@ int GameWorld::getDungeonMinimumRequiredLevel(int dungeonIdx)
     {
         return -1;
     }
-    return sub_CDungeon_get_min_level(dungeon);
+    return dungeon->get_min_level();
 }
 
 int GameWorld::GetWorldMapIndex(CUser* user)
@@ -1569,7 +1575,7 @@ int GameWorld::check_restrictive_commercial_transaction_zone(int vill, int area,
             std::vector<MapArea>::iterator it;
             for (it = pArea->m_mapAreas.begin(); it != pArea->m_mapAreas.end(); it++)
             {
-                if (sub_Is_restrictive_commercial_transaction_zone(
+                if (Is_restrictive_commercial_transaction_zone(
                         it->m_x, it->m_y, x, y))
                 {
                     return 0x52;
@@ -1645,14 +1651,12 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
     {
         return 0xbf;
     }
-    if (sub_private_store_IsBusyPrivateStore(
-            sub_private_store_GetInstancePrivateStoreMgr(), user))
+    if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
     {
         return 0x3c;
     }
     if (user->GetCurCharacExpertJob() != NULL &&
-        sub_expert_job_CExpertJob_GetType(
-            (void*)user->GetCurCharacExpertJob()) == 1)
+        ((expert_job::CExpertJob*)user->GetCurCharacExpertJob())->GetType() == 1)
     {
         return 0x38;
     }
@@ -1661,14 +1665,14 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
         return 0x9c;
     }
     if (user->IsCurCharacGhost() &&
-        !sub_CPowerManager_IsPowerWarEventOn() &&
+        !GlobalData::s_power_manager->IsPowerWarEventOn() &&
         user->getCurCharacVill() != 7)
     {
         return 0x9f;
     }
 
     bool powerWarSafe = false;
-    if (sub_CUser_isGMUser(user) != 1)
+    if (!user->isGMUser())
     {
         if (IsPowerWarSafeZone(vill, area, user->getPowerSide()))
         {
@@ -1683,7 +1687,7 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
     int curVill = (int)user->getCurCharacVill();
     int curArea = user->get_area(false);
     CParty* party = (CParty*)user->GetParty();
-    if (party == NULL || sub_CParty_getManager(party) != user ||
+    if (party == NULL || party->getManager() != user ||
         vill != curVill || area != curArea || param == 2)
     {
         if (!check_valid_area(vill, area) ||
@@ -1692,7 +1696,7 @@ int GameWorld::check_move_area(CUser* user, int vill, int area, int x, int y,
             return 0x13;
         }
         if (vill < 0 || MAX_VILLAGE_NUM <= vill ||
-            &m_pVill[vill] == NULL || !sub_CUser_CheckMoveTown(user, vill))
+            &m_pVill[vill] == NULL || !user->CheckMoveTown(vill))
         {
             return 0;
         }
@@ -1709,7 +1713,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
 {
     PacketGuard errorPacket;
 
-    if (!sub_CTimeGate_isOpen(GlobalData::s_timeGate_) &&
+    if (!GlobalData::s_timeGate_->isOpen() &&
         vill == 0xb && area == 5)
     {
         errorPacket.clear();
@@ -1732,8 +1736,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         user->Send(errorPacket);
         return false;
     }
-    if (sub_private_store_IsBusyPrivateStore(
-            sub_private_store_GetInstancePrivateStoreMgr(), user))
+    if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
     {
         errorPacket.clear();
         errorPacket.put_header(1, 0x26);
@@ -1744,7 +1747,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         user->Send(errorPacket);
         return false;
     }
-    if (user->IsCurCharacGhost() && !sub_CPowerManager_IsPowerWarEventOn() &&
+    if (user->IsCurCharacGhost() && !GlobalData::s_power_manager->IsPowerWarEventOn() &&
         user->getCurCharacVill() != 7)
     {
         errorPacket.clear();
@@ -1756,7 +1759,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         user->Send(errorPacket);
         return false;
     }
-    if (!sub_CUser_isGMUser(user) &&
+    if (!user->isGMUser() &&
         IsPowerWarSafeZone(vill, area, user->getPowerSide()))
     {
         errorPacket.clear();
@@ -1774,7 +1777,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
     bool teleport = false;
     CParty* party = (CParty*)user->GetParty();
     if (party != NULL &&
-        sub_CPartyTelePort_get_teleport_state(sub_CParty_GetPartyTelePort(party)))
+        ((CPartyTelePort*)party->GetPartyTelePort())->get_teleport_state())
     {
         teleport = true;
     }
@@ -1803,7 +1806,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
     if (-1 < vill && vill < MAX_VILLAGE_NUM &&
         (destVillage = &m_pVill[vill]) != NULL)
     {
-        int moveTown = sub_CUser_CheckMoveTown(user, vill);
+        int moveTown = user->CheckMoveTown(vill);
         if (moveTown != 0)
         {
             packet.put_header(1, 0x26);
@@ -1874,7 +1877,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         if (IsSchoolPvPChannel() && vill == 2 && area == 4)
         {
             user->GetSchoolNo();
-            destArea = sub_CSchoolMgr_GetSchoolArea(NULL, 0);
+            destArea = g_schoolMgr->GetSchoolArea(0);
             if (destArea < 0)
             {
                 destArea = area;
@@ -1890,8 +1893,7 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
                                area == 2 || area == 3))
         {
             unsigned int guildKey = user->get_charac_guildkey();
-            destArea = sub_CGuildAgitManager_GetGuildAgitAreaIndex(
-                NULL, guildKey, area);
+            destArea = g_guildAgitMgr->GetGuildAgitAreaIndex(guildKey, area);
             cMyTrace trace(
                 "bool GameWorld::move_area(CUser*, int, int, int, int, int, bool, int, int, int)",
                 0x88e, 0);
@@ -1916,8 +1918,8 @@ bool GameWorld::move_area(CUser* user, int vill, int area, int x, int y, int z,
         destAreaObj->insert_user(user);
     }
 
-    sub_CUserHistoryLog_MoveArea((char*)user + 0x79700, curVill, curArea,
-                                 vill, area);
+    // ORIG 0x86c6710：MoveArea(curVill, curArea, area, x, prevVill)
+    user->m_historyLog.MoveArea(curVill, curArea, area, x, prevVill);
     return true;
 }
 
@@ -1950,9 +1952,9 @@ void GameWorld::goto_dungeon(CUser* user)
         packet.put_short((unsigned short)user->get_unique_id());
         packet.put_byte((int)user->getCurCharacVill());
         packet.put_byte(0xff);
-        packet.put_short((unsigned short)sub_CUser_get_posX(user));
-        packet.put_short((unsigned short)sub_CUser_get_posY(user));
-        packet.put_byte((int)sub_CUser_get_direction(user));
+        packet.put_short((unsigned short)user->get_posX());
+        packet.put_short((unsigned short)user->get_posY());
+        packet.put_byte((int)user->get_direction());
         packet.put_byte((int)user->get_charac_visible_values());
         packet.finalize(true);
         user->Send(packet);
@@ -1962,11 +1964,11 @@ void GameWorld::goto_dungeon(CUser* user)
 
 void GameWorld::out_from_dungeon(CUser* user)
 {
-    sub_CUser_SetRevivalTime(user, 0);
-    sub_CUser_SetUseAPCPotionTime(user, 0);
+    user->SetRevivalTime(0);
+    user->SetUseAPCPotionTime(0);
     if (user->getMoveSpace() == 1)
     {
-        sub_CUser_SendFatigue(user);
+        user->SendFatigue();
         user->set_state((ch_state)0xb);
         PacketGuard packet;
         packet.put_header(0, 3);
@@ -1996,7 +1998,7 @@ void GameWorld::out_from_dungeon(CUser* user)
             packet.put_byte(0);
             packet.finalize(true);
             send_all(packet, user);
-            sub_CUser_SendFatigue(user);
+            user->SendFatigue();
             static_cast<XNuclear::CHades*>(user->getHades())->Send_ReturnToVillage();
         }
         else
@@ -2026,9 +2028,9 @@ void GameWorld::goto_pvp(CUser* user)
         packet.put_short((unsigned short)user->get_unique_id());
         packet.put_byte((int)user->getCurCharacVill());
         packet.put_byte(0xfe);
-        packet.put_short((unsigned short)sub_CUser_get_posX(user));
-        packet.put_short((unsigned short)sub_CUser_get_posY(user));
-        packet.put_byte((int)sub_CUser_get_direction(user));
+        packet.put_short((unsigned short)user->get_posX());
+        packet.put_short((unsigned short)user->get_posY());
+        packet.put_byte((int)user->get_direction());
         packet.put_byte((int)user->get_charac_visible_values());
         packet.finalize(true);
         user->Send(packet);
@@ -2053,7 +2055,7 @@ void GameWorld::out_from_pvp(CUser* user)
 {
     if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
     {
-        sub_CUser_SetPvpIndex(user, -1);
+        user->SetPvpIndex(-1);
         Village* village = getUserVillage(user);
         if (village != NULL)
         {
@@ -2075,7 +2077,7 @@ void GameWorld::out_from_pvp(CUser* user)
     {
         cMyTrace trace("void GameWorld::out_from_pvp(CUser*)", 0x9ce, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
-        sub_CUser_DisConnSig(user, 3, 1, 0);
+        user->DisConnSig((DISCONN_SIG)3, 1, 0);
     }
 }
 
@@ -2097,9 +2099,9 @@ void GameWorld::goto_warroom(CUser* user)
         packet.put_short((unsigned short)user->get_unique_id());
         packet.put_byte((int)user->getCurCharacVill());
         packet.put_byte(0xfe);
-        packet.put_short((unsigned short)sub_CUser_get_posX(user));
-        packet.put_short((unsigned short)sub_CUser_get_posY(user));
-        packet.put_byte((int)sub_CUser_get_direction(user));
+        packet.put_short((unsigned short)user->get_posX());
+        packet.put_short((unsigned short)user->get_posY());
+        packet.put_byte((int)user->get_direction());
         packet.put_byte((int)user->get_charac_visible_values());
         packet.finalize(true);
         user->Send(packet);
@@ -2124,7 +2126,7 @@ void GameWorld::out_from_warroom(CUser* user)
 {
     if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
     {
-        sub_CUser_SetWarRoomIndex(user, -1);
+        user->SetWarRoomIndex(-1);
         Village* village = getUserVillage(user);
         if (village != NULL)
         {
@@ -2141,14 +2143,14 @@ void GameWorld::out_from_warroom(CUser* user)
         packet.put_byte(0);
         packet.finalize(true);
         send_all(packet, user);
-        sub_CInventory_RemoveKCItem((void*)user->getCurCharacInvenW());
+        user->getCurCharacInvenW()->RemoveKCItem();
         user->InitFinishPoint();
     }
     else
     {
         cMyTrace trace("void GameWorld::out_from_warroom(CUser*)", 0xa29, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
-        sub_CUser_DisConnSig(user, 3, 1, 0);
+        user->DisConnSig((DISCONN_SIG)3, 1, 0);
     }
 }
 
@@ -2170,9 +2172,9 @@ void GameWorld::gotoBlueMarble(CUser* user)
         packet.put_short((unsigned short)user->get_unique_id());
         packet.put_byte((int)user->getCurCharacVill());
         packet.put_byte(0xfe);
-        packet.put_short((unsigned short)sub_CUser_get_posX(user));
-        packet.put_short((unsigned short)sub_CUser_get_posY(user));
-        packet.put_byte((int)sub_CUser_get_direction(user));
+        packet.put_short((unsigned short)user->get_posX());
+        packet.put_short((unsigned short)user->get_posY());
+        packet.put_byte((int)user->get_direction());
         packet.put_byte((int)user->get_charac_visible_values());
         packet.finalize(true);
         user->Send(packet);
@@ -2198,7 +2200,7 @@ void GameWorld::outFromBlueMarble(CUser* user)
 {
     if (check_valid_area(user->getCurCharacVill(), user->get_area(false)))
     {
-        sub_CUser_setBlueMarbleIndex(user, -1);
+        user->setBlueMarbleIndex(-1);
         Village* village = getUserVillage(user);
         if (village != NULL)
         {
@@ -2220,7 +2222,7 @@ void GameWorld::outFromBlueMarble(CUser* user)
     {
         cMyTrace trace("void GameWorld::outFromBlueMarble(CUser*)", 0xa7f, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
-        sub_CUser_DisConnSig(user, 3, 1, 0);
+        user->DisConnSig((DISCONN_SIG)3, 1, 0);
     }
 }
 
@@ -2236,7 +2238,7 @@ void GameWorld::fishing(CUser* user)
         }
         PacketGuard packet;
         packet.put_header(1, 0x27);
-        if (area->m_field68 == 2)
+        if (area->m_areaType == 2)
         {
             int fishIndex = area->take_fish();
             if (fishIndex == -1)
@@ -2252,8 +2254,8 @@ void GameWorld::fishing(CUser* user)
                 *(int*)&item = fishIndex;
                 CItemList* itemList = *(CItemList**)((char*)G_CDataManager() + 0xc);
                 itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, item, 1);
-                int result = sub_CInventory_insertItemIntoInventory(
-                    user->getCurCharacInvenW(), item, 5, true, true);
+                int result = user->getCurCharacInvenW()->insertItemIntoInventory(
+                    item, (eItemAddReason)5, true, true);
                 if (result < 1)
                 {
                     packet.put_byte(0);
@@ -2289,13 +2291,13 @@ void GameWorld::fishing(CUser* user)
     {
         cMyTrace trace("void GameWorld::fishing(CUser*)", 0xafd, 0);
         trace("user %s - check_valid_area() fail", user->getCurCharacName());
-        sub_CUser_DisConnSig(user, 3, 1, 0);
+        user->DisConnSig((DISCONN_SIG)3, 1, 0);
     }
 }
 
 bool GameWorld::IsPowerWarSafeZone(int vill, int area, int side)
 {
-    if (vill == 7 && sub_CPowerManager_IsPowerWarEventOn())
+    if (vill == 7 && GlobalData::s_power_manager->IsPowerWarEventOn())
     {
         if (vill < 0 || MAX_VILLAGE_NUM <= vill)
         {
@@ -2306,8 +2308,8 @@ bool GameWorld::IsPowerWarSafeZone(int vill, int area, int side)
         {
             return true;
         }
-        if ((side == 1 && pArea->m_field68 == 5) ||
-            (side == 2 && pArea->m_field68 == 6))
+        if ((side == 1 && pArea->m_areaType == 5) ||
+            (side == 2 && pArea->m_areaType == 6))
         {
             return true;
         }
@@ -2317,7 +2319,7 @@ bool GameWorld::IsPowerWarSafeZone(int vill, int area, int side)
 
 bool GameWorld::IsPowerWarSafeZone(int vill, int area)
 {
-    if (vill == 7 && sub_CPowerManager_IsPowerWarEventOn())
+    if (vill == 7 && GlobalData::s_power_manager->IsPowerWarEventOn())
     {
         if (vill < 0 || MAX_VILLAGE_NUM <= vill)
         {
@@ -2328,7 +2330,7 @@ bool GameWorld::IsPowerWarSafeZone(int vill, int area)
         {
             return true;
         }
-        if (pArea->m_field68 == 5 || pArea->m_field68 == 6)
+        if (pArea->m_areaType == 5 || pArea->m_areaType == 6)
         {
             return true;
         }
@@ -2606,7 +2608,7 @@ void GameWorld::ResetMidnight()
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
-            sub_CUser_ResetDailyCharacExpandDataMidnight(user);
+            user->ResetDailyCharacExpandDataMidnight();
         }
     }
 }
@@ -2632,7 +2634,7 @@ void GameWorld::ResetAllCoins()
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
-            sub_CUser_RecoverCoin(user, 1);
+            user->RecoverCoin(1);
             if (user->GetOpencoin() == 0)
             {
                 user->SendOpenflag();
@@ -2649,7 +2651,7 @@ void GameWorld::ResetAllCleadpadPoint()
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
-            sub_WongWork_CMCAPManager_reset((char*)user + 0x8e3f0);
+            user->m_mcap.reset();
         }
     }
     cMyTrace trace("void GameWorld::ResetAllCleadpadPoint()", 0x1385, 0);
@@ -2666,17 +2668,17 @@ void GameWorld::ResetAllPassPadFailCount()
         if (user->get_state() > 2)
         {
             bool needReset = false;
-            if (sub_Sanicova_CPad_isActivate(sub_CUser_getPad(user)) != 0 &&
-                sub_Sanicova_CPad_getFailCnt(sub_CUser_getPad(user)) >= 1)
+            if (user->getPad()->isActivate() != 0 &&
+                user->getPad()->getFailCnt() >= 1)
             {
                 needReset = true;
             }
             if (needReset)
             {
-                sub_Sanicova_CPad_setFailCnt(sub_CUser_getPad(user), 0);
-                sub_DB_PassPadUpdateFailCnt_makeRequest(
-                    user->get_acc_id(), sub_Sanicova_CPad_getFailCnt(sub_CUser_getPad(user)),
-                    sub_CUser_getWebAddress(user));
+                user->getPad()->setFailCnt(0);
+                DB_PassPadUpdateFailCnt::makeRequest(
+                    user->get_acc_id(), user->getPad()->getFailCnt(),
+                    (char*)user->getWebAddress());
                 resetCount += 1;
             }
         }
@@ -2704,11 +2706,9 @@ void GameWorld::ResetAllFatigue()
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
-            short charging = sub_CFatigueBatteryHandle_ChargingFatigueBattery(
-                &GlobalData::s_fatigueBatteryHandle_, user, 0);
+            short charging = GlobalData::s_fatigueBatteryHandle_->ChargingFatigueBattery(user, 0);
             user->IncFatigueBatteryCharging(charging);
-            short active = sub_CFatigueBatteryHandle_ActiveFatigueBattery(
-                &GlobalData::s_fatigueBatteryHandle_, user);
+            short active = GlobalData::s_fatigueBatteryHandle_->ActiveFatigueBattery(user);
             if (active != 0)
             {
                 user->DecFatigueBatteryCharging(active);
@@ -2718,40 +2718,41 @@ void GameWorld::ResetAllFatigue()
             }
             user->DBUpdateDBLogItem();
             user->ResetDBLogItem();
-            sub_CUser_RecoverFatigue(user, 0);
+            user->RecoverFatigue(0);
             user->SendFatigue();
             user->resetCurCharacMemberBonusFatigue();
             user->resetAccountMemberBonusFatigue();
             user->resetAccountUsedFatigue();
             user->SetDailyBadge(badge);
-            sub_CUser_ResetDailyCharacExpandData(user);
-            sub_CBoosterGage_send_data(user->GetCharacExpandData(
-                (ENUM_CHARAC_EXPAND_TYPE)0x11), (int)user);
+            user->ResetDailyCharacExpandData();
+            ((CBoosterGage*)user->GetCharacExpandData(
+                (ENUM_CHARAC_EXPAND_TYPE)0x11))->send_data(user, 0);
             user->send_MissionList();
             user->ClearCurConditionEventStep();
             user->ClearCurConditionEventRewardStep();
-            sub_CUser_SendConditionEventInfo(user);
+            user->SendConditionEventInfo();
             user->ClearProperDungeonClearCount();
             user->SendProperDungeonClearCount();
             user->ResetRevengeDungeonClear();
             user->resetNPCRelationShipDailyData();
             user->sendNPCRelationShipFavor();
-            sub_CDungeonGainedGold_reset(user->getDungeonGainedGold());
-            sub_APSystem_CActionPointManager_GetActionPoint((char*)user + 0x8d264);
-            sub_APSystem_DB_UpdateActionPoint_makeRequest(user->GetUID(), 0, true);
-            sub_APSystem_CUserProc_SetTodayActionAndCheckMedalReward(user);
-            sub_Secu_GoldControl_SavetoDB(user->GetGoldControl(), false, true, false);
-            sub_CEventScriptMng_send_event_init_data(
-                sub_CDataManager_get_event_script_mng(G_CDataManager()), user, true);
+            user->getDungeonGainedGold()->reset();
+            user->m_actionPoint.GetActionPoint();
+            APSystem::DB_UpdateActionPoint::makeRequest(user->GetUID(),
+                *(const APSystem::_SIG_LOAD_ACTION_POINT*)&user->m_actionPoint, true);
+            APSystem::CUserProc::SetTodayActionAndCheckMedalReward(user);
+            user->GetGoldControl()->SavetoDB(false, true, false);
+            ((EventClassify::CEventScriptMng*)G_CDataManager()->get_event_script_mng())
+                ->send_event_init_data(user, true);
             user->resetBlueMarbleEnterCount();
             user->sendBlueMarbleEnterCount();
-            sub_CUser_ResetCurCharacUsedGiftFatigueQuantity(user);
+            user->ResetCurCharacUsedGiftFatigueQuantity();
             bool bApplied = false;
             if (isFirst)
             {
                 std::string name("Arad_EventPeriodDataManager");
-                void* dataMgr = sub_ARAD_Singleton_Arad_DataManager_Get();
-                void* script = sub_ARAD_DataManager_findGameScript(dataMgr, name);
+                ARAD::Arad_DataManager* dataMgr = ARAD::Singleton<ARAD::Arad_DataManager>::Get();
+                void* script = dataMgr->findGameScript(name);
                 ARAD::Arad_EventPeriodDataManager* evtMgr =
                     static_cast<ARAD::Arad_EventPeriodDataManager*>(script);
                 bApplied = evtMgr->isApplied(
@@ -2761,13 +2762,13 @@ void GameWorld::ResetAllFatigue()
             if (bApplied)
             {
                 char msg[0xc];
-                sub_AradServerStateMessage_C1(msg);
-                sub_ARAD_notifyOpenMessageDialog(user, 0, 0x8e, msg);
+                ::new (msg) AradServerStateMessage();
+                ARAD::notifyOpenMessageDialog(user, 0, 0x8e, *(AradServerStateMessage*)msg);
             }
             *(int*)((char*)user + 0x8ec32) = 4;
-            sub_InterSelectPcroomDailyReward_SendPacket(user);
-            sub_HeroMissionEvent_processMission(
-                sub_ARAD_Singleton_HeroMissionEvent_Get(), user, 5, 0);
+            InterSelectPcroomDailyReward::SendPacket(user);
+            ARAD::Singleton<HeroMissionEvent>::Get()->processMission(
+                user, (HeroMissionCondition::MissionNo::T)5, 0);
         }
     }
     if (!m_UserInWorld.empty())
@@ -2786,9 +2787,9 @@ void GameWorld::ResetCacheCharactorMemory()
          it != m_loginUserMap.end(); ++it)
     {
         CUser* user = it->second;
-        sub_CUser_SetValidLastLoginCharac(user, false);
-        sub_CUser_SetLastLoginCharacNo(user, 0);
-        sub_CUser_SetLastLoginChannelNo(user, 0);
+        user->SetValidLastLoginCharac(false);
+        user->SetLastLoginCharacNo(0);
+        user->SetLastLoginChannelNo(0);
     }
 }
 
@@ -2798,9 +2799,9 @@ bool GameWorld::ResetCacheCharactorMemory(unsigned int accId)
     if (it != m_loginUserMap.end())
     {
         CUser* user = it->second;
-        sub_CUser_SetValidLastLoginCharac(user, false);
-        sub_CUser_SetLastLoginCharacNo(user, 0);
-        sub_CUser_SetLastLoginChannelNo(user, 0);
+        user->SetValidLastLoginCharac(false);
+        user->SetLastLoginCharacNo(0);
+        user->SetLastLoginChannelNo(0);
         return true;
     }
     return false;
@@ -2827,15 +2828,15 @@ void GameWorld::ResetOneADayItemShop()
 {
     if (GlobalData::s_event_manager->GetRepeatEvent(0x6d) != 0)
     {
-        sub_CItemShop_updateOneADayItemList((char*)G_CDataManager() + 0x8cbc);
+        G_CDataManager()->m_itemShop->updateOneADayItemList();
         for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
              it != m_UserInWorld.end(); ++it)
         {
             CUser* user = it->second;
             if (user->get_state() > 2)
             {
-                sub_CUser_SendOneADayItemShopIndex(
-                    user, sub_CItemShop_GetOneADayItemList((char*)G_CDataManager() + 0x8cbc));
+                user->SendOneADayItemShopIndex(
+                    G_CDataManager()->m_itemShop->GetOneADayItemList());
             }
         }
     }
@@ -2845,15 +2846,15 @@ void GameWorld::testResetOneADayItemShop()
 {
     if (GlobalData::s_event_manager->GetRepeatEvent(0x6d) != 0)
     {
-        sub_CItemShop_testupdateOneADayItemList((char*)G_CDataManager() + 0x8cbc);
+        G_CDataManager()->m_itemShop->testupdateOneADayItemList();
         for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
              it != m_UserInWorld.end(); ++it)
         {
             CUser* user = it->second;
             if (user->get_state() > 2)
             {
-                sub_CUser_SendOneADayItemShopIndex(
-                    user, sub_CItemShop_GetOneADayItemList((char*)G_CDataManager() + 0x8cbc));
+                user->SendOneADayItemShopIndex(
+                    G_CDataManager()->m_itemShop->GetOneADayItemList());
             }
         }
     }
@@ -2897,7 +2898,7 @@ void GameWorld::DeleteDailyItem()
         CUser* user = it->second;
         if (user != 0)
         {
-            sub_CUser_processDelDailyItem(user);
+            user->processDelDailyItem();
         }
     }
     GlobalData::s_systemTime_.update();
@@ -2913,18 +2914,18 @@ void GameWorld::AddDailyItem()
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
-            sub_CUser_AddDailyItem(user);
+            user->AddDailyItem();
             if (user->getCurCharacR() != 0)
             {
-                sub_CUser_ResetDailyQuest(user);
-                sub_CUser_ResetTrainingQuest(user);
+                user->ResetDailyQuest();
+                user->ResetTrainingQuest();
                 PacketGuard packet;
-                sub_CUserQuest_get_quest_info(sub_CUser_getCurCharacQuestR(user), (char*)&packet);
+                user->getCurCharacQuestR()->get_quest_info((char*)&packet);
                 user->Send(packet);
             }
             if (user->getCurCharacR() != 0 && user->get_charac_level() > 0x3b)
             {
-                sub_CUser_DimensionInoutUpdate(user, true, true);
+                user->DimensionInoutUpdate(true, true);
             }
         }
     }
@@ -2932,7 +2933,7 @@ void GameWorld::AddDailyItem()
 
 bool GameWorld::ReselectDailyQuest()
 {
-    if (!sub_CDataManager_reselectDailyTrainingQuest(G_CDataManager()))
+    if (!G_CDataManager()->reselectDailyTrainingQuest())
     {
         return false;
     }
@@ -2947,16 +2948,14 @@ void GameWorld::DailyEventModify()
 
 void GameWorld::ResetCraneItemNeedMaterial(int param)
 {
-    sub_CraneMinigameManager_updateCraneItemNeedMaterial(
-        sub_CGameManager_GetCraneMinigameManager(sub_G_CGameManager()), param);
+    G_CGameManager()->GetCraneMinigameManager()->updateCraneItemNeedMaterial(param);
     for (std::map<unsigned short, CUser*>::iterator it = m_UserInWorld.begin();
          it != m_UserInWorld.end(); ++it)
     {
         CUser* user = it->second;
         if (user->get_state() > 2)
         {
-            sub_CraneMinigameManager_updateCraneItemNeedMaterial(
-                sub_CGameManager_GetCraneMinigameManager(sub_G_CGameManager()), (int)user);
+            G_CGameManager()->GetCraneMinigameManager()->updateCraneItemNeedMaterial((int)user);
         }
     }
 }
@@ -2998,7 +2997,7 @@ void GameWorld::UpdateServerSnapShot()
             cMyTrace trace("void GameWorld::UpdateServerSnapShot()", 0x1b61, 8);
             trace("%u,%d,%u,%d,%d,%d,%d,%d,%s %s",
                   user->get_acc_id(),
-                  sub_CEnvironment_get_server_group(G_CEnvironment()),
+                  G_CEnvironment()->get_server_group(),
                   user->getCurCharacNo(),
                   (int)user->getCurCharacVill(),
                   user->get_area(false),
@@ -3014,12 +3013,10 @@ void GameWorld::UpdateMiniCraneSeed()
 {
     // Packet_MiniCraneSeed：PacketHeader(0x27f8, 0xe) + m_data(+0x0a)。内联 ctor
     // 产出 ORIG 弱 W 符号 _ZN20Packet_MiniCraneSeedC1Ev（@0x086d1d18）。
-    int group = sub_CEnvironment_get_server_group(G_CEnvironment());
+    int group = G_CEnvironment()->get_server_group();
     Packet_MiniCraneSeed packet;
-    sub_CMonitorServerProxy_SendTcpPacket(
-        sub_CServerProxyMgr_GetServerProxy_monitor(&GlobalData::s_monitor_proxy_mgr,
-            (ENUM_SERVER_GROUP)group),
-        (char*)&packet, 0xe);
+    GlobalData::s_monitor_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)group)
+        ->SendTcpPacket((char*)&packet, 0xe);
 }
 
 // ============================================================================
@@ -3090,9 +3087,9 @@ void GameWorld::CancelPowerUp()
          it != m_UserInWorld.end(); ++it)
     {
         CUser* user = it->second;
-        if (sub_CUser_IsPowerUp(user))
+        if (user->IsPowerUp())
         {
-            sub_CUser_SetPowerUp(user, false);
+            user->SetPowerUp(false);
             list.push_back(user);
         }
     }
@@ -3115,7 +3112,7 @@ void GameWorld::GetPowerUpDomain(std::vector<CUser*>& listA, std::vector<CUser*>
                     (double)user->GetPowerWarAssaultCount();
                 if (winRate <= threshold)
                 {
-                    if (sub_CUser_getPowerSide(user) == 1)
+                    if (user->getPowerSide() == 1)
                     {
                         listA.push_back(user);
                     }
@@ -3148,7 +3145,7 @@ void GameWorld::OnEndPowerWar(PacketGuard& packet)
     int var0 = 0;
     std::map<unsigned short, CUser*>::iterator it;
     int var1 = 0;
-    packet.put_byte(sub_CPowerManager_GetWinnerSide(&GlobalData::s_power_manager));
+    packet.put_byte(GlobalData::s_power_manager->GetWinnerSide());
     packet.put_short(0);
 }
 
@@ -3165,10 +3162,8 @@ void GameWorld::OnRefreshPowerWarProcessInfo()
             int interval = *(int*)((char*)G_CDataManager() + 0xa658) * 0x3c;
             if (interval < now - last)
             {
-                sub_CGuildServerProxy_SendPowerWarProcessInfo(
-                    sub_CServerProxyMgr_GetServerProxy_guild(
-                        &GlobalData::s_guild_proxy_mgr, sub_CUser_GetServerGroup(user)),
-                    sub_CUser_get_charac_no(user, -1));
+                GlobalData::s_guild_proxy_mgr->GetServerProxy(user->GetServerGroup())
+                    ->SendPowerWarProcessInfo(user->get_charac_no(-1));
             }
         }
     }
@@ -3187,8 +3182,7 @@ void GameWorld::OnBanAbuserFromPowerWar()
             int limit = *(int*)((char*)G_CDataManager() + 0xa65c) * 0x3c;
             if (limit < now - last)
             {
-                sub_CPowerManager_ProcessJoinPowerWar(
-                    &GlobalData::s_power_manager, user, 0);
+                GlobalData::s_power_manager->ProcessJoinPowerWar(user, 0);
                 PacketGuard packet;
                 packet.put_header(0, 0xe2);
                 packet.finalize(true);
@@ -3209,7 +3203,7 @@ void GameWorld::CleanupPowerWarVillToStart()
         CUser* user = it->second;
         if (user->getCurCharacVill() == 7)
         {
-            sub_CPowerManager_ProcessJoinPowerWar(&GlobalData::s_power_manager, user, 0);
+            GlobalData::s_power_manager->ProcessJoinPowerWar(user, 0);
         }
     }
 }
@@ -3242,8 +3236,8 @@ void GameWorld::get_user_info(CUser* user, int targetId, int type)
     bool hidden = false;
     if (type == 3)
     {
-        if (sub_WongWork_CGMAccounts_isGM(&GlobalData::s_pGMAccounts_, user->get_acc_id()) != 1 &&
-            sub_WongWork_CGMAccounts_isGM(&GlobalData::s_pGMAccounts_, target->get_acc_id()) == 1)
+        if (!GlobalData::s_pGMAccounts_->isGM(user->get_acc_id()) &&
+            GlobalData::s_pGMAccounts_->isGM(target->get_acc_id()))
         {
             hidden = true;
         }
@@ -3252,8 +3246,8 @@ void GameWorld::get_user_info(CUser* user, int targetId, int type)
     {
         if (type == 3)
         {
-            sub_CTitleBook_sendListOtherUser(
-                user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xe), user, 2);
+            ((CTitleBook*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xe))
+                ->sendListOtherUser(user, (ENUM_TITLE_BOOK_INFO_TYPE)2);
         }
         packet.clear();
         packet.put_header(0, 2);
@@ -3342,10 +3336,9 @@ void GameWorld::WriteLogChatMsg(CUser* user, char type, char* msg)
         char path[256];
         memset(path, 0, sizeof(path));
         sprintf(path, "./log/%s/GuildWarChat",
-                sub_CEnvironment_get_file_name(G_CEnvironment()));
-        char log[20];
-        sub_CMyFileLog_C1(log, "void GameWorld::WriteLogChatMsg(CUser*, char, char*)", 0xd6d);
-        sub_CMyFileLog_cl(log, path,
+                G_CEnvironment()->get_file_name());
+        CMyFileLog log("void GameWorld::WriteLogChatMsg(CUser*, char, char*)", 0xd6d);
+        log(path,
             "T:%d\tMsg:%s\tC_Name:%s\tG_Key:%d\tR_Idx:%d\tState:%d",
             (int)type, msg, user->getCurCharacName(), user->get_charac_guildkey(),
             (int)user->GetPvpIndex(), user->get_state());
@@ -3387,7 +3380,7 @@ void GameWorld::check_peerTypemsg_sameWorldUser(CUser* from, CUser* to, char typ
     {
         send_peerTypemsg_sameWorldUser(to, from, type, 0x4d, 0xfe, msg, len);
     }
-    else if (sub_WongWork_CGMAccounts_isGM(&GlobalData::s_pGMAccounts_, to->get_acc_id()) == 0)
+    else if (!GlobalData::s_pGMAccounts_->isGM(to->get_acc_id()))
     {
         send_peerTypemsg_sameWorldUser(from, to, type, 0, 1, msg, len);
     }
@@ -3403,13 +3396,13 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
 {
     if (type < 0x1f && ((1 << (type & 0x1f)) & 0x7fff0411U) != 0 && from != 0)
     {
-        sub_CUser_DisConnSig(from, 0x18, 1, 0);
+        from->DisConnSig((DISCONN_SIG)0x18, 1, 0);
         return;
     }
     if (type != 0)
     {
         std::string filtered = msg;
-        sub_CSyncSlangFilter_Filter(sub_CSyncSlangFilter_GetInstance(), filtered);
+        CSyncSlangFilter::GetInstance()->Filter(filtered);
         if (filtered.size() != 0)
         {
             strncpy(msg, filtered.c_str(), filtered.size());
@@ -3469,8 +3462,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             memcpy(buf + 0x0d, nick, nickLen);
             memcpy(buf + 0x2c, msg, len);
             int sendLen = len + 0x3b;
-            ((CMonitorServerProxy*)sub_CServerProxyMgr_GetServerProxy_monitor(
-                &GlobalData::s_monitor_proxy_mgr, from->GetServerGroup()))
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
                 ->SendPacket(buf, sendLen);
             break;
         }
@@ -3491,7 +3483,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             pm.finalize(true);
             from->Send(pm);
         }
-        else if (sub_CGM_Manager_IsGm(&GlobalData::s_GM_Manager, to->get_acc_id()) == 0)
+        else if (GlobalData::s_GM_Manager->IsGm(to->get_acc_id()) == 0)
         {
             if (IsIntegratedPvPBaseChannel() &&
                 from->GetServerGroup() != to->GetServerGroup())
@@ -3570,15 +3562,15 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             int cleanCount = G_CDataManager()->m_serverParameter.GetCleanChattingCount(
                 from->get_charac_level());
             std::string smsg(msg);
-            int add = sub_CUser_isDuplicationMessage(from, smsg) != 0
+            int add = from->isDuplicationMessage(smsg) != 0
                           ? G_CDataManager()->m_serverParameter.GetPaneltyDupMessage()
                           : 1;
-            sub_CUser_incChattingMessageCount(from, add * cleanCount);
-            if (sub_CUser_getChattingMessageCount(from) >
+            from->incChattingMessageCount(add * cleanCount);
+            if (from->getChattingMessageCount() >
                 G_CDataManager()->m_serverParameter.GetMaxCleanChattingCount())
             {
-                sub_CUser_setChattingMessageCount(from, 0);
-                sub_CUser_reqHumanCertify4ClearMap(from, false);
+                from->setChattingMessageCount(0);
+                from->reqHumanCertify4ClearMap(false);
                 break;
             }
         }
@@ -3603,8 +3595,8 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             make_packet_chat_msg(packet, from, msg, len, type, notify);
             if (from->GetAssaultPlace() == 0)
             {
-                PvP_Room* room = sub_G_CGameManager() != 0
-                    ? ((CGameManager*)sub_G_CGameManager())->GetPvp(
+                PvP_Room* room = G_CGameManager() != 0
+                    ? G_CGameManager()->GetPvp(
                           (int)from->GetPvpIndex(), from, 0)
                     : 0;
                 if (room != 0)
@@ -3614,8 +3606,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             }
             else
             {
-                sub_pvp_assault_CAssaultMgr_SendPacket(
-                    sub_pvp_assault_GetInstanceAssaultMgr(), from, false, &packet);
+                pvp_assault::GetInstanceAssaultMgr()->SendPacket(from, false, &packet);
             }
         }
         break;
@@ -3628,8 +3619,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             *(int*)(buf + 0x08) = from->getCurCharacNo();
             *(char*)(buf + 0x0c) = (char)len;
             memcpy(buf + 0x0d, msg, len);
-            ((CGuildServerProxy*)sub_CServerProxyMgr_GetServerProxy_guild(
-                &GlobalData::s_guild_proxy_mgr, from->GetServerGroup()))
+            GlobalData::s_guild_proxy_mgr->GetServerProxy(from->GetServerGroup())
                 ->SendPacket(buf, len + 0x13);
         }
         else
@@ -3642,15 +3632,14 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         break;
     case 8:
         if (from->getCurCharacNo() != 0 &&
-            sub_CUserCharacInfo_get_charac_memberkey(from) != 0)
+            from->get_charac_memberkey() != 0)
         {
             char buf[0x40];
             memset(buf, 0, sizeof(buf));
-            *(int*)(buf + 0x04) = (int)sub_CUserCharacInfo_get_charac_memberkey(from);
+            *(int*)(buf + 0x04) = (int)from->get_charac_memberkey();
             *(char*)(buf + 0x08) = (char)len;
             memcpy(buf + 0x09, msg, len);
-            ((CMonitorServerProxy*)sub_CServerProxyMgr_GetServerProxy_monitor(
-                &GlobalData::s_monitor_proxy_mgr, from->GetServerGroup()))
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
                 ->SendPacket(buf, len + 0xf);
         }
         else
@@ -3658,7 +3647,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             LogManager::logFormat(1, "world.cpp",
                 "void GameWorld::send_chat_msg(CUser*, char, short unsigned int, unsigned int, char*, int, char*, int, ENUM_NOTIPACKET)",
                 0xfa3, "MEMBER_CHAT_ERROR : member key == %d ",
-                (int)sub_CUserCharacInfo_get_charac_memberkey(from));
+                (int)from->get_charac_memberkey());
         }
         break;
     case 9:
@@ -3667,8 +3656,8 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             make_packet_chat_msg(packet, from, msg, len, type, notify);
             if (from->GetAssaultPlace() == 0)
             {
-                PvP_Room* room = sub_G_CGameManager() != 0
-                    ? ((CGameManager*)sub_G_CGameManager())->GetPvp(
+                PvP_Room* room = G_CGameManager() != 0
+                    ? G_CGameManager()->GetPvp(
                           (int)from->GetPvpIndex(), from, 0)
                     : 0;
                 if (room != 0)
@@ -3678,8 +3667,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
             }
             else
             {
-                sub_pvp_assault_CAssaultMgr_SendPacket(
-                    sub_pvp_assault_GetInstanceAssaultMgr(), from, true, &packet);
+                pvp_assault::GetInstanceAssaultMgr()->SendPacket(from, true, &packet);
             }
         }
         break;
@@ -3695,8 +3683,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         *(unsigned short*)(buf + 0x01 + 0x20) = from->get_unique_id();
         *(char*)(buf + 0x25) = (char)len;
         memcpy(buf + 0x26, msg, len);
-        ((CMonitorServerProxy*)sub_CServerProxyMgr_GetServerProxy_monitor(
-            &GlobalData::s_monitor_proxy_mgr, from->GetServerGroup()))
+        GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
             ->SendPacket(buf, len + 0x2e);
         break;
     }
@@ -3706,7 +3693,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         PacketGuard pm;
         pm.put_header(0, 0x76);
         pm.put_byte((int)type);
-        pm.put_byte(sub_CEnvironment_get_channel_no(G_CEnvironment()));
+        pm.put_byte(G_CEnvironment()->get_channel_no());
         pm.put_short(from->get_unique_id());
         int nameLen = (int)strlen(from->getCurCharacName());
         pm.put_int(nameLen);
@@ -3721,7 +3708,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
         if (from != 0)
         {
             make_packet_chat_msg(packet, from, msg, len, type, notify);
-            BlueMarble* bm = (BlueMarble*)sub_CUser_getBlueMarble(from);
+            BlueMarble* bm = (BlueMarble*)from->getBlueMarble();
             if (bm != 0)
             {
                 bm->sendToBlueMarble(packet);
@@ -3737,13 +3724,13 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
     if (msg->m_type < 0x1f && ((1 << (msg->m_type & 0x1f)) & 0x7fff0411U) != 0 &&
         from != 0)
     {
-        sub_CUser_DisConnSig(from, 0x18, 1, 0);
+        from->DisConnSig((DISCONN_SIG)0x18, 1, 0);
         return;
     }
     if (msg->m_type != 0)
     {
         std::string filtered = msg->m_msg;
-        sub_CSyncSlangFilter_Filter(sub_CSyncSlangFilter_GetInstance(), filtered);
+        CSyncSlangFilter::GetInstance()->Filter(filtered);
         if (filtered.size() != 0)
         {
             strncpy(msg->m_msg, filtered.c_str(), filtered.size());
@@ -3801,8 +3788,7 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
                 memcpy(buf + 0x2c + msg->m_msgLen + 1 + i * 0x68,
                        msg->m_items[i], 0x68);
             }
-            ((CMonitorServerProxy*)sub_CServerProxyMgr_GetServerProxy_monitor(
-                &GlobalData::s_monitor_proxy_mgr, from->GetServerGroup()))
+            GlobalData::s_monitor_proxy_mgr->GetServerProxy(from->GetServerGroup())
                 ->SendPacket(buf, msg->m_msgLen + 0x174);
             break;
         }
@@ -3836,8 +3822,8 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
             {
                 code = 0x15;
             }
-            else if (sub_CGM_Manager_IsGm(&GlobalData::s_GM_Manager,
-                                          to->get_acc_id()) != 0)
+            else if (GlobalData::s_GM_Manager->IsGm(
+                         to->get_acc_id()) != 0)
             {
                 code = 0x5a;
             }
@@ -3934,7 +3920,7 @@ void InterSelectCreateDnfEventInfo::Reward::operator()(CUser* user)
     PacketGuard packet;
     packet.put_header(0, 0x22d);
     packet.put_short(m_0);
-    bool reward = sub_CUser_GetEventCreateDnfReward(user) == 0 && m_2 != 0;
+    bool reward = user->GetEventCreateDnfReward() == 0 && m_2 != 0;
     packet.put_byte(reward ? 1 : 0);
     packet.finalize(true);
     user->Send(packet);

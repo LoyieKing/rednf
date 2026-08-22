@@ -9,7 +9,9 @@ public:
     CServerEvent() {}
     ~CServerEvent() {}
 
-    int GetExpRate();
+    // ORIG 调用点无 this 压栈（WarRoom::ClearReward 086bc907 call 前仅清零局部），
+    // 故为静态成员；定义处无需 static 关键字
+    static int GetExpRate();
     int AddExpRate(int rate);
     int SubExpRate(int rate);
     int IsEventing(int idx);

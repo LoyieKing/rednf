@@ -13,9 +13,6 @@
 // 其它 TU 提供的符号（ORIG 真实符号）
 // ============================================================================
 
-extern "C" char sub_CPowerManager_GetWinnerSide()
-    asm("_ZN13CPowerManager13GetWinnerSideEv");
-
 class CDailyScheduleManager
 {
 public:
@@ -25,6 +22,7 @@ public:
 namespace GlobalData
 {
 extern CDailyScheduleManager s_DailyScheduleManager;  // ORIG 0x941f784
+extern CPowerManager* s_power_manager;                // ORIG 0x940be50（指针，见 GlobalData.h）
 }
 
 // ORIG 0x8352203：src 按相邻元素配对填充 RewardItemInfo{field0,field4}；
@@ -159,7 +157,7 @@ char Quest::check_power_side(char side)
     {
         return 1;
     }
-    char winner = sub_CPowerManager_GetWinnerSide();
+    char winner = GlobalData::s_power_manager->GetWinnerSide();
     if (m_powerSide == 0)
     {
         if (winner == side)
@@ -175,7 +173,7 @@ char Quest::check_power_side(char side)
                                   0x1161, "Quest Script Error q_index(%d)", m_index);
             return 0;
         }
-        winner = sub_CPowerManager_GetWinnerSide();
+        winner = GlobalData::s_power_manager->GetWinnerSide();
         if (winner != side)
         {
             return 1;

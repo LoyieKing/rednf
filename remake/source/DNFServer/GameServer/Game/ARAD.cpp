@@ -19,13 +19,7 @@ void* Arad_DataManager::findGameScript(const std::string&)
     return 0;
 }
 
-template <class T>
-T* Singleton<T>::Get()
-{
-    static T instance;
-    return &instance;
-}
-
+// Singleton<T>::Get() 模板定义已在 Arad_DataManager.h 提供（唯一）；此处只做显式实例化。
 template class Singleton<Arad_DataManager>;
 template class Singleton<RestrictGeolocation>;
 // [推断] Singleton<ServiceRestrictManager>::Get（ORIG 44 insn）：ServiceRestrictManager

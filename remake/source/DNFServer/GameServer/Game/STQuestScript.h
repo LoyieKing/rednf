@@ -14,20 +14,9 @@
 #include <utility>
 #include <vector>
 
+#include "TownAreaScript.h"   // TownAreaScript 唯一声明点（0x30，TownAreaScript.cpp 提供符号）
+
 class QuestScript;
-
-// ---- 城镇区域脚本（map<int, TownAreaScript> 值类型，布局从简） ----
-class TownAreaScript
-{
-public:
-    TownAreaScript();
-    TownAreaScript(const TownAreaScript& other);
-    TownAreaScript& operator=(const TownAreaScript& other);
-    ~TownAreaScript();
-
-    int m_areaIndex;    // +0x00
-    int m_mapIndex;     // +0x04
-};
 
 // ---- 城镇脚本（0x44 字节） ----
 class TownScript

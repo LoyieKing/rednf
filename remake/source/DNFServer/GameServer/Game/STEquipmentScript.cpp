@@ -12,11 +12,7 @@
 
 #include <string.h>
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
+#include "DNFLexWrapper.h"
 
 STEquipmentScript::STEquipmentScript()
 {
@@ -196,10 +192,6 @@ bool STEquipmentScript::artifact_info::isUsable() const
 // getAvatarEmblemType / getEquipmentTypeToEnumValue / GetEquipmentType）处仅还原可直接
 // 经 Scan*/成员写入的部分，其余标「推断」并跳过，不伪造返回值。
 
-extern "C" bool sub_ScanStr(std::string* out) asm("_Z7ScanStrPSs");
-extern "C" float sub_ScanFloat(float* out) asm("_Z9ScanFloatPf");
-extern "C" void sub_unloadRDARScriptFile() asm("_Z20unloadRDARScriptFilev");
-
 namespace
 {
 // ORIG 使用关键字→索引 map（__lookup）+ switch 分发。此处按同文件其它 ST*Script
@@ -213,7 +205,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
 {
     (void)flag;
     (void)a;
-    if (!sub_loadRDARScriptFile(kEquipmentScriptBaseDir, path))
+    if (!loadRDARScriptFile(kEquipmentScriptBaseDir, path))
     {
         return false;
     }
@@ -227,29 +219,29 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
 
     // ---- 主关键字循环（ORIG LAB_08991d82 起 ScanType 循环 + __lookup map→switch 分发） ----
     std::string line;
-    while (sub_ScanType(line, true))
+    while (ScanType(line, true))
     {
         int v = 0;
 
         // ---------- 基础/物品（STItemScript 基类成员） ----------
-        if (line == "[name]")                  { sub_ScanStr(&script->m_strac); }
-        else if (line == "[name2]")            { sub_ScanStr(&script->m_strb0); }
-        else if (line == "[explain]")          { sub_ScanStr(&script->m_strb4); }
-        else if (line == "[explain2]")         { sub_ScanStr(&script->m_strb4); }
-        else if (line == "[basic explain]")    { sub_ScanStr(&script->m_str6a4); }
-        else if (line == "[detail explain]")   { sub_ScanStr(&script->m_str6a8); }
-        else if (line == "[flavor text]")      { sub_ScanStr(&script->m_strb8); }
-        else if (line == "[attack info]")      { sub_ScanStr(&script->m_str6ac); }
-        else if (line == "[fullset basic explain]")  { sub_ScanStr(&script->m_str6b0); }
-        else if (line == "[fullset detail explain]") { sub_ScanStr(&script->m_str6b4); }
-        else if (line == "[fullset explain]")         { sub_ScanStr(&script->m_str6b8); }
-        else if (line == "[set name]")         { sub_ScanStr(&script->m_str6a8); }
-        else if (line == "[set item master]")  { sub_ScanInt(&script->m_6a0); }
+        if (line == "[name]")                  { ScanStr(&script->m_strac); }
+        else if (line == "[name2]")            { ScanStr(&script->m_strb0); }
+        else if (line == "[explain]")          { ScanStr(&script->m_strb4); }
+        else if (line == "[explain2]")         { ScanStr(&script->m_strb4); }
+        else if (line == "[basic explain]")    { ScanStr(&script->m_str6a4); }
+        else if (line == "[detail explain]")   { ScanStr(&script->m_str6a8); }
+        else if (line == "[flavor text]")      { ScanStr(&script->m_strb8); }
+        else if (line == "[attack info]")      { ScanStr(&script->m_str6ac); }
+        else if (line == "[fullset basic explain]")  { ScanStr(&script->m_str6b0); }
+        else if (line == "[fullset detail explain]") { ScanStr(&script->m_str6b4); }
+        else if (line == "[fullset explain]")         { ScanStr(&script->m_str6b8); }
+        else if (line == "[set name]")         { ScanStr(&script->m_str6a8); }
+        else if (line == "[set item master]")  { ScanInt(&script->m_6a0); }
         else if (line == "[attach type]")
         {
             // ORIG: "[free]"/"[trade]"/"[trade delete]"/"[sealing]"/"[sealing trade]"/"[account]" → +8
             std::string s;
-            if (sub_ScanStr(&s))
+            if (ScanStr(&s))
             {
                 if (s == "[free]")               script->m_field8 = 0;
                 else if (s == "[trade]")         script->m_field8 = 1;
@@ -259,46 +251,46 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
                 else if (s == "[account]")       script->m_field8 = 5;
             }
         }
-        else if (line == "[creation rate]")    { sub_ScanInt(&script->m_fieldc); }
-        else if (line == "[rarity]")           { sub_ScanInt(&script->m_field10); }
-        else if (line == "[value]")            { sub_ScanInt(&script->m_field24); }
-        else if (line == "[price]")            { sub_ScanInt(&script->m_field24); }
-        else if (line == "[output index]")     { sub_ScanInt(&script->m_field14); }
-        else if (line == "[max having count]") { sub_ScanInt(&script->m_field60); }
-        else if (line == "[cool time]")        { sub_ScanInt(&script->m_field68); }
-        else if (line == "[minimum rank]")     { sub_ScanInt(&script->m_180); }
-        else if (line == "[required skill]")   { sub_ScanInt(&script->m_184); }
-        else if (line == "[control index]")    { sub_ScanInt(&script->m_188); }
-        else if (line == "[usable period]")    { sub_ScanInt(&script->m_fieldf4); }
-        else if (line == "[expiration date]")  { sub_ScanInt(&script->m_fieldf8); }
+        else if (line == "[creation rate]")    { ScanInt(&script->m_fieldc); }
+        else if (line == "[rarity]")           { ScanInt(&script->m_field10); }
+        else if (line == "[value]")            { ScanInt(&script->m_field24); }
+        else if (line == "[price]")            { ScanInt(&script->m_field24); }
+        else if (line == "[output index]")     { ScanInt(&script->m_field14); }
+        else if (line == "[max having count]") { ScanInt(&script->m_field60); }
+        else if (line == "[cool time]")        { ScanInt(&script->m_field68); }
+        else if (line == "[minimum rank]")     { ScanInt(&script->m_180); }
+        else if (line == "[required skill]")   { ScanInt(&script->m_184); }
+        else if (line == "[control index]")    { ScanInt(&script->m_188); }
+        else if (line == "[usable period]")    { ScanInt(&script->m_fieldf4); }
+        else if (line == "[expiration date]")  { ScanInt(&script->m_fieldf8); }
         else if (line == "[equipment type]")
         {
             // ORIG: ScanStr → GetEquipmentType → m_1b4(+0x1b4)；GetEquipmentType 未定义「推断」
             std::string s;
-            if (sub_ScanStr(&s)) { script->m_strbc = s; }
+            if (ScanStr(&s)) { script->m_strbc = s; }
         }
-        else if (line == "[avatar task num]")  { int dv; sub_ScanInt(&dv); }
+        else if (line == "[avatar task num]")  { int dv; ScanInt(&dv); }
         else if (line == "[weapon full avatar]") { script->m_72d = 1; }
-        else if (line == "[sub type]")         { sub_ScanInt(&script->m_1b8); }
-        else if (line == "[durability]")       { sub_ScanInt(&script->m_1bc); }
-        else if (line == "[creature species]") { sub_ScanInt(&script->m_6bc); }
+        else if (line == "[sub type]")         { ScanInt(&script->m_1b8); }
+        else if (line == "[durability]")       { ScanInt(&script->m_1bc); }
+        else if (line == "[creature species]") { ScanInt(&script->m_6bc); }
         else if (line == "[grade]")
         {
             // ORIG 0x790/0x794：4 字节颜色 + 1 值，打包进 m_790
             unsigned r = 0, g = 0, b = 0, a4 = 0;
-            sub_ScanInt((int*)&r);
-            sub_ScanInt((int*)&g);
-            sub_ScanInt((int*)&b);
-            sub_ScanInt((int*)&a4);
+            ScanInt((int*)&r);
+            ScanInt((int*)&g);
+            ScanInt((int*)&b);
+            ScanInt((int*)&a4);
             script->m_790 = (int)((b & 0xff) << 16 | (r & 0xff) | ((g & 0xff) << 8) | (a4 << 24));
-            sub_ScanInt(&script->m_794);
+            ScanInt(&script->m_794);
         }
 
         // ---------- 装备动画/层级 ----------
         else if (line == "[hide equipment]")
         {
             script->m_equipTypes768.clear();
-            while (sub_ScanStr(&line))
+            while (ScanStr(&line))
             {
                 if (line == "[/hide equipment]") break;
                 int t = 0x16;
@@ -320,23 +312,23 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
         else if (line == "[hide layer]")
         {
             script->m_vec774.clear();
-            while (sub_ScanInt(&v)) script->m_vec774.push_back(v);
+            while (ScanInt(&v)) script->m_vec774.push_back(v);
         }
         else if (line == "[hide growtype avatar]")
         {
             script->m_vec780.clear();
-            while (sub_ScanInt(&v)) script->m_vec780.push_back(v);
+            while (ScanInt(&v)) script->m_vec780.push_back(v);
         }
         else if (line == "[/setback img]")
         {
             script->m_vec66c.clear();
-            while (sub_ScanInt(&v)) script->m_vec66c.push_back(v);
+            while (ScanInt(&v)) script->m_vec66c.push_back(v);
         }
 
         // ---------- 套装/参数 ----------
         else if (line == "[set item]")
         {
-            sub_ScanInt(&v);
+            ScanInt(&v);
             EquipmentParameterInfo& info = script->m_paramMap678[v];
             info.clear();
             // ORIG：选中 paramMap678[k] 后经嵌套 importEquipmentParameterInfo 段灌入。
@@ -344,24 +336,24 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
         }
         else if (line == "[clear avatar]")
         {
-            sub_ScanInt(&v);
+            ScanInt(&v);
             if (v == 1) { script->m_7ac = 1; }
         }
 
         // ---------- 创造/状态 ----------
-        else if (line == "[creature piercing]") { sub_ScanInt(&script->m_764); }
-        else if (line == "[usable even peace]") { sub_ScanInt(&v); script->m_78c = (v == 1); }
-        else if (line == "[usable period after unsealing]") { sub_ScanInt(&script->m_6f8); }
-        else if (line == "[mp recovery add rate]") { sub_ScanInt(&script->m_734); }
+        else if (line == "[creature piercing]") { ScanInt(&script->m_764); }
+        else if (line == "[usable even peace]") { ScanInt(&v); script->m_78c = (v == 1); }
+        else if (line == "[usable period after unsealing]") { ScanInt(&script->m_6f8); }
+        else if (line == "[mp recovery add rate]") { ScanInt(&script->m_734); }
         else if (line == "[hidden option]")  { script->m_field31 = 1; }
-        else if (line == "[npc gift disallowance]") { sub_ScanInt(&v); script->m_field104 = (v != 1); }
-        else if (line == "[epic routing]")   { sub_ScanInt(&v); script->m_7bc = (v == 1); }
-        else if (line == "[packagable]")     { sub_ScanInt(&v); script->m_fieldfc = (v != 0); }
-        else if (line == "[random option]")  { sub_ScanInt(&v); script->m_888 = 1; script->m_889 = (char)v; }
+        else if (line == "[npc gift disallowance]") { ScanInt(&v); script->m_field104 = (v != 1); }
+        else if (line == "[epic routing]")   { ScanInt(&v); script->m_7bc = (v == 1); }
+        else if (line == "[packagable]")     { ScanInt(&v); script->m_fieldfc = (v != 0); }
+        else if (line == "[random option]")  { ScanInt(&v); script->m_888 = 1; script->m_889 = (char)v; }
         else if (line == "[enable dye]")
         {
-            sub_ScanInt(&v); script->m_88a = (v != 0);
-            sub_ScanInt(&v); script->m_88b = (v != 0);
+            ScanInt(&v); script->m_88a = (v != 0);
+            ScanInt(&v); script->m_88b = (v != 0);
         }
 
         // ---------- 通用容器 ----------
@@ -369,35 +361,35 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
         {
             script->m_vec7d8.clear();
             script->m_field10e = 1;
-            while (sub_ScanInt(&v))
+            while (ScanInt(&v))
             {
                 int v2;
-                if (!sub_ScanInt(&v2)) break;
+                if (!ScanInt(&v2)) break;
                 script->m_vec7d8.push_back(std::make_pair(v, v2));
             }
         }
         else if (line == "[output]")
         {
             script->m_vec7e4.clear();
-            while (sub_ScanInt(&v))
+            while (ScanInt(&v))
             {
                 int v2;
-                if (!sub_ScanInt(&v2)) break;
+                if (!ScanInt(&v2)) break;
                 script->m_vec7e4.push_back(std::make_pair(v, v2));
             }
         }
-        else if (line == "[emancipate explain]") { sub_ScanStr(&script->m_str7f0); }
-        else if (line == "[emancipate]")         { sub_ScanInt(&script->m_6e4); }
+        else if (line == "[emancipate explain]") { ScanStr(&script->m_str7f0); }
+        else if (line == "[emancipate]")         { ScanInt(&script->m_6e4); }
         else if (line == "[image packs]")
         {
             script->m_vec7b0.clear();
-            while (sub_ScanStr(&line)) script->m_vec7b0.push_back(line);
+            while (ScanStr(&line)) script->m_vec7b0.push_back(line);
         }
-        else if (line == "[reference effect part set index]") { sub_ScanInt(&v); script->m_vec7a0.push_back(v); }
-        else if (line == "[part set index]")    { sub_ScanInt(&script->m_798); }
-        else if (line == "[effect part set index]") { sub_ScanInt(&script->m_79c); }
-        else if (line == "[icon mark]")         { sub_ScanStr(&script->m_strc0); sub_ScanInt(&script->m_fieldc4); }
-        else if (line == "[message]")           { sub_ScanStr(&script->m_str7f4); }
+        else if (line == "[reference effect part set index]") { ScanInt(&v); script->m_vec7a0.push_back(v); }
+        else if (line == "[part set index]")    { ScanInt(&script->m_798); }
+        else if (line == "[effect part set index]") { ScanInt(&script->m_79c); }
+        else if (line == "[icon mark]")         { ScanStr(&script->m_strc0); ScanInt(&script->m_fieldc4); }
+        else if (line == "[message]")           { ScanStr(&script->m_str7f4); }
 
         // ---------- 需要未定义外部辅助的关键字（仅『推断』，不伪造返回值） ----------
         else if (line == "[parameter basic explain]")  { /* 写 param1c0+0x278，段未展开 */ }
@@ -409,12 +401,12 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
         else if (line == "[creature physical attack]") { /* +0x73c */ }
         else if (line == "[creature magical attack]")  { /* +0x740 */ }
         else if (line == "[usable world]")    { /* scanWorldType()→m_setdc，未定义 */ }
-        else if (line == "[usable module]")   { script->m_set714.clear(); while (sub_ScanInt(&v)) { if (v == 0x11) break; script->m_set714.insert(v); } }
+        else if (line == "[usable module]")   { script->m_set714.clear(); while (ScanInt(&v)) { if (v == 0x11) break; script->m_set714.insert(v); } }
         else if (line == "[no random]")       { script->m_72c = 1; }
         else if (line == "[msg balloon on mucu skill]") { /* +0x87c/+0x878 */ }
         else if (line == "[aurora graphic effects]")    { /* +0x864/+0x858 */ }
-        else if (line == "[change type ultimateSkillCurScene]") { sub_ScanInt(&script->m_6dc); }
-        else if (line == "[not amplify]")     { sub_ScanInt(&script->m_890); }
+        else if (line == "[change type ultimateSkillCurScene]") { ScanInt(&script->m_6dc); }
+        else if (line == "[not amplify]")     { ScanInt(&script->m_890); }
         else if (line == "[equip effect]")    { /* importEffect→m_effect84c，未定义 */ }
         else if (line == "[/aura ability]")   { /* aura 终段 */ }
         else if (line == "[aura ability]")    { /* GetAuraAvatarOption 未定义 */ }
@@ -436,7 +428,7 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     // （FindIndexByFullScan(g_stEquipmentScriptFileList, path) 或 param_5 → *param_1）。
     // 二者依赖未建模的局部计数/全局列表，标「推断」省略主动填充，跨 TU 结果由调用方兜底。
 
-    sub_unloadRDARScriptFile();
+    unloadRDARScriptFile();
     return true;
 }
 bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,

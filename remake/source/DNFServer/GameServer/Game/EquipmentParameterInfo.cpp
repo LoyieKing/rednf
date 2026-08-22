@@ -13,12 +13,7 @@
 #include <stdio.h>
 #include <string.h>
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-extern "C" bool sub_ScanStr(std::string& out) asm("_Z7ScanStrRSs");
+#include "DNFLexWrapper.h"
 
 EquipmentParameterInfo::EquipmentParameterInfo()
 {
@@ -285,7 +280,7 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
                                   std::string& path, const char* dir,
                                   int& a, int& b)
 {
-    if (!sub_loadRDARScriptFile(dir, path.c_str()))
+    if (!loadRDARScriptFile(dir, path.c_str()))
     {
         return false;
     }
@@ -294,18 +289,18 @@ bool importEquipmentParameterInfo(EquipmentParameterInfo* info,
     b = 0;
     std::string line;
     int value = 0;
-    while (sub_ScanType(line, true))
+    while (ScanType(line, true))
     {
         if (line == "[action]")
         {
-            if (sub_ScanInt(&value))
+            if (ScanInt(&value))
             {
                 info->m_magAtt[0] = value;
             }
         }
         else if (line == "[option]")
         {
-            if (sub_ScanInt(&value))
+            if (ScanInt(&value))
             {
                 info->m_magDef[0] = value;
             }

@@ -13,9 +13,10 @@ void CVillageMonsterMgr::OnMoveArea(CUser*)
     // TODO(G3)
 }
 
-void CVillageMonsterMgr::OnEvent()
+bool CVillageMonsterMgr::OnEvent()
 {
-    // TODO(G3)
+    // TODO(G3) 推断：ORIG 0x82f0f44 返回 bool(m_field04 != 0)；桩暂返回 false
+    return false;
 }
 
 void CVillageMonsterMgr::InsertVillageMonster(int, int, int, int,

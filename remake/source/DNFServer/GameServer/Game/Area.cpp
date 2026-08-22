@@ -21,9 +21,10 @@
 //   +0x94 uchar m_bExistItemShopNPC（IsExistItemShopNPC / set_area 0x7f NPC）
 // sizeof = 0x98（0x95..0x97 对齐填充）。
 //
-// 跨类（CUser/PacketGuard/CBelong/管理器等）以最小声明 + extern "C" asm 标签
-// 指向 ORIG 真实符号；本 TU 自包含、只编译不链接（check_tu_game_orig.sh 单 TU
-// 验证）。异常处理器（insert_user 的 map::insert bad_alloc 捕获）按语义简化。
+// 跨类调用一律 include 真实头（CUser.h / CAssaultMgr.h / CVillageObjectMgr.h /
+// CVillageMonsterMgr.h / CTimeGate.h / CDataManager.h / NPCScript.h /
+// GlobalData.h / PacketGuard.h / TownAreaScript.h），不再使用 extern asm 桥。
+// 异常处理器（insert_user 的 map::insert bad_alloc 捕获）按语义简化。
 // ============================================================================
 
 #include <algorithm>
@@ -33,172 +34,38 @@
 #include <utility>
 #include <vector>
 
+#include "CUser.h"
+#include "CAssaultMgr.h"
+#include "CVillageObjectMgr.h"
+#include "CVillageMonsterMgr.h"
+#include "CTimeGate.h"
+#include "CDataManager.h"
+#include "NPCScript.h"
+#include "GlobalData.h"
+#include "PacketGuard.h"
+#include "TownAreaScript.h"
+
 // ---------------------------------------------------------------------------
-// 跨类最小声明
+// 跨类最小声明（无权威头的残留）
 // ---------------------------------------------------------------------------
-class CUser;
-class PacketGuard;
 class CBelong;
 
-enum ch_state
-{
-    ch_state_0 = 0,
-    ch_state_3 = 3,
-    ch_state_4 = 4
-};
-
-enum ENUM_NPC_ROLE
-{
-    ENUM_NPC_ROLE_NONE = 0
-};
-
-// ---- InterfacePacketBuf / PacketGuard（ORIG 858e294 / 858dd4c / 858de80）----
-class InterfacePacketBuf
-{
-public:
-    void put_header(int type, int size);
-    void put_byte(int b);
-    void put_short(int s);
-    void put_short(int& index, int count);
-    void finalize(bool encryptRequired);
-    void clear();
-    int get_index();
-};
-
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-};
-
-// ---- CUser / CUserCharacInfo（以 CUser 指针为 this 的真实符号）----
-extern "C" unsigned short sub_CUser_get_unique_id(const void* self)
-    asm("_ZNK5CUser13get_unique_idEv");
-extern "C" int sub_CUser_get_state(void* self)
-    asm("_ZN5CUser9get_stateEv");
-extern "C" void sub_CUser_set_state(void* self, ch_state st)
-    asm("_ZN5CUser9set_stateE8ch_state");
-extern "C" int sub_CUser_get_area(void* self, bool b)
-    asm("_ZN5CUser8get_areaEb");
-extern "C" unsigned short sub_CUser_get_posX(void* self)
-    asm("_ZN5CUser8get_posXEv");
-extern "C" unsigned short sub_CUser_get_posY(void* self)
-    asm("_ZN5CUser8get_posYEv");
-extern "C" char sub_CUser_get_direction(void* self)
-    asm("_ZN5CUser13get_directionEv");
-extern "C" void sub_CUser_Send(void* self, PacketGuard& packet)
-    asm("_ZN5CUser4SendER11PacketGuard");
-
-extern "C" char sub_CUserCharacInfo_getCurCharacVill(const void* self)
-    asm("_ZNK15CUserCharacInfo16getCurCharacVillEv");
-extern "C" char sub_CUserCharacInfo_get_charac_visible_values(const void* self)
-    asm("_ZN15CUserCharacInfo25get_charac_visible_valuesEv");
-extern "C" char sub_CUserCharacInfo_IsCurCharacVisible(const void* self)
-    asm("_ZN15CUserCharacInfo18IsCurCharacVisibleEv");
-extern "C" unsigned short sub_CUserCharacInfo_getPowerWarHP(const void* self)
-    asm("_ZN15CUserCharacInfo13getPowerWarHPEv");
-
-// ---- pvp_assault ----
-namespace pvp_assault
-{
-class CAssaultMgr;
-}
-extern "C" void* sub_GetInstanceAssaultMgr()
-    asm("_ZN11pvp_assault21GetInstanceAssaultMgrEv");
-extern "C" void sub_CAssaultMgr_OnMoveArea(void* mgr, void* user)
-    asm("_ZN11pvp_assault11CAssaultMgr10OnMoveAreaEP5CUser");
-
-// ---- village_object ----
-namespace village_object
-{
-class IObject;
-class CVillageObjectMgr;
-struct Zone
-{
-    Zone(unsigned char a, unsigned char b);
-    unsigned short m_field0;   // +0x00（2 字节）
-};
-}
-extern "C" void sub_village_object_on_move_area(void* mgr, void* user)
-    asm("_ZN14village_object17CVillageObjectMgr12on_move_areaEP5CUser");
-extern "C" void sub_village_object_register_object(
-    void* mgr, village_object::Zone zone, void* obj)
-    asm("_ZN14village_object17CVillageObjectMgr15register_objectENS_4ZoneEPNS_7IObjectE");
-
-// ---- village_attacked ----
-namespace village_attacked
-{
-class CVillageMonsterMgr;
-}
-extern "C" void sub_village_monster_OnMoveArea(void* mgr, void* user)
-    asm("_ZN16village_attacked18CVillageMonsterMgr10OnMoveAreaEP5CUser");
-extern "C" void sub_village_monster_InsertVillageMonster(
-    void* mgr, int a, int b, int c, int d,
-    std::vector<struct STAttackedMonster>* monsters,
-    std::vector<struct MapArea>* areas)
-    asm("_ZN16village_attacked18CVillageMonsterMgr20InsertVillageMonsterEiiiiPSt6vectorI17STAttackedMonsterSaIS2_EEPS1_I7MapAreaSaIS6_EE");
-
-// ---- CTimeGate ----
-extern "C" void sub_CTimeGate_SetTimeGate(void* self, int a, int b, int c, int d, int e)
-    asm("_ZN9CTimeGate11SetTimeGateEiiiii");
-
-// ---- CDataManager / CNPCScriptList / CNPCScript ----
-extern "C" void* sub_G_CDataManager() asm("_Z14G_CDataManagerv");
-extern "C" void* sub_CNPCScriptList_find(const void* self, unsigned int id)
-    asm("_ZNK14CNPCScriptList4findEj");
-extern "C" char sub_CNPCScript_isExistRole(const void* self, ENUM_NPC_ROLE role)
-    asm("_ZNK10CNPCScript11isExistRoleE13ENUM_NPC_ROLE");
-
-extern "C" void sub_createLotteryInfo(void* lottery, std::vector<int>* counts)
-    asm("_Z17createLotteryInfoP11LotteryInfoPSt6vectorIiSaIiEE");
-
-// ---- GlobalData 单例指针（ORIG BSS：0941f774/0941f77c/0941f7f4）----
-extern "C" void* GlobalData_s_villageObjectMgr
-    asm("_ZN10GlobalData18s_villageObjectMgrE");
-extern "C" void* GlobalData_s_villageMonsterMgr
-    asm("_ZN10GlobalData19s_villageMonsterMgrE");
-extern "C" void* GlobalData_s_timeGate_
-    asm("_ZN10GlobalData11s_timeGate_E");
+// createLotteryInfo（ORIG 0x89babc5，自由函数；定义于 CStackableItem.cpp，
+// 无权威头——CStackableItem.cpp 同样局部声明）
+void createLotteryInfo(LotteryInfo* lottery, std::vector<int>* counts);
 
 // ---------------------------------------------------------------------------
 // Area 依赖结构（字段布局按 ORIG 反汇编偏移）
 // ---------------------------------------------------------------------------
-struct MapArea
-{
-    int m_x;    // +0x00
-    int m_y;    // +0x04
-    int m_w;    // +0x08
-    int m_h;    // +0x0c
-};
-
-struct STAttackedMonster
-{
-    char m_pad[0x10];
-};
+// MapArea / STAttackedMonster：全局作用域定义见 CVillageMonsterMgr.h
+// （InsertVillageMonster 的 mangled 参数需非限定类型名）。
+// TownAreaScript：共享定义见 TownAreaScript.h（0x30）。
 
 // LotteryInfo：0x20 字节（Area 内嵌于 +0x24；ORIG C1 083706d4）
-struct LotteryInfo
-{
-    LotteryInfo();
-    ~LotteryInfo();
-
-    int m_defaultIdx;                          // +0x00
-    std::vector<std::pair<int, int> > m_items; // +0x04（take_fish）
-    int m_defaultCount;                        // +0x10
-    std::vector<int> m_counts;                 // +0x14
-};
-
-// Mutex：0x18 字节（Area 内嵌于 +0x0c；ORIG C1 080cb412）
-class Mutex
-{
-public:
-    Mutex();
-    ~Mutex();
-
-private:
-    char m_pad[0x18];
-};
+// LotteryInfo（0x20）：权威定义见 CStackableItem.h（经 CUser.h 链引入；
+// Area 内嵌于 +0x24；ORIG C1 083706d4）。
+// Mutex（0x18）：权威定义见 GameTypes.h（Area 内嵌于 +0x0c；内联
+// pthread_mutex_init/destroy，ORIG 亦为内联弱符号族）。
 
 // set_area 输入结构
 struct AssignNpc
@@ -224,16 +91,6 @@ struct stAttackedMapInfo_t
     int m_area;     // +0x04
     int m_field8;   // +0x08
     int m_field0c;  // +0x0c
-};
-
-struct TownAreaScript
-{
-    int m_field0;                  // +0x00（区域索引）
-    int m_pad4;                    // +0x04
-    int m_field8;                  // +0x08（区域类型）
-    char m_pad0c[0x18 - 0x0c];     // +0x0c
-    std::vector<int> m_field18;    // +0x18
-    unsigned char m_field24;       // +0x24
 };
 
 struct STMapScript
@@ -319,7 +176,7 @@ int Area::GetUserCount() const
          it != m_UsersInArea.end(); ++it)
     {
         CUser* user = it->second;
-        if (user != 0 && sub_CUser_get_state(user) > 2)
+        if (user != 0 && user->get_state() > 2)
             ++count;
     }
     return count;
@@ -348,23 +205,23 @@ void Area::delete_user(CUser* user)
     if (m_areaType == 1)
         return;
 
-    m_UsersInArea.erase(sub_CUser_get_unique_id(user));
+    m_UsersInArea.erase(user->get_unique_id());
 
     PacketGuard packet;
     packet.put_header(0, 0x17);
-    packet.put_short(sub_CUser_get_unique_id(user));
-    packet.put_byte(sub_CUserCharacInfo_getCurCharacVill(user));
-    packet.put_byte(sub_CUser_get_area(user, true));
-    packet.put_short(sub_CUser_get_posX(user));
-    packet.put_short(sub_CUser_get_posY(user));
-    packet.put_byte(sub_CUser_get_direction(user));
-    packet.put_byte(sub_CUserCharacInfo_get_charac_visible_values(user));
+    packet.put_short(user->get_unique_id());
+    packet.put_byte(user->getCurCharacVill());
+    packet.put_byte(user->get_area(true));
+    packet.put_short(user->get_posX());
+    packet.put_short(user->get_posY());
+    packet.put_byte(user->get_direction());
+    packet.put_byte(user->get_charac_visible_values());
     packet.finalize(true);
 
-    if (sub_CUserCharacInfo_IsCurCharacVisible(user))
+    if (user->IsCurCharacVisible())
         send_to_all(packet);
     else
-        sub_CUser_Send(user, packet);
+        user->Send(packet);
 }
 
 // ---------------------------------------------------------------------------
@@ -373,7 +230,7 @@ void Area::delete_user(CUser* user)
 void Area::erase_user(CUser* user)
 {
     if (m_areaType != 1)
-        m_UsersInArea.erase(sub_CUser_get_unique_id(user));
+        m_UsersInArea.erase(user->get_unique_id());
 }
 
 // ---------------------------------------------------------------------------
@@ -385,9 +242,9 @@ void Area::get_user_id_list(std::vector<unsigned short>& out)
          it != m_UsersInArea.end(); ++it)
     {
         CUser* user = it->second;
-        if (user != 0 && sub_CUser_get_state(user) > 2)
+        if (user != 0 && user->get_state() > 2)
         {
-            unsigned short id = sub_CUser_get_unique_id(user);
+            unsigned short id = user->get_unique_id();
             out.push_back(std::move(id));
         }
     }
@@ -411,27 +268,27 @@ void Area::insert_user(CUser* user)
 
     if (m_areaType == 1)
     {
-        sub_CUser_set_state(user, ch_state_3);
+        user->set_state(ch_state_3);
         packet.put_header(0, 0x18);
         packet.put_byte(m_villageIndex);
-        packet.put_byte(sub_CUser_get_area(user, true));
+        packet.put_byte(user->get_area(true));
         packet.put_short(1);
-        packet.put_short(sub_CUser_get_unique_id(user));
-        packet.put_short(sub_CUser_get_posX(user));
-        packet.put_short(sub_CUser_get_posY(user));
-        packet.put_byte(sub_CUser_get_direction(user));
-        packet.put_byte(sub_CUserCharacInfo_get_charac_visible_values(user));
+        packet.put_short(user->get_unique_id());
+        packet.put_short(user->get_posX());
+        packet.put_short(user->get_posY());
+        packet.put_byte(user->get_direction());
+        packet.put_byte(user->get_charac_visible_values());
         packet.finalize(true);
-        sub_CUser_Send(user, packet);
+        user->Send(packet);
         return;
     }
 
     if (m_areaType == 2)
-        sub_CUser_set_state(user, ch_state_4);
+        user->set_state(ch_state_4);
     else
-        sub_CUser_set_state(user, ch_state_3);
+        user->set_state(ch_state_3);
 
-    unsigned short id = sub_CUser_get_unique_id(user);
+    unsigned short id = user->get_unique_id();
     if (m_UsersInArea.find(id) != m_UsersInArea.end())
     {
         LogManager::logFormat(1, "world.cpp",
@@ -445,22 +302,22 @@ void Area::insert_user(CUser* user)
     packet.put_header(0, 0x17);
     packet.put_short(id);
     packet.put_byte(m_villageIndex);
-    packet.put_byte(sub_CUser_get_area(user, true));
-    packet.put_short(sub_CUser_get_posX(user));
-    packet.put_short(sub_CUser_get_posY(user));
-    packet.put_byte(sub_CUser_get_direction(user));
-    packet.put_byte(sub_CUserCharacInfo_get_charac_visible_values(user));
+    packet.put_byte(user->get_area(true));
+    packet.put_short(user->get_posX());
+    packet.put_short(user->get_posY());
+    packet.put_byte(user->get_direction());
+    packet.put_byte(user->get_charac_visible_values());
     packet.finalize(true);
 
-    if (sub_CUserCharacInfo_IsCurCharacVisible(user))
+    if (user->IsCurCharacVisible())
         send_to_all(packet);
     else
-        sub_CUser_Send(user, packet);
+        user->Send(packet);
 
     send_area_users(user);
-    sub_CAssaultMgr_OnMoveArea(sub_GetInstanceAssaultMgr(), user);
-    sub_village_object_on_move_area(GlobalData_s_villageObjectMgr, user);
-    sub_village_monster_OnMoveArea(GlobalData_s_villageMonsterMgr, user);
+    pvp_assault::GetInstanceAssaultMgr()->OnMoveArea(user);
+    GlobalData::s_villageObjectMgr->on_move_area(user);
+    GlobalData::s_villageMonsterMgr->OnMoveArea(user);
 }
 
 // ---------------------------------------------------------------------------
@@ -472,9 +329,9 @@ void Area::make_power_war_hp_of_vill(PacketGuard& packet, int& count)
          it != m_UsersInArea.end(); ++it)
     {
         CUser* user = it->second;
-        if (user == 0 || sub_CUser_get_state(user) <= 2)
+        if (user == 0 || user->get_state() <= 2)
             continue;
-        packet.put_short(sub_CUserCharacInfo_getPowerWarHP(user));
+        packet.put_short(user->getPowerWarHP());
         ++count;
     }
 }
@@ -484,15 +341,15 @@ void Area::make_power_war_hp_of_vill(PacketGuard& packet, int& count)
 // ---------------------------------------------------------------------------
 void Area::send_area_users(CUser* user)
 {
-    if (sub_CUserCharacInfo_getCurCharacVill(user) != m_villageIndex ||
-        sub_CUser_get_area(user, false) != m_areaIndex)
+    if (user->getCurCharacVill() != m_villageIndex ||
+        user->get_area(false) != m_areaIndex)
         return;
 
     PacketGuard packet;
     packet.clear();
     packet.put_header(0, 0x18);
     packet.put_byte(m_villageIndex);
-    packet.put_byte(sub_CUser_get_area(user, true));
+    packet.put_byte(user->get_area(true));
 
     int index = packet.get_index();
     int count = 0;
@@ -502,20 +359,20 @@ void Area::send_area_users(CUser* user)
          it != m_UsersInArea.end(); ++it)
     {
         CUser* u = it->second;
-        if (sub_CUserCharacInfo_IsCurCharacVisible(u) || u == user)
+        if (u->IsCurCharacVisible() || u == user)
         {
-            packet.put_short(sub_CUser_get_unique_id(u));
-            packet.put_short(sub_CUser_get_posX(u));
-            packet.put_short(sub_CUser_get_posY(u));
-            packet.put_byte(sub_CUser_get_direction(u));
-            packet.put_byte(sub_CUserCharacInfo_get_charac_visible_values(u));
+            packet.put_short(u->get_unique_id());
+            packet.put_short(u->get_posX());
+            packet.put_short(u->get_posY());
+            packet.put_byte(u->get_direction());
+            packet.put_byte(u->get_charac_visible_values());
             ++count;
         }
     }
 
     packet.put_short(index, count);
     packet.finalize(true);
-    sub_CUser_Send(user, packet);
+    user->Send(packet);
 }
 
 // ---------------------------------------------------------------------------
@@ -533,10 +390,10 @@ void Area::send_group(PacketGuard& packet, CBelong* belong)
          it != m_UsersInArea.end(); ++it)
     {
         CUser* user = it->second;
-        if (user == 0 || sub_CUser_get_state(user) <= 2)
+        if (user == 0 || user->get_state() <= 2)
             continue;
         if (belong->IsBelong(user))
-            sub_CUser_Send(user, packet);
+            user->Send(packet);
     }
 }
 
@@ -549,8 +406,8 @@ void Area::send_to_all(PacketGuard& packet)
          it != m_UsersInArea.end(); ++it)
     {
         CUser* user = it->second;
-        if (user != 0 && sub_CUser_get_state(user) > 2)
-            sub_CUser_Send(user, packet);
+        if (user != 0 && user->get_state() > 2)
+            user->Send(packet);
     }
 }
 
@@ -567,8 +424,8 @@ void Area::send_to_all(PacketGuard& packet, std::vector<CUser*>& users)
             {
             }
         }
-        if (user != 0 && sub_CUser_get_state(user) > 2)
-            sub_CUser_Send(user, packet);
+        if (user != 0 && user->get_state() > 2)
+            user->Send(packet);
     }
 }
 
@@ -579,12 +436,12 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 {
     m_npcIdList.clear();
     m_villageIndex = vill;
-    m_areaIndex = script.m_field0;
-    m_areaType = script.m_field8;
+    m_areaIndex = script.m_areaIndex;
+    m_areaType = script.m_areaType;
     m_field6c = script.m_field24;
 
     if (m_areaType == 2)
-        sub_createLotteryInfo(&m_lottery, &script.m_field18);
+        createLotteryInfo(&m_lottery, &script.m_field18);
 
     if (m_areaType == 4)
         m_worldMapIndex = script.m_field18[0];
@@ -603,26 +460,26 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 
             if (m_bExistItemShopNPC != 1)
             {
-                void* dataMgr = sub_G_CDataManager();
-                void* npcList = *(void**)((char*)dataMgr + 0xa8d0);
-                void* npcScript = sub_CNPCScriptList_find(
-                    npcList, (unsigned int)npc.m_npcId);
+                CDataManager* dataMgr = G_CDataManager();
+                CNPCScriptList* npcList = dataMgr->m_npcScriptList;
+                CNPCScript* npcScript =
+                    (CNPCScript*)npcList->find((unsigned int)npc.m_npcId);
                 if (npcScript != 0)
                 {
                     m_bExistItemShopNPC = (unsigned char)
-                        sub_CNPCScript_isExistRole(npcScript, ENUM_NPC_ROLE_NONE);
+                        npcScript->isExistRole(ENUM_NPC_ROLE_0);
                 }
             }
 
             if (npc.m_npcId == 0x7f)
             {
-                sub_CTimeGate_SetTimeGate(GlobalData_s_timeGate_, vill,
+                GlobalData::s_timeGate_->SetTimeGate(vill,
                                           m_areaIndex, npc.m_npcId,
                                           0x118a, 0x11bc);
                 village_object::Zone zone((unsigned char)vill,
                                           (unsigned char)m_areaIndex);
-                sub_village_object_register_object(GlobalData_s_villageObjectMgr,
-                                                   zone, GlobalData_s_timeGate_);
+                GlobalData::s_villageObjectMgr->register_object(
+                    zone, (village_object::IObject*)GlobalData::s_timeGate_);
             }
         }
     }
@@ -636,7 +493,7 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 
     stAttackedMapInfo_t* attackedInfo = 0;
     std::vector<stAttackedMapInfo_t>* infoList =
-        (std::vector<stAttackedMapInfo_t>*)((char*)sub_G_CDataManager() + 0x61a0);
+        (std::vector<stAttackedMapInfo_t>*)((char*)G_CDataManager() + 0x61a0);
     for (std::vector<stAttackedMapInfo_t>::iterator it = infoList->begin();
          it != infoList->end(); ++it)
     {
@@ -646,8 +503,8 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
 
     if (!mapScript.m_attackedMonsters.empty() && attackedInfo != 0)
     {
-        sub_village_monster_InsertVillageMonster(
-            GlobalData_s_villageMonsterMgr, m_villageIndex, m_areaIndex,
+        GlobalData::s_villageMonsterMgr->InsertVillageMonster(
+            m_villageIndex, m_areaIndex,
             attackedInfo->m_field8, attackedInfo->m_field0c,
             &mapScript.m_attackedMonsters, &m_mapAreas);
     }

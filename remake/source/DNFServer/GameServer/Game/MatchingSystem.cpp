@@ -1,6 +1,6 @@
 #include <cstring>
 
-#include "PvP_deps.h"
+#include "PvPTypes.h"   // PvP 子对象权威声明（原 PvP_deps.h 已并入）
 #include "MatchRoomList.h"   // IMatch 基类
 
 // ---- CMatchingSystem（ORIG 0x18 = IMatch* m_systems[6]，懒加载匹配子系统单例） ----

@@ -18,6 +18,7 @@
 #include "CEnvironment.h"
 #include "CItemList.h"
 #include "CItemGeneratorMgr.h"
+#include "STQuestScript.h"   // TrainingQuestScript 唯一声明点（0x1490 权威布局；CDataManager 成员 m_trainingQuest）
 
 class CUser;
 class CMap;
@@ -958,7 +959,7 @@ class WarAreaCounter
 public:
     WarAreaCounter();
     ~WarAreaCounter();
-    void* GetCurrenTimeTable();
+    int GetCurrenTimeTable();   // ORIG 0x89024c4：返回当前时段索引（int）
     int GetWarRoomCountAtPeekTime(int idx);
     int GetWarRoomCountFirstIndex(int idx);
     int GetWarRoomCountLastIndex(int idx);
@@ -993,15 +994,7 @@ public:
     std::map<int, std::vector<pieceQuestRewardStatus> > m_map54;  // +0x54
 };
 
-class TrainingQuestScript
-{
-public:
-    TrainingQuestScript();
-    ~TrainingQuestScript();
-    void suffleTrainingQuests();
-private:
-    char m_pad[0x1490];
-};
+class TrainingQuestScript;
 
 class GuildParameterScript
 {
@@ -1730,6 +1723,13 @@ class CEventScriptMng;
 
 // ===================== CDataManager =====================
 
+// ---- ENUM_BLOOD_TYPE（ORIG 命名枚举，mangled 15ENUM_BLOOD_TYPE） ----
+// 取值以调用点常量（set/get_limit_inout_count 的 1/2）为准【推断】。
+#ifndef DNF_ENUM_ENUM_BLOOD_TYPE_DEFINED
+#define DNF_ENUM_ENUM_BLOOD_TYPE_DEFINED
+enum ENUM_BLOOD_TYPE { ENUM_BLOOD_TYPE_0 = 0, ENUM_BLOOD_TYPE_1 = 1, ENUM_BLOOD_TYPE_2 = 2 };
+#endif
+
 class CDataManager
 {
 public:
@@ -1859,6 +1859,8 @@ public:
     void set_lottery_use_cost(unsigned int money, unsigned int cost);
     void set_original_dimensionInout(int idx, char value);
     void reset_dimensionInout();
+    void set_dimensionInout(int idx, char value);        // ORIG 080eed82 W（实现于 CDungeon.cpp）
+    void set_limit_inout_count(char value, ENUM_BLOOD_TYPE type);  // ORIG 08374c82 W（实现于 CDungeon.cpp）
     void testActionType();
     void testBingo();
     void* GetExpertJobScript(int job);
@@ -1867,7 +1869,7 @@ public:
     void* getBlueMarbleScript();
     void* get_event_script_mng();
     int get_dimensionInout(int idx);
-    int get_limit_inout_count(int type);
+    int get_limit_inout_count(ENUM_BLOOD_TYPE type);
     void GetPvPChannelGrade();               // ORIG _ZN12CDataManager18GetPvPChannelGradeEv
     int GetMaxGradePvPChannel();
     int GetUpgradeRevisionPvPChannel();
@@ -1977,7 +1979,7 @@ public:
         {
             char m_dimensionInout[6];             // +0xaa74
             char m_originalDimensionInout[6];     // +0xaa7a
-            char m_padAA80[4];                    // +0xaa80
+            char m_limitInoutCount[4];            // +0xaa80（set/get_limit_inout_count）
             int m_expTable[200];                  // +0xaa84
         };
         char m_rawAA74[0x328];

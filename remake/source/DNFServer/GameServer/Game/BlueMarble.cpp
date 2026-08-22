@@ -17,6 +17,10 @@
 #include "LogManager.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
+#include "GameWorld.h"            // G_GameWorld / GameWorld::gotoBlueMarble/outFromBlueMarble（§9）
+#include "CPrivateStoreMgr.h"     // private_store::GetInstancePrivateStoreMgr/IsBusyPrivateStore（§9）
+#include "RDARScriptStringManager.h"  // g_scriptStringManager_/findString（§9）
+#include "CGameManager.h"         // WongWork::CMailBoxHelper::ReqDBSendNewSystemMail + G_CGameManager（§9）
 
 // ============================================================================
 // PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
@@ -56,49 +60,7 @@ public:
     void MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
 };
 
-// ---- CGameManager 最小声明（CheckOutParty / 单例；CGameManager.cpp 提供定义） ----
-class CGameManager
-{
-public:
-    void CheckOutParty(CUser* user, bool flag);
-};
-extern CGameManager* G_CGameManager();
-
-// ============================================================================
-// 跨类 / 子对象方法（asm-label extern；PvP_deps.cpp / GameStubs 提供链接桩）
-// ============================================================================
-// BlueMarbleInfoScript 三个方法：mangled 名是 Ei（ORIG 声明怪癖），
-// 实际调用传 3 参数：(vector<int>& out, BlueMarbleInfoScript*（m_pScript+0x30）, int zone)
-extern "C" void sub_BMInfoScript_getUniqueDungeonIndex(void* out, void* script, int zone)
-    asm("_ZN20BlueMarbleInfoScript21getUniqueDungeonIndexEi");
-extern "C" void sub_BMInfoScript_getBossDungeonIndex(void* out, void* script, int zone)
-    asm("_ZN20BlueMarbleInfoScript19getBossDungeonIndexEi");
-extern "C" void sub_BMInfoScript_getRandomDungeonIndex(void* out, void* script, int zone)
-    asm("_ZN20BlueMarbleInfoScript21getRandomDungeonIndexEi");
-
-extern "C" void* sub_G_GameWorld() asm("_Z11G_GameWorldv");
-extern "C" void sub_GameWorld_gotoBlueMarble(void* world, void* user)
-    asm("_ZN9GameWorld14gotoBlueMarbleEP5CUser");
-extern "C" void sub_GameWorld_outFromBlueMarble(void* world, void* user)
-    asm("_ZN9GameWorld17outFromBlueMarbleEP5CUser");
-
-extern "C" unsigned char sub_CUser_isCompetitionMercenary(void* user)
-    asm("_ZNK5CUser22isCompetitionMercenaryEv");
-
-extern "C" void* sub_GetInstancePrivateStoreMgr()
-    asm("_ZN13private_store26GetInstancePrivateStoreMgrEv");
-extern "C" bool sub_CPrivateStoreMgr_IsBusyPrivateStore(void* mgr, void* user)
-    asm("_ZN13private_store16CPrivateStoreMgr18IsBusyPrivateStoreEP5CUser");
-
-extern "C" char* sub_RDARScriptStringManager_findString(void* mgr, int idx,
-                                                        const char* key, bool* out)
-    asm("_ZNK23RDARScriptStringManager10findStringEiPKcPb");
-extern "C" int sub_CMailBoxHelper_ReqDBSendNewSystemMail(
-    const char* title, const void* item, unsigned b, unsigned c, const char* msg,
-    int d, int e, int group, bool f, bool g)
-    asm("_ZN8WongWork14CMailBoxHelper22ReqDBSendNewSystemMailEPKcRK10Inven_ItemjjS2_ij17ENUM_SERVER_GROUPbb");
-extern "C" void sub_cUserHistoryLog_SendMail(void* self, void* mail, unsigned v)
-    asm("_ZN15cUserHistoryLog8SendMailEP16MSG_MAILBOX_SENDj");
+// ---- CGameManager / G_CGameManager：经 #include "CGameManager.h"（§9） ----
 
 // ============================================================================
 // BlueMarble 实现
@@ -446,16 +408,16 @@ int BlueMarble::getRandomDungeon(int seat, BlueMarbleTileScript::Type type) cons
         std::vector<int> tmp;
         if (type == (BlueMarbleTileScript::Type)7)
         {
-            sub_BMInfoScript_getUniqueDungeonIndex(&tmp, (char*)m_pScript + 0x30, level);
+            tmp = ((BlueMarbleInfoScript*)((char*)m_pScript + 0x30))->getUniqueDungeonIndex(level);
         }
         else if (type == (BlueMarbleTileScript::Type)8 ||
                  type == (BlueMarbleTileScript::Type)2)
         {
-            sub_BMInfoScript_getBossDungeonIndex(&tmp, (char*)m_pScript + 0x30, level);
+            tmp = ((BlueMarbleInfoScript*)((char*)m_pScript + 0x30))->getBossDungeonIndex(level);
         }
         else
         {
-            sub_BMInfoScript_getRandomDungeonIndex(&tmp, (char*)m_pScript + 0x30, level);
+            tmp = ((BlueMarbleInfoScript*)((char*)m_pScript + 0x30))->getRandomDungeonIndex(level);
         }
         local = std::move(tmp);
     }
@@ -502,7 +464,7 @@ int BlueMarble::join(CUser* user)
             break;
         }
     }
-    sub_GameWorld_gotoBlueMarble(sub_G_GameWorld(), user);
+    G_GameWorld()->gotoBlueMarble(user);
     sendBlueMarbleRoomInfo();
     return 0;
 }
@@ -526,7 +488,7 @@ int BlueMarble::leaveUser(CUser* user)
         }
         else
         {
-            sub_GameWorld_outFromBlueMarble(sub_G_GameWorld(), user);
+            G_GameWorld()->outFromBlueMarble(user);
             setLeaveUserSlot(seat);
             setLeaveUserBlueMarbleState();
             sendBlueMarbleRoomInfo();
@@ -606,8 +568,7 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
             {
                 return 0x17;
             }
-            if (sub_CPrivateStoreMgr_IsBusyPrivateStore(
-                    sub_GetInstancePrivateStoreMgr(), user))
+            if (private_store::GetInstancePrivateStoreMgr()->IsBusyPrivateStore(user))
             {
                 return 0x17;
             }
@@ -623,7 +584,7 @@ int BlueMarble::checkUserConditionEnterBlueMarble(CUser* user)
             {
                 return 0x17;
             }
-            if (sub_CUser_isCompetitionMercenary(user))
+            if (user->isCompetitionMercenary())
             {
                 return 0x17;
             }
@@ -1110,18 +1071,18 @@ int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
     {
         char local_2e[30];
         char local_12e[256];
-        char* msg268 = sub_RDARScriptStringManager_findString(
-            (void*)0x0949b140, 4, "game_server_msg_268", 0);
+        const char* msg268 = g_scriptStringManager_.findString(
+            4, "game_server_msg_268", 0);
         strncpy(local_2e, msg268, 0x1d);
-        char* msg269 = sub_RDARScriptStringManager_findString(
-            (void*)0x0949b140, 4, "game_server_msg_269", 0);
+        const char* msg269 = g_scriptStringManager_.findString(
+            4, "game_server_msg_269", 0);
         strncpy(local_12e, msg269, 0xff);
-        int serverGroup = (int)m_users[seat].getUser()->GetServerGroup();
+        ENUM_SERVER_GROUP serverGroup = m_users[seat].getUser()->GetServerGroup();
         size_t len = strlen(local_12e);
         int characNo = m_users[seat].getUser()->get_charac_no(-1);
-        int mailRet = sub_CMailBoxHelper_ReqDBSendNewSystemMail(
-            local_2e, &item, 0, (unsigned)characNo, local_12e, (int)len, 0xf,
-            (int)(intptr_t)serverGroup, false, false);
+        int mailRet = WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            local_2e, item, 0, (unsigned)characNo, local_12e, (int)len, 0xf,
+            serverGroup, false, false);
         if (mailRet == 0)
         {
             char local_273[0x145];
@@ -1129,8 +1090,7 @@ int BlueMarble::insertItem(int seat, Inven_Item& item, eItemAddReason reason)
             strncpy(local_273 + 0x11, local_2e, 0x1d);
             *(int*)(local_273 + 0x39) = *(int*)((char*)&item + 2);
             *(int*)(local_273 + 0x3d) = *(int*)((char*)&item + 7);
-            sub_cUserHistoryLog_SendMail((char*)m_users[seat].getUser() + 0x79700,
-                                         local_273, 0);
+            m_users[seat].getUser()->m_historyLog.SendMail((MSG_MAILBOX_SEND*)local_273, 0);
         }
     }
     else

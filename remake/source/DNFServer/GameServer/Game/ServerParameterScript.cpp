@@ -8,13 +8,11 @@
 
 #include <string.h>
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-extern "C" void sub_SetLightServerFlag(bool flag)
-    asm("_Z18SetLightServerFlagb");
+#include "DNFLexWrapper.h"
+
+// SetLightServerFlag（ORIG 0x8a8cba5，_Z18SetLightServerFlagb）定义于
+// CDataManagerScripts.cpp；此处仅声明供本 TU 真实调用。
+void SetLightServerFlag(bool flag);
 
 ServerParameterScript::ServerParameterScript()
 {
@@ -187,7 +185,7 @@ bool ServerParameterScript::CheckLightServer(int serverIdx)
     if (it != m_map24.end())
     {
         result = it->second;
-        sub_SetLightServerFlag(result);
+        SetLightServerFlag(result);
     }
     return result;
 }
@@ -529,22 +527,22 @@ void ServerParameterScript::setDungeonOpen(int dungeonIdx, bool open)
 bool importServerParameterScript(ServerParameterScript* script,
                                  const char* path)
 {
-    if (!sub_loadRDARScriptFile("Script/ServerParameterScript", path))
+    if (!loadRDARScriptFile("Script/ServerParameterScript", path))
     {
         return false;
     }
     script->clear();
     std::string line;
     int value = 0;
-    while (sub_ScanType(line, true))
+    while (ScanType(line, true))
     {
         if (line == "[lotto]")
         {
-            if (sub_ScanInt(&value))
+            if (ScanInt(&value))
             {
                 script->m_7b8 = value;
             }
-            if (sub_ScanInt(&value))
+            if (ScanInt(&value))
             {
                 script->m_7bc = value;
             }
@@ -553,7 +551,7 @@ bool importServerParameterScript(ServerParameterScript* script,
         {
             for (int i = 0; i < 5; ++i)
             {
-                if (!sub_ScanInt(&value))
+                if (!ScanInt(&value))
                 {
                     break;
                 }

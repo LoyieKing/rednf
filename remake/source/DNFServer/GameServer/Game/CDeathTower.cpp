@@ -14,6 +14,9 @@
 #include "CDataManager.h"
 #include "CMap.h"
 #include "GameWorld.h"
+#include "CBossStage.h"
+#include "CDungeonEntranceLog.h"
+#include "CDeathTowerRanking.h"
 
 class CAICharacter
 {
@@ -47,26 +50,9 @@ CAICharacter* CAICharacterList::get(void* list, unsigned int idx) { return 0; }
 // CAICharacterList::~CAICharacterList（自 GameStubs.cpp 迁移；空白析构，ORIG 底层批次）
 CAICharacterList::~CAICharacterList() {}
 
-// ---- stMapMonsterKillChecker_t（0x18 字节；来自 CBattle_Field_deps.h） ----
-struct stMapMonsterKillChecker_t
-{
-    unsigned int m_useSkillMaterialTime;   // +0x00
-    unsigned int m_lastMobDieTime;         // +0x04
-    int m_uncontinuallyMobDieCnt;          // +0x08
-    int m_dieCnt;                          // +0x0c
-    int m_field10;                         // +0x10
-    int m_field14;                         // +0x14
-
-    void init();
-    void initMonsterInfo();
-    void setUseSkillMaterial(unsigned int tick);
-    unsigned int getUseSkillMaterialTime() const;
-    int getUseSkillMaterialCount() const;
-    int dieMonster(unsigned int tick, unsigned int limit);
-    void setLastMobDieTime(unsigned int tick);
-    int checkLongTermMobDie(unsigned int tick, unsigned int limit);
-    void setUncontinuallyMobDieCnt(unsigned int cnt);
-};
+// ---- stMapMonsterKillChecker_t / map_item / map_monster ----
+// 权威定义见 WarField.h（经 CGameManager.h → PvP_Room.h → PvP_deps.h 链包含），
+// 本地重复定义已删除（§7 单声明点）。方法定义保留在下方（归属 WarField.h 声明）。
 
 unsigned int stMapMonsterKillChecker_t::getUseSkillMaterialTime() const { return m_useSkillMaterialTime; }
 
@@ -93,71 +79,19 @@ void stMapMonsterKillChecker_t::initMonsterInfo()
     m_dieCnt = 0;
 }
 
-
-struct map_item
-{
-    int m_count;              // +0x00
-    int m_itemIndex;          // +0x04
-    unsigned short m_dropIndex;  // +0x08
-    char m_pad0a[2];          // +0x0a
-    int m_createTick;         // +0x0c
-    Inven_Item m_item;        // +0x10（0x3d 字节）
-    char m_pad4d[3];          // +0x4d
-    int m_ownerId;            // +0x50
-
-    map_item();
-    ~map_item();
-};
-
 class TimerQueue;
 TimerQueue* G_TimerQueue();
 
-// ---- map_monster 最小定义（用于 CStage::checkClearStage） ----
-struct map_monster
-{
-    int m_mobId;              // +0x00
-    int m_instId;             // +0x04
-    char m_roleType;          // +0x08
-    char m_pad9[3];           // +0x09
-    int m_mobIndex;           // +0x0c
-    int m_level;              // +0x10
-    char m_flag14;            // +0x14
-    char m_flag13;            // +0x15
-    char m_flag12;            // +0x16
-    char m_flag11;            // +0x17
-    int m_field18;            // +0x18
-    char m_pad1c[4];          // +0x1c
-    int m_field20;            // +0x20
-    int m_field24;            // +0x24
-    int m_damage;             // +0x28
-    int m_dropCnt;            // +0x2c
-    int m_dropRate;           // +0x30
-    char m_flag34;            // +0x34
-    char m_pad35[0x34c - 0x35];  // +0x35
-};
-
-
-extern "C" void* sub_GetInstanceDungeonEntranceLog() asm("_Z29GetInstanceDungeonEntranceLogv");
-
 int GetInvenTypeFromItemSpace(int space) { return space; }
 
-extern "C" void* sub_GetInstanceDungeonEntranceLog() asm("_Z29GetInstanceDungeonEntranceLogv");
-extern "C" void sub_CDungeonEntranceLog_DecrementDungeonEntrance(void* log, int idx, bool flag) asm("_ZN19CDungeonEntranceLog24DecrementDungeonEntranceEib");
-extern "C" void sub_CDungeonEntranceLog_IncrementDungeonEntrance(void* log, int idx, bool flag) asm("_ZN19CDungeonEntranceLog24IncrementDungeonEntranceEib");
+// CDungeonEntranceLog（CDungeonEntranceLog.h 权威声明）/ WongWork::CDeathTowerRanking
+// （CDeathTowerRanking.h 权威声明）直接调用。
 
-extern "C" unsigned int sub_CDeathTowerRanking_makeDungeonIdx2TowerIdx(unsigned int dungeonIdx) asm("_ZN8WongWork18CDeathTowerRanking23makeDungeonIdx2TowerIdxEj");
-extern "C" void* sub_CDeathTowerRanking_getRankTable(unsigned int memberCnt) asm("_ZN8WongWork18CDeathTowerRanking12getRankTableEj");
-extern "C" void sub_CDeathTowerRanking_checkRenewMyRecord(void* rankTable, unsigned int towerIdx, unsigned int a, unsigned int b, unsigned int c) asm("_ZN8WongWork18CDeathTowerRanking18checkRenewMyRecordEjjjj");
-extern "C" int sub_CDeathTowerRanking_checkRenewTopRecord(void* rankTable, unsigned int towerIdx, unsigned int a, unsigned int b) asm("_ZN8WongWork18CDeathTowerRanking19checkRenewTopRecordEjjj");
-extern "C" int sub_CDeathTowerRanking_getVirtualRank(void* rankTable, unsigned int towerIdx, unsigned int stage, unsigned int playTime) asm("_ZN8WongWork18CDeathTowerRanking14getVirtualRankEjjj");
 namespace WongWork {
 
-extern "C" void sub_CBossStage_reset(void*)
-    asm("_ZN8WongWork10CBossStage5resetEv");
-
 // CBossTower 布局位于 CGameManager.h 的 `WongWork::CBossTower`（未命名 m_pad[0xb18]），
-// 且派生于不透明 CBossStage（经 sub_CBossStage_reset 桥接）。以下各偏移均为
-// CBossStage 基类/内嵌子对象字段，尚无具名成员【推断】，因此保留地址形式并按 ORIG
+// 且派生于不透明 CBossStage（经 CBossStage::reset 调用，CBossStage.h 权威声明）。
+// 以下各偏移均为 CBossStage 基类/内嵌子对象字段，尚无具名成员【推断】，因此保留地址形式并按 ORIG
 // （0x81429b4 ctor / 0x8142a74 附近 dtor）逐条注明：
 //   +0xb00  CBossDungeonEntranceLog 子对象（ORIG ctor 调其 ctor；此处按 0x18 零填）
 //   +0xaf0  CBossStage 基类字段（ctor 置 0）
@@ -166,7 +100,7 @@ extern "C" void sub_CBossStage_reset(void*)
 //   +8 / +4 CBossStage 基类首部字段（vtable 之后）
 CBossTower::CBossTower()
 {
-    sub_CBossStage_reset(this);
+    reinterpret_cast<WongWork::CBossStage*>(this)->reset();
     memset((char*)this + 0xaf0, 0, 4);
     *(int*)((char*)this + 8) = 0;
     memset((char*)this + 0xd, 0, 4);
@@ -177,7 +111,7 @@ CBossTower::CBossTower()
 
 CBossTower::~CBossTower()
 {
-    sub_CBossStage_reset(this);
+    reinterpret_cast<WongWork::CBossStage*>(this)->reset();
     memset((char*)this + 0xaf0, 0, 4);
     *(int*)((char*)this + 8) = 0;
     memset((char*)this + 0xd, 0, 4);
@@ -187,25 +121,46 @@ CBossTower::~CBossTower()
 }
 
 
-// CDeathTowerRanking 方法桩（待后续按 ORIG 实现）。rankTable 为 CDeathTowerRanking
-// 的 getRankTable 返回的外部数据区（每塔 0x390 记录）；以下 +0x98/+0x128/+0x7058/
-// +0x70ec 等均为该外部记录字段偏移，非本类成员，保留地址形式。
+// CDeathTowerRanking 方法实现（权威声明见 CDeathTowerRanking.h；本 TU 为唯一定义点，
+// CUser.cpp 的本地同名类/桩已删除）。rankTable 为 getRankTable 返回的外部数据区
+// （每塔 0x390 记录）；以下 +0x98/+0x128/+0x7058/+0x70ec 等均为该外部记录字段偏移，
+// 非本类成员，保留地址形式。
 
-unsigned int sub_CDeathTowerRanking_makeDungeonIdx2TowerIdx(unsigned int dungeonIdx) { return 0; }
-void* sub_CDeathTowerRanking_getRankTable(unsigned int memberCnt) { return 0; }
-void sub_CDeathTowerRanking_checkRenewMyRecord(void* rankTable, unsigned int towerIdx, unsigned int key, unsigned int clearTime, unsigned int playTime)
+unsigned int CDeathTowerRanking::makeDungeonIdx2TowerIdx(unsigned int dungeonIdx)
+{
+    // ORIG 08469d69 W：dungeonIdx∈[0x2af8,0x2afd] → idx-0x2af8（塔序号 0..5），其余 -1。
+    if (dungeonIdx > 0x2af7 && dungeonIdx <= 0x2afd)
+        return dungeonIdx - 0x2af8;
+    return 0xffffffff;
+}
+
+void* CDeathTowerRanking::getRankTable(unsigned int type)
+{
+    // ORIG 082a774c W：返回 3 张静态排行榜表（BSS 0x941f8c0，每表 0x70f4）中
+    // type 对应表指针。重建工程尚未建模该全局表（懒构造+静态数组），
+    // 先返回 0【推断，可链接】。
+    (void)type;
+    return 0;
+}
+
+void CDeathTowerRanking::checkRenewMyRecord(unsigned int towerIdx,
+                                            unsigned int key,
+                                            unsigned int clearTime,
+                                            unsigned int playTime)
 {
     // Simplified: hash_map lookup not yet implemented
     // Returns via side effect; actual logic requires CDeathTowerRanking layout
-    (void)rankTable;
     (void)towerIdx;
     (void)key;
     (void)clearTime;
     (void)playTime;
 }
-int sub_CDeathTowerRanking_checkRenewTopRecord(void* rankTable, unsigned int towerIdx, unsigned int clearTime, unsigned int playTime)
+
+int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
+                                            unsigned int clearTime,
+                                            unsigned int playTime)
 {
-    char* base = (char*)rankTable + towerIdx * 0x390;
+    char* base = (char*)this + towerIdx * 0x390;
     if (base[0x128] != 1)
     {
         return 0;
@@ -226,9 +181,11 @@ int sub_CDeathTowerRanking_checkRenewTopRecord(void* rankTable, unsigned int tow
     return 0;
 }
 
-int sub_CDeathTowerRanking_getVirtualRank(void* rankTable, unsigned int towerIdx, unsigned int stage, unsigned int playTime)
+int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
+                                       unsigned int stage,
+                                       unsigned int playTime)
 {
-    char* base = (char*)rankTable;
+    char* base = (char*)this;
 
     // Best record at this + 0x7058
     unsigned int* bestRecord = (unsigned int*)(base + 0x7058);
@@ -275,6 +232,20 @@ int sub_CDeathTowerRanking_getVirtualRank(void* rankTable, unsigned int towerIdx
 
     // Simplified: return 0 for middle ranks (full map-based calculation requires CDeathTowerRanking layout)
     return 0;
+}
+
+void CDeathTowerRanking::unregistBestRecord(unsigned int characNo)
+{
+    // ORIG 08468b4c T：对 5 张 best-record 子表按 characNo erase（_getBestRecordTable(i)）。
+    // 子表 hash_map 布局未建模，先为空实现【推断，可链接】。
+    (void)characNo;
+}
+
+void CDeathTowerRanking::unregistRanking(unsigned int characNo)
+{
+    // ORIG 08468552 T：对 5 张 ranking 子表按 characNo erase（_getRankingTable(i)）。
+    // 子表 hash_map 布局未建模，先为空实现【推断，可链接】。
+    (void)characNo;
 }
 
 CDeathTower::CDeathTower()
@@ -416,8 +387,8 @@ int CDeathTower::onLeaveUser(CUser* user)
         if (dungeon)
         {
             int dungeonIdx = dungeon->get_index();
-            void* entranceLog = sub_GetInstanceDungeonEntranceLog();
-            sub_CDungeonEntranceLog_DecrementDungeonEntrance(entranceLog, dungeonIdx, false);
+            CDungeonEntranceLog* entranceLog = GetInstanceDungeonEntranceLog();
+            entranceLog->DecrementDungeonEntrance(dungeonIdx, false);
         }
     }
 
@@ -438,7 +409,7 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         return;
 
     unsigned int memberCnt = m_playData.getStartMemberCnt();
-    void* rankTable = sub_CDeathTowerRanking_getRankTable(memberCnt);
+    void* rankTable = WongWork::CDeathTowerRanking::getRankTable(memberCnt);
 
     _onClear(isLast);
 
@@ -503,8 +474,9 @@ void CDeathTower::_beginTowerClearProcess(bool isLast)
         if (isLast && topResult)
             isNewRecord += 2;
 
-        unsigned int towerIdx = sub_CDeathTowerRanking_makeDungeonIdx2TowerIdx(dungeonIdx);
-        int virtualRank = sub_CDeathTowerRanking_getVirtualRank(rankTable, towerIdx, curStage, playTime);
+        unsigned int towerIdx = WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+        int virtualRank = ((WongWork::CDeathTowerRanking*)rankTable)->getVirtualRank(
+            towerIdx, curStage, playTime);
 
         // Construct result packet (simplified)
         PacketGuard pkt;
@@ -1121,17 +1093,17 @@ bool CDeathTower::_makeDropItem(CUser* user, char type, int slot, int count, map
 
 int CDeathTower::_checkRenewMyRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b, unsigned int c)
 {
-    unsigned int towerIdx = sub_CDeathTowerRanking_makeDungeonIdx2TowerIdx(dungeonIdx);
-    void* rankTable = sub_CDeathTowerRanking_getRankTable(memberCnt);
-    sub_CDeathTowerRanking_checkRenewMyRecord(rankTable, towerIdx, a, b, c);
+    unsigned int towerIdx = WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+    void* rankTable = WongWork::CDeathTowerRanking::getRankTable(memberCnt);
+    ((WongWork::CDeathTowerRanking*)rankTable)->checkRenewMyRecord(towerIdx, a, b, c);
     return 0;
 }
 
 int CDeathTower::_checkRenewTopRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b)
 {
-    unsigned int towerIdx = sub_CDeathTowerRanking_makeDungeonIdx2TowerIdx(dungeonIdx);
-    void* rankTable = sub_CDeathTowerRanking_getRankTable(memberCnt);
-    return sub_CDeathTowerRanking_checkRenewTopRecord(rankTable, towerIdx, a, b);
+    unsigned int towerIdx = WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
+    void* rankTable = WongWork::CDeathTowerRanking::getRankTable(memberCnt);
+    return ((WongWork::CDeathTowerRanking*)rankTable)->checkRenewTopRecord(towerIdx, a, b);
 }
 
 int CDeathTower::_checkStartGameCondition(unsigned char& flag)
@@ -1201,8 +1173,8 @@ int CDeathTower::handleStartGame(int dungeonIdx, char flag, ENUM_DUNGEON_TYPE du
             user->set_state((ch_state)10);
             m_playData.setMemberAlive(i, true);
             int partyState = m_party->get_party_type();
-            sub_CDungeonEntranceLog_IncrementDungeonEntrance(
-                sub_GetInstanceDungeonEntranceLog(), dungeonIdx, partyState == 1);
+            GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
+                dungeonIdx, partyState == 1);
         }
     }
 
@@ -1350,7 +1322,7 @@ int CDeathTower::CStage::killMonster(int idx, map_monster& monster)
         return 0;
     }
     monster = it->second;
-    int field14 = (unsigned char)it->second.m_flag14;
+    int field14 = (unsigned char)it->second.m_field14;
     m_monsterMap.erase(it);
     return field14;
 }
@@ -1626,7 +1598,7 @@ bool CDeathTower::CStage::checkClearStage()
          it != m_monsterMap.end(); ++it)
     {
         map_monster& mob = it->second;
-        if (mob.m_dropCnt == 100 && mob.m_flag13 == 0)
+        if (mob.m_dropCnt == 100 && mob.m_field13 == 0)
         {
             return false;
         }
@@ -2069,8 +2041,8 @@ void CDeathTower::CStage::makeStagePacket(PacketGuard& packet)
         packet.put_int(mob.m_mobIndex);
         packet.put_byte(mob.m_level);
         packet.put_byte(mob.m_roleType);
-        packet.put_byte(mob.m_flag13);
-        packet.put_byte(mob.m_flag14);
+        packet.put_byte(mob.m_field13);
+        packet.put_byte(mob.m_field14);
     }
 }
 

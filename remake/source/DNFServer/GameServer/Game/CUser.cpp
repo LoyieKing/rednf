@@ -28,11 +28,29 @@
 #include "CMonitorServerProxy.h"
 #include "CServerProxyMgr.h"
 #include "GlobalData.h"
+#include "CDeathTowerRanking.h"
 #include "Packet_Register_GM_MID.h"
 #include "CConditionEventManager.h"
 #include "CAssaultMgr.h"
+#include "CMissionList_Charac.h" // CMissionList_Charac 任务列表查询（charac_expand 槽位 8）
+#include "RefPvpGrade.h"        // RefPvpGrade::GetPvpCurrRankPoint/GetPvpNextRankPoint
+#include "QuestClear.h"         // WongWork::CQuestClear::getClearedQuest（UserQuest +0x04）
+#include "CUserGlobalInfoHandle.h"  // CUserGlobalInfoHandleInstance/reset_uniqueid_flag
+#include "CBoosterGage.h"       // charac_expand::CData（CDataMgr 20 槽 ResetDaily 循环）
+#include "STExpertJobScript.h"  // 权威 STExpertJobScript（isBoundaryExpValue/GetLevel）
+#include "Redeem_Item__CRedeemItem.h"  // Redeem_Item::CRedeemItem（isAddableFilter/AddRedeemList）
 #include <algorithm>
 #include <iostream>
+
+// CBattle_Field（本地最小视图；get_dungeon_index 定义于 CBattle_Field.cpp，
+// ORIG 0x0822d0d8，符号 _ZN13CBattle_Field17get_dungeon_indexEv。完整类头
+// CBattle_Field.h 与 WarField.h 的 map_item/map_monster 重复类型冲突，属
+// FixMapMonsterReal/FixWarFieldTypes 域，此处仅声明所需方法）
+class CBattle_Field
+{
+public:
+    int get_dungeon_index();
+};
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 extern unsigned char _NS_PI_2ND_GetDefaultRandomHashKey();
@@ -98,13 +116,8 @@ void CUser::enableSaveInformNoticeFlag()
 
 namespace WongWork
 {
-class CDeathTowerRanking
-{
-public:
-    static unsigned int getRankTable(unsigned int type);
-    static void unregistBestRecord(unsigned int table);
-    static void unregistRanking(unsigned int table);
-};
+// WongWork::CDeathTowerRanking 权威声明见 CDeathTowerRanking.h（唯一声明点，
+// 定义在 CDeathTower.cpp；本地同名类已删除，§7）。
 }
 
 namespace Sanicova
@@ -229,17 +242,27 @@ CExpandEquipslot* charac_expand::CDataMgr::GetDataR(ENUM_CHARAC_EXPAND_TYPE& typ
 void CodeHackCheckStorage::reset() {}
 void charac_expand::CDataMgr::reset() {}
 
-extern "C" void _ZN13charac_expand8CDataMgr18ResetDailyMidnightEv(void*);
-extern "C" void _ZN13charac_expand8CDataMgr10ResetDailyEv(void*);
-
+// ORIG 0x0832ade8：对 20 个成员（+0x00..+0x4c，各为 charac_expand::CData*）
+// 依次调用虚表槽 0（ResetDailyMidnight）。
+// ORIG 0x0832adaa：同上，调用虚表槽 3（ResetDaily）。
 void charac_expand::CDataMgr::ResetDailyMidnight()
 {
-    _ZN13charac_expand8CDataMgr18ResetDailyMidnightEv(this);
+    charac_expand::CData** entries =
+        reinterpret_cast<charac_expand::CData**>(m_pad);
+    for (int i = 0; i < 0x14; ++i)
+    {
+        entries[i]->ResetDailyMidnight();
+    }
 }
 
 void charac_expand::CDataMgr::ResetDaily()
 {
-    _ZN13charac_expand8CDataMgr10ResetDailyEv(this);
+    charac_expand::CData** entries =
+        reinterpret_cast<charac_expand::CData**>(m_pad);
+    for (int i = 0; i < 0x14; ++i)
+    {
+        entries[i]->ResetDaily();
+    }
 }
 void BingoData::clear() {}
 void APSystem::CActionPointManager::Reset() {}
@@ -263,12 +286,6 @@ void PlayInfo::Reset()
     m_f34 = 0;
     m_f38 = 0;
 }
-unsigned int WongWork::CDeathTowerRanking::getRankTable(unsigned int type)
-{
-    return 0;
-}
-void WongWork::CDeathTowerRanking::unregistBestRecord(unsigned int table) {}
-void WongWork::CDeathTowerRanking::unregistRanking(unsigned int table) {}
 
 // ============================================================================
 // CUser 实现
@@ -440,12 +457,14 @@ void CUser::ResetCurCharac()
     reset_level_before_dungeon();
     for (int i = 1; i < 5; ++i)
     {
-        getCurCharacNo();
-        WongWork::CDeathTowerRanking::unregistBestRecord(
-            WongWork::CDeathTowerRanking::getRankTable(i));
-        getCurCharacNo();
-        WongWork::CDeathTowerRanking::unregistRanking(
-            WongWork::CDeathTowerRanking::getRankTable(i));
+        // ORIG（CUser::ResetCurCharac 反汇编实证）：characNo = getCurCharacNo()，
+        // 然后 getRankTable(i)->unregistBestRecord(characNo)（成员签名，见 CDeathTowerRanking.h）。
+        unsigned int characNo = getCurCharacNo();
+        ((WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(i))
+            ->unregistBestRecord(characNo);
+        characNo = getCurCharacNo();
+        ((WongWork::CDeathTowerRanking*)WongWork::CDeathTowerRanking::getRankTable(i))
+            ->unregistRanking(characNo);
     }
     resetCurCharacSchoolPoint();
     if (getCurCharacR() != 0)
@@ -557,14 +576,13 @@ int CUser::CheckMoney(int money)
     return curMoney + money <= limit;
 }
 
-extern "C" int _ZN13CBattle_Field17get_dungeon_indexEv(void*);
-
 int CUser::getDungeonIdxAfterClear()
 {
     CParty* party = (CParty*)GetParty();
     if (!party)
         return -1;
-    return _ZN13CBattle_Field17get_dungeon_indexEv((char*)party + 0xb24);
+    return reinterpret_cast<CBattle_Field*>((char*)party + 0xb24)
+        ->get_dungeon_index();
 }
 
 void CUser::resetMoneyLog()
@@ -664,7 +682,7 @@ unsigned short CUser::getCurCharacTotalMaxFatigue() const
     return total;
 }
 
-void CUser::make_basic_info(char* buf, char type) {}
+int CUser::make_basic_info(char* buf, char type) { return 1; }
 void CUser::send_equip(int slot)
 {
     // ORIG 0x0865dd14：state(+0x8cfc4) ∈ {5,8,10,0xc} 且 slot==0x16 → 发给自己；
@@ -748,24 +766,20 @@ int CUser::SendUpdateItemList(eSendTarget target, ENUM_ITEMSPACE space, int slot
 
 // 0x0868bc7c
 // ORIG：无角色 → -1；无专家职业 → 0；否则按 GetExpertJobScript 的
-// isBoundaryExpValue/GetLevel（ORIG 桥 _ZN17STExpertJobScript*）计算等级，
+// isBoundaryExpValue/GetLevel（_ZN17STExpertJobScript*）计算等级，
 // 边界值时用 ExpertJobEtcScript 内 map<uchar,short>（等级→所需角色等级）修正：
 // 查不到或角色等级不足 → 等级 -1。
-extern "C" char sub_STExpertJobScript_isBoundaryExpValue(void* self, int exp)
-    asm("_ZN17STExpertJobScript18isBoundaryExpValueEi");  // ORIG 实号：17 类名 + 18 方法
-extern "C" int sub_STExpertJobScript_GetLevel(void* self, unsigned int exp)
-    asm("_ZN17STExpertJobScript8GetLevelEj");  // ORIG 实号：17 类名
 int CUser::GetCurExpertJobLevel(int exp)
 {
     if (getCurCharacR() == 0)
         return -1;
     if (GetCurCharacExpertJobType() == 0)
         return 0;
-    void* script = G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
+    STExpertJobScript* script = (STExpertJobScript*)G_CDataManager()->GetExpertJobScript(GetCurCharacExpertJobType());
     if (script == 0)
         return 0;
-    char isBoundary = sub_STExpertJobScript_isBoundaryExpValue(script, exp);
-    int level = sub_STExpertJobScript_GetLevel(script, (unsigned int)exp);
+    char isBoundary = script->isBoundaryExpValue(exp);
+    int level = script->GetLevel((unsigned int)exp);
     if (isBoundary != 0)
     {
         void* etc = G_CDataManager()->GetExpertJobEtcScript();
@@ -967,12 +981,11 @@ int CUser::get_area(bool param)
     return m_field8cfbc;
 }
 
-extern "C" int _ZNK19CMissionList_Charac14getWinningRateEv(void*);
-
 int CUser::get_pvp_WinningRate_relateMission() const
 {
-    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
-    return _ZNK19CMissionList_Charac14getWinningRateEv(mission);
+    CMissionList_Charac* mission =
+        (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    return mission->getWinningRate();
 }
 
 int CUser::get_aura_avatar_option_value(int idx)
@@ -999,12 +1012,11 @@ bool CUser::CheckFatigue()
     return getCurCharacTotalFatigue() < getCurCharacTotalMaxFatigue();
 }
 
-extern "C" int _ZNK19CMissionList_Charac15getIndex_byKindEi(void*, int);
-
 bool CUser::has_within_Mission() const
 {
-    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
-    return _ZNK19CMissionList_Charac15getIndex_byKindEi(mission, 0x1b) != 0;
+    CMissionList_Charac* mission =
+        (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    return mission->getIndex_byKind(0x1b) != 0;
 }
 
 void* CUser::getBlueMarble()
@@ -1178,8 +1190,6 @@ int CUser::CheckMoveTown(int vill)
     }
     Village* village = G_GameWorld()->GetVillage(vill);
     if (!village)
-        return 8;
-    if (get_charac_level() < village->m_requiredLevel)
         return 8;
     if (village->m_questIdx != 0)
     {
@@ -1589,25 +1599,17 @@ WongWork::CDeathTower* CUser::getDeathTower()
     return G_CGameManager()->getDeathTower(idx);
 }
 
-// ---- Redeem_Item::CRedeemItem / cUserHistoryLog::RedeemItemAdd 桥 ----
-// CRedeemItem（GetCharacExpandData(6) 返回）为未建模子系统，由
-// Redeem_Item__CRedeemItem 集群负责；此处按 ORIG Ssymbol 直连其占位实现。
-extern "C" char sub_Redeem_CRedeemItem_isAddableFilter(void*, const Inven_Item&)
-    asm("_ZN11Redeem_Item11CRedeemItem15isAddableFilterERK10Inven_Item");
-extern "C" int sub_Redeem_CRedeemItem_AddRedeemList(void*, const Inven_Item&, int, bool)
-    asm("_ZN11Redeem_Item11CRedeemItem13AddRedeemListERK10Inven_Itemib");
-
-// TODO(delegated: Redeem_Item__CRedeemItem)：这些 ORIG 强符号的真正实现由
-// 对应集群还原；Add_RedeemInfo 的 Store 调用方不消费其返回值。
-char sub_Redeem_CRedeemItem_isAddableFilter(void*, const Inven_Item&) { return 1; }
-int  sub_Redeem_CRedeemItem_AddRedeemList(void*, const Inven_Item&, int, bool) { return 1; }
+// ---- Redeem_Item::CRedeemItem（GetCharacExpandData(6) 返回，未建模为
+// CExpandEquipslot* 槽位；权威声明见 Redeem_Item__CRedeemItem.h，实现于
+// Redeem_Item__CRedeemItem.cpp，ORIG 0x085f76f0 / 0x085f71a8）----
 
 int CUser::Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem)
 {
     // ORIG 0x086472c0：GetCharacExpandData(6)->isAddableFilter(item)，可加则记录历史并 AddRedeemList
-    void* cdata = (void*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)6);
+    Redeem_Item::CRedeemItem* cdata =
+        (Redeem_Item::CRedeemItem*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)6);
     if (cdata == 0) return 0;
-    if (!sub_Redeem_CRedeemItem_isAddableFilter(cdata, item)) return 0;
+    if (!cdata->isAddableFilter(item)) return 0;
 
     CItem* pItem = G_CDataManager()->find_item(item.m_addInfo);
     if (pItem && pItem->is_stackable())
@@ -1615,7 +1617,7 @@ int CUser::Add_RedeemInfo(const Inven_Item& item, int count, bool isRedeem)
     else
         m_historyLog.RedeemItemAdd(item.m_addInfo, 1);
 
-    return sub_Redeem_CRedeemItem_AddRedeemList(cdata, item, count, isRedeem);
+    return cdata->AddRedeemList(item, count, isRedeem);
 }
 
 short CUser::getBossTowerIndex()
@@ -3243,16 +3245,15 @@ void CUser::SendProperDungeonClearCount()
     Send(packet);
 }
 
-extern "C" bool _ZN19CMissionList_Charac24MakeMissionList_JustKindERK5CUserj(void*, void*, unsigned int);
-
 bool CUser::acceptable_within_mission() const
 {
-    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    CMissionList_Charac* mission =
+        (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
     int grade = get_pvp_grade();
     int idx = G_CDataManager()->get_WithinMissionIndex(grade);
     if (idx == 0)
         return false;
-    return _ZN19CMissionList_Charac24MakeMissionList_JustKindERK5CUserj(mission, (void*)this, 0x1b);
+    return mission->MakeMissionList_JustKind(*this, 0x1b);
 }
 
 bool CUser::isDuplicationMessage(const std::string& msg)
@@ -3277,13 +3278,10 @@ void CUser::DimensionInoutUpdate(bool flag1, bool flag2)
     }
     if (flag2)
     {
-        char value = (char)G_CDataManager()->get_limit_inout_count(2);
+        char value = (char)G_CDataManager()->get_limit_inout_count((ENUM_BLOOD_TYPE)2);
         setUltimateInoutValue(2, value);
     }
 }
-
-extern "C" int _ZNK11RefPvpGrade19GetPvpCurrRankPointEi(void*, int);
-extern "C" int _ZNK11RefPvpGrade19GetPvpNextRankPointEi(void*, int);
 
 void CUser::send_pvp_record()
 {
@@ -3293,16 +3291,13 @@ void CUser::send_pvp_record()
     packet.put_int(*(int*)&result->m_pad0[0]);
     packet.put_int(*(int*)&result->m_pad0[4]);
     packet.put_int(result->m_expPoint);
-    packet.put_int(_ZNK11RefPvpGrade19GetPvpCurrRankPointEi(GlobalData::s_ref_pvp_grade, result->m_pvpGrade));
-    packet.put_int(_ZNK11RefPvpGrade19GetPvpNextRankPointEi(GlobalData::s_ref_pvp_grade, result->m_pvpGrade));
+    packet.put_int(GlobalData::s_ref_pvp_grade->GetPvpCurrRankPoint(result->m_pvpGrade));
+    packet.put_int(GlobalData::s_ref_pvp_grade->GetPvpNextRankPoint(result->m_pvpGrade));
     packet.put_byte(result->m_pvpGrade);
     packet.put_byte(*(unsigned char*)&result->m_pad5c[0]);
     packet.finalize(true);
     Send(packet);
 }
-
-extern "C" void const* sub_CQuestClear_getClearedQuest(void const* self)
-    asm("_ZNK8WongWork11CQuestClear15getClearedQuestEv");
 
 void CUser::send_clear_quest_list()
 {
@@ -3310,7 +3305,8 @@ void CUser::send_clear_quest_list()
     packet.put_header(0, 0x163);
     packet.put_int(0x7530);
     UserQuest* quest = getCurCharacQuestR();
-    void const* cleared = sub_CQuestClear_getClearedQuest((char*)quest + 4);
+    void const* cleared = reinterpret_cast<WongWork::CQuestClear*>((char*)quest + 4)
+                              ->getClearedQuest();
     packet.put_binary((const char*)cleared, 0x7530);
     packet.finalize(true);
     Send(packet);
@@ -3419,40 +3415,35 @@ void CUser::SetChangedGiftFatigueQuantity(bool flag)
     *(unsigned char*)((char*)this + 0x8ebb0) = flag ? 1 : 0;
 }
 
-extern "C" void _ZN9QuestList17GetDailyQuestListERSt4listIiSaIiEE(void*, void*);
-extern "C" void _ZN9UserQuest15resetClearQuestEi(void*, int);
-
 void CUser::ResetDailyQuest()
 {
     std::list<int> questList;
-    void* pQuestList = *(void**)((char*)G_CDataManager() + 0x18);
-    _ZN9QuestList17GetDailyQuestListERSt4listIiSaIiEE(pQuestList, &questList);
+    QuestList* pQuestList = *(QuestList**)((char*)G_CDataManager() + 0x18);
+    pQuestList->GetDailyQuestList(questList);
     for (std::list<int>::iterator it = questList.begin(); it != questList.end(); ++it)
     {
         int questId = *it;
         UserQuest* pQuest = getCurCharacQuestR();
         if (pQuest && pQuest->isClearQuest(questId))
         {
-            _ZN9UserQuest15resetClearQuestEi(getCurCharacQuestW(), questId);
+            getCurCharacQuestW()->resetClearQuest(questId);
         }
     }
 }
-
-extern "C" void _ZN9QuestList20GetTrainingQuestListERSt6vectorIiSaIiEEs(void*, void*, short);
 
 void CUser::ResetTrainingQuest()
 {
     std::vector<int> questList;
     short level = get_charac_level();
-    void* pQuestList = *(void**)((char*)G_CDataManager() + 0x18);
-    _ZN9QuestList20GetTrainingQuestListERSt6vectorIiSaIiEEs(pQuestList, &questList, level);
+    QuestList* pQuestList = *(QuestList**)((char*)G_CDataManager() + 0x18);
+    pQuestList->GetTrainingQuestList(questList, level);
     for (std::vector<int>::iterator it = questList.begin(); it != questList.end(); ++it)
     {
         int questId = *it;
         UserQuest* pQuest = getCurCharacQuestR();
         if (pQuest && pQuest->isClearQuest(questId))
         {
-            _ZN9UserQuest15resetClearQuestEi(getCurCharacQuestW(), questId);
+            getCurCharacQuestW()->resetClearQuest(questId);
         }
     }
 }
@@ -3479,12 +3470,11 @@ void CUser::add_inventory_item(unsigned int itemId)
     // send update item packet
 }
 
-extern "C" void _ZN19CMissionList_Charac16Send_MissionListER5CUser(void*, void*);
-
 void CUser::send_MissionList()
 {
-    void* mission = GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
-    _ZN19CMissionList_Charac16Send_MissionListER5CUser(mission, this);
+    CMissionList_Charac* mission =
+        (CMissionList_Charac*)GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)8);
+    mission->Send_MissionList(*this);
 }
 
 void CUser::send_aura_avatar_option()
@@ -3768,12 +3758,6 @@ void CUser::giveup_panalty()
 // 0x08658910
 // ORIG：登出清理——清登录时间/播放经验/多开彩票失败计数、移除 GM 标记、
 // 复位 uid/槽位/自增 ID/账号名、断网并整体 reset。
-// CUserGlobalInfoHandle 为 CUserGlobalInfoHandle.cpp 内部类，经 ORIG 符号桥调用。
-extern "C" void* sub_CUserGlobalInfoHandleInstance(void)
-    asm("_Z29CUserGlobalInfoHandleInstancev");  // ORIG 实号：29 字符
-extern "C" void sub_CUserGlobalInfoHandle_reset_uniqueid_flag(void* handle,
-                                                              unsigned short uniqueid)
-    asm("_ZN21CUserGlobalInfoHandle19reset_uniqueid_flagEt");  // ORIG 实号：19 字符
 void CUser::log_out()
 {
     *(int*)((char*)this + 0x8d10c) = 0;   // 推断：登录时间戳（pad 区内，未具名）
@@ -3783,8 +3767,7 @@ void CUser::log_out()
     m_field796f8 = 0;
     m_field8cfc4 = 0;
     m_field704ac = 0;
-    sub_CUserGlobalInfoHandle_reset_uniqueid_flag(
-        sub_CUserGlobalInfoHandleInstance(), m_field704a8);
+    CUserGlobalInfoHandleInstance()->reset_uniqueid_flag(m_field704a8);
     m_field704a8 = 0;
     SetSlotIDX(0);
     SetIncreID(0);

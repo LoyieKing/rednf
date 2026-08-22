@@ -20,6 +20,7 @@
 //     脚本值经 G_CDataManager()->get_hellparty_script_values() 取得（float 数组）。
 
 #include "CBattle_Field.h"
+#include "CVillageMonsterMgr.h"   // 完整类型（reset_field 调用 OnKillVillageMonster 4 参重载）
 
 // ================= CBattle_Field::CBattle_Field() — ORIG 0x082a44fe =================
 //

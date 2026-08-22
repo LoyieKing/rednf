@@ -116,7 +116,17 @@ namespace IPG { class CIPGHelper; }
 namespace secretshop { class CSecretShop; }
 namespace expert_job { class CExpertJobMgr; }
 namespace village_object { class CVillageObjectMgr; }
-namespace village_attacked { class CRevengeDungeon; class CVillageMonsterMgr; }
+namespace village_attacked
+{
+class CRevengeDungeon
+{
+public:
+    CRevengeDungeon();
+    bool IsOpenRevengeDungeon();   // ORIG W 0x8234ff6（读 +0x0 字节）
+    char m_pad[8];
+};
+class CVillageMonsterMgr;
+}
 namespace online_preliminary { class COnlinePreliminaryTeamMgr; }
 namespace break_away_prevent { class CBreakAwayPreventSystem; }
 namespace game_master { class CGameMasterMgr; }

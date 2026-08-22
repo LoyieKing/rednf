@@ -17,130 +17,33 @@
 
 #include <string.h>
 
-// ---- 跨类方法（ORIG 真实符号）----
-extern "C" void sub_Inven_Item_ctor(void* self) asm("_ZN10Inven_ItemC1Ev");
-extern "C" void sub_Inven_Item_reset(void* self) asm("_ZN10Inven_Item5resetEv");
-extern "C" void sub_GameResultType_ctor(void* self) asm("_ZN14GameResultTypeC1Ev");
-extern "C" void sub_GameResultType_dtor(void* self) asm("_ZN14GameResultTypeD1Ev");
-extern "C" void sub_GameResultType_clear(void* self) asm("_ZN14GameResultType5ClearEv");
+#include "BattleData.h"
+#include "Inven_Item.h"
+#include "GameResultType.h"
 
-// 事件地下城请求结构（布局按反汇编推导；mangling 含类型名，须与 ORIG 一致）。
-namespace CMDPacketStruct
-{
-
-// _STReqEventDungeonClearRoom：+0x0e ushort 房间号、+0x10 ushort、+0x12 ushort
-struct _STReqEventDungeonClearRoom
-{
-    char m_pad[0x0e];
-    unsigned short m_roomIndex;     // +0x0e
-    unsigned short m_monsterIndex;  // +0x10
-    unsigned short m_monsterCount;  // +0x12
-};
-
-// _STReqEventDungeonDestoryObject：+0x0e ushort 房间号、+0x10 int 类型、+0x14 ushort 点数
-struct _STReqEventDungeonDestoryObject
-{
-    char m_pad[0x0e];
-    unsigned short m_roomIndex;   // +0x0e
-    int m_destroyType;            // +0x10
-    unsigned short m_point;       // +0x14
-};
-
-}  // namespace CMDPacketStruct
-
-// 事件地下城清除数据（0x8 每项，数组首地址 this+0x62c，共 12 项）
-struct stEventClearData
-{
-    unsigned short m_field0;    // +0x00
-    unsigned short m_roomIdx;   // +0x02（请求结构 +0x0e）
-    unsigned short m_monsterIdx;// +0x04（请求结构 +0x10）
-    unsigned char m_clearFlag;  // +0x06（请求结构 +0x12）
-    unsigned char m_pad7;       // +0x07
-};
-
-struct stInvenItem
-{
-    char m_pad[0x3d];
-};
-
-struct stGameResult
-{
-    char m_pad[0x50];
-};
-
-class BattleData
-{
-public:
-    BattleData();
-    ~BattleData();
-    void Reset();
-    int GetHellPartyValueTotal();
-    void SetHellPartyValueTotal(int value);
-    int GetTotalKilledMonsterCount() const;
-    void IncEventDungeonDestoryObjectPoint(
-        int param_1, const CMDPacketStruct::_STReqEventDungeonDestoryObject& st);
-    void ResetEventDungeonClearPoint();
-    int ClearEventDungeonRoom(
-        int param_1, int param_2, const CMDPacketStruct::_STReqEventDungeonClearRoom& st);
-    char IsClearEventDungeonRoom(int param_1, unsigned short roomIdx) const;
-
-    int m_field0;        // +0x00
-    int m_field4;        // +0x04
-    int m_field8;        // +0x08
-    int m_fieldc;        // +0x0c
-    int m_field10;       // +0x10
-    int m_field14;       // +0x14
-    int m_field18;       // +0x18
-    int m_field1c;       // +0x1c
-    int m_field20;       // +0x20
-    int m_field24;       // +0x24
-    char m_flag28[4];    // +0x28
-    int m_field2c;       // +0x2c
-    int m_field30;       // +0x30
-    int m_field34;       // +0x34
-    int m_field38;       // +0x38
-    int m_killedMonster0;// +0x3c
-    int m_killedMonster1;// +0x40
-    int m_killedMonster2;// +0x44
-    int m_field48;       // +0x48
-    int m_field4c;       // +0x4c
-    char m_arr50[4];     // +0x50
-    char m_arr54[4];     // +0x54
-    char m_arr58[4];     // +0x58
-    char m_arr5c[4];     // +0x5c
-    char m_arr60[4];     // +0x60
-    int m_arr64[4];      // +0x64
-    stInvenItem m_itemGroups0[4][2];  // +0x74
-    stInvenItem m_itemGroups1[4][2];  // +0x25c
-    stInvenItem m_itemGroups2[4][2];  // +0x444
-    stEventClearData m_eventClear[12];// +0x62c
-    int m_field68c;      // +0x68c
-    stGameResult m_gameResults[4];    // +0x690
-    int m_arr7d0[4];     // +0x7d0
-    float m_hellPartyValueTotal;      // +0x7e0
-    char m_arr7e4[4];    // +0x7e4
-    int m_arr7e8[4];     // +0x7e8
-};
+// ============================================================================
+// 构造 / 析构 / Reset
+// ============================================================================
 
 BattleData::BattleData()
 {
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 2; ++j)
-            sub_Inven_Item_ctor(&m_itemGroups0[i][j]);
+            new (&m_itemGroups0[i][j]) Inven_Item();
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 2; ++j)
-            sub_Inven_Item_ctor(&m_itemGroups1[i][j]);
+            new (&m_itemGroups1[i][j]) Inven_Item();
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 2; ++j)
-            sub_Inven_Item_ctor(&m_itemGroups2[i][j]);
+            new (&m_itemGroups2[i][j]) Inven_Item();
     for (int i = 0; i < 4; ++i)
-        sub_GameResultType_ctor(&m_gameResults[i]);
+        new (&m_gameResults[i]) GameResultType();
 }
 
 BattleData::~BattleData()
 {
     for (int i = 0; i < 4; ++i)
-        sub_GameResultType_dtor(&m_gameResults[i]);
+        reinterpret_cast<GameResultType*>(&m_gameResults[i])->~GameResultType();
 }
 
 void BattleData::Reset()
@@ -176,15 +79,15 @@ void BattleData::Reset()
         m_arr58[i] = 0;
         m_arr5c[i] = 0;
         m_arr60[i] = 0;
-        sub_GameResultType_clear(&m_gameResults[i]);
+        reinterpret_cast<GameResultType*>(&m_gameResults[i])->Clear();
         m_arr7e8[i] = 0x7fffffff;
         m_arr64[i] = 0;
-        sub_Inven_Item_reset(&m_itemGroups0[i][0]);
-        sub_Inven_Item_reset(&m_itemGroups0[i][1]);
-        sub_Inven_Item_reset(&m_itemGroups1[i][0]);
-        sub_Inven_Item_reset(&m_itemGroups1[i][1]);
-        sub_Inven_Item_reset(&m_itemGroups2[i][0]);
-        sub_Inven_Item_reset(&m_itemGroups2[i][1]);
+        reinterpret_cast<Inven_Item*>(&m_itemGroups0[i][0])->reset();
+        reinterpret_cast<Inven_Item*>(&m_itemGroups0[i][1])->reset();
+        reinterpret_cast<Inven_Item*>(&m_itemGroups1[i][0])->reset();
+        reinterpret_cast<Inven_Item*>(&m_itemGroups1[i][1])->reset();
+        reinterpret_cast<Inven_Item*>(&m_itemGroups2[i][0])->reset();
+        reinterpret_cast<Inven_Item*>(&m_itemGroups2[i][1])->reset();
         m_arr7d0[i] = 0;
         m_arr7e4[i] = 0;
     }

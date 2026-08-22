@@ -31,17 +31,9 @@ public:
 };
 
 
-// ARAD::Singleton 模板定义（与 GlobalData.cpp 一致；模板允许跨 TU 重复定义）。
-// 供 ARAD::Singleton<CerashopAddRestrict::Manager>::Get() 实例化，产出 ORIG 符号
+// ARAD::Singleton 模板定义已在 Arad_DataManager.h 提供（唯一）；此处不再定义。
+// 供 ARAD::Singleton<CerashopAddRestrict::Manager>::Get() 隐式实例化，产出 ORIG 符号
 // _ZN4ARAD9SingletonIN19CerashopAddRestrict7ManagerEE3GetEv（W @ 0x080e274d）。
-namespace ARAD
-{
-template <class T> T* Singleton<T>::Get()
-{
-    static T inst;
-    return &inst;
-}
-}
 
 // 全局 C++ 权威签名（由 DNFLexWrapperHelpers.cpp 提供，匹配 ORIG mangled 符号）：
 bool loadRDARScriptFile(const char* directory, const char* path);

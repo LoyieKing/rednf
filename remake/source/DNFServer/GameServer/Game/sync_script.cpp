@@ -16,23 +16,24 @@
 #include "GlobalData.h"
 #include "MySQL.h"
 #include "STSkillScript.h"
+#include "DNFLexWrapper.h"
+#include "DNFFunctionLib.h"
 
 // ---- ORIG 编码转换 / 脚本解析辅助（真实符号） ----
-extern "C" bool sub_CodePage_script2Database(char* src, char* dst)
-    asm("_ZN8CodePage15script2DatabaseEPcS0_");
-extern "C" const char* sub_CodePage_database() asm("_ZN8CodePage8databaseEv");
-extern "C" const char* sub_CodePage_script() asm("_ZN8CodePage6scriptEv");
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-extern "C" bool sub_ScanStr(std::string* out) asm("_Z7ScanStrPSs");
-extern "C" const char* sub_toMbcs(const char* src) asm("_Z6toMbcsPKc");
-extern "C" void sub_GetEscapeString(MySQL* db, const char* src, char* dst)
-    asm("_Z15GetEscapeStringP5MySQLPKcPc");
-extern "C" int sub_getCharacterJob(const char* name)
-    asm("_Z15getCharacterJobPKc");
+// toMbcs/getCharacterJob 由 SyncScriptDeps.cpp 提供（ORIG 0x08adee98 / 0x088be57e）。
+const char* toMbcs(const char* src);
+int getCharacterJob(const char* name);
+
+// G_CDataManager() / RandomOptionScript::getPrefix（真实符号，声明与权威头一致；
+// 不 include CDataManager.h：其 CItemList.h 链会与 sync_script.h 本地 ST* 镜像
+// 冲突——既有跨 TU 布局分歧，见遗留说明。此处为普通 C++ 声明，非 extern C 桥）。
+class CDataManager;
+CDataManager* G_CDataManager();
+class RandomOptionScript
+{
+public:
+    std::string getPrefix(int prefix, int grade, bool flag);  // ORIG 0x08a73956
+};
 
 namespace
 {
@@ -255,45 +256,45 @@ const char* CSyncScript::GetUsableCharacter(STStackableScript* script)
 
 bool CSyncScript::LoadItemInfoMasterScript(const char* path)
 {
-    if (!sub_loadRDARScriptFile("", path))
+    if (!loadRDARScriptFile("", path))
     {
         return false;
     }
     std::string line;
     std::string str;
-    while (sub_ScanType(line, true))
+    while (ScanType(line, true))
     {
         if (line == "[master type]")
         {
-            int value = sub_ScanInt(0);
-            sub_ScanStr(&str);
+            int value = ScanInt((int*)0);
+            ScanStr(&str);
             m_map64[(unsigned char)value] = str;
         }
         else if (line == "[type addition]")
         {
-            int value = sub_ScanInt(0);
+            int value = ScanInt((int*)0);
             m_vec1.push_back((unsigned char)value);
         }
         else if (line == "[reverse desc]")
         {
-            int value = sub_ScanInt(0);
+            int value = ScanInt((int*)0);
             m_vec2.push_back((unsigned char)value);
         }
         else if (line == "[material type]")
         {
-            int value = sub_ScanInt(0);
-            sub_ScanStr(&str);
+            int value = ScanInt((int*)0);
+            ScanStr(&str);
             m_map7c[(unsigned char)value] = str;
         }
         else if (line == "[weapon type]")
         {
-            sub_ScanStr(&str);
-            int type = sub_ScanInt(0);
-            int subType = sub_ScanInt(0);
-            int value = sub_ScanInt(0);
+            ScanStr(&str);
+            int type = ScanInt((int*)0);
+            int subType = ScanInt((int*)0);
+            int value = ScanInt((int*)0);
             std::string name;
-            sub_ScanStr(&name);
-            int job = sub_getCharacterJob(str.c_str());
+            ScanStr(&name);
+            int job = getCharacterJob(str.c_str());
             SWEAPONTYPE wp;
             wp.m_job = job;
             wp.m_idx = subType;
@@ -303,12 +304,12 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         }
         else if (line == "[armor type]")
         {
-            sub_ScanStr(&str);
-            int type = sub_ScanInt(0);
-            int subType = sub_ScanInt(0);
-            int value = sub_ScanInt(0);
+            ScanStr(&str);
+            int type = ScanInt((int*)0);
+            int subType = ScanInt((int*)0);
+            int value = ScanInt((int*)0);
             std::string name;
-            sub_ScanStr(&name);
+            ScanStr(&name);
             SARMORTYPE ap;
             ap.m_field0 = (unsigned char)subType;
             ap.m_str4 = str;
@@ -318,13 +319,13 @@ bool CSyncScript::LoadItemInfoMasterScript(const char* path)
         }
         else if (line == "[item type]")
         {
-            sub_ScanStr(&str);
-            int type = sub_ScanInt(0);
-            int subType = sub_ScanInt(0);
-            int value = sub_ScanInt(0);
-            int extra = sub_ScanInt(0);
+            ScanStr(&str);
+            int type = ScanInt((int*)0);
+            int subType = ScanInt((int*)0);
+            int value = ScanInt((int*)0);
+            int extra = ScanInt((int*)0);
             std::string name;
-            sub_ScanStr(&name);
+            ScanStr(&name);
             m_itemTypeMap[str] = SITEMTYPE(type != 0, (unsigned char)subType,
                                            (unsigned char)value,
                                            (unsigned short)extra, name);
@@ -346,7 +347,7 @@ bool CSyncScript::insert_skill_index(STSkillScript* script, int job)
     memset(name, 0, sizeof(name));
     char escaped[0x300];
     memset(escaped, 0, sizeof(escaped));
-    sub_CodePage_script2Database((char*)script->m_str4.c_str(), name);
+    CodePage::script2Database((char*)script->m_str4.c_str(), name);
     db->escape_string(escaped, name);
     db->set_query("inSert into skill_index(job, skill_idx, skill_name) values(%d, %d, '%s')",
                   job, script->m_field0, escaped);
@@ -432,7 +433,7 @@ bool CSyncScript::insert_quest_category(QuestScript* script)
     memset(name, 0, sizeof(name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    sub_CodePage_script2Database((char*)script->m_name.c_str(), name);
+    CodePage::script2Database((char*)script->m_name.c_str(), name);
     db->escape_string(escaped, name);
     db->set_query("inSert into quest_category(quest_idx, quest_name) values(%d, '%s')",
                   script->m_index, escaped);
@@ -572,7 +573,7 @@ bool CSyncScript::insert_aicharacter_info_to_db(int idx,
     memset(name, 0, sizeof(name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    sub_CodePage_script2Database((char*)script.m_str4.c_str(), name);
+    CodePage::script2Database((char*)script.m_str4.c_str(), name);
     db->escape_string(escaped, name);
     db->set_query("inSert into dnf_aicharacter_info(idx, ai_name_kr) values(%d, '%s')",
                   idx, escaped);
@@ -614,7 +615,7 @@ bool CSyncScript::insert_town_info_to_db(const TownScript& script)
     memset(name, 0, sizeof(name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    sub_CodePage_script2Database((char*)script.m_str4.c_str(), name);
+    CodePage::script2Database((char*)script.m_str4.c_str(), name);
     db->escape_string(escaped, name);
     db->set_query("inSert into dnf_town_info(idx, town_name_kr) values(%d, '%s')",
                   script.m_field0, escaped);
@@ -656,7 +657,7 @@ bool CSyncScript::insert_monster_info_to_db(const STMonsterScript& script)
     memset(name, 0, sizeof(name));
     char escaped[0x100];
     memset(escaped, 0, sizeof(escaped));
-    sub_CodePage_script2Database((char*)script.m_str4.c_str(), name);
+    CodePage::script2Database((char*)script.m_str4.c_str(), name);
     db->escape_string(escaped, name);
     db->set_query("inSert into dnf_monster_info(idx, mon_name_kr) values(%d, '%s')",
                   script.m_field0, escaped);
@@ -726,7 +727,7 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
     values[10] = "";
     for (int i = 0; i < 11; ++i)
     {
-        sub_GetEscapeString(db, values[i], escaped[i]);
+        GetEscapeString(db, values[i], escaped[i]);
     }
     db->set_query(
         "inSert into dnf_creature_info(it_id, creature_id, creature_name, skill_recovery_time, overskill_recovery_time, artifact_slot, learn_overskill_level, skill_info, overskill_info, piercing, skill_name, skill_desc, overskill_name, overskill_desc, skill_level_values, overskill_level_values, evolution_creature_id, evolution_level) values(%u, %d, '%s', %d, %d, '%s', %d, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %d, %d)",
@@ -764,13 +765,13 @@ bool CSyncScript::insert_one_item_info_master(unsigned char masterNo,
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
     const char* names[2];
-    names[0] = sub_toMbcs(name);
-    names[1] = sub_toMbcs(explain);
+    names[0] = toMbcs(name);
+    names[1] = toMbcs(explain);
     char escaped[2][100];
     memset(escaped, 0, sizeof(escaped));
     for (int i = 0; i < 2; ++i)
     {
-        sub_GetEscapeString(db, names[i], escaped[i]);
+        GetEscapeString(db, names[i], escaped[i]);
     }
     if (!db->set_query(
             "inSert into dnf_item_info_master(master_no, sub_no, name, master_explain) values(%u, %u, '%s', '%s')",
@@ -995,8 +996,7 @@ bool CSyncScript::insert_random_option_ref()
         for (unsigned char grade = 0; grade < 0x65; ++grade)
         {
             std::string name;
-            name = sub_RandomOptionPrefix(
-                (char*)sub_G_CDataManager() + 0x4e10, prefix, grade, false);
+            name = ((RandomOptionScript*)((char*)G_CDataManager() + 0x4e10))->getPrefix(prefix, grade, false);
             if (name.length() == 0)
             {
                 continue;
@@ -1005,7 +1005,7 @@ bool CSyncScript::insert_random_option_ref()
             memset(converted, 0, sizeof(converted));
             char escaped[0x100];
             memset(escaped, 0, sizeof(escaped));
-            sub_CodePage_script2Database((char*)name.c_str(), converted);
+            CodePage::script2Database((char*)name.c_str(), converted);
             db->escape_string(escaped, converted);
             db->set_query("inSert into random_option_ref(random_option_index, random_option_value, random_option_name) values(%d,%d, '%s')",
                           prefix, (unsigned int)grade, escaped);
@@ -1044,7 +1044,7 @@ bool CSyncScript::insert_charac_action_point_desc()
     {
         return true;
     }
-    return sub_APSystem_InsertDescTable();
+    return APSystem::CSyncScript::InsertDescTable();
 }
 
 bool CSyncScript::truncate_charac_action_point_desc()
@@ -1053,7 +1053,7 @@ bool CSyncScript::truncate_charac_action_point_desc()
     {
         return true;
     }
-    return sub_APSystem_TruncateDescTable();
+    return APSystem::CSyncScript::TruncateDescTable();
 }
 
 bool CSyncScript::insert_charac_advance_altar_item_desc()
@@ -1062,7 +1062,7 @@ bool CSyncScript::insert_charac_advance_altar_item_desc()
     {
         return true;
     }
-    return sub_advancealtar_InsertItemDescTable();
+    return advancealtar::SyncScript::insertItemDescTable();
 }
 
 bool CSyncScript::truncate_charac_advance_altar_item_desc()
@@ -1071,7 +1071,7 @@ bool CSyncScript::truncate_charac_advance_altar_item_desc()
     {
         return true;
     }
-    return sub_advancealtar_TruncateItemDescTable();
+    return advancealtar::SyncScript::truncateItemDescTable();
 }
 
 }  // namespace sync_script

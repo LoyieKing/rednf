@@ -30,11 +30,7 @@ public:
     void Send(PacketGuard& packet);
 };
 
-enum ENUM_PACKETCLASS
-{
-    ENUM_PACKETCLASS_0 = 0,
-    ENUM_PACKETCLASS_1 = 1
-};
+#include "CUserProc.h"   // APSystem::CUserProc / _ActionGroupIndex（唯一声明点）
 
 namespace APSystem
 {
@@ -44,57 +40,6 @@ public:
     void GM_Set(CUser& user, unsigned int value);
 
     char m_pad[0xcfc];  // +0x00
-};
-
-class _ActionGroupIndex
-{
-public:
-    int m_value;  // +0x00
-};
-
-class _SIG_LOAD_ACTION_POINT
-{
-public:
-    class _TodayRewardItem
-    {
-    public:
-        int m_itemIdx;  // +0x00
-    };
-};
-
-class _MSG_ACTION_POINT_ACTION_CLEAR
-{
-public:
-    _MSG_ACTION_POINT_ACTION_CLEAR();
-
-    int m_group;       // +0x00
-    int m_field4;      // +0x04（未初始化区）
-    unsigned short m_actionNo;  // +0x08
-    char m_flag;       // +0x0a
-};
-
-class CUserProc
-{
-public:
-    static void ClearActionAndSendtoUser(CUser* user, _ActionGroupIndex group,
-                                         int value, ENUM_PACKETCLASS packetClass);
-    static void SendActionClear(CUser& user, unsigned short actionNo,
-                                _ActionGroupIndex group, bool flag,
-                                ENUM_PACKETCLASS packetClass);
-    static void SendActionListState(CUser* user);
-    static void SendActionListState(CUser& user);
-    static void SendGetRewardItem(CUser& user,
-                                  _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward,
-                                  bool flag);
-    static void SetTodayActionAndCheckMedalReward(CUser* user);
-    static void UpdateActionPoint(CUser* user);
-    static void GetTodayRewardAndSendPostal(
-        CUser* user, _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward);
-    static void CheckAndSendToMessageAllUser(unsigned int a, unsigned int b,
-                                             const char* msg);
-    static void SendToMessageAllUser(const char* msg, const char* fmt);
-    static void GM_Reset(CUser* user);
-    static void GM_Set(CUser* user, unsigned int value);
 };
 }
 

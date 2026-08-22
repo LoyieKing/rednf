@@ -3,9 +3,8 @@
 // docs/class_func_reports/DNFLex.md 与 DNFLex__stream_data_t.md）
 // ----------------------------------------------------------------------------
 // 本 TU 承载 DNFLex（_ZN6DNFLex*，即 DNFLexWrapper.dnfLex_ 子对象，wrapper+0x18）
-// 的基础流方法，与 DNFLexWrapper.cpp / DNFLexWrapperStream.cpp /
-// GameStubs_remaining.cpp（DNFLexWrapper / 取词方法）以及 CompiledLexCore 的
-// CompiledDNFLexCore.cpp（_ZN14CompiledDNFLex*）互补，无重复定义。
+// 的基础流方法，与 DNFLexWrapper.cpp / DNFLexWrapperStream.cpp 以及
+// CompiledLexCore 的 CompiledDNFLexCore.cpp（_ZN14CompiledDNFLex*）互补。
 //
 // 本 TU 实现（ORIG 地址 / 汇编证据）：
 //   GetInputStream()      _ZN6DNFLex14GetInputStreamEv  ORIG 0x8acd280
@@ -13,42 +12,25 @@
 //   CloseInputStream()    _ZN6DNFLex16CloseInputStreamEv ORIG 0x8acd5b0
 //   SetHandler(...)       _ZN6DNFLex10SetHandlerEPFbcEPFvPKciEPFvS3_EPFbS3_S3_PNS_13stream_data_tEE
 //                                                     ORIG 0x8acd160
-//   PopInputStream(bool)  _ZN6DNFLex14PopInputStreamEb  ORIG 0x8acd490（支撑）
+//   PopInputStream(bool)  _ZN6DNFLex14PopInputStreamEb  ORIG 0x8acd490
 //   LoadStream(...)       _ZN6DNFLex10LoadStreamEPKcS1_PNS_13stream_data_tE
-//                                                     ORIG 0x8acd220（支撑）
+//                                                     ORIG 0x8acd220
 //   PushInputStream(...)  _ZN6DNFLex15PushInputStreamEPKcS1_PNS_13stream_data_tE
-//                                                     ORIG 0x8acd7d0（支撑）
+//                                                     ORIG 0x8acd7d0
 //   SwitchInputStream(...) _ZN6DNFLex17SwitchInputStreamEPKcS1_PNS_13stream_data_tE
 //                                                     ORIG 0x8acda50
+//   stream_data_t::clear()  _ZN6DNFLex13stream_data_t5clearEv  ORIG 0x8acd140
 //   stream_data_t::destroy() _ZN6DNFLex13stream_data_t7destroyEv
-//                                                     ORIG 0x8acd450（支撑）
-// 引擎符号 yypush_buffer_state（0x8ad2420）/ yyensure_buffer_stack
-// （0x8ad2350）由 FlexLexerCore.cpp 提供（同 yypop 先例）。
+//                                                     ORIG 0x8acd450
+//   DNFLex() / ~DNFLex()   _ZN6DNFLexC1Ev / D1Ev / D0Ev
+//                          ORIG 0x8acd3a0 / 0x8acd5f0 / 0x8acd7b0
+//   yylex()               _ZN6DNFLex5yylexEv          ORIG 0x8ad2860
+//   LexerOutput/LexerError/EnableInclusion/DisableInclusion/IsStream/
+//   tok_str/tok_str_len/getLineNumber/get_next_token
+//   vtable/typeinfo       _ZTV6DNFLex / _ZTI6DNFLex / _ZTS6DNFLex
 //
 // 对象布局依据 ORIG DNFLex::DNFLex（0x8acd3a0）与 DNFLex::PushInputStream
-// （0x8acd7d0）：
-//   +0x00 vptr（__dnf_script__FlexLexer / FlexLexer 基类 vptr）
-//   +0x04 FlexLexer.yytext（DNFLexWrapper 文档：wrapper+0x1c = dnfLex_+0x04）
-//   +0x0c yylineno（FlexLexer 基类；PopInputStream: mov %eax,0xc(%ebx)）
-//   +0x38 yy_start（FlexLexer 基类；PopInputStream: movl $1,0x38(%ebx)）
-//   +0x80 stream_stack_._M_start（std::vector<DNFLex::stream_t>）
-//   +0x84 stream_stack_._M_finish
-//   +0x88 stream_stack_._M_end_of_storage
-//
-// DNFLex::stream_t（0x18 字节，元素 = 24；DWARF/PushInputStream 证据）：
-//   +0x00 dir（TCHAR*；源流目录）
-//   +0x04 filename（TCHAR*）
-//   +0x08 stream_data_t{ istream* stream; int size; char* buffer }
-//          （stream_data_t 起点 +0x08；size @ +0x0c；buffer @ +0x10）
-//   +0x14 line_number
-// 该 +0x08/+0x0c/+0x10 偏移被 DNFLexWrapperStream.cpp 的 getInputStream /
-// getInputStreamSize / getInputStreamBuffer 以裸指针固定读取，故必须保持。
-//
-// 注意（重建契约）：ORIG 中 dir/filename 为 COW std::string（共享引用计数）。
-// 本重建以普通 const char* 建模（保持 stream_t 0x18 布局），PopInputStream
-// 不接管 dir/filename 的所有权/释放（由 PushInputStream / TLoadStream 批次
-// 负责创建与生命周期），仅关闭 stream_data_t 的 istream 与 buffer——与
-// DNFLexWrapperStream.cpp 裸偏移契约一致，避免对未拥有指针做释放。
+// （0x8acd7d0），见 DNFLex.h。
 // ============================================================================
 
 #include <cstdio>
@@ -57,264 +39,655 @@
 #include <string>
 #include <iostream>
 
-namespace
-{
+#include "DNFLex.h"
 
-// DNFLex 对象基类布局代理（本 TU 独有；覆盖 FlexLexer 基类全部字段与
-// DNFLex 特有字段，yylex（0x8ad2860）按此访问）。
-struct DnfLexState
+// 顶层元素 = &((stream_t*)stackFinish)[-1] 位于 stackFinish - 0x18。
+static DNFLex::stream_t* topStream(DNFLex* s)
 {
-    void*   vptr;            // +0x00 FlexLexer 基类 vptr
-    char*   yytext;          // +0x04 FlexLexer.yytext
-    int     yyleng;          // +0x08 FlexLexer.yyleng（yylex: mov %edx,0x8(%esi)）
-    int     yylineno;        // +0x0c FlexLexer.yylineno
-    int     yy_flex_debug;   // +0x10
-    int     yy_start_stack_ptr;    // +0x14
-    int     yy_start_stack_depth;  // +0x18
-    int*    yy_start_stack;  // +0x1c
-    void*   yyin;            // +0x20
-    void*   yyout;           // +0x24
-    char    yy_hold_char;    // +0x28
-    char    pad29[3];
-    int     yy_n_chars;      // +0x2c
-    char*   yy_c_buf_p;      // +0x30
-    int     yy_init;         // +0x34
-    int     yy_start;        // +0x38
-    int     yy_did_buffer_switch_on_eof;  // +0x3c
-    int     yy_buffer_stack_top;          // +0x40
-    int     yy_buffer_stack_max;          // +0x44
-    void**  yy_buffer_stack;              // +0x48
-    int     yy_last_accepting_state;      // +0x4c
-    char*   yy_last_accepting_cpos;       // +0x50
-    char*   yy_state_buf;                 // +0x54
-    char*   yy_state_ptr;                 // +0x58
-    char*   yy_full_match;                // +0x5c
-    int*    yy_full_state;                // +0x60
-    char    pad64[8];        // +0x64 .. +0x6b
-    int     yy_looking_for_trail_begin;   // +0x6c
-    int     yy_more_flag;    // +0x70
-    int     yy_more_len;     // +0x74
-    int     yy_more_offset;  // +0x78
-    int     yy_prev_more_offset;          // +0x7c
-    char*   stackStart;      // +0x80 stream_stack_._M_start
-    char*   stackFinish;     // +0x84 stream_stack_._M_finish
-    char*   stackEnd;        // +0x88 stream_stack_._M_end_of_storage
-    char    errBuf[0x2000];  // +0x8c ERR_BUF（DNFLex 构造 rep stos 0x800 双字）
-    char*   m_str_tok_pos;   // +0x408c STR_TOK_BUF 写入游标
-    char    is_dbcs_;        // +0x4090 DBCS 双字节状态
-    char    allow_inclusion_; // +0x4091 允许 include
-    char    pad4092[2];      // +0x4092 .. +0x4093
-    // +0x4094..+0x40a0 四个回调（SetHandler 写入）
-    int (*isDbcsLeadChar)(char);                     // +0x4094
-    void (*lexerOutput)(const char*, int);           // +0x4098
-    void (*lexerError)(const char*);                 // +0x409c
-    int (*loadStream)(const char*, const char*, void*);  // +0x40a0
-    char    strTokBuf[0x2000];  // +0x40a4 STR_TOK_BUF（DNFLex 构造 rep stos）
-};
-
-// DNFLex::stream_t（0x18 字节）。
-struct DnfLexStream
-{
-    const char* dir;         // +0x00
-    const char* filename;    // +0x04
-    void*       stream;      // +0x08  stream_data_t.stream（istream*）
-    int         size;        // +0x0c  stream_data_t.size
-    char*       buffer;      // +0x10  stream_data_t.buffer
-    int         line_number; // +0x14
-};
-struct DnfStreamDataView
-{
-    void* stream;
-    int size;
-    char* buffer;
-};
-
-// 顶层元素 = &((DnfLexStream*)stackFinish)[-1] 位于 stackFinish - 0x18。
-inline DnfLexStream* topStream(DnfLexState* s)
-{
-    return reinterpret_cast<DnfLexStream*>(s->stackFinish) - 1;
+    return reinterpret_cast<DNFLex::stream_t*>(s->stackFinish) - 1;
 }
 
 // 判断流栈非空。
-inline bool hasStream(DnfLexState* s)
+static bool hasStream(DNFLex* s)
 {
     return s->stackFinish != s->stackStart;
 }
 
-// ---- 底层符号（前向声明 / 引擎批次提供）----
-// __dnf_script__FlexLexer::yypop_buffer_state()（FlexLexer 引擎）
-//   _ZN23__dnf_script__FlexLexer18yypop_buffer_stateEv
-// __dnf_script__FlexLexer::yypush_buffer_state()（FlexLexer 引擎）
-//   _ZN23__dnf_script__FlexLexer19yypush_buffer_stateEP15yy_buffer_state
-// 归属：词法引擎批次（yypop/yypush/set_line_num 等 _ZN23* 由 Main 统一分配；
-// 当前由 FlexLexerCore.cpp 提供）。
-}  // namespace
-
-// ---- 导出符号（asm 标签对齐 ORIG）----
-
-// ---- 本 TU 支撑方法（ORIG 0x8acd450）----
-// DNFLex::stream_data_t::destroy()：关闭 istream（经其基类 vtable 槽 +4，
-// 即 istream 析构），释放 buffer（operator delete[]）。this = &stream_data_t
-// （= &finish[-1].s，位于 stream_t + 0x8）。
-extern "C" void* sub_DNFLex_GetInputStream(void* self)
+// ---- DNFLex::GetInputStream()（ORIG 0x8acd280）----
+// 栈空返回 0；否则返回栈顶 stream_t*（finish-1）。
+DNFLex::stream_t* DNFLex::GetInputStream()
 {
-    DnfLexState* s = reinterpret_cast<DnfLexState*>(self);
-    if (!hasStream(s))
+    if (!hasStream(this))
         return 0;
-    return reinterpret_cast<char*>(s->stackFinish) - 0x18;   // &finish[-1]
+    return topStream(this);
 }
 
 // ---- DNFLex::getStreamName()（ORIG 0x8acd310，tstring RVO 返回）----
 // 返回顶层流的 dir+filename 拼接；栈空返回 "NONE"。
-extern "C" std::string sub_DNFLex_getStreamName(void* self)
-    asm("_ZN6DNFLex13getStreamNameEv");
-extern "C" std::string sub_DNFLex_getStreamName(void* self)
+std::string DNFLex::getStreamName()
 {
-    DnfLexState* s = reinterpret_cast<DnfLexState*>(self);
-    if (hasStream(s))
+    if (hasStream(this))
     {
-        DnfLexStream* t = topStream(s);
-        std::string result(t->dir ? t->dir : "");        // ORIG: _ZNSsC1ERKSs(副本)
-        if (t->filename)                                  // ORIG: _ZNSs6appendERKSs
+        stream_t* t = topStream(this);
+        std::string result(t->dir ? t->dir : "");
+        if (t->filename)
             result.append(t->filename);
         return result;
     }
-    return std::string("NONE");   // ORIG: _ZNSsC1EPKcRKSaIcE("NONE", @0x8e2eb1f)
+    return std::string("NONE");
 }
 
 // ---- DNFLex::CloseInputStream()（ORIG 0x8acd5b0）----
 // 反复弹出流栈至空（ORIG 为 do-while 调用 PopInputStream(true)）。
-
-// ---- DNFLex::DNFLex（ORIG 0x8acd3a0，C1/C2 同址）----
-
-// DNFLex vtable（_ZTV6DNFLex，定义于本 TU 末尾）。
-extern "C" const void* g_dnfLex_vtable[] __asm__("_ZTV6DNFLex");
-
-
-struct DnfLexTypeInfo
+void DNFLex::CloseInputStream()
 {
-    const void* vptr;
-    const char* typeName;
-};
-extern "C" const struct DnfLexTypeInfo g_dnfLex_typeinfo __asm__("_ZTI6DNFLex");
-extern "C" const struct DnfLexTypeInfo g_dnfLex_typeinfo = {
-    reinterpret_cast<const char*>(&g_cxxabi_classTypeInfo_vtable3) + 8,
-    g_dnfLex_typeinfoName,
-};
+    while (hasStream(this))
+        PopInputStream(true);
+}
 
-// DNFLex::yylex（ORIG 0x8ad2860）使用下方提取的 flex DFA 表；
-// 保持槽 6 与 _ZN6DNFLex5yylexEv ABI 不变。
-
-// 引擎槽 2-9 符号（FlexLexerCore.cpp 提供）。
-extern "C" void* sub_FlexLexer_yy_create_buffer(void* self, void* file, int size)
-    asm("_ZN23__dnf_script__FlexLexer16yy_create_bufferEPSii");
-
-extern "C" const void* g_dnfLex_vtable[] = {
-    0,
-    &g_dnfLex_typeinfo,
-    reinterpret_cast<const void*>(&sub_DNFLex_D1),
-    reinterpret_cast<const void*>(&sub_DNFLex_D0),
-    reinterpret_cast<const void*>(&sub_FlexLexer_yy_switch_to_buffer),
-    reinterpret_cast<const void*>(&sub_FlexLexer_yy_create_buffer),
-    reinterpret_cast<const void*>(&sub_FlexLexer_yy_delete_buffer),
-    reinterpret_cast<const void*>(&sub_FlexLexer_yyrestart),
-    reinterpret_cast<const void*>(&sub_DNFLex_yylex),
-    reinterpret_cast<const void*>(&sub_FlexLexer_switch_streams),
-    reinterpret_cast<const void*>(&sub_FlexLexer_yywrap),
-    reinterpret_cast<const void*>(&sub_FlexLexer_LexerInput),
-    reinterpret_cast<const void*>(&sub_DNFLex_LexerOutput),
-    reinterpret_cast<const void*>(&sub_DNFLex_LexerError),
-};
-
-// ============================================================================
-// ---- DNFLex::yylex（ORIG 0x8ad2860）----
-extern "C" const short g_yy_accept[], g_yy_def[], g_yy_base[], g_yy_chk[], g_yy_nxt[];
-extern "C" const int g_yy_rule_can_match_eol[];
-extern "C" const int g_yy_NUL_trans[];
-extern "C" int sub_DNFLex_yylex(void* self)
+// ---- DNFLex::stream_data_t::clear()（ORIG 0x8acd140）----
+void DNFLex::stream_data_t::clear()
 {
-    DnfLexState* s = reinterpret_cast<DnfLexState*>(self);
-    struct B { void* in; char* ch; char* pos; int size,n,own,interactive,bol,line,col,fill,status; };
-    if (!s->yy_init) {
-        s->yy_init=1; if (!s->yy_start) s->yy_start=1;
-        if (!s->yyin) s->yyin=&std::cin; if (!s->yyout) s->yyout=&std::cout;
-        if (!s->yy_buffer_stack || !s->yy_buffer_stack[s->yy_buffer_stack_top]) {
-            sub_FlexLexer_yyensure_buffer_stack(self);
-            void*** v=reinterpret_cast<void***>(s->vptr);
-            s->yy_buffer_stack[s->yy_buffer_stack_top]=reinterpret_cast<void*(*)(void*,void*,int)>(v[3])(self,s->yyin,0x4000);
-        }
-        B* b=reinterpret_cast<B*>(s->yy_buffer_stack[s->yy_buffer_stack_top]);
-        s->yy_n_chars=b->n; s->yy_c_buf_p=b->pos; s->yytext=b->pos; s->yyin=b->in; s->yy_hold_char=*b->pos;
+    stream = 0;
+    size = 0;
+    buffer = 0;
+}
+
+// ---- DNFLex::stream_data_t::destroy()（ORIG 0x8acd450）----
+// 关闭 istream（经其基类 vtable 槽 +4，即 istream 析构），释放 buffer。
+void DNFLex::stream_data_t::destroy()
+{
+    if (stream != 0)
+    {
+        void (**vtable)(void*) = *reinterpret_cast<void (***)(void*)>(stream);
+        vtable[1](stream);
+        stream = 0;
     }
-    for (;;) {
-        *s->yy_c_buf_p=s->yy_hold_char; char* bp=s->yy_c_buf_p; int st=s->yy_start;
-        for (;;) { if(g_yy_accept[st]){s->yy_last_accepting_state=st;s->yy_last_accepting_cpos=s->yy_c_buf_p;}
-            int x=g_yy_base[st]+(unsigned char)*s->yy_c_buf_p;
-            while(st!=g_yy_chk[x]){st=g_yy_def[st];x=g_yy_base[st]+(unsigned char)*s->yy_c_buf_p;}
-            ++s->yy_c_buf_p; st=g_yy_nxt[x];
-            if (*s->yy_c_buf_p == 0) {
-                int nul = g_yy_NUL_trans[st];
-                if (nul == 0) break;
-                st = nul;
-            }
-            if(g_yy_base[st]==0x779) break;
-        }
-        int a=g_yy_accept[st];
-        if(!a){
-            s->yy_c_buf_p=s->yy_last_accepting_cpos;
-            st=s->yy_last_accepting_state;
-            a=g_yy_accept[st];
-        }
-        s->yytext=bp; s->yyleng=s->yy_c_buf_p-bp; s->yy_hold_char=*s->yy_c_buf_p; *s->yy_c_buf_p=0;
-        if(a!=0x15&&g_yy_rule_can_match_eol[a]) for(int i=0;i<s->yyleng;i++) if(s->yytext[i]=='\n') ++s->yylineno;
-        switch(a) {
-        case 1:return 2; case 2:return 3; case 3:return 4; case 4:return 11; case 5:return 5; case 6:return 6; case 7:return 8; case 8:return 9; case 9:return 10;
-        case 10:s->yy_start=3; break; case 11: case 14:s->yy_start=1; break; case 13:s->yy_start=5; break;
-        case 16:s->is_dbcs_=0; s->yy_start=7; s->m_str_tok_pos=s->strTokBuf; break;
-        case 17:
-            if(!s->is_dbcs_) { if(*s->yytext=='`'){*s->m_str_tok_pos=0;s->yy_start=1;return 7;}
-                if(s->m_str_tok_pos>=s->strTokBuf+0x1ffe) { if(hasStream(s)){DnfLexStream*t=topStream(s);std::snprintf(s->errBuf,sizeof(s->errBuf),"yylex - %s/%s, line %d, string buffer overflow detected.",t->dir,t->filename,s->yylineno);} else std::snprintf(s->errBuf,sizeof(s->errBuf),"yylex - the input stream is empty."); if(s->lexerError)s->lexerError(s->errBuf); return 1; }
-                *s->m_str_tok_pos++=*s->yytext; s->is_dbcs_=s->isDbcsLeadChar&&s->isDbcsLeadChar(*s->yytext);
-            } else {*s->m_str_tok_pos++=*s->yytext;s->is_dbcs_=0;} break;
-        case 19:
-            if(hasStream(s)){DnfLexStream*t=topStream(s); if(!*s->yytext) std::snprintf(s->errBuf,sizeof(s->errBuf),"yylex - %s/%s, line %d, unrecognized character 'NULL'.",t->dir,t->filename,s->yylineno); else std::snprintf(s->errBuf,sizeof(s->errBuf),"yylex - %s/%s, line %d, unrecognized character '%c'.",t->dir,t->filename,s->yylineno,*s->yytext); if(s->lexerError)s->lexerError(s->errBuf); return 1;} break;
-        case 20:if(s->lexerOutput)s->lexerOutput(s->yytext,s->yyleng);break;
-        case 21:{int r=sub_FlexLexer_yy_get_next_buffer(self); if(r==2){B*b=reinterpret_cast<B*>(s->yy_buffer_stack[s->yy_buffer_stack_top]);s->yy_c_buf_p=b->ch+s->yy_n_chars;sub_FlexLexer_yy_get_previous_state(self);continue;} if(r==0){sub_FlexLexer_yy_get_previous_state(self);continue;} if(r==1){s->yy_did_buffer_switch_on_eof=0;int w=reinterpret_cast<int(*)(void*)>(reinterpret_cast<void**>(s->vptr)[8])(self);if(!w){if(!s->yy_did_buffer_switch_on_eof)reinterpret_cast<void(*)(void*,void*)>(reinterpret_cast<void**>(s->vptr)[5])(self,s->yyin);break;}s->yy_c_buf_p=s->yytext;a=(s->yy_start-1)/2+22; if(a==22||a==24||a==25)return 0; if(a==23){if(s->lexerError)s->lexerError("comment nest mismatch");return 1;}} return 0;}
-        case 22: case 24: case 25:return 0; case 23:if(s->lexerError)s->lexerError("comment nest mismatch");return 1;
-        default:if(s->lexerError)s->lexerError("fatal flex scanner internal error--no action found");break;
-        }
+    if (buffer != 0)
+    {
+        ::operator delete(buffer);
+        buffer = 0;
     }
 }
 
-// flex 扫描器主循环。依赖 DFA 表（ORIG .rodata 0x8e2f180 起，flex 生成）：
-//   yy_accept @ 0x8e2f180（short[64]）  yy_def @ 0x8e2f200（short[64]）
-//   yy_base @ 0x8e2f280（short[64]）    yy_chk @ 0x8e2f300（short[2176]）
-//   yy_nxt @ 0x8e30400（short[2176]）   yy_NUL_trans @ 0x8e2f0a0（int[56]）
-//   yy_rule_can_match_eol @ 0x8e31500（int[26]）
-// 表内容为 ORIG 数据区逐字节提取（只读常量），保证 DFA 语义与 ORIG 一致。
-// ============================================================================
-extern "C" const short g_yy_accept[] = {
+// ---- DNFLex::PopInputStream(bool)（ORIG 0x8acd490）----
+// 弹出栈顶流：yypop_buffer_state → stream_data_t::destroy → finish-1 →
+// （重建以 const char* 建模 dir/filename，无 COW 释放）→ yy_start=1、
+// yylineno = 新栈顶 line_number（栈空 1）。
+// 条件：栈非空 && (pop_all || 元素数 > 1)。
+bool DNFLex::PopInputStream(bool pop_all)
+{
+    if (!hasStream(this))
+        return false;
+    ptrdiff_t count = (reinterpret_cast<char*>(topStream(this) + 1) - stackStart) /
+                      static_cast<ptrdiff_t>(sizeof(stream_t));
+    if (!pop_all && count <= 1)
+        return false;
+
+    this->yypop_buffer_state();
+    stream_t* top = topStream(this);
+    top->s.destroy();
+    stackFinish = reinterpret_cast<char*>(top);
+    this->yy_start = 1;
+    this->yylineno = hasStream(this) ? topStream(this)->line_number : 1;
+    return true;
+}
+
+// ---- DNFLex::LoadStream(...)（ORIG 0x8acd220）----
+// 若 SetHandler 注册了 LoadStream 回调（+0x40a0 非空），以 (dir,filename,s)
+// 尾调用之并返回其 bool；否则返回 false。
+bool DNFLex::LoadStream(const char* dir, const char* filename, stream_data_t* s)
+{
+    if (loadStream == 0)
+        return false;
+    return loadStream(dir, filename, s);
+}
+
+// ---- DNFLex::PushInputStream(...)（ORIG 0x8acd7d0）----
+// dir/filename 空指针按空串；s==0 时先 LoadStream 到局部（失败 → 写
+// ERR_BUF 并 LexerError，返回 false），否则拷贝 s 三字段；把旧栈顶
+// line_number 保存为 yylineno；vector push 新 stream_t；yy_create_buffer
+// + yypush_buffer_state；yy_start=1、yylineno=1。返回 true。
+bool DNFLex::PushInputStream(const char* dir, const char* filename, stream_data_t* s)
+{
+    stream_data_t local;
+    if (s == 0)
+    {
+        if (!LoadStream(dir, filename, &local))
+        {
+            std::snprintf(errBuf, sizeof(errBuf),
+                          "%s - DNFLex::ReadStream failed.", "PushInputStream");
+            if (lexerError != 0)
+                lexerError(errBuf);
+            return false;
+        }
+    }
+    else
+    {
+        local = *s;
+    }
+
+    if (hasStream(this))
+        topStream(this)->line_number = this->yylineno;
+
+    // vector push_back（重建：3 指针管理，扩容翻倍 + 拷贝构造）
+    std::size_t count = (stackFinish - stackStart) / sizeof(stream_t);
+    std::size_t cap = stackEnd ? (stackEnd - stackStart) / sizeof(stream_t) : 0;
+    if (count == cap)
+    {
+        std::size_t newCap = cap ? cap * 2 : 4;
+        stream_t* nb = static_cast<stream_t*>(::operator new(newCap * sizeof(stream_t)));
+        for (std::size_t i = 0; i < count; ++i)
+        {
+            stream_t* dst = nb + i;
+            const stream_t* src = reinterpret_cast<stream_t*>(stackStart) + i;
+            new (dst) stream_t(*src);
+        }
+        if (stackStart)
+            ::operator delete(stackStart);
+        stackStart = reinterpret_cast<char*>(nb);
+        stackFinish = reinterpret_cast<char*>(nb + count);
+        stackEnd = reinterpret_cast<char*>(nb + newCap);
+    }
+
+    stream_t* pos = reinterpret_cast<stream_t*>(stackFinish);
+    new (pos) stream_t;
+    pos->dir = dir ? dir : "";
+    pos->filename = filename ? filename : "";
+    pos->s = local;
+    pos->line_number = this->yylineno;
+    stackFinish = reinterpret_cast<char*>(pos + 1);
+
+    yy_buffer_state* new_buffer = this->yy_create_buffer(
+        reinterpret_cast<std::istream*>(local.stream), local.size);
+    this->yypush_buffer_state(new_buffer);
+    this->yy_start = 1;
+    this->yylineno = 1;
+    return true;
+}
+
+// ---- DNFLex::SwitchInputStream(...)（ORIG 0x8acda50）----
+// CloseInputStream 后尾调用 PushInputStream。
+bool DNFLex::SwitchInputStream(const char* dir, const char* filename, stream_data_t* s)
+{
+    CloseInputStream();
+    return PushInputStream(dir, filename, s);
+}
+
+// ---- DNFLex::SetHandler(...)（ORIG 0x8acd160）----
+void DNFLex::SetHandler(TIsDbcsLeadChar isDbcs, TLexerOutput output,
+                        TLexerError error, TLoadStream load)
+{
+    isDbcsLeadChar = isDbcs;
+    lexerOutput = output;
+    lexerError = error;
+    loadStream = load;
+}
+
+// ---- DNFLex::LexerOutput / LexerError（ORIG 0x8acd190 / 0x8acd1c0）----
+void DNFLex::LexerOutput(const char* buf, int size)
+{
+    if (lexerOutput != 0)
+        lexerOutput(buf, size);
+}
+
+void DNFLex::LexerError(const char* msg)
+{
+    if (lexerError != 0)
+        lexerError(msg);
+}
+
+// ---- DNFLex::EnableInclusion / DisableInclusion（ORIG 0x8acd2d0/2c0）----
+void DNFLex::EnableInclusion()
+{
+    allow_inclusion_ = true;
+}
+
+void DNFLex::DisableInclusion()
+{
+    allow_inclusion_ = false;
+}
+
+// ---- DNFLex::IsStream（ORIG 0x8acd260）----
+bool DNFLex::IsStream()
+{
+    return hasStream(this);
+}
+
+// ---- DNFLex::tok_str / tok_str_len（ORIG 0x8acd1f0 / 0x8acd200）----
+char* DNFLex::tok_str()
+{
+    return strTokBuf;
+}
+
+int DNFLex::tok_str_len()
+{
+    return static_cast<int>(m_str_tok_pos - strTokBuf);
+}
+
+// ---- DNFLex::getLineNumber（ORIG 0x8acd2b0）----
+int DNFLex::getLineNumber()
+{
+    return yylineno;
+}
+
+// ---- DNFLex::get_next_token（ORIG 0x8acdaa0）----
+// DNF_TOK_EOF == 0；经 yylex 取词；INCLUDE 时读文件名再 PushInputStream，
+// EOF 时 PopInputStream(false) 并递归取词。
+int DNFLex::get_next_token()
+{
+    int tok = 0;  // DNF_TOK_EOF
+    if (hasStream(this))
+    {
+        tok = yylex();
+        if (allow_inclusion_)
+        {
+            if (tok == DNF_TOK_INCLUDE)
+            {
+                stream_t* cur = topStream(this);
+                int next = yylex();
+                if (next == DNF_TOK_STRING)
+                {
+                    std::string filename = strTokBuf;
+                    if (PushInputStream("", filename.c_str(), 0))
+                    {
+                        tok = yylex();
+                        return tok;
+                    }
+                    std::snprintf(errBuf, sizeof(errBuf),
+                                  "%s - %s/%s, line %d, PushInputStream failed.",
+                                  "get_next_token", cur->dir ? cur->dir : "",
+                                  cur->filename ? cur->filename : "", yylineno);
+                }
+                else
+                {
+                    std::snprintf(errBuf, sizeof(errBuf),
+                                  "%s - %s/%s, line %d, invalid inclusion.",
+                                  "get_next_token", cur->dir ? cur->dir : "",
+                                  cur->filename ? cur->filename : "", yylineno);
+                }
+                if (lexerError != 0)
+                    lexerError(errBuf);
+                return DNF_TOK_ERROR;
+            }
+            if (tok == DNF_TOK_EOF)
+            {
+                if (PopInputStream(false))
+                {
+                    tok = yylex();
+                    return tok;
+                }
+            }
+        }
+    }
+    return tok;
+}
+
+// ---- DNFLex::DNFLex（ORIG 0x8acd3a0，C1/C2 同址）----
+// 调用 __dnf_script__FlexLexer 基类构造（istream 0 / ostream 0），
+// memset ERR_BUF(+0x8c) 与 STR_TOK_BUF(+0x208c)（各 0x800 双字），
+// stream_stack 三指针清零、m_str_tok_pos=0、is_dbcs_=0、
+// allow_inclusion_=1、四个回调清零。vptr 由编译器写入 _ZTV6DNFLex。
+DNFLex::DNFLex()
+    : __dnf_script__FlexLexer(0, 0),
+      stackStart(0), stackFinish(0), stackEnd(0),
+      m_str_tok_pos(0), is_dbcs_(0), allow_inclusion_(1),
+      isDbcsLeadChar(0), lexerOutput(0), lexerError(0), loadStream(0)
+{
+    std::memset(errBuf, 0, sizeof(errBuf));
+    std::memset(strTokBuf, 0, sizeof(strTokBuf));
+}
+
+// ---- DNFLex::~DNFLex（ORIG 0x8acd5f0 D1 / 0x8acd7b0 D0）----
+// CloseInputStream 弹空 → 释放 stream_stack 缓冲 → 基类析构。
+DNFLex::~DNFLex()
+{
+    CloseInputStream();
+    if (stackStart != 0)
+        ::operator delete(stackStart);
+    stackStart = stackFinish = stackEnd = 0;
+}
+
+// ---------------------------------------------------------------------------
+// ---- DNFLex::yylex（ORIG 0x8ad2860，flex DFA 主循环）----
+// 证据：docs/class_func_reports/DNFLex/yylex.md（Ghidra 反编译）+ ORIG 汇编。
+// 规则 → 记号映射（switch iVar13）：1→DECIMAL(2) 2→HEXADECIMAL(3) 3→FLOAT(4)
+// 4→INCLUDE(11) 5→TYPE(5) 6→CONNECTOR(6) 7→CUSTOM_DATA(8) 8→PAIR_INT(9)
+// 9→PAIR_STR(10)；规则 0x11（反引号串结束）→STRING(7)；EOF 规则
+// 0x16/0x18/0x19→EOF(0)；0x17→comment nest mismatch→ERROR(1)。
+// ---------------------------------------------------------------------------
+int DNFLex::yylex()
+{
+    char* yy_cp;
+    char* yy_bp;
+    unsigned char yy_hold;
+    int yy_current_state;
+    int rule;
+
+    if (yy_init == 0)
+    {
+        yy_init = 1;
+        if (yy_start == 0)
+            yy_start = 1;
+        if (yyin == 0)
+            yyin = const_cast<std::istream*>(&std::cin);
+        if (yyout == 0)
+            yyout = const_cast<std::ostream*>(&std::cout);
+
+        yy_buffer_state** stack =
+            reinterpret_cast<yy_buffer_state**>(yy_buffer_stack);
+        yy_buffer_state* b = (stack != 0) ? stack[yy_buffer_stack_top] : 0;
+        if (b == 0)
+        {
+            yyensure_buffer_stack();
+            b = yy_create_buffer(reinterpret_cast<std::istream*>(yyin), 0x4000);
+            stack = reinterpret_cast<yy_buffer_state**>(yy_buffer_stack);
+            stack[yy_buffer_stack_top] = b;
+        }
+        yy_n_chars = b->yy_n_chars;
+        yy_cp = b->yy_buf_pos;
+        yyin = b->yy_input_file;
+        yy_c_buf_p = yy_cp;
+        yytext = yy_cp;
+        yy_hold = static_cast<unsigned char>(*yy_cp);
+    }
+    else
+    {
+        yy_cp = yy_c_buf_p;
+        yy_hold = static_cast<unsigned char>(*yy_cp);
+    }
+
+    for (;;)  // LAB_08ad2896
+    {
+        *yy_cp = static_cast<char>(yy_hold);
+        yy_bp = yy_cp;
+
+        // ---- DFA 扫描（LAB_08ad28a3）----
+        yy_current_state = yy_start;
+        for (;;)
+        {
+            int base = g_yy_base[yy_current_state];
+            int st = yy_current_state;
+            for (;;)
+            {
+                if (g_yy_accept[st] != 0)
+                {
+                    yy_last_accepting_state = st;
+                    yy_last_accepting_cpos = yy_cp;
+                }
+                if (st != g_yy_chk[base + yy_hold])
+                {
+                    do
+                    {
+                        st = g_yy_def[st];
+                        base = g_yy_base[st];
+                    } while (g_yy_chk[base + yy_hold] != st);
+                }
+                yy_cp += 1;
+                yy_current_state = g_yy_nxt[base + yy_hold];
+                base = g_yy_base[yy_current_state];
+                if (base == 0x779)
+                    break;
+                yy_hold = static_cast<unsigned char>(*yy_cp);
+            }
+            break;
+        }
+
+        // ---- 接受/回退（LAB_08ad292b）----
+        rule = g_yy_accept[yy_current_state];
+        if (rule == 0)
+        {
+            yy_cp = yy_last_accepting_cpos;
+            rule = g_yy_accept[yy_last_accepting_state];
+        }
+
+        yytext = yy_bp;
+        yyleng = static_cast<int>(yy_cp - yy_bp);
+        yy_hold = static_cast<unsigned char>(*yy_cp);
+        *yy_cp = '\0';
+        yy_c_buf_p = yy_cp;
+
+        // 行号计数（规则 0x15 EOF 除外）。
+        if (rule != 0x15 && g_yy_rule_can_match_eol[rule] != 0 && yyleng > 0)
+        {
+            const char* p = yytext;
+            for (int i = 0; i < yyleng; ++i)
+            {
+                if (p[i] == '\n')
+                    ++yylineno;
+            }
+        }
+
+        switch (rule)
+        {
+        case 0:
+            // 回退到最近接受位置重扫。
+            *yy_cp = static_cast<char>(yy_hold);
+            yy_cp = yy_last_accepting_cpos;
+            yy_current_state = yy_last_accepting_state;
+            rule = g_yy_accept[yy_current_state];
+            yytext = yy_bp;
+            yyleng = static_cast<int>(yy_cp - yy_bp);
+            yy_hold = static_cast<unsigned char>(*yy_cp);
+            *yy_cp = '\0';
+            yy_c_buf_p = yy_cp;
+            break;
+
+        case 1:  return DNF_TOK_DECIMAL;
+        case 2:  return DNF_TOK_HEXADECIMAL;
+        case 3:  return DNF_TOK_FLOAT;
+        case 4:  return DNF_TOK_INCLUDE;
+        case 5:  return DNF_TOK_TYPE;
+        case 6:  return DNF_TOK_CONNECTOR;
+        case 7:  return DNF_TOK_CUSTOM_DATA;
+        case 8:  return DNF_TOK_PAIR_INT;
+        case 9:  return DNF_TOK_PAIR_STR;
+
+        case 10:
+            yy_start = 3;
+            break;
+        case 0xb:
+        case 0xe:
+            yy_start = 1;
+            break;
+        case 0xc:
+        case 0xf:
+        case 0x12:
+            break;
+        case 0xd:
+            yy_start = 5;
+            break;
+        case 0x10:
+            is_dbcs_ = 0;
+            yy_start = 7;
+            m_str_tok_pos = strTokBuf;
+            break;
+
+        case 0x11:  // 反引号字符串累积
+            if (is_dbcs_ == 0)
+            {
+                char c = yytext[0];
+                if (c == '`')
+                {
+                    *m_str_tok_pos = '\0';
+                    yy_start = 1;
+                    return DNF_TOK_STRING;
+                }
+                if (strTokBuf + 0x1ffe <= m_str_tok_pos)
+                {
+                    if (IsStream())
+                    {
+                        stream_t* s = GetInputStream();
+                        std::snprintf(errBuf, sizeof(errBuf),
+                                      "%s - %s/%s, line %d, string buffer overflow detected.",
+                                      "yylex", s->dir, s->filename, yylineno);
+                        LexerError(errBuf);
+                    }
+                    else
+                    {
+                        std::snprintf(errBuf, sizeof(errBuf),
+                                      "%s - the input stream is empty.", "yylex");
+                        LexerError(errBuf);
+                    }
+                    return DNF_TOK_ERROR;
+                }
+                *m_str_tok_pos = c;
+                ++m_str_tok_pos;
+                is_dbcs_ = (isDbcsLeadChar != 0 && isDbcsLeadChar(c)) ? 1 : 0;
+            }
+            else
+            {
+                *m_str_tok_pos = yytext[0];
+                ++m_str_tok_pos;
+                is_dbcs_ = 0;
+            }
+            break;
+
+        case 0x13:  // 未识别字符
+            if (IsStream())
+            {
+                stream_t* s = GetInputStream();
+                char c = yytext[0];
+                if (c == '\0')
+                    std::snprintf(errBuf, sizeof(errBuf),
+                                  "%s - %s/%s, line %d, unrecognized character 'NULL'.",
+                                  "yylex", s->dir, s->filename, yylineno);
+                else
+                    std::snprintf(errBuf, sizeof(errBuf),
+                                  "%s - %s/%s, line %d, unrecognized character '%c'.",
+                                  "yylex", s->dir, s->filename, yylineno, c);
+                LexerError(errBuf);
+                return DNF_TOK_ERROR;
+            }
+            break;
+
+        case 0x14:  // ECHO
+            LexerOutput(yytext, yyleng);
+            break;
+
+        case 0x15:  // EOF 处理
+        {
+            *yy_cp = static_cast<char>(yy_hold);
+            yy_buffer_state** stack =
+                reinterpret_cast<yy_buffer_state**>(yy_buffer_stack);
+            yy_buffer_state* b = stack[yy_buffer_stack_top];
+            if (b->yy_buffer_status == 0)
+            {
+                yy_n_chars = b->yy_n_chars;
+                b->yy_buffer_status = 1;
+                b->yy_input_file = reinterpret_cast<std::istream*>(yyin);
+                b = stack[yy_buffer_stack_top];
+            }
+
+            if (yy_c_buf_p <= b->yy_ch_buf + yy_n_chars)
+            {
+                yy_c_buf_p = yy_cp - 1;
+                yy_current_state = yy_get_previous_state();
+                int nul = g_yy_NUL_trans[yy_current_state];
+                if (nul == 0)
+                {
+                    yy_cp = yy_c_buf_p;
+                    // 重扫（回到接受处理，保留当前 yytext/yyleng 语义）。
+                    rule = g_yy_accept[yy_current_state];
+                    yy_hold = static_cast<unsigned char>(*yy_cp);
+                    *yy_cp = '\0';
+                    yy_c_buf_p = yy_cp;
+                    if (rule == 0)
+                    {
+                        yy_cp = yy_last_accepting_cpos;
+                        rule = g_yy_accept[yy_last_accepting_state];
+                    }
+                    break;
+                }
+                yy_cp = yy_c_buf_p + 1;
+                yy_c_buf_p = yy_cp;
+                yy_hold = static_cast<unsigned char>(*yy_cp);
+                continue;  // 回到 DFA 扫描
+            }
+
+            int r = yy_get_next_buffer();
+            if (r == 1)
+            {
+                yy_did_buffer_switch_on_eof = 0;
+                if (yywrap() == 0)
+                {
+                    if (yy_did_buffer_switch_on_eof == 0)
+                        yyrestart(reinterpret_cast<std::istream*>(yyin));
+                    break;
+                }
+                // yywrap 非零：按 yy_start 映射伪规则（0x16/0x17/0x18/0x19）。
+                rule = (yy_start - 1) / 2 + 0x16;
+                if (rule == 0x17)
+                {
+                    std::snprintf(errBuf, sizeof(errBuf), "comment nest mismatch");
+                    LexerError(errBuf);
+                    return DNF_TOK_ERROR;
+                }
+                return DNF_TOK_EOF;
+            }
+            if (r == 2)
+            {
+                yy_c_buf_p = b->yy_ch_buf + yy_n_chars;
+                yy_get_previous_state();
+                yy_cp = yy_c_buf_p;
+                rule = g_yy_accept[yy_current_state = yy_last_accepting_state];
+                break;
+            }
+            if (r == 0)
+            {
+                yy_c_buf_p = yy_cp - 1;
+                yy_get_previous_state();
+                yy_cp = yy_c_buf_p;
+                yy_hold = static_cast<unsigned char>(*yy_cp);
+                continue;
+            }
+            break;
+        }
+
+        case 0x16:
+        case 0x18:
+        case 0x19:
+            return DNF_TOK_EOF;
+
+        case 0x17:
+            std::snprintf(errBuf, sizeof(errBuf), "comment nest mismatch");
+            LexerError(errBuf);
+            return DNF_TOK_ERROR;
+
+        default:
+            LexerError("fatal flex scanner internal error--no action found");
+            break;
+        }
+
+        yy_cp = yy_c_buf_p;
+        yy_hold = static_cast<unsigned char>(*yy_cp);
+    }
+}
+
+// ---- Flex DFA 表（ORIG .rodata 数据转写，见 DNFLex.h 注释地址）----
+extern "C" const short g_yy_accept[57] =
+{
     0, 7, 7, 0, 0, 0, 0, 0, 0, 21, 19, 18, 18, 7, 19, 19,
     19, 1, 1, 19, 19, 19, 16, 12, 12, 12, 15, 14, 14, 17, 17, 18,
     0, 1, 10, 13, 0, 0, 0, 0, 0, 0, 11, 6, 3, 2, 9, 8,
-    0, 5, 0, 0, 0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 5, 0, 0, 0, 0, 0, 4, 0,
 };
-
-extern "C" const short g_yy_def[] = {
+extern "C" const short g_yy_def[64] =
+{
     0, 57, 57, 58, 58, 59, 59, 60, 60, 56, 56, 56, 56, 56, 61, 56,
     56, 56, 56, 62, 56, 63, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
     61, 56, 56, 56, 56, 56, 62, 56, 56, 63, 56, 56, 56, 56, 56, 56,
     56, 56, 56, 56, 56, 56, 56, 56, 0, 56, 56, 56, 56, 56, 56, 56,
 };
-
-extern "C" const short g_yy_base[] = {
+extern "C" const short g_yy_base[64] =
+{
     0, 0, 54, 4, 17, 1, 2, 163, 162, 174, 1913, 9, 52, 1913, 0, 20,
     36, 67, 79, 0, 103, 0, 1913, 1913, 1913, 116, 1913, 1913, 1913, 1913, 1913, 129,
     108, 116, 1913, 1913, 140, 150, 86, 173, 37, 53, 1913, 1913, 184, 205, 1913, 1913,
     45, 1913, 35, 24, 40, 36, 4, 1913, 1913, 307, 562, 817, 1072, 1327, 1535, 1657,
 };
-
-extern "C" const short g_yy_chk[] = {
+extern "C" const short g_yy_chk[2170] =
+{
     0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 5, 6, 1, 5, 6,
     0, 3, 11, 11, 0, 0, 11, 0, 0, 0, 0, 0, 0, 0, 4, 0,
     1, 1, 0, 0, 0, 0, 1, 0, 1, 11, 0, 1, 1, 1, 3, 1,
@@ -450,10 +823,10 @@ extern "C" const short g_yy_chk[] = {
     56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
     56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
     56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
-    56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 0, 0, 0, 0, 0, 0,
+    56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
 };
-
-extern "C" const short g_yy_nxt[] = {
+extern "C" const short g_yy_nxt[2170] =
+{
     0, 56, 56, 56, 56, 56, 56, 56, 56, 11, 12, 27, 27, 11, 28, 28,
     56, 24, 31, 31, 56, 56, 31, 56, 56, 56, 56, 56, 56, 56, 24, 56,
     11, 13, 56, 56, 56, 56, 13, 56, 14, 31, 56, 15, 13, 15, 25, 16,
@@ -589,19 +962,22 @@ extern "C" const short g_yy_nxt[] = {
     56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
     56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
     56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
-    56, 56, 56, 56, 56, 56, 56, 56, 56, 56, 0, 0, 0, 0, 0, 0,
+    56, 56, 56, 56, 56, 56, 56, 56, 56, 56,
 };
-
-extern "C" const int g_yy_NUL_trans[] = {
+extern "C" const int g_yy_NUL_trans[56] =
+{
     0, 10, 10, 23, 23, 26, 26, 29, 29, 0, 0, 0,
     0, 0, 32, 0, 0, 0, 0, 0, 0, 41, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0, 32, 0, 0, 0,
     0, 0, 0, 0, 0, 41, 0, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0, 0, 0, 0,
 };
-
-extern "C" const int g_yy_rule_can_match_eol[] = {
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    1, 0, 1, 0, 0, 1, 1, 0, 0, 1701607801, 120, 0,
-    0, 149099956,
+extern "C" const unsigned char g_yy_rule_can_match_eol[84] =
+{
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0,
 };

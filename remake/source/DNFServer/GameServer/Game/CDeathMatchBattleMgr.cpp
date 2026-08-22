@@ -10,8 +10,7 @@
 // 返回类型以 ORIG 反汇编/mangling 为准：checkWinner* 为 void（GameStubs 桩的
 // int 是错的）；checkGameOver* 返回 0/1（调用点 test %al，声明为 int 与 ORIG
 // mov $imm,%eax 形态一致）。
-// 跨类调用一律经 asm-label extern（PvP_Room/PvpUserTable/TimerQueue/LogManager/
-// cMyTrace），mangled 名与 ORIG 完全一致。
+// 跨类调用经权威头（PvP_Room.h/TimerQueue.h/CDeathMatchBattleMgr.h），mangled 名与 ORIG 完全一致。
 // ============================================================================
 
 #include <algorithm>
@@ -19,36 +18,11 @@
 #include <cstring>
 #include <utility>
 
-class CUser;
-class PvP_Room;
+#include "CDeathMatchBattleMgr.h"
+#include "PvP_Room.h"
+#include "TimerQueue.h"
 
-// ---- 最小同名类：仅用于 SetWinTeam 调用（未定义，链 ORIG/桩实现） ----
-class PvpUserTable
-{
-public:
-    void SetWinTeam(int team);
-};
-
-// ---- cMyTrace（ORIG ctor 0854f718 / operator() 0854f788，外部定义） ----
-class cMyTrace
-{
-public:
-    cMyTrace(const char* func, int line, int flag);
-    void operator()(const char* fmt, ...);
-
-    char m_pad[16];
-};
-
-// ---- 跨类 asm-label extern（mangled 名与 ORIG 一致） ----
-extern "C" unsigned int sub_PvP_Room_gen_timer_key(void* self, int msg)
-    asm("_ZN8PvP_Room13gen_timer_keyE13TIMER_MESSAGE");
-extern "C" int sub_PvP_Room_get_index(void* self)
-    asm("_ZN8PvP_Room9get_indexEv");
-extern "C" void* sub_G_TimerQueue()
-    asm("_Z12G_TimerQueuev");
-extern "C" void sub_TimerQueue_InsertTimer(
-    void* self, int objType, int a, int msg, int b, unsigned int key, unsigned int c)
-    asm("_ZN10TimerQueue11InsertTimerEN10TimerEntry8OBJ_TYPEEi13TIMER_MESSAGEiij");
+// cMyTrace 权威声明见 GameTypes.h（经 PvP_Room.h 链包含），本地类已删除（§7）。
 
 // ---- std::pair 排序比较器（ORIG 085df55f T） ----
 bool funDeathMatchKillCntCompare(const std::pair<int, int>& a,
@@ -57,36 +31,7 @@ bool funDeathMatchKillCntCompare(const std::pair<int, int>& a,
     return a.second > b.second;
 }
 
-// ---- CDeathMatchBattleMgr（0x44） ----
-class CDeathMatchBattleMgr
-{
-public:
-    void Reset();
-    void SetParent(PvP_Room* room);
-    void OnCreateRoom(int roomIdx);
-    void OnStart();
-    void IncreaseKillCount(int userIdx);
-    void IncreaseDeathCount(int userIdx);
-    int getKillCount(int userIdx);
-    int getDeathCount(int userIdx);
-    int getMaxKillCount();
-    int getRanking(CUser** users, int* out) const;
-    int checkGameOverForSinglePlay(int mode);
-    void checkWinnerForSinglePlay(CUser** users, bool* win, PvpUserTable& table);
-    int checkGameOverForTeamPlay(CUser** users, int teamCnt, unsigned char* teamWin);
-    void checkWinnerForTeamPlay(CUser** users, bool* win, unsigned char* teamWin,
-                                PvpUserTable& table);
-    void InsertTimerKilledUserForRevive(int roomIdx, int a);
-    void OnJoinRoom(int roomIdx);
-    void OnLeaveRoom(int roomIdx);
-    void OnReady(int roomIdx, bool ready);
-    void OnChangeTeam(int team, int a);
-    void OnFight();
-
-    PvP_Room* m_pRoom;     // +0x00
-    int m_killCount[8];    // +0x04
-    int m_deathCount[8];   // +0x24
-};
+// ---- CDeathMatchBattleMgr（0x44，权威声明见 CDeathMatchBattleMgr.h） ----
 
 // ==== ORIG 085dee22 ====
 void CDeathMatchBattleMgr::Reset()
@@ -160,9 +105,10 @@ int CDeathMatchBattleMgr::getMaxKillCount()
 // ==== ORIG 085def60 ====
 void CDeathMatchBattleMgr::InsertTimerKilledUserForRevive(int roomIdx, int a)
 {
-    unsigned int key = sub_PvP_Room_gen_timer_key(m_pRoom, a + 0x33);
-    void* timerQueue = sub_G_TimerQueue();
-    sub_TimerQueue_InsertTimer(timerQueue, 5, roomIdx, a + 0x33, 3, key, 0);
+    unsigned int key = m_pRoom->gen_timer_key((TIMER_MESSAGE)(a + 0x33));
+    TimerQueue* timerQueue = G_TimerQueue();
+    timerQueue->InsertTimer((TimerEntry::OBJ_TYPE)5, roomIdx,
+                            (TIMER_MESSAGE)(a + 0x33), 3, (int)key, 0);
 }
 
 // ==== ORIG 085df012 ====
@@ -332,7 +278,7 @@ int CDeathMatchBattleMgr::getRanking(CUser** users, int* out) const
         cMyTrace trace("int CDeathMatchBattleMgr::getRanking(CUser**, int*) const",
                        0x1695, 0);
         trace("CDeathMatchBattleMgr::getRanking => Room(%d), Idx(%d), Rank(%d)",
-              sub_PvP_Room_get_index(m_pRoom), j, out[j]);
+              m_pRoom->get_index(), j, out[j]);
     }
     return count;
 }

@@ -13,33 +13,17 @@
 // 大小合计 0x34c。
 // ============================================================================
 
+#include <algorithm>
 #include <cstring>
+
+#include "CUserCharacInfo.h"
+#include "GameWorld.h"
 
 class CUser;
 
-// ---- CUserCharacInfo / GameWorld 跨类调用（asm-label extern，真实符号）----
-extern "C" int sub_CUserCharacInfo_get_pvp_grade(void* self)
-    asm("_ZNK15CUserCharacInfo13get_pvp_gradeEv");
-extern "C" void* sub_G_GameWorld(void)
-    asm("_Z11G_GameWorldv");
-extern "C" bool sub_GameWorld_IsCharacterPvPExpRevisionChannel(void* self)
-    asm("_ZNK9GameWorld32IsCharacterPvPExpRevisionChannelEv");
+// cMyTrace 权威声明见 GameTypes.h（经 GameWorld.h 链包含），本地类已删除（§7）。
 
-// ---- std::min<float>（ORIG 弱符号 _ZSt3minIfERKT_S2_S2_）----
-extern "C" const float* sub_min_float(const float* a, const float* b)
-    asm("_ZSt3minIfERKT_S2_S2_");
-
-// ---- cMyTrace（ORIG ctor 0854f718 / operator() 0854f788，外部定义）----
-class cMyTrace
-{
-public:
-    cMyTrace(const char* file, int line, int level);
-    void operator()(const char* fmt, ...);
-
-    char m_pad[16];
-};
-
-// ---- PvpUserTable（0x34c）----
+// ---- PvpUserTable（0x34c） ----
 class PvpUserTable
 {
 public:
@@ -153,7 +137,7 @@ float PvpUserTable::GetExpectVal(int grade1, int grade2, CUser* user)
     if ((grade1 == 1 && grade2 == 0) || (grade1 == 0 && grade2 == 1))
     {
         // 用户存在且段位 <= 9 时保留换算结果，否则回退原段位
-        if (!(user != 0 && sub_CUserCharacInfo_get_pvp_grade(user) <= 9))
+        if (!(user != 0 && ((CUserCharacInfo*)user)->get_pvp_grade() <= 9))
         {
             grade1 = saved1;
             grade2 = saved2;
@@ -202,7 +186,7 @@ int PvpUserTable::Calculate()
         m_minPoint[i] = 0.0f;
         for (int j = 0; j < 8; ++j)
         {
-            m_minPoint[i] = *sub_min_float(&m_teamVsTeam[j][i], &m_minPoint[i]);
+            m_minPoint[i] = std::min(m_teamVsTeam[j][i], m_minPoint[i]);
         }
     }
 
@@ -270,7 +254,7 @@ int PvpUserTable::GetGhostVsTeamPoint(int team, int)
         CUser* u = m_users[team][i].user;
         if (u != 0)
         {
-            m_teamPoint[team] += GetExpectVal(sub_CUserCharacInfo_get_pvp_grade(u),
+            m_teamPoint[team] += GetExpectVal(((CUserCharacInfo*)u)->get_pvp_grade(),
                                               0, 0);
         }
     }
@@ -302,7 +286,7 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
         }
     }
 
-    if (sub_GameWorld_IsCharacterPvPExpRevisionChannel(sub_G_GameWorld()))
+    if (G_GameWorld()->IsCharacterPvPExpRevisionChannel())
     {
         if (m_winTeam == team)
         {
@@ -387,7 +371,7 @@ void PvpUserTable::CheckDan()
         for (int idx = 0; idx < 8; ++idx)
         {
             CUser* u = m_users[team][idx].user;
-            if (u != 0 && sub_CUserCharacInfo_get_pvp_grade(u) > 9)
+            if (u != 0 && ((CUserCharacInfo*)u)->get_pvp_grade() > 9)
             {
                 m_dan[team] = 1;
                 break;
@@ -427,8 +411,8 @@ int PvpUserTable::GetUserVsTeamPoint(int userIdx, int myTeam, int enemyTeam,
         if (other != 0)
         {
             m_teamPoint[myTeam] +=
-                GetExpectVal(sub_CUserCharacInfo_get_pvp_grade(me),
-                             sub_CUserCharacInfo_get_pvp_grade(other), user);
+                GetExpectVal(((CUserCharacInfo*)me)->get_pvp_grade(),
+                             ((CUserCharacInfo*)other)->get_pvp_grade(), user);
         }
     }
     return 1;

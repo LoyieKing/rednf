@@ -1,5 +1,5 @@
 // df_game_r 还原 —— 战斗/地图小结构基础方法（独立 TU）。
-//   布局与 CBattle_Field_deps.h 权威定义一致：
+//   布局与 WarField.h 权威定义一致（stMapMonsterKillChecker_t/stMapPlayInfo_t）：
 //     stMapMonsterKillChecker_t::init()  ORIG W 0x81512ec（清空 6×int=0x18 字节）
 //     stMapPlayInfo_t::init()            ORIG W 0x815132c（清空 4×int=0x10 字节）
 //     stGenerateResult_t ctor/dtor       ORIG W 0x814ab06/0x814ab4c

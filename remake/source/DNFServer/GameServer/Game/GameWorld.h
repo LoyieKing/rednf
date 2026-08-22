@@ -21,9 +21,10 @@
 #include <utility>
 
 #include "GameTypes.h"
-#include "GameWorld_deps.h"
 // ENUM_SERVER_GROUP（CEnvironment.h）与 ENUM_NOTIPACKET（CUser.h）的权威声明
 #include "CUser.h"
+#include "Village.h"    // Village（GameWorld 成员 m_pVill / GetVillage）
+#include "Area.h"       // Area（Village::getArea 返回 / GameWorld.cpp 访问）
 
 class CUser;
 class CParty;
@@ -68,6 +69,32 @@ public:
     ~StatisticsNatType();
     char m_pad[0x18];
 };
+
+// ---- SimpleInfo：GameWorld m_idMap（+0x8c）的 value（0x10 字节） ----
+struct SimpleInfo
+{
+    int m_id;            // +0x00（ID 映射 / 玩家 acc id）
+    char m_chatBan;      // +0x04（禁言标记）
+    char m_moveBan;      // +0x05（禁移动标记）
+    char m_pad6[2];      // +0x06
+    int m_chatEndTick;   // +0x08（禁言结束毫秒时间）
+    int m_moveEndTick;   // +0x0c（禁移动结束毫秒时间）
+};
+
+// ---- stOccStatisticByAge：按年龄统计（short[100]）----
+struct stOccStatisticByAge
+{
+    short m_age[100];
+};
+
+namespace pvp_assault
+{
+// 力战区域判定谓词（GameWorld::get_disposition 以 vtable slot 0 调用；
+// 空类仅承载 vtable 指针，无成员语义）。
+class CDisposition
+{
+};
+}
 
 class GameWorld
 {
@@ -270,5 +297,11 @@ public:
 GameWorld* G_GameWorld();
 void CREATE_GameWorld();
 void DESTROY_GameWorld();
+
+// ---- 全局数据（定义见 GameWorld.cpp）----
+extern int MAX_VILLAGE_NUM;                    // 0948b2b0
+extern std::map<int, std::string> g_townScriptFileList;  // 09500ea0
+
+int _makeBasicInfoHeader(PacketGuard& packet);  // ORIG 086c8396
 
 #endif  // DNF_GAME_GAMEWORLD_H_

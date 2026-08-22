@@ -13,33 +13,10 @@
 #include "CDataManager.h"
 #include "GameWorld.h"
 #include "CInventory.h"
-
-// ---- 跨类符号（ORIG 真实符号，定义在其它 TU） ----
-extern "C" void* sub_AccountCargoScript_GetCreateInfo(void* script)
-    asm("_ZN18AccountCargoScript13GetCreateInfoEv");
-extern "C" void* sub_AccountCargoScript_GetCurrUpgradeInfo(void* script, int capacity)
-    asm("_ZN18AccountCargoScript18GetCurrUpgradeInfoEi");
-extern "C" void* sub_AccountCargoScript_GetNextUpgradeInfo(void* script, int capacity)
-    asm("_ZN18AccountCargoScript18GetNextUpgradeInfoEi");
-extern "C" void* sub_Singleton_ServiceRestrictManager_Get()
-    asm("_ZN4ARAD9SingletonI22ServiceRestrictManagerE3GetEv");
-extern "C" int sub_ServiceRestrictManager_isRestricted(void* mgr, CUser* user,
-                                                       int category, int flag)
-    asm("_ZN22ServiceRestrictManager12isRestrictedEP5CUserN16RestrictCategory4EnumEi");
-extern "C" int sub_CUser_CheckMoney(CUser* user, int money)
-    asm("_ZN5CUser10CheckMoneyEi");
-extern "C" bool sub_CItem_isPackagable(const CItem* item)
-    asm("_ZNK5CItem12isPackagableEv");
-extern "C" bool sub_CItemLock_CheckItemLock(const void* self, unsigned char lock)
-    asm("_ZNK9item_lock9CItemLock13CheckItemLockEh");
-extern "C" void sub_DB_CreateAccountCargo_makeRequest(int uid, unsigned int accId,
-                                                      unsigned int level)
-    asm("_ZN21DB_CreateAccountCargo11makeRequestEijj");
-extern "C" void sub_DB_DeleteAccountCargo_makeRequest(int uid, unsigned int accId)
-    asm("_ZN21DB_DeleteAccountCargo11makeRequestEij");
-extern "C" void sub_DB_UpgradeAccountCargo_makeRequest(int uid, unsigned int accId,
-                                                       unsigned int level)
-    asm("_ZN22DB_UpgradeAccountCargo11makeRequestEijj");
+#include "CTitleBook.h"
+#include "DB_AccountCargoSync.h"
+#include "ServiceRestrictManager.h"
+#include "Arad_DataManager.h"
 
 extern unsigned int GetIntegratedPvPItemAttr(const Inven_Item& item);
 Inven_Item g_emptySlot;  // ORIG 全局（0x943ddc0），原 GameStubs.cpp 定义迁移
@@ -145,11 +122,11 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
     CItem* ci = dm->find_item(item.m_addInfo);
     if (ci == 0)
         return 0;
-    if (sub_CItem_isPackagable(ci)) {
+    if (ci->isPackagable()) {
         if (item.m_amp.GetLock() != 0) {
             CExpandEquipslot* expand = m_pUser->GetCharacExpandDataR(
                 (ENUM_CHARAC_EXPAND_TYPE)2);
-            if (!sub_CItemLock_CheckItemLock(expand, item.m_amp.GetLock()))
+            if (!((item_lock::CItemLock*)expand)->CheckItemLock(item.m_amp.GetLock()))
                 return 0;
         }
         if (item.m_field1 == 4 || item.m_field1 == 5 || item.m_field1 == 6 ||
@@ -171,7 +148,7 @@ int CAccountCargo::CheckInsertCondition(Inven_Item& item)
         }
         if (item.m_upgradeSep.IsTradeRestriction())
             return 0;
-        if (!sub_CUser_isGMUser((void*)m_pUser) && !ci->IsCreatureItem()) {
+        if (!m_pUser->isGMUser() && !ci->IsCreatureItem()) {
             // ORIG 0x194..0x1c8 + 0x1c2..0x1ec：两段相同的期限判定。
             // 第一段两字段均为 0 → 无期限放行；否则第二段再判，两字段仍均 0 →
             // （不可达）持久时限检查，否则（有期限物品）返回 0 不允许存入。
@@ -317,8 +294,7 @@ int CAccountCargo::GetItemCount()
 // ---- 金钱 ----
 int CAccountCargo::CheckMoneyLimit(unsigned int money)
 {
-    void* info = sub_AccountCargoScript_GetCurrUpgradeInfo(
-        (char*)G_CDataManager() + 0xa7e0, m_capacity);
+    void* info = ((AccountCargoScript*)((char*)G_CDataManager() + 0xa7e0))->GetCurrUpgradeInfo(m_capacity);
     if (info == 0)
         return 0;
     if (*(unsigned int*)((char*)info + 4) < (unsigned int)(m_money + money))
@@ -341,8 +317,8 @@ void CAccountCargo::SubMoney(unsigned int money)
 int CAccountCargo::DepositMoney(unsigned int money)
 {
     CUser* user = m_pUser;
-    void* mgr = sub_Singleton_ServiceRestrictManager_Get();
-    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x1a)) {
+    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
+    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x1a)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0xd1);
         return 0;
     }
@@ -375,8 +351,8 @@ int CAccountCargo::DepositMoney(unsigned int money)
 int CAccountCargo::WithdrawMoney(unsigned int money)
 {
     CUser* user = m_pUser;
-    void* mgr = sub_Singleton_ServiceRestrictManager_Get();
-    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x1a)) {
+    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
+    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x1a)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 0xd1);
         return 0;
     }
@@ -390,7 +366,7 @@ int CAccountCargo::WithdrawMoney(unsigned int money)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 10);
         return 0;
     }
-    if (!sub_CUser_CheckMoney(user, money)) {
+    if (!user->CheckMoney(money)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0x5e);
         return 0;
     }
@@ -496,13 +472,13 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0xe);
         return;
     }
-    unsigned int* createInfo = (unsigned int*)sub_AccountCargoScript_GetCreateInfo(script);
+    unsigned int* createInfo = (unsigned int*)((AccountCargoScript*)script)->GetCreateInfo();
     if (createInfo == 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0x13);
         return;
     }
-    void* mgr = sub_Singleton_ServiceRestrictManager_Get();
-    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x18)) {
+    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
+    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x18)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0xd1);
         return;
     }
@@ -542,8 +518,7 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
         }
     }
     SendNotifyRecipe(user, slot, createInfo[2] != 0);
-    sub_DB_CreateAccountCargo_makeRequest(user->GetUID(), user->get_acc_id(),
-                                          createInfo[0]);
+    DB_CreateAccountCargo::makeRequest(user->GetUID(), user->get_acc_id(), createInfo[0]);
 }
 
 void CAccountCargo::UpgradeAccountCargo(CUser* user)
@@ -556,13 +531,13 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
     int capacity = cargo->GetCapacity();
     void* script = (char*)G_CDataManager() + 0xa7e0;
     unsigned int* upgradeInfo =
-        (unsigned int*)sub_AccountCargoScript_GetNextUpgradeInfo(script, capacity);
+        (unsigned int*)((AccountCargoScript*)script)->GetNextUpgradeInfo(capacity);
     if (upgradeInfo == 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0x13);
         return;
     }
-    void* mgr = sub_Singleton_ServiceRestrictManager_Get();
-    if (sub_ServiceRestrictManager_isRestricted(mgr, user, 1, 0x19)) {
+    ServiceRestrictManager* mgr = ARAD::Singleton<ServiceRestrictManager>::Get();
+    if (mgr->isRestricted(user, (RestrictCategory::Enum)1, 0x19)) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0xd1);
         return;
     }
@@ -602,8 +577,7 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
         }
     }
     SendNotifyRecipe(user, slot, upgradeInfo[2] != 0);
-    sub_DB_UpgradeAccountCargo_makeRequest(user->GetUID(), user->get_acc_id(),
-                                           upgradeInfo[0]);
+    DB_UpgradeAccountCargo::makeRequest(user->GetUID(), user->get_acc_id(), upgradeInfo[0]);
 }
 
 void CAccountCargo::SendNotifyRecipe(CUser* user, int slot, bool flag)
@@ -626,7 +600,7 @@ void CAccountCargo::SendNotifyRecipe(CUser* user, int slot, bool flag)
 void CAccountCargo::DeleteAccountCargo(CUser* user)
 {
     if (user->IsExistAccountCargo()) {
-        sub_DB_DeleteAccountCargo_makeRequest(user->GetUID(), user->get_acc_id());
+        DB_DeleteAccountCargo::makeRequest(user->GetUID(), user->get_acc_id());
         user->DeleteCargo();
     }
 }

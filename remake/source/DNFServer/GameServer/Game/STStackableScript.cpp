@@ -8,11 +8,7 @@
 
 #include <string.h>
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
+#include "DNFLexWrapper.h"
 
 void STStatChangeVector::clear()
 {
@@ -212,24 +208,24 @@ bool ImportStackableScript(STStackableScript* script, const char* path,
 {
     (void)flag;
     (void)idx;
-    if (!sub_loadRDARScriptFile("Script/StackableScript", path))
+    if (!loadRDARScriptFile("Script/StackableScript", path))
     {
         return false;
     }
     script->Clear();
     std::string line;
     int value = 0;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return false;
     }
     script->m_field0 = 0;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return false;
     }
     script->m_str6c = line;
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return false;
     }

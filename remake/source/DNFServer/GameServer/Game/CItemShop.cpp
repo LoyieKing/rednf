@@ -25,13 +25,9 @@ class STScriptFileList
 {
 public:
     std::map<int, std::string> m_fileMap;   // +0x00
+    int FindIndexByFullScan(const char* path) const;  // 定义于 STScriptFileList.cpp
 };
 STScriptFileList g_itemShopScriptFileList;  // ORIG 全局（0x94fe260），原 GameStubs.cpp 定义迁移
-extern "C" int sub_STScriptFileList_FindIndexByFullScan(const STScriptFileList* self,
-                                                        const char* path)
-    asm("_ZNK16STScriptFileList19FindIndexByFullScanEPKc");
-extern "C" int importItemShopScript(ItemShopScript* script, const char* path)
-    asm("_Z20importItemShopScriptP14ItemShopScriptPKc");
 
 // ORIG 0x89dc5b4：脚本目录全局缓冲（initItemShopScript 0x89dc4f8 填充；
 // 本 TU 提供符号，空目录等价 loadRDARScriptFile("", path)）。
@@ -52,7 +48,7 @@ void ItemShopScript::clear()
     m_isOneADay = 0;
 }
 
-extern "C" int importItemShopScript(ItemShopScript* script, const char* path)
+int importItemShopScript(ItemShopScript* script, const char* path)
 {
     if (!loadRDARScriptFile(g_itemShopScriptDir, path))
         return 0;
@@ -151,7 +147,7 @@ extern "C" int importItemShopScript(ItemShopScript* script, const char* path)
         }
     }
     script->m_shopId =
-        sub_STScriptFileList_FindIndexByFullScan(&g_itemShopScriptFileList, path);
+        g_itemShopScriptFileList.FindIndexByFullScan(path);
     if (!script->m_dailyList.empty())
         script->m_isOneADay = 1;
     return 1;
@@ -181,7 +177,7 @@ bool CItemShop::loadItemShopFiles()
             return false;
         }
         script.m_shopId =
-            sub_STScriptFileList_FindIndexByFullScan(&g_itemShopScriptFileList, path);
+            g_itemShopScriptFileList.FindIndexByFullScan(path);
         if (script.m_isOneADay != 0)
             setOneADayItemListNo(script);
         m_shopMap.insert(std::make_pair(script.m_shopId, script));

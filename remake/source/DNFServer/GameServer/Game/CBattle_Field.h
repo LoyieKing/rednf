@@ -27,48 +27,22 @@
 #include "PacketBuf.h"
 
 #include "ActiveStaticInfo.h"
-#include "CBattle_Field_deps.h"
+#include "CBattle_Field_shared.h"
 #include "CClearCondition.h"
+#include "CDungeon.h"          // CDungeon + MazeScript/GridScript + ENUM_MAZE_QUEST_TYPE
 #include "CDungeonClearTracer.h"
+#include "CMonster.h"         // CMonster（CBattle_Field_unresolved.cpp 定义 getMonsterScript 等需要完整类型）
+#include "CParty.h"            // CParty + ENUM_DUNGEON_TYPE/MODE + eRidableObjectState + QuickParty::RandomBuffDungeon
 #include "CRidable.h"
 #include "CTournamentDungeonReward.h"
+#include "HellPartyGroupOrder.h"  // STHellPartyGroupOrder/STHellPartyGroupRate
+#include "WarField.h"          // map_item/map_monster/MapInfo/stMapMonsterKillChecker_t/stMapPlayInfo_t（§7 单声明点）
+
+class CWorldMap;               // 指针成员，前向声明即可（CParty.h/CDataManager.h 亦有）
 
 // ================= 共享数据结构（ORIG 构造体实证） =================
-
-// ---- map_monster（0x34c 字节；ctor 081511c8） ----
-struct map_monster
-{
-    int m_mobId;              // +0x00
-    int m_instId;             // +0x04（实例序号/等级，int/byte 混用）
-    char m_roleType;          // +0x08
-    char m_pad9[3];           // +0x09
-    int m_mobIndex;           // +0x0c（击杀逻辑的怪物索引）
-    int m_level;              // +0x10（常按 byte 使用）
-    char m_flag14;            // +0x14
-    char m_flag13;            // +0x15
-    char m_flag12;            // +0x16
-    char m_flag11;            // +0x17
-    int m_field18;            // +0x18
-    char m_pad1c[4];          // +0x1c
-    int m_field20;            // +0x20
-    int m_field24;            // +0x24
-    int m_damage;             // +0x28
-    int m_dropCnt;            // +0x2c（默认 100）
-    int m_dropRate;           // +0x30（默认 100）
-    char m_flag34;            // +0x34
-    char m_pad35[3];          // +0x35
-    ActiveStaticInfo m_active;      // +0x38（0x2f0 字节）
-    std::vector<int> m_mobList;     // +0x328
-    char m_tail[0x14];              // +0x334..+0x347
-    char m_bloodRound;              // +0x34a
-    char m_bloodRoundFlag;          // +0x34b
-
-    map_monster();                          // ORIG 081511c8
-    map_monster(const map_monster& other);  // ORIG 08151aea
-    ~map_monster();                         // ORIG 081515ae
-    map_monster& operator=(const map_monster& other);  // ORIG 08151d3a
-    bool isNamedMonster() const;            // ORIG 08151182
-};
+// map_monster / map_item / MapInfo 权威定义见 WarField.h（§7 单声明点）；
+// 本地重复定义已删除，经 #include "WarField.h" 获取。
 
 // ---- _mapMonster（0x40 字节；ctor 0830e4fc） ----
 struct _mapMonster
@@ -93,21 +67,7 @@ struct _mapMonster
     ~_mapMonster();  // ORIG 0830e5b0
 };
 
-// ---- map_item（0x54 字节；ctor 081512cc） ----
-struct map_item
-{
-    int m_count;              // +0x00
-    int m_itemIndex;          // +0x04
-    unsigned short m_dropIndex;  // +0x08
-    char m_pad0a[2];          // +0x0a
-    int m_createTick;         // +0x0c
-    Inven_Item m_item;        // +0x10（0x3d 字节）
-    char m_pad4d[3];          // +0x4d
-    int m_ownerId;            // +0x50（ctor=0）
-
-    map_item();   // ORIG 081512cc
-    ~map_item();  // ORIG 081512dc
-};
+// ---- map_item（0x54 字节；ctor 081512cc；权威定义见 WarField.h） ----
 
 // ---- _mapItem（0x10 字节；ctor 0815088e） ----
 struct _mapItem
@@ -159,47 +119,7 @@ struct STAssignBloodPhaseTime
     char m_pad19[3];         // +0x19
 };
 
-// ---- MapInfo（0xec 字节；ctor 08151394） ----
-struct MapInfo
-{
-    char m_key;                       // +0x00（GetMapInfoKeyValue 结果低字节）
-    char m_visited;                   // +0x01
-    char m_visitedGoto;               // +0x02
-    char m_pad3[1];                   // +0x03
-    int m_mapIndex;                   // +0x04
-    char m_gridValue;                 // +0x08
-    char m_pad9[3];                   // +0x09
-    std::map<int, map_monster> m_monsterMap;   // +0x0c
-    std::map<int, map_item> m_itemMap;         // +0x24
-    int m_assignItemIdx;              // +0x3c
-    int m_dropItemCnt;                // +0x40
-    char m_mapType;                   // +0x44
-    char m_dummyBossMap;              // +0x45
-    char m_pad46[2];                  // +0x46
-    int m_mapBasisLevel;              // +0x48
-    stMapMonsterKillChecker_t m_killChecker1;  // +0x4c（0x18）
-    stMapMonsterKillChecker_t m_killChecker2;  // +0x64（0x18）
-    stMapPlayInfo_t m_playInfo;               // +0x7c（0x10）
-    std::map<int, int> m_hellPartyGroup;      // +0x8c
-    char m_assignNPCByPotion;         // +0xa4
-    char m_padA5[3];                  // +0xa5
-    std::map<int, int> m_mapA8;       // +0xa8（ORIG MapInfo ctor 实证）
-    std::vector<int> m_vecC0;         // +0xc0（ORIG MapInfo ctor 实证）
-    short m_cc;                       // +0xcc（Clear 写 0）
-    char m_padCE[2];                  // +0xce
-    std::multimap<int, map_monster> m_tournamentMob;  // +0xd0
-    char m_layeredMap;                // +0xe8
-    char m_padE9[3];                  // +0xe9
-
-    MapInfo();                                // ORIG 08151394
-    MapInfo(const MapInfo& other);            // ORIG 08235d40
-    ~MapInfo();                               // ORIG 081518bc
-    MapInfo& operator=(const MapInfo& other); // ORIG 08151946
-    void Clear();                             // ORIG 081514ae
-    void Add_Mob(map_monster mob);            // ORIG 08151612（按值）
-    void Add_Item(map_item item);             // ORIG 081517e0（按值）
-    void SelectDonsterItemDropLimit(unsigned int limit);  // ORIG 0830e800
-};
+// ---- MapInfo（0xec 字节；ctor 08151394；权威定义见 WarField.h） ----
 
 // ================= CBattle_Field =================
 

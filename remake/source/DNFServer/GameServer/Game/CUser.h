@@ -83,7 +83,7 @@ enum ENUM_QUEST_ENEMY_TYPE { ENUM_QUEST_ENEMY_TYPE_0 = 0 };
 #define DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
 enum ENUM_PREMIUM_TYPE { ENUM_PREMIUM_TYPE_0 = 0 };
 
-// ENUM_DUNGEON_MODE：与 CBattle_Field_deps.h / CParty.h 共享守卫，避免重定义；
+// ENUM_DUNGEON_MODE：与 CParty.h 共享守卫，避免重定义；
 // cUserHistoryLog::DungeonClearInfo 声明需要（GameEnums.h 并无此类型）。
 #ifndef DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
 #define DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
@@ -606,6 +606,7 @@ public:
     ~CMCAPManager() {}
 
     void resetExposedCount();
+    void reset();   // ORIG W 0x8694fa0（定义见 CMCAPManager.cpp）
 
     char m_pad[0x18];   // +0x00..0x17
     bool m_field18;     // +0x18（0x8e408 IsRecvEvent）
@@ -741,7 +742,9 @@ public:
 
     bool isClearQuest(int questIdx) const;
     void reset();
+    void resetClearQuest(int questIdx);  // ORIG _ZN9UserQuest15resetClearQuestEi（UserQuest.cpp 实现）
     void set_authen_data(QUEST_CONDITION cond, int v1, int v2);
+    void get_quest_info(char* buf) const;  // ORIG _ZNK9UserQuest14get_quest_infoEPc（UserQuest.cpp 实现）
 
     char m_pad[0x761c];  // +0x00
     bool m_field761c;    // +0x761c
@@ -1817,7 +1820,7 @@ public:
                        char* name, eChangeGrowTypeReason reason);
     bool is_clear_stealingSkillMission() const;
     void givePvPSkillTree(int a, bool b, int c);
-    void make_basic_info(char* buf, char type);
+    int make_basic_info(char* buf, char type);             // ORIG 0x0865a44e（Ghidra undefined4，返回 1）
     int get_unique_id() const;
     int get_pvp_WinningRate_relateMission() const;  // ORIG 0x86626e0
     void* GetParty();

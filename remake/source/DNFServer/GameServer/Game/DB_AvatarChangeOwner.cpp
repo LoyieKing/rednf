@@ -7,13 +7,7 @@
 #include "MsgQueueMgr.h"
 #include "GlobalData.h"
 #include "SigTypes.h"
-
-class DB_AvatarChangeOwner
-{
-public:
-    static void makeRequest(unsigned int a, unsigned int b, unsigned int c,
-                            unsigned char d);   // ORIG T 0x0840055c
-};
+#include "DB_AvatarChangeOwner.h"
 
 // ============================================================================
 // DB_AvatarChangeOwner::makeRequest @ 0x0840055c

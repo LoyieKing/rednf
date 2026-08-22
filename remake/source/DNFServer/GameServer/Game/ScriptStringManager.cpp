@@ -92,38 +92,12 @@
 //   返回 index。ORIG 无 string==NULL 检查（UB），此处以空串作护栏。
 // ============================================================================
 
-#include <map>
-#include <vector>
-#include <string>
+#include "ScriptStringManager.h"
+
 #include <cstdio>
 #include <cstring>
 
-// ---------------------------------------------------------------------------
-// 类定义：成员顺序/类型与 ORIG 布局一致（见文件头）。
-// 构造函数/虚析构显式定义（非 inline）以按 ORIG 符号名生成
-// _ZN19ScriptStringManagerC1Ev / D1Ev / D0Ev；vtable（key function=虚析构）
-// 由本 TU 生成，槽位 0=D1（complete）、槽位 1=D0（deleting），
-// 与 CompiledDNFLex::destroy 经 vptr[1] 释放的调用约定匹配。
-// ---------------------------------------------------------------------------
-class ScriptStringManager
-{
-public:
-    ScriptStringManager();
-    virtual ~ScriptStringManager();
-
-    bool importFromBuffer(const unsigned char* buffer, int buffSize);
-    bool importFromFile(const char* fileName);
-    void clear();
-    int exportToBuffer(unsigned char* buffer, int buffSize) const;
-    bool exportToFile(const char* fileName) const;
-    bool getString(int index, std::string* outputString) const;
-    const std::string* getString(int index) const;
-    int insertString(const char* string);
-
-private:
-    std::vector<std::string> strings_;      // +0x04
-    std::map<std::string, int> string_map_; // +0x10
-};
+// 类定义见 ScriptStringManager.h（唯一声明点）。
 
 // clear @ 0x8acf550：逐元素释放 strings_（COW refcount 递减，8acf56a 检查
 // empty rep 0x948ccf0 后 _M_destroy）→ finish 重置为 start（8acf57e）→

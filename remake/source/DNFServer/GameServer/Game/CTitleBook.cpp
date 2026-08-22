@@ -37,23 +37,26 @@ int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space)
     default:  return 6;
     }
 }
-extern "C" unsigned int sub_GetIntegratedPvPItemAttr(const void* item)
-    asm("_Z24GetIntegratedPvPItemAttrRK10Inven_Item");
-extern "C" char* sub_NumberToString_uint(unsigned int value, int flag)
-    asm("_Z14NumberToStringji");
-extern "C" bool sub_GameWorld_IsEnchantRevisionChannel(void* self)
-    asm("_ZN9GameWorld24IsEnchantRevisionChannelEv");
-extern "C" bool sub_checkTimeoutItem(const void* item)
-    asm("_Z17_checkTimeoutItemRK10Inven_Item");
-extern "C" char sub_DeleteInvalidItemScript_IsInvalidItem2Delete(void* self,
-                                                                int itemIdx)
-    asm("_ZN23DeleteInvalidItemScript20IsInvalidItem2DeleteEi");
-extern "C" void sub_CUser_RewardItem2DeleteInvalidItem(
-    void* self, const std::string& title,
-    const std::vector<std::pair<int, int> >& list)
-    asm("_ZN5CUser28RewardItem2DeleteInvalidItemERKSsRKSt6vectorISt4pairIiiESaIS4_EE");
+// ---- ORIG 真实符号（自由函数 / 跨类方法，普通 C++ 声明，无 extern "C" 桥） ----
+// _checkTimeoutItem（ORIG 0x867cf8d T）定义于 CDataManagerScripts.cpp。
+int _checkTimeoutItem(const Inven_Item& item);
+// GetIntegratedPvPItemAttr（ORIG 0x84fc5ff T）定义于 CDataManagerScripts.cpp。
+unsigned int GetIntegratedPvPItemAttr(const Inven_Item& item);
+// DeleteInvalidItemScript::IsInvalidItem2Delete（ORIG 0x8ac2096）定义于
+// CDataManagerScripts.cpp（类权威声明见 CDataManager.h，此处本地最小视图）。
+class DeleteInvalidItemScript
+{
+public:
+    bool IsInvalidItem2Delete(int idx);
+};
 
-class GameWorld;
+// GameWorld（本地最小视图；IsEnchantRevisionChannel 定义于 GameWorld.cpp:3048，
+// 符号 _ZN9GameWorld24IsEnchantRevisionChannelEv）
+class GameWorld
+{
+public:
+    bool IsEnchantRevisionChannel();
+};
 GameWorld* G_GameWorld();
 class CExpandEquipslot;
 
@@ -125,6 +128,10 @@ public:
     CExpandEquipslot* GetCharacExpandData(ENUM_CHARAC_EXPAND_TYPE eType) const;
     void Send(PacketGuard& packet);
     void send_equip(int slot);
+    // RewardItem2DeleteInvalidItem（ORIG 0x086931c4，定义于 CUser.cpp:4080）
+    void RewardItem2DeleteInvalidItem(
+        const std::string& title,
+        const std::vector<std::pair<int, int> >& list);
 };
 
 
@@ -396,14 +403,15 @@ void CTitleBook::deleteTimeoutItem(
             {
                 continue;
             }
-            if (sub_checkTimeoutItem(item) ||
+            if (_checkTimeoutItem(*item) ||
                 (_isMatchedItem(item->m_addInfo, list) != -1))
             {
                 item->reset();
                 alter();
             }
-            else if (sub_DeleteInvalidItemScript_IsInvalidItem2Delete(
-                         (char*)G_CDataManager() + 0xb658, item->m_addInfo))
+            else if (reinterpret_cast<DeleteInvalidItemScript*>(
+                         (char*)G_CDataManager() + 0xb658)
+                         ->IsInvalidItem2Delete(item->m_addInfo))
             {
                 toDelete.push_back(
                     std::make_pair(item->m_addInfo, item->m_addInfo2));
@@ -414,8 +422,8 @@ void CTitleBook::deleteTimeoutItem(
     }
     if (m_user)
     {
-        sub_CUser_RewardItem2DeleteInvalidItem(
-            m_user, std::string("TitleBook"), toDelete);
+        m_user->RewardItem2DeleteInvalidItem(
+            std::string("TitleBook"), toDelete);
     }
 }
 
@@ -861,11 +869,11 @@ void CTitleBook::_putItemData(PacketGuard& packet, short slot,
     packet.put_short((int)slot);
     packet.put_int(item.m_addInfo);
     packet.put_int(item.m_addInfo2);
-    packet.put_byte((int)sub_GetIntegratedPvPItemAttr(&item) & 0xff);
+    packet.put_byte((int)GetIntegratedPvPItemAttr(item) & 0xff);
     packet.put_short((int)item.m_fieldb);
     packet.put_byte((int)item.m_field0);
     int fieldD = item.m_fieldd;
-    if (sub_GameWorld_IsEnchantRevisionChannel(G_GameWorld()))
+    if (G_GameWorld()->IsEnchantRevisionChannel())
     {
         fieldD = 0;
     }

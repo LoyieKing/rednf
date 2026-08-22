@@ -11,6 +11,7 @@
 #include "CSystemTime.h"
 #include "GameTypes.h"
 #include "InterfacePacketBuf.h"
+#include "PvP_Room.h"
 #include "TimerQueue.h"
 
 // ============================================================================
@@ -22,17 +23,8 @@ extern CSystemTime s_systemTime_;
 }
 
 // ============================================================================
-// 依赖子对象 / 外部函数（asm-label extern；PvP_deps.cpp / 主 agent 提供桩）
+// 依赖子对象 / 外部函数（PvP_Room.h / TimerQueue.h 权威头提供真实声明）
 // ============================================================================
-class PvP_Room;
-
-extern "C" int sub_PvP_Room_get_index(void* self)
-    asm("_ZN8PvP_Room9get_indexEv");
-extern "C" bool sub_PvP_Room_IsEndPvpBattle(void* self)
-    asm("_ZN8PvP_Room14IsEndPvpBattleEv");
-extern "C" void sub_PvP_Room_send_to_pvp(void* self, void* guard)
-    asm("_ZN8PvP_Room11send_to_pvpER11PacketGuard");
-extern "C" TimerQueue* sub_G_TimerQueue() asm("_Z12G_TimerQueuev");
 
 // ---- 随机排序辅助（ORIG 弱符号，定义归 PvP_deps.cpp / 主 agent） ----
 class CRandomValue
@@ -142,8 +134,8 @@ void CRelayBattleMgr::OnDiePlayer(int victimSeat, int killerSeat, bool bTime)
         m_state = 2;
         m_lastFightStartTime = GlobalData::s_systemTime_.getCurSec();
         int cur = m_lastFightStartTime;
-        int roomIdx = sub_PvP_Room_get_index(m_pRoom);
-        TimerQueue* tq = sub_G_TimerQueue();
+        int roomIdx = m_pRoom->get_index();
+        TimerQueue* tq = G_TimerQueue();
         tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, roomIdx,
                                     (TIMER_MESSAGE)0x63, 3000, cur, 0);
     }
@@ -199,8 +191,8 @@ void CRelayBattleMgr::OnStart()
         }
     }
     int cur = m_lastFightStartTime;
-    int roomIdx = sub_PvP_Room_get_index(m_pRoom);
-    TimerQueue* tq = sub_G_TimerQueue();
+    int roomIdx = m_pRoom->get_index();
+    TimerQueue* tq = G_TimerQueue();
     tq->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)1, roomIdx,
                                 (TIMER_MESSAGE)0x63, 7000, cur, 0);
 }
@@ -402,13 +394,13 @@ int CRelayBattleMgr::SendRequestFight(int seat)
     guard.put_header(0, 0x71);
     guard.put_byte(seat);
     guard.finalize(true);
-    sub_PvP_Room_send_to_pvp(m_pRoom, &guard);
+    m_pRoom->send_to_pvp(guard);
     return 1;
 }
 
 int CRelayBattleMgr::TurnPlayer()
 {
-    if (sub_PvP_Room_IsEndPvpBattle(m_pRoom))
+    if (m_pRoom->IsEndPvpBattle())
     {
         return 1;
     }
@@ -444,7 +436,7 @@ int CRelayBattleMgr::TurnPlayer()
         guard.put_byte(index, count);
     }
     guard.finalize(true);
-    sub_PvP_Room_send_to_pvp(m_pRoom, &guard);
+    m_pRoom->send_to_pvp(guard);
     ResetChangeSequenceCount();
     return 1;
 }

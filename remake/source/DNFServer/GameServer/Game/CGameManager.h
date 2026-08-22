@@ -40,6 +40,9 @@
 #include "PvP_Room.h"
 #include "WarRoom.h"
 #include "BlueMarble.h"
+#include "CTradeSpace.h"   // 真实 CTradeSpace（0xf70）——替换原尺寸垫占位
+#include "CBossTower.h"    // 真实 WongWork::CBossTower（0xb18）——替换原尺寸垫占位
+#include "QuickParty.h"    // 真实 QuickParty::CQuickParty / CQuickPartySystemManager——替换本地占位
 
 // ============================================================================
 // StaticPool<T,N> —— ORIG 真实实现（objdump 0x82ae390 起逐函数核对）
@@ -76,14 +79,6 @@ private:
 // 池化对象最小声明（权威头属后续批次；尺寸 = ORIG 池节点数据区大小）
 // ============================================================================
 
-class CTradeSpace
-{
-public:
-    CTradeSpace();
-    ~CTradeSpace();
-private:
-    char m_pad[0xf70];
-};
 
 struct map_item;
 struct MSG_MONSTER_DIE;
@@ -250,14 +245,7 @@ private:
     char m_pad_end[0x18];   // +0xb64
 };
 
-class CBossTower
-{
-public:
-    CBossTower();
-    ~CBossTower();
-private:
-    char m_pad[0xb18];
-};
+// CBossTower 类声明见 CBossTower.h（唯一声明点；CGameManager.h 顶部 include）
 }
 
 namespace advancealtar
@@ -269,25 +257,15 @@ public:
     ~StageControl();
     int getIndex() const;         // ORIG 0x81348ba
     void setIndex(int idx);       // ORIG 0x82a669c
-    void leaveUser();             // ORIG 0x812fc4e
-    void onTimerStageTick();      // ORIG 0x812fb98
+    char leaveUser();             // ORIG 0x812fc4e（返回 0/1，见 class_func_reports）
+    char onTimerStageTick();      // ORIG 0x812fb98（恒返回 1）
     void reset();                 // ORIG 0x812fa54
 private:
     char m_pad[0xc0];
 };
 }
 
-namespace QuickParty
-{
-class CQuickParty
-{
-public:
-    CQuickParty();
-    ~CQuickParty();
-private:
-    char m_pad[0x28];
-};
-}
+// QuickParty 类声明见 QuickParty.h（唯一声明点；CGameManager.h 顶部 include）
 
 // ---- 补充 StaticPool 所需类型（占位尺寸，后续按 ORIG 修正）----
 
@@ -507,7 +485,7 @@ public:
                                                  Inven_Item const& item,
                                                  const char* pTitle,
                                                  int nTitleLen);
-    static void ReqDBSendNewSystemMail(const char* pSender, Inven_Item const& item,
+    static int ReqDBSendNewSystemMail(const char* pSender, Inven_Item const& item,
                                        unsigned int nA, unsigned int nCharacNo,
                                        const char* pTitle, int nTitleLen,
                                        unsigned int nB,

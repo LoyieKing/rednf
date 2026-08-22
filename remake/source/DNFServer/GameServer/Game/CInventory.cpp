@@ -13,6 +13,7 @@
 #include "STItemScript.h"
 #include "CCirculationStatistic.h"
 #include "LogManager.h"
+#include "CTitleBook.h"   // item_lock::CItemLock::MakeItemLockPacket（TSV）
 
 // ============================================================================
 // 三个自由辅助函数（ORIG 全局符号，Money 簇自由函数）
@@ -3298,8 +3299,8 @@ void CInventory::checkEquipmentState(int a, int b, int& c, int& d, int& e, int& 
     }
 }
 
-void CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& items,
-                                     std::vector<std::pair<int, int> >& out)
+int CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& items,
+                                    std::vector<std::pair<int, int> >& out)
 {
     for (std::vector<std::pair<int, int> >::const_iterator it = items.begin(); it != items.end();
          ++it)
@@ -3347,6 +3348,7 @@ void CInventory::erase_repeated_item(const std::vector<std::pair<int, int> >& it
             out.push_back(std::make_pair(itemIdx, need));
         }
     }
+    return out.size();
 }
 
 // ---- 事件物品批处理（ORIG 0x85058da / 0x85067b2 / 0x8505db4 / 0x8506bb2 / 0x8508fd0 / 0x8509466）----
@@ -5043,11 +5045,6 @@ int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& item
     return 0;
 }
 
-// ---- TSV 修复：SendItemLockList / SendItemLockListInven（ORIG 0x084fae0a / 0x084faf8e）----
-extern "C" void sub_CItemLock_MakeItemLockPacket(void* self, PacketGuard& packet,
-                                                 unsigned char lock)
-    asm("_ZNK9item_lock9CItemLock18MakeItemLockPacketER11PacketGuardh");
-
 void CInventory::SendItemLockList(const Inven_Item* items, int count,
                                   ENUM_ITEMSPACE space) const
 {
@@ -5064,10 +5061,11 @@ void CInventory::SendItemLockList(const Inven_Item* items, int count,
         if (items[i].m_amp.GetLock() != 0) {
             buf->put_byte((int)space);
             buf->put_short(i);
-            items[i].m_amp.GetLock();
             CExpandEquipslot* expand = m_pParent->GetCharacExpandDataR(
                 (ENUM_CHARAC_EXPAND_TYPE)2);
-            sub_CItemLock_MakeItemLockPacket(expand, packet, (unsigned char)items[i].m_amp.GetLock());
+            reinterpret_cast<const item_lock::CItemLock*>(expand)
+                ->MakeItemLockPacket(packet,
+                                     (unsigned char)items[i].m_amp.GetLock());
             ++cnt;
         }
     }

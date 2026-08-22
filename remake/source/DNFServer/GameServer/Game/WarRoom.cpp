@@ -2,12 +2,12 @@
 // df_game_r WarRoom（G2-3 PvP 链，战场房间，池化 40）还原（2026-08-17）。
 // 逐函数对照 docs/class_func_reports/WarRoom.md 与 ORIG 反汇编实现；
 // 目标：编译产物与 ORIG 逐操作数一致（AE 口径）。
-// WarField/map_monster/map_item 及跨类方法按 asm-label extern 调用
-// （链接桩由 PvP_deps.cpp / 主 agent 提供，本 TU 只保证自身符号一致）。
+// 跨类调用一律 include 权威头 + 真实类型调用（无 extern "C" asm 桥）。
 #include <string.h>
 
 #include <algorithm>
 #include <map>
+#include <stdio.h>
 #include <utility>
 #include <vector>
 
@@ -18,23 +18,15 @@
 #include "CEnvironment.h"
 #include "CSystemTime.h"
 #include "GameWorld.h"
+#include "CInventory.h"          // 权威 CInventory / Store / user_creature::CCreatureMgr / 共享枚举
+#include "CDungeonEntranceLog.h"
+#include "GlobalData.h"          // 权威 GlobalData::s_systemTime_ / s_event_manager
+#include "CExpDoubleEvent.h"
+#include "CBurningFatigueEvent.h"
+#include "CServerEvent.h"
+#include "DB_AccountCargoSync.h" // DB_InsertRandomOptionItemInform（静态 makeRequest）
 
-// ============================================================================
-// PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供单例定义）
-// ============================================================================
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
-
-// ---- 本地枚举（与 CInventory.h 同 guard，避免未来同时包含时重定义） ----
+// ---- 本地枚举（与 CInventory.h 同 guard，避免同时包含时重定义） ----
 #ifndef DNF_ENUM_INVEN_TYPE_DEFINED
 #define DNF_ENUM_INVEN_TYPE_DEFINED
 enum INVEN_TYPE
@@ -97,224 +89,30 @@ enum eAvatarItemAddReason
 };
 #endif
 
-#ifndef DNF_ENUM_VALUE_STATISTIC_FIELD_DEFINED
-#define DNF_ENUM_VALUE_STATISTIC_FIELD_DEFINED
-enum VALUE_STATISTIC_FIELD
-{
-    VALUE_STATISTIC_FIELD_0 = 0
-};
-#endif
-
-namespace user_creature
-{
-class CCreatureMgr;
-}
-
-namespace WongWork
-{
-class CGenUniqueNo
+// ---- 本地最小视图（权威声明见 CValueStatistic.cpp / CEventManager 头 /
+//      HistoryLog.cpp / TimerQueue.h，因各自权威头与既有 include 冲突或尚未
+//      建立，暂以本地声明 + 真实调用；方法定义在权威 TU，mangled 与 ORIG 一致）----
+class CEventBase;
+class CEventManager
 {
 public:
-    enum ENUM_IPGNO_TYPE
-    {
-        ENUM_IPGNO_TYPE_6 = 6
-    };
-    static void genIPGNo(ENUM_IPGNO_TYPE type, unsigned int characNo, char* out);
+    CEventBase* GetRepeatEvent(int type);  // _ZN13CEventManager14GetRepeatEventEi
 };
-}
 
-class CInventory
+class HistoryLog
 {
 public:
-    bool use_money(int amount, eMoneySubReason reason, bool bLog);
-    int gain_money(int amount, eMoneyAddReason reason, bool bLog, int param);
-    int insertItemIntoInventory(Inven_Item item, eItemAddReason reason, bool bLog,
-                                bool b);
-    int RemoveKCItem();
-    user_creature::CCreatureMgr* GetCreatureMgrW();
-    const user_creature::CCreatureMgr* GetCreatureMgrR() const;
+    static void WriteUseCoin(_IO_FILE* file, const char* reason);  // _ZN10HistoryLog12WriteUseCoinEP8_IO_FILEPKc
 };
 
-class CValueStatistic
-{
-public:
-    void AddValueStatistic(VALUE_STATISTIC_FIELD field, CUser* user,
-                           unsigned int value);
-};
-
-class Store
-{
-public:
-    void GetSellItemPrice(Inven_Item& item, const CItem* pItem, short count, bool flag,
-                          int& outPrice);
-};
-
-extern Store* G_Store();
 extern CValueStatistic* GetInstanceValueStatistic();
+TimerQueue* G_TimerQueue();  // 权威声明将入 TimerQueue.h（CleanPvPAsm 添加中）
 char* NumberToString(unsigned int value, int radix);
 
-// ---- GlobalData（CUserCharacInfo.h 已声明 namespace GlobalData；补缺失成员） ----
-namespace GlobalData
-{
-extern CSystemTime s_systemTime_;
-extern void* s_event_manager;
-}
-
 // ============================================================================
-// 局部子对象（与 ORIG 布局一致；构造/析构经 asm-label 走真实/桩符号）
+// 依赖子对象（权威声明见 WarField.h，经 WarRoom.h→PvP_deps.h 引入；
+//      构造/析构为真实符号）
 // ============================================================================
-struct WR_map_monster
-{
-    int m_mobId;         // +0x00
-    int m_instId;        // +0x04
-    char m_roleType;     // +0x08
-    char m_pad9[3];      // +0x09
-    int m_mobIndex;      // +0x0c
-    char m_pad10[4];     // +0x10
-    float m_field14;     // +0x14
-    float m_field18;     // +0x18
-    char m_pad1c[8];     // +0x1c
-    int m_field24;       // +0x24
-    float m_field28;     // +0x28
-    char m_pad2c[0x31c]; // +0x2c .. 0x348（ORIG ctor 访问至 +0x345）
-};
-
-struct WR_map_item
-{
-    char m_count;        // +0x00
-    char m_pad1[3];      // +0x01
-    short m_itemIndex;   // +0x04
-    unsigned short m_dropIndex;  // +0x08
-    int m_createTick;    // +0x0c
-    Inven_Item m_item;   // +0x10（0x3d）
-    char m_pad4d[3];     // +0x4d
-    int m_field50;       // +0x50
-};
-
-// ============================================================================
-// 依赖子对象 / 外部函数（asm-label extern；PvP_deps.cpp / 主 agent 提供桩）
-// ============================================================================
-extern "C" void sub_map_monster_C1(void* self) asm("_ZN11map_monsterC1Ev");
-extern "C" void sub_map_monster_D1(void* self) asm("_ZN11map_monsterD1Ev");
-extern "C" void sub_map_item_C1(void* self) asm("_ZN8map_itemC1Ev");
-extern "C" void sub_map_item_D1(void* self) asm("_ZN8map_itemD1Ev");
-
-extern "C" void sub_WarField_Reset(void* self) asm("_ZN8WarField5ResetEv");
-extern "C" void sub_WarField_ConsistMap(void* self, void* guard, const void* dungeon,
-                                        const void* map, int a, int b)
-    asm("_ZN8WarField10ConsistMapEPvPK8CDungeonPK4CMaphi");
-extern "C" int sub_WarField_DropItem(void* self, WR_map_item item)
-    asm("_ZN8WarField8DropItemE8map_item");
-extern "C" bool sub_WarField_GetFieldItem(void* self, int idx, void* item)
-    asm("_ZN8WarField12GetFieldItemEiR8map_item");
-extern "C" bool sub_WarField_HandleMonsterKill(void* self, int a, void* guard,
-                                                        void* monster, void* user,
-                                                        const void* dungeon)
-    asm("_ZN8WarField17HandleMonsterKillEiR11PacketGuardR11map_monsterP5CUserPK8CDungeon");
-extern "C" int sub_WarField_HandleWpPerMonster(void* self, void* user, int a, int b,
-                                               void* monster)
-    asm("_ZN8WarField18HandleWpPerMonsterEP5CUseriiR11map_monster");
-extern "C" bool sub_WarField_IsGridClear(void* self)
-    asm("_ZN8WarField11IsGridClearEv");
-extern "C" int sub_WarField_CheckPickupItem(void* self, int a, int b, void* iter)
-    asm("_ZN8WarField15CheckPickupItemEiiRSt17_Rb_tree_iteratorISt4pairIKi8map_itemEE");
-extern "C" void sub_WarField_PickupItem(void* self, void* iter)
-    asm("_ZN8WarField10PickupItemESt17_Rb_tree_iteratorISt4pairIKi8map_itemEE");
-
-extern "C" void sub_map_monster_map_clear(void* self)
-    asm("_ZNSt3mapIi11map_monsterSt4lessIiESaISt4pairIKiS0_EEE5clearEv");
-
-// ---- CUser（CUser.h 未声明的方法 -> asm extern；返回类型按 ORIG 调用点） ----
-extern "C" bool sub_CUser_CheckFatigue(void* self)
-    asm("_ZN5CUser12CheckFatigueEv");
-extern "C" bool sub_CUser_isGMUser(void* self) asm("_ZN5CUser8isGMUserEv");
-extern "C" int sub_CUser_gainExpAsUpperMember(void* self, int v)
-    asm("_ZN5CUser20gainExpAsUpperMemberEi");
-extern "C" int sub_CUser_gainGuildSkillExp(void* self, int v)
-    asm("_ZN5CUser17gainGuildSkillExpEi");
-extern "C" bool sub_CUser_gain_exp_sp(void* self, int exp, int& sp, int& sfp,
-                                      int reason, int a, bool b)
-    asm("_ZN5CUser11gain_exp_spEiRiS0_13eExpAddReasonib");
-extern "C" int sub_CUser_gainPowerWarRewardExp(void* self, int v)
-    asm("_ZN5CUser21gainPowerWarRewardExpEi");
-extern "C" bool sub_CUser_IsHavePremiumAdvantage(void* self)
-    asm("_ZNK5CUser22IsHavePremiumAdvantageEv");
-extern "C" void sub_CUser_saveTaxMoneyForUpperMember(void* self, int v)
-    asm("_ZN5CUser26saveTaxMoneyForUpperMemberEi");
-extern "C" void sub_CUser_CheckQuestMonster(void* self, int a, int b, int type)
-    asm("_ZN5CUser17CheckQuestMonsterEii21ENUM_QUEST_ENEMY_TYPE");
-extern "C" bool sub_CUser_isCompetitionMercenary(void* self)
-    asm("_ZNK5CUser22isCompetitionMercenaryEv");
-extern "C" void sub_CUser_FatigueUp(void* self, int v) asm("_ZN5CUser9FatigueUpEi");
-extern "C" bool sub_CUser_IsEquipAvatar(void* self)
-    asm("_ZN5CUser13IsEquipAvatarEv");
-
-// ---- WongWork::CHackAnalyzer（CUser.h 仅声明类，无方法） ----
-extern "C" void sub_CHackAnalyzer_reportHackInfo(void* self)
-    asm("_ZN8WongWork13CHackAnalyzer14reportHackInfoEv");
-extern "C" void sub_CHackAnalyzer_resetHackInfo(void* self)
-    asm("_ZN8WongWork13CHackAnalyzer13resetHackInfoEv");
-extern "C" void sub_CHackAnalyzer_beginCollectHackInfo(void* self, void* user)
-    asm("_ZN8WongWork13CHackAnalyzer20beginCollectHackInfoEP5CUser");
-extern "C" void sub_CHackAnalyzer_setLastMonsterDeadTime(void* self, int v)
-    asm("_ZN8WongWork13CHackAnalyzer22setLastMonsterDeadTimeEl");
-
-// ---- user_creature::CCreatureMgr（CInventory.h 最小声明无这些方法） ----
-extern "C" bool sub_CCreatureMgr_IsEquippedCreature(void* self)
-    asm("_ZNK13user_creature12CCreatureMgr18IsEquippedCreatureEv");
-extern "C" bool sub_CCreatureMgr_IsGrowCreature_Equipped_Creature(void* self)
-    asm("_ZNK13user_creature12CCreatureMgr32IsGrowCreature_Equipped_CreatureEv");
-extern "C" void sub_CCreatureMgr_GainExp(void* self, int v)
-    asm("_ZN13user_creature12CCreatureMgr7GainExpEi");
-
-// ---- GameWorld / cUserHistoryLog ----
-extern "C" void sub_GameWorld_out_from_warroom(void* world, void* user)
-    asm("_ZN9GameWorld16out_from_warroomEP5CUser");
-extern "C" TimerQueue* sub_G_TimerQueue() asm("_Z12G_TimerQueuev");
-extern "C" void sub_cUserHistoryLog_EnterDungeon(void* self, const char* name, int level)
-    asm("_ZN15cUserHistoryLog12EnterDungeonEPKci");
-extern "C" void sub_cUserHistoryLog_LeaveDungeon(void* self, const char* name, int level)
-    asm("_ZN15cUserHistoryLog12LeaveDungeonEPKci");
-
-// ---- 事件 / 脚本 / 统计 / 商店 / 日志等 ----
-extern "C" float sub_channel_script_t_getBonusRate(void* self, unsigned char a,
-                                                   unsigned int b, unsigned int c)
-    asm("_ZNK16channel_script_t12getBonusRateEhjj");
-extern "C" void* sub_CEventManager_GetRepeatEvent(void* self, int v)
-    asm("_ZN13CEventManager14GetRepeatEventEi");
-extern "C" int sub_CExpDoubleEvent_GetExpFactor(void* self)
-    asm("_ZN15CExpDoubleEvent12GetExpFactorEv");
-extern "C" int sub_CBurningFatigueEvent_getBonusExpRate(void* self, unsigned short v)
-    asm("_ZNK20CBurningFatigueEvent15getBonusExpRateEt");
-extern "C" int sub_CServerEvent_GetExpRate() asm("_ZN12CServerEvent10GetExpRateEv");
-extern "C" void sub_CValueStatistic_AddValueStatistic(void* self, int field, void* user,
-                                                      unsigned v)
-    asm("_ZN15CValueStatistic17AddValueStatisticE21VALUE_STATISTIC_FIELDP5CUserj");
-extern "C" void* sub_GetInstanceValueStatistic() asm("_Z25GetInstanceValueStatisticv");
-extern "C" void* sub_G_Store() asm("_Z7G_Storev");
-extern "C" int sub_Store_GetSellItemPrice(void* self, void* item, const void* items,
-                                          int count, int flag, int& out)
-    asm("_ZN5Store16GetSellItemPriceER10Inven_ItemPK5CItemsbRi");
-extern "C" void sub_DB_InsertRandomOptionItemInform_makeRequest(int uid, int acc,
-                                                                unsigned char flag)
-    asm("_ZN31DB_InsertRandomOptionItemInform11makeRequestEijh");
-extern "C" void sub_HistoryLog_WriteUseCoin(void* self, void* file, const char* name)
-    asm("_ZN10HistoryLog12WriteUseCoinEP8_IO_FILEPKc");
-extern "C" void sub_CDungeonEntranceLog_IncrementDungeonEntrance(void* self, int idx,
-                                                                 bool flag)
-    asm("_ZN19CDungeonEntranceLog24IncrementDungeonEntranceEib");
-extern "C" void* sub_GetInstanceDungeonEntranceLog() asm("_Z29GetInstanceDungeonEntranceLogv");
-extern "C" Inven_Item sub_CCargo_get_cargo_slot(void* self, int slot)
-    asm("_ZNK6CCargo14get_cargo_slotEi");
-extern "C" bool sub_CCargo_delete_item(void* self, int slot, int count, int reason)
-    asm("_ZN6CCargo11delete_itemEii14eItemDelReason");
-extern "C" bool sub_CInventory_delete_item(void* self, int type, int slot,
-                                                    int count, int reason, bool b)
-    asm("_ZN10CInventory11delete_itemE10INVEN_TYPEii14eItemDelReasonb");
-extern "C" Inven_Item sub_CInventory_GetInvenSlot(void* self, int type, int slot)
-    asm("_ZNK10CInventory12GetInvenSlotEii");
-extern "C" void sub_UpgradeSeparateInfo_SetUpgradeSeparate(void* self, unsigned char v)
-    asm("_ZN19UpgradeSeparateInfo18SetUpgradeSeparateEh");
 
 // ============================================================================
 // 构造 / 析构
@@ -440,7 +238,7 @@ int WarRoom::Create(CUser* user, char* name, short idx)
 
 void WarRoom::AddBanList(CUser* user)
 {
-    if (sub_CUser_isGMUser(user) != 0)
+    if (user->isGMUser() != 0)
         return;
     unsigned int id = user->get_acc_id();
     m_map[id] = GlobalData::s_systemTime_.getCurSec();
@@ -476,8 +274,8 @@ void WarRoom::BattleReset()
     {
         if (m_slots[i] != 0)
         {
-            sub_CHackAnalyzer_reportHackInfo(((CUser*)m_slots[i])->getHackAnalyzer());
-            sub_CHackAnalyzer_resetHackInfo(((CUser*)m_slots[i])->getHackAnalyzer());
+            ((CUser*)m_slots[i])->getHackAnalyzer()->reportHackInfo();
+            ((CUser*)m_slots[i])->getHackAnalyzer()->resetHackInfo();
             ((CUser*)m_slots[i])->ResetCoinCount();
         }
         m_pad184[i] = 0;
@@ -485,7 +283,7 @@ void WarRoom::BattleReset()
         ((int*)m_pad1a4)[i] = 0;
         ((int*)m_pad14)[i] = -1;
     }
-    sub_WarField_Reset((char*)&m_field);
+    m_field.Reset();
     memset(&m_pad1a4[0x18], 0, 0x10);
     m_userCount = 0;
     m_flag10 = 0;
@@ -533,13 +331,13 @@ int WarRoom::IsJoinable(CUser* user)
     if ((GetState() == 4) || (GetState() == 3) || (GetState() == -1) ||
         (GetState() == 2))
         return 0x13;
-    if (sub_CUser_isCompetitionMercenary(user) != 0)
+    if (user->isCompetitionMercenary() != 0)
         return 0x15;
     if (user->getCurCharacMoney() <
         *(int*)((char*)G_CDataManager() + 4 +
                 ((unsigned char)m_levelBand + 0x221c) * 4))
         return 10;
-    if (sub_CUser_CheckFatigue(user) == 1)
+    if (user->CheckFatigue() == 1)
     {
         int level = user->get_charac_level();
         switch ((unsigned char)m_levelBand)
@@ -590,15 +388,14 @@ int WarRoom::WalkOutUserBySlot(int slot)
         return 4;
     }
     CUser* user = (CUser*)m_slots[slot];
-    sub_CHackAnalyzer_reportHackInfo(user->getHackAnalyzer());
-    sub_CHackAnalyzer_resetHackInfo(user->getHackAnalyzer());
+    user->getHackAnalyzer()->reportHackInfo();
+    user->getHackAnalyzer()->resetHackInfo();
     m_slotState[slot] = 0xff;
-    sub_GameWorld_out_from_warroom(G_GameWorld(), user);
+    G_GameWorld()->out_from_warroom(user);
     if (m_pDungeon != 0)
     {
-        sub_cUserHistoryLog_LeaveDungeon((char*)user + 0x79700,
-                                         m_pDungeon->GetDungeonName(),
-                                         (unsigned char)m_levelBand);
+        user->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
+                                        (unsigned char)m_levelBand);
     }
     m_slots[slot] = 0;
     m_pad184[slot] = 0;
@@ -705,8 +502,8 @@ void WarRoom::Start()
             ((CUser*)m_slots[i])->Send(packet);
             if (m_pDungeon != 0)
             {
-                sub_CDungeonEntranceLog_IncrementDungeonEntrance(
-                    sub_GetInstanceDungeonEntranceLog(), m_pDungeon->get_index(), false);
+                GetInstanceDungeonEntranceLog()->IncrementDungeonEntrance(
+                    m_pDungeon->get_index(), false);
             }
         }
     }
@@ -716,7 +513,7 @@ void WarRoom::Start()
         if (m_slots[i] != 0)
         {
             CUser* u = (CUser*)m_slots[i];
-            sub_CHackAnalyzer_beginCollectHackInfo(u->getHackAnalyzer(), u);
+            u->getHackAnalyzer()->beginCollectHackInfo(u);
         }
     }
 }
@@ -768,7 +565,7 @@ int WarRoom::SendWalkOut(CUser* user, ENUM_WALKOUT_TYPE type)
 void WarRoom::SendWarRoomFailMsg()
 {
     unsigned int key = GenTimerKey((TIMER_MESSAGE)0x46);
-    sub_G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                     (TIMER_MESSAGE)0x46, 10, key, 0);
 }
 
@@ -798,7 +595,7 @@ int WarRoom::HostChangeWarRoom(CUser* user, char a, unsigned long b)
         if (m_userCount == 0)
         {
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x47);
-            sub_G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
+            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                             (TIMER_MESSAGE)0x47, 5, key, 0);
         }
         m_userCount += 1;
@@ -841,7 +638,7 @@ void WarRoom::CheckHostChange()
 
 void WarRoom::HandleTimerTimeBomb()
 {
-    sub_map_monster_map_clear((char*)&m_field + 0x14);
+    m_field.m_mapInfo.m_monsterMap.clear();
     m_flag10 = 1;
     if (*(int*)((char*)&m_field + 0xf4) == *(int*)((char*)m_pDungeon + 0x744))
         ChangeState(WARROOM_STATE_5);
@@ -1026,7 +823,7 @@ void WarRoom::OnEnterState()
             bool hasGM = false;
             for (int i = 0; i <= 5; ++i)
             {
-                if ((m_slots[i] != 0) && (sub_CUser_isGMUser((void*)m_slots[i]) != 0))
+                if ((m_slots[i] != 0) && (((CUser*)m_slots[i])->isGMUser() != 0))
                 {
                     hasGM = true;
                     break;
@@ -1041,14 +838,14 @@ void WarRoom::OnEnterState()
         {
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x41);
             int ms = *(int*)((char*)G_CDataManager() + 0x88a8);
-            sub_G_TimerQueue()->InsertTimerInMilisecond(
+            G_TimerQueue()->InsertTimerInMilisecond(
                 (TimerEntry::OBJ_TYPE)3, m_index, (TIMER_MESSAGE)0x41, ms, key, 0);
         }
         break;
     case 2:
         {
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x42);
-            sub_G_TimerQueue()->InsertTimerInMilisecond(
+            G_TimerQueue()->InsertTimerInMilisecond(
                 (TimerEntry::OBJ_TYPE)3, m_index, (TIMER_MESSAGE)0x42, 11000, key, 0);
             m_curSpawnStep = 1;
         }
@@ -1060,21 +857,21 @@ void WarRoom::OnEnterState()
             PacketGuard packet;
             packet.clear();
             int count = GetWaiterCount();
-            sub_WarField_ConsistMap((char*)&m_field, &packet, m_pDungeon,
-                                    (void*)m_fp, ((unsigned char)m_levelBand + 1) * 10,
-                                    count);
+            m_field.ConsistMap(&packet, m_pDungeon, (const CMap*)m_fp,
+                               (unsigned char)(((unsigned char)m_levelBand + 1) * 10),
+                               count);
             SendToRoom(packet);
             for (int i = 0; i <= 5; ++i)
             {
                 if (m_slots[i] != 0)
                 {
-                    sub_CUser_FatigueUp((void*)m_slots[i],
-                                        *(int*)((char*)m_pDungeon + 0x7e8));
+                    ((CUser*)m_slots[i])->FatigueUp(
+                        *(int*)((char*)m_pDungeon + 0x7e8));
                 }
             }
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x45);
             int ms = *(int*)((char*)m_pDungeon + 0x7f0);
-            sub_G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
+            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                             (TIMER_MESSAGE)0x45, ms / 1000, key, 0);
         }
         break;
@@ -1082,7 +879,7 @@ void WarRoom::OnEnterState()
         ReviveAll();
         {
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x43);
-            sub_G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
+            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                             (TIMER_MESSAGE)0x43, 10, key, 0);
         }
         if (m_curSpawnStep != *(int*)((char*)m_pDungeon + 0x744))
@@ -1126,7 +923,7 @@ void WarRoom::OnEnterState()
         RemoveKC();
         {
             unsigned int key = GenTimerKey((TIMER_MESSAGE)0x44);
-            sub_G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
+            G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)3, m_index,
                                             (TIMER_MESSAGE)0x44, 0x18, key, 0);
         }
         break;
@@ -1141,7 +938,7 @@ void WarRoom::CheckFatuigue()
     {
         if (m_slots[i] != 0)
         {
-            if (sub_CUser_CheckFatigue((void*)m_slots[i]) != 1)
+            if (((CUser*)m_slots[i])->CheckFatigue() != 1)
             {
                 CUser* u = (CUser*)m_slots[i];
                 WalkOutUserBySlot(i);
@@ -1321,12 +1118,10 @@ void WarRoom::ClearReward()
             float rate = *(float*)((char*)m_pDungeon + 0x7a0);
             int fp = ((CUser*)m_slots[i])->GetFinishPointTotal();
             int baseExp = (int)((float)totalExp * ((float)fp * rate + 1.0f));
-            float avatarRate = (sub_CUser_IsEquipAvatar((void*)m_slots[i]) != 0) ? 0.02f : 0.0f;
+            float avatarRate = (((CUser*)m_slots[i])->IsEquipAvatar() != 0) ? 0.02f : 0.0f;
             float creatureRate =
-                (sub_CCreatureMgr_IsEquippedCreature(
-                     (void*)((const CInventory*)((CUser*)m_slots[i])
-                                 ->getCurCharacInvenR())
-                         ->GetCreatureMgrR()) != 0)
+                (((CUser*)m_slots[i])->getCurCharacInvenR()->GetCreatureMgrR()
+                         ->IsEquippedCreature() != 0)
                     ? 0.05f
                     : 0.0f;
             int channelExp = 0;
@@ -1336,21 +1131,21 @@ void WarRoom::ClearReward()
             int creatureExp = 0;
             int premiumExp = 0;
             float expFactor = 0.0f;
-            void* evt = sub_CEventManager_GetRepeatEvent(GlobalData::s_event_manager, 3);
+            CEventBase* evt = GlobalData::s_event_manager->GetRepeatEvent(3);
             if ((*(unsigned char (**)(void*, int))(*(char**)evt + 0x34))(evt, 0) != 0)
             {
-                int f = sub_CExpDoubleEvent_GetExpFactor(
-                    sub_CEventManager_GetRepeatEvent(GlobalData::s_event_manager, 3));
+                int f = ((CExpDoubleEvent*)GlobalData::s_event_manager->GetRepeatEvent(3))
+                            ->GetExpFactor();
                 expFactor = (float)f / 100.0f;
             }
             void* channel = G_CDataManager()->GetChannelScript();
-            float bonus = sub_channel_script_t_getBonusRate(
-                channel, *(unsigned char*)((char*)G_CEnvironment() + 0x378),
+            float bonus = ((channel_script_t*)channel)->getBonusRate(
+                *(unsigned char*)((char*)G_CEnvironment() + 0x378),
                 (unsigned int)G_CEnvironment()->get_channel_no(),
                 (unsigned int)m_pDungeon->get_index());
             channelExp = (int)((float)baseExp * bonus);
             serverExp = (int)((float)baseExp *
-                              ((0.0f + (float)sub_CServerEvent_GetExpRate()) / 100.0f));
+                              ((0.0f + (float)CServerEvent::GetExpRate()) / 100.0f));
             if (avatarRate != 0.0f)
             {
                 avatarExp = std::max((unsigned int)((float)baseExp * avatarRate), 1u);
@@ -1360,7 +1155,7 @@ void WarRoom::ClearReward()
             {
                 creatureExp = std::max((unsigned int)((float)baseExp * creatureRate), 1u);
             }
-            if (sub_CUser_IsHavePremiumAdvantage((void*)m_slots[i]) != 0)
+            if (((CUser*)m_slots[i])->IsHavePremiumAdvantage() != 0)
             {
                 float premiumRate =
                     (float)(((CUser*)m_slots[i])->GetPremiumInfo()->GetAdvantageExpRate()) /
@@ -1368,23 +1163,23 @@ void WarRoom::ClearReward()
                 premiumExp = (int)((float)baseExp * premiumRate);
             }
             int burningBonus = 0;
-            void* burning =
-                sub_CEventManager_GetRepeatEvent(GlobalData::s_event_manager, 0xf);
+            CEventBase* burning = GlobalData::s_event_manager->GetRepeatEvent(0xf);
             if ((*(unsigned char (**)(void*, int))(*(char**)burning + 0x34))(burning, 0) !=
                 0)
             {
-                int rate2 = sub_CBurningFatigueEvent_getBonusExpRate(
-                    burning, ((CUser*)m_slots[i])->getCurCharacUsedFatigue());
+                int rate2 = ((CBurningFatigueEvent*)burning)->getBonusExpRate(
+                    ((CUser*)m_slots[i])->getCurCharacUsedFatigue());
                 if (rate2 != 0)
                     burningBonus = (rate2 * baseExp) / 100;
             }
             int total = avatarExp + baseExp + premiumExp + serverExp + channelExp +
                         burningBonus + creatureExp;
-            int upperExp = sub_CUser_gainExpAsUpperMember((void*)m_slots[i], baseExp);
+            int upperExp = ((CUser*)m_slots[i])->gainExpAsUpperMember(baseExp);
             total += upperExp;
-            int guildExp = sub_CUser_gainGuildSkillExp((void*)m_slots[i], baseExp);
+            int guildExp = ((CUser*)m_slots[i])->gainGuildSkillExp(baseExp);
             total += guildExp;
-            if (sub_CUser_gain_exp_sp((void*)m_slots[i], total, sp, sfp, 6, 0, 0) != 0)
+            if (((CUser*)m_slots[i])->gain_exp_sp(total, sp, sfp, (eExpAddReason)6, 0, 0) !=
+                0)
             {
                 packet2.clear();
                 packet2.put_header(0, 2);
@@ -1408,8 +1203,7 @@ void WarRoom::ClearReward()
             packet1.finalize(true);
             ((CUser*)m_slots[i])->Send(packet1);
             int cur = GlobalData::s_systemTime_.getCurSec();
-            sub_CHackAnalyzer_setLastMonsterDeadTime(
-                ((CUser*)m_slots[i])->getHackAnalyzer(), cur);
+            ((CUser*)m_slots[i])->getHackAnalyzer()->setLastMonsterDeadTime(cur);
         }
     }
 }
@@ -1469,9 +1263,8 @@ int WarRoom::Join(CUser* user, int& seat)
     user->Send(packet2);
     if (m_pDungeon != 0)
     {
-        sub_cUserHistoryLog_EnterDungeon((char*)user + 0x79700,
-                                         m_pDungeon->GetDungeonName(),
-                                         (unsigned char)m_levelBand);
+        user->m_historyLog.EnterDungeon(m_pDungeon->GetDungeonName(),
+                                        (unsigned char)m_levelBand);
     }
     m_slotState[slot] = 0;
     m_pad184[slot] = 1;
@@ -1560,13 +1353,12 @@ int WarRoom::SetSlotState(CUser* user, int seat, ENUM_SEAT_STATE state, CUser** 
             {
                 AddBanList(user);
             }
-            sub_CHackAnalyzer_reportHackInfo(user->getHackAnalyzer());
-            sub_CHackAnalyzer_resetHackInfo(user->getHackAnalyzer());
+            user->getHackAnalyzer()->reportHackInfo();
+            user->getHackAnalyzer()->resetHackInfo();
             if (m_pDungeon != 0)
             {
-                sub_cUserHistoryLog_LeaveDungeon((char*)user + 0x79700,
-                                                 m_pDungeon->GetDungeonName(),
-                                                 (unsigned char)m_levelBand);
+                user->m_historyLog.LeaveDungeon(m_pDungeon->GetDungeonName(),
+                                                (unsigned char)m_levelBand);
             }
         }
     }
@@ -1586,7 +1378,7 @@ void WarRoom::HandleSetSeatState(CUser* user, int seat, ENUM_SEAT_STATE state)
     {
         if (outUser != 0)
         {
-            sub_GameWorld_out_from_warroom(G_GameWorld(), outUser);
+            G_GameWorld()->out_from_warroom(outUser);
         }
         if (b1 != 0)
         {
@@ -1702,8 +1494,7 @@ int WarRoom::HandleDieCharacer(CUser* user, int killerSlot)
 
 int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
 {
-    WR_map_monster monster;
-    sub_map_monster_C1(&monster);
+    map_monster monster;
     PacketGuard packet;
     int result = 0;
     int count = GetWaiterCount();
@@ -1714,12 +1505,11 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
         {
             if ((m_slots[i] != 0) && (killer != 0) && ((CUser*)m_slots[i] == killer))
             {
-                wp = sub_WarField_HandleWpPerMonster((char*)&m_field, killer,
-                                                     monsterIdx, 0, &monster);
+                wp = m_field.HandleWpPerMonster(killer, monsterIdx, 0, monster);
             }
         }
-        if (sub_WarField_HandleMonsterKill((char*)&m_field, monsterIdx, &packet,
-                                           &monster, killer, m_pDungeon) != 1)
+        if (m_field.HandleMonsterKill(monsterIdx, packet, monster, killer,
+                                      m_pDungeon) != 1)
         {
             result = 0;
         }
@@ -1735,8 +1525,9 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
                     if (isKiller)
                     {
                         killer->WarAreaKill(monster.m_roleType, wp, monster.m_field18);
-                        sub_CUser_CheckQuestMonster(
-                            killer, m_pDungeon->get_index(), monster.m_mobIndex, 1);
+                        killer->CheckQuestMonster(m_pDungeon->get_index(),
+                                                  monster.m_mobIndex,
+                                                  (ENUM_QUEST_ENEMY_TYPE)1);
                     }
                     int exp = (int)((float)*(int*)((char*)m_pDungeon + 0x10 +
                                                    (monster.m_roleType + 0x1e0) * 4) *
@@ -1754,10 +1545,8 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
                     }
                     int total = bonus.m_base + exp;
                     exp = (int)((float)bonus.m_add / 100.0f * (float)total) + total;
-                    int upperExp =
-                        sub_CUser_gainExpAsUpperMember((void*)m_slots[i], exp);
-                    int guildExp =
-                        sub_CUser_gainGuildSkillExp((void*)m_slots[i], exp);
+                    int upperExp = ((CUser*)m_slots[i])->gainExpAsUpperMember(exp);
+                    int guildExp = ((CUser*)m_slots[i])->gainGuildSkillExp(exp);
                     int fatigueExp = 0;
                     if (((CUser*)m_slots[i])->getCurCharacFatigueGrownUpBuff() != 0)
                     {
@@ -1765,13 +1554,12 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
                         ((CUser*)m_slots[i])->set_charac_fatigue_buf_bonus_exp(exp);
                     }
                     int rewardExp =
-                        sub_CUser_gainPowerWarRewardExp((void*)m_slots[i], exp);
+                        ((CUser*)m_slots[i])->gainPowerWarRewardExp(exp);
                     int sp = 0;
                     int sfp = 0;
-                    if (sub_CUser_gain_exp_sp((void*)m_slots[i],
-                                              upperExp + exp + guildExp + rewardExp +
-                                                  fatigueExp,
-                                              sp, sfp, 4, monster.m_mobIndex, 0) != 0)
+                    if (((CUser*)m_slots[i])->gain_exp_sp(
+                            upperExp + exp + guildExp + rewardExp + fatigueExp,
+                            sp, sfp, (eExpAddReason)4, monster.m_mobIndex, 0) != 0)
                     {
                         ((CUser*)m_slots[i])->SendNotiPacket(
                             (CUser::eSendTarget)3, (ENUM_NOTIPACKET)2, 1);
@@ -1786,7 +1574,7 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
             packet.put_short(wp);
             packet.finalize(true);
             SendToRoom(packet);
-            if (sub_WarField_IsGridClear((char*)&m_field) != 0)
+            if (m_field.IsGridClear() != 0)
             {
                 for (int i = 0; i <= 5; ++i)
                 {
@@ -1795,13 +1583,10 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
                         CUser* u = (CUser*)m_slots[i];
                         if (*(int*)((char*)u + 0x8e08c) > 0)
                         {
-                            if (sub_CCreatureMgr_IsGrowCreature_Equipped_Creature(
-                                    (void*)((const CInventory*)u->getCurCharacInvenR())
-                                        ->GetCreatureMgrR()) != 1)
+                            if (u->getCurCharacInvenR()->GetCreatureMgrR()
+                                    ->IsGrowCreature_Equipped_Creature() != 1)
                             {
-                                sub_CCreatureMgr_GainExp(
-                                    ((CInventory*)u->getCurCharacInvenW())
-                                        ->GetCreatureMgrW(),
+                                u->getCurCharacInvenW()->GetCreatureMgrW()->GainExp(
                                     *(int*)((char*)u + 0x8e08c));
                             }
                         }
@@ -1827,8 +1612,7 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
 
 int WarRoom::HandleWpPerMonster(CUser* user, int a, int b, CUser* killer)
 {
-    WR_map_monster monster;
-    sub_map_monster_C1(&monster);
+    map_monster monster;
     int result = 3;
     int count = GetWaiterCount();
     if (count != 0)
@@ -1840,8 +1624,7 @@ int WarRoom::HandleWpPerMonster(CUser* user, int a, int b, CUser* killer)
             {
                 if ((killer != 0) && ((CUser*)m_slots[i] == killer))
                 {
-                    wp = sub_WarField_HandleWpPerMonster((char*)&m_field, killer, a,
-                                                         b, &monster);
+                    wp = m_field.HandleWpPerMonster(killer, a, b, monster);
                     killer->WarAreaKill(monster.m_roleType, wp, monster.m_field18);
                 }
             }
@@ -1859,7 +1642,6 @@ int WarRoom::HandleWpPerMonster(CUser* user, int a, int b, CUser* killer)
         SendToRoom(packet);
         result = 0;
     }
-    sub_map_monster_D1(&monster);
     return result;
 }
 
@@ -1867,11 +1649,10 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
 {
     char flag = 1;
     CUser* target = 0;
-    WR_map_item fieldItem;
-    sub_map_item_C1(&fieldItem);
+    map_item fieldItem;
     PacketGuard packet;
     int result = 0;
-    bool ok = sub_WarField_GetFieldItem((char*)&m_field, idx, &fieldItem);
+    bool ok = m_field.GetFieldItem(idx, fieldItem) != 0;
     if (ok != 1)
     {
         packet.put_header(1, 0x2e);
@@ -1897,20 +1678,21 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
         packet.put_short(idx);
         packet.put_short(user->get_unique_id());
         char iter[4] = {0};
-        int check = sub_WarField_CheckPickupItem((char*)&m_field, idx,
-                                                 user->get_unique_id(), iter);
+        int check = m_field.CheckPickupItem(
+            idx, user->get_unique_id(),
+            *reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
         if (check < 1)
         {
-            int gained = ((CInventory*)user->getCurCharacInvenW())
-                             ->gain_money(money, (eMoneyAddReason)0xf, 1, 0);
-            sub_CUser_saveTaxMoneyForUpperMember(user, money);
+            int gained = user->getCurCharacInvenW()->gain_money(
+                money, (eMoneyAddReason)0xf, 1, 0);
+            user->saveTaxMoneyForUpperMember(money);
             if (gained < money)
             {
                 if (gained < 0)
                     gained = 0;
                 user->SendMoneyFullReason((ENUM_MONEY_FULL_REASON)0, money, gained);
             }
-            sub_WarField_PickupItem((char*)&m_field, iter);
+            m_field.PickupItem(*reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
             packet.put_int(gained);
             packet.finalize(true);
             SendToRoom(packet);
@@ -1961,8 +1743,8 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                 if (randomOption)
                 {
                     user->setCheckPickUpRandomOptionItem(true);
-                    sub_DB_InsertRandomOptionItemInform_makeRequest(user->GetUID(),
-                                                                    user->get_acc_id(), 1);
+                    DB_InsertRandomOptionItemInform::makeRequest(
+                        user->GetUID(), user->get_acc_id(), 1);
                     PacketGuard notice;
                     notice.clear();
                     notice.put_header(0, 0x171);
@@ -1972,17 +1754,16 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     user->Send(notice);
                 }
                 char iter[4] = {0};
-                int check = sub_WarField_CheckPickupItem((char*)&m_field, idx,
-                                                         user->get_unique_id(), iter);
+                int check = m_field.CheckPickupItem(
+                    idx, user->get_unique_id(),
+                    *reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
                 if (check < 1)
                 {
                     int added = -1;
                     if (fieldItem.m_item.isAvatarItemType() == 0)
                     {
-                        added = ((CInventory*)user->getCurCharacInvenW())
-                                    ->insertItemIntoInventory(fieldItem.m_item,
-                                                              (eItemAddReason)0x16, 1,
-                                                              1);
+                        added = user->getCurCharacInvenW()->insertItemIntoInventory(
+                            fieldItem.m_item, (eItemAddReason)0x16, 1, 1);
                     }
                     else
                     {
@@ -2006,7 +1787,8 @@ int WarRoom::HandleGetItem(CUser* user, int idx)
                     }
                     else
                     {
-                        sub_WarField_PickupItem((char*)&m_field, iter);
+                        m_field.PickupItem(
+                            *reinterpret_cast<std::map<int, map_item>::iterator*>(iter));
                         packet.put_header(0, 0x5d);
                         packet.put_short(idx);
                         packet.put_short(user->get_unique_id());
@@ -2051,19 +1833,17 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
     }
     if (user->CheckInTrade() != 0)
         return 0x13;
-    WR_map_item field;
-    sub_map_item_C1(&field);
+    map_item field;
     Inven_Item item;
     if (dropType == 2)
     {
-        Inven_Item slotItem =
-            sub_CCargo_get_cargo_slot((void*)user->getCurCharacCargoR(), d);
+        Inven_Item slotItem = user->getCurCharacCargoR()->get_cargo_slot(d);
         item = slotItem;
     }
     else if (dropType == 3)
     {
         Inven_Item slotItem;
-        slotItem = sub_CInventory_GetInvenSlot((void*)user->getCurCharacInvenR(), 0, d);
+        slotItem = user->getCurCharacInvenR()->GetInvenSlot(0, d);
         item = slotItem;
     }
     else if (dropType == 0)
@@ -2080,8 +1860,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         else
         {
             Inven_Item slotItem;
-            slotItem =
-                sub_CInventory_GetInvenSlot((void*)user->getCurCharacInvenR(), 1, d);
+            slotItem = user->getCurCharacInvenR()->GetInvenSlot(1, d);
             item = slotItem;
         }
     }
@@ -2143,15 +1922,15 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
         *(int*)((char*)&field.m_item + 0x2d) = *(int*)((char*)&item + 0x2d);
         *(unsigned short*)((char*)&field.m_item + 0x31) =
             *(unsigned short*)((char*)&item + 0x31);
-        sub_UpgradeSeparateInfo_SetUpgradeSeparate(
-            &field.m_item.m_upgradeSep, item.m_upgradeSep.GetUpgradeSeparate());
+        field.m_item.m_upgradeSep.SetUpgradeSeparate(
+            item.m_upgradeSep.GetUpgradeSeparate());
         int price2;
-        sub_Store_GetSellItemPrice(sub_G_Store(), &item, pItem, e, 0, price2);
+        G_Store()->GetSellItemPrice(item, pItem, (short)e, false, price2);
         price = price2;
     }
     if (dropType == 2)
     {
-        if (sub_CCargo_delete_item(user->getCurCharacCargoW(), d, e, 0x10) != 1)
+        if (user->getCurCharacCargoW()->delete_item(d, e, (eItemDelReason)0x10) != 1)
         {
             cMyTrace trace(
                 "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xabf,
@@ -2177,13 +1956,12 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                           user->getCurCharacNo(), d, e);
                     return 0x11;
                 }
-                sub_CValueStatistic_AddValueStatistic(
-                    sub_GetInstanceValueStatistic(), 0x17, user, (unsigned)e);
+                GetInstanceValueStatistic()->AddValueStatistic(
+                    (VALUE_STATISTIC_FIELD)0x17, user, (unsigned)e);
             }
             else
             {
-                if (sub_CInventory_delete_item(
-                        (CInventory*)user->getCurCharacInvenW(), 1, d, e, 6, 1) != 1)
+                if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)1, d, e, (eItemDelReason)6, 1) != 1)
                 {
                     cMyTrace trace(
                         "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)",
@@ -2192,15 +1970,14 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                           user->getCurCharacNo(), d, b);
                     return 0x11;
                 }
-                sub_CValueStatistic_AddValueStatistic(sub_GetInstanceValueStatistic(),
-                                                      0x16, user, (unsigned)price);
+                GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
+                                                              user, (unsigned)price);
             }
         }
     }
     else if (dropType == 3)
     {
-        if (sub_CInventory_delete_item(
-                (CInventory*)user->getCurCharacInvenW(), 0, d, 1, 6, 1) != 1)
+        if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)0, d, 1, (eItemDelReason)6, 1) != 1)
         {
             cMyTrace trace(
                 "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xaca,
@@ -2209,13 +1986,12 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                   user->getCurCharacNo(), d);
             return 0x11;
         }
-        sub_CValueStatistic_AddValueStatistic(sub_GetInstanceValueStatistic(), 0x16,
-                                              user, (unsigned)price);
+        GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
+                                                     user, (unsigned)price);
     }
     else if (dropType == 7)
     {
-        if (sub_CInventory_delete_item(
-                (CInventory*)user->getCurCharacInvenW(), 3, d, 1, 6, 1) != 1)
+        if (user->getCurCharacInvenW()->delete_item((INVEN_TYPE)3, d, 1, (eItemDelReason)6, 1) != 1)
         {
             cMyTrace trace(
                 "int WarRoom::HandleItemDrop(CUser*, int, int, char, int, int)", 0xaed,
@@ -2224,8 +2000,8 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                   user->getCurCharacNo(), d);
             return 0x11;
         }
-        sub_CValueStatistic_AddValueStatistic(sub_GetInstanceValueStatistic(), 0x16,
-                                              user, (unsigned)price);
+        GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0x16,
+                                                     user, (unsigned)price);
     }
     if (item.m_field1 != 1)
     {
@@ -2238,7 +2014,7 @@ int WarRoom::HandleItemDrop(CUser* user, int a, int b, char c, int d, int e)
                   field.m_item.m_addInfo, 0x7d0, field.m_item.get_add_info());
         }
     }
-    int dropIdx = sub_WarField_DropItem((char*)&m_field, field);
+    int dropIdx = m_field.DropItem(field);
     if (dropIdx == -1)
         return 0x16;
     PacketGuard packet;
@@ -2291,7 +2067,7 @@ int WarRoom::ReviveUserByCoin(CUser* user, unsigned short uid)
     if (user->GetUsedCoinCount() < *(int*)((char*)m_pDungeon + 0x87c))
     {
         const char* name = target->getCurCharacName();
-        sub_HistoryLog_WriteUseCoin(user, (void*)user->m_field796f8, name);
+        HistoryLog::WriteUseCoin((_IO_FILE*)user->m_field796f8, name);
         SetCharacterLive(slot, target, true, true, 0, 0xff);
         return 0;
     }

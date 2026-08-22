@@ -71,4 +71,7 @@ private:
     std::map<int, int> m_map;                              // +0x28
 };
 
+// ORIG 0x80f647c W（_Z12G_TimerQueuev）：GlobalInstance<TimerQueue>::inst_ptr()。
+TimerQueue* G_TimerQueue();
+
 #endif  // GAME_TIMERQUEUE_H_

@@ -8,6 +8,7 @@
 
 #include "CUdpHandler.h"
 #include "LogManager.h"
+#include "CDoubleConnCheckServerProxy.h"
 
 // ---- UDP 双开检测包（布局来自 shared/packet/include，ctor 为独立 TU
 //      0x846d602/0x846d58a/0x846d5c6；本地声明避免与共享头内联 ctor 冲突） ----
@@ -52,24 +53,7 @@ public:
     unsigned char m_serverGroup;  // +0x0f
 } __attribute__((packed));
 
-// ---------------------------------------------------------------------------
-// CDoubleConnCheckServerProxy
-// ---------------------------------------------------------------------------
-class CDoubleConnCheckServerProxy
-{
-public:
-    CDoubleConnCheckServerProxy(std::string ip, int port);  // 0x0846d300 T
-
-    bool Init();                                 // 0x0846d356 T
-    void SendHeartBeat(int channel, int group);  // 0x0846d3ae T
-    void SendLogin(unsigned int userID, int channel, int group);  // 0x0846d412 T
-    void SendLogout(unsigned int userID, int channel, int group); // 0x0846d47c T
-    void SendPacket(char* packet, int size);     // 0x0846d4ee T
-
-    std::string m_ip;          // +0x00
-    int m_port;                // +0x04
-    CUdpHandler m_udpHandler;  // +0x08
-};
+// CDoubleConnCheckServerProxy 类声明见 CDoubleConnCheckServerProxy.h（唯一声明点）
 
 // ============================================================================
 // 实现

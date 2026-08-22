@@ -15,10 +15,13 @@ class CUser;
 class CDataManager;
 
 // ---- 枚举（ORIG mangled 名要求类型名一致） ----
+#ifndef DNF_ENUM_CHARACTERJOB_DEFINED
+#define DNF_ENUM_CHARACTERJOB_DEFINED
 enum ENUM_CHARACTERJOB
 {
     ENUM_CHARACTERJOB_0 = 0
 };
+#endif
 
 #ifndef DNF_ENUM_QUEST_ENEMY_TYPE_DEFINED
 #define DNF_ENUM_QUEST_ENEMY_TYPE_DEFINED

@@ -41,7 +41,7 @@ public:
     ~CQuickPartySystemManager();
 
     void init_quick_party_pool(const CDungeon* dungeon);
-    void cancel_quick_party(CParty* party, bool flag, CUser* user);
+    int cancel_quick_party(CParty* party, bool flag, CUser* user);  // ORIG 返回 0/1（undefined4）
 
 private:
     char m_pad[0x100];

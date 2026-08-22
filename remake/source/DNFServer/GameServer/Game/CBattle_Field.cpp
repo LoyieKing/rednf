@@ -29,18 +29,14 @@ private:
 };
 
 // ============================================================================
-// 外部方法（asm-label extern；避免依赖并行批次未定稿的权威头）
+// 外部方法（权威头已提供声明：MazeScript::getGridR 见 CDungeon.h，
+// CSystemTime::getCurTickCount 见 CSystemTime.h，CRidable::CheckAppearRidableObject
+// 见 CRidable.h；GlobalData::s_systemTime_ 见 CUserCharacInfo.h）
 // ============================================================================
-extern "C" GridScript* sub_MazeScript_getGridR(void* maze, int x, int y)
-    asm("_ZNK10MazeScript8getGridREii");
 CDataManager* G_CDataManager();
-extern "C" unsigned int sub_CSystemTime_getCurTickCount(void* self) asm("_ZN11CSystemTime15getCurTickCountEv");
-extern "C" void sub_CRidable_CheckAppearRidableObject(
-    void* self, void* party, int x, int y, void* packet)
-    asm("_ZN8CRidable24CheckAppearRidableObjectEP6CPartyiiP11PacketGuard");
 
-// CDungeon 局部布局代理（CBattle_Field_deps.h 只有最小声明）：
-// 仅用于访问 +0x8a0 字段，保持 ORIG 直接位移加载形态。
+// CDungeon 局部布局代理（真实 CDungeon.h 已含 +0x8a0 字段布局的完整类型）：
+// 本代理仅用于 +0x8a0 字段直接位移访问，保持 ORIG 直接位移加载形态。
 struct CDungeon_8a0_proxy
 {
     char m_pad[0x8a0];
@@ -86,7 +82,7 @@ MapInfo* CBattle_Field::GetMapInfoFromPos(int x, int y, bool create)
         }
         if (m_gridMaze != 0)
         {
-            GridScript* grid = sub_MazeScript_getGridR(m_gridMaze, x, y);
+            const GridScript* grid = &m_gridMaze->getGridR(x, y);
             if (grid != 0 && grid->m_layeredMapIndexes.size() != 0)
             {
                 if (getCurrentLayeredMapInfo()->m_layeredMap)
@@ -446,8 +442,7 @@ void CBattle_Field::CheckAppearRidableObject(PacketGuard* packet)
     int x = -1;
     int y = -1;
     getCurPosXY(x, y);
-    sub_CRidable_CheckAppearRidableObject(
-        &m_ridable, m_party, x, y, packet);
+    m_ridable.CheckAppearRidableObject(m_party, x, y, packet);
 }
 
 int CBattle_Field::getBloodMaxRound()
@@ -590,7 +585,7 @@ void CBattle_Field::CBloodClearRewardData::reset()
 
 void CBattle_Field::CBloodClearRewardData::onStartBloodRound()
 {
-    m_startTick = sub_CSystemTime_getCurTickCount((void*)0x941f714);
+    m_startTick = GlobalData::s_systemTime_.getCurTickCount();
 }
 
 void CBattle_Field::CBloodClearRewardData::addPlayTime(unsigned int t)

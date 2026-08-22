@@ -10,8 +10,12 @@
 #include <map>
 #include <utility>
 #include <vector>
+// 显式构造/析构调用带模板参数(含逗号)时需 typedef，否则 ~std::map<int,int>() 的逗号被解析为分隔符。
+typedef std::map<int, int> MapII;
+#include <vector>
 #include <new>
 
+#include "QuickParty.h"   // 必须先于 CDungeon.h/CParty.h（QUICKPARTY_H 守卫需先放开，避免 CDungeon 最小 CQuickPartySystemManager 与权威冲突）
 #include "CParty.h"
 #include "CDungeon.h"
 #include "CInventory.h"
@@ -21,133 +25,34 @@
 
 #include "CWorldMap.h"
 #include "ServerParameterScript.h"
+
+#include "BattleData.h"
+#include "SECRET_SHOP_DATA.h"
+#include "Secu_HackLogCheckByParty.h"   // Secu_HackLogCheckByParty::Init/ctor（§7）
+
+#include "PvPTypes.h"
+#include "CGameManager.h"
+#include "CGuildServerProxy.h"
+#include "GameResultSet.h"
+#include "CVillageMonsterMgr.h"
+#include "CDataManager.h"
+#include "CBattle_Field.h"
+#include "GameWorld.h"
+// MapInfo 经 CBattle_Field.h→WarField.h 引入；显式析构/构造带模板参数需 typedef。
+typedef std::vector<MapInfo> MapInfoVec;
+#include "CUser.h"
+#include "CUserCharacInfo.h"
+#include "CDungeonEntranceLog.h"
+#include "GameTypes.h"
+
+#include "EventNewCharacterReward.h"
+#include "GlobalData.h"
+
 // ============================================================================
-// 依赖子对象 / 外部函数（asm-label extern；链接桩由主 agent / 后续批次提供）
-// ============================================================================
-extern "C" void sub_cElection_ctor(void* thisp) asm("_ZN9cElectionIiLi4ELi4EEC1Ev");
-extern "C" void sub_SECRET_SHOP_DATA_ctor(void* thisp) asm("_ZN10secretshop16SECRET_SHOP_DATAC1Ev");
-extern "C" void sub_SECRET_SHOP_DATA_dtor(void* thisp) asm("_ZN10secretshop16SECRET_SHOP_DATAD1Ev");
-extern "C" void sub_SECRET_SHOP_DATA_clear(void* thisp) asm("_ZN10secretshop16SECRET_SHOP_DATA5clearEv");
-extern "C" void sub_BattleData_ctor(void* thisp) asm("_ZN10BattleDataC1Ev");
-extern "C" void sub_BattleData_dtor(void* thisp) asm("_ZN10BattleDataD1Ev");
-extern "C" void sub_BattleData_Reset(void* thisp) asm("_ZN10BattleData5ResetEv");
-extern "C" void sub_BattleData_SetHellPartyValueTotal(void* thisp, int v) asm("_ZN10BattleData22SetHellPartyValueTotalEi");
-extern "C" void sub_CBattle_Field_ctor(void* thisp) asm("_ZN13CBattle_FieldC1Ev");
-extern "C" void sub_CBattle_Field_dtor(void* thisp) asm("_ZN13CBattle_FieldD1Ev");
-extern "C" void sub_CBattle_Field_SetParty(void* thisp, void* party) asm("_ZN13CBattle_Field8SetPartyEP6CParty");
-extern "C" void sub_CBattle_Field_check_end_point(void* thisp) asm("_ZN13CBattle_Field15check_end_pointEv");
-extern "C" void sub_CBattle_Field_check_start_point(void* thisp) asm("_ZN13CBattle_Field17check_start_pointEv");
-extern "C" void sub_CBattle_Field_pickup_item(void* thisp, int idx) asm("_ZN13CBattle_Field11pickup_itemEi");
-extern "C" void sub_CBattle_Field_reset_hell_party_value(void* thisp) asm("_ZN13CBattle_Field22reset_hell_party_valueEv");
-extern "C" void sub_CBattle_Field_reset_field(void* thisp) asm("_ZN13CBattle_Field11reset_fieldEv");
-extern "C" void sub_GameResultSet_ctor(void* thisp) asm("_ZN13GameResultSetC1Ev");
-extern "C" void sub_GameResultSet_dtor(void* thisp) asm("_ZN13GameResultSetD1Ev");
-extern "C" void sub_std_map_ctor(void* thisp) asm("_ZNSt3mapIiiSt4lessIiESaISt4pairIKiiEEEC1Ev");
-extern "C" void sub_std_map_dtor(void* thisp) asm("_ZNSt3mapIiiSt4lessIiESaISt4pairIKiiEEED1Ev");
-extern "C" void sub_Secu_HackLogCheckByParty_ctor(void* thisp) asm("_ZN24Secu_HackLogCheckByPartyC1Ev");
-extern "C" void sub_Secu_HackLogCheckByParty_dtor(void* thisp) asm("_ZN24Secu_HackLogCheckByPartyD1Ev");
-extern "C" void sub_Secu_HackLogCheckByParty_Init(void* thisp, void* party) asm("_ZN24Secu_HackLogCheckByParty4InitEP6CParty");
-extern "C" void sub_CPartyTelePort_ctor(void* thisp) asm("_ZN14CPartyTelePortC1Ev");
-extern "C" void sub_CPartyTelePort_dtor(void* thisp) asm("_ZN14CPartyTelePortD1Ev");
-extern "C" void sub_CPartyTelePort_init(void* thisp, void* party) asm("_ZN14CPartyTelePort4initEP6CParty");
-extern "C" void sub_std_vector_MapInfo_ctor(void* thisp) asm("_ZNSt6vectorI7MapInfoSaIS0_EEC1Ev");
-extern "C" void sub_std_vector_MapInfo_dtor(void* thisp) asm("_ZNSt6vectorI7MapInfoSaIS0_EED1Ev");
-extern "C" void sub_std_map_Ii_clear(void* thisp) asm("_ZNSt3mapIiiSt4lessIiESaISt4pairIKiiEEE5clearEv");
-extern "C" void sub_std_vector_MapInfo_clear(void* thisp) asm("_ZNSt6vectorI7MapInfoSaIS0_EE5clearEv");
-
-extern "C" void* sub_G_CGameManager() asm("_Z14G_CGameManagerv");
-extern "C" void sub_CGameManager_PutParty(void* mgr, void* party) asm("_ZN12CGameManager8PutPartyEP6CParty");
-extern "C" void sub_GameWorld_send_party_info_to_all(void* world, void* party, int v) asm("_ZN9GameWorld22send_party_info_to_allEP6CPartyi");
-extern "C" void* sub_G_GameWorld() asm("_Z11G_GameWorldv");
-extern "C" void sub_CHackAnalyzer_reportHackInfo(void* analyzer) asm("_ZN8WongWork13CHackAnalyzer14reportHackInfoEv");
-extern "C" void sub_CHackAnalyzer_resetHackInfo(void* analyzer) asm("_ZN8WongWork13CHackAnalyzer13resetHackInfoEv");
-extern "C" int sub_CDungeon_get_index(void* dungeon) asm("_ZNK8CDungeon9get_indexEv");
-extern "C" void* sub_GetInstanceDungeonEntranceLog() asm("_Z29GetInstanceDungeonEntranceLogv");
-extern "C" void sub_CDungeonEntranceLog_DecrementDungeonEntrance(void* log, int idx, bool flag) asm("_ZN19CDungeonEntranceLog24DecrementDungeonEntranceEib");
-
-// CUserCharacInfo（CUser.h 权威头已有方法；无权威头的走 asm extern）
-extern "C" int sub_CUserCharacInfo_get_charac_level(void* uci) asm("_ZNK15CUserCharacInfo16get_charac_levelEv");
-extern "C" void* sub_CUserCharacInfo_getCurCharacR(void* uci) asm("_ZNK15CUserCharacInfo13getCurCharacREv");
-
-// CUser（CUser.h 缺失方法 -> asm extern；调用点形态按 ORIG 压栈）
-extern "C" void sub_CUser_SendPacket(void* user, int target, void* packet) asm("_ZN5CUser10SendPacketENS_11eSendTargetER11PacketGuard");
-extern "C" void sub_CUser_SendNotiPacket(void* user, int target, int cmd, int param) asm("_ZN5CUser14SendNotiPacketENS_11eSendTargetE15ENUM_NOTIPACKETi");
-extern "C" void sub_CUser_gain_exp_sp(void* user, int exp, int& a, int& b, int reason, int c, bool d) asm("_ZN5CUser10gain_exp_spEiRiS0_13eExpAddReasonib");
-
-// 全局数据 / 自由函数
-extern "C" void* sub_G_CDataManager() asm("_Z14G_CDataManagerv");
-extern "C" void* sub_CDataManager_get_hellparty_script_values(void* mgr) asm("_ZN12CDataManager27get_hellparty_script_valuesEv");
-
-// cMyTrace（ORIG 0x0854f718 ctor / 0x0854f788 operator()；对象 16 字节，无析构）
-extern "C" void sub_cMyTrace_ctor(void* thisp, const char* func, int line, int level)
-    asm("_ZN8cMyTraceC1EPKcii");
-extern "C" void sub_cMyTrace_call(void* thisp, const char* fmt, ...)
-    asm("_ZN8cMyTraceclEPKcz");
-
-// 事件（IsEventCharacParty）
-extern "C" void* sub_CEventManager_GetRepeatEvent(void* mgr, int eventId)
-    asm("_ZN13CEventManager14GetRepeatEventEi");
-extern "C" char sub_EventNewCharacterReward_isEventCharacter(void* reward, int job)
-    asm("_ZN23EventNewCharacterReward16isEventCharacterEi");
-
-extern "C" void* GlobalData_s_event_manager asm("_ZN10GlobalData15s_event_managerE");
-
-extern char* NumberToString(unsigned int value, int radix);   // DNFFunctionLib
-extern "C" void sub_CUser_SaveInventory(void* user) asm("_ZN5CUser13SaveInventoryEv");
-extern "C" int sub_CUser_GetUserPosInParty(void* user) asm("_ZN5CUser17GetUserPosInPartyEv");
-extern "C" char sub_SECRET_SHOP_DATA_IsOpen(void* shop) asm("_ZN10secretshop16SECRET_SHOP_DATA6IsOpenEv");
-extern "C" void sub_SECRET_SHOP_DATA_SetBuying(void* shop, int pos, bool flag)
-    asm("_ZN10secretshop16SECRET_SHOP_DATA9SetBuyingEib");
-extern "C" int sub_CBattle_Field_get_dungeon_diff(void* bf) asm("_ZN13CBattle_Field16get_dungeon_diffEv");
-extern "C" void sub_CGameManager_CheckOutQuickParty(void* mgr, void* party, bool flag)
-    asm("_ZN12CGameManager18CheckOutQuickPartyEP6CPartyb");
-extern "C" void sub_CBattle_Field_setBloodState(void* bf, int state)
-    asm("_ZN13CBattle_Field13setBloodStateE16ENUM_BLOOD_STATE");
-extern "C" void sub_GameWorld_out_from_dungeon(void* world, void* user)
-    asm("_ZN9GameWorld16out_from_dungeonEP5CUser");
-extern "C" void sub_GameWorld_send_all(void* world, void* packet)
-    asm("_ZN9GameWorld8send_allER11PacketGuard");
-extern "C" void sub_CUser_make_basic_info(void* user, void* packet, int flag)
-    asm("_ZN5CUser15make_basic_infoEPcc");
-extern "C" void sub_CParty_battle_data_reset(void* party) asm("_ZN6CParty17battle_data_resetEv");
-
-// ---- checkInoutConditionDungeon（0x85ac59c）依赖（ORIG 符号；定义桩由主 agent 批次提供） ----
-extern "C" int sub_CParty_CheckEnterDimensionDungeon(void* party, void* dungeon)
-    asm("_ZN6CParty26CheckEnterDimensionDungeonEPK8CDungeon");
-extern "C" int sub_CParty_check_dungeon_start(void* party, void* dungeon)
-    asm("_ZN6CParty19check_dungeon_startEPK8CDungeon");
-extern "C" int sub_CParty_CheckEnterVillageAttackRevenge(void* party, void* dungeon)
-    asm("_ZN6CParty30CheckEnterVillageAttackRevengeEPK8CDungeon");
-extern "C" int sub_CParty_CheckDestroyConditionSealDoor(
-    void* party, void* dungeon, void* vecA, void* vecB)
-    asm("_ZN6CParty29CheckDestroyConditionSealDoorEPK8CDungeonRSt6vectorIiSaIiEES6_");
-extern "C" int sub_CParty_CheckMemberFatigue(void* party)
-    asm("_ZN6CParty18CheckMemberFatigueEv");
-extern "C" void* sub_CWorldMapList_find_world_map(void* list, int idx)
-    asm("_ZNK13CWorldMapList14find_world_mapEi");
-extern "C" int sub_CWorldMap_IsInHellDungeon(void* worldMap)
-    asm("_ZN9CWorldMap15IsInHellDungeonEv");
-extern "C" int sub_CWorldMap_hasDeathTower(void* worldMap)
-    asm("_ZNK9CWorldMap13hasDeathTowerEv");
-extern "C" int sub_CBattle_Field_IsEnableHellDungeon(void)
-    asm("_ZN13CBattle_Field19IsEnableHellDungeonEv");
-extern "C" char sub_CDungeon_get_blood_dungeon_type(void* dungeon)
-    asm("_ZNK8CDungeon22get_blood_dungeon_typeEv");
-extern "C" int sub_CDungeon_isNoFatigueDungeon(void* dungeon)
-    asm("_ZNK8CDungeon18isNoFatigueDungeonEv");
-extern "C" int sub_GameWorld_GetWorldMapIndex(void* world, void* user)
-    asm("_ZN9GameWorld16GetWorldMapIndexEP5CUser");
-extern "C" unsigned short sub_CUser_getCurCharacTotalFatigue(void* user)
-    asm("_ZNK5CUser24getCurCharacTotalFatigueEv");
-extern "C" unsigned short sub_CUser_getCurCharacTotalMaxFatigue(void* user)
-    asm("_ZNK5CUser27getCurCharacTotalMaxFatigueEv");
-extern "C" char sub_CPowerManager_IsPowerWarEventOn(void) asm("_ZN13CPowerManager17IsPowerWarEventOnEv");
-extern "C" char sub_village_OnEvent(void* mgr) asm("_ZN16village_attacked18CVillageMonsterMgr7OnEventEv");
-extern "C" char sub_CRevengeDungeon_IsOpenRevengeDungeon(void* mgr)
-    asm("_ZN16village_attacked15CRevengeDungeon20IsOpenRevengeDungeonEv");
-extern "C" void* GlobalData_s_villageMonsterMgr asm("_ZN10GlobalData19s_villageMonsterMgrE");
-extern "C" void* GlobalData_s_revengeDungeonMgr asm("_ZN10GlobalData19s_revengeDungeonMgrE");
-
+// 所有 extern "C" asm 桥已删除（game_verify_guide.md §9/§10）：
+// 改用 include 权威头 + 真实 C++ 调用；子对象以 reinterpret_cast +
+// placement-new 等价替换原 asm 标签，ABI 与 ORIG 保持一致。
+//
 // ============================================================================
 // CParty::cMember
 // ============================================================================
@@ -238,41 +143,41 @@ void CParty::CItemRoutingData::SetMemberRoutingState(int idx, char state)
 // ============================================================================
 CParty::CParty()
 {
-    sub_cElection_ctor(&m_padElection);
+    new (&m_padElection) cElection<int,4,4>();
     new (&m_pad1dc) CPartyResultRecvFlag;
     new (&m_pad210) CTraceMobDieHack;
-    sub_SECRET_SHOP_DATA_ctor(&m_padShop);
-    sub_BattleData_ctor(&m_padBattleData);
-    sub_CBattle_Field_ctor(&m_padBattleField1);
-    sub_GameResultSet_ctor(&m_padResult);
-    sub_std_map_ctor(&m_padMap);
-    sub_Secu_HackLogCheckByParty_ctor(&m_padSecu);
-    sub_CPartyTelePort_ctor(&m_pad1ad0);
-    sub_std_vector_MapInfo_ctor(&m_padPassedMap);
+    new (&m_padShop) secretshop::SECRET_SHOP_DATA();
+    new (&m_padBattleData) BattleData();
+    new (&m_padBattleField1) CBattle_Field();
+    new (&m_padResult) GameResultSet();
+    new (&m_padMap) std::map<int,int>();
+    new (&m_padSecu) Secu_HackLogCheckByParty();
+    new (&m_pad1ad0) CPartyTelePort();
+    new (&m_padPassedMap) std::vector<MapInfo>();
     for (int i = 0xb; i <= 0x2f; ++i)
         m_field148[i - 0xb] = 0;
     m_usedCoinCount = 0;
-    sub_CBattle_Field_SetParty(&m_padBattleField1, this);
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->SetParty(this);
     SetAssaultState(0);
     m_routingData.Reset();
-    sub_CPartyTelePort_init(&m_pad1ad0, this);
+    reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->init(this);
     m_randomBuffType = 0xb;
     m_isQuickParty = 0;
     init_quick_party_data();
-    sub_Secu_HackLogCheckByParty_Init(&m_padSecu, this);
+    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->Init(this);
     m_partyMemberCoinLimit = 0;
 }
 
 CParty::~CParty()
 {
-    sub_std_vector_MapInfo_dtor(&m_padPassedMap);
-    sub_CPartyTelePort_dtor(&m_pad1ad0);
-    sub_Secu_HackLogCheckByParty_dtor(&m_padSecu);
-    sub_std_map_dtor(&m_padMap);
-    sub_GameResultSet_dtor(&m_padResult);
-    sub_CBattle_Field_dtor(&m_padBattleField1);
-    sub_BattleData_dtor(&m_padBattleData);
-    sub_SECRET_SHOP_DATA_dtor(&m_padShop);
+    reinterpret_cast<MapInfoVec*>(&m_padPassedMap)->~MapInfoVec();
+    reinterpret_cast<CPartyTelePort*>(&m_pad1ad0)->~CPartyTelePort();
+    reinterpret_cast<Secu_HackLogCheckByParty*>(&m_padSecu)->~Secu_HackLogCheckByParty();
+    reinterpret_cast<MapII*>(&m_padMap)->~MapII();
+    reinterpret_cast<GameResultSet*>(&m_padResult)->~GameResultSet();
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->~CBattle_Field();
+    reinterpret_cast<BattleData*>(&m_padBattleData)->~BattleData();
+    reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->~SECRET_SHOP_DATA();
     reinterpret_cast<CTraceMobDieHack*>(&m_pad210)->~CTraceMobDieHack();
 }
 
@@ -517,17 +422,17 @@ void* CParty::GetSecretShopData()
 
 void CParty::checkBossRoom()
 {
-    sub_CBattle_Field_check_end_point(&m_padBattleField1);
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_end_point();
 }
 
 void CParty::checkStartRoom()
 {
-    sub_CBattle_Field_check_start_point(&m_padBattleField1);
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->check_start_point();
 }
 
 void CParty::DeleteDungeonDropItem(int idx)
 {
-    sub_CBattle_Field_pickup_item(&m_padBattleField1, idx);
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->pickup_item(idx);
 }
 
 int CParty::get_quick_party_index()
@@ -728,8 +633,8 @@ void CParty::init()
     {
         if (_checkValidUser(i) != 1)
             continue;
-        sub_CHackAnalyzer_reportHackInfo(m_member[i].m_pUser->getHackAnalyzer());
-        sub_CHackAnalyzer_resetHackInfo(m_member[i].m_pUser->getHackAnalyzer());
+        m_member[i].m_pUser->getHackAnalyzer()->reportHackInfo();
+        m_member[i].m_pUser->getHackAnalyzer()->resetHackInfo();
     }
     m_memberLevelGap = -1;
     m_recvResultFlag = 0;
@@ -755,17 +660,16 @@ void CParty::init()
     for (int i = 0; i <= 1; ++i)
         for (int j = 0; j <= 3; ++j)
             m_field1e4[i][j] = 0;
-    sub_BattleData_SetHellPartyValueTotal(
-        &m_padBattleData,
-        *(int*)((char*)sub_CDataManager_get_hellparty_script_values(sub_G_CDataManager()) + 8));
-    sub_CBattle_Field_reset_hell_party_value(&m_padBattleField1);
-    sub_BattleData_Reset(&m_padBattleData);
-    sub_CBattle_Field_reset_field(&m_padBattleField1);
+    reinterpret_cast<BattleData*>(&m_padBattleData)->SetHellPartyValueTotal(
+        *(int*)((char*)G_CDataManager()->get_hellparty_script_values() + 8));
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_hell_party_value();
+    reinterpret_cast<BattleData*>(&m_padBattleData)->Reset();
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
     reinterpret_cast<CPartyResultRecvFlag*>(&m_pad1dc)->Clear();
     m_usedCoinCount = 0;
     m_hellWorldMap = 0;
     m_straightVictories = 0;
-    sub_SECRET_SHOP_DATA_clear(&m_padShop);
+    reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->clear();
     ResetPremiumGoldCardParty();
     ResetPremiumGoldCardDefaultItem();
     m_weekendEvent = 0;
@@ -785,14 +689,14 @@ void CParty::destroy()
         packet.put_short(GetPartyIndex());
         packet.put_byte(3);
         packet.finalize(true);
-        sub_CUser_SendPacket(m_manager, 1, &packet);
+        m_manager->SendPacket((CUser::eSendTarget)1, packet);
     }
     else
     {
-        sub_GameWorld_send_party_info_to_all(sub_G_GameWorld(), this, 3);
+        G_GameWorld()->send_party_info_to_all(this, 3);
     }
     init();
-    sub_CGameManager_PutParty(sub_G_CGameManager(), this);
+    G_CGameManager()->PutParty(this);
     m_usedCoinCount = 0;
 }
 
@@ -807,9 +711,8 @@ void CParty::SetEPLPState(char state)
             {
                 if (_checkValidUser(i) != 1)
                     continue;
-                int idx = sub_CDungeon_get_index(m_dungeon);
-                sub_CDungeonEntranceLog_DecrementDungeonEntrance(
-                    sub_GetInstanceDungeonEntranceLog(), idx, false);
+                int idx = m_dungeon->get_index();
+                GetInstanceDungeonEntranceLog()->DecrementDungeonEntrance(idx, false);
             }
         }
     }
@@ -929,8 +832,8 @@ void CParty::battle_data_reset()
     {
         if (_checkValidUser(i) != 1)
             continue;
-        sub_CHackAnalyzer_reportHackInfo(m_member[i].m_pUser->getHackAnalyzer());
-        sub_CHackAnalyzer_resetHackInfo(m_member[i].m_pUser->getHackAnalyzer());
+        m_member[i].m_pUser->getHackAnalyzer()->reportHackInfo();
+        m_member[i].m_pUser->getHackAnalyzer()->resetHackInfo();
     }
     for (int i = 0; i <= 3; ++i)
     {
@@ -942,22 +845,22 @@ void CParty::battle_data_reset()
         m_member[i].m_pUser->set_charac_fatigue_buf_bonus_exp(0);
         m_member[i].m_pUser->set_charac_seria_buf_bonus_exp(0);
     }
-    sub_BattleData_Reset(&m_padBattleData);
-    sub_CBattle_Field_reset_field(&m_padBattleField1);
+    reinterpret_cast<BattleData*>(&m_padBattleData)->Reset();
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->reset_field();
     m_state = 1;
     SetEPLPState(0);
     SetSelectedEPLPCmd(-1);
     m_dungeonClearState = 0;
     m_memberLevelGap = -1;
-    sub_std_map_Ii_clear(&m_padMap);
-    sub_SECRET_SHOP_DATA_clear(&m_padShop);
+    reinterpret_cast<MapII*>(&m_padMap)->clear();
+    reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(&m_padShop)->clear();
     SetEndRouting();
     ResetPremiumGoldCardParty();
     ResetPremiumGoldCardDefaultItem();
     m_tournamentDungeonClearState = 0;
     init_quick_party_data();
     m_dungeonMapSaving = 0;
-    sub_std_vector_MapInfo_clear(&m_padPassedMap);
+    reinterpret_cast<MapInfoVec*>(&m_padPassedMap)->clear();
 }
 
 // CParty::isHelpAbuseParty 依赖的 send_host_info @ 0x859cdd2。
@@ -1123,10 +1026,10 @@ int CParty::checkInoutConditionDungeon()
     for (int i = 0; i < 4; ++i)
     {
         CUser* u = get_user(i);
-        if (u == 0 || (char)sub_CDungeon_get_blood_dungeon_type(m_dungeon) > 0)
+        if (u == 0 || (char)m_dungeon->get_blood_dungeon_type() > 0)
             continue;
-        if (sub_CUser_getCurCharacTotalFatigue(u) ==
-            sub_CUser_getCurCharacTotalMaxFatigue(u))
+        if (u->getCurCharacTotalFatigue() ==
+            u->getCurCharacTotalMaxFatigue())
             return 1;
     }
     unsigned char flag = 0;
@@ -1135,26 +1038,24 @@ int CParty::checkInoutConditionDungeon()
     memset(items, 0, sizeof(items));
     if (CheckEnterAncientDungeon(m_dungeon, flag, items, param) == 1)
     {
-        int r = sub_CParty_CheckEnterDimensionDungeon(this, m_dungeon);
+        int r = CheckEnterDimensionDungeon(m_dungeon);
         if (r == 0xab || r == 0xad)
             return 4;
-        r = sub_CParty_check_dungeon_start(this, m_dungeon);
+        r = check_dungeon_start(m_dungeon);
         if (!(r != 10 && (r < 10 || 4 < r - 0xf3u)))
             return 7;
-        if (sub_CParty_CheckEnterVillageAttackRevenge(this, m_dungeon) != 0)
+        if (CheckEnterVillageAttackRevenge(m_dungeon) != 0)
             return 7;
-        void* worldMap = 0;
-        int worldIdx = sub_GameWorld_GetWorldMapIndex(
-            sub_G_GameWorld(), m_manager);
+        CWorldMap* worldMap = 0;
+        int worldIdx = G_GameWorld()->GetWorldMapIndex(m_manager);
         if (worldIdx > 0)
         {
-            worldMap = sub_CWorldMapList_find_world_map(
-                (char*)sub_G_CDataManager() + 0x8780, worldIdx);
+            worldMap = G_CDataManager()->m_worldMapList.find_world_map(worldIdx);
         }
         bool hellDun = false;
         if ((worldMap != 0 &&
-             sub_CWorldMap_IsInHellDungeon(worldMap) != 0 &&
-             sub_CBattle_Field_IsEnableHellDungeon() != 0) &&
+             worldMap->IsInHellDungeon() != 0 &&
+             reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->IsEnableHellDungeon() != 0) &&
             *(int*)((char*)this + 0xcd4) == 1)
         {
             hellDun = true;
@@ -1162,8 +1063,8 @@ int CParty::checkInoutConditionDungeon()
         if (hellDun)
         {
             std::vector<int> vec;
-            int sealR = sub_CParty_CheckDestroyConditionSealDoor(
-                this, m_dungeon, &vec, (char*)worldMap + 0x34);
+            int sealR = CheckDestroyConditionSealDoor(
+                m_dungeon, vec, worldMap->m_field34);
             if (sealR == 1)
                 *(char*)((char*)this + 0x1865) = 1;   // ORIG +0x1865
             else
@@ -1173,13 +1074,13 @@ int CParty::checkInoutConditionDungeon()
         }
         bool noFat = true;
         if (m_partyType == 1 ||
-            (worldMap != 0 && sub_CWorldMap_hasDeathTower(worldMap) == 1) ||
-            sub_CDungeon_isNoFatigueDungeon(m_dungeon) == 1 ||
+            (worldMap != 0 && worldMap->hasDeathTower() == 1) ||
+            m_dungeon->isNoFatigueDungeon() == 1 ||
             m_dungeon->m_800 == 1)
         {
             noFat = false;
         }
-        if (noFat && sub_CParty_CheckMemberFatigue(this) > 0)
+        if (noFat && CheckMemberFatigue() > 0)
             return 1;
         return 9;
     }
@@ -1230,8 +1131,7 @@ int CParty::checkDugeonInoutTime(int dungeonIndex)
             m_member[i].m_pUser->isGMUser())
             return 1;
     }
-    ServerParameterScript* sps =
-        (ServerParameterScript*)((char*)sub_G_CDataManager() + 0x68);
+    ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
     return sps->isDungeonOpen(dungeonIndex) ? 1 : 0;
 }
 
@@ -1244,8 +1144,7 @@ int CParty::get_blood_dungeon_admission_fee(CUser* user)
     int enterCount =
         *(int*)((char*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)1) + 0x18);
     int level = user->get_charac_level();
-    ServerParameterScript* sps =
-        (ServerParameterScript*)((char*)sub_G_CDataManager() + 0x68);
+    ServerParameterScript* sps = &G_CDataManager()->m_serverParameter;
     int price = sps->GetPriceAverage(level);
     int inc = sps->GetAdmissionIncrease(enterCount);
     int lotto = sps->GetLottoCost();
@@ -1272,9 +1171,9 @@ int CParty::check_dungeon_start(CDungeon const* dungeon)
     {
         if (checkDugeonInoutTime(dungeon->get_index()) != 1)
             return 0xf4;
-        if (sub_CPowerManager_IsPowerWarEventOn())
+        if (GlobalData::s_power_manager->IsPowerWarEventOn())
             return 0xf6;
-        if (sub_village_OnEvent(GlobalData_s_villageMonsterMgr))
+        if (GlobalData::s_villageMonsterMgr->OnEvent())
             return 0xf7;
         int memberCount = get_member_count();
         if (dungeon->get_limit_party_count() < memberCount)
@@ -1332,7 +1231,7 @@ int CParty::CheckEnterVillageAttackRevenge(CDungeon const* dungeon)
     if (dungeon->m_87a == 0)
         return 0;
     int memberCount = get_member_count();
-    if (!sub_CRevengeDungeon_IsOpenRevengeDungeon(GlobalData_s_revengeDungeonMgr))
+    if (!GlobalData::s_revengeDungeonMgr->IsOpenRevengeDungeon())
         return 0x15;
     if (dungeon->m_879 < memberCount || memberCount < dungeon->m_878)
         return 0xab;
@@ -1357,10 +1256,9 @@ bool CParty::CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool del)
 {
     if (m_hellWorldMap == 0)
     {
-        int worldIdx = sub_GameWorld_GetWorldMapIndex(sub_G_GameWorld(), user);
+        int worldIdx = G_GameWorld()->GetWorldMapIndex(user);
         if (0 < worldIdx)
-            m_hellWorldMap = (CWorldMap*)sub_CWorldMapList_find_world_map(
-                (char*)sub_G_CDataManager() + 0x8780, worldIdx);
+            m_hellWorldMap = G_CDataManager()->m_worldMapList.find_world_map(worldIdx);
         if (m_hellWorldMap == 0)
             return false;
     }
@@ -1705,7 +1603,7 @@ bool CParty::_checkValidUser(int idx)
     if (m_member[idx].m_pUser != 0)
     {
         if ((int)m_member[idx].m_pUser->GetUID() == m_member[idx].m_field8 &&
-            sub_CUserCharacInfo_getCurCharacR(m_member[idx].m_pUser) != 0)
+            reinterpret_cast<CUserCharacInfo*>(m_member[idx].m_pUser)->getCurCharacR() != 0)
         {
             return 1;
         }
@@ -1714,8 +1612,8 @@ bool CParty::_checkValidUser(int idx)
         int pIndex = m_partyIndex;
         unsigned short dungIndex = m_dungIndex;
         CUser* manager = m_manager;
-        sub_cMyTrace_ctor(log1, "bool CParty::_checkValidUser(int)", 0x37cf, 5);
-        sub_cMyTrace_call(log1,
+        new (log1) cMyTrace("bool CParty::_checkValidUser(int)", 0x37cf, 5);
+        (*reinterpret_cast<cMyTrace*>(log1))(
             "[PARTYPOOL] m_pManager : %x, dungeon_idx : %u, m_iIndex : %u, cState : %d",
             manager, (unsigned int)dungIndex, pIndex, cState);
         for (int i = 0; i <= 3; ++i)
@@ -1723,8 +1621,8 @@ bool CParty::_checkValidUser(int idx)
             if (m_member[i].m_pUser == 0)
             {
                 char log2[16];
-                sub_cMyTrace_ctor(log2, "bool CParty::_checkValidUser(int)", 0x37e5, 5);
-                sub_cMyTrace_call(log2, "User[%d] NULL uid : %d", i, m_member[i].m_field8);
+                new (log2) cMyTrace("bool CParty::_checkValidUser(int)", 0x37e5, 5);
+                (*reinterpret_cast<cMyTrace*>(log2))("User[%d] NULL uid : %d", i, m_member[i].m_field8);
             }
             else
             {
@@ -1734,8 +1632,8 @@ bool CParty::_checkValidUser(int idx)
                 int uid = (int)m_member[i].m_pUser->GetUID();
                 int chState = m_member[i].m_pUser->get_state();
                 CUser* user = m_member[i].m_pUser;
-                sub_cMyTrace_ctor(log3, "bool CParty::_checkValidUser(int)", 0x37da, 5);
-                sub_cMyTrace_call(log3,
+                new (log3) cMyTrace("bool CParty::_checkValidUser(int)", 0x37da, 5);
+                (*reinterpret_cast<cMyTrace*>(log3))(
                     "User[%d] %x, ch_state %d, uid : %d / %d, charac_no : %u",
                     i, user, chState, uid, uid2, characNo);
             }
@@ -1744,8 +1642,8 @@ bool CParty::_checkValidUser(int idx)
         int uid = (int)m_member[idx].m_pUser->GetUID();
         unsigned int accId = m_member[idx].m_pUser->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
-        sub_cMyTrace_ctor(log4, "bool CParty::_checkValidUser(int)", 0x37ed, 5);
-        sub_cMyTrace_call(log4, "User missmatched in party (m_id: %s)(uid: %d)", accIdStr, uid);
+        new (log4) cMyTrace("bool CParty::_checkValidUser(int)", 0x37ed, 5);
+        (*reinterpret_cast<cMyTrace*>(log4))("User missmatched in party (m_id: %s)(uid: %d)", accIdStr, uid);
         m_member[idx].m_pUser->DisConnSig((DISCONN_SIG)0x17, false, 0);
         m_member[idx].Init();
     }
@@ -1848,7 +1746,7 @@ void CParty::Reset_party_overlapped_drop_ratio()
 }
 void CParty::ReturnToVillage()
 {
-    sub_CBattle_Field_setBloodState(&m_padBattleField1, 0);
+    reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->setBloodState((ENUM_BLOOD_STATE)0);
     PacketGuard packet;
     packet.put_header(0, 2);
     if (m_autoCreated == 0)
@@ -1865,7 +1763,7 @@ void CParty::ReturnToVillage()
                 if (m_dungeon != 0)
                 {
                     int pt = m_partyType;
-                    int diff = sub_CBattle_Field_get_dungeon_diff(&m_padBattleField1);
+                    int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff();
                     const char* dn = m_dungeon->GetDungeonName();
                     m_member[i].m_pUser->m_historyLog.LeaveDungeon(dn, diff, names, pt);
                 }
@@ -1888,12 +1786,12 @@ void CParty::ReturnToVillage()
                     }
                 }
                 CUser* u = m_member[i].m_pUser;
-                sub_GameWorld_out_from_dungeon(sub_G_GameWorld(), u);
-                sub_CUser_make_basic_info(m_member[i].m_pUser, &packet, 0);
+                G_GameWorld()->out_from_dungeon(u);
+                m_member[i].m_pUser->make_basic_info((char*)&packet, 0);
             }
         }
         set_state(1);
-        sub_CParty_battle_data_reset(this);
+        battle_data_reset();
         packet.finalize(true);
         if (IsExistInvisible())
         {
@@ -1901,7 +1799,7 @@ void CParty::ReturnToVillage()
         }
         else
         {
-            sub_GameWorld_send_all(sub_G_GameWorld(), &packet);
+            G_GameWorld()->send_all(packet);
         }
     }
     else
@@ -1912,7 +1810,7 @@ void CParty::ReturnToVillage()
             memset(names2, 0, 0x100);
             int pt = m_partyType;
             char* n = _getMemberNames(names2);
-            int diff = sub_CBattle_Field_get_dungeon_diff(&m_padBattleField1);
+            int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff();
             const char* dn = m_dungeon->GetDungeonName();
             m_manager->m_historyLog.LeaveDungeon(dn, diff, n, pt);
             bool b;
@@ -1932,7 +1830,7 @@ void CParty::ReturnToVillage()
             }
         }
         CUser* mgr2 = m_manager;
-        sub_GameWorld_out_from_dungeon(sub_G_GameWorld(), mgr2);
+        G_GameWorld()->out_from_dungeon(mgr2);
         packet.put_byte(0);
         packet.put_short(1);
         short partyIdx = m_manager->GetPartyIndex();
@@ -1940,8 +1838,8 @@ void CParty::ReturnToVillage()
         unsigned int accId = m_manager->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
         char log[16];
-        sub_cMyTrace_ctor(log, "void CParty::ReturnToVillage()", 0x2714, 0);
-        sub_cMyTrace_call(log,
+        new (log) cMyTrace("void CParty::ReturnToVillage()", 0x2714, 0);
+        (*reinterpret_cast<cMyTrace*>(log))(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
             accIdStr, userState, (int)partyIdx);
         m_manager->SetPartyIndex(-1);
@@ -1949,7 +1847,7 @@ void CParty::ReturnToVillage()
         {
             m_manager->set_state(ch_state3);
         }
-        sub_CUser_make_basic_info(m_manager, &packet, 0);
+        m_manager->make_basic_info((char*)&packet, 0);
         destroy();
         packet.finalize(true);
         CUser* gm = getManager();
@@ -1959,7 +1857,7 @@ void CParty::ReturnToVillage()
         }
         else
         {
-            sub_GameWorld_send_all(sub_G_GameWorld(), &packet);
+            G_GameWorld()->send_all(packet);
         }
     }
     SetEPLPState(0);
@@ -1974,10 +1872,10 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
         return 1;
     }
     ((CPartyTelePort*)GetPartyTelePort())->process_leave_user_at_teleport(user);
-    if (sub_SECRET_SHOP_DATA_IsOpen(GetSecretShopData()))
+    if (reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(GetSecretShopData())->IsOpen())
     {
-        int pos = sub_CUser_GetUserPosInParty(user);
-        sub_SECRET_SHOP_DATA_SetBuying(GetSecretShopData(), pos, false);
+        int pos = user->GetUserPosInParty();
+        reinterpret_cast<secretshop::SECRET_SHOP_DATA*>(GetSecretShopData())->SetBuying(pos, false);
     }
     if (m_dungeon != 0)
     {
@@ -1985,7 +1883,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
         memset(names, 0, 0x100);
         int partyType = m_partyType;
         char* memberNames = _getMemberNames(names);
-        int diff = sub_CBattle_Field_get_dungeon_diff(&m_padBattleField1);
+        int diff = reinterpret_cast<CBattle_Field*>(&m_padBattleField1)->get_dungeon_diff();
         const char* dname = m_dungeon->GetDungeonName();
         user->m_historyLog.LeaveDungeon(dname, diff, memberNames, partyType);
         bool b;
@@ -2004,7 +1902,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
     }
     if (get_quick_party_index() != -1)
     {
-        sub_CGameManager_CheckOutQuickParty(sub_G_CGameManager(), this, false);
+        G_CGameManager()->CheckOutQuickParty(this, false);
     }
     if (is_quick_party())
     {
@@ -2022,8 +1920,8 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
         unsigned int accId = user->get_acc_id();
         char* accIdStr = NumberToString(accId, 0);
         char log[16];
-        sub_cMyTrace_ctor(log, "int CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE)", 0x5b8, 0);
-        sub_cMyTrace_call(log,
+        new (log) cMyTrace("int CParty::leave_user(CUser*, ENUM_PARTY_INFO_TYPE)", 0x5b8, 0);
+        (*reinterpret_cast<cMyTrace*>(log))(
             "<IN_DUNGEON_NULL_PARTY> m_id(%s), user_state(%d), PartyIndex(%d)",
             accIdStr, userState, (int)partyIdx);
         if (count < 1)
@@ -2077,7 +1975,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
         if (m_manager == user)
         {
             change_manager();
-            sub_GameWorld_send_party_info_to_all(sub_G_GameWorld(), this, (int)type);
+            G_GameWorld()->send_party_info_to_all(this, (int)type);
             send_party_realtime_info();
             sendInoutConditionDungeon((RetryFailReason::T)checkInoutConditionDungeon());
             return 0;
@@ -2101,7 +1999,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
                     {
                         user->set_state(ch_state3);
                     }
-                    sub_GameWorld_send_party_info_to_all(sub_G_GameWorld(), this, (int)type);
+                    G_GameWorld()->send_party_info_to_all(this, (int)type);
                     send_party_realtime_info();
                     sendInoutConditionDungeon((RetryFailReason::T)checkInoutConditionDungeon());
                     return 0;
@@ -2113,7 +2011,7 @@ int CParty::leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type)
 }
 bool CParty::IsEventCharacParty()
 {
-    void* reward = sub_CEventManager_GetRepeatEvent(GlobalData_s_event_manager, 0xa2);
+    CEventBase* reward = GlobalData::s_event_manager->GetRepeatEvent(0xa2);
     bool b;
     if (reward == 0)
     {
@@ -2139,7 +2037,7 @@ bool CParty::IsEventCharacParty()
         else
         {
             int job = m_member[i].m_pUser->get_charac_job();
-            b = sub_EventNewCharacterReward_isEventCharacter(reward, job) != 0;
+            b = reinterpret_cast<EventNewCharacterReward*>(reward)->isEventCharacter(job) != 0;
         }
         if (b)
         {
@@ -2220,10 +2118,10 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
                 int slot2 = param[i];
                 int characNo = m_member[i].m_pUser->getCurCharacNo();
                 char log[16];
-                sub_cMyTrace_ctor(log,
+                new (log) cMyTrace(
                     "bool CParty::UseAncientDungeonItems(const CDungeon*, Inven_Item*, int*)",
                     0xa60, 5);
-                sub_cMyTrace_call(log,
+                (*reinterpret_cast<cMyTrace*>(log))(
                     "CParty::UseAncientDungeonItems, delete_item failed , User ch=%d , %d %d",
                     characNo, slot2, itemIdx2);
                 return 0;
@@ -2253,7 +2151,7 @@ bool CParty::UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* items, 
             packet.put_packet(items[i]);
             packet.finalize(true);
             m_member[i].m_pUser->Send(packet);
-            sub_CUser_SaveInventory(m_member[i].m_pUser);
+            m_member[i].m_pUser->SaveInventory();
         }
     }
     return 1;

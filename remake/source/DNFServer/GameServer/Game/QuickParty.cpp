@@ -22,6 +22,6 @@ CQuickPartySystemManager::CQuickPartySystemManager() {}
 CQuickPartySystemManager::~CQuickPartySystemManager() {}
 
 void CQuickPartySystemManager::init_quick_party_pool(const CDungeon*) {}
-void CQuickPartySystemManager::cancel_quick_party(CParty*, bool, CUser*) {}
+int CQuickPartySystemManager::cancel_quick_party(CParty*, bool, CUser*) { return 0; }
 
 }  // namespace QuickParty

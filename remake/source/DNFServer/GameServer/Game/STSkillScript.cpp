@@ -4,20 +4,15 @@
 // ORIG 反汇编：Clear 0x083750b4 / ctor 0x08375642 / dtor 0x0837a0fa，
 // 嵌套类 SkillUseItem/SkillLevelFeature/STPassiveFeatureData/STKeyCommand
 // 见 0x08a9b118 / 0x08a9b164 / 0x08a9b256 / 0x083660ec）。
-// 脚本解析函数（loadRDARScriptFile/ScanType/ScanInt/ScanFloat）经 asm-label
-// extern 调用真实符号。
+// 脚本解析函数（loadRDARScriptFile/ScanType/ScanInt/ScanFloat）经
+// DNFLexWrapper.h 权威声明调用真实符号。
 // ============================================================================
 
 #include "STSkillScript.h"
 
 #include <string.h>
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-extern "C" float sub_ScanFloat(float* out) asm("_Z9ScanFloatPf");
+#include "DNFLexWrapper.h"
 
 // ===================== 嵌套结构 =====================
 
@@ -223,7 +218,7 @@ void STSkillScript::Clear()
 int ImportSkillScript(STSkillScript* script, const char* path,
                       int job, int a, int b)
 {
-    if (!sub_loadRDARScriptFile("Script/SkillScript", path))
+    if (!loadRDARScriptFile("Script/SkillScript", path))
     {
         return 0;
     }
@@ -236,56 +231,56 @@ int ImportSkillScript(STSkillScript* script, const char* path,
     (void)a;
     (void)b;
 
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_field0 = 0;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_str4 = line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_str8 = line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_strc = line;
 
     int value = 0;
-    while (sub_ScanType(line, true))
+    while (ScanType(line, true))
     {
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             break;
         }
         script->m_14 = value;
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             break;
         }
         script->m_30 = value;
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             break;
         }
         script->m_34 = value;
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             break;
         }
         script->m_38 = value;
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             break;
         }
         script->m_3c = value;
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             break;
         }

@@ -11,12 +11,13 @@
 //                      suffleTrainingQuests 0x08aafcbc / getTrainingQuest 0x08aafb44
 //                      getApplyLevel 0x08aaf8b6
 // 解析辅助（loadRDARScriptFile/ScanType/ScanInt/loadRDARScriptListFile）经
-// asm-label extern 调用真实符号。
+// DNFLexWrapper.h 权威声明调用真实符号。
 // ============================================================================
 
 #include "STQuestScript.h"
 
 #include <algorithm>
+#include <map>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,15 +25,14 @@
 
 #include "Quest.h"
 
-extern "C" bool sub_loadRDARScriptFile(const char* dir, const char* path)
-    asm("_Z18loadRDARScriptFilePKcS0_");
-extern "C" bool sub_ScanType(std::string& line, bool value)
-    asm("_Z8ScanTypeRSsb");
-extern "C" int sub_ScanInt(int* out) asm("_Z7ScanIntPi");
-extern "C" bool sub_loadRDARScriptListFile(void* list, const char* dir,
-                                           const char* listPath,
-                                           void* map)
-    asm("_Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE");
+#include "DNFLexWrapper.h"
+
+// loadRDARScriptListFile 定义于 STScriptFileList.cpp（ORIG T 0x088bbd77，
+// mangled _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIiiSt4lessIiESaISt4pairIKiiEEE）。
+// STScriptFileList 无权威头，此处仅前置声明 + 正常 C++ 自由函数声明（非 asm 桥）。
+class STScriptFileList;
+int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                           const char* listPath, std::map<int, int>* map);
 
 // ---- ORIG 全局脚本文件列表缓冲（initQuestScript/initTownScript 使用） ----
 static char g_questScriptDir[0x100];   // ORIG 0x9500380
@@ -496,7 +496,7 @@ int initQuestScript(const char* dir, const char* list)
 {
     strncpy(g_questScriptDir, dir, 0x100);
     AppendDirSlash(g_questScriptDir);
-    if (!sub_loadRDARScriptListFile(0, g_questScriptDir, list, 0))
+    if (!loadRDARScriptListFile(0, g_questScriptDir, list, 0))
     {
         return 0;
     }
@@ -505,54 +505,54 @@ int initQuestScript(const char* dir, const char* list)
 
 int importQuestScript(QuestScript* script, const char* path)
 {
-    if (!sub_loadRDARScriptFile("Script/QuestScript", path))
+    if (!loadRDARScriptFile("Script/QuestScript", path))
     {
         return 0;
     }
     script->clear();
 
     std::string line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     int value = 0;
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return 0;
     }
     script->m_questIdx = value;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_name = line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_requestDefault = line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_conditionDefault = line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
     script->m_solveDefault = line;
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return 0;
     }
     script->m_npcIdx = value;
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return 0;
     }
     script->m_levelMin = value;
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return 0;
     }
@@ -564,7 +564,7 @@ int initTownScript(char* dir, char* list)
 {
     strncpy(g_townScriptDir, dir, 0x100);
     AppendDirSlash(g_townScriptDir);
-    if (!sub_loadRDARScriptListFile(0, g_townScriptDir, list, 0))
+    if (!loadRDARScriptListFile(0, g_townScriptDir, list, 0))
     {
         return 0;
     }
@@ -573,30 +573,30 @@ int initTownScript(char* dir, char* list)
 
 bool importTownScript(TownScript* script, const char* path)
 {
-    if (!sub_loadRDARScriptFile("Script/TownScript", path))
+    if (!loadRDARScriptFile("Script/TownScript", path))
     {
         return false;
     }
     script->clear();
 
     std::string line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return false;
     }
     script->m_field0 = 0;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return false;
     }
     script->m_str4 = line;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return false;
     }
     script->m_str8 = line;
     int value = 0;
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return false;
     }
@@ -606,7 +606,7 @@ bool importTownScript(TownScript* script, const char* path)
 
 int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
 {
-    if (!sub_loadRDARScriptFile("Script/TrainingQuestScript", path))
+    if (!loadRDARScriptFile("Script/TrainingQuestScript", path))
     {
         return 0;
     }
@@ -614,22 +614,22 @@ int importTrainingQuestScript(TrainingQuestScript* script, const char* path)
 
     std::string line;
     int value = 0;
-    if (!sub_ScanType(line, true))
+    if (!ScanType(line, true))
     {
         return 0;
     }
-    if (!sub_ScanInt(&value))
+    if (!ScanInt(&value))
     {
         return 0;
     }
     script->m_selectProb.m_count = value;
     for (int i = 0; i < script->m_selectProb.m_count && i < 365; ++i)
     {
-        if (!sub_ScanType(line, true))
+        if (!ScanType(line, true))
         {
             return 0;
         }
-        if (!sub_ScanInt(&value))
+        if (!ScanInt(&value))
         {
             return 0;
         }

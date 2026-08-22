@@ -283,18 +283,9 @@ CSyncScript* GetInstanceSyncScript();
 
 }  // namespace sync_script
 
-// ---- 外部真实符号（asm-label） ----
-extern "C" void* sub_G_CDataManager() asm("_Z14G_CDataManagerv");
-extern "C" std::string sub_RandomOptionPrefix(void* self, int prefix,
-                                              int grade, bool flag)
-    asm("_ZN18RandomOptionScript9getPrefixEiib");
-extern "C" bool sub_APSystem_InsertDescTable()
-    asm("_ZN8APSystem11CSyncScript15InsertDescTableEv");
-extern "C" bool sub_APSystem_TruncateDescTable()
-    asm("_ZN8APSystem11CSyncScript17TruncateDescTableEv");
-extern "C" bool sub_advancealtar_InsertItemDescTable()
-    asm("_ZN12advancealtar10SyncScript19insertItemDescTableEv");
-extern "C" bool sub_advancealtar_TruncateItemDescTable()
-    asm("_ZN12advancealtar10SyncScript21truncateItemDescTableEv");
+// ---- 外部真实符号（统一声明点：SyncScriptDeps.h；G_CDataManager/RandomOptionScript
+//      由 sync_script.cpp 按需声明，避免把 CItemList.h 链（STEquipmentScript.h 等）
+//      拉入本头与本地镜像冲突） ----
+#include "SyncScriptDeps.h"
 
 #endif  // GAME_SYNC_SCRIPT_H_

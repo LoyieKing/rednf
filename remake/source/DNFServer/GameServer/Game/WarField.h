@@ -102,6 +102,14 @@ struct stMapMonsterKillChecker_t
     int m_field10;                         // +0x10
     int m_field14;                         // +0x14
     void init();                           // ORIG 081512ec
+    void initMonsterInfo();                // ORIG W 0x830e71c
+    void setUseSkillMaterial(unsigned int tick);   // ORIG W 0x830e72c
+    unsigned int getUseSkillMaterialTime() const;  // ORIG W 0x830e78c
+    int getUseSkillMaterialCount() const;          // ORIG W 0x822cb86
+    int dieMonster(unsigned int tick, unsigned int limit);       // ORIG W 0x830e748
+    void setLastMobDieTime(unsigned int tick);     // ORIG W 0x830e796
+    int checkLongTermMobDie(unsigned int tick, unsigned int limit);  // ORIG W 0x830e7a4
+    void setUncontinuallyMobDieCnt(unsigned int cnt);      // ORIG W 0x830e7dc
 };
 
 // 4 个 int（0x10 字节）
@@ -112,6 +120,7 @@ struct stMapPlayInfo_t
     int m_useItemType2Count;    // +0x08
     int m_useItemOtherCount;    // +0x0c
     void init();               // ORIG 0815132c
+    unsigned int getPlayTick() const;  // ORIG W 0x830e7ea
 };
 // ---- MapInfo（0xec 字节；ctor 08151394） ----
 struct MapInfo

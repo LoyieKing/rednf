@@ -31,18 +31,9 @@ public:
 // ============================================================================
 // 本 TU 需要而其它 TU 提供的符号（ORIG 真实符号，形态按 mangled 名转录）
 // ============================================================================
+// CUser::GetPVPRoom / cUserHistoryLog::pvpMissionAdd/pvpMissionDel 均已在
+// CUser.h 权威声明，直接真实调用（原 extern "C" asm 桥已删除）。
 
-extern "C" int sub_CDataManager_GetPvPChannelType(void* self)
-    asm("_ZN12CDataManager17GetPvPChannelTypeEv");
-extern "C" void* sub_CUser_GetPVPRoom(void* self)
-    asm("_ZN5CUser10GetPVPRoomEv");
-extern "C" void sub_cUserHistoryLog_pvpMissionAdd(void* self, int kind,
-                                                  int index, int count,
-                                                  int streak)
-    asm("_ZN15cUserHistoryLog13pvpMissionAddEiiii");
-extern "C" void sub_cUserHistoryLog_pvpMissionDel(void* self, int kind,
-                                                  int index)
-    asm("_ZN15cUserHistoryLog13pvpMissionDelEii");
 
 // 全局辅助（数据域 TU）：bitset <-> 存档字节串、每日排程判定
 // ORIG 0x8a5a989：逐字节/位转换
@@ -348,7 +339,7 @@ void CMissionList_Charac::Update_RecvPacket_event(
         (getIndex_byKind(0x1b) == 0))
     {
         alter();
-        PvP_Room* room = (PvP_Room*)sub_CUser_GetPVPRoom(&user);
+        PvP_Room* room = (PvP_Room*)user.GetPVPRoom();
         if (room)
         {
             MissionClearCondition_Parameter param(
@@ -569,8 +560,8 @@ void CMissionList_Charac::addNewMission(const MissionInfo& info)
         m_missionList[info.m_kind].m_streak = info.m_streak;
         if (m_user)
         {
-            sub_cUserHistoryLog_pvpMissionAdd(
-                &m_user->m_historyLog, (int)info.m_kind, (int)info.m_index,
+            m_user->m_historyLog.pvpMissionAdd(
+                (int)info.m_kind, (int)info.m_index,
                 (int)info.m_count, (int)info.m_streak);
         }
     }
@@ -582,8 +573,7 @@ void CMissionList_Charac::Remove_Mission(int kind)
     {
         if (m_user)
         {
-            sub_cUserHistoryLog_pvpMissionDel(
-                &m_user->m_historyLog,
+            m_user->m_historyLog.pvpMissionDel(
                 (int)m_missionList[kind].m_kind,
                 (int)m_missionList[kind].m_index);
         }

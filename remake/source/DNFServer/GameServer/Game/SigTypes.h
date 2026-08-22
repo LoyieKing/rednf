@@ -1007,7 +1007,7 @@ struct MSG_STAT_BREAKJAR { char m_pad[0x100]; };
 struct MSG_STAT_COMPOSITON { char m_pad[0x100]; };
 struct MSG_STAT_DUNGEONCLEAR { char m_pad[0x100]; };
 struct MSG_STAT_PVPPLAY { char m_pad[0x100]; };
-struct MSG_STAT_RANKRES { char m_pad[0x100]; };
+#include "MSG_STAT_RANKRES.h"   // 权威 MSG_STAT_RANKRES（0x6c，替换占位）
 struct Packet_Mannerless_User_Accusation { char m_pad[0x100]; };
 struct Packet_PvPResult { char m_pad[0x100]; };
 struct SIG_AVATAR_MOVE { char m_pad[0x100]; };

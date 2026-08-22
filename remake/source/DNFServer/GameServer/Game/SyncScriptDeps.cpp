@@ -14,6 +14,7 @@
 #include "DBMgr.h"
 #include "GlobalData.h"
 #include "MySQL.h"
+#include "SyncScriptDeps.h"
 
 // ==================== 全局工具 ====================
 
@@ -21,6 +22,12 @@
 const char* toMbcs(const char* src)
 {
     return src;
+}
+
+// ORIG 0x08adeab0 toTString(const std::string&)：恒等返回内部缓冲的 const char*（TCHAR*）。
+const char* toTString(const std::string& src)
+{
+    return src.c_str();
 }
 
 // ORIG 0x088be57e getCharacterJob(const char*)：
@@ -53,17 +60,8 @@ int getCharacterJob(const char* name)
 
 // ==================== APSystem::CSyncScript desc ====================
 
-namespace APSystem
-{
-class CSyncScript
-{
-public:
-    bool InsertDescTable();
-    bool TruncateDescTable();
-};
-
 // ORIG 0x0812262a：GetDBHandle(2,0) → "trUncate table charac_action_point_desc"。
-bool CSyncScript::TruncateDescTable()
+bool APSystem::CSyncScript::TruncateDescTable()
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
@@ -75,11 +73,10 @@ bool CSyncScript::TruncateDescTable()
 // INSERT charac_action_point_desc(action_index, action_group_index,
 // action_group_name)。该数据源（APSystem CActionPointEx 全局表）尚未建模，
 // 暂以空实现占位（保持符号 T）；对应 TruncateDescTable 已真实实现。
-bool CSyncScript::InsertDescTable()
+bool APSystem::CSyncScript::InsertDescTable()
 {
     return true;
 }
-}  // namespace APSystem
 
 // ==================== advancealtar::SyncScript desc ====================
 
@@ -95,27 +92,8 @@ namespace advancealtar
 {
 // BuyUpgradeData / BuyShopData 权威定义在 CDataManager.h（namespace advancealtar）。
 
-namespace AdvanceAltarShopType
-{
-enum T
-{
-    T_0 = 0,
-    T_1 = 1,
-    T_2 = 2
-};
-}
-
-class SyncScript
-{
-public:
-    bool insertItemDescTable();
-    bool truncateItemDescTable();
-
-    // ORIG 0x08134132：把 ridableId/type 下 BuyShopData 各 BuyUpgradeData
-    // 生成 "(%d,%d,%d,'%s')" 元组追加到 out（项间 ", "），全部成功返回 1。
-    static int getItemValueStirng(int ridableId, const BuyShopData& data,
-                                  AdvanceAltarShopType::T type, std::string& out);
-};
+// 注：SyncScript 类声明见 SyncScriptDeps.h；getItemValueStirng 为其 static 内部
+// 辅助（非 ORIG 独立符号，仅本 TU 使用）。
 
 // ORIG 0x08133e44：GetDBHandle(3,0) → "trUncate table charac_advance_altar_item_desc"。
 bool SyncScript::truncateItemDescTable()

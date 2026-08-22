@@ -10,25 +10,9 @@
 #include <cstdio>
 #include <cstring>
 
-class CSystemTime
-{
-public:
-    int getCurSec();
-};
-
-class CUser;
-
-// ---- CUser / CUserCharacInfo 跨类（asm-label extern，真实符号）----
-extern "C" int sub_CUser_get_guildwar_point_per_pvpplay(void* self)
-    asm("_ZN5CUser30get_guildwar_point_per_pvpplayEv");
-extern "C" void sub_CUser_set_guildwar_point_per_pvpplay(void* self, int v)
-    asm("_ZN5CUser30set_guildwar_point_per_pvpplayEi");
-extern "C" unsigned int sub_CUserCharacInfo_get_charac_guildkey(void* self)
-    asm("_ZN15CUserCharacInfo19get_charac_guildkeyEv");
-
-extern "C" void* sub_G_CEnvironment() asm("_Z14G_CEnvironmentv");
-extern "C" const char* sub_CEnvironment_get_file_name(void* self)
-    asm("_ZN12CEnvironment13get_file_nameEv");
+#include "CSystemTime.h"
+#include "CUser.h"           // CUser / CUserCharacInfo（基类，offset 0）
+#include "CEnvironment.h"    // G_CEnvironment() / get_file_name()
 
 // ---- CMyFileLog（ORIG ctor 0810786c / operator() 08107898，外部定义）----
 class CMyFileLog
@@ -130,17 +114,16 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
     {
         if (users[i] != 0)
         {
-            int point = sub_CUser_get_guildwar_point_per_pvpplay(users[i]);
+            int point = users[i]->get_guildwar_point_per_pvpplay();
             unsigned int guildKey =
-                sub_CUserCharacInfo_get_charac_guildkey(users[i]);
+                ((CUserCharacInfo*)users[i])->get_charac_guildkey();
             InsertPvPGuild(guildKey, point);
         }
     }
     memset(logBuf, 0, sizeof(logBuf));
     sprintf(logBuf, "Room_Idx:%d\tPvP_Mode:%d\tElasp_Time:%d\tG_Cnt:%d\n",
             roomIdx, (int)mode,
-            ((CSystemTime*)0x941f714)->getCurSec() - m_startTime,
-            (unsigned char)m_guildCnt);
+            GlobalData::s_systemTime_.getCurSec() - m_startTime,            (unsigned char)m_guildCnt);
     if ((unsigned char)m_guildCnt < 9)
     {
         for (j = 0; j < (unsigned char)m_guildCnt; ++j)
@@ -154,7 +137,7 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
         }
         memset(logPath, 0, sizeof(logPath));
         sprintf(logPath, "./log/%s/GuildWarResult",
-                sub_CEnvironment_get_file_name(sub_G_CEnvironment()));
+                G_CEnvironment()->get_file_name());
         CMyFileLog fileLog(
             "void PvP_GuildWar_Log::WriteGuildWarPvPLog(int, char, CUser**)",
             0x12dc);
@@ -164,7 +147,7 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
         {
             if (users[k] != 0)
             {
-                sub_CUser_set_guildwar_point_per_pvpplay(users[k], 0);
+                users[k]->set_guildwar_point_per_pvpplay(0);
             }
         }
     }

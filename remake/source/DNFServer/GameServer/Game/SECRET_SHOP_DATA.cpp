@@ -9,86 +9,33 @@
 //   （0x1c 每项）、+0x74 char m_buying[4]、+0x78..+0x87 保留区。
 //   SECRET_SHOP_INFO：+0x00 RETAILER（vector<SALE_INFO>）、+0x0c SHOPPER
 //   （vector<BUY_INFO>）、+0x18 char m_bClear。
-// RETAILER/SHOPPER 属独立批次类，其 ctor/dtor/clear/GetSaleInfo 以
-// extern asm 标签引用（ORIG 真实符号）。
+// RETAILER/SHOPPER 类声明与实现见 SECRET_SHOP_DATA.h / CSecretShop.cpp
+// （本 TU 不再定义，直接以真实 C++ 成员调用）。
+
+#include "SECRET_SHOP_DATA.h"
 
 namespace secretshop
 {
 
-class RETAILER
-{
-public:
-    char m_pad[0x0c];
-};
-
-class SHOPPER
-{
-public:
-    char m_pad[0x0c];
-};
-
-// ---- RETAILER / SHOPPER 跨类方法（ORIG 真实符号）----
-extern "C" void sub_RETAILER_ctor(void* self) asm("_ZN10secretshop8RETAILERC1Ev");
-extern "C" void sub_RETAILER_dtor(void* self) asm("_ZN10secretshop8RETAILERD1Ev");
-extern "C" void sub_RETAILER_clear(void* self) asm("_ZN10secretshop8RETAILER5clearEv");
-extern "C" void* sub_RETAILER_GetSaleInfo(void* self, int idx)
-    asm("_ZN10secretshop8RETAILER11GetSaleInfoEi");
-extern "C" void sub_SHOPPER_ctor(void* self) asm("_ZN10secretshop7SHOPPERC1Ev");
-extern "C" void sub_SHOPPER_dtor(void* self) asm("_ZN10secretshop7SHOPPERD1Ev");
-extern "C" void sub_SHOPPER_clear(void* self) asm("_ZN10secretshop7SHOPPER5clearEv");
-
-class SECRET_SHOP_INFO
-{
-public:
-    SECRET_SHOP_INFO();
-    ~SECRET_SHOP_INFO();
-    void clear();
-    void* GetSaleInfo(int idx);
-
-    RETAILER m_retailer;  // +0x00
-    SHOPPER m_shopper;    // +0x0c
-    char m_bClear;        // +0x18
-    char m_pad[3];        // +0x19
-};
-
-class SECRET_SHOP_DATA
-{
-public:
-    SECRET_SHOP_DATA();
-    ~SECRET_SHOP_DATA();
-    void clear();
-    int IsCompleteBuy();
-    int IsOpen();
-    void SetBuying(int idx, bool buy);
-
-    int m_openCode;              // +0x00
-    SECRET_SHOP_INFO m_info[4];  // +0x04
-    char m_buying[4];            // +0x74
-    char m_pad[0x10];            // +0x78..+0x87（保留区）
-};
-
 SECRET_SHOP_INFO::SECRET_SHOP_INFO()
+    : m_retailer(), m_shopper()
 {
-    sub_RETAILER_ctor(&m_retailer);
-    sub_SHOPPER_ctor(&m_shopper);
 }
 
 SECRET_SHOP_INFO::~SECRET_SHOP_INFO()
 {
-    sub_SHOPPER_dtor(&m_shopper);
-    sub_RETAILER_dtor(&m_retailer);
 }
 
 void SECRET_SHOP_INFO::clear()
 {
     m_bClear = 0;
-    sub_RETAILER_clear(&m_retailer);
-    sub_SHOPPER_clear(&m_shopper);
+    m_retailer.clear();
+    m_shopper.clear();
 }
 
-void* SECRET_SHOP_INFO::GetSaleInfo(int idx)
+SALE_INFO* SECRET_SHOP_INFO::GetSaleInfo(int idx)
 {
-    return sub_RETAILER_GetSaleInfo(&m_retailer, idx);
+    return m_retailer.GetSaleInfo(idx);
 }
 
 SECRET_SHOP_DATA::SECRET_SHOP_DATA()

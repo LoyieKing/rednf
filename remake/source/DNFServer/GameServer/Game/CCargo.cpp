@@ -16,25 +16,12 @@
 #include "GameWorld.h"
 #include "CInventory.h"
 
-// ---- 跨类符号（ORIG 真实符号，定义在其它 TU） ----
-extern "C" void sub_CUserHistoryLog_ItemDelCargo(void* log, int itemIdx,
-                                                 int count, int a,
-                                                 eItemDelReason reason)
-    asm("_ZN15cUserHistoryLog12ItemDelCargoEiii14eItemDelReason");
-extern "C" void sub_CItemLock_MakeItemLockPacket(void* self, PacketGuard& packet,
-                                                 unsigned char lock)
-    asm("_ZNK9item_lock9CItemLock18MakeItemLockPacketER11PacketGuardh");
-extern "C" void sub_CItemUpgrade_make3rdChroniclePacket(
-    void* upgradeMgr, CUser* user, const Inven_Item& item, PacketGuard* packet)
-    asm("_ZN8WongWork12CItemUpgrade22make3rdChroniclePacketEP5CUserRK10Inven_ItemP11PacketGuard");
-
-extern unsigned int GetIntegratedPvPItemAttr(const Inven_Item& item);
-extern Inven_Item g_emptySlot;
-bool checkStackableLimit(unsigned long itemIdx, int count);
-
 // ============================================================================
 // 构造 / 析构（ORIG 0x86949da / 0x86949f8，weak）
 // ============================================================================
+extern unsigned int GetIntegratedPvPItemAttr(const Inven_Item& item);
+extern Inven_Item g_emptySlot;
+bool checkStackableLimit(unsigned long itemIdx, int count);
 CCargo::CCargo()
 {
     m_pItems = 0;
@@ -296,8 +283,8 @@ int CCargo::delete_item(int idx, int count, eItemDelReason reason)
             if (cur == count || cur - count < 0)
                 return 0;
             m_pItems[idx].m_addInfo2 = cur - count;
-            sub_CUserHistoryLog_ItemDelCargo(
-                (char*)m_pParent + 0x79700, m_pItems[idx].m_addInfo, count,
+            m_pParent->m_historyLog.ItemDelCargo(
+                m_pItems[idx].m_addInfo, count,
                 m_pItems[idx].m_addInfo2, reason);
         }
     } else {
@@ -313,11 +300,10 @@ void CCargo::_ResetSlot(int idx, eItemDelReason reason)
     memcpy(&saved, &m_pItems[idx], sizeof(Inven_Item));
     m_pItems[idx].reset();
     if (saved.isEquipableItemType()) {
-        sub_CUserHistoryLog_ItemDelCargo((char*)m_pParent + 0x79700, saved.m_addInfo,
-                                         1, 0, reason);
+        m_pParent->m_historyLog.ItemDelCargo(saved.m_addInfo, 1, 0, reason);
     } else {
-        sub_CUserHistoryLog_ItemDelCargo((char*)m_pParent + 0x79700, saved.m_addInfo,
-                                         saved.m_addInfo2, 0, reason);
+        m_pParent->m_historyLog.ItemDelCargo(saved.m_addInfo,
+                                             saved.m_addInfo2, 0, reason);
     }
     --m_itemCount;
 }
@@ -481,7 +467,8 @@ void CCargo::SendItemLockList() const
             unsigned char lock = m_pItems[i].m_amp.GetLock();
             CExpandEquipslot* expand = m_pParent->GetCharacExpandDataR(
                 (ENUM_CHARAC_EXPAND_TYPE)2);
-            sub_CItemLock_MakeItemLockPacket(expand, packet, lock);
+            reinterpret_cast<item_lock::CItemLock*>(expand)->MakeItemLockPacket(
+                packet, lock);
             ++count;
         }
     }
@@ -512,9 +499,8 @@ int CCargo::MakeItemList(PacketGuard* packet) const
                 buf->put_int(0);
             buf->put_byte(m_pItems[i].m_amp.getAbilityType() & 0xff);
             buf->put_short(m_pItems[i].m_amp.getAbilityValue() & 0xffff);
-            sub_CItemUpgrade_make3rdChroniclePacket(
-                *(void**)((char*)G_CDataManager() + 0x20), m_pParent, m_pItems[i],
-                packet);
+            G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
+                m_pParent, m_pItems[i], packet);
             buf->put_packet(m_pItems[i]);
         }
     }
@@ -550,9 +536,8 @@ void CCargo::MakeItemPacket(PacketGuard* packet, int slot) const
             buf->put_int(0);
         buf->put_byte(m_pItems[slot].m_amp.getAbilityType() & 0xff);
         buf->put_short(m_pItems[slot].m_amp.getAbilityValue() & 0xffff);
-        sub_CItemUpgrade_make3rdChroniclePacket(
-            *(void**)((char*)G_CDataManager() + 0x20), m_pParent, m_pItems[slot],
-            packet);
+        G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
+            m_pParent, m_pItems[slot], packet);
         buf->put_packet(m_pItems[slot]);
     }
 }

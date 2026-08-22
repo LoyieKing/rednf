@@ -18,17 +18,13 @@
 #include "InterfacePacketBuf.h"
 #include "CEnvironment.h"
 #include "GameWorld.h"
+#include "CSchoolMgr.h"
+#include "RDARScriptStringManager.h"
 
 // ---------------------------------------------------------------------------
-// 外部符号声明（实现属其它 TU / GameStubs）
+// 外部符号声明（实现属其它 TU）
 // ---------------------------------------------------------------------------
 class CUser;
-
-extern "C" char* sub_RDARScriptStringManager_findString(
-    void* mgr, int idx, const char* key, bool* out)
-    asm("_ZNK23RDARScriptStringManager10findStringEiPKcPb");
-extern "C" void sub_GameWorld_send_group(void* world, void* packet, void* belong)
-    asm("_ZN9GameWorld10send_groupER11PacketGuardP7CBelong");
 
 // ---------------------------------------------------------------------------
 // PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char）
@@ -63,46 +59,7 @@ public:
     CUser* m_user;   // +0x04
 };
 
-// ---------------------------------------------------------------------------
-// CSchoolArea（学院分区：area 号映射 + 空闲区号栈）
-// ---------------------------------------------------------------------------
-class CSchoolArea
-{
-public:
-    CSchoolArea();                 // 0x0856f18c W
-    ~CSchoolArea();                // 0x0856f074 W
-
-    int GetAreaIndex();                       // 0x085689a6 W
-    void SetAreaMapping(unsigned int schoolNo, int areaIdx);  // 0x085689ec W
-    void AddSchoolArea(unsigned int schoolNo);                // 0x08568a3e W
-    void DelSchoolArea(unsigned int schoolNo);                // 0x08568a74 W
-    void SetSchoolArea(int start, int end);                   // 0x086d23bc W
-    int GetAreaIndex(unsigned int schoolNo);                  // 0x086d23f8 W
-
-    std::map<unsigned int, int> m_areaMap;   // +0x00
-    std::stack<int> m_areaStack;             // +0x18
-};
-
-// ---------------------------------------------------------------------------
-// CSchoolMgr
-// ---------------------------------------------------------------------------
-class CSchoolMgr
-{
-public:
-    CSchoolMgr();                 // 0x0856f206 W
-    ~CSchoolMgr();                // 0x0856f0ba W
-
-    void AddUser(CUser* user);                // 0x085683a0 T
-    void DelUser(CUser* user);                // 0x085684bc T
-    void SendBroadcastUserIn(CUser* user);    // 0x08567fe8 T
-    void SendBroadcastUserOut(CUser* user);   // 0x085681ce T
-    unsigned int GetUserCount(unsigned int schoolNo);  // 0x084ed394 W
-    void SetSchoolArea(int start, int end);   // 0x086d245c W
-    int GetSchoolArea(unsigned int schoolNo); // 0x086d2480 W
-
-    std::map<unsigned int, unsigned int> m_schoolUserCount;  // +0x00
-    CSchoolArea m_schoolArea;                                 // +0x18
-};
+// CSchoolArea / CSchoolMgr 类声明见 CSchoolMgr.h（唯一声明点）
 
 // ============================================================================
 // CSchoolArea 实现
@@ -249,8 +206,8 @@ void CSchoolMgr::DelUser(CUser* user)
 
 void CSchoolMgr::SendBroadcastUserIn(CUser* user)
 {
-    char* channelMsg = sub_RDARScriptStringManager_findString(
-        (void*)0x0949b140, 4, "channel_connect", 0);
+    const char* channelMsg = g_scriptStringManager_.findString(
+        4, "channel_connect", 0);
     if (channelMsg != 0)
     {
         char buf[255] = {0};
@@ -265,14 +222,14 @@ void CSchoolMgr::SendBroadcastUserIn(CUser* user)
         guard.put_str(buf, strlen(buf));
         guard.finalize(true);
         CSchoolMember member(user);
-        sub_GameWorld_send_group(G_GameWorld(), &guard, &member);
+        G_GameWorld()->send_group(guard, &member);
     }
 }
 
 void CSchoolMgr::SendBroadcastUserOut(CUser* user)
 {
-    char* channelMsg = sub_RDARScriptStringManager_findString(
-        (void*)0x0949b140, 4, "channel_disconnect", 0);
+    const char* channelMsg = g_scriptStringManager_.findString(
+        4, "channel_disconnect", 0);
     if (channelMsg != 0)
     {
         char buf[255] = {0};
@@ -286,7 +243,7 @@ void CSchoolMgr::SendBroadcastUserOut(CUser* user)
         guard.put_str(buf, strlen(buf));
         guard.finalize(true);
         CSchoolMember member(user);
-        sub_GameWorld_send_group(G_GameWorld(), &guard, &member);
+        G_GameWorld()->send_group(guard, &member);
     }
 }
 

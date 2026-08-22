@@ -108,10 +108,14 @@ public:
 };
 }
 
-// cUserHistoryLog::AchievementComplete（CUser.h 的 cUserHistoryLog 局部视图
-// 未声明该方法，用 asm-label 直连 ORIG 符号）
-extern "C" void sub_cUserHistoryLog_AchievementComplete(void* self, int idx)
-    asm("_ZN15cUserHistoryLog19AchievementCompleteEi");
+// cUserHistoryLog::AchievementComplete（CUser.h 权威 cUserHistoryLog 声明，
+// CAchievement.cpp 使用本地最小视图；符号 _ZN15cUserHistoryLog19AchievementCompleteEi
+// 由 cUserHistoryLog.cpp 提供，ORIG 0x08685762）
+class cUserHistoryLog
+{
+public:
+    void AchievementComplete(int idx);
+};
 
 
 // ---- CDataManager 称号表视图（+0xa788，与 CTitleBook.cpp 相同布局） ----
@@ -364,7 +368,7 @@ void CAchievement::_checkComplete(unsigned int id)
     _sendEachAchieveReward(quest);
     _sendCompleteReward(quest, category, slot);
     _sendComplete(id, titleIdx, category, slot);
-    sub_cUserHistoryLog_AchievementComplete((char*)m_user + 0x79700, (int)id);
+    ((cUserHistoryLog*)((char*)m_user + 0x79700))->AchievementComplete((int)id);
 }
 
 void CAchievement::_forceClear(unsigned int id)

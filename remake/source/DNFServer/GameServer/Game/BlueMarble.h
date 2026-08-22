@@ -15,7 +15,7 @@
 #include <set>
 #include <vector>
 
-#include "PvP_deps.h"
+#include "PvPTypes.h"   // PvP/BlueMarble 子对象权威声明（原 PvP_deps.h 已并入）
 #include "InterfacePacketBuf.h"
 
 class BlueMarble

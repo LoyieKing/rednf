@@ -7,8 +7,7 @@
 #include "GameWorld.h"
 #include "TimerQueue.h"
 
-// ORIG W 0x80f647c（CBattle_Field_deps.h 的本地声明含冲突 CEventManager，
-// 此处单独声明本 TU 需要的外部符号）
+// ORIG W 0x80f647c（TimerQueue.h 权威声明；此处单独声明避免整头依赖）
 TimerQueue* G_TimerQueue();
 
 // CEnvironment +0x1b0 视图（服务器组号；GameWorld.cpp 同偏移读取）
