@@ -8,14 +8,7 @@
 #include "CDataManager.h"
 #include "CInventory.h"
 #include "GlobalData.h"
-
-// RefPvpGrade 完整定义属数据域 TU；此处补本类需要的方法（ORIG 0x85d4832/0x85d4860）
-class RefPvpGrade
-{
-public:
-    int GetPvpPoint(int grade) const;
-    int GetPvpNextRankPoint(int grade) const;
-};
+#include "RefPvpGrade.h"   // RefPvpGrade 权威定义（GetPvpPoint/GetPvpNextRankPoint）
 
 // cMyTraceNoop（禁用追踪，ORIG 0x822ad5a/0x822ad60，属日志族 TU）
 class cMyTraceNoop
@@ -47,6 +40,13 @@ CMission::CMission(const MissionScript& script)
 }
 
 CMission::~CMission() {}
+
+// ORIG 0x85e3188：基类空实现（非纯虚；未覆写该方法的派生类保持具体）。
+void CMission::_makeTotalMissionInfo(MissionInfo& info,
+                                     const CUser& user) const
+{
+    (void)info; (void)user;
+}
 
 bool CMission::_canUpdate(const MissionClearCondition_Parameter&) const
 {

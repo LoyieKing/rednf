@@ -110,7 +110,12 @@ class ParamBase {
 public:
     ParamBase()
     {
-        // 编译器在此写入 ParamBase vptr（二进制 @ 0812530c）。
+        // 编译器在此写入 ParamBase vptr（二进制 @ 0812530c，仅写 vptr=08b5f508）。
+    }
+
+    // ORIG _ZN9ParamBaseC1ERKS_ W 0x08235160：仅写 vptr（无成员拷贝）。
+    ParamBase(const ParamBase&)
+    {
     }
 
     virtual ~ParamBase()

@@ -34,46 +34,20 @@
 #include <utility>
 
 #include "GameTypes.h"
+#include "SigTypes.h"    // SIG_* 完整定义（CMailBoxHelper 等使用）
 #include "CUser.h"
 #include "CParty.h"
 #include "InterfacePacketBuf.h"
 #include "PvP_Room.h"
+#include "CExpertJob.h"      // expert_job::CEnchanter/CDisjointer 完整类型
 #include "WarRoom.h"
 #include "BlueMarble.h"
+#include "Inven_Item.h"   // CMailBox::CMail 内嵌 Inven_Item（完整类型）
 #include "CTradeSpace.h"   // 真实 CTradeSpace（0xf70）——替换原尺寸垫占位
 #include "CBossTower.h"    // 真实 WongWork::CBossTower（0xb18）——替换原尺寸垫占位
 #include "QuickParty.h"    // 真实 QuickParty::CQuickParty / CQuickPartySystemManager——替换本地占位
 
-// ============================================================================
-// StaticPool<T,N> —— ORIG 真实实现（objdump 0x82ae390 起逐函数核对）
-// ============================================================================
-template <class T, int N>
-class StaticPool
-{
-public:
-    struct CNode
-    {
-        T data;        // +0x00（sizeof(T) 字节）
-        int magic;     // +sizeof(T)，恒 0x8f21
-        char bUse;     // +sizeof(T)+4，引用计数
-    };
-
-    StaticPool();
-    ~StaticPool();
-
-    T* Acquire();
-    T* Get(int index);
-    void Free(T* p);
-    int GetIndex(T* p);
-    int GetLastErrorCode() const { return m_nErrorCode; }
-    static int Size() { return N; }
-    int Remain() { return (int)m_Queue.size(); }
-
-private:
-    CNode* m_pNode;              // +0x00
-    std::queue<CNode*> m_Queue;  // +0x04
-    int m_nErrorCode;            // +0x2c
-};
+#include "StaticPool.h"   // StaticPool<T,N> 权威叶子头（2026-08-23 自本头提取）
 
 // ============================================================================
 // 池化对象最小声明（权威头属后续批次；尺寸 = ORIG 池节点数据区大小）
@@ -248,8 +222,11 @@ private:
 // CBossTower 类声明见 CBossTower.h（唯一声明点；CGameManager.h 顶部 include）
 }
 
+#include "advancealtar_StageDifficulty.h"  // StageDifficulty::T（StageControl::selectStage 参数；叶子头无环）
 namespace advancealtar
 {
+class CharacData;   // 完整定义 advancealtar_ProcStage.h（StageControl::getCharacData 返回类型）
+class ProcStage;    // 完整定义 advancealtar_ProcStage.h（StageControl::getProcStage 返回类型）
 class StageControl
 {
 public:
@@ -260,6 +237,12 @@ public:
     char leaveUser();             // ORIG 0x812fc4e（返回 0/1，见 class_func_reports）
     char onTimerStageTick();      // ORIG 0x812fb98（恒返回 1）
     void reset();                 // ORIG 0x812fa54
+    int selectStage(CUser* user, int stageId, advancealtar::StageDifficulty::T diff);  // ORIG T 0x0812fa7a
+    void sendStageInfo();         // ORIG T 0x081300f6：向当前用户发 0x209 舞台信息包
+    // 子对象访问（ORIG W thunk objdump 实证；定义 advancealtar_StageControl.cpp）
+    ProcStage* getProcStage();    // 0x081348ae：return (ProcStage*)(this+0x04)
+    CharacData* getCharacData();  // 0x081348a0：return (CharacData*)(this+0x98)
+    void destroy();               // ORIG T 0x081300ce：reset() + returnAdvanceAltar(this)
 private:
     char m_pad[0xc0];
 };
@@ -267,241 +250,183 @@ private:
 
 // QuickParty 类声明见 QuickParty.h（唯一声明点；CGameManager.h 顶部 include）
 
-// ---- 补充 StaticPool 所需类型（占位尺寸，后续按 ORIG 修正）----
 
-class CACHE_CHARACTER_TYPE
-{
-public:
-    CACHE_CHARACTER_TYPE() {}
-    ~CACHE_CHARACTER_TYPE() {}
-private:
-    char m_pad[0x100];
-};
+// ---- StaticPool 元素类型（布局按 ORIG 反汇编；实现见 CGameManager.cpp）----
 
-namespace expert_job
+// CACHE_CHARACTER_TYPE 完整定义在 CGameManager.cpp（SIG_LOAD_* 子对象布局，
+// ORIG C1 0x8492262）；此处仅前置声明供 StaticPool 声明使用。
+class CACHE_CHARACTER_TYPE;
+// ORIG 全局枚举（mangled `17ENUM_ASSAULT_TEAM`，无 namespace 前缀）。
+enum ENUM_ASSAULT_TEAM
 {
-class CEnchanter
-{
-public:
-    CEnchanter() {}
-    ~CEnchanter() {}
-private:
-    char m_pad[0x100];
+    ENUM_ASSAULT_TEAM_0 = 0
 };
-
-class CDisjointer
-{
-public:
-    CDisjointer() {}
-    ~CDisjointer() {}
-private:
-    char m_pad[0x100];
-};
-}
 
 namespace pvp_assault
 {
+
+// ORIG 枚举（pvp_assault 域；mangled NS_18ENUM_ASSAULT_STATEE）。
+enum ENUM_ASSAULT_STATE
+{
+    ENUM_ASSAULT_STATE_0 = 0
+};
+
+// ORIG CAssaulter::C1 0x82e661e：清零前两个 int；步长 0x20（CAssaultPlace 内 [8]）。
+class CAssaulter
+{
+public:
+    CAssaulter() : m_field00(0), m_field04(0), m_state08(0) {}
+
+    CUser* GetUser();                    // ORIG W 0x82f0542（读 +0x00）
+    bool Empty();                        // ORIG W 0x82f055c（= IsAttachAble，+0x00==0）
+    ENUM_ASSAULT_TEAM GetTeam();         // ORIG W 0x82f0570（读 +0x04）
+    unsigned short GetUserUniqueId();    // ORIG T 0x82e6662（user->get_unique_id()）
+    void SetState(ENUM_ASSAULT_STATE s); // ORIG W 0x82f057c（写 +0x08）
+    ENUM_ASSAULT_STATE GetState();       // ORIG W 0x82f058a（读 +0x08）
+    int GetHp();                         // ORIG T 0x82e6688：return *(int*)(this+0x10)
+    void DetachUser();                   // ORIG T 0x82e6812：清槽位 + 卸 creature
+    void GiveupPanalty();                // ORIG T 0x82e6868（依赖 cUserHistoryLog::GiveupPvP）
+
+    unsigned int m_field00;   // CUser* m_user
+    unsigned int m_field04;   // ENUM_ASSAULT_TEAM m_team
+    unsigned int m_state08;   // ENUM_ASSAULT_STATE
+    char m_pad0c[0x4];
+    int m_hp10;               // +0x10（GetHp 读）
+    char m_pad14[0x0c];
+};
+
+// ORIG Point2d::C1 0x82f046a（默认空）/C1Eii 0x82f0472 / operator- 0x82f0496。
+class Point2d
+{
+public:
+    Point2d() {}
+    Point2d(int x, int y) : m_x(x), m_y(y) {}
+
+    int m_x;
+    int m_y;
+};
+
+// ORIG PartyInfo::C1 0x82f05ee：清零单个 int；Set/Get 即该 int 的读写。
+class PartyInfo
+{
+public:
+    PartyInfo() : m_field00(0) {}
+
+    unsigned int m_field00;
+};
+
+// ORIG CAssaultPlace::C1 0x82f0614：CAssaulter[8]@+0x000（步长 0x20）->
+//   Point2d@+0x118 -> PartyInfo[2]@+0x12c（步长 4）；D1 0x82f13b6 反向析构数组。
 class CAssaultPlace
 {
 public:
-    CAssaultPlace() {}
-    ~CAssaultPlace() {}
-private:
-    char m_pad[0x100];
-};
-}
+    CAssaulter m_assaulters[8];     // +0x000
+    char m_pad100[4];               // +0x100（GetAssaulterCount 读 +0x100）
+    int m_field104;                 // +0x104（图标包 put_int）
+    char m_pad108[4];               // +0x108
+    int m_state;                    // +0x10c（GetState）
+    short m_view110;                // +0x110（图标包 put_short）
+    short m_view114;                // +0x114（图标包 put_short）
+    Point2d m_pos;                  // +0x118（IsArea 比较 x/y）
+    PartyInfo m_parties[2];         // +0x12c
+    // ---- 方法声明（CAssaultMgr 批次使用；实现后续批次按报告还原） ----
+    bool IsArea(int vill, int area);                        // ORIG W 0x82f06ae
+    bool ExistUser(CUser* user);                            // ORIG T 0x82e8366
+    bool CheckPlayable();                                   // ORIG W 0x82f06ea
+    int GetState();                                         // ORIG W 0x82f06fe
+    void MakeViewAssaultIconOnePlayer(PacketGuard* p, bool flag);
+                                                            // ORIG T 0x82e89c0
+    bool SendPacket(PacketGuard& p);                        // ORIG T 0x82e6bf6
+    bool SendPacket(PacketGuard& p, ENUM_ASSAULT_TEAM team);// ORIG T 0x82e6c56
+    bool GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team);     // ORIG T 0x82e6cdc
+    void LeaveAssaultPlace(CUser* user, bool flag);         // ORIG T 0x82eb450
+    static void SendUserState(CUser* user);                 // ORIG T 0x82e83c4（ORIG 调用点仅压一个栈参——静态形态）
 
-namespace private_store
-{
-class CPrivateStore
-{
-public:
-    CPrivateStore() {}
-    ~CPrivateStore() {}
-private:
-    char m_pad[0x100];
+    // ---- 前置内部函数（上述方法依赖；ORIG 权威符号）----
+    bool _CheckPlayable();                                  // ORIG T 0x82e9142
+    void _GetTeamCount(int* counts);                        // ORIG T 0x82e7232
+    int _GetUserIndex(CUser* user, bool strict);            // ORIG T 0x82e849a
+    void LeaveAssaultPlace(int index, bool delFlag,
+                           bool penaltyFlag);               // ORIG T 0x82ead6a
+
+    // ---- 攻击 LeaveAssaultPlace 链私有 helper（ORIG 权威；自包含部分已还原）----
+    bool _IsGiveupPanalty(bool flag);                       // ORIG T 0x82eacf4
+    bool _IsBroadcastRunaway(CUser* user);                  // ORIG T 0x82eab1a
+    void _BroadcastRunaway(CUser* user, int index);         // ORIG T 0x82eab7a
+    void _MakeLeaveUser(PacketGuard* p, int index);         // ORIG T 0x82e9046
+    void _MakeCloseAssault(PacketGuard* p, int tick);       // ORIG T 0x82e88d6
+    void _MakeUserState(PacketGuard* p, CUser* user);       // ORIG T 0x82e8d60
+    int  _SendCloseAssault(CUser* user, int tick);          // ORIG T 0x82e7b2a
 };
-}
+
+// ORIG T 0x82e564c：team 0→6、1→4、其他→0。
+int GetDirectionByTeam(ENUM_ASSAULT_TEAM team);
+
+}  // namespace pvp_assault
 
 namespace exchange_server
 {
-class CSession
+
+// ORIG CSession::C1 0x848ffd0：基类 CNetwork<95000,450000>（尺寸 0xb8+N1+N2 =
+//   0x851a0）-> 置基类 m_field0c=1 -> 清零 +0x851a0/+0x851a4。
+class CSession : public CNetwork<95000, 450000>
 {
 public:
-    CSession() {}
-    ~CSession() {}
-private:
-    char m_pad[0x100];
-};
-}
-
-namespace WongWork
-{
-class CMailBox
-{
-public:
-    struct stAddNewMailInput { char m_pad[0x100]; };
-
-    CMailBox();
-    ~CMailBox();
-
-    class CMail
-    {
-    public:
-        CMail() {}
-        ~CMail() {}
-    private:
-        char m_pad[0x100];
-    };
-
-    int AddNewMail(const stAddNewMailInput&);
-    void ClearLetterKeepCount();
-    void DecLoadedLetterCount();
-    int DeleteLetterKeepCount(unsigned int);
-    int FindPackageLoadLack(unsigned int);
-    int GetLastLoadIdx();
-    int GetLastLoadLetterIdx();
-    int GetLetterKeepCount();
-    int GetLoadedLetterCount();
-    CMail* GetMail(unsigned int);
-    int GetNotLoadedMailCount();
-    int GetPackageLoadLack(unsigned int*, unsigned int);
-    int GetRecvSize();
-    int GetRemainSize();
-    void IncNotLoadedMailCount();
-    void Init();
-    void InsertLetterKeepCount(unsigned int);
-    bool IsLoaded();
-    int RemoveMail(unsigned int);
-    void SetLastLoadLetterIdx(unsigned int);
-    void SetLoadState(bool, long);
-    void SetLoadedLetterCount(int);
-    void SetNotLoadedMailCount(int);
-    void SetPackageLoadLack(const unsigned int*, int, std::set<unsigned int>&);
-    int getMailLoadCount();
-    CMail* getNextMail();
-    void incMailLoadCount();
-    void reset();
-    void setMailIterator();
+    CSession();
 
 private:
-    char m_pad[0x100];
+    unsigned int m_field851a0;  // +0x851a0
+    unsigned int m_field851a4;  // +0x851a4
 };
 
-// 全局占位类型（ORIG 全局符号签名所需；布局待细化）
-#ifndef DNF_GAME_ENUM_ERROR_DEFINED
-#define DNF_GAME_ENUM_ERROR_DEFINED
-enum ENUM_ERROR { ENUM_ERROR_NONE = 0 };
-#endif
+// ---- 角色缓存管理器自由函数（CUser::CacheCharacterMemory 等调用；ORIG）----
+// 实现见 CGameManager.cpp（CCacheCharacterMgr + GetInstanceCacheCharacterMgr）。
+CACHE_CHARACTER_TYPE* AcquireCharacterMemory(int characNo);       // 0x848f220
+void FreeCharacterMemory(CACHE_CHARACTER_TYPE* mem);              // 0x848f23c
+bool CacheCharacterMemory(int characNo, CACHE_CHARACTER_TYPE* mem);// 0x848f258
+
+}  // namespace exchange_server
+
 #ifndef DNF_GAME_MSG_CHECK_MAIL_RECEIVER_DEFINED
 #define DNF_GAME_MSG_CHECK_MAIL_RECEIVER_DEFINED
-struct MSG_CHECK_MAIL_RECEIVER { char m_pad[0x100]; };
+// ============================================================================
+// MSG_CHECK_MAIL_RECEIVER —— 收件人校验请求负载（ORIG size 0x3f88=16264 字节）
+//   位于全局作用域（ORIG mangled `_ZN23MSG_CHECK_MAIL_RECEIVER...` 无 WongWork 前缀）。
+//   ORIG 符号（nm -C df_game_r）：
+//     _ZN23MSG_CHECK_MAIL_RECEIVER3setILNS_22ENUM_MAILBOX_CHECKTYPEE0E16MSG_MAILBOX_SENDEEvRKT0_  @0x8236e06
+//     _ZN23MSG_CHECK_MAIL_RECEIVER3setILNS_22ENUM_MAILBOX_CHECKTYPEE1E21MSG_BUY_CERASHOP_ITEMEEvRKT0_ @0x82378ee
+//     _ZN23MSG_CHECK_MAIL_RECEIVER3setILNS_22ENUM_MAILBOX_CHECKTYPEE2E22MSG_MULTI_MAILBOX_SENDEEvRKT0_ @0x8238086
+//   set<CHECKTYPE,T>(T const&) 语义：*(int*)this = CHECKTYPE; memcpy((char*)this+4, &msg, sizeof(T))。
+//   布局：+0 枚举标记，+4 起写入消息 T（ReqDBCheckReceiver 据 +0 类型解释 +4 载荷）。
+//   （报告中 set<2> memcpy 0x1a6 / set<0> memcpy 0x145 表明各消息 T 尺寸不同，
+//    模板按 sizeof(T) 复制即可还原；set<1> 使用 MSG_BUY_CERASHOP_ITEM(0x3f84)。）
+// ============================================================================
+struct MSG_CHECK_MAIL_RECEIVER
+{
+    enum ENUM_MAILBOX_CHECKTYPE
+    {
+        ENUM_MAILBOX_CHECKTYPE_0 = 0,
+        ENUM_MAILBOX_CHECKTYPE_1 = 1,
+        ENUM_MAILBOX_CHECKTYPE_2 = 2,
+        ENUM_MAILBOX_CHECKTYPE_3 = 3
+    };
+
+    template <enum ENUM_MAILBOX_CHECKTYPE TYPE, class MSG_T>
+    void set(MSG_T const& msg)
+    {
+        *(int*)this = (int)TYPE;
+        const char* src = reinterpret_cast<const char*>(&msg);
+        char* dst = reinterpret_cast<char*>(this) + 4;
+        for (unsigned int i = 0; i < sizeof(MSG_T); ++i)
+            dst[i] = src[i];
+    }
+
+    char m_pad[0x3f88 - 4];   // 载荷区（+4 起），总大小 0x3f88=16264
+};
 #endif
 
-class MSG_MAILBOX_SEND;  // PacketTypes.h 实定义
-
-struct SIG_MAILBOX_LIST;
-struct SIG_MAILBOX_SEND_NEW_MAIL;
-class CMailBoxHelper
-{
-public:
-    // ---- 生命周期 / 池 ----
-    static CMailBox* AssignMailBox();                  // ORIG 0x08697838 (W)
-    static void      FreeMailBox(CMailBox* box);       // ORIG 0x0869786a (W)
-    static bool      IsCeraPointItem(unsigned long);   // ORIG 0x08553912
-
-    // ---- 用户侧取件 ----
-    static void GetPackege(CUser* user, unsigned int mailIndex);
-    static void ReqDBLoadMail(CUser* user, unsigned int mailIndex);
-    static void ReqDBRemoveMail(CUser const* user, unsigned int* mailIdx, bool a);
-    static void SetPeriodCheckTimer(CUser* user);
-    static void CheckMailTimeout(CUser* user, PacketGuard* packet);
-    static void MakeMailBoxListPacket(CUser* user, PacketGuard* packet);
-    static void SetMailBoxInfo(CUser* user, SIG_MAILBOX_LIST const* info);
-
-    // ---- 取件内部实现 ----
-    static void _DoGetPackage(CUser* user, CMailBox::CMail const* mail,
-                              std::vector<std::pair<int, int> >& out,
-                              bool bReset, ENUM_ERROR& err);
-    static void _DoGetPackageCoin(CUser* user, CMailBox::CMail const* mail,
-                                  std::vector<std::pair<int, int> >& out,
-                                  bool bReset, ENUM_ERROR& err);
-    static void _DoGetPackageItem(CUser* user, CMailBox::CMail const* mail,
-                                  std::vector<std::pair<int, int> >& out,
-                                  bool bReset, ENUM_ERROR& err);
-    static void _DoGetPackageAvatar(CUser* user, CMailBox::CMail const* mail,
-                                    std::vector<std::pair<int, int> >& out,
-                                    bool bReset, ENUM_ERROR& err);
-    static void _DoGetPackageCreature(CUser* user, CMailBox::CMail const* mail,
-                                      std::vector<std::pair<int, int> >& out,
-                                      bool bReset, ENUM_ERROR& err);
-
-    // ---- 收件人校验 ----
-    static void ReqDBCheckReceiver(CUser* user, const char* name,
-                                   MSG_CHECK_MAIL_RECEIVER* msg);
-    static void ReqDBCheckReceiver_forchina(CUser* user, const char* name,
-                                            MSG_CHECK_MAIL_RECEIVER* msg);
-    static void ReqChangeLetterStat(CUser* user, int a, int b);
-
-    // ---- 发信 ----
-    static void ReqDBSendNewMail(CUser* user, Inven_Item const& item,
-                                 unsigned int nCharacNo, unsigned int nAmount,
-                                 bool bA, const char* pTitle, int nTitleLen);
-    static void ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
-                                 unsigned int nCharacNo, bool bA,
-                                 unsigned int nB, int nC);
-    static void ReqDBSendNewMailCashShop(CUser* user, Inven_Item const& item,
-                                         unsigned int nCharacNo,
-                                         unsigned int nAmount, bool bA,
-                                         const char* pTitle, int nTitleLen);
-    static void ReqDBSendStoredMail(CUser* user);
-    static void _DoSendNewMail(CUser* user, Inven_Item const& item,
-                               unsigned int nCharacNo, unsigned int nAmount,
-                               bool bA, const char* pTitle, int nTitleLen,
-                               int nType);
-    static void _makeSendMailData(SIG_MAILBOX_SEND_NEW_MAIL* msg,
-                                  const char* pSender, int nSenderLen,
-                                  Inven_Item const& item, unsigned int nCharacNo,
-                                  unsigned int nAmount, const char* pTitle,
-                                  int nTitleLen, unsigned int nB, int nType);
-    static void MakeSystemMultiMailPostal(
-        std::vector<std::pair<int, int> >& items, Inven_Item* itemBase,
-        unsigned int nCount);
-
-    // ---- 系统邮件 ----
-    static void ReqDBSendNewAvatarMail(CUser* user, int nCharacNo, int nItemIdx,
-                                       int nExpireDate, char cA, char cB,
-                                       const char* pAgency, const char* pTitle,
-                                       int nTitleLen);
-    static void ReqDBSendNewAvatarMailCashShop(CUser* user, int nCharacNo,
-                                               int nItemIdx, int nExpireDate,
-                                               char cA, char cB,
-                                               const char* pAgency,
-                                               const char* pTitle, int nTitleLen);
-    static void ReqDBSendNewCreatureMail(CUser* user, int nCharacNo,
-                                         Inven_Item const& item,
-                                         const char* pTitle, int nTitleLen);
-    static void ReqDBSendNewCreatureMailCashShop(CUser* user, int nCharacNo,
-                                                 Inven_Item const& item,
-                                                 const char* pTitle,
-                                                 int nTitleLen);
-    static int ReqDBSendNewSystemMail(const char* pSender, Inven_Item const& item,
-                                       unsigned int nA, unsigned int nCharacNo,
-                                       const char* pTitle, int nTitleLen,
-                                       unsigned int nB,
-                                       ENUM_SERVER_GROUP nServerGroup,
-                                       bool bA, bool bB);
-    static void ReqDBSendNewSystemMultiMail(const char* pSender,
-                                            Inven_Item const* itemBase,
-                                            unsigned int nCount,
-                                            unsigned int nA,
-                                            unsigned int nCharacNo,
-                                            const char* pTitle, int nTitleLen,
-                                            unsigned int nB,
-                                            ENUM_SERVER_GROUP nServerGroup,
-                                            bool bA);
-};
- }
+#include "CMailBoxHelper.h"   // WongWork::CMailBox / CMailBoxHelper 权威叶子头
+                              // （2026-08-23 自本头原样提取；MSG_CHECK_MAIL_RECEIVER 定义保留在上方）
  
  #include <cstdio>
  typedef FILE _IO_FILE;
@@ -521,38 +446,188 @@ private:
     char m_pad[0x100];
 };
 
+// ORIG：user_creature 域枚举（CStomach::GetStomachValue/IsSaveStomach、
+// CCreature::SetState 使用；值 1..3 由 SetState/GetStomachValue 分支实证，
+// 命名为推断）。
+enum CREATURE_STATE
+{
+    CREATURE_STATE_0 = 0,
+    CREATURE_STATE_1 = 1,   // 战斗/召唤态（SetState 计时器分支）
+    CREATURE_STATE_2 = 2,   // 休眠态（Reset 初值）
+    CREATURE_STATE_3 = 3    // 死亡/待复活态（SetState 复活分支）
+};
+
+class CStomach
+{
+public:
+    // ORIG GetStomachValue 0x8336cfc：+0 为 int 上次时间、+4 为 float 饱食度
+    //（CCreature 内偏移 +0x34/+0x38；旧注释两字段顺序颠倒，已按汇编修正）。
+    int m_lastTime;     // +0x00（CCreature +0x34）
+    float m_value;      // +0x04（CCreature +0x38）
+
+    // ORIG _ZN13user_creature8CStomach15GetStomachValueENS_14CREATURE_STATEEb T 0x8336cfc
+    float GetStomachValue(CREATURE_STATE state, bool growFlag);
+    // ORIG _ZN13user_creature8CStomach15SetStomachValueEf W 0x833eef6：写 +4（m_value）
+    void SetStomachValue(float value);
+    // ORIG _ZN13user_creature8CStomach14IncrementValueEf T 0x08336e66：
+    // m_value += amount；>100 则钳到 100.0f；返回新值。
+    float IncrementValue(float amount);
+};                                    // 共 8B（+0x34..+0x3b）
+
+// ORIG 内部包类型（CDBMsgSender::Init 0x833f7a8：0x89 走 BigStreamPool，
+// CCreatureMgr::RecvMail 使用 0x8a；其余值待 DB 域批次核对）。
+enum ENUM_INTERNALPACKET
+{
+    ENUM_INTERNALPACKET_0x89 = 0x89,
+    ENUM_INTERNALPACKET_RECV_MAIL = 0x8a   // 推断命名
+};
+
+class CDBMsgSender
+{
+public:
+    CDBMsgSender(ENUM_INTERNALPACKET type, CUser* user);  // ORIG C1 0x833f8ae W
+    ~CDBMsgSender();                                      // ORIG D1/D2 0x833f8d8 W
+
+    bool Init(ENUM_INTERNALPACKET type, CUser* user);     // ORIG 0x833f7a8 T
+    bool Send();                                          // ORIG 0x833f950 W
+    // ORIG _ZN13user_creature12CDBMsgSender15UseFeedCreatureEii W 0x0833fc5a：
+    // GetInBuffer<SIG_CREATURE_ITEM> 清 0x74；m_hdr|=2；+0x30=uid、+0x44=饱食度。
+    bool UseFeedCreature(int uid, int stomachValue);
+    // ORIG _ZN13user_creature12CDBMsgSender18InsertCreatureItemEP5CUserP10Inven_Itemiiiii
+    // W 0x0833faaa：物品校验（find_item/非堆叠）后按 InsertCreatureItem 消息填库。
+    bool InsertCreatureItem(CUser* user, Inven_Item* item, int slot, int reason,
+                            int mapSize, int days, int expireTick);
+    // ORIG _ZN13user_creature12CDBMsgSender8RecvMailEP10Inven_Itemiiii W 0x833ff34
+    bool RecvMail(Inven_Item* item, int characNo, int slot, int reason, int mapSize);
+    // ORIG _ZN13user_creature12CDBMsgSender8SendMailEP10Inven_Itemiiii W 0x833fe8c
+    bool SendMail(Inven_Item* item, int characNo, int slot, int reason, int mapSize);
+
+    template <class T> T* GetInBuffer()
+    {
+        if (m_stream == 0)
+            return 0;
+        CStreamGuard guard(m_stream, false);
+        return guard.GetInBuffer<T>();
+    }
+
+    Stream* m_stream;   // +0x00
+    CUser* m_user;      // +0x04
+    // ORIG _ZN13user_creature12CDBMsgSender15EvoluteCreatureEii W 0x833fd74：
+    // buf 清 0x74；m_hdr|=0x40；compat.m_itemIdx(+0x08)=新宠物物品 idx；
+    // m_addInfo2(+0x30)=宠物 uid。Evolute/SelectEvolute 进化落库用。
+    bool EvoluteCreature(int uid, int itemIdx);
+    // ORIG _ZN13user_creature12CDBMsgSender16SwapCreatureItemEP5CUserP10Inven_ItemiS4_i
+    // W 0x0833fa0c：SIG_SWAP_CREATURE_ITEM 清 0x74 后填双物品 idx/slot/空标志。
+    bool SwapCreatureItem(CUser* user, Inven_Item* item1, int slot1,
+                          Inven_Item* item2, int slot2);
+};
+class COverSkillTime
+{
+public:
+    int m_time;  // ORIG ctor 0x833d636 清零（4B）
+    bool checkTime();  // ORIG T 0x0833d65e：(curSec-m_time)∈(0,20.0) 浮点判定
+};
+
+
+class CCreatureScript;  // user_creature 域内前置（权威声明见 CCreatureScript.h）
+
+// ORIG CCreature 继承 CCreatureItem（实证：SetState/UseFeed 以
+// CCreatureItem::GetUid(this) 取 +0x0c；IsNoCharge(+0x14) 与
+// CCreatureItem::GetNoCharge 同址；CCreature ctor 0x833705e 先跑基类构造）。
+// 本镜像将基区（+0x00..+0x1b）展开为具名字段，偏移与 CCreatureItem 一致。
+// 访问器符号（ORIG W，0x833f04c..0x833f0e6 / GetStomach 0x083384ee /
+// UseFeed T 0x083373d4）：
+//   IsSave/GetName/GetLevel/GetExp/IsNoCharge/SetNoCharge/IsGrowCreature/
+//   GetCreatureId/GetOverSkillTime/GetStomach。
+// 注意 IsGrowCreature ORIG 语义 = (+0x4c ^ 1) != 0（0x833f0ca xor $1 实证，
+// 即 Reset 后的 +0x4c==1 返回 false）；GainExp/UseFeed/vaildItemExp 则直接
+// 判 +0x4c==1 / ==0。
 class CCreature
 {
 public:
-    CCreature() {}
-    ~CCreature() {}
-private:
-    char m_pad[0x100];
+    CCreature();   // ORIG _ZN13user_creature9CCreatureC1Ev T 0x833705e
+    ~CCreature();
+    void Reset();  // ORIG _ZN13user_creature9CCreature5ResetEv W 0x83370b0
+    int GetState();                                       // ORIG W 0x0833f064（+0x3c）
+    void SetState(CUser* user, CREATURE_STATE state);     // ORIG T 0x0833715a
+    bool Equip(CUser* user);                              // ORIG T 0x08337330（战斗态→state1，否则 state3）
+    bool Dismantle(CUser* user);                          // ORIG T 0x08337382（state2）
+
+    bool IsDieCreature();                                 // ORIG T 0x8338478
+    // ORIG _ZN13user_creature9CCreature7vaildItemExpEi 0x83378aa
+    bool vaildItemExp(int itemIdx);
+    // ORIG _ZN13user_creature9CCreature7GainExpEiP5CUser 0x83378fc
+    bool GainExp(int exp, CUser* user);
+    // ---- GainExp 依赖链（CreatureExperience 批次；签名与 ORIG mangled 一致）----
+    void SetItemId(int itemId);                              // ORIG T 0x83375ae
+    int GetCreatureId(int itemId);                           // ORIG T 0x833769c（重载：itemIdx→种族 id）
+    int GetExpLevel(int exp);                                // ORIG T 0x83374d2
+    bool Evolute(CUser* user);                               // ORIG T 0x83381ea
+    bool SelectEvolute(CUser* user);                         // ORIG T 0x8337e48
+    bool IsAvailableArtifact(int slot);                      // ORIG T 0x83376f6
+    float GetAddExp(int artifactSlot, CUser* user);          // ORIG T 0x8337724
+    void CalculateExp(int exp, bool& levelUp, CUser* user);  // ORIG T 0x83377b6
+    bool GainExpCreature(int exp, CUser* user);              // ORIG T 0x8337bbc
+    bool GainItemExpCreature(int exp, CUser* user);          // ORIG T 0x83379c0
+    // ORIG _ZN13user_creature9CCreature11isMaxLevelEv 0x833756e
+    bool isMaxLevel();
+    // ORIG _ZN13user_creature9CCreature7UseFeedEP5CUserRi T 0x083373d4：
+    // 喂食：复活死亡宠广播 → IncrementValue(30) → 状态包，out 写新饱食度。
+    bool UseFeed(CUser* user, int& stomachValue);
+
+    // ---- ORIG W 访问器 ----
+    bool IsSave();                    // W 0x833f04c：movzbl +0x40
+    const char* GetName();            // W 0x833f058：返回 this+0x1c
+    int GetStomach();                 // W/T 0x083384ee：(int)GetStomachValue(+0x3c,+0x4c)
+    int GetExp();                     // W 0x833f08e：+0x30
+    int GetLevel();                   // W 0x833f09a：+0x2c
+    bool IsNoCharge();                // W 0x833f0a6：movzbl +0x14
+    void SetNoCharge(bool flag);      // W 0x833f0b2：写 +0x14
+    bool IsGrowCreature();            // W 0x833f0ca：(+0x4c ^ 1) != 0
+    int GetCreatureId();              // W 0x833f0da：+0x48
+    COverSkillTime* GetOverSkillTime();  // W 0x833f0e6：this+0x50
+
+    int IsAbleEvolute(CUser* user) const;   // ORIG T 0x083380fc（RestoreUserQuestStubs 批次）
+    int IsAbleSelectEvolute(CUser* user);   // ORIG T 0x08337d58（RestoreUserQuestStubs 批次）
+    // ---- 布局（总 0x100；基区按 CCreatureItem 展开为具名字段）----
+    int m_vptr;                     // +0x00（ORIG vptr 槽占位）
+    int m_itemId;                   // +0x04（CCreatureItem::GetItemId）
+    int m_creatureItemType;         // +0x08（Reset=1；列表包过滤要求 ==1）
+    int m_uid;                      // +0x0c（CCreatureItem::GetUid）
+    int m_slotNo;                   // +0x10
+    unsigned char m_noCharge;       // +0x14（Reset=0；IsNoCharge/SetNoCharge）
+    unsigned char m_stat;           // +0x15
+    char m_pad16[2];                // +0x16
+    int m_expireTime;               // +0x18（CCreatureItem::getExpireTime）
+    char m_name[13];                // +0x1c（GetName；Reset memset 0xd）
+    unsigned char m_pad29[3];       // +0x29
+    int m_level;                    // +0x2c（Reset=1；GainExp/isMaxLevel 比较）
+    int m_exp;                      // +0x30（原 m_field30；CalculateExp/包序列化）
+    CStomach m_stomach;             // +0x34
+    int m_state;                    // +0x3c（原 m_field3c；Reset=2；GetState/SetState）
+    unsigned char m_saveFlag;       // +0x40（原 m_field40；SetState/GainExpCreature=1；IsSave）
+    unsigned char m_pad41[3];       // +0x41
+    CCreatureScript* m_script;     // +0x44（Reset=0）
+    int m_creatureId;               // +0x48（原 m_field48；Reset=0；GetCreatureId）
+    unsigned char m_isGrow;        // +0x4c（Reset=1；语义见类注释）
+    unsigned char m_field4d;       // +0x4d（Reset=5）
+    unsigned char m_pad4e[2];      // +0x4e
+    COverSkillTime m_overSkill;    // +0x50
+    char m_pad54[0xac];            // → 总 0x100（保持镜像尺寸）
 };
+
 }
 
 namespace WongWork
 {
-class Avatar_Item
-{
-public:
-    Avatar_Item() {}
-    ~Avatar_Item() {}
-private:
-    char m_pad[0x100];
-};
+// Avatar_Item 权威定义见 AvatarItem.h（ORIG packed，sizeof 0x100）。此处仅前置声明；
+// 需要完整类型（如 CGameManager.cpp 的 DynamicPool<Avatar_Item> 显式实例化）时 include "AvatarItem.h"。
+class Avatar_Item;
 
-namespace IPG
-{
-class SIPGData
-{
-public:
-    SIPGData() {}
-    ~SIPGData() {}
-private:
-    char m_pad[0x100];
-};
-}
+// WongWork::IPG::SIPGData 权威定义见 TaiwanCash.h（ORIG sizeof 0x2dc，
+// DynamicPool<SIPGData> MoreAlloc 节点步长 0x2e4 实证；本头原 0x100 局部镜像
+// 已删除，DynamicPool 显式实例化由 TaiwanCash.cpp 的隐式实例化供符号）。
+namespace IPG { struct SIPGData; }
 }
 
 // ---- 管理器最小声明（本批只做指针持有 + new/delete）----
@@ -700,6 +775,7 @@ public:
         bool operator()(std::pair<const unsigned int, CUser*>& p) const;
         short m_uniqueId;
     };
+    int userPoolRemain() { return m_userPool.Remain(); }  // MainLoop 心跳条件用
 
 private:
     Mutex m_mutex;                       // +0x000（0x18）

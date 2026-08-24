@@ -176,8 +176,11 @@ struct stQuestTriggerState_t
 };
 
 // ---- 任务选择参数（QuestList / check_possible 共用） ----
+class CUser;  // 仅用于 ctor 签名（stSelectQuestParam.cpp 定义）
+
 struct stSelectQuestParam
 {
+    stSelectQuestParam(CUser* user);  // ORIG _ZN18stSelectQuestParamC1EP5CUser（定义于 stSelectQuestParam.cpp）
     int m_level;          // +0x00
     int m_job;            // +0x04
     int m_firstGrow;      // +0x08

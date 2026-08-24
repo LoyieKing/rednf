@@ -16,7 +16,8 @@
 //   _ZN8WongWork11CQuestClear15setClearedQuestEj        setClearedQuest(unsigned)
 //
 // UserQuest.cpp 以 plain data struct（unsigned char m_cleared[0x7530] 位于 +0x00）
-// 使用本类型，并通过 extern "C" asm 标签直调上述符号；header 布局须与之 ABI 一致。
+// 使用本类型，并通过真实 C++ 方法调用（asm 桥已删）；header 布局须与之 ABI 一致，
+// 故 sizeof 保持 0x7530，save-flag 字节（+0x7530）以裸偏移访问。
 // ============================================================================
 
 namespace WongWork
@@ -34,10 +35,14 @@ public:
     void clear();
     bool isClearedQuest(unsigned int questIdx) const;
     const STClearedQuest* getClearedQuest() const;
-    void resetClearedQuests(unsigned int count);
+    bool resetClearedQuests(unsigned int questIdx);   // ORIG 返回 1/0
     void setClearedQuest(const STClearedQuest* quest);
-    static bool syncScript();
-    void setClearedQuest(unsigned int questIdx);
+    static bool syncScript();                          // ORIG 恒返回 1
+    bool setClearedQuest(unsigned int questIdx);       // ORIG 返回 1/0
+    bool checkSaveFlag() const;                        // ORIG 返回 +0x7530 save-flag 字节
+    int getClearedQuestNum() const;                    // ORIG 统计 m_cleared[1..0x752f] 非零数
+    void resetSaveFlags();                             // ORIG 清零 +0x7530 save-flag
+    void enumQuestClear(bool (*cb)(unsigned int, char*), ...) const;  // ORIG 遍历 1..0x752f
 
     unsigned char m_cleared[0x7530];   // +0x00（0x7530，与 UserQuest.cpp 布局一致）
 };

@@ -15,6 +15,7 @@
 //   +0x368/0x380 set<int>  +0x3a0/0x3ac/0x3b8 vector  +0x3d8 set<int>
 // ============================================================================
 
+#include <cstddef>
 #include <map>
 #include <set>
 #include <string>
@@ -28,6 +29,25 @@ class CUser;
 
 namespace StackableAction
 {
+// ORIG Type 枚举值取自 getStackableActionType（0x089aeb9b）字符串→类型映射。
+enum Type
+{
+    TYPE_0 = 0,
+    TYPE_CANDLE_GOLDEN_WAX = 0x7,
+    TYPE_MEGAPHONE = 0x16,
+    TYPE_ADD_AVATAR_SOCKET = 0x20,
+    TYPE_EQUIPMENT_PURIFY = 0x21,
+    TYPE_SERIA_ROOM_DECO = 0x2a,
+    TYPE_UPGRADE_CARGO = 0x2b,
+    TYPE_CHATEMOTICON = 0x2c,
+    TYPE_OPEN_GUIDE_BOOK = 0x2d,
+    TYPE_CLASS_CHANGE = 0x2e,
+    TYPE_CHARACTER_NAME_CHANGE = 0x33,
+    TYPE_BINGO = 0x34,
+    TYPE_PORTABLE_UPGRADE = 0x35,
+    TYPE_LOTTERY_COUNT = 0x36,
+    TYPE_ADD_FATIGUE = 0x37
+};
 enum UsablePlace
 {
     USABLE_PLACE_0 = 0
@@ -50,9 +70,24 @@ struct StackableTail365
 
 struct stStackableBoosterItemInfo_t
 {
-    int m_itemIdx;   // +0x00
-    int m_prob;      // +0x04
+    int m_itemIdx;              // +0x00（item index）
+    int m_prob;                 // +0x04（概率/范围）
+    unsigned short m_addInfo;   // +0x08（set_add_info / 附加数量；ORIG movzwl 0x8）
+    unsigned char m_byteA;      // +0x0a（endType 附加字段）
+    unsigned char m_byteB;      // +0x0b
+    unsigned char m_byteC;      // +0x0c
+    unsigned char m_avatarType; // +0x0d（[/avatar]/[/special avatar] 写 0x0d）
+    unsigned char m_avatarLevel; // +0x0e（同上写 0x0e）
+    unsigned char m_pad;        // +0x0f
 };
+static_assert(sizeof(stStackableBoosterItemInfo_t) == 0x10,
+              "stStackableBoosterItemInfo_t ABI drift (ORIG size 0x10)");
+static_assert(offsetof(stStackableBoosterItemInfo_t, m_itemIdx) == 0x00,
+              "stStackableBoosterItemInfo_t m_itemIdx offset drift");
+static_assert(offsetof(stStackableBoosterItemInfo_t, m_prob) == 0x04,
+              "stStackableBoosterItemInfo_t m_prob offset drift");
+static_assert(offsetof(stStackableBoosterItemInfo_t, m_addInfo) == 0x08,
+              "stStackableBoosterItemInfo_t m_addInfo offset drift (ORIG movzwl 0x8)");
 
 struct stStackableBoosterElement_t
 {
@@ -66,9 +101,11 @@ struct stStackableBooster_t
 {
     std::vector<stStackableBoosterElement_t> m_elements;              // +0x00
     std::map<std::pair<char, char>,
-             std::vector<stStackableBoosterItemInfo_t> > m_map;       // +0x0c
+             std::vector<stStackableBoosterItemInfo_t> > m_map;       // +0x0c（ORIG clear 写 +0x28c 处）
     stStackableBooster_t& operator=(const stStackableBooster_t& other);
 };
+static_assert(sizeof(stStackableBoosterElement_t) == 0x18,
+              "stStackableBoosterElement_t ABI drift (ORIG construct size 0x18)");
 
 struct stLimitCubeResult
 {
@@ -80,8 +117,10 @@ struct stLimitCubeResult
 struct stLimitCubeInfo
 {
     std::vector<std::pair<int, int> > m_materials;   // +0x00
-    int m_field0c;                                   // +0x0c
-    int m_field10;                                   // +0x10
+    // ORIG：get_2nd_material_index() 读 +0x29c（=m_limitCube+0x0c）
+    int m_2ndMaterialIdx;                            // +0x0c
+    // ORIG：get_2nd_material_count() 读 +0x2a0（=m_limitCube+0x10）
+    int m_2ndMaterialCount;                          // +0x10
     std::vector<stLimitCubeResult> m_results;        // +0x14
 };
 
@@ -94,21 +133,13 @@ struct stGlobalEffect_t
     float m_field8;  // +0x08
 };
 
-struct LotteryInfo
-{
-    LotteryInfo();
-    ~LotteryInfo();
-    void clear();
-    int m_defaultIdx;                        // +0x00
-    std::vector<std::pair<int, int> > m_items;   // +0x04
-    int m_defaultCount;                      // +0x10
-    std::vector<int> m_counts;               // +0x14
-};
+#include "LotteryInfo.h"   // LotteryInfo 唯一权威定义（原本地副本删除；布局一致）
 
 namespace MultiBoxLotteryInfo
 {
 struct stDefaultItem
 {
+    stDefaultItem();   // ORIG W 0x89c35d4：清零 4 字段
     int m_itemIdx;   // +0x00
     int m_count;     // +0x04
     int m_prob;      // +0x08
@@ -120,6 +151,7 @@ struct LotteryUnit
     LotteryUnit();
     LotteryUnit(const LotteryUnit& other);
     ~LotteryUnit();
+    void clear();   // ORIG W 0x89c358c：清零 count/idx/num/flag，清空 m_items/m_bonus
 
     int m_count;                       // +0x00
     int m_defaultIdx;                  // +0x04
@@ -143,7 +175,12 @@ struct LotteryDefaultArad
 
 struct MultiBoxLotteryInfoBody
 {
-    char m_pad0[0x10];                 // +0x00
+    void clear();   // ORIG MultiBoxLotteryInfo::clear 0x8513f44：清 m_units，置 field0/4/8/c=-1/0/-1/0
+
+    int m_field0;                    // +0x00
+    int m_field4;                    // +0x04
+    int m_field8;                    // +0x08
+    int m_fieldc;                    // +0x0c
     std::vector<LotteryUnit> m_units;  // +0x10
     int m_defaultCount;                // +0x1c
     int m_defaultIdx;                  // +0x20
@@ -208,12 +245,31 @@ public:
     virtual unsigned long get_parent_booster_item_id() const;
 
     bool IsAvatarOptionChangeItem() const;
+    // ORIG 0x0822ca48 (W)：movzbl 0x321(%eax),%eax —— 返回 +0x321 字节非零（m_char321）
+    bool IsDeletableItem() const;
     int check_able_To_use(int job, int level);
     bool check_change_job_type(char changeJob, char checkJob) const;
     bool IsExpAffect();
+    // ORIG 0x086946d2 (W 非 const，按值返回)：读 +0x2d8(+0x2da) —— cooltime 时长(秒)/标志
+    // 反汇编为 sret 写入（ushort@+0,uchar@+2），证明按值返回 3 字节小 struct。
+    struct CoolTimeOption { unsigned short sec; char flag; };
+    CoolTimeOption GetCoolTimeOption();
+    // ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6) —— effect 时长(秒)/标志
+    CoolTimeOption GetEffectItemOption();
+    // ORIG 0x08694716 (W 非 const)：读 +0x2dc(+0x2e0) —— stat change 时长(秒)/状态
+    struct StatChangeInfo { unsigned int sec; unsigned int flag; };
+    StatChangeInfo GetStatChangeInfo();
+    // ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
+    float GetExpAffectRatio();
     void getBoosterItem(std::vector<stStackableBoosterItemInfo_t>& out) const;
     int get_1st_material_count(unsigned int itemIdx);
+    // ORIG 0x822c9e0：mov 0x29c(%eax),%eax —— 返回第 2 材料项的索引（m_limitCube.m_2ndMaterialIdx）
+    int get_2nd_material_index();
+    // ORIG 0x822c9ee：mov 0x2a0(%eax),%eax —— 返回第 2 材料项的数量（m_limitCube.m_2ndMaterialCount）
+    int get_2nd_material_count();
     int get_amplify_reinforce_count(int count);
+    // ORIG 0x854b518：返回 +0x344 字节非零（随机增幅券标记）。
+    bool is_random_amplify_reinforce_ticket();
     void get_limit_cube_item(std::pair<int, int>& out);
     void get_lotto_item(char* out);
     void get_multibox_default_item(std::vector<std::pair<Inven_Item, bool> >* out);
@@ -225,8 +281,14 @@ public:
     bool verify();
     bool verifyUsablePlace(class CUser* user);
     bool verifyUsableServerType();
+    // ORIG 0x0822ca58 (W)：return m_int39c == type
+    bool verifyStackableAction(StackableAction::Type type) const;
     int getTradeLimitCount() const;
     int getStackableLimit() const;
+    // ORIG 0x822ca0a (W)：return &m_vec280（+0x280）
+    const std::vector<stGlobalEffect_t>& getGlobalEffectData() const;
+    // ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）
+    unsigned short getJewelTargetSocket() const;
 
     int m_int148;                         // +0x148（AradItemInfo 首字段）
     char m_growType;                      // +0x14c
@@ -249,7 +311,7 @@ public:
     int m_int28c;                         // +0x28c
     stLimitCubeInfo m_limitCube;          // +0x290
     int m_nItemType;                      // +0x2b0
-    unsigned short m_short2b4;            // +0x2b4
+    unsigned short m_jewelTargetSocket;   // +0x2b4（珍宝目标槽位）
     char m_pad2b6[2];                     // +0x2b6
     int m_int2b8;                         // +0x2b8
     int m_int2bc;                         // +0x2bc

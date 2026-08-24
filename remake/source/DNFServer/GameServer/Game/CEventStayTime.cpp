@@ -6,6 +6,7 @@
 #include "StreamPool.h"
 #include "TimerQueue.h"
 #include "TaiwanInternal.h"
+#include "GameTypes.h"
 
 TimerQueue* G_TimerQueue();
 
@@ -19,9 +20,13 @@ CEventStayTime::~CEventStayTime()
 {
 }
 
+// ORIG 0x816bda0：置事件标志，trace 打印两个时间参数后注册下一次定时器。
 void CEventStayTime::StartEvent()
 {
     SetEventFlag(true);
+    cMyTrace trace("virtual void CEventStayTime::StartEvent()", 10, 0);
+    trace("[Taiwan, StayEvent] Start! StayTime:%dMin, CheckTime:%dMin",
+          m_rewardStayTime, m_intervalStayTime);
     RegistNextTimer();
 }
 

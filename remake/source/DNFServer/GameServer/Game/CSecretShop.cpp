@@ -16,6 +16,7 @@
 
 #include "Inven_Item.h"
 #include "CDataManager.h"
+#include "DNFLexWrapper.h"  // importSecretShopScript 的 Scan*/loadRDARScriptFile
 #include "CInventory.h"
 #include "CUser.h"
 #include "CServerProxyMgr.h"
@@ -23,27 +24,15 @@
 #include "CCubeStatistic.h"
 #include "GlobalData.h"
 #include "SECRET_SHOP_DATA.h"
-// ---- eBuyRule（ORIG 全局枚举，mangled 8eBuyRule） ----
-enum eBuyRule
-{
-    eBuyRule_0 = 0,
-    eBuyRule_1 = 1
-};
+#include "CSecretShop.h"   // eBuyRule/CSecretShopStatistic/IBuyRule/CSecretShop 唯一声明点
+#include "CDungeon.h"  // CheckLottery 遍历 m_dungeonMap
+#include "PvPTypes.h"  // 权威全局 CMTRand（0x9c8，MT19937；实现见 CMTRand.cpp）
+#include "Packet_Secret_Shop_Statistic.h"  // 权威包头（shared/packet/include）
 
-// ---- 全局 CMTRand（PvPTypes.h 权威类，0x9c8；实现见 CMTRand.cpp） ----
-// GetItemByDungeonIdx/Lev 的 ORIG 形参 mangled 为 P7CMTRand（全局），故此处补全
-// 全局 CMTRand 声明（CDataManager.h 仅前向声明），供本 TU 成员方法调用 randInt。
-class CMTRand
-{
-public:
-    CMTRand();
-    CMTRand(const unsigned long& s);   // ORIG _ZN7CMTRandC1ERKm（CMTRand.cpp 定义）
-    void seed(unsigned long s);
-    int randInt();
-    int randInt(const unsigned long& range);
-private:
-    char m_pad[0x9c8];
-};
+#include <cstring>
+// eBuyRule / CSecretShopStatistic / IBuyRule / CSecretShop 类声明已提取至
+// CSecretShop.h（跨 TU 唯一声明点，供 CParty::dungeon_start 等调用方）。
+
 // ---- SECRET_SHOP_STATISTIC_DATA（0x14，全局类型，Statics/GMAccounts.h 权威） ----
 // ORIG 的 std::map<int,SECRET_SHOP_STATISTIC_DATA> 按全局类型 mangled
 // （26SECRET_SHOP_STATISTIC_DATA，无 secretshop:: 前缀）；ctor 定义于
@@ -118,23 +107,6 @@ void SHOPPER::BuyItem(int itemIdx, int count)
     }
 }
 
-class CSecretShopStatistic
-{
-public:
-    CSecretShopStatistic();
-    ~CSecretShopStatistic();
-
-    void Clear();
-    int GetNpcPos(int npcIdx);
-    int GetNpcIndex(int pos);
-    void RecordShow(int npcIdx, int dungeonIdx, int price);
-    void RecordBuy(int npcIdx, int dungeonIdx);
-    void RecordPrice(int npcIdx, int dungeonIdx, int price);
-    int GetDungeonData(int npcIdx, int dungeonIdx);
-    void SendSecretShopStatistic();
-
-    std::map<int, SECRET_SHOP_STATISTIC_DATA> m_pos[3];   // +0x00/+0x18/+0x30
-};
 
 CSecretShopStatistic::CSecretShopStatistic()
 {
@@ -214,38 +186,23 @@ void CSecretShopStatistic::RecordPrice(int npcIdx, int dungeonIdx, int price)
 
 void CSecretShopStatistic::SendSecretShopStatistic()
 {
-    // 本地复刻 Packet_Secret_Shop_Statistic（0xfb2，避免依赖包头）
-    struct SecretShopStatPacket
-    {
-        unsigned short m_packetId;     // 0x1b69
-        unsigned short m_packetSize;   // 0xfb2
-        unsigned short m_reversed1;
-        unsigned int m_connNo;
-        int m_count;                   // +0xa
-        int m_shopIdx;                 // +0xe
-        char m_items[0xfa0];           // +0x12
-    };
+    // ORIG 0x85fd278：包在循环外构造一次（PacketHeader(0x1b69,0xfb2)，
+    // m_count=0）；对每个 pos，若 map 非空：memset 数据区（0xfa0），
+    // 逐项拷贝 SECRET_SHOP_STATISTIC_DATA 的全部 5 个 int（m_data[0]=dungeonIdx
+    // 由 GetDungeonData 写入），经 s_statistic_proxy_mgr->GetServerProxy(0)
+    // ->SendPacket(&packet, 0xfb2) 发送。ORIG 不写 m_count/m_shopIdx。
+    Packet_Secret_Shop_Statistic packet;
     for (int pos = 0; pos < 3; ++pos) {
         if (m_pos[pos].empty())
             continue;
-        SecretShopStatPacket packet;
-        packet.m_packetId = 0x1b69;
-        packet.m_packetSize = 0xfb2;
-        packet.m_reversed1 = 0;
-        packet.m_connNo = 0;
-        packet.m_shopIdx = pos;
+        memset(packet.m_items, 0, sizeof(packet.m_items));
         int count = 0;
         for (std::map<int, SECRET_SHOP_STATISTIC_DATA>::iterator it =
                  m_pos[pos].begin();
              it != m_pos[pos].end(); ++it, ++count) {
-            int* out = (int*)packet.m_items + count * 5;
-            out[0] = it->first;
-            out[1] = it->second.m_data[1];
-            out[2] = it->second.m_data[2];
-            out[3] = it->second.m_data[3];
-            out[4] = it->second.m_data[4];
+            memcpy(packet.m_items + count * sizeof(SECRET_SHOP_STATISTIC_DATA),
+                   &it->second, sizeof(SECRET_SHOP_STATISTIC_DATA));
         }
-        packet.m_count = count;
         CStatisticServerProxy* proxy =
             GlobalData::s_statistic_proxy_mgr->GetServerProxy(
                 (ENUM_SERVER_GROUP)0);
@@ -253,28 +210,7 @@ void CSecretShopStatistic::SendSecretShopStatistic()
     }
 }
 
-// ---- IBuyRule（购买规则基类） ----
-// ORIG ABI：基类仅一个 virtual（BuyItem 纯虚，位于 vtable 槽 0），无 virtual
-// 析构；ctor 接收 CSecretShopStatistic& 存入 +0x04。派生类无额外成员、无
-// virtual 析构，规则指针在 CSecretShop::~CSecretShop 中用 ::operator delete
-// （_ZdlPv）直接释放（ORIG 反汇编确认 BuyItem 为 vtable[0]）。
-class IBuyRule
-{
-public:
-    IBuyRule(CSecretShopStatistic& statistic) : m_pStatistic(&statistic) {}
-    virtual bool BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
-                         int count) = 0;   // vtable 槽 0（唯一 virtual）
 
-    int CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& remain);
-    int InsertItemIntoInventory(CUser* user, int itemIdx, int count,
-                                Inven_Item& out);
-    void SendSecretShopBuyItem(CUser* user, int slot, Inven_Item& item, int a,
-                               int b, int c);
-    void LogCubeStatistic(CUser* user, std::pair<int, int>& item);
-    void LogValueStatistic(CUser* user, unsigned int value);
-
-    CSecretShopStatistic* m_pStatistic;   // +0x04
-};
 
 
 int IBuyRule::CheckLimit(SECRET_SHOP_INFO& info, int itemIdx, int count, int& remain)
@@ -355,13 +291,6 @@ void IBuyRule::LogValueStatistic(CUser* user, unsigned int value)
 // ---- CBuyItembyGold（金币购买规则） ----
 // 无 virtual 析构；ctor 委托 IBuyRule(CSecretShopStatistic&) 存 +0x04，vptr 置
 // &_ZTVN10secretshop14CBuyItembyGoldE+0x8（BuyItem 于 vtable[0]，ORIG 确认）。
-class CBuyItembyGold : public IBuyRule
-{
-public:
-    CBuyItembyGold(CSecretShopStatistic& statistic);
-    virtual bool BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
-                         int count);
-};
 
 CBuyItembyGold::CBuyItembyGold(CSecretShopStatistic& statistic)
     : IBuyRule(statistic)
@@ -372,8 +301,7 @@ bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                              int count)
 {
     SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
-    unsigned int err = CSecu_ProtectionField::Check(
-        GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)0x42);
+    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x42);
     if (err != 0)
         return 0;
     if (sale == 0) {
@@ -410,13 +338,6 @@ bool CBuyItembyGold::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
 // ---- CBuyItembyRecipe（配方购买规则） ----
 // 无 virtual 析构；ctor 委托 IBuyRule(CSecretShopStatistic&)，vptr 置
 // &_ZTVN10secretshop16CBuyItembyRecipeE+0x8（BuyItem 于 vtable[0]，ORIG 确认）。
-class CBuyItembyRecipe : public IBuyRule
-{
-public:
-    CBuyItembyRecipe(CSecretShopStatistic& statistic);
-    virtual bool BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
-                         int count);
-};
 
 CBuyItembyRecipe::CBuyItembyRecipe(CSecretShopStatistic& statistic)
     : IBuyRule(statistic)
@@ -427,8 +348,7 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
                                int count)
 {
     SALE_INFO* sale = info.m_retailer.GetSaleInfo(itemIdx);
-    unsigned int err = CSecu_ProtectionField::Check(
-        GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)0x43);
+    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x43);
     if (err != 0)
         return 0;
     if (sale == 0) {
@@ -462,49 +382,22 @@ bool CBuyItembyRecipe::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx,
     return 1;
 }
 
-// ---- CMTRand（PvPTypes.h 权威类；此处仅声明本 TU 用到的接口） ----
-class CMTRand
-{
-public:
-    CMTRand(const unsigned long& seed);
-    int randInt(const unsigned long& range);
-private:
-    char m_pad[0x9c8];
-};
 
 // ---- CSecretShop（ORIG 布局：map<eBuyRule,IBuyRule*> +0x00、
 //      CMTRand* +0x18、CSecretShopStatistic +0x1c） ----
-class CSecretShop
-{
-public:
-    CSecretShop();
-    ~CSecretShop();
-
-    int LotteryNpc(int dungeonIdx, int level, int price);
-    void LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx, int level,
-                      int price);
-    void CheckLottery();
-    IBuyRule* GetRule(eBuyRule rule);
-    void BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int count);
-    void SendSecretShopNpc(CUser* user, int npcIdx);
-    void SendSecretShopItemList(CUser* user, std::vector<SALE_INFO>& list);
-    void SendSecretShopStatistic();
-
-    std::map<eBuyRule, IBuyRule*> m_rules;   // +0x00
-    ::CMTRand* m_pRand;                   // +0x18（全局 CMTRand，ORIG）
-    CSecretShopStatistic m_statistic;        // +0x1c
-};
 
 // ---- SecretShopScript 跨类方法（CDataManager +0xa700，ORIG 真实符号；
 //      声明见 CDataManager.h，本 TU 直接真实调用） ----
 
 CSecretShop::CSecretShop()
 {
-    // ORIG：map.insert(pair)（非 operator[]）；m_pRand = new ::CMTRand(time(0))
-    // （全局 CMTRand 的 const unsigned long& 种子 ctor，符号 _ZN7CMTRandC1ERKm）。
+    // ORIG：map.insert(pair)（非 operator[]）；m_pRand = new CMTRand(time(0))
+    // （PvPTypes.h 权威 CMTRand 的 const unsigned long& 种子 ctor，
+    //  符号 _ZN7CMTRandC1ERKm @0x080cba2a；ORIG 无 CMTRand(time_t) 重载，
+    //  time(0) 经临时 unsigned long 绑定 const 引用）。
     m_rules.insert(std::make_pair((eBuyRule)0, new CBuyItembyGold(m_statistic)));
     m_rules.insert(std::make_pair((eBuyRule)1, new CBuyItembyRecipe(m_statistic)));
-    m_pRand = new ::CMTRand(time(0));
+    m_pRand = new CMTRand(time(0));
 }
 
 CSecretShop::~CSecretShop()
@@ -545,17 +438,69 @@ void CSecretShop::LotteryItems(std::vector<SALE_INFO>& out, int dungeonIdx,
                                int level, int price)
 {
     SecretShopScript* script = (SecretShopScript*)((char*)G_CDataManager() + 0xa700);
-    // m_pRand 为 secretshop::CMTRand*（ABI 与全局 CMTRand 一致的 MT19937）；
-    // GetItemByDungeonIdx/Lev 形参为全局 CMTRand*（ORIG mangled P7CMTRand）。
-    if (!script->GetItemByDungeonIdx((::CMTRand*)m_pRand, out,
-                                     dungeonIdx, level, false))
-        script->GetItemByDungeonLev((::CMTRand*)m_pRand, out,
-                                    dungeonIdx, price, false);
+    // m_pRand 即 PvPTypes.h 权威全局 CMTRand；GetItemByDungeonIdx/Lev 形参
+    // 为全局 CMTRand*（ORIG mangled P7CMTRand），类型一致，无需转换。
+    if (!script->GetItemByDungeonIdx(m_pRand, out, dungeonIdx, level, false))
+        script->GetItemByDungeonLev(m_pRand, out, dungeonIdx, price, false);
 }
 
 void CSecretShop::CheckLottery()
 {
-    // ORIG 0x85fad20：按村庄商店位轮换抽取商品并广播
+    // ORIG 0x85fad20：统计工具 —— 对 CDataManager 地下城表中每个地下城，
+    // 以 dungeonIdx=0x3ea(1002)、level=get_index()、price=get_standard_level()
+    // 抽取 10000 次 LotteryItems，统计各商品出现次数，并把百分比写入
+    // secretshop_lottery.txt。
+    std::vector<SALE_INFO> list;
+    std::map<int, int> counts;
+    FILE* fp = fopen("secretshop_lottery.txt", "wt");
+    if (fp == 0)
+    {
+        return;
+    }
+    __gnu_cxx::hash_map<int, CDungeon*>& dungeons =
+        G_CDataManager()->m_dungeonList->m_dungeonMap;
+    for (__gnu_cxx::hash_map<int, CDungeon*>::iterator it = dungeons.begin();
+         it != dungeons.end(); ++it)
+    {
+        CDungeon* dungeon = it->second;
+        counts.clear();
+        for (int i = 0; i < 10000; ++i)
+        {
+            LotteryItems(list, 0x3ea, dungeon->get_index(),
+                         dungeon->get_standard_level());
+            for (std::size_t j = 0; j < list.size(); ++j)
+            {
+                std::map<int, int>::iterator c =
+                    counts.find(list[j].m_itemIdx);
+                if (c == counts.end())
+                {
+                    counts.insert(std::make_pair(list[j].m_itemIdx, 1));
+                }
+                else
+                {
+                    ++c->second;
+                }
+            }
+            list.clear();
+        }
+        fprintf(fp, "Dungeon : %s(idx:%d, lev:%d)\n",
+                dungeon->GetDungeonName(), dungeon->get_index(),
+                dungeon->get_standard_level());
+        int total = 0;
+        for (std::map<int, int>::iterator c = counts.begin();
+             c != counts.end(); ++c)
+        {
+            total += c->second;
+        }
+        for (std::map<int, int>::iterator c = counts.begin();
+             c != counts.end(); ++c)
+        {
+            fprintf(fp, "- %d(%d, %.2f%%)\n", c->first, c->second,
+                    100.0 * ((double)c->second / (double)total));
+        }
+        fputc('\n', fp);
+    }
+    fclose(fp);
 }
 
 void CSecretShop::BuyItem(CUser* user, SECRET_SHOP_INFO& info, int itemIdx, int count)
@@ -768,10 +713,176 @@ void SecretShopScript::CopyItem(secretshop::SALE_INFO& sale, stSaleInfo& info)
     }
 }
 
-// ---- importSecretShopScript（ORIG 0x8a81cf0，_Z22importSecretShopScriptP16SecretShopScriptPKc） ----
+// ---- SecretShopScript::clear（ORIG 0x8372020 W）----
+void SecretShopScript::clear()
+{
+    m_priceVarPercent = 0;   // +0x80
+    m_int84 = 0;             // +0x84
+    m_npcMap.clear();        // +0x00
+    m_levelSections.clear(); // +0x30
+    m_levelNpcMap.clear();   // +0x18
+    m_dungeonNpcMap.clear(); // +0x48
+}
 
-// 语义：加载商城脚本（RDAR），填充 SecretShopScript 数据。
+// ---- SecretShopScript::verifyNpc（ORIG 0x8a82804）----
+void SecretShopScript::verifyNpc(std::multimap<int, stDungeonNpc>& npcMap)
+{
+    for (std::multimap<int, stDungeonNpc>::iterator it = npcMap.begin();
+         it != npcMap.end(); ++it)
+    {
+        int total = 0;
+        std::pair<std::multimap<int, stDungeonNpc>::iterator,
+                  std::multimap<int, stDungeonNpc>::iterator> range =
+            npcMap.equal_range(it->first);
+        for (std::multimap<int, stDungeonNpc>::iterator r = range.first;
+             r != range.second; ++r)
+        {
+            total += r->second.m_rate;
+        }
+        if (total != 10000)
+        {
+            printf("[SecretShop Error] NPC ratio is wrong!(index:%d)\n",
+                   it->second.m_npcIdx);
+        }
+    }
+}
+
+// ---- importSecretShopScript（ORIG 0x8a81cf0，_Z22importSecretShopScriptP16SecretShopScriptPKc）----
+
+// 按 docs/class_func_reports/_lt_global_gt_/importSecretShopScript.md 忠实转写：
+//   - 所有取值扫描均为 int ScanInt(bool* ok) 形式；占位扫描传 (bool*)0
+//     （ORIG movl $0x0 压参），成功标志仅用于条目循环终止判断。
+//   - [dungeon npc]/[level npc]：每条 7 次扫描（key/npcIdx/rate 带 flag +
+//     4 次 flag=0 占位，ORIG +0x11c 循环 i=0..3），循环至 flag 失败后
+//     verifyNpc 对应 multimap。
+//   - [npc]：npcKey 存入局部 stNpcSales::m_field0；内层 token 循环处理
+//     [dungeon]/[level]（先 dungeonKey/maxCount 两次占位扫描，随后 itemIdx
+//     带 flag 的商品循环）、[/npc]（整表插入 m_dungeonNpcMap）；
+//     [dungeon cash item] 为无操作继续。
+//   - [event item] 在外层：首个占位扫描写 m_eventDungeonSales.m_maxCount
+//     （ORIG script+0x64），其后 itemIdx 带 flag 的商品循环插入 m_sales。
+//   - stDungeonNpc 各字段与 key/npcIdx/rate 的对应为 [推断]（ORIG 经局部
+//     辅助构造函数写入，未逐指令核对）。
 int importSecretShopScript(SecretShopScript* script, const char* path)
 {
+    if (!loadRDARScriptFile("", path))
+    {
+        return 0;
+    }
+    script->clear();
+    std::string token;
+    bool done = false;
+    while (!done && ScanType(token, true))
+    {
+        done = (token == "[secret shop end]");
+        if (!done && (token == "[dungeon npc]" || token == "[level npc]"))
+        {
+            std::multimap<int, stDungeonNpc>& npcMap =
+                (token == "[dungeon npc]") ? script->m_npcMap
+                                           : script->m_levelNpcMap;
+            for (;;)
+            {
+                bool ok = false;
+                int key = ScanInt(&ok);
+                if (!ok)
+                    break;
+                int npcIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                int rate = ScanInt(&ok);
+                if (!ok)
+                    break;
+                for (int i = 0; i <= 3; ++i)
+                    ScanInt((bool*)0);   // 4 个占位扫描（ORIG +0x11c）
+                stDungeonNpc npc;
+                npc.m_field0 = key;      // [推断]
+                npc.m_npcIdx = npcIdx;
+                npc.m_rate = rate;
+                npc.m_fieldC = 0;
+                npcMap.insert(std::make_pair(key, npc));
+            }
+            script->verifyNpc(npcMap);
+        }
+        else if (!done && token == "[level section]")
+        {
+            for (;;)
+            {
+                bool ok = false;
+                stLevelSection section;
+                section.m_levelIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                section.m_minLev = ScanInt((bool*)0);
+                section.m_maxLev = ScanInt((bool*)0);
+                script->m_levelSections.insert(section);
+            }
+        }
+        else if (!done && token == "[npc]")
+        {
+            stNpcSales sales;
+            sales.m_field0 = ScanInt((bool*)0);   // npcKey
+            std::string sub;
+            while (ScanType(sub, true))
+            {
+                if (sub == "[/npc]")
+                {
+                    script->m_dungeonNpcMap.insert(
+                        std::make_pair(sales.m_field0, sales));
+                    break;
+                }
+                if (sub == "[dungeon]" || sub == "[level]")
+                {
+                    stDungeonSales ds;
+                    ds.m_field0 = ScanInt((bool*)0);       // dungeonKey
+                    ds.m_maxCount = ScanInt((bool*)0);     // +0x04
+                    for (;;)
+                    {
+                        bool ok = false;
+                        stSaleInfo sale;
+                        sale.m_itemIdx = ScanInt(&ok);
+                        if (!ok)
+                            break;
+                        sale.m_rule = (char)ScanInt((bool*)0);
+                        sale.m_price = ScanInt((bool*)0);
+                        sale.m_materialCount = ScanInt((bool*)0);
+                        sale.m_limit = ScanInt((bool*)0);
+                        sale.m_rate = ScanInt((bool*)0);
+                        ds.m_sales.insert(std::make_pair(sale.m_itemIdx, sale));
+                    }
+                    sales.m_dungeonSales.insert(
+                        std::make_pair(ds.m_field0, ds));
+                }
+                // "[dungeon cash item]" 及未知 token：无操作继续内层循环
+            }
+        }
+        else if (!done && token == "[event item]")
+        {
+            script->m_eventDungeonSales.m_maxCount = ScanInt((bool*)0);  // +0x64
+            for (;;)
+            {
+                bool ok = false;
+                stSaleInfo sale;
+                sale.m_itemIdx = ScanInt(&ok);
+                if (!ok)
+                    break;
+                sale.m_rule = (char)ScanInt((bool*)0);
+                sale.m_price = ScanInt((bool*)0);
+                sale.m_materialCount = ScanInt((bool*)0);
+                sale.m_limit = ScanInt((bool*)0);
+                sale.m_rate = ScanInt((bool*)0);
+                script->m_eventDungeonSales.m_sales.insert(
+                    std::make_pair(sale.m_itemIdx, sale));
+            }
+        }
+        else if (!done && token == "[price random]")
+        {
+            script->m_priceVarPercent = ScanInt((bool*)0);   // +0x80
+        }
+        else if (!done && token == "[eplp wait time]")
+        {
+            script->m_int84 = ScanInt((bool*)0);             // +0x84
+        }
+        // "[add slot cash user stackable count]"：无操作继续
+    }
     return 1;
 }

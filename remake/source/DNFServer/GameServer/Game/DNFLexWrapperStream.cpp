@@ -23,60 +23,57 @@
 // 本 TU 仅按 ORIG ABI 声明并封装，不做固定返回值伪实现。
 // ============================================================================
 
+#include <cstdarg>
 #include <cstdio>
+#include <new>
 #include <strstream>
 #include <string>
 
 #include "DNFLexWrapper.h"
 
-// toMbcs（_Z6toMbcsPKc，sync_script.cpp 提供）：TCHAR 转多字节，失败时
-// 返回原指针。
 const char* toMbcs(const char* src);
+
+static int dnf_lex_sprintf(char* buffer, const char* format, ...)
+{
+    std::va_list ap;
+    va_start(ap, format);
+    int n = std::vsnprintf(buffer, 0x400, format, ap);
+    va_end(ap);
+    return n;
+}
 
 // getInputStream（ORIG 0x8ace900）：仅 NORMAL 分流到 DNFLex::GetInputStream，
 // 取其返回流对象偏移 +0x8 的 istream*；其它 lexType 返回 0。
 void* DNFLexWrapper::getInputStream()
 {
+    void* r = 0;
     if (lexType_ != LEX_TYPE_NORMAL)
-        return 0;
-    DNFLex::stream_t* st = dnfLex_.GetInputStream();
-    if (!st)
-        return 0;
-    return st->s.stream;
+        return r;
+    return dnfLex_.GetInputStream()->s.stream;
 }
 
 // getInputStreamBuffer（ORIG 0x8ace970）：NORMAL 取 DNFLex stream_t +0x10，
-// COMPILED 取 CompiledDNFLex stream_t +0x0c；其它返回 0。
+// COMPILED 取 CompiledDNFLex stream_t +0x0c；其它返回 0。无空指针护栏。
 char* DNFLexWrapper::getInputStreamBuffer()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-    {
-        DNFLex::stream_t* st = dnfLex_.GetInputStream();
-        return st ? st->s.buffer : 0;
-    }
+        return dnfLex_.GetInputStream()->s.buffer;
+    char* r = 0;
     if (lexType_ == LEX_TYPE_COMPILED)
-    {
-        CompiledDNFLex::stream_t* st = compiledDnfLex_.GetInputStream();
-        return st ? st->buffer : 0;
-    }
-    return 0;
+        return compiledDnfLex_.GetInputStream()->buffer;
+    return r;
 }
 
 // getInputStreamSize（ORIG 0x8ace930）：NORMAL 取 DNFLex stream_t +0x0c；
-// COMPILED 取 CompiledDNFLex stream_t +0x08；其它返回 -1。
+// COMPILED 取 CompiledDNFLex stream_t +0x08；其它返回 -1。无空指针护栏。
 int DNFLexWrapper::getInputStreamSize()
 {
     if (lexType_ == LEX_TYPE_NORMAL)
-    {
-        DNFLex::stream_t* st = dnfLex_.GetInputStream();
-        return st ? st->s.size : 0;
-    }
+        return dnfLex_.GetInputStream()->s.size;
+    int r = -1;
     if (lexType_ == LEX_TYPE_COMPILED)
-    {
-        CompiledDNFLex::stream_t* st = compiledDnfLex_.GetInputStream();
-        return st ? static_cast<int>(st->size) : 0;
-    }
-    return -1;
+        return (int)compiledDnfLex_.GetInputStream()->size;
+    return r;
 }
 
 // getStreamName（ORIG 0x8ace8a0）：tstring 返回（按 DNFLexWrapper.cpp
@@ -103,19 +100,21 @@ void DNFLexWrapper::closeInputStream()
 bool DNFLexWrapper::setStringStreamData(DNFLex::stream_data_t* s, char* buffer,
                                         unsigned int bufferSize)
 {
-    if (bufferSize == 0)
+    static const char* kEmptyBuf = "";
+    if (bufferSize)
     {
-        ::operator delete(buffer);
-        std::istrstream* is = new std::istrstream("", 1);
+        std::istrstream* is = new std::istrstream(buffer, (int)bufferSize);
         s->stream = is;
-        s->size = 1;
+        s->size = (int)bufferSize;
+        s->buffer = buffer;
     }
     else
     {
-        std::istrstream* is = new std::istrstream(buffer, bufferSize);
+        const char* e = kEmptyBuf;
+        ::operator delete(buffer);
+        std::istrstream* is = new std::istrstream(e, 1);
         s->stream = is;
-        s->size = static_cast<int>(bufferSize);
-        s->buffer = buffer;
+        s->size = 1;
     }
     return true;
 }
@@ -129,47 +128,47 @@ bool DNFLexWrapper::setStringStreamData(DNFLex::stream_data_t* s, char* buffer,
 bool DNFLexWrapper::switchInputStream(const char* dir, const char* filename,
                                       DNFLex::stream_data_t* s)
 {
+    char errbuf[0x400];
     DNFLex::stream_data_t local;
+    short magic;
+
     if (s == 0)
     {
         s = &local;
         s->clear();
         if (!LoadStream(dir, filename, s))
         {
-            void (*err)(const char*) = reinterpret_cast<void (*)(const char*)>(lexerError_);
-            if (err == 0)
+            if (lexerError_ == 0)
                 return false;
-            char buf[1024];
-            std::snprintf(buf, sizeof(buf), "%s/%s Read failed!",
-                          toMbcs(dir), toMbcs(filename));
-            err(buf);
+            dnf_lex_sprintf(errbuf, "%s/%s Read failed!",
+                            toMbcs(dir), toMbcs(filename));
+            reinterpret_cast<void (*)(const char*)>(lexerError_)(errbuf);
             return false;
         }
     }
-    DNFLex::stream_data_t* sd = s;
-    if (sd->size > 1)
+    if (1 < (unsigned)s->size)
     {
-        std::istream* is = reinterpret_cast<std::istream*>(sd->stream);
-        short magic = 0;
-        is->read(reinterpret_cast<char*>(&magic), 2);
-        is->seekg(-2, std::ios::cur);
+        reinterpret_cast<std::istream*>(s->stream)->read(
+            reinterpret_cast<char*>(&magic), 2);
+        reinterpret_cast<std::istream*>(s->stream)->seekg(-2, std::ios::cur);
         if (magic == static_cast<short>(0xd0b0))
         {
+            char* pc = s->buffer;
             lexType_ = LEX_TYPE_COMPILED;
-            if (sd->buffer == 0)
+            if (pc == 0)
             {
-                char* buf = new char[sd->size];
-                is->read(buf, sd->size);
+                pc = new char[s->size];
+                reinterpret_cast<std::istream*>(s->stream)->read(pc, s->size);
                 return compiledDnfLex_.SwitchInputStream(
-                    dir, filename, buf, static_cast<unsigned int>(sd->size));
+                    dir, filename, pc, static_cast<unsigned int>(s->size));
             }
             bool ret = compiledDnfLex_.SwitchInputStream(
-                dir, filename, sd->buffer, static_cast<unsigned int>(sd->size));
-            if (sd->stream != 0)
+                dir, filename, pc, static_cast<unsigned int>(s->size));
+            if (s->stream != 0)
             {
                 void (**vtable)(void*) =
-                    *reinterpret_cast<void (***)(void*)>(sd->stream);
-                vtable[1](sd->stream);
+                    *reinterpret_cast<void (***)(void*)>(s->stream);
+                vtable[1](s->stream);
             }
             return ret;
         }

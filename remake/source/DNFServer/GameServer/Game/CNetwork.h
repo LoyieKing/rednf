@@ -31,8 +31,8 @@ class CDispatchServerPacket
 {
 public:
     static void dispatchPacket(char* p);
-    static void dispatchAuctionPacket(char* p);
-    static void dispatchPointPacket(char* p);   // ORIG 0847c1fe
+    static int dispatchAuctionPacket(char* p);   // ORIG 0847ac3c（恒返 1）
+    static int dispatchPointPacket(char* p);     // ORIG 0847c1fe（恒返 1）
 };
 
 template <int N1, int N2>

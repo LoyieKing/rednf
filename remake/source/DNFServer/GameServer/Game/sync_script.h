@@ -5,10 +5,9 @@
 // df_game_r 还原 —— sync_script::CSyncScript（G5 数据/脚本域）
 // 物品相关方法由 CItemList.cpp 实现（其私有声明与本头布局一致）；
 // 本头供 sync_script.cpp 补齐 skill/quest/dungeon/town 等剩余方法。
-// 依赖的 ST* 外部类型（STEquipmentScript/STStackableScript/CreatureScript/
-// STAICharacterCommonScript/STEquipmentStatInfo/STEquipmentPartSetPiece/
-// EquipmentParameterInfo/STMonsterScript）以最小镜像声明，偏移依据
-// docs/class_func_reports/sync_script__CSyncScript.md 的 C 代码。
+// 依赖的 ST* 外部类型：EquipmentParameterInfo/STEquipmentScript 使用权威头
+// （EquipmentParameterInfo.h/STEquipmentScript.h，经 CItemAmplifier.h 链已
+// 进入本 TU，本地镜像会重定义）；其余无权威头的类型仍以最小镜像声明。
 // ============================================================================
 
 #include <map>
@@ -21,39 +20,12 @@
 class MySQL;
 class STSkillScript;
 
-// ---- 外部 ST* 镜像（真实定义属各自 TU；这里只保证本 TU 的偏移语义） ----
-class EquipmentParameterInfo
-{
-public:
-    char m_pad[0x140];
-    int m_field140;      // +0x140（攻击属性）
-};
+// ---- 权威类型（唯一声明点收敛：本地镜像已删除，改引权威头）----
+#include "EquipmentParameterInfo.h"
+#include "STEquipmentScript.h"
+#include "STStackableScript.h"   // STStackableScript/STStackablePackageData 权威
+#include "CreatureScript.h"      // CreatureScript 权威（importCreatureScript.md 布局）
 
-class STEquipmentScript
-{
-public:
-    char m_pad0[0x38];
-    char m_usable[0xb];  // +0x38
-    char m_pad43[0x5d];
-    char m_fielda0;      // +0xa0
-    char m_pada1[0x36b];
-    struct LevelUpSkill
-    {
-        int m_job;       // +0x00
-        int m_field4;    // +0x04
-        int m_field8;    // +0x08
-    };
-    std::vector<LevelUpSkill> m_levelUpSkills[4];  // +0x40c 起，每 0xc 一档
-};
-
-class STStackableScript
-{
-public:
-    char m_pad0[0x38];
-    char m_usable[0xb];  // +0x38
-    char m_pad43[0x5d];
-    char m_fielda0;      // +0xa0
-};
 
 class STAICharacterCommonScript
 {
@@ -62,35 +34,17 @@ public:
     std::string m_str4;  // +0x04
 };
 
-class CreatureScript
-{
-public:
-    int m_field0;                        // +0x00
-    std::string m_str4;                  // +0x04
-    char m_pad14[0x14 - 0x8];
-    int m_14;                            // +0x14
-    int m_18;                            // +0x18
-    int m_1c;                            // +0x1c
-    int m_20;                            // +0x20
-    char m_pad5c[0x5c - 0x24];
-    int m_5c;                            // +0x5c
-    char m_pad9c[0x9c - 0x60];
-    std::string m_str9c;                 // +0x9c
-    char m_pad128[0x128 - 0xa0];
-    std::vector<std::string> m_skillNames;   // +0x128
-    std::string m_str134;                // +0x134
-    char m_pad178[0x178 - 0x138];
-    int m_178;                           // +0x178
-    int m_17c;                           // +0x17c
-};
 
 class STEquipmentPartSetPiece
 {
 public:
+    // ORIG C1 0x0891afd0：string 默认构造 + 三个 int 置 -1。
+    STEquipmentPartSetPiece() : m_field4(-1), m_field8(-1), m_fieldc(-1) {}
+
     std::string m_name;  // +0x00
-    int m_field4;        // +0x04
-    int m_field8;        // +0x08
-    int m_fieldc;        // +0x0c
+    int m_field4;        // +0x04（getSameStringIndex(characterEquipmentTypeTags) 结果）
+    int m_field8;        // +0x08（ScanInt）
+    int m_fieldc;        // +0x0c（ScanInt）
 };
 
 class STEquipmentStatInfo

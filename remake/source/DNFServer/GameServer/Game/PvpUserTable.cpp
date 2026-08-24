@@ -16,6 +16,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include "PvPTypes.h"  // PvpUserTable 权威完整定义（本 TU 唯一实现归属）
+
 #include "CUserCharacInfo.h"
 #include "GameWorld.h"
 
@@ -23,43 +25,13 @@ class CUser;
 
 // cMyTrace 权威声明见 GameTypes.h（经 GameWorld.h 链包含），本地类已删除（§7）。
 
-// ---- PvpUserTable（0x34c） ----
-class PvpUserTable
+
+// ORIG GetResult/GetLeavePenalty 以 fnstcw→RC=00(就近舍入)→fldcw→fistpl 转 int；
+// C++ 侧按仓库惯例以 ±0.5 就近取整等价实现（CExpertJob 同模式）。
+static inline int RoundToNearestInt(float f)
 {
-public:
-    PvpUserTable();
-    ~PvpUserTable();
-    void Clear();
-    int  Set(int team, CUser* user);
-    int  IsValidTeam(int team);
-    int  IsValidConvertedGrade(int grade);
-    int  GetTeamUserCount(int team);
-    float GetExpectVal(int grade1, int grade2, CUser* user);
-    int  Calculate();
-    int  GetTeamVsTeamPoint(int team1, int team2);
-    int  GetGhostVsTeamPoint(int team, int unused);
-    int  GetResult(int team, bool isWinTeam, int mode);
-    int  GetLeavePenalty(int team);
-    int  GradeFilter(int grade);
-    void CheckDan();
-    void SetWinTeam(int team);
-    int  GetWinTeam();
-    int  GetUserVsTeamPoint(int userIdx, int myTeam, int enemyTeam,
-                            CUser* user);
-
-    struct UserSlot
-    {
-        CUser* user;        // +0x00
-        unsigned char flag; // +0x04
-    };
-
-    float m_teamVsTeam[8][8]; // +0x000
-    float m_teamPoint[8];     // +0x100
-    UserSlot m_users[8][8];   // +0x120
-    int m_winTeam;            // +0x320
-    float m_minPoint[8];      // +0x324
-    unsigned char m_dan[8];   // +0x344
-};
+    return (int)(f < 0.0f ? f - 0.5f : f + 0.5f);
+}
 
 PvpUserTable::PvpUserTable()
 {
@@ -291,50 +263,50 @@ int PvpUserTable::GetResult(int team, bool isWinTeam, int mode)
         if (m_winTeam == team)
         {
             float f = m_teamVsTeam[m_winTeam][team];
-            int v = (int)(f * 1000.0f * 120.0f / 100.0f);
+            int v = RoundToNearestInt(f * 1000.0f * 120.0f / 100.0f);
             if (v < -100000 || 100000 < v)
             {
                 cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)",
                             0x1d0, 5);
-                tr("pvp_exp_error3 %d, %f", (int)(f * 1000.0f * 120.0f / 100.0f),
-                   (double)f);
+                tr("pvp_exp_error3 %d, %f",
+                   RoundToNearestInt(f * 1000.0f * 120.0f / 100.0f), (double)f);
             }
-            return (int)(f * 1000.0f * 120.0f / 100.0f);
+            return RoundToNearestInt(f * 1000.0f * 120.0f / 100.0f);
         }
 
         if (mode > 14)
         {
             float f = m_teamVsTeam[m_winTeam][team];
-            int v = (int)(f * 1000.0f * 40.0f / 100.0f);
+            int v = RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f);
             if (v < -100000 || 100000 < v)
             {
                 cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)",
                             0x1c4, 5);
-                tr("pvp_exp_error2 %d, %f", (int)(f * 1000.0f * 40.0f / 100.0f),
-                   (double)f);
+                tr("pvp_exp_error2 %d, %f",
+                   RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f), (double)f);
             }
-            return (int)(f * 1000.0f * 40.0f / 100.0f);
+            return RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f);
         }
 
         float f = m_teamVsTeam[team][team];
-        int v = (int)(f * 1000.0f * 40.0f / 100.0f);
+        int v = RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f);
         if (v < -100000 || 100000 < v)
         {
             cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)", 0x1b9, 5);
-            tr("pvp_exp_error1 %d, %f", (int)(f * 1000.0f * 40.0f / 100.0f),
-               (double)f);
+            tr("pvp_exp_error1 %d, %f",
+               RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f), (double)f);
         }
-        return (int)(f * 1000.0f * 40.0f / 100.0f);
+        return RoundToNearestInt(f * 1000.0f * 40.0f / 100.0f);
     }
 
     float f = m_teamVsTeam[m_winTeam][team];
-    int v = (int)(f * 1000.0f);
+    int v = RoundToNearestInt(f * 1000.0f);
     if (v < -100000 || 100000 < v)
     {
         cMyTrace tr("int PvpUserTable::GetResult(int, bool, int)", 0x1dd, 5);
-        tr("pvp_exp_error4 %d, %f", (int)(f * 1000.0f), (double)f);
+        tr("pvp_exp_error4 %d, %f", RoundToNearestInt(f * 1000.0f), (double)f);
     }
-    return (int)(f * 1000.0f);
+    return RoundToNearestInt(f * 1000.0f);
 }
 
 int PvpUserTable::GetLeavePenalty(int team)
@@ -343,7 +315,7 @@ int PvpUserTable::GetLeavePenalty(int team)
     {
         return -1;
     }
-    return (int)(m_minPoint[team] * 1000.0f);
+    return RoundToNearestInt(m_minPoint[team] * 1000.0f);
 }
 
 int PvpUserTable::GradeFilter(int grade)

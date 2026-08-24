@@ -19,7 +19,8 @@
 
 class STKeyCommand;
 
-#ifndef GAME_CEQUIPITEM_H_
+#ifndef DNF_ITEMUPGRADE_TYPE_DEFINED
+#define DNF_ITEMUPGRADE_TYPE_DEFINED
 namespace ItemUpgradeType
 {
 enum T
@@ -27,7 +28,10 @@ enum T
     T_0 = 0
 };
 }
+#endif
 
+#ifndef DNF_STAVATARTYPESELECT_T_DEFINED
+#define DNF_STAVATARTYPESELECT_T_DEFINED
 struct stAvatarTypeSelect_t
 {
     int m_field0;       // +0x00
@@ -39,10 +43,13 @@ struct stAvatarTypeSelect_t
 };
 #endif
 
+#ifndef DNF_ENUM_EQUIPMENTTYPE_DEFINED
+#define DNF_ENUM_EQUIPMENTTYPE_DEFINED
 enum ENUM_EQUIPMENTTYPE
 {
     ENUM_EQUIPMENTTYPE_0 = 0
 };
+#endif
 
 #ifndef DNF_ENUM_CHARACTERJOB_DEFINED
 #define DNF_ENUM_CHARACTERJOB_DEFINED
@@ -203,6 +210,9 @@ public:
     char m_88b;                                   // +0x88b
     int m_88c;                                    // +0x88c
     int m_890;                                    // +0x890
+    // ORIG B 0x94f7c20 [0x2ee0]：pricetable.tbl 30×100 int 静态表
+    // （InitEquipmentScript 0x08991601 清零回填；定义 InitScriptProducers_4.cpp）。
+    static int priceTable_[30][100];
 };
 
 bool ImportEquipmentScript(STEquipmentScript* script, const char* path,

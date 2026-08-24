@@ -27,65 +27,266 @@
 //   子对象）/+0x6108 LexerError_ / +0x610c LoadStream_，总大小 0x6110。
 // ============================================================================
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 
 #include "DNFLexWrapper.h"
 #include "ScriptStringManager.h"
+#include "SyncScriptDeps.h"
+
+extern "C" double __strtod_internal(const char*, char**, int);
+extern "C" long __strtol_internal(const char*, char**, int, int);
+
+DNFLexWrapper g_dnfLex;
+
+void DNFLexWrapper::setLexType(ENUM_LEX_TYPE t)
+{
+    lexType_ = t;
+}
+
+DNFLexWrapper::ENUM_LEX_TYPE DNFLexWrapper::getLexType()
+{
+    return static_cast<ENUM_LEX_TYPE>(lexType_);
+}
+
+int DNFLexWrapper::getLastToken()
+{
+    return lastToken_;
+}
+
+char* DNFLexWrapper::getLastTokenData()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+        return const_cast<char*>(dnfLex_.YYText());
+    char* pc = 0;
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return lastStringValue_;
+    return pc;
+}
+
+int DNFLexWrapper::getLastLineNo()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+        return dnfLex_.lineno();
+    int r = -1;
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return compiledDnfLex_.GetOffset();
+    return r;
+}
+
+char* DNFLexWrapper::getType()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+        return const_cast<char*>(dnfLex_.YYText());
+    char* pc = 0;
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return lastStringValue_;
+    return pc;
+}
+
+char* DNFLexWrapper::getConnector()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+        return const_cast<char*>(dnfLex_.YYText());
+    char* pc = 0;
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return lastStringValue_;
+    return pc;
+}
+
+char* DNFLexWrapper::getCustomData()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+        return const_cast<char*>(dnfLex_.YYText());
+    char* pc = 0;
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return lastStringValue_;
+    return pc;
+}
+
+char* DNFLexWrapper::getString()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+        return dnfLex_.tok_str();
+    char* pc = 0;
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return lastStringValue_;
+    return pc;
+}
+
+int DNFLexWrapper::getToken()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+    {
+        lastToken_ = dnfLex_.get_next_token();
+        return lastToken_;
+    }
+    if (lexType_ == LEX_TYPE_COMPILED)
+    {
+        CompiledDNFLex* c = &compiledDnfLex_;
+        int tok = c->getToken();
+        lastToken_ = tok;
+        if ((unsigned)tok <= 1)
+            return tok;
+        unsigned d = (unsigned)tok - 2;
+        if (d <= 1 || tok == DNF_TOK_PAIR_INT)
+        {
+            lastIntValue_ = c->getInt(0);
+            return lastToken_;
+        }
+        if (tok == DNF_TOK_FLOAT)
+        {
+            lastFloatValue_ = c->getFloat(0);
+            return lastToken_;
+        }
+        lastStringValue_ = c->getStr((bool*)0);
+    }
+    return lastToken_;
+}
+
+__attribute__((optimize("O2,no-if-conversion,no-omit-frame-pointer")))
+int DNFLexWrapper::getDecimal()
+{
+    char* p;
+    char c;
+    bool neg;
+    int v;
+    int d;
+
+    if (lexType_ == LEX_TYPE_NORMAL)
+    {
+        p = const_cast<char*>(dnfLex_.YYText());
+        c = *p;
+        if (c == '\0')
+            goto ret0;
+    loop:
+        if (__builtin_expect((unsigned char)(c - 0x30) <= 9, 0))
+            goto digit_start;
+        if (__builtin_expect(c == ' ', 0))
+            goto skip_space;
+        if (__builtin_expect(c == '+', 0))
+            goto plus;
+        if (__builtin_expect(c == '-', 0))
+            goto minus;
+        goto ret0;
+    }
+    else if (lexType_ == LEX_TYPE_COMPILED)
+        return lastIntValue_;
+ret0:
+    return 0;
+skip_space:
+    p = p + 1;
+    c = *p;
+    if (c != '\0')
+        goto loop;
+    goto ret0;
+minus:
+    p = p + 1;
+    neg = true;
+    c = *p;
+    goto parse;
+plus:
+    p = p + 1;
+    neg = false;
+    c = *p;
+    goto parse;
+digit_start:
+    neg = false;
+parse:
+    v = 0;
+    d = (int)c - 0x30;
+    if ((unsigned)d > 9)
+        goto maybe_neg;
+digit_loop:
+    p = p + 1;
+    v = v * 10 + d;
+    d = (int)*p - 0x30;
+    if ((unsigned)d <= 9)
+        goto digit_loop;
+maybe_neg:
+    if (neg)
+        return -v;
+    return v;
+}
+
+int DNFLexWrapper::getHexDecimal()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+    {
+        int v = 0;
+        std::sscanf(dnfLex_.YYText() + 2, "%x", &v);
+        return v;
+    }
+    int r = 0;
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return lastIntValue_;
+    return r;
+}
+
+float DNFLexWrapper::getFloat()
+{
+    if (lexType_ == LEX_TYPE_NORMAL)
+        return (float)__strtod_internal(dnfLex_.YYText(), 0, 0);
+    if (lexType_ == LEX_TYPE_COMPILED)
+        return lastFloatValue_;
+    return 0.0f;
+}
 
 // getPairInt（ORIG 0x8ace630）：NORMAL 对 yytext+1 拷贝 0x100 字节并保证终止后
 // strtol base 10（跳过成对 token 前导字符，如 "=123"）；COMPILED 返回
 // lastIntValue_；其它 lexType 返回 0。
 int DNFLexWrapper::getPairInt()
 {
-    if (lexType_ == LEX_TYPE_NORMAL)
+    if (lexType_ != LEX_TYPE_NORMAL)
     {
-        char buffer[0x100];
-        const char* pc = dnfLex_.YYText();
-        if (!pc)
-            return 0;
-        std::strncpy(buffer, pc + 1, 0x100);
-        buffer[0xff] = '\0';
-        return static_cast<int>(std::strtol(buffer, 0, 10));
+        int r = 0;
+        if (lexType_ == LEX_TYPE_COMPILED)
+            r = lastIntValue_;
+        return r;
     }
-    if (lexType_ == LEX_TYPE_COMPILED)
-        return lastIntValue_;
-    return 0;
+    char buffer[0x100];
+    std::strncpy(buffer, dnfLex_.YYText() + 1, 0x100);
+    buffer[std::strlen(buffer) - 1] = 0;
+    return (int)__strtol_internal(buffer, 0, 10, 0);
 }
 
-// getPairStr（ORIG 0x8ace5a0）：NORMAL 对 yytext+1 拷贝 0x100 字节并保证终止后
-// 返回局部静态缓冲（ORIG 符号 _ZZN13DNFLexWrapper10getPairStrEvE6buffer，
-// bss 0x100 字节，见报告汇编 `movl $0x9501900`；函数局部静态由编译器生成
-// 同名符号）；COMPILED 返回 lastStringValue_；其它 lexType 返回 0。
 char* DNFLexWrapper::getPairStr()
 {
     static char buffer[0x100];
     if (lexType_ == LEX_TYPE_NORMAL)
     {
-        const char* pc = dnfLex_.YYText();
-        if (!pc)
-            return buffer;  // 护栏：返回空缓冲区
-        std::strncpy(buffer, pc + 1, 0x100);
-        buffer[0xff] = '\0';
+        std::strncpy(buffer, dnfLex_.YYText() + 1, 0x100);
+        buffer[std::strlen(buffer) - 1] = 0;
         return buffer;
     }
+    char* pc = 0;
     if (lexType_ == LEX_TYPE_COMPILED)
         return lastStringValue_;
-    return 0;
+    return pc;
 }
 
-// getLastTokenDataAsString（ORIG 0x8ace4d0）：返回 tstring（std::string）。
-// NORMAL 取 yytext；COMPILED 取 lastStringValue_；其它 lexType 或指针为空
-// 时返回空串（ORIG 经 toTString 后构造 std::string）。
 std::string DNFLexWrapper::getLastTokenDataAsString()
 {
-    const char* pc = 0;
+    const char* pc;
     if (lexType_ == LEX_TYPE_NORMAL)
         pc = dnfLex_.YYText();
-    else if (lexType_ == LEX_TYPE_COMPILED)
+    else
+    {
+        pc = "";
+        if (lexType_ != LEX_TYPE_COMPILED)
+            goto construct;
         pc = lastStringValue_;
-    return std::string(pc ? pc : "");
+    }
+    if (__builtin_expect(pc == 0, 0))
+        goto empty;
+    pc = toTString(pc);
+    goto construct;
+empty:
+    pc = "";
+construct:
+    return std::string(pc);
 }
 
 // setStringTableFromBuffer（ORIG 0x8ace560）：转发到 compiledDnfLex_（+0x40bc）
@@ -114,6 +315,8 @@ void DNFLexWrapper::SetHandler(bool (*isDbcsLeadChar)(char),
 {
     dnfLex_.SetHandler(isDbcsLeadChar, lexerOutput, lexerError, loadStream);
     compiledDnfLex_.SetHandler(lexerError, loadStream);
+    lexerError_ = (void*)lexerError;
+    loadStream_ = (void*)loadStream;
 }
 
 // 构造（ORIG 0x8aced60）：vptr、lastToken_/lastStringValue_/lexType_ 清零，
@@ -122,15 +325,11 @@ void DNFLexWrapper::SetHandler(bool (*isDbcsLeadChar)(char),
 // 与 ORIG 汇编一致）。C++ 成员按声明序自动构造子对象。
 DNFLexWrapper::DNFLexWrapper()
     : lastToken_(0),
-      lastIntValue_(0),
-      lastFloatValue_(0.0f),
       lastStringValue_(0),
       lexType_(LEX_TYPE_NORMAL),
       lexerError_(0),
       loadStream_(0)
 {
-    // dnfLex_ / compiledDnfLex_ 由成员默认构造（DNFLex() / CompiledDNFLex()）。
-    // ORIG 不写 lastIntValue_/lastFloatValue_；此处保持默认初值。
 }
 
 // 析构（ORIG 0x8acecf0）：恢复 vptr，析构 compiledDnfLex_ 与 dnfLex_

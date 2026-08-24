@@ -36,9 +36,11 @@ class STSpecialMonsterDrop
 public:
     STSpecialMonsterDrop();
     void clear();
-    int m_field0;    // +0x00
-    int m_field4;    // +0x04
-    char m_field8;   // +0x08
+    // ORIG（readCondtion/ImportSpecialMonsterDrop 族按字节写 +0x105..+0x10d）：
+    // 该区是 9 个独立 flag 字节，不是 {int,int,char}。总大小保持 9。
+    char m_enable;          // +0x00（ORIG +0x105：[special monster drop] 开关）
+    char m_difficulty[5];   // +0x01..+0x05（easy/medium/hard/ultimate/hero）
+    char m_dungeonType[3];  // +0x06..+0x08（normal/ancient/dimension）
 };
 #pragma pack(pop)
 

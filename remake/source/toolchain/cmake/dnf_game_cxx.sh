@@ -51,6 +51,39 @@ case "$(basename "$src" .cpp)" in
                 # CExpandEquipslot：loadData 虚调用寄存器形态需 4.4.6
                 # （c6 NEAR / c6446r AE；G1-3 refine agent 验证）
                 exec "$C6446R" "$@" ;;
+            *Game/FlexLexerEngine.cpp)
+                # flex 2.5.35 生成 TU：ORIG 与 4.4.6 虚调用/寄存器分配一致
+                exec "$C6446R" "$@" ;;
+            *Game/SlangFlexLexerEngine.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/SlangFilter.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/CSyncSlangFilter.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/DNFLexWrapperHelpers.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/DNFLexWrapper.cpp)
+                # ORIG wrapper getters are -O2 (pop-ebp-before-load, tail-call tok_str).
+                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+            *Game/DNFLexWrapperStream.cpp)
+                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+            *Game/DNFLexWrapperLoadStream.cpp)
+                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+            *Game/CompiledDNFLexCore.cpp)
+                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+            *Game/Arad_Script.cpp)
+                # ORIG Arad_Script is -O0 (reload this from 0x8(%ebp) each
+                # field access). -O2 made every getter DIFF.
+                exec "$C6446R" "$@" -std=gnu++98 ;;
+            *Game/ScriptExtras.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/RDARScriptStringManager.cpp)
+                exec "$C6446R" "$@" ;;
+            *Game/ScriptStringManager.cpp)
+                # ORIG ctor inlines empty vector/map (vptr+zeros+header).
+                exec "$C6446R" "$@" -O2 -std=gnu++98 ;;
+            *Game/DNFLexCore.cpp)
+                exec "$C6446R" "$@" ;;
             *ServerLab/ServerLib/*)
                 # nsl 基础库：ORIG 为 Red Hat GCC 4.4.6-3（cc1plus446bin）编译
                 # （E/D/C 组独立验证：4.4.6 下虚调用/寄存器分配与 point ORIG 逐操作数一致）

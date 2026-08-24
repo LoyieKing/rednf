@@ -16,25 +16,17 @@
 
 #include "STItemScript.h"
 
+// StackableAction 枚举 / stStackableBooster_t / stLimitCubeInfo /
+// BoosterSelectInfo / RecipeInfo 的唯一声明点在 CStackableItem.h
+// （ORIG 同一二进制类型，禁止镜像重复定义）。
+#include "CStackableItem.h"
+
 struct STStackablePackageData
 {
     int m_field0;   // +0x00
     int m_field4;   // +0x04
 };
 
-#ifndef GAME_CSTACKABLEITEM_H_
-namespace StackableAction
-{
-enum UsablePlace
-{
-    UsablePlace_0 = 0
-};
-enum UsableServerType
-{
-    UsableServerType_0 = 0
-};
-}
-#endif
 
 struct CRabbitBox
 {
@@ -58,29 +50,7 @@ public:
     int m_field0;   // +0x00
 };
 
-#ifndef GAME_CSTACKABLEITEM_H_
-struct stStackableBooster_t
-{
-    int m_field0;   // +0x00
-};
 
-struct stLimitCubeInfo
-{
-    int m_field0;   // +0x00
-};
-
-struct BoosterSelectInfo
-{
-    int m_field0;   // +0x00
-};
-
-class RecipeInfo
-{
-public:
-    void additionalInfo(class STStackableScript& script);
-    int m_field0;   // +0x00
-};
-#endif
 
 // ---- 附魔键/值（CStackableItem.h 无同名定义） ----
 struct STEnchantSystemMapKey
@@ -192,9 +162,15 @@ public:
     std::string m_str4b4;                             // +0x4b4
     std::map<int, EquipmentParameterInfo*> m_module4bc;  // +0x4bc
     std::set<int> m_set4d4;                           // +0x4d4
-    char m_pad4e0[0x1c];                              // +0x4e0
+    char m_pad4e0[0x10];                              // +0x4e0
+    int m_4f0;                                        // +0x4f0（RecipeInfo additionalInfo 源1）
+    int m_4f4;                                        // +0x4f4（源2）
+    int m_4f8;                                        // +0x4f8（源3）
     std::vector<int> m_vec4fc;                        // +0x4fc
     std::set<int> m_set50c;                           // +0x50c
+    // ORIG B 0x94fac20 [0x2ee0]：pricetable.tbl 30×100 int 静态表
+    // （InitStackableScript 0x089ae72e 清零回填；定义 InitScriptProducers_4.cpp）。
+    static int priceTable_[30][100];
 };
 
 bool ImportStackableScript(STStackableScript* script, const char* path,

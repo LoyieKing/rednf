@@ -1,15 +1,30 @@
 #include "Dispatchers.h"
 
+#include "CompoundEmblemDeps.h" // LineFunc(int, char const*, int, unsigned)
 #include "CDataManager.h"
+#include "Quest.h"         // Quest/stSelectQuestParam 完整定义
+#include <cstring>
+#include <iterator>
+#include <list>
 #include "CDailyScheduleManager.h"
+#include "SigTypes.h"      // SIG_FORBID_USER_TO_PLAY 权威定义
+#include "CGM_Manager.h"
 #include "CGameManager.h"
 #include "CInventory.h"
+#include "CMonitorServerProxy.h"
+#include "CParty.h"
 #include "CPrivateStoreMgr.h"
+#include "CServerProxyMgr.h"
 #include "CStreamGuard.h"
 #include "CUserCharacInfo.h"
 #include "GameWorld.h"
 #include "GlobalData.h"
 #include "MsgQueueMgr.h"
+#include "StreamPool.h"
+#include "TimerQueue.h"
+
+// SIG_FORBID_USER_TO_PLAY 权威定义见 SigTypes.h（FixStubS3 已删除其重复 POD，冲突消解）。
+
 
 // ============================================================================
 // advancealtar/ARAD dispatcher 还原辅助（Dispatchers.cpp 内局部，不改头文件）
@@ -919,9 +934,409 @@ void Dispatcher_ComboSkill::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_GM_Command::Dispatcher_GM_Command() {}
 Dispatcher_GM_Command::~Dispatcher_GM_Command() {}
-int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_GM_Command::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_GM_Command::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+// ---- GM 命令监控包/信号局部视图（仅本 TU 使用；ORIG W
+//      Packet_Monitor_Notice_Message 0x822bbd6 / Packet_Forbid_Chat_By_Monitor
+//      0x822bc70，均为清零构造的定长缓冲）----
+namespace gm_pkt
+{
+#pragma pack(push, 1)
+// 监控服通知：+0x0a 长度字节、+0x0b 文本（总长 0x10b）
+struct MonitorNoticeMessage
+{
+    MonitorNoticeMessage() { memset(this, 0, sizeof(*this)); }
+    unsigned char m_pad[0x0a];
+    unsigned char m_len;
+    char m_msg[0x100];
+};
+// 禁言监控包：+0x0a 秒数(int)、+0x12 名字（总长 0x30）
+struct ForbidChatByMonitor
+{
+    ForbidChatByMonitor() { memset(this, 0, sizeof(*this)); }
+    unsigned char m_pad[0x0a];
+    int m_seconds;
+    unsigned char m_pad2[4];
+    char m_name[0x1e];
+};
+// SIG_FORBID_USER_TO_PLAY 前 9 字节视图（ORIG memset 9B 后按 +0/+4/+5 写）
+struct SigForbidPlayBody
+{
+    int m_characNo;
+    unsigned char m_flag;
+    int m_days;
+};
+#pragma pack(pop)
+}  // namespace gm_pkt
+
+// ORIG 0x81fa19e：GM 命令分发（cmd=0..0xd）。校验链 user!=0/getCurCharacR!=0/
+// get_byte 成功；失败走 LineFunc 断言路径（返回 0）。响应包 header 0x6e：
+// local_1d0 = put_byte(1)+put_byte(cmd)+payload；local_1c4 = 固定拒绝包
+// (put_byte(99),put_byte(1))，目标用户不存在时发给 GM 本人。
+int Dispatcher_GM_Command::dispatch_sig(CUser* user, PacketBuf& packet)
+{
+    if (user == 0 || user->getCurCharacR() == 0)
+    {
+        // ORIG: LineFunc(0x88fd/0x8902,...) 断言路径
+        return 0;
+    }
+
+    unsigned char cmd = 0;
+    if (!packet.get_byte(cmd))
+    {
+        return 0;  // ORIG get_byte 失败 → LineFunc(0x890e)
+    }
+
+    PacketGuard reject;   // ORIG local_1c4：目标缺失时的固定应答
+    reject.put_header(1, 0x6e);
+    reject.put_byte(1);
+    reject.put_byte(99);
+    reject.put_byte(1);
+    reject.finalize(true);
+
+    PacketGuard resp;     // ORIG local_1d0
+    resp.put_header(1, 0x6e);
+    resp.put_byte(1);
+    resp.put_byte(cmd);
+
+    unsigned int gmAccId = user->get_acc_id();  // ORIG 仅用于 cMyTrace 日志上下文
+    (void)gmAccId;
+
+    char name[30];
+    int len = 0;
+    short wLen = 0;
+    int extra = 0;
+    CUser* target = 0;
+    GameWorld* world = G_GameWorld();
+    switch (cmd)
+    {
+    case 0:  // 切换 GM 模式（无参数）
+        if (GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0)
+        {
+            user->SetGameMasterMode(
+                GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) != 1);
+            GlobalData::s_GM_Manager->TurnGmMode(user->get_acc_id());
+        }
+        break;
+    case 1:  // 全服公告 GMC <str>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_str(name, 0x100, len) && len != 0)
+        {
+            resp.put_int(len);
+            resp.put_str(name, len);
+            resp.finalize(true);
+            world->send_all(resp);
+        }
+        break;
+    case 2:  // 本区域公告 GMZ <str>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_str(name, 0x100, len) && len != 0)
+        {
+            resp.put_int(len);
+            resp.put_str(name, len);
+            resp.finalize(true);
+            world->send_to_area(user->getCurCharacVill(), user->get_area(false), resp);
+        }
+        break;
+    case 3:  // 监控服公告 GMS <str>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_str(name, 0x100, len) && len != 0)
+        {
+            resp.put_int(len);
+            resp.put_str(name, len);
+            resp.finalize(true);
+            gm_pkt::MonitorNoticeMessage noti;
+            noti.m_len = (unsigned char)len;
+            strncpy(noti.m_msg, name, len);
+            CMonitorServerProxy* proxy = GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+                user->GetServerGroup());
+            proxy->SendTcpPacket((char*)&noti, 0x10b);
+        }
+        break;
+    case 4:  // 踢人 expel <name>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_str(name, 0x1e, len))
+        {
+            target = world->find_user_from_world_byaccid(
+                world->GetIDUserInIDMap(name));
+            if (target == 0)
+            {
+                user->Send(reject);
+            }
+            else
+            {
+                resp.put_int(len);
+                resp.put_str(name, len);
+                resp.finalize(true);
+                user->Send(resp);
+                target->Send(resp);
+                target->DisConnSig((DISCONN_SIG)0x14, true, 0);
+            }
+        }
+        break;
+    case 5:  // 禁言 forbid chat <mins> <?> <name>
+    case 6:  // 禁移动 forbid move <mins> <?> <name>
+    {
+        bool isChat = (cmd == 5);
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_int(extra) &&
+            packet.get_str(name, 0x1e, (short)extra))
+        {
+            // 分钟→秒钳制：<1 →60，>=0x5a0 →86400
+            int sec = (len < 0x5a0) ? ((len < 1) ? 0x3c : len * 0x3c) : 0x15180;
+            target = world->find_user_from_world_byaccid(
+                world->GetIDUserInIDMap(name));
+            if (target == 0)
+            {
+                user->Send(reject);
+            }
+            else if (isChat || target->get_state() == 3)
+            {
+                if (isChat)
+                {
+                    world->DisableChat(name, sec);
+                }
+                else
+                {
+                    world->DisableMove(name, sec);
+                }
+                TIMER_MESSAGE timerMsg =
+                    isChat ? (TIMER_MESSAGE)0x5d : (TIMER_MESSAGE)0x5e;
+                G_TimerQueue()->InsertTimer(TimerEntry::OBJ_TYPE_0,
+                                            (int)target->GetUID(), timerMsg, sec,
+                                            (int)target->GetLoginTick(),
+                                            (unsigned int)target->getCurCharacNo());
+                resp.put_int(len);
+                resp.put_int(extra);
+                resp.put_str(name, (short)extra);
+                resp.finalize(true);
+                user->Send(resp);
+                target->Send(resp);
+                if (!isChat)
+                {
+                    // case 6 无监控包；case 5 发 Packet_Forbid_Chat_By_Monitor
+                    if (cmd == 5)
+                    {
+                        gm_pkt::ForbidChatByMonitor moni;
+                        moni.m_seconds = sec;
+                        strncpy(moni.m_name, name, sizeof(moni.m_name));
+                        CMonitorServerProxy* proxy =
+                            GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+                                target->GetServerGroup());
+                        proxy->SendTcpPacket((char*)&moni, 0x30);
+                    }
+                }
+            }
+        }
+        break;
+    }
+    case 7:  // 隐身
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0)
+        {
+            user->SetInvisible();
+            if (user->get_state() == 3)
+            {
+                user->SendNotiPacket((CUser::eSendTarget)0, (ENUM_NOTIPACKET)2, 0);
+            }
+        }
+        break;
+    case 8:  // 现身
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0)
+        {
+            user->SetVisible();
+            if (user->get_state() == 3)
+            {
+                user->SendNotiPacket((CUser::eSendTarget)0, (ENUM_NOTIPACKET)2, 0);
+            }
+        }
+        break;
+    case 9:  // 调级 setlevel <level> <?> <name>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_int(extra) &&
+            packet.get_str(name, 0x1e, (short)extra))
+        {
+            memset(name, 0, sizeof(name));
+            target = world->find_user_from_world_byaccid(
+                world->GetIDUserInIDMap(name));
+            if (target == 0)
+            {
+                user->Send(reject);
+            }
+            else
+            {
+                int diff = len - target->get_charac_level();
+                bool ok = true;
+                while (diff < 0 && ok)
+                {
+                    int nextLv = target->get_charac_level() - 1;
+                    if (nextLv > 200) nextLv = 200;
+                    target->SetCharacLevel(nextLv);
+                    ++diff;
+                }
+                while (diff > 0 && ok)
+                {
+                    int nextLv = target->get_charac_level() + 1;
+                    if (nextLv > 200) nextLv = 200;
+                    target->SetCharacLevel(nextLv);
+                    --diff;
+                }
+                if (ok)
+                {
+                    int st = target->get_state();
+                    if (st == 3)
+                    {
+                        target->SendNotiPacket((CUser::eSendTarget)1, (ENUM_NOTIPACKET)0x25, 0);
+                        target->SendNotiPacket((CUser::eSendTarget)0, (ENUM_NOTIPACKET)2, 0);
+                        target->SendNotiPacket((CUser::eSendTarget)1, (ENUM_NOTIPACKET)2, 1);
+                    }
+                    else if (st == 5)
+                    {
+                        target->SendNotiPacket((CUser::eSendTarget)1, (ENUM_NOTIPACKET)0x25, 0);
+                        target->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
+                    }
+                    resp.put_int(len);
+                    resp.put_int(extra);
+                    resp.put_str(name, (short)extra);
+                    resp.finalize(true);
+                    user->Send(resp);
+                    target->Send(resp);
+                }
+            }
+        }
+        break;
+    case 10:  // 发物品 grant item <itemIdx> <count> <?> <name>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_short(wLen) &&
+            packet.get_int(extra) && packet.get_str(name, 0x1e, (short)extra))
+        {
+            target = world->find_user_from_world_byaccid(
+                world->GetIDUserInIDMap(name));
+            if (target == 0)
+            {
+                user->Send(reject);
+            }
+            else
+            {
+                ENUM_ITEMSPACE space = (ENUM_ITEMSPACE)0;
+                int slot = target->AddItem(len, (int)(unsigned short)wLen,
+                                           (eItemAddReason)6, space, 0);
+                if (slot >= 0)
+                {
+                    target->SendUpdateItemList((CUser::eSendTarget)1, space, slot);
+                    resp.put_int(len);
+                    resp.put_short(wLen);
+                    resp.put_int(extra);
+                    resp.put_str(name, (short)extra);
+                    resp.finalize(true);
+                    user->Send(resp);
+                }
+            }
+        }
+        break;
+    case 0xb:  // 复活 revive <name>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_str(name, 0x1e, len))
+        {
+            target = world->find_user_from_world_byaccid(
+                world->GetIDUserInIDMap(name));
+            CParty* party = (target != 0) ? (CParty*)target->GetParty() : 0;
+            if (party == 0)
+            {
+                user->Send(reject);
+            }
+            else
+            {
+                party->set_charac_live(target, (ENUM_USER_DUNGEON_STATE)1);
+                resp.put_int(len);
+                resp.put_str(name, len);
+                resp.finalize(true);
+                user->Send(resp);
+                target->Send(resp);
+            }
+        }
+        break;
+    case 0xc:  // 重置疲劳 reset fatigue <name>
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_str(name, 0x1e, len))
+        {
+            target = world->find_user_from_world_byaccid(
+                world->GetIDUserInIDMap(name));
+            if (target == 0)
+            {
+                user->Send(reject);
+            }
+            else
+            {
+                target->RecoverFatigue(0);
+                target->SendFatigue();
+                resp.put_int(len);
+                resp.put_str(name, len);
+                resp.finalize(true);
+                user->Send(resp);
+                target->Send(resp);
+            }
+        }
+        break;
+    case 0xd:  // 封号 forbid play <days> <?> <name>（发 SIG_FORBID_USER_TO_PLAY 到 DB 队列）
+        if (GlobalData::s_GM_Manager->GetCurrentGmMode(user->get_acc_id()) == 1 &&
+            GlobalData::s_GM_Manager->GetGmLevel(user->get_acc_id()) > 0 &&
+            packet.get_int(len) && packet.get_int(extra) &&
+            packet.get_str(name, 0x1e, (short)extra))
+        {
+            target = world->find_user_from_world_byaccid(
+                world->GetIDUserInIDMap(name));
+            if (target == 0)
+            {
+                user->Send(reject);
+            }
+            else
+            {
+                Stream* stream = GlobalData::s_stream_pool->Acquire(
+                    "PacketDispatcher_Impl_1.cpp", 0x8b28);
+                CStreamGuard guard(stream, true);
+                guard << 0x93;
+                guard << (int)user->GetUID();
+                SIG_FORBID_USER_TO_PLAY* sig = guard.GetInBuffer<SIG_FORBID_USER_TO_PLAY>();
+                memset(sig, 0, 9);
+                gm_pkt::SigForbidPlayBody* body =
+                    (gm_pkt::SigForbidPlayBody*)sig;
+                body->m_characNo = target->getCurCharacNo();
+                body->m_flag = 1;
+                body->m_days = (len < 1) ? 1 : ((len < 100) ? len : 100);
+                GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)2, guard);
+                resp.put_int(len);
+                resp.put_int(extra);
+                resp.put_str(name, (short)extra);
+                resp.finalize(true);
+                user->Send(resp);
+                target->Send(resp);
+            }
+        }
+        break;
+    default:
+        break;  // ORIG: "Undifined GM Command : %d by %s"（仅日志）
+    }
+    return 0;
+}
+int Dispatcher_GM_Command::process(CUser* user, MSG_BASE& msg, ParamBase& param)
+{
+    (void)user; (void)msg; (void)param;
+    return 0;  // ORIG 类未声明 process（vtable 纯虚由基类骨架覆盖），恒 0
+}
+int Dispatcher_GM_Command::read(PacketBuf& packet, MSG_BASE& msg)
+{
+    (void)packet; (void)msg;
+    return 0;  // 同上：ORIG 无 read，逐字段在 dispatch_sig 内读取
+}
 
 Dispatcher_GuildCargo::Dispatcher_GuildCargo() {}
 Dispatcher_GuildCargo::~Dispatcher_GuildCargo() {}
@@ -1002,9 +1417,7 @@ int Dispatcher_EPLPCommand::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_ModItemAttr::Dispatcher_ModItemAttr() {}
 Dispatcher_ModItemAttr::~Dispatcher_ModItemAttr() {}
-int Dispatcher_ModItemAttr::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_ModItemAttr::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_ModItemAttr::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_RefundSkill::Dispatcher_RefundSkill() {}
 Dispatcher_RefundSkill::~Dispatcher_RefundSkill() {}
@@ -1166,9 +1579,7 @@ int Dispatcher_UpgradeCargo::read(PacketBuf& packet, MSG_BASE& msg) { return 0; 
 
 Dispatcher_UseLimitCube::Dispatcher_UseLimitCube() {}
 Dispatcher_UseLimitCube::~Dispatcher_UseLimitCube() {}
-int Dispatcher_UseLimitCube::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_UseLimitCube::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-void Dispatcher_UseLimitCube::send(CUser* user, ParamBase& param) {}
+// process/read/send/check_error 实现于 Dispatcher_UseLimitCube_impl.cpp（ORIG 0x081d3d38 族）。
 
 Dispatcher_AssertManager::Dispatcher_AssertManager() {}
 Dispatcher_AssertManager::~Dispatcher_AssertManager() {}
@@ -1326,9 +1737,7 @@ int Dispatcher_CheckJoinGuild::read(PacketBuf& packet, MSG_BASE& msg) { return 0
 
 Dispatcher_CompoundEmblem::Dispatcher_CompoundEmblem() {}
 Dispatcher_CompoundEmblem::~Dispatcher_CompoundEmblem() {}
-int Dispatcher_CompoundEmblem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_CompoundEmblem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_CompoundEmblem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_DisJointAvatar::Dispatcher_DisJointAvatar() {}
 Dispatcher_DisJointAvatar::~Dispatcher_DisJointAvatar() {}
@@ -1401,9 +1810,7 @@ void Dispatcher_RenameCreature::send(CUser* user, ParamBase& param) {}
 
 Dispatcher_UseBoosterItem::Dispatcher_UseBoosterItem() {}
 Dispatcher_UseBoosterItem::~Dispatcher_UseBoosterItem() {}
-int Dispatcher_UseBoosterItem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_UseBoosterItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_UseBoosterItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_UserHistoryLog::Dispatcher_UserHistoryLog() {}
 Dispatcher_UserHistoryLog::~Dispatcher_UserHistoryLog() {}
@@ -1412,9 +1819,7 @@ int Dispatcher_UserHistoryLog::read(PacketBuf& packet, MSG_BASE& msg) { return 0
 
 Dispatcher_BuyCeraShopItem::Dispatcher_BuyCeraShopItem() {}
 Dispatcher_BuyCeraShopItem::~Dispatcher_BuyCeraShopItem() {}
-int Dispatcher_BuyCeraShopItem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_BuyCeraShopItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_BuyCeraShopItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_CallGuildInvite::Dispatcher_CallGuildInvite() {}
 Dispatcher_CallGuildInvite::~Dispatcher_CallGuildInvite() {}
@@ -1532,10 +1937,93 @@ int Dispatcher_RequestItemLock::process(CUser* user, MSG_BASE& msg, ParamBase& p
 int Dispatcher_RequestItemLock::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_SaveQuestNotify::Dispatcher_SaveQuestNotify() {}
+// ORIG _ZN26Dispatcher_SaveQuestNotifyD1Ev W 0x08260a8e：vptr 复位后调基类模板
+// D1（0x08262482）+ 恒假 delete 守卫；D0Ev W 0x08260abe = D1 + operator delete。
 Dispatcher_SaveQuestNotify::~Dispatcher_SaveQuestNotify() {}
-int Dispatcher_SaveQuestNotify::check_error(CUser* user, MSG_BASE& msg) { return 0; }
-int Dispatcher_SaveQuestNotify::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+int Dispatcher_SaveQuestNotify::check_error(CUser* user, MSG_BASE& msg)
+{
+    // ORIG 0x0825eec4：user/当前角色空 → -1；state<=2 → -2；
+    // 扫 msg+0xd 起 10 槽 int，非 0 且 find_quest 失败 → -3；否则 0。
+    if (user == 0 || user->getCurCharacR() == 0)
+    {
+        return -1;
+    }
+    if (user->get_state() <= 2)
+    {
+        return -2;
+    }
+    const MSG_SAVE_QUEST_NOTIFY& req = static_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
+    for (int i = 0; i <= 9; ++i)
+    {
+        int questIdx = *reinterpret_cast<const int*>(req.m_pad + i * 4); // +0x0d+i*4
+        if (questIdx != 0 && G_CDataManager()->find_quest(questIdx) == 0)
+        {
+            return -3;
+        }
+    }
+    return 0;
+}
+
+// ORIG 0x0825ed06：读 1 字节 count（须 0..5），再按 count 读 int 写入
+// msg+0xd 起任务 idx 区；任一步失败走 LineFunc（ORIG 返回其断言值）。
+int Dispatcher_SaveQuestNotify::read(PacketBuf& packet, MSG_BASE& msg)
+{
+    char count = 0;
+    if (!packet.get_byte(count))
+    {
+        return LineFunc(0x2b3,
+                        "virtual int Dispatcher_SaveQuestNotify::read(PacketBuf&, MSG_BASE&)",
+                        0, 0);
+    }
+    if (count < 0 || count > 5)
+    {
+        return LineFunc(0x2b6,
+                        "virtual int Dispatcher_SaveQuestNotify::read(PacketBuf&, MSG_BASE&)",
+                        0, 0);
+    }
+    MSG_SAVE_QUEST_NOTIFY& req = static_cast<MSG_SAVE_QUEST_NOTIFY&>(msg);
+    for (int i = 0; i < (int)count; ++i)
+    {
+        unsigned int value = 0;
+        if (!packet.get_int(value))
+        {
+            return LineFunc(0x2bb,
+                            "virtual int Dispatcher_SaveQuestNotify::read(PacketBuf&, MSG_BASE&)",
+                            0, 0);
+        }
+        *reinterpret_cast<int*>(req.m_pad + i * 4) = (int)value; // +0x0d+i*4
+    }
+    return 0;
+}
+
+// ORIG 0x0825edfc：err=check_error(user,msg)；*(int*)(param+4)=err；
+// err>0 → 0；err<0 → LogManager::logFormat(1,"PacketDispatcher_Impl_2.cpp",
+// <PRETTY>,0x2cb,"Dispatcher Check_Error No(%d)",err) 后 return 0x2cc；
+// err==0 → memcpy(getCurCharacQuestW()->m_authenData.m_authen, msg+0xd, 0x28)
+// （UserQuest+0x75f4，10×int 任务通知区）后 return 0。
+int Dispatcher_SaveQuestNotify::process(CUser* user, MSG_BASE& msg, ParamBase& param)
+{
+    saveQuestNotifyParam& res = static_cast<saveQuestNotifyParam&>(param);
+    const MSG_SAVE_QUEST_NOTIFY& req = static_cast<const MSG_SAVE_QUEST_NOTIFY&>(msg);
+
+    int err = check_error(user, msg);
+    res.m_errorCode = err;
+    if (err > 0)
+    {
+        return 0;
+    }
+    if (err < 0)
+    {
+        LogManager::logFormat(1, "PacketDispatcher_Impl_2.cpp",
+                              "virtual int Dispatcher_SaveQuestNotify::process(CUser*, MSG_BASE&, ParamBase&)",
+                              0x2cb, "Dispatcher Check_Error No(%d)", err);
+        return 0x2cc;
+    }
+    // err==0：msg+0xd 起 0x28 字节写入 m_authenData.m_authen（+0x75f4）。
+    memcpy(user->getCurCharacQuestW()->m_authenData.m_authen,
+           req.m_pad, 0x28);
+    return 0;
+}
 
 Dispatcher_SecuDataControl::Dispatcher_SecuDataControl() {}
 Dispatcher_SecuDataControl::~Dispatcher_SecuDataControl() {}
@@ -1671,9 +2159,96 @@ int Dispatcher_ReportBadP2PUser::read(PacketBuf& packet, MSG_BASE& msg) { return
 
 Dispatcher_Req_Urgent_Quest::Dispatcher_Req_Urgent_Quest() {}
 Dispatcher_Req_Urgent_Quest::~Dispatcher_Req_Urgent_Quest() {}
-int Dispatcher_Req_Urgent_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
+// ORIG 0x081df42c：state>2 → param+4=0/param+8=-1；等级 27..69 且
+// getCurCharacQuestR()->m_authenData.m_urgentQuest==-1 才继续；
+// hasEpicQuest → err=1；否则静态 selected_quest 清空后
+// getQuestNPCList(8)+allowable_questlist_as_npc(…,true) 取候选：
+// 空 → err=4；非空 → 静态 CMTRand randInt(size-1) 抽一个写回
+// m_urgentQuest 与 param+8，param+4=1。
+int Dispatcher_Req_Urgent_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& param)
+{
+    ReqResult& res = static_cast<ReqResult&>(param);
+    if (user->get_state() <= 2)
+    {
+        return 0;
+    }
+
+    res.m_found = 0;
+    res.m_questIdx = -1;
+
+    int level = user->get_charac_level();
+    UserQuest* questR = user->getCurCharacQuestR();
+    bool eligible = level > 0x1a && level <= 0x45 &&
+                    questR->m_authenData.m_urgentQuest == -1;
+    if (!eligible)
+    {
+        res.m_errorCode = 1;
+        return 0;
+    }
+    if (user->getCurCharacQuestW()->hasEpicQuest())
+    {
+        res.m_errorCode = 1;
+        return 0;
+    }
+
+    // 函数局部静态（ORIG __cxa_guard 保护）：候选任务列表 + 随机骰。
+    static std::list<int> selected_quest;
+    selected_quest.clear();
+
+    char cleared[0x7531];  // ORIG local_7589：m_cleared(0x7530)+save-flag 逐字节快照
+    memcpy(cleared, &user->getCurCharacQuestR()->m_cleared, 0x7531);
+
+    stSelectQuestParam selectParam(user);
+    QuestList* list = G_CDataManager()->m_questList;
+    std::multimap<int, int>* npcList =
+        list->getQuestNPCList(ENUM_QUEST_GRADE_8);
+    list->allowable_questlist_as_npc(
+        selected_quest, *npcList, selectParam,
+        *reinterpret_cast<const WongWork::CQuestClear*>(cleared), true);
+
+    if (selected_quest.empty())
+    {
+        res.m_errorCode = 4;
+    }
+    else
+    {
+        static CMTRand urgentRandomDice;  // ORIG __cxa_guard 静态
+        unsigned long range = (unsigned long)(selected_quest.size() - 1);
+        int dice = urgentRandomDice.randInt(range);
+        if ((unsigned int)dice < selected_quest.size())
+        {
+            std::list<int>::iterator it = selected_quest.begin();
+            std::advance(it, dice);
+            int selectedIdx = *it;
+            user->getCurCharacQuestW()->m_authenData.m_urgentQuest = selectedIdx;
+            res.m_questIdx = selectedIdx;
+            res.m_found = 1;
+        }
+    }
+    return 0;
+}
+// ORIG 0x081df422：字面 return 0（无包内容需解析）。
 int Dispatcher_Req_Urgent_Quest::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-void Dispatcher_Req_Urgent_Quest::send(CUser* user, ParamBase& param) {}
+// ORIG 0x081df75a：PacketGuard put_header(1,0x1c6)；put_byte(param.m_found!=0)；
+// found → put_short(param.m_questIdx)，否则 put_byte(param.m_errorCode)；
+// finalize(true) 后 CUser::Send。
+void Dispatcher_Req_Urgent_Quest::send(CUser* user, ParamBase& param)
+{
+    const ReqResult& res = static_cast<const ReqResult&>(param);
+    PacketGuard packet;
+    packet.put_header(1, 0x1c6);
+    packet.put_byte(res.m_found != 0 ? 1 : 0);
+    if (res.m_found)
+    {
+        packet.put_short(res.m_questIdx);
+    }
+    else
+    {
+        packet.put_byte(res.m_errorCode);
+    }
+    packet.finalize(true);
+    user->Send(packet);
+}
 
 Dispatcher_RequestBlackList::Dispatcher_RequestBlackList() {}
 Dispatcher_RequestBlackList::~Dispatcher_RequestBlackList() {}
@@ -1730,9 +2305,7 @@ int Dispatcher_AddSocketToAvatar::read(PacketBuf& packet, MSG_BASE& msg) { retur
 
 Dispatcher_AuctionRegistItem::Dispatcher_AuctionRegistItem() {}
 Dispatcher_AuctionRegistItem::~Dispatcher_AuctionRegistItem() {}
-int Dispatcher_AuctionRegistItem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_AuctionRegistItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_AuctionRegistItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_ChangeHostWarRoom::Dispatcher_ChangeHostWarRoom() {}
 Dispatcher_ChangeHostWarRoom::~Dispatcher_ChangeHostWarRoom() {}
@@ -1749,9 +2322,106 @@ int Dispatcher_ConnectP2PAssault::read(PacketBuf& packet, MSG_BASE& msg) { retur
 
 Dispatcher_Debug_Clear_Quest::Dispatcher_Debug_Clear_Quest() {}
 Dispatcher_Debug_Clear_Quest::~Dispatcher_Debug_Clear_Quest() {}
-int Dispatcher_Debug_Clear_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_Debug_Clear_Quest::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-void Dispatcher_Debug_Clear_Quest::send(CUser* user, ParamBase& param) {}
+// ORIG 0x081df91c：isGMUser 否 → LineFunc(0x51f3) 返回其值；
+// res.m_index = msg（MsgClearQuestIndex::operator=，ORIG W 0x08235266）；
+// 遍历 m_questIdxs：find_quest 失败 → return 1；exposeQuest &&
+// check_possible → getCurCharacQuestW()->m_cleared.setClearedQuest(idx)、
+// m_field138>0 → incQuestPoint(值,idx,true)、m_field13a>0 →
+// incQuestPiece(值,idx,true)，计数；循环后 res.m_index.m_count=实际清空数，
+// sendCharacQp() + sendCharacQuestPiece()，return 0。
+int Dispatcher_Debug_Clear_Quest::process(CUser* user, MSG_BASE& msg, ParamBase& param)
+{
+    if (!user->isGMUser())
+    {
+        return LineFunc(0x51f3,
+                        "virtual int Dispatcher_Debug_Clear_Quest::process(CUser*, MSG_BASE&, ParamBase&)",
+                        0, 0);
+    }
+    MsgClearQuestIndex& req = static_cast<MsgClearQuestIndex&>(msg);
+    ReqDebugClearQuestResult& res = static_cast<ReqDebugClearQuestResult&>(param);
+
+    // ORIG 0x08235266：res.m_index = msg（逐标量 + vector operator=）。
+    res.m_index = req;
+
+    int clearedCount = 0;
+    for (int i = 0; i < req.m_count; ++i)
+    {
+        int questIdx = req.m_questIdxs[i];
+        Quest* quest = G_CDataManager()->find_quest(questIdx);
+        if (quest == 0)
+        {
+            return 1;
+        }
+        stSelectQuestParam selectParam(user);
+        if (quest->exposeQuest() && quest->check_possible(selectParam))
+        {
+            user->getCurCharacQuestW()->m_cleared.setClearedQuest(
+                (unsigned int)questIdx);
+            if (quest->m_field138 > 0)
+            {
+                user->incQuestPoint((int)quest->m_field138, questIdx, true);
+            }
+            if (quest->m_field13a > 0)
+            {
+                user->incQuestPiece((int)quest->m_field13a, questIdx, true);
+            }
+            ++clearedCount;
+        }
+    }
+    res.m_index.m_count = clearedCount;   // ORIG 写 *(int*)(param+0x14)
+    user->sendCharacQp();
+    user->sendCharacQuestPiece();
+    return 0;
+}
+// ORIG 0x081df840：get_short 读数量写入 msg.m_count（+0x10），再逐个
+// get_short push_back 进 m_questIdxs；失败走 LineFunc(0x51e1/0x51e8)。
+int Dispatcher_Debug_Clear_Quest::read(PacketBuf& packet, MSG_BASE& msg)
+{
+    MsgClearQuestIndex& req = static_cast<MsgClearQuestIndex&>(msg);
+    short count = 0;
+    if (!packet.get_short(count))
+    {
+        return LineFunc(0x51e1,
+                        "virtual int Dispatcher_Debug_Clear_Quest::read(PacketBuf&, MSG_BASE&)",
+                        0, 0);
+    }
+    req.m_count = count;
+    for (int i = 0; i < req.m_count; ++i)
+    {
+        short value = 0;
+        if (!packet.get_short(value))
+        {
+            return LineFunc(0x51e8,
+                            "virtual int Dispatcher_Debug_Clear_Quest::read(PacketBuf&, MSG_BASE&)",
+                            0, 0);
+        }
+        req.m_questIdxs.push_back((int)value);
+    }
+    return 0;
+}
+// ORIG 0x081dfb40：PacketGuard put_header(1,0x1c9)+put_byte(1)+
+// put_short(res.m_index.m_count)；按 count put_short 每个 idx；
+// finalize(true)→Send→send_clear_quest_list()；随后第二个 PacketGuard 经
+// UserQuest::get_quest_info 填充任务列表包并发送。
+void Dispatcher_Debug_Clear_Quest::send(CUser* user, ParamBase& param)
+{
+    const ReqDebugClearQuestResult& res = static_cast<const ReqDebugClearQuestResult&>(param);
+    PacketGuard packet;
+    packet.put_header(1, 0x1c9);
+    packet.put_byte(1);
+    packet.put_short(res.m_index.m_count);
+    for (int i = 0; i < res.m_index.m_count; ++i)
+    {
+        packet.put_short(res.m_index.m_questIdxs[i]);
+    }
+    packet.finalize(true);
+    user->Send(packet);
+    user->send_clear_quest_list();
+
+    PacketGuard questList;   // ORIG local_2c：UserQuest 任务列表包
+    user->getCurCharacQuestR()->get_quest_info(reinterpret_cast<char*>(&questList));
+    user->Send(questList);
+}
 
 Dispatcher_DeleteToBlackList::Dispatcher_DeleteToBlackList() {}
 Dispatcher_DeleteToBlackList::~Dispatcher_DeleteToBlackList() {}
@@ -1834,9 +2504,7 @@ int Dispatcher_UpgradeGuildCargo::read(PacketBuf& packet, MSG_BASE& msg) { retur
 
 Dispatcher_UseVendingMachine::Dispatcher_UseVendingMachine() {}
 Dispatcher_UseVendingMachine::~Dispatcher_UseVendingMachine() {}
-int Dispatcher_UseVendingMachine::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_UseVendingMachine::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_UseVendingMachine::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_AchievementTrigger::Dispatcher_AchievementTrigger() {}
 Dispatcher_AchievementTrigger::~Dispatcher_AchievementTrigger() {}
@@ -2191,7 +2859,16 @@ int Dispatcher_UseSharedEffectItem::read(PacketBuf& packet, MSG_BASE& msg) { ret
 
 Dispatcher_VerifyCreatureQuest::Dispatcher_VerifyCreatureQuest() {}
 Dispatcher_VerifyCreatureQuest::~Dispatcher_VerifyCreatureQuest() {}
-int Dispatcher_VerifyCreatureQuest::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
+// ORIG 0x081e324c：user 非空且 state>2 时，对当前角色背包的装备宠物
+// 调 VerifyEquipedCreatureQuest（进化任务资格校验/任务列表包补发）。
+int Dispatcher_VerifyCreatureQuest::process(CUser* user, MSG_BASE& msg, ParamBase& param)
+{
+    if (user != 0 && user->get_state() > 2)
+    {
+        user->getCurCharacInvenR()->GetCreatureMgrR()->VerifyEquipedCreatureQuest();
+    }
+    return 0;
+}
 int Dispatcher_VerifyCreatureQuest::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
 
 Dispatcher_WarRoomWpPerMonster::Dispatcher_WarRoomWpPerMonster() {}
@@ -2221,9 +2898,7 @@ int Dispatcher_AuctionMyBiddingInfo::read(PacketBuf& packet, MSG_BASE& msg) { re
 
 Dispatcher_BuyCeraShopLimitItem::Dispatcher_BuyCeraShopLimitItem() {}
 Dispatcher_BuyCeraShopLimitItem::~Dispatcher_BuyCeraShopLimitItem() {}
-int Dispatcher_BuyCeraShopLimitItem::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_BuyCeraShopLimitItem::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_BuyCeraShopLimitItem::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_CallGuildCreateRight::Dispatcher_CallGuildCreateRight() {}
 Dispatcher_CallGuildCreateRight::~Dispatcher_CallGuildCreateRight() {}
@@ -2390,9 +3065,52 @@ int Dispatcher_AuctionSearchByItemKey::read(PacketBuf& packet, MSG_BASE& msg) { 
 
 Dispatcher_Break_Away_Quest_Check::Dispatcher_Break_Away_Quest_Check() {}
 Dispatcher_Break_Away_Quest_Check::~Dispatcher_Break_Away_Quest_Check() {}
-int Dispatcher_Break_Away_Quest_Check::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_Break_Away_Quest_Check::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
-void Dispatcher_Break_Away_Quest_Check::send(CUser* user, ParamBase& param) {}
+// ORIG 0x081d390a：msg.m_checkFlag==0（+0xd）→ setBreakAwayDungeonClearCnt(-1)、
+// setBreakAwayQuestTime(0)、StreamPool::Acquire("PacketDispatcher_Impl_1.cpp",
+// 0x31d9)+CStreamGuard(stream,true) 写 0x144/UID/acc_id 入 DB_Q；
+// 否则 getBreakAwayDungeonClearCnt()==0 →
+// GlobalData::s_BreakAwaySys->giveBreakAwayDungeonClearReward(user)，
+// 非 0 → param.m_resultCode=1。
+// 【blocked：giveBreakAwayDungeonClearReward 及其 selectReward/
+// Inter_LoadEtc::giveBreakAwayReward 生产链尚未还原（报告齐备，独立批次），
+// 已 hub 通知 Main；不写猜测实现。】
+int Dispatcher_Break_Away_Quest_Check::process(CUser* user, MSG_BASE& msg, ParamBase& param)
+{
+    return 0;
+}
+// ORIG 0x081d38ba：get_byte 读入 msg.m_checkFlag（+0xd）；失败走
+// LineFunc(0x3197) 返回其值。
+int Dispatcher_Break_Away_Quest_Check::read(PacketBuf& packet, MSG_BASE& msg)
+{
+    MSG_BREAK_AWAY& req = static_cast<MSG_BREAK_AWAY&>(msg);
+    if (!packet.get_byte(reinterpret_cast<char&>(req.m_checkFlag)))
+    {
+        return LineFunc(0x3197,
+                        "virtual int Dispatcher_Break_Away_Quest_Check::read(PacketBuf&, MSG_BASE&)",
+                        0, 0);
+    }
+    return 0;
+}
+// ORIG 0x081d3a72：m_resultCode==0 → put_header(1,0x16d)+put_byte(1)+
+// finalize(true)；否则 put_header(1,0x16d)+put_byte(0)+
+// put_short(m_resultCode)+finalize(true)。两分支均 CUser::Send。
+void Dispatcher_Break_Away_Quest_Check::send(CUser* user, ParamBase& param)
+{
+    const stBreakAwayParam& res = static_cast<const stBreakAwayParam&>(param);
+    PacketGuard packet;
+    packet.put_header(1, 0x16d);
+    if (res.m_resultCode == 0)
+    {
+        packet.put_byte(1);
+    }
+    else
+    {
+        packet.put_byte(0);
+        packet.put_short(res.m_resultCode);
+    }
+    packet.finalize(true);
+    user->Send(packet);
+}
 
 Dispatcher_ChangeAnotherSkillTree::Dispatcher_ChangeAnotherSkillTree() {}
 Dispatcher_ChangeAnotherSkillTree::~Dispatcher_ChangeAnotherSkillTree() {}
@@ -2519,9 +3237,7 @@ int Dispatcher_CompoundItemByExpertJob::read(PacketBuf& packet, MSG_BASE& msg) {
 
 Dispatcher_InvestItemAmplifyOption::Dispatcher_InvestItemAmplifyOption() {}
 Dispatcher_InvestItemAmplifyOption::~Dispatcher_InvestItemAmplifyOption() {}
-int Dispatcher_InvestItemAmplifyOption::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_InvestItemAmplifyOption::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_InvestItemAmplifyOption::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_RequestItemUnlockCancel::Dispatcher_RequestItemUnlockCancel() {}
 Dispatcher_RequestItemUnlockCancel::~Dispatcher_RequestItemUnlockCancel() {}
@@ -2801,9 +3517,7 @@ int Dispatcher_Security_PI_HashModulation_S2C::read(PacketBuf& packet, MSG_BASE&
 
 Dispatcher_Compound_Equipment_Upgrade_Card::Dispatcher_Compound_Equipment_Upgrade_Card() {}
 Dispatcher_Compound_Equipment_Upgrade_Card::~Dispatcher_Compound_Equipment_Upgrade_Card() {}
-int Dispatcher_Compound_Equipment_Upgrade_Card::dispatch_sig(CUser* user, PacketBuf& packet) { return 0; }
-int Dispatcher_Compound_Equipment_Upgrade_Card::process(CUser* user, MSG_BASE& msg, ParamBase& param) { return 0; }
-int Dispatcher_Compound_Equipment_Upgrade_Card::read(PacketBuf& packet, MSG_BASE& msg) { return 0; }
+
 
 Dispatcher_GrowthWeaponEventChangeInfinity::Dispatcher_GrowthWeaponEventChangeInfinity() {}
 Dispatcher_GrowthWeaponEventChangeInfinity::~Dispatcher_GrowthWeaponEventChangeInfinity() {}
@@ -3409,26 +4123,14 @@ int Dispatcher_RequestPrcoomDayilyReward::read(PacketBuf& packet, MSG_BASE& msg)
 }
 }
 namespace ARAD {
-Arad_Dispatcher_Manager::Arad_Dispatcher_Manager() {}
-Arad_Dispatcher_Manager::~Arad_Dispatcher_Manager() {}
-int Arad_Dispatcher_Manager::open()
-{
-    // ORIG 0x818fe38：new Arad_Dispatcher_BuyItemCheck_Impl() → 注册到
-    // GlobalInstance<Arad_Dispatcher_Manager>::inst()。
-    // [推断] 当前 Arad_Dispatcher_Manager 无注册容器/方法声明（Dispatchers.h
-    // 仅 open），注册步骤暂以创建对象代替；register_dispatcher 语义待还原。
-    // [推断] Arad_Dispatcher_BuyItemCheck_Impl 当前为抽象占位（handler1/
-    // handler2 纯虚未实现，Dispatchers.h 3522），无法实例化；注册容器未建模。
-    return 0;
-}
-
+// Arad_Dispatcher_Login_Impl 生命周期占位保留原状（真实 db_dispatch 0x27d +
+// premium_info_set/punish_user_check/account_password_check/pad_certifiaction_check
+// 待独立批次建模；本票范围仅 Manager/BuyItemCheck_Impl，见 Arad_Dispatcher.cpp）。
 Arad_Dispatcher_Login_Impl::Arad_Dispatcher_Login_Impl() {}
 Arad_Dispatcher_Login_Impl::~Arad_Dispatcher_Login_Impl() {}
+}  // namespace ARAD
 
-Arad_Dispatcher_BuyItemCheck_Impl::Arad_Dispatcher_BuyItemCheck_Impl() {}
-Arad_Dispatcher_BuyItemCheck_Impl::~Arad_Dispatcher_BuyItemCheck_Impl() {}
 
-}
 namespace APSystem {
 Dispatcher_ClearAction::Dispatcher_ClearAction() {}
 Dispatcher_ClearAction::~Dispatcher_ClearAction() {}

@@ -115,7 +115,7 @@ void CGameOption::reset_load_hotkey_flag()
         m_bLoadHotKeyFlag[i] = 0;
 }
 
-unsigned char CGameOption::get_load_hotkey_flag(unsigned char cSlot)
+bool CGameOption::get_load_hotkey_flag(unsigned char cSlot)
 {
     if (cSlot > 1)
         return 0;

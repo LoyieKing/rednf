@@ -53,6 +53,12 @@ struct stAchievement_DBSaveData
     int m_characNo;               // +0x1808
 };
 
+// ABI 锁定（仅 sizeof：这些结构含用户声明 ctor（非标准布局），gcc4.4 下
+// offsetof 不可用；成员顺序已保证 +0x1800/+0x1804/+0x1808 偏移）。
+static_assert(sizeof(stAchievement) == 0x0c, "stAchievement ABI drift");
+static_assert(sizeof(stAchievement_DBData) == 0x1808, "stAchievement_DBData ABI drift");
+static_assert(sizeof(stAchievement_DBSaveData) == 0x180c, "stAchievement_DBSaveData ABI drift");
+
 // ============================================================================
 // CAchievement
 // ============================================================================

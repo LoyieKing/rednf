@@ -2,8 +2,11 @@
 // 包含：trim / less_TCHAR / TimerEntry / SECOND_TO_MILISECOND / cMyTrace。
 #include "CEnvironment.h"
 #include "TimerQueue.h"
+#include "CLog.h"
 #include "GameBase.h"
 #include "GlobalData.h"
+#include <cstdarg>
+#include <cstdio>
 #include <cstring>
 #include <sys/time.h>
 #include <sys/select.h>
@@ -40,7 +43,46 @@ cMyTrace::cMyTrace(const char*, int, int, bool bFieldC, bool bFieldD)
     m_field_c = (char)bFieldC;
     m_field_d = (char)bFieldD;
 }
-void cMyTrace::operator()(const char*, ...) {}
+void cMyTrace::operator()(const char* fmt, ...)
+{
+    // ORIG 0x854f788（0x207 字节）：0x1000 栈缓冲清零；level(m_flag) 非 8/9 时
+    // sprintf("%s(%d): ", m_name, m_line) 前缀；vsnprintf 追加变参（上限 0xfff）；
+    // Guard<Mutex>(&CLog::instance()->m_mutexes[m_flag*0x18]) 加锁后按 level 分发：
+    // 0=logNotice 1=logError 2=logDebug 3=logConsole 4=logMoney 5=logCritical
+    // 8=logSnapShot+logInit(m_field_c,m_field_d)；6/7/9 无操作。
+    if (!fmt)
+        return;
+    char buf[0x1000];
+    std::memset(buf, 0, sizeof(buf));
+    if (m_flag != 8 && m_flag != 9)
+        std::sprintf(buf, "%s(%d): ", m_name, m_line);
+    size_t used = std::strlen(buf);
+    va_list ap;
+    va_start(ap, fmt);
+    std::vsnprintf(buf + used, 0xfff - used, fmt, ap);
+    va_end(ap);
+
+    CLog* log = CLog::instance();
+    Mutex& mutex = *reinterpret_cast<Mutex*>(&log->m_mutexes[m_flag * 0x18]);
+    {
+        Guard<Mutex> guard(&mutex);
+        switch (m_flag)
+        {
+        case 0: log->logNotice(buf); break;
+        case 1: log->logError(buf); break;
+        case 2: log->logDebug(buf); break;
+        case 3: log->logConsole(buf); break;
+        case 4: log->logMoney(buf); break;
+        case 5: log->logCritical(buf); break;
+        case 8:
+            log->logSnapShot(buf);
+            log->logInit(m_field_c != 0, m_field_d != 0, buf);
+            break;
+        default:  // 6/7/9：ORIG 跳表指向收尾，无日志输出
+            break;
+        }
+    }
+}
 
 // ---- CheckDailyScheduleTime（每日调度时间检查，ORIG _Z22CheckDailyScheduleTimeill）----
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime)
@@ -143,4 +185,13 @@ int ComputeDaysScheduleTime(int hour, long lastTime, long curTime)
     if (days < 0)
         days = 0;
     return days;
+}
+
+// ---- GetRandomRange（ORIG W 0x08539d90 _Z14GetRandomRangeii）----
+// a<b: rand()%(b-a+1)+a；b<a: rand()%(a-b+1)+b（C 有符号取模语义）。
+int GetRandomRange(int a, int b)
+{
+    if (b < a)
+        return (int)((rand() % (a - b + 1)) + b);
+    return (int)((rand() % (b - a + 1)) + a);
 }

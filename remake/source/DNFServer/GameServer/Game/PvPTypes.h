@@ -33,10 +33,14 @@
 // ---- CRelayBattleMgr / CDeathMatchBattleMgr（权威头，§7） ----
 #include "CRelayBattleMgr.h"
 #include "CDeathMatchBattleMgr.h"
-// ---- WarField（权威头，WarRoom +0x34；map_item/map_monster/MapInfo 唯一声明点） ----
-#include "WarField.h"
-#include "CUser.h"
-#include "CParty.h"
+// ---- CUser / CParty：仅以指针/引用出现在本头接口（WriteGuildWarPvPLog /
+//      PvpUserTable::Set），前置声明即可。不得 include CUser.h/CParty.h：
+//   本头经 CDataManager.h→CItemGeneratorMgr→CItemGenerator 进入
+//   CUserCharacInfo.h 的 include 闭包，若在此展开 CUser.h，会在
+//   CUserCharacInfo.h/CDataManager.h 解析中途重入 CUser.h，导致其基类
+//   CUserCharacInfo 不完整（CUser.h:1457 expected class-name）。
+class CUser;
+class CParty;
 #include "GameTypes.h"
 #include "GameEnums.h"
 
@@ -81,51 +85,110 @@ struct PVP_ROOM_INFO
 // ---- 子对象前向声明 ----
 class PvP_Room;
 
-// ---- PvP_GuildWar_Log（0x68） ----
+// ---- STPvPGuild（0xc：uint guildKey + int point + char count；ORIG ctor 0x085df7d0 W） ----
+class STPvPGuild
+{
+public:
+    STPvPGuild();
+
+    unsigned int m_guildKey;  // +0x00
+    int m_point;              // +0x04
+    char m_count;             // +0x08
+};
+
+// ---- PvP_GuildWar_Log（0x68；权威单声明点，实现见 PvP_GuildWar_Log.cpp） ----
 class PvP_GuildWar_Log
 {
 public:
-    PvP_GuildWar_Log();
-    ~PvP_GuildWar_Log();
-    void Clear();
-    void SetpvpStartTime(long t);
-    void WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users);
-private:
-    char m_pad[0x68];
+    PvP_GuildWar_Log();      // ORIG _ZN16PvP_GuildWar_LogC1Ev 0x085dda46
+    ~PvP_GuildWar_Log();     // ORIG D1Ev 0x085dda86
+    void Clear();            // ORIG 0x085dda9a
+    void SetpvpStartTime(long t);  // ORIG _ZN16PvP_GuildWar_Log17SetpvpStartTimeEl 0x085df7f0 W（long，非 long long）
+    int InsertPvPGuild(unsigned int guildKey, int point);  // ORIG 0x085ddd80
+    void WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users);  // ORIG 0x085ddad0
+
+    char m_guildCnt;         // +0x00（Clear 置 0；ctor 不初始化，与 ORIG 一致）
+    int m_startTime;         // +0x04
+    STPvPGuild m_guilds[8];  // +0x08（0x60）→ sizeof 0x68
 };
 
-// ---- cElection<int,8,8>（0x100） ----
+static_assert(sizeof(STPvPGuild) == 0xc, "STPvPGuild ABI drift");
+static_assert(offsetof(PvP_GuildWar_Log, m_startTime) == 0x4, "PvP_GuildWar_Log startTime offset drift");
+static_assert(offsetof(PvP_GuildWar_Log, m_guilds) == 0x8, "PvP_GuildWar_Log guilds offset drift");
+static_assert(sizeof(PvP_GuildWar_Log) == 0x68, "PvP_GuildWar_Log ABI drift");
+
+// ---- cElection<int,V,C>（ORIG 布局：cVoter m_voters[V]，每 voter 持 C 票；
+//      <int,8,8>=0x100、<int,4,4>=0x40；GetElected 对票矩阵按列求和取最大） ----
 template <class T, int V, int C>
 class cElection
 {
 public:
-    cElection();
-    int GetElected() const;
-    void Vote(int a, int b);
-    void CancelVoter(int a);
-    void CancelCandidate(int a);
-    int m_votes[C];
+    class cVoter
+    {
+    public:
+        cVoter();
+        void Init();          // std::fill 清零本 voter 的 C 票（ORIG 0x82beb62/0x85e0304）
+        int m_votes[C];
+    };
+
+    cElection();              // 逐 voter 构造后 Init()（ORIG 0x82aafc4/0x85dff3a）
+    void Init();              // 全部 voter Init（ORIG 0x82b585a/0x85e02d2）
+    int GetElected() const;   // 列求和最大者；全零返回 -1（ORIG 0x85c03a8/0x85dff78）
+    void Vote(int voter, int candidate);        // votes[voter][candidate]=1
+    void CancelVoter(int voter);                // 该 voter 票清零
+    void CancelCandidate(int candidate);        // 各 voter 该候选票清零
+
 private:
-    char m_pad[0x100 - sizeof(m_votes)];
+    cVoter m_voters[V];
 };
 
-// ---- PvpUserTable（0x34c） ----
+// ---- PvpUserTable（0x34c）—— 权威完整定义（ORIG 0x85d48f0 起，16 方法，
+//      实现唯一归属 PvpUserTable.cpp；布局自 ORIG 构造/析构与各函数寻址推导：
+//      Clear/Set/CheckDan 寻址 +0x120/+0x344、SetWinTeam/Clear 写 +0x320、
+//      Calculate memset 0x100/0x120 与 minPoint +0x324、GetGhostVsTeamPoint
+//      累计 +0x100、GetTeamVsTeamPoint 矩阵 (t1*8+t2)*4） ----
 class PvpUserTable
 {
 public:
     PvpUserTable();
     ~PvpUserTable();
-    void Set(int team, CUser* user);
-    int GetResult(int a, bool b, int c);
-    int GetWinTeam();
-    void SetWinTeam(int team);
-    bool IsValidTeam(int team);
-    int GetLeavePenalty(int team);
     void Clear();
-    void Calculate();
-private:
-    char m_pad[0x34c];
+    int  Set(int team, CUser* user);          // ORIG 返回 undefined4（int）
+    int  IsValidTeam(int team);
+    int  IsValidConvertedGrade(int grade);
+    int  GetTeamUserCount(int team);
+    float GetExpectVal(int grade1, int grade2, CUser* user);
+    int  Calculate();
+    int  GetTeamVsTeamPoint(int team1, int team2);
+    int  GetGhostVsTeamPoint(int team, int unused);
+    int  GetResult(int team, bool isWinTeam, int mode);
+    int  GetLeavePenalty(int team);
+    int  GradeFilter(int grade);
+    void CheckDan();
+    void SetWinTeam(int team);
+    int  GetWinTeam();
+    int  GetUserVsTeamPoint(int userIdx, int myTeam, int enemyTeam,
+                            CUser* user);
+
+    struct UserSlot
+    {
+        CUser* user;         // 槽内 +0x00
+        unsigned char flag;  // 槽内 +0x04（胜方标记）
+    };
+
+    float m_teamVsTeam[8][8]; // +0x000 队伍间分差矩阵
+    float m_teamPoint[8];     // +0x100 队伍期望分累计
+    UserSlot m_users[8][8];   // +0x120 用户槽表（8 字节/项）
+    int m_winTeam;            // +0x320
+    float m_minPoint[8];      // +0x324 各队伍最小分（GetLeavePenalty）
+    unsigned char m_dan[8];   // +0x344 丹位标记
 };
+
+static_assert(sizeof(PvpUserTable) == 0x34c, "PvpUserTable ABI drift");
+static_assert(offsetof(PvpUserTable, m_users) == 0x120, "PvpUserTable users offset drift");
+static_assert(offsetof(PvpUserTable, m_winTeam) == 0x320, "PvpUserTable winTeam offset drift");
+static_assert(offsetof(PvpUserTable, m_minPoint) == 0x324, "PvpUserTable minPoint offset drift");
+static_assert(offsetof(PvpUserTable, m_dan) == 0x344, "PvpUserTable dan offset drift");
 
 // ---- PvpResultRecvFlag（0x8） ----
 class PvpResultRecvFlag
@@ -169,6 +232,7 @@ class CMTRand
 {
 public:
     CMTRand();
+    CMTRand(const unsigned long& s);   // ORIG _ZN7CMTRandC1ERKm（CMTRand.cpp 定义）
     void seed(unsigned long s);
     int randInt();
     int randInt(const unsigned long& range);
@@ -182,18 +246,31 @@ class BlueMarbleScriptManager
 public:
     BlueMarbleScriptManager();
     static BlueMarbleScriptManager* getInsance();
+    // ORIG（CDataManager::init 调用链）：
+    //   _ZN23BlueMarbleScriptManager12initTileListEPKcS1_ / 11initMapListEPKcS1_ /
+    //   18initBlueMarbleInfoEPKcS1_
+    bool initTileList(const char* dir, const char* list);
+    bool initMapList(const char* dir, const char* list);
+    bool initBlueMarbleInfo(const char* dir, const char* file);
     void clear();
-    BlueMarbleMapScript* getMap(int idx);
     int getMapTotalCount();
+    // ORIG _ZN23BlueMarbleScriptManager6getMapEi（0x088d66b6 T）：m_maps(+0xd4) find，未命中 0。
+    // BlueMarble.cpp 5 处调用（setMaxBoardSize/getRandomDungeon/tileType/giveupDungeon）；
+    // 真实定义在 BlueMarbleScriptManager.cpp。
+    BlueMarbleMapScript* getMap(int idx);
     BlueMarbleTileScript* getTile(int zone);
-    char m_prefix[0x30];
-    int m_mapTotalCount;
-    char m_config[0x64];
-    std::vector<BlueMarbleRandomItemInfo> m_randomItems;
-    std::vector<BlueMarbleRewardInfo> m_rewardItems;
-    std::map<int, BlueMarbleTileScript*> m_tiles;
-    std::map<int, BlueMarbleMapScript*> m_maps;
-};
+    // ---- ORIG 布局（ctor 0x88d614a / clear 0x88d622c / init* 三报告实证）----
+    std::map<int, std::string> m_mapFileList;    // +0x00（ORIG STScriptFileList@this+0）
+    std::map<int, std::string> m_tileFileList;   // +0x18（ORIG STScriptFileList@this+0x18）
+    BlueMarbleInfoScript m_info;                 // +0x30（0x8c，initBlueMarbleInfo 以 this+0x30 调 importScript）
+    std::map<int, BlueMarbleTileScript*> m_tiles;    // +0xbc
+    std::map<int, BlueMarbleMapScript*> m_maps;      // +0xd4
+};  // sizeof 0xec（getInsance new(0xec) 实证）
+
+static_assert(sizeof(BlueMarbleScriptManager) == 0xec, "BlueMarbleScriptManager size drift");
+
+static_assert(offsetof(BlueMarbleScriptManager, m_tiles) == 0xbc, "BlueMarbleScriptManager tiles offset drift");
+static_assert(offsetof(BlueMarbleScriptManager, m_maps) == 0xd4, "BlueMarbleScriptManager maps offset drift");
 
 static_assert(sizeof(BlueMarbleRandomItemInfo) == 0x8, "BlueMarbleRandomItemInfo ABI drift");
 static_assert(sizeof(BlueMarbleRewardInfo) == 0x8, "BlueMarbleRewardInfo ABI drift");
@@ -221,8 +298,8 @@ struct BlueMarbleHistoryMailData
 
 static_assert(sizeof(BlueMarbleScriptConfig) == 0x20, "BlueMarbleScriptConfig ABI drift");
 
-static_assert(offsetof(BlueMarbleScriptManager, m_mapTotalCount) == 0x30, "BlueMarbleScriptManager map offset drift");
-static_assert(offsetof(BlueMarbleScriptManager, m_randomItems) == 0x98, "BlueMarbleScriptManager item offset drift");
-static_assert(offsetof(BlueMarbleScriptManager, m_rewardItems) == 0xa4, "BlueMarbleScriptManager reward offset drift");
+// 2026-08-24 布局重构后断言（旧 m_mapTotalCount/m_randomItems/m_rewardItems
+// 扁平字段已由 m_mapFileList/m_tileFileList/m_info 取代，见类内注释）。
+static_assert(offsetof(BlueMarbleScriptManager, m_info) == 0x30, "BlueMarbleScriptManager info offset drift");
 
 #endif  // GAME_PVPTYPES_H_

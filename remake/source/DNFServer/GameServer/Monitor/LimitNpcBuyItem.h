@@ -3,6 +3,7 @@
 #include <deque>
 #include <list>
 #include <map>
+#include <string.h>
 #include <queue>
 #include <set>
 #include <string>
@@ -239,6 +240,13 @@ struct stUserHuntingPoint;
 
 struct NpcBuyLimitItem
 {
+    NpcBuyLimitItem() { clear(); }   // ORIG W 0x0822b7ee（转调 clear）
+    void clear()                     // ORIG W 0x0822b7cc：三字段逐个清零
+    {
+        m_itemId = 0;
+        m_maxCount = 0;
+        m_sellCount = 0;
+    }
     unsigned int m_itemId;     // +0
     unsigned int m_maxCount;   // +4
     unsigned int m_sellCount;  // +8
@@ -269,16 +277,20 @@ public:
 class LimitNpcBuyItemInfoAll : public PacketHeader
 {
 public:
-    unsigned int m_padA;           // +0xa
-    unsigned int m_dbid;           // +0xe FindUser
-    unsigned int m_charNo;         // +0x12
-    int m_count;                   // +0x16
-    struct Rec
+    LimitNpcBuyItemInfoAll()                        // ORIG W 0x0822c53a
+        : PacketHeader(0x27da, 0x182)
     {
-        unsigned int m_itemId;
-        unsigned int m_maxCount;
-        unsigned int m_sellCount;
-    } m_items[30];                 // +0x1a
+        m_padA = 0;                                 //   四个头字段逐个清零
+        m_dbid = 0;
+        m_charNo = 0;
+        m_count = 0;
+        memset(m_items, 0, sizeof(m_items));        //   再对元素区 memset 0x168
+    }
+    unsigned int m_padA;           // +0xa（ORIG SelectCharac 进程写 uid）
+    unsigned int m_dbid;           // +0xe FindUser（ORIG 写 acc_id）
+    unsigned int m_charNo;         // +0x12（ORIG 写 charac_no）
+    int m_count;                   // +0x16
+    NpcBuyLimitItem m_items[30];   // +0x1a（ORIG C1 循环构造 30 个 NpcBuyLimitItem）
 };
 #pragma pack(pop)
 

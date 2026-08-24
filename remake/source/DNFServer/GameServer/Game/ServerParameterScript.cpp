@@ -28,27 +28,30 @@ void ServerParameterScript::clear()
     m_358 = 0;
     for (int i = 0; i < 4; ++i)
     {
-        m_354[i] = 0;
+        m_versionBytes[i] = 0;
     }
-    m_expBonus360[0] = 1.0f;
-    m_expBonus360[1] = 1.0f;
-    m_expBonus360[2] = 1.0f;
-    m_expBonus360[3] = 1.0f;
-    m_370[0] = 1.0f;
-    m_370[1] = 1.0f;
-    m_370[2] = 1.0f;
-    m_370[3] = 1.0f;
-    m_380[0] = 1.0f;
-    m_380[1] = 1.0f;
-    m_380[2] = 1.0f;
-    m_380[3] = 1.0f;
-    m_390[0] = 1.0f;
-    m_390[1] = 1.0f;
-    m_390[2] = 1.0f;
-    m_390[3] = 1.0f;
+    m_expRate360[0] = 1.0f;
+    m_expRate360[1] = 1.0f;
+    for (int i = 0; i < 4; ++i)
+    {
+        m_expGroup368[i] = 1.0f;
+    }
+    for (int i = 0; i < 4; ++i)
+    {
+        m_expGroup378[i] = 1.0f;
+    }
+    for (int i = 0; i < 4; ++i)
+    {
+        m_expGroup388[i] = 1.0f;
+    }
+    // ORIG clear 循环 lea 0xe4 disp 8 只复位前 4 个（第 5 个由 import 写入）。
+    for (int i = 0; i < 4; ++i)
+    {
+        m_monsterExpTable398[i] = 1.0f;
+    }
     for (int i = 0; i < 5; ++i)
     {
-        m_expBonusWeight3a0[i] = 1.0f;
+        m_expBonusWeight3ac[i] = 1.0f;
     }
     m_vec57c.clear();
     m_vec588.clear();
@@ -109,7 +112,7 @@ void ServerParameterScript::clear()
     m_7bc = 0;
     for (int i = 0; i < 7; ++i)
     {
-        m_ghost7c0[i].m_min = -1;
+        m_emblemCompound[i].m_cost = -1;   // ORIG 0x836f7c0：cost=0xffffffff（EMBLEM 无此等级）
     }
     for (int i = 0; i < 32; ++i)
     {
@@ -150,7 +153,6 @@ void ServerParameterScript::clear()
     m_farming4c0.clear();
     m_vec4d8.clear();
     m_light3c.clear();
-    m_map0c.clear();
     m_vec18.clear();
     m_map24.clear();
 }
@@ -161,7 +163,7 @@ float ServerParameterScript::GetExpBonusWeight(eRankBonusIndex idx) const
     {
         return 0.0f;
     }
-    return m_expBonusWeight3a0[idx];
+    return m_expBonusWeight3ac[idx];
 }
 
 bool ServerParameterScript::CheckCollectDungeonStatisticServer(int serverGroup,
@@ -176,6 +178,21 @@ bool ServerParameterScript::CheckCollectDungeonStatisticServer(int serverGroup,
         return it->second;
     }
     return false;
+}
+
+// ---- 子结构构造（ORIG 弱内联，本 TU 具名实现） ----
+
+// ORIG stWeekendBouns::stWeekendBouns() 0x0836f374
+stWeekendBouns::stWeekendBouns()
+{
+    m_field0 = 0;
+    m_field4 = 0;
+}
+
+// ORIG stLevelCond4PremiumGoldCard::stLevelCond4PremiumGoldCard() 0x0836f348
+stLevelCond4PremiumGoldCard::stLevelCond4PremiumGoldCard()
+    : m_field0(0), m_field4(0), m_field8(0), m_fieldc(0)
+{
 }
 
 bool ServerParameterScript::CheckLightServer(int serverIdx)
@@ -303,14 +320,29 @@ int ServerParameterScript::getLuckPoint(int idx, int& out)
     return 0;
 }
 
-int ServerParameterScript::getLuckPointDeductionRate(int idx, int& out)
+// getLuckPointDeductionRate —— ORIG T 0x08a8c4fe 逐指令转写：
+//   外层遍历 m_luckDed54(+0x54)，跳过 m_field0 == level 的行；
+//   内层 j=0..2 在行内 m_levels(+0x04) 找 == grade 项，命中返回该项；
+//   未命中返回该行 m_levels[3]（ORIG 无条件 ix(3)；此处越界保护返回 0）；
+//   行耗尽返回 0。
+int ServerParameterScript::getLuckPointDeductionRate(int level, int grade)
 {
-    if (idx >= 0 && idx < (int)m_luckDed54.size())
+    for (unsigned int i = 0; i < m_luckDed54.size(); ++i)
     {
-        out = m_luckDed54[idx].m_field0;
-        return 1;
+        if (m_luckDed54[i].m_field0 == level)
+            continue;
+        for (int j = 0; j <= 2; ++j)
+        {
+            if (j < (int)m_luckDed54[i].m_levels.size() &&
+                m_luckDed54[i].m_levels[j] == grade)
+            {
+                return m_luckDed54[i].m_levels[j];
+            }
+        }
+        if ((int)m_luckDed54[i].m_levels.size() > 3)
+            return m_luckDed54[i].m_levels[3];
+        return 0;
     }
-    out = 0;
     return 0;
 }
 
@@ -555,7 +587,7 @@ bool importServerParameterScript(ServerParameterScript* script,
                 {
                     break;
                 }
-                script->m_expBonusWeight3a0[i] = (float)value;
+                script->m_expBonusWeight3ac[i] = (float)value;
             }
         }
     }

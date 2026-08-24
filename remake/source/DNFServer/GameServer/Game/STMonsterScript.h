@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "ActiveStaticInfo.h"
+#include "CDataManager.h"   // stMonsterIndependentDrop_t（+0x3ac 容器元素类型）
 
 class STMonsterScript
 {
@@ -29,6 +30,11 @@ public:
     std::string m_str4;                      // +0x04
     char m_pad[0x74];                        // +0x08..+0x7b
     std::vector<int> m_vec7c;                // +0x7c
+    char m_pad88[0x3ac - 0x88];              // +0x88..+0x3ab（未建模区【推断】）
+    // ORIG ctor 0x8368e14（add $0x3ac 后调 vector C1）/ dtor 0x8378dac
+    // （_ZNSt6vectorI26stMonsterIndependentDrop_tSaIS0_EED1Ev @+0x3ac）实证；
+    // CMonster::generateIndependentItem 0x0834f876 lea 0x3ac(%eax) 读取。
+    std::vector<stMonsterIndependentDrop_t> m_independentDrops;  // +0x3ac
 };
 
 int ImportMonsterScript(STMonsterScript* script, int type, const char* path,

@@ -1,44 +1,61 @@
 // ============================================================================
-// TownAreaScript（G2 Village/区域批次）
-// ----------------------------------------------------------------------------
-// Village.cpp 以 0x30 布局（int m_areaIndex + char m_pad[0x2c]）承载
-// std::map<int, TownAreaScript>（Village::m_areaScripts @ +0x20，0x18 字节 map）
-// 并引用构造/拷贝/赋值/析构符号。ORIG 各符号为弱符号：
-//   _ZN14TownAreaScriptC1Ev / C2 / D1 / D2 / aSERKS_ / C1ERKS_
-// 本 TU 以 Village.cpp 一致的 0x30 POD 语义实现（memset/memcpy），
-// 保证 map 节点（0x30 元素）不被越界写入。
+// TownAreaScript（G2 Village/区域批次）——按 ORIG 反汇编真实实现。
+//   C1Ev 0x86d1d9a：构造 m_mapName/m_rects/m_field18 后调 clear()。
+//   D1Ev 0x86d28f6：逆序析构 m_field18/m_rects/m_mapName。
+//   C1ERKS_ 0x86d296a：逐成员拷贝。
+//   aSERKS_ 0x86d2a1a：逐成员赋值。
+//   clear 0x86d1d46：m_areaIndex=-1、m_mapName=""、m_areaType=0、
+//                    两 vector 清空、m_field24=1。
+// Village.cpp / Area.cpp 共用 TownAreaScript.h（唯一声明点，sizeof 0x30）。
 // ============================================================================
 
-#include <string.h>
-
-class TownAreaScript
-{
-public:
-    TownAreaScript();
-    TownAreaScript(const TownAreaScript& other);
-    TownAreaScript& operator=(const TownAreaScript& other);
-    ~TownAreaScript();
-
-    int m_areaIndex;   // +0x00
-    char m_pad[0x2c];  // +0x04（ORIG string mapName_ 占位；Village 以 0x30 POD 使用）
-};
+#include "TownAreaScript.h"
 
 TownAreaScript::TownAreaScript()
+    : m_areaIndex(0), m_mapName(), m_areaType(0), m_rects(), m_field18(),
+      m_field24(0)
 {
-    memset(this, 0, sizeof(*this));
+    clear();
 }
 
 TownAreaScript::TownAreaScript(const TownAreaScript& other)
+    : m_areaIndex(other.m_areaIndex),
+      m_mapName(other.m_mapName),
+      m_areaType(other.m_areaType),
+      m_rects(other.m_rects),
+      m_field18(other.m_field18),
+      m_field24(other.m_field24)
 {
-    memcpy(this, &other, sizeof(*this));
+    for (int i = 0; i < (int)sizeof(m_pad25); ++i)
+        m_pad25[i] = other.m_pad25[i];
 }
 
 TownAreaScript& TownAreaScript::operator=(const TownAreaScript& other)
 {
-    memcpy(this, &other, sizeof(*this));
+    if (this != &other)
+    {
+        m_areaIndex = other.m_areaIndex;
+        m_mapName = other.m_mapName;
+        m_areaType = other.m_areaType;
+        m_rects = other.m_rects;
+        m_field18 = other.m_field18;
+        m_field24 = other.m_field24;
+        for (int i = 0; i < (int)sizeof(m_pad25); ++i)
+            m_pad25[i] = other.m_pad25[i];
+    }
     return *this;
 }
 
 TownAreaScript::~TownAreaScript()
 {
+}
+
+void TownAreaScript::clear()
+{
+    m_areaIndex = -1;
+    m_mapName = "";
+    m_areaType = 0;
+    m_rects.clear();
+    m_field18.clear();
+    m_field24 = 1;
 }

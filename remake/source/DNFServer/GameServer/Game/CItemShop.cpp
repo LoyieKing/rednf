@@ -29,9 +29,10 @@ public:
 };
 STScriptFileList g_itemShopScriptFileList;  // ORIG 全局（0x94fe260），原 GameStubs.cpp 定义迁移
 
-// ORIG 0x89dc5b4：脚本目录全局缓冲（initItemShopScript 0x89dc4f8 填充；
-// 本 TU 提供符号，空目录等价 loadRDARScriptFile("", path)）。
-char g_itemShopScriptDir[0x100];
+// ORIG g_itemShopScriptBaseDirectory（B 0x094fe160[0x100]）：脚本目录全局
+// 缓冲（initItemShopScript 0x89dc4f8 填充；本 TU 提供符号，空目录等价
+// loadRDARScriptFile("", path)）。nm 权威名见 InitScriptProducers_5.cpp。
+char g_itemShopScriptBaseDirectory[0x100];
 
 // ORIG 0x8514046：清零标量字段、清空容器；m_lastUpdateTime 保留旧值。
 void ItemShopScript::clear()
@@ -50,7 +51,7 @@ void ItemShopScript::clear()
 
 int importItemShopScript(ItemShopScript* script, const char* path)
 {
-    if (!loadRDARScriptFile(g_itemShopScriptDir, path))
+    if (!loadRDARScriptFile(g_itemShopScriptBaseDirectory, path))
         return 0;
     script->clear();
     std::string line;

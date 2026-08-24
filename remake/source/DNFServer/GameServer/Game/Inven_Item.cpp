@@ -116,6 +116,12 @@ void RandomOption::reset()
     m_seedd.reset();
 }
 
+// ORIG 0x822abd0 W：movzbl (this) → 首字节==0 返回 true。
+bool RandomOption::empty()
+{
+    return m_field0.m_field0 == 0;
+}
+
 void ChronicleRandomOptionInfo::reset()
 {
     m_skill0.reset();
@@ -244,6 +250,19 @@ void Inven_Item::SetTradeLimitCount(unsigned char count)
     m_attr = (unsigned char)((m_attr & 0x1f) | ((count & 0x7) << 5));
 }
 
+// ORIG _Z23DecreaseTradeLimitCountR10Inven_Item T 0x0812013c：
+// cVar1 = GetTradeLimitCount()；非 0 时 SetTradeLimitCount(cVar1-1)，返回 cVar1!=0。
+bool DecreaseTradeLimitCount(Inven_Item& item)
+{
+    unsigned char count = item.GetTradeLimitCount();
+    if (count != 0)
+    {
+        item.SetTradeLimitCount(count - 1);
+        return true;
+    }
+    return false;
+}
+
 bool Inven_Item::isAvatarItemType() const
 {
     return m_field1 == 8;
@@ -364,4 +383,11 @@ int Inven_Item::GetItemSpace() const
         result = 0;
     }
     return result;
+}
+
+void UpgradeSeparateInfo::SetUpgradeSeparateAndTradeRestriction(unsigned char value)
+{
+    // ORIG 0x085574bc (W)：*(unsigned char*)this = value —— 整字节覆盖，
+    // 同时写入 upgrade 槽位（bit0-4）与 trade-restriction 位（bit5）。
+    m_field = value;
 }

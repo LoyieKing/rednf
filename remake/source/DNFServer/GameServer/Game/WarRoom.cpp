@@ -92,13 +92,8 @@ enum eAvatarItemAddReason
 // ---- 本地最小视图（权威声明见 CValueStatistic.cpp / CEventManager 头 /
 //      HistoryLog.cpp / TimerQueue.h，因各自权威头与既有 include 冲突或尚未
 //      建立，暂以本地声明 + 真实调用；方法定义在权威 TU，mangled 与 ORIG 一致）----
-class CEventBase;
-class CEventManager
-{
-public:
-    CEventBase* GetRepeatEvent(int type);  // _ZN13CEventManager14GetRepeatEventEi
-};
-
+// 注：CEventManager/CEventBase 权威声明在 CGuildServerProxy.h（经 CExpDoubleEvent.h
+//     引入），此处不再本地定义避免重定义冲突。
 class HistoryLog
 {
 public:
@@ -1178,8 +1173,8 @@ void WarRoom::ClearReward()
             total += upperExp;
             int guildExp = ((CUser*)m_slots[i])->gainGuildSkillExp(baseExp);
             total += guildExp;
-            if (((CUser*)m_slots[i])->gain_exp_sp(total, sp, sfp, (eExpAddReason)6, 0, 0) !=
-                0)
+            if (((CUser*)m_slots[i])->gain_exp_sp(total, sp, sfp,
+                                                  (CUser::eExpAddReason)6, 0, 0) != 0)
             {
                 packet2.clear();
                 packet2.put_header(0, 2);
@@ -1559,7 +1554,8 @@ int WarRoom::HandleMonsterKill(CUser* user, int monsterIdx, CUser* killer)
                     int sfp = 0;
                     if (((CUser*)m_slots[i])->gain_exp_sp(
                             upperExp + exp + guildExp + rewardExp + fatigueExp,
-                            sp, sfp, (eExpAddReason)4, monster.m_mobIndex, 0) != 0)
+                            sp, sfp, (CUser::eExpAddReason)4, monster.m_mobIndex,
+                            0) != 0)
                     {
                         ((CUser*)m_slots[i])->SendNotiPacket(
                             (CUser::eSendTarget)3, (ENUM_NOTIPACKET)2, 1);

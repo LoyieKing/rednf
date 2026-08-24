@@ -10,6 +10,7 @@
 //   combo_script_data        24 字节（两个 vector<pair<int,int>>）
 
 #include <bitset>
+#include <list>
 #include <map>
 #include <string>
 #include <utility>
@@ -59,13 +60,18 @@ struct combo_script_data
     std::pair<int, int> m_bonus;                       // +0x0c（单项组合奖励）
 };
 
-// ---- 任务脚本（CDataManager 装载，0x79 字节） ----
+// ---- 任务脚本（CDataManager 装载，0x88 字节） ----
+// ORIG 布局（Factory 0x85e2132 读 +0x34 为类型分派；派生 ctor 参数读
+// +0x7c/+0x80/+0x84；comboMap 在 +0x60）。Load_list 的 'MissionScript local_c8[136]'
+// 实证总尺寸 0x88。
 struct MissionScript
 {
-    int m_field00;                                   // +0x00
-    int m_prevMissionIndex;                          // +0x04
+    void clear();   // ORIG 0x08a5bbb2
+
+    int m_field00;                                   // +0x00（[next mission]）
+    int m_prevMissionIndex;                          // +0x04（[prev mission]）
     int m_field08;                                   // +0x08
-    int m_field0c;                                   // +0x0c
+    int m_field0c;                                   // +0x0c（脚本列表索引）
     int m_gradeMin;                                  // +0x10
     int m_gradeMax;                                  // +0x14
     int m_rateMin;                                   // +0x18
@@ -73,15 +79,34 @@ struct MissionScript
     int m_field20;                                   // +0x20
     int m_job;                                       // +0x24
     std::vector<int> m_field28;                      // +0x28
-    char m_pad34[4];                                 // +0x34
+    int m_field34;                                   // +0x34（Factory 类型分派 switch）
     std::string m_str38;                             // +0x38
     std::string m_str3c;                             // +0x3c
     float m_expRate;                                 // +0x40
     std::vector<std::pair<int, int> > m_rewardItems; // +0x44
     std::vector<int> m_field50;                      // +0x50
-    char m_pad5c[4];                                 // +0x5c
+    char m_stealingSkill;                            // +0x5c（[stealing skill]）
+    char m_rewardSkill;                              // +0x5d（[reward skill]）
+    char m_rewardSp;                                 // +0x5e（[reward sp]）
+    char m_pad5f;                                    // +0x5f
     std::map<combo_script_key, combo_script_data> m_comboMap;  // +0x60
-    char m_kind;                                     // +0x78
+    int m_kind;                                      // +0x78（_ReadThreeInt 第 1 值；Factory/CMission 使用）
+    int m_field7c;                                   // +0x7c（_ReadThreeInt 第 2 值）
+    int m_field80;                                   // +0x80（_ReadThreeInt 第 3 值）
+    int m_field84;                                   // +0x84（_ReadFourInt 第 4 值）
+};
+
+// ---- PvP 任务参数脚本（PvP_MissionSystem::copy_missionParameter 0x85e206e）----
+// 布局：+0x00 vector<uint>（daily indices）+0xc int +0x10 list<pair<uint,uint>>
+struct MissionParameterScript
+{
+    void clear();   // ORIG 0x08a5bca2
+
+    std::vector<unsigned int> m_dailyIndices;                // +0x00
+    int m_field0c;                                           // +0x0c
+    std::list<std::pair<unsigned int, unsigned int> > m_dailyList;  // +0x10
+    int m_field18;                                           // +0x18
+    std::vector<unsigned int> m_baseExp;                     // +0x1c
 };
 
 // ---- 任务清除条件参数（pack(1)） ----

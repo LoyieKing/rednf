@@ -1,0 +1,481 @@
+// ============================================================================
+// df_game_r 还原 —— CDataManager::init() 脚本装载自由函数（批次 5）。
+// 承载 DataManagerInitDepends.h 声明的以下符号（全部 ORIG nm 真实 T 符号，
+// objdump 逐指令转写；调用点证据 docs/class_func_reports/CDataManager/init.md）：
+//   InitMapEquipmentAniScript       _Z25InitMapEquipmentAniScriptv         0x089c0586  init.md:97
+//   initExpertJobScript             _Z19initExpertJobScriptPcS_            0x0896d830  init.md:524
+//   initIndependentDropScript       _Z25initIndependentDropScriptPcS_      0x0897c01c  init.md:875
+//   initEventCharacterScript        _Z24initEventCharacterScriptPcS_       0x0895ae5c  init.md:1596
+//   initAICharacterScript           _Z21initAICharacterScriptPKcS0_        0x088c98d4  init.md:1838
+//   initItemShopScript              _Z18initItemShopScriptPcS_             0x089dc4f8  init.md:2178
+//   initPvpMissionSystem            _Z20initPvpMissionSystemPcS_           0x08a5aad5  init.md:2219
+//   initWorldMapScript              _Z18initWorldMapScriptPcS_             0x08ab000c  init.md:2555
+//   initStageMapScript              _Z18initStageMapScriptPcS_             0x088a9e6c  init.md:2565
+//   initChattingEmoticonScriptList  _Z30initChattingEmoticonScriptListPcS_ 0x088e30f8  init.md:2740
+//   initCreatureScript              _Z18initCreatureScriptPKcS0_S0_        0x08a35d37  init.md:4579
+//   initPvPSkillTreeScript          _Z22initPvPSkillTreeScriptPcS_         0x08a5cd6c  init.md:4968
+//
+// initWorldMapScript 的被调依赖（当前源码缺失，本 TU 一并提供，ORIG nm 真实）：
+//   loadWorldMapCoordPattern        _Z24loadWorldMapCoordPatternv          0x08ab0234
+//     （报告 docs/class_func_reports/_lt_global_gt_/loadWorldMapCoordPattern.md）
+//   ScanAbsOrRel                    _Z12ScanAbsOrRelRbRSsS_b               0x088bcbef
+//   WorldMapScript::aWorldMapPatternTable_E    B 0x09501020 (0x4b0)
+//   WorldMapScript::aWorldMapPatternTable2ND_E B 0x095014e0
+//   g_mapEquipmentAniScript         B 0x094f7bf8（InitMapEquipmentAniScript 域）
+//
+// 统一模式（各函数 objdump 一致）：
+//   strncpy(g_*BaseDirectory, dir, N) → 末字符既非 '\\' 也非 '/' 时
+//   memcpy(dst+strlen, "\\", 2)；随后 loadRDARScriptListFile(g_*FileList,
+//   baseDir, list, NULL)，返回值 !=0 即 true。
+//   注意：strncpy 长度按函数区分（多数 0x100；pvpMission/pvpSkillTree/
+//   ChatEmoticon/IndependentDrop 为 0xff），逐函数忠实保留。
+// ============================================================================
+
+#include <map>
+#include <string>
+#include <stdlib.h>    // atof
+#include <string.h>    // strncpy / strlen / memcpy
+
+#include "DNFLexWrapper.h"    // loadRDARScriptFile / ScanType / ScanInt
+#include "LogManager.h"      // ScanAbsOrRel 告警日志
+#include "CreatureScript.h"  // CreatureScript::ExpTable_E 静态成员
+#include "sync_script.h"     // STEquipmentPartSetPiece（DataManagerInitDepends.h 依赖序，同 CDataManager.cpp）
+#include "DataManagerInitDepends.h"  // 本批 12 函数唯一声明点
+                                     // （须在 CDataManager.h 后包含；本 TU 不使用
+                                     //   其余重类型声明，仅借签名一致性）
+
+// ---- 本地 STScriptFileList（与 CItemShop.cpp / STScriptFileList.cpp /
+//      PvP_MissionSystem.cpp 同布局：+0x00 std::map<int,std::string>，0x18）----
+class STScriptFileList
+{
+public:
+    std::map<int, std::string> m_fileMap;             // +0x00
+    int FindIndexByFullScan(const char* path) const;  // STScriptFileList.cpp 提供
+};
+// ORIG 0x088bbd77 _Z22loadRDARScriptListFileP16STScriptFileListPKcS2_PSt3mapIii..
+// 定义 STScriptFileList.cpp（int：1=成功 / 0=失败；第 4 参未使用）。
+int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
+                           const char* listPath, std::map<int, int>* unused);
+
+// ---- ORIG 全局（定义于各自权威 TU；本 TU extern 引用）----
+extern char g_expertJobScriptBaseDirectory[0x100];   // B 0x094f7660  CExpertJobList.cpp
+extern STScriptFileList g_expertJobScriptFileList;   // B 0x094f7760  CExpertJobList.cpp（本批正为对象模型）
+extern char g_itemShopScriptBaseDirectory[0x100];    // B 0x094fe160  CItemShop.cpp（本批由 g_itemShopScriptDir 正名 ORIG nm 名）
+extern STScriptFileList g_itemShopScriptFileList;    // B 0x094fe260  CItemShop.cpp
+extern char g_PvpMissionScriptBaseDirectory[0x100];  // B 0x09500100  PvP_MissionSystem.cpp
+extern STScriptFileList g_PvpMissionScriptFileList;  // B 0x09500200  PvP_MissionSystem.cpp
+extern char g_creatureScriptBaseDirectory[0x104];    // B 0x094ff4e0  CreatureScript.cpp
+// CreatureScript.cpp 将列表建模为其 +0x00 的 map 视图（见 CreatureScript.h 注释）：
+extern std::map<int, std::string> g_creatureScriptFileList;  // B 0x094ff5e0
+extern char g_ChattingEmoticonScriptBaseDirectory[0x100];    // B 0x094f6bc0  CChattingEmoticonList.cpp
+extern STScriptFileList g_ChattingEmoticonScriptFileList;    // B 0x094f6cc0  CChattingEmoticonList.cpp（本批正为对象模型）
+
+// ---- 本 TU 提供定义的 ORIG 全局（nm 真实存在；此前 source 无任何定义，
+//      已与 Ctor_Group1 协调归属）----
+char g_aiCharacterScriptBaseDirectory[0x100];        // B 0x094f6920 (initAICharacterScript)
+STScriptFileList g_aiCharacterScriptFileList;        // B 0x094f6a20 (0x18)
+char g_eventCharacterScriptBaseDirectory[0x100];     // B 0x094f73c0 (initEventCharacterScript)
+STScriptFileList g_eventCharacterScriptFileList;     // B 0x094f74c0 (0x18)
+char g_pvpSkillTreeScriptBaseDirectory[0x100];       // B 0x09500240 (initPvPSkillTreeScript)
+STScriptFileList g_pvpSkillTreeScriptFileList;       // B 0x09500340 (0x18)
+char g_independentDropScriptBaseDirectory[0x100];    // B 0x094f7840 (initIndependentDropScript)
+STScriptFileList g_independentDropScriptFileList;   // B 0x094f7940 (0x18)
+char g_stageMapScriptBaseDirectory[0x100];           // D 0x093f4900 (initStageMapScript)
+STScriptFileList g_stageMapScriptFileList;           // B 0x09494e20 (0x18)
+char g_worldMapScriptBaseDirectory[0x100];           // B 0x09500f00 (initWorldMapScript/loadWorldMapCoordPattern)
+STScriptFileList g_worldMapScriptFileList;           // B 0x09501000 (0x18)
+
+// ---- 装备动画脚本域 ----
+// STEquipmentAniScript 权威布局见 docs/class_func_reports/STEquipmentAniScript/；
+// ImportEquipmentAniScript 完整解析器（ORIG T 0x89c05f8，0x16c1 字节）报告在
+// docs/class_func_reports/_lt_global_gt_/ImportEquipmentAniScript.md，
+// 定义属数据域批次——本 TU 仅按 ORIG ABI extern 引用。
+// 最小完整视图（std::pair<std::string,V> 要求 V 完整才能实例化 map；
+// 字段序依据 clear.md：string@+0x04/+0x08/+0x0c、+0x18..+0x28、+0x4c..+0x58、
+// +0x60，vector<string>@+0x70；中段精确字段类型属「推断」，本 TU 不访问）。
+// 权威定义/ImportEquipmentAniScript 解析器由数据域批次落地后应迁移。
+class STEquipmentAniScript
+{
+public:
+    int m_field0;                    // +0x00
+    std::string m_str04;             // +0x04
+    std::string m_str08;             // +0x08
+    std::string m_str0c;             // +0x0c
+    std::string m_str10;             // +0x10（clear 循环 (i+8)*4+0xc 区）
+    std::string m_str14;             // +0x14（clear 循环 (i+12)*4+0xc 区）
+    std::string m_str18;             // +0x18
+    std::string m_str1c;             // +0x1c
+    std::string m_str20;             // +0x20
+    std::string m_str24;             // +0x24
+    std::string m_str28;             // +0x28
+    char m_pad2c[0x4c - 0x2c];
+    std::string m_str4c;             // +0x4c
+    std::string m_str50;             // +0x50
+    std::string m_str54;             // +0x54
+    std::string m_str58;             // +0x58
+    std::string m_str60;             // +0x60
+    char m_pad64[0x70 - 0x64];
+    std::vector<std::string> m_vec70;  // +0x70
+};
+void ImportEquipmentAniScript(std::map<std::string, STEquipmentAniScript>* table); // _Z24..
+std::map<std::string, STEquipmentAniScript>* g_mapEquipmentAniScript = 0;  // B 0x094f7bf8
+
+// ORIG 静态成员定义（声明 CreatureScript.h）：B 0x094fefa0，396 字节。
+int CreatureScript::ExpTable_E[0x63];
+
+// ============================================================================
+// 目录拷贝辅助（TU 内部 static；各 init* objdump 同构段合并，语义逐条对应：
+//   strncpy(dst, src, n); len=strlen(dst);
+//   if (dst[len-1] != 0x5c && dst[len-1] != 0x2f) memcpy(dst+len, "\\", 2);
+// 字面量 "\\" 取证：expertjob 0x8e13d1a / creature 0x8e1df2d /
+// aiCharacter 0x8e09826 / eventCharacter 0x8e12300 / itemShop 0x8e1a581 /
+// pvpMission 0x8e24a20 / pvpSkillTree 0x8e250c0 / chatEmoticon 0x8e0c560 /
+// independentDrop 0x8e14c80 / stageMap 0x8e061a1 / worldMap 0x8e2bd61 —— 均为 '\'。
+// ============================================================================
+static void CopyScriptBaseDirectory(char* dst, const char* src, int maxCopy)
+{
+    strncpy(dst, src, maxCopy);
+    int len = strlen(dst);
+    if (dst[len - 1] != 0x5c && dst[len - 1] != 0x2f)
+        memcpy(dst + len, "\\", 2);
+}
+
+// ============================================================================
+// initExpertJobScript —— ORIG 0x0896d830（init.md:524 +0x0a44 调用点，
+// 失败路径 TRACE "Load expertjob.lst fail" 0x1982 区）。
+//   strncpy(g_expertJobScriptBaseDirectory(0x94f7660), dir, 0x100) + 追加 '\\'
+//   → loadRDARScriptListFile(&g_expertJobScriptFileList(0x94f7760), baseDir,
+//     list, NULL) → 结果非 0 返回 true。
+// 消费方：CExpertJobList::init（ORIG 0x896d8ec 直接遍历该对象 m_fileMap）。
+// ============================================================================
+bool initExpertJobScript(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_expertJobScriptBaseDirectory, dir, 0x100);
+    return loadRDARScriptListFile(&g_expertJobScriptFileList,
+                                  g_expertJobScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initAICharacterScript —— ORIG 0x088c98d4（init.md:1838 +0x2483；失败 TRACE
+// "- Load AI Character fail" 0x1dd4）。同模式，目录 0x94f6920/列表 0x94f6a20。
+// ============================================================================
+bool initAICharacterScript(const char* dir, const char* list)
+{
+    CopyScriptBaseDirectory(g_aiCharacterScriptBaseDirectory, dir, 0x100);
+    return loadRDARScriptListFile(&g_aiCharacterScriptFileList,
+                                  g_aiCharacterScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initEventCharacterScript —— ORIG 0x0895ae5c（init.md:1596 +0x1f9b；失败
+// TRACE "- initEventCharacterScript Fail" 0x1cd4）。目录 0x94f73c0/列表 0x94f74c0。
+// ============================================================================
+bool initEventCharacterScript(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_eventCharacterScriptBaseDirectory, dir, 0x100);
+    return loadRDARScriptListFile(&g_eventCharacterScriptFileList,
+                                  g_eventCharacterScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initItemShopScript —— ORIG 0x089dc4f8（init.md:2178 +0x2b71；失败 TRACE
+// "- Load ItemShop.lst fail" 0x1e94）。目录 0x94fe160/列表 0x94fe260
+// （消费方 CItemShop.cpp Load_list / FindIndexByFullScan）。
+// ============================================================================
+bool initItemShopScript(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_itemShopScriptBaseDirectory, dir, 0x100);
+    return loadRDARScriptListFile(&g_itemShopScriptFileList,
+                                  g_itemShopScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initPvpMissionSystem —— ORIG 0x08a5aad5（init.md:2219 +0x2c50；失败 TRACE
+// "- Load PVP_Mission.lst fail" 0x1eab）。strncpy 长度 0xff；
+// 目录 0x9500100/列表 0x9500200（消费方 PvP_MissionSystem.cpp）。
+// ============================================================================
+bool initPvpMissionSystem(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_PvpMissionScriptBaseDirectory, dir, 0xff);
+    return loadRDARScriptListFile(&g_PvpMissionScriptFileList,
+                                  g_PvpMissionScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initPvPSkillTreeScript —— ORIG 0x08a5cd6c（init.md:4968 +0x6507；失败 TRACE
+// "- Load PvPSkillTree.lst fail" 0x21d7）。strncpy 长度 0xff；
+// 目录 0x9500240/列表 0x9500340。消费方 PvPSkillTreeParameterScript 域。
+// ============================================================================
+bool initPvPSkillTreeScript(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_pvpSkillTreeScriptBaseDirectory, dir, 0xff);
+    return loadRDARScriptListFile(&g_pvpSkillTreeScriptFileList,
+                                  g_pvpSkillTreeScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initChattingEmoticonScriptList —— ORIG 0x088e30f8（init.md:2740 +0x36be）。
+// strncpy 长度 0xff；目录 0x94f6bc0/列表 0x94f6cc0。消费方
+// CChattingEmoticonList::Load_list（ORIG 0x80e54d2 直接遍历对象 m_fileMap）。
+// ============================================================================
+bool initChattingEmoticonScriptList(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_ChattingEmoticonScriptBaseDirectory, dir, 0xff);
+    return loadRDARScriptListFile(&g_ChattingEmoticonScriptFileList,
+                                  g_ChattingEmoticonScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initIndependentDropScript —— ORIG 0x0897c01c（init.md:875 +0x1153；失败两步
+// 均 TRACE "Load IndependentDrop.lst fail" 0x1b56/0x1b5c）。strncpy 0xff；
+// 目录 0x94f7840/列表 0x94f7940。（头文件声明返回 int；asm 仅 eax=0/1。）
+// ============================================================================
+int initIndependentDropScript(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_independentDropScriptBaseDirectory, dir, 0xff);
+    return loadRDARScriptListFile(&g_independentDropScriptFileList,
+                                  g_independentDropScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initStageMapScript —— ORIG 0x088a9e6c（init.md:2565 +0x3345，紧随 worldMap
+// 之后、返回值被丢弃）。目录 0x93f4900/列表 0x9494e20。消费方 StageMapList 域。
+// ============================================================================
+bool initStageMapScript(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_stageMapScriptBaseDirectory, dir, 0x100);
+    return loadRDARScriptListFile(&g_stageMapScriptFileList,
+                                  g_stageMapScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// initCreatureScript —— ORIG 0x08a35d37（init.md:4579 +0x5d8a；失败 TRACE
+// "- Import Creature Creature.lst fail" 0x215f）。
+// ① 目录拷贝（0x94ff4e0，0x100）；② loadRDARScriptFile(baseDir, expTable)
+//   失败即 false（ExpTable.tbl 先行装载）；③ 循环 i=0..0x62 共 99 次
+//   ScanInt(NULL) 写入 CreatureScript::ExpTable_E[i]
+//   （B _ZN14CreatureScript9ExpTable_E 0x94fefa0，readelf size 396=99*4）；
+// ④ loadRDARScriptListFile 列表装载（0x94ff5e0）取非 0。
+// g_creatureScriptFileList 在权威头建模为 STScriptFileList 的 +0x00 map
+// （CreatureScript.h 注释），此处以同布局视图传入装载器。
+// ============================================================================
+bool initCreatureScript(const char* dir, const char* list, const char* expTable)
+{
+    CopyScriptBaseDirectory(g_creatureScriptBaseDirectory, dir, 0x100);
+    if (!loadRDARScriptFile(g_creatureScriptBaseDirectory, expTable))
+        return false;
+    for (int i = 0; i <= 0x62; ++i)
+        CreatureScript::ExpTable_E[i] = ScanInt((bool*)0);
+    return loadRDARScriptListFile(
+               reinterpret_cast<STScriptFileList*>(&g_creatureScriptFileList),
+               g_creatureScriptBaseDirectory, list, 0) != 0;
+}
+
+// ============================================================================
+// InitMapEquipmentAniScript —— ORIG 0x089c0586（init.md:97 +0x0176，返回值
+// 不检查继续）。new std::map<string,STEquipmentAniScript>(0x18) → 存入
+// g_mapEquipmentAniScript(0x94f7bf8) → ImportEquipmentAniScript(map)。
+// ============================================================================
+void InitMapEquipmentAniScript(void)
+{
+    g_mapEquipmentAniScript = new std::map<std::string, STEquipmentAniScript>();
+    ImportEquipmentAniScript(g_mapEquipmentAniScript);
+}
+
+// ============================================================================
+// WorldMapScript 静态图案表（ORIG nm 真实静态成员；此前 source 无类声明，
+// 本 TU 为首个定义点——后续如建权威 WorldMapScript.h 应迁移此块）。
+//
+// aWorldMapPatternTable_E（B 0x09501020，size 0x4b0）：[3][10] 条目，每条目
+// 0x28 = { std::string name@+0x00 ; int coord[3][2]@+0x08 }。
+//   证据（initWorldMapScript 0x8ab013b..0x8ab01ea）：字符串写地址 =
+//   base + i*0x190 + j*0x28；整数写地址 = base+8 + (k*2+l)*4 +
+//   (i*50+j*5+k)*8 ↔ 条目 [i][j].coord[k][l]。
+//
+// aWorldMapPatternTable2ND_E（B 0x095014e0）：[20] 条目，每条目 0x1c =
+// { int base@+0 ; int coord[3][2]@+4 }（loadWorldMapCoordPattern 0x8ab02c7..
+// 0x8ab033a：head 写 base+i*0x1c；坐标写 base+4+(j*2+i*7+k)*4）。
+// ============================================================================
+// ---- 本 TU 下方定义的依赖（前置声明）----
+bool loadWorldMapCoordPattern(void);   // _Z24loadWorldMapCoordPatternv 0x08ab0234
+float ScanAbsOrRel(bool& isAbs, std::string& str, bool& gotValue, bool consume);
+                                       // _Z12ScanAbsOrRelRbRSsS_b 0x088bcbef
+
+struct stWorldMapPatternEntry          // 0x28
+{
+    std::string m_name;                // +0x00（[name] ScanType 拷贝）
+    int m_coord[3][2];                 // +0x08（[map info] 3x2 ScanInt）
+};
+
+struct stWorldMapPatternEntry2ND       // 0x1c
+{
+    int m_base;                        // +0x00（ScanAbsOrRel 返回值截断）
+    int m_coord[3][2];                 // +0x04
+};
+
+class WorldMapScript
+{
+public:
+    static stWorldMapPatternEntry aWorldMapPatternTable_E[3][10];      // _ZN14WorldMapScript22aWorldMapPatternTable_EE
+    static stWorldMapPatternEntry2ND aWorldMapPatternTable2ND_E[20];   // _ZN14WorldMapScript25aWorldMapPatternTable2ND_EE
+};
+
+stWorldMapPatternEntry WorldMapScript::aWorldMapPatternTable_E[3][10];
+stWorldMapPatternEntry2ND WorldMapScript::aWorldMapPatternTable2ND_E[20];
+
+// ============================================================================
+// initWorldMapScript —— ORIG 0x08ab000c（init.md:2555 +0x3314；失败路径直接
+// return false 由 init 终止）。四步：
+// ① 目录拷贝（0x9500f00，0x100）+ loadRDARScriptListFile(0x9501000)；
+// ② loadRDARScriptFile(baseDir,"WorldMapPatternTable.tbl")（串 0x8e2bd63）；
+// ③ 三重循环写 aWorldMapPatternTable_E：外层 i=0..2 每次 ScanType(token,true)
+//   失败即跳出（仍继续第④步）；中层 j=0..9 先 name=token，再 k=0..2/l=0..1
+//   ScanInt 写 coord[k][l]；
+// ④ 调 loadWorldMapCoordPattern() 后返回 true。
+// ============================================================================
+bool initWorldMapScript(char* dir, char* list)
+{
+    CopyScriptBaseDirectory(g_worldMapScriptBaseDirectory, dir, 0x100);
+    if (!loadRDARScriptListFile(&g_worldMapScriptFileList,
+                                g_worldMapScriptBaseDirectory, list, 0))
+        return false;
+    if (!loadRDARScriptFile(g_worldMapScriptBaseDirectory,
+                            "WorldMapPatternTable.tbl"))
+        return false;
+
+    std::string token;
+    for (int i = 0; i <= 2; ++i)
+    {
+        if (!ScanType(token, true))
+            break;                       // ORIG jne 0x8ab01f7 → 直达 ④
+        for (int j = 0; j <= 9; ++j)
+        {
+            WorldMapScript::aWorldMapPatternTable_E[i][j].m_name = token;
+            for (int k = 0; k <= 2; ++k)
+            {
+                for (int l = 0; l <= 1; ++l)
+                {
+                    WorldMapScript::aWorldMapPatternTable_E[i][j].m_coord[k][l] =
+                        ScanInt((bool*)0);
+                }
+            }
+        }
+    }
+    loadWorldMapCoordPattern();
+    return true;
+}
+
+// ============================================================================
+// loadWorldMapCoordPattern —— ORIG 0x08ab0234（0x154 字节；报告
+// _lt_global_gt_/loadWorldMapCoordPattern.md）。
+// ① loadRDARScriptFile(baseDir,"WorldMapPatternTable2ND.tbl")
+//   （串 0x8e2bd7c）失败 return false；
+// ② 循环 i=0..0x13（20 条）：ScanAbsOrRel(isAbs,token,got,true) 返回 float，
+//   fstcw/fldcw(ah=0xc)+fistp 即 C 截断 (int)→entry[i].m_base；
+//   got==false 时跳出；随后 j=0..2/k=0..1 ScanInt 写 entry[i].m_coord[j][k]；
+// ③ return gotValue（最后一次扫描结果）。
+// ============================================================================
+bool loadWorldMapCoordPattern(void)
+{
+    if (!loadRDARScriptFile(g_worldMapScriptBaseDirectory,
+                            "WorldMapPatternTable2ND.tbl"))
+        return false;
+
+    bool isAbs = true;                   // ebp-0x29 初值 1
+    bool gotValue = false;               // ebp-0x2a 初值 0
+    std::string token;
+    for (int i = 0; i <= 0x13; ++i)
+    {
+        int base = (int)ScanAbsOrRel(isAbs, token, gotValue, true);
+        if (!gotValue)
+            break;                       // test al,al; jne 0x8ab0351
+        WorldMapScript::aWorldMapPatternTable2ND_E[i].m_base = base;
+        for (int j = 0; j <= 2; ++j)
+        {
+            for (int k = 0; k <= 1; ++k)
+            {
+                WorldMapScript::aWorldMapPatternTable2ND_E[i].m_coord[j][k] =
+                    ScanInt((bool*)0);
+            }
+        }
+    }
+    return gotValue;                     // movzx ebx,[ebp-0x2a]
+}
+
+// ============================================================================
+// ScanAbsOrRel —— ORIG 0x088bcbef（0x2c0 字节；lex 扫描族，当前 source 无
+// 定义，本 TU 补齐以支撑 loadWorldMapCoordPattern）。
+// float ScanAbsOrRel(bool& isAbs, string& str, bool& gotValue, bool consume)
+//   isAbs=true; result=0;
+//   loop: tok=g_dnfLex.getToken();
+//     tok==2 → result=(float)getDecimal(); isAbs=true; got=true;
+//     tok==3 → result=(float)getHexDecimal(); isAbs=true; got=true;
+//     tok==4 → result=getFloat();            isAbs=true; got=true;
+//     tok==5 → str=toTString(getType()); 去掉首 '[' 前缀与尾 ']' 及其后
+//              （find("["+1) erase 头部 / find("]") erase 尾部，npos 回绕语义
+//              与 asm 一致）；result=atof(str.c_str()); isAbs=false; got=true;
+//     其余  → isAbs=true; got=false;
+//   尾判：tok∈{0,2,3,4,5} → return result；tok==1 时 consume 则告警日志后
+//   继续循环（LogManager::logFormat file="../RDARScript.cpp"(0x8e0851c),
+//   func="ScanAbsOrRel", line=1496, fmt="ERROR! %s - TYPE mismatch. %s:%d,
+//   token = '%s'"(0x8e08658)，实参 func/streamName/lineNo/tokenData）。
+// ============================================================================
+const char* toTString(const char* pszSrc);   // SyncScriptDeps.h 权威声明（避免拖入其依赖）
+
+float ScanAbsOrRel(bool& isAbs, std::string& str, bool& gotValue, bool consume)
+{
+    float result = 0;
+    isAbs = true;
+    for (;;)
+    {
+        int tok = g_dnfLex.getToken();
+        if (tok == 2)
+        {
+            result = (float)g_dnfLex.getDecimal();
+            isAbs = true;
+            gotValue = true;
+        }
+        else if (tok == 3)
+        {
+            result = (float)g_dnfLex.getHexDecimal();
+            isAbs = true;
+            gotValue = true;
+        }
+        else if (tok == 4)
+        {
+            result = g_dnfLex.getFloat();
+            isAbs = true;
+            gotValue = true;
+        }
+        else if (tok == 5)
+        {
+            str = toTString(g_dnfLex.getType());
+            std::string::size_type pos = str.find("[", 0);
+            str.erase(0, pos + 1);
+            pos = str.find("]", 0);
+            str.erase(pos, str.size());
+            result = (float)atof(str.c_str());
+            isAbs = false;
+            gotValue = true;
+        }
+        else
+        {
+            isAbs = true;
+            gotValue = false;
+        }
+
+        if (tok == 0 || tok == 2 || tok == 3 || tok == 4 || tok == 5)
+            return result;
+
+        if (consume)
+        {
+            std::string streamName = g_dnfLex.getStreamName();
+            std::string lastData = g_dnfLex.getLastTokenDataAsString();
+            LogManager::logFormat(
+                0, "../RDARScript.cpp", "ScanAbsOrRel", 1496,
+                "ERROR! %s - TYPE mismatch. %s:%d, token = '%s'",
+                "ScanAbsOrRel", streamName.c_str(), g_dnfLex.getLastLineNo(),
+                lastData.c_str());
+        }
+    }
+}

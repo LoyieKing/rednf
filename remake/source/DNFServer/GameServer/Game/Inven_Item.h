@@ -44,6 +44,17 @@ public:
     unsigned char m_field;   // +0x00
 };
 
+// ORIG enum（_ZN18randomOptionReason1TE；cUserHistoryLog::RandomOption 第 2 参）。
+// 已实证实参：1=RegenerationROI 再铸、3=ResetRandomOption 重置。
+namespace randomOptionReason
+{
+enum T
+{
+    T_REGENERATION = 1,
+    T_RESET = 3
+};
+}
+
 class RandomOption
 {
 public:
@@ -88,6 +99,8 @@ public:
             }
         }
     }
+    // ORIG _ZN12RandomOption5emptyEv W 0x822abd0：首字节为 0 视为未生成选项。
+    bool empty();
 
     RandomOptionField m_field0;  // +0x00
     RandomOptionField m_field3;  // +0x03
@@ -114,7 +127,9 @@ public:
     UpgradeSeparateInfo();
     void reset();
     unsigned char GetUpgradeSeparate() const;
+    void IncUpgradeSeparate();   // ORIG W 0x0811ed32：低 5 位 +1（模 32），保留高位
     void SetUpgradeSeparate(unsigned char value);
+    void SetUpgradeSeparateAndTradeRestriction(unsigned char value); // ORIG 0x085574bc (W)
     bool IsTradeRestriction() const;
 
     unsigned char m_field;   // +0x00
@@ -192,6 +207,36 @@ public:
     ReservedCapacity m_reserved;       // +0x34
 };
 
+// ============================================================================
+// Inven_Item_Compatible —— ORIG 0x833f38e/0x833f418（user_creature DB 域使用）。
+// Inven_Item 的 DB 兼容子集布局（setCopy 逐字段转写推导，pack(1)）：
+class Inven_Item_Compatible
+{
+public:
+    void setCopy(const Inven_Item& item);        // ORIG _ZN21Inven_Item_Compatible7setCopyERK10Inven_Item W 0x833f38e
+    void makeInvenItem(Inven_Item& item);        // ORIG _ZN21Inven_Item_Compatible13makeInvenItemER10Inven_Item W 0x833f418
+
+    unsigned char m_field0;     // +0x00（← item+0x00）
+    unsigned char m_type;       // +0x01（ITEM_TYPE，← item+0x01）
+    int m_itemIdx;              // +0x04（← item+0x02）
+    unsigned char m_attr;       // +0x08（← Inven_Item::GetItemAttr）
+    int m_addInfo2;             // +0x0c（← item+0x07）
+    unsigned short m_endurance; // +0x10（← item+0x0b）
+    int m_fieldd;               // +0x14（← item+0x0d）
+    int m_amp0;                 // +0x18（← item+0x11）
+    int m_rand0;                // +0x1c（← item+0x15）
+    int m_rand4;                // +0x20（← item+0x19）
+    unsigned short m_rand8;     // +0x24（← item+0x1d）
+};                              // 总 0x26
+
 #pragma pack(pop)
+
+// ORIG _Z23DecreaseTradeLimitCountR10Inven_Item T 0x0812013c：
+// 交易次数限制递减。GetTradeLimitCount() 非 0 时 Set(count-1) 并返回 true，
+// 否则返回 false（反编译见 docs/class_func_reports/_lt_global_gt_/DecreaseTradeLimitCount.md）。
+bool DecreaseTradeLimitCount(Inven_Item& item);
+// ORIG T 0x081201dc _Z26IsTradeLimitAttachTypeItemRK10Inven_Item：
+// 交易限制/绑定类物品判定（exchange_interspace 0xc 域前置校验；定义由后续批次补）。
+bool IsTradeLimitAttachTypeItem(const Inven_Item& item);
 
 #endif  // GAME_INVEN_ITEM_H_

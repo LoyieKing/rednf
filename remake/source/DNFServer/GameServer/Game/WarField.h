@@ -24,13 +24,27 @@ class PacketGuard;
 class CMonster;
 
 // ---- map_item（0x54 字节；ctor 081512cc / dtor 081512dc 同址别名） ----
+// +0x00/+0x01 为两个独立字节字段（ORIG 实证，非 int）：
+//   - ctor 081512cc 仅构造 Inven_Item(+0x10) 并清零 +0x50，不清零首 dword。
+//   - m_count 写入全部为 movb：_MakeDropItems 0830b5ab、add_item_curr_map
+//     08302f67、CParty::drop_item 085a64e5、CBossStage 0814cb23；
+//     读取亦为 movzbl 字节测试：handlePickupItem 0814fd3a/0814fde7。
+//   - +0x01 为物品生成等级字节（非"绑定标记"——反汇编不支持绑定语义）：
+//     add_item_curr_map 08302f84 写入 _mapItem.m_field0c（地图脚本对象条目）；
+//     CBossStage/CDeathTower consistMap（0814c9da/0814ca34）写入
+//     stDungeonAssignItem_t.m_assignItemIdx，-1 时回退 CDungeon::
+//     get_standard_level()（VerifyMap 校验该值域 1..200 等级区间）；
+//     序列化为有符号字节：MakePacket 08309526、SendMapInfoPacket 0814d05a。
 struct map_item
 {
-    int m_count;              // +0x00
+    unsigned char m_count;    // +0x00 掉落堆叠数量（byte）
+    char m_standardLevel;     // +0x01 物品生成等级（byte；来源见上）
+    char m_pad02[2];          // +0x02
     int m_itemIndex;          // +0x04
-    unsigned short m_dropIndex;  // +0x08
+    unsigned short m_dropIndex;  // +0x08（CheckPickupItem 86ba149：0xffff=自由
+                              //      拾取，否则为归属玩家 uid —— 拾取绑定域）
     char m_pad0a[2];          // +0x0a
-    int m_createTick;         // +0x0c
+    int m_createTick;         // +0x0c（CheckPickupItem 86ba128 与当前秒比较）
     Inven_Item m_item;        // +0x10（0x3d 字节）
     char m_pad4d[3];          // +0x4d
     int m_ownerId;            // +0x50（ctor=0）
@@ -88,7 +102,7 @@ struct map_monster
     map_monster(const map_monster& other);  // ORIG 08151aea
     ~map_monster();                         // ORIG 081515ae
     map_monster& operator=(const map_monster& other);  // ORIG 08151d3a
-    bool isNamedMonster() const;            // ORIG 08151182
+    bool isNamedMonster();                 // ORIG 08151182（非 const）
 };
 
 

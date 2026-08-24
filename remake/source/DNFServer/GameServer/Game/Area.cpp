@@ -85,13 +85,6 @@ struct TownPath
     int m_field20;      // +0x20
 };
 
-struct stAttackedMapInfo_t
-{
-    int m_vill;     // +0x00
-    int m_area;     // +0x04
-    int m_field8;   // +0x08
-    int m_field0c;  // +0x0c
-};
 
 struct STMapScript
 {
@@ -505,7 +498,7 @@ void Area::set_area(int vill, TownAreaScript& script, STMapScript& mapScript)
     {
         GlobalData::s_villageMonsterMgr->InsertVillageMonster(
             m_villageIndex, m_areaIndex,
-            attackedInfo->m_field8, attackedInfo->m_field0c,
+            attackedInfo->m_field8, attackedInfo->m_fieldC,
             &mapScript.m_attackedMonsters, &m_mapAreas);
     }
 }

@@ -11,19 +11,8 @@
 #include "CDataManager.h"
 #include "InterfacePacketBuf.h"
 #include "GameWorld.h"
-
-// ---- PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供单例定义）----
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
+#include "PacketGuard.h"
+#include "CInventory.h"
 
 // ---- _Charac_info +0x29 低 4 位有符号位域（ORIG：movzbl; shl $4; sar $4,%al）----
 struct _Charac_info_nibble_field
@@ -126,8 +115,10 @@ int getSkillChecksum(int skill, int level, int flag)
 }
 // ORIG T 0x8892445
 int finishSkillChecksum(int* sum, int key) { return 0; }
-// ORIG T 0x8a9afa2
-int getSkillSpendSPOnSteal(int sp, int penalty) { return 0; }
+// ORIG T _Z22getSkillSpendSPOnStealii（0x8a9afa2，0x53 字节）：
+// f = penalty / 100.0f（.rodata 0x8e2a180 = 0x42c80000）；r = (int)(sp * f)
+// （fistpl，控制字 chop 截断向零）；返回 std::max(1, r)。
+int getSkillSpendSPOnSteal(int sp, int penalty) { return std::max(1, (int)((float)sp * ((float)penalty / 100.0f))); }
 
 _Mastered_skill::_Mastered_skill()
 {
@@ -949,7 +940,7 @@ int SkillSlot::clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind)
     return 1;
 }
 
-int SkillSlot::backupSkill(ENUM_SKILL_TREE_KIND kind)
+bool SkillSlot::backupSkill(ENUM_SKILL_TREE_KIND kind)
 {
     int backupSize = 0x198;
     if (kind == -1 || kind == 0)
@@ -2712,4 +2703,165 @@ void SkillSlot::pullComboSkillExtensionQuickSlot(ENUM_SKILL_TREE_KIND kind)
             }
         }
     }
+}
+
+
+// ==================== WongWork::CSkillChanger（从 GameStubs_remaining.cpp 迁移） ====================
+
+namespace WongWork
+{
+int g_nStatUpItemIdx[1] = {0};
+int g_nElixerAbility[1] = {0};
+
+CSkillChanger::CSkillChanger() {}
+CSkillChanger::~CSkillChanger() {}
+
+void CSkillChanger::_ResetSkillPoint(CUser* user, int kind)
+{
+    int level = 1;
+    while (true)
+    {
+        int charLevel = user->get_charac_level();
+        if (charLevel < level)
+            break;
+        SkillSlot* slotR = (SkillSlot*)user->getCurCharacSkillR();
+        int sp = slotR->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)kind);
+        int spUp = G_CDataManager()->GetSpAtLevelUp(level);
+        SkillSlot* slotW = (SkillSlot*)user->getCurCharacSkillW();
+        slotW->set_remain_sp_at_index(sp + spUp, (ENUM_SKILL_TREE_KIND)kind);
+        level++;
+    }
+}
+
+void CSkillChanger::_ResetSFPoint(CUser* user, int kind)
+{
+    int charLevel = user->get_charac_level();
+    if (charLevel > 0x31 && kind > 1)
+    {
+        SkillSlot* slotW = (SkillSlot*)user->getCurCharacSkillW();
+        slotW->set_remain_sfp_at_index(charLevel - 0x31, (ENUM_SKILL_TREE_KIND)kind);
+    }
+}
+
+int CSkillChanger::_GetUserItemCount(const CUser* user)
+{
+    for (int i = 3; i < 0x69; i++)
+    {
+        Inven_Item item;
+        CInventory* inven = (CInventory*)user->getCurCharacInvenR();
+        inven->GetInvenSlotByRef(1, i, item);
+        _CountSkillBook(item);
+    }
+    for (int i = 0; i < 0x98; i++)
+    {
+        Inven_Item item;
+        const CCargo* cargo = user->getCurCharacCargoR();
+        item = cargo->get_cargo_slot(i);
+        _CountSkillBook(item);
+    }
+    return 0;
+}
+
+// ORIG 0x0860a634：累加 GetSpAtLevelUp(1..charLevel)。
+int CSkillChanger::_GetBaseSkillPoint(const CUser* user) const
+{
+    int sum = 0;
+    for (int level = 1; level <= user->get_charac_level(); level++)
+    {
+        sum += G_CDataManager()->GetSpAtLevelUp(level);
+    }
+    return sum;
+}
+
+// ORIG 0x0860a6d0：固定返回 0。
+int CSkillChanger::_GetQuestSkillPoint(const CUser* user)
+{
+    return 0;
+}
+
+// ORIG 0x0860a1e6：GetCurCharacTotalSP(CUser const*, bool)。
+int CSkillChanger::GetCurCharacTotalSP(const CUser* user, bool flag)
+{
+    memset(&m_state, 0, sizeof(m_state));
+    m_state.m_kindState0 = 8;
+    m_state.m_kindState1 = 8;
+    m_state.m_kindState2 = 8;
+    m_state.m_kindState3 = 8;
+    m_state.m_initialized = flag;
+    m_state.m_reserved91 = 0;
+    int base = _GetBaseSkillPoint(user);
+    _GetUserItemCount(user);
+    int quest = _GetQuestSkillPoint(user);
+    return base + quest;
+}
+
+// ORIG 0x0860a950 真实空实现（仅 push/mov/pop/ret，无逻辑）。
+void CSkillChanger::_ApplyUserData(CUser* /*user*/, int /*kind*/)
+{
+}
+
+void CSkillChanger::_CountSkillBook(const Inven_Item& item)
+{
+    int itemIdx = item.m_addInfo;
+    int count = item.m_addInfo2;
+    for (int i = 1; i <= g_nStatUpItemIdx[0]; i++)
+    {
+        if (itemIdx == g_nStatUpItemIdx[i])
+        {
+            m_data.m_skillBookCount[i] = count;
+            m_data.m_elixerAbility[i] = g_nElixerAbility[i];
+        }
+    }
+}
+
+void CSkillChanger::SkillInitialize(CUser* user, int kind, bool flag)
+{
+    memset(&m_state, 0, sizeof(m_state));
+    m_state.m_kindState0 = 8;
+    m_state.m_kindState1 = 8;
+    m_state.m_kindState2 = 8;
+    m_state.m_kindState3 = 8;
+    m_state.m_initialized = flag;
+    m_state.m_reserved91 = 0;
+    if (kind == 0)
+    {
+        _ResetSkillPoint(user, 0);
+        _ResetSkillPoint(user, 1);
+        _ResetSFPoint(user, 2);
+        _ResetSFPoint(user, 3);
+        _GetUserItemCount(user);
+        _ApplyUserData(user, 0);
+        _ApplyUserData(user, 1);
+        _ApplyUserData(user, 2);
+        _ApplyUserData(user, 3);
+    }
+    else if (kind == 1)
+    {
+        _ResetSkillPoint(user, 0);
+        _ResetSFPoint(user, 2);
+        _GetUserItemCount(user);
+        _ApplyUserData(user, 0);
+        _ApplyUserData(user, 2);
+    }
+    else if (kind == 2)
+    {
+        _ResetSkillPoint(user, 1);
+        _ResetSFPoint(user, 3);
+        _GetUserItemCount(user);
+        _ApplyUserData(user, 1);
+        _ApplyUserData(user, 3);
+    }
+    else if (kind == 3)
+    {
+        _ResetSFPoint(user, 2);
+        _GetUserItemCount(user);
+        _ApplyUserData(user, 2);
+    }
+    else if (kind == 4)
+    {
+        _ResetSFPoint(user, 3);
+        _GetUserItemCount(user);
+        _ApplyUserData(user, 3);
+    }
+}
 }

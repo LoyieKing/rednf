@@ -105,8 +105,9 @@ extern CDataManager* G_CDataManager();
 class CSecu_ProtectionField
 {
 public:
-    static int Check(CSecu_ProtectionField* field, CUser* user,
-                     SECURITY_PROTCTION type);
+    // ORIG _ZN21CSecu_ProtectionField5CheckEP5CUser18SECURITY_PROTCTION（0x08288a02）
+    // 为 2 参 thiscall 成员函数（定义于 CSecu_ProtectionField.cpp）。
+    int Check(CUser* user, SECURITY_PROTCTION type);
 };
 
 class StreamPool
@@ -766,9 +767,7 @@ int CExpandEquipslot::Change_Equip(CUser* pUser, int type, int slot,
             Inven_Item slotItem1 = invenW->GetInvenSlot(1, slot);
             if (slotItem1.m_field0 != 0)
             {
-                int secuRet = CSecu_ProtectionField::Check(
-                    GlobalData::s_pSecuProtectionField, pUser,
-                    (SECURITY_PROTCTION)0x16);
+                int secuRet = GlobalData::s_pSecuProtectionField->Check(pUser, (SECURITY_PROTCTION)0x16);
                 if (secuRet != 0)
                 {
                     return secuRet;

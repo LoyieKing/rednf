@@ -801,36 +801,17 @@ void PacketBuf::put_packet(const Inven_Item& item)
 
 // ===========================================================================
 // _NS_PI_MakeHash_NOTI（ORIG 0x82746f3 T）
-// 包尾哈希：对包体（m_ptr + 0xf 起，长度 = get_index() - 0xf）计算 MD5，
-// 将 16 字节摘要按 _NS_MakeHash_Pcs（ORIG 0x808c8b5）的规则折叠为 4 字节：
-//   d[0] ^= d[10] ^ d[8] ^ d[11] ^ 0x81
-//   d[1] ^= d[12] ^ d[5] ^ d[7]  ^ 0x78
-//   d[2] ^= d[14] ^ d[6] ^ d[10] ^ 0x1a
-//   d[3] ^= d[13] ^ d[5] ^ d[9]  ^ 0xbf
-// 折叠结果以小端写入包尾（put_int）。len 越界（<=0 或 >0x190）时不写。
+// 包尾哈希：对包体（m_ptr + 0xf 起，长度 = get_index() - 0xf）经
+// _NS_MakeHash_（ORIG 0x808c8b5，真实定义 GameSecurity.cpp）折叠为 4 字节，
+// 以小端 put_int 写包尾；len 越界（<=0 或 >0x190）时不写。
+// （ORIG 直接 call _Z13_NS_MakeHash_PcsRi——本 TU 不再本地复制其折叠规则。）
 // ===========================================================================
+
+bool _NS_MakeHash_(char* data, short len, int& out);
 
 static bool ns_make_hash_pcs(const char* data, short len, int& out)
 {
-    if (len <= 0 || len > 0x190)
-    {
-        return false;
-    }
-    unsigned char digest[16];
-    md5_context ctx;
-    md5_starts(&ctx);
-    md5_update(&ctx, (unsigned char*)data, len);
-    md5_finish(&ctx, digest);
-
-    digest[0] = digest[0] ^ digest[10] ^ digest[8] ^ digest[11] ^ 0x81;
-    digest[1] = digest[1] ^ digest[12] ^ digest[5] ^ digest[7] ^ 0x78;
-    digest[2] = digest[2] ^ digest[14] ^ digest[6] ^ digest[10] ^ 0x1a;
-    digest[3] = digest[3] ^ digest[13] ^ digest[5] ^ digest[9] ^ 0xbf;
-
-    // 小端组装 4 字节结果（与 ORIG `mov (%eax),%edx` 读 dword 一致）
-    out = (unsigned char)digest[0] | ((unsigned char)digest[1] << 8) |
-          ((unsigned char)digest[2] << 16) | ((unsigned char)digest[3] << 24);
-    return true;
+    return _NS_MakeHash_(const_cast<char*>(data), len, out);
 }
 
 void _NS_PI_MakeHash_NOTI(PacketBuf* packet)

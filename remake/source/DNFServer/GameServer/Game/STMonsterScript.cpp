@@ -20,13 +20,16 @@ STMonsterScript::STMonsterScript()
 {
     // ORIG ctor 先构造各 string/vector 成员再调用 Clear()（报告 C 代码一致）。
     // 镜像的 string/vector 由编译器默认构造，显式 Clear() 完成成员初始化语义。
+    // +0x3ac 的 vector<stMonsterIndependentDrop_t> 由编译器默认构造
+    // （ORIG ctor 0x8368e14 add $0x3ac 后调该 vector C1，一致）。
     Clear();
 }
 
 STMonsterScript::~STMonsterScript()
 {
-    // ORIG dtor 依序释放各容器成员。镜像成员为自动存储的 string/vector，
-    // 析构时编译器自动释放，空体即等价语义（「推断」）。
+    // ORIG dtor 依序释放各容器成员（含 +0x3ac 独立掉落 vector，
+    // _ZNSt6vectorI26stMonsterIndependentDrop_tSaIS0_EED1Ev）。镜像成员为自动
+    // 存储的 string/vector，析构时编译器自动释放，空体即等价语义。
 }
 
 STMonsterScript& STMonsterScript::operator=(const STMonsterScript& other)
@@ -38,6 +41,7 @@ STMonsterScript& STMonsterScript::operator=(const STMonsterScript& other)
         m_field0 = other.m_field0;
         m_str4 = other.m_str4;
         m_vec7c = other.m_vec7c;
+        m_independentDrops = other.m_independentDrops;
     }
     return *this;
 }
@@ -45,10 +49,12 @@ STMonsterScript& STMonsterScript::operator=(const STMonsterScript& other)
 void STMonsterScript::Clear()
 {
     // ORIG Clear(0x08a398aa) 复位全部成员；对镜像成员 +0(m_field0)/+4(m_str4)/
-    // +0x7c(m_vec7c)，报告汇编分别执行清零/置空字符串/清空 vector。
+    // +0x7c(m_vec7c)/+0x3ac(m_independentDrops)，报告汇编分别执行清零/置空
+    // 字符串/清空 vector。
     m_field0 = 0;
     m_str4.clear();
     m_vec7c.clear();
+    m_independentDrops.clear();
 }
 
 int ImportMonsterScript(STMonsterScript* script, int type, const char* path,

@@ -1,0 +1,124 @@
+// ============================================================================
+// df_game_r 还原 —— CVendingMachineStatistic / TimerVendingMachineItemNotify
+// 实现。声明见 VendingMachine.h（唯一）。
+//
+// 依据 docs/class_func_reports/CVendingMachineStatistic/{addOutputItem,
+// updateDataIntoDB}.md 与 TimerVendingMachineItemNotify/registTimer.md，并以
+// df_game_r objdump 逐指令核对。C++98 / gnu++0x / -m32 / O0 基线。
+// ============================================================================
+
+#include <algorithm>
+
+#include "VendingMachine.h"
+#include "CStreamGuard.h"
+#include "GlobalData.h"
+#include "MsgQueueMgr.h"
+#include "StreamPool.h"
+#include "TimerQueue.h"
+
+// ----------------------------------------------------------------------------
+// 构造 / 析构（ORIG 0x0861062c C1/C2、0x08610694 D1/D2）
+// ----------------------------------------------------------------------------
+CVendingMachineStatistic::CVendingMachineStatistic()
+{
+    // ORIG ctor：构造 vector@+0x00 与 map@+0x10（自动），随后调 _init()。
+    _init();
+}
+
+CVendingMachineStatistic::~CVendingMachineStatistic()
+{
+    // ORIG dtor：析构 map@+0x10（+0x00 vector 自动析构）。
+}
+
+// ----------------------------------------------------------------------------
+// _init（ORIG 0x086105ac）
+// ----------------------------------------------------------------------------
+void CVendingMachineStatistic::_init()
+{
+    // ORIG：m_useCount=0；m_usedItems 追加 0x1d1b/0x1d1c/0x1d1d 三项；
+    // m_output.clear()。
+    m_useCount = 0;
+    m_usedItems.push_back(0x1d1b);   // 追踪的售货机物品类型索引（ORIG 3 项）
+    m_usedItems.push_back(0x1d1c);
+    m_usedItems.push_back(0x1d1d);
+    m_output.clear();
+}
+
+// ----------------------------------------------------------------------------
+// incUseCount（ORIG 0x0822d714）
+// ----------------------------------------------------------------------------
+void CVendingMachineStatistic::incUseCount()
+{
+    m_useCount += 1;
+}
+
+// ----------------------------------------------------------------------------
+// addOutputItem（ORIG 0x0860f5a4）
+// ----------------------------------------------------------------------------
+void CVendingMachineStatistic::addOutputItem(unsigned long itemIdx,
+                                             unsigned int count)
+{
+    // ORIG：若 itemIdx 属于 m_usedItems（追踪类型之一），则在 m_output 中
+    // 累加 count；否则 ignore（直接返回）。
+    std::vector<unsigned long>::iterator found =
+        std::find(m_usedItems.begin(), m_usedItems.end(), itemIdx);
+    if (found == m_usedItems.end())
+        return;
+
+    std::map<unsigned long, unsigned int>::iterator it = m_output.find(itemIdx);
+    if (it != m_output.end())
+        it->second += count;
+    else
+        m_output.insert(std::make_pair(itemIdx, count));
+}
+
+// ----------------------------------------------------------------------------
+// updateDataIntoDB（ORIG 0x0860f6de）
+// ----------------------------------------------------------------------------
+void CVendingMachineStatistic::updateDataIntoDB()
+{
+    // ORIG：Acquire Stream("Statistics.cpp",0x624) → CStreamGuard(stream,true) →
+    // 写 SIG=0x163, -1, m_useCount, m_output.size(), 每键值对 →
+    // MsgQueueMgr::put(LOGDB_Q) → _init()。
+    Stream* stream = GlobalData::s_stream_pool->Acquire("Statistics.cpp", 0x624);
+    CStreamGuard guard(stream, true);
+
+    **guard << 0x163;                    // SIG（DB 侧据此路由）
+    **guard << (int)-1;                  // 固定 -1
+    **guard << m_useCount;               // 使用次数
+    **guard << (unsigned int)m_output.size();
+
+    for (std::map<unsigned long, unsigned int>::const_iterator it =
+             m_output.begin();
+         it != m_output.end(); ++it)
+    {
+        **guard << it->first;            // 物品索引（unsigned long）
+        **guard << it->second;           // 数量（unsigned int）
+    }
+
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::LOGDB_Q, guard);
+    _init();
+}
+
+// ----------------------------------------------------------------------------
+// GetInstanceVendingMachineStatistic（ORIG 0x0860f8ad）—— 函数内静态单例
+// ----------------------------------------------------------------------------
+CVendingMachineStatistic* GetInstanceVendingMachineStatistic()
+{
+    static CVendingMachineStatistic instance;
+    return &instance;
+}
+
+// ----------------------------------------------------------------------------
+// TimerVendingMachineItemNotify::registTimer（ORIG 0x08638074）—— static
+// ----------------------------------------------------------------------------
+void TimerVendingMachineItemNotify::registTimer(int uid, unsigned long itemIdx,
+                                                unsigned int count,
+                                                unsigned int type)
+{
+    // ORIG：G_TimerQueue()->InsertTimer(OBJ_TYPE_0, param_1, TIMER_MESSAGE(0xa),
+    //   sec=param_4, param2=param_2, param3=param_3)。
+    TimerQueue* tq = G_TimerQueue();
+    tq->InsertTimer(TimerEntry::OBJ_TYPE_0, uid, (TIMER_MESSAGE)0xa,
+                    (int)type, (int)itemIdx, count);
+}

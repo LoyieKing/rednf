@@ -1,19 +1,119 @@
-#include "GameRand.h"
+#include <algorithm>
+#include <new>
 
-// cElection<int,8,8> 的唯一实现归属地图/选举 TU。
-template <typename T, int A, int B> class cElection { public: cElection(); int GetElected() const; void Vote(int, int); void CancelVoter(int); void CancelCandidate(int); private: int m_elected; };
-template <> cElection<int,8,8>::cElection() : m_elected(-1) {}
-template <> int cElection<int,8,8>::GetElected() const { return m_elected; }
-template <> void cElection<int,8,8>::Vote(int, int candidate) { m_elected = candidate; }
-template <> void cElection<int,8,8>::CancelVoter(int) {}
-template <> void cElection<int,8,8>::CancelCandidate(int candidate) { if (m_elected == candidate) m_elected = -1; }
-// cElection<int,4,4>：CParty.cpp 子对象（m_padElection@+0xd8，0x40 字节）通过
-// asm-label extern 调用 _ZN9cElectionIiLi4ELi4EE* 符号；在此 TU 显式实例化。
-template <> cElection<int,4,4>::cElection() : m_elected(-1) {}
-template <> int cElection<int,4,4>::GetElected() const { return m_elected; }
-template <> void cElection<int,4,4>::Vote(int, int candidate) { m_elected = candidate; }
-template <> void cElection<int,4,4>::CancelVoter(int) {}
-template <> void cElection<int,4,4>::CancelCandidate(int candidate) { if (m_elected == candidate) m_elected = -1; }
+// cElection<int,V,C> 的唯一实现归属地图/选举 TU（声明点 PvPTypes.h，ORIG 布局）。
+// cParty.cpp 的 cElection<int,4,4>（m_padElection@+0xd8）与 PvP_Room.cpp 的
+// cElection<int,8,8>（+0x12c）经本 TU 提供真实符号。
+#include "PvPTypes.h"
+
+// GetElected 共同语义（ORIG 0x85dff78 / 0x85c03a8）：对票矩阵按列求和，
+// 返回票数最大列下标；全零票返回 -1。以宏展开避免提前隐式实例化。
+#define CELECTION_GET_ELECTED(V, C)                                          \
+    do                                                                       \
+    {                                                                        \
+        int tally[C];                                                        \
+        std::fill(tally, tally + (C), 0);                                    \
+        for (int i = 0; i <= (V) - 1; ++i)                                   \
+            for (int j = 0; j <= (C) - 1; ++j)                               \
+                tally[j] += m_voters[i].m_votes[j];                          \
+        int best = -1;                                                       \
+        int bestVal = 0;                                                     \
+        for (int i = 0; i <= (C) - 1; ++i)                                   \
+        {                                                                    \
+            if (tally[i] > bestVal)                                          \
+            {                                                                \
+                bestVal = tally[i];                                          \
+                best = i;                                                    \
+            }                                                                \
+        }                                                                    \
+        return best;                                                         \
+    } while (0)
+// 先声明全部显式特化，避免定义顺序触发隐式实例化在前（GCC 4.4）。
+template <> void cElection<int, 8, 8>::cVoter::Init();
+template <> cElection<int, 8, 8>::cVoter::cVoter();
+template <> cElection<int, 8, 8>::cElection();
+template <> void cElection<int, 8, 8>::Init();
+template <> void cElection<int, 8, 8>::Vote(int voter, int candidate);
+template <> void cElection<int, 8, 8>::CancelVoter(int voter);
+template <> void cElection<int, 8, 8>::CancelCandidate(int candidate);
+template <> int cElection<int, 8, 8>::GetElected() const;
+template <> void cElection<int, 4, 4>::cVoter::Init();
+template <> cElection<int, 4, 4>::cVoter::cVoter();
+template <> cElection<int, 4, 4>::cElection();
+template <> void cElection<int, 4, 4>::Init();
+template <> void cElection<int, 4, 4>::Vote(int voter, int candidate);
+template <> void cElection<int, 4, 4>::CancelVoter(int voter);
+template <> void cElection<int, 4, 4>::CancelCandidate(int candidate);
+template <> int cElection<int, 4, 4>::GetElected() const;
+
+
+template <> void cElection<int, 8, 8>::cVoter::Init()
+{
+    std::fill(m_votes, m_votes + 8, 0);   // ORIG 0x85e0304
+}
+template <> cElection<int, 8, 8>::cVoter::cVoter() { Init(); }
+template <> cElection<int, 8, 8>::cElection()
+{
+    for (int i = 7; i >= 0; --i)          // ORIG 0x85dff3a：倒序逐 voter 构造
+        new (&m_voters[i]) cVoter();
+    Init();                               // ORIG 0x85e02d2
+}
+template <> void cElection<int, 8, 8>::Init()
+{
+    for (int i = 0; i <= 7; ++i)
+        m_voters[i].Init();
+}
+template <> void cElection<int, 8, 8>::Vote(int voter, int candidate)
+{
+    m_voters[voter].m_votes[candidate] = 1;
+}
+template <> void cElection<int, 8, 8>::CancelVoter(int voter)
+{
+    m_voters[voter].Init();
+}
+template <> void cElection<int, 8, 8>::CancelCandidate(int candidate)
+{
+    for (int i = 0; i <= 7; ++i)
+        m_voters[i].m_votes[candidate] = 0;
+}
+template <> int cElection<int, 8, 8>::GetElected() const   // ORIG 0x85dff78
+{
+    CELECTION_GET_ELECTED(8, 8);
+}
+
+template <> void cElection<int, 4, 4>::cVoter::Init()
+{
+    std::fill(m_votes, m_votes + 4, 0);   // ORIG 0x82beb62
+}
+template <> cElection<int, 4, 4>::cVoter::cVoter() { Init(); }
+template <> cElection<int, 4, 4>::cElection()
+{
+    for (int i = 3; i >= 0; --i)
+        new (&m_voters[i]) cVoter();
+    Init();
+}
+template <> void cElection<int, 4, 4>::Init()
+{
+    for (int i = 0; i <= 3; ++i)
+        m_voters[i].Init();
+}
+template <> void cElection<int, 4, 4>::Vote(int voter, int candidate)
+{
+    m_voters[voter].m_votes[candidate] = 1;   // ORIG 0x85c038c
+}
+template <> void cElection<int, 4, 4>::CancelVoter(int voter)
+{
+    m_voters[voter].Init();
+}
+template <> void cElection<int, 4, 4>::CancelCandidate(int candidate)  // ORIG 0x85c047c
+{
+    for (int i = 0; i <= 3; ++i)
+        m_voters[i].m_votes[candidate] = 0;
+}
+template <> int cElection<int, 4, 4>::GetElected() const   // ORIG 0x85c03a8
+{
+    CELECTION_GET_ELECTED(4, 4);
+}
 
 // df_game_r Game/ CMap 实现（G2 地图链）。
 // 逻辑依据 docs/class_func_reports/CMap.md；成员访问统一使用语义字段。
@@ -83,20 +183,75 @@ int monsterLevel(const STAssignMonster& monster)
 
 void makeMapMonster(_mapMonster& out, const STAssignMonster& in)
 {
-    out.m_0 = in.m_0;
-    out.m_4 = in.m_4;
-    out.m_8 = in.m_8;
-    out.m_20 = in.m_20;
-    out.m_1c = in.m_1c;
-    out.m_18 = in.m_18;
-    out.m_14 = in.m_14;
-    out.m_24 = monsterLevel(in);
-    out.m_28 = in.m_4c;
-    out.m_2c = in.m_50;
-    out.m_30 = in.m_54;
-    out.m_vec = in.m_vec28;
+    out.m_mobId = in.m_0;
+    out.m_flag04 = in.m_4;
+    out.m_field08 = in.m_8;
+    out.m_posX = in.m_20;
+    out.m_champion = in.m_1c;
+    out.m_roleType = in.m_18;
+    out.m_field14 = in.m_14;
+    out.m_level = monsterLevel(in);
+    out.m_hpPct = in.m_4c;
+    out.m_orderIdx = in.m_50;
+    out.m_flag30 = in.m_54;
+    out.m_mobList = in.m_vec28;
 }
 }
+
+// ============================================================================
+// _mapItem / _mapMonster 生命周期 —— 唯一定义点（声明见 CMap.h）。
+// ============================================================================
+
+// _mapItem ctor —— ORIG 0x0815088e：仅清零 +0x04/+0x08/+0x0c，不初始化 m_objectIdx。
+_mapItem::_mapItem()
+{
+    m_field04 = 0;
+    m_field08 = 0;
+    m_field0c = 0;
+}
+// ORIG 无 _mapItem dtor 符号：成员全为 int，平凡析构由编译器内联生成，勿显式定义。
+
+// _mapMonster ctor —— ORIG 0x0830e4fc：vector 默认构造后逐字段赋值；
+// m_level(+0x24) 按 ORIG 保持未初始化。
+_mapMonster::_mapMonster()
+{
+    m_mobId = -1;
+    m_flag04 = 1;
+    m_field08 = 0;
+    m_spawnType = 0;
+    m_levelAdd = 0;
+    m_field14 = 0;
+    m_roleType = 0;
+    m_champion = 0;
+    m_posX = 0;
+    m_hpPct = 100;
+    m_orderIdx = 0;
+    m_flag30 = 0;
+}
+
+// _mapMonster 拷贝构造 —— ORIG 0x0813d708：逐成员拷贝 +0x00..+0x30
+// （不含 +0x31 pad），再拷贝构造 +0x34 vector。
+_mapMonster::_mapMonster(const _mapMonster& other)
+    : m_mobId(other.m_mobId),
+      m_flag04(other.m_flag04),
+      m_field08(other.m_field08),
+      m_spawnType(other.m_spawnType),
+      m_levelAdd(other.m_levelAdd),
+      m_field14(other.m_field14),
+      m_roleType(other.m_roleType),
+      m_champion(other.m_champion),
+      m_posX(other.m_posX),
+      m_level(other.m_level),
+      m_hpPct(other.m_hpPct),
+      m_orderIdx(other.m_orderIdx),
+      m_flag30(other.m_flag30),
+      m_mobList(other.m_mobList)
+{
+}
+
+// _mapMonster dtor —— ORIG 0x081398c6：仅析构 +0x34 vector，无其它动作。
+_mapMonster::~_mapMonster() {}
+
 
 CMap::CMap()
     : m_bossCount(0), m_assignedNpcCount(0)
@@ -132,10 +287,10 @@ int CMap::checkFitInPathObject(int x, int y) const
 int CMap::insert_item(int idx, int level, int prob, int cond)
 {
     _mapItem item;
-    item.m_0 = idx;
-    item.m_4 = level;
-    item.m_8 = prob;
-    item.m_c = cond;
+    item.m_objectIdx = idx;
+    item.m_field04 = level;
+    item.m_field08 = prob;
+    item.m_field0c = cond;
     m_itemList.push_back(item);
     return 1;
 }
@@ -146,8 +301,8 @@ int CMap::insert_monster(STAssignMonster monster, int area)
     makeMapMonster(item, monster);
     if (area != -1)
     {
-        item.m_30 = 1;
-        item.m_2c = area;
+        item.m_flag30 = 1;
+        item.m_orderIdx = area;
     }
     m_monsterList.push_back(item);
     return 1;
@@ -156,15 +311,15 @@ int CMap::insert_monster(STAssignMonster monster, int area)
 void CMap::insert_condition_monster(STAssignMonster monster)
 {
     _mapMonster item;
-    item.m_0 = monster.m_0;
-    item.m_4 = monster.m_4;
-    item.m_8 = monster.m_8;
-    item.m_20 = monster.m_20;
-    item.m_1c = monster.m_1c;
-    item.m_18 = monster.m_18;
-    item.m_14 = monster.m_14;
-    item.m_24 = monsterLevel(monster);
-    item.m_2c = monster.m_50;
+    item.m_mobId = monster.m_0;
+    item.m_flag04 = monster.m_4;
+    item.m_field08 = monster.m_8;
+    item.m_posX = monster.m_20;
+    item.m_champion = monster.m_1c;
+    item.m_roleType = monster.m_18;
+    item.m_field14 = monster.m_14;
+    item.m_level = monsterLevel(monster);
+    item.m_orderIdx = monster.m_50;
     m_conditionMonsterList.push_back(item);
 }
 

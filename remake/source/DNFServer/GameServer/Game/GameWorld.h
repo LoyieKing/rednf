@@ -124,9 +124,10 @@ public:
     bool IsPvPSkilTreeChannel() const;
     bool IsEquipSlotSwitchChannel() const;
     bool IsEnchantRevisionChannel();
+    bool IsCheckUnusableEquipmentChannel();          // ORIG W 0869779e（m_channelType==0xe）
     bool IsCharacterPvPExpRevisionChannel() const;   // ORIG 085dfa76（返回 m_channelType==0xf）
     bool IsCharacterLevelRevisionChannel() const;    // ORIG 084ed128（m_channelType∈[0xe,0x10]）
-    bool IsCheckUnusableEquipmentChannel();
+    bool IsCharacterStatRevisionChannel() const;     // ORIG W 086977da（m_channelType∈[0xe,0x10]）
     bool IsPvPVillageMapChannel() const;
     bool is_dungeon_tag_matching_channel(char* channel);
 

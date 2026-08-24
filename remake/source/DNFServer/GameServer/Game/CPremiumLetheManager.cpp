@@ -69,19 +69,8 @@ unsigned char CPremiumLetheManager::BACK_TO_PRE_STATE = 3;
 unsigned char CPremiumLetheManager::INIT_LETHE_SKILL = 4;
 unsigned char CPremiumLetheManager::NOT_USE_LETHE_STATE = 0;
 
-// ============================================================================
-// SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD（DB 队列负载；+0x0d 技能区 0x198）
-// ============================================================================
-struct SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD
-{
-    int m_accID;                     // +0x00
-    int m_characNo;                  // +0x04
-    char m_pad08[4];                 // +0x08
-    unsigned char m_state;           // +0x0c
-    char m_skills[0x198];            // +0x0d
-    unsigned char m_state2;          // +0x1a5
-    unsigned char m_treeKind;        // +0x1a6
-};
+// SIG_RESULT_PREMIUM_LETHE_SKILL_LOAD 权威定义已迁移至 SigTypes.h
+// （FixMissingSigTypes；DB 队列负载，pack(1)，sizeof=0x1a7）。
 
 // ---- CUser 方法声明见 CUser.h（本 TU 直接真实调用） ----
 

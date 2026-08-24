@@ -28,6 +28,28 @@
 #include "CStreamGuard.h"
 #include "CStatisticServerProxy.h"   // CServerProxyMgr<CStatisticServerProxy> 完整类型
 #include "CGM_Manager.h"             // CGM_Manager 真实布局（ORIG 0x3c）
+#include "SpecialItemHandler.h"      // ORIG 全局类 SpecialItemHandler 权威声明
+#include "CSyncSlangFilter.h"
+#include "AradServerStateMessage.h"  // ARAD::Arad_ServerStateManager 成员类型
+#include "Arad_DataManager.h"  // ARAD::Singleton 唯一权威定义
+#include "CInventory.h"              // CSecu_ProtectionField 权威定义（CInventory.h）
+#include "CUser.h"    // StackableAction proc_* 需要 CUser 完整类型
+#include "CItem.h"    // StackableAction proc_* 需要 CItem 完整类型
+#include "CLogGameChannel.h"  // WongWork::CLogGameChannel 权威定义
+#include "CCeraShop.h"        // WongWork::CCeraShop 权威声明
+#include "SigTypes.h"         // MSG_BUY_CERASHOP_ITEM（BuyItem/ProcessBuyRequestEx 形参 const 引用）
+#include "InstanceRentalSystem.h"  // InstanceRentalSystem 权威定义（§7 合并）
+#include "CGlobalEffectManager.h" // CGlobalEffectManager 权威声明（本地占位已移除）
+#include "CSystemTime.h"      // CSystemTime::getCurSec（IPG 请求 curSec）
+#include "RefPvpGrade.h"      // RefPvpGrade 权威定义（ORIG 布局 0x14c）
+#include "CFatigueBatteryHandle.h"  // CFatigueBatteryHandle 权威定义（ORIG ctor 0x84a7ff8 空体）
+#include "CBlackIPMonitor.h"  // WongWork::CBlackIPMonitor 权威定义（ORIG ctor 0x82a6526）
+#include "CTimeGate.h"        // CTimeGate : village_object::IObject 权威定义（ORIG ctor 0x8284512）
+#include "CVillageObjectMgr.h" // village_object::{IObject,CVillageObjectMgr} 权威定义（本地镜像已移除）
+#include "TaiwanCash.h"  // WongWork::IPG::{IIPGHelperInterface,CIPGMgr} 权威定义（局部 mirror 已删除）
+
+#include "CCommunityServerProxy.h"
+#include "CSchoolServerProxy.h"
 
 // ============================================================================
 // StaticPool<T,N> —— 与 CGameManager.h 相同模板声明（成员定义在
@@ -85,15 +107,17 @@ private:
 
 #include "CEnvironment.h"
 #include "GameTypes.h"
-#include "PacketGuard.h"
+// PacketGuard 完整类型经 CInventory.h（权威定义点）；此处不再重复 include。
 #include "CRijndael.h"
 #include "Cipher.h"
 #include "BaseServerProxy.h"
 #include "CHadesServerProxy.h"
 #include "CaptchaGenData.h"
 #include "CQueryCounter.h"
+#include "ThreadInterface.h"
 #include "DBMgr.h"
 #include "MsgQueueMgr.h"
+#include "ServiceRestrictManager.h"  // 权威定义（本地类已迁移）
 #include "CGuildServerProxy.h"
 #include "CMonitorServerProxy.h"
 #include "CServerProxyMgr.h"
@@ -107,29 +131,6 @@ private:
 typedef std::map<ENUM_DB_HANDLE_IDX, ENUM_SERVER_GROUP> DBGroupMap;
 typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DBInfoMap;
 
-class Thread
-{
-public:
-    virtual ~Thread();
-    virtual void Stop();
-};
-
-class CGlobalEffectManager
-{
-public:
-    CGlobalEffectManager();
-private:
-    char m_pad[0x18];
-};
-
-class CTimeGate
-{
-public:
-    CTimeGate();
-private:
-    char m_pad[0x1c];
-};
-
 namespace ARAD
 {
 class Arad_ServerStateManager
@@ -137,64 +138,61 @@ class Arad_ServerStateManager
 public:
     Arad_ServerStateManager();
 private:
-    char m_pad[0x34];
+    // ORIG ctor 0x81a922c：bool@+0=0；Mutex@+4；map<ENUM_GLOBAL_EFFECT_ARAD,
+    // AradServerStateMessage>@+0x1c（key 枚举未建模，以 int 等价，推断）。
+    bool m_active;   // +0x00
+    Mutex m_lock;    // +0x04（0x18 字节）
+    std::map<int, AradServerStateMessage> m_stateMap;  // +0x1c
 };
 }
 
 class PacketPool;
 
-class DBThread : public Thread
+class DBThread : public ThreadInterface
 {
 public:
     DBThread();
     void setLogDB(bool isLogDB);
     bool isLogDB();  // ORIG T 0x083ff77a：读 +0x0c
 private:
-    // ORIG 布局：Thread(vptr) +0x00；+0x0c bool m_bLogDB；+0x10 CQueryCounter。
-    char m_pad[8];                 // +0x04
+    // ORIG 布局（objdump 0x083ff5f2）：ThreadInterface 基类 0x00..0x0b
+    // （vptr +0 / m_tid +4 / m_tidCopy +8）；+0x0c bool m_bLogDB；
+    // +0x10 CQueryCounter（sizeof 0x3c → 总 0x4c）。
     bool m_bLogDB;                 // +0x0c
-    char m_pad2[3];                // +0x0d
     CQueryCounter m_queryCounter;  // +0x10（sizeof 0x3c → 总 0x4c）
 };
 
-class DispatchThread : public Thread
+class DispatchThread : public ThreadInterface
 {
 public:
     DispatchThread();
-private:
-    char m_pad[0xc - 4];
 };
 
-class NetworkThread : public Thread
+class NetworkThread : public ThreadInterface
 {
 public:
     NetworkThread();
-private:
-    char m_pad[0xc - 4];
 };
 
-class UdpThread : public Thread
+class UdpThread : public ThreadInterface
 {
 public:
     UdpThread();
-private:
-    char m_pad[0xc - 4];
 };
 
-class MonitorTcpThread : public Thread
+class MonitorTcpThread : public ThreadInterface
 {
 public:
     MonitorTcpThread();
-private:
-    char m_pad[0xc - 4];
 };
 
-class AcceptThread : public Thread
+class AcceptThread : public ThreadInterface
 {
 public:
     AcceptThread();
 private:
-    char m_pad[0x10 - 4];
+    // ORIG ctor 0x0857cbe8：置 +0x0c 字节为 0 → 基类 0xc 之后一个 bool，总 0x10。
+    bool m_acceptFlag;  // +0x0c
 };
 
 template <class T> class CServerProxyMgr;
@@ -208,16 +206,7 @@ private:
     char m_pad[0x10];
 };
 
-class CSchoolServerProxy
-{
-public:
-    CSchoolServerProxy(std::string ip, int port);
-    bool Init();
-private:
-    std::string m_ip;    // +0x00
-    int m_port;          // +0x04
-    CUdpHandler m_udp;   // +0x08
-};
+
 
 class CPCRoomServerProxy
 {
@@ -229,15 +218,7 @@ private:
     std::string m_ip;                // +0x30df8
 };
 
-class CCommunityServerProxy
-{
-public:
-    CCommunityServerProxy(char* ip, int port);
-private:
-    // ORIG ctor 0x0846c5c8：CNetwork@+0x00 + string@+0x30df8。
-    CNetwork<100000, 100000> m_tcp;  // +0x00
-    std::string m_ip;                // +0x30df8
-};
+
 
 class CAuctionServerProxy
 {
@@ -258,14 +239,6 @@ private:
 };
 
 
-class CFatigueBatteryHandle
-{
-public:
-    CFatigueBatteryHandle();
-private:
-    char m_pad[1];
-};
-
 namespace secretshop
 {
 class CSecretShop
@@ -282,6 +255,11 @@ class CmmChannelProxy
 public:
     CmmChannelProxy(std::string ip, int port);
     bool Init();
+    void SendChannelInfo();   // _ZN15CmmChannelProxy15SendChannelInfoEv 0x0810619e
+    bool ConnectBridgeServer();               // _ZN15CmmChannelProxy19ConnectBridgeServerEv 0x08106278
+    int SendPacket(char* buf, int len);       // _ZN15CmmChannelProxy10SendPacketEPci 0x0810637c
+    int RecvPacket();                         // _ZN15CmmChannelProxy10RecvPacketEv 0x0810645c
+    bool SendCheckChannelScript();            // _ZN15CmmChannelProxy22SendCheckChannelScriptEv 0x081066ea
 private:
     // ORIG 布局：+0x00 string、+0x04 int、+0x10 CUdpHandler、+0x1c 字段、
     // +0x20 buf[0x80000]（sizeof 0x80020）。
@@ -293,24 +271,301 @@ private:
     char m_buf[0x80000];    // +0x20
 };
 
+// ORIG 0x810619e：构造栈上 tagCS_UPDATE_CHANNEL_INFO（header cat=1/id=2/size=0x33）
+// 并经 m_udp.SendToServer 发往频道服务器。
+void CmmChannelProxy::SendChannelInfo()
+{
+    char pkt[0x40];
+    std::memset(pkt, 0, sizeof(pkt));
+    pkt[0x00] = (char)1;                              // setCategory(1)
+    pkt[0x01] = (char)2;                              // setPacketID(2)
+    *reinterpret_cast<unsigned short*>(pkt + 0x02) = 0x33; // setSize(0x33)
+
+    CEnvironment* env = G_CEnvironment();
+    *reinterpret_cast<int*>(pkt + 0x0b) =
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x198);
+    *reinterpret_cast<int*>(pkt + 0x0f) = env->get_server_group();
+    *reinterpret_cast<int*>(pkt + 0x13) =
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x1b0); // Server_Envir.m_channelNo（推断）
+    *reinterpret_cast<int*>(pkt + 0x17) =
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x3c0);
+    *reinterpret_cast<int*>(pkt + 0x1b) = static_cast<int>(
+        reinterpret_cast<std::map<unsigned short, CUser*>*>(
+            reinterpret_cast<char*>(G_GameWorld()) + 0x134)
+            ->size());                                 // m_UserInWorld
+    std::strcpy(pkt + 0x1f, reinterpret_cast<char*>(env) + 0x1b4); // Server_Envir.m_serverIP
+    *reinterpret_cast<int*>(pkt + 0x2f) =
+        *reinterpret_cast<int*>(reinterpret_cast<char*>(env) + 0x1c8);
+
+    m_udp.SendToServer(pkt,
+                       *reinterpret_cast<unsigned short*>(pkt + 0x02),
+                       static_cast<unsigned short>(m_port),
+                       m_ip.c_str());
+}
+
+
+// SendCheckChannelScript 依赖的系统头/外部符号（ORIG T：OS_API::Sleep
+// 0x0858c4e0、DNFFLib::Make_Dir 0x08108ad7，定义见 DomainMiscDeps.cpp）。
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <sys/select.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <errno.h>
+namespace OS_API { void Sleep(int ms); }
+namespace DNFFLib { void Make_Dir(char* dir); }
+
+// 布局：char category@+0、char packetID@+1、int size@+2（setSize/getSize 均
+// dword 访问实证）、负载自 +0x0b；packed 保证 +2 落位。
+class tagPacketHeader
+{
+public:
+    tagPacketHeader() {}
+    void setCategory(int c) { m_category = (char)c; }   // 0x08106be6：mov %dl,(%eax)
+    void setPacketID(int id) { m_packetID = (char)id; } // 0x08106bbc：mov %dl,0x1(%eax)
+    void setSize(int s) { m_size = s; }                 // 0x08106bd8：mov %edx,0x2(%eax)
+    int getSize() const { return m_size; }              // 0x08106bcc：mov 0x2(%eax),%eax
+private:
+    char m_category;   // +0x00
+    char m_packetID;   // +0x01
+public:
+    int m_size;        // +0x02
+    char m_pad6[5];    // +0x06..+0x0a（头总长 0xb）
+} __attribute__((packed));
+
+struct tagCS_GET_SCRIPT   // ORIG ctor 0x08106c48：cat=2/id=9/size=0xb
+{
+    tagPacketHeader m_hdr;   // +0x00
+    tagCS_GET_SCRIPT()
+    {
+        m_hdr.setCategory(2);
+        m_hdr.setPacketID(9);
+        m_hdr.setSize(0xb);
+    }
+} __attribute__((packed));   // sizeof 0xb（无负载）
+
+struct tagCS_CHECK_SCRIPT_VERSION   // ORIG ctor 0x08106c94：cat=1/id=5/size=0x1b
+{
+    tagPacketHeader m_hdr;   // +0x00
+    char m_version[0x10];    // +0x0b（SendCheckChannelScript 写版本串）
+    tagCS_CHECK_SCRIPT_VERSION()
+    {
+        m_hdr.setCategory(1);
+        m_hdr.setPacketID(5);
+        m_hdr.setSize(0x1b);
+    }
+} __attribute__((packed));   // sizeof 0x1b
+
+// ORIG ConnectBridgeServer 0x08106278：socket/connect 桥接服务器并设非阻塞。
+bool CmmChannelProxy::ConnectBridgeServer()
+{
+    sockaddr_in addr;
+    std::memset(&addr, 0, sizeof(addr));
+    int fd = socket(AF_INET, SOCK_STREAM, 0);          // socket(2,1,0)
+    m_udp.setClientSocket(fd);                         // this+0x18 直写等价
+    if (fd < 0)
+    {
+        std::puts("[CmmChannelProxy::SendCheckChannelScript] Can't create socket");
+        return false;
+    }
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(m_ip.c_str());    // inet_addr(c_str(this))
+    addr.sin_port = htons((unsigned short)G_CEnvironment()->get_tcp_port_channel());
+    socklen_t addrlen = 16;
+    if (connect(fd, reinterpret_cast<sockaddr*>(&addr), addrlen) < 0)
+    {
+        std::puts("[CmmChannelProxy::SendCheckChannelScript] Can't connect channel bridge server");
+        return false;
+    }
+    int nonblock = 1;
+    ioctl(fd, FIONBIO, &nonblock);                     // 0x5421
+    return true;
+}
+
+// ORIG SendPacket 0x0810637c：write 发送；EAGAIN/EINTR/0 → 0（可重试），
+// 其它错误 cMyTrace 后返回 -1。
+int CmmChannelProxy::SendPacket(char* buf, int len)
+{
+    int fd = m_udp.clientSocket();
+    ssize_t n = write(fd, buf, len);
+    if (n < 1)
+    {
+        int e = errno;
+        if (e == EAGAIN || e == EINTR || e == 0)
+        {
+            return 0;
+        }
+        cMyTrace trace("int CmmChannelProxy::SendPacket(char*, int)", 200, 0);
+        trace("SEND ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
+              fd, e, strerror(e));
+        return -1;
+    }
+    return static_cast<int>(n);
+}
+
+// ORIG RecvPacket 0x0810645c：select(300s) → SO_ERROR 探测（结果忽略）→
+// Sleep(100ms) → read 追加到 m_buf 尾部并累加 m_field1c。
+int CmmChannelProxy::RecvPacket()
+{
+    int fd = m_udp.clientSocket();
+    fd_set readfds;
+    FD_ZERO(&readfds);
+    FD_SET(fd, &readfds);
+    timeval tv;
+    tv.tv_sec = 300;
+    tv.tv_usec = 0;
+    if (select(fd + 1, &readfds, 0, 0, &tv) < 1)
+    {
+        return 0;
+    }
+    socklen_t optlen = 4;
+    int optval = 0;
+    getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &optlen);
+    OS_API::Sleep(100);
+    ssize_t n = ::read(fd, m_buf + m_field1c,
+                       static_cast<size_t>(0x80000 - m_field1c));
+    if (n < 0)
+    {
+        int e = errno;
+        if (e == EAGAIN || e == EINTR || e == 0)
+        {
+            return 0;
+        }
+        cMyTrace trace("int CmmChannelProxy::RecvPacket()", 0x114, 0);
+        trace("RECV ERROR DISCONNNECT NOW FD[%d] : %d(%s)",
+              fd, e, strerror(e));
+        return -1;
+    }
+    if (n == 0)
+    {
+        cMyTrace trace("int CmmChannelProxy::RecvPacket()", 0x11a, 0);
+        trace("Recv ERROR = 0 (%d) : %s, MaxRead(%d) nRead(%d)",
+              errno, strerror(errno), 0x80000, 0);
+        return -1;
+    }
+    m_field1c += static_cast<int>(n);
+    return static_cast<int>(n);
+}
+
+// ORIG SendCheckChannelScript 0x081066ea（0x453 字节）：桥接后校验/拉取
+// channel_info.etc 并落盘。stat 失败且非 ENOENT → 0；version 文件读写两次；
+// CHECK_SCRIPT_VERSION(cat1/id5) 应答尾包写入 version；GET_SCRIPT(cat2/id9)
+// 应答尾包为脚本体（fwrite size-0xb 字节）。
+bool CmmChannelProxy::SendCheckChannelScript()
+{
+    ConnectBridgeServer();
+
+    char name[0x14];
+    std::memset(name, 0, sizeof(name));
+    std::strncpy(name, "channel_info", 0x14);
+    struct stat st;
+    if (stat(name, &st) < 0)
+    {
+        if (errno != ENOENT)
+        {
+            return false;
+        }
+        DNFFLib::Make_Dir(const_cast<char*>(name));
+    }
+
+    char line[0x400];
+    FILE* fp = std::fopen("channel_info/version", "wb+");
+    if (fp == 0)
+    {
+        cMyTrace trace(
+            "bool CmmChannelProxy::SendCheckChannelScript()", 0x143, 9,
+            true, true);
+        trace("\t- [ERROR] : cannt open channel_script_version file\n");
+        return false;
+    }
+    while (std::fgets(line, 0x400, fp) != 0)
+    {
+        // 原地去除行首空白（ORIG local_18/local_14 双指针转写）。
+        char* src = line;
+        char* dst = src;
+        do
+        {
+            while (*src == ' ' || *src == '\t')
+            {
+                ++src;
+            }
+            *dst++ = *src++;
+        } while (*(src - 1) != '\0');
+    }
+    std::fclose(fp);
+
+    tagCS_CHECK_SCRIPT_VERSION reqVer;
+    std::memcpy(reqVer.m_version, line, 0x10);
+    if (SendPacket(reinterpret_cast<char*>(&reqVer),
+                   reqVer.m_hdr.getSize()) == 0)
+    {
+        return false;
+    }
+    if (RecvPacket() == 0)
+    {
+        return false;
+    }
+    while (m_field1c != *reinterpret_cast<int*>(m_buf + 2))
+    {
+        if (RecvPacket() == 0)
+        {
+            return false;
+        }
+    }
+
+    fp = std::fopen("channel_info/version", "rb+");
+    if (fp == 0)
+    {
+        cMyTrace trace(
+            "bool CmmChannelProxy::SendCheckChannelScript()", 0x188, 9,
+            true, true);
+        trace("\t- [ERROR] : cannt open channel_script_version file\n");
+        return false;
+    }
+    std::fputs(m_buf + 0xf, fp);       // ORIG fputs(local_20 + 0xf)：头 0xb + first 4
+    std::fclose(fp);
+
+    m_field1c = 0;
+    std::memset(m_buf, 0, 0x80000);
+
+    tagCS_GET_SCRIPT reqGet;
+    if (SendPacket(reinterpret_cast<char*>(&reqGet),
+                   reqGet.m_hdr.getSize()) == 0)
+    {
+        return false;
+    }
+    if (RecvPacket() == 0)
+    {
+        return false;
+    }
+    while (m_field1c != *reinterpret_cast<int*>(m_buf + 2))
+    {
+        if (RecvPacket() == 0)
+        {
+            return false;
+        }
+    }
+    fp = std::fopen("channel_info/channel_info.etc", "w+");
+    if (fp == 0)
+    {
+        return false;
+    }
+    int total = *reinterpret_cast<int*>(m_buf + 2);
+    std::fwrite(m_buf + 0xb, 1, total - 0xb, fp);
+    std::fclose(fp);
+    close(m_udp.clientSocket());
+    return true;
+}
+// SpecialItemHandler（ORIG 全局类，mangled _ZN18SpecialItemHandler…，非 WongWork 前缀；
+// T 0x827bcec：new(0x74) 后构造；对象 0x74 字节）。
+// 权威声明见 SpecialItemHandler.h（dispatch 表 ctor 0x0827bcec / execute 0x0827be0a），
+// 实现见 CCeraShop_Special.cpp。此处仅需其完整类型以支持 new/delete。
+
 namespace WongWork
 {
-class CLogGameChannel
-{
-public:
-    CLogGameChannel();
-    void StartLogTimer();
-private:
-    char m_pad[0x10];
-};
-
-class CCeraShop
-{
-public:
-    CCeraShop();
-private:
-    char m_pad[8];
-};
+// CLogGameChannel 权威定义见 CLogGameChannel.h（§7 合并）。
 
 class CAutoPunishRuleBlackIPMgr
 {
@@ -324,9 +579,8 @@ private:
 // ---- 反挂机/反作弊规则表相关类型（ORIG namespace WongWork；ctor 需实例化容器）----
 #ifndef DNF_GAME_WONGWORK_HACKTYPE_TYPES
 #define DNF_GAME_WONGWORK_HACKTYPE_TYPES
-// 与 CUser.h 258 行一致（本 TU 不 include CUser.h，故本地定义防 ODR 冲突）。
-enum ENUM_HACKTYPE { ENUM_HACKTYPE_0 = 0 };
 struct HackTypeInfo_t { char m_pad[0x10]; };  // 仅容器实例化（布局待细化）
+// 与 CUser.h 258 行一致（本 TU 不 include CUser.h，故本地定义防 ODR 冲突）。
 struct HackIPCounter_t
 {
     unsigned short m_a;    // +0x00
@@ -361,15 +615,6 @@ private:
     std::map<int, stHacktypeExceptionInfo_t> m_exceptionMap;            // +0x58
 };
 
-class CBlackIPMonitor
-{
-public:
-    CBlackIPMonitor();
-    void reset();
-private:
-    char m_pad[0x18];
-};
-
 class CSimpleSSO
 {
 public:
@@ -398,28 +643,10 @@ private:
     char m_pad[0x488];
 };
 
+// CIPGHelper 保留本 TU（ORIG 方法集属 GlobalData 域）；基类 IIPGHelperInterface
+// 与成员 CIPGMgr 用 TaiwanCash.h 权威定义（WongWork::IPG，include 见文件头部）。
 namespace IPG
 {
-// IIPGHelperInterface（ORIG 0x082a7182：设置 vptr）。最小声明（推断）。
-class IIPGHelperInterface
-{
-public:
-    virtual ~IIPGHelperInterface() {}
-};
-
-// CIPGMgr（ORIG 0xf0 字节；方法未还原，推断最小实现）。
-class CIPGMgr
-{
-public:
-    CIPGMgr(IIPGHelperInterface* iface) { m_iface = iface; }
-    int Initialize(unsigned int a, unsigned int b)
-    {
-        (void)a; (void)b;
-        return 0;  // 推断：IPG 管理初始化未还原
-    }
-    IIPGHelperInterface* m_iface;  // +0x00
-    char m_pad[0xec];
-};
 
 class CIPGHelper : public IIPGHelperInterface
 {
@@ -427,6 +654,7 @@ public:
     CIPGHelper();
     ~CIPGHelper();
     int Initialize(unsigned int a, unsigned int b);
+    void Finalize();  // ORIG T 0x08100c92（Initialize 复位用）
 private:
     // ORIG 布局：+0x00 vptr；+0x04 CIPGMgr*；+0x08..0x20 常量；+0x24 服务器名。
     CIPGMgr* m_mgr;        // +0x04
@@ -449,18 +677,9 @@ private:
 }
 }
 
-class ItemVendingMachine
-{
-public:
-    ItemVendingMachine();
-    ~ItemVendingMachine();
-private:
-    // ORIG 布局：+0x00 WongWork::CCeraShop（SpecialItemHandler 等子对象），
-    // +0x08 map<int, vector<ARAD::PurcahseBonus>>。CCeraShop 未建模，
-    // 以 8 字节 stub 区保留（推断）；购物积分表以 int 元素等价（推断）。
-    char m_ceraShop[8];                       // +0x00
-    std::map<int, std::vector<int> > m_bonusMap;  // +0x08
-};
+// ItemVendingMachine 权威声明 + ARAD::PurcahseBonus / CeraShopPurcahseCountBonus
+// 见 ItemVendingMachine.h；此处不再重复定义（避免 ODR）。
+#include "ItemVendingMachine.h"
 
 class Secu_DataControl
 {
@@ -468,23 +687,6 @@ public:
     Secu_DataControl();
 private:
     char m_pad[1];
-};
-
-class CSecu_ProtectionField
-{
-public:
-    CSecu_ProtectionField();
-private:
-    char m_pad[0x18];
-};
-
-class RefPvpGrade
-{
-public:
-    RefPvpGrade();
-    ~RefPvpGrade();
-private:
-    char m_pad[0x14c];
 };
 
 class CDBConnector
@@ -496,12 +698,28 @@ public:
     bool GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap);
     bool Connect(DBInfoMap infoMap);
     bool ConnectWithServerGroup(DBInfoMap infoMap);
+    bool QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
+                       DBInfoMap& outMap);  // ORIG T 0x080eca6c
     bool OpenMaster();  // ORIG T 0x080ec67c（支撑）
     bool Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
               STDBConnInfo& info);  // ORIG T 0x080ec6da（支撑）
 private:
     DBMgr* m_dbMgr;            // +0x00
     STDBConnInfo m_connInfo;   // +0x04（0x168 字节）
+};
+
+#include "CLevelDungeonPlayStatistic.h"
+
+class CStatisticMgr : public CLevelDungeonPlayStatistic
+{
+public:
+    CStatisticMgr();
+private:
+    // ORIG ctor 0x82aa89e：CLevelDungeonPlayStatistic@+0（0x18，map<int,
+    // stDungeonPlayInfo>）+ CDungeonExpStatistic@+0x18（0x18，map<int,
+    // stDungeonExp>）。基类即 CLevelDungeonPlayStatistic（首基类同址）。
+    struct stDungeonExp { char m_pad[4]; };
+    std::map<int, stDungeonExp> m_expMap;             // +0x18
 };
 
 namespace sync_script
@@ -515,45 +733,11 @@ public:
 };
 }
 
-class CSyncSlangFilter
-{
-public:
-    static CSyncSlangFilter* GetInstance();   // ORIG W 0x08235001
-    static bool AddSlangList();               // ORIG T 0x0862dccc
-    static bool AddSlangListName();           // ORIG T 0x0862dec6
-    bool HasSlang(std::string& name);         // ORIG T 0x0862e622
-    bool HasSlangName(std::string& name);     // ORIG T 0x0862e16e
-    static void FreeInstance();               // ORIG W 0x082a7147
-    void AddSlang(const std::string& str);    // ORIG T 0x0862e72a（支撑）
-    void AddSlangName(const std::string& str);  // ORIG T 0x0862e276（支撑）
-
-private:
-    CSyncSlangFilter();                       // ORIG T 0x0862dba4
-    ~CSyncSlangFilter();                      // ORIG T 0x0862dc36
-
-    // ORIG 布局：+0x00/+0x04 两个 IMPL*（SlangNode 字典树根），+0x08 rwLock(0x20)，
-    // sizeof 0x28。ORIG 用逐字符字典树（SlangNode::AddChild）存储敏感词；
-    // 此处以 std::set<std::string> 做语义等价（推断：字典树→红黑树，查询/插入
-    // 语义一致），类为 TU 局部类型，不影响外部 ABI。
-    std::set<std::string> m_slangSet;         // 敏感词（slang_list 表）
-    std::set<std::string> m_slangNameSet;     // 敏感名（slang_list_name 表）
-    pthread_mutex_t m_lock;                   // 读写互斥（推断：替代 rwLock）
-};
-
 class CGM_Manager;  // 完整定义见 CGM_Manager.h（真实布局）
-
-class CStatisticMgr
-{
-public:
-    CStatisticMgr();
-private:
-    char m_pad[0x30];
-};
 
 namespace break_away_prevent
 {
 // SIG_BREAK_AWAY_PREVENT_SYSTEM_MANAGER 基类（ORIG ctor 0x0831d2b0：置字段）。
-// STRewardDataKey（ORIG 3 字节/项 ×5）；STRewardDataList 未还原（推断）。
 struct STRewardDataKey
 {
     char m_data[3];
@@ -603,18 +787,6 @@ private:
 };
 }
 
-namespace village_object
-{
-class CVillageObjectMgr
-{
-public:
-    CVillageObjectMgr();
-    ~CVillageObjectMgr();
-private:
-    char m_pad[0x18];
-};
-}
-
 namespace village_attacked
 {
 class CVillageMonsterMgr
@@ -628,39 +800,61 @@ private:
 
 }
 
-// IRentalMachine 抽象（ORIG 虚表 vtable[1]=dtor）。
-class IRentalMachine
+// RentalMachinePcRoomImpl（ORIG ctor 0x8271a80：set<unsigned>@0x104 构造 +
+// memset 前 0x104；总 0x11c）。
+struct RentalMachinePcRoomImpl
 {
-public:
-    virtual ~IRentalMachine() {}
-};
+    RentalMachinePcRoomImpl() { memset(m_data, 0, sizeof(m_data)); }
+    char m_data[0x104];            // +0x00（日志路径等，未还原字段区）
+    std::set<unsigned int> m_set;  // +0x104
+};  // 0x11c
 class RentalMachinePcRoom : public IRentalMachine
 {
 public:
-    RentalMachinePcRoom() {}
+    RentalMachinePcRoom();
     virtual ~RentalMachinePcRoom() {}
+
+    // 槽2 Rent：ORIG T 0x082704e6（0x258 字节 pc_room 租赁事务链，本体待
+    // pc_room 域批次 —— 报告 RentalMachinePcRoom/Rent.md）。声明占位保 vtable 序。
+    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                      InstanceRentalSystem::RentOutput& output);
+    // 槽3 Ready：ORIG 0x0827073e = checkAllRentalItemScript() 尾调。
+    virtual bool Ready();
+    // 槽4 CheckRentableItem：ORIG 0x08270752 = m_impl->m_set.find(idx)!=end。
+    virtual bool CheckRentableItem(unsigned int itemIdx);
+
+private:
+    bool checkAllRentalItemScript();   // ORIG T 0x082708cc（本体待租赁脚本批次）
+    void initLoggingEnvironment();     // ORIG T 0x8270886
+    RentalMachinePcRoomImpl* m_impl;   // +0x04（ORIG auto_ptr）
 };
+// RentalMachineDimensionImpl（ORIG ctor 0x826fa6c：与 PcRoom 同构，推断）。
+struct RentalMachineDimensionImpl
+{
+    RentalMachineDimensionImpl() { memset(m_data, 0, sizeof(m_data)); }
+    char m_data[0x104];            // +0x00
+    std::set<unsigned int> m_set;  // +0x104
+};  // 0x11c
 class RentalMachineDimension : public IRentalMachine
 {
 public:
-    RentalMachineDimension() {}
+    RentalMachineDimension();
     virtual ~RentalMachineDimension() {}
+
+    // 槽2 Rent：ORIG T 0x0826ec22（与 PcRoom 同构，本体待 pc_room 域批次）。
+    virtual bool Rent(CUser& user, const InstanceRentalSystem::RentInput& input,
+                      InstanceRentalSystem::RentOutput& output);
+    // 槽3 Ready：ORIG 0x0826ee94 = checkAllRentalItemScript() 尾调。
+    virtual bool Ready();
+    // 槽4 CheckRentableItem：ORIG 0x0826eea8 = m_impl->m_set.find(idx)!=end。
+    virtual bool CheckRentableItem(unsigned int itemIdx);
+
+private:
+    bool checkAllRentalItemScript();   // ORIG T 0x0826f022（本体待租赁脚本批次）
+    void initLoggingEnvironment();         // ORIG T 0x826efdc
+    RentalMachineDimensionImpl* m_impl;    // +0x04（ORIG auto_ptr）
 };
 
-class InstanceRentalSystem
-{
-public:
-    InstanceRentalSystem();
-    ~InstanceRentalSystem();
-    void registerRentalMachine(int idx, IRentalMachine* m);  // ORIG T 0x08270320
-private:
-    // ORIG：+0x00 auto_ptr<RentalSystemImpl>；impl 含 map<int, IRentalMachine*>。
-    struct RentalSystemImpl
-    {
-        std::map<int, IRentalMachine*> m_machines;
-    };
-    RentalSystemImpl* m_impl;  // +0x00
-};
 
 class CDailyScheduleManager
 {
@@ -673,13 +867,7 @@ private:
 
 namespace online_preliminary
 {
-// 与 CUserCharacInfo.h 同名声明的空类（StaticPool 节点布局需要 1 字节 T）。
-class COnlinePreliminaryTeam
-{
-public:
-    int GetTeamId() const;
-    const char* GetTeamName() const;
-};
+// COnlinePreliminaryTeam 权威定义见 CUserCharacInfo.h（经 CUser.h 引入），此处不再重复。
 
 // CTeamFactory（ORIG ctor 0x08588e2e 直接调 StaticPool<COnlinePreliminaryTeam,600> ctor）。
 class CTeamFactory
@@ -807,22 +995,23 @@ char IsLightServer()
 {
     return *(char*)GetLightServerFlag();
 }
-
 namespace StackableAction
 {
-// ORIG：输入参数结构（内容未还原，推断为最小占位）。
+// ORIG：输入参数结构（+0x08 CUser*、+0x0c CItem* 为 proc_* 实际使用字段）。
 struct input_param
 {
-    char m_pad[4];
+    char m_pad0[8];    // +0x00（未还原）
+    CUser* m_user;     // +0x08
+    CItem* m_item;     // +0x0c
 };
 
 class Action
 {
 public:
     Action();
-    int proc_bingo(input_param& p);        // ORIG T 0x0827fb40（推断实现）
-    int proc_addFatigue(input_param& p);   // ORIG T（推断实现）
-    int proc_lotteryCount(input_param& p); // ORIG T（推断实现）
+    int proc_bingo(input_param& p);        // ORIG T 0x0827fb14
+    int proc_addFatigue(input_param& p);   // ORIG T 0x0827fbd6
+    int proc_lotteryCount(input_param& p); // ORIG T 0x0827fb86
     void init_function_type();             // ORIG T 0x0827f7c8
     // ORIG 布局：boost::noncopyable 基类 + 两个 map<int, boost::function>。
     std::map<int, boost::function<int(input_param&)> > m_map1;  // +0x00
@@ -830,7 +1019,6 @@ public:
 };
 }
 
-class CMTRand;  // 全局类（PvPTypes.h 同布局），定义见 random_option 区
 
 namespace expert_extraction
 {
@@ -849,7 +1037,6 @@ public:
     CAlchemistExtraction();
     virtual ~CAlchemistExtraction();
 };
-
 class CEnchanterExtraction : public CExtraction
 {
 public:
@@ -892,50 +1079,13 @@ private:
     char m_pad[0x14];
 };
 
-// 与 PvPTypes.h 同布局（0x9c8）；符号由 CMTRand.cpp 提供（全局类）。
-class CMTRand
-{
-public:
-    CMTRand();
-    void seed(unsigned long s);
-private:
-    char m_pad[0x9c8];
-};
 
 namespace random_option
 {
 void* GetRandomOption();  // ORIG T 0x085f0eb0：&G_CDataManager()->+0x148
 
-class CRandomOptionItemHandle
-{
-public:
-    CRandomOptionItemHandle();
-    virtual ~CRandomOptionItemHandle();
-private:
-    // ORIG 布局：+0x00 vptr；+0x04 CMTRand*（13×0x9c8）；+0x08 int；+0x0c byte；
-    // +0x10 int；+0x14 void*（RandomOption 对象）。
-    CMTRand* m_rand;    // +0x04
-    int m_field8;       // +0x08
-    char m_fieldc;      // +0x0c
-    int m_field10;      // +0x10
-    void* m_field14;    // +0x14
-};
 }
 
-namespace ARAD
-{
-template <class T> class Singleton
-{
-public:
-    static T* Get();
-};
-
-template <class T> T* Singleton<T>::Get()
-{
-    static T inst;  // TODO(后续批次)：单例对象真实构造/销毁由对应类批次接管
-    return &inst;
-}
-}
 
 class RestrictGeolocation
 {
@@ -943,13 +1093,15 @@ public:
     bool initGeolocation();
     void clearAllowCountry();  // ORIG T 0x08170b16（支撑）
     bool loadData();           // ORIG T 0x08170fec（支撑）
+    RestrictGeolocation();   // ORIG T 0x0817097c
+    ~RestrictGeolocation();  // ORIG T 0x081709fe
+    void closeGeolocation(); // ORIG T 0x08170a88
 private:
     void* m_geoip;                     // +0x00 GeoIP*
     // ORIG 成员为 boost::unordered_set<std::string>（addAllowCountry/clearAllowCountry）；
     // 此处以 std::set 做语义等价（推断）。
     std::set<std::string> m_allowCountry;
 };
-
 class CHumanCertifier
 {
 public:
@@ -1402,10 +1554,7 @@ void WongWork::CCapchaDataManager::push(const MSG_UDP_CAPCHA_CERTIFY& msg)
 // 依赖类 stub 实现（GlobalData.cpp 自含声明的占位类；G2/G4/G6/G7/G8 批次接管）
 // ============================================================================
 
-// ---- Thread / 线程族 ----
-Thread::~Thread() {}  // TODO(后续批次)
-void Thread::Stop() {}  // TODO(后续批次)
-
+// ---- ThreadInterface 线程族 ----
 DBThread::DBThread()
 {
     // ORIG 0x083ff5f2：ThreadInterface 基类 + CQueryCounter 构造（成员隐式构造）。
@@ -1439,19 +1588,23 @@ bool DBThread::isLogDB()
 {
     return m_bLogDB;
 }
-DispatchThread::DispatchThread() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-NetworkThread::NetworkThread() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-UdpThread::UdpThread() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-MonitorTcpThread::MonitorTcpThread() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-AcceptThread::AcceptThread() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
+DispatchThread::DispatchThread() {}  // 基类 ThreadInterface 隐式构造（ORIG 0x847e268）
+NetworkThread::NetworkThread() {}    // ORIG 0x857d554
+UdpThread::UdpThread() {}            // ORIG 0x857c354
+MonitorTcpThread::MonitorTcpThread() {}  // ORIG 0x857d8f0
+AcceptThread::AcceptThread()
+{
+    // ORIG 0x0857cbe8：置 +0x0c 标志为 false。
+    m_acceptFlag = false;
+}
 
 // ---- GlobalData::Init 直接 new 的基础对象 ----
-CGlobalEffectManager::CGlobalEffectManager() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-CTimeGate::CTimeGate() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
+// CTimeGate ctor 现由 CTimeGate.cpp 提供（ORIG 0x8284512，继承 IObject）。
 ARAD::Arad_ServerStateManager::Arad_ServerStateManager()
+    : m_active(false)
 {
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
+    // ORIG 0x81a922c：bool@0=0；Mutex@+4；map@+0x1c（成员自动构造）。
+}
 
 PacketPool::PacketPool() : m_pool(new DynamicPool<PacketBuf>(0)), m_threadID(0) {}
 PacketPool::~PacketPool() { delete m_pool; }
@@ -1481,39 +1634,14 @@ template int CServerProxyMgr<CMonitorServerProxy>::GetStartIndex();
 template int CServerProxyMgr<CMonitorServerProxy>::GetEndIndex();
 template int CServerProxyMgr<CMonitorServerProxy>::GetNextIndex(int&);
 
-// ---- ServerProxy（BaseServerProxy/CHadesServerProxy 属 E1 批次，见
-//      BaseServerProxy.cpp/CHadesServerProxy.cpp）----
-CSchoolServerProxy::CSchoolServerProxy(std::string ip, int port)
-    : m_ip(ip), m_port(port)
-{
-    // ORIG 0x08471e14：string 拷贝 + port + CUdpHandler 构造（成员自动）。
-}
-bool CSchoolServerProxy::Init()
-{
-    // ORIG 0x08471e7a：CUdpHandler@+8 的 InitClientSocket，失败 log。
-    int r = m_udp.InitClientSocket();
-    if (r == -1)
-    {
-        LogManager::logFormat(1, "DF_SchoolServerProxy.cpp",
-                              "bool CSchoolServerProxy::Init()", 0x3c,
-                              "[CSchoolServerProxy::Init] Can't init udp client socket\n");
-    }
-    return r != -1;
-}
+
+// CPCRoomServerProxy 仅在本 TU 定义（无独立源文件），保留其唯一构造函数。
 CPCRoomServerProxy::CPCRoomServerProxy(char* ip, int port)
     : m_ip(ip ? ip : "")
 {
-    // ORIG 0x084717dc：CNetwork ctor + string(ip)@+0x30df8；port 不在 ctor 使用。
     (void)port;
 }
-CCommunityServerProxy::CCommunityServerProxy(char* ip, int port)
-    : m_ip(ip ? ip : "")
-{
-    // ORIG 0x0846c5c8：CNetwork ctor + string(ip)@+0x30df8；port 不在 ctor 使用。
-    (void)port;
-}
-
-CFatigueBatteryHandle::CFatigueBatteryHandle() { m_pad[0] = 0; }  // TODO(后续批次)
+CFatigueBatteryHandle::CFatigueBatteryHandle() {}  // ORIG 0x84a7ff8：空体（纯 ret，无成员初始化）
 CmmChannelProxy::CmmChannelProxy(std::string ip, int port)
     : m_ip(ip), m_port(port)
 {
@@ -1552,12 +1680,21 @@ void WongWork::CGMAccounts::removeGM(unsigned int mid, unsigned int param)
     (void)mid;
     (void)param;
 }
-WongWork::CLogGameChannel::CLogGameChannel()
+WongWork::CCeraShop::CCeraShop()
 {
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-void WongWork::CLogGameChannel::StartLogTimer() {}  // TODO(后续批次)
-WongWork::CCeraShop::CCeraShop() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
+    // ORIG 0x83202b8：new SpecialItemHandler(0x74) 存 +0；+4 置 0。
+    m_handler = new SpecialItemHandler(this);
+    m_field4 = 0;
+}
+WongWork::CCeraShop::~CCeraShop()
+{
+    // ORIG 0x8320314：析构并释放 SpecialItemHandler。
+    if (m_handler)
+    {
+        delete m_handler;  // SpecialItemHandler 析构未还原（推断：默认）
+        m_handler = 0;
+    }
+}
 WongWork::CAutoPunishRuleBlackIPMgr::CAutoPunishRuleBlackIPMgr()
 {
     memset(m_pad, 0, sizeof(m_pad));
@@ -1591,9 +1728,94 @@ WongWork::CAutoPunishRuleHackTypeMgr::CAutoPunishRuleHackTypeMgr()
 void WongWork::CAutoPunishRuleHackTypeMgr::reset() {}  // TODO(后续批次)
 WongWork::CBlackIPMonitor::CBlackIPMonitor()
 {
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-void WongWork::CBlackIPMonitor::reset() {}  // TODO(后续批次)
+    // ORIG 0x82a6526：构造 std::multimap<unsigned int, stBlackIPMonitorEntry_t>（成员隐式）。
+}
+void WongWork::CBlackIPMonitor::reset()
+{
+    // ORIG 0x82a6512：multimap::clear()。
+    m_monitorMap.clear();
+}
+WongWork::stBlackIPMonitorEntry_t::stBlackIPMonitorEntry_t() {}
+WongWork::stBlackIPMonitorEntry_t::stBlackIPMonitorEntry_t(
+    ENUM_BLACKIPMONITOR_PUNISH_TYPE punishType, unsigned int idCnt,
+    long startTime, long endTime)
+{
+    // ORIG 0x84eba2c：逐字段写 +0/+4/+8/+0xc。
+    m_punishType = punishType;
+    m_idCnt = idCnt;
+    m_startTime = startTime;
+    m_endTime = endTime;
+}
+void WongWork::CBlackIPMonitor::insertNewIP(
+    unsigned int ip, ENUM_BLACKIPMONITOR_PUNISH_TYPE type,
+    unsigned int idCnt, long startTime, long endTime)
+{
+    // ORIG 0x84eba54：构造 entry 并 multimap::insert(make_pair(ip, entry))。
+    m_monitorMap.insert(std::make_pair(
+        ip, stBlackIPMonitorEntry_t(type, idCnt, startTime, endTime)));
+}
+void WongWork::CBlackIPMonitor::deleteIP(char const* ipStr, unsigned int type)
+{
+    // ORIG 0x84ebace：ip 为空返回 0；inet_addr 转 key；遍历 [lower_bound, upper_bound)
+    // 删除 entry.m_punishType == type 的项。
+    if (!ipStr)
+        return;
+    unsigned int key = static_cast<unsigned int>(inet_addr(ipStr));
+    std::multimap<unsigned int, stBlackIPMonitorEntry_t>::iterator it =
+        m_monitorMap.lower_bound(key);
+    std::multimap<unsigned int, stBlackIPMonitorEntry_t>::iterator end =
+        m_monitorMap.upper_bound(key);
+    while (it != end)
+    {
+        if (static_cast<unsigned int>(it->second.m_punishType) == type)
+        {
+            m_monitorMap.erase(it++);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+unsigned int WongWork::CBlackIPMonitor::getPunishType(char const* ipStr)
+{
+    // ORIG 0x84ebba6：ip 为空返回 0；遍历 [lower_bound, upper_bound) 累 OR
+    // entry.m_punishType。
+    if (!ipStr)
+        return 0;
+    unsigned int key = static_cast<unsigned int>(inet_addr(ipStr));
+    unsigned int result = 0;
+    std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator it =
+        m_monitorMap.lower_bound(key);
+    std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator end =
+        m_monitorMap.upper_bound(key);
+    for (; it != end; ++it)
+    {
+        result |= static_cast<unsigned int>(it->second.m_punishType);
+    }
+    return result;
+}
+long WongWork::CBlackIPMonitor::GetEndTime(
+    char const* ipStr, ENUM_BLACKIPMONITOR_PUNISH_TYPE type)
+{
+    // ORIG 0x84ebc8c：ip 为空返回 0；遍历 [lower_bound, upper_bound) 返回
+    // entry.m_punishType == type 的 m_endTime，否则 0。
+    if (!ipStr)
+        return 0;
+    unsigned int key = static_cast<unsigned int>(inet_addr(ipStr));
+    std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator it =
+        m_monitorMap.lower_bound(key);
+    std::multimap<unsigned int, stBlackIPMonitorEntry_t>::const_iterator end =
+        m_monitorMap.upper_bound(key);
+    for (; it != end; ++it)
+    {
+        if (it->second.m_punishType == type)
+        {
+            return it->second.m_endTime;
+        }
+    }
+    return 0;
+}
 // ORIG 0x093ac220 数据表：31 行 × 24 列 SSO 密钥串（提取自 df_game_r .data）。
 #include "GlobalData_SSO_keys.inc"
 
@@ -1644,8 +1866,55 @@ void WongWork::CSecurityCardCenter::init()
     std::list<unsigned char>& charList =
         *reinterpret_cast<std::list<unsigned char>*>(m_pad + 0x47c);
     for (int i = 0; i < 42; ++i)
+    {
         charList.push_back(characterSet[i]);
+    }
     *reinterpret_cast<unsigned short*>(m_pad + 0x484) = 1;
+}
+
+void WongWork::IPG::CIPGHelper::Finalize()
+{
+    // ORIG 0x08100c92：释放 CIPGMgr（推断：delete + 置空）。
+    if (m_mgr)
+    {
+        delete m_mgr;
+        m_mgr = 0;
+    }
+}
+
+int WongWork::IPG::CIPGHelper::Initialize(unsigned int a, unsigned int b)
+{
+    // ORIG 0x08100b3e：已初始化则先 Finalize；写入常量表；取环境服务器名
+    // （CEnvironment+0x2b8，空串→-1）strncpy 0x14；再写常量组；new CIPGMgr
+    // 并转发 Initialize(a,b)。
+    if (m_mgr)
+    {
+        Finalize();
+    }
+    m_c8 = 0x2b0;
+    m_cc = 0x1cb;
+    m_c10 = 0x1fc;
+    m_c14 = 0x1d4;
+    m_c18 = 0x99;
+    m_c1c = 0x1d4;
+    m_c20 = 0x90;
+    const char* envName = reinterpret_cast<const char*>(
+        reinterpret_cast<char*>(G_CEnvironment()) + 0x2b8);  // 未建模字段（推断）
+    if (envName[0] == 0)
+    {
+        return -1;
+    }
+    strncpy(m_serverName, envName, sizeof(m_serverName));
+    m_serverName[sizeof(m_serverName) - 1] = 0;
+    m_c38 = 0x5a3c;
+    m_c3c = 0x5aa0;
+    m_c40 = 0x5b04;
+    m_c44 = 0x5b68;
+    m_c48 = 0x5bcc;
+    m_c4c = 0x232e;
+    m_c50 = 0;
+    m_mgr = new CIPGMgr(this);
+    return m_mgr->Initialize(a, b);
 }
 WongWork::IPG::CIPGHelper::CIPGHelper()
 {
@@ -1658,10 +1927,6 @@ WongWork::IPG::CIPGHelper::~CIPGHelper()
     delete m_mgr;
     m_mgr = 0;
 }
-int WongWork::IPG::CIPGHelper::Initialize(unsigned int, unsigned int)
-{
-    return 0;  // TODO(后续批次)
-}
 
 // ---- 全局业务对象 ----
 ItemVendingMachine::ItemVendingMachine()
@@ -1673,13 +1938,514 @@ ItemVendingMachine::~ItemVendingMachine()
     // ORIG 0x0854c42a：析构 CeraShopPurcahseCountBonus@+8 + CCeraShop@+0。
     // map 成员自动析构；CCeraShop 为 stub 区（推断：无真实析构语义）。
 }
-Secu_DataControl::Secu_DataControl() { m_pad[0] = 0; }  // TODO(后续批次)
-CSecu_ProtectionField::CSecu_ProtectionField()
+int ItemVendingMachine::BuyItem(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
 {
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-RefPvpGrade::RefPvpGrade() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
-RefPvpGrade::~RefPvpGrade() {}  // TODO(后续批次)
+    // ORIG 0x0854c4d0：仅委托 ProcessBuyRequestEx(this, user, msg) 后返回 1。
+    ProcessBuyRequestEx(user, msg);
+    return 1;
+}
+
+// ============================================================================
+// ItemVendingMachine 私有校验/串化 helper —— ORIG 成员（mangled 见
+// docs/class_func_reports/ItemVendingMachine/README.md）
+// ============================================================================
+namespace
+{
+const char* const kPrettyGetItemString =
+    "void ItemVendingMachine::_GetItemString(const CCeraShopGoods*, char*, size_t)";
+const char* const kPrettyProcessBuy =
+    "bool ItemVendingMachine::ProcessBuyRequestEx(CUser*, const MSG_BUY_CERASHOP_ITEM&)";
+
+// WongWork::CGenUniqueNo::GenUniqueNo(char*) —— ORIG _ZN8WongWork12CGenUniqueNo11GenUniqueNoEPc。
+// CGenUniqueNo.cpp 提供 C++ 定义（经 CGenUniqueNo.h），但 CInventory.h 以截断 stub 重声明
+// 该类（缺 GenUniqueNo）；本 TU 经 CInventory.h 纳入该 stub 类，故以 asm 别名引用 ORIG
+// 符号，避免类重定义冲突（与 CCeraShop_Special.cpp DB_SaveFeaturedGoodsIdx 先例一致）。
+char* GenUniqueNo_asm(char* out) asm("_ZN8WongWork12CGenUniqueNo11GenUniqueNoEPc");
+}
+
+// _CheckEnableGiftCondition —— ORIG 0x08176722 (T)
+bool ItemVendingMachine::_CheckEnableGiftCondition(const CCeraShopGoods* goods,
+                                                   CUser* user, char c)
+{
+    if (user->IsGameMasterMode())
+        return true;
+    if (goods->GetSticker() == 99)
+        return false;
+    if (c == 1 && goods->isGiftDisallowance_())
+        return false;
+    return true;
+}
+
+// _CheckEnableItemCondition —— ORIG 0x0817697c (T)
+bool ItemVendingMachine::_CheckEnableItemCondition(const CCeraShopGoods* goods,
+                                                   const CItem*& item,
+                                                   std::vector<std::pair<int, int> >&)
+{
+    int groupIdx = goods->GetGroupIdx();
+    if (groupIdx != 1)
+    {
+        if (groupIdx == 11 && goods->GetSubGroupIndex() == 1)
+            return true;
+        item = goods->GetRelatedItem();
+        if (item == 0)
+            return false;
+    }
+    return true;
+}
+
+// _CheckEnableStateCondition —— ORIG 0x081768b0 (T)：恒真。
+bool ItemVendingMachine::_CheckEnableStateCondition(const CCeraShopGoods*, CUser*)
+{
+    return true;
+}
+
+// _CheckEnableAvatarCondition —— ORIG 0x08176794 (T)
+bool ItemVendingMachine::_CheckEnableAvatarCondition(const CCeraShopGoods* goods,
+                                                     char c, unsigned char uc,
+                                                     stAvatarTypeSelect_t& out)
+{
+    CItem* related = goods->GetRelatedItem();
+    if (related == 0 || !related->IsAvatarItem())
+        return false;
+    std::memset(&out, 0, sizeof(out));   // 等价 stAvatarTypeSelect_t::init()
+    CEquipItem* equip = static_cast<CEquipItem*>(related);
+    void* vec = equip->getAvatarTypeSelect();
+    std::vector<stAvatarTypeSelect_t>& select =
+        *static_cast<std::vector<stAvatarTypeSelect_t>*>(vec);
+    int idx = (signed char)c;
+    if (select.empty() || idx >= (int)select.size())
+        return false;
+    if (uc >= 100)
+        return false;
+    const stAvatarTypeSelect_t& src = select[idx];
+    out.m_fieldc = src.m_fieldc;
+    out.m_field4 = src.m_field4;
+    out.m_field8 = src.m_field8;
+    out.m_field0 = src.m_field0;
+    return true;
+}
+
+// _GetItemString —— ORIG 0x0817645a (T)
+void ItemVendingMachine::_GetItemString(const CCeraShopGoods* goods, char* buf,
+                                        unsigned int len)
+{
+    int itemIdx = goods->GetItemIdx();
+    int stackCount = goods->GetStackCount();
+    switch (itemIdx)
+    {
+    case 1:    OS_API::snprintf(buf, len, "Continue Coin %d", stackCount); return;
+    case 0xca: OS_API::snprintf(buf, len, "Mystic Coin %d", stackCount); return;
+    case 8:    OS_API::snprintf(buf, len, "Hands of Remy %d", stackCount); return;
+    case 0xf:  OS_API::snprintf(buf, len, "Kaleido Box %d", stackCount); return;
+    case 0x43d:OS_API::snprintf(buf, len, "Manaade %d", stackCount); return;
+    case 0xe:  OS_API::snprintf(buf, len, "Golden Wax Candle %d", stackCount); return;
+    case 0xd8: OS_API::snprintf(buf, len, "Mystic Cube %d", stackCount); return;
+    default: break;
+    }
+    CItem* related = goods->GetRelatedItem();
+    if (related == 0)
+    {
+        LogManager::logFormat(1, "localjapan/AppendVendingMachine.cpp", kPrettyGetItemString,
+                              0x18d, "CashShop Relation Item is NULL [ITEM:%d]", itemIdx);
+        return;
+    }
+    if (related->is_stackable() && stackCount >= 2)
+        OS_API::snprintf(buf, len, "%s Count %d", related->GetItemName(), stackCount);
+    else
+        strncpy(buf, related->GetItemName(), len);
+}
+
+// ============================================================================
+// ProcessBuyRequestEx —— ORIG 0x081769f6 (T)
+// ============================================================================
+int ItemVendingMachine::ProcessBuyRequestEx(CUser* user, const MSG_BUY_CERASHOP_ITEM& msg)
+{
+    if (user == 0)
+    {
+        cMyTrace tr(kPrettyProcessBuy, 0x290, 0);
+        tr("There is no User in ItemVendingMachine");
+        return 0;
+    }
+
+    const char* body = reinterpret_cast<const char*>(&msg);
+    unsigned int itemCount = (unsigned char)body[0x36];
+    const unsigned int MAX_ENTRIES = 0x23;
+    const unsigned int STRIDE = 0x1cf;
+    if (itemCount > MAX_ENTRIES)
+        itemCount = MAX_ENTRIES;
+
+    CCeraShopGoods* goods[MAX_ENTRIES];
+    std::memset(goods, 0, sizeof(goods));
+    std::vector<std::pair<int, int> > pairs;
+    const CItem* relatedItemRef = 0;   // _CheckEnableItemCondition 输出（仅在 groupIdx 非 1/11 写入）
+
+    int groupIdx = -1;
+    int totalCera = 0, totalGold = 0, totalWin = 0, totalMileage = 0;
+
+    user->resetUsedCera();
+
+    // ---- 第一遍：逐条目校验、总价累计 ----
+    for (unsigned int i = 0; i < itemCount; ++i)
+    {
+        const char* entryBase = body + i * STRIDE;
+        int productNo = *(const int*)(body + 0x39 + i * STRIDE);
+        unsigned char slotByte = (unsigned char)body[0x37 + i * STRIDE];
+        unsigned char tagByte = (unsigned char)body[0x38 + i * STRIDE];
+        (void)slotByte; (void)tagByte;
+
+        goods[i] = G_CDataManager()->getItemList()->FindGoods(productNo);
+        if (goods[i] == 0)
+        {
+            m_ceraShop.ProcessError(user, 0x15, groupIdx, productNo, i + 1, itemCount,
+                                    (char)body[0xf]);
+            goods[i] = 0;
+            continue;
+        }
+        groupIdx = goods[i]->GetGroupIdx();
+
+        if (!_CheckEnableGiftCondition(goods[i], user, (char)body[0xf]))
+        {
+            m_ceraShop.ProcessError(user, 8, groupIdx, productNo, i + 1, itemCount,
+                                    (char)body[0xf]);
+            goods[i] = 0;
+            continue;
+        }
+
+        // IsBuyableRestrictItem(user, productNo, 1, i)：1=可购买（取反判不可购）。
+        if (!CerashopAddRestrict::Manager::IsBuyableRestrictItem(user, productNo, 1, i))
+        {
+            m_ceraShop.ProcessError(user, 0x71, groupIdx, productNo, i + 1, itemCount,
+                                    (char)body[0xf]);
+            goods[i] = 0;
+            continue;
+        }
+
+        if (!_CheckEnableItemCondition(goods[i], relatedItemRef, pairs))
+        {
+            m_ceraShop.ProcessError(user, 0x11, groupIdx, productNo, i + 1, itemCount,
+                                    (char)body[0xf]);
+            goods[i] = 0;
+            continue;
+        }
+
+        if (!_CheckEnableStateCondition(goods[i], user))
+        {
+            m_ceraShop.ProcessError(user, 7, groupIdx, productNo, i + 1, itemCount,
+                                    (char)body[0xf]);
+            goods[i] = 0;
+            continue;
+        }
+
+        int buyingCode = 0;
+        if (!m_ceraShop._CheckBuyingCondition(user, goods[i], productNo,
+                                              (unsigned char)body[0x37 + i * STRIDE],
+                                              (unsigned short)(unsigned char)body[0x38 + i * STRIDE],
+                                              (char)body[0xf], buyingCode))
+        {
+            m_ceraShop.ProcessError(user, (unsigned short)buyingCode, groupIdx, productNo,
+                                    i + 1, itemCount, (char)body[0xf]);
+            goods[i] = 0;
+            continue;
+        }
+
+        if (groupIdx == 0)
+        {
+            stAvatarTypeSelect_t avatarSel;
+            if (!_CheckEnableAvatarCondition(goods[i],
+                                             (char)body[0x38 + i * STRIDE],
+                                             (unsigned char)body[0x37 + i * STRIDE],
+                                             avatarSel))
+            {
+                m_ceraShop.ProcessError(user, 0x17, groupIdx, productNo, i + 1, itemCount,
+                                        (char)body[0xf]);
+                goods[i] = 0;
+                continue;
+            }
+            totalCera += avatarSel.m_fieldc;
+            totalGold += avatarSel.m_field8;
+            totalWin += avatarSel.m_field4;
+        }
+        else
+        {
+            totalCera += goods[i]->GetCeraPrice();
+            totalGold += goods[i]->GetGoldPrice();
+            totalWin += goods[i]->GetWinPoint();
+        }
+        totalMileage += goods[i]->GetMileagePrice();
+
+        if (*(const short*)(body + 0xd) == 1 && goods[i]->isCeraPointDisallowance_())
+        {
+            m_ceraShop.ProcessError(user, 0x138b, groupIdx, productNo, i + 1, itemCount,
+                                    (char)body[0xf]);
+            goods[i] = 0;
+            continue;
+        }
+    }
+
+    // ---- 总校验 ----
+    if (!m_ceraShop._CheckValidCount(goods))
+    {
+        m_ceraShop.ProcessError(user, 1, -1, *(const int*)(body + 0x39), 1, 1,
+                                (char)body[0xf]);
+        return 1;
+    }
+
+    // ---- 总价资金校验 ----
+    int errCode = 0;
+    if (user->GetCera() < totalCera) errCode = 0xb;
+    else if (user->getCurCharacMoney() < totalGold) errCode = 10;
+    else if (user->GetWinPoint() < totalWin) errCode = 0xc;
+    else if (user->GetMileage() < totalMileage) errCode = 0x3ed;
+    if (*(const short*)(body + 0xd) == 1)
+    {
+        errCode = 0;
+        if (user->GetCeraPoint() < (unsigned int)totalCera)
+            errCode = 0x138a;
+    }
+    if (errCode != 0)
+    {
+        LogManager::logFormat(
+            1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x34b,
+            "[ERROR] Not enough UserID[%s] ACera[%d] AGold[%d] AWP[%d] AMile[%d]",
+            user->getCurCharacName(), totalCera, totalGold, totalWin, totalMileage);
+        LogManager::logFormat(
+            1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x34c,
+            " / UCera[%d] UGold[%d] UWP[%d] AMile[%d]\n",
+            user->GetCera(), user->getCurCharacInvenR()->get_money(),
+            user->GetWinPoint(), user->GetMileage());
+        m_ceraShop.ProcessError(user, (unsigned short)errCode, -1,
+                                *(const int*)(body + 0x39), 1, 1, (char)body[0xf]);
+        return 1;
+    }
+
+    // ---- 第二遍：逐条资金校验、扣减与 IPG 派发 ----
+    int curGold = user->getCurCharacMoney();
+    int curWin = user->GetWinPoint();
+    int curMileage = user->GetMileage();
+    int curSec = GlobalData::s_systemTime_.getCurSec();
+
+    for (unsigned int j = 0; j < itemCount; ++j)
+    {
+        if (goods[j] == 0)
+            continue;
+        groupIdx = goods[j]->GetGroupIdx();
+
+        int ceraPrice = 0, goldPrice = 0, winPrice = 0, avatarField = 0;
+        if (groupIdx == 0)
+        {
+            stAvatarTypeSelect_t avatarSel;
+            if (!_CheckEnableAvatarCondition(goods[j],
+                                             (char)body[0x38 + j * STRIDE],
+                                             (unsigned char)body[0x37 + j * STRIDE],
+                                             avatarSel))
+            {
+                m_ceraShop.ProcessError(user, 0x17, groupIdx,
+                                        *(const int*)(body + 0x39 + j * STRIDE),
+                                        j + 1, itemCount, (char)body[0xf]);
+                goods[j] = 0;
+                continue;
+            }
+            ceraPrice = avatarSel.m_fieldc;
+            goldPrice = avatarSel.m_field8;
+            winPrice = avatarSel.m_field4;
+            avatarField = avatarSel.m_field0;
+        }
+        else
+        {
+            ceraPrice = goods[j]->GetCeraPrice();
+            goldPrice = goods[j]->GetGoldPrice();
+            winPrice = goods[j]->GetWinPoint();
+        }
+        int mileagePrice = goods[j]->GetMileagePrice();
+        int productNo = *(const int*)(body + 0x39 + j * STRIDE);
+
+        int perErr = 0;
+        if (user->GetCera() < (unsigned int)ceraPrice) perErr = 0xb;
+        else if (user->getCurCharacInvenR()->get_money() < goldPrice) perErr = 10;
+        else if (user->GetWinPoint() < (unsigned int)winPrice) perErr = 0xc;
+        if (*(const short*)(body + 0xd) == 1)
+        {
+            perErr = 0;
+            if (user->GetCeraPoint() < (unsigned int)ceraPrice)
+                perErr = 0x138a;
+        }
+        if (curGold < goldPrice) perErr = 10;
+        if (curWin < winPrice) perErr = 0xc;
+        if (user->GetMileage() < mileagePrice) perErr = 0x3ed;
+
+        if (perErr != 0)
+        {
+            LogManager::logFormat(
+                1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x3b3,
+                "IPG ERROR [Dispatcher_BuyCeraShopItem::dispatch_sig] UserID[%s] ACera[%d] AGold[%d] AWP[%d] AMile[%d]",
+                user->getCurCharacName(), ceraPrice, goldPrice, winPrice, mileagePrice);
+            LogManager::logFormat(
+                1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x3b4,
+                " / UCera[%d] UGold[%d] UWP[%d] UMile[%d]\n",
+                user->GetCera(), user->getCurCharacInvenR()->get_money(),
+                user->GetWinPoint(), user->GetMileage());
+            LogManager::logFormat(
+                1, "localjapan/AppendVendingMachine.cpp", kPrettyProcessBuy, 0x3b9,
+                "Error Goods No : %d", productNo);
+            m_ceraShop.ProcessError(user, (unsigned short)perErr, groupIdx, productNo,
+                                    j + 1, itemCount, (char)body[0xf]);
+            goods[j] = 0;
+            continue;
+        }
+
+        // 扣减（clamp 到 0）
+        curGold = (curGold - goldPrice) > 0 ? (curGold - goldPrice) : 0;
+        curWin = (curWin - winPrice) > 0 ? (curWin - winPrice) : 0;
+        curMileage = (curMileage - mileagePrice) > 0 ? (curMileage - mileagePrice) : 0;
+
+        if (!user->IsRestrictedGoods(goods[j]->GetFeaturedIdx()))
+        {
+            Stream* stream = GlobalData::s_stream_pool->Acquire(
+                "localjapan/AppendVendingMachine.cpp", 0x3cb);
+            CStreamGuard guard(stream, false);
+            CStreamGuard* g = guard.operator->();
+            stCeraShopIPGRequest_t* req = g->GetInBuffer<stCeraShopIPGRequest_t>();
+            req->m_productNo = productNo;
+            req->m_groupIdx = goods[j]->GetGroupIdx();
+            req->m_stackCount = (unsigned short)goods[j]->GetStackCount();
+            req->m_ceraPrice = (unsigned int)ceraPrice;
+            req->m_goldPrice = (unsigned int)goldPrice;
+            req->m_winPoint = (unsigned int)winPrice;
+            req->m_itemIdx = goods[j]->GetItemIdx();
+            req->m_avatarType0 = (unsigned char)body[0x37 + j * STRIDE];
+            req->m_avatarType1 = (unsigned char)body[0x38 + j * STRIDE];
+            req->m_avatarField = (unsigned int)avatarField;
+            req->m_featuredIdx = goods[j]->GetFeaturedIdx();
+            req->m_itemCount = itemCount;
+            req->m_seq = j + 1;
+            req->m_curSec = curSec;
+            req->m_buyFlag = (unsigned char)body[0xf];
+            req->m_accId = *(const unsigned int*)(body + 0x2e);
+            req->m_characNo = *(const int*)(body + 0x32);
+            req->m_buytype = *(const unsigned short*)(body + 0xd);
+            req->m_subCount = (unsigned char)body[0x3d + j * STRIDE];
+            for (unsigned int k = 0; k < req->m_subCount && k < MAX_ENTRIES; ++k)
+            {
+                // 子项数组：+0x3e 起每项 5 字节 { int idx; uchar val; }
+                int idx = *(const int*)(body + 0x3e + k * 5 + j * STRIDE);
+                unsigned char val = (unsigned char)body[0x42 + k * 5 + j * STRIDE];
+                std::memcpy(req->m_subEntries[k], &idx, sizeof(int));
+                req->m_subEntries[k][4] = val;
+            }
+            req->m_optCount = (unsigned char)body[0xed + j * STRIDE];
+            for (unsigned int k = 0; k < req->m_optCount && k < MAX_ENTRIES; ++k)
+            {
+                // 选项数组：+0x3e.. 每项 8 字节 { ulong itemIdx; ushort a; ushort b; }
+                const char* optBase = body + 0x3e + (k + 0x16) * 8 + j * STRIDE;
+                unsigned long itemIdx = *(const unsigned long*)(optBase);
+                unsigned short a = *(const unsigned short*)(optBase + 4);
+                unsigned short b = *(const unsigned short*)(optBase + 6);
+                unsigned char* opt = req->m_optEntries[k];
+                // 选项项布局：{ ulong itemIdx(4, at +0); ushort a(2, at +4); ushort b(2, at +6) }
+                //（dest 为 (k+0x2c)*8 + {4,8,10}，即 m_optEntries[k] 的 +0/+4/+6）。
+                std::memcpy(opt, &itemIdx, sizeof(unsigned long));
+                std::memcpy(opt + 4, &a, sizeof(unsigned short));
+                std::memcpy(opt + 6, &b, sizeof(unsigned short));
+            }
+
+            guard.operator*()->operator<<(mileagePrice);
+            Stream* theStream = guard.Get();
+
+            char itemStr[0x400];
+            char ceraPriceStr[0x24];
+            char productStr[8];
+            char uniqueStr[0x15];
+            std::memset(itemStr, 0, sizeof(itemStr));
+            std::memset(ceraPriceStr, 0, sizeof(ceraPriceStr));
+            std::memset(productStr, 0, sizeof(productStr));
+            std::memset(uniqueStr, 0, sizeof(uniqueStr));
+            OS_API::snprintf(productStr, sizeof(productStr), "%d", productNo);
+            OS_API::snprintf(ceraPriceStr, sizeof(ceraPriceStr), "%d", ceraPrice);
+            _GetItemString(goods[j], itemStr, 0x400);
+            char* uniqueNo = GenUniqueNo_asm(uniqueStr);
+
+            typedef void (*IPGInputFn)(void*, CUser*, const char*, const char*,
+                                       const char*, const char*, const char*, void*);
+            IPGInputFn fn = 0;
+            if (ceraPrice == 0)
+                fn = (IPGInputFn)(*(void**)(*(char**)GlobalData::s_pIPGHelper + 0x18));
+            else if (*(const short*)(body + 0xd) == 1)
+                fn = (IPGInputFn)(*(void**)(*(char**)GlobalData::s_pIPGHelper + 0x10));
+            else
+                fn = (IPGInputFn)(*(void**)(*(char**)GlobalData::s_pIPGHelper + 0x14));
+            if (fn)
+                fn(GlobalData::s_pIPGHelper, user, productStr, ceraPriceStr, uniqueNo,
+                   itemStr, user->getCurCharacName(), theStream);
+            guard.~CStreamGuard();
+        }
+        else
+        {
+            m_ceraShop.ProcessError(user, 0x14, groupIdx, productNo,
+                                    j + 1, itemCount, (char)body[0xf]);
+            goods[j] = 0;
+        }
+    }
+
+    return 1;
+}
+Secu_DataControl::Secu_DataControl() {}  // ORIG 0x82aa6ba：空体（纯 ret，无成员初始化）
+
+bool CDBConnector::GetConnInfo(DBGroupMap& groupMap, DBInfoMap& infoMap)
+{
+    // ORIG 0x080ec9ca：遍历 groupMap，逐组 QueryConnInfo(idx, group, infoMap)；
+    // 任一失败返回 false，全部成功返回 true。
+    for (DBGroupMap::iterator it = groupMap.begin(); it != groupMap.end(); ++it)
+    {
+        if (!QueryConnInfo(it->first, it->second, infoMap))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool CDBConnector::Connect(DBInfoMap infoMap)
+{
+    // ORIG 0x080ec760：按值遍历连接表；idx==0/5 跳过；cMyTrace 记录
+    // "Open(type:%2d, %s/%d/%s/%s)"（.rodata 0x8b356a4）；Open 失败即 false。
+    for (DBInfoMap::iterator it = infoMap.begin(); it != infoMap.end(); ++it)
+    {
+        ENUM_DB_HANDLE_IDX idx = it->first;
+        STDBConnInfo& info = it->second;
+        if (!(idx == 0 || idx == (ENUM_DB_HANDLE_IDX)5))
+        {
+            cMyTrace t("CDBConnector::Connect", 0x4e, 1);
+            t("Open(type:%2d, %s/%d/%s/%s)", (int)idx, info.m_host,
+              (int)info.m_port, info.m_db, info.m_user);
+            if (!Open(idx, (ENUM_SERVER_GROUP)0, info))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+bool CDBConnector::ConnectWithServerGroup(DBInfoMap infoMap)
+{
+    // ORIG 0x080ec8f8：遍历连接表；idx==0 跳过；以 +0x168 处 server group
+    // 为组参数调 Open；失败即 false。
+    for (DBInfoMap::iterator it = infoMap.begin(); it != infoMap.end(); ++it)
+    {
+        ENUM_DB_HANDLE_IDX idx = it->first;
+        if (idx != (ENUM_DB_HANDLE_IDX)0)
+        {
+            STDBConnInfo& info = it->second;
+            ENUM_SERVER_GROUP group =
+                *(ENUM_SERVER_GROUP*)(reinterpret_cast<char*>(&info) + 0x160);  // ORIG +0x168-8（map 节点值基），推断映射
+            if (!Open(idx, group, info))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
 
 // ---- CDBConnector ----
 CDBConnector::CDBConnector(DBMgr* dbMgr)
@@ -1712,10 +2478,46 @@ bool CDBConnector::Open(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
     return GlobalData::s_db_mgr->Open(idx, info.m_pass, (unsigned int)info.m_port,
                                       info.m_user, info.m_db, info.m_host, group);
 }
-bool CDBConnector::GetConnInfo(DBGroupMap&, DBInfoMap&) { return true; }  // TODO(后续批次)
-bool CDBConnector::Connect(DBInfoMap) { return true; }  // TODO(后续批次)
-bool CDBConnector::ConnectWithServerGroup(DBInfoMap) { return true; }  // TODO(后续批次)
+// ---- CDBConnector::QueryConnInfo ORIG @ 0x080eca6c（U3ShopDb 批次） ----
+// 用主 DB 句柄(0,0) 查 db_connect 表，逐列填 STDBConnInfo 后放入 outMap[idx]。
+// 列序：db_name(0x1f→m_db) / db_ip(0x11→m_host) / db_port(→m_port) /
+//       db_userid(0x15→m_user) / db_passwd（先清零 60 字节，0x3c→+0x2d 起）。
+// 密文经 CEnvironment::DecryptValue 解出（ORIG 解密结果未回写结构，仅校验）。
+bool CDBConnector::QueryConnInfo(ENUM_DB_HANDLE_IDX idx, ENUM_SERVER_GROUP group,
+                                 DBInfoMap& outMap)
+{
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)0,
+                                                  (ENUM_SERVER_GROUP)0);
+    if (!db ||
+        !db->set_query("seLect db_name,db_ip,db_port,db_userid,db_passwd from "
+                       "db_connect where db_server_group = %d and db_type = %d",
+                       (int)group, (int)idx))
+        return false;
+    if (!db->exec(true) || !db->fetch())
+        return false;
+    if (db->get_n_rows() != 1)
+        return false;
 
+    STDBConnInfo info;
+    char passCipher[0x3c];
+    char passPlain[0x15];
+    if (!db->get_str(0, info.m_db, 0x1f))
+        return false;
+    if (!db->get_str(1, info.m_host, 0x11))
+        return false;
+    if (!db->get_int(2, info.m_port))
+        return false;
+    if (!db->get_str(3, info.m_user, 0x15))
+        return false;
+    std::memset(reinterpret_cast<char*>(&info) + 0x2d, 0, 60);
+    if (!db->get_str(4, passCipher, 0x3c))
+        return false;
+    if (!G_CEnvironment()->DecryptValue(passCipher, passPlain))
+        return false;
+    // ORIG 0x80eccb8：rep movsd 0x5a dword（0x168 字节）拷入 outMap[idx]。
+    outMap[idx] = info;
+    return true;
+}
 // ---- sync_script ----
 namespace sync_script
 {
@@ -1728,162 +2530,13 @@ void CSyncScript::SetEnable(bool) {}  // TODO(后续批次)
 bool CSyncScript::IsEnable() { return false; }  // TODO(后续批次)
 }
 
-// ---- CSyncSlangFilter（GetInstance/HasSlang/HasSlangName 同时服务 CDataManager）----
-// GetInstance/FreeInstance 用 ORIG 全局 instance（0x9473894）单例；AddSlangList/
-// AddSlangListName 按 ORIG 反汇编从 DB 表读取并逐条 AddSlang/AddSlangName。
-static CSyncSlangFilter* s_slangFilterInstance = 0;  // 对应 ORIG .bss 0x9473894
-
-CSyncSlangFilter* CSyncSlangFilter::GetInstance()
-{
-    // ORIG W 0x08235001：if (instance == 0) instance = new CSyncSlangFilter;
-    if (s_slangFilterInstance == 0)
-    {
-        s_slangFilterInstance = new CSyncSlangFilter;
-    }
-    return s_slangFilterInstance;
-}
-
-void CSyncSlangFilter::FreeInstance()
-{
-    // ORIG W 0x082a7147：if (instance) { delete instance; instance = 0; }
-    if (s_slangFilterInstance)
-    {
-        delete s_slangFilterInstance;
-        s_slangFilterInstance = 0;
-    }
-}
-
-bool CSyncSlangFilter::AddSlangList()
-{
-    // ORIG T 0x0862dccc：查询 slang_list 表，逐行 fetch → AddSlang(buf)。
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query("seLect slang from slang_list");
-    if (db->exec(true) != 1)
-    {
-        return false;
-    }
-    int rows = db->get_n_rows();
-    for (int i = 0; i < rows; ++i)
-    {
-        if (db->fetch() != 1)
-        {
-            return false;
-        }
-        char buf[0x33];
-        memset(buf, 0, sizeof(buf));
-        if (db->get_str(0, buf, 0x33) != 1)
-        {
-            cMyTrace t("bool CSyncSlangFilter::AddSlangList()", 0xbc, 5);
-            t("CSyncSlangFilter::AddSlangList");
-            return false;
-        }
-        GetInstance()->AddSlang(std::string(buf));
-    }
-    return true;
-}
-
-bool CSyncSlangFilter::AddSlangListName()
-{
-    // ORIG T 0x0862dec6：查询 slang_list_name 表，逐行 fetch → AddSlangName(buf)。
-    MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
-                                                  (ENUM_SERVER_GROUP)0);
-    db->set_query("seLect slang from slang_list_name");
-    if (db->exec(true) != 1)
-    {
-        return false;
-    }
-    int rows = db->get_n_rows();
-    for (int i = 0; i < rows; ++i)
-    {
-        if (db->fetch() != 1)
-        {
-            return false;
-        }
-        char buf[0x33];
-        memset(buf, 0, sizeof(buf));
-        if (db->get_str(0, buf, 0x33) != 1)
-        {
-            cMyTrace t("bool CSyncSlangFilter::AddSlangListName()", 0xd9, 5);
-            t("CSyncSlangFilter::AddSlangList");
-            return false;
-        }
-        GetInstance()->AddSlangName(std::string(buf));
-    }
-    return true;
-}
-
-CSyncSlangFilter::CSyncSlangFilter()
-{
-    // ORIG T 0x0862dba4：new 两个 IMPL + 构造 rwLock@+8。此处构造两个集合与互斥锁。
-    pthread_mutex_init(&m_lock, 0);
-}
-
-CSyncSlangFilter::~CSyncSlangFilter()
-{
-    // ORIG T 0x0862dc36：销毁 IMPL×2 + rwLock。
-    pthread_mutex_destroy(&m_lock);
-}
-
-void CSyncSlangFilter::AddSlang(const std::string& str)
-{
-    // ORIG T 0x0862e72a：以 writeGuard 保护，逐字符 SlangNode::AddChild 建树。
-    // 推断：集合插入语义等价。
-    pthread_mutex_lock(&m_lock);
-    m_slangSet.insert(str);
-    pthread_mutex_unlock(&m_lock);
-}
-
-void CSyncSlangFilter::AddSlangName(const std::string& str)
-{
-    // ORIG T 0x0862e276：同上，写入名字树。
-    pthread_mutex_lock(&m_lock);
-    m_slangNameSet.insert(str);
-    pthread_mutex_unlock(&m_lock);
-}
-
-bool CSyncSlangFilter::HasSlang(std::string& name)
-{
-    // ORIG T 0x0862e622：对每个起点 i，match(substr(i, size-i)) 判定后缀是否命中字典树。
-    // 推断：set 后缀查找语义等价。
-    pthread_mutex_lock(&m_lock);
-    bool hit = false;
-    for (unsigned int i = 0; i < name.size(); ++i)
-    {
-        if (m_slangSet.find(name.substr(i)) != m_slangSet.end())
-        {
-            hit = true;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&m_lock);
-    return hit;
-}
-
-bool CSyncSlangFilter::HasSlangName(std::string& name)
-{
-    pthread_mutex_lock(&m_lock);
-    bool hit = false;
-    for (unsigned int i = 0; i < name.size(); ++i)
-    {
-        if (m_slangNameSet.find(name.substr(i)) != m_slangNameSet.end())
-        {
-            hit = true;
-            break;
-        }
-    }
-    pthread_mutex_unlock(&m_lock);
-    return hit;
-}
-
 // ---- 事件/GM/统计 ----
 // CEventManager 构造/析构已移入 CEventManager.cpp（独立 TU）。
-Gm_List::Gm_List() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
 CGM_Manager::CGM_Manager()
 {
     // ORIG 0x082990d0：map 构造（成员自动）+ rwLock 构造 + 存 DB 句柄(6) +
     // LoadGmListFromDb()。
-    pthread_rwlock_init(&m_lock, 0);
+
     m_db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)6,
                                              (ENUM_SERVER_GROUP)0);
     LoadGmListFromDb();
@@ -1891,7 +2544,7 @@ CGM_Manager::CGM_Manager()
 CGM_Manager::~CGM_Manager()
 {
     // ORIG 0x08299159 附近：rwLock 析构 + map 自动析构。
-    pthread_rwlock_destroy(&m_lock);
+
 }
 bool CGM_Manager::LoadGmListFromDb()
 {
@@ -1904,7 +2557,7 @@ bool CGM_Manager::LoadGmListFromDb()
         t("Failed to get GM list from DB.");
         return false;
     }
-    pthread_rwlock_wrlock(&m_lock);
+    m_lock.wrlock();
     int rows = m_db->get_n_rows();
     int result = 1;
     for (int i = 0; i < rows; ++i)
@@ -1928,10 +2581,40 @@ bool CGM_Manager::LoadGmListFromDb()
         }
         m_gmMap[mId].m_level = level;
     }
-    pthread_rwlock_unlock(&m_lock);
+    m_lock.unlock();
     return result == 1;
 }
-CStatisticMgr::CStatisticMgr() { memset(m_pad, 0, sizeof(m_pad)); }  // TODO(后续批次)
+CStatisticMgr::CStatisticMgr()
+{
+    // ORIG 0x82aa89e：两个统计子对象（map 成员自动构造）。
+}
+
+// ORIG T 0x0860ecc6 IncreaseLevelDungeonPlay(level, playCount)：
+// level ∉ [1,200] → 仅 trace；否则 find 命中 → m_playCount += playCount、
+// ++m_userCount；未命中 → insert{1, playCount}。
+void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int level, int playCount)
+{
+    if (level < 1 || level > 200)
+    {
+        cMyTrace tr("void CLevelDungeonPlayStatistic::IncreaseLevelDungeonPlay(int, int)",
+                    0x550, 5);
+        tr("LEVEL_DUNGEON_PLAY_STATISTIC wrong level(%d)", level);
+        return;
+    }
+    std::map<int, stDungeonPlayInfo>::iterator it = m_levelPlayMap.find(level);
+    if (it != m_levelPlayMap.end())
+    {
+        it->second.m_playCount += playCount;
+        it->second.m_userCount += 1;
+    }
+    else
+    {
+        stDungeonPlayInfo info;
+        info.m_userCount = 1;
+        info.m_playCount = playCount;
+        m_levelPlayMap.insert(std::make_pair(level, info));
+    }
+}
 
 // ---- 后续批次业务模块 ----
 break_away_prevent::CBreakAwayPreventSystem::CBreakAwayPreventSystem()
@@ -1972,11 +2655,8 @@ expert_job::CExpertJobMgr::~CExpertJobMgr()
     delete m_factory;
     m_factory = 0;
 }
-village_object::CVillageObjectMgr::CVillageObjectMgr()
-{
-    memset(m_pad, 0, sizeof(m_pad));
-}  // TODO(后续批次)
-village_object::CVillageObjectMgr::~CVillageObjectMgr() {}  // TODO(后续批次)
+// CVillageObjectMgr ctor/dtor 现由 CVillageObjectMgr.cpp 提供
+//（ORIG 0x86b6f30 默认构造 std::map；dtor 0x86b6f44 调用 map dtor）。
 village_attacked::CVillageMonsterMgr::CVillageMonsterMgr()
 {
     memset(m_pad, 0, sizeof(m_pad));
@@ -2014,12 +2694,113 @@ InstanceRentalSystem::~InstanceRentalSystem()
 }
 void InstanceRentalSystem::registerRentalMachine(int idx, IRentalMachine* m)
 {
-    // ORIG T 0x08270320：m_impl->m_machines[idx] = m。
     if (m_impl)
     {
         m_impl->m_machines[idx] = m;
     }
 }
+
+RentalMachinePcRoom::RentalMachinePcRoom()
+{
+    // ORIG 0x82703c0：IRentalMachine 基类 + vptr；new Impl(0x11c) 存 auto_ptr@+4；
+    // initLoggingEnvironment()。
+    m_impl = new RentalMachinePcRoomImpl;
+    initLoggingEnvironment();
+}
+void RentalMachinePcRoom::initLoggingEnvironment()
+{
+    // ORIG 0x8270886：snprintf(impl, 0x103, "./log/%s/dw2_RentalItems", 文件名)。
+    if (m_impl == 0)
+    {
+        return;
+    }
+    snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
+             G_CEnvironment()->get_file_name());
+}
+
+RentalMachineDimension::RentalMachineDimension()
+{
+    // ORIG 0x826eafc：与 PcRoom 同构（vptr 表不同）。
+    m_impl = new RentalMachineDimensionImpl;
+    initLoggingEnvironment();
+}
+void RentalMachineDimension::initLoggingEnvironment()
+{
+    // ORIG 0x826efdc：同 PcRoom 日志路径（.rodata 0x8bf90c2 同串）。
+    if (m_impl == 0)
+    {
+        return;
+    }
+    snprintf(m_impl->m_data, 0x103, "./log/%s/dw2_RentalItems",
+             G_CEnvironment()->get_file_name());
+}
+
+// ---- IRentalMachine 槽实现（PcRoom / Dimension 同构，逐报告转写）----
+
+// PcRoom::Ready（ORIG 0x0827073e）：尾调 checkAllRentalItemScript()。
+bool RentalMachinePcRoom::Ready()
+{
+    return checkAllRentalItemScript();
+}
+// Dimension::Ready（ORIG 0x0826ee94）：同构。
+bool RentalMachineDimension::Ready()
+{
+    return checkAllRentalItemScript();
+}
+
+// PcRoom::CheckRentableItem（ORIG 0x08270752）：
+// return m_impl->m_set.find(itemIdx) != m_impl->m_set.end()。
+bool RentalMachinePcRoom::CheckRentableItem(unsigned int itemIdx)
+{
+    // ORIG 0x08270752：auto_ptr 解引用后 m_set.find(itemIdx) != end()。
+    std::set<unsigned int>::const_iterator it = m_impl->m_set.find(itemIdx);
+    return it != m_impl->m_set.end();
+}
+// Dimension::CheckRentableItem（ORIG 0x0826eea8）：同构。
+bool RentalMachineDimension::CheckRentableItem(unsigned int itemIdx)
+{
+    std::set<unsigned int>::const_iterator it = m_impl->m_set.find(itemIdx);
+    return it != m_impl->m_set.end();
+}
+
+// ---- InstanceRentalSystem 查询/分发（ORIG 报告 InstanceRentalSystem/*.md）----
+
+// getMachine（ORIG T 0x08270348）：map find，未命中返回 0。
+IRentalMachine* InstanceRentalSystem::getMachine(int idx)
+{
+    std::map<int, IRentalMachine*>::const_iterator it = m_impl->m_machines.find(idx);
+    return it != m_impl->m_machines.end() ? it->second : 0;
+}
+
+// Ready（ORIG T 0x082701dc）：遍历机器表；任一为空或其槽3 Ready() 返回非 1
+// 即返回 false，全部就绪（含空表）返回 true。
+bool InstanceRentalSystem::Ready()
+{
+    for (std::map<int, IRentalMachine*>::iterator it = m_impl->m_machines.begin();
+         it != m_impl->m_machines.end(); ++it)
+    {
+        IRentalMachine* machine = it->second;
+        if (machine == 0 || !machine->Ready())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Rent 分发（ORIG T 0x08270288）：按 RentInput.m_machineKey 取机器并经槽2
+// 调用；无机器时 ORIG 直接返回 1。
+bool InstanceRentalSystem::Rent(CUser& user, const RentInput& input,
+                                RentOutput& output)
+{
+    IRentalMachine* machine = getMachine(input.m_machineKey);
+    if (machine == 0)
+    {
+        return true;
+    }
+    return machine->Rent(user, input, output);
+}
+
 CDailyScheduleManager::CDailyScheduleManager()
 {
     memset(m_pad, 0, sizeof(m_pad));
@@ -2129,18 +2910,89 @@ StackableAction::Action::Action()
 }
 int StackableAction::Action::proc_bingo(input_param& p)
 {
-    (void)p;
-    return 0;  // 推断：Bingo 商城动作未还原
+    // ORIG 0x0827fb14：BingoEvent(0x6a) IsEventing(0) 检查后转发 reqBingoMark；
+    // 未开启返回 0x13。
+    CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
+    if (ev == 0 || !ev->IsEventing(0))
+    {
+        return 0x13;
+    }
+    ev = GlobalData::s_event_manager->GetRepeatEvent(0x6a);
+    if (ev == 0)
+    {
+        return 0x13;
+    }
+    // BingoEvent 完整类型未建模（CBingo/shared_ptr 依赖缺失）。按 ORIG 0x080c9ff6
+    // （docs/class_func_reports/BingoEvent/reqBingoMark.md）内联还原可证实前缀检查；
+    // 随机标记路径依赖 CBingo::getBingoRandomVaule/calNewValue，未建模时按「无法标记」
+    // 返回 0x13（推断）。内联定义避免产生 ORIG 不存在的独立链接符号。
+    struct BingoEventView
+    {
+        int reqBingoMark(StackableAction::input_param& p)
+        {
+            if (p.m_user == 0 || p.m_item == 0)
+            {
+                return 0x13;
+            }
+            unsigned char* bd = (unsigned char*)p.m_user->getBingoData();
+            if ((int)(signed char)bd[4] >= 3)
+            {
+                return 7;
+            }
+            int no = (*(std::vector<int>*)((char*)p.m_item + 0x3a0))[0];
+            if (no < 1 || no > 0x32)
+            {
+                return 0x17;
+            }
+            return 0x13; // 推断：CBingo 标记链路未建模
+        }
+    };
+    return BingoEventView().reqBingoMark(p);
 }
 int StackableAction::Action::proc_addFatigue(input_param& p)
 {
-    (void)p;
-    return 0;  // 推断：疲劳动作未还原
+    // ORIG 0x0827fbd6：user/item 判空→0x13；item+0x3a0 的 vector<int> 取第 0 项
+    // 与当前疲劳比较；疲劳不足返回 0x5f；否则扣减并 SendFatigue。
+    if (p.m_user == 0)
+    {
+        return 0x13;
+    }
+    if (p.m_item == 0)
+    {
+        return 0x13;
+    }
+    std::vector<int>* costs = reinterpret_cast<std::vector<int>*>(
+        reinterpret_cast<char*>(p.m_item) + 0x3a0);  // CItem 未建模字段（推断）
+    if (costs->empty())
+    {
+        return 4;
+    }
+    int need = std::max(0, (*costs)[0]);
+    int cur = p.m_user->getCurCharacFatigue();
+    if ((int)(cur & 0xffff) < need)
+    {
+        return 0x5f;
+    }
+    int after = (cur & 0xffff) - need;
+    int lower = 0;
+    p.m_user->setCurCharacFatigue(std::max(after, lower));
+    p.m_user->SendFatigue();
+    return 0;
 }
 int StackableAction::Action::proc_lotteryCount(input_param& p)
 {
-    (void)p;
-    return 0;  // 推断：抽奖计数动作未还原
+    // ORIG 0x0827fb86：user/item 判空→0x13；否则 giveLotteryCountItem(
+    // item->get_index(), false)，返回 0。
+    if (p.m_user == 0)
+    {
+        return 0x13;
+    }
+    if (p.m_item == 0)
+    {
+        return 0x13;
+    }
+    p.m_user->giveLotteryCountItem(p.m_item->get_index(), false);
+    return 0;
 }
 void StackableAction::Action::init_function_type()
 {
@@ -2202,10 +3054,10 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
     {
         m_rand[i].seed(t);
     }
-    m_field8 = 0;
-    m_fieldc = 0;
+    m_field08 = 0;
+    m_disabled = 0;
     m_field10 = 0;
-    m_field14 = GetRandomOption();
+    m_optionSet = GetRandomOption();
 }
 random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
 {
@@ -2215,6 +3067,32 @@ random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
 }
 
 // ---- 限制服务/地理/人证 ----
+RestrictGeolocation::RestrictGeolocation()
+{
+    // ORIG 0x0817097c：ARAD::Singleton 基类构造；m_geoip=0；unordered_set 构造
+    // （此处以 std::set 语义等价，成员自动构造）。
+    m_geoip = 0;
+}
+
+RestrictGeolocation::~RestrictGeolocation()
+{
+    // ORIG 0x081709fe：closeGeolocation() + 集合析构（成员自动）。
+    closeGeolocation();
+}
+
+void RestrictGeolocation::closeGeolocation()
+{
+    // ORIG 0x08170a88：GeoIP_delete(m_geoip)。工程未链 libGeoIP，经 dlsym
+    // 动态查找（与 initGeolocation 的 GeoIP_new 同模式，推断）。
+    typedef void (*GeoIPDeleteFn)(void*);
+    GeoIPDeleteFn geoipDelete = (GeoIPDeleteFn)dlsym(RTLD_DEFAULT, "GeoIP_delete");
+    if (geoipDelete)
+    {
+        geoipDelete(m_geoip);
+    }
+    m_geoip = 0;
+}
+
 bool RestrictGeolocation::initGeolocation()
 {
     // ORIG 0x08170a46：m_geoip 为空则 GeoIP_new(0)；失败返回 0；随后 loadData()。
@@ -2297,133 +3175,6 @@ void* CreateAntiServerObj(const char* path)
     return ((void* (*)())fn)();
 }
 
-// ---- ServiceRestrictManager（ORIG 0x0816e272 ctor / 0x0816e2b2 initialize /
-//      0x0816e7d6 loadPolicy / 0x0816e8ce savePolicy）----
-// 依赖策略类（NullPolicy/AuthMobileRestrictPolicy/CreateCharacterRestrictPolicy/
-// SecurityRestrictPolicy/InterfaceServicePolicy）与 Taiwan 内部包
-// （SigLoadRestrictPolicy/SigSaveRestrictPolicy）。策略类未建模，本 TU 以最小
-// 内部类型 + map 布局还原 initialize 的注册语义（推断：策略行为未还原）。
-namespace
-{
-struct InterfaceServicePolicyBase
-{
-    virtual ~InterfaceServicePolicyBase() {}
-    virtual int getCode() = 0;
-    virtual void save(Taiwan::SigLoadRestrictPolicy*) = 0;
-};
-
-struct NullPolicy : InterfaceServicePolicyBase
-{
-    virtual int getCode() { return 0; }
-    virtual void save(Taiwan::SigLoadRestrictPolicy*) {}
-};
-struct AuthMobileRestrictPolicy : InterfaceServicePolicyBase
-{
-    virtual int getCode() { return 1; }
-    virtual void save(Taiwan::SigLoadRestrictPolicy*) {}
-};
-struct CreateCharacterRestrictPolicy : InterfaceServicePolicyBase
-{
-    virtual int getCode() { return 2; }
-    virtual void save(Taiwan::SigLoadRestrictPolicy*) {}
-};
-struct SecurityRestrictPolicy : InterfaceServicePolicyBase
-{
-    virtual int getCode() { return 3; }
-    virtual void save(Taiwan::SigLoadRestrictPolicy*) {}
-};
-}
-
-class CDataManager;
-CDataManager* G_CDataManager();
-
-class ServiceRestrictManager
-{
-public:
-    bool initialize();
-    void savePolicy();
-    void loadPolicy();
-    // ORIG 布局：map<RestrictCategory::Enum, InterfaceServicePolicy*> + 2 标志字节。
-    std::map<int, InterfaceServicePolicyBase*> m_policyMap;
-    char m_flag18;   // +0x18（ORIG ctor 置 0）
-    char m_flag19;   // +0x19（channel_no==1 时置 1）
-};
-
-bool ServiceRestrictManager::initialize()
-{
-    // ORIG 0x0816e2b2：channel_no==1 → 置 0x19=1；创建 4 个策略对象按 getCode()
-    // 注册进 map（失败 log 并返回 0）。
-    if (G_CEnvironment()->get_channel_no() == 1)
-    {
-        m_flag19 = 1;
-    }
-    m_policyMap[0] = new NullPolicy;
-    m_policyMap[1] = new AuthMobileRestrictPolicy;
-    m_policyMap[2] = new CreateCharacterRestrictPolicy;
-    m_policyMap[3] = new SecurityRestrictPolicy;
-    if (m_policyMap[0] == 0 || m_policyMap[1] == 0 ||
-        m_policyMap[2] == 0 || m_policyMap[3] == 0)
-    {
-        LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
-                              "bool ServiceRestrictManager::initialize()", 0x169,
-                              "[Taiwan, Restrict] Fail create NullPolicy.");
-        return false;
-    }
-    return true;
-}
-
-void ServiceRestrictManager::savePolicy()
-{
-    // ORIG 0x0816e8ce：0x19==1 时遍历 map，每条策略经 SigSaveRestrictPolicy
-    // 流（internal_stream(2,-1)）序列化后入 DB 队列。策略 save() 为虚调用，
-    // 当前策略类为空实现（推断：策略数据未还原）。
-    if (m_flag19 != 1)
-    {
-        return;
-    }
-    for (std::map<int, InterfaceServicePolicyBase*>::iterator it = m_policyMap.begin();
-         it != m_policyMap.end(); ++it)
-    {
-        if (it->second == 0)
-        {
-            continue;
-        }
-        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-                               "localtaiwan/System/ServiceRestrictManager.cpp", 0x1de), true);
-        Taiwan::internal_stream(guard, TaiwanInternalPack::T(2), 0xffffffff);
-        Taiwan::SigLoadRestrictPolicy* sig =
-            guard->GetInBuffer<Taiwan::SigLoadRestrictPolicy>();
-        if (sig == 0)
-        {
-            cMyTrace t("void ServiceRestrictManager::savePolicy()", 0x1e3, 5);
-            t("[Taiwan, Restrict] SigSaveRestrictPolicy is null.");
-            return;
-        }
-        it->second->save(sig);
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-}
-
-void ServiceRestrictManager::loadPolicy()
-{
-    // ORIG 0x0816e7d6：SigLoadRestrictPolicy 请求（internal_stream(1,-1)）入 DB 队列。
-    CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
-                           "localtaiwan/System/ServiceRestrictManager.cpp", 0x1c5), true);
-    Taiwan::internal_stream(guard, TaiwanInternalPack::T(1), 0xffffffff);
-    Taiwan::SigLoadRestrictPolicy* sig =
-        guard->GetInBuffer<Taiwan::SigLoadRestrictPolicy>();
-    if (sig == 0)
-    {
-        LogManager::logFormat(1, "localtaiwan/System/ServiceRestrictManager.cpp",
-                              "void ServiceRestrictManager::loadPolicy()", 0x1cc,
-                              "[Taiwan, Restrict] SigLoadRestrictPolicy is null.");
-    }
-    else
-    {
-        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
-    }
-}
-
 // ---- CDBEnviroment ----
 CDBEnviroment::CDBEnviroment() : CEnvironment()
 {
@@ -2472,7 +3223,7 @@ CRijndael* GlobalData::s_pcryptRijndael_MousePassword_ = 0;
 Cipher* GlobalData::s_secu_cipher_keystring_manager_[0x4e20] = {0};
 CTEA* GlobalData::s_pcryptTEA_MousePassword_ = 0;
 CTEA* GlobalData::s_pcryptTEA_SecurityCard_ = 0;
-char GlobalData::g_SPremiumInfo[0x7740];
+SPremiumInfo GlobalData::g_SPremiumInfo[0x6a];   // 09483a40；静态初始化逐元素构造（ORIG _GLOBAL__I_g_SPremiumInfo 0x86b080a）
 WongWork::CSimpleSSO* GlobalData::s_psimpleSSO = 0;
 WongWork::CSecurityCardCenter* GlobalData::s_securityCardCenter = 0;
 WongWork::CGMAccounts* GlobalData::s_pGMAccounts_ = 0;
@@ -2486,7 +3237,7 @@ CDBConnector* GlobalData::s_db_connector = 0;
 void* GlobalData::s_pCompoundAvatar = 0;
 void* GlobalData::s_pCompoundBindCube = 0;
 void* GlobalData::s_pTowerOfDespairMgr = 0;
-void* GlobalData::s_pEvent_UpGrade_Jar = 0;
+Event_Upgrade_Jar* GlobalData::s_pEvent_UpGrade_Jar = 0;
 CGM_Manager* GlobalData::s_GM_Manager = 0;
 ItemVendingMachine* GlobalData::s_pItemVendingMachine = 0;
 CStatisticMgr* GlobalData::s_statisticMgr = 0;
@@ -2591,7 +3342,7 @@ void GlobalData::Fini()
     delete s_ref_pvp_grade;
     if (s_accept_thr)
     {
-        s_accept_thr->Stop();
+        s_accept_thr->stop();
     }
     if (s_monitor_proxy_mgr)
     {
@@ -2610,27 +3361,27 @@ void GlobalData::Fini()
     }
     if (s_udp_thr)
     {
-        s_udp_thr->Stop();
+        s_udp_thr->stop();
     }
     if (s_net_thr)
     {
-        s_net_thr->Stop();
+        s_net_thr->stop();
     }
     if (s_dispatch_thr)
     {
-        s_dispatch_thr->Stop();
+        s_dispatch_thr->stop();
     }
     if (s_db_thr_for_logDB)
     {
-        s_db_thr_for_logDB->Stop();
+        s_db_thr_for_logDB->stop();
     }
     if (s_db_thr)
     {
-        s_db_thr->Stop();
+        s_db_thr->stop();
     }
     if (s_monitor_tcp_thr)
     {
-        s_monitor_tcp_thr->Stop();
+        s_monitor_tcp_thr->stop();
     }
     delete s_db_mgr;
     delete s_stream_pool;
@@ -2727,6 +3478,10 @@ bool GlobalData::Init()
 
     s_itemAmplifier_ = new CItemAmplifier;
     s_globalEffectManager_ = new CGlobalEffectManager;
+
+    // Event Upgrade Jar（ORIG 于 CDataManager::init 中 new + LoadScript）。
+    s_pEvent_UpGrade_Jar = new Event_Upgrade_Jar;
+    s_pEvent_UpGrade_Jar->LoadScript("", "Etc/EventUpgradeJar.etc");
 
     s_timeGate_ = new (std::nothrow) CTimeGate;
     if (!s_timeGate_)
@@ -3169,9 +3924,9 @@ bool GlobalData::Init()
     }
 
     bool slangFail;
-    if (CSyncSlangFilter::AddSlangListName() == 1)
+    if (CSyncSlangFilter::GetInstance()->AddSlangListName() == 1)
     {
-        if (CSyncSlangFilter::AddSlangList() != 1)
+        if (CSyncSlangFilter::GetInstance()->AddSlangList() != 1)
         {
             slangFail = true;
         }

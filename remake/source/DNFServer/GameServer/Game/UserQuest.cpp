@@ -22,6 +22,7 @@
 #include "QuestClear.h"        // WongWork::CQuestClear / STClearedQuest
 #include "InterfacePacketBuf.h"
 #include "CTimeGate.h"
+#include "GlobalData.h"      // s_timeGate_（get_quest_info 经 ORIG `mov 0x941f7f4` 读指针）
 #include "CPowerManager.h"
 #include "GameTypes.h"         // cMyTrace
 
@@ -31,11 +32,45 @@
 // CAchievement.cpp 同款模式；方法定义在权威 TU，mangled 与 ORIG 一致）
 // ============================================================================
 
+// ORIG 布局（C1Ev 0x8a60f78 / D1Ev 0x8a61164 / C1ERKS_ 0x8a6100e /
+// getNewDialog 0x8a615fe）：0x14 字节标量区 + std::string@+0x20 + int@+0x24 +
+// 11 个堆分配 std::string* @+0x28（getNewDialog(ENUM_CHARACTERJOB) 填充，
+// 析构逐个释放）。
 struct dungeonEventHanaseStruct
 {
-    int m_type;   // +0x00
-    int m_pad4;   // +0x04
-    int m_map;    // +0x08
+    int m_type;             // +0x00
+    int m_pad4;             // +0x04
+    int m_map;              // +0x08
+    int m_pad0c;            // +0x0c
+    unsigned char m_flag10; // +0x10
+    int m_pad14;            // +0x14
+    int m_pad18;            // +0x18
+    int m_pad1c;            // +0x1c
+    std::string m_str20;    // +0x20
+    int m_pad24;            // +0x24
+    std::string* m_dialogs[11];  // +0x28（i=0..10）
+
+    dungeonEventHanaseStruct()
+        : m_type(0), m_pad4(0), m_map(0), m_pad0c(0), m_flag10(0),
+          m_pad14(0), m_pad18(0), m_pad1c(0), m_str20(), m_pad24(0), m_dialogs()
+    {
+        for (int i = 0; i < 11; ++i)
+            m_dialogs[i] = 0;
+    }  // ORIG C1Ev 0x8a60f78
+
+    ~dungeonEventHanaseStruct()
+    {
+        // ORIG D1Ev 0x8a61164：i=0..10 逐个析构并 delete 非空 dialog 串后置空，
+        // 再析构 m_str20（成员自动）。
+        for (int i = 0; i < 11; ++i)
+        {
+            if (m_dialogs[i] != 0)
+            {
+                delete m_dialogs[i];
+                m_dialogs[i] = 0;
+            }
+        }
+    }
 };
 
 enum ENUM_QUEST_EXCEPTION_TYPE
@@ -232,8 +267,8 @@ public:
     int set_quest(SIG_LOAD_QUEST const* sig);
     int get_quest(SIG_LOAD_QUEST* sig) const;
     void get_quest_info(char* buf) const;
-    void get_mail_quest_info(std::list<int>& questList,
-                             stSelectQuestParam const& selectParam) const;
+    bool get_mail_quest_info(std::list<int>& questList,
+                             stSelectQuestParam const& selectParam) const;  // ORIG 0x086abd7a（返回 bool，_onLevelUp 调用点 test %al 实证）
     void set_authen_data(QUEST_CONDITION cond, int v1, int v2);
     int accept_quest(int questIdx, char* buf, int& trigger);
     int giveup_quest(int questIdx);
@@ -374,7 +409,9 @@ void UserQuest::get_quest_info(char* buf) const
     for (std::list<int>::iterator it = questList.begin(); it != questList.end(); ++it)
     {
         int questIdx = *it;
-        if (!reinterpret_cast<CTimeGate*>(0x941f7f4)->setBlindTimeGateStateQuest(questIdx))
+        // ORIG get_quest_info 读取全局 s_timeGate_ 指针（mov 0x941f7f4），
+        // 而非把指针变量的地址当作对象；改用 GlobalData::s_timeGate_。
+        if (!GlobalData::s_timeGate_->setBlindTimeGateStateQuest(questIdx))
         {
             ++count;
             pb->put_short(questIdx);
@@ -385,12 +422,11 @@ void UserQuest::get_quest_info(char* buf) const
     pb->finalize(true);
 }
 
-void UserQuest::get_mail_quest_info(std::list<int>& questList,
+bool UserQuest::get_mail_quest_info(std::list<int>& questList,
                                     stSelectQuestParam const& selectParam) const
 {
-    G_CDataManager()->m_questList->select_mail_quest(questList, m_cleared, selectParam);
+    return G_CDataManager()->m_questList->select_mail_quest(questList, m_cleared, selectParam);
 }
-
 // ============================================================================
 // set_authen_data
 // ============================================================================
@@ -781,14 +817,14 @@ int UserQuest::check_quest_type_condition(Quest* quest)
     case 5:
     {
         PvpResultType* pvp = m_user->getPVPResultR();
-        if (quest->m_params.at(0) <= *(int*)((char*)pvp + 0x14))
+        if (quest->m_params.at(0) <= pvp->m_pvpGrade)
         {
             return 1;
         }
         return 0;
     }
     case 7:
-        if (reinterpret_cast<CPowerManager*>(0x940be50)->GetWinnerSide() ==
+        if (GlobalData::s_power_manager->GetWinnerSide() ==
             m_user->getPowerSide())
         {
             return 1;

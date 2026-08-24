@@ -79,6 +79,7 @@ namespace charac_expand
 class CData
 {
 public:
+    CData();                                 // ORIG W 0x80c8cba：置基类 vptr
     virtual void ResetDailyMidnight() {}
     virtual bool loadData(CUser* pUser, char* pData) = 0;
     virtual void getData(char* pData) const {}
@@ -129,6 +130,12 @@ public:
     unsigned char m_cFieldD;                   // +0x0d
     unsigned char m_cMultiboxCount;            // +0x0e
 };
+
+static_assert(sizeof(BoosterGageData) == 0x10, "BoosterGageData size mismatch");
+static_assert(offsetof(BoosterGageData, m_BoosterPoint) == 0x00, "BoosterGageData m_BoosterPoint offset");
+static_assert(offsetof(BoosterGageData, m_cMaxBoosterGage) == 0x0c, "BoosterGageData m_cMaxBoosterGage offset");
+static_assert(offsetof(BoosterGageData, m_cFieldD) == 0x0d, "BoosterGageData m_cFieldD offset");
+static_assert(offsetof(BoosterGageData, m_cMultiboxCount) == 0x0e, "BoosterGageData m_cMultiboxCount offset");
 #endif
 
 class CBoosterGage : public charac_expand::CData

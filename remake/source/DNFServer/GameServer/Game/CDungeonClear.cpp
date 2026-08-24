@@ -2,6 +2,7 @@
 #include "CUser.h"
 #include "CDataManager.h"
 #include "CDungeon.h"
+#include "QuestClear.h"  // WongWork::CQuestClear 唯一权威定义
 
 #include <boost/tokenizer.hpp>
 #include <cstdarg>
@@ -11,13 +12,6 @@
 
 namespace WongWork
 {
-
-// CQuestClear 完整定义见 CListTables.cpp；此处仅声明 isClearedQuest 供链接。
-class CQuestClear
-{
-public:
-    bool isClearedQuest(unsigned int questIdx) const;
-};
 
 CDungeonClear::CDungeonClear()
 {

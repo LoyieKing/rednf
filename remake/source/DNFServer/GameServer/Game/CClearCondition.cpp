@@ -61,5 +61,19 @@ bool CClearCondition::ClearCondition(ENUM_DUNGEON_CLEAR_CONDITION_TYPE type, int
 void CClearCondition::SetDungeonClearConditionVector(
     std::vector<DungeonClearCondition>& vec)
 {
-    (void)vec;  // 条件表所在 +0x14 因 CBattle_Field ABI 锁定为 int，无法承载
+    // ORIG 0x82fef12：Clear 后若 vec 非空，把整个 vector 存入 +0x14，并对每个
+    // 条目：m_flag(+0x00) += 条目+0x08 字段，同时向 m_vec push 一个 0。
+    Clear();
+    if (!vec.empty())
+    {
+        for (unsigned int i = 0; i < vec.size(); ++i)
+        {
+            const unsigned char* e =
+                reinterpret_cast<const unsigned char*>(&vec[i]);
+            m_flag += *reinterpret_cast<const int*>(e + 8);
+            m_vec.push_back(0);
+        }
+        // 【阻塞】ORIG 将 vector 复制到 +0x14；该偏移在重建中被 CBattle_Field
+        // ABI 锁定为 int（见头注释），条件表存储待布局统一后补齐。
+    }
 }

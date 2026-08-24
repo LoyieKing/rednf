@@ -17,6 +17,7 @@
 
 #include "GameTypes.h"
 #include "GlobalData.h"
+#include "CDailyScheduleManager.h"  // _DailySchedule 权威布局（ORIG 0x8125c3c AddDailSchedule 签名）
 #include "CSkill.h"
 
 // ===================== 外部依赖声明（其它 TU 提供） =====================
@@ -162,17 +163,20 @@ public:
     char m_pad261[0x1f];                    // +0x261..+0x280
     char m_field280;                        // +0x280
 };
-
+// 本地镜像布局（权威完整定义见 CDungeon.h，sizeof 0x50a）；
+// 偏移以 ORIG load_list 0x0834d376 为准：
+//   TowerOfDespair flag = movzbl script+0x2a9（-0x2a3(%ebp)，script 栈基 -0x54c）
+//   m_dailySchedule     = vector<_DailySchedule> @ +0x318（AddDailSchedule 直传）
 class STDungeonScript
 {
 public:
     STDungeonScript();
     ~STDungeonScript();
-    char m_pad[0x2c0];
-    char m_field2c0[0x58];
-    std::vector<int> m_dailySchedule;   // +0x318
-    char m_pad324[0x1e5];
-    char m_isTowerOfDespair;            // +0x509
+    char m_pad[0x2a9];                            // +0x000..+0x2a9
+    char m_isTowerOfDespair;                      // +0x2a9
+    char m_pad2aa[0x6e];                          // +0x2aa..+0x318
+    std::vector<_DailySchedule> m_dailySchedule;  // +0x318
+    char m_pad324[0x1e6];                         // +0x324..+0x50a
 };
 
 class STMonsterScript
@@ -230,12 +234,6 @@ public:
     void import(const char* path);
     int getInt(const char* key) const;
     char m_pad[0xa4];
-};
-
-class CDailyScheduleManager
-{
-public:
-    void AddDailSchedule(const std::vector<int>& schedule);
 };
 
 class CGameManager;
@@ -380,6 +378,8 @@ int CDungeonList::load_list()
         }
         if (script.m_dailySchedule.size() != 0)
         {
+            // ORIG 0x0834d448：lea script+0x318 直传 AddDailSchedule
+            // （vector<_DailySchedule> const&，ORIG 0x8125c3c），无逐项转换。
             GlobalData::s_DailyScheduleManager->AddDailSchedule(
                 script.m_dailySchedule);
         }
@@ -1311,8 +1311,12 @@ int QuestList::load_list()
         }
         if (!script.m_dailySchedule.empty())
         {
-            GlobalData::s_DailyScheduleManager->AddDailSchedule(
-                script.m_dailySchedule);
+            // 脚本表存 int 索引；AddDailSchedule 权威签名为 vector<_DailySchedule>
+            // （ORIG 0x8125c3c）—「推断」：int 为 m_idx。
+            std::vector<_DailySchedule> schedules(script.m_dailySchedule.size());
+            for (unsigned int si = 0; si < script.m_dailySchedule.size(); ++si)
+                schedules[si].m_idx = script.m_dailySchedule[si];
+            GlobalData::s_DailyScheduleManager->AddDailSchedule(schedules);
         }
         if (!script.m_monsterKillList.empty())
         {

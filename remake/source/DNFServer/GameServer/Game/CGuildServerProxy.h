@@ -18,6 +18,8 @@
 // ============================================================================
 
 #include <map>
+
+class MySQL;
 #include <list>
 #include <string>
 
@@ -62,7 +64,29 @@ struct Word_Param
 
 class PacketGuard;
 class CDelivery;
-class DeliveryMsg;
+// DeliveryMsg（ORIG W C2 0x086978c0 / setBaseData 0x086978ec，无虚函数；定义 CUserDepsB.cpp）。
+class DeliveryMsg
+{
+public:
+    DeliveryMsg();
+    void setBaseData(int type, unsigned int accId, int characNo, int serverGroup);
+
+    int m_type;           // +0x00（ctor 置 0；eventDeliveryNotify 首参取此字段）
+    unsigned int m_accId; // +0x04
+    int m_characNo;       // +0x08
+    int m_serverGroup;    // +0x0c（ctor 置 -1）
+};
+
+// BuyItemDeliveryMsg（ORIG W C2 0x0869795a：基类构造后清零两扩展字段；
+// 定义 CUserDepsB.cpp）。
+class BuyItemDeliveryMsg : public DeliveryMsg
+{
+public:
+    BuyItemDeliveryMsg();
+
+    int m_deliveryType;          // +0x10
+    const struct Inven_Item* m_item;  // +0x14
+};
 
 // stADDINFO（CEventBase +0x04，sizeof 4）：两个 ushort，ctor 0x0810af10 置 0xffff。
 struct stADDINFO
@@ -140,6 +164,16 @@ private:
     char m_pad[0x29c];
 };
 
+// NewAccountLevelUpEventToJob —— 新账号升级转职奖励 repeat 事件（event idx 0x68，
+// 经 CEventManager::GetRepeatEvent(0x68) 取得）。ORIG T
+// _ZN27NewAccountLevelUpEventToJob19processLevelUpToJobER5CUserb 0x081b82a4；
+// 完整类布局 ORIG 未恢复，本声明仅暴露 processLevelUpEvent 调用面（定义 CUserDepsB.cpp）。
+class NewAccountLevelUpEventToJob
+{
+public:
+    bool processLevelUpToJob(CUser& user, bool growup);
+};
+
 namespace WongWork
 {
 // GM 账号条目（8 字节）：账号 id + GM 类型。
@@ -165,6 +199,9 @@ public:
     ~CGMAccounts();                        // 0x082a73b8 W（独立 TU）
     bool isGM(unsigned int mid);           // 0x08109346
     void removeGM(unsigned int mid, unsigned int param);  // 0x081093fc
+    std::list<stGMInfo_t> GetGMList() const { return m_gmList; }  // ORIG 0x082a7388 W
+    void LoadGmList(unsigned int mid, int level);   // ORIG 0x081094ea T（Gm_List.cpp）
+    void clearGmList();                             // ORIG 0x08109510 T（Gm_List.cpp）
 private:
     std::list<stGMInfo_t> m_gmList;        // +0x00（sizeof 8，与 ORIG 一致）
 };
@@ -174,10 +211,13 @@ class Gm_List
 {
 public:
     Gm_List();                            // 0x08299912 T（独立 TU）
+    ~Gm_List();                           // 0x8299948（编译器生成形态）
+    void LoadGmListFromDb();              // 0x0829996c T
     void SendGMList_To_UpperServer(int param);  // 0x08299d54
 private:
-    char m_pad[4];
+    MySQL* m_db;   // +0x00（ORIG 存 DBMgr::GetDBHandle(6,0) 句柄）
 };
+
 
 class CGuildServerProxy
 {

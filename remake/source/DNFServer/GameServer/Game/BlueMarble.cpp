@@ -13,29 +13,17 @@
 
 #include "BlueMarble.h"
 #include "CDataManager.h"
+#include "CInventory.h"          // 权威 CInventory（原本地最小声明与 CInventory.h:418 重定义冲突）
 #include "CEnvironment.h"
 #include "LogManager.h"
 #include "DNFFileLog.h"
 #include "DNFFunctionLib.h"
+#include "PacketGuard.h"   // 权威 PacketGuard（0xc）
 #include "GameWorld.h"            // G_GameWorld / GameWorld::gotoBlueMarble/outFromBlueMarble（§9）
 #include "CPrivateStoreMgr.h"     // private_store::GetInstancePrivateStoreMgr/IsBusyPrivateStore（§9）
 #include "RDARScriptStringManager.h"  // g_scriptStringManager_/findString（§9）
 #include "CGameManager.h"         // WongWork::CMailBoxHelper::ReqDBSendNewSystemMail + G_CGameManager（§9）
 
-// ============================================================================
-// PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供单例定义）
-// ============================================================================
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // ---- BlueMarbleScriptManager +0x30 起字段布局（成员访问还原 ORIG 直接位移寻址） ----
 struct BM_ScriptFields
@@ -51,14 +39,6 @@ struct BM_ScriptFields
     int m_field4c;      // +0x4c
 };
 
-// ---- CInventory 最小声明（仅本 TU 需要的两个方法；CInventory.cpp 提供定义） ----
-class CInventory
-{
-public:
-    int insertItemIntoInventory(Inven_Item item, eItemAddReason reason,
-                                bool bLog, bool b);
-    void MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
-};
 
 // ---- CGameManager / G_CGameManager：经 #include "CGameManager.h"（§9） ----
 

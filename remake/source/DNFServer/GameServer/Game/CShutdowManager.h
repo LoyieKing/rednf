@@ -9,9 +9,13 @@ public:
     CShutdowManager();
     ~CShutdowManager() {}
 
-    void SendLastMsgDBQueue(class CUser* user);
+    unsigned int SendLastMsgDBQueue(class CUser* user);   // ORIG 0x82a37c8，恒返回 1   // ORIG 0x82a37c8，恒返回 1
+    void SendShutdownSignal();  // ORIG 0x82a35a6 T（定义在 GameMain.cpp）
+    bool WaitUntilExitThread();  // ORIG 0x82a396e：join 8 个线程全局后返回 true
 
     char m_pad[0x10];
 };
+
+CShutdowManager* GetInstanceShutdowManager();  // ORIG 0x82a6fbb（W）
 
 #endif  // DNF_GAME_CSHUTDOWMANAGER_H_

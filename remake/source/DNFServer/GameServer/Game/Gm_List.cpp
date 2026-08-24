@@ -1,25 +1,153 @@
 // df_game_r：Gm_List 独立编译单元。
+// ORIG SendGMList_To_UpperServer @0x8299d54：
+//   serverGroup 0=监视服务器、1=公会服务器；每 20 个 GM 一包（Packet_Sync_GM_List，
+//   header 0x1f4d/0x70），m_pageNo 递增；末批不足 20 也发送。
+#include "CGuildServerProxy.h"   // Gm_List / WongWork::CGMAccounts 权威声明
 
-namespace
+#include <list>
+
+#include "CGuildServerProxy.h"      // WongWork::CGMAccounts / stGMInfo_t / proxies
+#include "CMonitorServerProxy.h"
+#include "CServerProxyMgr.h"
+#include "CEnvironment.h"
+#include "GlobalData.h"
+#include "Packet_Sync_GM_List.h"
+#include "DBMgr.h"
+#include "MySQL.h"
+#include "CInventory.h"   // NumberToString
+
+// 类声明权威点在 CGuildServerProxy.h；此处仅实现。
+void Gm_List::SendGMList_To_UpperServer(int param)
 {
-class GmListSync
-{
-public:
-    static void send(int serverGroup)
+    if (param != 0 && param != 1)
+        return;
+
+    int serverGroup = G_CEnvironment()->get_server_group();
+    const std::list<WongWork::stGMInfo_t> gmList =
+        GlobalData::s_pGMAccounts_->GetGMList();
+
+    Packet_Sync_GM_List packet;
+    std::list<WongWork::stGMInfo_t>::const_iterator it = gmList.begin();
+    int count = 0;
+    while (it != gmList.end())
     {
-        volatile int group = serverGroup;
-        (void)group;
+        packet.m_gmIds[count] = it->mid;
+        packet.m_gmNames[count] = static_cast<char>(it->type);
+        ++count;
+        if (count == 0x14)
+        {
+            packet.m_gmCount = 0x14;
+            if (param == 1)
+            {
+                CGuildServerProxy* proxy =
+                    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+                        static_cast<ENUM_SERVER_GROUP>(serverGroup));
+                proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+            }
+            else if (param == 0)
+            {
+                CMonitorServerProxy* proxy =
+                    GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+                        static_cast<ENUM_SERVER_GROUP>(serverGroup));
+                proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+            }
+            ++packet.m_pageNo;
+            count = 0;
+        }
+        ++it;
     }
-};
+    if (count != 0)
+    {
+        packet.m_gmCount = static_cast<unsigned char>(count);
+        if (param == 1)
+        {
+            CGuildServerProxy* proxy =
+                GlobalData::s_guild_proxy_mgr->GetServerProxy(
+                    static_cast<ENUM_SERVER_GROUP>(serverGroup));
+            proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+        }
+        else if (param == 0)
+        {
+            CMonitorServerProxy* proxy =
+                GlobalData::s_monitor_proxy_mgr->GetServerProxy(
+                    static_cast<ENUM_SERVER_GROUP>(serverGroup));
+            proxy->SendTcpPacket(reinterpret_cast<char*>(&packet), 0x70);
+        }
+    }
 }
 
-class Gm_List
-{
-public:
-    void SendGMList_To_UpperServer(int serverGroup);
-};
 
-void Gm_List::SendGMList_To_UpperServer(int serverGroup)
+// ---- 生命周期 / DB 装载 ----
+
+// ORIG 0x08299912：m_db = DBMgr::GetDBHandle((ENUM_DB_HANDLE_IDX)6, (ENUM_SERVER_GROUP)0)
+// 后立即 LoadGmListFromDb()。
+Gm_List::Gm_List()
 {
-    GmListSync::send(serverGroup);
+    m_db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)6,
+                                             (ENUM_SERVER_GROUP)0);
+    LoadGmListFromDb();
+}
+
+Gm_List::~Gm_List() {}
+
+// ORIG 0x081094ea：push_back({mid, level})。
+void WongWork::CGMAccounts::LoadGmList(unsigned int mid, int level)
+{
+    stGMInfo_t info(mid, static_cast<unsigned int>(level));
+    m_gmList.push_back(info);
+}
+
+// ORIG 0x08109510。
+void WongWork::CGMAccounts::clearGmList()
+{
+    m_gmList.clear();
+}
+
+// ORIG 0x0829996c：查询 "seLect m_id, level from gm_manifest"；失败 trace 返回；
+// 成功先 clearGmList，逐行 fetch 取 m_id/level 并 LoadGmList，累计 m_id 日志串；
+// 若 get_channel_no()==1 再 SendGMList_To_UpperServer(0) 同步监视服务器。
+void Gm_List::LoadGmListFromDb()
+{
+    bool ok = false;
+    std::string idLog;
+    m_db->set_query("seLect m_id, level from gm_manifest");
+    if (m_db->exec(true))
+    {
+        WongWork::CGMAccounts* accounts = GlobalData::s_pGMAccounts_;
+        accounts->clearGmList();
+        int rows = m_db->get_n_rows();
+        for (int row = 0; row < rows; ++row)
+        {
+            unsigned int mid = 0;
+            int level = 0;
+            if (!m_db->fetch() || !m_db->get_int(0, reinterpret_cast<int&>(mid)))
+            {
+                cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15e5, 9, true, true);
+                trace("Failed to get GM's m_id from DB.");
+                return;
+            }
+            {
+                cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15f2, 9, true, true);
+                if (!m_db->get_int(1, level))
+                {
+                    trace("Failed to get GM's lv from DB.");
+                    return;
+                }
+            }
+            accounts->LoadGmList(mid, level);
+            idLog += NumberToString(mid, 0);
+            idLog += ", ";
+        }
+        ok = true;
+        cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15f9, 9, true, true);
+        trace("\t- GM m_id: %s", idLog.c_str());
+        if (G_CEnvironment()->get_channel_no() == 1)
+            SendGMList_To_UpperServer(0);
+    }
+    else
+    {
+        cMyTrace trace("bool Gm_List::LoadGmListFromDb()", 0x15d4, 9, true, true);
+        trace("Failed to get GM list from DB.");
+    }
+    (void)ok;
 }

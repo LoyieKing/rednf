@@ -22,6 +22,7 @@
 #include <vector>
 
 #include "GameTypes.h"
+#include "GameEnums.h"   // ENUM_DUNGEON_MODE / eCoinSubReason 权威定义（不依赖 CUser.h 传递）
 #include "Inven_Item.h"
 #include "CUser.h"
 #include "CPartyResultRecvFlag.h"
@@ -51,13 +52,7 @@ enum ENUM_USER_DUNGEON_STATE
     ENUM_USER_DUNGEON_STATE_0 = 0
 };
 
-#ifndef DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
-#define DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
-enum ENUM_DUNGEON_MODE
-{
-    ENUM_DUNGEON_MODE_0 = 0
-};
-#endif
+// ENUM_DUNGEON_MODE：权威定义在 GameEnums.h（经 CUser.h include）。
 
 #ifndef DNF_ENUM_ENUM_MAZE_QUEST_TYPE_DEFINED
 #define DNF_ENUM_ENUM_MAZE_QUEST_TYPE_DEFINED
@@ -104,26 +99,10 @@ enum T
 };
 }
 
-namespace QuickParty
-{
-enum BasicRewardType
-{
-    BasicRewardType_0 = 0
-};
-enum RandomBuffType
-{
-    RandomBuffType_0 = 0
-};
-#ifndef DNF_ENUM_QUICKPARTY_RANDOMBUFFDUNGEON_DEFINED
-#define DNF_ENUM_QUICKPARTY_RANDOMBUFFDUNGEON_DEFINED
-enum RandomBuffDungeon
-{
-    RandomBuffDungeon_0 = 0
-};
-#endif
-struct RewardData_Param;
-struct RewardData_Result;
-}
+// QuickParty 奖励域权威类型（BasicRewardType/RandomBuffType/RandomBuffDungeon、
+// RewardData_Param/Result、IRewardType 族、QuickPartyData）统一由
+// CQuickPartyRewardManager.h 提供（本头原占位枚举已并入）。
+#include "CQuickPartyRewardManager.h"
 
 // ---- 前向声明（权威定义属后续批次 / 已有头） ----
 class CDungeon;
@@ -136,9 +115,80 @@ class GameResultSet;
 struct MSG_MONSTER_DIE;
 struct MSG_MOVE_MAP;
 struct MSG_PARTY_SET_INFO;
-struct STGainedEachExpData;
-struct stClearRewardExpParameter_t;
-struct stClearRewardBonusExp_t;
+// ----------------------------------------------------------------------------
+// STGainedEachExpData（ORIG 权威布局）：
+//   ctor _ZN19STGainedEachExpDataC1Ev = W 0x08151a56：
+//     movl $0x0,(%eax)          → +0x00 int    置 0
+//     movl $0x3f800000,0x4(%eax)→ +0x04 float  置 1.0f
+//   ORIG 无 D1/D2 符号（平凡析构），故不声明析构。nm 仅见 C1/C2。
+// ----------------------------------------------------------------------------
+struct STGainedEachExpData
+{
+    STGainedEachExpData();       // ORIG W 0x08151a56（C1/C2 同址）
+
+    int m_exp;                   // +0x00 经验基数（ctor 置 0）
+    float m_expPartyDivisor;     // +0x04 sumGainedEachExp 队伍加成除数（ctor 置 1.0f）
+};                               // sizeof == 8
+// ============================================================================
+// stClearRewardExpParameter_t / stClearRewardBonusExp_t —— 权威布局
+//   （ORIG ctor 0x0814a8b8 / 0x0814a800 反汇编 + CParty 报告
+//    set_clear_reward_exp_parameter.md / getClearRewardBonusExp.md 逐字段核实）
+// ============================================================================
+struct stClearRewardExpParameter_t
+{
+    stClearRewardExpParameter_t();   // ORIG W 0x0814a8b8
+
+    float m_deadPenaltyRate;         // +0x00 calDeadUserDungeonPenalty(m_deadMemberCount)
+    float m_rankBonusWeight;         // +0x04 ServerParameterScript::GetExpBonusWeight(m_rankBonusIdx)
+    float m_avatarBonus;             // +0x08 CParty::CalcAvatarBonus()
+    float m_creatureBonus;           // +0x0c CParty::CalcCreatureBonus(user)
+    float m_pcRoomBurningRate;       // +0x10 CPCRoomBurningEvent::GetExpFactor()/100
+    float m_expDoubleRate;           // +0x14 CExpDoubleEvent::GetExpFactor()/100
+    float m_channelBonusRate;        // +0x18 channel_script_t::getBonusRate(...)
+    int m_burningFatigueBonusExp;    // +0x1c CBurningFatigueEvent::getBonusExpRate(usedFatigue)（原始千分率）
+    float m_serverChannelRate;       // +0x20 getBonusRateEventServer/getBonusRate
+    float m_premiumAdvantageRate;    // +0x24 CUserPremium::GetAdvantageExpRate()/100
+    float m_serverEventExpRate;      // +0x28 CServerEvent::GetExpRate()/100
+    float m_periodExpItemRate;       // +0x2c CUserCharacInfo::GetExpAffectRate()
+    float m_globalEffectRate;        // +0x30 CGlobalEffectManager::getEffectValue(2)
+    float m_pcRoomSameUserBonus;     // +0x34 同网吧奖励（写入方按原始 dword 写 CDataManager+0x7d4，读取按 float）
+    float m_returnUserPartyBonus;    // +0x38 回归用户队伍 0.02f
+    float m_manageBonus;             // +0x3c CalcurateManageBonus(0, user, a)
+    float m_growthPowerExpRate;      // +0x40 get_growth_power_exp_reward 高字节/100
+    float m_premiumAddExpRate;       // +0x44 getAddExpRateFromPremium(0x4f)/100
+    float m_eventCharacExpRatio;     // +0x48 EventNewCharacterReward::eventExpRatio()
+    int m_reserved4c;                // +0x4c ctor 清零（ORIG 未见使用）
+    int m_reserved50;                // +0x50 ctor 清零（ORIG 未见使用）
+    unsigned char m_reserved54;      // +0x54 ctor 逐字节清零（ORIG 未见使用）
+    unsigned char m_reserved55;      // +0x55 ctor 逐字节清零（ORIG 未见使用）
+    int m_deadMemberCount;           // +0x58 ctor 置 -1（死亡成员数输入）
+    int m_rankBonusIdx;              // +0x5c ctor 置 -1（eRankBonusIndex 输入）
+};                                   // sizeof == 0x60
+
+struct stClearRewardBonusExp_t
+{
+    stClearRewardBonusExp_t();       // ORIG W 0x0814a800
+    unsigned int m_avatarBonusExp;   // +0x00 ← m_avatarBonus（非零时下限 1）
+    unsigned int m_rankWeightExp;    // +0x04 ← m_rankBonusWeight
+    int m_bestType;                  // +0x08 最优加成类型（1/2/4；3 由外部预置）
+    unsigned int m_selectedBonusExp; // +0x0c pcRoomBurning/expDouble/globalEffect 择优
+    unsigned int m_burningFatigueExp;// +0x10 ← m_burningFatigueBonusExp*exp/100
+    unsigned int m_channelBonusExp;  // +0x14 ← m_channelBonusRate
+    unsigned int m_premiumAdvExp;    // +0x18 ← m_premiumAdvantageRate
+    unsigned int m_serverEventExp;   // +0x1c ← m_serverEventExpRate
+    unsigned int m_serverChannelExp; // +0x20 ← m_serverChannelRate
+    unsigned int m_creatureBonusExp; // +0x24 ← m_creatureBonus（非零时下限 1）
+    int m_upperMemberExp;            // +0x28 CUser::gainExpAsUpperMember(exp)
+    unsigned int m_periodItemExp;    // +0x2c ← m_periodExpItemRate
+    unsigned int m_pcRoomSameUserExp;// +0x30 ← m_pcRoomSameUserBonus
+    unsigned int m_returnUserExp;    // +0x34 ← m_returnUserPartyBonus
+    unsigned int m_eventCharacExp;   // +0x38 ← m_eventCharacExpRatio
+    unsigned int m_manageExp;        // +0x3c ← m_manageBonus
+    unsigned int m_growthPowerExp;   // +0x40 ← m_growthPowerExpRate
+    unsigned int m_premiumAddExp;    // +0x44 ← m_premiumAddExpRate
+};                                   // sizeof == 0x48
+
+// 声明与 ORIG 一致：返回总加成经验（0x85ad278 返回 eax）。
 struct RequiredItem;
 struct map_monster;
 
@@ -247,7 +297,8 @@ public:
 
     // ---- CBattle_Field 转发 ----
     void checkBossRoom();
-    void checkStartRoom();
+    bool checkStartRoom();   // ORIG W 0x0826525e：转发 CBattle_Field::check_start_point
+                             // （FinishLoad::process 按 bool 测试，原 void 声明与调用方不符）
     void DeleteDungeonDropItem(int idx);
 
     // ---- 传送 / 快速队伍区（+0x1ad0） ----
@@ -291,15 +342,15 @@ public:
     CUser* getManager();
 
     // ---- 成员管理 ----
-    void create_party(CUser* user);
+    int create_party(CUser* user);   // ORIG 返回 eax=1（0x859b1be）
     void join_user(CUser* user);
     int leave_user(CUser* user, ENUM_PARTY_INFO_TYPE type);
-    void walkout_member(CUser* user, int param);
+    int walkout_member(CUser* user, int param);   // ORIG 0x859ca4a：8=非队长 4=槽位空 1=leave_user==1 0=成功
     void change_manager(CUser* user, int slot);
     int change_manager();
     void battle_data_reset();     // 0x859aec2
     int set_host();
-    void set_single_play(CUser* user);
+    int set_single_play(CUser* user);   // ORIG 返回 eax=1（0x859b142）
     void game_start(CUser* user);
     bool IsExistUser(CUser* user);
     int isMyMember(unsigned int userNo);
@@ -375,7 +426,7 @@ public:
     void send_invite_warroom(int mapIdx);
     void send_invite_bluemarble(int mapIdx);
     void send_quick_party_matching_result(bool flag, CUser* user);
-    void SendWalkout(int param, ENUM_WALKOUT_TYPE type);
+    int SendWalkout(int param, ENUM_WALKOUT_TYPE type);   // ORIG 返回 eax=1
     void SendDungeonCharacInfo(CUser* user, bool flag);
     void SendDungeonStatisticParty(bool flag, CUser* user);
     void SendDungeonStatisticPartyJob(bool flag, CUser* user);
@@ -387,12 +438,14 @@ public:
     void send_dungeon_fail_msg();
     void sendInoutConditionDungeon(RetryFailReason::T reason);
     void makeBestClearTimePacket(PacketGuard& packet, int idx);
-    void make_blood_dungeon_info(CUser* user, PacketGuard& packet);
-    void make_blood_dungeon_info_blank(PacketGuard& packet);
+    bool make_blood_dungeon_info(CUser* user, PacketGuard& packet);
+    bool make_blood_dungeon_info_blank(PacketGuard& packet);
     void setBestClearTime(int a, int b, int c);
 
     // ---- 副本流程 ----
-    void dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype);
+    // ORIG 返回 int（>0 为副本 idx；DisPatcher_SelectDungeon::process 消费，
+    // asm mov %eax 写 param）。返回类型不参与 mangled，当前无定义（后续批次补）。
+    int dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype);
     void do_after_dungeon_start(CDungeon const* dungeon, CUser* user);
     int check_dungeon_start(CDungeon const* dungeon);
     bool check_dungeon_start(CDungeon const* dungeon, int& param);
@@ -406,21 +459,21 @@ public:
     bool CheckEnterDimensionDungeon(CDungeon const* dungeon, unsigned char& flag,
                                     bool flag2);
     int CheckEnterVillageAttackRevenge(CDungeon const* dungeon);
-    void CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
+    bool CheckHaveHellPartyPassItem(CDungeon const* dungeon, ENUM_DUNGEON_TYPE type);
     bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
     void CheckHellCoinLimint(int param);
     int checkDugeonInoutTime(int param);
     bool checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
                                     ENUM_CMDPACKET cmd);
     int checkInoutConditionDungeon();
-    void checkDungeonDifficulty(char difficulty, CDungeon const* dungeon);
+    bool checkDungeonDifficulty(char difficulty, CDungeon const* dungeon);
     bool checkFreeRevivalCondition(CDungeon const* dungeon);
     bool checkLimitUsedCoinCondition(CDungeon const* dungeon);
     bool checkUnLimitUsedCoinCondition(CDungeon const* dungeon);
     int getStandardDimensionLevel();
     void setStandardDimensionLevel(CDungeon const* dungeon);
     bool UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* item, int* param);
-    void UseSealDoorItems(std::vector<int>& itemList);
+    bool UseSealDoorItems(std::vector<int>& itemList);   // ORIG 返回 al（0x85a8038）
     int CheckDestroyConditionSealDoor(CDungeon const* dungeon,
                                      std::vector<int>& list1,
                                      std::vector<int>& list2);
@@ -445,7 +498,7 @@ public:
     void SetPlayResult(CUser* user);
     void set_clear_reward_exp_parameter(CUser* user, unsigned int a,
                                        stClearRewardExpParameter_t& param);
-    void getClearRewardBonusExp(CUser* user, unsigned int& a,
+    unsigned int getClearRewardBonusExp(CUser* user, unsigned int& a,
                                 stClearRewardExpParameter_t const& param,
                                 stClearRewardBonusExp_t& bonus);
     void set_basic_reward(QuickParty::BasicRewardType type,
@@ -511,7 +564,7 @@ public:
     void OnTimeoutBossDie(int a, unsigned int b);
     void _Send_TOD_APCInfo(int a);
     void _Send_TOD_ClearReward();
-    void GetDungeonIndex_isTOD(int& a, int& b);
+    int GetDungeonIndex_isTOD(int& a, int& b);   // ORIG 返回错误码（0x85bacc0）
     void InsertTournamentDungeonTimer(TIMER_MESSAGE msg);
     bool isTournamentVictory();
     bool TournamentDungeonClear(bool flag);
@@ -535,8 +588,8 @@ public:
 
     // ---- 收益 / 奖励 ----
     void GetUserSecretShop(CUser* user);
-    void CalcurateManageBonus(ManageBonusType::T type, CUser* user,
-                              unsigned int param);
+    float CalcurateManageBonus(ManageBonusType::T type, CUser* user,
+                               unsigned int param);   // ORIG 返回 st0 浮点
     float CalcAvatarBonus();
     float CalcCreatureBonus(CUser* user);
     float getAvatarBonus();
@@ -550,15 +603,15 @@ public:
     int getMemberLevelGap();
     int _getMemberLevelGap();
     int get_rate_level_difference();
-    void sumGainedEachExp(CUser* user, STGainedEachExpData const& data);
-    void getMonsterTotalExp(unsigned int monsterIdx, char flag, int a, float b,
-                            float c, bool d);
-
+    unsigned int sumGainedEachExp(CUser* user, STGainedEachExpData const& data);
+    // ORIG _ZN6CParty18getMonsterTotalExpEjciffb（0x085a23dc，返回 eax=低 32 位）
+    unsigned int getMonsterTotalExp(unsigned int monsterIdx, char flag, int a, float b,
+                                    float c, bool d);
     // ---- 物品 ----
-    void get_item(CUser* user, int itemIdx, bool flag, char c, int& param,
-                  unsigned char& flag2, bool& flag3);
+    int get_item(CUser* user, int itemIdx, bool flag, char c, int& param,
+                 unsigned char& flag2, bool& flag3);   // ORIG 返回 0/1
     void _onGetItem(CUser* user, unsigned int itemIdx, unsigned int count);
-    void drop_item(CUser* user, int itemIdx, int count, char a, int b, int c);
+    int drop_item(CUser* user, int itemIdx, int count, char a, int b, int c);
     void drop_item_gm(CUser* user, unsigned int itemIdx);
     bool isMonsterDrop_item(int monsterIdx);
     void _makeRewardItemInfo(CUser const* user, Inven_Item* item,
@@ -575,11 +628,12 @@ public:
     void OnTimerWalkOutLackUser();
     void SaveCoin(eCoinSubReason reason);
     int GetCoinCount(CUser* user);
-    void GetMapPlayingTime();
+    unsigned int GetMapPlayingTime();   // ORIG T 0x085b6768（CheckOneMapPlayTimeHackCnt
+                                        //  以返回值/1000 为基准，原 void 声明与调用方不符）
     void getDungeonTypeKind(CDungeon const* dungeon);
     void getDungeonDropTestFlag();
     void getPartyMemberAvgLevel();
-    void isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
+    bool isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
     void is_limit_minimum_age(int age, int& param);
     void is_limit_minimum_level(int level, int& param);
     int CheckMemberFatigue();
@@ -593,12 +647,14 @@ public:
     void IncreaseSetPlayResultCount(CUser* user);
     int GetSetPlayResultCount();
     int GetPartyMemberForceDropFlag();
-    void isDungeonDifficultyInfromNotice(bool flag);
+    bool isDungeonDifficultyInfromNotice(bool flag);   // ORIG 返回 al（0x85be8a0）
     void getMemberPassParty(CUser* user);
     bool isHelpAbuseParty(CUser* user);
     bool isHelpAbuseParty();
 
-private:
+public:
+    // ORIG 无访问控制；DisPatcherCore 等跨 TU 按 +0xcac(m_dungeon) 等偏移语义
+    // 访问，故数据区整体置于 public（Main 协调指令 2026-08-24）。
     char* _getMemberNames(char* buf);   // ORIG 0x85b4bde
 
     CItemRoutingData m_routingData;   // +0x000
@@ -627,7 +683,8 @@ private:
     unsigned char m_userMax;            // +0x13d
     unsigned short m_dungIndex;         // +0x13e
     unsigned char m_dungDiffi;          // +0x140
-    char m_pad141[7];                   // +0x141
+    char m_pad141[3];                   // +0x141
+    int m_field144;                     // +0x144（game_start 写随机路由起始槽；get_item 路由骰子读改）
     int m_field148[37];                 // +0x148
     // ---- CPartyResultRecvFlag 区（+0x1dc，0x34 字节） ----
     unsigned char m_pad1dc[0x4];     // +0x1dc
@@ -653,7 +710,9 @@ private:
     char m_finishLoadingFlag[4];           // +0x37c（resetFinishLoadingVar）
     char m_liveFlag[4];                    // +0x380（get_live_count / check_allmember_die）
     char m_enterMapFlag[4];                // +0x384（get_live_count_enter_map）
-    unsigned char m_padBattleData2[0x79c]; // +0x388 BattleData 余下（占位，至 0xb24）
+    char m_field388[4];                    // +0x388（game_start 逐成员清零的装载标志组）
+    char m_field38c[4];                    // +0x38c（game_start 逐成员清零）
+    unsigned char m_padBattleData2[0x794]; // +0x390 BattleData 余下（占位，至 0xb24）
     // ---- CBattle_Field 区（+0xb24，0xcd0 字节） ----
     unsigned char m_padBattleField1[0x188];  // +0xb24
     CDungeon* m_dungeon;                    // +0xcac

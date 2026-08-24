@@ -1,6 +1,8 @@
 // ============================================================================
 // df_game_r 还原 —— HistoryLog（G2-4 批次，历史日志文件写入）。
 // 依据 docs/class_func_reports/HistoryLog.md + ORIG 反汇编逐函数转录。
+// 另含 cHistoryTrace::operator()（ORIG 0x0854f990，权威声明 cHistoryTrace.h）：
+// Guard<Mutex>(CLog::instance()+0xa8) 加锁 → CLog::logHistory(fmt, va_list)。
 // 静态成员：+0x00 StaticPool<_IO_FILE,50> logfiles_（0x30）| int count_
 // | char time[0x10]。格式串字节直接取 ORIG rodata（EUC-KR）。
 // ============================================================================
@@ -11,6 +13,11 @@
 
 #include "CGameManager.h"
 #include "HistoryLog.h"
+#include <cstdarg>
+
+#include "CLog.h"
+#include "GameTypes.h"       // Guard<Mutex> / Mutex（0x18）
+#include "cHistoryTrace.h"
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 void get_str_datetime(char* buf, int len);
@@ -299,4 +306,23 @@ void HistoryLog::WriteSellItem(FILE* file, int itemIdx, int count)
 {
     if (!CheckFD(file)) return;
     fprintf(file, FMT_SELL_ITEM, time, itemIdx, count);
+}
+
+// ============================================================================
+// cHistoryTrace::operator()(char const*, ...) —— ORIG 0x0854f990
+//   CLog::instance() 后对 +0xa8（m_mutexes[7]，Mutex 0x18）构造 Guard<Mutex>，
+//   再调 CLog::logHistory(fmt, va_list)，Guard 析构解锁。
+// ============================================================================
+void cHistoryTrace::operator()(char const* fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+
+    CLog* log = CLog::instance();
+    // ORIG：Guard<Mutex>(instance()+0xa8)；m_mutexes[7] 起始 = 7 * 0x18 = 0xa8。
+    Guard<Mutex> guard(reinterpret_cast<Mutex*>(reinterpret_cast<char*>(log) + 0xa8));
+
+    log->logHistory(fmt, reinterpret_cast<char*>(ap));  // ORIG logHistory(fmt, &stack)
+
+    va_end(ap);
 }

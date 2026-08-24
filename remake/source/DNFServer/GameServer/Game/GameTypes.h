@@ -34,12 +34,52 @@ private:
     pthread_mutex_t m_mutex;   // +0x00，0x18 字节
 };
 
+class rwLock
+{
+public:
+    rwLock() { pthread_rwlock_init(&m_lock, 0); }
+    ~rwLock() { pthread_rwlock_destroy(&m_lock); }
+    void rdlock() { pthread_rwlock_rdlock(&m_lock); }
+    void wrlock() { pthread_rwlock_wrlock(&m_lock); }
+    void unlock() { pthread_rwlock_unlock(&m_lock); }
+private:
+    pthread_rwlock_t m_lock;   // +0x00，0x20 字节
+};
+
 template <class T>
 class Guard
 {
 public:
     Guard(T* p) { p->lock(); m_lock = p; }
     ~Guard()    { m_lock->unlock(); }
+private:
+    T* m_lock;
+};
+
+template <class T>
+class readGuard
+{
+public:
+    readGuard(T* p)
+    {
+        p->rdlock();
+        m_lock = p;
+    }
+    ~readGuard() { m_lock->unlock(); }
+private:
+    T* m_lock;
+};
+
+template <class T>
+class writeGuard
+{
+public:
+    writeGuard(T* p)
+    {
+        p->wrlock();
+        m_lock = p;
+    }
+    ~writeGuard() { m_lock->unlock(); }
 private:
     T* m_lock;
 };

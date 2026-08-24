@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 #include <vector>
-
+#include "CMailBoxHelper.h"   // WongWork::CMailBoxHelper 权威叶子头（替代本 TU 局部镜像）
 #include "CAchievement.h"
 
 #include "CDataManager.h"
@@ -91,22 +91,6 @@ public:
 // 链接桩由主 agent 提供（同 CInventory.h 声明）。
 int GetInvenSlot(Inven_Item* out, CInventory* self, int invenType, int slot);
 
-namespace WongWork
-{
-class CMailBoxHelper
-{
-public:
-    // ORIG mangled：_ZN8WongWork14CMailBoxHelper22ReqDBSendNewSystemMail
-    //   EPKcRK10Inven_ItemjjS2_ij17ENUM_SERVER_GROUPbb
-    static void ReqDBSendNewSystemMail(const char* pSender,
-                                       const Inven_Item& item,
-                                       unsigned int nA, unsigned int nCharacNo,
-                                       const char* pTitle, int nTitleLen,
-                                       unsigned int nB,
-                                       ENUM_SERVER_GROUP nServerGroup,
-                                       bool bA, bool bB);
-};
-}
 
 // cUserHistoryLog::AchievementComplete（CUser.h 权威 cUserHistoryLog 声明，
 // CAchievement.cpp 使用本地最小视图；符号 _ZN15cUserHistoryLog19AchievementCompleteEi
@@ -690,10 +674,12 @@ void CAchievement::_sendCompleteReward(const Quest* quest,
     {
         return;
     }
+    // 邮件字段位于 stRewardPostal（+0x0c..+0x1c）；基类仅承载 type 判定。
+    stRewardPostal* postal = static_cast<stRewardPostal*>(reward);
     if (_getTabComplete(&section, category))
     {
-        _sendPostal(reward->m_itemIdx, reward->m_addInfo, reward->m_sender,
-                    reward->m_subject);
+        _sendPostal(postal->m_itemIdx, postal->m_addInfo, postal->m_sender,
+                    postal->m_subject);
     }
 }
 

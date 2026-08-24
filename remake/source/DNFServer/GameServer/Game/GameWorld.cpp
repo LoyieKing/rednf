@@ -74,19 +74,6 @@
 // 实参；全局同名类型使 guard.GetInBuffer<SIG_*>() 自然产生 ORIG 模板实例符号
 // _ZN12CStreamGuard11GetInBufferI24SIG_UPDATE_STATISTIC4LEVEEPT_v 与
 // _ZN12CStreamGuard11GetInBufferI17SIG_NAT_TYPE_USEREEPT_v）
-// ============================================================================
-struct SIG_UPDATE_STATISTIC4LEV
-{
-    int m_gcNo;
-    int m_count[70];
-    int m_time;
-};
-struct SIG_NAT_TYPE_USER
-{
-    int m_type;
-    int m_count;
-    int m_time;
-};
 
 // ============================================================================
 // sync_script::CSyncScript 最小声明（不 include sync_script.h：其 ST* 镜像
@@ -553,6 +540,13 @@ bool GameWorld::IsCharacterPvPExpRevisionChannel() const  // ORIG 085dfa76
 bool GameWorld::IsCharacterLevelRevisionChannel() const  // ORIG 084ed128
 {
     if ((unsigned int)(m_channelType - 0xe) <= 2) return true;  // ∈ [0xe, 0x10]
+    return false;
+}
+
+bool GameWorld::IsCharacterStatRevisionChannel() const  // ORIG W 086977da
+{
+    // sub $0xe / cmp $0x2 / ja：m_channelType ∈ [0xe,0x10] 返回 true
+    if ((unsigned int)(m_channelType - 0xe) <= 2) return true;
     return false;
 }
 
@@ -2252,7 +2246,7 @@ void GameWorld::fishing(CUser* user)
             {
                 Inven_Item item;
                 *(int*)&item = fishIndex;
-                CItemList* itemList = *(CItemList**)((char*)G_CDataManager() + 0xc);
+                CItemList* itemList = G_CDataManager()->getItemList();
                 itemList->create_item((ENUM_ITEM_CREATE_TYPE)0, item, 1);
                 int result = user->getCurCharacInvenW()->insertItemIntoInventory(
                     item, (eItemAddReason)5, true, true);
@@ -3401,8 +3395,7 @@ void GameWorld::send_chat_msg(CUser* from, char type, unsigned short target,
     }
     if (type != 0)
     {
-        std::string filtered = msg;
-        CSyncSlangFilter::GetInstance()->Filter(filtered);
+        std::string filtered = CSyncSlangFilter::GetInstance()->Filter(std::string(msg));
         if (filtered.size() != 0)
         {
             strncpy(msg, filtered.c_str(), filtered.size());
@@ -3729,8 +3722,7 @@ void GameWorld::send_chat_msg_hyper_link(CUser* from, void* linkMsg, ENUM_NOTIPA
     }
     if (msg->m_type != 0)
     {
-        std::string filtered = msg->m_msg;
-        CSyncSlangFilter::GetInstance()->Filter(filtered);
+        std::string filtered = CSyncSlangFilter::GetInstance()->Filter(std::string(msg->m_msg));
         if (filtered.size() != 0)
         {
             strncpy(msg->m_msg, filtered.c_str(), filtered.size());

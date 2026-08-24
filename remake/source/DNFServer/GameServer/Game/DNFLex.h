@@ -14,12 +14,15 @@
 
 #include <string>
 #include <iostream>
+#include <vector>
 
 // ---- FlexLexer / __dnf_script__FlexLexer 基类（flex 2.5.35 权威头）----
+// Generated FlexLexerEngine.cpp already #define's yyFlexLexer and includes
+// FlexLexer.h; a second include with the same prefix redefines the class.
 #ifndef yyFlexLexer
 #define yyFlexLexer __dnf_script__FlexLexer
-#endif
 #include "FlexLexer.h"
+#endif
 
 // ---------------------------------------------------------------------------
 // DNFLEX_TOKEN（DNF 脚本词法记号，共享枚举）。
@@ -59,10 +62,12 @@ public:
     };
     struct stream_t
     {
-        const char* dir;        // +0x00
-        const char* filename;   // +0x04
+        // gcc 4.4 COW std::string is one pointer (4 bytes) on i386.
+        std::string dir;        // +0x00
+        std::string filename;   // +0x04
         stream_data_t s;        // +0x08
         int line_number;        // +0x14
+        // 无用户析构：Pop/~DNFLex 内联 string 析构；insert_aux EH 再发 ~stream_t。
     };
 
     // ---- 回调类型 ----
@@ -100,9 +105,8 @@ public:
     int   get_next_token();           // 0x8acdaa0（DNFLEX_TOKEN）
 
     // ---- 数据（+0x80 起；FlexLexer 基类占 +0x00..+0x7f）----
-    char*  stackStart;    // +0x80 stream_stack_._M_start
-    char*  stackFinish;   // +0x84 stream_stack_._M_finish
-    char*  stackEnd;      // +0x88 stream_stack_._M_end_of_storage
+    // gcc 4.4 std::vector 即三指针 start/finish/end，ORIG 为 stream_stack。
+    std::vector<stream_t> stream_stack; // +0x80
     char   errBuf[0x2000];   // +0x8c ERR_BUF（构造 rep stos 0x800 双字）
     char   strTokBuf[0x2000]; // +0x208c STR_TOK_BUF（构造 rep stos 0x800 双字）
     char*  m_str_tok_pos;   // +0x408c STR_TOK_BUF 写入游标
@@ -115,22 +119,5 @@ public:
     TLoadStream     loadStream;      // +0x40a0
     // 总大小 0x40a4
 };
-
-// ---------------------------------------------------------------------------
-// Flex DFA 表（ORIG .rodata：yy_accept@0x8e2f180、yy_def@0x8e2f200、
-// yy_base@0x8e2f280、yy_chk@0x8e2f300、yy_nxt@0x8e30400、
-// yy_NUL_trans@0x8e2f0a0、yy_rule_can_match_eol@0x8e31500）。
-// 定义于 DNFLexCore.cpp；FlexLexerEngine.cpp（yy_get_previous_state 等）引用。
-// ---------------------------------------------------------------------------
-extern "C"
-{
-extern const short          g_yy_accept[];
-extern const short          g_yy_def[];
-extern const short          g_yy_base[];
-extern const short          g_yy_chk[];
-extern const short          g_yy_nxt[];
-extern const int            g_yy_NUL_trans[];
-extern const unsigned char  g_yy_rule_can_match_eol[];
-}
 
 #endif  // DNFLEX_H

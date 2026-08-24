@@ -32,7 +32,7 @@ public:
         char*        buffer;   // +0x0c
         char*        offset;   // +0x10
 
-        stream_t() : dir(), filename(), size(0), buffer(0), offset(0) {}
+        stream_t() : dir(), filename() {}
         stream_t(const std::string& d, const std::string& f)
             : dir(d), filename(f), size(0), buffer(0), offset(0) {}
     };
@@ -47,6 +47,7 @@ public:
     ScriptStringManager* getStringManager();  // 0x8ad0070
     void setStringManager(ScriptStringManager* pStringManager, bool allowOwner);  // 0x8ad0050
     stream_t* GetInputStream();             // 0x8acfea0
+    const stream_t* GetInputStream() const; // 0x8acfee0
     void CloseInputStream();                // 0x8ad0e90
     bool PushInputStream(const char* dir, const char* filename,
                          char* buffer, unsigned int bufferSize);  // 0x8ad0a00
@@ -55,9 +56,9 @@ public:
     void SetHandler(TLexerError lexerError, TLoadStream loadStream);  // 0x8acfdf0
     void EnableInclusion();                 // 0x8ad0090
     void DisableInclusion();                // 0x8ad0080
-    bool IsStream();                        // 0x8acfe80
-    int  GetOffset();                       // 0x8acff20
-    std::string getStreamName();            // 0x8ad0290
+    bool IsStream() const;                  // 0x8acfe80
+    int  GetOffset() const;                 // 0x8acff20
+    std::string getStreamName() const;      // 0x8ad0290
     bool isEnd();                           // 0x8ad0000
     bool PopInputStream(bool pop_all);      // 0x8ad0c80
     void LexerError(const char* msg);       // 0x8acfe10

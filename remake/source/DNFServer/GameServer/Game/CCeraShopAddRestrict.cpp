@@ -10,13 +10,16 @@
 #include <cstring>
 #include <map>
 #include <string>
-#include <vector>
+#include "RDARScriptStringManager.h"
+#include "CGameManager.h"
+#include "CInventory.h"
 
 #include "CUser.h"
 #include "CDataManager.h"
 #include "CInventory.h"
 #include "InterfacePacketBuf.h"
 #include "Arad_DataManager.h"
+#include "CItemLimitEdition.h"
 
 // DB 商城限购请求类（权威定义见 DB_CerashopAddRestrict.cpp，ORIG T @ 0x080e1ff6/0x080e17ba）。
 class DB_LoadCerashopAddRestrictType
@@ -148,8 +151,13 @@ static UserInfo& UserCeraInfo(CUser* u)
     return u->m_ceraUserInfo;
 }
 
+// ORIG 0x080e09bc：基类 ARAD::ScriptInterface 仅置 vptr（4 字节），随后清
+// +0x08..+0x18 五个标量并构造 ScriptLoader(+0x04)。
 Manager::Manager()
+    : m_field8(0), m_fieldc(0), m_field10(0), m_field14(0), m_field18(0)
 {
+    // ORIG 0x080e09bc：ScriptInterface 基类 vptr 由基类构造写入；随后清
+    // +0x08..+0x18 五个标量并构造 ScriptLoader(+0x04)（成员自动构造）。
 }
 
 Manager::~Manager()
@@ -161,9 +169,10 @@ bool Manager::Load()
     return m_loader.LoadScript() == 0;
 }
 
-int Manager::Destroy()
+void Manager::Destroy()
 {
-    return 1;
+    // ORIG 0x080e0e40：返回 1；经 ScriptInterface 虚槽调用时返回值被忽略，
+    // 槽签名 void（Arad_DataManager.h ScriptInterface）。
 }
 
 bool Manager::FindIpgNo(unsigned int ipgNo)
@@ -289,131 +298,18 @@ int Manager::InputBuyInfo(CUser* user, unsigned int ipgNo, unsigned int itemIdx,
     return 1;
 }
 
+// IsBuyableRestrictItem —— ORIG 0x080e0ce2 (T)
+// 静态转发：ARAD::Singleton<Manager>::Get()->CheckBuyableProduct(user, ipgNo, itemIdx, type)。
+// 返回 CheckBuyableProduct 的结果（1=可购买）；调用方（ItemVendingMachine::
+// ProcessBuyRequestEx）取反判定「不可购买」。
+int Manager::IsBuyableRestrictItem(CUser* user, unsigned int ipgNo,
+                                   unsigned int itemIdx, int type)
+{
+    return ARAD::Singleton<CerashopAddRestrict::Manager>::Get()
+        ->CheckBuyableProduct(user, ipgNo, itemIdx, type);
+}
+
 }  // namespace CerashopAddRestrict
-
-// ============================================================================
-// CItemLimitEdition / CItemLimitEditionMgr
-// ============================================================================
-struct stItemLimitEditionItemInfo_t
-{
-    int m_field0;                 // +0x00
-    unsigned long m_itemIdx;      // +0x04
-    int m_field8;                 // +0x08
-    char m_fieldc;                // +0x0c
-    int m_field10;                // +0x10
-    int m_field14;                // +0x14
-    char m_pad18[0x34];           // +0x18
-    int m_field4c;                // +0x4c
-    int m_field50;                // +0x50
-    char m_pad54[0x2c];           // +0x54（条目尺寸 0x80）
-};
-
-class CItemLimitEdition
-{
-public:
-    CItemLimitEdition(const stItemLimitEditionItemInfo_t& info);
-    ~CItemLimitEdition();
-
-    void updateCurSellNum(unsigned int count);
-    void makeInfoPacket(PacketGuard& packet) const;
-
-    int m_field0;                  // +0x00
-    unsigned long m_itemIdx;       // +0x04
-    int m_field8;                  // +0x08
-    char m_fieldc;                 // +0x0c
-    int m_field10;                 // +0x10
-    int m_field14;                 // +0x14
-    char m_pad18[0x30];            // +0x18
-    int m_field48;                 // +0x48（curSellNum）
-    int m_field4c;                 // +0x4c
-    int m_field50;                 // +0x50
-    char m_pad54[0x2c];            // +0x54（尺寸 0x80）
-};
-
-CItemLimitEdition::CItemLimitEdition(const stItemLimitEditionItemInfo_t& info)
-{
-    memcpy(this, &info, 0x80);
-}
-
-CItemLimitEdition::~CItemLimitEdition()
-{
-}
-
-void CItemLimitEdition::updateCurSellNum(unsigned int count)
-{
-    m_field48 = (int)count;
-}
-
-void CItemLimitEdition::makeInfoPacket(PacketGuard& packet) const
-{
-    InterfacePacketBuf* buf = (InterfacePacketBuf*)&packet;
-    buf->put_int(m_field0);
-    buf->put_item_idx(m_itemIdx);
-    buf->put_int(m_field8);
-    buf->put_byte(m_fieldc);
-    buf->put_int(m_field10);
-    buf->put_int(m_field14);
-    buf->put_int(m_field48);
-    buf->put_int(m_field4c);
-    buf->put_int(m_field50);
-}
-
-class CItemLimitEditionMgr
-{
-public:
-    CItemLimitEditionMgr();
-    ~CItemLimitEditionMgr();
-
-    void registItem(const stItemLimitEditionItemInfo_t& info);
-    void removeItem(unsigned int itemIdx);
-    void updateItem(unsigned int itemIdx, unsigned int count);
-    void clear();
-
-    std::map<unsigned int, CItemLimitEdition*> m_items;
-};
-
-CItemLimitEditionMgr::CItemLimitEditionMgr()
-{
-}
-
-CItemLimitEditionMgr::~CItemLimitEditionMgr()
-{
-    clear();
-}
-
-void CItemLimitEditionMgr::registItem(const stItemLimitEditionItemInfo_t& info)
-{
-    unsigned int itemIdx = (unsigned int)info.m_itemIdx;
-    std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(itemIdx);
-    if (it != m_items.end())
-        delete it->second;
-    m_items[itemIdx] = new CItemLimitEdition(info);
-}
-
-void CItemLimitEditionMgr::removeItem(unsigned int itemIdx)
-{
-    std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(itemIdx);
-    if (it != m_items.end()) {
-        delete it->second;
-        m_items.erase(it);
-    }
-}
-
-void CItemLimitEditionMgr::updateItem(unsigned int itemIdx, unsigned int count)
-{
-    std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.find(itemIdx);
-    if (it != m_items.end())
-        it->second->updateCurSellNum(count);
-}
-
-void CItemLimitEditionMgr::clear()
-{
-    for (std::map<unsigned int, CItemLimitEdition*>::iterator it = m_items.begin();
-         it != m_items.end(); ++it)
-        delete it->second;
-    m_items.clear();
-}
-
 // ============================================================================
 // CCeraShopBonusItemEvent / CEventCeraShopRewardPoint（商城事件）
 // ============================================================================
@@ -524,7 +420,30 @@ void CEventCeraShopRewardPoint::EndEvent()
     SetEventFlag(false);
 }
 
+// ORIG 0x0816471e：RDAR 字符串取标题/正文，附道具（idx 0x28ec3d，
+// add_info = m_fieldC）经 ReqDBSendNewSystemMail 发系统邮件。
 void CEventCeraShopRewardPoint::SendReward(CUser* user)
 {
-    (void)user;
+    if (user == 0)
+        return;
+
+    const char* title = g_scriptStringManager_.findString(
+        4, "tw_shop_open_title", (bool*)0);
+    char titleBuf[30];
+    strncpy(titleBuf, title, 0x1d);
+
+    const char* content = g_scriptStringManager_.findString(
+        4, "tw_shop_open_content", (bool*)0);
+    char contentBuf[256];
+    strncpy(contentBuf, content, 0xff);
+
+    Inven_Item item;
+    *(int*)((char*)&item + 2) = 0x28ec3d;   // item idx @+0x02
+    *(int*)((char*)&item + 7) = m_fieldC;   // add_info @+0x07
+    unsigned int serverGroup = user->GetServerGroup();
+    int characNo = user->get_charac_no(-1);
+    WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+        titleBuf, item, (unsigned int)m_fieldC, (unsigned int)characNo,
+        contentBuf, (int)strlen(contentBuf), 0,
+        (ENUM_SERVER_GROUP)serverGroup, false, false);
 }

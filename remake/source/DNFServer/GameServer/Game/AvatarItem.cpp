@@ -6,13 +6,23 @@
 
 static_assert(sizeof(stAvatarEmblemInfo_t) == 0x1e, "avatar emblem ABI layout changed");
 static_assert(offsetof(stAvatarEmblemInfo_t, stEmblemSocket) == 0, "avatar emblem socket offset changed");
-static_assert(sizeof(WongWork::Avatar_Item) == 0x104, "Avatar_Item ABI size changed");
+static_assert(sizeof(WongWork::Avatar_Item) == 0x100, "Avatar_Item ABI size changed (ORIG packed 0x100)");
 static_assert(offsetof(WongWork::Avatar_Item, m_emblemInfo) == 0x21, "Avatar_Item emblem offset changed");
+static_assert(offsetof(WongWork::Avatar_Item, m_color1) == 0x3f, "Avatar_Item color1 offset changed (ORIG 0x3f)");
+static_assert(offsetof(WongWork::Avatar_Item, m_color2) == 0x41, "Avatar_Item color2 offset changed (ORIG 0x41)");
 
 namespace WongWork
 {
 
-void Avatar_Item::init() { memset(this, 0, sizeof(*this)); }
+// ORIG _ZN8WongWork11Avatar_Item4initEv W 0x82fa35a：仅清 +0x00/+0x04 两个 int、
+// memset(m_ipgAgencyNo,0,0x19)、memset(+0x3f,0,4)；emblem 区与 +0x43 之后不清。
+void Avatar_Item::init()
+{
+    m_expireDate = 0;
+    m_registTime = 0;
+    memset(m_ipgAgencyNo, 0, 0x19);
+    memset(&m_color1, 0, 4);
+}
 
 int Avatar_Item::GetExpireDate() const { return m_expireDate; }
 

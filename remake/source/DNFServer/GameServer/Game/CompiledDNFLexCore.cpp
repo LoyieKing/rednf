@@ -39,14 +39,44 @@
 
 // toMbcs/toTString（UnicodeConvert.cpp 提供，恒等转换）。
 const char* toMbcs(const char* src);
+const char* toMbcs(const std::string& src);
 const char* toTString(const std::string& src);
 
 namespace
 {
 
 const unsigned int STRING_BUFFER_SIZE = 0x400;
+const unsigned int STREAM_NODE_ELEMS = 0x1f4 / sizeof(CompiledDNFLex::stream_t);
 
 }  // namespace
+
+// ORIG `_ZZ17readIntFromBufferRPcE9intBuffer` / `_ZZ18readCharFromBufferRPcE10charBuffer`
+// / `_ZZ19readFloatFromBufferRPcE11floatBuffer`：外部链接、函数内 static，-O2 内联进
+// getInt/getStr/getToken/getFloat。
+int readIntFromBuffer(char*& offset)
+{
+    static int intBuffer;
+    intBuffer = *reinterpret_cast<int*>(offset);
+    offset += 4;
+    return intBuffer;
+}
+
+int readCharFromBuffer(char*& offset)
+{
+    static char charBuffer;
+    signed char c = *reinterpret_cast<signed char*>(offset);
+    ++offset;
+    charBuffer = c;
+    return c;
+}
+
+float readFloatFromBuffer(char*& offset)
+{
+    static float floatBuffer;
+    floatBuffer = *reinterpret_cast<float*>(offset);
+    offset += 4;
+    return floatBuffer;
+}
 
 // ---- getStringManager（ORIG 0x8ad0070）：返回 stringManager_。----
 ScriptStringManager* CompiledDNFLex::getStringManager()
@@ -70,6 +100,13 @@ CompiledDNFLex::stream_t* CompiledDNFLex::GetInputStream()
     return &streamStack_.back();
 }
 
+const CompiledDNFLex::stream_t* CompiledDNFLex::GetInputStream() const
+{
+    if (streamStack_.empty())
+        return 0;
+    return &streamStack_.back();
+}
+
 // ---- PopInputStream（ORIG 0x8ad0c80）----
 // 栈空返回 false；!pop_all 且元素数 <2 返回 false（保留最底层流）。
 // 否则弹出一个：释放 buffer、析构 dir/filename、pop_back；弹出后若栈仍非空，
@@ -78,23 +115,22 @@ bool CompiledDNFLex::PopInputStream(bool pop_all)
 {
     if (streamStack_.empty())
         return false;
-    if (!pop_all && streamStack_.size() < 2)
-        return false;
-
-    stream_t& top = streamStack_.back();
-    if (top.buffer != 0)
+    if (!pop_all)
+        goto check_size;
+do_pop:
     {
-        ::operator delete(top.buffer);
-        top.buffer = 0;
+        stream_t& top = streamStack_.back();
+        if (top.buffer != 0)
+            delete[] top.buffer;
+        streamStack_.pop_back();
+        if (!streamStack_.empty())
+            offset_ = streamStack_.back().offset;
+        return true;
     }
-    // stream_t 析构（两个 std::string 引用计数递减）由 pop_back 完成。
-    streamStack_.pop_back();
-
-    if (!streamStack_.empty())
-    {
-        offset_ = streamStack_.back().offset;
-    }
-    return true;
+check_size:
+    if (streamStack_.size() > 1)
+        goto do_pop;
+    return false;
 }
 
 // ---- CloseInputStream（ORIG 0x8ad0e90）：反复弹出至空。----
@@ -113,38 +149,40 @@ void CompiledDNFLex::CloseInputStream()
 bool CompiledDNFLex::PushInputStream(const char* dir, const char* filename,
                                      char* buffer, unsigned int bufferSize)
 {
-    bool emptyFile = false;   // buffer==NULL || bufferSize==0 → 无魔数校验
-    if (buffer != 0 && bufferSize != 0)
+    // ORIG 栈上 stream_t：只默认构造两棵 string，size/buffer/offset 不先清零。
+    stream_t stream;
+    if (dir == 0)
+        stream.dir.assign("", static_cast<size_t>(0));
+    else
+        stream.dir.assign(dir, std::strlen(dir));
+    if (filename == 0)
+        stream.filename.assign("", static_cast<size_t>(0));
+    else
+        stream.filename.assign(filename, std::strlen(filename));
+
+    bool empty_file = false;
+    if (buffer == 0 || (empty_file = true, bufferSize != 0))
     {
         if (bufferSize < 2)
             return false;
-        if (*reinterpret_cast<short*>(buffer) !=
-            static_cast<short>(0xd0b0))
+        if (*reinterpret_cast<short*>(buffer) != static_cast<short>(0xd0b0))
         {
-            ::operator delete(buffer);
+            delete[] buffer;
             return false;
         }
-        emptyFile = false;
-    }
-    else
-    {
-        emptyFile = true;
+        empty_file = false;
     }
 
-    std::string d(dir ? dir : "");
-    std::string f(filename ? filename : "");
+    stream.size = bufferSize;
+    stream.buffer = buffer;
 
     if (!streamStack_.empty())
         streamStack_.back().offset = offset_;
 
-    streamStack_.push_back(stream_t(d, f));
-    stream_t& s = streamStack_.back();
-    s.size = bufferSize;
-    s.buffer = buffer;
-    s.offset = buffer;
+    streamStack_.push_back(stream);
 
     offset_ = buffer;
-    if (!emptyFile)
+    if (!empty_file)
         offset_ = buffer + 2;
     return true;
 }
@@ -177,44 +215,63 @@ void CompiledDNFLex::DisableInclusion()
 }
 
 // ---- IsStream（ORIG 0x8acfe80）：栈非空。----
-bool CompiledDNFLex::IsStream()
+bool CompiledDNFLex::IsStream() const
 {
     return !streamStack_.empty();
 }
 
-// ---- GetOffset（ORIG 0x8acff20）：当前流内偏移；无流/无缓冲返回 -1。----
-int CompiledDNFLex::GetOffset()
+// ---- GetOffset（ORIG 0x8acff20）：--finish 后取 buffer；空/指针 0/buffer 0 → -1。----
+int CompiledDNFLex::GetOffset() const
 {
-    if (streamStack_.empty())
-        return -1;
-    const stream_t& s = streamStack_.back();
-    if (s.buffer == 0)
-        return -1;
-    return static_cast<int>(offset_ - s.buffer);
+    stream_t* p = streamStack_.end()._M_cur;
+    if (p == streamStack_.begin()._M_cur)
+        goto fail;
+    {
+        stream_t** node = streamStack_.end()._M_node;
+        if (p == streamStack_.end()._M_first)
+            p = *(node - 1) + STREAM_NODE_ELEMS;
+        p = p - 1;
+        if (p != 0)
+            goto have;
+    }
+fail:
+    return -1;
+have:
+    if (p->buffer == 0)
+        goto fail;
+    return (int)(offset_ - p->buffer);
 }
 
-// ---- getStreamName（ORIG 0x8ad0290）：dir+filename；空栈 "NONE"。----
-std::string CompiledDNFLex::getStreamName()
+// ---- getStreamName（ORIG 0x8ad0290）：NRVO 槽上 copy dir 再 append(filename)；空/空指针 "NONE"。----
+std::string CompiledDNFLex::getStreamName() const
 {
-    if (streamStack_.empty())
+    stream_t* p = streamStack_.end()._M_cur;
+    if (p == streamStack_.begin()._M_cur)
         return std::string("NONE");
-    const stream_t& s = streamStack_.back();
-    if (&s.filename == 0)  // 防御（ORIG 空指针分支）
+    stream_t** node = streamStack_.end()._M_node;
+    if (p == streamStack_.end()._M_first)
+        p = *(node - 1) + STREAM_NODE_ELEMS;
+    p = p - 1;
+    if (p == 0)
         return std::string("NONE");
-    std::string result = s.filename;
-    result.append(s.dir);
-    return result;
+    std::string r(p->dir);
+    r.append(p->filename);
+    return r;
 }
 
-// ---- isEnd（ORIG 0x8ad0000）：读位置到达当前流末尾。----
+// ---- isEnd（ORIG 0x8ad0000）：--finish 后 buffer+size <= offset_；空/空指针返回 0。----
 bool CompiledDNFLex::isEnd()
 {
-    if (streamStack_.empty())
+    stream_t* p = streamStack_.end()._M_cur;
+    if (p == streamStack_.begin()._M_cur)
         return false;
-    const stream_t& s = streamStack_.back();
-    if (s.buffer == 0)
+    stream_t** node = streamStack_.end()._M_node;
+    if (p == streamStack_.end()._M_first)
+        p = *(node - 1) + STREAM_NODE_ELEMS;
+    p = p - 1;
+    if (p == 0)
         return false;
-    return s.buffer + s.size <= offset_;
+    return p->buffer + p->size <= offset_;
 }
 
 // ---- LexerError（ORIG 0x8acfe10）----
@@ -237,12 +294,21 @@ bool CompiledDNFLex::LoadStream(const char* dir, const char* filename,
 bool CompiledDNFLex::getStr(std::string& stringBuffer)
 {
     int tok = lastToken_;
-    if (!(tok > DNF_TOK_HEXADECIMAL && tok != DNF_TOK_PAIR_INT &&
-          tok != DNF_TOK_FLOAT && tok != DNF_TOK_EOF && tok != DNF_TOK_ERROR))
-        return false;
-
-    int index = *reinterpret_cast<int*>(offset_);
-    offset_ += 4;
+    unsigned d = (unsigned)tok - 2;
+    if (d <= 1)
+        goto fail;
+    if (tok != DNF_TOK_PAIR_INT)
+        goto more;
+fail:
+    return false;
+more:
+    if (tok == DNF_TOK_FLOAT)
+        goto fail;
+    if (tok == DNF_TOK_EOF)
+        goto fail;
+    if (tok == DNF_TOK_ERROR)
+        goto fail;
+    int index = readIntFromBuffer(offset_);
     return stringManager_->getString(index, &stringBuffer);
 }
 
@@ -250,23 +316,32 @@ bool CompiledDNFLex::getStr(std::string& stringBuffer)
 bool CompiledDNFLex::getStr(char* buffer, int maxSize)
 {
     int tok = lastToken_;
-    if (!(tok > DNF_TOK_HEXADECIMAL && tok != DNF_TOK_PAIR_INT &&
-          tok != DNF_TOK_FLOAT && tok != DNF_TOK_EOF && tok != DNF_TOK_ERROR))
-        return false;
-
-    int index = *reinterpret_cast<int*>(offset_);
-    offset_ += 4;
+    unsigned d = (unsigned)tok - 2;
+    if (d <= 1)
+        goto fail;
+    if (tok != DNF_TOK_PAIR_INT)
+        goto more;
+fail:
+    return false;
+more:
+    if (tok == DNF_TOK_FLOAT)
+        goto fail;
+    if (tok == DNF_TOK_EOF)
+        goto fail;
+    if (tok == DNF_TOK_ERROR)
+        goto fail;
+    int index = readIntFromBuffer(offset_);
     const std::string* r_string = stringManager_->getString(index);
     const char* src = r_string->c_str();
-    std::size_t string_length = r_string->size();
-    if (static_cast<int>(string_length) <= maxSize)
-    {
-        std::memcpy(buffer, src, string_length);
-        buffer[string_length] = '\0';
-        return true;
-    }
-    std::memcpy(buffer, src, maxSize - 1);
-    buffer[maxSize - 1] = '\0';
+    int string_length = (int)r_string->size();
+    if (__builtin_expect(string_length > maxSize, 0))
+        goto overflow;
+    std::memcpy(buffer, src, (unsigned)string_length);
+    buffer[string_length] = 0;
+    return true;
+overflow:
+    std::memcpy(buffer, src, (unsigned)(maxSize - 1));
+    buffer[string_length - 1] = 0;
     return false;
 }
 
@@ -283,7 +358,8 @@ char* CompiledDNFLex::getStr(bool* result)
 int CompiledDNFLex::getInt(bool* result)
 {
     int tok = lastToken_;
-    if (tok > DNF_TOK_HEXADECIMAL && tok != DNF_TOK_PAIR_INT)
+    unsigned d = (unsigned)tok - 2;
+    if (d > 1 && tok != DNF_TOK_PAIR_INT)
     {
         if (result != 0)
             *result = false;
@@ -291,9 +367,10 @@ int CompiledDNFLex::getInt(bool* result)
     }
     if (result != 0)
         *result = true;
-    int value = *reinterpret_cast<int*>(offset_);
+    static int intBuffer;
+    intBuffer = *reinterpret_cast<int*>(offset_);
     offset_ += 4;
-    return value;
+    return intBuffer;
 }
 
 // ---- getFloat（ORIG 0x8acffc0）：仅 FLOAT 有效。----
@@ -307,9 +384,10 @@ float CompiledDNFLex::getFloat(bool* result)
     }
     if (result != 0)
         *result = true;
-    float value = *reinterpret_cast<float*>(offset_);
+    static float floatBuffer;
+    floatBuffer = *reinterpret_cast<float*>(offset_);
     offset_ += 4;
-    return value;
+    return floatBuffer;
 }
 
 // ---- create（ORIG 0x8ad03d0）----
@@ -328,19 +406,19 @@ void CompiledDNFLex::create(bool createStringTable)
 // ---- destroy（ORIG 0x8ad0370）----
 void CompiledDNFLex::destroy()
 {
-    if (!stringManagerDelete_)
+    if (stringManagerDelete_)
     {
-        stringManager_ = 0;
-    }
-    else
-    {
-        if (stringManager_ != 0)
+        ScriptStringManager* p = stringManager_;
+        if (p != 0)
         {
-            delete stringManager_;   // 经 D0 deleting 析构（vtable 槽 1）
+            void (**vt)(void*) = *(void (***)(void*))p;
+            vt[1](p);
             stringManager_ = 0;
         }
         stringManagerDelete_ = false;
     }
+    else
+        stringManager_ = 0;
     if (stringBuffer_ != 0)
     {
         ::operator delete[](stringBuffer_);
@@ -353,128 +431,123 @@ void CompiledDNFLex::destroy()
 // 读下一个 STRING 记号作文件名，LoadStream+PushInputStream 切入包含文件。
 int CompiledDNFLex::getToken()
 {
-    for (;;)
+    stream_t* p = streamStack_.end()._M_cur;
+    if (p != streamStack_.begin()._M_cur)
     {
-        if (!streamStack_.empty())
+        stream_t** node = streamStack_.end()._M_node;
+        if (p == streamStack_.end()._M_first)
+            p = *(node - 1) + STREAM_NODE_ELEMS;
+        p = p - 1;
+        if (p != 0)
         {
-            stream_t& cur = streamStack_.back();
-            if (offset_ >= cur.buffer + cur.size)
+            if (offset_ >= p->buffer + p->size)
             {
-                // 当前流读完：EOF → 弹出后继续（弹不出则保持 EOF）。
                 lastToken_ = DNF_TOK_EOF;
                 if (!PopInputStream(false))
                     return lastToken_;
-                continue;
+                goto recurse;
             }
         }
-
-        int c = static_cast<unsigned char>(*offset_);
-        ++offset_;
-        lastToken_ = c;
-
-        if (flag2040_ == 0 || c != DNF_TOK_INCLUDE)
-            return lastToken_;
-
-        // INCLUDE：下一字节必须是 STRING 记号，随后是字符串表索引。
-        stream_t* incl = streamStack_.empty() ? 0 : &streamStack_.back();
-        int next = static_cast<unsigned char>(*offset_);
-        ++offset_;
-        lastToken_ = next;
-        if (next != DNF_TOK_STRING || incl == 0)
-        {
-            std::snprintf(reinterpret_cast<char*>(tokenBuffer_),
-                          sizeof(tokenBuffer_),
-                          "%s - %s/%s, invalid inclusion.", "getToken",
-                          toMbcs(incl->dir.c_str()),
-                          toMbcs(incl->filename.c_str()));
-            LexerError(reinterpret_cast<char*>(tokenBuffer_));
-            return DNF_TOK_ERROR;
-        }
-
-        std::string include_path;
-        if (!getStr(include_path))
-        {
-            std::snprintf(reinterpret_cast<char*>(tokenBuffer_),
-                          sizeof(tokenBuffer_),
-                          "%s - %s%s, invalid inclusion.", "getToken",
-                          toMbcs(incl->dir.c_str()),
-                          toMbcs(incl->filename.c_str()));
-            LexerError(reinterpret_cast<char*>(tokenBuffer_));
-            return DNF_TOK_ERROR;
-        }
-
-        DNFLex::stream_data_t sd;
-        sd.clear();
-        if (!LoadStream("", toTString(include_path), &sd))
-        {
-            std::snprintf(reinterpret_cast<char*>(tokenBuffer_), sizeof(tokenBuffer_),
-                          "%s - %s%s, LoadStream failed.", "getToken",
-                          toMbcs(incl->dir.c_str()),
-                          toMbcs(incl->filename.c_str()));
-            LexerError(reinterpret_cast<char*>(tokenBuffer_));
-            return DNF_TOK_ERROR;
-        }
-
-        char* sd_buf = sd.buffer;
-        if (sd_buf == 0)
-        {
-            sd_buf = new char[sd.size];
-            reinterpret_cast<std::istream*>(sd.stream)->read(sd_buf, sd.size);
-        }
-
-        if (!PushInputStream("", toTString(include_path), sd_buf, sd.size))
-        {
-            std::snprintf(reinterpret_cast<char*>(tokenBuffer_), sizeof(tokenBuffer_),
-                          "%s - %s%s, PushInputStream failed.", "getToken",
-                          toMbcs(incl->dir.c_str()),
-                          toMbcs(incl->filename.c_str()));
-            LexerError(reinterpret_cast<char*>(tokenBuffer_));
-            return DNF_TOK_ERROR;
-        }
-
-        if (sd.stream != 0)
-        {
-            // 关闭 istream（ORIG 经其 vtable 槽 +4 析构子对象）。
-            void (**vtable)(void*) =
-                *reinterpret_cast<void (***)(void*)>(sd.stream);
-            vtable[1](sd.stream);
-        }
     }
+
+    {
+    int c = readCharFromBuffer(offset_);
+    lastToken_ = c;
+    if (flag2040_ == 0)
+        return lastToken_;
+    if (c != DNF_TOK_INCLUDE)
+        return lastToken_;
+
+    stream_t* incl = GetInputStream();
+    int next = readCharFromBuffer(offset_);
+    lastToken_ = next;
+    if (next != DNF_TOK_STRING)
+    {
+        std::sprintf(reinterpret_cast<char*>(tokenBuffer_),
+                     "%s - %s/%s, invalid inclusion.", __FUNCTION__,
+                     toMbcs(incl->dir), toMbcs(incl->filename));
+        LexerError(reinterpret_cast<char*>(tokenBuffer_));
+        return DNF_TOK_ERROR;
+    }
+
+    std::string include_path;
+    if (!getStr(include_path))
+    {
+        std::sprintf(reinterpret_cast<char*>(tokenBuffer_),
+                     "%s - %s%s, invalid inclusion.", __FUNCTION__,
+                     toMbcs(incl->dir), toMbcs(incl->filename));
+        LexerError(reinterpret_cast<char*>(tokenBuffer_));
+        return DNF_TOK_ERROR;
+    }
+
+    DNFLex::stream_data_t sd;
+    if (!LoadStream("", toTString(include_path), &sd))
+    {
+        std::sprintf(reinterpret_cast<char*>(tokenBuffer_),
+                     "%s - %s%s, LoadStream failed.", __FUNCTION__,
+                     toMbcs(incl->dir), toMbcs(incl->filename));
+        LexerError(reinterpret_cast<char*>(tokenBuffer_));
+        return DNF_TOK_ERROR;
+    }
+
+    char* sd_buf = sd.buffer;
+    if (sd_buf == 0)
+    {
+        sd_buf = new char[sd.size];
+        reinterpret_cast<std::istream*>(sd.stream)->read(sd_buf, sd.size);
+    }
+
+    if (!PushInputStream("", toTString(include_path), sd_buf, sd.size))
+    {
+        std::sprintf(reinterpret_cast<char*>(tokenBuffer_),
+                     "%s - %s%s, PushInputStream failed.", __FUNCTION__,
+                     toMbcs(incl->dir), toMbcs(incl->filename));
+        LexerError(reinterpret_cast<char*>(tokenBuffer_));
+        return DNF_TOK_ERROR;
+    }
+
+    if (sd.stream != 0)
+    {
+        void (**vtable)(void*) =
+            *reinterpret_cast<void (***)(void*)>(sd.stream);
+        vtable[1](sd.stream);
+    }
+    }
+recurse:
+    return getToken();
 }
 
 // ---- CompiledDNFLex()（ORIG 0x8ad07c0，默认构造：create(true) 自建串表）----
 CompiledDNFLex::CompiledDNFLex()
     : offset_(0),
-      lastToken_(DNF_TOK_EOF),
+      lastToken_(0),
       stringManagerDelete_(false),
       stringManager_(0),
-      stringBuffer_(0),
-      tokenBuffer_(),
-      streamStack_(),
-      flag2040_(1),
-      pad2041_(),
-      lexerError_(0),
-      loadStream_(0)
+      stringBuffer_(0)
 {
+    std::deque<stream_t> tmp;
+    streamStack_.swap(tmp);
     std::memset(tokenBuffer_, 0, sizeof(tokenBuffer_));
+    flag2040_ = 1;
+    lexerError_ = 0;
+    loadStream_ = 0;
     create(true);
 }
 
 // ---- CompiledDNFLex(ScriptStringManager*)（ORIG 0x8ad0580：create(false)）----
 CompiledDNFLex::CompiledDNFLex(ScriptStringManager* pStringManager)
     : offset_(0),
-      lastToken_(DNF_TOK_EOF),
+      lastToken_(0),
       stringManagerDelete_(false),
       stringManager_(pStringManager),
-      stringBuffer_(0),
-      tokenBuffer_(),
-      streamStack_(),
-      flag2040_(1),
-      pad2041_(),
-      lexerError_(0),
-      loadStream_(0)
+      stringBuffer_(0)
 {
+    std::deque<stream_t> tmp;
+    streamStack_.swap(tmp);
     std::memset(tokenBuffer_, 0, sizeof(tokenBuffer_));
+    flag2040_ = 1;
+    lexerError_ = 0;
+    loadStream_ = 0;
     create(false);
 }
 

@@ -100,7 +100,7 @@ void CAvatarItemMgr::AddEmblemEndurance(int key, const Avatar_Item* item)
             if (citem == 0)
                 return;
             int grade = citem->get_grade();
-            int rate = AvatarRechargeServer::GetRateFromEmblemGrade(grade);
+            int rate = ARAD::Singleton<AvatarRechargeServer>::Get()->GetRateFromEmblemGrade(grade);
             totalEndurance += (short)rate;
         }
     }

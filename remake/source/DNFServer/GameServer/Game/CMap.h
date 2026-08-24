@@ -4,7 +4,6 @@
 // CMap sizeof = 0x130；STMapScript sizeof = 0x37c。
 #pragma once
 
-#define CMAP_CLASS_DEFINED
 #include <cstring>
 #include <list>
 #include <map>
@@ -26,53 +25,36 @@ CDataManager* G_CDataManager();
 
 struct _mapItem
 {
-    int m_0;   // +0x00
-    int m_4;   // +0x04
-    int m_8;   // +0x08
-    int m_c;   // +0x0c
+    int m_objectIdx;   // +0x00（ctor 不初始化）
+    int m_field04;     // +0x04（ctor=0）
+    int m_field08;     // +0x08（ctor=0）
+    int m_field0c;     // +0x0c（ctor=0）
 
-    _mapItem()
-    {
-        m_4 = 0;
-        m_8 = 0;
-        m_c = 0;
-    }
+    _mapItem();   // ORIG 0815088e（唯一定义见 CMap.cpp；无 dtor 符号——平凡析构）
 };
 
 struct _mapMonster
 {
-    int m_0;             // +0x00  (monster idx, ctor=-1)
-    char m_4;            // +0x04  (ctor=1)
-    int m_8;             // +0x08
-    int m_c;             // +0x0c
-    int m_10;            // +0x10
-    int m_14;            // +0x14
-    int m_18;            // +0x18
-    char m_1c;           // +0x1c
-    int m_20;            // +0x20
-    int m_24;            // +0x24  (level)
-    int m_28;            // +0x28  (ctor=100)
-    int m_2c;            // +0x2c
-    char m_30;           // +0x30
-    std::vector<int> m_vec; // +0x34
+    int m_mobId;              // +0x00  (monster idx, ctor=-1)
+    char m_flag04;            // +0x04  (ctor=1)
+    int m_field08;            // +0x08
+    int m_spawnType;          // +0x0c  (0=单人 1=队伍 2=队伍x2)
+    int m_levelAdd;           // +0x10
+    int m_field14;            // +0x14
+    int m_roleType;           // +0x18
+    char m_champion;          // +0x1c
+    int m_posX;               // +0x20
+    int m_level;              // +0x24  (level = STAssignMonster.m_14/10；ORIG insert_monster 实证)
+    int m_hpPct;              // +0x28  (ctor=100)
+    int m_orderIdx;           // +0x2c
+    char m_flag30;            // +0x30
+    char m_pad31[3];          // +0x31
+    std::vector<int> m_mobList; // +0x34
 
-    _mapMonster()
-    {
-        m_0 = -1;
-        m_4 = 1;
-        m_8 = 0;
-        m_10 = 0;
-        m_14 = 0;
-        m_c = 0;
-        m_18 = 0;
-        m_1c = 0;
-        m_20 = 0;
-        m_28 = 100;
-        m_2c = 0;
-        m_30 = 0;
-    }
-    ~_mapMonster() {}
-};
+    _mapMonster();                        // ORIG 0830e4fc
+    _mapMonster(const _mapMonster& other); // ORIG 0813d708
+    ~_mapMonster();                       // ORIG 081398c6（仅析构 +0x34 vector）
+};                                     // 唯一定义均见 CMap.cpp
 
 class STAssignMonster
 {
@@ -124,12 +106,28 @@ struct STRivalMapData
 
 struct STAssignBloodSystem
 {
-    char m_pad[0x28];
+    int m_id;          // +0x00
+    int m_field04;     // +0x04
+    int m_phase;       // +0x08
+    int m_field0c;     // +0x0c
+    int m_field10;     // +0x10
+    int m_timeA;       // +0x14
+    int m_timeB;       // +0x18
+    int m_startCnt;    // +0x1c
+    int m_cntInc;      // +0x20
+    int m_totalCnt;    // +0x24
 };
 
 struct STAssignBloodPhaseTime
 {
-    char m_pad[0x1c];
+    int m_smallRoundOrder;   // +0x00
+    int m_phaseIdx;          // +0x04（-1 = 随机）
+    int m_interval;          // +0x08
+    float m_time;            // +0x0c
+    int m_field10;           // +0x10
+    int m_spawnCnt;          // +0x14
+    char m_difficulty;       // +0x18
+    char m_pad19[3];         // +0x19
 };
 
 struct AssignNpc
@@ -161,7 +159,12 @@ struct STAssignPassiveObject
 
 struct TournamentMonster
 {
-    char m_pad[8];
+    int m_mobId;   // +0x00
+    int m_rate;    // +0x04
+
+    TournamentMonster();  // ORIG 0830e4d4（定义见 TournamentMonster.cpp）
+    ~TournamentMonster();
+    void Clear();         // ORIG 0830e4bc
 };
 
 // ---- STMapScript（sizeof 0x37c）----
@@ -187,7 +190,9 @@ struct STMapScript
     char m_pad6c[0x100 - 0x6c];                // +0x6c
     int m_pathArea1[8];       // +0x100
     int m_pathArea2[8];       // +0x120
-    char m_pad140[0x178 - 0x140];              // +0x140
+    char m_pad140[0x148 - 0x140];              // +0x140
+    int m_148;                 // +0x148（load_map_files 0x835fe02：>0 时对每张注册地图调 CDungeon::insertStart）
+    char m_pad14c[0x178 - 0x14c];              // +0x14c
     int m_178;                // +0x178  (set_map 读取 → CMap::m_110)
     char m_pad17c[0x250 - 0x17c];              // +0x17c
     std::vector<STRivalMapData> m_vec250;      // +0x250

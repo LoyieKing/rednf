@@ -23,6 +23,7 @@
 #include "CEquipItem.h"
 #include "CDungeon.h"
 #include "GlobalData.h"       // 权威 GlobalData::s_systemTime_
+#include "Arad_DataManager.h" // 权威 ARAD::Singleton<T> 模板（本文件不再重复定义）
 
 int get_rand_int(int range);  // ORIG T 0x86b1b87
 
@@ -38,47 +39,13 @@ struct STRivalMapData
     int m_rate;  // +0x08
 };
 
-// 战争点数（ORIG 0x10 字节；clear 0x891a87a memset 0x10）
-struct stWarPoint
-{
-    int m_0;          // +0x00
-    int m_pts[3];     // +0x04
-};
-
-// 掉落生成引用/结果（ctor/dtor 由 WongWork 批次 TU 提供）
-struct stGenerateRefData_t
-{
-    stGenerateRefData_t();
-    ~stGenerateRefData_t();
-
-    int m_dropRate;      // +0x00
-    char m_pad4[0x20];   // +0x04
-    int m_premiumRate;   // +0x20
-    char m_forceDrop;    // +0x24
-    char m_pad25[0x48 - 0x25];  // +0x25
-};  // 0x48 字节
-
-struct stGenerateResult_t
-{
-    stGenerateResult_t();
-    ~stGenerateResult_t();
-
-    std::vector<Inven_Item> m_dropItems;  // +0x00（0xc 字节）
-};
-
-class CItemGenerator
-{
-public:
-    virtual void vf0() = 0;          // vtable+0
-    virtual void vf1() = 0;          // vtable+4
-    virtual void GenerateA(stGenerateRefData_t* ref, stGenerateResult_t* result) = 0;  // vtable+8
-    virtual void GenerateB(stGenerateRefData_t* ref, stGenerateResult_t* result) = 0;  // vtable+0xc
-};
-
-namespace WongWork
-{
-// CItemGeneratorMgr 权威声明见 CItemGeneratorMgr.h（经 CDataManager.h 引入），此处不再重复定义。
-}
+// 掉落生成域类型（WongWork::stGenerateRefData_t/stGenerateResult_t/CItemGenerator）
+// 权威声明见 CItemGenerator.h（唯一声明点，经 CDataManager.h 引入）。
+// ORIG vtable 槽位（_ZTVN8WongWork14CItemGeneratorE @0x08c9a788）：
+//   +0x08 generateRandomItem、+0x0c generateSpecificItem。
+using WongWork::stGenerateRefData_t;
+using WongWork::stGenerateResult_t;
+using WongWork::CItemGenerator;
 
 namespace RestrictCategory
 {
@@ -94,16 +61,6 @@ class ServiceRestrictManager
 public:
     bool isRestricted(RestrictCategory::Enum category, int idx);  // ORIG T 0x816e75e
 };
-
-namespace ARAD
-{
-template <typename T>
-class Singleton
-{
-public:
-    static T* Get();  // ORIG W 0x81625e6
-};
-}
 
 class CMonster
 {
@@ -558,10 +515,10 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     *(char*)((char*)&refData + 0x40) = 1;
     *(char*)((char*)&refData + 0x41) = 0;
     stGenerateResult_t result;
-    CItemGenerator* gen = (CItemGenerator*)G_CDataManager()
+    CItemGenerator* gen = G_CDataManager()
                               ->getItemGenerator()
                               ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
-    gen->GenerateA(&refData, &result);
+    gen->generateRandomItem(refData, result);
     *(int*)((char*)&refData + 0x38) = fieldMob->m_mobIndex;
     *(char*)((char*)&refData + 0x3c) = fieldMob->m_roleType;
     *(char*)((char*)&refData + 0x3d) = (char)fieldMob->m_field11;         // 字节 +0x11（short 低位）
@@ -573,24 +530,24 @@ bool WarField::HandleMonsterKill(int uid, PacketGuard& packet, map_monster& mob,
     *(char*)((char*)&refData + 0x44) = 0;
     if (user != 0 && user->isGMUser())
     {
-        refData.m_forceDrop = user->getForceDropFlag();
+        refData.m_field24 = user->getForceDropFlag();
     }
-    gen = (CItemGenerator*)G_CDataManager()
+    gen = G_CDataManager()
               ->getItemGenerator()
               ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_0);
-    gen->GenerateB(&refData, &result);
+    gen->generateSpecificItem(refData, result);
     void* drops = (void*)dungeon->getDropItems();
     (void)drops;
-    gen = (CItemGenerator*)G_CDataManager()
+    gen = G_CDataManager()
               ->getItemGenerator()
               ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_4);
-    gen->GenerateB(&refData, &result);
+    gen->generateSpecificItem(refData, result);
     *(char*)((char*)&refData + 0x34) = 1;
     *(char*)((char*)&refData + 0x35) = fieldMob->m_level;
-    gen = (CItemGenerator*)G_CDataManager()
+    gen = G_CDataManager()
               ->getItemGenerator()
               ->getGenerator(WongWork::CItemGeneratorMgr::eGenerateType_3);
-    gen->GenerateA(&refData, &result);
+    gen->generateRandomItem(refData, result);
     for (std::vector<Inven_Item>::iterator itemIt = result.m_dropItems.begin();
          itemIt != result.m_dropItems.end(); ++itemIt)
     {

@@ -9,7 +9,7 @@
 
 #include "CMissionList_Charac.h"
 #include "CMission.h"
-#include "CUser.h"
+#include "CUser.h"   // 经 SigTypes.h 提供权威 SIG_REQUEST_PVP_MISSION_LIST（0x14a）
 #include "CDataManager.h"
 #include "CEnvironment.h"
 #include "CSystemTime.h"
@@ -70,20 +70,6 @@ private:
     int m_nField4;
     char m_cField8;
 };
-
-// PvP 任务存档结构（SIG_REQUEST_PVP_MISSION_LIST，0x14a 字节）
-#pragma pack(push, 1)
-struct SIG_REQUEST_PVP_MISSION_LIST
-{
-    int m_characNo;                      // +0x00
-    MissionInfo m_missionList[36];       // +0x04（8*36 = 0x120）
-    unsigned char m_cleared[32];         // +0x124
-    short m_field144;                    // +0x144
-    short m_field146;                    // +0x146
-    short m_field148;                    // +0x148
-    char m_pad14a;                       // +0x14a（memset 0x14a）
-};
-#pragma pack(pop)
 
 // CEnvironment +0x37c 的每日任务排程时间（ORIG 布局）
 static int GetDailyScheduleTime(CEnvironment* env)

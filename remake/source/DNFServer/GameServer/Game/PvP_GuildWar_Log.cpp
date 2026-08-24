@@ -14,49 +14,19 @@
 #include "CUser.h"           // CUser / CUserCharacInfo（基类，offset 0）
 #include "CEnvironment.h"    // G_CEnvironment() / get_file_name()
 
-// ---- CMyFileLog（ORIG ctor 0810786c / operator() 08107898，外部定义）----
-class CMyFileLog
-{
-public:
-    CMyFileLog(const char* file, int line);
-    void operator()(const char* fmt, ...);
+// ---- CMyFileLog / STPvPGuild / PvP_GuildWar_Log：唯一声明点为权威头 ----
+//   CMyFileLog.h（ctor/operator() 由 ServerCommon/DNFFileLog.cpp、CMyFileLog.cpp 提供）
+//   PvPTypes.h（STPvPGuild 0xc / PvP_GuildWar_Log 0x68 权威布局，本 TU 提供方法实现）
+#include "CMyFileLog.h"
+#include "PvPTypes.h"
 
-    char m_pad[8];
-};
-
-// ---- STPvPGuild（0xc：uint key + int point + char count；ctor 085df7d0）----
-class STPvPGuild
-{
-public:
-    STPvPGuild();
-
-    unsigned int m_guildKey;  // +0x00
-    int m_point;              // +0x04
-    char m_count;             // +0x08
-};
-
+// ORIG _ZN10STPvPGuildC1Ev 0x085df7d0 W：三字段清零
 STPvPGuild::STPvPGuild()
 {
     m_guildKey = 0;
     m_point = 0;
     m_count = 0;
 }
-
-// ---- PvP_GuildWar_Log（0x68）----
-class PvP_GuildWar_Log
-{
-public:
-    PvP_GuildWar_Log();
-    ~PvP_GuildWar_Log();
-    void Clear();
-    void SetpvpStartTime(long t);
-    int InsertPvPGuild(unsigned int guildKey, int point);
-    void WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users);
-
-    char m_guildCnt;             // +0x00
-    int m_startTime;             // +0x04
-    STPvPGuild m_guilds[8];      // +0x08（0x60）
-};
 
 PvP_GuildWar_Log::PvP_GuildWar_Log()
     : m_startTime(0)
@@ -80,24 +50,27 @@ void PvP_GuildWar_Log::SetpvpStartTime(long t)
     m_startTime = t;
 }
 
+// ORIG _ZN16PvP_GuildWar_Log14InsertPvPGuildEji 0x085ddd80：
+//   for(i=0;i<=7;++i){ key==0→跳到插入；key==guildKey→累加返回 1 } 未命中返回 0。
 int PvP_GuildWar_Log::InsertPvPGuild(unsigned int guildKey, int point)
 {
-    for (int i = 0; i <= 7; ++i)
+    int i;
+    for (i = 0; i <= 7; ++i)
     {
         if (m_guilds[i].m_guildKey == 0)
-        {
-            m_guilds[i].m_guildKey = guildKey;
-            m_guilds[i].m_point = point;
-            m_guilds[i].m_count = 1;
-            ++m_guildCnt;
-            return 1;
-        }
+            goto found;
         if (m_guilds[i].m_guildKey == guildKey)
         {
             m_guilds[i].m_point += point;
             ++m_guilds[i].m_count;
             return 1;
         }
+found:
+        m_guilds[i].m_guildKey = guildKey;
+        m_guilds[i].m_point = point;
+        m_guilds[i].m_count = 1;
+        ++m_guildCnt;
+        return 1;
     }
     return 0;
 }
@@ -123,10 +96,11 @@ void PvP_GuildWar_Log::WriteGuildWarPvPLog(int roomIdx, char mode, CUser** users
     memset(logBuf, 0, sizeof(logBuf));
     sprintf(logBuf, "Room_Idx:%d\tPvP_Mode:%d\tElasp_Time:%d\tG_Cnt:%d\n",
             roomIdx, (int)mode,
-            GlobalData::s_systemTime_.getCurSec() - m_startTime,            (unsigned char)m_guildCnt);
+            GlobalData::s_systemTime_.getCurSec() - m_startTime,
+            (unsigned char)m_guildCnt);
     if ((unsigned char)m_guildCnt < 9)
     {
-        for (j = 0; j < (unsigned char)m_guildCnt; ++j)
+        for (int j = 0; j < (unsigned char)m_guildCnt; ++j)
         {
             if (m_guilds[j].m_guildKey != 0)
             {

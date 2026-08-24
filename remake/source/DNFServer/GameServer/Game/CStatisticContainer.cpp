@@ -1,8 +1,4 @@
-// CStatisticContainer.cpp — CStatisticContainer::IncreaseQuantity 迁移实现
-// （原 GameStubs.cpp 定义；ORIG 符号 _ZN19CStatisticContainer16IncreaseQuantityEi）。
-#include "CCommonStatisticsMgr.h"
-
-void CStatisticContainer::IncreaseQuantity(int quantity)
-{
-    // 占位空实现，与 GameStubs.cpp 原行为一致
-}
+// CStatisticContainer::IncreaseQuantity 已并入 CCommonStatisticsMgr.cpp
+// （ORIG 0x0860e7f8 与三个 InsertDatabase 同域）。本 TU 保留为空以维持
+// CMake 源列表稳定。
+// 占位：无实现（原 GameStubs 定义已迁移）。

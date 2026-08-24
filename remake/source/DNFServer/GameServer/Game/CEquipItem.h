@@ -20,6 +20,11 @@
 
 #include "CItem.h"
 
+struct STAvatarAbilityVariation;  // 完整定义见 EquipmentParameterInfo.h / STEquipmentScript.h（1 int）
+struct STEnchantSystemData;       // 完整定义见 STEquipmentScript.h（1 int）
+
+#ifndef DNF_ITEMUPGRADE_TYPE_DEFINED
+#define DNF_ITEMUPGRADE_TYPE_DEFINED
 namespace ItemUpgradeType
 {
 enum T
@@ -27,7 +32,10 @@ enum T
     T_0 = 0
 };
 }
+#endif
 
+#ifndef DNF_STAVATARTYPESELECT_T_DEFINED
+#define DNF_STAVATARTYPESELECT_T_DEFINED
 struct stAvatarTypeSelect_t
 {
     int m_field0;       // +0x00
@@ -37,6 +45,7 @@ struct stAvatarTypeSelect_t
     int m_field10;      // +0x10（ORIG：此选择项小孔数/数组长度）
     unsigned short m_socketType[4];  // +0x14
 };
+#endif
 
 struct stAvatarEmblemInfo_t;  // 定义在 CInventory.h / AuctionItem.h（30B，pack(1)）
 
@@ -58,6 +67,10 @@ public:
     RandomItemTable();
     ~RandomItemTable();
     void Set(std::vector<int>* source);
+    // ORIG 0x089bbb6c（_ZNK15RandomItemTable18GetRandomItemIndexEi，const）：
+    // 在 m_vec4（+0x04，pair<int,int> 数组）中找 first > param 的首元素，返回其 first；
+    // 未命中返回 0。SetEggItem 依赖此索引。
+    int GetRandomItemIndex(int index) const;
     int m_field0;                          // +0x00
     std::vector<std::pair<int, int> > m_vec4;   // +0x04
     int m_field10;                         // +0x10
@@ -99,6 +112,7 @@ public:
     virtual unsigned long get_parent_booster_item_id() const;
 
     void setAvatarOptionSize(int size);
+    int getAvatarOptionSize() const;     // ORIG W 0x81803bc：返回 +0x1c4
     unsigned char IsAvatarColorVariation(int idx) const;
     bool IsAvatarOptionValid(char idx) const;
     int check_able_To_equip(char eType, int job, int level);
@@ -106,6 +120,8 @@ public:
     ExpBonusPointData* getExpBonusPoint() const;
     int getGrowthGrade(int level) const;
     int getGrowthRepairCost(int level) const;
+    // ORIG 0x822ca80：返回 +0x1cc 的 float 折扣率（强化成本折扣）。
+    float getUpgradeCostDiscount() const;
     WpBonusPointData* getWpBonusPoint() const;
     int get_aura_avatar_option_value();
     bool isExistUpgradableLevelTag();
@@ -114,6 +130,13 @@ public:
     bool is_aura_avatar_option(char option);
     int get_endurance() const;
     int get_sub_type() const;  // ORIG W 0x0833eecc
+    // ORIG W 0x833eea6（flds [this+0x158]）：经验量，位模式存于 m_randomTable.m_field10。
+    float get_experience_amount() const;
+    // ORIG W 0x833eee8：返回 this+0x168（m_randomTable.m_field20）。
+    int get_creature_minimum_level() const;
+    // ORIG _ZNK10CEquipItem20get_creature_speciesEv W 0x833eebe：返回 +0x15c
+    //（m_randomTable.m_field14，宠物种族/进化目标 id；GetCreatureId 依赖）。
+    int get_creature_species() const;
     void getAvatarSocket(int slot, stAvatarEmblemInfo_t& emblem) const;  // ORIG W 0x08150f36
     void* getAvatarTypeSelect() const;
     void set_item(STEquipmentScript& script);
@@ -129,7 +152,7 @@ public:
     char m_pad195[3];                      // +0x195
     std::vector<std::pair<int, int> > m_vec198;   // +0x198
     std::vector<std::pair<int, int> > m_vec1a4;   // +0x1a4
-    std::vector<char> m_enchantVec;        // +0x1b0
+    std::vector<STEnchantSystemData> m_enchantVec;  // +0x1b0
     int m_field1bc;                        // +0x1bc
     int m_field1c0;                        // +0x1c0
     int m_avatarOptionSize;                // +0x1c4
@@ -146,7 +169,7 @@ public:
     int m_field1e4;                        // +0x1e4
     int m_field1e8;                        // +0x1e8
     int m_field1ec;                        // +0x1ec
-    std::vector<char> m_avatarAbility;     // +0x1f0
+    std::vector<STAvatarAbilityVariation> m_avatarAbility;  // +0x1f0
     bool m_pollutionFlag;                  // +0x1fc
     char m_pad1fd[3];                      // +0x1fd
     std::map<ItemUpgradeType::T, std::pair<int, int> > m_upgradeLevel;  // +0x200

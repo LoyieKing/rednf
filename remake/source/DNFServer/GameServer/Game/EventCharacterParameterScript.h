@@ -27,15 +27,20 @@ struct STEventCharacterInfo
     ~STEventCharacterInfo();
 };
 
-struct STEventCharacterInfo_level {
+struct STEventCharacterInfo_level
+{
     std::map<int, STEventCharacterInfo> character_info;
+
+    // ORIG _ZN26STEventCharacterInfo_levelC1Ev W 0x895b890（map 默认构造）
+    STEventCharacterInfo_level();
 };
 
 class EventCharacterParameterScript {
 public:
     typedef std::map<int, std::string> ScriptFileList;
-    EventCharacterParameterScript();
+    EventCharacterParameterScript();  // ORIG _ZN29EventCharacterParameterScriptC1Ev W 0x8371fde
     ~EventCharacterParameterScript();
+    void clear();                     // ORIG _ZN29EventCharacterParameterScript5clearEv W 0x8371fb6
     bool importEventCharacterParameterScript(const char* file_name);
     bool load_event_character_list();
     bool GetEventCharacterInfo(int job, int level, STEventCharacterInfo& out) const;

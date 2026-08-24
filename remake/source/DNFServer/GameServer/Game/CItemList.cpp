@@ -7,10 +7,19 @@
 
 #include "CItemList.h"
 
+#include "CUserCharacInfo.h"   // get_charac_level / get_charac_job（Arad_GiftItem_Set::level_check 依赖）
+
 #include <algorithm>
+#include <new>        // placement new
 #include <stdio.h>
 #include <string.h>
 #include <utility>
+#include <ctime>      // time()
+
+#include "PvPTypes.h" // CMTRand
+#include "DNFLexWrapper.h"  // loadRDARScriptFile/ScanType/ScanStr/ScanInt（LoadScript）
+#include "CUser.h"    // Arad_GiftItem_Set::level_check 解引用 CUser（原经 PvPTypes→CUser.h
+                      // 传递获得；该边已断开以修复 CUser.h 重入环）
 
 #include "GameTypes.h"
 #include "GlobalData.h"
@@ -1817,6 +1826,21 @@ bool CItemList::Load_Goods_File(const char* path)
 // 返回 0 表示成功；0x122 表示 key 已存在（重复登记）；脚本未启用/未知类型返回 0。
 // 依据 docs/class_func_reports/Arad_GiftItem_Set/open.md 逐分支恢复。
 // ============================================================================
+// ============================================================================
+// Arad_GiftItem_Set::Arad_GiftItem_Set（ORIG 0x081a2a68，247 insn）
+// 语义：填 +0x1c 的 map<string,int>：ST_EVENT_GIFT_ITEM{,2..6} → kind 1..6。
+//（依据 ctor 报告逐条 make_pair→insert 转写。）
+// ============================================================================
+Arad_GiftItem_Set::Arad_GiftItem_Set()
+{
+    m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM"), 1));
+    m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM2"), 2));
+    m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM3"), 3));
+    m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM4"), 4));
+    m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM5"), 5));
+    m_kindMap.insert(std::make_pair(std::string("ST_EVENT_GIFT_ITEM6"), 6));
+}
+
 int Arad_GiftItem_Set::open(STStackableScript* script)
 {
     // ORIG：if (*(int*)(param_1 + 0x178) != 0) —— Arad_STStackableScript.m_0（+0x178）
@@ -1871,6 +1895,70 @@ int Arad_GiftItem_Set::open(STStackableScript* script)
 }
 
 // ============================================================================
+// Arad_GiftItem_Set::str_to_enum（ORIG 0x081a2e3e，_ZN17Arad_GiftItem_Set11str_to_enumEPKc）
+// 语义：在 this+0x1c 的 map<string,int> 中按 name 查找，命中返回 second，否则 0。
+// ============================================================================
+int Arad_GiftItem_Set::str_to_enum(const char* name)
+{
+    if (name == 0)
+        return 0;
+    std::map<std::string, int>::iterator it = m_kindMap.find(std::string(name));
+    if (it == m_kindMap.end())
+        return 0;
+    return it->second;
+}
+
+// ============================================================================
+// Arad_GiftItem_Set::find（ORIG 0x081a311e，_ZN17Arad_GiftItem_Set4findEiii）
+// 语义：按 64 位 key = ((long long)kind << 32) | (((long long)job << 16) + usableLevel)
+// 查 this+0x04 的 map<long long, Data>，命中返回 &it->second，否则 0。
+// ============================================================================
+Arad_GiftItem_Set::Data* Arad_GiftItem_Set::find(int kind, int job, int usableLevel)
+{
+    const long long key =
+        ((long long)kind << 32) |
+        (((long long)job << 16) + (long long)usableLevel);
+    std::map<long long, Data>::iterator it = m_map.find(key);
+    if (it == m_map.end())
+        return 0;
+    return &it->second;
+}
+
+// ============================================================================
+// Arad_GiftItem_Set::level_check（ORIG 0x081a31c4，_ZN17Arad_GiftItem_Set11level_checkEP5CUserPK14CStackableItem）
+// 语义：
+//   kind  = str_to_enum(item->m_str150.c_str())
+//   job   = user->get_charac_job()
+//   ulv   = item->getUsableLevel()
+//   data  = find(this, kind, job, ulv)
+//   data==0 -> 1；job 不可用（find 未命中）则报 "user level limit" 日志并返回 0；
+//   user->get_charac_level() < ulv -> 报日志并返回 0；否则 1。
+// NOTE：汇编中 get_charac_level 比较对象是 CUserCharacInfo 基类，故对 user 强转访问。
+// ============================================================================
+int Arad_GiftItem_Set::level_check(CUser* user, const CStackableItem* item)
+{
+    if (user == 0 || item == 0)
+        return 1;
+    int kind = str_to_enum(item->m_str150.c_str());
+    int job = user->get_charac_job();
+    int ulv = item->getUsableLevel();
+    Data* data = find(kind, job, ulv);
+    if (data == 0)
+    {
+        return 1;
+    }
+    int userLevel = user->get_charac_level();
+    if (userLevel < ulv)
+    {
+        LogManager::logFormat(1, "localjapan/Arad_Script_Loader.cpp",
+                              "bool Arad_GiftItem_Set::level_check(CUser*, const CStackableItem*)",
+                              0x14b, "[ERROR] user level limit charac_no(%d)", userLevel);
+        return 0;
+    }
+    return 1;
+}
+
+// ============================================================================
 // ExtreamDungeon::CCompound_ExtreamDun_Item::after_addItem
 // ORIG 0x832de18 T（_ZN14ExtreamDungeon25CCompound_ExtreamDun_Item13after_addItemEv）
 // ============================================================================
@@ -1894,6 +1982,51 @@ struct OUTPUT_ITEM_STR
     }
 };
 
+// ── 构造（ORIG 0x832c402）──
+// 布局：+0x00 CMTRand*；+0x04 BindCube_ScriptData（含 3x4 int 网格 @+0x04 与
+// vector<OUTPUT_ITEM_STR> rows）；+0xb8c BindCube_LvBonusScriptData[2]（各 0x30）。
+// ctor：new CMTRand(time(0)) 存 +0x00；对 rows 各 vector 默认构造。
+CCompound_ExtreamDun_Item::CCompound_ExtreamDun_Item()
+{
+    // ORIG 0x832c402 顺序：BindCube 行向量 → LvBonus[2]（各 0x30 = levels+3×rates
+    // 共 4 个 vector，LoadScript 的 [level]/[silver level] dicision 写入区）→
+    // new CMTRand(time(0)) 存 +0x00。
+    char* base = (char*)this;
+    for (int i = 1; i <= 0x3a; ++i)
+        for (int j = 0; j <= 3; ++j)
+            new (base + 0x34 + i * 0x30 + j * 12) std::vector<OUTPUT_ITEM_STR>();
+    for (int k = 0; k <= 3; ++k)
+        new (base + 0xb44 + k * 12) std::vector<OUTPUT_ITEM_STR>();
+    for (int b = 0; b < 2; ++b)
+        for (int v = 0; v < 4; ++v)
+            new (base + 0xb8c + b * 0x30 + v * 12) std::vector<unsigned int>();
+
+    CMTRand* rand = new CMTRand();
+    rand->seed((unsigned long)time(0));
+    *(CMTRand**)this = rand;
+}
+
+CCompound_ExtreamDun_Item::~CCompound_ExtreamDun_Item()
+{
+    // ORIG 0x832c524 顺序：delete +0x00 CMTRand（置空）→ LvBonus[2] 各 4 向量 →
+    // +0xb44 组 → BindCube 行向量。
+    if (*(void**)this != 0)
+        delete *(CMTRand**)this;
+    *(CMTRand**)this = 0;
+
+    typedef std::vector<OUTPUT_ITEM_STR> OutVec;
+    typedef std::vector<unsigned int> LvVec;
+    char* base = (char*)this;
+    for (int b = 0; b < 2; ++b)
+        for (int v = 0; v < 4; ++v)
+            ((LvVec*)(base + 0xb8c + b * 0x30 + v * 12))->~LvVec();
+    for (int k = 0; k <= 3; ++k)
+        ((OutVec*)(base + 0xb44 + k * 12))->~OutVec();
+    for (int i = 1; i <= 0x3a; ++i)
+        for (int j = 0; j <= 3; ++j)
+            ((OutVec*)(base + 0x34 + i * 0x30 + j * 12))->~OutVec();
+}
+
 void CCompound_ExtreamDun_Item::after_addItem()
 {
     char* base = (char*)this;
@@ -1913,14 +2046,178 @@ void CCompound_ExtreamDun_Item::after_addItem()
         std::sort(vec->begin(), vec->end());
     }
 }
-
 // ---- check_N_addItem（ORIG 0x832db00）/ ForceResultItemRule_Setting（ORIG 0x832d784）
-// 自 GameStubs.cpp 迁移。当前为空桩（原 GameStubs 亦为空），语义补齐属
-// 后续批次；符号由本 TU 提供以匹配 ORIG。
-void CCompound_ExtreamDun_Item::check_N_addItem(CEquipItem&)
+// 及私有 helper（_isPossibleResultItem 0x832db4e / _AddItem 0x832dd1c /
+// _convertOutputItem 0x832c5ac / _convertInputItem 0x832c620）。
+// 布局说明（ORIG ctor 0x832c402 / .bss 全局实例实证）：对象依赖 .bss 零初始化，
+// 零内存即合法空 std::map / 空 std::vector；重建按同布局裸偏移访问（推断命名）。
+
+int CCompound_ExtreamDun_Item::_convertOutputItem(int eqType) const
 {
-}  // TODO(G1 物品批次)
-void CCompound_ExtreamDun_Item::ForceResultItemRule_Setting(int, bool, int)
+    if (eqType == 2) return 2;
+    if (eqType == 1) return 1;
+    if (eqType == 3) return 3;
+    if (eqType == 9) return 0;
+    return 4;
+}
+
+int CCompound_ExtreamDun_Item::_convertInputItem(int eqType) const
 {
-}  // TODO(G1 物品批次)
+    if (eqType == 2) return 1;
+    if (eqType == 1) return 0;
+    if (eqType == 3) return 2;
+    if (eqType == 9) return 0;
+    return 3;
+}
+
+bool CCompound_ExtreamDun_Item::_AddItem(CEquipItem& item)
+{
+    // ORIG：cat=_convertOutputItem(GetUsableEquipmentType)；cat==4 → false；
+    // 否则把 {usableLevel, index} push 到 +0xb44+cat*0xc 与
+    // +0x34+groupName*0x30+cat*0xc 两个 vector<OUTPUT_ITEM_STR>。
+    const int eqType = *(const int*)((const char*)&item + 0x1bc);   // 推断：GetUsableEquipmentType（ORIG W 0x832e036 读 +0x1bc）
+    const int cat = _convertOutputItem(eqType);
+    const bool ok = (cat != 4);
+    if (ok)
+    {
+        OUTPUT_ITEM_STR entry;
+        entry.m_field0 = item.getUsableLevel();
+        entry.m_field4 = item.get_index();
+        char* base = (char*)this;
+        ((std::vector<OUTPUT_ITEM_STR>*)(base + 0xb44 + cat * 0xc))->push_back(entry);
+        const int group = item.getItemGroupName();
+        ((std::vector<OUTPUT_ITEM_STR>*)(base + 0x34 + group * 0x30 + cat * 0xc))
+            ->push_back(entry);
+    }
+    return ok;
+}
+
+bool CCompound_ExtreamDun_Item::_isPossibleResultItem(const CEquipItem& item)
+{
+    // ORIG：groupName∈(0,0x3a] 直接 false；
+    // 强制规则 map(+0xb74) find(index)：命中且 flag==0 → false、flag==1 → true；
+    // 未命中：_convertInputItem(eqType)==2 且 groupName∈[0x19,0x33) → false；
+    // usableLevel<0x47 且 get_gen_rate()==0 时要求 _convertInputItem(eqType)==1；
+    // 否则取虚表槽 0x4c/4 的回调，返回其非零结果（推断：可合成判定虚方法）。
+    const int group = item.getItemGroupName();
+    if (group <= 0 || group >= 0x3b)
+        return false;
+
+    typedef std::map<int, forceRule_ResultItem> ForceRuleMap;
+    ForceRuleMap& rules = *(ForceRuleMap*)((char*)this + 0xb74);
+    ForceRuleMap::const_iterator it = rules.find(item.get_index());
+    if (it != rules.end())
+    {
+        if (it->second.m_flag == 0)
+            return false;
+        if (it->second.m_flag == 1)
+            return true;
+    }
+
+    const int eqType =
+        *(const int*)((const char*)&item + 0x1bc);   // 推断：GetUsableEquipmentType
+    const int inputCat = _convertInputItem(eqType);
+    if (inputCat == 2 && group > 0x19 && group < 0x33)
+        return false;
+
+    if (item.getUsableLevel() < 0x47)
+    {
+        const int genRate = *(const int*)((const char*)&item + 0x50);   // 推断：get_gen_rate（ORIG W 0x832e02a 读 +0x50）
+        if (genRate == 0)
+            return _convertInputItem(eqType) == 1;
+        // genRate!=0 → 走下方虚表槽判定
+    }
+    // 推断：vtable 槽 +0x4c 回调（ORIG (**(code**)(*param_1 + 0x4c))(...)）
+    typedef char (*VFn)(const void*);
+    void* const* vtbl = *(void* const* const*)&item;
+    VFn fn = (VFn)vtbl[0x4c / 4];
+    return fn(&item) != 0;
+}
+
+void CCompound_ExtreamDun_Item::check_N_addItem(CEquipItem& item)
+{
+    // ORIG 26 insn：纯门卫+委托（_isPossibleResultItem → _AddItem），无其它副作用。
+    if (_isPossibleResultItem(item))
+        _AddItem(item);
+}
+
+void CCompound_ExtreamDun_Item::ForceResultItemRule_Setting(int idx, bool flag,
+                                                            int value)
+{
+    typedef std::map<int, forceRule_ResultItem> ForceRuleMap;
+    ForceRuleMap& rules = *(ForceRuleMap*)((char*)this + 0xb74);
+    rules[idx] = forceRule_ResultItem(flag, value);
+}
+
+// ---- LoadScript（ORIG T 0x0832c65e，报告 ExtreamDungeon__CCompound_ExtreamDun_Item/
+// LoadScript.md）----
+// RDAR 脚本节：[insert rarity]（3×ScanStr 丢弃）、[rarity dicision]（3×4 int
+// 网格 @+0x04）、[level dicision]/[silver level dicision]（count + count 个等级
+// 入 levels 向量、3 行×count 比率入 rates[r]，向量组 @+0xb8c / +0xbbc 各 0x30）。
+// 返回 0=成功；loadRDARScriptFile 失败返回 0x62。
+int CCompound_ExtreamDun_Item::LoadScript(const char* dir, const char* path)
+{
+    if (!loadRDARScriptFile(dir, path))
+    {
+        return 0x62;
+    }
+
+    std::string token;
+    std::string scratch;
+    char* base = (char*)this;
+
+    while (ScanType(token, true))
+    {
+        if (token == "[insert rarity]")
+        {
+            for (int i = 0; i < 3; ++i)
+                ScanStr(&scratch);
+        }
+        else if (token == "[rarity dicision]")
+        {
+            // 网格 @this+0x04：m[i][j] → this+(i*4+j)*4+4（i=0..2，j=0..3）。
+            for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 4; ++j)
+                    *(int*)(base + 4 + (i * 4 + j) * 4) = ScanInt((bool*)0);
+        }
+        else if (token == "[level dicision]" || token == "[silver level dicision]")
+        {
+            const bool silver = (token == "[silver level dicision]");
+            const int count = ScanInt((bool*)0);
+            const unsigned int ucount = (unsigned int)count;   // ORIG 以 unsigned 比较
+            const int blockBase = silver ? 0xbbc : 0xb8c;   // levels 向量基址
+            typedef std::vector<unsigned int> LvVec;
+
+            for (unsigned int k = 0; k < ucount; ++k)
+            {
+                unsigned int level = (unsigned int)ScanInt((bool*)0);
+                ((LvVec*)(base + blockBase))->push_back(level);
+            }
+            for (int r = 0; r < 3; ++r)
+            {
+                LvVec& rates = *(LvVec*)(base + blockBase + 0xc + r * 0xc);
+                for (unsigned int k = 0; k < ucount; ++k)
+                {
+                    unsigned int rate = (unsigned int)ScanInt((bool*)0);
+                    rates.push_back(rate);
+                }
+            }
+        }
+    }
+    return 0;
+}
+
+}
+
+// ORIG _ZN9CItemList15GetRestrictCodeEi @ 0x0817a10c (W)：
+// hash_map(this+0x2c = m_lottoMap).find(itemIdx)；未命中返回 0，否则 value。
+int CItemList::GetRestrictCode(int itemIdx)
+{
+    __gnu_cxx::hash_map<unsigned int, int, __gnu_cxx::hash<unsigned int>,
+                        std::equal_to<unsigned int>,
+                        std::allocator<int> >::iterator it =
+        m_lottoMap.find((unsigned int)itemIdx);
+    if (it == m_lottoMap.end())
+        return 0;
+    return it->second;
 }

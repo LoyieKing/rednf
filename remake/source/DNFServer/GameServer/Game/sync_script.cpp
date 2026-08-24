@@ -100,6 +100,26 @@ const char* GetAttackElementString(int element)
         return "";
     }
 }
+
+// ORIG sync_script::CStringMaker（ctor 0x08375f58 / operator()(int)
+// 0x08375f6c / c_str 0x08376034 / operator std::string 0x086272c0）：
+// sprintf("%d") 后按需前置 "," 追加 → "v0,v1,..."（空向量 → 空串，无尾逗号）。
+std::string MakeIntListString(const std::vector<int>& values)
+{
+    std::string out;
+    for (size_t i = 0; i < values.size(); ++i)
+    {
+        char num[0x100];
+        memset(num, 0, sizeof(num));
+        sprintf(num, "%d", values[i]);
+        if (!out.empty())
+        {
+            out += ",";
+        }
+        out += num;
+    }
+    return out;
+}
 }
 
 // ===================== CSyncScript 实现 =====================
@@ -194,15 +214,19 @@ const char* CSyncScript::GetAttachType(int type)
 
 const char* CSyncScript::GetAttackElement(EquipmentParameterInfo* param)
 {
-    return GetAttackElementString(param->m_field140);
+    return GetAttackElementString(param->m_elementalProperty);
 }
 
 void CSyncScript::GetLevelUpSkill(STEquipmentScript* script, int idx)
 {
     static std::string level_up_skill;
     level_up_skill.clear();
-    std::vector<STEquipmentScript::LevelUpSkill>& vec =
-        script->m_levelUpSkills[idx];
+    // ORIG：this+0x40c 起 4 个连续 vector<LevelUpSkill>（每档 0xc）。
+    // 权威头中 m_param1c0.m_levelUpSkills24c 即绝对 +0x40c 的第一档，
+    // 其余三档紧随其后（权威头未单独命名），按 ORIG 偏移语义取第 idx 档。
+    std::vector<LevelUpSkill>* vecBase = reinterpret_cast<std::vector<LevelUpSkill>*>(
+        &script->m_param1c0.m_levelUpSkills24c);
+    std::vector<LevelUpSkill>& vec = vecBase[idx];
     for (unsigned int i = 0; i < vec.size(); ++i)
     {
         level_up_skill += "|";
@@ -694,47 +718,64 @@ bool CSyncScript::insert_creature_info_to_db(unsigned int id,
     }
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
         (ENUM_DB_HANDLE_IDX)5, (ENUM_SERVER_GROUP)0);
-    char buf[0xb00];
-    memset(buf, 0, sizeof(buf));
-    const char* skillNames[3];
+    // ORIG：artifact_slot 列 = '0'+(R/G/B 三槽标志) 的 3 字符串
+    // （CreatureScript+0x50/0x54/0x58，asm 0x08624437..0x0862445d，
+    // 低字节存 (v+'0')&0xff；缓冲 movl$0 预清零即 NUL 结尾）。
+    char artifactSlot[4];
+    memset(artifactSlot, 0, sizeof(artifactSlot));
+    const int slotValues[3] = {script->m_artifactSlotRed,
+                               script->m_artifactSlotBlue,
+                               script->m_artifactSlotGreen};
     for (int i = 0; i < 3; ++i)
     {
-        if (i < (int)script->m_skillNames.size())
-        {
-            skillNames[i] = script->m_skillNames[i].c_str();
-        }
-        else
-        {
-            skillNames[i] = "";
-        }
+        artifactSlot[i] = (char)(slotValues[i] + '0');
     }
+    // ORIG：CStringMaker(vector<int>) → "a,b,c"（无尾逗号，空向量→空串）。
+    const std::string piercingStr = MakeIntListString(script->m_piercing);
+    const std::string skillLevelValuesStr =
+        MakeIntListString(script->m_skillLevelValues);
+    const std::string overSkillLevelValuesStr =
+        MakeIntListString(script->m_overSkillLevelValues);
     char escaped[11][0x100];
     for (int i = 0; i < 11; ++i)
     {
         memset(escaped[i], 0, 0x100);
     }
     const char* values[11];
-    values[0] = script->m_str4.c_str();
-    values[1] = script->m_str9c.c_str();
+    values[0] = script->m_name.c_str();
+    values[1] = artifactSlot;
     values[2] = param3;
     values[3] = param4;
-    values[4] = "";
-    values[5] = skillNames[0];
-    values[6] = skillNames[1];
-    values[7] = skillNames[2];
-    values[8] = "";
-    values[9] = script->m_str134.c_str();
-    values[10] = "";
+    values[4] = piercingStr.c_str();
+    // ORIG：skill_name/skill_desc/overskill_name/overskill_desc ←
+    // m_skillString（vector<string> @+0x128）前 4 项，越界项用 ""。
+    for (int i = 0; i < 4; ++i)
+    {
+        if (i < (int)script->m_skillString.size())
+        {
+            values[5 + i] = script->m_skillString[i].c_str();
+        }
+        else
+        {
+            values[5 + i] = "";
+        }
+    }
+    values[9] = skillLevelValuesStr.c_str();
+    values[10] = overSkillLevelValuesStr.c_str();
     for (int i = 0; i < 11; ++i)
     {
         GetEscapeString(db, values[i], escaped[i]);
     }
-    db->set_query(
-        "inSert into dnf_creature_info(it_id, creature_id, creature_name, skill_recovery_time, overskill_recovery_time, artifact_slot, learn_overskill_level, skill_info, overskill_info, piercing, skill_name, skill_desc, overskill_name, overskill_desc, skill_level_values, overskill_level_values, evolution_creature_id, evolution_level) values(%u, %d, '%s', %d, %d, '%s', %d, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %d, %d)",
-        id, script->m_field0, escaped[0], script->m_1c, script->m_20,
-        escaped[1], script->m_5c, escaped[2], escaped[3], escaped[4],
-        escaped[5], escaped[6], escaped[7], escaped[8], escaped[9],
-        escaped[10], script->m_178, script->m_17c);
+    if (!db->set_query(
+            "inSert into dnf_creature_info(it_id, creature_id, creature_name, skill_recovery_time, overskill_recovery_time, artifact_slot, learn_overskill_level, skill_info, overskill_info, piercing, skill_name, skill_desc, overskill_name, overskill_desc, skill_level_values, overskill_level_values, evolution_creature_id, evolution_level) values(%u, %d, '%s', %d, %d, '%s', %d, '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %d, %d)",
+            id, script->m_id, escaped[0], script->m_field1c,
+            script->m_field20, escaped[1], script->m_learnOverSkillLevel,
+            escaped[2], escaped[3], escaped[4], escaped[5], escaped[6],
+            escaped[7], escaped[8], escaped[9], escaped[10],
+            script->m_evolutionCreatureId, script->m_evolutionLevel))
+    {
+        return false;
+    }
     return db->exec(true);
 }
 

@@ -1,6 +1,9 @@
 #ifndef GAME_BLUEMARBLE_TILESCRIPT_H_
 #define GAME_BLUEMARBLE_TILESCRIPT_H_
 
+
+#include <string>
+
 // ============================================================================
 // df_game_r BlueMarbleTileScript（G2-4 大富翁格子脚本，尺寸 0xc）
 // 布局依据 ORIG clear（0x088d507c）/MapScript::importScript 拷贝序列：
@@ -23,6 +26,10 @@ public:
 
     BlueMarbleTileScript() __attribute__((nothrow));
     void clear();
+    // ORIG T 0x088d509c（本体待 TileScript 批次；initTileList 经此加载每个格子）。
+    // ORIG T 0x088d520a：脚本类型名→枚举（empty=0..kick=0xd，未识别 0）。
+    int toType(std::string type);
+    int importScript(const char* path);
 
     int m_type;    // +0x00
     char m_char4;  // +0x04

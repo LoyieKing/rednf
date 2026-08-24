@@ -15,6 +15,9 @@
 
 #include <vector>
 
+#include "CItemGenerator.h"   // WongWork::stGenerateRefData_t/stGenerateResult_t
+                              // 权威声明（唯一声明点，布局/ctor 证据见该头）
+
 // village_attacked::CVillageMonsterMgr 完整类型只在 CBattle_Field_missing.cpp 等
 // 直接消费者处 include CVillageMonsterMgr.h（避免与 GameWorld_deps.h 的 MapArea
 // ODR 冲突；此处仅前向声明供 extern 引用）。
@@ -51,49 +54,15 @@ struct STKillMonsterData
     float m_field14;              // +0x14
 };
 
-// ---- CMap 最小访问视图 ----
-// CMap.h 与 CBattle_Field.h 因 _mapMonster/_mapItem 等结构体同名（布局一致但类型
-// 各异）互斥，无法在同一 TU 内 include CMap.h；此处提供 CMap 标量访问器最小视图
-// （与 CMap.h 布局一致）。若真实 CMap.h 先被 include（定义了 CMAP_CLASS_DEFINED），
-// 本声明自动跳过，避免重复定义。完整 CMap 整合（_mapMonster 去重）为独立 G2 任务。
-#ifndef CMAP_CLASS_DEFINED
-class CMap
-{
-public:
-    int GetBossCount() const { return m_bossCount; }   // +0x00（CMap.h inline）
-    int get_index() const   { return m_4; }            // +0x04
-    int get_map_type() const { return m_8; }           // +0x08
-    int m_bossCount;                 // +0x00
-    int m_4;                         // +0x04
-    int m_8;                         // +0x08
-};
-#endif  // CMAP_CLASS_DEFINED
+// ---- CMap 前向声明 ----
+// CMap 唯一权威定义在 CMap.h（sizeof 0x130，含 getAICharacters/getAPCRandomPoint/
+// get_index 等完整访问器）。历史上此处曾放置最小 CMap mirror（标量访问器视图），
+// 与 CMap.h 完整定义构成 ODR 冲突/可见性分裂（同一 TU 内 include 顺序不同会得到
+// 缺少 getAICharacters/getAPCRandomPoint 的错误 CMap）。现改为前向声明，保证
+// CMap 永远由 CMap.h 唯一权威定义；需要完整 CMap 的 TU（CBattle_Field.h 已 include
+// CMap.h）直接使用完整类型。
+class CMap;
 
-namespace WongWork
-{
-
-// stGenerateRefData_t（掉落生成引用；ctor ORIG 0814a706 / dtor 0814aaf0）。
-// 必要字段视图（setPremiumDropRate 写 m_premiumDropRate；setPremiumDropRate 读 m_flag40）；
-// 完整布局与 ctor/dtor 实现见 CBattle_Field_helpers.cpp。
-struct stGenerateRefData_t
-{
-    char m_pad0[0x20];
-    int m_premiumDropRate;      // +0x20
-    char m_pad24[0x1c];         // +0x24
-    char m_flag40;              // +0x40
-
-    stGenerateRefData_t();
-    ~stGenerateRefData_t();
-};
-
-struct stGenerateResult_t
-{
-    char m_pad[0xc];
-    stGenerateResult_t();
-    ~stGenerateResult_t();
-};
-
-}  // namespace WongWork
 
 // ---- hack 计数回调（enumPartyMember 使用；实现见 CBattle_Field_helpers.cpp） ----
 bool addUserHackCount149(CUser* user);  // ORIG 0x830dc9d

@@ -17,9 +17,19 @@ extern char g_isAllowScriptDuplication;
 class STScriptFileList
 {
 public:
+    STScriptFileList();                       // ORIG 0x088bacf8
+    void Clear();                             // ORIG 0x088bad3a
     std::map<int, std::string> m_fileMap;   // +0x00（与 CItemShop.cpp / STQuestScript.cpp 一致）
     int FindIndexByFullScan(const char* path) const;
 };
+
+// ORIG 0x088bacf8：map 默认构造后调 Clear。
+STScriptFileList::STScriptFileList()
+{
+    Clear();
+}
+
+void STScriptFileList::Clear() { m_fileMap.clear(); }
 
 int STScriptFileList::FindIndexByFullScan(const char* path) const
 {
@@ -56,9 +66,12 @@ int loadRDARScriptListFile(STScriptFileList* list, const char* dir,
         bool isNew = (list->m_fileMap.find(idx) == list->m_fileMap.end());
         if (!isNew && !g_isAllowScriptDuplication)
         {
+            // ORIG 0x088bf09：logFormat(0,"../RDARScript.cpp",
+            // "loadRDARScriptListFile",0x323,"SCRIPT FILE LIST LOAD FAIL!
+            // Index Duplicated [%s%s][%d]", dir, listPath, idx)
             LogManager::logFormat(
-                0, "../../DNFShared/RDARScript.cpp", "loadStringTable", 803,
-                "SCRIPT FILE LIST LOAD FAIL! Index Duplicated [%s%s][%d].",
+                0, "../RDARScript.cpp", "loadRDARScriptListFile", 0x323,
+                "SCRIPT FILE LIST LOAD FAIL! Index Duplicated [%s%s][%d]",
                 dir, listPath, idx);
             return 0;
         }

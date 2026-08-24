@@ -6,6 +6,7 @@
 // 管理器类权威头属后续批次：本 TU 以尺寸垫 + 桩 ctor/dtor，跨类方法以
 // asm-label extern 对齐 ORIG 符号（链接桩由主 agent / 后续批次提供）。
 #include <string.h>
+#include <time.h>
 
 #include <algorithm>
 #include <list>
@@ -19,12 +20,18 @@
 #include "CTitleBook.h"
 #include "CGameManager.h"
 #include "CStreamGuard.h"
+#include "CPrivateStoreMgr.h"  // StaticPool<private_store::CPrivateStore,300> 显式实例化需要完整类型
 #include "CSystemTime.h"
 #include "Inven_Item.h"
 #include "InterfacePacketBuf.h"
 #include "LogManager.h"
 #include "MsgQueueMgr.h"
 #include "StreamPool.h"
+#include "MoreTypes.h"
+#include "SigTypes.h"
+#include "APSystemTypes.h"
+#include "PacketGuard.h"
+#include "CPrivateStoreMgr.h"
 
 // ---- 跨类真实类型头（替代 extern "C" asm 桥；符号与 ORIG mangled 一致）----
 #include "GameWorld.h"
@@ -34,6 +41,7 @@
 #include "CDungeon.h"
 #include "CDungeonClearTracer.h"
 #include "CLogGameChannel.h"
+#include "AvatarItem.h"   // WongWork::Avatar_Item 权威 packed 定义（DynamicPool 显式实例化需完整类型）
 #include "CMonitorServerProxy.h"
 #include "CGuildServerProxy.h"
 #include "CServerProxyMgr.h"
@@ -116,20 +124,7 @@ struct SIG_UPDATE_LINK_CHARAC_CONNECT_STATE
     int m_field8;
 };
 
-// ============================================================================
-// PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供单例定义）
-// ============================================================================
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
+// PacketGuard 权威定义见 PacketGuard.h（InterfacePacketBuf 子类）。
 
 // ============================================================================
 // 外部依赖已全部换为真实头 include + 直接调用（约束12：不允许 extern C asm 桥）。
@@ -293,7 +288,49 @@ int StaticPool<T, N>::GetIndex(T* p)
 typedef std::map<unsigned int, WongWork::CMailBox::CMail*> CMailBoxMailMap;
 typedef std::list<Stream*> CMailBoxStreamList;
 typedef std::map<int, bool> CMailBoxKeepMap;
-typedef std::vector<unsigned int> CMailBoxUIntVec;
+// ---- StaticPool 元素类型完整布局（ORIG CACHE_CHARACTER_TYPE::C1 0x8492262）----
+// 子对象顺序与偏移：
+//   SIG_LOAD_CHARAC@+0x00000 / SIG_LOAD_INVENTORY@+0x00703 / SIG_LOAD_QUEST@+0x15b4f /
+//   APSystem::_SIG_LOAD_ACTION_POINT@+0x1eb13 / _CharacAdvanceAltarDbData@+0x1f804 /
+//   SIG_LOAD_ETC@+0x1fd20 / SIG_LOAD_KILL_MONSTER_INFO@+0x34884。
+// ORIG 总尺寸 0x3f85c（AcquireCharacter memset 0x3f85c + CacheCharacterMemory
+// memcpy(local_10+0x3f850, this+0x8d0fd, 0xc) 证据）。+0x34880 为缓存时间戳
+// （AcquireCharacter 写 time(0)）。
+// 注：本类为 ORIG 权威成员布局（GetMemberPosition@0x848fd7c 逐 ENUM 返回 offset/size；
+//   C1@0x8492262 按子对象顺序构造；AcquireCharacter memset 0x3f85c + CacheCharacterMemory
+//   memcpy(+0x3f850, this+0x8d0fd, 0xc) 定总尺寸 0x3f85c）。各成员区以具名 char 数组承载
+//   ORIG 精确尺寸，避免与权威 SIG_LOAD_* 类型尺寸（并发改型中）耦合；CacheCharacterMemory
+//   仍以 char* 偏移算术把子对象指针传给 GetCharacInfo/GetInventoryInfo/GetEtcInfo 等。
+class CACHE_CHARACTER_TYPE
+{
+public:
+    CACHE_CHARACTER_TYPE() {}
+    ~CACHE_CHARACTER_TYPE() {}
+
+    unsigned int getCacheTime() const          // +0x34880
+    { return m_cacheTime; }
+    void setCacheTime(unsigned int t)          // +0x34880
+    { m_cacheTime = t; }
+
+    // ORIG 成员布局（offset 与 GetMemberPosition 返回值逐一对应；size 为该 ENUM 区尺寸）
+    // 全部用 char 数组承载 ORIG 精确尺寸：不依赖 SIG_LOAD_* 类型（并发改型中），
+    // 亦规避 offsetof 在含用户构造函数的类上的不可靠性（仅 sizeof 断言把关）。
+    char m_charac[0x703];        // +0x00000   ENUM 0x07, size 0x703
+    char m_inventory[0x1544c];   // +0x00703   ENUM 0x08, size 0x1544c
+    char m_quest[0x7608];        // +0x15b4f   ENUM 0x0a, size 0x7608
+    char m_ticket[0x19c];        // +0x1d157   ENUM 0x0b, size 0x19c
+    char m_dungeonClear[0x1810]; // +0x1d2f3   ENUM 0x0c, size 0x1810
+    char m_blackList[0x10];      // +0x1eb03   ENUM 0xb3, size 0x10
+    char m_actionPoint[0xcf1];   // +0x1eb13   ENUM 0x11, size 0xcf1
+    char m_altar[0x51c];         // +0x1f804   ENUM 0x19, size 0x51c
+    char m_etc[0x14b60];         // +0x1fd20   ENUM 0x20, size 0x14b60
+    unsigned int m_cacheTime;    // +0x34880   缓存时间戳（AcquireCharacter 写 time(0)）
+    char m_expand[0xafcc];       // +0x34884   ENUM 0x282, size 0xafcc
+    char m_memberFlag[0xc];      // +0x3f850   成员脏标记（GetMemberPosition 按 +0x3f850+i 读）
+};
+static_assert(sizeof(CACHE_CHARACTER_TYPE) == 0x3f85c, "CACHE_CHARACTER_TYPE ABI drift (ORIG 0x3f85c)");
+
+typedef std::map<unsigned int, WongWork::CMailBox::CMail*> CMailBoxMailMap;
 struct SIG_LETTER_INFO
 {
     char m_pad[0x12c];  // 大小推断自 SetMailBoxInfo 栈帧（300 字节左右）
@@ -308,7 +345,7 @@ WongWork::CMailBox::CMailBox()
     new (m_pad + 0x58) CMailBoxStreamList();
     new (m_pad + 0x60) CMailBoxMailMap::const_iterator();
     new (m_pad + 0x64) CMailBoxKeepMap();
-    new (m_pad + 0x84) CMailBoxUIntVec();
+    // m_loadLackList（+0x84）为具名成员，随隐式成员初始化构造
     new (m_pad + 0x90) CMailBoxLetterMap();
 }
 
@@ -316,7 +353,7 @@ WongWork::CMailBox::~CMailBox()
 {
     // ORIG 0x08557aac：逆序析构 7 个成员
     reinterpret_cast<CMailBoxLetterMap*>(m_pad + 0x90)->~CMailBoxLetterMap();
-    reinterpret_cast<CMailBoxUIntVec*>(m_pad + 0x84)->~CMailBoxUIntVec();
+    // m_loadLackList（+0x84）为具名成员，随隐式析构释放
     reinterpret_cast<CMailBoxKeepMap*>(m_pad + 0x64)->~CMailBoxKeepMap();
     reinterpret_cast<CMailBoxStreamList*>(m_pad + 0x58)->~CMailBoxStreamList();
     reinterpret_cast<CMailBoxMailMap*>(m_pad + 0x40)->~CMailBoxMailMap();
@@ -361,16 +398,31 @@ void WongWork::CMailBox::Init()
         reinterpret_cast<CMailBoxKeepMap*>(m_pad + 0x64)->clear();
         *(int*)(m_pad + 0x7c) = 0;
         *(int*)(m_pad + 0x80) = 0;
-        reinterpret_cast<CMailBoxUIntVec*>(m_pad + 0x84)->clear();
+        m_loadLackList.clear();
         reinterpret_cast<CMailBoxLetterMap*>(m_pad + 0x90)->clear();
     }
 }
 
 void WongWork::CMailBox::SetLastLoadLetterIdx(unsigned int) {}
-void WongWork::CMailBox::SetLoadState(bool, long) {}
+void WongWork::CMailBox::SetPackageLoadLack(const unsigned int* arr, int count,
+                                            std::set<unsigned int>& oldLack)
+{
+    // ORIG 0x08557676：先把旧列表（m_loadLackList，+0x84）全部并入 oldLack，
+    // 清空列表；随后把新数组逐项 push_back，并把在 oldLack 中出现者从中移除。
+    for (std::vector<unsigned int>::const_iterator it = m_loadLackList.begin();
+         it != m_loadLackList.end(); ++it)
+        oldLack.insert(*it);
+    m_loadLackList.clear();
+    for (int i = 0; i < count; ++i)
+    {
+        m_loadLackList.push_back(arr[i]);
+        std::set<unsigned int>::iterator it = oldLack.find(arr[i]);
+        if (it != oldLack.end())
+            oldLack.erase(it);
+    }
+}
 void WongWork::CMailBox::SetLoadedLetterCount(int) {}
 void WongWork::CMailBox::SetNotLoadedMailCount(int) {}
-void WongWork::CMailBox::SetPackageLoadLack(const unsigned int*, int, std::set<unsigned int>&) {}
 int WongWork::CMailBox::getMailLoadCount() { return 0; }
 WongWork::CMailBox::CMail* WongWork::CMailBox::getNextMail()
 {
@@ -398,6 +450,147 @@ advancealtar::StageControl::StageControl() { memset(m_pad, 0, sizeof(m_pad)); }
 advancealtar::StageControl::~StageControl() {}
 
 // ============================================================================
+// exchange_server::CCacheCharacterMgr —— 角色缓存管理器（ORIG 布局/语义）
+// 布局（ORIG C1 0x8490e98）：Mutex@+0x00 / StaticPool<CACHE_CHARACTER_TYPE,1000>
+// @+0x18 / std::map<int,CACHE_CHARACTER_TYPE*>@+0x48（charac_no -> 缓存内存）。
+// 单例经 GetInstanceCacheCharacterMgr（ORIG 0x8490f71，__cxa_guard）获取。
+// 公共自由函数（CUser::CacheCharacterMemory 等调用，ORIG）：
+//   AcquireCharacterMemory(int)@0x848f220 / FreeCharacterMemory@0x848f23c /
+//   CacheCharacterMemory(int, CACHE_CHARACTER_TYPE*)@0x848f258。
+// 成员语义（objdump 逐函数核对）：
+//   AcquireCharacter：先查 map，命中则 memset+写 cacheTime 返回；未命中且池空时
+//     CollectGarbage，仍空返回 0；否则池 Acquire + memset + 写 cacheTime。
+//   FreeCharacter：池 Free；若 (1000-remain)!=map.size() 则 cMyTrace 告警。
+//   CacheCharacter：insert map(charac_no,mem)，已存在则更新指针，恒返回 true。
+//   GetCacheCharacter：查 map，erase 可选。
+//   CollectGarbage：删除 cacheTime 距今 >29s(0x1d) 的条目。
+// ============================================================================
+namespace exchange_server
+{
+
+class CCacheCharacterMgr
+{
+public:
+    CCacheCharacterMgr() {}   // m_mutex/m_pool/m_map 按声明序隐式构造（+0x00/+0x18/+0x48）
+    ~CCacheCharacterMgr() {}
+
+    CACHE_CHARACTER_TYPE* AcquireCharacter(int characNo)
+    {
+        Guard<Mutex> g(&m_mutex);
+        CACHE_CHARACTER_TYPE* mem = 0;
+        std::map<int, CACHE_CHARACTER_TYPE*>::iterator it = m_map.find(characNo);
+        if (it != m_map.end())
+        {
+            mem = it->second;
+            memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
+            mem->setCacheTime((unsigned int)time(0));
+            return mem;
+        }
+        if (m_pool.Remain() == 0)
+        {
+            if (!CollectGarbage())
+                return 0;
+        }
+        mem = m_pool.Acquire();
+        if (mem != 0)
+        {
+            memset(mem, 0, sizeof(CACHE_CHARACTER_TYPE));
+            mem->setCacheTime((unsigned int)time(0));
+        }
+        return mem;
+    }
+
+    void FreeCharacter(CACHE_CHARACTER_TYPE* mem)
+    {
+        Guard<Mutex> g(&m_mutex);
+        m_pool.Free(mem);
+        int used = StaticPool<CACHE_CHARACTER_TYPE, 1000>::Size() - m_pool.Remain();
+        if (used != (int)m_map.size())
+        {
+            cMyTrace tr("exchange_server::CCacheCharacterMgr::FreeCharacter", 0x4e, 0);
+            tr("map size(%d), pool remain(%d), max(%d)",
+               (int)m_map.size(), m_pool.Remain(),
+               StaticPool<CACHE_CHARACTER_TYPE, 1000>::Size());
+        }
+    }
+
+    bool CacheCharacter(int characNo, CACHE_CHARACTER_TYPE* mem)
+    {
+        Guard<Mutex> g(&m_mutex);
+        std::pair<std::map<int, CACHE_CHARACTER_TYPE*>::iterator, bool> r =
+            m_map.insert(std::make_pair(characNo, mem));
+        if (!r.second)
+            r.first->second = mem;   // 已存在则更新指针
+        return true;
+    }
+
+    bool GetCacheCharacter(int characNo, CACHE_CHARACTER_TYPE** out, bool erase)
+    {
+        Guard<Mutex> g(&m_mutex);
+        std::map<int, CACHE_CHARACTER_TYPE*>::iterator it = m_map.find(characNo);
+        if (it != m_map.end())
+        {
+            *out = it->second;
+            if (erase)
+                m_map.erase(it);
+            return true;
+        }
+        return false;
+    }
+
+    bool CollectGarbage()
+    {
+        unsigned int now = (unsigned int)time(0);
+        bool removed = false;
+        std::map<int, CACHE_CHARACTER_TYPE*>::iterator it = m_map.begin();
+        while (it != m_map.end())
+        {
+            if ((now - it->second->getCacheTime()) > 0x1d)
+            {
+                m_pool.Free(it->second);
+                std::map<int, CACHE_CHARACTER_TYPE*>::iterator cur = it;
+                ++it;
+                m_map.erase(cur);
+                removed = true;
+            }
+            else
+            {
+                ++it;
+            }
+        }
+        return removed;
+    }
+
+private:
+    Mutex m_mutex;                                        // +0x00
+    StaticPool<CACHE_CHARACTER_TYPE, 1000> m_pool;        // +0x18
+    std::map<int, CACHE_CHARACTER_TYPE*> m_map;           // +0x48
+};
+
+CCacheCharacterMgr* GetInstanceCacheCharacterMgr()
+{
+    static CCacheCharacterMgr s_instance;
+    return &s_instance;
+}
+
+CACHE_CHARACTER_TYPE* AcquireCharacterMemory(int characNo)
+{
+    return GetInstanceCacheCharacterMgr()->AcquireCharacter(characNo);
+}
+
+void FreeCharacterMemory(CACHE_CHARACTER_TYPE* mem)
+{
+    GetInstanceCacheCharacterMgr()->FreeCharacter(mem);
+}
+
+bool CacheCharacterMemory(int characNo, CACHE_CHARACTER_TYPE* mem)
+{
+    return GetInstanceCacheCharacterMgr()->CacheCharacter(characNo, mem);
+}
+
+}  // namespace exchange_server
+
+// ============================================================================
 // 显式实例化（本 TU 池成员使用）
 // ============================================================================
 template class StaticPool<CUser, 600>;
@@ -406,6 +599,14 @@ template class StaticPool<CParty, 600>;
 template class StaticPool<PvP_Room, 600>;
 template class StaticPool<WarRoom, 40>;
 template class StaticPool<WongWork::CDeathTower, 600>;
+
+// ORIG exchange_server::CSession::C1 0x848ffd0：基类 CNetwork<95000,450000>
+// 自动构造后置基类 m_field0c=1，清零 +0x851a0/+0x851a4。
+exchange_server::CSession::CSession()
+    : m_field851a0(0), m_field851a4(0)
+{
+    m_field0c = 1;
+}
 template class StaticPool<WongWork::CBossTower, 600>;
 template class StaticPool<advancealtar::StageControl, 600>;
 template class StaticPool<QuickParty::CQuickParty, 300>;
@@ -426,7 +627,6 @@ template class DynamicPool<PacketBuf>;
 template class DynamicPool<user_creature::CEgg>;
 template class DynamicPool<user_creature::CCreature>;
 template class DynamicPool<WongWork::Avatar_Item>;
-template class DynamicPool<WongWork::IPG::SIPGData>;
 
 // ============================================================================
 // CGameManager 实现
@@ -2571,5 +2771,18 @@ CGameManager::CGameManager()
       m_pConditionEventMgr(0), m_pSpecialItemRoutingMgr(0), m_pAuctionAveragePriceMgr(0),
       m_pCraneMinigameMgr(0)
 {
+}
+CGameManager::~CGameManager()
+{
+    // ORIG 0x08293d1a（D1 与 D2 同址）。前四个堆上管理者显式 delete 并置空，
+    // 其余容器/池成员（hash_map、StaticPool、std::map/set、Mutex）按声明逆序自动析构。
+    delete m_pQuickPartySystemMgr;
+    m_pQuickPartySystemMgr = 0;
+    delete m_pQuickPartyRewardMgr;
+    m_pQuickPartyRewardMgr = 0;
+    delete m_pAuctionAveragePriceMgr;
+    m_pAuctionAveragePriceMgr = 0;
+    delete m_pCraneMinigameMgr;
+    m_pCraneMinigameMgr = 0;
 }
 

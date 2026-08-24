@@ -28,6 +28,11 @@ public:
     bool SendToServer(char* buf, int len, unsigned short port,
                       const char* ip) const;                // 0x08483b68
     unsigned int InetAddr(const char* ip) const;            // 0x08483e06
+    // ORIG CmmChannelProxy 以 this+0x18（=m_udp.m_clientSocket）为桥接 TCP fd
+    // 直读（ConnectBridgeServer 0x081062b8 / SendPacket 0x0810638b /
+    // RecvPacket 0x081064b2 实证）；内联访问器不产生新符号。
+    int clientSocket() const { return m_clientSocket; }
+    void setClientSocket(int fd) { m_clientSocket = fd; }   // ORIG this+0x18 直写等价
 
 private:
     int m_serverSocket;   // +0x00

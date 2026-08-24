@@ -1,17 +1,8 @@
-// CDungeonGainedGold — 副本内金币累计（ORIG 0x850d4b6 / 0x84ec5d8 / 0x8697044..
-// 权威参照 docs/class_func_reports/_lt_global_gt_.md 对应段）
-// 布局：+0x00 unsigned int（ORIG 类尺寸 4；CUser.h 内嵌于 +0x8cf64）
-
-class CDungeonGainedGold
-{
-public:
-    unsigned int incGainedGold(unsigned int amount);
-    unsigned int getGainedGold();
-    void setGainedGold(unsigned int value);
-    void reset();
-
-    unsigned int m_gainedGold;  // +0x00
-};
+// CDungeonGainedGold — 副本内金币累计（ORIG 0x850d4b6 / 0x84ec5d8 / 0x8697044..）。
+// 权威参照 docs/class_func_reports/_lt_global_gt_.md 对应段。
+// 布局：+0x00 unsigned int（ORIG 类尺寸 4；CUser.h 内嵌于 +0x8cf64）。
+// 类定义唯一见 CDungeonGainedGold.h（CUser.h 值成员依赖此头）。
+#include "CDungeonGainedGold.h"
 
 unsigned int CDungeonGainedGold::incGainedGold(unsigned int amount)
 {

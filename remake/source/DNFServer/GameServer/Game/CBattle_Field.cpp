@@ -12,21 +12,11 @@
 
 #include "CBattle_Field.h"
 #include "InterfacePacketBuf.h"
+#include "TimerQueue.h"
+#include "PacketGuard.h" // 权威 PacketGuard(0xc)
+#include "CQuickPartyRewardManager.h"
 
 // ============================================================================
-// PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供单例定义）
-// ============================================================================
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
 
 // ============================================================================
 // 外部方法（权威头已提供声明：MazeScript::getGridR 见 CDungeon.h，
@@ -706,4 +696,116 @@ CBattle_Field::stEventMonsterStatus_t::stEventMonsterStatus_t()
 
 CBattle_Field::stEventMonsterStatus_t::~stEventMonsterStatus_t()
 {
+}
+
+// ============================================================================
+// 外部依赖（CGameManager.h 与本头组合存在重定义冲突，按 ORIG 符号做最小声明，
+// 链接解析到真实定义 —— 与 QuickParty.cpp 同一模式）
+// ============================================================================
+class CGameManager
+{
+public:
+    QuickParty::CQuickPartyRewardManager* GetQuickPartyRewardManager();
+};
+CGameManager* G_CGameManager();
+
+// WongWork::CDeathTower 最小完成类型（CUser.h 仅前置声明；非虚方法，仅用 this）。
+namespace WongWork
+{
+class CDeathTower
+{
+public:
+    int genTimerKey(TIMER_MESSAGE msg);   // ORIG 0x8142c46 域内（见 CGameManager.h 声明）
+    int getIdx();
+};
+}
+
+// ============================================================================
+// CBattle_Field::getRandomBuffDungeonType —— ORIG 0x0830aaa4（0x1d5 字节）
+//   报告：docs/class_func_reports/CBattle_Field/getRandomBuffDungeonType.md
+// ============================================================================
+int CBattle_Field::getRandomBuffDungeonType(int dungeonIdx)
+{
+    if (dungeonIdx == 0)
+    {
+        if (m_pDungeon == 0)
+            return 7;
+        dungeonIdx = m_pDungeon->get_index();
+    }
+
+    CDungeon* dungeon = G_CDataManager()->find_dungeon(dungeonIdx);
+    if (dungeon == 0)
+        return 7;
+
+    // quick party 奖励副本表命中 → 类型 7
+    std::vector<int>& idxList =
+        G_CGameManager()->GetQuickPartyRewardManager()->get_dungeon_idx_list();
+    for (std::vector<int>::const_iterator it = idxList.begin();
+         it != idxList.end(); ++it)
+    {
+        if (*it == dungeonIdx)
+            return 7;
+    }
+
+    if (dungeon->get_dimension_possible() > 0)
+        return 2;
+    if (dungeon->m_89c != 0)                       // +0x89c 直读（ORIG movzbl 0x89c）
+        return 1;
+
+    int blood = dungeon->get_blood_dungeon_type();
+    if (blood == 1)
+        return 4;
+    if (blood == 2)
+        return 5;
+
+    // kind==1 且塔内堆叠物品限制非 0 → 3；kind==1 且限制==0 → 6；否则 0。
+    // （ORIG 分支顺序如此：!=0 → 3 先判，再判 !1 → 6。）
+    if (dungeon->getDungeonKind() == 1 && dungeon->limitOfStackableItemInTower() != 0)
+        return 3;
+    if (dungeon->getDungeonKind() == 1 && dungeon->limitOfStackableItemInTower() != 1)
+        return 6;
+    return 0;
+}
+
+// ============================================================================
+// CBattle_Field::setEplpWaitingTimer —— ORIG 0x0830ac7a（0x17b 字节）
+//   报告：docs/class_func_reports/CBattle_Field/setEplpWaitingTimer.md
+//   type 3/6 → 绝望之塔 timer(0x4d)；4/5 → party timer(0x25)；其余 → party
+//   timer(0x15)。秒数均 0x1e。
+// ============================================================================
+void CBattle_Field::setEplpWaitingTimer(QuickParty::RandomBuffDungeon type)
+{
+    if (m_party == 0)
+        return;
+
+    int t = static_cast<int>(type);
+    if (t == 3 || t == 6)
+    {
+        CUser* mgr = m_party->getManager();
+        if (mgr == 0)
+            return;                                 // getManager 为空则直接返回（推断保护）
+        WongWork::CDeathTower* tower = mgr->getDeathTower();
+        if (tower == 0)
+            return;
+        unsigned int key = static_cast<unsigned int>(
+            tower->genTimerKey((TIMER_MESSAGE)0x4d));
+        int idx = tower->getIdx();
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)6, idx,
+                                    (TIMER_MESSAGE)0x4d, 0x1e, key, 0x4d);
+        return;
+    }
+    if (t == 4 || t == 5)
+    {
+        unsigned int key = static_cast<unsigned int>(
+            m_party->gen_timer_key((TIMER_MESSAGE)0x25));
+        int idx = m_party->GetPartyIndex();
+        G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,
+                                    (TIMER_MESSAGE)0x25, 0x1e, key, 0x25);
+        return;
+    }
+    unsigned int key = static_cast<unsigned int>(
+        m_party->gen_timer_key((TIMER_MESSAGE)0x15));
+    int idx = m_party->GetPartyIndex();
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)1, idx,
+                                (TIMER_MESSAGE)0x15, 0x1e, key, 0x15);
 }

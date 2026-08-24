@@ -12,8 +12,10 @@
 #include <queue>
 
 #include "GameBase.h"
+#include "SPremiumInfo.h"         // g_SPremiumInfo 权威元素类型（SPremiumInfo 0x120）
 #include "CSystemTime.h"
 #include "StreamPool.h"
+#include "EventUpgradeJarInfo.h"   // Event_Upgrade_Jar 完整类型（s_pEvent_UpGrade_Jar）
 
 // ---- THREAD_TYPE（ORIG mangling 需要枚举类型名）----
 enum THREAD_TYPE
@@ -193,7 +195,7 @@ extern CSystemTime s_systemTime_;                            // 0941f714 (0x14)
 extern XNuclear::CHades_GameSvr s_hades_;                    // 0941f728 (8)
 extern CEventManager* s_event_manager;                       // 0941f730
 extern WongWork::IPG::CIPGHelper* s_pIPGHelper;              // 0941f734
-extern char g_SPremiumInfo[0x7740];                          // 09483a40
+extern SPremiumInfo g_SPremiumInfo[0x6a];                    // 09483a40 (0x7740)
 extern void* s_rentalSystem;                                 // 0941f738
 extern RefPvpGrade* s_ref_pvp_grade;                         // 0941f73c
 extern WongWork::CLogGameChannel* s_pLogGameChannel;         // 0941f740
@@ -202,7 +204,7 @@ extern CDBConnector* s_db_connector;                         // 0941f748
 extern void* s_pCompoundAvatar;                              // 0941f74c
 extern void* s_pCompoundBindCube;                            // 0941f750
 extern void* s_pTowerOfDespairMgr;                           // 0941f754
-extern void* s_pEvent_UpGrade_Jar;                           // 0941f758
+extern Event_Upgrade_Jar* s_pEvent_UpGrade_Jar;              // 0941f758
 extern CGM_Manager* s_GM_Manager;                            // 0941f75c
 extern ItemVendingMachine* s_pItemVendingMachine;            // 0941f760
 extern CStatisticMgr* s_statisticMgr;                        // 0941f764

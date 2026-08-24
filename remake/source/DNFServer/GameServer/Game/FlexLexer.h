@@ -59,6 +59,8 @@ typedef int yy_state_type;
 
 // yy_buffer_state（flex 2.5.35 -+ 生成的结构体，字段偏移与 ORIG 一致；
 // 由 FlexLexerEngine.cpp 的 yy_create_buffer malloc(sizeof) 使用）。
+#ifndef YY_STRUCT_YY_BUFFER_STATE
+#define YY_STRUCT_YY_BUFFER_STATE
 struct yy_buffer_state
 {
 	std::istream* yy_input_file;
@@ -74,6 +76,12 @@ struct yy_buffer_state
 	int           yy_fill_buffer;
 	int           yy_buffer_status;
 };
+#endif
+#ifndef YY_BUFFER_NEW
+#define YY_BUFFER_NEW 0
+#define YY_BUFFER_NORMAL 1
+#define YY_BUFFER_EOF_PENDING 2
+#endif
 
 class FlexLexer {
 public:

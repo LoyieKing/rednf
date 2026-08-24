@@ -14,6 +14,12 @@
 #define DNF_ARAD_EVENTPERIODDATAMANAGER_H
 
 #include <vector>
+#include <list>
+
+#include "Arad_DataManager.h"   // ARAD::Arad_InterfaceGameScript
+#include "GameTypes.h"          // Mutex / Guard<Mutex>（ORIG +0x24 锁）
+
+namespace arad { struct SigLoadRewardEventItem; }   // 完整定义见 MoreTypes.h
 
 // 全局作用域枚举（ORIG ABI 要求，勿移入 ARAD 命名空间）。
 enum ENUM_REPEAT_EVENT_CODE
@@ -36,23 +42,93 @@ struct SEventPeriodData
     unsigned int m_beginTime;
     unsigned int m_endTime;
 };
+
+// ARAD::SCRIPT::SRewardPeriodData —— +0x18 vector 元素类型。
+// ORIG nm：SearchEventPeriod::operator()(SRewardPeriodData const&) @0x819a8b4 W，
+// 且 find_if<vector<SRewardPeriodData>> 存在 → +0x18 成员为该 vector（非 int）。
+// 字段布局【推断】与 SEventPeriodData 同构（eventCode/beginTime/endTime）。
+struct SRewardPeriodData
+{
+    unsigned int m_eventCode;
+    unsigned int m_beginTime;
+    unsigned int m_endTime;
+};
+
 }  // namespace SCRIPT
 
-class Arad_EventPeriodDataManager
+// ARAD::EventRewardItemArad —— 奖励记录键（ORIG 0x8195d94 C1 / 0x8195db4 operator==，均 W）。
+// ctor(i,jj) 三字段直存；operator== 依次比较 +0x00/+0x04/+0x08。
+class EventRewardItemArad
 {
 public:
-    // ORIG 0x081956b0：事件 code 在有效周期内（m_beginTime <= time < m_endTime）返回 true。
+    EventRewardItemArad(int eventCode, unsigned int accId, unsigned int characNo)
+        : m_eventCode(eventCode), m_accId(accId), m_characNo(characNo)
+    {
+    }
+
+    bool operator==(EventRewardItemArad const& other) const
+    {
+        return m_eventCode == other.m_eventCode &&
+               m_accId == other.m_accId &&
+               m_characNo == other.m_characNo;
+    }
+
+    int m_eventCode;            // +0x00（SigLoadRewardEventItem 条目事件码）
+    unsigned int m_accId;       // +0x04（delUserRewardData 与 get_acc_id 比对）
+    unsigned int m_characNo;    // +0x08【推断：角色编号】
+};
+
+// ARAD::SearchEventPeriod —— find_if 谓词（ORIG 0x8195d72 C1 / 0x8195d80 op()，均 W）。
+class SearchEventPeriod
+{
+public:
+    SearchEventPeriod(ENUM_REPEAT_EVENT_CODE eventCode) : m_eventCode(eventCode) {}
+    bool operator()(SCRIPT::SEventPeriodData const& data) const
+    {
+        return data.m_eventCode == m_eventCode;
+    }
+
+private:
+    ENUM_REPEAT_EVENT_CODE m_eventCode;   // +0x00
+};
+
+class Arad_EventPeriodDataManager : public Arad_InterfaceGameScript
+{
+public:
+    Arad_EventPeriodDataManager();   // ORIG 0x81953fa（基类 Arad_InterfaceGameScript + 容器）
+    virtual ~Arad_EventPeriodDataManager();   // ORIG ~ 0x8195632 / 0x81956bc
+
+    // ORIG 0x08195650（vtable 槽2 loadScriptData）：装载事件周期脚本数据。
+    virtual bool loadScriptData();
+    // ORIG 0x08195670（vtable 槽3 clearScriptData）：清空事件周期脚本数据。
+    virtual void clearScriptData();
+    // ORIG 0x08195794：事件 code 在有效周期内（m_beginTime <= time < m_endTime）返回 true。
     bool isApplied(ENUM_REPEAT_EVENT_CODE eventCode, unsigned int time);
 
     // ORIG 0x08195686：以当前 tick 为 time 调用 isApplied（供调用方/宿主迁移参考）。
     bool isRunning(ENUM_REPEAT_EVENT_CODE eventCode);
 
+    // ORIG 0x08195994：按 SigLoadRewardEventItem 条目构造 EventRewardItemArad，
+    // 未奖励过的加入记录，已奖励的写 logFormat 日志。
+    void addUserRewardData(CUser* user, arad::SigLoadRewardEventItem& sig);
+    // ORIG 0x08195aa4：加锁后 push_back 到 +0x3c list<EventRewardItemArad>。
+    void addUserRewardData(CUser* user, EventRewardItemArad& item);
+    // ORIG 0x081958b6：加锁后在 +0x3c list 中 std::find 该奖励记录（按值传参）。
+    bool isRewarded(EventRewardItemArad item);
+    // ORIG 0x08195794：周期存在且 begin(GM 扩展) <= time < m_endTime 返回 true（无锁）。
+    bool checkCreateTime(ENUM_REPEAT_EVENT_CODE eventCode, unsigned int time,
+                         unsigned int gmId);
+    // ORIG 0x08195b06：加锁后删除 +0x3c list 中 accId 匹配的全部记录。
+    void delUserRewardData(CUser* user);
+    // ORIG 0x0819589e：param >= 0 时写入 m_field8（GM 建号回溯天数）。
+    void setCreatePeriod_GM(int days);
+
 private:
-    // ORIG 类从 Arad_InterfaceGameScript 派生（vtable + 基类共 0xc 字节），
-    // 成员的 +0x0c 起为 vector<SEventPeriodData>。此处用 0xc 字节 pad 保持该成员偏移，
-    // 使该方法在宿主经 findGameScript 获得的真实 ORIG 布局对象上也能正确工作。
-    char m_pad[0xc];
-    std::vector<ARAD::SCRIPT::SEventPeriodData> m_eventPeriodList;  // +0x0c
+    int m_field8;                    // +0x08（ctor 置 0；setCreatePeriod_GM 写入）
+    std::vector<ARAD::SCRIPT::SEventPeriodData> m_eventPeriodList;   // +0x0c
+    std::vector<ARAD::SCRIPT::SRewardPeriodData> m_rewardPeriodList; // +0x18
+    Mutex m_mutex;                                    // +0x24（pthread_mutex_t 0x18）
+    std::list<EventRewardItemArad> m_rewardItemList;  // +0x3c
 };
 
 }  // namespace ARAD

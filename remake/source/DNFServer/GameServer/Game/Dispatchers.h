@@ -680,6 +680,8 @@ class Dispatcher_UseLimitCube : public IPacketDispatcher<MSG_USE_LIMIT_CUBE, stU
 public:
     Dispatcher_UseLimitCube();
     virtual ~Dispatcher_UseLimitCube();
+    int check_error(int slotA, unsigned int itemIdx, int slotB,
+                    Inven_Item& invA, Inven_Item& invB, const CItem* cube);
     int process(CUser* user, MSG_BASE& msg, ParamBase& param);
     int read(PacketBuf& packet, MSG_BASE& msg);
     void send(CUser* user, ParamBase& param);
@@ -3504,28 +3506,15 @@ public:
 }
 }
 namespace ARAD {
-class Arad_Dispatcher_Manager : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Arad_Dispatcher_Manager();
-    virtual ~Arad_Dispatcher_Manager();
-    int open();
-};
-
+// Arad_Dispatcher / Arad_Dispatcher_Manager / Arad_Dispatcher_BuyItemCheck_Impl
+// 权威声明移至 Arad_Dispatcher.h（ORIG 非多态 Manager：两个 0x354 指针数组；
+// 与 IPacketDispatcher 无继承关系）。Login_Impl 占位保留（待独立批次）。
 class Arad_Dispatcher_Login_Impl : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:
     Arad_Dispatcher_Login_Impl();
     virtual ~Arad_Dispatcher_Login_Impl();
 };
-
-class Arad_Dispatcher_BuyItemCheck_Impl : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
-{
-public:
-    Arad_Dispatcher_BuyItemCheck_Impl();
-    virtual ~Arad_Dispatcher_BuyItemCheck_Impl();
-};
-
 }
 namespace APSystem {
 class Dispatcher_ClearAction : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>

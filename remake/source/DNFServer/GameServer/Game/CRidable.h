@@ -16,6 +16,21 @@ class PacketGuard;
 enum eRidableObjectState { eRidableObjectState_0 = 0 };
 #endif
 
+// DungeonRidableObject（map 值类型；偏移自 CheckAppearRidableObject 0x82fe9c8 /
+// SetRidableObjectState 0x82feb5e 访问实证；完整布局后续批次细化）。
+struct DungeonRidableObject
+{
+    DungeonRidableObject() : m_x(0), m_y(0), m_field0c(0), m_field10(0),
+                             m_field14(0), m_field18(0), m_state(0) {}
+
+    int m_x;        // +0x00
+    int m_y;        // +0x04
+    int m_field0c;  // +0x08
+    int m_field10;  // +0x0c
+    int m_field14;  // +0x10
+    int m_field18;  // +0x14
+    int m_state;    // +0x18（eRidableObjectState）
+};
 class CRidable
 {
 public:
@@ -28,10 +43,12 @@ public:
     void SetRidableObject(RidableScript& script);            // ORIG 0x82fe6d0
     void SetRidableObjectState(int idx, eRidableObjectState state);   // ORIG 0x82feb5e
     void CheckAppearRidableObject(CParty* party, int a, int b, PacketGuard* p);  // ORIG 0x82fe9c8
+    void SendSpawnRidableObject(PacketGuard* p, int a, int b, int c, int d);     // ORIG 0x82fece2
 
 private:
-    std::map<int, void*> m_objects;   // +0x00（占位：真类型 DungeonRidableObject）
-    char m_pad[0x8];                  // +0x18
+    std::map<int, DungeonRidableObject> m_objects;   // +0x00
+    int m_flag18;                                    // +0x18（state==3 出现条件）
+    char m_pad1c[4];                                 // +0x1c
 };
 
 

@@ -13,7 +13,6 @@
 
 #include "HashMap.h"
 
-struct CharStringHashTrait;
 
 class STNameList
 {
@@ -23,6 +22,10 @@ public:
     void Clear();
     // 返回 name 对应 ID；未命中返回 0xffffffff。
     int GetID(const char* name) const;
+    // loadRDARNameFile（0x88bc068）逐条插入 name->id。
+    void Insert(const char* name, int id) { m_map.insert(name, id); }
+    // 是否为空（ORIG 尾部以 begin()==end() 判断）。
+    bool IsEmpty() { return m_map.begin() == m_map.end(); }
 
 private:
     StringUnorderedMap<CharStringHashTrait, int> m_map;  // +0x00

@@ -9,6 +9,11 @@
 
 #include "EventCharacterParameterScript.h"
 #include "GlobalData.h"
+#include "TimerQueue.h"
+#include "PacketGuard.h"
+#include "InterfacePacketBuf.h"
+#include "CHandlePremium.h"
+#include "CEventCharacterHandler.h"
 
 // ---- 外部符号声明（对应 TU 翻译后移除） ----
 char* NumberToString(unsigned int value, int radix);
@@ -32,6 +37,11 @@ enum ENUM_SKILL_TREE_KIND
 {
     ENUM_SKILL_TREE_KIND_0 = 0
 };
+
+#ifndef DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
+#define DNF_ENUM_ENUM_PREMIUM_TYPE_DEFINED
+enum ENUM_PREMIUM_TYPE { ENUM_PREMIUM_TYPE_0 = 0 };
+#endif
 
 class CItem
 {
@@ -83,6 +93,12 @@ public:
     };
 
     unsigned int get_acc_id() const;
+    unsigned int GetUID() const;
+    int get_state();
+    bool isAffectedPremium(ENUM_PREMIUM_TYPE type) const;   // ORIG _ZNK5CUser18isAffectedPremiumE15ENUM_PREMIUM_TYPE
+    void* GetPremiumInfoW();                                // ORIG WongWork::CUserPremium*
+    bool HasCurCharacRentalItem(int flag) const;            // ORIG _ZNK5CUser22HasCurCharacRentalItemEi 0x86772d2
+    void Send(PacketGuard& packet);                         // ORIG _ZN5CUser4SendER11PacketGuard 0x86485ba
     class UserQuest* getCurCharacQuestW();
     int AddItem(int itemIdx, int count, eItemAddReason reason,
                 ENUM_ITEMSPACE& itemSpace, int param5);
@@ -97,29 +113,28 @@ public:
 class CDataManager;
 CDataManager* G_CDataManager();
 
+class CSystemTime;
+CSystemTime& s_systemTime_holder();
+
 namespace WongWork
 {
+// ---- CHandlePremium 组件（ORIG 报告 docs/class_func_reports/WongWork__CHandlePremium/）----
+class CUserPremium
+{
+public:
+    // ORIG _ZN8WongWork13CUserPremium10AddPremiumEiiii（签名按 handleSetUserPremium 调用点）
+    void AddPremium(int type, int start, int end, int flag);
+    void RemovePremium(int type);
+    void ReCalcAdvantage();
+    void RecalcAdditionalInfo(CUser const* user);
+};
+
 class CQuestClear
 {
 public:
     void setClearedQuest(unsigned int questIdx);
 };
-
-class CHandlePremium
-{
-public:
-    static void handleSetUserPCRoom(CUser* user, long start, long end);
-};
 }
-
-// ORIG T 0x086b02fe。PC 房高级会员设置入口：isAffectedPremium+handleSetUserPremium
-// 设置 + TimerQueue 定时 + handleNotifyPremiumInfo/handlePremiumEffect + 租赁
-// 物品包，依赖 CUserPremium 链路（AddPremium/RemovePremium/ReCalcAdvantage/
-// RecalcAdditionalInfo）与 handleSetUserPremium/handleNotifyPremiumInfo/
-// handlePremiumEffect 组件，待 CHandlePremium 组件批次落地后按 ORIG 补全。
-void WongWork::CHandlePremium::handleSetUserPCRoom(CUser* user, long start, long end)
-{
-}  // TODO(G2)：按 ORIG 0x086b02fe 细化
 
 struct stBuySkillInfo
 {
@@ -137,24 +152,6 @@ public:
     char m_pad[0xa86c];                                  // +0x00
     EventCharacterParameterScript m_eventCharacScript;   // +0xa86c
 };
-
-class CEventCharacterHandler
-{
-public:
-    CEventCharacterHandler();
-
-    bool _makeEventCharacter(CUser* user, int level);
-    void _UpdateEventCharacInfo(CUser* user);
-    bool _checkMakeCommand(CUser* user, int level, int& cmdIdx);
-    void _SetClearedQuest(CUser* user);
-    bool _MasterNewSkill(CUser* user, int skillIdx, int count);
-    bool _AddItem(CUser* user, unsigned long itemIdx, int count, int reason);
-    void _SetLevel(CUser* user, int level);
-    bool _SetGrowType(CUser* user, int growTypeKind, int growType);
-};
-
-CEventCharacterHandler* CEventCharacterHandlerInstance();
-
 CEventCharacterHandler::CEventCharacterHandler() {}
 
 bool CEventCharacterHandler::_checkMakeCommand(CUser* user, int level, int& cmdIdx)
@@ -296,12 +293,11 @@ bool CEventCharacterHandler::_AddItem(CUser* user, unsigned long itemIdx, int co
     user->SendUpdateItemList(CUser::eSendTarget_1, (ENUM_ITEMSPACE)itemSpace, slot);
     return true;
 }
-
-void CEventCharacterHandler::_SetLevel(CUser* user, int level)
+bool CEventCharacterHandler::_SetLevel(CUser* user, int level)
 {
     if (level > 0x46)
     {
-        return;
+        return false;
     }
 
     bool bChanged = true;
@@ -328,6 +324,7 @@ void CEventCharacterHandler::_SetLevel(CUser* user, int level)
             user->SetCharacLevel(std::min(newLevel, maxLevel));
         }
     }
+    return bChanged;
 }
 
 bool CEventCharacterHandler::_SetGrowType(CUser* user, int growTypeKind, int growType)

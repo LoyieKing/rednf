@@ -613,8 +613,7 @@ int CTradeSpace::change_trade_state(CUser* user, int state)
         break;
     case 1:  // 锁定
         {
-            unsigned int err = CSecu_ProtectionField::Check(
-                GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)0x36);
+            unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)0x36);
             if (err != 0) {
                 user->SendCmdErrorPacket((ENUM_CMDPACKET)0x1a, (unsigned char)err);
                 unsigned char oppErr =

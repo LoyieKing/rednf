@@ -69,10 +69,16 @@ public:
     int GetAttachType() const;
     bool is_stackable() const;
     int get_index() const;
+    int GetCashPrice() const;             // ORIG W 0x822c856：读 this+0x10
+    int GetMedalPrice() const;            // ORIG W 0x822c862：读 this+0x14（勋章价）
     int get_grade() const;
     int getItemGroupName() const;
     int getUsableLevel() const;
     int get_rarity() const;
+    int get_gen_rate() const;                             // ORIG W 0x832e02a：返回 m_field50
+    bool isSpecialMonsterDropItem();                      // ORIG W 0x8539e00：m_drop.m_enable
+    bool isDropItemDungeonDifficulty(int idx);            // ORIG W 0x8539e10：m_drop.m_difficulty[idx]
+    bool isDropItemDungeonType(int idx);                  // ORIG W 0x8539e24：m_drop.m_dungeonType[idx]
     int getUsablePeriod() const;
     int getExpirationDate() const;
     unsigned long GetQuestItemDropBouns();
@@ -82,8 +88,12 @@ public:
     bool check_item_routing() const;
     unsigned char check_job_type(char job) const;
     bool isEpicRoutingItem() const;
+    bool IsRoutingItem() const;           // ORIG 0x8150f18（返回 +0xbd 路由标志）
     bool isPackagable() const;
-    bool IsEnableWorld(ENUM_WORLD_TYPE type) const;  // 0x822c87c（链接桩由主 agent 提供）
+    bool IsEnableWorld(ENUM_WORLD_TYPE type) const;  // 0x822c87c
+    // ptr 重载（ORIG 0x822c8ea）：对 other->m_setd4 中的每个世界类型，
+    // 要求本对象均启用；即 other 的世界集合是本对象世界集合的子集。
+    bool IsEnableWorld(const CItem* other) const;
     bool check_low_level(int level) const;
     bool IsHiddenOption() const;
     bool isExpertJobUsable(ENUM_EXPERT_JOB_TYPE type, int level) const;
@@ -145,7 +155,7 @@ public:
     int m_periodAfterUnsealing;           // +0xac
     std::string m_strb0;                  // +0xb0（GetItemIconName）
     STSpecialMonsterDrop m_drop;          // +0xb4（STSpecialMonsterDrop，9 字节）
-    char m_dropBD;                        // +0xbd
+    bool m_isRoutingItem;                 // +0xbd（IsRoutingItem，源自脚本 +0x10f）
     char m_padBE[2];                      // +0xbe..0xc0
     std::vector<std::pair<int, int> > m_vecC0;  // +0xc0
     int m_questBonus;                     // +0xcc

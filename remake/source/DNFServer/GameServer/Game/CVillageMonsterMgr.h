@@ -73,6 +73,7 @@ public:
 
     int OnKillVillageMonster(CUser* user, int a, int b, int c, bool flag);
     void OnChangeState(ENUM_VILLAGE_MONSTER_STATE state);
+    bool MakeVillageMonsterListPacket(PacketGuard& packet);  // ORIG T 0x86b3666
     void SendVillageMonsterFightResult(CUser* user, bool flag);
 };
 
@@ -80,7 +81,10 @@ public:
 class CVillageMonsterArea
 {
 public:
-    std::map<unsigned short, CVillageMonster> m_monsters;  // +0x00 (0x18)
+    CVillageMonsterArea(int a, int b, int c, int d,
+                        std::vector<STAttackedMonster>* monsters,
+                        std::vector<MapArea>* areas);   // ORIG 0x86b3752
+    std::map<unsigned short, CVillageMonster> m_monsters;  // +0x00（0x18）
     void* m_areaList;                 // +0x18（ctor 参数 6：vector<MapArea>*）
     std::vector<STAttackedMonster> m_monsterList;  // +0x1c (0x14)
     int m_field28;                    // +0x28
@@ -90,6 +94,8 @@ public:
     int m_field38;                    // +0x38
 
     int OnKillVillageMonster(CUser* user, unsigned short zone, bool flag);
+    void OnMoveArea(CUser* user);              // ORIG 0x86b3abe：非空则发列表
+    void SendVillageMonsterList(CUser* user);  // ORIG 0x86b3c1e（后续批次实现）
     void SendPacket(PacketGuard& packet);
 };
 

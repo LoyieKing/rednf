@@ -21,7 +21,21 @@ struct GlobalData
 TimerEntry::TimerEntry() throw()
 {
 }
-bool TimerEntry::operator<(const TimerEntry&) const throw() { return false; }
+bool TimerEntry::operator<(const TimerEntry& other) const throw()
+{
+    // ORIG _ZNK10TimerEntryltERKS_（0x80f6364，0x33 字节）：比较 64 位 time
+    // （+0x0c 低 / +0x10 高）。高字大于→true；高字小于→false；高字相等时按
+    // 无符号低字 jae：this.lo >= other.lo → true，否则 false。
+    unsigned int thisLo = (unsigned int)(time & 0xffffffffLL);
+    unsigned int thisHi = (unsigned int)((unsigned long long)time >> 32);
+    unsigned int otherLo = (unsigned int)(other.time & 0xffffffffLL);
+    unsigned int otherHi = (unsigned int)((unsigned long long)other.time >> 32);
+    if (thisHi > otherHi)
+        return true;
+    if (thisHi < otherHi)
+        return false;
+    return !(thisLo < otherLo);  // thisLo >= otherLo → true
+}
 
 TimerQueue::TimerQueue() throw()
 {

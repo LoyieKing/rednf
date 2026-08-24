@@ -27,8 +27,22 @@ bool next_int(std::istream& in, int& value)
 STEventCharacterInfo::STEventCharacterInfo() : m_growType(0), m_secondGrowType(0) {}
 STEventCharacterInfo::~STEventCharacterInfo() {}
 
-EventCharacterParameterScript::EventCharacterParameterScript() {}
+// ORIG 0x895b890：character_info map 默认构造（显式定义以产生真实 mangled 符号）。
+STEventCharacterInfo_level::STEventCharacterInfo_level() : character_info() {}
+
+// ORIG C1 0x8371fde：map 构造 + clear()。
+EventCharacterParameterScript::EventCharacterParameterScript() : m_levels()
+{
+    clear();
+}
+
 EventCharacterParameterScript::~EventCharacterParameterScript() {}
+
+// ORIG clear W 0x8371fb6：m_levels.clear()。
+void EventCharacterParameterScript::clear()
+{
+    m_levels.clear();
+}
 EventCharacterParameterScript::ScriptFileList& EventCharacterParameterScript::script_file_list() { return g_files; }
 std::string& EventCharacterParameterScript::base_directory() { return g_base_directory; }
 

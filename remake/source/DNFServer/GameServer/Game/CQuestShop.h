@@ -25,6 +25,7 @@ public:
     void addPiece(int value);
     void clearBuyingStatuslist();
     void sendCharacQp(CUser* user, char flag);
+    void sendCharacQuestPiece(CUser* user);  // ORIG 0x85ef7cc
     void clearQP(CUser* user);
     void makePacket_BuyingStatusList(PacketGuard& packet, bool flag);
 

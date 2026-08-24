@@ -18,32 +18,17 @@
 //     _ZNK10CNPCScript9isKeyItemEmj        isKeyItem(unsigned long, unsigned) const
 //     _ZNK10CNPCScript19getPeriodRewardTypeEv  getPeriodRewardType() const
 //
-// 布局说明：ORIG CNPCScript 在 +0x04 内嵌一个 NpcScript 对象（含角色 map、
-// key item 表、奖励等级表等）。该 NpcScript 结构本工程尚未还原，故仅在
-// 本类内用同型 std 容器按 ORIG 字段顺序建模访问器所需的数据区；isExistRole
-// 所需的角色 map ORIG 位于 +0x50。完整 NpcScript 重建前，成员间的确切字节
-// 偏移为「推断」，仅保证类型/顺序与 ORIG 一致。
+// 布局说明：ORIG CNPCScript 在 +0x04 内嵌一个 NpcScript 对象（权威布局见
+// NpcScript.h）。本类按该真实子对象建模；访问器读取内嵌成员的 ORIG 偏移：
+//   角色表 NpcScript+0x4c（=CNPCScript+0x50）、key item 表 +0x18c（=+0x190）、
+//   奖励等级表 +0x654（=+0x658）、周期奖励名 +0x670（=+0x674）。
 // ============================================================================
 
-#include <map>
-#include <string>
-#include <utility>
-#include <vector>
+#include "NpcScript.h"
 
 enum ENUM_NPC_ROLE
 {
     ENUM_NPC_ROLE_0 = 0
-};
-
-// ORIG: stFavorableRelationShip_t::stLevelRewardInfo（奖励等级区间条目）。
-// 首字段为 ushort 等级（isRewardLevel/getLevelRewardInfo 均以该字段比较）。
-struct CNPCScript_LevelRewardInfo
-{
-    unsigned short m_level;   // +0x00 等级
-    unsigned int   m_flag0;   // +0x04 扩展标志
-    unsigned int   m_flag1;   // +0x08 扩展标志
-    std::string    m_name;    // +0x0c
-    std::string    m_desc;    // +0x10
 };
 
 class CNPCScript
@@ -56,23 +41,21 @@ public:
     bool isRewardLevel(unsigned short level) const;
     bool isKeyItem(unsigned long key, unsigned int id) const;
     int getPeriodRewardType() const;
+    // ORIG _ZNK10CNPCScript8getIndexEv 0x085819ac W：mov (%eax) —— 返回 +0x00。
+    unsigned int getIndex() const { return m_resultCopy; }
+    // ORIG _ZNK10CNPCScript14isFavorableNPCEv 0x085819b6 W：movzbl 0x174(%eax)
+    // —— 内嵌 NpcScript+0x170 处 stFavorableRelationShip_t::m_enabled。
+    bool isFavorableNPC() const
+    {
+        return m_npcScript.m_favorableRelationShip.m_enabled;
+    }
+
 
 private:
     // +0x00: load 成功后回写的 NpcScript 首字（ORIG load 把 this+4 首字拷到 this）。
     unsigned int m_resultCopy;              // ORIG +0x00
-    // +0x04: 内嵌 NpcScript 对象（ORIG 曝光 +0x04）。仅 load 以
-    //        importNpcScript(NpcScript*, path) 填充并回读首字；结构未还原，
-    //        用不透明字节区占位表示，读取经 reinterpret_cast。
-    char m_npcScriptData[0x4c];             // ORIG +0x04 .. +0x50
-    // +0x50: isExistRole 查询的角色标志。ORIG 0x86d2736:
-    //        std::map<ENUM_NPC_ROLE,int>::find(role) != end()。
-    std::map<ENUM_NPC_ROLE, int> m_roleMap; // ORIG +0x50
-    // +0x190: isKeyItem 查询的 key item 表（itemKey, itemId）。
-    std::vector<std::pair<unsigned long, unsigned int> > m_keyItemList; // ORIG +0x190
-    // +0x658: isRewardLevel 查询的奖励等级区间表。
-    std::vector<CNPCScript_LevelRewardInfo> m_levelRewardList;          // ORIG +0x658
-    // +0x674: getPeriodRewardType 比较的周期奖励类型（"item"/"quest"）。
-    std::string m_periodRewardType;         // ORIG +0x674
+    // +0x04: 内嵌 NpcScript 权威结构（importNpcScript 填充）。
+    NpcScript m_npcScript;                  // ORIG +0x04 ..
 };
 
 #endif  // GAME_NPCSCRIPT_H

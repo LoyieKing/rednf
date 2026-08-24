@@ -12,6 +12,8 @@
 //   +0x658 AvatarCoin m_avatarCoin +0x65c char m_pad65c[0x28]
 //   +0x684 AvatarVisibleData m_avatarVisible[12] +0x6e4 Inven_Item* m_pCreatureSlot(0xf2)
 //   +0x6e8 user_creature::CCreatureMgr m_creatureMgr +0x734 WongWork::CAvatarItemMgr
+// CAvatarItemMgr 真实尺寸 0x84（权威头 CAvatarItemMgr.h，替代本地最小镜像 m_pad[0x4c]），
+// CInventory 总尺寸 0x7b8（匹配 CharacInfoFields::m_inven 的 +0xda..0x892 区段）。
 // Inven_Item 尺寸 0x3d；equip 312 / avatar 105 / creature 242 槽。
 // CItem/CStackableItem/CEquipItem/Inven_Item/CDataManager 使用权威头（I1 批次），
 // 本头不再重复声明；CUser/CUserCharacInfo/cUserHistoryLog 等尚无权威头的类保留
@@ -27,6 +29,9 @@
 #include "CStackableItem.h"
 #include "CEquipItem.h"
 #include "CDataManager.h"
+#include "CAvatarItemMgr.h"   // 权威 WongWork::CAvatarItemMgr（真实布局 0x84，替代本地最小镜像）
+#include "CExpandEquipslot.h" // 权威 CExpandEquipslot（charac_expand::CData 派生，布局 0x899；
+                              // 唯一声明点，删除本头原局部最小镜像避免 ODR）
 #include "InterfacePacketBuf.h"
 #include "CUser.h"          // 权威 CUser/cUserHistoryLog/共享枚举（G1-3 统一）
 
@@ -52,7 +57,8 @@ enum eItemAddReason
     eItemAddReason_1 = 1,
     eItemAddReason_2 = 2,
     eItemAddReason_7 = 7,
-    eItemAddReason_8 = 8
+    eItemAddReason_8 = 8,
+    eItemAddReason_0xd = 0xd
 };
 #endif
 
@@ -89,6 +95,14 @@ enum eMoneySubReason
 enum eCoinSubReason
 {
     eCoinSubReason_0 = 0
+};
+#endif
+
+#ifndef DNF_ENUM_ECOINADDREASON_DEFINED
+#define DNF_ENUM_ECOINADDREASON_DEFINED
+enum eCoinAddReason
+{
+    eCoinAddReason_0 = 0
 };
 #endif
 
@@ -137,26 +151,7 @@ enum VALUE_STATISTIC_FIELD
     VALUE_STATISTIC_FIELD_0 = 0
 };
 
-// ---- 头像信息（ORIG W 0x081506e8 / 0x0833421e；布局与 AuctionItem.h 一致） ----
-#pragma pack(push, 1)
-struct stAvatarEmblemInfo_t
-{
-    void init();  // ORIG W 0x081506e8（独立 TU 定义）
-
-    struct
-    {
-        unsigned short emblemSocketType_;  // +0x00
-        int emblemItemIdx_;                // +0x02
-    } stEmblemSocket[5];                   // +0x00，总 30 字节
-};
-#pragma pack(pop)
-
-struct stAvatarExpansionInfo_t
-{
-    void init();  // ORIG W 0x0833421e（独立 TU 定义）
-
-    short color[2];  // +0x00，总 4 字节
-};
+#include "GamePODTypes.h"  // stAvatarEmblemInfo_t/stAvatarExpansionInfo_t 唯一定义（去重，布局一致）
 
 struct stEquipCondition;
 struct stEquipConditionForChronicle;
@@ -172,10 +167,74 @@ void md5_finish(md5_context* ctx, unsigned char* out);
 namespace OS_API
 {
 int GetDateTimeTick();
+int snprintf(char* buf, unsigned int n, const char* fmt, ...);
 }
 
 namespace user_creature
 {
+class CCreature;
+class CArtifact
+{
+public:
+    CArtifact();                                    // ORIG W 0x833ef0c（调 Reset）
+    void Reset();                                   // ORIG T 0x8336f60：清零唯一指针字段
+    bool EquipArtifact(const Inven_Item* item);     // ORIG T 0x8336f6e
+    float GetExperienceAmount();                    // ORIG T 0x83336fc8（非 const）
+    int GetCreatureMinimumLevel();                  // ORIG T 0x83337012（非 const）
+    CEquipItem* m_pItem;                            // +0x00（ORIG 存取均按此唯一 4B 字段）
+};
+
+// ============================================================================
+// CCreatureItem（ORIG 0x083340c82 ctor / 0x0833f016 GetRemainDate 布局建模）。
+// 布局（逐字段反汇编实证）：
+//   +0x00 vptr（ORIG 多态：ctor 写 vtable 0x8c2f4d8；CCreature 继承之）
+//   +0x04 m_itemId            （GetItemId/SetItemId 0x833efa4/b0）
+//   +0x08 m_creatureItemType  （GetCreatureItemType/SetCreatureItemType 0x833ef98/e2）
+//   +0x0c m_uid               （GetUid 0x833efbe）
+//   +0x10 m_slotNo            （GetSlotNo/SetSlotNo 0x833efca/0x8337050）
+//   +0x14 m_noCharge byte     （GetNoCharge 0x833efd6 movzbl）
+//   +0x15 m_stat byte         （GetStat 0x833eff0 movzbl）
+//   +0x18 m_expireTime        （GetRemainDate 0x833f016 读取；Set 0x833ef20 清零）
+// 仅建模本任务所需字段；其余 ORIG 字段以 m_pad 保持尺寸语义。
+// ============================================================================
+class CCreatureItem
+{
+public:
+    CCreatureItem() {}   // ORIG ctor 0x8340c82 写 vtable；此处无 vtable，仅占位
+    int GetRemainDate(int nowSec) const;  // ORIG _ZNK...13GetRemainDateEi 0x833f016（W）
+
+    // ---- ORIG W 内联访问器（nm --defined-only 实证，体为单字段读写）----
+    int GetItemId() { return m_itemId; }                        // W 0x833efa4
+    void SetItemId(int itemId) { m_itemId = itemId; }           // W 0x833efb0
+    int GetCreatureItemType();                                  // W 0x833ef98（定义 CCreatureMgr.cpp，ORIG 外联调用形态）
+    void SetCreatureItemType(int type) { m_creatureItemType = type; }  // W 0x833efe2
+    int GetUid() { return m_uid; }                              // W 0x833efbe
+    int GetSlotNo() { return m_slotNo; }                        // W 0x833efca
+    int GetNoCharge() { return (int)m_noCharge; }               // W 0x833efd6（movzbl）
+    unsigned char GetStat() { return m_stat; }                  // W 0x833eff0（movzbl）
+    void SetExpireTime(int expireTime) { m_expireTime = expireTime; }  // W 0x833effc
+    int getExpireTime() const { return m_expireTime; }          // W 0x833f00a（_ZNK）
+    void SetSlotNo(int slotNo);                                 // ORIG T 0x08337050（写 +0x10）
+
+    int m_vptr;            // +0x00（ORIG vptr 槽；本镜像以整型保持偏移）
+    int m_itemId;          // +0x04
+    int m_creatureItemType;// +0x08
+    int m_uid;             // +0x0c
+    int m_slotNo;          // +0x10
+    unsigned char m_noCharge; // +0x14
+    unsigned char m_stat;     // +0x15
+    char m_pad16[2];       // +0x16..0x17
+    int m_expireTime;      // +0x18（GetRemainDate 读此；Set 0x833ef20 清零）
+};
+class CCreatureItemConverter
+{
+public:
+    // ORIG 0x08336eae（_ZN13user_creature22CCreatureItemConverter10SetEggItemEP10Inven_Item，
+    // T）：槽物为蛋（ITEM_TYPE 5）时把它转成孵化蛋。返回非 0 表示成功。
+    // 注：ORIG 调用方（_processCreature / check_insert_lottery_reward）
+    // 以 Inven_Item* 为唯一实参（无 this），故为 static。
+    static int SetEggItem(Inven_Item* item);
+};
 class CCreatureMgr
 {
 public:
@@ -185,19 +244,56 @@ public:
     int UseItem(Inven_Item* item, int slot);  // ORIG _ZN13user_creature12CCreatureMgr7UseItemEP10Inven_Itemi
     bool SwapCreatureItem(Inven_Item* a, int slotA, int typeA,
                           Inven_Item* b, int slotB, int typeB);
-    void GainExp(int exp);                               // ORIG _ZN13user_creature12CCreatureMgr7GainExpEi
+    // ---- SwapCreatureItem 调用链（Prod_DB_Misc 批次；签名与 ORIG mangled 一致）----
+    bool SwapCreature(Inven_Item* item1, int slot1, int type1,   // ORIG T 0x08339420
+                      Inven_Item* item2, int slot2, int type2);
+    bool SwapArtifact(Inven_Item* item1, int slot1, int type1,   // ORIG T 0x08339752
+                      Inven_Item* item2, int slot2, int type2);
+    bool IsArtifactEquipSlot(int slot);                          // ORIG T 0x083393fc
+    bool EquipArtifact(int slot, Inven_Item* item);              // ORIG T 0x083396c8
+    bool DismantleArtifact(int slot, Inven_Item* item);          // ORIG T 0x08339718
+    bool EquipCreatureItem(CCreature* dismantleItem,             // ORIG T 0x083393a2
+                           CCreature* equipItem);
+    bool Equip(CCreature* creature);                             // ORIG T 0x083392f6
+    bool Dismantle(CCreature* creature);                         // ORIG T 0x0833934c
+    int GetExtraGold(int gold) const;                            // ORIG T 0x0833c31a（Prod_CParty get_item 依赖）
+    int GetOverSkillExtraGold(int gold) const;                   // ORIG T 0x0833c6f6
+    bool GainExp(int exp);                               // ORIG _ZN13user_creature12CCreatureMgr7GainExpEi
     bool IsEquippedCreature() const;                     // ORIG _ZNK13user_creature12CCreatureMgr18IsEquippedCreatureEv
     bool IsGrowCreature_Equipped_Creature() const;       // ORIG _ZNK13user_creature12CCreatureMgr32IsGrowCreature_Equipped_CreatureEv
+    int VerifyEquipedCreatureQuest() const;  // ORIG _ZNK13user_creature12CCreatureMgr26VerifyEquipedCreatureQuestEv T 0x0833d6fa
     bool InsertCreatureItem(Inven_Item* item, int a,     // ORIG _ZN13user_creature12CCreatureMgr18InsertCreatureItemEP10Inven_Itemiiii
                             int b, int c, int d);
     int GetCreatureItemId() const;                 // ORIG _ZNK13user_creature12CCreatureMgr17GetCreatureItemIdEv
     const char* GetCreatureName() const;           // ORIG _ZNK13user_creature12CCreatureMgr15GetCreatureNameEv
+    bool UseFeed();                              // ORIG _ZN13user_creature12CCreatureMgr7UseFeedEv
+    void setTempExpireTime(int time);            // ORIG W 0x833f10c
+    bool IsCreatureEquipmentScope(int slot);       // ORIG 0x833926c（非 const）
     bool IsDieCreature() const;                    // ORIG _ZNK13user_creature12CCreatureMgr13IsDieCreatureEv
     int GetEquipedCreatureLevel() const;           // ORIG _ZNK13user_creature12CCreatureMgr24GetEquipedCreatureLevelEv
-    char SendCreatureItemList() const;             // ORIG _ZNK13user_creature12CCreatureMgr21SendCreatureItemListEv
-    char m_pad[0x4c];  // ORIG 尺寸 0x4c（+0x6e8..+0x733）
+    int SendCreatureItemList() const;              // ORIG _ZNK13user_creature12CCreatureMgr20SendCreatureItemListEv（透传 CUser::Send 的 int）
+    bool RecvMail(Inven_Item* item, int slot, int reason);   // ORIG 0x0833ab9a（bool 返回）
+    bool SendMail(Inven_Item* item, int slot, int reason);   // ORIG _ZN13user_creature12CCreatureMgr8SendMailEP10Inven_Itemii 0x0833aa32
+    bool DeleteCreatureItem(int param_1, int param_2);       // ORIG _ZN13user_creature12CCreatureMgr18DeleteCreatureItemEii 0x0833b606
+    bool UnregisterCreatureItem(int uid);                    // ORIG _ZN13user_creature12CCreatureMgr22UnregisterCreatureItemEi 0x0833a854
+    bool RegistTempPeriod(int a, int b, int c);              // ORIG 0x0833d7de（bool 返回）
+    int getRemainTempPeriod(int uid, int nowSec) const;      // ORIG 0x0833d88c（const）
+    int GetRemainDate(int uid, int nowSec) const;            // ORIG _ZNK...13GetRemainDateEii 0x0833d78e
+    CCreatureItem* FindCreatureItem(int uid) const;          // ORIG 0x08339292（_ZNK）
+    CArtifact* GetArtifact(int slot);  // ORIG _ZN13user_creature12CCreatureMgr11GetArtifactEi T 0x833be56（槽 0x17..0x1a → m_artifacts[0..3]）
+    int GetCreatureItem(SIG_LOAD_INVENTORY* sig) const;       // ORIG _ZNK13user_creature12CCreatureMgr15GetCreatureItemEP18SIG_LOAD_INVENTORY 0x833b80c
+    // ---- ORIG 布局（Reset.md 0x833a45a / InsertCreatureItem.md 0x833b204 反汇编）----
+    std::map<int, CCreatureItem*> m_creatureItems;  // +0x00（24B）
+    CCreature* m_equippedCreature;                  // +0x18
+    CUser* m_user;                                  // +0x1c
+    CArtifact m_artifacts[3];                       // +0x20..+0x2b（各 4B）
+    int m_tempExpireDelta;                          // +0x2c（Reset 置 -1）
+    std::map<int, int> m_field30;                   // +0x30
+    unsigned char m_isMaxLevelGrowCreature;         // +0x48（Reset 置 1）
+    char m_pad49[3];                                // +0x49，总 0x4c
 };
 }
+class CUser;
 class AvatarCoin
 {
 public:
@@ -205,34 +301,15 @@ public:
     void Set(unsigned int) {}
     void Add(unsigned int) {}
     unsigned int Use() { return 0; }
+    static int GetPackage(CUser* user, int avatarUid, bool bReset); // ORIG 0x0818028a（AvatarRoulette 批次补实现）
     char m_pad[4];
 };
 
-namespace WongWork
-{
-class CGenUniqueNo
-{
-public:
-    enum ENUM_IPGNO_TYPE
-    {
-        ENUM_IPGNO_TYPE_6 = 6
-    };
-    static void genIPGNo(ENUM_IPGNO_TYPE type, unsigned int characNo, char* out);
-};
-class CAvatarItemMgr
-{
-public:
-    void Reset();
-    unsigned long RegistNotAssignedAvatarItem(int, int, const char*, bool, const stAvatarEmblemInfo_t&);
-    int GetExpireDate(int) const;
-    const char* GetIPGAgencyNo(int) const;
-    int GetRemainDate(int, int) const;
-    char m_pad[0x4c];
-};
-}
+// WongWork::CGenUniqueNo 权威声明见 CGenUniqueNo.h（char* genIPGNo，
+// 完整 ENUM_IPGNO_TYPE）；本头不再局部重复声明。
+#include "CGenUniqueNo.h"
 // ---- 外部依赖（其它 TU 提供；成员签名按 ORIG nm 核对） ----
 class CSlotBoundChecker;
-class CExpandEquipslot;
 class Store;
 class CValueStatistic;
 class PacketGuard;
@@ -245,16 +322,28 @@ extern CSlotBoundChecker* g_slotBoundChecker;
 class CSecu_ProtectionField
 {
 public:
-    // ORIG 定义符号为 2 参（_ZN21CSecu_ProtectionField5CheckEP5CUser18SECURITY_PROTCTION），
-    // 但 ChangeEquip 调用点按 3 参形态（field,user,type）压栈——按调用点 ABI 声明，
-    // 链接桩由主 agent 提供。
-    static int Check(CSecu_ProtectionField* field, CUser* user, SECURITY_PROTCTION type);
+    // ORIG _ZN21CSecu_ProtectionField5CheckEP5CUser18SECURITY_PROTCTION（0x08288a02）：
+    // thiscall 成员函数。user 为空返回 1；否则 GetProtectionType(type) 为 0 返回 0，
+    // 再依次 CheckRestoreType → CheckTradingType → CheckEtcType，首个非 0 返回。
+    int Check(CUser* user, SECURITY_PROTCTION type);
+    // ORIG 0x0828873a（_ZN21CSecu_ProtectionField9CheckItemEP5CUser18SECURITY_PROTCTIONm）：
+    // 物品 index 命中受保护集合时委托 Check(user,type)，否则 0。
+    int CheckItem(CUser* user, SECURITY_PROTCTION type, unsigned long itemIndex);
+    // ORIG 0x08288786（_ZN21CSecu_ProtectionField9CheckItemEP5CUser18SECURITY_PROTCTIONPK5CItem）：
+    // item/user 任一为 0 则 1，否则取 item->get_index() 走上面的重载。
+    int CheckItem(CUser* user, SECURITY_PROTCTION type, const CItem* item);
     int GetOppositeErr(int err);
+    int GetCashShopErr(int err);        // ORIG W 0x82881a2：商城错误码映射
     unsigned int GetProtectionType(SECURITY_PROTCTION type);
     int CheckRestoreType(CUser* user, unsigned int protType);
     int CheckTradingType(CUser* user, unsigned int protType, SECURITY_PROTCTION type);
     int CheckEtcType(CUser* user, SECURITY_PROTCTION type);
-};
+    CSecu_ProtectionField();   // ORIG W 0x82aa6d4：构造 m_typeMap 后 init()
+    void init();               // ORIG T 0x828824e：填充 0x47 项保护类型表
+
+private:
+    std::map<SECURITY_PROTCTION, unsigned int> m_typeMap;   // +0x00（0x18）
+ };
 
 namespace GlobalData
 {
@@ -270,14 +359,6 @@ public:
     bool get_item_type(int slot, int capacity, Inven_Item::ITEM_TYPE& outType) const;
 };
 
-class CExpandEquipslot
-{
-public:
-    Inven_Item* GetInvenRefR(INVEN_TYPE type, int slot) const;
-    Inven_Item* getExpandEquipslotW(ENUM_EQUIPSLOT slot);
-    Inven_Item GetInvenSlot(INVEN_TYPE type, int slot) const;
-    bool FindItemLock(unsigned char b, ENUM_ITEMSPACE& space, int& slot) const;
-};
 
 class Store
 {
@@ -313,16 +394,8 @@ private:
     std::map<ENUM_SERVER_GROUP, stValueStatistic> m_data;
 };
 
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
+#include "PacketGuard.h"  // 权威 PacketGuard（§7 单声明点；本地最小版与
+                          // Game/PacketGuard.h 冲突导致重定义）
 
 struct stEquipCondition
 {
@@ -348,6 +421,11 @@ extern int _CompareSlot(const void* a, const void* b);
 extern int _S_CHARAC_JOB_MASTARY[];
 int GetInvenTypeFromItemSpace(ENUM_ITEMSPACE space);  // ORIG 返回 int（INVEN_TYPE），非 const char*
 int GetInvenTypeFromItemSpace(int space);
+// ORIG T 0x0865f1e1 _Z17_checkItemMovablePK5CUser14ENUM_ITEMSPACEimS2_im：
+// exchange_interspace(_expand) 前置校验（定义由后续物品域批次补，声明先行）。
+bool _checkItemMovable(const CUser* user, ENUM_ITEMSPACE fromSpace, int fromSlot,
+                       unsigned long fromItemIdx, ENUM_ITEMSPACE toSpace, int toSlot,
+                       unsigned long toItemIdx);
 
 class CInventory
 {
@@ -429,14 +507,18 @@ public:
     bool CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
                                      stEquipConditionForChronicle& cond) const;
     int MakeItemList(INVEN_TYPE invenType, void* out) const;
-    void MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
-    void MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
-    void MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
-                       ENUM_EQUIPSLOT equipSlot) const;
+    bool MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
+    int MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
+    // ORIG _ZNK10CInventory13MakeEquipListEPvb13ENUM_USERINFO14ENUM_EQUIPSLOT：
+    // out 为空返回 0，否则写完列表返回 1（eax）。
+    int MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
+                      ENUM_EQUIPSLOT equipSlot) const;
     void getHashCode(unsigned char* out);
     int getPackedCodeArray1(unsigned long* out, int maxCount);
     size_t getSortedKeyArray(unsigned long* out, int maxCount);
-    void makeCheckSum(int a, int b) const;
+    // ORIG 0x0850ae7a：返回 finishItemChecksum 的 eax（尾调用值流出）；mangled
+    // 不编码返回类型，符号不变。CUser::getCurCharacInvenCheckSum 直接返回其结果。
+    int makeCheckSum(int a, int b) const;
     void GetExpertJobAddtionalExp(ENUM_EXPERT_JOB_TYPE type, int param,
                                   STItemScript::SEXPERTJOB::stExpertJobAdditionalExp& out) const;
     float GetExpertJobCompoundMaterialVariation(ENUM_EXPERT_JOB_TYPE type, int param) const;
@@ -539,7 +621,8 @@ public:
     int AddAvatarItem(int itemIdx, int avatarUid, bool b, char c, char d,
                       const char* agency, eAvatarItemAddReason reason, bool e,
                       unsigned short f);
-    void _SaveAvatarItem(int slot, int expireDate, bool b, char c,
+    // ORIG 0x08509e78：m_pParent 空返回 false，投递 SIG 后返回 true（eax）。
+    bool _SaveAvatarItem(int slot, int expireDate, bool b, char c,
                          const stAvatarEmblemInfo_t& emblem, const char* agency,
                          unsigned long hidden, const stAvatarExpansionInfo_t& expansion);
     void CheckNFix();
@@ -577,7 +660,7 @@ public:
     AvatarVisibleData m_avatarVisible[12];  // +0x684
     Inven_Item* m_pCreatureSlot;  // +0x6e4
     user_creature::CCreatureMgr m_creatureMgr;  // +0x6e8
-    WongWork::CAvatarItemMgr m_avatarItemMgr;   // +0x734
+    WongWork::CAvatarItemMgr m_avatarItemMgr;   // +0x734（权威类型 0x84，CInventory 总 0x7b8）
 };
 
 // ORIG 调用点怪癖：ChangeEquip 以 4 参自由函数形态调用 GetInvenSlot

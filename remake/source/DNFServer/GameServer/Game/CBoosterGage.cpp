@@ -11,27 +11,12 @@
 #include "CSystemTime.h"
 #include "Stream.h"
 
+#include "CMailBoxHelper.h"   // WongWork::CMailBoxHelper 权威叶子头（连带真实 Inven_Item）
 // ============================================================================
 // 本 TU 最小依赖声明（CUser/CInventory/CDataManager/CItem 等属后续批次，
 // 只声明本 TU 调用所需的符号形态；与 CInventory.h/GameStubs 的版本待合并）。
 // ============================================================================
 
-#pragma pack(push, 1)
-
-class Inven_Item
-{
-public:
-    int GetItemSpace() const;
-
-    char m_field0;        // +0x00
-    unsigned char m_field1;  // +0x01（ITEM_TYPE）
-    int m_addInfo;        // +0x02（item idx）
-    unsigned char m_attr; // +0x06
-    int m_addInfo2;       // +0x07（avatar uid / add_info）
-    char m_rest[0x3d - 0x0b];  // +0x0b..+0x3c
-};
-
-#pragma pack(pop)
 
 class InterfacePacketBuf
 {
@@ -69,10 +54,6 @@ public:
     virtual bool IsCreatureItem() const = 0;
 };
 
-#ifndef DNF_ENUM_SERVER_GROUP_DEFINED
-#define DNF_ENUM_SERVER_GROUP_DEFINED
-enum ENUM_SERVER_GROUP { E_SERVER_GROUP_NONE = 0 };
-#endif
 namespace WongWork
 {
 class CAvatarItemMgr
@@ -81,21 +62,7 @@ public:
     int GetRemainDate(int nAvatarUid, int nTick) const;
 };
 
-class CMailBoxHelper
-{
-public:
-    static void ReqDBSendNewAvatarMail(CUser* pUser, int nCharacNo, int nItemIdx,
-                                       int nExpireDate, char cA, char cB,
-                                       const char* pAgency, const char* pTitle, int nTitleLen);
-    static void ReqDBSendNewCreatureMail(CUser* pUser, int nCharacNo,
-                                         const Inven_Item& item, const char* pTitle,
-                                         int nTitleLen);
-    static void ReqDBSendNewSystemMail(const char* pSender, const Inven_Item& item,
-                                       unsigned int nA, unsigned int nCharacNo,
-                                       const char* pTitle, int nTitleLen,
-                                       unsigned int nB, ENUM_SERVER_GROUP nServerGroup,
-                                       bool bA, bool bB);
-};
+
 }
 
 namespace user_creature
@@ -150,12 +117,6 @@ public:
 
 extern CDataManager* G_CDataManager();
 
-class CEnvironment
-{
-public:
-    char m_pad[0x37c];
-    int m_nDailyScheduleTime;  // +0x37c
-};
 
 extern CEnvironment* G_CEnvironment();
 bool CheckDailyScheduleTime(int nScheduleTime, long lLastPlayTime, long lCurTime);
@@ -221,12 +182,6 @@ public:
 CServerXml g_ServerString_;  // ORIG 全局（0x93fa660，np_server_xml::g_ServerString_），原 GameStubs.cpp 定义迁移
 }
 
-class cMyTrace
-{
-public:
-    cMyTrace(const char* pName, int nLine, int nFlag);
-    void operator()(const char* pFmt, ...);
-};
 
 struct SIG_BOOSTER_GAGE_DATA
 {
@@ -463,7 +418,7 @@ bool CBoosterGage::loadData(CUser* pUser, char* pData)
     _reset();
     SIG_BOOSTER_GAGE_DATA* p = (SIG_BOOSTER_GAGE_DATA*)pData;
     m_dwTotalGage = p->m_dwBoosterGage;
-    if (CheckDailyScheduleTime(G_CEnvironment()->m_nDailyScheduleTime,
+    if (CheckDailyScheduleTime(G_CEnvironment()->m_serverEnvir.m_fatigueTime,
                                pUser->GetAccountLastPlayTime(),
                                GlobalData::s_systemTime_.getCurSec()))
     {

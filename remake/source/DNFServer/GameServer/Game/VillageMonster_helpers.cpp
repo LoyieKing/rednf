@@ -206,4 +206,50 @@ void CVillageMonster::SendVillageMonsterFightResult(CUser* user, bool flag)
     party->send_to_party(pg);
 }
 
+// ============================================================================
+// CVillageMonster::MakeVillageMonsterListPacket(PacketGuard&)
+//   —— ORIG 0x86b3666（0x80 字节）
+//   objdump: put_short(m_id); put_short(m_zone); put_byte(m_state);
+//            put_short(m_field04); put_short(m_field08); return 1。
+// ============================================================================
+bool CVillageMonster::MakeVillageMonsterListPacket(PacketGuard& packet)
+{
+    packet.put_short(m_id);
+    packet.put_short(m_zone);
+    packet.put_byte(m_state);
+    packet.put_short(m_field04);
+    packet.put_short(m_field08);
+    return true;
+}
+
+// ============================================================================
+// CVillageMonsterArea::SendVillageMonsterList(CUser*) —— ORIG 0x86b37fa（0x168）
+//   objdump: PacketGuard; clear; put_header(0,0xee); idx=get_index();
+//            put_byte(0 占位); 遍历 m_monsters：MakeVillageMonsterListPacket
+//            成功则 count++；put_byte(idx,count)；finalize(true)；
+//            user==0 → SendPacket(packet)，否则 user->Send(packet)。
+// ============================================================================
+void CVillageMonsterArea::SendVillageMonsterList(CUser* user)
+{
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(0, 0xee);
+    int countIdx = packet.get_index();
+    int count = 0;
+    packet.put_byte(0);
+    for (std::map<unsigned short, CVillageMonster>::iterator it =
+             m_monsters.begin();
+         it != m_monsters.end(); ++it)
+    {
+        if (it->second.MakeVillageMonsterListPacket(packet))
+            ++count;
+    }
+    packet.put_byte(countIdx, count);
+    packet.finalize(true);
+    if (user == 0)
+        SendPacket(packet);
+    else
+        user->Send(packet);
+}
+
 }  // namespace village_attacked

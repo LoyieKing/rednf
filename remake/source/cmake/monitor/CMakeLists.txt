@@ -83,6 +83,7 @@ dnf_service(monitor
         ${SVC_DIR}/OnTimeEventManager.cpp
         ${SVC_DIR}/PacketCounter.cpp
         ${PACKET}/src/PacketHeader.cpp
+        ${PACKET}/src/Packet_Item_Limit_Edition_Buyable_Query.cpp
         ${SVC_DIR}/Peer.cpp
         ${SVC_DIR}/Scheduler.cpp
         ${SVC_DIR}/ServerLoadChecker.cpp

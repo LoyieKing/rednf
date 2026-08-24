@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "CUser.h"          // 权威 CUser/CUserCharacInfo/cUserHistoryLog（G1-3 统一）
+#include "SigTypes.h"       // SIG_COMBO_SKILL/comoboSkillData 权威定义（FixMissingSigTypes 迁移）
 
 class CSkill;
 class PacketGuard;
@@ -46,27 +47,9 @@ struct _Mastered_skill
     char m_level;            // +0x01
 };
 
-// ---- 组合技数据（0xe 字节：技能索引 + 6 个连招技能）----
-#pragma pack(push, 1)
-struct comoboSkillData
-{
-    short m_comboSkillIndex;     // +0x00
-    short m_comboSkillList[6];   // +0x02
-};
-#pragma pack(pop)
-
-// ---- ComboSkill 存档结构（pack(1)；+0xa 起的奇数偏移由 ORIG 确认）----
-#pragma pack(push, 1)
-struct SIG_COMBO_SKILL
-{
-    int m_characNo;                  // +0x00
-    unsigned char m_tree1Count;      // +0x04
-    unsigned char m_tree2Count;      // +0x05
-    int m_job;                       // +0x06
-    comoboSkillData m_tree1Data[6];  // +0x0a
-    comoboSkillData m_tree2Data[6];  // +0x5e
-};
-#pragma pack(pop)
+// ---- ComboSkill 存档结构 SIG_COMBO_SKILL / comoboSkillData ----
+// 权威定义已迁移到 SigTypes.h（FixMissingSigTypes，广播周知；pack(1) 布局与
+// sizeof=0xb2 不变）。此处仅保留使用点引用。
 
 // ---- ComboSkill（0x2a 字节 = 2 个 std::map<short, vector<int>>，各 0x15）----
 // ORIG 里 map<short,vector<int>> 是在 pack(1) 生效时首次实例化的，故 _Rb_tree
@@ -130,12 +113,46 @@ struct stSPReturnInfo_t
 
 namespace WongWork
 {
+// ORIG 0x092 字节：4 组 kind 状态（各 0x24 对齐 8），+0x90 bool，+0x91 char。
 class CSkillChanger
 {
 public:
     CSkillChanger();
     ~CSkillChanger();
     void SkillInitialize(CUser* user, int kind, bool flag);
+    void _ResetSkillPoint(CUser* user, int kind);
+    void _ResetSFPoint(CUser* user, int kind);
+    int _GetUserItemCount(const CUser* user);
+    void _ApplyUserData(CUser* user, int kind);
+    void _CountSkillBook(const Inven_Item& item);
+    // ORIG 0x0860a1e6：计算角色总 SP（基础 + 任务点）。
+    int GetCurCharacTotalSP(const CUser* user, bool flag);
+    int _GetBaseSkillPoint(const CUser* user) const;
+    int _GetQuestSkillPoint(const CUser* user);
+    union
+    {
+        char m_pad[0x92];
+        struct
+        {
+            int m_skillBookCount[9];
+            int m_pad24;
+            int m_elixerAbility[9];
+            char m_namedTail[0x92 - 0x28 - 0x24];
+        } m_data;
+        struct
+        {
+            int m_kindState0;
+            char m_pad04[0x20];
+            int m_kindState1;
+            char m_pad28[0x20];
+            int m_kindState2;
+            char m_pad4c[0x20];
+            int m_kindState3;
+            char m_pad70[0x20];
+            unsigned char m_initialized;
+            unsigned char m_reserved91;
+        } m_state;
+    };
 };
 }
 
@@ -219,7 +236,7 @@ public:
     int clear_all_skills(ENUM_SKILL_TREE_KIND kind);
     int clear_all_skills_both();
     int clear_sfp_skills(char job, ENUM_SKILL_TREE_KIND kind);
-    int backupSkill(ENUM_SKILL_TREE_KIND kind);
+    bool backupSkill(ENUM_SKILL_TREE_KIND kind);  // ORIG 返回 _Bool（DisPatcher_BuySkill::process 调用点 xor $1 反证；int/bool 函数体代码生成相同）
     int InitSkill(bool sendInfo, ENUM_SKILL_TREE_KIND kind);
     void InitSkillHistoryLog(ENUM_SKILL_TREE_KIND kind, int reason);
     void SendSkillInfo(int characIdx, ENUM_SKILL_TREE_KIND kind);

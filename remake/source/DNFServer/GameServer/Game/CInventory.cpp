@@ -14,6 +14,22 @@
 #include "CCirculationStatistic.h"
 #include "LogManager.h"
 #include "CTitleBook.h"   // item_lock::CItemLock::MakeItemLockPacket（TSV）
+#include "SigTypes.h"     // SIG_LOAD_*（GameWorld.h→CUser.h 依赖；须先于其 include）
+#include "GameWorld.h"    // GameWorld::IsEnchantRevisionChannel/IsIntegratedPvPBaseChannel
+#include "ServiceRestrictManager.h"   // ServiceRestrictManager::isRestricted（move_item 封印限制）
+#include "Arad_DataManager.h"         // ARAD::Singleton<ServiceRestrictManager>::Get()
+#include "CSystemTime.h"              // CSystemTime::getCurSec（解封期限/头像剩余天数）
+#include "CMailBoxHelper.h"           // WongWork::CMailBoxHelper 静态邮件（insert_event_items 兜底）
+#include "RDARScriptStringManager.h"  // g_scriptStringManager_/findString（邮件标题/正文 key）
+#include "CCubeStatistic.h"           // GetInstanceCubeStatistic/collectCubeStatistics（reason 8 统计）
+#include <algorithm>                  // std::swap<int>/std::swap<INVEN_TYPE>
+
+// GetIntegratedPvPItemAttr(3 参)/_getIntegratedPvPItemAttr 的自由函数（PvP 物品属性，
+// ORIG 0x84fc651/0x84fc541）。1 参版本定义于 CDataManagerScripts.cpp，3 参版本见下方。
+extern int _getIntegratedPvPItemAttr(const Inven_Item& item);
+
+// 空槽占位 Inven_Item 全局（ORIG 0x943ddc0；定义于 CAccountCargo.cpp）
+extern Inven_Item g_emptySlot;
 
 // ============================================================================
 // 三个自由辅助函数（ORIG 全局符号，Money 簇自由函数）
@@ -217,27 +233,10 @@ namespace GlobalData
 {
 extern StreamPool* s_stream_pool;
 extern MsgQueueMgr* s_msgq_mgr;
+extern CSystemTime s_systemTime_;   // ORIG B 0x941f714（GlobalData.cpp 定义）
 }
-
 // ===================== 简单访问器（ORIG weak inline 形态） =====================
 
-// CExpandEquipslot::GetInvenSlot 的 TU 内形态替身（ORIG case-5 按隐藏返回指针
-// 调用 _ZNK16CExpandEquipslot12GetInvenSlotE10INVEN_TYPEi；CInventory.h 局部
-// 类缺该成员声明，先用静态替身复现调用形态，头文件补齐后可换回成员调用）。
-static Inven_Item GetInvenSlotByRefHelper(CExpandEquipslot* self, INVEN_TYPE type,
-                                          int slot)
-{
-    Inven_Item item;
-    if (slot < 10 || 0x16 < slot)
-    {
-        return item;
-    }
-    if (type == INVEN_TYPE_5)
-    {
-        item = *(Inven_Item*)((char*)self + 5 + (slot - 10) * 0x3d);
-    }
-    return item;
-}
 
 // 原 GetInvenSlotSelfHelper（ORIG 隐藏返回指针形态）已并入成员
 // CInventory::GetInvenSlot（CInventory.h 返回 Inven_Item），删除替身。
@@ -579,9 +578,7 @@ Inven_Item* CInventory::GetInvenRef(int invenType, int slot)
     {
         CExpandEquipslot* pExpand =
             m_pParent->GetCharacExpandDataR((ENUM_CHARAC_EXPAND_TYPE)9);
-        // ORIG 调 _ZN16CExpandEquipslot12GetInvenRefWE10INVEN_TYPEi（W）；
-        // CInventory.h 局部声明缺 W，先用 R（codegen 相同），头文件修复后改回。
-        return pExpand->GetInvenRefR(INVEN_TYPE_5, slot);
+        return pExpand->GetInvenRefW(INVEN_TYPE_5, slot);
     }
     default:
         return 0;
@@ -702,7 +699,7 @@ int CInventory::GetInvenSlotByRef(int invenType, int slot, Inven_Item& item)
     {
         CExpandEquipslot* pExpand =
             m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
-        item = GetInvenSlotByRefHelper(pExpand, (INVEN_TYPE)5, slot);
+        item = pExpand->GetInvenSlot(INVEN_TYPE_5, slot);
         break;
     }
     default:
@@ -1418,7 +1415,10 @@ size_t CInventory::getSortedKeyArray(unsigned long* out, int maxCount)
     return count;
 }
 
-void CInventory::makeCheckSum(int a, int b) const
+// ORIG 0x0850ae7a 返回类型为 int（尾调用 finishItemChecksum 的 eax 流出；
+// mangled 不编码返回类型，符号不变）。CUser::getCurCharacInvenCheckSum 直接
+// 返回该值（docs/class_func_reports/CUser/getCurCharacInvenCheckSum.md）。
+int CInventory::makeCheckSum(int a, int b) const
 {
     int sum = 0;
     for (int i = 10; i < 0x16; i++)
@@ -1447,7 +1447,7 @@ void CInventory::makeCheckSum(int a, int b) const
             }
         }
     }
-    finishItemChecksum(&sum, m_money, m_coin + m_payCoin + m_eventCoin, a, b);
+    return finishItemChecksum(&sum, m_money, m_coin + m_payCoin + m_eventCoin, a, b);
 }
 
 // ===================== 货币（第九批 I2 补全） =====================
@@ -2906,24 +2906,285 @@ void CInventory::update_item(INVEN_TYPE invenType, int slot, Inven_Item item)
     }
 }
 
-// TODO(G1-3 后续)：完整翻译 ORIG 0x84fc6bc（0x1009 字节，按 invenType 分 4 组
-// 槽位发包）。当前仅为恢复链接的最小桩（CUser::SendUpdateItemList 引用）。
-void CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const
+// ============================================================================
+// GetIntegratedPvPItemAttr（3 参重载，ORIG T 0x084fc651）。MakeItemPacket 直接依赖。
+// ORIG 反汇编（84fc651）：G_GameWorld()->IsIntegratedPvPBaseChannel() 且
+// G_CDataManager()->GetUpgradeRevisionPvPChannel()==0 时，若 invenType 非 0/非 1
+// 且 slot 在 (2, 0x38] 区间 → _getIntegratedPvPItemAttr(item)；否则 → item.GetItemAttr()。
+// 返回 unsigned char（ORIG 无 movzbl，值在 %al）。依赖 _getIntegratedPvPItemAttr。
+// ============================================================================
+unsigned char GetIntegratedPvPItemAttr(const Inven_Item& item, INVEN_TYPE invenType,
+                                       int slot)
 {
-    // ORIG 的 PacketGuard 实际继承 InterfacePacketBuf（调用点按 put_short/put_int
-    // 压栈）；CInventory.h 局部声明未建模继承，桩内以布局强转调用。
-    InterfacePacketBuf& buf =
-        reinterpret_cast<InterfacePacketBuf&>(packet);
+    bool integrated = G_GameWorld()->IsIntegratedPvPBaseChannel() &&
+                      G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0;
+    if (integrated)
+    {
+        if (invenType == (INVEN_TYPE)0)
+            return item.GetItemAttr();
+        if (invenType != INVEN_TYPE_EQUIP)
+            return item.GetItemAttr();
+        if (slot <= 2)
+            return item.GetItemAttr();
+        if (slot > 0x38)
+            return item.GetItemAttr();
+        return (unsigned char)_getIntegratedPvPItemAttr(item);
+    }
+    return item.GetItemAttr();
+}
+
+// ============================================================================
+// CInventory::MakeItemPacket（ORIG 0x084fc6bc，0x1009 字节）。
+// 按 INVEN_TYPE 分 4 组槽位发包：EQUIP(1) 含 0/1/2 三个特殊槽（0=money、
+// 1=coin+payCoin+eventCoin、2=GetWinPoint）与普通装备槽；AVATAR(2) 走
+// m_pAvatarSlot（含 jewel socket / expansion info）；CREATURE(3) 走
+// m_pCreatureSlot（ITEM_TYPE 5 宠时补 GetRemainDate）；INVEN(0) 走
+// m_invenItem[slot]（含 PvP 综合通道/封印数分支、avatar 扩展、宠物日期、
+// make3rdChroniclePacket）。空槽 / 非期望类型返回 false。
+// 依赖：CCreatureMgr::GetRemainDate（头已声明，BLOCKED——producer 提供定义）。
+// ============================================================================
+bool CInventory::MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const
+{
+    InterfacePacketBuf& buf = reinterpret_cast<InterfacePacketBuf&>(packet);
+    const Inven_Item* item;
+    GameWorld* world;
+    bool integratedPvP;
+    int nowTick;
+    char* expansion;
+    int attr;
+    cMyTrace trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x758, 5);
+
+    switch (invenType)
+    {
+    case INVEN_TYPE_EQUIP:
+        buf.put_short(slot);
+        if (slot == 0)
+        {
+            buf.put_int(0);
+            buf.put_int(m_money);
+            buf.put_byte(0);
+            buf.put_short(0);
+            buf.put_byte(0);
+            buf.put_int(0);
+            buf.put_byte(0);
+            buf.put_short(0);
+            buf.put_byte(0);
+            buf.put_packet(g_emptySlot);
+            return true;
+        }
+        if (slot == 1)
+        {
+            buf.put_int(1);
+            buf.put_int(m_coin + m_payCoin + m_eventCoin);
+            buf.put_byte(0);
+            buf.put_short(0);
+            buf.put_byte(0);
+            buf.put_int(0);
+            buf.put_byte(0);
+            buf.put_short(0);
+            buf.put_byte(0);
+            buf.put_packet(g_emptySlot);
+            return true;
+        }
+        if (slot == 2)
+        {
+            buf.put_int(2);
+            buf.put_int(m_pParent->GetWinPoint());
+            buf.put_byte(0);
+            buf.put_short(0);
+            buf.put_byte(0);
+            buf.put_int(0);
+            buf.put_byte(0);
+            buf.put_short(0);
+            buf.put_byte(0);
+            buf.put_packet(g_emptySlot);
+            return true;
+        }
+        item = &m_pEquipSlot[slot];
+        if (item->m_addInfo == 0)
+        {
+            // 空装备槽（≥3）：item_idx 置 -1，无 3rd chronicle
+            buf.put_item_idx(0xffffffff);
+            buf.put_int(item->m_addInfo2);
+            buf.put_byte(GetIntegratedPvPItemAttr(*item, INVEN_TYPE_EQUIP, slot));
+            buf.put_short(item->m_fieldb);
+            buf.put_byte(item->m_field0);
+            world = G_GameWorld();
+            if (!world->IsEnchantRevisionChannel())
+                buf.put_int(item->m_fieldd);
+            else
+                buf.put_int(0);
+            buf.put_byte(item->m_amp.getAbilityType());
+            buf.put_short(item->m_amp.getAbilityValue());
+            buf.put_byte(0);
+            buf.put_packet(*item);
+            return true;
+        }
+        buf.put_int(item->m_addInfo);
+        buf.put_int(item->m_addInfo2);
+        buf.put_byte(GetIntegratedPvPItemAttr(*item, INVEN_TYPE_EQUIP, slot));
+        buf.put_short(item->m_fieldb);
+        buf.put_byte(item->m_field0);
+        world = G_GameWorld();
+        if (!world->IsEnchantRevisionChannel())
+            buf.put_int(item->m_fieldd);
+        else
+            buf.put_int(0);
+        buf.put_byte(item->m_amp.getAbilityType());
+        buf.put_short(item->m_amp.getAbilityValue());
+        G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(m_pParent, *item, &packet);
+        buf.put_packet(*item);
+        return true;
+
+    case INVEN_TYPE_AVATAR:
+        item = &m_pAvatarSlot[slot];
+        if (item->m_addInfo == 0)
+        {
+            trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x7a0);
+            return false;
+        }
+        buf.put_short(slot);
+        buf.put_int(item->m_addInfo);
+        nowTick = OS_API::GetDateTimeTick();
+        buf.put_int(m_avatarItemMgr.GetRemainDate(item->m_addInfo2, nowTick));
+        buf.put_byte(item->GetItemAttr());
+        buf.put_short(item->m_fieldb);
+        buf.put_byte(item->m_field0);
+        buf.put_int(item->m_fieldd);
+        buf.put_byte(0);
+        buf.put_short(0);
+        buf.put_int(0x1e);
+        buf.put_binary(m_avatarItemMgr.getJewelSocketData(item->m_addInfo2), 0x1e);
+        expansion = (char*)m_avatarItemMgr.GetExpansionInfo(item->m_addInfo2);
+        buf.put_int(4);
+        if (expansion == 0)
+        {
+            stAvatarExpansionInfo_t expInfo;
+            expInfo.init();
+            buf.put_binary((char*)&expInfo, 4);
+        }
+        else
+        {
+            buf.put_binary(expansion, 4);
+        }
+        buf.put_byte(0);
+        buf.put_packet(*item);
+        return true;
+
+    case INVEN_TYPE_CREATURE:
+        item = &m_pCreatureSlot[slot];
+        if (item->m_addInfo == 0)
+        {
+            trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x801);
+            return false;
+        }
+        buf.put_short(slot);
+        buf.put_int(item->m_addInfo);
+        buf.put_int(item->m_addInfo2);
+        buf.put_byte(item->GetItemAttr());
+        buf.put_short(item->m_fieldb);
+        buf.put_byte(item->m_field0);
+        buf.put_int(item->m_fieldd);
+        buf.put_byte(0);
+        buf.put_short(0);
+        if (item->m_field1 == (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+        {
+            nowTick = OS_API::GetDateTimeTick();
+            buf.put_int(m_creatureMgr.GetRemainDate(item->m_addInfo2, nowTick));
+        }
+        buf.put_byte(0);
+        buf.put_packet(*item);
+        return true;
+
+    case INVEN_TYPE_INVEN:
+        item = &m_invenItem[slot];
+        if (item->m_addInfo == 0)
+        {
+            trace("bool CInventory::MakeItemPacket(INVEN_TYPE, int, PacketGuard&) const", 0x884);
+            return false;
+        }
+        buf.put_short(slot);
+        buf.put_int(item->m_addInfo);
+        buf.put_int(item->m_addInfo2);
+        world = G_GameWorld();
+        integratedPvP = false;
+        if (world->IsIntegratedPvPBaseChannel())
+        {
+            if (G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
+                integratedPvP = true;
+        }
+        if (integratedPvP)
+        {
+            if (slot < 0x16 && ((1 << (slot & 0x1f)) & 0x3ff400) != 0)
+                attr = (int)item->GetReSealCount() << 5;
+            else
+                attr = (int)item->GetItemAttr();
+            buf.put_byte(attr);
+        }
+        else
+        {
+            buf.put_byte(item->GetItemAttr());
+        }
+        buf.put_short(item->m_fieldb);
+        buf.put_byte(item->m_field0);
+        world = G_GameWorld();
+        if (!world->IsEnchantRevisionChannel())
+            buf.put_int(item->m_fieldd);
+        else
+            buf.put_int(0);
+        buf.put_byte(item->m_amp.getAbilityType());
+        buf.put_short(item->m_amp.getAbilityValue());
+        if (item->isAvatarItemType())
+        {
+            buf.put_int(0x1e);
+            buf.put_binary(m_avatarItemMgr.getJewelSocketData(item->m_addInfo2), 0x1e);
+            expansion = (char*)m_avatarItemMgr.GetExpansionInfo(item->m_addInfo2);
+            buf.put_int(4);
+            if (expansion == 0)
+            {
+                stAvatarExpansionInfo_t expInfo;
+                expInfo.init();
+                buf.put_binary((char*)&expInfo, 4);
+            }
+            else
+            {
+                buf.put_binary(expansion, 4);
+            }
+        }
+        if (item->m_field1 == (unsigned char)Inven_Item::ITEM_TYPE_CREATURE_EQUIP)
+        {
+            nowTick = OS_API::GetDateTimeTick();
+            buf.put_int(m_creatureMgr.GetRemainDate(item->m_addInfo2, nowTick));
+        }
+        G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(m_pParent, *item, &packet);
+        buf.put_packet(*item);
+        return true;
+
+    default:
+        return false;
+    }
+}
+
+// ============================================================================
+// CInventory::MakeSecuRewarditemPacket（ORIG 0x084fd6d2）。仅 EQUIP(1) 生效：
+// 空装备槽返回 0；否则写 put_short(slot)，item_idx 依 m_addInfo2 为 0 时置 -1，
+// 再 put_int(m_addInfo2) 并返回 1。
+// ============================================================================
+int CInventory::MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot,
+                                         PacketGuard& packet) const
+{
+    InterfacePacketBuf& buf = reinterpret_cast<InterfacePacketBuf&>(packet);
+    if (invenType != INVEN_TYPE_EQUIP)
+        return 0;
+    if (m_pEquipSlot[slot].m_addInfo == 0)
+        return 0;
     buf.put_short(slot);
-    buf.put_int(0);
-    buf.put_int(m_money);
-    buf.put_byte(0);
-    buf.put_short(0);
-    buf.put_byte(0);
-    buf.put_int(0);
-    buf.put_byte(0);
-    buf.put_short(0);
-    buf.put_byte(0);
+    if (m_pEquipSlot[slot].m_addInfo == 0 || m_pEquipSlot[slot].m_addInfo2 == 0)
+        buf.put_item_idx(0xffffffff);
+    else
+        buf.put_item_idx(m_pEquipSlot[slot].m_addInfo);
+    buf.put_int(m_pEquipSlot[slot].m_addInfo2);
+    return 1;
 }
 
 int CInventory::RemoveFPItem()
@@ -4667,8 +4928,7 @@ int CInventory::ChangeEquip(INVEN_TYPE invenType, int slot, int equipSlot)
         Inven_Item slotItem1 = GetInvenSlot(1, slot);
         if (slotItem1.m_field0 != 0)
         {
-            int secuResult = CSecu_ProtectionField::Check(
-                GlobalData::s_pSecuProtectionField, m_pParent, (SECURITY_PROTCTION)0x16);
+            int secuResult = GlobalData::s_pSecuProtectionField->Check(m_pParent, (SECURITY_PROTCTION)0x16);
             if (secuResult != 0)
             {
                 return secuResult;
@@ -4788,24 +5048,632 @@ int finishItemChecksum(int* sum, int money, int coin, int a, int b)
 }
 
 // ---- 迁移自 GameStubs.cpp 的 CInventory 桩方法（ORIG 符号签名已核对）----
-void CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
+// ORIG _ZN10CInventory15_SaveAvatarItemEiibcRK20stAvatarEmblemInfo_tPKcmRK23stAvatarExpansionInfo_t
+// @0x08509e78：m_pParent 为空返回 0；否则经 DB_Q 投递 SIG_AVATAR_INSERT（0x31 头 +
+// UID），set(槽位+10/到期/标志/agency/hidden) + setJewelSocket + sig+0x4f 写 expansion
+// 前 4 字节，MsgQueueMgr::put(DB_Q)。
+bool CInventory::_SaveAvatarItem(int slot, int expireDate, bool b, char c,
                                  const stAvatarEmblemInfo_t& emblem,
                                  const char* agency, unsigned long hidden,
                                  const stAvatarExpansionInfo_t& expansion)
 {
-    // ORIG 0x08509e78：保存/扩展头像槽位。最小化迁移，后续细化头像逻辑。
+    if (m_pParent == 0)
+        return false;
+    CStreamGuard guard(GlobalData::s_stream_pool->Acquire("inventory.cpp", 0x2360), true);
+    **guard << 0x31;
+    **guard << (int)m_pParent->GetUID();
+    SIG_AVATAR_INSERT* sig = guard->GetInBuffer<SIG_AVATAR_INSERT>();
+    unsigned int avatarUid = m_pAvatarSlot[slot].m_addInfo;
+    int characNo = m_pParent->get_charac_no(-1);
+    SIG_AVATAR_INSERT::set(sig, characNo, avatarUid, slot + 10, expireDate, b, c,
+                           agency, 0, hidden);
+    SIG_AVATAR_INSERT::setJewelSocket(sig, emblem);
+    // ORIG：*(int*)(sig + 0x4f) = *(int*)&expansion（stAvatarExpansionInfo_t 前 4 字节，
+    // 即 m_color[0..1]；超出 0x4c 镜像区按 ORIG 原样写流缓冲）。
+    short* dstColor = reinterpret_cast<short*>(reinterpret_cast<char*>(sig) + 0x4f);
+    dstColor[0] = expansion.m_color[0];
+    dstColor[1] = expansion.m_color[1];
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DB_Q, guard);
+    return true;
 }
 
+// ============================================================================
+// CInventory::move_item（ORIG 0x08500688，_ZN10CInventory9move_itemE10INVEN_TYPEiS0_i）。
+// 语义（docs/class_func_reports/CInventory/move_item.md 逐指令对照）：
+//   - 双端 CheckValidSlot 失败 → cMyTrace + 0x11；
+//   - 源为 0..2 且目的为 CREATURE 时 swap 两端（CREATURE 恒为源）；
+//   - EQUIP↔INVEN：isIdentified 成对校验、IsAvatarItem/IsCreatureItem/IsEquipable、
+//     IsRandomOption&&m_random.m_random.empty 拒绝、PeriodAfterUnsealing 写 m_fieldb
+//     剩余天数、装备时清 m_field0 并 seal_Item 日志、0xd1 服务限制分支；
+//   - EQUIP↔EQUIP / AVATAR↔AVATAR 三段交换；AVATAR 分支 MoveClearAvatar/
+//     SendAvatarEvent(0x32)；CREATURE 走 CCreatureMgr::SwapCreatureItem。
+// ============================================================================
 int CInventory::move_item(INVEN_TYPE invenType, int slot, INVEN_TYPE dstType, int dstSlot)
 {
-    // ORIG 0x08500688：移动槽位物品。最小化迁移，后续细化。
+    if (!(CheckValidSlot((int)invenType, slot) == 1 &&
+          CheckValidSlot((int)dstType, dstSlot) == 1))
+    {
+        cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+                       0x112c, 5);
+        trace("CInventory::move_item move_item return false 0, %d,%d,%d,%d",
+              (int)invenType, slot, (int)dstType, dstSlot);
+        return 0x11;
+    }
+    if ((unsigned)invenType < 3 && dstType == INVEN_TYPE_CREATURE)
+    {
+        std::swap<int>(slot, dstSlot);
+        std::swap<INVEN_TYPE>(invenType, dstType);
+    }
+    if ((int)invenType == 1)
+    {
+        if ((int)dstType == 1)
+        {
+            // ---- EQUIP ↔ EQUIP ----
+            int srcType = GetSlotItemType(slot);
+            int dstItemType = GetSlotItemType(dstSlot);
+            if (srcType == Inven_Item::ITEM_TYPE_INVALID ||
+                dstItemType == Inven_Item::ITEM_TYPE_INVALID)
+            {
+                return 0x11;
+            }
+            if (srcType != 0 && dstItemType != 0 && srcType != dstItemType)
+            {
+                return 0x11;
+            }
+            if (srcType != 0 && m_pEquipSlot[dstSlot].m_addInfo != 0 &&
+                (int)m_pEquipSlot[dstSlot].m_field1 != srcType)
+            {
+                return 0x11;
+            }
+            if (dstItemType != 0 && m_pEquipSlot[slot].m_addInfo != 0 &&
+                (int)m_pEquipSlot[slot].m_field1 != dstItemType)
+            {
+                return 0x11;
+            }
+            Inven_Item tmp;
+            tmp.setCopy(m_pEquipSlot[slot]);
+            m_pEquipSlot[slot].setCopy(m_pEquipSlot[dstSlot]);
+            m_pEquipSlot[dstSlot].setCopy(tmp);
+            return 0;
+        }
+        if ((int)dstType > 1)
+        {
+            if ((int)dstType == 2)
+            {
+                return 0x11;
+            }
+            if ((int)dstType != 3)
+            {
+                return 0;
+            }
+            return 0x11;
+        }
+        if ((int)dstType != 0)
+        {
+            return 0;
+        }
+        // ---- EQUIP(src) → INVEN(dst)：脱下并换回原背包格 ----
+        if (!CheckEquipable(m_pEquipSlot[slot], m_invenItem[dstSlot]))
+        {
+            return 0x11;
+        }
+        if (!m_pEquipSlot[slot].m_amp.isIdentified() ||
+            !m_invenItem[dstSlot].m_amp.isIdentified())
+        {
+            return 0x11;
+        }
+        if (GetSlotItemType(slot) == Inven_Item::ITEM_TYPE_INVALID)
+        {
+            return 0x11;
+        }
+        Inven_Item tmp;
+        tmp.setCopy(m_pEquipSlot[slot]);
+        if (tmp.m_addInfo != 0)
+        {
+            CItem* pItem = G_CDataManager()->find_item(tmp.m_addInfo);
+            if (pItem == 0 || m_pParent == 0)
+            {
+                cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+                               0x1276, 5);
+                trace("CInventory::move_item move_item return false 4,%d", tmp.m_addInfo);
+                return 0x11;
+            }
+            if (pItem->IsAvatarItem())
+            {
+                return 0x11;
+            }
+            if (pItem->IsCreatureItem())
+            {
+                return 0x11;
+            }
+            int equipable = IsEquipable(m_pParent, pItem, dstSlot);
+            if (equipable != 0)
+            {
+                return equipable;
+            }
+            if (pItem->IsRandomOption() && m_pEquipSlot[slot].m_random.m_random.empty())
+            {
+                return 0x11;
+            }
+            if (pItem->PeriodAfterUnsealing() != 0)
+            {
+                int nExpire = GlobalData::s_systemTime_.getCurSec() +
+                              pItem->PeriodAfterUnsealing() * 0x15180;
+                if (nExpire != 0)
+                {
+                    tmp.m_fieldb =
+                        (unsigned short)((nExpire - 0x44a54a80) / 0x15180);
+                }
+            }
+        }
+        m_pEquipSlot[slot].setCopy(m_invenItem[dstSlot]);
+        tmp.m_field0 = 0;
+        m_invenItem[dstSlot].setCopy(tmp);
+        return 0;
+    }
+    if ((int)invenType > 1)
+    {
+        if ((int)invenType == 2)
+        {
+            if ((int)dstType == 1)
+            {
+                cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+                               0x1306, 5);
+                trace("CInventory::move_item move_item return false 8");
+                return 0x11;
+            }
+            if ((int)dstType == 2)
+            {
+                // ---- AVATAR ↔ AVATAR ----
+                int srcAddInfo2 = m_pAvatarSlot[slot].m_addInfo2;
+                int dstAddInfo2 = m_pAvatarSlot[dstSlot].m_addInfo2;
+                Inven_Item tmp;
+                tmp.setCopy(m_pAvatarSlot[slot]);
+                m_pAvatarSlot[slot].setCopy(m_pAvatarSlot[dstSlot]);
+                m_pAvatarSlot[dstSlot].setCopy(tmp);
+                SendAvatarEvent(0x32, slot + 10, dstSlot + 10, srcAddInfo2, dstAddInfo2);
+                return 0;
+            }
+            if ((int)dstType != 0)
+            {
+                return 0;
+            }
+            // ---- AVATAR(src) → INVEN(dst) ----
+            Inven_Item tmp;
+            tmp.setCopy(m_pAvatarSlot[slot]);
+            if (!CheckEquipable(m_pAvatarSlot[slot], m_invenItem[dstSlot]))
+            {
+                return 0x11;
+            }
+            if (m_invenItem[dstSlot].m_addInfo != 0)
+            {
+                CItem* pItem = G_CDataManager()->find_item(m_invenItem[dstSlot].m_addInfo);
+                if (m_pParent != 0 && pItem != 0)
+                {
+                    if (!pItem->IsAvatarItem())
+                    {
+                        return 0x11;
+                    }
+                    int equipable = IsEquipable(m_pParent, pItem, dstSlot);
+                    if (equipable != 0)
+                    {
+                        return equipable;
+                    }
+                }
+            }
+            int srcAddInfo2 = m_pAvatarSlot[slot].m_addInfo2;
+            int dstAddInfo2 = m_invenItem[dstSlot].m_addInfo2;
+            MoveClearAvatar(slot + 10, srcAddInfo2, m_pAvatarSlot[slot].m_addInfo,
+                            dstSlot, dstAddInfo2, m_invenItem[dstSlot].m_addInfo);
+            m_pAvatarSlot[slot].setCopy(m_invenItem[dstSlot]);
+            m_invenItem[dstSlot].setCopy(tmp);
+            SendAvatarEvent(0x32, slot + 10, dstSlot, srcAddInfo2, dstAddInfo2);
+            return 0;
+        }
+        if ((int)invenType != 3)
+        {
+            return 0;
+        }
+        if ((int)dstType == 1)
+        {
+            cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)",
+                           0x131c, 5);
+            trace("CInventory::move_item move_item return false 9");
+            return 0x11;
+        }
+        if ((int)dstType == 3)
+        {
+            // ---- CREATURE ↔ CREATURE（首参为目的侧，与 ORIG 压栈序一致）----
+            if (GetCreatureMgrW()->SwapCreatureItem(
+                    &m_pCreatureSlot[dstSlot], dstSlot, (int)dstType,
+                    &m_pCreatureSlot[slot], slot, (int)invenType))
+            {
+                return 0;
+            }
+            return 0x11;
+        }
+        if ((int)dstType != 0)
+        {
+            return 0;
+        }
+        // ---- CREATURE(src) → INVEN(dst) ----
+        if (GetCreatureMgrW()->SwapCreatureItem(
+                &m_invenItem[dstSlot], dstSlot, (int)dstType,
+                &m_pCreatureSlot[slot], slot, (int)invenType))
+        {
+            return 0;
+        }
+        return 0x11;
+    }
+    if ((int)invenType != 0)
+    {
+        return 0;
+    }
+    if ((int)dstType == 1)
+    {
+        // ---- INVEN(src) → EQUIP(dst)：穿戴并与原装备交换 ----
+        if (!CheckEquipable(m_invenItem[slot], m_pEquipSlot[dstSlot]))
+        {
+            return 0x11;
+        }
+        if (!isEquipmentPlaceableAtInventory(dstSlot))
+        {
+            return 0x11;
+        }
+        CItem* pItem = G_CDataManager()->find_item(m_pEquipSlot[dstSlot].m_addInfo);
+        if (m_pParent != 0 && pItem != 0)
+        {
+            if (pItem->IsAvatarItem())
+            {
+                return 0x11;
+            }
+            if (pItem->IsCreatureItem())
+            {
+                return 0x11;
+            }
+            int equipable = IsEquipable(m_pParent, pItem, slot);
+            if (equipable != 0)
+            {
+                return equipable;
+            }
+            if (pItem->IsRandomOption() &&
+                m_pEquipSlot[dstSlot].m_random.m_random.empty())
+            {
+                return 0x11;
+            }
+        }
+        if (GetSlotItemType(dstSlot) == Inven_Item::ITEM_TYPE_INVALID)
+        {
+            return 0x11;
+        }
+        if (!m_invenItem[slot].m_amp.isIdentified() ||
+            !m_pEquipSlot[dstSlot].m_amp.isIdentified())
+        {
+            return 0x11;
+        }
+        if (m_pEquipSlot[dstSlot].m_field0 != 0 &&
+            ARAD::Singleton<ServiceRestrictManager>::Get()->isRestricted(
+                m_pParent, (RestrictCategory::Enum)1, 0xe))
+        {
+            return 0xd1;
+        }
+        Inven_Item tmp;
+        tmp.setCopy(m_invenItem[slot]);
+        m_invenItem[slot].setCopy(m_pEquipSlot[dstSlot]);
+        if (m_pParent != 0 && m_invenItem[slot].m_field0 != 0)
+        {
+            m_pParent->m_historyLog.seal_Item(
+                m_invenItem[slot].m_addInfo,
+                (short)m_invenItem[slot].GetReSealCount(),
+                eSealItemReason_1);
+        }
+        m_invenItem[slot].m_field0 = 0;
+        if (pItem != 0 && pItem->PeriodAfterUnsealing() != 0)
+        {
+            int nExpire = GlobalData::s_systemTime_.getCurSec() +
+                          pItem->PeriodAfterUnsealing() * 0x15180;
+            if (nExpire != 0)
+            {
+                m_invenItem[slot].m_fieldb =
+                    (unsigned short)((nExpire - 0x44a54a80) / 0x15180);
+            }
+        }
+        m_pEquipSlot[dstSlot].setCopy(tmp);
+        return 0;
+    }
+    if ((int)dstType < 2)
+    {
+        if ((int)dstType != 0)
+        {
+            return 0;
+        }
+        cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)", 0x122a, 5);
+        trace("CInventory::move_item move_item return false 3");
+        return 0x11;
+    }
+    if ((int)dstType != 2)
+    {
+        if ((int)dstType != 3)
+        {
+            return 0;
+        }
+        cMyTrace trace("int CInventory::move_item(INVEN_TYPE, int, INVEN_TYPE, int)", 0x1224, 5);
+        trace("CInventory::move_item move_item return false 10");
+        return 0x11;
+    }
+    // ---- INVEN(src) → AVATAR(dst) ----
+    if (!CheckEquipable(m_invenItem[slot], m_pAvatarSlot[dstSlot]))
+    {
+        return 0x11;
+    }
+    if (m_pAvatarSlot[dstSlot].m_addInfo != 0)
+    {
+        CItem* pItem = G_CDataManager()->find_item(m_pAvatarSlot[dstSlot].m_addInfo);
+        if (m_pParent != 0 && pItem != 0)
+        {
+            if (!pItem->IsAvatarItem())
+            {
+                return 0x11;
+            }
+            int equipable = IsEquipable(m_pParent, pItem, slot);
+            if (equipable != 0)
+            {
+                return equipable;
+            }
+        }
+    }
+    int srcAddInfo2 = m_invenItem[slot].m_addInfo2;
+    int dstAddInfo2 = m_pAvatarSlot[dstSlot].m_addInfo2;
+    MoveClearAvatar(dstSlot + 10, dstAddInfo2, m_pAvatarSlot[dstSlot].m_addInfo,
+                    slot, srcAddInfo2, m_invenItem[slot].m_addInfo);
+    Inven_Item tmp;
+    tmp.setCopy(m_invenItem[slot]);
+    m_invenItem[slot].setCopy(m_pAvatarSlot[dstSlot]);
+    m_pAvatarSlot[dstSlot].setCopy(tmp);
+    SendAvatarEvent(0x32, slot, dstSlot + 10, srcAddInfo2, dstAddInfo2);
     return 0;
 }
 
-void CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
-                               ENUM_EQUIPSLOT equipSlot) const
+// ============================================================================
+// CInventory::MakeEquipList（ORIG 0x084fe2e2，_ZNK10CInventory13MakeEquipListEPvb13ENUM_USERINFO14ENUM_EQUIPSLOT）。
+// out 为 InterfacePacketBuf：put_byte 计数占位 → 逐非空槽写（flag=0 精简格式 /
+// flag=1 全格式含 amplify、avatar jewel/expansion、creature 剩余天数、
+// make3rdChroniclePacket、put_packet）→ 回填计数 → flag=0 时尾部写
+// base+0x295（槽 10 m_amp 起始，ORIG 以 UpgradeSeparateInfo::GetUpgradeSeparate
+// 单字节读取器跨类型读取）。槽位基址：userInfo==2 或 equipSlot==0 → m_invenItem，
+// 否则 CExpandEquipslot::getExpandEquipslotW(equipSlot)（GetCharacExpandData(9)）。
+// ============================================================================
+int CInventory::MakeEquipList(void* out, bool flag, ENUM_USERINFO userInfo,
+                              ENUM_EQUIPSLOT equipSlot) const
 {
-    // ORIG 0x084fe2e2：构造装备列表 packet。最小化迁移，后续细化。
+    InterfacePacketBuf* buf = (InterfacePacketBuf*)out;
+    if (buf == 0)
+    {
+        return 0;
+    }
+    int count = 0;
+    int listCount;
+    if (!flag)
+    {
+        listCount = 0xc;
+    }
+    else if ((int)equipSlot == 0)
+    {
+        listCount = 0x1a;
+    }
+    else
+    {
+        listCount = 0xc;
+    }
+    int countIdx = buf->get_index();
+    buf->put_byte(count);
+    int nowTick = OS_API::GetDateTimeTick();
+    CExpandEquipslot* expand = 0;
+    if (m_pParent != 0)
+    {
+        expand = m_pParent->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)9);
+    }
+    const Inven_Item* slots;
+    if ((int)userInfo == 2 || (int)equipSlot == 0)
+    {
+        slots = m_invenItem;
+    }
+    else
+    {
+        slots = expand->getExpandEquipslotW(equipSlot);
+    }
+    for (int i = 0; i < listCount; ++i)
+    {
+        int slotNo = ((int)equipSlot == 0) ? i : i + 10;
+        if (slots[i].m_addInfo == 0)
+        {
+            continue;
+        }
+        ++count;
+        if (!flag)
+        {
+            buf->put_byte(slotNo);
+            if ((int)userInfo == 2 && GetClearAvatar(slotNo) != 0)
+            {
+                buf->put_int(GetClearAvatar(slotNo));
+            }
+            else
+            {
+                buf->put_int(slots[i].m_addInfo);
+            }
+            if ((int)userInfo == 2)
+            {
+                stAvatarExpansionInfo_t expansion;
+                expansion.init();
+                if (-1 < i && i < 10)
+                {
+                    // ORIG 读 this+(i+0xd0)*8+8/+10 → m_avatarVisible[i].m_field4/m_field6
+                    expansion.m_color[0] = m_avatarVisible[i].m_field4;
+                    expansion.m_color[1] = m_avatarVisible[i].m_field6;
+                }
+                buf->put_int(4);
+                buf->put_binary((char*)&expansion, 4);
+            }
+            else if ((int)userInfo == 0)
+            {
+                stAvatarExpansionInfo_t expansion;
+                expansion.init();
+                if (-1 < i && i < 10 && slots[i].m_addInfo != 0)
+                {
+                    void* pExpansion =
+                        GetAvatarItemMgrR()->GetExpansionInfo(slots[i].m_addInfo2);
+                    if (pExpansion != 0)
+                    {
+                        memcpy(&expansion, pExpansion, 4);
+                    }
+                }
+                buf->put_int(4);
+                buf->put_binary((char*)&expansion, 4);
+            }
+            if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
+                G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
+            {
+                char upgradeByte = 0;
+                if (slotNo != 10)
+                {
+                    if (slotNo < 10 || 9 < slotNo - 0xc)
+                    {
+                        upgradeByte = (char)slots[i].GetUpgrade();
+                    }
+                    else
+                    {
+                        upgradeByte = 0;
+                    }
+                }
+                char ampFlag = 0;
+                if (slots[i].m_amp.getAbilityType() != 0)
+                {
+                    ampFlag = 1;
+                }
+                buf->put_byte((unsigned char)((ampFlag & 1) | (upgradeByte * 2)));
+            }
+            else
+            {
+                // ORIG：读未初始化栈字节仅置 bit0（amp 有值→1），高位恒 0【按 ORIG 语义】
+                unsigned char attrByte = 0;
+                if (slots[i].m_amp.getAbilityType() != 0)
+                {
+                    attrByte |= 1;
+                }
+                buf->put_byte(attrByte);
+            }
+        }
+        else
+        {
+            buf->put_byte(slotNo);
+            buf->put_int(slots[i].m_addInfo);
+            if (slotNo < 10)
+            {
+                buf->put_int(
+                    GetAvatarItemMgrR()->GetRemainDate(slots[i].m_addInfo2, nowTick));
+            }
+            else
+            {
+                buf->put_int(slots[i].m_addInfo2);
+            }
+            if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
+                G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
+            {
+                unsigned char attrByte = 0;
+                if ((unsigned)slotNo < 0x16 && ((1 << slotNo) & 0x3ff400) != 0)
+                {
+                    attrByte = (unsigned char)(slots[i].GetReSealCount() << 5);
+                }
+                else
+                {
+                    attrByte = slots[i].GetItemAttr();
+                }
+                buf->put_byte(attrByte);
+            }
+            else
+            {
+                buf->put_byte((unsigned char)(slots[i].GetItemAttr() & 0xff));
+            }
+            buf->put_short((int)slots[i].m_fieldb);
+        }
+        buf->put_int(GetClearAvatar(slotNo));
+        if (!G_GameWorld()->IsEnchantRevisionChannel())
+        {
+            buf->put_int(slots[i].m_fieldd);
+        }
+        else
+        {
+            buf->put_int(0);
+        }
+        if (flag)
+        {
+            buf->put_byte((int)slots[i].m_amp.getAbilityType() & 0xff);
+            buf->put_short((int)slots[i].m_amp.getAbilityValue() & 0xffff);
+            if (slots[i].isAvatarItemType())
+            {
+                buf->put_int(0x1e);
+                buf->put_binary(
+                    (char*)GetAvatarItemMgrR()->getJewelSocketData(slots[i].m_addInfo2),
+                    0x1e);
+                buf->put_int(4);
+                if (m_pParent != 0 &&
+                    (const void*)((CUserCharacInfo*)m_pParent)->getTagCharacInvenR() ==
+                        (const void*)this)
+                {
+                    stAvatarExpansionInfo_t expansion;
+                    expansion.init();
+                    if (-1 < i && i < 10)
+                    {
+                        expansion.m_color[0] = m_avatarVisible[i].m_field4;
+                        expansion.m_color[1] = m_avatarVisible[i].m_field6;
+                    }
+                    buf->put_binary((char*)&expansion, 4);
+                }
+                else
+                {
+                    char* pExpansion =
+                        (char*)GetAvatarItemMgrR()->GetExpansionInfo(slots[i].m_addInfo2);
+                    if (pExpansion == 0)
+                    {
+                        stAvatarExpansionInfo_t expansion;
+                        expansion.init();
+                        buf->put_binary((char*)&expansion, 4);
+                    }
+                    else
+                    {
+                        buf->put_binary(pExpansion, 4);
+                    }
+                }
+            }
+            if (slots[i].m_field1 == 5)
+            {
+                int creatureTick = OS_API::GetDateTimeTick();
+                int remainDate =
+                    GetCreatureMgrR()->GetRemainDate(slots[i].m_addInfo2, creatureTick);
+                buf->put_int(remainDate);
+            }
+            G_CDataManager()->m_itemUpgrade->make3rdChroniclePacket(
+                m_pParent, slots[i], (PacketGuard*)buf);
+            buf->put_packet(slots[i]);
+        }
+    }
+    buf->put_byte(countIdx, count);
+    if (flag)
+    {
+        return 1;
+    }
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel() &&
+        G_CDataManager()->GetUpgradeRevisionPvPChannel() == 0)
+    {
+        buf->put_byte(0);
+    }
+    else
+    {
+        // ORIG 0x84febb0：base+0x295 = 槽 10 m_amp 起始；以单字节读取器
+        // UpgradeSeparateInfo::GetUpgradeSeparate 跨类型读取（ORIG 原样）。
+        buf->put_byte(((UpgradeSeparateInfo*)((char*)slots + 0x295))->GetUpgradeSeparate());
+    }
+    return 1;
 }
 
 int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
@@ -5035,14 +5903,248 @@ int CInventory::delete_item(INVEN_TYPE invenType, int slot, int count,
     return 1;
 }
 
+// ============================================================================
+// CInventory::insert_event_items（ORIG 0x08506bb2，_ZN10CInventory18insert_event_itemsERKSt6vectorISt4pairIiiESaIS2_EERS0_IiSaIiEE15eMoneyAddReason14eItemAddReasonbPKcSD_）。
+// items 元素 {itemIdx, count}；itemIdx==0 为金钱条目（>499999 走 cMyTrace 审计，
+// gain_money 后 outSlots.push(0,0,gained)，差额邮件兜底）。
+// 物品条目按 is_stackable/IsAvatarItem/造物蛋(type 0x16) 三路分发：
+//   堆叠 → make_item+insertItemIntoInventory(reason,1,1)；
+//   头像 → genIPGNo+AddAvatarItem(itemIdx,usablePeriod,...)+GetRemainDate；
+//   造物蛋 → create_item+SetEggItem+insertItemIntoInventory(8,1,0)
+//            +InsertCreatureItem；其余非堆叠逐份插入，失败邮件兜底。
+// reason==8 时累计 cube 统计与 Store 卖价，函数尾 AddValueStatistic(10)。
+// ORIG 怪癖（忠实保留）：头像/造物蛋在 itemReason!=8、SetEggItem 失败时
+// 不推进迭代器直接回到循环条件；堆叠/头像插入失败且无邮件时跳到函数尾。
+// 依赖：docs/class_func_reports/CInventory/insert_event_items.md。
+// ============================================================================
 int CInventory::insert_event_items(const std::vector<std::pair<int, int> >& items,
                                    std::vector<int>& outSlots, eMoneyAddReason moneyReason,
                                    eItemAddReason itemReason, bool bLog,
                                    const char* a, const char* b)
 {
-    // ORIG 0x08506bb2：插入活动物品。最小化迁移，后续细化。
-    outSlots.clear();
-    return 0;
+    typedef std::vector<std::pair<int, int> >::const_iterator Iterator;
+    int count = 0;
+    if (items.size() == 0)
+    {
+        return count;
+    }
+    std::pair<int, int> cur;
+    Iterator it = items.begin();
+    Inven_Item item;
+    int totalValue = 0;
+    while (it != items.end())
+    {
+        item.reset();
+        cur = *it;
+        int itemIdx = cur.first;
+        int cnt = cur.second;
+        if (itemIdx == 0)
+        {
+            // ---- 金钱条目 ----
+            if (cnt > 499999 && m_pParent != 0)
+            {
+                cMyTrace trace(
+                    "int CInventory::insert_event_items(const std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, std::vector<int, std::allocator<int> >&, eMoneyAddReason, eItemAddReason, bool, const char*, const char*)",
+                    0x1dc7, 4);
+                trace("Quest reward money(%d) mid(%s) characno(%d) reason(%d)", cnt,
+                      NumberToString(m_pParent->get_acc_id(), 0),
+                      m_pParent->get_charac_no(-1), (int)moneyReason);
+            }
+            int gained = cnt;
+            if (m_pParent != 0 && ((CUserCharacInfo*)m_pParent)->getCurCharacR() != 0)
+            {
+                gained = gain_money(cnt, moneyReason, true, 0);
+            }
+            outSlots.push_back(0);
+            outSlots.push_back(0);
+            outSlots.push_back(gained);
+            ++count;
+            ++it;   // ORIG：迭代器先推进，再判定邮件
+            if ((int)moneyReason == 3)
+            {
+                totalValue += gained;
+            }
+            if (gained < cnt && bLog)
+            {
+                char title[0x15];
+                strncpy(title, g_scriptStringManager_.findString(4, a, (bool*)0), 0x14);
+                char body[0x100];
+                strncpy(body, g_scriptStringManager_.findString(4, b, (bool*)0), 0xff);
+                WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                    title, item, cnt - gained, m_pParent->getCurCharacNo(), body,
+                    strlen(body), 0, m_pParent->GetServerGroup(), false, false);
+            }
+            continue;
+        }
+
+        CItem* pItem = G_CDataManager()->find_item(itemIdx);
+        if (pItem == 0)
+        {
+            cMyTrace trace(
+                "int CInventory::insert_event_items(const std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, std::vector<int, std::allocator<int> >&, eMoneyAddReason, eItemAddReason, bool, const char*, const char*)",
+                0x1e14, 5);
+            trace("CInventory::insert_event_items, G_CDataManager()->find_item(%d)",
+                  itemIdx);
+            ++it;
+            continue;
+        }
+
+        item.m_addInfo = itemIdx;
+        if (!pItem->is_stackable())
+        {
+            if (!pItem->IsAvatarItem())
+            {
+                if (pItem->IsCreatureItem() && pItem->GetItemType() == 0x16)
+                {
+                    // ---- 造物蛋 ----
+                    if ((int)itemReason != 8)
+                    {
+                        continue;   // ORIG 怪癖：不推进迭代器
+                    }
+                    G_CDataManager()->m_itemList->create_item(
+                        ENUM_ITEM_CREATE_TYPE_0, item, cnt);
+                    if (item.m_field1 == 5)
+                    {
+                        if (!user_creature::CCreatureItemConverter::SetEggItem(&item))
+                        {
+                            continue;   // ORIG 怪癖：不推进迭代器
+                        }
+                        int r = insertItemIntoInventory(item, (eItemAddReason)8, true, false);
+                        if (r >= 0)
+                        {
+                            int expirationDate = pItem->getExpirationDate();
+                            int usablePeriod = pItem->getUsablePeriod();
+                            GetCreatureMgrW()->InsertCreatureItem(&item, r, 8,
+                                                                  usablePeriod,
+                                                                  expirationDate);
+                            ++count;
+                            outSlots.push_back(r);
+                            outSlots.push_back(itemIdx);
+                            outSlots.push_back(cnt);
+                        }
+                    }
+                    ++it;
+                    continue;
+                }
+                // ---- 普通非堆叠：逐份插入 ----
+                for (int k = 0; k < cnt; ++k)
+                {
+                    pItem->make_item(item);
+                    int r = insertItemIntoInventory(item, itemReason, true, true);
+                    if (r == -1)
+                    {
+                        if (!bLog)
+                        {
+                            break;   // ORIG：跳出循环并推进主迭代器
+                        }
+                        char title[0x15];
+                        strncpy(title, g_scriptStringManager_.findString(4, a, (bool*)0),
+                                0x14);
+                        char body[0x100];
+                        strncpy(body, g_scriptStringManager_.findString(4, b, (bool*)0),
+                                0xff);
+                        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                            title, item, 0, m_pParent->getCurCharacNo(), body,
+                            strlen(body), 0, m_pParent->GetServerGroup(), false, false);
+                        continue;   // 尝试下一份
+                    }
+                    ++count;
+                    outSlots.push_back(r);
+                    outSlots.push_back(itemIdx);
+                    outSlots.push_back(item.m_addInfo2);
+                    if ((int)itemReason == 8)
+                    {
+                        int price = 0;
+                        G_Store()->GetSellItemPrice(item, pItem,
+                                                    (short)item.m_addInfo2, false,
+                                                    price);
+                        totalValue += price;
+                    }
+                }
+                ++it;
+                continue;
+            }
+            // ---- Avatar 物品 ----
+            if ((int)itemReason != 8)
+            {
+                continue;   // ORIG 怪癖：不推进迭代器
+            }
+            char ipg[0x18];
+            WongWork::CGenUniqueNo::genIPGNo(
+                (WongWork::CGenUniqueNo::ENUM_IPGNO_TYPE)2,
+                (unsigned int)((CUserCharacInfo*)m_pParent)->getCurCharacNo(), ipg);
+            int usablePeriod = pItem->getUsablePeriod();
+            int r = AddAvatarItem(itemIdx, usablePeriod, false, 0, (char)-1, ipg,
+                                  (eAvatarItemAddReason)8, false, 0);
+            if (r == -1)
+            {
+                if (!bLog)
+                {
+                    goto finish_value_statistic;   // ORIG：跳到函数尾统计
+                }
+                WongWork::CMailBoxHelper::ReqDBSendNewAvatarMail(
+                    m_pParent, ((CUserCharacInfo*)m_pParent)->getCurCharacNo(), itemIdx,
+                    0, '\0', (char)-1, ipg, (char*)0, 0);
+                ++it;
+                continue;
+            }
+            ++count;
+            outSlots.push_back(r);
+            outSlots.push_back(itemIdx);
+            int nowTick = GlobalData::s_systemTime_.getCurSec();
+            int remainDate = GetAvatarItemMgrR()->GetRemainDate(
+                GetInvenSlot(2, r).m_addInfo2, nowTick);
+            outSlots.push_back(remainDate);
+            ++it;
+            continue;
+        }
+        // ---- 堆叠物品 ----
+        item.m_addInfo2 = cnt;
+        pItem->make_item(item);
+        int r = insertItemIntoInventory(item, itemReason, true, true);
+        if (r == -1)
+        {
+            if (!bLog)
+            {
+                goto finish_value_statistic;   // ORIG：跳到函数尾统计
+            }
+            char title[0x15];
+            strncpy(title, g_scriptStringManager_.findString(4, a, (bool*)0), 0x14);
+            char body[0x100];
+            strncpy(body, g_scriptStringManager_.findString(4, b, (bool*)0), 0xff);
+            WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+                title, item, 0, m_pParent->getCurCharacNo(), body, strlen(body), 0,
+                m_pParent->GetServerGroup(), false, false);
+            ++it;
+            continue;
+        }
+        ++count;
+        outSlots.push_back(r);
+        outSlots.push_back(itemIdx);
+        outSlots.push_back(item.m_addInfo2);
+        if ((int)itemReason == 8)
+        {
+            if (m_pParent != 0)
+            {
+                GetInstanceCubeStatistic()->collectCubeStatistics(
+                    pItem, item.m_addInfo2, m_pParent, (CUBE_STATISTIC_FIELD)4);
+            }
+            int price = 0;
+            G_Store()->GetSellItemPrice(item, pItem, (short)item.m_addInfo2, false,
+                                        price);
+            totalValue += price;
+        }
+        ++it;
+        continue;
+    }
+
+finish_value_statistic:
+    if (((int)itemReason == 8 || (int)moneyReason == 3) && m_pParent != 0)
+    {
+        GetInstanceValueStatistic()->AddValueStatistic((VALUE_STATISTIC_FIELD)0xa,
+                                                       m_pParent, totalValue);
+    }
+    return count;
 }
 
 void CInventory::SendItemLockList(const Inven_Item* items, int count,
@@ -5077,6 +6179,18 @@ void CInventory::SendItemLockList(const Inven_Item* items, int count,
 void CInventory::SendItemLockListInven() const
 {
     SendItemLockList(m_pEquipSlot, 0x138, (ENUM_ITEMSPACE)0);
+}
+
+// ORIG 0x084fafbe / 0x084fafee：分别把 m_pAvatarSlot(0x69 槽)/m_pCreatureSlot(0xf2 槽)
+// 的锁清单通过 SendItemLockList 发包（ENUM_ITEMSPACE 1=avatar、7=creature）。
+void CInventory::SendItemLockListAvatar() const
+{
+    SendItemLockList(m_pAvatarSlot, 0x69, (ENUM_ITEMSPACE)1);
+}
+
+void CInventory::SendItemLockListCreature() const
+{
+    SendItemLockList(m_pCreatureSlot, 0xf2, (ENUM_ITEMSPACE)7);
 }
 
 // ============================================================================

@@ -95,7 +95,8 @@ public:
     void AddNewResult(const PvpResultType& other);
     int GetTotalScore() const;   // ORIG _ZNK13PvpResultType13GetTotalScoreEv 0x85d5efe
 
-    char m_pad0[8];             // +0x00
+    int m_totalWinCount;        // +0x00（add_pvp_result 胜场递增，ORIG 0x865c678）
+    int m_totalLoseCount;       // +0x04（add_pvp_result 败场递增）
     int m_expPoint;             // +0x08（get_pvp_result_exp_point）
     int m_oldExpPoint;          // +0x0c（get_pvp_result_oldexp_point）
     char m_pad10[4];            // +0x10
@@ -111,6 +112,7 @@ class CommonTime
 {
 public:
     void SetCreateTime(long t);
+    void SetCurTime();   // ORIG _ZN10CommonTime10SetCurTimeEv（0x082a4224，ShowLogo 使用）
     operator long() const;
 
     char m_pad[0x14];   // 与 _Charac_info +0x39 对齐（0x14 字节）
@@ -129,14 +131,7 @@ public:
     int m_schoolPoint;  // +0x0c（calcCurCharacSchoolPoint 读写 +0x71）
 };
 
-namespace expert_job
-{
-class CExpertJob
-{
-public:
-    int GetType();
-};
-}
+namespace expert_job { class CExpertJob; }  // 完整定义见 CExpertJob.h
 
 namespace online_preliminary
 {
@@ -145,6 +140,12 @@ class COnlinePreliminaryTeam
 public:
     int GetTeamId() const;
     const char* GetTeamName() const;
+};
+// ORIG T 0x08560920（静态成员；exchange_interspace 7/3→7 域前置校验，定义由后续批次补）
+class COnlinePreliminary
+{
+public:
+    static bool CheckUnusableEquipment(const Inven_Item* item);
 };
 }
 

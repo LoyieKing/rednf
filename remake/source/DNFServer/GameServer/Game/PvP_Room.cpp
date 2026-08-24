@@ -3385,7 +3385,7 @@ int PvP_Room::pvp_reward()
                 int local_b8 = 0;
                 int local_bc = 0;
                 if (local_58->gain_exp_sp((int)local_84, local_b8, local_bc,
-                                          (eExpAddReason)10, 0, 0) != 0)
+                                          (CUser::eExpAddReason)10, 0, 0) != 0)
                 {
                     local_58->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
                 }

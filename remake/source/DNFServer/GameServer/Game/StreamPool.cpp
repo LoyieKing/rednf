@@ -1,4 +1,4 @@
-#include "LogManager.h"
+#include "CStreamGuard.h"   // StreamPool::Free(CStreamGuard&) 取流用
 // df_game_r 还原 —— StreamPool / SmallStreamPool / BigStreamPool（S1 组）
 #include "CEnvironment.h"
 #include "StreamPool.h"
@@ -53,6 +53,13 @@ bool StreamPool::Free(Stream* s)
     s->reset();
     m_pool->Free(s);
     return true;
+}
+
+// ORIG _ZN10StreamPool4FreeER12CStreamGuard W 0x08101080（弱内联，无独立报告）：
+// objdump 0x8101080——取 guard 持有的 Stream* 后复用 Free(Stream*)。
+bool StreamPool::Free(CStreamGuard& guard)
+{
+    return Free(guard.Get());
 }
 
 int StreamPool::Size()

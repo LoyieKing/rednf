@@ -204,6 +204,13 @@ struct PCK_AUCTION_OPEN_PRIVATE_STORE_GA : public nsl::PACKET_HEADER
     memberIdentificationNumber_t m_id;   // @18
     int character_num;                   // @22
     int character_ids[36];               // @26
+
+    // ORIG W 0x85cb374：PACKET_HEADERC1 + memset(this,0,0xaa) +
+    // setCategory(0)/setPacketID(0xb)/setSize(0xaa)（sizeof 恰为 0xaa）。
+    PCK_AUCTION_OPEN_PRIVATE_STORE_GA()
+    {
+        PACKET_CTOR_BODY(0, 0xb, 0xaa);
+    }
 };
 
 struct PCK_AUCTION_CLOSE_PRIVATE_STORE_GA : public nsl::PACKET_HEADER

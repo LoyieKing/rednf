@@ -322,8 +322,7 @@ int CAccountCargo::DepositMoney(unsigned int money)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, 0xd1);
         return 0;
     }
-    unsigned int err = CSecu_ProtectionField::Check(
-        GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)2);
+    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)2);
     if (err != 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x134, (unsigned char)err);
         return 0;
@@ -356,8 +355,7 @@ int CAccountCargo::WithdrawMoney(unsigned int money)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, 0xd1);
         return 0;
     }
-    unsigned int err = CSecu_ProtectionField::Check(
-        GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)3);
+    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)3);
     if (err != 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x135, (unsigned char)err);
         return 0;
@@ -482,8 +480,7 @@ void CAccountCargo::CreateAccountCargo(CUser* user)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, 0xd1);
         return;
     }
-    unsigned int err = CSecu_ProtectionField::Check(
-        GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)4);
+    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)4);
     if (err != 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x132, (unsigned char)err);
         return;
@@ -541,8 +538,7 @@ void CAccountCargo::UpgradeAccountCargo(CUser* user)
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, 0xd1);
         return;
     }
-    unsigned int err = CSecu_ProtectionField::Check(
-        GlobalData::s_pSecuProtectionField, user, (SECURITY_PROTCTION)5);
+    unsigned int err = GlobalData::s_pSecuProtectionField->Check(user, (SECURITY_PROTCTION)5);
     if (err != 0) {
         user->SendCmdErrorPacket((ENUM_CMDPACKET)0x133, (unsigned char)err);
         return;

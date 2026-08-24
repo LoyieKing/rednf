@@ -10,6 +10,7 @@
 #include "Stream.h"
 #include "StreamDeps.h"
 #include "CEnvironment.h"
+class CStreamGuard;   // StreamGuard.h（仅引用，避免环 include）
 
 class StreamPool
 {
@@ -18,6 +19,7 @@ public:
     ~StreamPool();                   // 0x0828fa20
     Stream* Acquire(const char* file, int line);   // 0x0828fa86
     bool Free(Stream* s);            // 0x0828fb28
+    bool Free(CStreamGuard& guard);  // ORIG W 0x08101080（按 guard 取回流并回收；DeleteCharac 使用）
     int Size();                      // 0x0828fc06
     int Remain();                    // 0x0828fc1c
 

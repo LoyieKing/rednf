@@ -18,11 +18,14 @@
 
 #include "CDataManager.h"
 #include "CClearCondition.h"
+#include "CDailyScheduleManager.h"
+#include "advancealtar_StageDifficulty.h"  // advancealtar::StageType（自本头收敛的叶子）
 class CUser;
 class CMap;
 
 #ifndef DNF_ENUM_ENUM_MAZE_QUEST_TYPE_DEFINED
 #define DNF_ENUM_ENUM_MAZE_QUEST_TYPE_DEFINED
+
 enum ENUM_MAZE_QUEST_TYPE
 {
     ENUM_MAZE_QUEST_TYPE_0 = 0
@@ -117,7 +120,8 @@ struct stDungeonAssignItem_t
 
 struct RandomList
 {
-    char m_pad[8];
+    int m_mapIndex;   // +0x00（randomMapIndex 0x0814f4fc 输出地图索引）
+    int m_weight;     // +0x04（10000 段权重，累加比较）
 
     ~RandomList();
 };
@@ -226,12 +230,11 @@ public:
     char m_8;  // +0x08
 };
 
+#include "advancealtar_StageDifficulty.h"  // StageDifficulty 权威定义（2026-08-24 提取为叶子头；CGameManager.h 亦需）
+#include "AdvanceAltarField.h"  // advancealtar::_RewardItem 等共享类型权威定义
+                                // （_RewardItem 自本文件迁入收敛，2026-08-24）
 namespace advancealtar
 {
-struct _RewardItem
-{
-    char m_pad[0xc];
-};
 
 class ClearRewardData
 {
@@ -261,6 +264,24 @@ public:
     SurvivalRewardData& operator=(const SurvivalRewardData& other);
 
     std::vector<RoundRewardData> m_vec;  // +0x00（ORIG sizeof 0xc，operator= 仅复制 vector）
+};
+
+// ---- StageType / StageDifficulty / RewardItemType 字符串枚举解析器 ----
+// ORIG: getStageType 0x88990ba / getDifficulty 0x8899038 /
+// getRewardItemType 0x889acaa；实现见 STDungeonScript.cpp。
+// StageType 已收敛至 advancealtar_StageDifficulty.h 叶子头（2026-08-24
+// GlobalBossAndAltar；本头经 CDataManager.h→advancealtar.h 链或直接 include 取得）。
+
+
+class RewardItemType
+{
+public:
+    enum T
+    {
+        REWARD_NORMAL = 0,
+        REWARD_EVENT = 1
+    };
+    static bool getRewardItemType(const std::string& name, T& out);
 };
 }
 
@@ -332,10 +353,7 @@ struct UseCoinDungeonDiff
     char m_7;   // +0x07
 };
 
-struct _DailySchedule
-{
-    char m_pad[4];
-};
+// _DailySchedule 权威定义已上移至 CDailyScheduleManager.h（本头经其包含）。
 
 namespace AbsoluteChangeStat
 {
@@ -371,12 +389,6 @@ public:
     std::vector<STTowerDialog> m_vec0;    // +0x00
     std::vector<STTowerDialog> m_vecc;    // +0x0c
     std::vector<STTowerDialog> m_vec18;   // +0x18
-};
-
-class CDailyScheduleManager
-{
-public:
-    void AddDailSchedule(const std::vector<_DailySchedule>& schedule);
 };
 
 // ---- STDungeonScript（sizeof 0x50a，ORIG ctor 0x0836b5e2 / dtor 0x0836bd5c / Clear 0x0836abc6）----
@@ -436,15 +448,16 @@ struct STDungeonScript
     std::string m_str17c;                   // +0x17c
     STDeadTowerData m_deadTower180;         // +0x180
     STWarRoomData m_warRoom18c;             // +0x18c
-    std::map<AbsoluteChangeStat::T, float> m_statMap290;  // +0x290
-    unsigned char m_28c;                             // +0x28c
+    unsigned char m_28c;                             // +0x28c（ORIG Clear 清零）
     unsigned char m_28d;                             // +0x28d
     unsigned char m_28e;                             // +0x28e
+    unsigned char m_28f;                             // +0x28f（ORIG Clear 清零）
+    std::map<AbsoluteChangeStat::T, float> m_statMap290;  // +0x290（sizeof 0x18）
     unsigned char m_2a8;                             // +0x2a8
     unsigned char m_2a9;                             // +0x2a9
     unsigned char m_2aa;                             // +0x2aa
-    unsigned char m_2ab;                             // +0x2ab
-    int m_2ac;                              // +0x2ac
+    unsigned char m_2ab;                             // +0x2ab（defense dungeon）
+    int m_2ac;                                       // +0x2ac（advance altar type）
     int m_2b0[3];                           // +0x2b0
     int m_2bc[3];                           // +0x2bc
     std::vector<int> m_vec2c8;              // +0x2c8
@@ -705,7 +718,7 @@ class CQuickPartySystemManager;
 class CGameManager;
 CGameManager* G_CGameManager();
 
-#ifndef QUICKPARTY_H
+#if !defined(QUICKPARTY_H) && !defined(DNF_QUICKPARTY_SYSTEMMANAGER_FULL)
 namespace QuickParty
 {
 class CQuickPartySystemManager
@@ -714,4 +727,4 @@ public:
     void init_quick_party_pool(const CDungeon* dungeon);
 };
 }
-#endif  // QUICKPARTY_H（QuickParty.h 已定义完整类时跳过本地最小声明）
+#endif  // QuickParty.h 未含或未定义完整类时的本地最小声明

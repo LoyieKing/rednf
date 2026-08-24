@@ -5,6 +5,7 @@
 // ============================================================================
 
 #include "STStackableScript.h"
+#include "CStackableItem.h"  // RecipeInfo 权威布局（0x4c，ORIG 0x8513c6a 族）
 
 #include <string.h>
 
@@ -200,7 +201,24 @@ void STStackableScript::Clear()
 
 void RecipeInfo::additionalInfo(STStackableScript& script)
 {
-    (void)script;
+    // ORIG 0x8513d44（_ZN10RecipeInfo14additionalInfoER17STStackableScript）：
+    // m_field34 = script.m_4f0; m_field38 = script.m_4f4; m_field3c = script.m_4f8;
+    // 随后 for (i=0; i < m_vec4fc.size(); ++i)：取 v[i] 与 v[i+1] 组成 pair
+    // push_back 到 +0x40 的 vector<pair<int,int>>；size<=i 时越界保护退出。
+    m_field34 = script.m_4f0;
+    m_field38 = script.m_4f4;
+    m_field3c = script.m_4f8;
+    for (int i = 0; i < (int)script.m_vec4fc.size(); ++i)
+    {
+        int first = script.m_vec4fc[i];
+        if ((int)script.m_vec4fc.size() <= i + 1)
+        {
+            break;
+        }
+        int second = script.m_vec4fc[i + 1];
+        std::pair<int, int> item(first, second);
+        m_vec40.push_back(item);
+    }
 }
 
 bool ImportStackableScript(STStackableScript* script, const char* path,
@@ -236,8 +254,82 @@ bool ImportStackableScript(STStackableScript* script, const char* path,
 bool StackableScriptSpecialMonsterDrop(STStackableScript* script,
                                        std::string str, const char* path)
 {
-    (void)script;
-    (void)str;
+    // ORIG 0x89ae906。按 token 分派：
+    // "[special monster drop]" → ScanInt(bool)；值非 0 时写入 m_specialDrop.m_enable，
+    //   否则返回 false。
+    // "[difficulty for extra drop]" → 循环 ScanStr，命中 easy/medium/hard/ultimate/hero
+    //   置对应 flag，"[all]" memset 5 个难度 flag。
+    // "[dungeon type for extra drop]" → 循环 ScanStr，normal/ancient/dimension，
+    //   "[all]" memset 3 个类型 flag。
+    // 其余输入一律返回 true。
     (void)path;
-    return false;
+    STSpecialMonsterDrop& drop = script->m_specialDrop;
+    if (str == "[special monster drop]")
+    {
+        bool value = false;
+        bool ok = ScanInt(&value) != 0;
+        if (value == false)
+        {
+            return false;
+        }
+        drop.m_enable = ok ? 1 : 0;
+        return true;
+    }
+    if (str == "[difficulty for extra drop]")
+    {
+        std::string token;
+        while (ScanStr(&token))
+        {
+            if (token == "[easy]")
+            {
+                drop.m_difficulty[0] = 1;
+            }
+            else if (token == "[medium]")
+            {
+                drop.m_difficulty[1] = 1;
+            }
+            else if (token == "[hard]")
+            {
+                drop.m_difficulty[2] = 1;
+            }
+            else if (token == "[ultimate]")
+            {
+                drop.m_difficulty[3] = 1;
+            }
+            else if (token == "[hero]")
+            {
+                drop.m_difficulty[4] = 1;
+            }
+            else if (token == "[all]")
+            {
+                memset(drop.m_difficulty, 1, sizeof(drop.m_difficulty));
+            }
+        }
+        return true;
+    }
+    if (str == "[dungeon type for extra drop]")
+    {
+        std::string token;
+        while (ScanStr(&token))
+        {
+            if (token == "[normal]")
+            {
+                drop.m_dungeonType[0] = 1;
+            }
+            else if (token == "[ancient]")
+            {
+                drop.m_dungeonType[1] = 1;
+            }
+            else if (token == "[dimension]")
+            {
+                drop.m_dungeonType[2] = 1;
+            }
+            else if (token == "[all]")
+            {
+                memset(drop.m_dungeonType, 1, sizeof(drop.m_dungeonType));
+            }
+        }
+        return true;
+    }
+    return true;
 }

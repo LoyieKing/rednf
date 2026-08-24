@@ -19,7 +19,7 @@ enum INVEN_TYPE
 
 #ifndef DNF_ENUM_EITEMADDREASON_DEFINED
 #define DNF_ENUM_EITEMADDREASON_DEFINED
-enum eItemAddReason { eItemAddReason_0 = 0 };
+enum eItemAddReason { eItemAddReason_0 = 0, eItemAddReason_0xd = 0xd };
 #endif
 #ifndef DNF_ENUM_EMONEYADDREASON_DEFINED
 #define DNF_ENUM_EMONEYADDREASON_DEFINED
@@ -153,6 +153,10 @@ enum eTradeEndReason { eTradeEndReason_0 = 0 };
 #define DNF_ENUM_EEXPADDREASON_DEFINED
 enum eExpAddReason { eExpAddReason_0 = 0 };
 #endif
+#ifndef DNF_ENUM_EAPPLYITEMREASON_DEFINED
+#define DNF_ENUM_EAPPLYITEMREASON_DEFINED
+enum eApplyItemReason { eApplyItemReason_0 = 0 };
+#endif
 #ifndef DNF_ENUM_NOTIPACKET_DEFINED
 #define DNF_ENUM_NOTIPACKET_DEFINED
 enum ENUM_NOTIPACKET { ENUM_NOTIPACKET_0 = 0 };
@@ -228,10 +232,67 @@ enum ENUM_PVP_MATCHING_TYPE { ENUM_PVP_MATCHING_TYPE_0 = 0 };
 #define DNF_ENUM_DUNGEON_CLEAR_CONDITION_TYPE_DEFINED
 enum ENUM_DUNGEON_CLEAR_CONDITION_TYPE { ENUM_DUNGEON_CLEAR_CONDITION_TYPE_0 = 0 };
 #endif
+#ifndef DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
+#define DNF_ENUM_ENUM_DUNGEON_MODE_DEFINED
+// ORIG 真实类型名 ENUM_DUNGEON_MODE（mangled 17ENUM_DUNGEON_MODE，见
+// cUserHistoryLog::DungeonClearInfo / CParty::checkInoutConditionDungeon /
+// CBattle_Field::check_random_appear_hell_dungeon）。df_game_r 已去除 DWARF，
+// 成员显示名不可恢复；ORIG 汇编仅见 0/1 两个常量（check_random_appear_hell_dungeon
+// 对 mode==1 分支，dungeon_start 以 m_partyType(+0xcd8) 传入）。占位名遵循项目 `_N` 约定。
+enum ENUM_DUNGEON_MODE
+{
+    ENUM_DUNGEON_MODE_0 = 0,
+    ENUM_DUNGEON_MODE_1 = 1
+};
+#endif
 enum ENUM_TITLE_BOOK_INFO_TYPE { ENUM_TITLE_BOOK_INFO_TYPE_0 = 0 };
 #ifndef DNF_ENUM_PARTY_INFO_TYPE_DEFINED
 #define DNF_ENUM_PARTY_INFO_TYPE_DEFINED
 enum ENUM_PARTY_INFO_TYPE { ENUM_PARTY_INFO_TYPE_0 = 0 };
+#endif
+// ORIG CUser::SendRandomBoxStatistic 参数2（df_statics_r：0=create / 1=open）
+#ifndef DNF_ENUM_RANDOMBOX_ACTION_KIND_DEFINED
+#define DNF_ENUM_RANDOMBOX_ACTION_KIND_DEFINED
+enum ENUM_RANDOMBOX_ACTION_KIND
+{
+    RANDOMBOX_ACTION_CREATE = 0,
+    RANDOMBOX_ACTION_OPEN = 1
+};
+#endif
+
+// ORIG cUserHistoryLog PVP 日志原因枚举（StartPvP/EndPvP/DiePvP/GiveupPvP 参数类型；
+// mangled 名称需此类型名。GiveupPanalty 传 7（PowerWar）/3（普通对战）。
+#ifndef DNF_ENUM_PVP_HISTORY_REASON_DEFINED
+#define DNF_ENUM_PVP_HISTORY_REASON_DEFINED
+enum ENUM_PVP_HISTORY_REASON
+{
+    ENUM_PVP_HISTORY_REASON_0 = 0,
+    ENUM_PVP_HISTORY_REASON_3 = 3,
+    ENUM_PVP_HISTORY_REASON_7 = 7
+};
+#endif
+
+// ORIG 命令包类型（send_to_party_cmd_error / CUser::SendCmd*Packet 参数；
+// 权威定义移入本头：CParty.h 经 PvPTypes.h→CUser.h 环路 include 时
+// CUser.h:229 的原定义不可见）。
+#ifndef DNF_ENUM_CMDPACKET_DEFINED
+#define DNF_ENUM_CMDPACKET_DEFINED
+enum ENUM_CMDPACKET
+{
+    ENUM_CMDPACKET_0 = 0
+};
+#endif
+
+// ORIG cUserHistoryLog::{BillingSuccess,BillingFail} 首参（BuyAuctionItem 传 1；
+// BillingSuccess 对 3 走独立格式分支）。原先位于 include guard #endif 之后，
+// 移入守卫内以保证重复包含可见。
+#ifndef DNF_ENUM_BILLING_TYPE_DEFINED
+#define DNF_ENUM_BILLING_TYPE_DEFINED
+enum ENUM_BILLING_TYPE
+{
+    ENUM_BILLING_TYPE_1 = 1,
+    ENUM_BILLING_TYPE_3 = 3
+};
 #endif
 
 #endif  // DNF_GAME_GAMEENUMS_H_

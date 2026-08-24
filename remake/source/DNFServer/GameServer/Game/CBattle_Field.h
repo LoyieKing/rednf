@@ -16,6 +16,8 @@
 #include <vector>
 
 #include "CDataManager.h"
+#include "CMap.h"            // CMap + _mapMonster/_mapItem/TournamentMonster/
+                             // STAssignBloodSystem/STAssignBloodPhaseTime 唯一权威定义
 #include "CEquipItem.h"
 #include "CItem.h"
 #include "CItemList.h"
@@ -44,80 +46,11 @@ class CWorldMap;               // 指针成员，前向声明即可（CParty.h/C
 // map_monster / map_item / MapInfo 权威定义见 WarField.h（§7 单声明点）；
 // 本地重复定义已删除，经 #include "WarField.h" 获取。
 
-// ---- _mapMonster（0x40 字节；ctor 0830e4fc） ----
-struct _mapMonster
-{
-    int m_mobId;              // +0x00（-1 = 随机）
-    char m_flag04;            // +0x04（ctor=1）
-    int m_level;              // +0x08
-    int m_spawnType;          // +0x0c（0=单人 1=队伍 2=队伍x2）
-    int m_levelAdd;           // +0x10
-    int m_field14;            // +0x14
-    int m_roleType;           // +0x18
-    char m_champion;          // +0x1c
-    int m_posX;               // +0x20
-    char m_pad24;             // +0x24
-    int m_hpPct;              // +0x28（ctor=100）
-    int m_orderIdx;           // +0x2c
-    char m_flag30;            // +0x30
-    char m_pad31[3];          // +0x31
-    std::vector<int> m_mobList;  // +0x34
-
-    _mapMonster();   // ORIG 0830e4fc
-    ~_mapMonster();  // ORIG 0830e5b0
-};
+// ---- _mapMonster / _mapItem / TournamentMonster / STAssignBloodSystem /
+//      STAssignBloodPhaseTime 权威定义见 CMap.h（唯一声明点，经 #include "CMap.h"）。
+//      历史本地重复定义已删除（曾与 CMap.h 同名类型构成 ODR 冲突）。
 
 // ---- map_item（0x54 字节；ctor 081512cc；权威定义见 WarField.h） ----
-
-// ---- _mapItem（0x10 字节；ctor 0815088e） ----
-struct _mapItem
-{
-    int m_objectIdx;   // +0x00
-    int m_field04;     // +0x04（ctor=0）
-    int m_field08;     // +0x08（ctor=0）
-    int m_field0c;     // +0x0c（ctor=0）
-
-    _mapItem();   // ORIG 0815088e
-    ~_mapItem();
-};
-
-// ---- TournamentMonster（8 字节；ctor 0830e4d4 / Clear 0830e4bc） ----
-struct TournamentMonster
-{
-    int m_mobId;   // +0x00
-    int m_rate;    // +0x04
-
-    TournamentMonster();  // ORIG 0830e4d4
-    void Clear();         // ORIG 0830e4bc
-};
-
-// ---- STAssignBloodSystem（0x28 字节；vector 元素尺寸 08311824 实证） ----
-struct STAssignBloodSystem
-{
-    int m_id;          // +0x00
-    int m_field04;     // +0x04
-    int m_phase;       // +0x08
-    int m_field0c;     // +0x0c
-    int m_field10;     // +0x10
-    int m_timeA;       // +0x14
-    int m_timeB;       // +0x18
-    int m_startCnt;    // +0x1c
-    int m_cntInc;      // +0x20
-    int m_totalCnt;    // +0x24
-};
-
-// ---- STAssignBloodPhaseTime（0x1c 字节；vector 元素尺寸 0830ffee 实证） ----
-struct STAssignBloodPhaseTime
-{
-    int m_smallRoundOrder;   // +0x00
-    int m_phaseIdx;          // +0x04（-1 = 随机）
-    int m_interval;          // +0x08
-    float m_time;            // +0x0c
-    int m_field10;           // +0x10
-    int m_spawnCnt;          // +0x14
-    char m_difficulty;       // +0x18
-    char m_pad19[3];         // +0x19
-};
 
 // ---- MapInfo（0xec 字节；ctor 08151394；权威定义见 WarField.h） ----
 
@@ -277,8 +210,9 @@ public:
                        std::map<short, std::vector<TournamentInfo> >& roundInfoMap,
                        std::list<_mapMonster>& mobList);      // 08303f66
     bool SelectDungeon(int dungeonIdx, const CDungeon* dungeon, int diff,
-                       ENUM_DUNGEON_TYPE type, int mode, int a, CWorldMap* worldMap,
-                       bool isHellParty, int questStageMap);  // 082ff486
+                       ENUM_DUNGEON_TYPE type, int memberCount,
+                       CWorldMap* worldMap, bool isHellParty,
+                       int questStageMap);   // 082ff486（ORIG asm 7 栈/寄存参实证）
     int getBloodState();                                      // 0822cf18
     int get_map_index(int x, int y);                          // 085bf260
     void moveMap_1_Log(int x, int y);                         // 0830766e

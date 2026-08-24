@@ -40,29 +40,36 @@ bool DNFLexWrapper::LoadStream(const char* dir, const char* filename,
 //   - 否则 s->stream = ifs; s->size = size; 返回 true。
 bool DNFLexWrapper::setFileStreamData(DNFLex::stream_data_t* s, const char* path)
 {
-    if (path == 0 || s == 0)
+    std::ifstream* ifs;
+    int size;
+    const char* p = path;
+    DNFLex::stream_data_t* sd = s;
+
+    if (p == 0)
+        return false;
+    if (sd == 0)
         return false;
 
-    s->clear();
-
-    std::ifstream* ifs = new std::ifstream(path, std::ios::in | std::ios::binary);
-    if (!ifs->is_open() || ifs->bad())
-    {
-        delete ifs;
-        return false;
-    }
+    sd->clear();
+    ifs = new std::ifstream(p, std::ios::in | std::ios::binary);
+    if (!ifs->is_open())
+        goto fail_delete;
+    if (ifs->rdstate() & std::ios::badbit)
+        goto fail_delete;
 
     ifs->seekg(0, std::ios::end);
-    std::streampos size = ifs->tellg();
+    size = (int)ifs->tellg();
     ifs->seekg(0, std::ios::beg);
-
     if (size == 0)
     {
         delete ifs;
-        return setStringStreamData(s, 0, 0);
+        return setStringStreamData(sd, 0, 0);
     }
-
-    s->stream = ifs;
-    s->size = static_cast<int>(size);
+    sd->stream = ifs;
+    sd->size = size;
     return true;
+
+fail_delete:
+    delete ifs;
+    return false;
 }

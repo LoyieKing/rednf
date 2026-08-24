@@ -13,10 +13,14 @@ public:
     ~PacketGuard();
 };
 #include <cstring>
-
+#include <cstdio>
 
 #include <new>
 #include <algorithm>
+#include <map>
+#include <vector>
+#include "RDARScriptStringManager.h"   // g_scriptStringManager_/findString
+#include "CEventTable.h"              // CEventTable 权威声明（唯一）
 
 CDelivery::CDelivery()
     : m_eventMap()
@@ -302,14 +306,150 @@ void CEventManager::eventDeliveryNotify(int type, DeliveryMsg& msg)
         delivery->notify(type, msg);
 }
 
-// CEventTable belongs to the event manager translation unit.
-class CEventTable
+
+namespace
 {
-public:
-    int GetEventTableCount();
+// ORIG 每项 0x14 字节（_FindEventTable 0x811a15d / InsertEventTable 0x811a4d4 证据）：
+//   +0x00 event_id / +0x04 apply_type / +0x08 CEventBase* / +0x0c name(char*) /
+//   +0x10 explain(char*)。
+struct EventTableEntry
+{
+    int id;              // +0x00
+    int apply_type;      // +0x04
+    CEventBase* base;    // +0x08
+    const char* name;    // +0x0c（event_name）
+    const char* explain; // +0x10（event_explain key/string）
 };
+EventTableEntry g_event_table[0x4f];  // ORIG 0x936fa60（BSS 零初始化）
+}  // namespace
+
+CEventTable::CEventTable() {}
 
 int CEventTable::GetEventTableCount()
 {
     return 0x4f;
+}
+
+CEventBase* CEventTable::GetEventBase(int idx)
+{
+    if (idx < 0 || GetEventTableCount() <= idx)
+        return 0;
+    return g_event_table[idx].base;
+}
+
+int CEventTable::GetEventId(int idx)
+{
+    if (idx < 0 || GetEventTableCount() <= idx)
+        return 0;
+    return g_event_table[idx].id;
+}
+
+// ORIG 0x811a15d（_Z15_FindEventTableiPKcRb，131 字节）：在全局事件表中按
+// event_id 查找条目；命中后以 strncmp(entry.name, name, strlen(name)) 比名。
+// 名字匹配则直接返回索引；不匹配则置 *dup=true 仍返回该索引；未命中返回 -1。
+int _FindEventTable(int id, const char* name, bool* dup)
+{
+    for (int i = 0; i < CEventTable::GetEventTableCount(); ++i)
+    {
+        if (g_event_table[i].id == id)
+        {
+            const char* tblName = g_event_table[i].name;
+            const std::size_t n = name ? strlen(name) : 0;
+            if (tblName != 0 && name != 0 && strncmp(tblName, name, n) == 0)
+                return i;
+            if (dup)
+                *dup = true;
+            return i;
+        }
+    }
+    return -1;
+}
+
+// ORIG 0x811a1e0（0x2f4 字节）：经 DBMgr::GetDBHandle 查询
+// dnf_event_info(event_id, event_name)，逐行 _FindEventTable 校验；把校验通过
+// 的事件表索引记入集合，最后将「未在 DB 中」的事件表索引追加到 out，返回是否成功。
+bool CEventTable::VerifyEventTable(std::vector<int>& out)
+{
+    out.clear();
+    MySQL* db = GlobalData::s_db_mgr ?
+        GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE) : 0;
+    if (db == 0)
+        return false;
+
+    if (!db->set_query("seLect event_id, event_name from dnf_event_info"))
+        return false;
+    if (!db->exec(true))
+        return false;
+
+    std::map<int, int> found;
+    const int rows = db->get_n_rows();
+    for (int i = 0; i < rows; ++i)
+    {
+        if (!db->fetch())
+            return false;
+        int id = 0;
+        if (!db->get_int(0, id))
+            return false;
+        char name[0xff];
+        if (!db->get_str(1, name, 0xff))
+            return false;
+        bool dup = false;
+        int idx = _FindEventTable(id, name, &dup);
+        if (idx < 0)
+            continue;
+        if (dup)
+            return false;
+        found[idx] = 1;
+    }
+
+    for (int i = 0; i < GetEventTableCount(); ++i)
+    {
+        if (found.find(i) == found.end())
+            out.push_back(i);
+    }
+    return true;
+}
+
+// ORIG 0x811a4d4（0x2d0 字节）：为空则直接返回 1；否则遍历 ids 中各事件表索引，
+// 用事件表 name/explain 字段构造 "(%d,%d,'%s','%s')" 插入串（explain 经
+// g_scriptStringManager_.findString(4, ...) 解析），一次性 INSERT 到
+// dnf_event_info，exec 成功返回 1，出错码 0x426（诱骗重复）或失败返回 0。
+bool CEventTable::InsertEventTable(std::vector<int>& ids)
+{
+    if (ids.empty())
+        return true;
+
+    std::string sql;
+    std::string temp;
+    for (std::vector<int>::const_iterator it = ids.begin(); it != ids.end(); ++it)
+    {
+        const int idx = *it;
+        if (idx < 0 || GetEventTableCount() <= idx)
+            continue;
+        const EventTableEntry& e = g_event_table[idx];
+        const char* explain = e.explain ? e.explain : "";
+        const char* resolved = g_scriptStringManager_.findString(4, explain, 0);
+        char buf[0x100];
+        std::snprintf(buf, sizeof(buf), "(%d,%d,'%s','%s')",
+                      e.id, e.apply_type, e.name ? e.name : "", resolved ? resolved : "");
+        sql += buf;
+        if (it + 1 != ids.end())
+            sql += ",";
+    }
+
+    MySQL* db = GlobalData::s_db_mgr ?
+        GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1, E_SERVER_GROUP_NONE) : 0;
+    if (db == 0)
+        return false;
+
+    std::string query = "inSert into dnf_event_info(event_id, apply_type, event_name, event_explain) values";
+    query += sql;
+    if (!db->set_query("%s", query.c_str()))
+        return false;
+    if (!db->exec(true))
+    {
+        (void)db->getDBError();
+        return false;
+    }
+    return true;
 }

@@ -10,9 +10,17 @@
 
 // ORIG 0x08adee98：TCHAR 转多字节，失败时返回原指针（恒等）。
 const char* toMbcs(const char* src);
+// ORIG 0x08adedd3：std::string 恒等 c_str()。
+const char* toMbcs(const std::string& sSrc);
+// ORIG 0x08adeab0：tstring 恒等 c_str()。
+const char* toTString(const std::string& sSrc);
+// ORIG 0x08adeb75：char const* 恒等返回。
+const char* toTString(const char* pszSrc);
 
 // ORIG 0x088be57e：按作业名表查找返回下标 0..10，未命中 11。
 int getCharacterJob(const char* name);
+// ORIG 0x088be5c5：作业名表命中检查（与 getCharacterJob 同表），命中 1 否则 0。
+int checkValiedJobName(const char* name);
 
 namespace APSystem
 {

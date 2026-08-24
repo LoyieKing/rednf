@@ -17,14 +17,41 @@
 #include "CBossStage.h"
 #include "CDungeonEntranceLog.h"
 #include "CDeathTowerRanking.h"
+#include "CMonster.h"
 
+// ---- CAICharacter / CAICharacterList ----
+// 布局依据 ORIG set 0x0834a066 / ctor 0x08373a9a / 各访问器：
+//   +0x00 int  idx             （getIdx 0x08150850：mov 0(%eax),eax）
+//   +0x04 int  level           （getLevel 0x0815085a：mov 4(%eax),eax）
+//   +0x08 int  m_field8        （set 写 script+0xd80）
+//   +0x0c int  appearancePoint （getAppearancePoint 0x08150866：mov c(%eax),eax）
+//   +0x10 vector<pair<int,int> > m_dropItems （deathTowerSpecifyItemDrop 遍历 +0x10）
+//   +0x1c int  m_pvpWinLow     （getPvPWinPoint 0x0834a240 读取 +0x1c）
+//   +0x20 int  m_pvpWinHigh    （getPvPWinPoint 读取 +0x20）
+//   +0x24 vector<stMonsterIndependentDrop_t>
+//   +0x30 stEnamyDropAvatarInfo_t
+//   +0x6c std::string m_name
+//   +0x70 unsigned char m_rarity
 class CAICharacter
 {
 public:
-    unsigned char getLevel() const { return 1; }
-    unsigned int getIdx() const { return 0; }
-    int getAppearancePoint() const { return 0; }
-    void deathTowerSpecifyItemDrop(std::vector<unsigned long>& dropIds) {}
+    int getIdx() const { return m_idx; }
+    int getLevel() const { return m_level; }
+    int getAppearancePoint() const { return m_appearancePoint; }
+    // ORIG 0x0834a19c _ZNK12CAICharacter25deathTowerSpecifyItemDropERSt6vectorImSaImEE：
+    // 遍历 m_dropItems（vector<pair<int,int>>），对每项 r=get_rand_int(10000)；
+    // 若 pair.second > r 则把 pair.first（itemId）push_back 到 dropIds。
+    void deathTowerSpecifyItemDrop(std::vector<unsigned long>& dropIds) const
+    {
+        for (std::vector<std::pair<int, int> >::const_iterator it =
+                 m_dropItems.begin();
+             it != m_dropItems.end(); ++it)
+        {
+            int r = get_rand_int(10000);
+            if (it->second > r)
+                dropIds.push_back((unsigned long)it->first);
+        }
+    }
     // ORIG 0x0834a240 _ZNK12CAICharacter14getPvPWinPointEv：
     // 返回 PvP 胜点。+0x1c=最小胜点，+0x20=最大胜点；等则返回该值，
     // 否则返回 min + get_rand_int(max - min + 1)。
@@ -36,19 +63,47 @@ public:
     }
 
 private:
-    char m_pad[0x1c];       // +0x00..+0x1b（保持 ORIG AI 布局）
-    int m_pvpWinLow;        // +0x1c
-    int m_pvpWinHigh;       // +0x20
+    int m_idx;                                      // +0x00
+    int m_level;                                    // +0x04
+    int m_field8;                                   // +0x08
+    int m_appearancePoint;                          // +0x0c
+    std::vector<std::pair<int, int> > m_dropItems;  // +0x10
+    int m_pvpWinLow;                                // +0x1c
+    int m_pvpWinHigh;                               // +0x20
+    char m_pad24[0x70 - 0x24];                      // +0x24..+0x6f（独立掉/头像/名字区，本 TU 未用）
 };
 
-class CMonster
+// ORIG 0x0834a9d2 _ZN16CAICharacterList3getEj（成员 this=CAICharacterList）：
+// m_charMap.find(idx)；未找到返回 0，否则返回 it->second。
+// 工程头以 `static CAICharacter* get(void*, unsigned int)` 形式声明（重建桥接），
+// 本实现按该桥接签名提供，内部转为 map 查找。
+CAICharacter* CAICharacterList::get(void* list, unsigned int idx)
 {
-public:
-    long deathTowerSpecifyItemDrop() { return 0xfffffffe; }
-};
-CAICharacter* CAICharacterList::get(void* list, unsigned int idx) { return 0; }
-// CAICharacterList::~CAICharacterList（自 GameStubs.cpp 迁移；空白析构，ORIG 底层批次）
-CAICharacterList::~CAICharacterList() {}
+    CAICharacterList* self = static_cast<CAICharacterList*>(list);
+    if (self == 0)
+        return 0;
+    std::map<int, CAICharacter*>::iterator it = self->m_charMap.find((int)idx);
+    if (it == self->m_charMap.end())
+        return 0;
+    return it->second;
+}
+// ORIG dtor 0x08373d9e：destroy() 后按逆序析构各子对象（成员析构由编译器生成）。
+CAICharacterList::~CAICharacterList() { destroy(); }
+
+// ORIG destroy 0x0834a59a：遍历 m_charMap，对每个 CAICharacter 调析构并 delete。
+void CAICharacterList::destroy()
+{
+    for (std::map<int, CAICharacter*>::iterator it = m_charMap.begin();
+         it != m_charMap.end(); ++it)
+    {
+        // ORIG 此处调用 CAICharacter::~CAICharacter()（0x08373b32 W）后
+        // operator delete；CAICharacter 在本工程尚未建模（仅前向声明），
+        // 其析构当前无可执行语义，先直接释放【推断】。
+        if (it->second != 0)
+            ::operator delete(it->second);
+    }
+    m_charMap.clear();
+}
 
 // ---- stMapMonsterKillChecker_t / map_item / map_monster ----
 // 权威定义见 WarField.h（经 CGameManager.h → PvP_Room.h → PvP_deps.h 链包含），
@@ -97,27 +152,31 @@ namespace WongWork {
 //   +0xaf0  CBossStage 基类字段（ctor 置 0）
 //   +0x9f0  CBossStage 基类字段（reset 之外 ctor 额外置 0）
 //   +0xd    4 字节 CBossStage 字段（ctor memset 0）
-//   +8 / +4 CBossStage 基类首部字段（vtable 之后）
+//   +8 / +4 CBossPlay 基类首部字段（vtable 之后）；+0xaf0 = CBossTower::m_idx；
+//   +0xb00 = CBossTower::m_dungeonLog（CBossDungeonEntranceLog，0x18）。
+// 继承：CBossTower : CBossStage : CBossPlay（隐式基类构造/析构，编译器处理 vptr）。
 CBossTower::CBossTower()
 {
-    reinterpret_cast<WongWork::CBossStage*>(this)->reset();
-    memset((char*)this + 0xaf0, 0, 4);
+    CBossStage::reset();
+    m_idx = 0;
     *(int*)((char*)this + 8) = 0;
     memset((char*)this + 0xd, 0, 4);
     memset((char*)this + 0x9f0, 0, 4);
     *(int*)((char*)this + 4) = 0;
-    memset((char*)this + 0xb00, 0, 0x18);
+    // m_dungeonLog（CBossDungeonEntranceLog）由编译器在进入函数体前按权威
+    // ctor（ORIG 0x081456c2：map C1 + reset）构造，此处不再 memset。
 }
 
 CBossTower::~CBossTower()
 {
-    reinterpret_cast<WongWork::CBossStage*>(this)->reset();
-    memset((char*)this + 0xaf0, 0, 4);
+    CBossStage::reset();
+    m_idx = 0;
     *(int*)((char*)this + 8) = 0;
     memset((char*)this + 0xd, 0, 4);
     memset((char*)this + 0x9f0, 0, 4);
     *(int*)((char*)this + 4) = 0;
-    memset((char*)this + 0xb00, 0, 0x18);
+    // m_dungeonLog 由编译器在函数体结束后按权威 dtor（ORIG 0x08145704：
+    // reset + map D1）析构，此处不再 memset。
 }
 
 
@@ -136,24 +195,30 @@ unsigned int CDeathTowerRanking::makeDungeonIdx2TowerIdx(unsigned int dungeonIdx
 
 void* CDeathTowerRanking::getRankTable(unsigned int type)
 {
-    // ORIG 082a774c W：返回 3 张静态排行榜表（BSS 0x941f8c0，每表 0x70f4）中
-    // type 对应表指针。重建工程尚未建模该全局表（懒构造+静态数组），
-    // 先返回 0【推断，可链接】。
-    (void)type;
-    return 0;
+    // ORIG 082a774c W：3 张静态表（BSS 0x941f8c0，每表 0x70f4）懒构造
+    // （__cxa_guard + 逐表 C1）；type==0 返回首表，否则 (type-1)*0x70f4 偏移。
+    static CDeathTowerRanking s_tables[3];  // 静态初始化由编译器 guard 保护
+    if (type == 0)
+        return &s_tables[0];
+    return &s_tables[type - 1];
 }
 
-void CDeathTowerRanking::checkRenewMyRecord(unsigned int towerIdx,
-                                            unsigned int key,
-                                            unsigned int clearTime,
-                                            unsigned int playTime)
+int CDeathTowerRanking::checkRenewMyRecord(unsigned int towerIdx,
+                                           unsigned int key,
+                                           unsigned int stage,
+                                           unsigned int playTime)
 {
-    // Simplified: hash_map lookup not yet implemented
-    // Returns via side effect; actual logic requires CDeathTowerRanking layout
-    (void)towerIdx;
-    (void)key;
-    (void)clearTime;
-    (void)playTime;
+    // ORIG 084682fe T：m_bestTables[towerIdx].find(key)；无记录 → -1；
+    // 否则构造临时纪录(stage,playTime)，临时 > 已有 → 1，否则 0。
+    if (towerIdx >= 5)
+        return -1;  // 越界保护（ORIG 无检查【推断】）
+    stBestRecord_t tmp;
+    tmp.m_stage = stage;
+    tmp.m_playTime = playTime;
+    BestMap::iterator it = m_bestTables[towerIdx].find(key);
+    if (it == m_bestTables[towerIdx].end())
+        return -1;
+    return tmp > it->second ? 1 : 0;  // ORIG: stBestRecord_t::operator>(tmp, existing)
 }
 
 int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
@@ -181,71 +246,205 @@ int CDeathTowerRanking::checkRenewTopRecord(unsigned int towerIdx,
     return 0;
 }
 
+// 与 ORIG fistpll（默认 round-to-nearest，ties-to-even）一致的 32→64 取整。
+static long long roundHalfEven(long double x)
+{
+    long long r = (long long)x;         // 向零截断（此处 x≥0，即向下取整）
+    long double frac = x - (long double)r;
+    if (frac > 0.5L)
+        return r + 1;
+    if (frac < 0.5L)
+        return r;
+    return (r & 1) ? r + 1 : r;         // 恰为 .5：就近取偶
+}
+
 int CDeathTowerRanking::getVirtualRank(unsigned int towerIdx,
                                        unsigned int stage,
                                        unsigned int playTime)
 {
-    char* base = (char*)this;
-
-    // Best record at this + 0x7058
-    unsigned int* bestRecord = (unsigned int*)(base + 0x7058);
-    unsigned int bestStage = bestRecord[0];
-    unsigned int bestPlayTime = bestRecord[1];
-
-    // New record is (stage, playTime)
-    // Compare: better means higher stage, or same stage and lower playTime
-    bool newIsBetter = false;
-    bool newIsEqual = false;
-
-    if (stage > bestStage)
-    {
-        newIsBetter = true;
-    }
-    else if (stage == bestStage && playTime < bestPlayTime)
-    {
-        newIsBetter = true;
-    }
-    else if (stage == bestStage && playTime == bestPlayTime)
-    {
-        newIsEqual = true;
-    }
-
-    if (newIsBetter)
-    {
+    // 候选新纪录（stage, playTime）。ORIG 0x08468de0：本类无 towerIdx 越界检查；
+    // 但排行榜表仅 5 座塔（makeDungeonIdx2TowerIdx 对 0x2afd 会得 5，超出 m_towers/
+    // m_rankMap 数组），此处按 checkRenewMyRecord 同款防御返回 -1（【推断】越界保护）。
+    if (towerIdx >= kRankTowerCount)
         return -1;
-    }
 
-    if (newIsEqual)
-    {
-        return *(int*)(base + 0x70ec);
-    }
+    stBestRecord_t newRec;
+    newRec.m_stage = stage;
+    newRec.m_playTime = playTime;
 
-    // Compare with top record at this + towerIdx * 0x390 + 0x98
-    unsigned int* topRecord = (unsigned int*)(base + towerIdx * 0x390 + 0x98);
-    unsigned int topStage = topRecord[0];
-    unsigned int topPlayTime = topRecord[1];
-
-    if (stage > topStage || (stage == topStage && playTime < topPlayTime))
-    {
+    // 1) 表级最优（+0x7058 m_tableBest）严格优于新纪录 → -1。
+    if (m_tableBest > newRec)
+        return -1;
+    // 2) 新纪录 == 表级最优 → 返回表级纪录存故名次（+0x70ec = m_tableBest.m_field94）。
+    if (newRec == m_tableBest)
+        return m_tableBest.m_field94;
+    // 3) 新纪录严格优于该塔当前榜首（+0x98 槽 0）→ 名次 1。
+    if (newRec > m_towers[towerIdx].m_slots[0])
         return 1;
+
+    // ---- 层内 rank map（键=通关时间，值=名次）插值 ----
+    RankMap& m = m_rankMap[towerIdx][stage];
+
+    unsigned int result = 0xffffffff;  // ORIG local_20（初值 -1）
+    RankMap::const_iterator ref;       // ORIG local_88（末次返回的基准迭代器）
+    bool inMap = false;                // ORIG local_28 != 0
+
+    if (m.size() >= 2)
+    {
+        // playTime 须落在 [首键, 末键] 内；否则跳至“层邻插值”分支。
+        RankMap::const_iterator first = m.begin();
+        RankMap::const_iterator last = m.end();
+        --last;
+        if (playTime >= first->first && last->first >= playTime)
+        {
+            // lower_bound(playTime)；若命中键 > playTime 且非 begin，退一位使
+            // ref 恒为键 < playTime 的最近元素（= 插值下界）。
+            ref = m.lower_bound(playTime);
+            if (playTime < ref->first && ref != m.begin())
+                --ref;
+            RankMap::const_iterator nxt = ref;
+            ++nxt;
+
+            if (ref->first == playTime)
+                return (int)ref->second;
+            if (nxt->first == playTime)
+                return (int)nxt->second;
+
+            // 两相邻键线性插值：
+            //   keySpan = nxt.key - ref.key（≥1）
+            //   slope = |nxt.value - ref.value| / keySpan
+            //   result = max(1, round((playTime - ref.key) * slope))
+            unsigned int keySpan = nxt->first - ref->first;
+            if (keySpan < 1)
+                keySpan = 1;
+            long long valDiff = (long long)nxt->second - (long long)ref->second;
+            long long absDiff = valDiff < 0 ? -valDiff : valDiff;
+            float slope = (float)((long double)absDiff / (long double)keySpan);
+            long long scaled = roundHalfEven(
+                (long double)(playTime - ref->first) * (long double)slope);
+            unsigned int r = (unsigned int)scaled;
+            result = r < 1 ? 1 : r;
+            inMap = true;
+        }
     }
 
-    // Simplified: return 0 for middle ranks (full map-based calculation requires CDeathTowerRanking layout)
-    return 0;
+    if (!inMap)   // ORIG if (local_28 == 0)：map 元素 <2 或 playTime 超出键范围
+    {
+        unsigned int lowerStage = 0;   // ORIG local_18
+        unsigned int upperStage = 0;   // ORIG local_14
+
+        // 当前层 map 仅 1 元素时先判其末元素。
+        if (!m.empty())
+        {
+            RankMap::const_iterator last = m.end();
+            --last;
+            if (last->first == playTime)
+                return (int)last->second;
+            if (last->first < playTime)
+                upperStage = stage;
+            else
+                lowerStage = stage;
+        }
+
+        // 向下 / 向上找最近的、rank map 非空的相邻层（下界 ≥2，上界 <200）。
+        if (lowerStage == 0)
+        {
+            lowerStage = stage;
+            do
+            {
+                lowerStage = lowerStage - 1;
+                if (lowerStage < 2 ||
+                    !m_rankMap[towerIdx][lowerStage].empty())
+                    break;
+            } while (true);
+        }
+        if (upperStage == 0)
+        {
+            upperStage = stage;
+            do
+            {
+                upperStage = upperStage + 1;
+                if (upperStage >= kRankStageCount ||
+                    !m_rankMap[towerIdx][upperStage].empty())
+                    break;
+            } while (true);
+        }
+
+        // 下界层无纪录（或已下探至 <2 仍空）或上界层无纪录（或已上探至 200 仍空）→ -1。
+        // （ORIG 对上界 local_14==200 会无条件读 map[200] 越界；此处用
+        //   upperStage>=kRankStageCount 短路护栏避免真实数组越界，语义同“无邻层”。）
+        if (m_rankMap[towerIdx][lowerStage].empty() ||
+            upperStage >= kRankStageCount ||
+            m_rankMap[towerIdx][upperStage].empty())
+            return -1;
+
+        // 跨层插值：ref = 上界层末元素（最大键），基准 = 下界层首元素；
+        //   stageSpan = upperStage - lowerStage（≥1）
+        //   slope = |lower.first.value - upper.last.value| / stageSpan
+        //   result = max(1, round((upperStage - stage) * slope))
+        RankMap::const_iterator lowerFirst =
+            m_rankMap[towerIdx][lowerStage].begin();
+        ref = m_rankMap[towerIdx][upperStage].end();
+        --ref;
+
+        unsigned int stageSpan = upperStage - lowerStage;
+        if (stageSpan < 1)
+            stageSpan = 1;
+        long long valDiff = (long long)lowerFirst->second -
+                            (long long)ref->second;
+        long long absDiff = valDiff < 0 ? -valDiff : valDiff;
+        float slope = (float)((long double)absDiff / (long double)stageSpan);
+        long long scaled = roundHalfEven(
+            (long double)(upperStage - stage) * (long double)slope);
+        unsigned int r = (unsigned int)scaled;
+        result = r < 1 ? 1 : r;
+    }
+
+    return (int)(result + ref->second);
 }
 
 void CDeathTowerRanking::unregistBestRecord(unsigned int characNo)
 {
-    // ORIG 08468b4c T：对 5 张 best-record 子表按 characNo erase（_getBestRecordTable(i)）。
-    // 子表 hash_map 布局未建模，先为空实现【推断，可链接】。
-    (void)characNo;
+    // ORIG 08468b4c T：for i in 0..4: _getBestRecordTable(i).erase(characNo)。
+    for (unsigned int i = 0; i < 5; ++i)
+        m_bestTables[i].erase(characNo);
 }
 
 void CDeathTowerRanking::unregistRanking(unsigned int characNo)
 {
-    // ORIG 08468552 T：对 5 张 ranking 子表按 characNo erase（_getRankingTable(i)）。
-    // 子表 hash_map 布局未建模，先为空实现【推断，可链接】。
-    (void)characNo;
+    // ORIG 08468552 T：for i in 0..4: _getRankingTable(i).erase(characNo)。
+    for (unsigned int i = 0; i < 5; ++i)
+        m_rankingTables[i].erase(characNo);
+}
+
+// ORIG _ZN8WongWork18CDeathTowerRanking4initEj @ 0x084680a4（0x1ec 字节）。
+// this = getRankTable(type) 表；对 5 座塔 × 5 槽位重置 stBestRecord_t：
+//   +0x90 清字节；槽 1..5 的 +0x04 memcpy 默认名 "AAAAAA"/"BBBBBB"/"CCCCCC"/
+//   "DDDDDD"/"EEEEEE"（ORIG 0x8c63370..0x8c6338d，7 字节含 NUL）；
+//   +0x94=槽序号、+0x8c=0、+0x88=200-槽序号；
+// 最后表尾 +0x70e0=200、+0x70f0=type。
+void CDeathTowerRanking::init(unsigned int type)
+{
+    void* table = getRankTable(type);
+    static const char* kDefaultNames[5] = {
+        "AAAAAA", "BBBBBB", "CCCCCC", "DDDDDD", "EEEEEE" };
+    char* base = reinterpret_cast<char*>(table);
+    for (unsigned int tower = 0; tower <= 4; ++tower)
+    {
+        for (unsigned int slot = 1; slot <= 5; ++slot)
+            base[tower * 0x390 + slot * 0x98 + 0x90] = 0;
+        for (unsigned int slot = 1; slot <= 5; ++slot)
+        {
+            unsigned int off = tower * 0x390 + slot * 0x98;
+            std::memcpy(base + off + 0x04, kDefaultNames[slot - 1], 7);
+            *reinterpret_cast<int*>(base + off + 0x94) = static_cast<int>(slot);
+            *reinterpret_cast<unsigned int*>(base + off + 0x8c) = 0;
+            *reinterpret_cast<unsigned int*>(base + off + 0x88) =
+                200 - slot;
+        }
+    }
+    *reinterpret_cast<unsigned int*>(base + 0x70e0) = 200;
+    *reinterpret_cast<unsigned int*>(base + 0x70f0) = type;
 }
 
 CDeathTower::CDeathTower()
@@ -682,7 +881,9 @@ int CDeathTower::handleKillMonster(CUser* user, unsigned short monsterIdx, unsig
 
             int expGain = 0;
             int spGain = 0;
-            if (partyUser->gain_exp_sp(mobExp, expGain, spGain, (eExpAddReason)notiType, monster.m_mobIndex, false))
+            if (partyUser->gain_exp_sp(mobExp, expGain, spGain,
+                                       (CUser::eExpAddReason)notiType,
+                                       monster.m_mobIndex, false))
             {
                 partyUser->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
             }
@@ -1095,8 +1296,7 @@ int CDeathTower::_checkRenewMyRecord(unsigned int dungeonIdx, unsigned int membe
 {
     unsigned int towerIdx = WongWork::CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
     void* rankTable = WongWork::CDeathTowerRanking::getRankTable(memberCnt);
-    ((WongWork::CDeathTowerRanking*)rankTable)->checkRenewMyRecord(towerIdx, a, b, c);
-    return 0;
+    return ((WongWork::CDeathTowerRanking*)rankTable)->checkRenewMyRecord(towerIdx, a, b, c);
 }
 
 int CDeathTower::_checkRenewTopRecord(unsigned int dungeonIdx, unsigned int memberCnt, unsigned int a, unsigned int b)
@@ -1926,7 +2126,7 @@ int CDeathTower::onTimer(TIMER_MESSAGE msg, unsigned int key)
                 int exp = m_playData.getRewardExp(i);
                 user->calcHelpAbuseRatio(exp, false);
                 int a = 0, b = 0;
-                if (user->gain_exp_sp(exp, a, b, (eExpAddReason)2, 0, false))
+                if (user->gain_exp_sp(exp, a, b, (CUser::eExpAddReason)2, 0, false))
                 {
                     user->SendNotiPacket((CUser::eSendTarget)2, (ENUM_NOTIPACKET)2, 1);
                 }

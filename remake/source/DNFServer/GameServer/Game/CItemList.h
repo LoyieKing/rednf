@@ -171,6 +171,7 @@ public:
     void destroy();
     CItem* find_item(int idx);
     CItem* find_item(const char* name);
+    int GetRestrictCode(int itemIdx);                 // ORIG 0x0817a10c (W)
     CCeraShopGoods* FindGoods(int goodsIdx);
     BonusItem* GetProperBonusItem(unsigned int bonusIdx);
     void getCeraShopBonusItem(int idx, unsigned long& outItem,
@@ -180,6 +181,11 @@ public:
     bool insert_item(int group, int idx, CItem* item);
     bool load_item_files();
     bool Load_Goods_File(const char* path);
+    // ORIG W 0x8539e38：返回 +0x00 的等级分桶 hash_map 数组指针（元素步长
+    // sizeof(hash_map)=20；generateTable 以等级直接下标遍历）。
+    __gnu_cxx::hash_map<int, CItem*, __gnu_cxx::hash<int>,
+                        std::equal_to<int>,
+                        std::allocator<CItem*> >* getItemGradeList() const;
 
     __gnu_cxx::hash_map<int, CItem*, __gnu_cxx::hash<int>,
                         std::equal_to<int>,
@@ -229,7 +235,15 @@ bool importCashShopItemList(char* path,
 class Arad_GiftItem_Set
 {
 public:
+    struct Data;   // 前置声明：find 返回 Data*，完整定义在下方
+
+    Arad_GiftItem_Set();   // ORIG 0x081a2a68：填 +0x1c 的 ST_EVENT_GIFT_ITEM*→kind 表
     int open(STStackableScript* script);
+    // ORIG 0x081a311e：按 64 位 key=(kind<<32)|(job<<16)+usableLevel 查 m_map。
+    // 命中返回 &it->second（Data*，send_mail 依此读取 item_id/两个 string），否则 0。
+    Data* find(int kind, int job, int usableLevel);
+    int str_to_enum(const char* name);                      // ORIG 0x081a2e3e
+    int level_check(CUser* user, const CStackableItem* item); // ORIG 0x081a31c4
 
     // ORIG Arad_GiftItem_Set::Data（open 插入/ find 返回的对象）：
     //   +0x00 item_id；+0x04/+0x08 两个 std::string（脚本 +0x184/+0x188）。
@@ -244,6 +258,9 @@ public:
     // ORIG this+0x04：map<long long, Data>。
     // key = ((long long)kind << 32) | ((uint)field5c + ((uint)slot << 16))。
     std::map<long long, Data> m_map;
+
+    // ORIG this+0x1c：map<string,int>（"ST_EVENT_GIFT_ITEM"[2..6] → 1..6）
+    std::map<std::string, int> m_kindMap;
 };
 
 namespace ExtreamDungeon
@@ -251,9 +268,30 @@ namespace ExtreamDungeon
 class CCompound_ExtreamDun_Item
 {
 public:
+    CCompound_ExtreamDun_Item();    // ORIG 0x832c402
+    ~CCompound_ExtreamDun_Item();   // ORIG 0x832c524
+    // ORIG _ZN14ExtreamDungeon25CCompound_ExtreamDun_Item10LoadScriptEPKcS2_
+    // （返回 0=成功，非 0 为出错行号；CDataManager::init 调用）
+    int LoadScript(const char* dir, const char* path);
     void check_N_addItem(CEquipItem& item);
     void after_addItem();
     void ForceResultItemRule_Setting(int idx, bool flag, int value);
+
+    // ORIG forceRule_ResultItem（栈对象 8 字节，ctor @0x832e00a）
+    struct forceRule_ResultItem
+    {
+        forceRule_ResultItem() : m_flag(0), m_value(0) {}
+        forceRule_ResultItem(bool flag, int value)
+            : m_flag(flag ? 1 : 0), m_value(value) {}
+        int m_flag;   // +0x00
+        int m_value;  // +0x04
+    };
+
+private:
+    bool _isPossibleResultItem(const CEquipItem& item);   // ORIG 0x832db4e
+    bool _AddItem(CEquipItem& item);                      // ORIG 0x832dd1c
+    int _convertOutputItem(int eqType) const;             // ORIG 0x832c5ac
+    int _convertInputItem(int eqType) const;              // ORIG 0x832c620
 };
 }
 

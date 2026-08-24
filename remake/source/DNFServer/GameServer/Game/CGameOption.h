@@ -173,7 +173,8 @@ public:
     short get_etc_option(ENUM_OPTION_ETC eOption);
     CHotkeyOption* get_hotkey_option(unsigned char cSlot);
     void reset_load_hotkey_flag();
-    unsigned char get_load_hotkey_flag(unsigned char cSlot);
+    bool get_load_hotkey_flag(unsigned char cSlot);  // ORIG 调用点（CUser::LoadCharacTypeHotKey
+                                                     // 0x08692d2a）test %al,%al 直测，bool 语义
     CChattingEmoticonConfig getEmoticonInfo() const;
 
     unsigned char isChanged_QuickChatData() { return m_bQuickChatChange; }

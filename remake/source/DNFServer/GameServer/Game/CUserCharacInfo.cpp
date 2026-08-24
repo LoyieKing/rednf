@@ -12,6 +12,7 @@
 
 #include "CUser.h"
 #include "CInventory.h"
+#include "CExpertJob.h"   // expert_job::CExpertJob 完整类型（IsBusyDisjointStore 用 GetType）
 #include "LogManager.h"
 #include "GameWorld.h"
 

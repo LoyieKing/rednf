@@ -13,7 +13,10 @@
 // 保证 0x28 尺寸与复制语义（平凡拷贝）与 ORIG 一致。
 // ============================================================================
 
-#include "CUser.h"
+class CUser;  // 仅 CUser* 成员/参数（setUser/getUser/m_user）；
+              // 不得 include CUser.h：本头经 PvPTypes.h 进入 CDataManager.h/
+              // CUserCharacInfo.h 的 include 闭包，会在其解析中途重入 CUser.h
+              // 导致 CUser 基类不完整。需要完整 CUser 的 TU 请自行 include。
 
 class BlueMarbleScriptManager;
 

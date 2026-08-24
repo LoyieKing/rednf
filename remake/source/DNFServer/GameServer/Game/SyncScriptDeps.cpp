@@ -11,7 +11,18 @@
 
 #include <string>
 
+#include <cstdio>
+#include <cstring>
+#include <map>
+
+#include "advancealtar.h"   // AdvanceAltarData/_CharacAdvanceAltarDbData（CUser.h 依赖）
+#include "STExpReward.h"    // STExpReward 叶子头（CUser.h 按值成员依赖；先于
+                            // CDataManager.h 的 CItemGeneratorMgr→CUser.h 重入环）
+
+#include "CDataManager.h"
 #include "DBMgr.h"
+#include "DNFFunctionLib.h"  // CodePage::script2Database/script/database
+#include "GameTypes.h"       // cMyTrace
 #include "GlobalData.h"
 #include "MySQL.h"
 #include "SyncScriptDeps.h"
@@ -24,10 +35,22 @@ const char* toMbcs(const char* src)
     return src;
 }
 
+// ORIG 0x08adedd3 toMbcs(string const&)：c_str()。
+const char* toMbcs(const std::string& sSrc)
+{
+    return sSrc.c_str();
+}
+
 // ORIG 0x08adeab0 toTString(const std::string&)：恒等返回内部缓冲的 const char*（TCHAR*）。
 const char* toTString(const std::string& src)
 {
     return src.c_str();
+}
+
+// ORIG 0x08adeb75 toTString(char const*)：恒等返回 src。
+const char* toTString(const char* pszSrc)
+{
+    return pszSrc;
 }
 
 // ORIG 0x088be57e getCharacterJob(const char*)：
@@ -58,9 +81,50 @@ int getCharacterJob(const char* name)
     return 0xb;
 }
 
+// ORIG 0x088be5c5 checkValiedJobName(const char*)：遍历 0x93f4d40 作业名表
+// strcmp，命中返回 1；与 getCharacterJob 共用同一张表。
+int checkValiedJobName(const char* name)
+{
+    static const char* const kJobTable[11] = {
+        "[swordman]",        // 0
+        "[fighter]",         // 1
+        "[gunner]",          // 2
+        "[mage]",            // 3
+        "[priest]",          // 4
+        "[at gunner]",       // 5
+        "[thief]",           // 6
+        "[at fighter]",      // 7
+        "[at mage]",         // 8
+        "[demonic swordman]",// 9
+        "[creator mage]"     // 10
+    };
+    for (int i = 0; i <= 0xa; ++i)
+    {
+        if (strcmp(name, kJobTable[i]) == 0)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 // ==================== APSystem::CSyncScript desc ====================
 
+// ORIG 0x0812268c W：bGM=false→m_actionPoint1（Chn_ActionPointSystem.etc），
+// true→m_actionPoint2（_GM.etc）。见 CDataManager/init.md 0x6079 上下文。
+APSystem::CActionPointEtcParameter* CDataManager::GetActionPointEtcParameter(bool bGM)
+{
+    return bGM ? &m_actionPoint2 : &m_actionPoint1;
+}
+
+const std::map<unsigned short, const APSystem::CActionPointEx*>&
+APSystem::CActionPointEtcParameter::getActionPointRefs() const
+{
+    return m_actionPointRefs;
+}
+
 // ORIG 0x0812262a：GetDBHandle(2,0) → "trUncate table charac_action_point_desc"。
+
 bool APSystem::CSyncScript::TruncateDescTable()
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
@@ -69,13 +133,99 @@ bool APSystem::CSyncScript::TruncateDescTable()
     return db->exec(true) == 1;
 }
 
-// ORIG 0x0812268c：遍历 CDataManager 内 CActionPointEx 全局 map，逐行
-// INSERT charac_action_point_desc(action_index, action_group_index,
-// action_group_name)。该数据源（APSystem CActionPointEx 全局表）尚未建模，
-// 暂以空实现占位（保持符号 T）；对应 TruncateDescTable 已真实实现。
+// ORIG 0x0812268c（249 insn）：G_CDataManager()->GetActionPointEtcParameter(false)
+// 取 +0x18 m_actionPointRefs（map<unsigned short, const CActionPointEx*>），
+// 拼批量 INSERT：query = "inSert into charac_action_point_desc (action_index,
+// action_group_index, action_group_name) values " + 逐项
+// "(idx, grp, 'name')"（非末项追加 ","），最后 GetDBHandle(2,0) →
+// set_query → exec(true)。元素布局：+0x00 ushort actionIndex、+0x02 int
+// groupIndex、+0x24 std::string name；script2Database 转换失败→cMyTrace
+// 错误日志并返回 false。CActionPointEx 权威布局尚未落地（APSystemTypes.h
+// 为空占位，改其大小会破坏 CDataManager ABI），此处用本地视图结构按 ORIG
+// 偏移具名访问 [推断自 InsertDescTable.md 汇编]。
+namespace
+{
+
+struct ActionPointExDescView
+{
+    unsigned short m_actionIndex;   // +0x00
+    char m_pad02[2];
+    int m_groupIndex;               // +0x02
+    char m_pad06[0x1e];
+    std::string m_name;             // +0x24
+};
+
+}  // namespace
+
 bool APSystem::CSyncScript::InsertDescTable()
 {
-    return true;
+    CDataManager* mgr = G_CDataManager();
+    const std::map<unsigned short, const APSystem::CActionPointEx*>& refs =
+        mgr->GetActionPointEtcParameter(false)->getActionPointRefs();
+
+    std::string query =
+        "inSert into charac_action_point_desc "
+        "(action_index, action_group_index, action_group_name) values ";
+
+    const size_t total = refs.size();
+    size_t row = 0;
+    bool ok = true;
+    for (std::map<unsigned short, const APSystem::CActionPointEx*>::const_iterator it =
+             refs.begin(); it != refs.end(); ++it, ++row)
+    {
+        const ActionPointExDescView* ex =
+            reinterpret_cast<const ActionPointExDescView*>(it->second);
+        if (ex == 0)
+        {
+            continue;
+        }
+
+        char idx[68];
+        char grp[68];
+        char name[1024];
+        sprintf(idx, "%u", (unsigned int)ex->m_actionIndex);
+        sprintf(grp, "%u", (unsigned int)ex->m_groupIndex);
+        memset(name, 0, sizeof(name));
+        if (!CodePage::script2Database(
+                const_cast<char*>(ex->m_name.c_str()), name))
+        {
+            cMyTrace trace(
+                "static bool APSystem::CSyncScript::InsertDescTable()",
+                0x409, 5);
+            trace("Error!!! %s->%s [%s][%s][%d]",
+                  CodePage::script(), CodePage::database(),
+                  ex->m_name.c_str(),
+                  "static bool APSystem::CSyncScript::InsertDescTable()",
+                  0x409);
+            ok = false;
+            break;
+        }
+
+        std::string tuple = "(";
+        tuple += idx;
+        tuple += ", ";
+        tuple += grp;
+        tuple += ", ";
+        tuple += "'";
+        tuple += name;
+        tuple += "'";
+        tuple += ")";
+        if (row + 1 < total)
+        {
+            tuple += ",";
+        }
+        query += tuple;
+    }
+
+    if (!ok)
+    {
+        return false;
+    }
+
+    MySQL* db = GlobalData::s_db_mgr->GetDBHandle(
+        (ENUM_DB_HANDLE_IDX)2, (ENUM_SERVER_GROUP)0);
+    db->set_query(query.c_str());
+    return db->exec(true) == 1;
 }
 
 // ==================== advancealtar::SyncScript desc ====================

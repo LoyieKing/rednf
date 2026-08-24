@@ -1,7 +1,11 @@
 // df_game_r 还原 —— GetInBuffer<T> 显式实例化
+#include <string.h>       // memset（CHARAC_DATA/TAG_* 清理原语）
 #include "Stream.h"
 #include "CStreamGuard.h"
 #include "SigTypes.h"
+#include "PacketTypes.h"  // MSG_P2P_HOLE_PUNCHING_SUCCESS_RATE 权威定义（MSG_BASE 派生类；SigTypes.h 中的重复 POD 已删）
+#include "CAchievement.h"  // stAchievement_DBSaveData 权威定义（GetOutBuffer<T> 需完整类型 sizeof）
+#include "CCharacter.h"   // _Additioal_info 权威定义（inline clear；CHARAC_DATA::Reset 复用）
 
 template InformNoticeFlagData* Stream::GetInBuffer<InformNoticeFlagData>();
 template InformNoticeFlagData* CStreamGuard::GetInBuffer<InformNoticeFlagData>();
@@ -393,6 +397,8 @@ template STBossDungeonTowerLog* Stream::GetInBuffer<STBossDungeonTowerLog>();
 template STBossDungeonTowerLog* CStreamGuard::GetInBuffer<STBossDungeonTowerLog>();
 template stCeraShopIPGRequest_t* Stream::GetInBuffer<stCeraShopIPGRequest_t>();
 template stCeraShopIPGRequest_t* CStreamGuard::GetInBuffer<stCeraShopIPGRequest_t>();
+template stAchievement_DBSaveData* Stream::GetInBuffer<stAchievement_DBSaveData>();
+template stAchievement_DBSaveData* CStreamGuard::GetInBuffer<stAchievement_DBSaveData>();
 template InformNoticeFlagData* Stream::GetOutBuffer<InformNoticeFlagData>();
 template MSG_BUY_CERASHOP_ITEM* Stream::GetOutBuffer<MSG_BUY_CERASHOP_ITEM>();
 template MSG_STAT_BREAKJAR* Stream::GetOutBuffer<MSG_STAT_BREAKJAR>();
@@ -639,3 +645,68 @@ template Taiwan::SigLoadRestrictPolicy* CStreamGuard::GetInBuffer<Taiwan::SigLoa
 template Taiwan::SigResetStayTimeEvent* CStreamGuard::GetInBuffer<Taiwan::SigResetStayTimeEvent>();
 template Taiwan::SigLoadHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigLoadHeroMissionData>();
 template Taiwan::SigSaveHeroMissionData* CStreamGuard::GetInBuffer<Taiwan::SigSaveHeroMissionData>();
+
+// ORIG clear 语义（非整块 memset）：
+//   ITEM::clear      @0x08694c9a：仅对 entry[0] 调 INFO::clear（循环条件 i<=0）。
+//   DIMENSION::clear @0x08694cd2：对 entry[0..10] 调 INFO::clear，entry[11] 不动。
+//   PC_ROOM_INFO::clear    @0x0848f9a2：+0 int=0 / +4,+5,+6 byte=0 / +8 int=-1。
+//   DIMENSION_INFO::clear  @0x0848f9e4：+0 int=0 / +4..+7 byte=0。
+void SIG_SAVE_PC_ROOM_RENT_ITEM::clear()
+{
+    m_entry[0].m_itemIndex = 0;
+    m_entry[0].m_field4 = 0;
+    m_entry[0].m_field5 = 0;
+    m_entry[0].m_inEquip = 0;
+    m_entry[0].m_field8 = -1;
+}
+
+void SIG_SAVE_DIMENSION_RENT_ITEM::clear()
+{
+    for (int i = 0; i <= 10; ++i)
+    {
+        m_entry[i].m_itemIndex = 0;
+        m_entry[i].m_field4 = 0;
+        m_entry[i].m_field5 = 0;
+        m_entry[i].m_inEquip = 0;
+        m_entry[i].m_field7 = 0;
+    }
+}
+
+// ============================================================================
+// CHARAC_DATA / TAG_* 缓存区清理原语（Prod_DispatcherHelpers 批次补定义；
+// 均为 ORIG W 内联函数，DisPatcher_SelectCharac::RequestDB* 生产者调用）。
+// ============================================================================
+
+void CHARAC_DATA::Reset()       // ORIG W 0x822ec9e
+{
+    // this+0x60 起 _Additioal_info（步长 0x52，见 CCharacter.cpp ctor 注释）
+    reinterpret_cast<_Additioal_info*>(m_data + 0x60)->clear();
+    memset(m_data + 0x04, 0, 0x1e);      // ORIG +0x0b2 行
+    memset(m_data + 0x34, 0, 0x19);      // ORIG +0x0d0 行
+    memset(m_data + 0x138, 0, 0x53e);    // ORIG +0x0ee 行（至 +0x676，不含 m_schoolNo）
+    memset(m_data + 0x0b9, 0, 0x10);     // ORIG +0x10d 行
+    m_data[0x124] = 0;                   // ORIG +0x12e..+0x131：逐字节清零簇
+    m_data[0x129] = 0;
+    m_data[0x12a] = 0;
+    m_data[0x12b] = 0;
+    m_data[0x12c] = 0;
+    m_data[0x12d] = 0;
+    m_data[0x12f] = 0;                   // 注意：+0x12e 未清（ORIG 跳过）
+    *reinterpret_cast<int*>(m_data + 0x130) = 0;   // ORIG +0x139：dword 清零
+}
+
+void TAG_CHARAC_DATA::clear()   // ORIG W 0x822ed84
+{
+    memset(m_data, 0, sizeof(m_data));   // 0x78 字节清零
+    m_data[0x25] = static_cast<char>(0xff);   // ORIG 尾部：+0x25 置 0xff
+}
+
+void TAG_CHARAC_INVEN_DATA::clear()   // ORIG W 0x822edd0
+{
+    memset(m_data, 0, sizeof(m_data));   // 0x4024 字节清零
+}
+
+void TAG_CHARAC_ETC_DATA::clear()     // ORIG W 0x822edf4
+{
+    memset(m_data, 0, sizeof(m_data));   // 0x330 字节清零（tagSkillSlot+tagSkillCombo）
+}

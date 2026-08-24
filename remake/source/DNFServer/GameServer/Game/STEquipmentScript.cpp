@@ -198,6 +198,13 @@ namespace
 // 导入惯例（见 ImportSkillScript）以字符串比较实现等效分发布局。
 const char* kEquipmentScriptBaseDir = "Script/EquipmentScript";
 }
+// ---- 跨类符号（ORIG 真实符号；完整类型定义于 STScriptFileList.cpp） ----
+class STScriptFileList;  // 前置声明：仅取地址，不依赖其布局
+extern STScriptFileList g_stEquipmentScriptFileList;  // ORIG B 0x94fac00（CtorProducers TU 定义）
+extern "C" int sub_STScriptFileList_FindIndexByFullScan(const void* self,
+                                                        const char* path)
+    asm("_ZNK16STScriptFileList19FindIndexByFullScanEPKc");
+
 
 // 依据 ORIG 0x08991aeb 的 Scan 解析流程还原。签名与导出符号保持不变。
 bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
@@ -211,11 +218,8 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
     }
 
     script->Clear();
-
-    // ORIG：getDirectoryPath(&pathstr, "%s%s", g_szEquipmentScriptBaseDirectory, path)
-    // 写入 +0x664（m_str664）。getDirectoryPath/g_szEquipmentScriptBaseDirectory 尚未在本工程
-    // 声明，按语义等价拼接标记「推断」。
-    script->m_str664 = std::string(kEquipmentScriptBaseDir) + "/" + path;
+    // ORIG 0x088bbc80：getDirectoryPath(&pathstr(+0x664), "%s%s", base, path)
+    getDirectoryPath(script->m_str664, "%s%s", kEquipmentScriptBaseDir, path);
 
     // ---- 主关键字循环（ORIG LAB_08991d82 起 ScanType 循环 + __lookup map→switch 分发） ----
     std::string line;
@@ -424,9 +428,21 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
         else { /* 静默跳过，与 ORIG -1 分支一致 */ }
     }
 
-    // 尾部升级表补全（ORIG code_r0x0899b289：local_116c 驱动 m_upgrade6fc）与文件索引
-    // （FindIndexByFullScan(g_stEquipmentScriptFileList, path) 或 param_5 → *param_1）。
-    // 二者依赖未建模的局部计数/全局列表，标「推断」省略主动填充，跨 TU 结果由调用方兜底。
+    // 尾部升级表补全（ORIG code_r0x0899b289：local_116c 驱动 m_upgrade6fc）依赖未建模的
+    // 局部计数，标「推断」省略主动填充。
+    //
+    // 文件索引（ORIG 反编译 16240-16247 行）：param_5(idx)==-1 时经
+    // STScriptFileList::FindIndexByFullScan(g_stEquipmentScriptFileList, path) 求索引，
+    // 否则直接用 param_5；写入 *param_1（STItemScript::m_field0，偏移 +0x00）。
+    if (idx == -1)
+    {
+        script->m_field0 =
+            sub_STScriptFileList_FindIndexByFullScan(&g_stEquipmentScriptFileList, path);
+    }
+    else
+    {
+        script->m_field0 = idx;
+    }
 
     unloadRDARScriptFile();
     return true;
@@ -434,10 +450,78 @@ bool ImportEquipmentScript(STEquipmentScript* script, const char* path,
 bool EquipmentScriptSpecialMonsterDrop(STEquipmentScript* script,
                                        std::string str, const char* path)
 {
-    (void)script;
-    (void)str;
+    // ORIG 0x08991856（与 StackableScriptSpecialMonsterDrop 0x89ae906 同构，
+    // 目标为 STEquipmentScript 继承自 STItemScript 的 m_specialDrop +0x105）。
     (void)path;
-    return false;
+    STSpecialMonsterDrop& drop = script->m_specialDrop;
+    if (str == "[special monster drop]")
+    {
+        bool value = false;
+        bool ok = ScanInt(&value) != 0;
+        if (value == false)
+        {
+            return false;
+        }
+        drop.m_enable = ok ? 1 : 0;
+        return true;
+    }
+    if (str == "[difficulty for extra drop]")
+    {
+        std::string token;
+        while (ScanStr(&token))
+        {
+            if (token == "[easy]")
+            {
+                drop.m_difficulty[0] = 1;
+            }
+            else if (token == "[medium]")
+            {
+                drop.m_difficulty[1] = 1;
+            }
+            else if (token == "[hard]")
+            {
+                drop.m_difficulty[2] = 1;
+            }
+            else if (token == "[ultimate]")
+            {
+                drop.m_difficulty[3] = 1;
+            }
+            else if (token == "[hero]")
+            {
+                drop.m_difficulty[4] = 1;
+            }
+            else if (token == "[all]")
+            {
+                memset(drop.m_difficulty, 1, sizeof(drop.m_difficulty));
+            }
+        }
+        return true;
+    }
+    if (str == "[dungeon type for extra drop]")
+    {
+        std::string token;
+        while (ScanStr(&token))
+        {
+            if (token == "[normal]")
+            {
+                drop.m_dungeonType[0] = 1;
+            }
+            else if (token == "[ancient]")
+            {
+                drop.m_dungeonType[1] = 1;
+            }
+            else if (token == "[dimension]")
+            {
+                drop.m_dungeonType[2] = 1;
+            }
+            else if (token == "[all]")
+            {
+                memset(drop.m_dungeonType, 1, sizeof(drop.m_dungeonType));
+            }
+        }
+        return true;
+    }
+    return true;
 }
 
 bool importArtifactInfo(STEquipmentScript::artifact_info& info,

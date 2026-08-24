@@ -7,6 +7,8 @@
 
 #include "CStackableItem.h"
 
+#include "PvPTypes.h"   // 权威 CMTRand 完整类型（new CMTRand(seed) 需要；原局部 stub 已删除）
+
 #include <algorithm>
 #include <string>
 #include <string.h>
@@ -84,20 +86,7 @@ struct CDataManagerView
     int m_field28;   // +0x28
 };
 
-class CMTRand
-{
-public:
-    CMTRand(const unsigned long& seed);
-    int randInt(const unsigned long& range);
-};
-
 #include "CSystemTime.h"
-class cMyTrace
-{
-public:
-    cMyTrace(const char* name, int line, int flag);
-    void operator()(const char* fmt, ...);
-};
 
 struct itemGloballyUniqueIdentifier_t
 {
@@ -179,14 +168,62 @@ int createGlobalEffectInfo(std::vector<stGlobalEffect_t>& out,
                            std::vector<int>* source);
 
 
-// createRecipeInfo（自 GameStubs.cpp 迁移；当前为空桩，TODO(G1 物品批次)）
+// createRecipeInfo（自 GameStubs.cpp 迁移；ORIG 0x89ba83c）
+// 语义：clear 后按 source 布局解析 3 组 pair 表 + 尾部 2 个标记字节 + 可选 extra 拷贝。
+//   source = [count1, (p0,p1)xcount1, count2, (p0,p1)xcount2, count3, (p0,p1)xcount3,
+//             tailValue?, ...]
+//   m_vec0/count1、m_vecC/count2、m_vec18/count3；
+//   若 source 仍有剩余元素：m_field24 = (tail==1)，m_field25 = (tail==2)（均读同一元素），
+//   且 extra!=0 时 m_vec28 = *extra。
 void createRecipeInfo(RecipeInfo* info, std::vector<int>* source,
-                      std::vector<std::pair<int, int> >* extra) {}  // TODO(G1 物品批次)
+                      std::vector<std::pair<int, int> >* extra)
+{
+    info->clear();
+    std::vector<int>::iterator it = source->begin();
+    std::vector<int>::iterator end = source->end();
+    if (it == end)
+    {
+        return;
+    }
+    int n = *it++;
+    for (int i = 0; i < n; ++i)
+    {
+        std::pair<int, int> p;
+        p.first = *it++;
+        p.second = *it++;
+        info->m_vec0.push_back(p);
+    }
+    n = *it++;
+    for (int i = 0; i < n; ++i)
+    {
+        std::pair<int, int> p;
+        p.first = *it++;
+        p.second = *it++;
+        info->m_vecC.push_back(p);
+    }
+    n = *it++;
+    for (int i = 0; i < n; ++i)
+    {
+        std::pair<int, int> p;
+        p.first = *it++;
+        p.second = *it++;
+        info->m_vec18.push_back(p);
+    }
+    if (it != end)
+    {
+        info->m_field24 = (*it == 1);
+        info->m_field25 = (*it == 2);
+        if (extra != 0)
+        {
+            info->m_vec28 = *extra;
+        }
+    }
+}
 // ============================================================================
 // LotteryInfo 生命周期 + 解析辅助（自 GameStubs.cpp 迁移，保持 ORIG 语义）：
 //   LotteryInfo C1/D1/clear（ORIG 0x83706d4 / 0x837069c）
 //   createLotteryInfo（ORIG 0x89babc5）
-//   createStackableMultiBoxLotteryInfo（ORIG 0x89bafd1；当前桩，TODO(G1 物品批次)）
+//   createStackableMultiBoxLotteryInfo（ORIG 0x89bafd1；已实现，见下）
 // ============================================================================
 LotteryInfo::LotteryInfo() : m_defaultIdx(0), m_items(), m_defaultCount(0), m_counts()
 {
@@ -222,11 +259,134 @@ void createLotteryInfo(LotteryInfo* info, std::vector<int>* source)
         info->m_counts.push_back(1);
     }
 }
-// ORIG 0x89bafd1：当前为空桩，TODO(G1 物品批次)。迁移自 GameStubs.cpp 保持现状。
+// ===================== MultiBoxLotteryInfo 辅助方法（ORIG W 弱符号） =====================
+// ORIG LotteryUnit::clear 0x89c358c：清零 count/idx/num/flag，清空 m_items/m_bonus
+void MultiBoxLotteryInfo::LotteryUnit::clear()
+{
+    m_count = 0;
+    m_defaultIdx = 0;
+    m_defaultNum = 0;
+    m_defaultFlag = 0;
+    m_items.clear();
+    m_bonus.clear();
+}
+// ORIG stDefaultItem::stDefaultItem 0x89c35d4：清零 4 字段
+MultiBoxLotteryInfo::stDefaultItem::stDefaultItem()
+{
+    m_itemIdx = 0;
+    m_count = 0;
+    m_prob = 0;
+    m_flag = 0;
+}
+// ORIG MultiBoxLotteryInfo::clear 0x8513f44：清 m_units，置 field0/4/8/c=-1/0/-1/0
+void MultiBoxLotteryInfo::MultiBoxLotteryInfoBody::clear()
+{
+    m_units.clear();
+    m_field0 = -1;
+    m_field4 = 0;
+    m_field8 = -1;
+    m_fieldc = 0;
+}
+
+// ORIG 0x89bafd1：解析 multibox 彩票脚本。
+//   a (vector<vector<int>>)：每元素是一个 LotteryUnit 的原始 int 流
+//     [count, defaultIdx, defaultNum, defaultFlag, (itemIdx,weight,count,flag)xN]
+//     —— m_items.push_back({itemIdx,weight})，m_bonus.push_back({count,flag})
+//   b (vector<int>)：field8=b[0]，fieldc=b[1]
+//   c (vector<int>)：m_defaultCount/Idx/Num/Flag + m_items(stDefaultItem) 流
 void createStackableMultiBoxLotteryInfo(
     MultiBoxLotteryInfo::MultiBoxLotteryInfoBody* info,
     std::vector<std::vector<int> >* a, std::vector<int>* b,
-    std::vector<int>* c) {}  // TODO(G1 物品批次)
+    std::vector<int>* c)
+{
+    if (info == 0 || a == 0 || b == 0)
+    {
+        return;
+    }
+    info->clear();
+    // ---- 解析 a：构建 m_units ----
+    for (std::vector<std::vector<int> >::iterator itA = a->begin();
+         itA != a->end(); ++itA)
+    {
+        std::vector<int> vec = *itA;
+        MultiBoxLotteryInfo::LotteryUnit unit;
+        unit.clear();
+        std::vector<int>::iterator it = vec.begin();
+        unit.m_count = *it++;
+        unit.m_defaultIdx = *it++;
+        if (it != vec.end())
+        {
+            unit.m_defaultNum = *it++;
+            if (it != vec.end())
+            {
+                unit.m_defaultFlag = (*it++ != 0);
+                if (it != vec.end())
+                {
+                    while (it != vec.end())
+                    {
+                        std::pair<int, int> p_item, p_bonus;
+                        p_item.first = *it++;
+                        if (it == vec.end()) break;
+                        p_item.second = *it++;
+                        if (it == vec.end()) break;
+                        p_bonus.first = *it++;
+                        if (it == vec.end()) break;
+                        p_bonus.second = *it++;
+                        if (it == vec.end()) break;
+                        unit.m_items.push_back(p_item);
+                        unit.m_bonus.push_back(p_bonus);
+                    }
+                    info->m_units.push_back(unit);
+                    continue;
+                }
+            }
+        }
+        break;  // 单元数据不足 → 终止整个主循环（ORIG ebx=0 退出）
+    }
+    // ---- 解析 b：field8 / fieldc ----
+    if (!b->empty())
+    {
+        std::vector<int>::iterator it = b->begin();
+        info->m_field8 = *it++;
+        if (it != b->end())
+        {
+            info->m_fieldc = *it++;
+        }
+    }
+    // ---- 解析 c：默认项 + m_items ----
+    std::vector<int>::iterator it = c->begin();
+    if (it != c->end())
+    {
+        info->m_defaultCount = *it++;
+        if (it != c->end())
+        {
+            info->m_defaultIdx = *it++;
+            if (it != c->end())
+            {
+                info->m_defaultNum = *it++;
+                if (it != c->end())
+                {
+                    info->m_defaultFlag = (char)*it++;
+                    if (it != c->end())
+                    {
+                        while (it != c->end())
+                        {
+                            MultiBoxLotteryInfo::stDefaultItem item;
+                            item.m_itemIdx = *it++;
+                            if (it == c->end()) return;
+                            item.m_prob = *it++;
+                            if (it == c->end()) return;
+                            item.m_count = *it++;
+                            if (it == c->end()) return;
+                            item.m_flag = (char)*it++;
+                            info->m_items.push_back(item);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 class CChattingEmoticonList
 {
@@ -506,6 +666,18 @@ int CStackableItem::get_1st_material_count(unsigned int itemIdx)
     return -1;
 }
 
+// ORIG 0x822c9e0（弱符号 W，14 字节）：mov 0x29c(%eax),%eax —— 第 2 材料项索引
+int CStackableItem::get_2nd_material_index()
+{
+    return m_limitCube.m_2ndMaterialIdx;
+}
+
+// ORIG 0x822c9ee（弱符号 W，14 字节）：mov 0x2a0(%eax),%eax —— 第 2 材料项数量
+int CStackableItem::get_2nd_material_count()
+{
+    return m_limitCube.m_2ndMaterialCount;
+}
+
 int CStackableItem::get_amplify_reinforce_count(int count)
 {
     std::map<int, int>::iterator it = m_amplifyMap.begin();
@@ -626,6 +798,12 @@ bool CStackableItem::verifyUsableServerType()
         return 1;
     }
     return 0;
+}
+
+// ORIG 0x0822ca58 (W)：return m_int39c == type
+bool CStackableItem::verifyStackableAction(StackableAction::Type type) const
+{
+    return m_int39c == type;
 }
 
 // ===================== make_item（ORIG 0x850f8b8） =====================
@@ -889,8 +1067,8 @@ void CStackableItem::set_item(STStackableScript& script)
     else if (m_nItemType == 0x1d)
     {
         m_limitCube.m_materials = script.m_vec3d4;
-        m_limitCube.m_field0c = script.m_field3e0;
-        m_limitCube.m_field10 = script.m_field3e4;
+        m_limitCube.m_2ndMaterialIdx = script.m_field3e0;
+        m_limitCube.m_2ndMaterialCount = script.m_field3e4;
         m_limitCube.m_results = script.m_vec3e8;
     }
     for (int i = 0; i <= 10; ++i)
@@ -931,7 +1109,7 @@ void CStackableItem::set_item(STStackableScript& script)
     m_char2e7 = script.m_field1c0;
     m_int2e8 = script.m_field1c4;
     m_char2ec = script.m_field1d0;
-    m_short2b4 = script.m_field380;
+    m_jewelTargetSocket = script.m_field380;
     m_itemGroupName = script.m_field100;
     m_char78 = script.m_field104;
     m_int58 = -1;
@@ -959,7 +1137,7 @@ void CStackableItem::set_item(STStackableScript& script)
         m_int318 = script.m_field43c;
         m_int31c = script.m_field440;
     }
-    m_dropBD = script.m_field10f;
+    m_isRoutingItem = script.m_field10f;
     m_vecC0 = script.m_vec110;
     m_questBonus = 0;
     ((CItemView*)this)->m_charD0 = script.m_field3d0;
@@ -1289,8 +1467,78 @@ int CStackableItem::getStackableLimit() const
     return m_int28c;
 }
 
+// ORIG 0x822ca0a：返回 this+0x280（引用→拷贝构造源）
+const std::vector<stGlobalEffect_t>& CStackableItem::getGlobalEffectData() const
+{
+    return m_vec280;
+}
+
 // ORIG 0x8694736：返回 this+0x2e7 字节非零（movzbl 0x2e7(%eax); ret）
 bool CStackableItem::IsExpAffect()
 {
     return m_char2e7 != 0;
+}
+
+// ORIG 0x086946d2 (W 非 const，按值返回)：读 +0x2d8(+0x2da)，cooltime 时长(秒)/标志
+//   movzwl 0x2d8(%edx),%ecx; mov %cx,(%eax); movzbl 0x2da(%edx),%edx; mov %dl,0x2(%eax)
+// 头部将 +0x2d8..+0x2d9 建模为 m_char2d8/m_char2d9 二字，+0x2da 为 m_char2da。
+CStackableItem::CoolTimeOption CStackableItem::GetCoolTimeOption()
+{
+    CoolTimeOption opt;
+    opt.sec  = (unsigned short)((unsigned char)m_char2d8 |
+                                ((unsigned char)m_char2d9 << 8));
+    opt.flag = m_char2da;
+    return opt;
+}
+
+// ORIG 0x086946f4 (W 非 const)：读 +0x2e4(+0x2e6)，effect 时长(秒)/标志
+// 头部 +0x2e4..+0x2e5 建模为 m_char2e4/m_char2e5 二字，+0x2e6 为 m_char2e6。
+CStackableItem::CoolTimeOption CStackableItem::GetEffectItemOption()
+{
+    CoolTimeOption opt;
+    opt.sec  = (unsigned short)((unsigned char)m_char2e4 |
+                                ((unsigned char)m_char2e5 << 8));
+    opt.flag = m_char2e6;
+    return opt;
+}
+
+// ORIG 0x08694716 (W 非 const)：读 +0x2dc(4B)+0x2e0(4B)：
+//   mov 0x2e0(%eax),%edx; mov 0x2dc(%eax),%eax; mov %eax,(%ecx); mov %edx,0x4(%ecx)
+// +0x2dc 头部建模为 m_int2dc；+0x2e0 起头部以 m_char2e0/m_char2e1 两字节建模
+// （+0x2e2/+0x2e3 隐式填充），故 flag 按低两字节拼出（高 2 字节为 0）。
+// 调用方(_processEffectItem)按 ORIG 只测 flag 的低 16 位。
+CStackableItem::StatChangeInfo CStackableItem::GetStatChangeInfo()
+{
+    StatChangeInfo info;
+    info.sec  = m_int2dc;
+    info.flag = (unsigned int)(unsigned char)m_char2e0 |
+                ((unsigned int)(unsigned char)m_char2e1 << 8);
+    return info;
+}
+
+// ORIG 0x08694746 (W 非 const)：flds +0x2e8 —— 返回经验加成比例(float)
+float CStackableItem::GetExpAffectRatio()
+{
+    return *(float*)((char*)this + 0x2e8);
+}
+
+// ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）
+unsigned short CStackableItem::getJewelTargetSocket() const
+{
+    return m_jewelTargetSocket;
+}
+
+// ORIG 0x822ca48 (W)：movzbl 0x321(%eax),%eax —— 返回 +0x321（m_char321）字节非零
+bool CStackableItem::IsDeletableItem() const
+{
+    return m_char321 != 0;
+}
+
+// ============================================================================
+// CStackableItem::is_random_amplify_reinforce_ticket @ 0x854b518
+//   返回 +0x344 字节非零（随机增幅券标记）。
+// ============================================================================
+bool CStackableItem::is_random_amplify_reinforce_ticket()
+{
+    return m_char344 != 0;
 }

@@ -9,8 +9,15 @@
 
 #include "BaseServerProxy.h"
 #include "CNetwork.h"
+#include "CStreamGuard.h"
+#include "StreamPool.h"
+#include "MsgQueueMgr.h"
+#include "GlobalData.h"
 #include "CEnvironment.h"
 #include "PacketDesign.h"
+#include "SigTypes.h"     // SIG_AUCTION_* 权威布局（本 TU GetInBuffer 实例化）
+#include "TimerQueue.h"   // G_TimerQueue / TimerEntry::OBJ_TYPE / TIMER_MESSAGE
+#include "LogManager.h"   // LogManager::logFormat
 
 // ---- 拍卖服务器注册包（ORIG 弱符号 ctor，尺寸 0x16） ----
 class PCK_AUCTION_REGIST_GA
@@ -236,33 +243,1577 @@ void CCeraAuctionServerProxy::SetRunning(bool flag)
 }
 
 // ============================================================================
-// CDispatchServerPacket（拍卖/点券服务器回包分发辅助）
-// 语义：从拍卖代理收包，按 sig id 路由到 Inter_Auction* 处理器。
+// CDispatchServerPacket（拍卖/点券服务器回包分发，ORIG 0x8473660/0x847ac3c/0x847c1fe）
+// 语义：从拍卖/点券代理收包，按 packetID 组 SIG 流转投 DISPATCH_Q。
 // ============================================================================
-namespace
+// ---------------------------------------------------------------------------
+// Timer_CheckAuctionReady —— 拍卖服务就绪检查定时（拍卖域归属本 TU）。
+// ORIG：RegistNextTimer T 0x863a858（报告 Timer_CheckAuctionReady/RegistNextTimer.md）
+//   → G_TimerQueue()->InsertTimer(OBJ_TYPE 2, 0, msg 0x98, 60, 0, 0)。
+// 静态成员（无 this 传递实证）；dispatch_sig(ORIG 0x863a808)/析构属后续批次。
+// ---------------------------------------------------------------------------
+class Timer_CheckAuctionReady
 {
-}
+public:
+    static void RegistNextTimer();
+};
 
-// 简化语义：按首短字（sig id）路由到对应 Inter 处理器；
-// 处理器实例由 G7 分发域注册表持有（此处以自身地址占位）。
-static int dispatchBySig(char* data, unsigned short sig)
+void Timer_CheckAuctionReady::RegistNextTimer()
 {
-    (void)data;
-    (void)sig;
-    return 1;
+    G_TimerQueue()->InsertTimer((TimerEntry::OBJ_TYPE)2, 0,
+                                static_cast<TIMER_MESSAGE>(0x98), 0x3c, 0, 0);
 }
 
 void CDispatchServerPacket::dispatchPacket(char* data)
 {
-    dispatchBySig(data, *(unsigned short*)data);
+    // ORIG 0x8473660：上游服务器包按首 short(sig) 重写头并转投 DISPATCH_Q。
+    unsigned short payloadLen =
+        (unsigned short)(*(unsigned short*)(data + 2) + 8);
+    (void)payloadLen;
+    CStreamGuard guard(true);
+    if (payloadLen < 0x1000)
+    {
+        guard.Set(GlobalData::s_small_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x36));
+    }
+    else if (payloadLen <= 0x3fff)  // [推断] 中段池边界未逐指令核对
+    {
+        guard.Set(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x3a));
+    }
+    else
+    {
+        guard.Set(GlobalData::s_big_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x3e));
+    }
+    unsigned int sig = *(unsigned short*)data;
+    if (sig == 0x3ea)
+    {
+        guard << 66;
+        guard << -1;
+        guard->put_binary(data, 11);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3ee)
+    {
+        guard << 67;
+        guard << -1;
+        guard->put_binary(data, 14);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3f2)
+    {
+        guard << 70;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3f3)
+    {
+        guard << 94;
+        guard << *(int*)(data + 15);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3f8)
+    {
+        guard << 289;
+        guard << -1;
+        guard->put_binary(data, 11);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3f9)
+    {
+        guard << 301;
+        guard << -1;
+        guard->put_binary(data, 10);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3fd)
+    {
+        guard << 86;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 90);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x3fe)
+    {
+        guard << 87;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 85);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x400)
+    {
+        guard << 90;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x401)
+    {
+        guard << 91;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x407)
+    {
+        guard << 93;
+        guard << *(int*)(data + 11);
+        guard->put_binary(data, 50);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x40a)
+    {
+        guard << 96;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 313);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x40c)
+    {
+        guard << 98;
+        guard << *(int*)(data + 41);
+        guard->put_binary(data, 45);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x40d)
+    {
+        guard << 95;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 399);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x423)
+    {
+        guard << 198;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x424)
+    {
+        guard << 0;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x42c)
+    {
+        guard << 215;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 19);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x42d)
+    {
+        guard << 216;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 119);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x430)
+    {
+        guard << 101;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 58);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x431)
+    {
+        guard << 102;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 44);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x434)
+    {
+        guard << 219;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x435)
+    {
+        guard << 220;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 71);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x437)
+    {
+        guard << 222;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 52);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x439)
+    {
+        guard << 234;
+        guard << *(int*)(data + 20);
+        guard->put_binary(data, 82);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x43d)
+    {
+        guard << 231;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 48);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x43e)
+    {
+        guard << 233;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x444)
+    {
+        guard << 291;
+        guard << *(int*)(data + 18);
+        guard->put_binary(data, 46);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x445)
+    {
+        guard << 298;
+        guard << -1;
+        guard->put_binary(data, 46);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x447)
+    {
+        guard << 388;
+        guard << *(int*)(data + 18);
+        guard->put_binary(data, 22);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x44c)
+    {
+        guard << 71;
+        guard << -1;
+        guard->put_binary(data, 14);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x44e)
+    {
+        guard << 85;
+        guard << -1;
+        guard->put_binary(data, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x44f)
+    {
+        guard << 133;
+        guard << -1;
+        guard->put_binary(data, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4b6)
+    {
+        guard << 108;
+        guard << *(int*)(data + 11);
+        guard->put_binary(data, 56);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4b7)
+    {
+        guard << 109;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4b9)
+    {
+        guard << 112;
+        guard << *(int*)(data + 13);
+        guard->put_binary(data, 57);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4ba)
+    {
+        guard << 111;
+        guard << *(int*)(data + 13);
+        guard->put_binary(data, 57);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4bc)
+    {
+        guard << 114;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4bd)
+    {
+        guard << 115;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4bf)
+    {
+        guard << 116;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4c0)
+    {
+        guard << 118;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 56);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4cb)
+    {
+        guard << 229;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 98);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x4cf)
+    {
+        guard << 230;
+        guard << -1;
+        guard->put_binary(data, 0);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x514)
+    {
+        guard << 130;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 18);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x546)
+    {
+        guard << 170;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x5dd)
+    {
+        guard << 173;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 49);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x5e0)
+    {
+        guard << 171;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 415);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x642)
+    {
+        guard << 186;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 19);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x672)
+    {
+        guard << 188;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 59);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6b0)
+    {
+        guard << 379;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6d8)
+    {
+        guard << 372;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6dc)
+    {
+        guard << 369;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6e0)
+    {
+        guard << 378;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6e2)
+    {
+        guard << 371;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x6ea)
+    {
+        guard << 409;
+        guard << -1;
+        guard->put_binary(data, 10);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x70a)
+    {
+        guard << 426;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x70c)
+    {
+        guard << 429;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x70d)
+    {
+        guard << 430;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x70f)
+    {
+        guard << 432;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x712)
+    {
+        guard << 427;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x76c)
+    {
+        guard << 211;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, 52);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x9d3)
+    {
+        guard << 437;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x9dd)
+    {
+        guard << 148;
+        guard << -1;
+        guard->put_binary(data, 48);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x9de)
+    {
+        guard << 184;
+        guard << -1;
+        guard->put_binary(data, 20);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xa8c)
+    {
+        guard << 293;
+        guard << -1;
+        guard->put_binary(data, 61);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb54)
+    {
+        guard << 294;
+        guard << -1;
+        guard->put_binary(data, 0);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb57)
+    {
+        guard << 341;
+        guard << -1;
+        guard->put_binary(data, 0);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb58)
+    {
+        guard << 343;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb5f)
+    {
+        guard << 401;
+        guard << -1;
+        guard->put_binary(data, 12);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb60)
+    {
+        guard << 418;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb64)
+    {
+        guard << 603;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xb65)
+    {
+        guard << 628;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfa2)
+    {
+        guard << 307;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, 6136);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfa3)
+    {
+        guard << 308;
+        guard << -1;
+        guard->put_binary(data, 42);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfab)
+    {
+        guard << 352;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfac)
+    {
+        guard << 353;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfae)
+    {
+        guard << 368;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfaf)
+    {
+        guard << 382;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0xfe7)
+    {
+        guard << 368;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1004)
+    {
+        guard << 389;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1006)
+    {
+        guard << 391;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x100a)
+    {
+        guard << 392;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1039)
+    {
+        guard << 402;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x103a)
+    {
+        guard << 404;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1774)
+    {
+        guard << 442;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1775)
+    {
+        guard << 446;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1777)
+    {
+        guard << 444;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1778)
+    {
+        guard << 445;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x177e)
+    {
+        guard << 448;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x17c0)
+    {
+        guard << 463;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b5b)
+    {
+        guard << 470;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b5d)
+    {
+        guard << 471;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b61)
+    {
+        guard << 473;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b62)
+    {
+        guard << 474;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b64)
+    {
+        guard << 476;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b65)
+    {
+        guard << 477;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b6a)
+    {
+        guard << 477;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1b6c)
+    {
+        guard << 521;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1bbd)
+    {
+        guard << 532;
+        guard << *(int*)(data + 15);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1bc1)
+    {
+        guard << 533;
+        guard << *(int*)(data + 18);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1bc7)
+    {
+        guard << 541;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1bc8)
+    {
+        guard << 542;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1f42)
+    {
+        guard << 504;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1f45)
+    {
+        guard << 523;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1f4b)
+    {
+        guard << 529;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x1f4c)
+    {
+        guard << 530;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2332)
+    {
+        guard << 436;
+        guard << *(int*)(data + 15);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2713)
+    {
+        guard << 608;
+        guard << -1;
+        guard->put_binary(data, 270);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2717)
+    {
+        guard << 677;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x2719)
+    {
+        guard << 678;
+        guard << *(int*)(data + 15);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x271a)
+    {
+        guard << 679;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27d9)
+    {
+        guard << 709;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27da)
+    {
+        guard << 710;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27dc)
+    {
+        guard << 712;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27df)
+    {
+        guard << 718;
+        guard << *(int*)(data + 14);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27e7)
+    {
+        guard << 762;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27e8)
+    {
+        guard << 763;
+        guard << *(int*)(data + 10);
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27f2)
+    {
+        guard << 770;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27f8)
+    {
+        guard << 815;
+        guard << -1;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
+        else if (sig == 0x27fa)
+    {
+        guard << 0;
+        guard->put_binary(data, *(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+    }
 }
 
-void CDispatchServerPacket::dispatchAuctionPacket(char* data)
+// ---------------------------------------------------------------------------
+// dispatchAuctionPacket —— 拍卖服务器（GA）回包分发，ORIG T 0x847ac3c
+// （报告 docs/class_func_reports/CDispatchServerPacket/dispatchAuctionPacket.md）。
+// category==0x13 → 委派 dispatchPointPacket；否则按 packetID 组 SIG 流投
+// DISPATCH_Q（QUEUE_IDX 1）。恒返回 1（epilogue mov $0x1,%eax 实测）。
+// ---------------------------------------------------------------------------
+int CDispatchServerPacket::dispatchAuctionPacket(char* data)
 {
-    dispatchBySig(data, *(unsigned short*)data);
+    nsl::PACKET_HEADER* header = (nsl::PACKET_HEADER*)data;
+    int packetId = (int)header->getPacketID();
+    if ((int)header->getCategory() == 0x13)
+    {
+        dispatchPointPacket(data);
+        return 1;
+    }
+
+    switch (packetId)
+    {
+    case 0:  // 拍卖服务注册回执（包+0xe 结果码）
+    {
+        int result = *(int*)(data + 0xe);
+        if (result == 0)
+        {
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                "DispatchServerPacket.cpp", 0x128f), true);
+            guard << 0xf9;
+            guard << -1;
+            SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+                guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+            sig->m_result = 0;
+            sig->m_flag = 1;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        }
+        else if (result == 2)
+        {
+            Timer_CheckAuctionReady::RegistNextTimer();
+        }
+        else if (result == 1)
+        {
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                0x12a3, "AUCTION REGIST SERVER ID DUPLICATE");
+        }
+        else
+        {
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                0x12a7, "AUCTION REGIST UNHANDLED ERROR");
+        }
+        break;
+    }
+    case 1:  // 服务关闭通知
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x12b2), true);
+        guard << 0xf9;
+        guard << -1;
+        SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+            guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+        sig->m_result = 0;
+        sig->m_flag = 0;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 2:  // SIG_AUCTION_RESULT_ASK_PRICE（AG：两组价格来自包体）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x12cd), true);
+        guard << 0xf0;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_ASK_PRICE* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_ASK_PRICE>();
+        sig->m_result = 0;
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_itemIdx = *(int*)(data + 0x1a);
+        for (int i = 0; i < 3; ++i)
+        {
+            sig->m_priceCur[i] = *(int*)(data + 0xe + (i + 4) * 4);
+            sig->m_priceTop[i] = *(int*)(data + 0xa + (i + 8) * 4);
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 3:  // SIG_AUCTION_RESULT_ASK_REGISTED_ITEM_NUM（AG：含 8×int 明细）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x12f0), true);
+        guard << 0xf1;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_ASK_REGISTED_ITEM_NUM* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_ASK_REGISTED_ITEM_NUM>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_count = *(unsigned short*)(data + 0x1a);
+        sig->m_flagA = *(unsigned char*)(data + 0x1c);
+        sig->m_flagB = *(unsigned short*)(data + 0x1d);
+        for (int i = 0; i < 8; ++i)
+        {
+            sig->m_itemNums[i] = *(int*)(data + 0x1f + i * 4);
+        }
+        sig->m_result = 0;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 4:  // SIG_AUCTION_RESULT_REGIST
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1319), true);
+        guard << 0xf2;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_REGIST* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_REGIST>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_okFlag = data[0x1a];
+        sig->m_errCode = data[0x1b];
+        sig->m_result = 0;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 5:  // SIG_AUCTION_RESULT_BIDDING（AG：无卖家名段）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1336), true);
+        guard << 0xf3;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_BIDDING* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_BIDDING>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_money = *(int*)(data + 0x1a);
+        sig->m_flagA = data[0x1e];
+        sig->m_flagB = data[0x1f];
+        sig->m_field0e = *(int*)(data + 0x20);
+        sig->m_bidPrice = *(int*)(data + 0x24);
+        sig->m_result = 0;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 6:  // SIG_AUCTION_RESULT_REGIST_CANCEL
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x135a), true);
+        guard << 0xf4;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_REGIST_CANCEL* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_REGIST_CANCEL>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_okFlag = data[0x1a];
+        sig->m_errCode = data[0x1b];
+        sig->m_result = 0;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 7:  // 拍卖列表（条目 0x89 字节）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1377), true);
+        guard << 0xf5;
+        guard << *(int*)(data + 0x12);
+        guard << *(int*)(data + 0x16);
+        guard << (unsigned char)data[0x1a];
+        guard << *(unsigned int*)(data + 0x1b);
+        int listBytes = (int)(*(unsigned short*)(data + 0x1f) * 0x89 + 2);
+        Stream* stream = guard.Get();
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            stream->resize(stream->in_ptr() + listBytes);
+        }
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            guard << 0;
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                0x1390, "onAUCTION_ITEM_LIST_AG, resize failed.");
+        }
+        else
+        {
+            unsigned short cnt = *(unsigned short*)(data + 0x1f);
+            guard << cnt;
+            guard.put_binary(data + 0x21, (int)(cnt * 0x89));
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 8:  // 我的登记物品（条目 0x75 字节；AG：先写计数再拷贝）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x13a3), true);
+        guard << 0xf6;
+        guard << *(int*)(data + 0x12);
+        guard << *(int*)(data + 0x16);
+        guard << (unsigned char)data[0x1a];
+        int listBytes = (int)((unsigned char)data[0x1b] * 0x75 + 1);
+        Stream* stream = guard.Get();
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            stream->resize(stream->in_ptr() + listBytes);
+        }
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            guard << 0;
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                0x13bb, "onAUCTION_MY_REGISTED_ITEM_INFO_AG, resize failed.");
+        }
+        else
+        {
+            unsigned char cnt = (unsigned char)data[0x1b];
+            guard << cnt;
+            guard.put_binary(data + 0x1c, (int)(cnt * 0x75));
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 9:  // 我的竞购信息（条目 0x7d 字节）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x13ce), true);
+        guard << 0xf7;
+        guard << *(int*)(data + 0x12);
+        guard << *(int*)(data + 0x16);
+        guard << (unsigned char)data[0x1a];
+        int listBytes = (int)(*(unsigned short*)(data + 0x1b) * 0x7d + 2);
+        Stream* stream = guard.Get();
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            stream->resize(stream->in_ptr() + listBytes);
+        }
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            guard << 0;
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+                0x13e6, "onAUCTION_MY_BIDDING_INFO_AG, resize failed.");
+        }
+        else
+        {
+            unsigned short cnt = *(unsigned short*)(data + 0x1b);
+            guard << cnt;
+            guard.put_binary(data + 0x1d, (int)(cnt * 0x7d));
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 0xb:  // SIG_AUCTION_LOG_MESSAGE_AG（消费方 cUserHistoryLog::Auction）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x142a), true);
+        guard << 0xf8;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_LOG_MESSAGE_AG* sig =
+            guard.GetInBuffer<SIG_AUCTION_LOG_MESSAGE_AG>();
+        sig->m_type = (unsigned char)data[0x16];
+        sig->m_key = (unsigned long long)*(unsigned int*)(data + 0x17) |
+                     ((unsigned long long)*(unsigned int*)(data + 0x1b) << 32);
+        sig->m_arg09 = *(unsigned int*)(data + 0x1f);
+        sig->m_arg0d = *(int*)(data + 0x23);
+        sig->m_arg11 = *(unsigned int*)(data + 0x27);
+        sig->m_arg15 = (unsigned char)data[0x2b];
+        sig->m_arg16 = *(int*)(data + 0x2c);
+        sig->m_arg1a = *(unsigned short*)(data + 0x30);
+        sig->m_arg1c = *(int*)(data + 0x32);
+        sig->m_arg20 = (unsigned char)data[0x36];
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 0xc:  // 服务就绪通知（flag=1）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1447), true);
+        guard << 0xf9;
+        guard << -1;
+        SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+            guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+        sig->m_flag = 1;
+        sig->m_result = 0;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    case 0xd:  // 就绪探测回执：成功→通知；否则续约定时器
+    {
+        if (data[0x12] == 0)
+        {
+            Timer_CheckAuctionReady::RegistNextTimer();
+        }
+        else
+        {
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                "DispatchServerPacket.cpp", 0x1464), true);
+            guard << 0xf9;
+            guard << -1;
+            SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+                guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+            sig->m_flag = 1;
+            sig->m_result = 0;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        }
+        break;
+    }
+    case 0xe:  // SIG_AUCTION_RESULT_BUY_ITEM_APIECE（单件购买回执，sig 0x20d）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1485), true);
+        guard << 0x20d;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_BUY_ITEM_APIECE* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_BUY_ITEM_APIECE>();
+        sig->m_result = *(int*)(data + 0x16);
+        sig->m_characNo = *(int*)(data + 0x1a);
+        sig->m_flagA = data[0x1e];
+        sig->m_flagB = data[0x1f];
+        sig->m_arg0a = *(int*)(data + 0x20);
+        sig->m_price = *(int*)(data + 0x24);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        break;
+    }
+    default:
+        LogManager::logFormat(
+            1, "DispatchServerPacket.cpp",
+            "static bool CDispatchServerPacket::dispatchAuctionPacket(char*)",
+            0x149c, "[AUCTION PACKET ERROR] not exist packet id (%d)", packetId);
+        break;
+    }
+    return 1;
 }
 
-void CDispatchServerPacket::dispatchPointPacket(char* data)
+// ---------------------------------------------------------------------------
+// dispatchPointPacket —— 点券拍卖（GP）回包分发，ORIG T 0x847c1fe
+// （报告 docs/class_func_reports/CDispatchServerPacket/dispatchPointPacket.md）。
+// 仅 category==0x13 时处理；按 packetID 组 SIG 流投 DISPATCH_Q，恒返回 1。
+// 注：packetID 经 nsl::PACKET_HEADER::getPacketID 符号扩展（movsbl），
+// 0x2718..0x271b 分支在 ORIG 中不可达，仍忠实保留。
+// ---------------------------------------------------------------------------
+int CDispatchServerPacket::dispatchPointPacket(char* data)
 {
-    dispatchBySig(data, *(unsigned short*)data);
+    nsl::PACKET_HEADER* header = (nsl::PACKET_HEADER*)data;
+    int packetId = (int)header->getPacketID();
+    if ((int)header->getCategory() != 0x13)
+    {
+        return 1;
+    }
+
+    switch (packetId)
+    {
+    case 0:  // 点券拍卖服务注册回执
+    {
+        int result = *(int*)(data + 0xe);
+        if (result == 0)
+        {
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                "DispatchServerPacket.cpp", 0x14b4), true);
+            guard << 0xf9;
+            guard << -1;
+            SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+                guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+            sig->m_result = 1;
+            sig->m_flag = 1;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            return 1;
+        }
+        if (result == 2)
+        {
+            Timer_CheckAuctionReady::RegistNextTimer();
+            return 1;
+        }
+        if (result == 1)
+        {
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                0x14c8, "AUCTION REGIST SERVER ID DUPLICATE");
+            return 1;
+        }
+        LogManager::logFormat(
+            1, "DispatchServerPacket.cpp",
+            "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+            0x14cc, "AUCTION REGIST UNHANDLED ERROR");
+        return 1;
+    }
+    case 1:  // 服务关闭通知
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x14d5), true);
+        guard << 0xf9;
+        guard << -1;
+        SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+            guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+        sig->m_flag = 0;
+        sig->m_result = 1;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 2:  // SIG_AUCTION_RESULT_ASK_PRICE（PG：价格组清零）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x14e9), true);
+        guard << 0xf0;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_ASK_PRICE* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_ASK_PRICE>();
+        sig->m_result = 1;
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_itemIdx = *(int*)(data + 0x1a);
+        for (int i = 0; i < 3; ++i)
+        {
+            sig->m_priceCur[i] = 0;
+            sig->m_priceTop[i] = 0;
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 3:  // SIG_AUCTION_RESULT_ASK_REGISTED_ITEM_NUM（PG：不写明细数组）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1502), true);
+        guard << 0xf1;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_ASK_REGISTED_ITEM_NUM* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_ASK_REGISTED_ITEM_NUM>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_count = *(unsigned short*)(data + 0x1a);
+        sig->m_flagA = *(unsigned char*)(data + 0x1c);
+        sig->m_flagB = *(unsigned short*)(data + 0x1d);
+        sig->m_result = 1;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 4:  // SIG_AUCTION_RESULT_REGIST
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1523), true);
+        guard << 0xf2;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_REGIST* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_REGIST>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_okFlag = data[0x1a];
+        sig->m_errCode = data[0x1b];
+        sig->m_result = 1;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 5:  // SIG_AUCTION_RESULT_BIDDING（PG：附卖家名与尾字段）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1536), true);
+        guard << 0xf3;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_BIDDING* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_BIDDING>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_money = *(int*)(data + 0x1a);
+        sig->m_flagA = data[0x1e];
+        sig->m_flagB = data[0x1f];
+        sig->m_field0e = *(int*)(data + 0x20);
+        sig->m_bidPrice = *(int*)(data + 0x24);
+        sig->m_result = 1;
+        strncpy(sig->m_sellerName, data + 0x28, strlen(data + 0x28));
+        sig->m_field36 = *(int*)(data + 0x48);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 6:  // SIG_AUCTION_RESULT_REGIST_CANCEL
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x154e), true);
+        guard << 0xf4;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_RESULT_REGIST_CANCEL* sig =
+            guard.GetInBuffer<SIG_AUCTION_RESULT_REGIST_CANCEL>();
+        sig->m_characNo = *(int*)(data + 0x16);
+        sig->m_okFlag = data[0x1a];
+        sig->m_errCode = data[0x1b];
+        sig->m_result = 1;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 7:  // 拍卖列表 PG（条目 0x89 字节）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1561), true);
+        guard << 0xf5;
+        guard << *(int*)(data + 0x12);
+        guard << *(int*)(data + 0x16);
+        guard << (unsigned char)data[0x1a];
+        guard << *(unsigned int*)(data + 0x1b);
+        int listBytes = (int)(*(unsigned short*)(data + 0x1f) * 0x89 + 2);
+        Stream* stream = guard.Get();
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            stream->resize(stream->in_ptr() + listBytes);
+        }
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            guard << 0;
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                0x1579, "onAUCTION_ITEM_LIST_PG, resize failed.");
+        }
+        else
+        {
+            unsigned short cnt = *(unsigned short*)(data + 0x1f);
+            guard << cnt;
+            guard.put_binary(data + 0x21, (int)(cnt * 0x89));
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 8:  // 我的登记物品 PG（条目 0x75 字节；PG：先 1 字节计数再拷贝）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1584), true);
+        guard << 0xf6;
+        guard << *(int*)(data + 0x12);
+        guard << *(int*)(data + 0x16);
+        guard << (unsigned char)data[0x1a];
+        int listBytes = (int)((unsigned char)data[0x1b] * 0x75 + 1);
+        Stream* stream = guard.Get();
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            stream->resize(stream->in_ptr() + listBytes);
+        }
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            guard << 0;
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                0x159b, "onAUCTION_MY_REGISTED_ITEM_INFO_PG, resize failed.");
+        }
+        else
+        {
+            guard.put_binary(data + 0x1b, 1);
+            guard.put_binary(data + 0x1c, (int)((unsigned char)data[0x1b] * 0x75));
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 9:  // 我的竞购信息 PG（条目 0x7d 字节）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x15a6), true);
+        guard << 0xf7;
+        guard << *(int*)(data + 0x12);
+        guard << *(int*)(data + 0x16);
+        guard << (unsigned char)data[0x1a];
+        int listBytes = (int)(*(unsigned short*)(data + 0x1b) * 0x7d + 2);
+        Stream* stream = guard.Get();
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            stream->resize(stream->in_ptr() + listBytes);
+        }
+        if (stream->size() < stream->in_ptr() + listBytes)
+        {
+            guard << 0;
+            LogManager::logFormat(
+                1, "DispatchServerPacket.cpp",
+                "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+                0x15bd, "onAUCTION_MY_BIDDING_INFO_PG, resize failed.");
+        }
+        else
+        {
+            unsigned short cnt = *(unsigned short*)(data + 0x1b);
+            guard << cnt;
+            guard.put_binary(data + 0x1d, (int)(cnt * 0x7d));
+        }
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 0xa:  // ORIG 静默忽略（if(id<0xb) return 1）
+        return 1;
+    case 0xb:  // SIG_AUCTION_LOG_MESSAGE_PG（消费方 cUserHistoryLog::AuctionPoint）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x15ce), true);
+        guard << 0xfa;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_LOG_MESSAGE_PG* sig =
+            guard.GetInBuffer<SIG_AUCTION_LOG_MESSAGE_PG>();
+        sig->m_type = (unsigned char)data[0x16];
+        sig->m_key = (unsigned long long)*(unsigned int*)(data + 0x17) |
+                     ((unsigned long long)*(unsigned int*)(data + 0x1b) << 32);
+        sig->m_arg09 = *(unsigned int*)(data + 0x1f);
+        sig->m_arg0d = *(int*)(data + 0x23);
+        sig->m_arg11 = *(unsigned int*)(data + 0x27);
+        sig->m_arg15 = (unsigned char)data[0x2b];
+        sig->m_arg16 = *(int*)(data + 0x2c);
+        sig->m_arg1a = *(unsigned short*)(data + 0x30);
+        sig->m_arg1c = *(int*)(data + 0x32);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 0xc:  // 服务就绪通知（flag=1）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x15e5), true);
+        guard << 0xf9;
+        guard << -1;
+        SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+            guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+        sig->m_flag = 1;
+        sig->m_result = 1;
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 0xd:  // 就绪探测回执：非零→通知；零→续约定时器
+    {
+        if (data[0x12] != 0)
+        {
+            CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+                "DispatchServerPacket.cpp", 0x15fa), true);
+            guard << 0xf9;
+            guard << -1;
+            SIG_AUCTION_NOTIFY_AUCTION_SERVICE* sig =
+                guard.GetInBuffer<SIG_AUCTION_NOTIFY_AUCTION_SERVICE>();
+            sig->m_result = 1;
+            sig->m_flag = 1;
+            GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+            return 1;
+        }
+        Timer_CheckAuctionReady::RegistNextTimer();
+        return 1;
+    }
+    case 0xe:  // SIG_AUCTION_OWNER_IS_VIP（sig 0x2da）
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1646), true);
+        guard << 0x2da;
+        guard << *(int*)(data + 0x12);
+        SIG_AUCTION_OWNER_IS_VIP* sig =
+            guard.GetInBuffer<SIG_AUCTION_OWNER_IS_VIP>();
+        sig->m_characNo = *(int*)(data + 0x12);
+        sig->m_arg04 = *(int*)(data + 0x16);
+        sig->m_arg08 = *(int*)(data + 0x1a);
+        sig->m_flagC = data[0x1e];
+        sig->m_arg0d = *(int*)(data + 0x1f);
+        sig->m_arg11 = *(int*)(data + 0x23);
+        strcpy(sig->m_ownerName, data + 0x27);
+        sig->m_arg22 = *(int*)(data + 0x34);
+        sig->m_arg26 = *(int*)(data + 0x38);
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 0x2718:  // 转发类分支（ORIG 不可达但保留）：sig 0x2a5
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1613), true);
+        guard << 0x2a5;
+        guard << *(int*)(data + 10);
+        guard.put_binary(data, (int)*(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 0x2719:  // sig 0x2a6
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1620), true);
+        guard << 0x2a6;
+        guard << *(int*)(data + 0xf);
+        guard.put_binary(data, (int)*(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 0x271a:  // sig 0x2a7
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x162c), true);
+        guard << 0x2a7;
+        guard << *(int*)(data + 10);
+        guard.put_binary(data, (int)*(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    case 0x271b:  // sig 0x2a8
+    {
+        CStreamGuard guard(GlobalData::s_stream_pool->Acquire(
+            "DispatchServerPacket.cpp", 0x1638), true);
+        guard << 0x2a8;
+        guard << -1;
+        guard.put_binary(data, (int)*(unsigned short*)(data + 2));
+        GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);
+        return 1;
+    }
+    default:
+        LogManager::logFormat(
+            1, "DispatchServerPacket.cpp",
+            "static bool CDispatchServerPacket::dispatchPointPacket(char*)",
+            0x166f, "[AUCTION PACKET ERROR] not exist packet id (%d)", packetId);
+        break;
+    }
+    return 1;
 }

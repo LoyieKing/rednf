@@ -5,6 +5,9 @@
 #include <vector>
 #include "STMonsterScript.h"
 
+class Inven_Item;  // 方法参数按引用传递（ORIG 0x0834f876）
+namespace WongWork { struct stGenerateRefData_t; }
+
 class CMonster
 {
 public:
@@ -15,6 +18,8 @@ public:
     int get_index() const;
     static void* getMonsterScript(CMonster* self);
     void* getMonsterScript() const;
+    void generateIndependentItem(const WongWork::stGenerateRefData_t& ref,
+                                 std::vector<Inven_Item>& out) const;  // ORIG 0x0834f876
     void set_monster(STMonsterScript& script);
     unsigned char IsHellMonster() const;
     int get_weight() const;

@@ -13,6 +13,11 @@
 // stSERVER_MESSAGE = 0x58（kind/index/len/msg[52]/len2/msg2[20]/endTime）。
 // ============================================================================
 
+#include "CSharedServerMessageManager.h"
+#include "GameTypes.h"
+#include "InterfacePacketBuf.h"
+#include "PacketGuard.h"
+
 #include <cstring>
 #include <string.h>
 
@@ -20,39 +25,8 @@
 #include <vector>
 
 // ---- 本地消息结构（布局按 ORIG 反汇编） ----
-struct stSERVER_MESSAGE
-{
-    ~stSERVER_MESSAGE() {}
 
-    unsigned char m_kind;    // +0x00
-    unsigned char m_index;   // +0x01
-    int m_lenMsg;            // +0x04
-    char m_msg[52];          // +0x08
-    int m_lenMsg2;           // +0x3c
-    char m_msg2[20];         // +0x40
-    int m_endTime;           // +0x54
-};
 
-struct EVENT_SERVER_MESSAGE
-{
-    EVENT_SERVER_MESSAGE() {}
-    ~EVENT_SERVER_MESSAGE() {}
-
-    void clear()
-    {
-        m_count = 0;
-        m_vecMsg.clear();
-    }
-
-    unsigned char m_count;                   // +0x00
-    std::vector<stSERVER_MESSAGE> m_vecMsg;  // +0x04
-};
-
-struct SIG_EVENT_SERVER_MESSAGE
-{
-    unsigned char m_count;          // +0x00
-    stSERVER_MESSAGE m_msg[0x64];   // +0x04
-};
 
 struct stSharedServerMessageInfo
 {
@@ -214,78 +188,13 @@ public:
 
 CEnvironment* G_CEnvironment();
 
-class cMyTrace
-{
-public:
-    cMyTrace(const char* name, int line, int flag);
-    void operator()(const char* fmt, ...);
+// 权威定义见对应头文件。
 
-    char m_pad[0x10];
-};
+// 权威定义见对应头文件。
 
-// ---- PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + 内部字段） ----
-class InterfacePacketBuf
-{
-public:
-    bool put_header(int packetId, int packetSize);
-    bool put_byte(int value);
-    bool put_int(int value);
-    bool put_str(char* str, int len);
-    void finalize(bool isEncryptRequired);
+// PacketGuard 权威定义见 PacketGuard.h。
 
-    char m_pad[4];   // +0x00
-};
-
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-};
-
-// ============================================================================
-// CSharedServerMessageManager
-// ============================================================================
-class CSharedServerMessageManager
-{
-public:
-    class CSharedServerMessageAdapter
-    {
-    public:
-        CSharedServerMessageAdapter() { m_pInfo = 0; }
-        ~CSharedServerMessageAdapter() {}
-        void SetServerMessageAddInfo(stSharedServerMessageInfo* pInfo) { m_pInfo = pInfo; }
-
-        int GetMappedEventID(int nIndex);
-        bool IsOnIndex(int nIndex);
-        int GetShareKindWithIndex(int nIndex);
-
-        stSharedServerMessageInfo* m_pInfo;   // +0x00
-    };
-
-    CSharedServerMessageManager();
-    CSharedServerMessageManager(stSharedServerMessageInfo* pInfo);
-    ~CSharedServerMessageManager();
-
-    void SendServerMessageInfo(CUser* pUser, SIG_EVENT_SERVER_MESSAGE* pMsg, char bFlag);
-    void SetServerMessage(SIG_EVENT_SERVER_MESSAGE* pMsg);
-    stSERVER_MESSAGE* getCurMessage(int nIndex);
-    bool IsChangableMessage(int nIndex, int nTime);
-    void DeleteSpecificMessage(int nIndex);
-    bool CheckUserCondition(CUser* pUser, int nIndex, int& nOut);
-    void UpdateServerMessage(CUser* pUser, int nIndex, char* pMsg, char* pMsg2, int nEndTime);
-    void UpdateServerMessageByBroadcast(int nIndex, char* pMsg, char* pMsg2, int nEndTime);
-    void LoadServerMessageFromDB();
-
-    bool IsSetServerMessage() { return m_isSet != 0; }
-    EVENT_SERVER_MESSAGE* GetCurServerMessage() { return &m_event; }
-    void setLoadingComplete() { m_isSet = 1; }
-
-    CSharedServerMessageAdapter m_adapter;  // +0x00
-    unsigned char m_isSet;                  // +0x04
-    char m_pad[3];                          // +0x05
-    EVENT_SERVER_MESSAGE m_event;           // +0x08
-};
+// CSharedServerMessageManager 类声明唯一化至 CSharedServerMessageManager.h。
 
 // ----------------------------------------------------------------------------
 // Adapter：索引/映射表查询

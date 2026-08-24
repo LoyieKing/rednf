@@ -26,7 +26,7 @@ public:
     virtual ~CMission();
 
     virtual void _makeTotalMissionInfo(MissionInfo& info,
-                                       const CUser& user) const = 0;
+                                       const CUser& user) const;
     virtual bool _canUpdate(const MissionClearCondition_Parameter& param) const;
     virtual bool _isAcceptCondition(const CUser& user) const;
     virtual bool isClearable(MissionInfo& info, bool& clear) const = 0;

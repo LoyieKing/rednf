@@ -29,7 +29,7 @@ public:
     void DungeonClear(unsigned int a, unsigned int b, int c, int d, int e, int f);
     void DungeonGiveUp(unsigned int a, unsigned int b, int c, int d, int e, int f);
     void DungeonFail(int dungeonIdx);
-    void UseShusiaService(int value);
+    static void UseShusiaService(int value);   // ORIG 调用点无 this（serviceOfShusia@0x8657ac8 仅压 1 参）→ 静态成员
     static void PVPPlay2(int a, int b, int c);
 };
 

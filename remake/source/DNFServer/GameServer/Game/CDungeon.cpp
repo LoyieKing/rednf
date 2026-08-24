@@ -16,6 +16,11 @@
 #include "GameTypes.h"
 #include "LogManager.h"
 #include "DNFFunctionLib.h"
+#include "CInventory.h"             // check_item_exist/GetInvenSlot/delete_item
+#include "PacketGuard.h"            // 门票回执包
+#include "GlobalData.h"             // GlobalData::s_systemTime_/s_statistic_proxy_mgr
+#include "CServerProxyMgr.h"        // GetServerProxy 完整模板
+#include "CStatisticServerProxy.h"  // 统计上报
 
 // ============================================================================
 // 支撑类型：GridScript / RidableObject / RidableScript / DungeonClearCondition
@@ -470,17 +475,127 @@ CDungeon_TowerOfDespair::CDungeon_TowerOfDespair()
 {
 }
 
+// ---- 绝望之塔（TOD）本地视图类型 ----
+// ORIG：GetCharacExpandData(0xd) 返回 TOD_UserState（charac_expand 扩展数据，
+// 本工程尚未建模完整类）。以下按 ORIG 反汇编以裸偏移访问其字段：
+//   +0x0c int（当日首次进入时间） +0x10 int enterCount +0x14 ushort todayLayer
+//   +0x16 ushort lastEnterLayer   +0x18 int lastClearTime【推断布局】。
+namespace tod_detail
+{
+
+struct TOD_Layer  // ORIG 0x085fe7b4：仅 ushort 包装
+{
+    unsigned short m_layer;
+};
+
+unsigned short tod_GetLayer(const TOD_Layer& l) { return l.m_layer; }  // 0x0822ec40
+
+void tod_increaseEnterCount(char* st, CSystemTime& sysTime)  // ORIG 0x0864388a
+{
+    *(int*)(st + 0x10) += 1;
+    *(unsigned short*)(st + 0x16) = (unsigned short)(*(unsigned short*)(st + 0x16) + 1);
+    *(int*)(st + 0x18) = sysTime.getCurSec();
+    if (tod_GetLayer(*(const TOD_Layer*)(st + 0x14)) == 0)
+        *(int*)(st + 0x0c) = sysTime.getCurSec();
+    // ORIG 末尾调用 charac_expand::CData::alter(this)（脏标记）；CData 未建模，
+    // 该标记当前无可执行语义【推断】。
+}
+
+}  // namespace tod_detail
+
+// Packet_TowerOfDespair_Statistic_GTS（ORIG ctor 0x08374cba W，总尺寸 0x17）：
+// PacketHeader(0x271c,0x17)[10] + TowerOfDespairStatistic_Key[8] + byte flag +
+// uint accId。本函数只写 layer(+0xe)/flag(+0x12)/accId(+0x13)。
+struct Packet_TowerOfDespair_Statistic_GTS
+{
+    Packet_TowerOfDespair_Statistic_GTS()
+    {
+        new (m_buf) PacketHeader(0x271c, 0x17);
+        memset(m_buf + 0xa, 0, 8);
+        m_buf[0x12] = 0;
+        *(unsigned int*)(m_buf + 0x13) = 0;
+    }
+
+    char m_buf[0x17];
+};
+
 CDungeon_TowerOfDespair::~CDungeon_TowerOfDespair()
 {
 }
 
 int CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser* user) const
 {
-    // ORIG 0x0834d8ec：进入绝望之塔时递增 TOD_UserState 进入计数。
-    // 依赖 TOD_UserState::IncreaseEnterCount（未实现），此处保留 null 检查 + 成功返回，
-    // 待 TOD_UserState 补齐后续细化。
+    // ORIG 0x0834d8ec（254 insn）：进入绝望之塔——递增计数、扣门票、发包回执、
+    // 统计上报。
     if (user == 0)
         return 0;
+
+    char* todState = (char*)user->GetCharacExpandData((ENUM_CHARAC_EXPAND_TYPE)0xd);
+    if (todState == 0)
+        return 1;  // ORIG 无空检查；扩展数据未分配时跳过【推断保护】
+
+    tod_detail::tod_increaseEnterCount(todState, GlobalData::s_systemTime_);
+    int enterCount = *(int*)(todState + 0x10);
+
+    if (enterCount > 1 && m_requiredItem1.m_0 != 0)
+    {
+        // 二次及以上进入需持有门票物品：m_requiredItem1.m_0=itemIdx，
+        // m_requiredItem1.m_4=需求数量（ORIG this+0x7f4/+0x7f8）。
+        const CInventory* invenC = user->getCurCharacInvenR();
+        int slot = invenC->check_item_exist(m_requiredItem1.m_0);
+        if (slot == -1)
+            return 0;
+        Inven_Item item = invenC->GetInvenSlot((INVEN_TYPE)1, slot);
+        if (item.m_addInfo2 < m_requiredItem1.m_4)
+            return 0;
+
+        CInventory* invenW = user->getCurCharacInvenW();
+        bool delOk = invenW->delete_item((INVEN_TYPE)1, slot, m_requiredItem1.m_4,
+                                         (eItemDelReason)0xe, true) == 1;
+        if (!delOk)
+        {
+            cMyTrace trace(
+                "virtual bool CDungeon_TowerOfDespair::_do_after_dungeon_start(CUser*) const",
+                0x96f, 5);
+            trace("CDungeon_TowerOfDespair::_do_after_dungeon_start, delete_item failed , User ch =%d , %d %d",
+                  user->getCurCharacNo(), slot, m_requiredItem1.m_4);
+            return 0;
+        }
+
+        PacketGuard pg;
+        pg.put_header(0, 0xe);
+        pg.put_byte(0);
+        pg.put_short(1);
+        pg.put_short(slot);
+        int rest = item.m_addInfo2 - m_requiredItem1.m_4;
+        if (rest == 0)
+            pg.put_int(-1);
+        else
+            pg.put_int(item.m_addInfo);   // ORIG local_8b（item idx 字段）
+        pg.put_int(rest);
+        pg.put_byte(item.GetItemAttr());
+        pg.put_short(item.m_fieldb);
+        pg.put_byte(item.m_field0);
+        pg.put_int(item.m_fieldd);
+        pg.put_byte(item.m_amp.getAbilityType());
+        pg.put_short(item.m_amp.getAbilityValue());
+        pg.put_byte(0);
+        pg.put_packet(item);
+        pg.finalize(true);
+        user->Send(pg);
+        user->SaveInventory();
+    }
+    Packet_TowerOfDespair_Statistic_GTS gts;
+    tod_detail::TOD_Layer todayLayer =
+        *(const tod_detail::TOD_Layer*)(todState + 0x14);  // ORIG getTodayEnterLayer 拷贝 +0x14
+    *(unsigned int*)(gts.m_buf + 0xe) =
+        tod_detail::tod_GetLayer(todayLayer) & 0xffff;
+    gts.m_buf[0x12] = 1;
+    *(unsigned int*)(gts.m_buf + 0x13) = user->get_acc_id();
+
+    CStatisticServerProxy* proxy =
+        GlobalData::s_statistic_proxy_mgr->GetServerProxy((ENUM_SERVER_GROUP)0);
+    proxy->SendPacket(gts.m_buf, 0x17);
     return 1;
 }
 int CDungeon::_do_after_dungeon_start(CUser* user) const

@@ -8,15 +8,26 @@
 
 class MySQL;
 
-bool loadRDARScriptFile(const char* directory, const char* path) asm("_Z18loadRDARScriptFilePKcS0_");
-void unloadRDARScriptFile() asm("_Z20unloadRDARScriptFilev");
-bool ScanType(std::string& token, bool consume) asm("_Z8ScanTypeRSsb");
-bool ScanInt(int* value) asm("_Z7ScanIntPi");
-int ScanInt(bool* ok) asm("_Z7ScanIntPb");
-float ScanFloat(float* value) asm("_Z9ScanFloatPf");
-float ScanFloat(bool* ok) asm("_Z9ScanFloatPb");
-bool ScanStr(std::string* value) asm("_Z7ScanStrPSs");
+class DNFLexWrapper;
+extern DNFLexWrapper g_dnfLex;
+
+bool loadRDARScriptFile(const char* directory, const char* path);
+void getDirectoryPath(std::string& out, const char* fmt, ...);  // 0x088bbc80
+void unloadRDARScriptFile();
+bool ScanType(std::string& token, bool consume);
+bool ScanInt(int* value);
+int ScanInt(bool* ok);
+bool ScanFloat(float* value);
+float ScanFloat(bool* ok);
+float ScanFloat(int scale, bool* ok);
+bool ScanStr(std::string* value);
+bool ScanStr(char* dst, int maxLen);
+int ScanFloatStr(float& value, std::string& token);
+int ScanTypeOrInt(bool& isType, std::string& s, bool& isInt, bool consume);
+bool ScanTypeOrStr(bool& isType, std::string& s, bool consume);
 void GetEscapeString(MySQL* db, const char* src, char* dst);
+bool LoadStreamFromPack(const char* dir, const char* filename, DNFLex::stream_data_t* s);
+bool LoadStreamFromPlain(const char* dir, const char* filename, DNFLex::stream_data_t* s);
 
 // ============================================================================
 // DNFLexWrapper（_ZTV13DNFLexWrapper：4 条目 = D1/D0 两槽，仅有虚析构）。
@@ -42,6 +53,19 @@ public:
     virtual ~DNFLexWrapper();        // 0x8acecf0 D1/D2, 0x8aced40 D0
 
     // 取词
+    void setLexType(ENUM_LEX_TYPE t); // 0x8ace290
+    ENUM_LEX_TYPE getLexType();       // 0x8ace2a0
+    int  getToken();                  // 0x8ace7e0
+    int  getDecimal();                // 0x8ace2f0
+    int  getHexDecimal();             // 0x8ace780
+    float getFloat();                 // 0x8ace730
+    char* getType();                  // 0x8ace390
+    char* getString();                // 0x8ace6f0
+    char* getConnector();             // 0x8ace3f0
+    char* getCustomData();            // 0x8ace3c0
+    int  getLastToken();              // 0x8ace420
+    char* getLastTokenData();         // 0x8ace430
+    int  getLastLineNo();             // 0x8ace490
     int  getPairInt();               // 0x8ace630
     char* getPairStr();              // 0x8ace5a0
     std::string getLastTokenDataAsString();  // 0x8ace4d0

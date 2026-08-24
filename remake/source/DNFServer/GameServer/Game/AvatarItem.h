@@ -11,6 +11,9 @@
 namespace WongWork
 {
 
+// ORIG 布局为 packed：m_color1 @ +0x3f、m_color2 @ +0x41（setColor 写 0x3f/0x41；
+// init 清 +0x3f 4 字节；getExpansionInfo 返 this+0x3f），sizeof = 0x100。
+#pragma pack(push, 1)
 class Avatar_Item
 {
 public:
@@ -36,6 +39,7 @@ public:
     unsigned short m_color2;                   // +0x41
     char m_pad43[0xbd];                        // +0x43
 };
+#pragma pack(pop)
 
 }  // namespace WongWork
 
