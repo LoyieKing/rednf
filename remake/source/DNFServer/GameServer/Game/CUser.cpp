@@ -7388,10 +7388,10 @@ int CUser::GetPcRoomRentInfo(SIG_SAVE_PC_ROOM_RENT_ITEM* sig)
         if (inven->CheckExistItemInInventoryOrEquipment(rental.m_itemIndex, slot, bInEquip) == 1)
         {
             sig->m_entry[index].m_itemIndex = rental.m_itemIndex;
-            sig->m_entry[index].m_field4 = *(char*)&rental.m_pad8;
-            sig->m_entry[index].m_field5 = *(char*)&rental.m_padB;
+            sig->m_entry[index].m_field4 = rental.m_field8;
+            sig->m_entry[index].m_field5 = rental.m_fieldB;
             sig->m_entry[index].m_inEquip = bInEquip ? 1 : 0;
-            sig->m_entry[index].m_field8 = rental.m_field0;
+            sig->m_entry[index].m_field8 = rental.m_flag0;
             ++index;
             if (index > 1)
                 return 0;
@@ -7424,8 +7424,8 @@ int CUser::GetDimensionRentInfo(SIG_SAVE_DIMENSION_RENT_ITEM* sig)
         if (inven->CheckExistItemInInventoryOrEquipment(rental.m_itemIndex, slot, bInEquip) == 1)
         {
             sig->m_entry[index].m_itemIndex = rental.m_itemIndex;
-            sig->m_entry[index].m_field4 = *(char*)&rental.m_pad8;
-            sig->m_entry[index].m_field5 = *(char*)&rental.m_padB;
+            sig->m_entry[index].m_field4 = rental.m_field8;
+            sig->m_entry[index].m_field5 = rental.m_fieldB;
             sig->m_entry[index].m_inEquip = bInEquip ? 1 : 0;
             sig->m_entry[index].m_field7 = 0;
             ++index;

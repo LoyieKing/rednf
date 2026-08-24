@@ -192,7 +192,24 @@ bool CEventScriptMng::is_eventing(int key)
     if (key < 0 || 0x19c < key)
         return false;
     CEventEntity* entity = m_entities[key];
-    return entity->is_eventing();
+    return entity != 0 ? entity->is_eventing() : false;
+}
+
+// ORIG T 0x0810bea8（报告 EventClassify__CEventScriptMng/
+// process_add_item_count_db.md）：user 有效且事件 0x193 实体存在、
+// CAddItemCountDB::is_event_item(itemId) 命中时，给当前角色累加
+// 事件物品计数（count 按 unsigned short 零扩展）。
+void EventClassify::CEventScriptMng::process_add_item_count_db(CUser* user,
+                                                               int itemId,
+                                                               int count)
+{
+    if (user == 0)
+        return;
+    CEventEntity* entity = get_event_entity(0x193);
+    if (entity == 0)
+        return;
+    if (static_cast<CAddItemCountDB*>(entity)->is_event_item(itemId) != 0)
+        user->IncCurCharacEventAddItemCount((unsigned short)count);
 }
 
 // ORIG 0x810c40e：包 0x176 —— put_header(0,0x176)、put_int(m_field48)、

@@ -13,6 +13,7 @@
 #include <string>
 #include <vector>
 #include <utility>
+#include <sstream>   // RegenerationROI::_RandomLevel(std::stringstream&）签名需要
 
 #include "GameTypes.h"
 #include "CEnvironment.h"
@@ -371,7 +372,16 @@ struct stIndependentDropRateControl
     int m_field04;   // +0x04（等级差阈值：仅当 m_field04 > diff 时生效）
     int m_field08;   // +0x08（衰减系数：10000 - m_field08*diff 为比率因子）
 };
-struct itemData                   { int m_field0; };                       // [推断]
+// ORIG 布局（eventReward::ImportRewardScript 0x080ef3a2 实证，sizeof 0x10）：
+// [equipment]/[stackable] 行以栈副本整体 push_back（元素 16 字节）；
+// +0x0c 为 subMap find/pair 键。
+struct itemData
+{
+    int m_field00;   // +0x00（option 区）
+    int m_field04;   // +0x04
+    int m_field08;   // +0x08
+    int m_field0c;   // +0x0c（find/pair 键；stackable=itemIdx）
+};                   // sizeof 0x10
 struct SlotBound                  { int m_field0; };                       // [推断]
 // ORIG C1 0x891b682：+0x00=-1、+0x04=0、+0x08/+0x09 字节=0（sizeof 0xc）。
 // importConditionEventScript [condition reward]/[condition quick party add reward]
@@ -423,15 +433,42 @@ struct StackableItemData
 };
 // ORIG LevelUpRewardItemData ctor 0x081b88bc→clear 0x081b88d0：+0x00=-1、+0x04=0；
 // LoadRewardDataByGrowType/ImportLevelUpRewardItemScript 每条写两 int（步长 8）。
+// ORIG 布局（loadNPCCommonData 0x089fafc5 实证，sizeof 0xc）：
+// push_back 元素 = {getChangeStatusType 结果@+0, ScanInt 值@+4, bool(串!="+")@+8}。
+struct stOneBuff_t
+{
+    int m_changeStatusType;   // +0x00
+    int m_value;              // +0x04
+    unsigned char m_isNotPlus; // +0x08（脚本第 3 串 != "+"）
+};                            // sizeof 0xc
 struct LevelUpRewardItemData
 {
     int m_field0;   // +0x00（clear 置 -1；[推断] 道具 idx）
     int m_field4;   // +0x04（clear 置 0；[推断] 数量）
 };
-struct stOneBuff_t                { int m_field0; };                       // [推断]
-struct str_index_to_itemgroup     { int m_field0; };                       // [推断]
-struct _str_cost                  { int m_field0; };                       // [推断]
-struct _str_option_value_ratio    { int m_field0; };                       // [推断]
+// _Select_Part 报告实证：pair+0xc（=second+0x8）为 vector<string>；
+// importRegenerationRandomOptionScript 0x08a7e610 实证：second+0x4 为
+// std::string（operator[] 命中后 operator= 写入），second+0x8 push_back。
+// second+0x00..0x03 未观测，保留占位。
+struct str_index_to_itemgroup
+{
+    char m_pad0[4];                        // +0x00（未还原字段区）
+    std::string m_name4;                   // +0x04（importRegenerationRandomOptionScript 写入）
+    std::vector<std::string> m_vec8;       // +0x08（item group 名表）
+};  // sizeof 0x14
+// _Calculate_RegenCost 报告实证：pair.second 两 int——f0==0 时取 f1 计费。
+struct _str_cost
+{
+    int m_field0;   // +0x00
+    int m_field4;   // +0x04
+};  // sizeof 8
+// RegenerationROI::RegenVer_get_option_value 报告实证 12 字节三字。
+struct _str_option_value_ratio
+{
+    float m_scaleRange0;      // +0x00（以 (max-min) 加权）
+    float m_scaleBase4;       // +0x04（以 min 加权）
+    unsigned int m_weight8;   // +0x08（累积权重）
+};  // sizeof 0xc
 // ORIG D1 0x8a5a4f8；importPowerParameterScript [straight victory penalty]
 // （0x8a592bc +0x848..+0x8cc）每条连续扫描 4 个 int（均 ScanInt(&ok) 校验），
 // sizeof 0x10。
@@ -488,16 +525,41 @@ struct PvPSkillTreeKey
     }
 };
 
-struct rewardKey
+// ORIG 布局（eventReward::ImportRewardScript 0x080ef3a2 实证，sizeof 5）：
+// 栈键 -0x1a9..-0x1a5 五字节；[/sub type] 后 rewardSubKey::clear 仅清 +3/+4，
+// [/job type] 后整键 clear。operator< 比较序为「推断」（ORIG operator< 未反汇编，
+// 保持旧 m_a/m_b 先行语义映射到新字段）。
+struct rewardSubKey
 {
-    int m_a;   // [推断]
-    int m_b;   // [推断]
-    bool operator<(const rewardKey& o) const
-    {
-        return m_a < o.m_a || (m_a == o.m_a && m_b < o.m_b);
-    }
+    unsigned char m_type;     // +0x00（getSubKeyType）
+    unsigned char m_action;   // +0x01（getSubKeyAction）
+
+    void clear() { m_type = 0; m_action = 0; }   // ORIG W 0x080f11de 语义
 };
 
+struct rewardKey
+{
+    unsigned char m_job;     // +0x00（[job type]：getCharacterJobToEnumValue）
+    unsigned char m_a;       // +0x01（[job type] ScanInt#1）
+    unsigned char m_b;       // +0x02（[job type] ScanInt#2）
+    rewardSubKey m_sub;      // +0x03（[/sub type] 两字节）
+
+    void clear()   // ORIG W 0x080f12ac 语义（[/job type] 调用）
+    {
+        m_job = 0;
+        m_a = 0;
+        m_b = 0;
+        m_sub.clear();
+    }
+    bool operator<(const rewardKey& o) const
+    {
+        if (m_job != o.m_job) return m_job < o.m_job;
+        if (m_a != o.m_a) return m_a < o.m_a;
+        if (m_b != o.m_b) return m_b < o.m_b;
+        if (m_sub.m_type != o.m_sub.m_type) return m_sub.m_type < o.m_sub.m_type;
+        return m_sub.m_action < o.m_sub.m_action;
+    }
+};
 struct SlotBoundKey
 {
     int m_a;   // [推断]
@@ -565,21 +627,25 @@ struct stRefillItemInfo
 // stNPCCommonData_t（ORIG C1 0x837612e / D1 0x83761c6 / clear 0x89fae9e）：
 // +0x00 ushort[10] +0x18 vector<int> +0x24 vector<int>
 // +0x30 ushort +0x32 ushort +0x34 ushort +0x38 vector<int>
-// +0x44 vector<pair<int,stOneBuff_t>>，sizeof 0x50
+// +0x44 vector<pair<int,vector<stOneBuff_t>>>，sizeof 0x50
 struct stNPCCommonData_t
 {
     unsigned short m_field0[10];                       // +0x00
     char m_pad14[4];                                   // +0x14
     std::vector<int> m_vec18;                          // +0x18
     std::vector<int> m_vec24;                          // +0x24
-    char m_pad2c[4];                                   // +0x2c
     unsigned short m_field30;                          // +0x30
     unsigned short m_field32;                          // +0x32
     unsigned short m_field34;                          // +0x34
     char m_pad36[2];                                   // +0x36
     std::vector<int> m_vec38;                          // +0x38
-    std::vector<std::pair<int, stOneBuff_t> > m_vec44; // +0x44
-};
+    std::vector<std::pair<int, std::vector<stOneBuff_t> > > m_vec44; // +0x44
+    void clear();   // ORIG W 0x089fae9e（定义 ScriptLeafA2.cpp）
+};                                                   // （loadNPCCommonData 实证）
+
+// ORIG _Z17loadNPCCommonDataR17stNPCCommonData_tPKc T 0x089fafc5
+// （定义 ScriptLeafA2.cpp；文件打开失败返 0x3c，其余 0）。
+int loadNPCCommonData(stNPCCommonData_t& out, const char* path);
 
 // RandomOptionItem_Regenerator（ORIG D1 0x85f97e2）：
 // +0x00 map<int,str_index_to_itemgroup> +0x18 map<int,map<int,_str_cost>>
@@ -590,7 +656,8 @@ struct RandomOptionItem_Regenerator
     std::map<int, std::map<int, _str_cost> > m_map18;  // +0x18
     std::vector<int> m_vec30;                          // +0x30
     std::vector<_str_option_value_ratio> m_vec3c;      // +0x3c
-    char m_pad48[4];                                   // +0x48
+    unsigned int m_field48;                            // +0x48（ROI::RegenVer_get_option_value
+                                                       //   的 *(u64*)(this+0x4c) randInt 上界）
 };
 
 // DimensionActivationRewardData（ORIG C1 0x8371348 / D1 0x83713b4）：
@@ -602,6 +669,13 @@ struct DimensionActivationRewardData
     std::map<int, std::vector<std::vector<EventRewardItemInfo> > > m_mapC; // +0x0c
     std::map<std::pair<int, int>,
              std::vector<std::vector<EventRewardItemInfo> > > m_map24;     // +0x24
+
+    // ---- 查询（RandomRentalA2 批次/GlobalData.cpp 实现）----
+    EventRewardSection* getSectionData(int idx);                // T 0x08915f16
+    std::vector<std::vector<EventRewardItemInfo> >*
+        getRewardSelectItemList(int packageKey);                // T 0x08916086
+    std::vector<std::vector<EventRewardItemInfo> >*
+        getRewardGiveItemList(int job, int growType);           // T 0x08916004
 };
 
 // ===================== ST* 脚本占位类型（后续批次实现） =====================
@@ -644,16 +718,17 @@ public:
 class InGameAdvertisementScript
 {
 public:
-    InGameAdvertisementScript();
-    // ORIG W 0x8373304：memset(this, 1, 0x97)——前 151 字节置 1；
-    // importInGameAdvertisementEtcScript 随后将命中下标清 0。
-    void clear();
-private:
-    unsigned char m_exposeConditionOfTeen[0x98];   // +0x00（[in game advertisement expose condition of teen] 位图）
+    InGameAdvertisementScript();  // ORIG W 0x083732f0
+    void clear();                  // ORIG W 0x08373304
 
-    // import 装载器按 ORIG 字节语义直写位图（ORIG 对该私有数组索引写）。
-    friend bool importInGameAdvertisementEtcScript(InGameAdvertisementScript* s, const char* path);
+private:
+    unsigned char m_exposeConditionOfTeen[0x98]; // +0x00..+0x97
+
+    friend bool importInGameAdvertisementEtcScript(
+        InGameAdvertisementScript* s, const char* path);
 };
+typedef char InGameAdvertisementScript_size_0x98[
+    (sizeof(InGameAdvertisementScript) == 0x98) ? 1 : -1];
 
 class PcBangItemRentarData
 {
@@ -665,6 +740,11 @@ public:
     // +0x0c map<int,vector<vector<EventRewardItemInfo>>>，sizeof 0x24
     std::vector<EventRewardSection> m_vec0;                     // +0x00
     std::map<int, std::vector<std::vector<EventRewardItemInfo> > > m_mapC;  // +0x0c
+
+    // ---- 查询（RandomRentalA2 批次/GlobalData.cpp 实现）----
+    EventRewardSection* getSectionData(int idx);                // T 0x08915518
+    std::vector<std::vector<EventRewardItemInfo> >*
+        getRewardSelectionList(int packageKey);                 // T 0x0891559c
 };
 
 struct DimensionCoinInfo
@@ -1010,6 +1090,11 @@ public:
     ConditionLevelChkDungeon();
     ~ConditionLevelChkDungeon();
 
+    // ORIG T 0x089139d4 / 0x08913a62（报告 ConditionLevelChkDungeon/isEventDungeon.md、
+    // isApplyLevel.md）：isEventDungeon=m_unableDungeons 不含该副本；isApplyLevel=等级达标。
+    bool isEventDungeon(int dungeonIdx);
+    bool isApplyLevel(int level);
+
     // ORIG C1 0x837c9ac / D1 0x837c9d0：仅构造/析构 +0x00 的 vector<int>，
     // sizeof 0x10。
     // importConditionEventChkDungeonScript（0x8913891）：[unable dungeon] 向
@@ -1076,15 +1161,8 @@ public:
     std::map<CharacterKind, CharacterStatus> m_map0;   // +0x00
 };
 
-class RandomOptionScript
-{
-public:
-    RandomOptionScript();
-    ~RandomOptionScript();
-
-    bool init();
-    char m_pad[0x230];
-};
+// 权威定义：RandomOptionScript.h（本头不再持有占位镜像，避免与真身冲突）
+#include "RandomOptionScript.h"
 
 class CExpertJobList;   // 完整定义见 CExpertJobList.h
 
@@ -1097,18 +1175,23 @@ public:
     // ORIG _ZN15RegenerationROI36_0_Load_RegenerationRandomOptionItemEv（init 调用）
     int _0_Load_RegenerationRandomOptionItem();
 
-    // ORIG _ZN15RegenerationROI10RegenerateEiiiiRiR10Inven_ItemP5CUser T 0x085f8646：
-    // 完整报告 docs/class_func_reports/RegenerationROI/Regenerate.md。依赖
-    // random_option::CRandomOptionItemHandle::{RegenVer_choose_item,RegenVer_give_option}
-    // （ORIG T，当前无任何 TU 提供）→ 定义链接期 blocked，由后续批次按报告补。
     int Regenerate(int baseLv0, int baseLv1, int srcOptIndex0, int srcOptIndex1,
                    int& outCost, Inven_Item& outItem, CUser* user);
 
-    // ORIG D1 0x85f8506：+0x00 void*（非空 delete）+0x04
+    // ---- 内部实现（本批 RandomRentalA2.cpp 定义；地址=ORIG nm 实证）----
+    void SendMessageToCUser(CUser* user, const char* msg);            // T 0x085f853c
+    void _Select_Part(int partIdx, std::vector<int>& out);            // T 0x085f8ec2
+    void _RandomLevel(int lv0, int lv1, struct select_base_item& sb,
+                      std::stringstream& ss);                         // T 0x085f93cc
+    int RegenVer_get_option_quantity(int lo, int hi);                 // T 0x085f8cb4
+    int _Calculate_RegenCost(int partIdx, int optType, int lv0, int lv1);   // T 0x085f9094
+    int RegenVer_get_option_value(int minV, int maxV);                // T 0x085f8da6
+
+    // ORIG D1 0x85f8506：delete m_regeneratorPtr（CMTRand）+ 析构 regenerator。
     // RandomOptionItem_Regenerator（0x48）+0x50 指针，sizeof 0x54。
     // init() 将 new 的 CExpertJobList* 存入 +0x50（GetExpertJobScript 同址读取），
     // 故类型语义化为指针（尺寸不变）。
-    void* m_regeneratorPtr;                    // +0x00
+    CMTRand* m_regeneratorPtr;                 // +0x00
     RandomOptionItem_Regenerator m_regenerator;  // +0x04
     CExpertJobList* m_expertJobList;           // +0x50
 };
@@ -1278,6 +1361,8 @@ struct stVillageAttacked_t
 
 namespace APSystem
 {
+class _ActionGroupIndex;   // 完整定义 CUserProc.h（APSystem::_ActionGroupIndex，int m_value）
+
 // _SIG_LOAD_ACTION_POINT（含嵌套 _TodayRewardItem）/CActionPointEx/_MedalRewardItem
 // 权威定义见 APSystemTypes.h（MoreTypes.h 同样包含）。
 class CActionPointEtcParameter
@@ -1287,6 +1372,7 @@ public:
     ~CActionPointEtcParameter();
     void ClearData();
     bool IsValidTodayRewardItem(_SIG_LOAD_ACTION_POINT::_TodayRewardItem item);
+    bool IsValidActionGroupIndex(_ActionGroupIndex group);   // ORIG T 0x08894956（定义待 AP 域批次）
     // ORIG _ZN8APSystem24CActionPointEtcParameter32importActionPointSystemEtcScriptEPKcRS0_
     // （CDataManager::init 对 m_actionPoint1/m_actionPoint2 各调一次）
     bool importActionPointSystemEtcScript(const char* path,
@@ -1651,13 +1737,25 @@ private:
 class StageMapList
 {
 public:
+    // vector 元素（loadList 0x0836485c 实证，0xc）：+0 uniqueId、+4 StageData
+    // 首字段、+8 nextId（末元素后继写法见 loadList）。
+    struct _StageMapSummary
+    {
+        int m_uniqueId;   // +0x00（makeStageMapUniqueId）
+        int m_stageId;    // +0x04（map 键）
+        int m_nextId;     // +0x08
+    };
+
     StageMapList();
     ~StageMapList();
-    bool loadList();   // ORIG _ZN12StageMapList8loadListEv（init 调用）
-private:
-    char m_pad[0x1c];
-};
-
+    bool loadList();   // ORIG _ZN12StageMapList8loadListEv（init 调用；定义 ScriptLeafA2.cpp）
+    static bool compare(const _StageMapSummary& a,
+                        const _StageMapSummary& b);  // ORIG T 0x08364848（比较 +0）
+    static int makeStageMapUniqueId(int areaId, int districtId, int stageIdx);
+    // ORIG T 0x08364818（定义待 StageMapList 域批次）
+    int m_firstStageId;                       // +0x00（loadList 写 summaries[0].+4）
+    std::map<int, _StageMapSummary> m_map;    // +0x04（键=stageId）
+};  // sizeof 0x1c
 // ORIG stWarPoint（0x10）：C1 0x0891a866→clear 0x0891a87a（memset 0x10）。
 struct stWarPoint
 {
@@ -2351,6 +2449,12 @@ public:
     // ORIG _ZN11eventReward17importRewardTableEPKcS1_（init 调用，0=成功；
     // 列表加载失败 0x77 / ImportRewardScript 失败 0x71）
     int importRewardTable(const char* dir, const char* file);
+    // ---- ImportRewardScript 依赖的解析 helper（ORIG T；定义待 eventReward 域批次，
+    //      ScriptLeafA2.cpp 先行声明引用；asm 均传 this，为非静态成员）----
+    char getSubKeyType(std::string& token);              // T 0x080ef0c0
+    char getSubKeyAction(std::string& token);            // T 0x080ef128
+    void getOptionType(std::string& token, itemData& out);   // T 0x080ef190
+    void defaultOption(char action, itemData& out);      // W 0x080ef25c
     // ORIG _ZN11eventReward18ImportRewardScriptEPKcS1_ 0x080ef3a2 T
     // （单脚本解析；声明先行，定义归 eventReward 生产批次）
     int ImportRewardScript(const char* dir, const char* file);

@@ -59,7 +59,9 @@ upgrade_table_t::upgrade_table_t()
     intAt(0x258) = 0;
 
     m_floatMap.clear();
-    memset(m_machineMap, 0, sizeof(m_machineMap));
+    m_resultItems.clear();
+    m_machineFrames.clear();
+    m_machineFrames.resize(0xa);   // ORIG _Hashtable 桶数 0xa（C1 反汇编）
     memset(m_zero4b4, 0, sizeof(m_zero4b4));
 }
 

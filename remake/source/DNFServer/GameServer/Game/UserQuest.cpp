@@ -92,15 +92,15 @@ enum QUEST_CONDITION
 namespace WongWork
 {
 
-enum ENUM_HACK_TYPE
+enum ENUM_HACKTYPE
 {
-    ENUM_HACK_TYPE_QUEST = 0x191
+    ENUM_HACKTYPE_QUEST = 0x191
 };
 
 class CHackAnalyzer
 {
 public:
-    void addServerHackCnt(CUser* user, ENUM_HACK_TYPE type, unsigned int count,
+    void addServerHackCnt(CUser* user, ENUM_HACKTYPE type, unsigned int count,
                           unsigned int a, unsigned int b);  // _ZN8WongWork13CHackAnalyzer16addServerHackCntEP5CUserNS_13ENUM_HACKTYPEEjjj
 
     char m_pad[4];   // +0x00
@@ -510,7 +510,7 @@ int UserQuest::accept_quest(int questIdx, char* buf, int& trigger)
         if (!checkAcceptableQuest(quest, cur->m_cleared, selectParam))
         {
             m_user->getHackAnalyzer()->addServerHackCnt(
-                m_user, (WongWork::ENUM_HACK_TYPE)0x191, 1, 0, 0);
+                m_user, (WongWork::ENUM_HACKTYPE)0x191, 1, 0, 0);
             return 1;
         }
     }

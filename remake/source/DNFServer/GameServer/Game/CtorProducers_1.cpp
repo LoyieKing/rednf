@@ -109,7 +109,8 @@ struct STAICharacterCommonScriptView
     char m_avatarDrops[0x100c - 0xf50];             // +0xf50（stEnamyDropAvatarInfo_t 区，本 TU 不访问成员）
     unsigned char m_rarityByte;                     // +0x100c（set 读）
     char m_pad100d[3];
-};  // sizeof 0x1010（ORIG STAICharacterCommonScript 布局视图）
+    int m_animationJob;                             // +0x1010（ORIG clear 置 0xb）
+};  // sizeof 0x1014（ORIG STAICharacterCommonScript 布局视图）
 
 void sub_STAIScriptC1(void*) asm("_ZN25STAICharacterCommonScriptC1Ev");
 void sub_STAIScriptD1(void*) asm("_ZN25STAICharacterCommonScriptD1Ev");
@@ -133,10 +134,6 @@ void sub_CAICharacterList_add(void* self, void* aiChar)
 
 // NPC 动态信息 ctor（W 0x0858191c；CNPCDynamicInfo 完整类型归 NPC 动态域）
 void sub_CNPCDynamicInfoC1(void*, const void*) asm("_ZN15CNPCDynamicInfoC1EPK10CNPCScript");
-
-// NPC 公共数据装载（T 0x089fafc5；stNPCCommonData_t 解析器，NPC 域认领中）
-int sub_loadNPCCommonData(void*, const char*)
-    asm("_Z17loadNPCCommonDataR17stNPCCommonData_tPKc");
 
 
 namespace DNFFLib { void Make_Dir(char* dir); }   // T 0x08108ad7
@@ -1042,7 +1039,7 @@ int CNPCScriptList::initScript(char* dir, char* list, char* common)
         }
     }
 
-    if (sub_loadNPCCommonData(&m_npcCommon, common) != 0)
+    if (loadNPCCommonData(m_npcCommon, common) != 0)
     {
         cMyTrace trace("int CNPCScriptList::initScript(NCHAR*, NCHAR*, NCHAR*)", 0x1be, 5);
         trace("%s load failed\n", common);

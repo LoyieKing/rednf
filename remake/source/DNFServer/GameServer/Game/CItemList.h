@@ -212,9 +212,23 @@ extern CDataManager* G_CDataManager();
 class BaseItemKey
 {
 public:
+    // ORIG C1 0x08513f82（W）：写 +0/+1 字节与 +2 short；op< 无独立符号（内联），
+    // 按字典序 [推断]（RandomRentalA2 批次按 choose_item 报告补全字段名）。
     BaseItemKey();
     BaseItemKey(unsigned char rarity, unsigned char usableLevel,
                 unsigned short groupName);
+
+    unsigned char m_rarity;     // +0x00
+    unsigned char m_level;      // +0x01
+    unsigned short m_partType;  // +0x02
+
+    bool operator<(const BaseItemKey& o) const
+    {
+        return m_rarity < o.m_rarity ||
+               (m_rarity == o.m_rarity && m_level < o.m_level) ||
+               (m_rarity == o.m_rarity && m_level == o.m_level &&
+                m_partType < o.m_partType);
+    }
 };
 
 class BaseItemValue

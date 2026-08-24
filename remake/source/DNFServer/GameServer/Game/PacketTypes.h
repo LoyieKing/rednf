@@ -636,7 +636,13 @@ class MSG_MOVE_MAP : public MSG_BASE
 {
 public:
     MSG_MOVE_MAP();
-    char m_pad_d[0xd];            // +0x0d..+0x1a（前段字段未还原，保持偏移）
+    signed char m_x;              // +0x0d（move_map 目标格 x，movsbl 有符号扩展）
+    signed char m_y;              // +0x0e（move_map 目标格 y）
+    unsigned int m_fieldF;        // +0x0f（Secu_HackLogCheckByParty::
+                                  //  CheckMoveMapFitInPathHackCnt 第 3 实参）
+    unsigned int m_field13;       // +0x13（同上第 4 实参）
+    unsigned char m_field17;      // +0x17（==1 时 CParty::move_map 先 checkLayeredMap）
+    char m_pad18[2];              // +0x18..+0x19
     unsigned char m_1a;           // +0x1a（ORIG process 校验 ==1 跳过 0x25a hack 记数）
     unsigned short m_1b;          // +0x1b（mapIndex：CBossTowerFunc::MoveMap 以
                                   //  (ushort*)(msg+0x1b) 传入）

@@ -10,12 +10,13 @@
 // stAmplifyOption_t 为 Inven_Item::m_amp（+0x11）的类型，尺寸 0xe。
 // ============================================================================
 
-#include <vector>
-
-class CItem;
 #include <ext/hash_map>
 #include <map>
 #include <vector>
+
+class CItem;
+
+#include "EquipmentParameterInfo.h"   // STResultItemCnt（upgrade_table_t +0x490 vector 元素）
 #include "STEquipmentScript.h"    // ENUM_EQUIPMENTTYPE / ItemUpgradeType::T（ODR 守卫已由 FixEquipmentTypeGuard 统一）
 
 class Inven_Item;
@@ -140,14 +141,28 @@ struct upgrade_info_t
 class upgrade_table_t
 {
 public:
+    // MachineFrameInfo（[upgrade machine frame rate] 行；importUpgradeTable
+    // 0x08900c26 实证：4×ScanFloat + ScanInt，sizeof 0x14）。
+    struct MachineFrameInfo
+    {
+        float m_f00;   // +0x00
+        float m_f04;   // +0x04
+        float m_f08;   // +0x08
+        float m_f0c;   // +0x0c
+        int m_i10;     // +0x10
+    };
+
     upgrade_table_t();                                // ORIG 0x089000ca
 
     std::vector<upgrade_info_t> m_infos;              // +0x000
-    char m_body[0x49c - 0x00c];                       // +0x00c 混合表
-    std::map<int, float> m_floatMap;                  // +0x49c
-    char m_pad4a8[0x4b4 - 0x4a8];                     // +0x4a8
-    int m_zero4b4[4];                                 // +0x4b4..+0x4c0（0）
-    char m_machineMap[0x4e4 - 0x4c4];                 // +0x4c4 unordered_map 镜像
+    char m_body[0x490 - 0x00c];                       // +0x00c 混合表（至 0x48f）
+    std::vector<STResultItemCnt> m_resultItems;       // +0x490（[destruction result]）
+    std::map<int, float> m_floatMap;                  // +0x49c（[cost weight by upgrade level]）
+    int m_zero4b4[4];                                 // +0x4b4..+0x4c0（machine frame base time ×4）
+    __gnu_cxx::hash_map<int, MachineFrameInfo> m_machineFrames;  // +0x4c4（本工具链
+                                                                 //   sizeof 0x14）
+    char m_hashPad[0x20 - 0x14];                      // 补齐 ORIG _Hashtable 0x20
+
     // ORIG 直访视图（off 为对象内绝对偏移）。
     int& intAt(int off) { return *(int*)(m_body + off - 0xc); }
     float& floatAt(int off) { return *(float*)(m_body + off - 0xc); }

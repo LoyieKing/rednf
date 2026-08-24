@@ -142,9 +142,10 @@ public:
     std::vector<TagSkillPenalty> m_coolTimePenalty;    // +0x58
     int m_field64;                               // +0x64（clear 置 0）
     int m_field68;                               // +0x68（clear 置 0）
+    char m_pad6c[0xc];                           // +0x6c..0x77（ORIG 间隙，未观测）
     std::map<int, std::vector<StrikerSkill>*> m_skillMap;  // +0x78
-    char m_pad84[0x90 - 0x84];                   // +0x84..0x8f
     void* m_fileList;                            // +0x90（create/destory 管理；ORIG STScriptFileList*）
+    std::vector<StrikerSkillAddCommand> m_macroCommands;   // +0x94（[striker skill macro]）
     unsigned char m_loaded;                      // +0xa0（importScript 成功置 1）
     char m_padA1[3];
     int m_commonCoolTime;                        // +0xa4（[common cool time]）

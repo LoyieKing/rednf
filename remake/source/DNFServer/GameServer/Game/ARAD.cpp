@@ -19,8 +19,8 @@ namespace ARAD
 
 // ============================================================================
 // ScriptInterface（虚基接口）
-// ============================================================================
-ScriptInterface::~ScriptInterface() {}
+// （ORIG nm 无 ScriptInterface 析构符号：析构隐式平凡，不提供定义——
+//  见 Arad_DataManager.h ScriptInterface 注释。）
 
 // ============================================================================
 // ScriptManager（ORIG LoadScript 0x81a11dc / DestroyScript 0x81a12f8 /

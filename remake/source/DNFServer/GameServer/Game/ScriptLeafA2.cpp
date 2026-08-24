@@ -1,0 +1,1688 @@
+// ============================================================================
+// ScriptLeafA2.cpp — 脚本叶子依赖恢复（独占 TU，任务 ScriptLeafA2）
+//
+// 覆盖符号（全部经 ORIG df_game_r nm 核实；有报告者全文阅读后转写，
+// 报告缺失三处以 objdump 逐指令转写并标注）：
+//   convertTabTypeStringToEnum(char const*)                        T 0x08aa7d98
+//   loadNPCCommonData(stNPCCommonData_t&, char const*)             T 0x089fafc5
+//   stNPCCommonData_t::clear()                                     W 0x089fae9e
+//   importRegenerationRandomOptionScript(RandomOptionItem_Regenerator&, char const*)
+//                                                                  T 0x08a7e610
+//   StrikerScript::importScript(char const*)                       T 0x08a9ddb2
+//   StageMapList::loadList()                                       T 0x0836485c
+//   StageMapList::compare(...)                                     T 0x08364848
+//   APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript(
+//       char const*, CActionPointEtcParameter&)                    T 0x08894996
+//   eventReward::ImportRewardScript(char const*, char const*)      T 0x080ef3a2
+//   importUpgradeTable(char const*, upgrade_table_t*)              T 0x08900c26
+//   stLevelUpRewardItemScript::clear()                             W 0x083711d6（无报告，objdump）
+//   seriaRoomDecoAniEventScript::clear()                           W 0x083732a4（无报告，objdump）
+//   CItem::GetMedalPrice() const                                   W 0x0822c862（无报告，objdump）
+//
+// 报告路径：
+//   docs/class_func_reports/_lt_global_gt_/{convertTabTypeStringToEnum,
+//       loadNPCCommonData,importRegenerationRandomOptionScript,
+//       importUpgradeTable}.md（## 汇编 + ## 反编译 C 全文已读）
+//   docs/class_func_reports/StrikerScript/importScript.md（同上）
+//   docs/class_func_reports/StageMapList/{loadList,compare}.md（同上）
+//   docs/class_func_reports/APSystem__CActionPointEtcParameter/
+//       importActionPointSystemEtcScript.md（同上）
+//   docs/class_func_reports/eventReward/ImportRewardScript.md（同上）
+//   无报告三处先读调用者/同类报告：_lt_global_gt_/ImportLevelUpRewardItemScript.md、
+//       _lt_global_gt_/importSeriaRoomAnimationDecoEvent.md、
+//       DisPatcher_RentAvatar/dispatch_sig.md、DisPatcher_BuyItem/get_data.md。
+// ============================================================================
+
+#include <algorithm>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string>
+#include <utility>
+
+int getChangeStatusType(std::string& s);                            // 0x8892b0d
+bool ConvertWeekdayStringToInt(std::string s, unsigned int& out);   // 0x088c284a
+int getItemRarity(const char* name);                                // 0x088bfd97
+int getCharacterJobToEnumValue(std::string& job);                   // 0x089bbc0f
+
+#include "CDataManager.h"        // stNPCCommonData_t / RandomOptionItem_Regenerator /
+                                 // eventReward / StageMapList / APSystem 域权威声明
+#include "APSystemTypes.h"       // CActionPointEx / _MedalRewardItem 权威布局
+#include "StrikerScript.h"       // StrikerScript 及子类型（ContentsType 等）
+#include "CItemAmplifier.h"      // upgrade_table_t / upgrade_info_t 权威布局
+#include "CItem.h"               // CItem::GetMedalPrice 声明与 m_field14
+#include "DNFLexWrapper.h"       // loadRDARScriptFile / ScanType / ScanInt / ScanFloat / ScanStr
+#include "CUserProc.h"          // APSystem::_ActionGroupIndex 完整定义
+#include "CEnvironment.h"        // less_TCHAR / SpinLock
+#include "LogManager.h"          // LogManager::logFormat
+
+// ORIG B 全局（定义 InitScriptProducers_5.cpp；同布局视图访问：
+// STScriptFileList +0x00 即 std::map<int,std::string>，sizeof 0x18）。
+namespace
+{
+class StageScriptFileListView
+{
+public:
+    std::map<int, std::string> m_fileMap;   // +0x00
+};
+}  // namespace
+extern StageScriptFileListView g_stageMapScriptFileList;    // B 0x09494e20
+extern char g_npcScriptBaseDirectory[0x100];                // B 0x094fe680
+
+// ============================================================================
+// convertTabTypeStringToEnum —— ORIG T 0x08aa7d98
+// 报告 _lt_global_gt_/convertTabTypeStringToEnum.md 全文转写。
+// 函数级静态 __lookup(map<char const*,int,less_TCHAR>)/__init_lock(SpinLock)/
+// __inited 三件套：首调登记 general/specific/despair/event → 0x11/0x14/0x17/0x1a；
+// 之后查表命中返回 0..3，未命中返回 4。
+// ============================================================================
+int convertTabTypeStringToEnum(const char* text)
+{
+    static std::map<const char*, int, less_TCHAR> s_lookup;
+    static SpinLock s_initLock;
+    static char s_inited = 0;
+
+    for (;;)
+    {
+        if (!s_inited)
+        {
+            s_initLock.enter();
+            if (s_inited)
+            {
+                s_initLock.leave();
+                continue;
+            }
+            s_lookup.insert(std::make_pair("general", 0x11));
+            s_lookup.insert(std::make_pair("specific", 0x14));
+            s_lookup.insert(std::make_pair("despair", 0x17));
+            s_lookup.insert(std::make_pair("event", 0x1a));
+            s_initLock.leave();
+            s_inited = 1;
+            continue;   // ORIG jmp 回入口走 find 派发
+        }
+
+        std::map<const char*, int, less_TCHAR>::const_iterator it =
+            s_lookup.find(text);
+        if (it == s_lookup.end())
+        {
+            return 4;
+        }
+        switch (it->second)
+        {
+        case 0x11:
+            return 0;   // general
+        case 0x14:
+            return 1;   // specific
+        case 0x17:
+            return 2;   // despair
+        case 0x1a:
+            return 3;   // event
+        default:
+            return 4;
+        }
+    }
+}
+
+// ============================================================================
+// stNPCCommonData_t::clear —— ORIG W 0x089fae9e（loadNPCCommonData 入口调用）。
+// 容器 clear 为实证；标量清零部分为「推断」（clear 本体未单独出报告）。
+// ============================================================================
+void stNPCCommonData_t::clear()
+{
+    for (int i = 0; i < 10; ++i)
+    {
+        m_field0[i] = 0;
+    }
+    m_vec18.clear();
+    m_vec24.clear();
+    m_field30 = 0;
+    m_field32 = 0;
+    m_field34 = 0;
+    m_vec38.clear();
+    m_vec44.clear();
+}
+
+// ============================================================================
+// loadNPCCommonData —— ORIG T 0x089fafc5
+// 报告 _lt_global_gt_/loadNPCCommonData.md 全文转写。
+// 返回：0x3c=脚本打开失败；其余路径一律 0（解析失败与干净 EOF 同值，ORIG 如此）。
+// ============================================================================
+int loadNPCCommonData(stNPCCommonData_t& out, const char* path)
+{
+    if (!loadRDARScriptFile(g_npcScriptBaseDirectory, path))
+    {
+        return 0x3c;
+    }
+
+    std::string token;
+    bool ok = false;
+
+    out.clear();
+
+    for (;;)
+    {
+        if (!ScanType(token, true))
+        {
+            return 0;
+        }
+
+        if (token == "[npc favor exp]")
+        {
+            for (;;)
+            {
+                int idx = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                unsigned short value = static_cast<unsigned short>(ScanInt(&ok));
+                if (!ok)
+                {
+                    return 0;
+                }
+                out.m_field0[idx + 1] = value;             // 写 base+2*idx+2
+                if (value > out.m_field0[0])               // max(slot0, slot[i+1])
+                {
+                    out.m_field0[0] = value;
+                }
+            }
+        }
+        else if (token == "[favorable npc list]")
+        {
+            for (;;)
+            {
+                int idx = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                out.m_vec18.push_back(idx);
+            }
+        }
+        else if (token == "[illustration variable npc list]")
+        {
+            for (;;)
+            {
+                int idx = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                out.m_vec24.push_back(idx);
+            }
+        }
+        else if (token == "[max favor level npc]")
+        {
+            out.m_field34 = static_cast<unsigned short>(ScanInt(&ok));
+            if (!ok)
+            {
+                return 0;
+            }
+        }
+        else if (token == "[favor system begin quest]")
+        {
+            out.m_field30 = static_cast<unsigned short>(ScanInt(&ok));
+            if (!ok)
+            {
+                return 0;
+            }
+        }
+        else if (token == "[favor system begin level]")
+        {
+            out.m_field32 = static_cast<unsigned short>(ScanInt(&ok));
+            if (!ok)
+            {
+                return 0;
+            }
+        }
+        else if (token == "[favor level reward npc]")
+        {
+            for (;;)
+            {
+                int idx = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                out.m_vec38.push_back(idx);
+            }
+        }
+        else if (token == "[favor duration buff list]")
+        {
+            for (;;)
+            {
+                std::vector<stOneBuff_t> buffs;
+                int first = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                          // 回主循环（buffs 析构）
+                }
+                int count = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                for (int i = 0; i < count; ++i)
+                {
+                    std::string s;
+                    if (!ScanStr(&s))
+                    {
+                        return 0;
+                    }
+                    getChangeStatusType(s);         // ORIG 首次调用（结果弃用）
+                    int value = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                    stOneBuff_t buff;
+                    buff.m_changeStatusType = getChangeStatusType(s);   // 第二次入元素
+                    buff.m_value = value;
+                    if (!ScanStr(&s))
+                    {
+                        return 0;
+                    }
+                    buff.m_isNotPlus = (s != "+") ? 1 : 0;
+                    buffs.push_back(buff);
+                }
+                out.m_vec44.push_back(std::make_pair(first, buffs));
+            }
+        }
+        // 其余令牌忽略（ORIG 无 else 分支，直接回主循环）
+    }
+}
+
+// ============================================================================
+// importRegenerationRandomOptionScript —— ORIG T 0x08a7e610
+// 报告 _lt_global_gt_/importRegenerationRandomOptionScript.md 全文转写。
+// 返回：0=成功/文件打开失败（ORIG 同值）；0x1d=[choose part] 首扫描失败；
+//       0x5d=[regeneration price] 组重复。
+// ============================================================================
+int importRegenerationRandomOptionScript(RandomOptionItem_Regenerator& reg,
+                                         const char* path)
+{
+    if (!loadRDARScriptFile("", path))
+    {
+        return 0;
+    }
+
+    std::string token;
+    std::string s;
+    bool ok = false;
+    int part = 0;
+
+    while (ScanType(token, true))
+    {
+        if (token == "[choose part]")
+        {
+            part = ScanInt(&ok);
+            if (!ok)
+            {
+                return 0x1d;
+            }
+            ScanStr(&s);
+            str_index_to_itemgroup& entry = reg.m_map0[part];
+            entry.m_name4 = s;
+            while (ScanStr(&s))
+            {
+                entry.m_vec8.push_back(s);
+            }
+        }
+        else if (token == "[adjust quantity ratio]")
+        {
+            part = ScanInt(&ok);            // ORIG 不校验 ok
+            ScanStr(&s);
+            reg.m_map0[part].m_name4 = s;
+            for (int i = 0; i < 3; ++i)
+            {
+                reg.m_vec30.push_back(ScanInt(&ok));
+            }
+        }
+        else if (token == "[adjust value ratio]")
+        {
+            part = ScanInt(&ok);            // ORIG 不校验 ok
+            ScanStr(&s);
+            reg.m_map0[part].m_name4 = s;
+            _str_option_value_ratio ratio;  // ctor(0.0, 0.0, 0) 等价置零
+            ratio.m_scaleRange0 = 0.0f;
+            ratio.m_scaleBase4 = 0.0f;
+            ratio.m_weight8 = 0;
+            while (ScanFloat(&ratio.m_scaleRange0))
+            {
+                ScanFloat(&ratio.m_scaleBase4);
+                ratio.m_weight8 = static_cast<unsigned int>(
+                    ScanInt(reinterpret_cast<int*>(&ratio.m_weight8)));
+                reg.m_vec3c.push_back(ratio);
+                reg.m_field48 += ratio.m_weight8;
+            }
+        }
+        else if (token == "[regeneration price]")
+        {
+            int limit = ScanInt(&ok);       // ORIG 不校验 ok
+            for (;;)
+            {
+                int group;
+                if (!ScanInt(&group))
+                {
+                    break;
+                }
+                if (reg.m_map18.find(group) != reg.m_map18.end())
+                {
+                    printf("random option item script error %u, group : %d\n",
+                           0x5c, group);
+                    return 0x5d;
+                }
+                std::map<int, _str_cost>& costs = reg.m_map18[group];
+                int key;
+                do
+                {
+                    ScanInt(&key);          // 三连 ScanInt(int*)，均不校验（ORIG 同）
+                    int a;
+                    int b;
+                    ScanInt(&a);
+                    ScanInt(&b);
+                    _str_cost cost;
+                    cost.m_field0 = a;
+                    cost.m_field4 = b;
+                    costs[key] = cost;
+                } while (key < limit);
+            }
+        }
+    }
+    return 0;
+}
+
+// ============================================================================
+// StrikerScript::importScript —— ORIG T 0x08a9ddb2
+// 报告 StrikerScript/importScript.md 全文转写。成功置 m_loaded=1 并返回 true。
+// ============================================================================
+bool StrikerScript::importScript(const char* path)
+{
+    if (!loadRDARScriptFile("", path))
+    {
+        return false;
+    }
+
+    std::string token;
+    std::string s;
+    bool ok = false;
+
+    while (ScanType(token, true))
+    {
+        if (token == "[tag mode]")
+        {
+            ScanInt(&ok);                           // 仅存局部（ORIG 同）
+        }
+        else if (token == "[tag cost time]")
+        {
+            m_tagCostTime = ScanInt(&ok);
+        }
+        else if (token == "[tag character setting]")
+        {
+            m_tagCharacterSetting = ScanInt(&ok);
+        }
+        else if (token == "[striker combo]")
+        {
+            m_strikerCombo = ScanInt(&ok);
+        }
+        else if (token == "[striker start time]")
+        {
+            m_strikerStartTime = ScanInt(&ok);
+        }
+        else if (token == "[striker skill data up]")
+        {
+            importSkillDataUpVector();
+        }
+        else if (token == "[striker skill attack penalty]")
+        {
+            importSkillAttackPenalty();
+        }
+        else if (token == "[striker skill cooltime penalty]")
+        {
+            importSkillCoolTimePenalty();
+        }
+        else if (token == "[striker level penalty]")
+        {
+            importParentLevelPenlaty();
+        }
+        else if (token == "[striker module impossible]")
+        {
+            m_moduleImpossible.clear();
+            while (ScanStr(&s))
+            {
+                m_moduleImpossible.push_back(
+                    static_cast<ContentsType::T>(ContentsType::getType(s.c_str())));
+            }
+        }
+        else if (token == "[striker dungeon impossible]")
+        {
+            m_dungeonImpossible.clear();
+            for (;;)
+            {
+                int dungeon;
+                if (!ScanInt(&dungeon))
+                {
+                    break;
+                }
+                m_dungeonImpossible.push_back(dungeon);
+            }
+        }
+        else if (token == "[striker end time]")
+        {
+            m_strikerEndTime = ScanInt(static_cast<bool*>(0));
+        }
+        else if (token == "[position]")
+        {
+            m_positionType = ScanInt(static_cast<bool*>(0));   // +0xac
+            m_field38 = ScanInt(static_cast<bool*>(0));        // +0x38
+            m_field3c = ScanInt(static_cast<bool*>(0));        // +0x3c
+        }
+        else if (token == "[striker skill]")
+        {
+            for (;;)
+            {
+                StrikerSkill skill;
+                int first;
+                if (!ScanInt(&first))
+                {
+                    break;                              // 扫描失败退出该段
+                }
+                int second = ScanInt(static_cast<bool*>(0));
+                skill.m_field00 = ScanInt(static_cast<bool*>(0));
+                skill.m_field04 = ScanInt(static_cast<bool*>(0));
+                skill.m_field08 = ScanInt(static_cast<bool*>(0));
+                ScanStr(&s);
+                skill.m_name = s;
+                // map 键 = 两个截断 ushort 打包（栈 -0x5c/-0x5a 对）
+                int key = static_cast<int>(
+                    static_cast<unsigned short>(first) |
+                    (static_cast<unsigned int>(static_cast<unsigned short>(second))
+                     << 16));
+                std::map<int, std::vector<StrikerSkill>*>::iterator it =
+                    m_skillMap.find(key);
+                if (it != m_skillMap.end())
+                {
+                    it->second->push_back(skill);
+                }
+                else
+                {
+                    std::vector<StrikerSkill>* vec = new std::vector<StrikerSkill>;
+                    vec->push_back(skill);
+                    m_skillMap[key] = vec;
+                }
+            }
+        }
+        else if (token == "[striker skill macro]")
+        {
+            m_macroCommands.clear();
+            for (;;)
+            {
+                int index;
+                if (!ScanInt(&index))
+                {
+                    break;
+                }
+                StrikerSkillAddCommand cmd;
+                cmd.m_field00 = index;
+                cmd.m_field04 = ScanInt(static_cast<bool*>(0));
+                cmd.setType(ScanInt(static_cast<bool*>(0)));
+                m_macroCommands.push_back(cmd);
+            }
+        }
+        else if (token == "[common cool time]")
+        {
+            m_commonCoolTime = ScanInt(static_cast<bool*>(0));
+        }
+        else if (token == "[direction type]")
+        {
+            m_direction.setType(ScanInt(static_cast<bool*>(0)));
+        }
+        else if (token == "[contents revision]")
+        {
+            m_contentsRevision.clear();
+            while (ScanStr(&s))
+            {
+                ContentsRevision rev;
+                rev.m_type = ContentsType::getType(s.c_str());
+                rev.m_field04 = ScanInt(static_cast<bool*>(0));
+                rev.m_field08 = ScanInt(static_cast<bool*>(0));
+                rev.m_field0c = ScanInt(static_cast<bool*>(0));
+                m_contentsRevision.push_back(rev);
+            }
+        }
+        else if (token == "[upgrade revision]")
+        {
+            m_upgradeRevision = ScanInt(static_cast<bool*>(0));
+        }
+    }
+
+    m_loaded = 1;
+    return true;
+}
+
+// ============================================================================
+// StageMapList::compare —— ORIG T 0x08364848（比较 +0 uniqueId）。
+// ============================================================================
+bool StageMapList::compare(const _StageMapSummary& a, const _StageMapSummary& b)
+{
+    return a.m_uniqueId < b.m_uniqueId;
+}
+
+// ---- stagemap 域镜像（布局取自 loadList 报告汇编偏移；类型 ORIG 真实存在，
+//      完整建模归 stagemap 域批次）----
+namespace stagemap
+{
+
+struct StageData
+{
+    int m_field0;                            // +0x00
+};
+
+struct DistrictData
+{
+    int m_field0;                            // +0x00
+    std::vector<StageData> m_vec4;           // +0x04
+};
+
+struct AreaData
+{
+    int m_field0;                            // +0x00
+    char m_pad04[0x1c];                      // +0x04
+    std::vector<DistrictData> m_vec20;       // +0x20
+    int m_field2c;                           // +0x2c
+};
+
+class StageMapScript
+{
+public:
+    StageMapScript();                        // ORIG W 0x08373488
+    ~StageMapScript();                       // ORIG W 0x0837f782
+    void clear();                            // ORIG W 0x08373428
+
+    char m_pad00[0x14];                      // +0x00（未还原字段区）
+    std::vector<AreaData> m_areaVec;         // +0x14
+};
+
+}  // namespace stagemap
+
+// ORIG T 0x088a9f28（定义待 stagemap 脚本域批次；本 TU 仅声明引用）
+bool importStageMapScript(stagemap::StageMapScript* out, const char* path);
+
+// ============================================================================
+// StageMapList::loadList —— ORIG T 0x0836485c
+// 报告 StageMapList/loadList.md 全文转写。
+// ============================================================================
+bool StageMapList::loadList()
+{
+    std::vector<_StageMapSummary> summaries;
+
+    for (std::map<int, std::string>::iterator it =
+             g_stageMapScriptFileList.m_fileMap.begin();
+         it != g_stageMapScriptFileList.m_fileMap.end(); ++it)
+    {
+        const char* name = it->second.c_str();
+        if (name == 0)
+        {
+            break;
+        }
+
+        stagemap::StageMapScript script;
+        if (!importStageMapScript(&script, name))
+        {
+            printf("Stage Map Script Error: %s\n", name);
+            return false;
+        }
+
+        for (size_t a = 0; a < script.m_areaVec.size(); ++a)
+        {
+            stagemap::AreaData& area = script.m_areaVec[a];
+            int districtId = 0;
+            for (size_t d = 0; d < area.m_vec20.size(); ++d)
+            {
+                stagemap::DistrictData& district = area.m_vec20[d];
+                int stageIdx = 0;
+                for (size_t s = 0; s < district.m_vec4.size(); ++s)
+                {
+                    _StageMapSummary sum;
+                    sum.m_nextId = 0;
+                    sum.m_stageId = district.m_vec4[s].m_field0;
+                    sum.m_uniqueId =
+                        makeStageMapUniqueId(area.m_field0, district.m_field0,
+                                             stageIdx);
+                    summaries.push_back(sum);
+                    ++stageIdx;
+                }
+                districtId = district.m_field0;
+            }
+            districtId += 1;
+            int stageIdx2 = 0;
+            if (0 < area.m_field2c)
+            {
+                _StageMapSummary sum;
+                sum.m_nextId = 1;
+                sum.m_stageId = area.m_field2c;
+                sum.m_uniqueId =
+                    makeStageMapUniqueId(area.m_field0, districtId, stageIdx2);
+                summaries.push_back(sum);
+            }
+        }
+    }
+
+    std::sort(summaries.begin(), summaries.end(), compare);
+
+    size_t count = summaries.size();
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (i == 0)
+        {
+            m_firstStageId = summaries[0].m_stageId;
+        }
+        if (i != count - 1)
+        {
+            summaries[i].m_nextId = summaries[i + 1].m_stageId;
+        }
+        m_map.insert(std::make_pair(summaries[i].m_stageId, summaries[i]));
+    }
+    return true;
+}
+
+// ============================================================================
+// APSystem::CActionPointEtcParameter::importActionPointSystemEtcScript
+// ORIG T 0x08894996（静态成员）。报告
+// APSystem__CActionPointEtcParameter/importActionPointSystemEtcScript.md 全文转写。
+// 返回 false=成功/文件失败；错误路径亦为 false（调用方仅判零，语义兼容；
+// ORIG 各行级错误码见注释）。
+// ============================================================================
+namespace APSystem
+{
+
+bool CActionPointEtcParameter::importActionPointSystemEtcScript(
+    const char* path, CActionPointEtcParameter& out)
+{
+    std::string token;
+    bool ok = false;
+
+    out.ClearData();
+    if (!loadRDARScriptFile("", path))
+    {
+        return false;
+    }
+
+    for (;;)
+    {
+        if (!ScanType(token, true))
+        {
+            // EOF：把各组元素指针登记进 +0x18 引用表（ORIG 尾段循环）
+            for (std::map<unsigned short, std::vector<CActionPointEx> >::iterator it =
+                     out.m_actionPoints.begin();
+                 it != out.m_actionPoints.end(); ++it)
+            {
+                std::vector<CActionPointEx>& vec = it->second;
+                for (size_t i = 0; i < vec.size(); ++i)
+                {
+                    out.m_actionPointRefs.insert(
+                        std::make_pair(it->first,
+                                       static_cast<const CActionPointEx*>(&vec[i])));
+                }
+            }
+            return false;
+        }
+
+        if (token == "[action point list]")
+        {
+            for (;;)
+            {
+                CActionPointEx ex;
+                int v1 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;                              // 回主循环
+                }
+                ex.m_field00 = static_cast<unsigned short>(v1);
+
+                int v2 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                ex.m_field2c = static_cast<unsigned char>(v2);
+
+                int key = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                *reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]) =
+                    static_cast<unsigned short>(key);              // +0x0c map 键
+
+                int v4 = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+
+                _ActionGroupIndex groupIdx;
+                *reinterpret_cast<int*>(&ex.m_bytes02[0]) = v4;   // +0x02 int（组索引）
+                groupIdx.m_value = v4;
+                if (!IsValidActionGroupIndex(groupIdx))
+                {
+                    return false;                       // ORIG 错误码 0x62
+                }
+
+                int v5 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return false;                       // 0x65
+                }
+                ex.m_bytes02[6] = static_cast<unsigned char>(v5);   // +0x08（后被覆写）
+
+                for (int i = 0; i <= 4; ++i)            // days 区 B+0x06..+0x0a
+                {
+                    int day = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return false;                   // 0x6d
+                    }
+                    if (day != 0)
+                    {
+                        ex.m_bytes02[4 + i] =
+                            static_cast<unsigned char>(-static_cast<char>(day));
+                    }
+                }
+
+                std::string itemList;
+                if (!ScanStr(&itemList))
+                {
+                    return false;                       // 0x76
+                }
+                {
+                    // strtok_r 按 "," 切分 atoi 入 vector<int>（B+0x14）
+                    char* context = 0;
+                    char* buf = &itemList[0];
+                    for (char* tok = strtok_r(buf, ",", &context); tok != 0;
+                         tok = strtok_r(0, ",", &context))
+                    {
+                        ex.m_itemList.push_back(atoi(tok));
+                    }
+                }
+
+                std::string weekdayStr;
+                if (!ScanStr(&weekdayStr))
+                {
+                    return false;                       // 0x9c
+                }
+                unsigned int weekday = 0;
+                if (!ConvertWeekdayStringToInt(weekdayStr, weekday))
+                {
+                    weekday = 7;
+                }
+                ex.m_weekday = static_cast<int>(weekday);
+
+                int b9 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return false;                       // 0xa4
+                }
+                ex.m_bytes02[7] = static_cast<unsigned char>(b9);   // +0x09（覆盖 days[3]）
+
+                int b10 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return false;                       // 0xa7
+                }
+                ex.m_bytes02[0x0e] = static_cast<unsigned char>(b10);   // +0x10
+
+                if (!ScanStr(&ex.m_str24))
+                {
+                    return false;                       // 0xaa
+                }
+                if (!ScanStr(&ex.m_str28))
+                {
+                    return false;                       // 0xad
+                }
+
+                std::map<unsigned short, std::vector<CActionPointEx> >::iterator fit =
+                    out.m_actionPoints.find(*reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]));
+                if (fit != out.m_actionPoints.end())
+                {
+                    fit->second.push_back(ex);
+                }
+                else
+                {
+                    std::vector<CActionPointEx> vec;
+                    vec.push_back(ex);
+                    out.m_actionPoints.insert(
+                        std::make_pair(
+                        *reinterpret_cast<unsigned short*>(&ex.m_bytes02[0x0a]), vec));
+                }
+            }
+        }
+        else if (token == "[action point user message]")
+        {
+            for (;;)
+            {
+                int msgId = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                std::string msg;
+                if (!ScanStr(&msg))
+                {
+                    return false;                       // ORIG 错误码 199(0xc7)
+                }
+                out.m_rewardMessages.insert(std::make_pair(msgId, msg));
+            }
+        }
+        else if (token == "[action point system message]")
+        {
+            for (;;)
+            {
+                int msgId = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                std::string msg;
+                if (!ScanStr(&msg))
+                {
+                    return false;                       // ORIG 错误码 0xd5
+                }
+                out.m_rewardMessages2.insert(std::make_pair(msgId, msg));
+            }
+        }
+        else if (token == "[action point medal reward]")
+        {
+            for (;;)
+            {
+                _MedalRewardItem medal;
+                medal.m_field00 = static_cast<unsigned short>(ScanInt(&ok));
+                if (!ok)
+                {
+                    break;
+                }
+                medal.m_field02 = static_cast<unsigned short>(ScanInt(&ok));
+                medal.m_field04 = ScanInt(&ok);
+                medal.m_field08 = static_cast<unsigned short>(ScanInt(&ok));
+                out.m_medalRewards.push_back(medal);
+            }
+        }
+        else if (token == "[action point today reward]")
+        {
+            for (;;)
+            {
+                _SIG_LOAD_ACTION_POINT::_TodayRewardItem today;
+                int raw = ScanInt(&ok);
+                if (!ok)
+                {
+                    break;
+                }
+                today.m_itemIdx = raw - 1;
+                if (!IsValidTodayRewardItem(today))
+                {
+                    return false;                       // ORIG 错误码 0xfa
+                }
+                ScanInt(&ok);                           // 四个丢弃列（ORIG 存栈即弃）
+                ScanInt(&ok);
+                ScanInt(&ok);
+                ScanInt(&ok);
+                out.m_todayRewards.push_back(today);
+            }
+        }
+    }
+}
+
+}  // namespace APSystem
+
+// ============================================================================
+// eventReward::ImportRewardScript —— ORIG T 0x080ef3a2
+// 报告 eventReward/ImportRewardScript.md 全文转写。
+// 令牌派发表为函数级静态 __lookup/__init_lock/__inited 三件套
+// （[/reward]=0x8f [job type]=0x93 [sub type]=0xa3 [option]=0xaf
+//   [equipment item]=0xb9 [stackable item]=0xd8 [/sub type]=0xfc
+//   [/job type]=0x102 [/option]=0x107；未知 -1 忽略）。
+// 返回：1=[/reward] 收尾或自然 EOF 且最后 ok=true；0=文件/解析失败
+// （自然 EOF 返回最后一次 ScanInt 的 ok 态，ORIG ebx=local_18d 同语义）。
+// ============================================================================
+int eventReward::ImportRewardScript(const char* dir, const char* file)
+{
+    if (!loadRDARScriptFile(dir, file))
+    {
+        return 0;
+    }
+
+    static std::map<const char*, int, less_TCHAR> s_lookup;
+    static SpinLock s_initLock;
+    static char s_inited = 0;
+
+    std::string token;
+    std::string tok2;
+    bool ok = false;
+
+    rewardKey key;                                  // 5 字节栈键（-0x1a9..-0x1a5）
+    key.clear();
+    std::map<int, std::vector<itemData> > subMap;   // 每 jobtype 局部表
+    itemData curItem;                               // [option] 累积区
+
+    while (ScanType(token, true))
+    {
+        int id;
+        if (!s_inited)
+        {
+            s_initLock.enter();
+            if (s_inited)
+            {
+                s_initLock.leave();
+                continue;
+            }
+            id = 0;                                 // 首遍登记态
+        }
+        else
+        {
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                s_lookup.find(token.c_str());
+            id = (it != s_lookup.end()) ? it->second : -1;
+        }
+
+        if (!s_inited)
+        {
+            // 首遍：登记全部键值（顺序与 ORIG 级联一致），随后按当前令牌派发
+            s_lookup.insert(std::make_pair("[/reward]", 0x8f));
+            s_lookup.insert(std::make_pair("[job type]", 0x93));
+            s_lookup.insert(std::make_pair("[sub type]", 0xa3));
+            s_lookup.insert(std::make_pair("[option]", 0xaf));
+            s_lookup.insert(std::make_pair("[equipment item]", 0xb9));
+            s_lookup.insert(std::make_pair("[stackable item]", 0xd8));
+            s_lookup.insert(std::make_pair("[/sub type]", 0xfc));
+            s_lookup.insert(std::make_pair("[/job type]", 0x102));
+            s_lookup.insert(std::make_pair("[/option]", 0x107));
+            s_initLock.leave();
+            s_inited = 1;
+
+            std::map<const char*, int, less_TCHAR>::const_iterator it =
+                s_lookup.find(token.c_str());
+            id = (it != s_lookup.end()) ? it->second : -1;
+        }
+
+        switch (id)
+        {
+        case 0x8f:      // [/reward]
+            return 1;
+
+        case 0x93:      // [job type]
+        {
+            ScanStr(&tok2);
+            key.m_job = static_cast<unsigned char>(getCharacterJobToEnumValue(tok2));
+            key.m_a = static_cast<unsigned char>(ScanInt(&ok));
+            if (!ok)
+            {
+                return 0;
+            }
+            key.m_b = static_cast<unsigned char>(ScanInt(&ok));
+            if (!ok)
+            {
+                return 0;
+            }
+            break;
+        }
+
+        case 0xa3:      // [sub type]
+        {
+            ScanStr(&tok2);
+            key.m_sub.m_type = static_cast<unsigned char>(getSubKeyType(tok2));
+            if (!ScanStr(&tok2))
+            {
+                return 0;
+            }
+            key.m_sub.m_action = static_cast<unsigned char>(getSubKeyAction(tok2));
+            break;
+        }
+
+        case 0xaf:      // [option]
+        {
+            ScanStr(&tok2);
+            getOptionType(tok2, curItem);
+            break;
+        }
+
+        case 0xb9:      // [equipment item]
+        {
+            defaultOption(key.m_sub.m_action, curItem);
+            for (;;)
+            {
+                itemData item = curItem;            // 栈副本
+                item.m_field0c = ScanInt(&ok);
+                if (!ok)
+                {
+                    goto next_token;                // 回主循环
+                }
+                item.m_field04 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                std::map<int, std::vector<itemData> >::iterator fit =
+                    subMap.find(item.m_field0c);
+                if (fit == subMap.end())
+                {
+                    std::vector<itemData> vec;
+                    vec.push_back(item);
+                    subMap.insert(std::make_pair(item.m_field0c, vec));
+                }
+                else
+                {
+                    fit->second.push_back(item);
+                }
+            }
+        }
+
+        case 0xd8:      // [stackable item]
+        {
+            curItem.m_field08 = 1;                  // 段首一次性置 1（ORIG 同）
+            defaultOption(key.m_sub.m_action, curItem);
+            for (;;)
+            {
+                itemData item = curItem;
+                item.m_field0c = ScanInt(&ok);
+                if (!ok)
+                {
+                    goto next_token;
+                }
+                item.m_field04 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                item.m_field08 = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 0;
+                }
+                std::map<int, std::vector<itemData> >::iterator fit =
+                    subMap.find(item.m_field0c);
+                if (fit == subMap.end())
+                {
+                    std::vector<itemData> vec;
+                    vec.push_back(item);
+                    subMap.insert(std::make_pair(item.m_field0c, vec));
+                }
+                else
+                {
+                    fit->second.push_back(item);
+                }
+            }
+        }
+
+        case 0xfc:      // [/sub type]
+        {
+            m_map0.insert(std::make_pair(key, subMap));
+            key.m_sub.clear();                      // rewardSubKey::clear 仅清子键
+            subMap.clear();
+            break;
+        }
+
+        case 0x102:     // [/job type]
+        {
+            key.clear();                            // rewardKey::clear
+            subMap.clear();
+            break;
+        }
+
+        case 0x107:     // [/option]
+        {
+            curItem.m_field00 = 0;                  // itemData::clear（W 0x080f1162；
+            curItem.m_field04 = 0;                  //   逐 int 清零——「推断」）
+            curItem.m_field08 = 0;
+            curItem.m_field0c = 0;
+            break;
+        }
+
+        default:        // 未知令牌忽略
+            break;
+        }
+
+    next_token:;
+    }
+    // 自然 EOF：返回最后一次 ok 态（ORIG ebx=local_18d）
+    return ok ? 1 : 0;
+}
+
+// ============================================================================
+// importUpgradeTable —— ORIG T 0x08900c26
+// 报告 _lt_global_gt_/importUpgradeTable.md 全文转写。
+// 返回 1=成功（含 EOF）；0=失败（文件打开失败/关键扫描失败/键重复/异常捕获）。
+// ============================================================================
+namespace
+{
+
+// upgrade_info_t 元素内偏移直访（头文件镜像约定：+0x00..+0x2b 不具名混合区，
+// +0x2c/+0x30/+0x34 具名字段，+0x38..+0x6b 尾区；写入点全部来自报告汇编）。
+inline int& infoInt(upgrade_info_t& info, int off)
+{
+    if (off == 0x2c)
+    {
+        return info.m_recipeItem;
+    }
+    if (off == 0x30)
+    {
+        return info.m_meterialCount;
+    }
+    if (off == 0x34)
+    {
+        return info.m_discountBase;
+    }
+    return *(int*)(info.m_pad0 + off);
+}
+inline float& infoFloat(upgrade_info_t& info, int off)
+{
+    return *(float*)(info.m_pad0 + off);
+}
+inline int& infoIntTail(upgrade_info_t& info, int off)   // +0x38..+0x6b 放大区
+{
+    return *(int*)(info.m_pad + off - 0x38);
+}
+
+}  // namespace
+
+int importUpgradeTable(const char* path, upgrade_table_t* table)
+{
+    if (!loadRDARScriptFile("", path))
+    {
+        return 0;
+    }
+
+    try
+    {
+        std::string token;
+        std::string rarityName;
+        bool ok = false;
+
+        for (;;)
+        {
+            if (!ScanType(token, true))
+            {
+                return 1;                               // EOF → 成功
+            }
+
+            if (token == "[table]")
+            {
+                table->m_infos.clear();
+                for (;;)
+                {
+                    upgrade_info_t info;
+                    infoFloat(info, 0x00) =
+                        static_cast<float>(ScanInt(&ok));
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x04) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x14) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x08) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x18) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x0c) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoInt(info, 0x10) = 0;
+                    infoInt(info, 0x1c) = ScanInt(&ok);
+                    infoInt(info, 0x20) = ScanInt(&ok);
+                    infoInt(info, 0x24) = ScanInt(&ok);
+                    infoInt(info, 0x28) = ScanInt(&ok);
+                    infoInt(info, 0x2c) = ScanInt(&ok);
+                    infoInt(info, 0x30) = 0;
+                    infoFloat(info, 0x48) =
+                        static_cast<float>(ScanInt(&ok));
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x5c) = 0.0f;
+                    infoFloat(info, 0x50) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x60) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x54) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x64) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    infoFloat(info, 0x58) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    table->m_infos.push_back(info);
+                }
+            }
+            else if (token == "[amplification const]")
+            {
+                size_t index = 0;
+                for (;;)
+                {
+                    if (table->m_infos.empty() || index >= table->m_infos.size())
+                    {
+                        break;
+                    }
+                    upgrade_info_t& info = table->m_infos[index];
+                    ++index;
+                    for (int i = 0; i <= 4; ++i)
+                    {
+                        if (i == 0)
+                        {
+                            infoIntTail(info, 0x38) = 0;
+                        }
+                        else
+                        {
+                            infoIntTail(info, 0x38 + i * 4) = ScanInt(&ok);
+                        }
+                        if (!ok)
+                        {
+                            break;
+                        }
+                    }
+                }
+                if (!ScanType(token, true))
+                {
+                    LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
+                                          "importUpgradeTable", 0xb3a,
+                                          "ERROR [amplification const] count %d",
+                                          static_cast<int>(index));
+                }
+            }
+            else if (token == "[cost weights by rarity]")
+            {
+                for (int i = 0; i <= 5; ++i)
+                {
+                    table->floatAt((i + 0x1c) * 4 + 4) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0xb48, "importUpgradeTable - invalid cost rarity table");
+                    }
+                }
+            }
+            else if (token == "[stat weights by rarity]")
+            {
+                for (int i = 0; i <= 5; ++i)
+                {
+                    table->floatAt((i + 0x20) * 4 + 0xc) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0xb5a, "importUpgradeTable - invalid stat rarity table");
+                    }
+                }
+            }
+            else if (token == "[type]")
+            {
+                for (int i = 10; i <= 0x15; ++i)
+                {
+                    table->floatAt((i + 4) * 4 + 0xc) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0xb6c, "importUpgradeTable - invalid type table");
+                    }
+                }
+            }
+            else if (token == "[level]")
+            {
+                for (int i = 0; i <= 3; ++i)
+                {
+                    table->floatAt(i * 4 + 0xc) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0xb7e, "importUpgradeTable - invalid level table");
+                    }
+                }
+            }
+            else if (token == "[cost]")
+            {
+                for (int i = 0; i <= 0x63; ++i)
+                {
+                    table->intAt((i + 0x28) * 4 + 4) = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0xb90, "importUpgradeTable - invalid gold table");
+                    }
+                }
+            }
+            else if (token == "[notice]")
+            {
+                table->intAt(0x234) = ScanInt(&ok);
+                if (!ok)
+                {
+                    LogManager::logFormat(
+                        0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                        0xb9e, "importUpgradeTable - invalid notice tag");
+                }
+            }
+            else if (token == "[repair cost rate by upgrade level]")
+            {
+                for (int i = 0; i <= 0x63; ++i)
+                {
+                    table->floatAt((i + 0x9c) * 4 + 4) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        if (i != 0x63)
+                        {
+                            LogManager::logFormat(
+                                0, "../RDARScriptEtcParameter.cpp",
+                                "importUpgradeTable", 0xbac,
+                                "ERROR : [repair cost rate by upgrade level] size %d / %d",
+                                i, 100);
+                        }
+                        break;
+                    }
+                }
+            }
+            else if (token == "[destroy level by rarity]")
+            {
+                while (ScanStr(&rarityName))
+                {
+                    int level = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                    int rarity = getItemRarity(rarityName.c_str());
+                    if (rarity == 6)
+                    {
+                        return 0;
+                    }
+                    table->intAt((rarity + 0x100) * 4 + 4) = level;
+                }
+            }
+            else if (token == "[max upgrade level by rarity]")
+            {
+                while (ScanStr(&rarityName))
+                {
+                    int level = ScanInt(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                    int rarity = getItemRarity(rarityName.c_str());
+                    if (rarity == 6)
+                    {
+                        return 0;
+                    }
+                    table->intAt((rarity + 0x104) * 4 + 0xc) = level;
+                }
+            }
+            else if (token == "[disjoint]")
+            {
+                for (;;)
+                {
+                    if (!ScanType(token, true))
+                    {
+                        throw static_cast<unsigned int>(0xbdc);
+                    }
+                    if (token == "[/disjoint]")
+                    {
+                        break;
+                    }
+                    if (token == "[disjoint bonus item]")
+                    {
+                        table->intAt(0x238) = ScanInt(&ok);
+                        if (!ok)
+                        {
+                            break;
+                        }
+                    }
+                    else if (token == "[equip level const]")
+                    {
+                        table->intAt(0x23c) = ScanInt(&ok);
+                        if (!ok)
+                        {
+                            throw static_cast<unsigned int>(0xbea);
+                        }
+                    }
+                    else if (token == "[upgrade failed bonus weight by rarity]")
+                    {
+                        while (ScanStr(&rarityName))
+                        {
+                            float weight = ScanFloat(&ok);
+                            if (!ok)
+                            {
+                                throw static_cast<unsigned int>(0xbf4);
+                            }
+                            int rarity = getItemRarity(rarityName.c_str());
+                            if (rarity == 6)
+                            {
+                                throw static_cast<unsigned int>(0xbf7);
+                            }
+                            table->floatAt((rarity + 0x90) * 4) = weight;
+                        }
+                    }
+                    else if (token == "[upgrade const for bonus item count]")
+                    {
+                        table->intAt(0x258) = ScanInt(&ok);
+                        if (!ok)
+                        {
+                            throw static_cast<unsigned int>(0xbff);
+                        }
+                    }
+                    else if (token == "[correction grade by rarity]")
+                    {
+                        while (ScanStr(&rarityName))
+                        {
+                            int grade = ScanInt(&ok);
+                            if (!ok)
+                            {
+                                throw static_cast<unsigned int>(0xc09);
+                            }
+                            int rarity = getItemRarity(rarityName.c_str());
+                            if (rarity == 6)
+                            {
+                                throw static_cast<unsigned int>(0xc0c);
+                            }
+                            table->intAt((rarity + 0x94) * 4 + 0xc) = grade;
+                        }
+                    }
+                }
+            }
+            else if (token == "[destruction result]")
+            {
+                for (int t = 10; t <= 0x15; ++t)
+                {
+                    table->floatAt((t + 0x10c) * 4 + 4) = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0xc26, "importUpgradeTable - invalid type table");
+                    }
+                }
+                int destroyIdx = ScanInt(&ok);
+                if (!ok)
+                {
+                    return 1;                           // ORIG jmp EOF 成功出口
+                }
+                table->intAt(0x48c) = destroyIdx;
+                for (;;)
+                {
+                    STResultItemCnt cnt;
+                    cnt.m_a = static_cast<unsigned short>(ScanInt(&ok));
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    cnt.m_b = static_cast<unsigned short>(ScanInt(&ok));
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    cnt.m_c = static_cast<unsigned short>(ScanInt(&ok));
+                    if (!ok)
+                    {
+                        break;
+                    }
+                    table->m_resultItems.push_back(cnt);
+                }
+            }
+            else if (token == "[cost weight by upgrade level]")
+            {
+                for (;;)
+                {
+                    int level;
+                    if (!ScanInt(&level))
+                    {
+                        break;
+                    }
+                    float weight = ScanFloat(&ok);
+                    if (!ok)
+                    {
+                        return 0;
+                    }
+                    std::pair<std::map<int, float>::iterator, bool> ins =
+                        table->m_floatMap.insert(std::make_pair(level, weight));
+                    if (!ins.second)
+                    {
+                        LogManager::logFormat(
+                            0, "../RDARScriptEtcParameter.cpp", "importUpgradeTable",
+                            0xc54,
+                            "[cost weight by upgrade level] key is duplicated]");
+                        return 0;
+                    }
+                }
+            }
+            else if (token == "[upgrade machine frame base time]")
+            {
+                if (!ScanInt(&table->m_zero4b4[0]))
+                {
+                    return 0;
+                }
+                if (!ScanInt(&table->m_zero4b4[1]))
+                {
+                    return 0;
+                }
+                if (!ScanInt(&table->m_zero4b4[2]))
+                {
+                    return 0;
+                }
+                if (!ScanInt(&table->m_zero4b4[3]))
+                {
+                    return 0;
+                }
+            }
+            else if (token == "[upgrade machine frame rate]")
+            {
+                for (;;)
+                {
+                    int key;
+                    if (!ScanInt(&key))
+                    {
+                        break;
+                    }
+                    upgrade_table_t::MachineFrameInfo info;
+                    if (!ScanFloat(&info.m_f00))
+                    {
+                        return 0;
+                    }
+                    if (!ScanFloat(&info.m_f04))
+                    {
+                        return 0;
+                    }
+                    if (!ScanFloat(&info.m_f08))
+                    {
+                        return 0;
+                    }
+                    if (!ScanFloat(&info.m_f0c))
+                    {
+                        return 0;
+                    }
+                    if (!ScanInt(&info.m_i10))
+                    {
+                        return 0;
+                    }
+                    table->m_machineFrames.insert(std::make_pair(key, info));
+                }
+            }
+        }
+    }
+    catch (unsigned int errLine)
+    {
+        LogManager::logFormat(0, "../RDARScriptEtcParameter.cpp",
+                              "importUpgradeTable", 0xc14, "Error: (%s):%d",
+                              "importUpgradeTable", static_cast<int>(errLine));
+        return 0;
+    }
+}
+
+// ============================================================================
+// stLevelUpRewardItemScript::clear —— ORIG W 0x083711d6
+// 【报告缺失】无专属函数报告；已先读调用者报告
+// _lt_global_gt_/ImportLevelUpRewardItemScript.md 后按 nm 地址 objdump 转写：
+//   83711dc mov 0x8(%ebp),%eax ; push eax
+//   83711e2 call std::map<LevelUpRewardItemTableKey,LevelUpRewardItemData>::clear
+// 即 m_map0.clear()。
+// ============================================================================
+void stLevelUpRewardItemScript::clear()
+{
+    m_map0.clear();
+}
+
+// ============================================================================
+// seriaRoomDecoAniEventScript::clear —— ORIG W 0x083732a4
+// 【报告缺失】无专属函数报告；已先读同类报告
+// _lt_global_gt_/importSeriaRoomAnimationDecoEvent.md 与 ORIG ctor 0x083731ca
+// （objdump）确认五成员布局后转写：
+//   vector@+0x00 clear / map@+0x0c clear / map@+0x24 clear /
+//   map@+0x40 clear / string@+0x3c clear。
+// ============================================================================
+void seriaRoomDecoAniEventScript::clear()
+{
+    m_rewardList.clear();
+    m_itemMap.clear();
+    m_aniList.clear();
+    m_finishAniMap.clear();
+    m_finishSound.clear();
+}
+
+// ============================================================================
+// CItem::GetMedalPrice —— ORIG W 0x0822c862
+// 【报告缺失】无专属函数报告；已先读调用者报告
+// DisPatcher_RentAvatar/dispatch_sig.md 与 DisPatcher_BuyItem/get_data.md
+// （与 GetCashPrice/get_price 并列的价格访问器）后按 nm 地址 objdump 转写：
+//   mov 0x8(%ebp),%eax ; mov 0x14(%eax),%eax ; ret —— 返回 this+0x14 int。
+// ============================================================================
+int CItem::GetMedalPrice() const
+{
+    return m_field14;   // +0x14
+}

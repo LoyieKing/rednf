@@ -28,7 +28,7 @@ public:
                     int f, int g, GameResultType& result);
     void DungeonClear(unsigned int a, unsigned int b, int c, int d, int e, int f);
     void DungeonGiveUp(unsigned int a, unsigned int b, int c, int d, int e, int f);
-    void DungeonFail(int dungeonIdx);
+    static void DungeonFail(int dungeonIdx);   // ORIG 调用点无 this（CParty::giveup_game 0x85b2d1c 仅压 1 参）→ 静态成员
     static void UseShusiaService(int value);   // ORIG 调用点无 this（serviceOfShusia@0x8657ac8 仅压 1 参）→ 静态成员
     static void PVPPlay2(int a, int b, int c);
 };

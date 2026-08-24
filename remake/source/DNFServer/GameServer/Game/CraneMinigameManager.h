@@ -4,6 +4,8 @@
 #include <vector>
 #include <utility>
 
+#include "InGameEventScripts.h"   // ::Action_SendMail 唯一权威定义（全局作用域，
+                                  // ORIG _ZN15Action_SendMail*；EventLevelupA2 批次）
 // ORIG：CraneMinigameManager 与 CraneMinigameScript 为同一对象（init 0x080ebc6e
 // 以 (CraneMinigameScript*)this 调用 importCraneMinigameScript），布局一致：
 //   +0x10 int、+0x18 Action_SendMail、+0x5c vector<pair<int,int>>、+0x68 byte。
@@ -22,15 +24,8 @@ public:
     int m_pickRatio;                         // +0x10（[pickRatio] ScanInt）
 };                                           // sizeof = 0x14
 
-// Action_SendMail 内嵌于 +0x18..+0x5b（0x44 字节；字段建模为推断，
-// 完整解析见 importActionMailScript）。
-struct Action_SendMail
-{
-    void* m_user;                            // +0x00
-    int m_itemIdx;                           // +0x04
-    int m_count;                             // +0x08
-    char m_pad0c[0x38];                      // +0x0c..0x43
-};
+// Action_SendMail（全局作用域，0x44 字节）内嵌于 +0x18..+0x5b；
+// 权威布局/成员见 InGameEventScripts.h（本头不再重复定义）。
 
 class CraneMinigameScript
 {

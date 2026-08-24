@@ -384,7 +384,9 @@ public:
     // ---- 队伍状态 / 移动 ----
     void changePartyMemberInfo(MSG_MOVE_MAP& info, char flag);
     void changePartyMemberInfoOnMoveMap(MSG_MOVE_MAP& info, bool flag);
-    void move_map(MSG_MOVE_MAP& info);
+    void changeBattleDataOnMoveMap(bool flag);   // ORIG T 0x085a8ee0（move_map 调用）
+    bool move_map(MSG_MOVE_MAP& info);   // ORIG T 0x085a8f4e 返回 eax=0/1
+                                         // （原 void 声明与 ORIG 返回不符）
     void switchPostion(char a, char b);
     void useItem(CUser* user, Inven_Item const& item);
     void use_skill(CUser* user, int skillIdx, int param);
@@ -393,7 +395,7 @@ public:
     void die_user(CUser* user);
     void set_charac_live(CUser* user, ENUM_USER_DUNGEON_STATE state);
     void finish_loading(CUser* user);
-    void OnStartMapFinishLoading(CUser* user);
+    bool OnStartMapFinishLoading(CUser* user);   // ORIG 返回 al（finish_loading 测试，0x85b170a）
     void map_load_forced_finish();
     void send_loadingcheck_msg();
     void resetFinishLoadingVar();
@@ -439,7 +441,9 @@ public:
     void sendInoutConditionDungeon(RetryFailReason::T reason);
     void makeBestClearTimePacket(PacketGuard& packet, int idx);
     bool make_blood_dungeon_info(CUser* user, PacketGuard& packet);
-    bool make_blood_dungeon_info_blank(PacketGuard& packet);
+    void make_blood_dungeon_info_blank(PacketGuard& packet);   // ORIG T 0x0859e480
+                                                               // 无返回值（原 bool
+                                                               // 声明与 ORIG 不符）
     void setBestClearTime(int a, int b, int c);
 
     // ---- 副本流程 ----
@@ -448,7 +452,7 @@ public:
     int dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype);
     void do_after_dungeon_start(CDungeon const* dungeon, CUser* user);
     int check_dungeon_start(CDungeon const* dungeon);
-    bool check_dungeon_start(CDungeon const* dungeon, int& param);
+    int check_dungeon_start(CDungeon const* dungeon, int& param);   // ORIG 错误码（0x859f7fa）
     bool CheckEnterEventDungeon(CDungeon const* dungeon, unsigned char& flag,
                                 Inven_Item* item, int* param);
     bool CheckEnterAncientDungeon(CDungeon const* dungeon, unsigned char& flag,
@@ -463,15 +467,15 @@ public:
     bool CheckHellDungeonFreepassItemHaveAndDel(CUser* user, bool flag);
     void CheckHellCoinLimint(int param);
     int checkDugeonInoutTime(int param);
-    bool checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
-                                    ENUM_CMDPACKET cmd);
+    int checkInoutConditionDungeon(CDungeon const* dungeon, ENUM_DUNGEON_MODE mode,
+                                   ENUM_CMDPACKET cmd);   // ORIG 返回错误码（0x85abc80）
     int checkInoutConditionDungeon();
     bool checkDungeonDifficulty(char difficulty, CDungeon const* dungeon);
     bool checkFreeRevivalCondition(CDungeon const* dungeon);
     bool checkLimitUsedCoinCondition(CDungeon const* dungeon);
     bool checkUnLimitUsedCoinCondition(CDungeon const* dungeon);
     int getStandardDimensionLevel();
-    void setStandardDimensionLevel(CDungeon const* dungeon);
+    bool setStandardDimensionLevel(CDungeon const* dungeon);   // ORIG 恒返回 al=1
     bool UseAncientDungeonItems(CDungeon const* dungeon, Inven_Item* item, int* param);
     bool UseSealDoorItems(std::vector<int>& itemList);   // ORIG 返回 al（0x85a8038）
     int CheckDestroyConditionSealDoor(CDungeon const* dungeon,
@@ -507,7 +511,7 @@ public:
     void set_random_reward(QuickParty::RandomBuffType type,
                            QuickParty::RewardData_Param param,
                            QuickParty::RewardData_Result& result);
-    void choose_random_buff(QuickParty::RandomBuffDungeon dungeon);
+    int choose_random_buff(QuickParty::RandomBuffDungeon dungeon);   // ORIG 返回选中类型/11
     void increase_dungeon_coin_count(int param);
     int GetPartyMemberCoinLimit();
     void SetPartyMemberCoinLimit(int limit);
@@ -562,7 +566,7 @@ public:
     // ---- 锦标赛 / TOD ----
     void OnTODRewardTimer(TIMER_MESSAGE msg);
     void OnTimeoutBossDie(int a, unsigned int b);
-    void _Send_TOD_APCInfo(int a);
+    int _Send_TOD_APCInfo(int a);   // ORIG 恒返回 eax=1（0x85bac26）
     void _Send_TOD_ClearReward();
     int GetDungeonIndex_isTOD(int& a, int& b);   // ORIG 返回错误码（0x85bacc0）
     void InsertTournamentDungeonTimer(TIMER_MESSAGE msg);
@@ -631,14 +635,16 @@ public:
     unsigned int GetMapPlayingTime();   // ORIG T 0x085b6768（CheckOneMapPlayTimeHackCnt
                                         //  以返回值/1000 为基准，原 void 声明与调用方不符）
     void getDungeonTypeKind(CDungeon const* dungeon);
-    void getDungeonDropTestFlag();
+    bool getDungeonDropTestFlag();   // ORIG T 0x085bdc76 返回 al（GM 成员且
+                                     // getDungeonMapSaving 时 1；原 void 声明与
+                                     // move_map 调用方 test al 不符）
     void getPartyMemberAvgLevel();
     bool isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
     void is_limit_minimum_age(int age, int& param);
     void is_limit_minimum_level(int level, int& param);
     int CheckMemberFatigue();
     void CheckMemberLastTryAssaultTime();
-    void GetFirstValidMemberState();
+    char GetFirstValidMemberState();   // ORIG 返回 al（ProcessGiveUp 比较 5/0xc）
     void GetValidPartyMember(std::vector<int>& list);
     void GetRoutingDiceMemberList(std::vector<std::pair<int, int> >& list,
                                   CItem* item);
@@ -720,7 +726,9 @@ public:
     char m_fieldCC4;                        // +0xcc4（CheckEnterDimensionDungeon 直读，维度模式）
     unsigned char m_padcc5[0x13];           // +0xcc5
     int m_partyType;                        // +0xcd8
-    unsigned char m_padcdc[0x80];           // +0xcdc
+    unsigned char m_padcdc[0x11];           // +0xcdc
+    char m_sealDoorItemsOk;                 // +0xced（UseSealDoorItems：全员通过=1/失败=0）
+    unsigned char m_padcee[0x6e];           // +0xcee..0xd5b
     int m_standardDimensionLevel;           // +0xd5c
     // CBattle_Field(+0xb24, 0xcd0) 余下 0xa94 字节未声明：+0xd60..0x17f3
     unsigned char m_padCBattleField2[0xa94];    // +0xd60..0x17f3
@@ -729,7 +737,10 @@ public:
 
     int m_field185c;        // +0x185c
     int m_usedCoinCount;    // +0x1860
-    int m_field1864;        // +0x1864
+    char m_field1864;       // +0x1864（game_start 字节写：hell 无未清任务=1；
+                            //   ORIG game_start.md +0x5c2/+0x7c3 为 movb）
+    char m_sealDoorFlag;    // +0x1865（CheckHaveHellPartyPassItem 置位；dungeon_start 读）
+    unsigned short m_field1866;             // +0x1866（ORIG 未单独命名，保持占位）
     CWorldMap* m_hellWorldMap;  // +0x1868（CheckHellDungeonFreepassItemHaveAndDel 缓存的世界地图指针）
     int m_overlapRare;      // +0x186c
     int m_overlapUnique;    // +0x1870

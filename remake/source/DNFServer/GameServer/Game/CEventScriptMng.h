@@ -297,7 +297,7 @@ public:
     bool is_eventing(int key);                      // ORIG 0x810ba36 T
     void send_event_init_data(CUser* user, bool flag);   // ORIG 0x810c40e T
     void process_level_up_reward(CUser* user, bool flag);   // ORIG 0x0810bf56（CUser::_onLevelUp 尾调用；声明先行）
-
+    void process_add_item_count_db(CUser* user, int itemId, int count);   // ORIG T 0x0810bea8（事件 0x193 拾取计数）
     // ---- 已恢复的访问器/工具方法（各报告） ----
     int  get_convert_to_user_confirmflag(int key);      // ORIG 0x810b0cc
     CEventEntity* get_event_entity(int key);            // ORIG 0x810b96a

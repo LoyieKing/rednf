@@ -26,6 +26,13 @@ public:
     // ORIG T 0x0860b332（blocked：定义待补；DisPatcher_MoveMap::process 在
     // CParty::IsRoutingState() 为真且 mgr 非空时以 (party, 0) 调用）
     void ProcessFailEtc(CParty* party, int param);
+    // ORIG T 0x0860b2c2（报告 CSpecialItemRoutingManager/ProcessGiveUp.md）：
+    // 放弃副本收尾——路由未开启或全员选卡完成、且首个有效成员状态∈{5,0xc}
+    // 时调用 processRouting。CParty::giveup_game 结尾调用。
+    void ProcessGiveUp(CParty* party);
+
+    // ORIG T 0x0860ac6a（blocked：定义待补；ProcessGiveUp 命中条件时调用）
+    void processRouting(CParty* party);
 
 private:
     char m_pad[0x8];

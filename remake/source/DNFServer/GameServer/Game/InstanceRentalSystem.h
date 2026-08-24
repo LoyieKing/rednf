@@ -17,21 +17,31 @@ class InstanceRentalSystem
 public:
     struct RentalInfo
     {
-        // ORIG 实测偏移（CUser::removeRentalItemInfoFromInvenBuf @0x8677584：
-        //   读 `*(int*)(rental+4)` 物品索引、写 `*(bool*)(rental+10)` 是否已装备）。
-        RentalInfo() {}
+        // ORIG C1 0x082719f6（报告缺失，objdump 直转）：清 +0 字节/+2 半字/+4 int/
+        //   +8..+0b 四字节，+0xc=-1。removeRentalItemInfoFromInvenBuf 0x8677584
+        //   实证 +0x04=物品索引、+0x0a=是否已装备。
+        RentalInfo();
         ~RentalInfo() {}
-        int m_field0;      // +0x00
-        int m_itemIndex;   // +0x04  租借物品索引
-        char m_pad8;       // +0x08
-        bool m_inEquip;    // +0x0a  该租借物品当前位于装备位
-        char m_padB;       // +0x0b
-    };  // 0xc
+        unsigned char m_flag0;      // +0x00（ProcessEquip 写 3 / ProcessInsert 写 0）
+        unsigned char m_pad1;       // +0x01
+        unsigned short m_slot;      // +0x02（插入/装备槽位）
+        int m_itemIndex;            // +0x04 租借物品索引
+        unsigned char m_field8;     // +0x08
+        unsigned char m_field9;     // +0x09
+        unsigned char m_inEquip;    // +0x0a 该租借物品当前位于装备位
+        unsigned char m_fieldB;     // +0x0b
+        int m_rentItemId;           // +0x0c（ctor 置 -1）
+    };  // sizeof 0x10
 
     struct DeletedRentItem
     {
-        char m_pad[0x10];  // 布局未还原，占位（推断）
-    };
+        // ORIG C1 0x08271a3a（报告缺失，objdump 直转）：清 +0 字节/+2 半字/+4 int。
+        DeletedRentItem();
+        unsigned char m_bEquip;          // +0x00
+        unsigned char m_pad1;            // +0x01
+        unsigned short m_slot;           // +0x02
+        int m_itemId;                    // +0x04
+    };  // sizeof 8
 
     // ORIG RentOutput ctor 0x8231c4e：+0x00 vector<RentalInfo>、+0x0c vector<DeletedRentItem>。
     struct RentOutput
@@ -41,15 +51,25 @@ public:
         std::vector<RentalInfo> m_infos;        // +0x00
         std::vector<DeletedRentItem> m_deleted; // +0x0c
     };
-    struct RentInElem;  // 元素布局待 pc_room 域批次（Rent 遍历用）
+    // ORIG RentInElem（PcRoom/Dimension Rent 报告实证：elem+0/+1 为 signed char
+    // 下标、+2 非零走装备路径、RentInput 首成员即元素表 vector）。
+    struct RentInElem
+    {
+        unsigned char m_sectionIdx;   // +0x00 外层下标
+        unsigned char m_itemIdx;      // +0x01 内层下标
+        unsigned char m_bEquip;       // +0x02 非 0 → 装备区
+        unsigned char m_type;         // +0x03 Dimension::GetRentItemInfo ==1 走 GiveList
+        int m_rentItemId;             // +0x04 缺省 -1
+    };  // sizeof 8
 
-    // ORIG RentInput（InstanceRentalSystem::Rent 0x8270288 实证 +0x0c 取机器键、
-    // PcRoom::Rent 实证 +0x10 字节为 log 开关；元素表区布局待租赁批次）。
+    // ORIG RentInput：首成员即 vector<RentInElem>（ORIG begin/end 直接作用于
+    // input+0）；InstanceRentalSystem::Rent 0x8270288 实证 +0x0c 取机器键；
+    // PcRoom::Rent 报告实证 +0x10 字节为 log 开关。
     struct RentInput
     {
-        unsigned char m_pad00[0xc];   // +0x00..0x0b（元素表区，未还原）
-        int m_machineKey;             // +0x0c（getMachine 键）
-        unsigned char m_logFlag;      // +0x10（非 0 逐物品 log）
+        std::vector<RentInElem> m_elems;   // +0x00
+        int m_machineKey;                  // +0x0c（getMachine 键）
+        unsigned char m_logFlag;           // +0x10（非 0 逐物品 log）
     };
 
     struct RentalSystemImpl

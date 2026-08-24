@@ -57,6 +57,15 @@ enum BasicRewardType
     BASIC_REWARD_HELL_DIFFICULTY  = 0xc
 };
 
+// ENUM_REWARD_TYPE：类型名实证于
+// _ZN10QuickParty24CQuickPartyRewardManager22get_reward_type_objectENS_16ENUM_REWARD_TYPEEj；
+// get_reward_type_object 越界检查（<2）实证取值域 {0,1}，子命名推断。
+enum ENUM_REWARD_TYPE
+{
+    ENUM_REWARD_TYPE_BASIC  = 0,   // 基础奖励族（RewardCardGold/HellPartyDifficulty）
+    ENUM_REWARD_TYPE_RANDOM = 1    // 随机 buff 族（IRandomwReward 派生）
+};
+
 // RandomBuffDungeon（choose_random_buff 域；权威枚举名待事件批次，占位沿用）
 enum RandomBuffDungeon
 {
@@ -263,9 +272,24 @@ public:
 
     bool init();                             // T 0x0826d6b0（CDataManager::init 调用）
     void set_rand_buff_total_prob();         // T 0x0826d91a（init 尾部调用）
+    // ORIG T 0x0826d860（报告 QuickParty__CQuickPartyRewardManager/
+    // get_random_buff_prob.md）：m_probs[type][dungeon] 查询（仅上界校验，
+    // 越界返回 0；行 11 为 set_rand_buff_total_prob 汇总行）。
+    int get_random_buff_prob(RandomBuffType type, RandomBuffDungeon dungeon);
 
     // ORIG @0x0826d896：返回 +0x0c 处副本 index 列表。
     std::vector<int>& get_dungeon_idx_list() { return m_dungeonIdxList; }
+
+    // ORIG W 0x0826d8e2
+    // （docs/class_func_reports/QuickParty__CQuickPartyRewardManager/
+    //   get_reward_type_object.md）：类别 <2 且 idx <0xd 时返回
+    // m_rewards[type][idx]（(cat*13+idx+0x70)*4 寻址实证），否则返回 0。
+    IRewardType* get_reward_type_object(ENUM_REWARD_TYPE type, unsigned int idx)
+    {
+        if ((int)type < 2 && idx < 0xd)
+            return m_rewards[(int)type][idx];
+        return 0;
+    }
 };
 
 }  // namespace QuickParty

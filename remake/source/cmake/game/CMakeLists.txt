@@ -167,8 +167,12 @@ dnf_service(game
         ${SVC_DIR}/CUserStatA.cpp
         ${SVC_DIR}/CUserDepsA.cpp
         ${SVC_DIR}/CUserDepsB.cpp
+        ${SVC_DIR}/CUserMissingA2.cpp
         ${SVC_DIR}/SigTypes.cpp
         ${SVC_DIR}/CParty.cpp
+        ${SVC_DIR}/CPartyDepsA2.cpp
+        ${SVC_DIR}/CPartyDepsB2.cpp
+        ${SVC_DIR}/CPartyDepsC2.cpp
         ${SVC_DIR}/CDungeon.cpp
         ${SVC_DIR}/CDungeonClearTracer.cpp
         ${SVC_DIR}/CGameManager.cpp
@@ -176,6 +180,7 @@ dnf_service(game
         ${SVC_DIR}/WarRoom.cpp
         ${SVC_DIR}/CBattle_Field.cpp
         ${SVC_DIR}/CBattle_Field_missing.cpp
+        ${SVC_DIR}/BattleDungeonMapA2.cpp
         ${SVC_DIR}/BlueMarble.cpp
         ${SVC_DIR}/CDeathTower.cpp
         ${SVC_DIR}/GameWorld.cpp
@@ -306,6 +311,7 @@ dnf_service(game
         ${SVC_DIR}/CNRDScriptData.cpp
         ${SVC_DIR}/CCharacterView.cpp
         ${SVC_DIR}/CCharacter.cpp
+        ${SVC_DIR}/CharacterAIA2.cpp
         ${SVC_DIR}/CUserPremium.cpp
         ${SVC_DIR}/CHandlePremium.cpp
         ${SVC_DIR}/CPowerManager.cpp
@@ -455,6 +461,9 @@ dnf_service(game
         ${SVC_DIR}/sync_script.cpp
         ${SVC_DIR}/SyncScriptDeps.cpp
         ${SVC_DIR}/EventUpgradeJar.cpp
+        ${SVC_DIR}/EventLevelupA2.cpp
+        ${SVC_DIR}/ScriptLeafA2.cpp
+        ${SVC_DIR}/RandomRentalA2.cpp
         ${SVC_DIR}/ScriptDepsB.cpp
         ${SVC_DIR}/ScriptDepsA.cpp
         ${SVC_DIR}/DomainMiscDeps.cpp

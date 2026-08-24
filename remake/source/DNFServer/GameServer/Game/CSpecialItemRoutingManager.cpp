@@ -62,6 +62,32 @@ int CSpecialItemRoutingManager::cancelTimer(CParty* party)
     return party->gen_timer_key((TIMER_MESSAGE)0x2b);
 }
 
+// ORIG T 0x0860b2c2（报告 CSpecialItemRoutingManager/ProcessGiveUp.md）：
+// party 非空时——路由未开启 或 全员完成选卡（HasAllMemberSelection）——
+// 且首个有效成员状态为 5（短路返回）或再次读取为 0xc 时，执行 processRouting。
+void CSpecialItemRoutingManager::ProcessGiveUp(CParty* party)
+{
+    if (party == 0)
+        return;
+
+    bool routable;
+    if (!party->IsRoutingState() || !party->HasAllMemberSelection())
+    {
+        routable = false;
+    }
+    else
+    {
+        char state = party->GetFirstValidMemberState();
+        if (state == 5)
+            routable = true;
+        else
+            routable = (party->GetFirstValidMemberState() == 0xc);
+    }
+
+    if (routable)
+        processRouting(party);
+}
+
 CSpecialItemRoutingManager::CSpecialItemRoutingManager()
 {
     // ORIG 0x0860a9c8：空函数（push ebp; mov; pop ebp; ret），不初始化任何成员。

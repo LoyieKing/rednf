@@ -1941,6 +1941,8 @@ public:
                  std::vector<InstanceRentalSystem::RentalInfo> >& out, int param);  // ORIG 0x08676dba
     bool getCurrentCharacRentalInfo(
         std::vector<InstanceRentalSystem::RentalInfo>& out, int param);            // ORIG 0x086773ea
+    bool GetCurrentCharacRentalInfo(
+        std::vector<InstanceRentalSystem::RentalInfo>& out, int param);            // ORIG T 0x08677166（尾调小写版）
     void setCurrentCharacRentalInfo(
         std::vector<InstanceRentalSystem::RentalInfo>& in, int param);             // ORIG 0x08677516
     int removeRentalItemInfoFromInvenBuf(SIG_SAVE_INVENTORY* sig, int param);      // ORIG 0x08677584
@@ -2082,6 +2084,9 @@ public:
     unsigned int getClientVersion();
 
     int Send(PacketGuard& packet);
+    // ORIG T 0x08690776（报告 CUser/MakeTagCharacInfo.md）：向包写入 tag 角色
+    // 完整信息（名字/职业/技能/装备列表/求购单），成功返回 1。定义待 CUser 域批次。
+    bool MakeTagCharacInfo(PacketGuard& packet);
     void SendAradEventItemLog(unsigned long itemIndex, int count);  // ORIG 0x08692b84
     void eventDeliveryBuyItem(int deliveryType, const Inven_Item& item);  // ORIG T 0x0866463c
     int SendPacket(eSendTarget target, PacketGuard& packet);
@@ -2515,7 +2520,7 @@ public:
     // ORIG 0x08230880 (W)：写 +0x8d244（m_ceraUserInfo.m_field60）
     void setSlotEffectCount(unsigned char count);
     // ORIG 0x08676826 (T)：组 Packet_Randombox_statistic（header 0x17b6/0xc）发统计服务器
-    void SendRandomBoxStatistic(int boxKind, ENUM_RANDOMBOX_ACTION_KIND actionKind);
+    static void SendRandomBoxStatistic(int boxKind, ENUM_RANDOMBOX_ACTION_KIND actionKind);   // ORIG 0x8676826 静态 ABI（报告证实无 this 实参）
     // ORIG 0x0868f6bc (T)：find_item(itemIdx)→verifyStackableItemProcess
     int verifyStackableItemActionPlace(StackableAction::Type type, unsigned int itemIdx);
     // ORIG 0x0868f60e (T)：is_stackable→verifyStackableAction→verifyUsablePlace→verifyUsableServerType

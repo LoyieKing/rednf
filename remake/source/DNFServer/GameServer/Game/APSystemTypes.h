@@ -1,6 +1,10 @@
 #ifndef DNF_GAME_APSYSTEM_TYPES_H_
 #define DNF_GAME_APSYSTEM_TYPES_H_
 
+
+#include <string>
+#include <vector>
+
 // CUser 完整定义见 CUser.h（本头仅签名引用）
 class CUser;
 
@@ -23,9 +27,36 @@ public:
     char m_pad[0x100];
 };
 
-// 元素类型占位（布局后续批次落地；当前 CActionPointEtcParameter 仅 clear）
-struct CActionPointEx {};      // vector<CActionPointEx> 元素
-struct _MedalRewardItem {};    // vector<_MedalRewardItem> 元素
+// 元素布局（importActionPointSystemEtcScript 0x08894996 汇编实证，sizeof 0x30）：
+//   B+0x00 ushort / B+0x02 int(IsValidActionGroupIndex 参数) / B+0x06 byte[5]
+//   （写 -(char)v；其中 +8/+9 槽随后被独立扫描覆写）/ B+0x0c word（map 键）/
+//   B+0x10 byte / B+0x14 vector<int>（"," 分割 atoi）/ B+0x20 int（weekday，
+//   失败=7）/ B+0x24 string / B+0x28 string / B+0x2c byte。
+struct CActionPointEx
+{
+    CActionPointEx();
+
+    unsigned short m_field00;        // +0x00（首个 ScanInt 截断 word）
+    unsigned char m_bytes02[0x12];   // +0x02..+0x13 混合区（栈槽实证：int 组索引@+0x02、
+                                     //   days 五字节@+0x06、map 键 word@+0x0c、byte@+0x10；
+                                     //   标量成员边界未定——「推断」按偏移直访）
+    std::vector<int> m_itemList;     // +0x14（"," 分割 atoi）
+    int m_weekday;                   // +0x20（ConvertWeekdayStringToInt 失败置 7）
+    std::string m_str24;             // +0x24
+    std::string m_str28;             // +0x28
+    unsigned char m_field2c;         // +0x2c
+    char m_pad2d[3];                 // +0x2d
+};                                   // sizeof 0x30
+
+// 布局（importActionPointSystemEtcScript [action point medal reward] 实证，
+// 栈对象 -0x116..-0x109：ushort/ushort/int/ushort，sizeof 0xc）。
+struct _MedalRewardItem
+{
+    unsigned short m_field00;   // +0x00
+    unsigned short m_field02;   // +0x02
+    int m_field04;              // +0x04
+    unsigned short m_field08;   // +0x08
+};                              // sizeof 0xc
 
 
 // ORIG 0x08121616：GetActionPointFromMemory（纯空函数）

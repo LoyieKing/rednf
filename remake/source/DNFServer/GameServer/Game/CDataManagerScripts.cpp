@@ -1653,7 +1653,7 @@ bool CWorldMap::hasDungeon(unsigned int dungeonIdx) const
            m_dungeonList.end();
 }
 
-StageMapList::StageMapList() { memset(m_pad, 0, sizeof(m_pad)); }
+StageMapList::StageMapList() : m_firstStageId(0) {}
 StageMapList::~StageMapList() {}
 // ORIG C1 0x083708c6：构造 +0x120 的 map 后调用 clear()。
 WarAreaCounter::WarAreaCounter()

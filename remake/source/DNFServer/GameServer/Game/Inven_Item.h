@@ -31,6 +31,9 @@ class RandomOptionField
 public:
     void reset();
 
+    bool empty() const;      // ORIG _ZNK17RandomOptionField5emptyEv W 0x811ed22：
+                             //   仅检查首字节==0（报告缺失，objdump 直转）
+
     unsigned char m_field0;  // +0x00
     unsigned char m_field1;  // +0x01
     unsigned char m_field2;  // +0x02
@@ -55,10 +58,25 @@ enum T
 };
 }
 
+// ORIG mangled 参数枚举（reset_option / RandomOption 访问器；取值 0..2 选择
+// 三槽之一。枚举成员名未从 DWARF 还原，按槽序命名 [推断]）。
+enum ENUM_RANDOM_OPTION_NUMBER
+{
+    RANDOM_OPTION_NUMBER_0 = 0,
+    RANDOM_OPTION_NUMBER_1 = 1,
+    RANDOM_OPTION_NUMBER_2 = 2
+};
+
 class RandomOption
 {
 public:
     void reset();
+
+    // ---- 槽选择/写入访问器（报告缺失，objdump 直转；W 符号实证）----
+    bool change_option(ENUM_RANDOM_OPTION_NUMBER num) const;        // W 0x85f4002
+    unsigned char get_option_index(ENUM_RANDOM_OPTION_NUMBER num);  // W 0x85f4040
+    void set_first_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v);   // W 0x85f4078
+    void set_second_value(ENUM_RANDOM_OPTION_NUMBER num, unsigned char v);  // W 0x85f40be
 
     // ORIG 0x858e3ec（PacketBuf 实例）/ 0x811f1ae（PacketGuard 实例）：
     // 3 组 RandomOptionField（+0/+3/+6）+ seed(+9) + field(+0xa) + seed(+0xd)

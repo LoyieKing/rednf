@@ -78,46 +78,39 @@ int CUser::CalcMercenaryAvatarBonus() const
 {
     int best = 10;
 
-    const _Charac_info* curCharac = getCurCharacR();
-    if (curCharac == 0)
+    if (getCurCharacR() == 0)
+        return 0;
+
+    const CInventory* inven = getCurCharacInvenR();
+    if (inven == 0)
+        return 0;
+
+    for (int i = 0; i < 8; ++i)
     {
-        best = 0;
-    }
-    else
-    {
-        const CInventory* inven = getCurCharacInvenR();
-        if (inven == 0)
+        const Inven_Item* ref = inven->GetInvenRef(INVEN_TYPE_INVEN, i);
+        if (ref == 0)
+            return 0;
+
+        // *(int*)(ref+2)：m_addInfo（item idx）
+        CEquipItem* equip;
+        if (CItem* item = G_CDataManager()->find_item(ref->m_addInfo))
+            equip = dynamic_cast<CEquipItem*>(item);
+        else
+            equip = 0;
+        if (equip->IsAvatarItem())
         {
-            best = 0;
+            if (equip->get_grade() < best)
+                best = equip->get_grade();
         }
         else
         {
-            for (int i = 0; i < 8; ++i)
-            {
-                const Inven_Item* ref = inven->GetInvenRef(INVEN_TYPE_INVEN, i);
-                if (ref == 0)
-                    return 0;
-
-                // *(int*)(ref+2)：m_addInfo（item idx）
-                CItem* item = G_CDataManager()->find_item(ref->m_addInfo);
-
-                CEquipItem* equip = 0;
-                if (item != 0)
-                    equip = dynamic_cast<CEquipItem*>(item);
-                if (equip == 0)
-                    return 0;
-
-                if (!equip->IsAvatarItem())
-                    return 0;
-
-                int grade = equip->get_grade();
-                if (grade < best)
-                    best = equip->get_grade();
-            }
-            if (3 < best)
-                best = 0;
+            return 0;
         }
     }
+
+    if (3 < best)
+        best = 0;
+
     return best;
 }
 
@@ -170,10 +163,15 @@ unsigned int UserMercenaryInfoMgr::FindIndexByCharacNo(unsigned int characNo) co
 // ----------------------------------------------------------------------------
 bool UserMercenaryInfoMgr::CheckCharacIndex(unsigned char index) const
 {
-    if (!m_characs.empty() &&
-        static_cast<unsigned int>(index) <= m_characs.size())
-        return true;
-    return false;
+    // ORIG 形态：empty→flag=1；!empty 且 index<=size→flag=0；否则 flag=1；返 !flag。
+    bool bInvalid;
+    if (m_characs.empty())
+        bInvalid = true;
+    else if (static_cast<unsigned int>(index) <= m_characs.size())
+        bInvalid = false;
+    else
+        bInvalid = true;
+    return !bInvalid;
 }
 
 // ----------------------------------------------------------------------------
@@ -185,7 +183,7 @@ void CHARAC_LOAD_MERCENARY::Reset()
 {
     m_characNo = 0;
     m_level = 0;
-    memset(m_name, 0, sizeof(m_name));        // 0x1e
+    memset(m_name, 0, sizeof(m_name));                // 0x1e
     memset(m_avatarItems, 0, sizeof(m_avatarItems));  // 0x20
     m_field24 = 0;
     m_field28 = 0;

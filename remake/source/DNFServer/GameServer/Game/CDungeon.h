@@ -606,7 +606,7 @@ public:
     bool VerifyMaze() const;
     bool VerifyMaze(const MazeScript& maze) const;
     bool get_dimension_member_count(DimensionPartyCount& out) const;
-    int isRiskDungeon() const;
+    bool isRiskDungeon() const;   // ORIG 调用点按字节谓词测试（checkDungeonDifficulty 0x85be932）
     bool isTournamentDungeon() const;
     int getTournamentRoundFatigue() const;
     int getLimitCoinDiff(int diff, int& out) const;

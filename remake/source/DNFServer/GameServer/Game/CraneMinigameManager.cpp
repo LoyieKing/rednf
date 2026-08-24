@@ -14,10 +14,11 @@ void importActionMailScript(Action_SendMail* mail)
 {
     if (mail == 0)
         return;
-    // 推断：完整实现待后续批次；此处仅清空收件人/物品状态。
-    mail->m_user = 0;
+    // 推断：完整实现待后续批次；此处仅清空物品/收件人状态（字段对应真实
+    // ::Action_SendMail 布局，见 InGameEventScripts.h）。
+    mail->m_jobMap.clear();
     mail->m_itemIdx = 0;
-    mail->m_count = 0;
+    mail->m_addInfo = 0;
 }
 
 // ============================================================================
@@ -130,9 +131,9 @@ bool CraneMinigameManager::init()
     Action_SendMail* mail =
         reinterpret_cast<Action_SendMail*>(
             reinterpret_cast<char*>(this) + 0x18);   // 内嵌对象直位复位
-    mail->m_user = 0;
+    mail->m_jobMap.clear();
     mail->m_itemIdx = 0;
-    mail->m_count = 0;
+    mail->m_addInfo = 0;
 
     if (!importCraneMinigameScript(
             reinterpret_cast<CraneMinigameScript*>(this),

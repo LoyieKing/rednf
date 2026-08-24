@@ -33,6 +33,7 @@
 #include "AradServerStateMessage.h"  // ARAD::Arad_ServerStateManager 成员类型
 #include "Arad_DataManager.h"  // ARAD::Singleton 唯一权威定义
 #include "CInventory.h"              // CSecu_ProtectionField 权威定义（CInventory.h）
+#include "CMyFileLog.h"              // 租赁 log（RandomRentalA2 批次）
 #include "CUser.h"    // StackableAction proc_* 需要 CUser 完整类型
 #include "CItem.h"    // StackableAction proc_* 需要 CItem 完整类型
 #include "CLogGameChannel.h"  // WongWork::CLogGameChannel 权威定义
@@ -824,8 +825,11 @@ public:
     virtual bool CheckRentableItem(unsigned int itemIdx);
 
 private:
-    bool checkAllRentalItemScript();   // ORIG T 0x082708cc（本体待租赁脚本批次）
+    bool checkAllRentalItemScript();   // ORIG T 0x082708cc（本批实现）
     void initLoggingEnvironment();     // ORIG T 0x8270886
+    int CheckupAllRentalItems(CUser& user,
+                              const InstanceRentalSystem::RentInput& input); // T 0x08270d1e
+    void log(CUser& user, int itemId);                                      // T 0x082707c0
     RentalMachinePcRoomImpl* m_impl;   // +0x04（ORIG auto_ptr）
 };
 // RentalMachineDimensionImpl（ORIG ctor 0x826fa6c：与 PcRoom 同构，推断）。
@@ -850,8 +854,19 @@ public:
     virtual bool CheckRentableItem(unsigned int itemIdx);
 
 private:
-    bool checkAllRentalItemScript();   // ORIG T 0x0826f022（本体待租赁脚本批次）
-    void initLoggingEnvironment();         // ORIG T 0x826efdc
+    bool checkAllRentalItemScript();   // ORIG T 0x0826f022（本批实现）
+    int checkSelectionListScript(
+        const std::vector<std::vector<EventRewardItemInfo> >& list);         // T 0x0826f14e
+    int GetRentItemInfo(CUser& user,
+                        const InstanceRentalSystem::RentInElem& elem,
+                        EventRewardItemInfo& out);                           // T 0x0826f842
+    int GetRewardItemGiveList(int job, int growType);                        // T 0x0826f814（透传）
+    int CheckupAllRentalItems(CUser& user,
+                              const InstanceRentalSystem::RentInput& input); // T 0x0826f52c
+    bool checkRentalLevel(int level);                                        // T 0x0826f7e4
+    bool checkRentalGrowJob(int growType);                                   // T 0x0826f7fc
+    void log(CUser& user, int itemId);                                       // T 0x0826ef16
+    void initLoggingEnvironment();                                           // ORIG T 0x826efdc
     RentalMachineDimensionImpl* m_impl;    // +0x04（ORIG auto_ptr）
 };
 
@@ -3057,7 +3072,9 @@ random_option::CRandomOptionItemHandle::CRandomOptionItemHandle()
     m_field08 = 0;
     m_disabled = 0;
     m_field10 = 0;
-    m_optionSet = GetRandomOption();
+    // ORIG 0x85f0e2d..0x85f0e3b：m_optionSet = GetRandomOption() + 0x148
+    // （script 内嵌 provider 对象基址；虚槽0/1 见 RandomOptionScript.h）。
+    m_optionSet = reinterpret_cast<char*>(GetRandomOption()) + 0x148;
 }
 random_option::CRandomOptionItemHandle::~CRandomOptionItemHandle()
 {
@@ -4202,4 +4219,921 @@ bool GlobalData::Init()
         t("captcha data initialization failed");
         return false;
     }
+}
+
+// ###########################################################################
+// # 租赁域（RandomRentalA2 批次）：pc_room 自由函数 + 两台租赁机器本体 +      #
+// # InstanceRentalSystem::{RentalInfo,DeletedRentItem} C1 + CUser 别名       #
+// # 全部逐报告转写；无报告者标注"报告缺失，objdump 直转"。                    #
+// ###########################################################################
+
+// ---- InstanceRentalSystem::RentalInfo C1 —— W 0x082719f6 ------------------
+// （报告缺失，objdump 直转：清 +0 字/+2 半/+4 int/+8..+b 四字节，+0xc=-1）
+InstanceRentalSystem::RentalInfo::RentalInfo()
+{
+    m_flag0 = 0;
+    m_slot = 0;
+    m_itemIndex = 0;
+    m_field8 = 0;
+    m_field9 = 0;
+    m_inEquip = 0;
+    m_fieldB = 0;
+    m_rentItemId = -1;
+}
+
+// ---- InstanceRentalSystem::DeletedRentItem C1 —— W 0x08271a3a -------------
+// （报告缺失，objdump 直转：清 +0 字节/+2 半字/+4 int）
+InstanceRentalSystem::DeletedRentItem::DeletedRentItem()
+{
+    m_bEquip = 0;
+    m_slot = 0;
+    m_itemId = 0;
+}
+
+// ---- CUser::GetCurrentCharacRentalInfo —— T 0x08677166 --------------------
+// （GetCurrentCharacRentalInfo.md：尾调小写版 getCurrentCharacRentalInfo）
+bool CUser::GetCurrentCharacRentalInfo(
+    std::vector<InstanceRentalSystem::RentalInfo>& out, int param)
+{
+    return getCurrentCharacRentalInfo(out, param);
+}
+
+// makeFairPVPEquipmentPackageKey —— T 0x088945ad（InitScriptProducers_2.cpp 定义；
+// DataManagerInitDepends.h 与本 TU 本地类冲突，故此处仅前向声明）
+int makeFairPVPEquipmentPackageKey(int job, int idx);
+
+namespace pc_room
+{
+
+// ---- IsPcRoomUser —— T 0x08270fea（IsPcRoomUser.md）------------------------
+bool IsPcRoomUser(CUser& user)
+{
+    return user.GetPCRoomNo() != 0;
+}
+
+// ---- CheckRentableEnvironment —— T 0x08271002（同名报告）-------------------
+bool CheckRentableEnvironment(CUser& /*user*/)
+{
+    int channelType = G_GameWorld()->GetChannelType();
+    if (channelType == 0xf || channelType == 0x10)
+    {
+        return false;
+    }
+    return true;
+}
+
+// ---- CheckRentableEnvironmentAtChannelType —— T 0x08271032（同名报告）------
+bool CheckRentableEnvironmentAtChannelType(CUser& /*user*/)
+{
+    int channelType = G_GameWorld()->GetChannelType();
+    if (channelType == 0xf || channelType == 0x10)
+    {
+        return false;
+    }
+    return true;
+}
+
+// ---- GetSelectionIndex —— T 0x082711f7（同名报告全文转写）------------------
+bool GetSelectionIndex(CUser& user, int& outIndex, int type)
+{
+    const _Charac_info* cur = user.getCurCharacR();
+    if (cur == 0)
+    {
+        return false;
+    }
+
+    // 角色数据 +0x27 short 选择索引；isAffectedPremium(0x16) 时 +5；
+    // type==2 用未加成原值（ORIG 重读）。
+    int selIdx = (int)(*reinterpret_cast<const short*>(
+        reinterpret_cast<const char*>(cur) + 0x27));   // [推断] 具名字段待补
+    if (user.isAffectedPremium((ENUM_PREMIUM_TYPE)0x16))
+    {
+        selIdx += 5;
+    }
+    if (type == 2)
+    {
+        selIdx = (int)(*reinterpret_cast<const short*>(
+            reinterpret_cast<const char*>(cur) + 0x27));
+    }
+
+    int chosen = selIdx > 0 ? selIdx : 0;              // std::max(0, idx)
+
+    EventRewardSection* section = 0;
+    if (type == 1)
+    {
+        section = G_CDataManager()->m_pcBangRentar.getSectionData(chosen);
+    }
+    else if (type == 2)
+    {
+        section =
+            G_CDataManager()->m_dimensionAct.m_rewardData.getSectionData(chosen);
+    }
+    if (section == 0)
+    {
+        return false;
+    }
+    outIndex = (int)section->m_field0;                 // 段首字节
+    return true;
+}
+
+// ---- GetCharacterJob —— T 0x082712a6（同名报告全文转写）--------------------
+bool GetCharacterJob(CUser& user, char& outJob)
+{
+    const _Charac_info* cur = user.getCurCharacR();
+    if (cur != 0)
+    {
+        outJob = *(reinterpret_cast<const char*>(cur) + 0x26);  // job 字节 [推断]
+    }
+    return cur != 0;
+}
+
+}  // namespace pc_room
+
+// ---- PcBangItemRentarData::getSectionData —— T 0x08915518（同名报告）-------
+EventRewardSection* PcBangItemRentarData::getSectionData(int idx)
+{
+    // rbegin→rend：返回首个 m_field1（段上界字节）<= idx 的段。
+    for (std::vector<EventRewardSection>::reverse_iterator it = m_vec0.rbegin();
+         it != m_vec0.rend(); ++it)
+    {
+        if ((int)(unsigned)it->m_field1 <= idx)
+        {
+            return &(*it);
+        }
+    }
+    return 0;
+}
+
+// ---- DimensionActivationRewardData 三查询（同名报告全文转写）---------------
+EventRewardSection* DimensionActivationRewardData::getSectionData(int idx)
+{
+    for (std::vector<EventRewardSection>::reverse_iterator it = m_vec0.rbegin();
+         it != m_vec0.rend(); ++it)
+    {
+        if ((int)(unsigned)it->m_field1 <= idx)
+        {
+            return &(*it);
+        }
+    }
+    return 0;
+}
+
+std::vector<std::vector<EventRewardItemInfo> >*
+DimensionActivationRewardData::getRewardSelectItemList(int packageKey)
+{
+    std::map<int, std::vector<std::vector<EventRewardItemInfo> > >::iterator it =
+        m_mapC.find(packageKey);
+    if (it == m_mapC.end())
+    {
+        return 0;
+    }
+    return &it->second;
+}
+
+std::vector<std::vector<EventRewardItemInfo> >*
+DimensionActivationRewardData::getRewardGiveItemList(int job, int growType)
+{
+    std::map<std::pair<int, int>,
+             std::vector<std::vector<EventRewardItemInfo> > >::iterator it =
+        m_map24.find(std::make_pair(job, growType));
+    if (it == m_map24.end())
+    {
+        return 0;
+    }
+    return &it->second;
+}
+
+std::vector<std::vector<EventRewardItemInfo> >*
+PcBangItemRentarData::getRewardSelectionList(int packageKey)
+{
+    std::map<int, std::vector<std::vector<EventRewardItemInfo> > >::iterator it =
+        m_mapC.find(packageKey);
+    if (it == m_mapC.end())
+    {
+        return 0;
+    }
+    return &it->second;
+}
+
+namespace pc_room
+{
+
+// ---- GetRentItemInfo —— T 0x08271396（同名报告全文转写）--------------------
+bool GetRentItemInfo(CUser& user, char sectionIdx, char seqIdx,
+                     EventRewardItemInfo& out, int type)
+{
+    int selectionIdx = 0;
+    if (!GetSelectionIndex(user, selectionIdx, type))
+    {
+        return false;
+    }
+    char job = 0;
+    if (!GetCharacterJob(user, job))
+    {
+        return false;
+    }
+
+    int packageKey =
+        makeFairPVPEquipmentPackageKey((int)job, selectionIdx);
+
+    std::vector<std::vector<EventRewardItemInfo> >* list = 0;
+    if (type == 1)
+    {
+        list = G_CDataManager()->m_pcBangRentar.getRewardSelectionList(packageKey);
+    }
+    else if (type == 2)
+    {
+        list = G_CDataManager()
+                   ->m_dimensionAct.m_rewardData.getRewardSelectItemList(
+                       packageKey);
+    }
+    if (list == 0)
+    {
+        return false;
+    }
+
+    if (sectionIdx < 0 || (int)list->size() <= sectionIdx)
+    {
+        return false;
+    }
+    std::vector<EventRewardItemInfo>& inner = list->at((std::size_t)sectionIdx);
+    if (seqIdx < 0 || (int)inner.size() <= seqIdx)
+    {
+        return false;
+    }
+    out = inner[(std::size_t)seqIdx];
+    return true;
+}
+
+// ---- CheckInventoryEquipmentEmptyCount —— T 0x08271062（同名报告全文转写）--
+bool CheckInventoryEquipmentEmptyCount(CUser& user, int need)
+{
+    return user.getCurCharacInvenR()->check_empty_count(
+        (Inven_Item::ITEM_TYPE)1, need);
+}
+
+// ---- CheckInventoryEmptyCount —— T 0x0827108c（同名报告全文转写）-----------
+bool CheckInventoryEmptyCount(CUser& user, int need)
+{
+    const CInventory* inv = user.getCurCharacInvenR();
+    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)1, need))
+    {
+        return true;
+    }
+    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)2, need))
+    {
+        return true;
+    }
+    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)3, need))
+    {
+        return true;
+    }
+    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)10, need))
+    {
+        return true;
+    }
+    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)9, need))
+    {
+        return true;
+    }
+    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)5, need))
+    {
+        return true;
+    }
+    if (!inv->check_empty_count((Inven_Item::ITEM_TYPE)6, need))
+    {
+        return true;
+    }
+    if (!(inv->GetRemainCapacity((INVEN_TYPE)2, (Inven_Item::ITEM_TYPE)8) <
+          need))
+    {
+        return true;
+    }
+    return false;
+}
+
+// ---- DeleteAllRentalItemInSameSectionForNewRent —— T 0x08271807 ------------
+void DeleteAllRentalItemInSameSectionForNewRent(
+    CUser& user,
+    std::vector<InstanceRentalSystem::DeletedRentItem>& deleted, int rentalType)
+{
+    std::vector<InstanceRentalSystem::RentalInfo> rentalList;
+    if (!user.GetCurrentCharacRentalInfo(rentalList, rentalType))
+    {
+        return;
+    }
+
+    for (std::vector<InstanceRentalSystem::RentalInfo>::iterator it =
+             rentalList.begin();
+         it != rentalList.end(); ++it)
+    {
+        const int itemId = it->m_itemIndex;   // RentalInfo+0x04
+
+        int slot = 0;
+        bool isEquip = false;
+        CInventory* invR =
+            const_cast<CInventory*>(user.getCurCharacInvenR());
+        if (!invR->CheckExistItemInInventoryOrEquipment(itemId, slot, isEquip))
+        {
+            continue;
+        }
+
+        CInventory* invW = user.getCurCharacInvenW();
+        invW->ResetSlot(isEquip ? 0 : 1, slot);
+
+        InstanceRentalSystem::DeletedRentItem entry;
+        entry.m_bEquip = isEquip ? 1 : 0;
+        entry.m_slot = (unsigned short)slot;
+        entry.m_itemId = itemId;
+        deleted.push_back(entry);
+    }
+}
+
+// ---- ProcessEquipItem —— T 0x082714c5（同名报告全文转写；委托转写核对）-----
+// 与 ProcessInsertItem 仅差 SetUpgrade/rentId 写入顺序、装备位插入与标记字节。
+int ProcessEquipItem(CUser& user,
+                     const InstanceRentalSystem::RentInElem& inElem,
+                     const EventRewardItemInfo& reward,
+                     InstanceRentalSystem::RentOutput& out, int reason)
+{
+    CItem* script = G_CDataManager()->find_item(reward.m_field0);
+    if (script == 0)
+    {
+        return 1;
+    }
+
+    Inven_Item item;
+    item.m_addInfo = reward.m_field0;                 // +0x02
+    script->make_item(item);                          // ORIG 虚表槽 +0x08
+
+    const int savedRentId = inElem.m_rentItemId;
+
+    InstanceRentalSystem::RentalInfo ri;
+    item.SetUpgrade((unsigned char)reward.m_short8);  // 装备路径：先 rentId 后升级
+    if (savedRentId != -1)
+    {
+        item.m_addInfo2 = savedRentId;                // +0x07
+    }
+
+    const short slot = (short)user.getCurCharacInvenW()->insertItemIntoEquipment(
+        item, (eItemAddReason)reason, true, false);
+
+    ri.m_flag0 = 3;                                   // 装备租借标记
+    ri.m_inEquip = 1;
+    ri.m_slot = (unsigned short)slot;
+    ri.m_itemIndex = reward.m_field0;
+    ri.m_field8 = (unsigned char)reward.m_field0;
+    ri.m_field9 = (unsigned char)(reward.m_field0 >> 8);
+    ri.m_fieldB = (unsigned char)(reward.m_field0 >> 24);
+    ri.m_rentItemId = savedRentId;
+
+    out.m_infos.push_back(ri);
+    return 0;
+}
+
+// ---- ProcessInsertItem —— T 0x08271666（同名报告全文转写）------------------
+int ProcessInsertItem(CUser& user,
+                      const InstanceRentalSystem::RentInElem& inElem,
+                      const EventRewardItemInfo& reward,
+                      InstanceRentalSystem::RentOutput& out, int reason)
+{
+    CItem* script = G_CDataManager()->find_item(reward.m_field0);
+    if (script == 0)
+    {
+        return 1;
+    }
+
+    Inven_Item item;
+    item.m_addInfo = reward.m_field0;                 // +0x02
+    script->make_item(item);                          // ORIG 虚表槽 +0x08
+
+    item.SetUpgrade((unsigned char)reward.m_short8);  // 插入路径：先升级后 rentId
+    const int savedRentId = inElem.m_rentItemId;
+    if (savedRentId != -1)
+    {
+        item.m_addInfo2 = savedRentId;                // +0x07
+    }
+
+    InstanceRentalSystem::RentalInfo ri;
+    const short slot = (short)user.getCurCharacInvenW()->insertItemIntoInventory(
+        item, (eItemAddReason)reason, true, false);
+
+    ri.m_flag0 = 0;                                   // 背包租借标记
+    ri.m_inEquip = 0;
+    ri.m_slot = (unsigned short)slot;
+    ri.m_itemIndex = reward.m_field0;
+    ri.m_field8 = (unsigned char)reward.m_field0;
+    ri.m_field9 = (unsigned char)(reward.m_field0 >> 8);
+    ri.m_fieldB = (unsigned char)(reward.m_field0 >> 24);
+    ri.m_rentItemId = savedRentId;
+
+    out.m_infos.push_back(ri);
+    return 0;
+}
+
+}  // namespace pc_room
+
+// ===========================================================================
+// RentalMachinePcRoom / RentalMachineDimension 本体
+// ===========================================================================
+
+// ---- PcRoom::log —— T 0x082707c0（同名报告全文转写）------------------------
+void RentalMachinePcRoom::log(CUser& user, int itemId)
+{
+    char serverInfo = 0;
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+    {
+        serverInfo = (char)user.GetServerGroup();
+    }
+    else
+    {
+        serverInfo = (char)*reinterpret_cast<const int*>(
+            reinterpret_cast<const char*>(G_CEnvironment()) + 0x378);  // [裸偏移] CEnvironment+0x378（log 报告直转；具名字段待补）
+    }
+    const int charNo = user.get_charac_no(-1);
+    const unsigned int accId = user.get_acc_id();
+
+    CMyFileLog flog("void RentalMachinePcRoom::log(CUser&, int)", 0x12e);
+    flog(m_impl->m_data,
+         "[RENT] m_id(%d) char_no(%d) server_info(%d) item_id(%d)", accId,
+         charNo, (int)serverInfo, itemId);
+}
+
+// ---- Dimension::log —— T 0x0826ef16（同名报告全文转写）---------------------
+void RentalMachineDimension::log(CUser& user, int itemId)
+{
+    char serverInfo = 0;
+    if (G_GameWorld()->IsIntegratedPvPBaseChannel())
+    {
+        serverInfo = (char)user.GetServerGroup();
+    }
+    else
+    {
+        serverInfo = (char)*reinterpret_cast<const int*>(
+            reinterpret_cast<const char*>(G_CEnvironment()) + 0x378);  // [裸偏移] CEnvironment+0x378（log 报告直转；具名字段待补）
+    }
+    const int charNo = user.get_charac_no(-1);
+    const unsigned int accId = user.get_acc_id();
+
+    CMyFileLog flog("void RentalMachineDimension::log(CUser&, int)", 0x71);
+    flog(m_impl->m_data,
+         "[RENT] Dimension m_id(%d) char_no(%d) server_info(%d) item_id(%d)",
+         accId, charNo, (int)serverInfo, itemId);
+}
+
+// ---- Dimension::checkRentalLevel —— T 0x0826f7e4（同名报告）----------------
+bool RentalMachineDimension::checkRentalLevel(int level)
+{
+    return 0x40 < level;
+}
+
+// ---- Dimension::checkRentalGrowJob —— T 0x0826f7fc（同名报告）--------------
+bool RentalMachineDimension::checkRentalGrowJob(int growType)
+{
+    return growType != 0;
+}
+
+// ---- Dimension::GetRewardItemGiveList —— T 0x0826f814（同名报告：透传）-----
+int RentalMachineDimension::GetRewardItemGiveList(int job, int growType)
+{
+    return (int)G_CDataManager()
+        ->m_dimensionAct.m_rewardData.getRewardGiveItemList(job, growType);
+}
+
+// ---- Dimension::GetRentItemInfo —— T 0x0826f842（同名报告全文转写）---------
+int RentalMachineDimension::GetRentItemInfo(
+    CUser& user, const InstanceRentalSystem::RentInElem& inElem,
+    EventRewardItemInfo& out)
+{
+    int selectionIdx = 0;
+    if (!pc_room::GetSelectionIndex(user, selectionIdx, 2))
+    {
+        return 0;
+    }
+    char job = 0;
+    if (!pc_room::GetCharacterJob(user, job))
+    {
+        return 0;
+    }
+
+    const int packageKey =
+        makeFairPVPEquipmentPackageKey((int)(signed char)job, selectionIdx);
+
+    std::vector<std::vector<EventRewardItemInfo> >* list = 0;
+    if ((int)inElem.m_type == 1)
+    {
+        const int growType =
+            (int)(signed char)user.getCurCharFirstGrowType();
+        list = (std::vector<std::vector<EventRewardItemInfo> >*)
+            GetRewardItemGiveList((int)(signed char)job, growType);
+    }
+    else
+    {
+        list =
+            G_CDataManager()->m_dimensionAct.m_rewardData.getRewardSelectItemList(
+                packageKey);
+    }
+    if (list == 0)
+    {
+        return 0;
+    }
+
+    const int s0 = (int)(signed char)inElem.m_sectionIdx;
+    if (s0 < 0 || (int)list->size() <= s0)
+    {
+        return 0;
+    }
+    std::vector<EventRewardItemInfo>& inner = list->at((std::size_t)s0);
+
+    const int s1 = (int)(signed char)inElem.m_itemIdx;
+    if (s1 < 0 || (int)inner.size() <= s1)
+    {
+        return 0;
+    }
+    out = inner[(std::size_t)s1];
+    return 1;
+}
+
+// ---- PcRoom::checkAllRentalItemScript —— T 0x082708cc（同名报告全文转写）---
+bool RentalMachinePcRoom::checkAllRentalItemScript()
+{
+    std::map<int, std::vector<std::vector<EventRewardItemInfo> > >& table =
+        G_CDataManager()->m_pcBangRentar.m_mapC;
+
+    for (std::map<int,
+                  std::vector<std::vector<EventRewardItemInfo> > >::iterator
+             outer = table.begin();
+         outer != table.end(); ++outer)
+    {
+        std::vector<std::vector<EventRewardItemInfo> >& sections =
+            outer->second;
+        for (std::size_t s = 0; s < sections.size(); ++s)
+        {
+            std::vector<EventRewardItemInfo>& items = sections[s];
+            for (std::size_t i = 0; i < items.size(); ++i)
+            {
+                const unsigned int itemId = (unsigned)items[i].m_field0;
+                CItem* item = G_CDataManager()->find_item((int)itemId);
+                if (item == 0)
+                {
+                    std::cerr << "[RentalSystem::Ready()] Can`t find item["
+                              << itemId << "]" << std::endl;
+                    return false;
+                }
+                if (item->IsImpossibleAmplify() != 1)     // vt+0x34 槽13
+                {
+                    std::cerr << "[RentalSystem::Ready()] Impossible contents("
+                                 "amplify upgrade) is not checked. ["
+                              << itemId << "]" << std::endl;
+                    return false;
+                }
+                if (item->IsImpossibleCharacCargo() != 1)  // vt+0x40 槽16
+                {
+                    std::cerr << "[RentalSystem::Ready()] Impossible contents("
+                                 "charac cargo) is not checked. ["
+                              << itemId << "]" << std::endl;
+                    return false;
+                }
+                if (item->IsImpossibleDisjoint() != 1)     // vt+0x38 槽14
+                {
+                    std::cerr << "[RentalSystem::Ready()] Impossible contents("
+                                 "disjoint) is not checked. ["
+                              << itemId << "]" << std::endl;
+                    return false;
+                }
+                if (item->IsImpossibleGift() != 1)         // vt+0x3c 槽15
+                {
+                    std::cerr << "[RentalSystem::Ready()] Impossible contents("
+                                 "gift) is not checked. ["
+                              << itemId << "]" << std::endl;
+                    return false;
+                }
+                if (item->IsImpossibleUpgrade() != 1)      // vt+0x30 槽12
+                {
+                    std::cerr << "[RentalSystem::Ready()] Impossible contents("
+                                 "upgrade) is not checked. ["
+                              << itemId << "]" << std::endl;
+                    return false;
+                }
+                if (item->GetAttachType() != 2)
+                {
+                    std::cerr << "[RentalSystem::Ready()] AtttachType is not "
+                                 "trade delete. ["
+                              << itemId << "]" << std::endl;
+                    return false;
+                }
+                m_impl->m_set.insert(itemId);
+            }
+        }
+    }
+    return true;
+}
+
+// ---- Dimension::checkSelectionListScript —— T 0x0826f14e -------------------
+// （报告全文转写；五谓词次序同 PcRoom，cerr 前缀为 RentalDimensionSystem）
+int RentalMachineDimension::checkSelectionListScript(
+    const std::vector<std::vector<EventRewardItemInfo> >& selectionList)
+{
+    for (std::size_t s = 0; s < selectionList.size(); ++s)
+    {
+        const std::vector<EventRewardItemInfo>& items = selectionList[s];
+        for (std::size_t i = 0; i < items.size(); ++i)
+        {
+            const unsigned int itemId = (unsigned)items[i].m_field0;
+            CItem* item = G_CDataManager()->find_item((int)itemId);
+            if (item == 0)
+            {
+                std::cerr << "[RentalDimensionSystem::Ready()] Can`t find item["
+                          << itemId << "]" << std::endl;
+                return 0;
+            }
+            if (item->IsImpossibleAmplify() != 1)
+            {
+                std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
+                             "contents(amplify upgrade) is not checked. ["
+                          << itemId << "]" << std::endl;
+                return 0;
+            }
+            if (item->IsImpossibleCharacCargo() != 1)
+            {
+                std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
+                             "contents(charac cargo) is not checked. ["
+                          << itemId << "]" << std::endl;
+                return 0;
+            }
+            if (item->IsImpossibleDisjoint() != 1)
+            {
+                std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
+                             "contents(disjoint) is not checked. ["
+                          << itemId << "]" << std::endl;
+                return 0;
+            }
+            if (item->IsImpossibleGift() != 1)
+            {
+                std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
+                             "contents(gift) is not checked. ["
+                          << itemId << "]" << std::endl;
+                return 0;
+            }
+            if (item->IsImpossibleUpgrade() != 1)
+            {
+                std::cerr << "[RentalDimensionSystem::Ready()] Impossible "
+                             "contents(upgrade) is not checked. ["
+                          << itemId << "]" << std::endl;
+                return 0;
+            }
+            if (item->GetAttachType() != 2)
+            {
+                std::cerr << "[RentalDimensionSystem::Ready()] AtttachType is "
+                             "not trade delete. ["
+                          << itemId << "]" << std::endl;
+                return 0;
+            }
+            m_impl->m_set.insert(itemId);
+        }
+    }
+    return 1;
+}
+
+// ---- Dimension::checkAllRentalItemScript —— T 0x0826f022（同名报告转写）----
+bool RentalMachineDimension::checkAllRentalItemScript()
+{
+    CDataManager* dm = G_CDataManager();
+    std::map<int, std::vector<std::vector<EventRewardItemInfo> > >& selectMap =
+        dm->m_dimensionAct.m_rewardData.m_mapC;      // +0x4b40
+    for (std::map<int,
+                  std::vector<std::vector<EventRewardItemInfo> > >::iterator
+             it = selectMap.begin();
+         it != selectMap.end(); ++it)
+    {
+        if (checkSelectionListScript(it->second) != 1)
+        {
+            return false;
+        }
+    }
+    std::map<std::pair<int, int>,
+             std::vector<std::vector<EventRewardItemInfo> > >& giveMap =
+        dm->m_dimensionAct.m_rewardData.m_map24;     // +0x4b58
+    for (std::map<std::pair<int, int>,
+                  std::vector<std::vector<EventRewardItemInfo> > >::iterator
+             it = giveMap.begin();
+         it != giveMap.end(); ++it)
+    {
+        if (checkSelectionListScript(it->second) != 1)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// ---- PcRoom::CheckupAllRentalItems —— T 0x08270d1e（同名报告全文转写）------
+int RentalMachinePcRoom::CheckupAllRentalItems(
+    CUser& user, const InstanceRentalSystem::RentInput& input)
+{
+    int inventoryNeed = 0;
+    for (std::size_t i = 0; i < input.m_elems.size(); ++i)
+    {
+        const InstanceRentalSystem::RentInElem& elem = input.m_elems[i];
+        EventRewardItemInfo info;
+        if (!pc_room::GetRentItemInfo(user, (char)elem.m_sectionIdx,
+                                      (char)elem.m_itemIdx, info, 1))
+        {
+            return 1;
+        }
+        CItem* script = G_CDataManager()->find_item(info.m_field0);
+        if (script == 0)
+        {
+            return 1;
+        }
+
+        Inven_Item probe;
+        probe.m_addInfo = info.m_field0;
+        script->make_item(probe);                    // ORIG 虚表槽 +0x08
+
+        if (elem.m_bEquip != 0)
+        {
+            if (user.getCurCharacInvenR()->tryInsertItemIntoEquipment(probe) < 0)
+            {
+                return 0xcb;
+            }
+        }
+        else
+        {
+            if (user.getCurCharacInvenR()->tryInsertItemIntoInventory(probe) >= 0)
+            {
+                ++inventoryNeed;
+            }
+            else
+            {
+                return 0xcb;
+            }
+        }
+    }
+    return pc_room::CheckInventoryEmptyCount(user, inventoryNeed) ? 0 : 0xcb;
+}
+
+// ---- Dimension::CheckupAllRentalItems —— T 0x0826f52c（同名报告全文转写）---
+int RentalMachineDimension::CheckupAllRentalItems(
+    CUser& user, const InstanceRentalSystem::RentInput& input)
+{
+    int inventoryNeed = 0;
+    for (std::size_t i = 0; i < input.m_elems.size(); ++i)
+    {
+        const InstanceRentalSystem::RentInElem& elem = input.m_elems[i];
+        EventRewardItemInfo info;
+        if (!GetRentItemInfo(user, elem, info))
+        {
+            return 1;
+        }
+        CItem* script = G_CDataManager()->find_item(info.m_field0);
+        if (script == 0)
+        {
+            return 1;
+        }
+
+        Inven_Item probe;
+        probe.m_addInfo = info.m_field0;
+        script->make_item(probe);
+
+        if (elem.m_bEquip != 0)
+        {
+            if (user.getCurCharacInvenR()->tryInsertItemIntoEquipment(probe) < 0)
+            {
+                return 0xcb;
+            }
+        }
+        else
+        {
+            if (user.getCurCharacInvenR()->tryInsertItemIntoInventory(probe) >= 0)
+            {
+                ++inventoryNeed;
+            }
+            else
+            {
+                return 0xcb;
+            }
+        }
+    }
+    return pc_room::CheckInventoryEquipmentEmptyCount(user, inventoryNeed) ? 0
+                                                                          : 0xcb;
+}
+
+// ---- PcRoom::Rent —— T 0x082704e6（Rent.md 全文转写）------------------------
+bool RentalMachinePcRoom::Rent(CUser& user,
+                               const InstanceRentalSystem::RentInput& input,
+                               InstanceRentalSystem::RentOutput& output)
+{
+    // ORIG: (!IsPcRoomUser || input+0x11 字节==1) → 7。RentInput 建模中 +0x10
+    // 为 m_logFlag，+0x11 为其填充位（未具名）；按报告条件组合转写。
+    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&input);
+    if (!pc_room::IsPcRoomUser(user) || raw[0x11] == 1)
+    {
+        return true;   // ENUM_ERROR 7
+    }
+    if (!pc_room::CheckRentableEnvironment(user))
+    {
+        return true;   // ENUM_ERROR 7
+    }
+    int err = CheckupAllRentalItems(user, input);
+    if (err != 0)
+    {
+        return err != 0;
+    }
+
+    pc_room::DeleteAllRentalItemInSameSectionForNewRent(user, output.m_deleted,
+                                                        1);
+    for (std::size_t i = 0; i < input.m_elems.size(); ++i)
+    {
+        const InstanceRentalSystem::RentInElem& elem = input.m_elems[i];
+        EventRewardItemInfo info;
+        if (!pc_room::GetRentItemInfo(user, (char)elem.m_sectionIdx,
+                                      (char)elem.m_itemIdx, info, 1))
+        {
+            LogManager::logFormat(
+                1, "RentalSystem.cpp",
+                "virtual ENUM_ERROR RentalMachinePcRoom::Rent(CUser&, const "
+                "InstanceRentalSystem::RentInput&, "
+                "InstanceRentalSystem::RentOutput&)",
+                0xf8,
+                "Rent error. GetRentItemInfo return false. "
+                "scriptSectionIndex(%d), scriptSeqIndex(%d)",
+                (int)(signed char)elem.m_sectionIdx,
+                (int)(signed char)elem.m_itemIdx);
+            return true;   // ENUM_ERROR 1
+        }
+        if (elem.m_bEquip == 0)
+        {
+            pc_room::ProcessInsertItem(user, elem, info, output, 0x3d);
+        }
+        else
+        {
+            pc_room::ProcessEquipItem(user, elem, info, output, 0x3d);
+        }
+        if (input.m_logFlag != 0)
+        {
+            log(user, info.m_field0);
+        }
+    }
+    return false;   // 0=成功
+}
+
+// ---- Dimension::Rent —— T 0x0826ec22（Rent.md 全文转写）---------------------
+bool RentalMachineDimension::Rent(CUser& user,
+                                  const InstanceRentalSystem::RentInput& input,
+                                  InstanceRentalSystem::RentOutput& output)
+{
+    const unsigned char* raw = reinterpret_cast<const unsigned char*>(&input);
+    if (!pc_room::CheckRentableEnvironmentAtChannelType(user))
+    {
+        return true;   // ENUM_ERROR 7
+    }
+    if (!checkRentalLevel(user.get_charac_level()))
+    {
+        return false;  // ENUM_ERROR 0xe（14）
+    }
+    if (!checkRentalGrowJob((int)(signed char)user.getCurCharFirstGrowType()))
+    {
+        return true;   // ENUM_ERROR 0xfe（254）
+    }
+    int err = CheckupAllRentalItems(user, input);
+    if (err != 0)
+    {
+        return err != 0;
+    }
+
+    pc_room::DeleteAllRentalItemInSameSectionForNewRent(user, output.m_deleted,
+                                                        2);
+    for (std::size_t i = 0; i < input.m_elems.size(); ++i)
+    {
+        const InstanceRentalSystem::RentInElem& elem = input.m_elems[i];
+        EventRewardItemInfo info;
+        if (!GetRentItemInfo(user, elem, info))
+        {
+            LogManager::logFormat(
+                1, "RentalMachineDimension.cpp",
+                "virtual ENUM_ERROR RentalMachineDimension::Rent(CUser&, const "
+                "InstanceRentalSystem::RentInput&, "
+                "InstanceRentalSystem::RentOutput&)",
+                0x43,
+                "Rent error. GetDimensionRentItemInfo return false. "
+                "scriptSectionIndex(%d), scriptSeqIndex(%d)",
+                (int)(signed char)elem.m_sectionIdx,
+                (int)(signed char)elem.m_itemIdx);
+            return true;   // ENUM_ERROR 1
+        }
+        if (elem.m_bEquip == 0)
+        {
+            pc_room::ProcessInsertItem(user, elem, info, output, 0x3e);
+        }
+        else
+        {
+            pc_room::ProcessEquipItem(user, elem, info, output, 0x3e);
+        }
+        if (input.m_logFlag != 0)
+        {
+            log(user, info.m_field0);
+        }
+    }
+    return false;   // 0=成功
 }

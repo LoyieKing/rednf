@@ -108,9 +108,11 @@ public:
     char m_avatarDrops[0x100c - 0xf50];              // +0xf50（stEnamyDropAvatarInfo_t 区）
     unsigned char m_rarityByte;                      // +0x100c
     char m_pad100d[3];
+    int m_animationJob;                              // +0x1010（ORIG clear 置 0xb；
+                                                     //   importAI [animation job] 写入）
 };
 typedef char assert_stai_script_size[
-    sizeof(STAICharacterCommonScript) == 0x1010 ? 1 : -1];
+    sizeof(STAICharacterCommonScript) == 0x1014 ? 1 : -1];
 
 // ---- CAICharacter 本地完整镜像（sizeof 0x74 = init 的 operator new $0x74
 //      实证；前缀布局与 MonsterIndependentDrop.h 镜像一致。四个访问器为

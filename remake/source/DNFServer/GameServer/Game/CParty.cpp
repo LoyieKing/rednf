@@ -1263,9 +1263,9 @@ int CParty::checkInoutConditionDungeon()
             int sealR = CheckDestroyConditionSealDoor(
                 m_dungeon, vec, worldMap->m_field34);
             if (sealR == 1)
-                *(char*)((char*)this + 0x1865) = 1;   // ORIG +0x1865
+                m_sealDoorFlag = 1;
             else
-                *(char*)((char*)this + 0x1865) = 0;   // ORIG +0x1865
+                m_sealDoorFlag = 0;
             if (sealR != 1)
                 return 8;
         }
@@ -3119,7 +3119,7 @@ int CParty::dungeon_start(int dungeonIdx, char type, ENUM_DUNGEON_TYPE dtype)
     // 封印门判定：地狱图+类型1+旗标已立时必须消耗成功，否则整队失败。
     if (m_hellWorldMap != 0 && m_hellWorldMap->IsInHellDungeon() &&
         dtype == 1 &&
-        *(char*)(reinterpret_cast<char*>(this) + 0x1865) != 0 &&
+        m_sealDoorFlag != 0 &&
         UseSealDoorItems(m_hellWorldMap->m_field34) == 0)
         return 1;
 

@@ -2284,6 +2284,188 @@ int DisPatcher_BuySkill::process(CUser* user, MSG_BASE& msg, ParamBase& param)
     return errNo;   // 该路径 errNo==0，与 ORIG `mov -0x1c(%ebp),%eax` 一致
 }
 
+// ---------------------------------------------------------------------------
+// DisPatcher_BuySkill 四个 helper（ORIG T 符号；各报告 ## 汇编+## 反编译 C 全文转写）。
+// buySkillInfo 布局（PacketTypes.h）：m_0@+0(u8 技能号)/m_1@+1(u8)/m_4@+4(int 结果)/
+// m_8@+8(int 等级出参)。公会技能区间 [200,208]（cmp $0xc7 jbe / cmp $0xd0 ja 门）。
+// ---------------------------------------------------------------------------
+
+// ORIG 0x081bf952 T _ZN19DisPatcher_BuySkill24master_new_skill_processEP5CUsercR12buySkillInfo
+// （docs/class_func_reports/DisPatcher_BuySkill/master_new_skill_process.md 全文转写）：
+// 非公会分支（+0x1bf..+0x2ad）：树门 treeIdx∈{-1,0} 时 treeKind==1 返回 / 其余
+// treeKind!=1 返回 → SkillSlot::master_new_skill(idx, level, job, first, second,
+// (s8)m_1)，结果写 m_4，≥0 时 m_8←getCurCharacSkillR().get_skill_level(m_4)。
+// 公会分支（+0x02b..+0x1ba）：IsGuildMaster/IsSubGuildMaster 皆假直落尾部（沿用
+// 调用前遗留 m_4 判定）；否则 master_new_guild_skill(...,needGold,&info.m_8,needGSP,
+// *(u16*)(GetGuildDBInfo()+0x42))，成功经 GlobalData::s_guild_proxy_mgr 发送
+// SendBuyGuildSkill(get_charac_no(-1), get_charac_guildkey(), m_0, info.m_8,
+// needGSP, needGold)。
+// 尾部（+0x2b3）：m_4>=0 时 HistoryLog::WriteLearnSkill(m_field796f8, m_0, 当前等级)。
+void DisPatcher_BuySkill::master_new_skill_process(CUser* user, char treeKind,
+                                                   buySkillInfo& info)
+{
+    if ((unsigned int)info.m_0 >= 200 && (unsigned int)info.m_0 <= 208)
+    {   // ---- 公会技能分支（ORIG +0x02b..+0x1ba；正区间判定使公会块内联、
+        //      ja→非公会，与 ORIG 块排布一致）----
+        if (!user->IsGuildMaster() && !user->IsSubGuildMaster())
+        {
+            // 权限不足：ORIG 直落 +0x2af→尾部（不写 m_4，沿用调用前遗留值）
+        }
+        else
+        {
+            unsigned short guildLevel = *reinterpret_cast<unsigned short*>(
+                static_cast<char*>(user->GetGuildDBInfo()) + 0x42);           // ebx
+            int money = user->getCurCharacMoney();                      // -0x54
+            STGuildDBInfoOnly* guildDB =
+                static_cast<STGuildDBInfoOnly*>(user->GetGuildDBInfo());// -0x50
+            int secondGrow =
+                static_cast<int>(user->getCurCharSecondGrowType());           // -0x4c
+            int firstGrow =
+                static_cast<int>(user->getCurCharFirstGrowType());            // -0x48
+            int job = user->get_charac_job();       // ORIG edi
+            int needGold;   // ORIG -0x20：调用前未初始化，由出参引用写出
+            short needGSP;  // ORIG -0x22：同上（&别名传参）
+            SkillSlot* skillRG = (SkillSlot*)(user->getCurCharacSkillR());
+            info.m_4 = skillRG->master_new_guild_skill(
+                static_cast<unsigned char>(info.m_0), job, firstGrow, secondGrow,
+                *guildDB, money, needGold,
+                /*learnCnt=*/info.m_8,  // ORIG &info+8 别名 int& 出参
+                needGSP, static_cast<int>(guildLevel));
+            if (info.m_4 >= 0)
+            {   // ORIG +0x132..+0x1ba：读回出参并发公会服务器包
+                CGuildServerProxy* proxy =
+                    GlobalData::s_guild_proxy_mgr->GetServerProxy(
+                        user->GetServerGroup());
+                proxy->SendBuyGuildSkill(
+                    static_cast<unsigned int>(user->get_charac_no(-1)),
+                    static_cast<unsigned int>(user->get_charac_guildkey()),
+                    static_cast<unsigned char>(info.m_0),
+                    /*level(=出参 learnCnt 回读)=*/info.m_8,
+                    /*needGSP=*/needGSP, static_cast<unsigned int>(needGold));
+            }
+        }
+    }
+    else
+    {   // ---- 非公会技能分支（ORIG +0x1bf..+0x2ad）----
+        int treeIdx = user->GetCurCharacSkillTreeIndex();               // -0x1c
+        if (treeIdx == -1 || treeIdx == 0)
+        {
+            if (treeKind == 1)
+            {
+                return;
+            }
+        }
+        else if (treeKind != 1)
+        {
+            return;
+        }
+        int addLevel = static_cast<int>(static_cast<signed char>(info.m_1));       // -0x38
+        int secondGrow =
+            static_cast<int>(user->getCurCharSecondGrowType());                       // -0x34
+        int firstGrow =
+            static_cast<int>(user->getCurCharFirstGrowType());                        // -0x30
+        int job = user->get_charac_job();             // ORIG esi
+        int level = user->get_charac_level();         // ORIG ebx
+        SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
+        info.m_4 = skillW->master_new_skill(
+            static_cast<unsigned char>(info.m_0), level, job, firstGrow,
+            secondGrow, addLevel);
+        if (info.m_4 >= 0)
+        {
+            SkillSlot* skillR = (SkillSlot*)(user->getCurCharacSkillR());
+            info.m_8 = skillR->get_skill_level(info.m_4);
+        }
+    }
+    if (info.m_4 >= 0)
+    {   // ---- 尾部（ORIG +0x2b3）----
+        SkillSlot* skillRT = (SkillSlot*)(user->getCurCharacSkillR());
+        int curLevel = skillRT->get_skill_level(info.m_4);
+        HistoryLog::WriteLearnSkill(reinterpret_cast<FILE*>(user->m_field796f8),
+                                    static_cast<unsigned char>(info.m_0),
+                                    curLevel);
+    }
+}
+
+// ORIG 0x081bfc5c T _ZN19DisPatcher_BuySkill20refund_skill_processEP5CUsercR12buySkillInfo
+// （docs/class_func_reports/DisPatcher_BuySkill/refund_skill_process.md 全文转写）：
+// 无树门/无权限门（treeKind 存 -0x2c 后未再读取）；refundCount 局部清零后取址；
+// SkillSlot::refund_skill(idx, level, job, first, second, (s8)m_1, &refundCount)
+// 写 m_4，≥0 时 m_8←当前等级。ORIG 不读回 refundCount 值。
+void DisPatcher_BuySkill::refund_skill_process(CUser* user, char /*treeKind*/,
+                                               buySkillInfo& info)
+{
+    int refundCount = 0;                                                              // -0x1c
+    int addLevel = static_cast<int>(static_cast<signed char>(info.m_1));        // -0x38
+    int secondGrow = static_cast<int>(user->getCurCharSecondGrowType());        // -0x34
+    int firstGrow = static_cast<int>(user->getCurCharFirstGrowType());          // -0x30
+    int job = user->get_charac_job();               // ORIG esi
+    int level = user->get_charac_level();           // ORIG ebx
+    SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
+    info.m_4 =
+        skillW->refund_skill(static_cast<unsigned char>(info.m_0), level, job,
+                             firstGrow, secondGrow, addLevel, refundCount);
+    if (info.m_4 >= 0)
+    {
+        SkillSlot* skillR = (SkillSlot*)(user->getCurCharacSkillR());
+        info.m_8 = skillR->get_skill_level(info.m_4);
+    }
+}
+
+// ORIG 0x081bfd3c T _ZN19DisPatcher_BuySkill25try_refund_skills_processEP5CUsercR12buySkillInfo
+// （docs/class_func_reports/DisPatcher_BuySkill/try_refund_skills_process.md 全文转写）：
+// 与 refund 同参形态调 try_refund_skill；仅写 m_4，无等级回读、无任何门。
+void DisPatcher_BuySkill::try_refund_skills_process(CUser* user, char /*treeKind*/,
+                                                    buySkillInfo& info)
+{
+    int refundCount = 0;                                                              // -0x1c
+    int addLevel = static_cast<int>(static_cast<signed char>(info.m_1));        // -0x38
+    int secondGrow = static_cast<int>(user->getCurCharSecondGrowType());        // -0x34
+    int firstGrow = static_cast<int>(user->getCurCharFirstGrowType());          // -0x30
+    int job = user->get_charac_job();               // ORIG esi
+    int level = user->get_charac_level();           // ORIG ebx
+    SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
+    info.m_4 =
+        skillW->try_refund_skill(static_cast<unsigned char>(info.m_0), level,
+                                 job, firstGrow, secondGrow, addLevel,
+                                 refundCount);
+}
+
+// ORIG 0x081bfdf0 T _ZN19DisPatcher_BuySkill29try_master_new_skills_processEP5CUsercR12buySkillInfo
+// （docs/class_func_reports/DisPatcher_BuySkill/try_master_new_skills_process.md 全文转写）：
+// 公会技能 [200,208] 直接返回（cmp $0xd0 jbe → 尾声；与正式 master 相反）；
+// 非公会走同一树门后调 try_master_new_skills，仅写 m_4，无等级回写、无日志尾部。
+void DisPatcher_BuySkill::try_master_new_skills_process(CUser* user, char treeKind,
+                                                        buySkillInfo& info)
+{
+    if ((unsigned int)info.m_0 >= 200 && (unsigned int)info.m_0 <= 208)
+    {   // 公会技能 [200,208]：直接返回（ORIG cmp $0xd0 jbe → 尾声）
+        return;
+    }
+        int treeIdx = user->GetCurCharacSkillTreeIndex();
+        if (treeIdx == -1 || treeIdx == 0)
+        {
+            if (treeKind == 1)
+            {
+                return;
+            }
+        }
+        else if (treeKind != 1)
+        {
+            return;
+        }
+        int addLevel = static_cast<int>(static_cast<signed char>(info.m_1));    // -0x38
+        int secondGrow =
+            static_cast<int>(user->getCurCharSecondGrowType());                       // -0x34
+        int firstGrow =
+            static_cast<int>(user->getCurCharFirstGrowType());                        // -0x30
+        int job = user->get_charac_job();           // ORIG esi
+        int level = user->get_charac_level();       // ORIG ebx
+        SkillSlot* skillW = (SkillSlot*)(user->getCurCharacSkillW());
+        info.m_4 = skillW->try_master_new_skills(
+            static_cast<unsigned char>(info.m_0), level, job, firstGrow,
+            secondGrow, addLevel);
+}
+
 DisPatcher_IncreStatus::DisPatcher_IncreStatus() {}
 DisPatcher_IncreStatus::~DisPatcher_IncreStatus() {}
 int DisPatcher_IncreStatus::dispatch_sig(CUser* /*user*/, PacketBuf& /*packet*/) { return 0; }  // TODO(ORIG)
@@ -3735,6 +3917,32 @@ int DisPatcher_EventDungeon_ClearRoom::process(CUser* user, MSG_BASE& msg, Param
         *reinterpret_cast<const unsigned short*>(reinterpret_cast<const char*>(&rMsg) + 0x10);
     check_error(user, rMsg);
     return 0;
+}
+
+// ORIG 0x0812be82 T _ZN33DisPatcher_EventDungeon_ClearRoom4readER9PacketBufR8MSG_BASE
+// （docs/class_func_reports/DisPatcher_EventDungeon_ClearRoom/read.md 全文转写）：
+// ORIG 汇编含 &msg 的局部落栈（-0x4c(%ebp) spill/reload 对），以具名局部复现。
+int DisPatcher_EventDungeon_ClearRoom::read(PacketBuf& packet, MSG_BASE& msg)
+{
+    char* pBuf = reinterpret_cast<char*>(&msg);   // ORIG -0xc(%ebp)
+    packet.get_binary(pBuf, 0x14);
+    return 0;
+}
+
+// ORIG 0x0812bf16 T _ZN33DisPatcher_EventDungeon_ClearRoom4sendEP5CUserR9ParamBase
+// （docs/class_func_reports/DisPatcher_EventDungeon_ClearRoom/send.md 全文转写）：
+// put_header(1,0x21c) → put_byte(1) → put_binary(pParam,0xc) → finalize(true) →
+// CUser::Send；PacketGuard 栈对象析构（ORIG 含 EH 清理路径）。
+// 反编译 C 首行 local_10=param_2：param 引用先落栈（-0xc），guard 位于 -0x18。
+void DisPatcher_EventDungeon_ClearRoom::send(CUser* user, ParamBase& param)
+{
+    ParamBase* pParam = &param;   // ORIG -0xc(%ebp)（local_10，先于 guard ctor 落栈）
+    PacketGuard guard;
+    guard.put_header(1, 0x21c);
+    guard.put_byte(1);
+    guard.put_binary(reinterpret_cast<char*>(pParam), 0xc);
+    guard.finalize(true);
+    user->Send(guard);
 }
 
 Dispather_RegenerationRandomOption::Dispather_RegenerationRandomOption() {}

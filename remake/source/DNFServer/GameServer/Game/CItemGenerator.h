@@ -60,6 +60,7 @@
 #include "PvPTypes.h"   // CMTRand（0x9c8 字节随机源）
 
 class CUser;  // 全局命名空间（ORIG vector<CUser*>）
+class RegenerationROI;  // RandomRentalA2.cpp 的 RegenVer_* 签名引用
 
 // ---- ::CLuckPoint（全局命名空间，与 WongWork::CLuckPoint 不同类型；
 //      CParty.h 既有前向声明。ORIG UseLuckPoint T 0x08550a84） ----
@@ -238,6 +239,34 @@ public:
     void set_disable_drop();             // 定义 DropLayoutDeps.cpp（W 0x08539e42）
     unsigned int reset_option(unsigned long itemIdx, ENUM_RARITY rarity,
                               int optionType, RandomOption* options); // ORIG T 0x085f39d2
+    bool give_option(unsigned long itemIdx, ENUM_RARITY rarity, int level,
+                     int group, int grade, RandomOption* opts);          // ORIG T 0x085f2cc6
+    bool RegenVer_give_option(unsigned long itemIdx, ENUM_RARITY rarity,
+                              int level, int group, int grade, RandomOption*,
+                              RegenerationROI*, int optType);            // ORIG T 0x085f1bb0
+    unsigned int RegenVer_choose_item(ENUM_RARITY rarity, int level,
+                                      const std::vector<int>& itemGroups); // ORIG T 0x085f1802
+    int RegenVer_get_option_quantity(ENUM_RARITY rarity, int grade,
+                                     unsigned char optType, int level,
+                                     int& outQuantity, RegenerationROI*); // ORIG T 0x085f1a62
+
+private:
+    static bool give_option_core(CRandomOptionItemHandle*, unsigned long,
+                                 ENUM_RARITY, int, int, int, RandomOption*,
+                                 RegenerationROI*, int optType, bool regenVer);
+    int _get_level_limit(ENUM_RARITY rarity, int level);                 // T 0x085f0f9a
+    int _get_part_type(int limit);                                       // T 0x085f1088
+    int _get_part_type_by_ItemGroup(int limit,
+                                    const std::vector<int>& groups) const; // T 0x085f11a4
+    int _get_base_item(ENUM_RARITY rarity, int limit);                   // T 0x085f1426
+    int _get_option_type(unsigned long itemIdx, ENUM_RARITY rarity,
+                         int level, int group, unsigned char& outType);  // T 0x085f2338
+    int _get_option_quantity(ENUM_RARITY rarity, int grade,
+                             unsigned char optType, int level,
+                             int& outQuantity);                      // T 0x085f25b0
+    int _choose_option_group(ENUM_RARITY rarity, int level, int grade,
+                             unsigned char optType, int group, int& outGroup); // T 0x085f2882
+    int _get_option_value(int minV, int maxV);                           // T 0x085f2b02
 
 private:
     CMTRand* m_rand;           // +0x04

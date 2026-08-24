@@ -268,8 +268,23 @@ bool ImportSecurityReward(SecurityReward* out);   // _Z20ImportSecurityRewardP14
 //      LoadScript 0x08643e7e；报告 TowerOfDespairMgr/*.md。Ctor_Group1 权威化）----
 struct TOD_Layer            // ORIG resetLayer 0x085fe852：首 short 置 1
 {
-    unsigned short m_layer;
+    TOD_Layer(unsigned short layer);   // ORIG T 0x085fe7b4（报告 TOD_Layer/TOD_Layer.md）
     void resetLayer() { m_layer = 1; }
+    unsigned short GetLayer() const;   // ORIG T 0x0822ec40（定义 PartyDepsA2.cpp）
+    // ORIG T 0x086439c8（报告缺失，按 nm 实现）：层 +n，>100 回卷 1。
+    TOD_Layer operator+(int n) const;
+
+    unsigned short m_layer;
+};
+
+// ORIG TOD_UserState（角色扩展数据 0xd 槽对象；完整布局未建模，此处仅声明
+// GetDungeonIndex_isTOD 所需一员。对象由 CUserCharacInfo 数据区承载，本工程不构造）。
+class TOD_UserState
+{
+public:
+    // ORIG T 0x0864383e（报告 TOD_UserState/getTodayEnterLayer.md）：sret 返回
+    // *(const TOD_Layer*)(this+0x14) + 1（经 TOD_Layer(ushort) 构造，>100 回卷 1）。
+    TOD_Layer getTodayEnterLayer() const;
 };
 class PacketBuf;            // 完整定义见 PacketBuf.h（SendingAPC_Info 内嵌）
 struct SendingAPC_Info      // ORIG ctor 0x085fe860：PacketBuf@+4 构造+clear，
@@ -291,6 +306,7 @@ public:
 // ORIG sizeof 0x35c：CDungeon*[101]@0x000、uint[101]@0x194、set@0x328、
 // vector<uint>@0x340、ushort 0x34c/0x34e/0x350、APC_Mgr*@0x354、int@0x358。
 class CDungeon;
+class CUser;
 class TowerOfDespairMgr
 {
 public:
@@ -301,6 +317,14 @@ public:
     void _Set_LayerByDungeonIndex(unsigned int layer, unsigned int idx);        // 0x08643c86
     void _Set_APCIndexByLayer(unsigned int layer);     // 0x08643cf4
 
+    // ---- 查询族（报告 TowerOfDespairMgr/*.md；定义 PartyDepsA2.cpp，
+    //      CheckEnterable 定义 blocked 待 TOD 批次）----
+    CDungeon* Get_CDungeonByLayer(unsigned int layer);          // ORIG T 0x08643d14
+    unsigned int Get_DungeonIndexByLayer(unsigned int layer);   // ORIG T 0x08643d76
+    int Get_APCIndexByLayer(unsigned int layer);                // ORIG T 0x08643d9c（不在表=−1）
+    int GetBaseLayerIndex();                                    // ORIG T 0x086440a0（缓存 m_field358）
+    int CheckEnterable(CUser* user, const CDungeon* dungeon);   // ORIG T 0x086440ee【blocked】
+
     CDungeon* m_layerDungeons[101];                    // +0x000
     unsigned int m_dungeonIndexOfLayer[101];           // +0x194
     std::set<int> m_layerSet;                          // +0x328
@@ -309,7 +333,9 @@ public:
     unsigned short m_minLevel;                         // +0x34e [min Level]
     unsigned short m_topLayer;                         // +0x350 [top layer]
     TowerOfDespair_APC_Mgr* m_apcMgr;                  // +0x354
-    int m_field358;                                    // +0x358
+    int m_field358;                                    // +0x358（GetBaseLayerIndex 缓存）
+    static void SendMessageToCUser(CUser* user, char* msg);   // ORIG T 0x08644366（静态成员：
+                                                              //   ORIG asm 无 this 槽，user@0x8；依赖 CUser::Send）
 };  // sizeof 0x35c
 
 // ---- ORIG CLevelRewardTable(0x6088)/CLevelRewardTableMgr(0x14) 权威

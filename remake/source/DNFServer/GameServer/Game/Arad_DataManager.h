@@ -48,7 +48,8 @@ namespace ARAD
 class ScriptInterface
 {
 public:
-    ~ScriptInterface();               // ORIG 无虚析构（vtable 仅 Load/Destroy 两槽）
+    // ORIG nm 无 _ZN4ARAD15ScriptInterfaceD*Ev：析构为隐式平凡（勿声明/定义，
+    // 否则各派生类 dtor 会多出 ORIG 没有的基析构调用）。
     virtual bool Load() = 0;          // vtable 槽 0（Arad_DataManager::Load -> initAradData）
     virtual void Destroy() = 0;       // vtable 槽 1（Arad_DataManager::Destroy -> destroyAradData）
 };

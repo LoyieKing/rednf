@@ -24,10 +24,14 @@ enum ENUM_CHANGE_STATUS_TYPE
 };
 
 
+// ORIG 布局（importUpgradeTable [destruction result] 0x08901aba 实证：
+// ctor 0x0891a8c0 后连续三 ScanInt 截断 ushort 写 +0/+2/+4，sizeof 6）。
 struct STResultItemCnt
 {
-    int m_field0;   // +0x00
-};
+    unsigned short m_a;   // +0x00
+    unsigned short m_b;   // +0x02
+    unsigned short m_c;   // +0x04
+};                        // sizeof 6
 
 struct ItemAuraInfo
 {

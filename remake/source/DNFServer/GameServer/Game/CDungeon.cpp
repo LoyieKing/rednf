@@ -146,7 +146,7 @@ int CDungeon::IsHaveDummyMap() const
     return m_624;
 }
 
-int CDungeon::isRiskDungeon() const
+bool CDungeon::isRiskDungeon() const
 {
     return m_6c9;
 }

@@ -62,17 +62,25 @@ struct STSecondGrowTypeInfo
 {
     STSecondGrowTypeInfo();
     ~STSecondGrowTypeInfo();
+    void clear();   // ORIG _ZN20STSecondGrowTypeInfo5clearEv W 0x08373a1e
 
     _Additioal_info m_addInfo[2];                  // +0x00（0xa4）
     std::vector<std::pair<int, int> > m_skills[2]; // +0xa4（各 0xc）
     int m_fieldbc;                                 // +0xbc → 共 0xc0
 };
 
+struct STCharacterScript;  // 完整类型见 STCharacterScript.h（set_data 源表）
+
 class CCharacter
 {
 public:
     CCharacter();
     ~CCharacter();
+
+    void destroy();   // ORIG _ZN10CCharacter7destroyEv T 0x083485c4 → clear()
+    void clear();     // ORIG _ZN10CCharacter5clearEv  T 0x0834852e
+    void set_data(STCharacterScript* script);
+                   // ORIG _ZN10CCharacter8set_dataEP17STCharacterScript T 0x08348894
 
     char get_give_skill(int firstGrow, int secondGrow,
                         std::vector<std::pair<int, int> >& out,

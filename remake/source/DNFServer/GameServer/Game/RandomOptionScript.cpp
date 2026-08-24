@@ -54,7 +54,7 @@ void RandomOptionScript::clear()
     m_map18.clear();
     m_map30.clear();
     m_map48.clear();
-    m_map60.clear();
+    m_baseItems60.clear();
     m_map78.clear();
     m_map90.clear();
     m_veca8.clear();
