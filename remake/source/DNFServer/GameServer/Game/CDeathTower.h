@@ -40,6 +40,22 @@ namespace WongWork
             STAGE_STATE_START = 1,
             STAGE_STATE_FINISH = 2,
         };
+        // ORIG 嵌套类 WongWork::CDeathTower::stMapMonsterKillChecker_t（勿与全局
+        // ::stMapMonsterKillChecker_t（WarField.h）混淆——两者符号域/布局均不同：
+        // 本嵌套版仅 3 字段，无 setLastMobDieTime/checkLongTermMobDie 等）。
+        class stMapMonsterKillChecker_t
+        {
+        public:
+            void init();                                       // ORIG W 0x0823462a（清零全部 3 字段）
+            void setUseSkillMaterial(unsigned int material);   // ORIG W 0x0823464c（m_useSkillMaterialTime = material）
+            unsigned int getUseSkillMaterialTime();            // ORIG W 0x08469cda（返回 m_useSkillMaterialTime）
+            void initMonsterInfo();                            // ORIG W 0x08469c86（仅清 m_dieCnt）
+            unsigned int dieMonster(unsigned int tick, unsigned int limit); // ORIG W 0x08469c96
+
+            unsigned int m_useSkillMaterialTime;   // +0x00
+            unsigned int m_lastMobDieTime;         // +0x04
+            unsigned int m_dieCnt;                 // +0x08
+        };
         class CDungeonMgr
         {
         public:

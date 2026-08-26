@@ -373,27 +373,27 @@ int Dispatcher_Pause::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqPause req;
-        altar_pkt::ResPause res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet
+        send_packet(user, res);            // ORIG send_packet(0x242)
         return 0;
     }
     return 0x52c;
 }
 int Dispatcher_Pause::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    altar_pkt::ReqPause& req = *reinterpret_cast<altar_pkt::ReqPause*>(&msg);
-    altar_pkt::ResPause& res = *reinterpret_cast<altar_pkt::ResPause*>(&param);
-    res.m_nErrorCode = 0;  // check_error 恒 0（ORIG 0x8140b32）
-    if (res.m_nErrorCode == 0)
-    {
-        res.m_bPause = req.m_data[0x0d];  // +0x08 = req+0x0d
-        // ORIG Manager::pause @ 0x813105c
-        procStagePause(getUserStageControl(user), req.m_data[0x0d] != 0);
-    }
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_Pause/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_Pause::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -412,6 +412,33 @@ void Dispatcher_Pause::send_packet(CUser* user, CMDPacketStruct::STBaseResponse&
     user->Send(guard);
 }
 
+// ---- Wave5 三分解方法（独立 const 成员，指令级转写自报告）----
+bool Dispatcher_Pause::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    return false;  // [objdump 0x08140b32] mov $0x0,%eax; pop %ebp; ret
+}
+int Dispatcher_Pause::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x08140b04] get_binary(&req, 0xe); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0xe);
+    return 0;
+}
+int Dispatcher_Pause::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                                     CMDPacketStruct::STBaseResponse& resp) const
+{
+    // [objdump 0x08140b3c]：resp+4 = check_error；==0 时 resp+8 = req+0xd 并 Manager::pause。
+    char* sb = resBytes(resp);
+    *(reinterpret_cast<int*>(sb + 4)) = static_cast<int>(check_error(user, req));
+    if (*(reinterpret_cast<int*>(sb + 4)) == 0)
+    {
+        const char* rb = reqBytes(req);
+        sb[8] = rb[0xd];                                   // pause 标志回显
+        Manager::pause(user, rb[0xd] != 0);                // ORIG T 0x0813105c
+    }
+    return 0;
+}
+
 // ==================== Dispatcher_BuyItem（ORIG 0x813fad0）====================
 // dispatch_sig：校验失败返回 0x380；read(0x20) → process → send_packet(0x23d, 0x1c)。
 // process：res 回显 req 全部字段；res+0x04 = check_error(0)；buyItem 依赖
@@ -423,35 +450,27 @@ int Dispatcher_BuyItem::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqBuyItem req;
-        altar_pkt::ResBuyItem res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet
+        send_packet(user, res);            // ORIG send_packet(0x23d)
         return 0;
     }
     return 0x380;
 }
 int Dispatcher_BuyItem::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    altar_pkt::ReqBuyItem& req = *reinterpret_cast<altar_pkt::ReqBuyItem*>(&msg);
-    altar_pkt::ResBuyItem& res = *reinterpret_cast<altar_pkt::ResBuyItem*>(&param);
-    // ORIG process_packet @ 0x813fc06：回显 + check_error + buyItem
-    res.m_nBuyIndex = *(int*)&req.m_data[0x10];
-    res.m_nShopType = *(int*)&req.m_data[0x14];
-    res.m_nLevel = *(int*)&req.m_data[0x18];
-    res.m_wFrom = *(unsigned short*)&req.m_data[0x1c];
-    res.m_wTo = *(unsigned short*)&req.m_data[0x1e];
-    res.m_nErrorCode = 0;  // check_error 恒 0
-    if (res.m_nErrorCode == 0)
-    {
-        // [推断] ORIG buyItem @ 0x81319ae：需 CharacAdvanceAltarManager
-        // （CUser+0x8df60，当前 CUser.h 为 pad[0xd4]）内部 AdvanceAltarData
-        // 布局（+0x14 资金、getBuyItemMap）；未建模，暂置 error=3（数据缺失）。
-        res.m_nErrorCode = 3;
-        res.m_nTotalCost = 0;
-    }
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_BuyItem/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_BuyItem::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -470,6 +489,87 @@ void Dispatcher_BuyItem::send_packet(CUser* user, CMDPacketStruct::STBaseRespons
     user->Send(guard);
 }
 
+// ---- Wave5 三分解方法 ----
+bool Dispatcher_BuyItem::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    // [objdump 0x0813fbe6] return !isOpenAdvanceAltar();
+    return !isOpenAdvanceAltar();
+}
+int Dispatcher_BuyItem::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x0813fbb8] get_binary(&req, 0x20); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0x20);
+    return 0;
+}
+int Dispatcher_BuyItem::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                                       CMDPacketStruct::STBaseResponse& resp) const
+{
+    // [objdump 0x0813fc06]
+    const char* rb = reqBytes(req);
+    char* sb = resBytes(resp);
+    *(int*)(sb + 0x08) = *(const int*)(rb + 0x10);                    // buyIndex 回显
+    *(int*)(sb + 0x0c) = *(const int*)(rb + 0x14);                    // shopType
+    *(int*)(sb + 0x10) = *(const int*)(rb + 0x18);                    // level
+    *(unsigned short*)(sb + 0x14) = *(const unsigned short*)(rb + 0x1c);  // fromSlot
+    *(unsigned short*)(sb + 0x16) = *(const unsigned short*)(rb + 0x1e);  // toSlot
+    *(int*)(sb + 4) = static_cast<int>(check_error(user, req));
+    if (*(int*)(sb + 4) == 0)
+    {
+        CDataManager* dm = G_CDataManager();                          // ORIG call G_CDataManager
+        std::vector<advancealtar::BuyUpgradeData>* vec =
+            dm->m_altarShop.getBuyUpgradeDataVec(
+                *(const int*)(rb + 0x10),
+                static_cast<AdvanceAltarShopType::T>(*(const int*)(rb + 0x14)));
+        if (vec == 0)                              // [objdump 0x813fcbf] err=3
+        {
+            *(int*)(sb + 4) = 3;
+            return 0;
+        }
+        const BuyUpgradeData* found = 0;           // 线性查找 item 匹配行
+        for (std::vector<BuyUpgradeData>::iterator it = vec->begin(); it != vec->end(); ++it)
+        {
+            if (it->m_nItemId == *(int*)(sb + 0x10))   // [objdump 0x813fd04] cmp *it==resp+0x10
+            {
+                found = &(*it);
+                break;
+            }
+        }
+        if (found == 0)                            // [objdump 0x813fd6b] err=3
+        {
+            *(int*)(sb + 4) = 3;
+            return 0;
+        }
+        int totalCost = 0;
+        for (int lv = (short)*(const unsigned short*)(rb + 0x1c);
+             lv <= (short)*(const unsigned short*)(rb + 0x1e); ++lv)
+        {
+            FieldData* fd = const_cast<BuyUpgradeData*>(found)->getFieldDataPoint(
+                lv, static_cast<FieldType::T>(2));                 // ORIG T 0x088a2e4c
+            if (fd == 0)                       // [objdump 0x813fdb6] err=3
+            {
+                *(int*)(sb + 4) = 3;
+                return 0;
+            }
+            totalCost += fd->m_value;          // [objdump 0x813fdca] add +4(int)
+        }
+        int rewardIdx = 0;
+        int rc = user->m_advanceAltar.buyItem(                     // ORIG T 0x081319ae
+            static_cast<AdvanceAltarShopType::T>(*(const int*)(rb + 0x14)),
+            *(const int*)(rb + 0x18),
+            (short)*(const unsigned short*)(rb + 0x1c),
+            (short)*(const unsigned short*)(rb + 0x1e),
+            totalCost, rewardIdx);
+        *(int*)(sb + 4) = rc;
+        *(int*)(sb + 0x18) = rewardIdx;
+        if (rc == 0)
+        {
+            HistoryLog::starSub(*user, static_cast<SubStarType::T>(0), totalCost);  // ORIG T 0x08133db0
+        }
+    }
+    return 0;
+}
+
 // ==================== Dispatcher_SetSlot（ORIG 0x813ff3e）====================
 // dispatch_sig：校验失败返回 0x3fc；read(0x24) → process → send_packet(0x23e, 0x1c)。
 // process：res 回显 req（含 _SetSlotData 12B）；slotType 非 1/2 → error=2；
@@ -481,38 +581,27 @@ int Dispatcher_SetSlot::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqSetSlot req;
-        altar_pkt::ResSetSlot res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet
+        send_packet(user, res);            // ORIG send_packet(0x23e)
         return 0;
     }
     return 0x3fc;
 }
 int Dispatcher_SetSlot::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    altar_pkt::ReqSetSlot& req = *reinterpret_cast<altar_pkt::ReqSetSlot*>(&msg);
-    altar_pkt::ResSetSlot& res = *reinterpret_cast<altar_pkt::ResSetSlot*>(&param);
-    res.m_bSet = req.m_data[0x14];       // +0x0c = req+0x14
-    res.m_field08 = *(int*)&req.m_data[0x10];  // +0x08 = req+0x10
-    memcpy(res.m_slot, &req.m_data[0x18], 12); // +0x10 ← req+0x18
-    res.m_nErrorCode = 0;                // check_error 恒 0
-    if (res.m_nErrorCode == 0)
-    {
-        int slotType = *(int*)&req.m_data[0x18];
-        if (slotType == 1 || slotType == 2)
-        {
-            // [推断] ORIG setSlot @ 0x8131b58 依赖未建模 AdvanceAltarData /
-            // AdvanceAltarShopParameter::getBuyUpgradeDataVec，暂置 error=3。
-            res.m_nErrorCode = 3;
-        }
-        else
-        {
-            res.m_nErrorCode = 2;
-        }
-    }
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_SetSlot/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_SetSlot::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -531,6 +620,46 @@ void Dispatcher_SetSlot::send_packet(CUser* user, CMDPacketStruct::STBaseRespons
     user->Send(guard);
 }
 
+// ---- Wave5 三分解方法 ----
+bool Dispatcher_SetSlot::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    return !isOpenAdvanceAltar();  // [objdump 0x0814004e]
+}
+int Dispatcher_SetSlot::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x08140020] get_binary(&req, 0x24); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0x24);
+    return 0;
+}
+int Dispatcher_SetSlot::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                                       CMDPacketStruct::STBaseResponse& resp) const
+{
+    // [objdump 0x0814006e]
+    const char* rb = reqBytes(req);
+    char* sb = resBytes(resp);
+    sb[0x0c] = rb[0x14];                                   // isSet 回显（byte）
+    *(int*)(sb + 8) = *(const int*)(rb + 0x10);            // field08
+    std::memcpy(sb + 0x10, rb + 0x18, 0xc);                // _SetSlotData 整块回显
+    *(int*)(sb + 4) = static_cast<int>(check_error(user, req));
+    if (*(int*)(sb + 4) == 0)
+    {
+        int slotType = *(const int*)(rb + 0x18);           // _SetSlotData.m_type
+        if (slotType == 2 || slotType == 1)                // [objdump 0x081400f4]
+        {
+            int rc = user->m_advanceAltar.setSlot(         // ORIG T 0x08131b58
+                rb[0x14] != 0,
+                *reinterpret_cast<const CMDPacketStruct::_SetSlotData*>(rb + 0x18));
+            *(int*)(sb + 4) = rc;
+        }
+        else
+        {
+            *(int*)(sb + 4) = 2;
+        }
+    }
+    return 0;
+}
+
 // ==================== Dispatcher_ResetStar（ORIG 0x8140f6e）====================
 // dispatch_sig：校验失败返回 0x5c0；read(0x14) → process → send_packet(0x244, 0xc)。
 // process：res+0x04 = check_error(0)；resetStar 依赖未建模数据，标注推断。
@@ -541,27 +670,27 @@ int Dispatcher_ResetStar::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqResetStar req;
-        altar_pkt::ResResetStar res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet
+        send_packet(user, res);            // ORIG send_packet(0x244)
         return 0;
     }
     return 0x5c0;
 }
 int Dispatcher_ResetStar::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    altar_pkt::ReqResetStar& req = *reinterpret_cast<altar_pkt::ReqResetStar*>(&msg);
-    altar_pkt::ResResetStar& res = *reinterpret_cast<altar_pkt::ResResetStar*>(&param);
-    res.m_nErrorCode = 0;  // check_error 恒 0
-    if (res.m_nErrorCode == 0)
-    {
-        // [推断] ORIG resetStar @ CharacAdvanceAltarManager 依赖未建模
-        // AdvanceAltarData（+0xcc 更新标志/ridable 数据），暂置 error=3。
-        res.m_nErrorCode = 3;
-    }
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_ResetStar/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_ResetStar::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -578,6 +707,48 @@ void Dispatcher_ResetStar::send_packet(CUser* user, CMDPacketStruct::STBaseRespo
     guard.put_binary((char*)&resp, 0xc);
     guard.finalize(true);
     user->Send(guard);
+}
+
+// ---- Wave5 三分解方法 ----
+bool Dispatcher_ResetStar::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    return !isOpenAdvanceAltar();  // [objdump 0x0814108a]
+}
+int Dispatcher_ResetStar::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x0814105c] get_binary(&req, 0x14); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0x14);
+    return 0;
+}
+int Dispatcher_ResetStar::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                                         CMDPacketStruct::STBaseResponse& resp) const
+{
+    // [objdump 0x081410aa]
+    char* sb = resBytes(resp);
+    *(int*)(sb + 4) = static_cast<int>(check_error(user, req));
+    if (*(int*)(sb + 4) == 0)
+    {
+        int rc = user->m_advanceAltar.resetStar(                     // ORIG T 0x081333b2
+            user,
+            static_cast<CMDPacketStruct::ResetStarType::T>(*(const int*)(reqBytes(req) + 0x10)));
+        *(int*)(sb + 4) = rc;
+        if (rc == 0)
+        {
+            AdvanceAltarData* data = user->m_advanceAltar.getCurrentAdvanceAltarData();  // ORIG T 0x081348c4
+            if (data != 0)
+            {
+                NOTIPacketStruct::_NotiAdvanceAltarUpdateRidable noti;   // ORIG ctor 0x08141ff8
+                PacketGuard guard;
+                guard.put_header(0, 0x210);                          // [objdump 0x08141172] put_header(0,0x210)
+                guard.put_binary((char*)&noti, 1);                   // put_binary(&noti,1)
+                advancealtar::putRidableInfoToPacket(guard, *data);  // ORIG T 0x08141781
+                guard.finalize(true);
+                user->Send(guard);                                   // ORIG T 0x086485ba CUser::Send
+            }
+        }
+    }
+    return 0;
 }
 
 // ==================== Dispatcher_StartGame（ORIG 0x813f7b0 区）====================
@@ -689,45 +860,27 @@ int Dispatcher_SummonUnit::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqSummonUnit req;
-        altar_pkt::ResSummonUnit res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet
+        send_packet(user, res);            // ORIG send_packet(0x240)
         return 0;
     }
     return 0x496;
 }
 int Dispatcher_SummonUnit::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    altar_pkt::ReqSummonUnit& req = *reinterpret_cast<altar_pkt::ReqSummonUnit*>(&msg);
-    altar_pkt::ResSummonUnit& res = *reinterpret_cast<altar_pkt::ResSummonUnit*>(&param);
-    res.m_bySlotType = req.m_data[0x0d];   // +0x08 = req+0x0d
-    res.m_nUnitId = *(int*)&req.m_data[0x10];  // +0x0c = req+0x10
-    res.m_nErrorCode = 0;                  // check_error 恒 0
-    if (res.m_nErrorCode == 0)
-    {
-        advancealtar::StageControl* stage = getUserStageControl(user);
-        char* cd = getCharacData(stage);
-        if (cd != 0)
-        {
-            if (*(int*)&req.m_data[0x14] == characDataGetGageLevel(cd))
-            {
-                res.m_nErrorCode =
-                    characDataSummonSlotUnit(cd, req.m_data[0x0d], *(int*)&req.m_data[0x10]);
-                res.m_nGage = characDataGetGage(cd);   // +0x10
-            }
-            else
-            {
-                res.m_nErrorCode = 3;
-            }
-        }
-        else
-        {
-            res.m_nErrorCode = 3;
-        }
-    }
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_SummonUnit/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_SummonUnit::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -743,7 +896,50 @@ void Dispatcher_SummonUnit::send_packet(CUser* user, CMDPacketStruct::STBaseResp
     guard.put_byte(1);
     guard.put_binary((char*)&resp, 0x14);
     guard.finalize(true);
+
     user->Send(guard);
+}
+
+// ---- Wave5 三分解方法 ----
+int Dispatcher_SummonUnit::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    return 0;  // [objdump 0x081405ae] mov $0x0,%eax; ret
+}
+int Dispatcher_SummonUnit::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x08140580] get_binary(&req, 0x18); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0x18);
+    return 0;
+}
+int Dispatcher_SummonUnit::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                                          CMDPacketStruct::STBaseResponse& resp) const
+{
+    // [objdump 0x081405b8]
+    const char* rb = reqBytes(req);
+    char* sb = resBytes(resp);
+    sb[8] = rb[0xd];                                       // slotType 回显
+    *(int*)(sb + 0x0c) = *(const int*)(rb + 0x10);         // unitId 回显
+    *(int*)(sb + 4) = check_error(user, req);
+    if (*(int*)(sb + 4) == 0)
+    {
+        advancealtar::StageControl* stage = user->getAdvanceAltar();   // ORIG T 0x08655262 CUser::getAdvanceAltar
+        if (stage != 0)
+        {
+            char* cd = getCharacData(stage);               // StageControl::getCharacData W 0x081348a0
+            if (*(const int*)(rb + 0x14) == characDataGetGageLevel(cd))     // gageLevel 一致性
+            {
+                *(int*)(sb + 4) = characDataSummonSlotUnit(
+                    cd, static_cast<unsigned char>(rb[0xd]), *(const int*)(rb + 0x10));
+                *(int*)(sb + 0x10) = characDataGetGage(cd);
+            }
+            else                                           // [objdump 0x8140650] err=3
+            {
+                *(int*)(sb + 4) = 3;
+            }
+        }
+    }
+    return 0;
 }
 
 // ==================== Dispatcher_UpgradeGage（ORIG 0x814020e）====================
@@ -757,37 +953,27 @@ int Dispatcher_UpgradeGage::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqUpgradeGage req;
-        altar_pkt::ResUpgradeGage res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet
+        send_packet(user, res);            // ORIG send_packet(0x23f)
         return 0;
     }
     return 0x446;
 }
 int Dispatcher_UpgradeGage::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    altar_pkt::ReqUpgradeGage& req = *reinterpret_cast<altar_pkt::ReqUpgradeGage*>(&msg);
-    altar_pkt::ResUpgradeGage& res = *reinterpret_cast<altar_pkt::ResUpgradeGage*>(&param);
-    res.m_nErrorCode = 0;  // check_error 恒 0
-    if (res.m_nErrorCode == 0)
-    {
-        advancealtar::StageControl* stage = getUserStageControl(user);
-        char* cd = getCharacData(stage);
-        if (cd != 0)
-        {
-            res.m_nGageLevelBefore = characDataGetGageLevel(cd);  // +0x08
-            res.m_nErrorCode = characDataUpgreadGage(cd);          // +0x04
-            res.m_nGageLevelAfter = characDataGetGageLevel(cd);    // +0x0c
-            res.m_nGage = characDataGetGage(cd);                   // +0x10
-        }
-        else
-        {
-            res.m_nErrorCode = 3;
-        }
-    }
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_UpgradeGage/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_UpgradeGage::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -806,6 +992,39 @@ void Dispatcher_UpgradeGage::send_packet(CUser* user, CMDPacketStruct::STBaseRes
     user->Send(guard);
 }
 
+// ---- Wave5 三分解方法 ----
+int Dispatcher_UpgradeGage::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    return 0;  // [objdump 0x08140314] mov $0x0,%eax; ret
+}
+int Dispatcher_UpgradeGage::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x081402e6] get_binary(&req, 0x18); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0x18);
+    return 0;
+}
+int Dispatcher_UpgradeGage::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                                           CMDPacketStruct::STBaseResponse& resp) const
+{
+    // [objdump 0x0814031e]
+    char* sb = resBytes(resp);
+    *(int*)(sb + 4) = check_error(user, req);
+    if (*(int*)(sb + 4) == 0)
+    {
+        advancealtar::StageControl* stage = user->getAdvanceAltar();   // ORIG T 0x08655262
+        if (stage != 0)
+        {
+            char* cd = getCharacData(stage);               // StageControl::getCharacData W 0x081348a0
+            *(int*)(sb + 8) = characDataGetGageLevel(cd);      // 升级前 gageLevel
+            *(int*)(sb + 4) = characDataUpgreadGage(cd);       // ORIG CharacData::upgreadGage T 0x0812d176
+            *(int*)(sb + 0x0c) = characDataGetGageLevel(cd);   // 升级后 gageLevel
+            *(int*)(sb + 0x10) = characDataGetGage(cd);
+        }
+    }
+    return 0;
+}
+
 // ==================== Dispatcher_ExchangeSlot（ORIG 0x8140774）====================
 // dispatch_sig：校验失败返回 0x4e8；read(0x30) → process → send_packet(0x241, 0x24)。
 // process：res+0x08=req+0x10；check_error 0；exchangeSlot 依赖未建模数据，推断。
@@ -816,30 +1035,27 @@ int Dispatcher_ExchangeSlot::dispatch_sig(CUser* user, PacketBuf& packet)
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqExchangeSlot req;
-        altar_pkt::ResExchangeSlot res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet
+        send_packet(user, res);            // ORIG send_packet(0x241)
         return 0;
     }
     return 0x4e8;
 }
 int Dispatcher_ExchangeSlot::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    altar_pkt::ReqExchangeSlot& req = *reinterpret_cast<altar_pkt::ReqExchangeSlot*>(&msg);
-    altar_pkt::ResExchangeSlot& res = *reinterpret_cast<altar_pkt::ResExchangeSlot*>(&param);
-    res.m_field08 = *(int*)&req.m_data[0x10];  // +0x08 = req+0x10
-    res.m_nErrorCode = 0;                  // check_error 恒 0
-    if (res.m_nErrorCode == 0)
-    {
-        // [推断] ORIG exchangeSlot @ 0x8131e36 依赖未建模 AdvanceAltarData，
-        // 暂置 error=3；回显两个 _SetSlotData 仍按 ORIG 执行。
-        res.m_nErrorCode = 3;
-        memcpy(res.m_slot1, &req.m_data[0x18], 12);
-        memcpy(res.m_slot2, &req.m_data[0x24], 12);
-    }
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_ExchangeSlot/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_ExchangeSlot::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -858,6 +1074,38 @@ void Dispatcher_ExchangeSlot::send_packet(CUser* user, CMDPacketStruct::STBaseRe
     user->Send(guard);
 }
 
+// ---- Wave5 三分解方法 ----
+bool Dispatcher_ExchangeSlot::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    return !isOpenAdvanceAltar();  // [objdump 0x08140884]
+}
+int Dispatcher_ExchangeSlot::read_packet(PacketBuf& packet, CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x08140856] get_binary(&req, 0x30); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0x30);
+    return 0;
+}
+int Dispatcher_ExchangeSlot::process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
+                                            CMDPacketStruct::STBaseResponse& resp) const
+{
+    // [objdump 0x081408a4]
+    const char* rb = reqBytes(req);
+    char* sb = resBytes(resp);
+    *(int*)(sb + 8) = *(const int*)(rb + 0x10);            // field08 回显
+    *(int*)(sb + 4) = static_cast<int>(check_error(user, req));
+    if (*(int*)(sb + 4) == 0)
+    {
+        int rc = user->m_advanceAltar.exchangeSlot(        // ORIG T 0x08131f0a
+            *reinterpret_cast<CMDPacketStruct::_SetSlotData*>(const_cast<char*>(rb) + 0x18),
+            *reinterpret_cast<CMDPacketStruct::_SetSlotData*>(const_cast<char*>(rb) + 0x24));
+        *(int*)(sb + 4) = rc;
+        std::memcpy(sb + 0x0c, rb + 0x18, 0xc);            // slotA 回显
+        std::memcpy(sb + 0x18, rb + 0x24, 0xc);            // slotB 回显
+    }
+    return 0;
+}
+
 // ==================== Dispatcher_GetAchievementReward（ORIG 0x8140c74）====================
 // dispatch_sig：校验失败返回 0x571；read(0x14) → process（ORIG 为空）→
 //   send_packet(0x243)。send_packet：put_byte(1)+put_binary(res,0xc)+
@@ -869,19 +1117,27 @@ int Dispatcher_GetAchievementReward::dispatch_sig(CUser* user, PacketBuf& packet
     if (user != 0 && user->get_state() > 2 &&
         user->getCurCharacR() != 0)
     {
-        altar_pkt::ReqGetAchievementReward req;
-        altar_pkt::ResGetAchievementReward res;
-        read(packet, *(MSG_BASE*)&req);
-        process(user, *(MSG_BASE*)&req, *(ParamBase*)&res);
-        send_packet(user, *(CMDPacketStruct::STBaseResponse*)&res);
+        unsigned char reqBuf[sizeof(CMDPacketStruct::STBaseRequest) + 0x40];
+        unsigned char resBuf[sizeof(CMDPacketStruct::STBaseResponse) + 0x40];
+        std::memset(reqBuf, 0, sizeof(reqBuf));
+        std::memset(resBuf, 0, sizeof(resBuf));
+        CMDPacketStruct::STBaseRequest& req =
+            *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(reqBuf);
+        CMDPacketStruct::STBaseResponse& res =
+            *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(resBuf);
+        read_packet(packet, req);          // ORIG read_packet
+        process_packet(user, req, res);    // ORIG process_packet（空体）
+        send_packet(user, res);            // ORIG send_packet(0x243)
         return 0;
     }
     return 0x571;
 }
 int Dispatcher_GetAchievementReward::process(CUser* user, MSG_BASE& msg, ParamBase& param)
 {
-    // ORIG process_packet @ 0x8140da0：空实现（不读取请求、不写响应）。
-    return 0;
+    // Wave5 消重：转调三分解方法（证据源 advancealtar__Dispatcher_GetAchievementReward/process_packet.md）。
+    return process_packet(user,
+        *reinterpret_cast<CMDPacketStruct::STBaseRequest*>(&msg),
+        *reinterpret_cast<CMDPacketStruct::STBaseResponse*>(&param));
 }
 int Dispatcher_GetAchievementReward::read(PacketBuf& packet, MSG_BASE& msg)
 {
@@ -905,6 +1161,28 @@ void Dispatcher_GetAchievementReward::send_packet(CUser* user, CMDPacketStruct::
     guard.put_int(0);
     guard.finalize(true);
     user->Send(guard);
+}
+
+// ---- Wave5 三分解方法 ----
+bool Dispatcher_GetAchievementReward::check_error(CUser* user, CMDPacketStruct::STBaseRequest& req) const
+{
+    (void)user; (void)req;
+    return !isOpenAdvanceAltar();  // [objdump 0x08140d80]
+}
+int Dispatcher_GetAchievementReward::read_packet(PacketBuf& packet,
+                                                 CMDPacketStruct::STBaseRequest& req) const
+{
+    // [objdump 0x08140d52] get_binary(&req, 0x14); return 0
+    packet.get_binary(reinterpret_cast<char*>(&req), 0x14);
+    return 0;
+}
+int Dispatcher_GetAchievementReward::process_packet(CUser* user,
+                                                    CMDPacketStruct::STBaseRequest& req,
+                                                    CMDPacketStruct::STBaseResponse& resp) const
+{
+    (void)user; (void)req; (void)resp;
+    // [objdump 0x08140da0] mov $0x0,%eax; ret（ORIG 空体：不读请求、不写响应）
+    return 0;
 }
 
 }

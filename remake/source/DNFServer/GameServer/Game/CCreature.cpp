@@ -36,42 +36,6 @@
 #include "SigTypes.h"
 #include "GameTypes.h"           // cMyTrace / ENUM_ITEMSPACE
 
-// ============================================================================
-// SIG_CREATURE_ITEM_DETAIL_INFO —— ORIG 全局域结构（mangled P29SIG_...，
-// 29 字符实证名字）。与 CCreature.cpp/CCreatureMgr.cpp 共用的宠物序列化条目；
-// 本定义与 CCreatureMgr.cpp 中逐字节一致（ODR 兼容），待 SigTypes 属主收编后
-// 两处 TU 局部定义一并移除。布局证据：user_creature__CCreature/{Save,
-// Load}CreatureItem.md + CCreatureMgr::GetCreatureItem(0x833b80c) 三方交叉锁定。
-// ============================================================================
-#pragma pack(push, 1)
-struct SIG_CREATURE_ITEM_DETAIL_INFO
-{
-    int           m_slotNo;           // +0x00（GetSlotNo；0xee=装备中槽标记）
-    int           m_uid;              // +0x04（RegisterCreatureItem 的 map key）
-    char          m_name[0xc];        // +0x08（memcpy/strncpy 12 字节，无终止符）
-    unsigned char m_pad14[4];         // +0x14..0x17（ORIG 未用，memset 保持 0）
-    int           m_stomachValue;     // +0x18（(int)CStomach::GetStomachValue 截断）
-    unsigned char m_pad1c[4];         // +0x1c..0x1f
-    int           m_exp;              // +0x20（CCreature::m_exp）
-    unsigned char m_creatureItemType; // +0x24（低字节；Load 以 (signed char) 还原）
-    unsigned char m_pad25;            // +0x25
-    unsigned char m_noCharge;         // +0x26（Load 按 !=0 还原 bool）
-    unsigned char m_stat;             // +0x27（兼作删除标记：非 0 → Load 拒绝条目）
-    int           m_expireTime;       // +0x28（GetCreatureItem 写 getExpireTime()）
-    unsigned char m_pad2c[4];         // +0x2c..0x2f
-    unsigned char m_growExpFlag;      // +0x30（Load 写回：成长宠=1 否则 0）
-    unsigned char m_isMaxLevel;       // +0x31（Load 写回 isMaxLevel()）
-    unsigned char m_pad32[6];         // +0x32..0x37
-};
-#pragma pack(pop)
-static_assert(sizeof(SIG_CREATURE_ITEM_DETAIL_INFO) == 0x38,
-              "SIG_CREATURE_ITEM_DETAIL_INFO ABI drift");
-static_assert(offsetof(SIG_CREATURE_ITEM_DETAIL_INFO, m_stomachValue) == 0x18,
-              "SIG_CREATURE_ITEM_DETAIL_INFO m_stomachValue offset drift");
-static_assert(offsetof(SIG_CREATURE_ITEM_DETAIL_INFO, m_expireTime) == 0x28,
-              "SIG_CREATURE_ITEM_DETAIL_INFO m_expireTime offset drift");
-static_assert(offsetof(SIG_CREATURE_ITEM_DETAIL_INFO, m_growExpFlag) == 0x30,
-              "SIG_CREATURE_ITEM_DETAIL_INFO m_growExpFlag offset drift");
 
 namespace user_creature
 {

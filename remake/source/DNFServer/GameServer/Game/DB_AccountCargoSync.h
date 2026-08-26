@@ -9,6 +9,10 @@
 
 #include "CEnvironment.h"
 
+#include <string>            // DB_UpdateActionPoint::MakeActionClearStateString 形参
+
+class Stream;   // DBDispatcher::dispatch 形参（权威定义 Stream.h，仅引用）
+
 // 全局作用域 DB 类（无命名空间），与 ORIG 符号一致。
 class DB_CreateAccountCargo
 {
@@ -73,15 +77,25 @@ public:
 // （CleanPvPAsm 新建，含 _TodayRewardItem 嵌套）。
 #include "APSystemTypes.h"
 
+#include "DBDispatcher.h"   // APSystem 批 Wave5：DB 分发器基类（叶子头）
+
+// APSystem 批 Wave5（ORIG vtable 0x8b5f488 槽序 dispatch/D1/D0）：
 namespace APSystem
 {
-class DB_UpdateActionPoint
+class DB_UpdateActionPoint : public DBDispatcher
 {
 public:
     // ORIG 调用点无 this 压栈（GameWorld::ResetAllFatigue 086cc656 call 仅 3 栈参；
     // CUser.cpp 同模式静态调用），定义为静态成员
     static void makeRequest(int a, const _SIG_LOAD_ACTION_POINT& sig, bool flag);
+
+    DB_UpdateActionPoint();          // ORIG W 0x0844dd96 C1/C2 同体
+    virtual ~DB_UpdateActionPoint(); // D1 0x0812549a / D0 0x081254ca
+    virtual bool dispatch(int a, int b, Stream* stream);   // ORIG T 0x0812432a
+    bool Update(bool bExpireDate, const _SIG_LOAD_ACTION_POINT& sig);     // ORIG T 0x08124386
+    void MakeActionClearStateString(std::string& out, const _ActionPoint* table,
+                                    unsigned int count);                  // ORIG T 0x081246d6
 };
-}
+}   // namespace APSystem
 
 #endif  // GAME_DB_ACCOUNT_CARGO_SYNC_H_

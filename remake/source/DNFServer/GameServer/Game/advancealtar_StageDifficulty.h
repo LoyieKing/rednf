@@ -43,6 +43,9 @@ public:
         DIFF_MEDIUM = 1,
         DIFF_HARD = 2
     };
+    // ORIG T 0x889900a：T(diff) 0→1、1→2、-1→0、其它原值。
+    // AltarMisc 批次定义于 advancealtar_misc.cpp。
+    static T getNextDifficulty(T diff);
     static bool getDifficulty(const std::string& name, T& out);
 };
 

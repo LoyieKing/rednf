@@ -133,9 +133,9 @@ void ServerParameterScript::clear()
     m_496c = 0;
     for (int i = 0; i < 8; ++i)
     {
-        m_4970[i] = 0;
+        m_schoolMatchSeal[i] = 0;
     }
-    m_4978 = 0;
+    m_schoolMatchDailyPlayLimit = 0;
     m_map497c.clear();
     m_map4994.clear();
     m_pvp49ac.clear();

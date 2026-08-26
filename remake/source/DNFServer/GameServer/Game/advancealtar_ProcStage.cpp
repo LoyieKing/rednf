@@ -36,6 +36,12 @@
 #include "CGameManager.h"     // StageControl 完整声明（dungeonClearInfo 引用）
 #include "Secu_HackLogCheckByParty.h"  // MSG_MONSTER_DIE 完整布局（HistoryLog::killMonster）
 #include "TimerQueue.h"       // G_TimerQueue / TimerEntry::OBJ_TYPE
+#include "RDARScriptStringManager.h"  // g_scriptStringManager_（sendMailRewardItem 标题解析）
+#include "CMailBoxHelper.h"           // MakeSystemMultiMailPostal/ReqDBSendNewSystemMultiMail
+#include "CAdvanceAltarLog.h"         // advanceAltarstatistics_（HistoryLog 统计）
+#include "Inven_Item.h"               // Inven_Item（邮件附件数组）
+
+#include <utility>                    // std::make_pair
 
 namespace advancealtar
 {
@@ -133,17 +139,11 @@ _SummonObjectMs::_SummonObjectMs()
     std::memset(this, 0, sizeof(*this));
 }
 
-int Manager::gmTimeSpeed_ = 0;   // ORIG gmTimeSpeed_E（全局静态，初值 0）
-
-// ==== ProcStage::ProcSummonObjectMs =========================================
-
-// ORIG T 0x0812d378（ProcSummonObjectMs.md 全文）：m_currentMs=0、vector/map
-// 构造、m_deadCount=m_aliveDelta=0、存参 characData/&currentMs。
 ProcStage::ProcSummonObjectMs::ProcSummonObjectMs(CharacData& characData,
-                                                  int& currentMs)
+                                                  int const& currentMs)
     : m_currentMs(0), m_summons(), m_summonMap(),
       m_deadCount(0), m_aliveDelta(0),
-      m_characData(&characData), m_pCurrentMs(&currentMs)
+      m_characData(&characData), m_pCurrentMs(const_cast<int*>(&currentMs))
 {
 }
 
@@ -860,6 +860,559 @@ void HistoryLog::enterDungeon(CUser& user, const ProcStage& procStage)
     // advanceAltarstatistics_, stageIndex, 1, 0, 0)。
 }
 
+
+// ==== Wave5 AltarProc 追加（2026-08-27）=====================================
+
+// ORIG T 0x0812cfa6（_ZN12advancealtar9isOnEventEv，worklist missing）：
+// 事件开关全局函数，定义归 manager/批次；此处局部声明供 rewardClearStage 调用。
+bool isOnEvent();
+
+// ---- CharacData ------------------------------------------------------------
+
+// ORIG W 0x08142088（objdump）：return *(int*)(this+0xc)。
+int CharacData::getGage() const
+{
+    return m_gage;
+}
+
+// ORIG W 0x08142094（objdump）：return *(int*)(this+8)。
+int CharacData::getGageLevel() const
+{
+    return m_gageLevel;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812d176（upgreadGage.md 全文）：cfg=(char*)G_CDataManager()+0x6364；
+// level==3 → ret2；cost = **(int**)(cfg+0x18) * ROUND((float)*(float*)(cfg+4) *
+// *(int*)(cfg+0x0c+(level+4)*4))（fldcw 舍入到最近，正数用 +0.5f 近似，
+// 与 upGage() 同模式）；m_gage<cost → ret3；否则扣费并按档位
+// 0→1 / 1→2 / 2→3 推进 m_gageLevel，ret0。
+// ----------------------------------------------------------------------------
+void CharacData::upgreadGage()
+{
+    char* cfg = reinterpret_cast<char*>(G_CDataManager()) + 0x6364;
+    if (m_gageLevel == 3)
+    {
+        return;   // ORIG eax=2：满级错误码 2 [返回值未使用，函数体忠实转写]
+    }
+    const int base = **reinterpret_cast<int**>(cfg + 0x18);
+    const float ratio = *reinterpret_cast<const float*>(cfg + 4);
+    const int tableValue =
+        *reinterpret_cast<const int*>(cfg + 0x0c + (m_gageLevel + 4) * 4);
+    const int cost = base *
+                     static_cast<int>(ratio * static_cast<float>(tableValue) +
+                                      0.5f);
+    if (m_gage < cost)
+    {
+        return;   // ORIG eax=3：gage 不足
+    }
+    m_gage -= cost;
+    if (m_gageLevel == 1)
+    {
+        m_gageLevel = 2;
+    }
+    else if (m_gageLevel == 2)
+    {
+        m_gageLevel = 3;
+    }
+    else if (m_gageLevel == 0)
+    {
+        m_gageLevel = 1;
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812d278（summonSlotUnit.md 全文）：cfg 同上；it=m_slotItems.find(slot)；
+// 未命中 → 4；cost=**(int**)(cfg+0x18)*it->second.m_field8（iterator-> +0xc=
+// pair second@+4 内 +0x08 字段）；条件 it->second.m_needGage==need（+0x08）
+// 且 cost<=m_gage → 扣费 ret0；否则 ret2。
+// ----------------------------------------------------------------------------
+int CharacData::summonSlotUnit(unsigned char slot, int need)
+{
+    char* cfg = reinterpret_cast<char*>(G_CDataManager()) + 0x6364;
+    std::map<unsigned char, _SlotItem>::const_iterator it = m_slotItems.find(slot);
+    if (it == m_slotItems.end())
+    {
+        return 4;
+    }
+    const int cost = **reinterpret_cast<int**>(cfg + 0x18) * it->second.m_field8;
+    if (it->second.m_needGage == need && cost <= m_gage)
+    {
+        m_gage -= cost;
+        return 0;
+    }
+    return 2;
+}
+
+// ---- ProcStage -------------------------------------------------------------
+
+// ORIG W 0x08134838（objdump）：return *(int*)(this+4)。
+int ProcStage::getState() const
+{
+    return m_state;
+}
+
+// ORIG T 0x0812e1de（dieMob.md 全文）：先转发 ProcSummonObjectMs(+0x18)；
+ // 命中返回 true；否则 m_createdMapMonsters 查 (short)mobSeq：end 或死亡标记
+ // (m_posX 兼用) 为 1 → false；否则置 1 返回 true。
+bool ProcStage::dieMob(unsigned short mobSeq, unsigned short param,
+                       const MSG_MONSTER_DIE& msg)
+{
+    if (m_summonObjectMs.dieMob(mobSeq, param, msg))
+    {
+        return true;
+    }
+    std::map<short, _MapMonsterSummary>::iterator it =
+        m_createdMapMonsters.find(static_cast<short>(mobSeq));
+    if (it == m_createdMapMonsters.end() || it->second.m_posX == 1)
+    {
+        return false;
+    }
+    it->second.m_posX = 1;   // 兼用字段：已创建怪死亡标记 [objdump 0x0812e2a9]
+    return true;
+}
+
+// ORIG T 0x0812e2c6（isEndStage.md 全文）：
+bool ProcStage::isEndStage(StageEndType::T& endType) const
+{
+    const bool allPhaseEnd = isEndAllPhase();
+    const bool summonEnd = m_summonObjectMs.isEndSummon();
+    const int aliveSummons = m_summonObjectMs.getAliveMonsterCount();
+    int aliveOnMap = 0;
+    for (std::map<short, _MapMonsterSummary>::const_iterator it =
+             m_createdMapMonsters.begin();
+         it != m_createdMapMonsters.end(); ++it)
+    {
+        if (m_map != 0 &&
+            static_cast<unsigned>(*reinterpret_cast<const unsigned short*>(
+                &it->second.m_seq)) ==
+                *reinterpret_cast<const unsigned*>(
+                    reinterpret_cast<const char*>(m_map) + 0x110) &&
+            it->second.m_posX != 1)
+        {
+            ++aliveOnMap;
+        }
+    }
+    if (aliveOnMap == 0)
+    {
+        endType = StageEndType::END_N0;
+        return true;
+    }
+    if (!allPhaseEnd || !summonEnd || aliveSummons != 0)
+    {
+        return false;
+    }
+    endType = StageEndType::END_N3;
+    return true;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812e3f6（clearStageAndReward.md 全文）：dungeon/user 判空直接返回；
+ // clearStage(idx,diff,type,round,&star,&unlock,&bFlag)；成功 → 奖励表：
+ // addAchievementReward(map) → rewardClearStage(vec) → setNextStage；
+ // type==0 或 (type==1 && vec 非空) 且 decTicket()==0（扣票成功）时直接结束，
+ // 否则走解锁商店/清关包分支。
+// ----------------------------------------------------------------------------
+void ProcStage::clearStageAndReward()
+{
+    if (m_dungeon == 0)
+    {
+        return;
+    }
+    CUser* user = m_characData->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+    CharacAdvanceAltarManager& cam = user->m_advanceAltar;
+
+    int starCount = 0;
+    bool unlockBuy = false;
+    bool bFlag = false;
+    if (!cam.clearStage(getStageIndex(),
+                        static_cast<StageDifficulty::T>(m_difficulty),
+                        static_cast<StageType::T>(getStageType()),
+                        getClearSurvivalRoundNo(),
+                        starCount, unlockBuy, bFlag))
+    {
+        return;
+    }
+
+    std::map<int, _Reward> rewardMap;
+    addAchievementReward(rewardMap);
+    std::vector<_RewardItem> rewardItems;
+    rewardClearStage(rewardItems);
+    cam.setNextStage(getStageIndex());
+
+    const int stageType = getStageType();
+    bool consumeTicketOnly = (stageType == 0) ||
+                             (stageType == 1 && !rewardItems.empty());
+    bool skipSendBranch = consumeTicketOnly && cam.decTicket() == 0;
+    if (!skipSendBranch)
+    {
+        std::vector<_BuyItem> buyItems;
+        if (unlockBuy)
+        {
+            cam.setUnlockBuyItem(static_cast<AdvanceAltarShopType::T>(0),
+                                 getStageIndex(), &buyItems);
+            cam.setUnlockBuyItem(static_cast<AdvanceAltarShopType::T>(1),
+                                 getStageIndex(), &buyItems);
+            cam.setUnlockBuyItem(static_cast<AdvanceAltarShopType::T>(2),
+                                 getStageIndex(), &buyItems);
+        }
+        sendClearStage(rewardItems, buyItems, rewardMap, starCount, bFlag);
+        if (0 < starCount)
+        {
+            HistoryLog::starAdd(*user, AddStarType::ADD_BY_CLEAR,
+                                getStageIndex(), starCount);
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812ea00（endProcAllKillMonster.md 全文）：user 空 → 1；
+ // stageType==1：startStage(getStageIndex(), difficulty)==0 → state=3、ret0，
+ // 非 0 → clearStageAndReward、ret1；其它 type：clearStageAndReward、ret1。
+// ----------------------------------------------------------------------------
+bool ProcStage::endProcAllKillMonster()
+{
+    CUser* user = m_characData->getUser();
+    if (user == 0)
+    {
+        return true;                   // ORIG ret1
+    }
+    if (getStageType() == 1)
+    {
+        const StageDifficulty::T diff =
+            static_cast<StageDifficulty::T>(getStageDifficulty());
+        if (startStage(getStageIndex(), diff) == 0)
+        {
+            m_state = State::S_N3;
+            return false;              // ORIG ret0：进入下一轮奖励态
+        }
+        clearStageAndReward();
+        return true;
+    }
+    clearStageAndReward();
+    return true;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812eaa6（pause.md 全文）：pause=true 且 state==3 → state=2、ret1；
+ // pause=false 且 state∈{2,1} → state=3、ret1；其余 ret0。
+// ----------------------------------------------------------------------------
+int ProcStage::pause(bool pauseOn)
+{
+    if (pauseOn)
+    {
+        if (m_state != State::S_N3)
+        {
+            return 0;
+        }
+        m_state = State::S_N2;
+    }
+    else
+    {
+        if (m_state != State::S_N2 && m_state != State::S_N1)
+        {
+            return 0;
+        }
+        m_state = State::S_N3;
+    }
+    return 1;
+}
+
+// ORIG W 0x0812eb4e（getClearSurvivalRoundNo.md objdump）：return *(this+0x7c)。
+int ProcStage::getClearSurvivalRoundNo() const
+{
+    return m_survivalRound;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812f0fa（rewardClearStage.md 全文）：奖励源——生存模式取
+ // dungeon+0x850 SurvivalRewardData.getRoundRewardData(survivalRound)，普通
+ // 取内嵌 std::vector<_RewardItem>[difficulty] @ dungeon+0x82c（stride 0xc=12B
+ // 即 vector 本体尺寸）。遍历（空表跳过）：事件开启时全部计入 out 并按
+ // m_type 分流邮件集；关闭时仅 m_type==0 计入 out+普通邮件集。尾部分别以
+ // "chn_game_server_msg_88/89"（普通）、"…_86/87"（活动）寄系统邮件。
+// ----------------------------------------------------------------------------
+void ProcStage::rewardClearStage(std::vector<_RewardItem>& out)
+{
+    if (m_dungeon == 0)
+    {
+        return;
+    }
+    out.clear();
+
+    std::vector<_RewardItem>* items = 0;
+    if (getStageType() == 1)
+    {
+        SurvivalRewardData* survival = reinterpret_cast<SurvivalRewardData*>(
+            reinterpret_cast<char*>(m_dungeon) + 0x850);
+        items = survival->getRoundRewardData(m_survivalRound);
+    }
+    else
+    {
+        items = reinterpret_cast<std::vector<_RewardItem>*>(
+            reinterpret_cast<char*>(m_dungeon) + 0x82c + m_difficulty * 0xc);
+    }
+
+    std::vector<_RewardItem> mailNormal;   // local_28
+    std::vector<_RewardItem> mailEvent;    // local_34
+    if (items != 0)
+    {
+        for (std::vector<_RewardItem>::const_iterator it = items->begin();
+             it != items->end(); ++it)
+        {
+            if (isOnEvent())
+            {
+                out.push_back(*it);
+                if (it->m_type == 0)
+                {
+                    mailNormal.push_back(*it);
+                }
+                else
+                {
+                    mailEvent.push_back(*it);
+                }
+            }
+            else if (it->m_type == 0)
+            {
+                out.push_back(*it);
+                mailNormal.push_back(*it);
+            }
+        }
+    }
+    if (!mailNormal.empty())
+    {
+        sendMailRewardItem(m_characData->getUser(), mailNormal,
+                           "chn_game_server_msg_88", "chn_game_server_msg_89");
+    }
+    if (isOnEvent() && !mailEvent.empty())
+    {
+        sendMailRewardItem(m_characData->getUser(), mailEvent,
+                           "chn_game_server_msg_86", "chn_game_server_msg_87");
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812f3ae（addAchievementReward.md 全文）：user 判空；manager
+ // getClearStageSummary(int[3]) 后逐槽(0..2)：data=RewardParameter@
+ // G_CDataManager()+0x634c .getAchievementRewardData((StageDifficulty)i, sum[i])；
+ // 命中则 addRewardData(data->m_type, out)（data+0 即 _Reward 首键/m_type）。
+// ----------------------------------------------------------------------------
+void ProcStage::addAchievementReward(std::map<int, _Reward>& out)
+{
+    CUser* user = m_characData->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+    CharacAdvanceAltarManager& cam = user->m_advanceAltar;
+
+    int summary[3];
+    std::memset(summary, 0, sizeof(summary));      // memset(local,0,0xc)
+    cam.getClearStageSummary(summary);
+    RewardParameter* rewardParam = reinterpret_cast<RewardParameter*>(
+        reinterpret_cast<char*>(G_CDataManager()) + 0x634c);  // 配置区裸偏移
+    for (int i = 0; i < 3; ++i)
+    {
+        AchievementRewardData* data = rewardParam->getAchievementRewardData(
+            static_cast<StageDifficulty::T>(i), summary[i]);
+        if (data != 0)
+        {
+            cam.addRewardData(data->m_type, out);  // *(int*)data [+0x00]
+        }
+    }
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812f47a（sendMailRewardItem.md 全文）：三参判空；标题经
+ // RDARScriptStringManager 表 4 解析（sender 截 0x1e、title 截 0xff）；最多
+ // 10 个 _RewardItem 转 pair(itemId,count) + Inven_Item[10] 数组；调用
+ // MakeSystemMultiMailPostal(pairs,&items,count) 打包后
+ // ReqDBSendNewSystemMultiMail(sender,...,title,strlen(title),0xf,group,false)。
+// ----------------------------------------------------------------------------
+void ProcStage::sendMailRewardItem(CUser* user,
+                                          const std::vector<_RewardItem>& items,
+                                          const char* senderKey,
+                                          const char* titleKey)
+{
+    if (user == 0 || senderKey == 0 || titleKey == 0)
+    {
+        return;
+    }
+
+    const char* senderText = g_scriptStringManager_.findString(4, senderKey, 0);
+    char sender[30];                      // ebp-0x4b 起 0x1e
+    std::strncpy(sender, senderText, sizeof(sender));
+    const char* titleText = g_scriptStringManager_.findString(4, titleKey, 0);
+    char title[255];                      // ebp-0x15c 起 0xff
+    std::strncpy(title, titleText, sizeof(title));
+
+    Inven_Item itemBase[10];              // ebp-0x3be，stride 0x3d 十次构造
+    std::vector<std::pair<int, int>> pairs;
+    unsigned int count = 0;               // local_18
+    int i = 0;                            // -0x10 双计数器（上限 10）
+    for (std::vector<_RewardItem>::const_iterator it = items.begin();
+         it != items.end() && i < 10; ++it, ++i)
+    {
+        ++count;
+        pairs.push_back(std::make_pair(it->m_value1, it->m_value2));
+        // 第二分量 [推断]：op-> 后 (ulong)(item+4)/(int)(item+?) 折叠显示，
+        // 按 RewardItem{type,value1,value2} 布局语义取 value1/value2。
+    }
+
+    WongWork::CMailBoxHelper::MakeSystemMultiMailPostal(pairs, itemBase, count);
+    ENUM_SERVER_GROUP group = user->GetServerGroup();
+    const size_t titleLen = std::strlen(title);
+    const unsigned int characNo = static_cast<unsigned int>(
+        user->get_charac_no(-1));
+    WongWork::CMailBoxHelper::ReqDBSendNewSystemMultiMail(
+        sender, itemBase, count, 0, characNo, title,
+        static_cast<unsigned int>(titleLen), 0xf, group, false);
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812e6de（sendClearStage.md 全文，const 方法）：ridableId=current
+ // 数据对象 +0x18 u16 符号扩展；包体 _NotiAdvanceAltarClearStage(0x1c packed)
+ // {stageType, clearRound, ridable, clearFlag, stage{idx,diff}, star}；
+ // put_header(0,0x20f)+put_binary(0x1c)；rewards：put_int(size)+逐元素 0xc；
+ // buyItems 同 0xc；rewardMap：put_int(size)+逐 value(_Reward 5B)；finalize→Send。
+// ----------------------------------------------------------------------------
+void ProcStage::sendClearStage(const std::vector<_RewardItem>& rewards,
+                               const std::vector<_BuyItem>& buyItems,
+                               const std::map<int, _Reward>& rewardMap,
+                               int starCount, bool clearFlag) const
+{
+    CUser* user = m_characData->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+
+    short ridableId = 0;
+    AdvanceAltarData* current = user->m_advanceAltar.getCurrentAdvanceAltarData();
+    if (current != 0)
+    {
+        std::memcpy(&ridableId,
+                    reinterpret_cast<const char*>(current) + 0x18,
+                    sizeof(short));          // [objdump 0x0812e728]
+    }
+
+    NOTIPacketStruct::_NotiAdvanceAltarClearStage body;
+    body.m_stageType = getStageType();
+    body.m_clearSurvivalRoundNo = getClearSurvivalRoundNo();
+    body.m_ridableId = ridableId;
+    body.m_clearFlag = clearFlag ? 1 : 0;
+    {
+        int stageFields[2] = { getStageIndex(), m_difficulty };
+        std::memcpy(body.m_stage, stageFields, sizeof(stageFields));
+    }
+    body.m_starCount = starCount;
+
+    PacketGuard guard;
+    guard.put_header(0, 0x20f);
+    guard.put_binary(reinterpret_cast<char*>(&body), 0x1c);
+    guard.put_int(static_cast<int>(rewards.size()));
+    for (std::vector<_RewardItem>::const_iterator it = rewards.begin();
+         it != rewards.end(); ++it)
+    {
+        guard.put_binary(reinterpret_cast<const char*>(&*it), 0xc);
+    }
+    guard.put_int(static_cast<int>(buyItems.size()));
+    for (std::vector<_BuyItem>::const_iterator it = buyItems.begin();
+         it != buyItems.end(); ++it)
+    {
+        guard.put_binary(reinterpret_cast<const char*>(&*it), 0xc);
+    }
+    guard.put_int(static_cast<int>(rewardMap.size()));
+    for (std::map<int, _Reward>::const_iterator it = rewardMap.begin();
+         it != rewardMap.end(); ++it)
+    {
+        guard.put_binary(reinterpret_cast<const char*>(&it->second), 5);
+    }
+    guard.finalize(true);
+    user->Send(guard);
+}
+
+// ---- Timer_StageControl ----------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x0812f850（RegistTimerCheckFinsh.md 全文）：InsertTimerInMilisecond
+// (OBJ_TYPE 8, index, msg 0xa7, 5000ms, key 0xa7, param 0)。
+// ----------------------------------------------------------------------------
+void Timer_StageControl::RegistTimerCheckFinsh(int index)
+{
+    G_TimerQueue()->InsertTimerInMilisecond((TimerEntry::OBJ_TYPE)8, index,
+                                            (TIMER_MESSAGE)0xa7, 5000LL,
+                                            0xa7, 0);
+}
+
+// ---- HistoryLog ------------------------------------------------------------
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08133abc（leaveDungeon.md 全文）：names[0xff] 清零 + getMemberNames；
+ // LeaveDungeon(hist@user+0x79700, stageIndex, difficulty, names, 0)。
+// ----------------------------------------------------------------------------
+void HistoryLog::leaveDungeon(CUser& user, const ProcStage& procStage)
+{
+    char memberNames[255];
+    for (unsigned int i = 0; i < sizeof(memberNames); ++i)
+    {
+        memberNames[i] = 0;
+    }
+    getMemberNames(&user, memberNames);
+
+    const int difficulty = procStage.getStageDifficulty();
+    const int stageIndex = procStage.getStageIndex();
+    cUserHistoryLog* hist = reinterpret_cast<cUserHistoryLog*>(
+        reinterpret_cast<char*>(&user) + 0x79700);
+    hist->LeaveDungeon(stageIndex, difficulty, memberNames, 0);
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08133d56（starAdd.md 全文）：LogHistory("star+,%d,%d,%d")+
+ // incrementEntranceData(advanceAltarstatistics_, idx,0,0,cnt)
+ // [CAdvanceAltarLog 未建模，跳过；同 enterDungeon 先例]。
+// ----------------------------------------------------------------------------
+void HistoryLog::starAdd(CUser& user, AddStarType::T type, int stageIndex,
+                         int count)
+{
+    advanceAltarstatistics_.incrementEntranceData(
+        static_cast<unsigned int>(stageIndex), 0, 0,
+        static_cast<unsigned int>(count));
+}
+
+// ORIG T 0x08133db0（starSub.md 全文）：仅 LogHistory("star-,%d,%d")。
+void HistoryLog::starSub(CUser& user, SubStarType::T type, int value)
+{
+    user.LogHistory("star-,%d,%d", static_cast<int>(type), value);
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08133e30（updateStatistics.md 全文）：CAdvanceAltarLog::updateDatabase
+ // (advanceAltarstatistics_)。依赖随 CAdvanceAltarLog 批次解锁。
+// ----------------------------------------------------------------------------
+void HistoryLog::updateStatistics()
+{
+    advanceAltarstatistics_.updateDatabase();
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08133dda（buyItem.md 全文）：
+ // incrementLayerStatData(advanceAltarstatistics_, shopType, param2, param4, 1,
+ // param5)——param3(第 1 个 short) 未参与调用，ORIG 原样。
+// ----------------------------------------------------------------------------
+void HistoryLog::buyItem(AdvanceAltarShopType::T shopType, int a, short b,
+                         short c, int d)
+{
+    advanceAltarstatistics_.incrementLayerStatData(
+        static_cast<unsigned short>(shopType), static_cast<unsigned int>(a),
+        static_cast<unsigned short>(c),
+        static_cast<unsigned short>(1) /* useCountDelta 固定 1 */,
+        static_cast<unsigned short>(d));
+}
 }  // namespace advancealtar
 
 // ----------------------------------------------------------------------------

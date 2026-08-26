@@ -1,17 +1,31 @@
 // df_game_r Game/ advancealtar DBAndExchangeServerProc + APSystem CDBAndExchangeServerProc
-// 独立注册 TU（2026-08-23）。实现：
+// 独立注册 TU（2026-08-23；2026-08-27 AltarDB 批追加 DB_Load/DB_Update/DB_StatisticAdvanceAltar/
+// convertStringToZip/convertZipToString/g_*Buffer 全局）。实现：
 //   advancealtar::DBAndExchangeServerProc::getFromMemory          ORIG T 0x0813394c
 //   advancealtar::CharacAdvanceAltarManager::getCharacAdvanceAltarDbData ORIG T 0x08131710
 //   advancealtar::CharacAdvanceAltarManager::isUpdated           ORIG T 0x081316a0
 //   advancealtar::AdvanceAltarData::{get,getSlot,getBuyItem}     ORIG T 0x088996d8 / ...
 //   advancealtar::DB_Update::makeRequest                         ORIG T 0x0813eb38
 //   APSystem::CDBAndExchangeServerProc::GetActionPointFromMemory ORIG T 0x08121616（纯空函数）
+//   （追加段清单见文件尾注释块）
 #include <cstring>
 #include "CUser.h"
 #include "GlobalData.h"
 #include "MsgQueueMgr.h"
 #include "advancealtar.h"
 #include "PacketTypes.h"  // MSG_CHARAC_SELECT 完整类型（requestLoadFromDBAndES 读 m_slot）
+#include <cstdio>
+#include "DBDispatcher.h"
+#include "AdvanceAltarZip.h"    // compress_zip/uncompress_zip 共享声明（唯一实现在 APSystemOnlyOrig.cpp）
+#include "LogManager.h"
+#include "GameTypes.h"          // cMyTrace
+#include "CEnvironment.h"       // ENUM_DB_HANDLE_IDX / ENUM_SERVER_GROUP
+
+#include <cstdlib>
+#include <ctime>
+#include <string>
+#include "DBMgr.h"          // DBMgr 完整类型（GetDBHandle）+ MySQL.h
+#include "CStreamGuard.h"
 
 namespace advancealtar
 {
@@ -378,3 +392,619 @@ void CUser::DisableCharacInfo(CACHE_SECTION section)
 {
     m_pad8d0fd[static_cast<int>(section)] = 0;
 }
+
+// ============================================================================
+// 2026-08-27 AltarDB 批追加段（ORIG 全真转写；报告 docs/class_func_reports/
+// advancealtar__DB_Load|DB_Update|DB_StatisticAdvanceAltar/ + objdump）
+//   DB_Load      : C1/C2 W 0x844ddea、D1/D2 W 0x1420a0、D0 W 0x1420d0、
+//                  dispatch T 0x813ddb2、Select T 0x813de40、SendResult T 0x813ea46、
+//                  parseStage/parseSlot/parseBuyItem/parseReward T 0x813e3e8/...
+//   DB_Update    : C1/C2 W 0x844de06、D1/D2 0x1420ee、D0 0x14211e、
+//                  dispatch 0x813ec24、update 0x813ec5e、make*String 0x813f380..
+//   DB_Statistic : C1/C2 W 0x844fc3a、D1/D2 0x142952、D0 0x142982、dispatch T 0x81412b2
+//   convertStringToZip  T 0x813dd3e   convertZipToString T 0x813dc48
+//   g_Zip*/g_Str* 8 个 B 全局（各 0x800，ORIG @0x09400380..0x09403b80）
+// convert* 前向声明（实现于本 TU 文件尾 namespace advancealtar 内；Select/update 先用）
+namespace advancealtar
+{
+bool convertStringToZip(char* out, unsigned int outCap, const char* src,
+                        unsigned int srcLen, unsigned int& realLen);
+bool convertZipToString(MySQL* mysql, int col, char* zipBuf, unsigned int zipCap,
+                        char* strBuf, unsigned int strCap);
+}  // namespace advancealtar
+
+#include "SigTypes.h"  // STAdvanceAltarEntranceData / STAdvanceAltarLayerStatData（GetOutBuffer 实例化需要 sizeof）
+
+// ORIG _Z19__GetCurrentDNFDateR2tm（T 0x86b1fc0，定义 GameUtils.cpp）——仓库暂无头声明。
+void __GetCurrentDNFDate(struct tm& out);
+
+namespace advancealtar
+{
+
+// ---- 8 个全局扁平缓冲区（ORIG B 符号，各 0x800 字节）----
+char g_ZipStageBuffer[0x800];     // 0x09400380
+char g_StrStageBuffer[0x800];     // 0x09400b80
+char g_ZipSlotBuffer[0x800];      // 0x09402380
+char g_StrSlotBuffer[0x800];      // 0x09402b80
+char g_ZipBuyItemBuffer[0x800];   // 0x09401380
+char g_StrBuyItemBuffer[0x800];   // 0x09401b80
+char g_ZipRewardBuffer[0x800];    // 0x09403380
+char g_StrRewardBuffer[0x800];    // 0x09403b80
+
+// ---- POD inline ctor W 符号实例化触发器（ORIG 使用点在 DBAndExchangeServerProc/
+//      CUser 缓存序列化链；本 TU 保留发射点保证 ABI 集齐）----
+__attribute__((unused)) static void instantiateAdvanceAltarDbPOD()
+{
+    _Stage a; _Slot b; _Reward c; _BuyItem d;
+    _AdvanceAltarDbData e; _CharacAdvanceAltarDbData f;
+    (void)a; (void)b; (void)c; (void)d; (void)e; (void)f;
+
+    // DB_Update C1/C2（ORIG W 0x844de06）：类无数据成员，隐式 inline ctor/dtor
+    // 仅展开基类 vptr 初始化；局部对象保证弱符号随本 TU 发射。
+    DB_Update u;
+    (void)u;
+}
+
+// ---- charac_advance_altar 行头字段视图（db 区前 0x14 字节 + isUnlock@+0x20；
+//      Select/update 按报告偏移读写 m_ridable 扁平区，不再给共享头加重复字段）----
+namespace
+{
+struct DbHeadView
+{
+    unsigned int ridableId;       // db+0x00（select ridable_id）
+    short ticketFree;             // db+0x04
+    short ticketCera;             // db+0x08
+    int starGame;                 // db+0x0c
+    int starCera;                 // db+0x10
+    int starUsable;               // db+0x14
+    short survivalBest;           // db+0x18
+    short starResetCount;         // db+0x1a
+};
+}  // namespace
+
+// ---- DB_Load ----
+class DB_Load : public DBDispatcher
+{
+public:
+    DB_Load();
+    ~DB_Load();
+    virtual bool dispatch(int uid, int uniqueId, Stream* stream);
+    bool Select(_CharacAdvanceAltarDbData& data);
+    bool SendResult(int uid, int uniqueId, _CharacAdvanceAltarDbData& data, bool ok);
+    bool parseStage(char* str, _Stage* out, int count);
+    bool parseSlot(char* str, _Slot* out, int count);
+    bool parseBuyItem(char* str, _BuyItem* out, int count);
+    bool parseReward(char* str, _Reward* out, int count);
+};
+
+// [objdump 0x844ddea] base ctor + 设派生 vptr —— 编译器生成。
+DB_Load::DB_Load() {}
+DB_Load::~DB_Load() {}
+
+// [objdump 0x813ddb2]
+bool DB_Load::dispatch(int uid, int uniqueId, Stream* stream)
+{
+    if (!DBDispatcher::dispatch(uid, uniqueId, stream))
+        return false;
+    _CharacAdvanceAltarDbData* data = stream->GetOutBuffer<_CharacAdvanceAltarDbData>();
+    if (data == 0)
+        return false;
+    bool ok = Select(*data);
+    return SendResult(uid, uniqueId, *data, ok);   // ORIG eax = SendResult 返回值
+}
+
+// [report Select.md / objdump 0x813de40]
+bool DB_Load::Select(_CharacAdvanceAltarDbData& data)
+{
+    MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
+    mysql->set_query(
+                     "select ridable_id, ticket_free, ticket_cera, \t\t\t\t  star_game, star_cera, "
+                     "star_usable, \t\t\t\t  survival_best, star_reset_count, is_unlock_stage_effect, "
+                     "\t\t\t\t  stage_list, slot_list, buy_item_list, reward_list \t\t\t\t  from "
+                     "charac_advance_altar\t\t\t\t\t  where charac_no = %u",
+                     data.m_characNo);
+    if (!mysql->exec(true))
+        return false;
+
+    const int nRows = mysql->get_n_rows();
+    for (int row = 0; row < nRows && row < 1; ++row)
+    {
+        if (!mysql->fetch())
+            return false;
+
+        unsigned char* base = reinterpret_cast<unsigned char*>(&data) + static_cast<unsigned>(row) * 0x518;
+        unsigned char* db = base + 0x04;
+        DbHeadView& view = *reinterpret_cast<DbHeadView*>(db);
+        int col = 0;
+
+        int ridableId = 0;
+        if (!mysql->get_int(col++, ridableId))                       // [0x0811692c]
+            return false;
+        if (!isValidRidableId(static_cast<RidableId::T>(ridableId)))
+        {
+            LogManager::logFormat(1, "localglobal/global_AdvanceAltar_Dispatcher.cpp",
+                                  "bool advancealtar::DB_Load::Select(advancealtar::CharacAdvanceAltarDbData&)",
+                                  0xb1, "invalid RidableId=%d", ridableId);
+            return false;
+        }
+        view.ridableId = ridableId;
+
+        if (!mysql->get_short(col++, view.ticketFree))                // [0x0814201c get_short(int,int&)]
+            return false;
+        if (!mysql->get_short(col++, view.ticketCera))
+            return false;
+        if (!mysql->get_int(col++, view.starGame))                    // [0x0811692c]
+            return false;
+        if (!mysql->get_int(col++, view.starCera))
+            return false;
+        if (!mysql->get_int(col++, view.starUsable))
+            return false;
+        if (!mysql->get_short(col++, view.survivalBest))              // [0x080fddec get_short(int,short&)]
+            return false;
+        if (!mysql->get_short(col++, view.starResetCount))
+            return false;
+        short unlockFlag = 0;
+        if (!mysql->get_short(col++, unlockFlag))                     // [0x080fddec get_short(int,short&)]
+            return false;
+        *(db + 0x20) = (unlockFlag >= 1) ? 1 : 0;
+
+        std::memset(g_StrStageBuffer, 0, 0x800);
+        std::memset(g_StrSlotBuffer, 0, 0x800);
+        std::memset(g_StrBuyItemBuffer, 0, 0x800);
+        std::memset(g_StrRewardBuffer, 0, 0x800);
+
+        if (!convertZipToString(mysql, col++, g_ZipStageBuffer, 0x800, g_StrStageBuffer, 0x800))
+            return false;
+        if (!convertZipToString(mysql, col++, g_ZipSlotBuffer, 0x800, g_StrSlotBuffer, 0x800))
+            return false;
+        if (!convertZipToString(mysql, col++, g_ZipBuyItemBuffer, 0x800, g_StrBuyItemBuffer, 0x800))
+            return false;
+        if (!convertZipToString(mysql, col++, g_ZipRewardBuffer, 0x800, g_StrRewardBuffer, 0x800))
+            return false;
+
+        if (!parseStage(g_StrStageBuffer, reinterpret_cast<_Stage*>(base + 0x25), 0x32))
+            return false;
+        if (!parseSlot(g_StrSlotBuffer, reinterpret_cast<_Slot*>(base + 0x1b5), 0xc))
+            return false;
+        if (!parseBuyItem(g_StrBuyItemBuffer, reinterpret_cast<_BuyItem*>(base + 0x22d), 0x32))
+            return false;
+        if (!parseReward(g_StrRewardBuffer, reinterpret_cast<_Reward*>(base + 0x485), 0x1e))
+            return false;
+    }
+    return true;
+}
+
+// [report SendResult.md / objdump 0x813ea46]
+bool DB_Load::SendResult(int uid, int uniqueId, _CharacAdvanceAltarDbData& data, bool ok)
+{
+    if (!ok)
+        return true;
+    Stream* stream = GlobalData::s_stream_pool->Acquire(
+        "localglobal/global_AdvanceAltar_Dispatcher.cpp", 0x1bf);
+    CStreamGuard guard(stream, true);
+    guard.operator*()->operator<<(uid);
+    guard.operator*()->operator<<(uniqueId);
+    guard.operator->()->put_binary(&data, 0x51c);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::DISPATCH_Q, guard);   // ORIG QUEUE_IDX=1
+    return true;
+}
+
+// 以下四个 parse* 共同模式：外层 strtok_r(str,"|")，内层 strtok_r(0,",")，
+// 字段序按结构布局写入 [字节偏移 per 报告 asm shl 表]。
+
+// [report parseStage.md / objdump 0x813e3e8]
+bool DB_Load::parseStage(char* str, _Stage* out, int count)
+{
+    if (str == 0 || out == 0)
+        return false;
+    char* saveOuter = 0;
+    int row = 0;
+    for (char* line = strtok_r(str, "|", &saveOuter);
+         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    {
+        char* saveInner = 0;
+        char* field = strtok_r(line, ",", &saveInner);
+        for (int f = 0; field != 0 && f < 2; ++f)
+        {
+            if (f == 0) out[row].m_field0 = atoi(field);
+            else        out[row].m_field4 = atoi(field);   // [objdump 0x813e494 → +4]
+            field = strtok_r(0, ",", &saveInner);
+        }
+    }
+    return true;
+}
+
+// [report parseSlot.md / objdump 0x813e542]
+bool DB_Load::parseSlot(char* str, _Slot* out, int count)
+{
+    if (str == 0 || out == 0)
+        return false;
+    char* saveOuter = 0;
+    int row = 0;
+    for (char* line = strtok_r(str, "|", &saveOuter);
+         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    {
+        char* saveInner = 0;
+        char* field = strtok_r(line, ",", &saveInner);
+        for (int f = 0; field != 0 && f < 4; ++f)
+        {
+            const int v = atoi(field);
+            switch (f)
+            {
+            case 0: out[row].m_byte0 = static_cast<unsigned char>(v > 0 ? 1 : 0); break; // [0x813e47a]
+            case 1: out[row].m_int1 = v; break;                                          // [0x813e48f +1]
+            case 2: out[row].m_byte5 = static_cast<unsigned char>(v != 0 ? 1 : 0); break;// [0x813e4a7 +5]
+            case 3: out[row].m_int6 = v; break;                                          // [0x813e4bb +6]
+            }
+            field = strtok_r(0, ",", &saveInner);
+        }
+    }
+    return true;
+}
+
+// [report parseBuyItem.md / objdump 0x813e708]
+bool DB_Load::parseBuyItem(char* str, _BuyItem* out, int count)
+{
+    if (str == 0 || out == 0)
+        return false;
+    char* saveOuter = 0;
+    int row = 0;
+    for (char* line = strtok_r(str, "|", &saveOuter);
+         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    {
+        char* saveInner = 0;
+        char* field = strtok_r(line, ",", &saveInner);
+        for (int f = 0; field != 0 && f < 4; ++f)
+        {
+            const int v = atoi(field);
+            switch (f)
+            {
+            case 0: out[row].m_field0 = v; break;                                        // [0x813e76c]
+            case 1: out[row].m_field4 = v; break;
+            case 2: out[row].m_short8 = static_cast<short>(v); break;                    // [0x813e79a +8 short]
+            case 3: out[row].m_short10 = static_cast<short>(v); break;                   // [0x813e7ab +10 short]
+            }
+            field = strtok_r(0, ",", &saveInner);
+        }
+    }
+    return true;
+}
+
+// [report parseReward.md / objdump 0x813e8cc]
+bool DB_Load::parseReward(char* str, _Reward* out, int count)
+{
+    if (str == 0 || out == 0)
+        return false;
+    char* saveOuter = 0;
+    int row = 0;
+    for (char* line = strtok_r(str, "|", &saveOuter);
+         line != 0 && row < count; line = strtok_r(0, "|", &saveOuter), ++row)
+    {
+        char* saveInner = 0;
+        char* field = strtok_r(line, ",", &saveInner);
+        for (int f = 0; field != 0 && f < 2; ++f)
+        {
+            if (f == 0) { out[row].m_field0 = atoi(field); }                             // [0x813e934]
+            else
+            {
+                const int v = atoi(field);
+                out[row].m_byte4 = static_cast<unsigned char>(v != 0 ? 1 : 0);           // [0x813e94d]
+            }
+            field = strtok_r(0, ",", &saveInner);
+        }
+    }
+    return true;
+}
+
+
+// [report dispatch.md / objdump 0x813ec24]：不调基类前置，直接取 OutBuffer → update。
+bool DB_Update::dispatch(int /*uid*/, int /*uniqueId*/, Stream* stream)
+{
+    _CharacAdvanceAltarDbData* data = stream->GetOutBuffer<_CharacAdvanceAltarDbData>();
+    if (data != 0)
+        update(*data);
+    return data != 0;
+}
+
+void DB_Update::makeStageString(std::string& out, const _Stage* arr, int count)   // [objdump 0x813f380]
+{
+    if (arr == 0)
+        return;
+    out.clear();
+    char buf[128];
+    for (int i = 0; i < count; ++i)
+    {
+        if (arr[i].m_field0 != 0 || arr[i].m_field4 != 0)
+        {
+            std::sprintf(buf, "%d,%d|", arr[i].m_field0, arr[i].m_field4);   // ORIG 经 DAT ","/"|"
+            out += buf;
+        }
+    }
+}
+
+void DB_Update::makeSlotString(std::string& out, const _Slot* arr, int count)    // [objdump 0x813f442]
+{
+    if (arr == 0)
+        return;
+    out.clear();
+    char buf[128];
+    for (int i = 0; i < count; ++i)
+    {
+        std::sprintf(buf, "%d,%d,%d,%d|",
+                     static_cast<int>(arr[i].m_byte0), arr[i].m_int1,
+                     static_cast<int>(arr[i].m_byte5), arr[i].m_int6);
+        out += buf;
+    }
+}
+
+void DB_Update::makeRewardString(std::string& out, const _Reward* arr, int count) // [objdump 0x813f66a]
+{
+    if (arr == 0)
+        return;
+    out.clear();
+    char buf[128];
+    for (int i = 0; i < count; ++i)
+    {
+        if (0 < arr[i].m_field0)
+        {
+            std::sprintf(buf, "%d,%d|", arr[i].m_field0, static_cast<int>(arr[i].m_byte4));
+            out += buf;
+        }
+    }
+}
+
+void DB_Update::makeBuyItemString(std::string& out, const _BuyItem* arr, int count) // [objdump 0x813f53c]
+{
+    if (arr == 0)
+        return;
+    out.clear();
+    char buf[128];
+    for (int i = 0; i < count; ++i)
+    {
+        if (arr[i].m_field4 != 0 || arr[i].m_short8 != 0)
+        {
+            std::sprintf(buf, "%d,%d,%d,%d|", arr[i].m_field0, arr[i].m_field4,
+                         static_cast<int>(arr[i].m_short8), static_cast<int>(arr[i].m_short10));
+            out += buf;
+        }
+    }
+}
+
+// [report update.md / objdump 0x813ec5e]
+bool DB_Update::update(const _CharacAdvanceAltarDbData& data)
+{
+    MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)3, (ENUM_SERVER_GROUP)0);
+    bool result = true;
+    for (int row = 0;; ++row)
+    {
+        if (row > 0)
+            return result;
+
+        const unsigned char* base = reinterpret_cast<const unsigned char*>(&data);
+        DbHeadView& view =
+            *reinterpret_cast<DbHeadView*>(const_cast<unsigned char*>(base + 0x04));
+        const _Stage* stages = reinterpret_cast<const _Stage*>(base + 0x04 + 0x21);
+        const _Slot* slots = reinterpret_cast<const _Slot*>(base + 0x04 + 0x1b1);
+        const _BuyItem* buyItems = reinterpret_cast<const _BuyItem*>(base + 0x04 + 0x229);
+        const _Reward* rewards = reinterpret_cast<const _Reward*>(base + 0x04 + 0x481);
+
+        if (base[0x51b] == 1 && isValidRidableId(static_cast<RidableId::T>(view.ridableId)))
+        {
+            std::string stageStr;
+            std::string slotStr;
+            std::string buyItemStr;
+            std::string rewardStr;
+            makeStageString(stageStr, stages, 0x32);
+            makeSlotString(slotStr, slots, 0xc);
+            makeBuyItemString(buyItemStr, buyItems, 0x32);
+            makeRewardString(rewardStr, rewards, 0x1e);
+
+            unsigned int zipStageLen = 0, zipSlotLen = 0, zipBuyItemLen = 0, zipRewardLen = 0;
+            std::memset(g_ZipStageBuffer, 0, 0x800);
+            std::memset(g_ZipSlotBuffer, 0, 0x800);
+            std::memset(g_ZipBuyItemBuffer, 0, 0x800);
+            std::memset(g_ZipRewardBuffer, 0, 0x800);
+
+            if (!convertStringToZip(g_ZipStageBuffer, 0x800, stageStr.data(),
+                                    static_cast<unsigned>(stageStr.size()), zipStageLen))
+                return false;
+            if (!convertStringToZip(g_ZipSlotBuffer, 0x800, slotStr.data(),
+                                    static_cast<unsigned>(slotStr.size()), zipSlotLen))
+                return false;
+            if (!convertStringToZip(g_ZipBuyItemBuffer, 0x800, buyItemStr.data(),
+                                    static_cast<unsigned>(buyItemStr.size()), zipBuyItemLen))
+                return false;
+            if (!convertStringToZip(g_ZipRewardBuffer, 0x800, rewardStr.data(),
+                                    static_cast<unsigned>(rewardStr.size()), zipRewardLen))
+                return false;
+
+            char* qStage = mysql->blob_to_str(0, g_ZipStageBuffer, static_cast<int>(zipStageLen));
+            char* qSlot = mysql->blob_to_str(1, g_ZipSlotBuffer, static_cast<int>(zipSlotLen));
+            char* qBuyItem = mysql->blob_to_str(2, g_ZipBuyItemBuffer, static_cast<int>(zipBuyItemLen));
+            char* qReward = mysql->blob_to_str(3, g_ZipRewardBuffer, static_cast<int>(zipRewardLen));
+            mysql->set_query(
+                             "update charac_advance_altar \t\t\t\t  set ticket_free = %d, ticket_cera = %d, "
+                             "\t\t\t\t  star_game = %d, star_cera = %d, star_usable = %d, \t\t\t\t  "
+                             "survival_best = %d, star_reset_count = %d, is_unlock_stage_effect = %d, "
+                             "\t\t\t\t  stage_list = '%s', \t\t\t\t  slot_list = '%s', \t\t\t\t  "
+                             "buy_item_list = '%s', \t\t\t\t  reward_list = '%s' \t\t\t\t  where "
+                             "charac_no = %u and ridable_id = %d",
+                             view.ticketFree, view.ticketCera, view.starGame, view.starCera,
+                             view.starUsable, static_cast<int>(view.survivalBest),
+                             static_cast<int>(view.starResetCount),
+                             static_cast<int>(*(base + 0x24)),          // db+0x20（is_unlock_stage_effect）
+                             qStage, qSlot, qBuyItem, qReward,
+                             data.m_characNo, view.ridableId);
+            result = mysql->exec(true);
+            if (!(result && mysql->getAffectedRowCount() != 0))
+            {
+                qStage = mysql->blob_to_str(0, g_ZipStageBuffer, static_cast<int>(zipStageLen));
+                qSlot = mysql->blob_to_str(1, g_ZipSlotBuffer, static_cast<int>(zipSlotLen));
+                qBuyItem = mysql->blob_to_str(2, g_ZipBuyItemBuffer, static_cast<int>(zipBuyItemLen));
+                qReward = mysql->blob_to_str(3, g_ZipRewardBuffer, static_cast<int>(zipRewardLen));
+                mysql->set_query(
+                                 "insert into charac_advance_altar \t\t\t\t\t\t  (charac_no, ridable_id, "
+                                 "\t\t\t\t\t\t  ticket_free, ticket_cera, \t\t\t\t\t\t  star_game, "
+                                 "star_cera, star_usable, \t\t\t\t\t\t  survival_best, star_reset_count, "
+                                 "is_unlock_stage_effect, \t\t\t\t\t\t  stage_list, \t\t\t\t\t\t  "
+                                 "slot_list, \t\t\t\t\t\t  buy_item_list, \t\t\t\t\t\t  reward_list) "
+                                 "\t\t\t\t\t\t  values \t\t\t\t\t\t  (%u, %d, \t\t\t\t\t\t  %d, %d, "
+                                 "\t\t\t\t\t\t  %d, %d, %d,\t\t\t\t\t\t  %d, %d, %d, \t\t\t\t\t\t  '%s', "
+                                 "\t\t\t\t\t\t  '%s', \t\t\t\t\t\t  '%s', \t\t\t\t\t\t  '%s')",
+                                 data.m_characNo, view.ridableId, view.ticketFree, view.ticketCera,
+                                 view.starGame, view.starCera, view.starUsable,
+                                 static_cast<int>(view.survivalBest), static_cast<int>(view.starResetCount),
+                                 static_cast<int>(*(base + 0x24)), qStage, qSlot, qBuyItem, qReward);
+                result = mysql->exec(true);
+            }
+            result = true;   // ORIG movl $1（处理完成位）
+        }
+    }
+}
+
+// ---- DB_StatisticAdvanceAltar ----
+class DB_StatisticAdvanceAltar : public DBDispatcher
+{
+public:
+    DB_StatisticAdvanceAltar();
+    ~DB_StatisticAdvanceAltar();
+    virtual bool dispatch(int uid, int uniqueId, Stream* stream);
+};
+
+DB_StatisticAdvanceAltar::DB_StatisticAdvanceAltar() {}
+DB_StatisticAdvanceAltar::~DB_StatisticAdvanceAltar() {}
+
+namespace
+{
+// 入场统计行视图（SigTypes.h 目前 pad(0x10)；字段化读取按报告偏移）
+struct EntranceView { unsigned int stageId, entranceCount, successCount, obtainStar; };  // 0x10
+struct LayerView                                        // 0xe 有效 + 2 pad = 0x10
+{
+    unsigned short itemType;   // +0x00
+    unsigned short m_pad02;
+    unsigned int itemId;       // +0x04
+    unsigned short itemLevel;  // +0x08
+    unsigned short useCount;   // +0x0a
+    unsigned short useStar;    // +0x0c
+};
+}  // namespace
+
+// [report dispatch.md / objdump 0x81412b2]
+bool DB_StatisticAdvanceAltar::dispatch(int /*uid*/, int /*uniqueId*/, Stream* stream)
+{
+    static const char* s_func =
+        "virtual bool advancealtar::DB_StatisticAdvanceAltar::dispatch(int, int, Stream*)";
+    try
+    {
+        MySQL* mysql = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)4, (ENUM_SERVER_GROUP)0);
+        struct tm now;
+        __GetCurrentDNFDate(now);
+        char date[12];
+        std::sprintf(date, "%04d-%02d-%02d", now.tm_year + 1900, now.tm_mon + 1, now.tm_mday);
+
+        int entranceCount = 0;
+        *stream >> entranceCount;                                   // [0x861c5c4 operator>>(int&)]
+        for (int i = 0; i < entranceCount; ++i)
+        {
+            void* rawE = stream->GetOutBuffer<STAdvanceAltarEntranceData>();
+            EntranceView* e = reinterpret_cast<EntranceView*>(rawE);
+            if (rawE == 0)
+                throw 0x624;
+            cMyTrace(s_func, 0x626, 0)("[AdvanceAltar] %u,%u,%u,%u",
+                                       e->stageId, e->entranceCount, e->successCount, e->obtainStar);
+            mysql->set_query(
+                             " upDate log_advance_alter_entrance  set entrance_count = entrance_count + %u"
+                             "  , success_count = success_count + %u  , obtain_star = obtain_star + %u"
+                             "  where occ_date = '%s' and stage_id = %u",
+                             e->entranceCount, e->successCount, e->obtainStar, date, e->stageId);
+            if (!(mysql->exec(true) && mysql->getAffectedRowCount() != 0))
+            {
+                mysql->set_query(
+                                 " inSert into log_advance_alter_entrance(occ_date,  stage_id,"
+                                 " entrance_count, success_count, obtain_star)"
+                                 "  values('%s', %u, %u, %u, %u) ",
+                                 date, e->stageId, e->entranceCount, e->successCount, e->obtainStar);
+                mysql->exec(true);
+            }
+        }
+
+        int layerCount = 0;
+        *stream >> layerCount;
+        for (int i = 0; i < layerCount; ++i)
+        {
+            void* rawL = stream->GetOutBuffer<STAdvanceAltarLayerStatData>();
+            LayerView* l = reinterpret_cast<LayerView*>(rawL);
+            if (rawL == 0)
+                throw 0x64d;
+            cMyTrace(s_func, 0x64f, 0)("[AdvanceAltar] %u,%u,%u,%u,%u",
+                                       static_cast<unsigned>(l->itemType), l->itemId,
+                                       static_cast<unsigned>(l->itemLevel),
+                                       static_cast<unsigned>(l->useCount),
+                                       static_cast<unsigned>(l->useStar));
+            mysql->set_query(
+                             " upDate log_advance_alter_layer_stat  set use_count = use_count + %u,"
+                             " use_star = use_star + %u  where occ_date = '%s' and item_type = %u and"
+                             " item_id = %u and item_level = %u",
+                             static_cast<unsigned>(l->useCount), static_cast<unsigned>(l->useStar),
+                             date, static_cast<unsigned>(l->itemType), l->itemId,
+                             static_cast<unsigned>(l->itemLevel));
+            if (!(mysql->exec(true) && mysql->getAffectedRowCount() != 0))
+            {
+                mysql->set_query(
+                                 " inSert into log_advance_alter_layer_stat(occ_date,  item_type,"
+                                 " item_id, item_level, use_count, use_star)"
+                                 " values('%s', %u, %u, %u, %u, %u)",
+                                 date, static_cast<unsigned>(l->itemType), l->itemId,
+                                 static_cast<unsigned>(l->itemLevel),
+                                 static_cast<unsigned>(l->useCount),
+                                 static_cast<unsigned>(l->useStar));
+                mysql->exec(true);
+            }
+        }
+        return true;
+    }
+    catch (int err)
+    {
+        LogManager::logFormat(1, "localglobal/global_AdvanceAltar_Dispatcher.cpp", s_func,
+                              0x674, "[AdvanceAltar] query error line(%u)", err);   // [0x814174e]
+        return false;
+    }
+}
+
+// ---- 压缩转换自由函数 ----
+
+// [objdump 0x813dd3e]
+bool convertStringToZip(char* out, unsigned int outCap, const char* src,
+                        unsigned int srcLen, unsigned int& realLen)
+{
+    if (srcLen == 0)
+    {
+        realLen = 0;
+        return true;
+    }
+    realLen = srcLen;                       // 先写入源长度（压缩前容量占位）
+    std::memset(out, 0, outCap);
+    return compress_zip(out, realLen, src, srcLen);
+}
+
+// [objdump 0x813dc48]
+bool convertZipToString(MySQL* mysql, int col, char* zipBuf, unsigned int zipCap,
+                        char* strBuf, unsigned int strCap)
+{
+    const int zlen = mysql->get_binary_length(col);
+    if (zlen == 0)
+        return true;
+    if (!(zipCap > static_cast<unsigned int>(zlen)))
+        return false;
+    std::memset(zipBuf, 0, zipCap);
+    if (!mysql->get_binary(col, zipBuf, zlen))
+        return false;
+    const unsigned int rawLen = (*reinterpret_cast<unsigned int*>(zipBuf)) & 0x3fffffff;
+    if (!(strCap > rawLen))
+        return false;
+    std::memset(strBuf, 0, strCap);
+    unsigned int len = rawLen;
+    return uncompress_zip(strBuf, len, zipBuf, static_cast<unsigned int>(zlen));
+}
+
+} // namespace advancealtar

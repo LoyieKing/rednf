@@ -43,7 +43,8 @@
 #include "WarRoom.h"
 #include "BlueMarble.h"
 #include "Inven_Item.h"   // CMailBox::CMail 内嵌 Inven_Item（完整类型）
-#include "CTradeSpace.h"   // 真实 CTradeSpace（0xf70）——替换原尺寸垫占位
+#include "CInventory.h"   // user_creature::CCreatureItem/CCreatureMgr 完整类型（CEgg 基类）
+#include "CTradeSpace.h"  // 真实 CTradeSpace（0xf70）——StaticPool<CTradeSpace,300> 需完整类型
 #include "CBossTower.h"    // 真实 WongWork::CBossTower（0xb18）——替换原尺寸垫占位
 #include "QuickParty.h"    // 真实 QuickParty::CQuickParty / CQuickPartySystemManager——替换本地占位
 
@@ -55,8 +56,8 @@
 
 
 struct map_item;
+class CTradeSpace;   // 兜底前置（完整类型见上方 CTradeSpace.h）
 struct SIG_CREATURE_ITEM_DETAIL_INFO;   // ORIG 全局域；完整布局见 CCreatureMgr.cpp
-struct MSG_MONSTER_DIE;
 
 
 #include "CDeathTower.h"   // WongWork::CDeathTower 完整定义（唯一声明归口，2026-08-27 迁出）
@@ -134,17 +135,19 @@ struct MSG_CHECK_MAIL_RECEIVER
 // ---- DynamicPool 所需类型 ----
 namespace user_creature
 {
-class CEgg
+class CEgg : public CCreatureItem    // ORIG 继承 CCreatureItem（ctor 基区构造实证）
 {
 public:
-    CEgg() {}
-    ~CEgg() {}
-    // ORIG _ZN13user_creature4CEgg5HatchEPi T 0x0833912a：蛋物品 find_item 非空
-    // 且非 stackable → *out = get_hatch_item_id() 返回 1；否则 0。
-    bool Hatch(int* out);
-private:
-    char m_pad[0x100];
-};
+    CEgg();        // ORIG T 0x08338f4c：基类 ctor → vptr←&_ZTV CEgg+0x8(0x08c2f4a8) → Reset
+    ~CEgg() {}     // ORIG D1 0x08338f74 仅写 vptr
+    void Reset();  // ORIG T 0x08338f82：基类字段清零
+    bool IsSave(); // ORIG W 0x0833f102：字面返回 0
+    bool Hatch(int* out);   // ORIG T 0x0833912a（定义 CCreatureMgr.cpp）
+    bool LoadCreatureItem(CCreatureMgr* mgr, Inven_Item* item,
+                          SIG_CREATURE_ITEM_DETAIL_INFO* info, CUser* user);  // ORIG T 0x08338fac
+    bool SaveCreatureItem(Inven_Item* item,
+                          SIG_CREATURE_ITEM_DETAIL_INFO* info, CUser* user);  // ORIG T 0x083390c8
+};  // sizeof == sizeof(CCreatureItem)（ORIG 无扩展字段）
 
 // ORIG：user_creature 域枚举（CStomach::GetStomachValue/IsSaveStomach、
 // CCreature::SetState 使用；值 1..3 由 SetState/GetStomachValue 分支实证，
@@ -177,16 +180,20 @@ public:
     // 其余 state 恒真。
     bool IsSaveStomach(CREATURE_STATE state);
     // ORIG _ZN13user_creature8CStomach6ResumeEv T 0x8336e4c：m_lastTime = 当前秒。
-    void Resume();
+    void Resume();   // ORIG _ZN13user_creature8CStomach6ResumeEv T 0x8336e4c：m_lastTime=当前秒（定义 CreatureOnlySimple.cpp）
+    CStomach();      // ORIG T 0x83336cd8（定义 CreatureOnlySimple.cpp）
 };                                    // 共 8B（+0x34..+0x3b）
 
 // ORIG 内部包类型（CDBMsgSender::Init 0x833f7a8：0x89 走 BigStreamPool，
 // CCreatureMgr::RecvMail 使用 0x8a；其余值待 DB 域批次核对）。
+#ifndef DNF_GAME_ENUM_INTERNALPACKET_DEFINED
+// ORIG 全局枚举；权威副本同守卫另存 CacheCharacterType.h（OnlyOrig_Exchange 批）。
 enum ENUM_INTERNALPACKET
 {
     ENUM_INTERNALPACKET_0x89 = 0x89,
     ENUM_INTERNALPACKET_RECV_MAIL = 0x8a   // 推断命名
 };
+#endif
 
 class CDBMsgSender
 {
@@ -211,7 +218,6 @@ public:
     // GetInBuffer<SIG_CREATURE_ITEM> 清 0x74；m_hdr|=0x80；+0x30=uid、
     // +0x52=flag 低字节。SetKeepRightItem 免充标志落库用。
     bool UseKeepRight(int uid, int flag);
-
     template <class T> T* GetInBuffer()
     {
         if (m_stream == 0)
@@ -235,6 +241,14 @@ public:
                           Inven_Item* item2, int slot2);
     // ORIG _ZN13user_creature12CDBMsgSender16RenameCreatureItemEiPKc W 0x083405aa
     // ORIG _ZN13user_creature12CDBMsgSender16RenameCreatureItemEiPKc W 0x083405aa
+    bool ChangeOwner(Inven_Item* item, int characNo, int slot, int reason,
+                     int mapSize, int field6c, int field70);
+    // ORIG _ZN13user_creature12CDBMsgSender12ChangeSlotNoEP10Inven_Itemiii W 0x083400a4
+    bool ChangeSlotNo(Inven_Item* item, int characNo, int slot, int reason);
+    // ORIG _ZN13user_creature12CDBMsgSender13AuctionRegistEP10Inven_Itemiiii W 0x08340144（p2/p3 未读）
+    bool AuctionRegist(Inven_Item* item, int characNo, int unused14,
+                       int unused18, int mapSize);
+    void Cancel();   // ORIG _ZN13user_creature12CDBMsgSender6CancelEv W 0x0833f994：三路按池归还并置空
     //   （Main 授权补充；RenameCreature 落库用，定义随 CCreatureMgr.cpp）。
     bool RenameCreatureItem(int uid, const char* name);
     // ORIG _ZN13user_creature12CDBMsgSender13HatchCreatureEii W 0x083405b4
@@ -244,8 +258,11 @@ public:
 class COverSkillTime
 {
 public:
-    int m_time;  // ORIG ctor 0x833d636 清零（4B）
-    bool checkTime();  // ORIG T 0x0833d65e：(curSec-m_time)∈(0,20.0) 浮点判定
+    COverSkillTime();          // ORIG T 0x0833d636：m_time 清零（定义 CreatureOnlySimple.cpp）
+    int m_time;                // ORIG（4B）
+    void SetTime();            // ORIG T 0x0833d644：m_time = 当前秒
+    int* GetTime();            // ORIG W 0x0833ef04：返回 &m_time
+    bool checkTime();          // ORIG T 0x0833d65e：(curSec-m_time)∈(0,20.0)
 };
 
 class CCreatureScript;  // user_creature 域内前置（权威声明见 CCreatureScript.h）
@@ -310,6 +327,7 @@ public:
     COverSkillTime* GetOverSkillTime();  // W 0x833f0e6：this+0x50
 
     int IsAbleEvolute(CUser* user) const;   // ORIG T 0x083380fc（RestoreUserQuestStubs 批次）
+    bool IsCreatureScript();   // ORIG _ZN13user_creature9CCreature16IsCreatureScriptEv W 0x0833f0f2：return m_script != 0（定义 CreatureOnlyMgrRest.cpp）
     int IsAbleSelectEvolute(CUser* user);   // ORIG T 0x08337d58（RestoreUserQuestStubs 批次）
     // ---- Save/Load 落库链（TranslateCCreatureMgrTU 批次；签名与 ORIG mangled 一致）----
     // ---- TranslateCCreatureTU 追加（ORIG 报告齐备，实现落 CCreature.cpp；
@@ -373,7 +391,10 @@ class CCreatureItemFactory
 public:
     CCreatureItemFactory();   // ORIG C1 0x0833f67a（定义 CCreatureMgr.cpp）
     ~CCreatureItemFactory();  // ORIG D1 0x0833f6d0（定义 CCreatureMgr.cpp）
-    CCreatureItem* AcquireCreatureItem(int type);  // ORIG 0x0833f57c
+    CCreatureItem* AcquireCreatureItem(CREATURE_ITME_TYPE type);  // ORIG _ZN13user_creature20CCreatureItemFactory19AcquireCreatureItemENS_18CREATURE_ITME_TYPEE T 0x0833f57c（定义 CCreatureMgr.cpp）
+    int GetSize(CREATURE_ITME_TYPE type);          // ORIG T 0x0833f546
+    int GetRemainSize(CREATURE_ITME_TYPE type);    // ORIG T 0x0833f510
+                                                   // （上两者定义 CreatureOnlySimple.cpp）
     bool FreeCreatureItem(CCreatureItem* item);    // ORIG 0x0833f618
 private:
     DynamicPool<CEgg> m_eggPool;             // +0x00

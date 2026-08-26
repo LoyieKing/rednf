@@ -26,8 +26,8 @@
 
 #include <cstring>
 
-#include "AdvanceAltarField.h"         // _RewardItem（sendClearStage/rewardClearStage）
 #include "advancealtar.h"               // TimeLine / AdvanceAltarData / _Slot
+#include "AdvanceAltarField.h"     // _RewardItem 完整定义（ShopType 幂等块已收敛）
 #include "advancealtar_StageDifficulty.h"  // StageDifficulty::T
 
 class CUser;
@@ -52,8 +52,10 @@ struct StageEndType
 {
     enum T
     {
+        END_N0 = 0,     // isEndStage 全清死亡标记 [名推断]
         END_N1 = 1,     // dieCharac / RegistTimerClearReward
-        END_N2 = 2      // giveUpGame
+        END_N2 = 2,     // giveUpGame
+        END_N3 = 3      // isEndStage 全阶段完成 [名推断]
     };
 };
 #endif
@@ -84,13 +86,13 @@ typedef char _assert_map_monster_summary_size[(sizeof(_MapMonsterSummary) == 0xd
 // （FieldData::m_value）、+0x04 needGage（CItem::getAdvanceAltarNeedGage））----
 struct _SlotItem
 {
-    _SlotItem();                 // ORIG W 0x081347e2：memset(this,0,0xc)
+    // ORIG W C1/C2 @0x081347e2：memset(this,0,0xc)——inline 定义随使用点发射弱符号。
+    _SlotItem() { std::memset(this, 0, sizeof(*this)); }
 
     int m_itemId;                // +0x00
     int m_needGage;              // +0x04
     int m_field8;                // +0x08（ctor 清零；无显式写入点）
 };                               // sizeof 0xc
-
 typedef char _assert_slot_item_size[(sizeof(_SlotItem) == 0xc) ? 1 : -1];
 
 // ---- ORIG _SummonObjectMs（makeCurrentPhaseSummonObject 0x812eba8 new 0x38 +
@@ -153,6 +155,7 @@ public:
         enum T
         {
             S_N1 = 1,      // startStage 进入战斗
+            S_N2 = 2,      // pause(true) 暂停（0x0812eaa6 实证值）
             S_N3 = 3,      // isRewardState
             S_N4 = 4,      // isRewardState
             S_N5 = 5,      // dieCharac（clearStageAndReward 后）
@@ -185,19 +188,20 @@ public:
     bool makeCurrentPhaseSummonObject();                 // T 0x0812eba8
     void procTimeLine();                                 // T 0x0812e0d6
     // ---- ORIG _RewardItem（AdvanceAltarField.h）/ map<int,_Reward> 奖励链 ----
-    void dieMob(unsigned short mobSeq, unsigned short param,
+    bool dieMob(unsigned short mobSeq, unsigned short param,
                 const MSG_MONSTER_DIE& msg);                     // T 0x0812e1de
     bool isEndStage(StageEndType::T& endType) const;             // T 0x0812e2c6
     void clearStageAndReward();                                  // T 0x0812e3f6
-    void endProcAllKillMonster();                                // T 0x0812ea00
+    bool endProcAllKillMonster();                                // T 0x0812ea00
     int pause(bool pauseOn);                                     // T 0x0812eaa6
     int getClearSurvivalRoundNo() const;                         // W 0x0812eb4e：return m_survivalRound
     void rewardClearStage(std::vector<_RewardItem>& out);        // T 0x0812f0fa
     void addAchievementReward(std::map<int, _Reward>& out);      // T 0x0812f3ae
-    void sendMailRewardItem(CUser* user,
-                            const std::vector<_RewardItem>& items,
-                            const char* senderKey,
-                            const char* titleKey);               // T 0x0812f47a
+    // ORIG 无 this 静态调用（AltarMgr sendAchievementReward asm +0x225 实证）
+    static void sendMailRewardItem(CUser* user,
+                                   const std::vector<_RewardItem>& items,
+                                   const char* senderKey,
+                                   const char* titleKey);        // T 0x0812f47a
     void sendClearStage(const std::vector<_RewardItem>& rewards,
                         const std::vector<_BuyItem>& buyItems,
                         const std::map<int, _Reward>& rewardMap,
@@ -225,6 +229,7 @@ public:
     int m_currentMs;                                   // +0x00（ctor/reset 清零）
     std::vector<_SummonObjectMs*> m_summons;           // +0x04
     std::map<short, _SummonObjectMs*> m_summonMap;     // +0x10（key=_SummonObjectMs::m_seq）
+    int m_deadCount;                                   // +0x28（dieMob 计数）
     int m_aliveDelta;                                  // +0x2c（makeCurrentPhase 累计）
     CharacData* m_characData;                          // +0x30（ctor 存参）
     int* m_pCurrentMs;                                 // +0x34（= &ProcStage::m_field8）
@@ -253,26 +258,6 @@ public:
 };                                       // sizeof 0x94
 
 typedef char _assert_procstage_size[(sizeof(ProcStage) == 0x94) ? 1 : -1];
-// ---- ORIG 星数变更枚举（mangled NS_11AddStarType1TE / NS_12SubStarType1TE）----
-// 值证据：clearStageAndReward 传 0、resetStar 传 2；枚举器名为重建「推断」。
-struct AddStarType
-{
-    enum T
-    {
-        ADD_BY_CLEAR = 0,      // clearStageAndReward（名推断）
-        ADD_UNKNOWN1 = 1,
-        ADD_BY_RESET = 2       // CharacAdvanceAltarManager::resetStar（名推断）
-    };
-};
-
-struct SubStarType                      // ORIG 无调用点值证据，最小占位
-{
-    enum T
-    {
-        SUB_UNKNOWN0 = 0                // 名推断
-    };
-};
-
 
 // ---- Timer_StageControl（静态语义函数，asm 不使用 this）----
 struct Timer_StageControl
@@ -281,21 +266,6 @@ struct Timer_StageControl
     static void RegistTimerEPLP(int index, StageEndType::T endType);          // T 0x0812f8ec
     static void RegistTimerEPLPReturnVillage(int index);                      // T 0x0812f956
     static void RegistTimerClearReward(int index, StageEndType::T endType);   // T 0x0812f89c
-};
-
-// ---- HistoryLog（静态语义函数）----
-struct HistoryLog
-{
-    static void dungeonClearInfo(CUser& user, StageControl& control, bool isLast);   // T 0x08133bd4
-    static void enterDungeon(CUser& user, const ProcStage& procStage);               // T 0x081339b0
-    static void killMonster(CUser& user, int monsterId, const MSG_MONSTER_DIE& msg); // T 0x08133b40
-    static void leaveDungeon(CUser& user, const ProcStage& procStage);        // T 0x08133abc
-    static void updateStatistics();                                           // T 0x08133e30
-    static void buyItem(AdvanceAltarShopType::T shopType, int a, short b,     // T 0x08133dda
-                        short c, int d);
-    static void starAdd(CUser& user, AddStarType::T type, int stageIndex,     // T 0x08133d56
-                        int count);
-    static void starSub(CUser& user, SubStarType::T type, int value);         // T 0x08133db0
 };
 
 // ---- 全局自由函数 ----

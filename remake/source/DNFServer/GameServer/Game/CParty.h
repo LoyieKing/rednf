@@ -357,6 +357,9 @@ public:
     bool IsExistUser(CUser* user);
     int isMyMember(unsigned int userNo);
     bool _checkValidUser(int idx);
+    bool checkValidUser(int idx);   // ORIG W 0x08145868（转发 _checkValidUser；定义 CParty.cpp:1902）
+    bool CheckQuestConnection(int questIdx, ENUM_MAZE_QUEST_TYPE type);   // ORIG T 0x085b6478（定义 PartyClosureC2.cpp）
+    void enumPartyMember(bool (*fn)(CUser*));   // ORIG W 0x0814253c（成员遍历回调；定义 PartyClosureC2.cpp）
     int change_manager_for_quick_party();   // ORIG 0x859b404：清 manager 槽位后
                                             //   改选首个有效成员为 host/manager
     int delete_party_for_quick_party(CUser* user,
@@ -369,7 +372,7 @@ public:
     CUser* GetMemberSlotNo(unsigned int characNo);  // ORIG T 0x0859acc2：按角色编号返回 CUser*
     unsigned int GetMemberSlotNo(CUser const* user) const;
     void ClearBadP2PUser();
-    void CheckMemberArea();
+    int CheckMemberArea();   // ORIG eax：全员同区=1（0x859d706）
     int GetUserPosition(CUser* user);
     bool check_allmember_die();
     void check_allmember_loading(bool flag);
@@ -583,10 +586,10 @@ public:
     void insert_time_dungeon_score_scroll_msg(int param);
 
     // ---- 锦标赛 / TOD ----
-    void OnTODRewardTimer(TIMER_MESSAGE msg);
+    int OnTODRewardTimer(TIMER_MESSAGE msg);   // ORIG 恒返回 eax=1（0x85ba906）
     int OnTimeoutBossDie(int a, unsigned int b);   // ORIG 0x85aa5d4 返回 0/1
     int _Send_TOD_APCInfo(int a);   // ORIG 恒返回 eax=1（0x85bac26）
-    void _Send_TOD_ClearReward();
+    int _Send_TOD_ClearReward();   // ORIG 恒返回 eax=1（0x85bac00）
     int GetDungeonIndex_isTOD(int& a, int& b);   // ORIG 返回错误码（0x85bacc0）
     void InsertTournamentDungeonTimer(TIMER_MESSAGE msg);
     bool isTournamentVictory();
@@ -601,16 +604,15 @@ public:
     void SetRidableObjectState(int state, eRidableObjectState type);
     unsigned char DestroyPassiveObject(int param);   // ORIG 返回 al（0x85b6540）
     void check_passive_skill();
-    bool recv_party_packet_all();   // ORIG al：全员已回包=1（0x85b3fd7）
     bool HasNoQuestGoWithApcInParty(Quest const* quest);
     bool IsClearedQuest(int questIdx);
     void MakeQuestRewardPacket(PacketGuard* packet, CUser* user);
-    void CheckRecvFromAllMember(CUser* user);
+    bool CheckRecvFromAllMember(CUser* user);   // ORIG al（0x85b401b；Dispatchers 等待此 bool）
     void set_recv_party_packet_flag(CUser* user);
-    void recv_party_packet_all();
+    bool recv_party_packet_all();   // ORIG al：全员已回包=1（0x85b3fd7）
 
     // ---- 收益 / 奖励 ----
-    void GetUserSecretShop(CUser* user);
+    void* GetUserSecretShop(CUser* user);   // ORIG 0x85b9e80：返回逐成员 secret 数据视图
     float CalcurateManageBonus(ManageBonusType::T type, CUser* user,
                                unsigned int param);   // ORIG 返回 st0 浮点
     float CalcAvatarBonus();
@@ -647,7 +649,7 @@ public:
     void sub_hellparty_value();
 
     // ---- 其它 ----
-    void ReviveUser(CUser* user, unsigned short a);
+    int ReviveUser(CUser* user, unsigned short a);   // ORIG 返回错误码（0x85b27c8）
     int VoteLackUser(CUser* user, int param);   // ORIG 0x85b3c90 返回 0/1
     int OnTimerWalkOutLackUser();   // ORIG 0x85b3e12 返回 0/1
     void SaveCoin(eCoinSubReason reason);
@@ -661,10 +663,10 @@ public:
     bool getDungeonDropTestFlag();   // ORIG T 0x085bdc76 返回 al（GM 成员且
                                      // getDungeonMapSaving 时 1；原 void 声明与
                                      // move_map 调用方 test al 不符）
-    int getPartyMemberAvgLevel();   // ORIG T 0x0859f582 返回 eax（有效成员平均等级）
+    int is_limit_minimum_age(int age, int& param);     // ORIG eax=0/1
+    int is_limit_minimum_level(int level, int& param); // ORIG eax=0/1，param=违规成员uid
     bool isPremiumGoldCardReward(CDungeon const* dungeon, unsigned int& param);
-    void is_limit_minimum_age(int age, int& param);
-    void is_limit_minimum_level(int level, int& param);
+    int getPartyMemberAvgLevel();   // ORIG T 0x0859f582 返回 eax（有效成员平均等级）
     int CheckMemberFatigue();
     void CheckMemberLastTryAssaultTime();
     char GetFirstValidMemberState();   // ORIG 返回 al（ProcessGiveUp 比较 5/0xc）
@@ -677,7 +679,7 @@ public:
     int GetSetPlayResultCount();
     int GetPartyMemberForceDropFlag();
     bool isDungeonDifficultyInfromNotice(bool flag);   // ORIG 返回 al（0x85be8a0）
-    void getMemberPassParty(CUser* user);
+    int getMemberPassParty(CUser* user);   // ORIG eax（0x85b900c）
     bool isHelpAbuseParty(CUser* user);
     bool isHelpAbuseParty();
 
@@ -749,6 +751,8 @@ public:
     CDungeonClearTracer m_dungeonClearTracer;  // +0xc7c（BF+0x158；ORIG giveup_game
                                                //   Trace((CDungeonClearTracer*)(this+0xc7c))）
     unsigned char m_padc94[0x18];              // +0xc94（BF+0x170..0x187）
+    CDungeon* m_dungeon;                    // +0xcac（当前副本；increase_
+                                            //   dimension_inout_count 等直读）
     unsigned char m_padcb0[0x14];           // +0xcb0
     char m_fieldCC4;                        // +0xcc4（CheckEnterDimensionDungeon 直读，维度模式）
     unsigned char m_padcc5[0xf];            // +0xcc5..0xcd3（BF 未建模区）

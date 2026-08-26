@@ -19,11 +19,14 @@ namespace WongWork
 class CAvatarItemMgr
 {
 public:
+    CAvatarItemMgr();   // ORIG W 0x0822d22c（三 map 隐式成员构造）
     // G7 miscB 追加：ORIG _ZN8WongWork14CAvatarItemMgrC1ERKS0_ W 0x0869937c
     // （合成式逐成员拷贝，定义 WongWorkMiscB_A.cpp）。
     CAvatarItemMgr(const CAvatarItemMgr& other);
     void Reset();
-    bool IsTempKey(int key) const;
+    static bool IsTempKey(int key);   // ORIG W 0x0822d20d（_ZN...9IsTempKeyEi；
+                                      //   ORIG 调用无 this，函数体不读对象 → static，
+                                      //   mangled 不变；既有 mgr->IsTempKey 调用仍合法）
     int _AssignTempKey();
     int _MakeTempKey(int key) const;
     Avatar_Item* _FindItem(int key) const;
@@ -38,6 +41,10 @@ public:
                                               const char* ipgAgency, bool b,
                                               const stAvatarEmblemInfo_t& emblem);
     unsigned long RegistNotAssignedAvatarItem(const Inven_Item& item);
+    // ORIG T 0x082f95f4 按值版 _ZN8WongWork14CAvatarItemMgr27RegistNotAssignedAvatarItemE10Inven_Item
+    // （与 const 引用重载语义一致：SetData(item.m_addInfo2,0,"") 后入 m_waitAssignItems，
+    //   返回 tempKey；定义 CAvatarItemMgr.cpp）。
+    unsigned long RegistNotAssignedAvatarItem(Inven_Item item);
     int RegistItem(int key, int expireDate, int registTime, const char* ipgAgency,
                    const stAvatarEmblemInfo_t& emblem,
                    const stAvatarExpansionInfo_t& expansion, bool b);
@@ -46,7 +53,7 @@ public:
     int GetRegistTime(int avatarUid) const;
     const char* GetIPGAgencyNo(int addInfo) const;
     int GetRemainDate(int nAvatarUid, int nTick) const;
-    int GetEmblemReduceRate(int key) const;
+    int GetEmblemReduceRate(int key);   // ORIG T 0x082f9f9e 非 const（_ZN...19GetEmblemReduceRateEi）
     const char* getJewelSocketData(int key) const;
     void* GetExpansionInfo(int key) const;
     bool SetAvatarColor(int key, short color1, short color2);
@@ -54,7 +61,7 @@ public:
     int GetItem(AvatarDetailInfo* info, int* count) const;
     bool UnRegistItem(int key);
     Avatar_Item* EraseAvatarItem(int key);
-    bool isSocketAvatar(int key) const;
+    bool isSocketAvatar(int key);       // ORIG T 0x082f9228 非 const（_ZN...14isSocketAvatarEi）
     int setEmblemSocketData(int key, const stAvatarEmblemInfo_t& emblem);
     void UpdateEndurance(int key, int endurance);
     void SaveEndurance();

@@ -43,7 +43,7 @@ void CAvatarItemMgr::Reset()
     m_enduranceUpdateMap.clear();
 }
 
-bool CAvatarItemMgr::IsTempKey(int key) const { return (key >> 31) != 0; }
+bool CAvatarItemMgr::IsTempKey(int key) { return (key >> 31) != 0; }   // ORIG 非 const
 
 int CAvatarItemMgr::_MakeTempKey(int key) const { return key | 0x80000000; }
 
@@ -73,7 +73,9 @@ Avatar_Item* CAvatarItemMgr::_FindWaitAssignItem(int key) const
 
 Avatar_Item* CAvatarItemMgr::_FindItemAll(int key) const
 {
-    if (IsTempKey(key))
+    // ORIG：const 版 _FindItemAll 内联展开 IsTempKey 的符号位测试
+    //（IsTempKey 本身 ORIG 为非 const W 0x0822d20d，C++ const 方法不可直调）。
+    if ((key >> 31) != 0)
         return _FindWaitAssignItem(key);
     std::map<int, Avatar_Item*>::const_iterator it = m_registeredItems.find(key);
     if (it == m_registeredItems.end())
@@ -176,6 +178,19 @@ unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(const Inven_Item& inve
     return (unsigned long)tempKey;
 }
 
+// ORIG T 0x082f95f4 _ZN8WongWork14CAvatarItemMgr27RegistNotAssignedAvatarItemE10Inven_Item
+// 按值版：与引用重载同语义（SetData(item.m_addInfo2,0,"")、setColorEss(0,0)、
+// 插入 m_waitAssignItems(+0x18)，返回 tempKey）。
+unsigned long CAvatarItemMgr::RegistNotAssignedAvatarItem(Inven_Item invenItem)
+{
+    int tempKey = _AssignTempKey();
+    Avatar_Item* item = new Avatar_Item();
+    item->SetData(invenItem.m_addInfo2, 0, "");
+    item->setColorEss(0, 0);
+    m_waitAssignItems.insert(std::make_pair(tempKey, item));
+    return (unsigned long)tempKey;
+}
+
 int CAvatarItemMgr::RegistItem(int key, int expireDate, int registTime, const char* ipgAgency,
                                const stAvatarEmblemInfo_t& emblem,
                                const stAvatarExpansionInfo_t& expansion, bool b)
@@ -241,7 +256,7 @@ int CAvatarItemMgr::GetRemainDate(int nAvatarUid, int nTick) const
     return item->GetRemainDate(nTick);
 }
 
-int CAvatarItemMgr::GetEmblemReduceRate(int key) const
+int CAvatarItemMgr::GetEmblemReduceRate(int key)   // ORIG 非 const
 {
     std::map<int, int>::const_iterator it = m_emblemEnduranceMap.find(key);
     if (it == m_emblemEnduranceMap.end())
@@ -323,7 +338,7 @@ Avatar_Item* CAvatarItemMgr::EraseAvatarItem(int key)
     return item;
 }
 
-bool CAvatarItemMgr::isSocketAvatar(int key) const
+bool CAvatarItemMgr::isSocketAvatar(int key)   // ORIG 非 const
 {
     const char* jewelData = getJewelSocketData(key);
     return *(short*)jewelData != 0;

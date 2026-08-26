@@ -10,7 +10,7 @@
 //   WongWork::{CMonsterDrop,CObjectDrop,CClearReward,CDungeonDrop} C1 与
 //     loadScript（CDungeonDrop ORIG 无 loadScript 覆写符号，不实现）
 //   WongWork::CMonsterDrop_Hell / CSpecialMonsterDrop C1/D1/loadScript
-//   WongWork::stFirstMobHuntingWeight_t C1
+//   WongWork::CMonsterDrop::stFirstMobHuntingWeight_t C1 → 归 WongWorkDrop_A.cpp
 //   WongWork::{CItemGenRateTable,CSecialIMonsterDropItemGenRateTable}
 //     C1/~D1/init/destroy/generateTable/_itemTypeVerify/
 //     set_disable_drop_random_option_item(仅前者)
@@ -34,14 +34,8 @@
 namespace WongWork
 {
 
-// ============================================================================
-// stFirstMobHuntingWeight_t —— W 0x0853a6ae（objdump 直转，无独立报告）
-// ============================================================================
-stFirstMobHuntingWeight_t::stFirstMobHuntingWeight_t()
-{
-    m_field04 = 1;
-    m_weight = m_field04;   // ORIG：movl $0x1,0x4(%eax); mov 0x4(%eax),%edx; mov %edx,(%eax)
-}
+// stFirstMobHuntingWeight_t（现 WongWork::CMonsterDrop 嵌套类型）C1 已迁移至
+// WongWorkDrop_A.cpp（嵌套限定名；此处旧顶层定义删除以免 ODR/符号分裂）。
 
 // ============================================================================
 // CItemGenRateTable

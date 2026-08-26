@@ -21,6 +21,7 @@ public:
     {
     public:
         static void AddLog(CUser* user, unsigned int amount);
+        static void SubLog(CUser* user, unsigned int amount);  // ORIG 0x0817ff54
     };
     unsigned int m_coin;
 };

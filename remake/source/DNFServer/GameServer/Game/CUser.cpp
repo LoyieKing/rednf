@@ -224,14 +224,14 @@ void CUser::_379::reset()
 {
     m_field0 = 0;
     m_field1 = 0;
-    m_field4 = 0;
-    m_field8 = 0;
-    m_fieldc = 0;
+    m_hackTradeGoldLo = 0;
+    m_hackTradeGoldHi = 0;
+    m_hackTradeCnt = 0;
 }
 
 void CUser::resetInformNoticeFlag()
 {
-    memset(&m_informNoticeFlag, 0, 1);
+    memset(m_informNoticeFlags, 0, sizeof(m_informNoticeFlags));
 }
 
 void CUser::disableSaveInformNoticeFlag()
@@ -474,7 +474,7 @@ CUser::CUser()
     m_field8cfd8 = 0;
     setAntibotKey(-1);
     setClientVersion(0);
-    m_mcap.m_field84 = 0;
+    m_mcap.m_serialHitCount = 0;
     m_mcap.m_field90 = 0;
     m_codeHackCheck.m_field54 = 0;
     m_field796f8 = 0;
@@ -587,7 +587,7 @@ void CUser::reset()
     resetMoneyLog();
     m_expReward.m_field4 = 0;
     m_expReward.m_field5 = 0;
-    m_field8ec28 = 0xff;
+    m_receivedRequestType = 0xff;
     m_field796d8 = 0;
     m_quest.reset();
     m_field8ebd8 = 0;
@@ -1773,7 +1773,7 @@ void CUser::set_state(ch_state state)
 
 unsigned int CUser::GetUID() const
 {
-    return ((int)(short)m_field704a4 << 16) | (int)(unsigned short)m_field704a6;
+    return ((int)(short)m_slotIDX << 16) | (int)(unsigned short)m_field704a6;
 }
 
 int CUser::get_unique_id() const
@@ -1913,13 +1913,6 @@ WongWork::CUserPremium* CUser::GetPremiumInfo() const
 int WongWork::CUserPremium::GetAdvantageCoin() const
 {
     return 0;   // 推断：premium 币加成数据字段未建模
-}
-
-// 推断：ORIG 无独立报告（CharacManageScript::GetGoldBonus 为另一全局表版本）。
-// 升级金币奖励，无 premium 时 ORIG 返回 0。
-int WongWork::CUserPremium::GetGoldBonus(int level) const
-{
-    return 0;   // 推断：premium 金币奖励表未建模
 }
 
 // 推断：ORIG 无独立报告。无限疲劳 premium 判定。
@@ -2122,11 +2115,11 @@ void CUser::LogHistory(const char* fmt, ...)
     va_end(ap);
 }
 
-bool CUser::isBlackUser(unsigned int accId) const
+bool CUser::isBlackUser(unsigned int accId)
 {
     if (m_vec8cef4.empty())
         return false;
-    for (std::vector<unsigned int>::const_iterator it = m_vec8cef4.begin();
+    for (std::vector<unsigned int>::iterator it = m_vec8cef4.begin();
          it != m_vec8cef4.end(); ++it) {
         if (*it == accId)
             return true;
@@ -2776,7 +2769,7 @@ void CUser::SetWarRoomIndex(short index)
 
 void CUser::SetSlotIDX(short idx)
 {
-    m_field704a4 = idx;
+    m_slotIDX = idx;
 }
 
 short CUser::GetIncreID() const
@@ -3762,13 +3755,13 @@ short CUser::get_connect_count()
 
 void CUser::setTotalHackUserTradeGold(unsigned long long gold)
 {
-    m_379.m_field4 = (int)gold;
-    m_379.m_field8 = (int)(gold >> 32);
+    m_379.m_hackTradeGoldLo = (int)gold;
+    m_379.m_hackTradeGoldHi = (int)(gold >> 32);
 }
 
 void CUser::setTotalHackUserTradeCnt(unsigned int cnt)
 {
-    m_379.m_fieldc = cnt;
+    m_379.m_hackTradeCnt = cnt;
 }
 
 void CUser::SetRevivalTime(long time)
@@ -4171,7 +4164,7 @@ bool CUser::isLoadingHackGold()
 
 bool CUser::isSaveInformNoticeFlag()
 {
-    return m_informNoticeFlag != 0;
+    return m_informNoticeFlags[0] != 0;
 }
 
 int CUser::CheckMaxLuckyLevel()
@@ -4214,7 +4207,7 @@ bool CUser::isRestingUser()
 
 void CUser::InitReceivedRequestType()
 {
-    *(char*)((char*)&m_field8ec28) = (char)0xff;
+    *(char*)((char*)&m_receivedRequestType) = (char)0xff;
 }
 
 bool CUser::isBreakAwayDungeonClear()
@@ -7695,6 +7688,20 @@ bool CUser::isSecurityServiceUsed()
 
 // ORIG W 0x0863bea2：return m_premium(+0x7121c).GetTotalPremiumCount() != 0
 // （scout 报告误关联 0x867cd20 = _UpdateUserInfo4Guild，已按真实符号核实）。
+
+// ORIG T 0x0864fc3e（docs/class_func_reports/CUser/CheckLimitMiniumAge.md）：
+// (age-1u) < minAge，或 age-1 == minAge 且未过生日 → *out=unique_id 低16 位、
+// 返回 0（年龄不足拦截）；否则返回 1。
+bool CUser::CheckLimitMiniumAge(int minAge, int& out)
+{
+    unsigned int age = static_cast<unsigned int>(GetAge());
+    if (age - 1U < static_cast<unsigned int>(minAge))
+        return false;
+    if (age - 1U == static_cast<unsigned int>(minAge) && !IsOverBirthDay())
+        return false;
+    return true;
+}
+
 bool CUser::IsPremiumUser() const
 {
     return m_premium.GetTotalPremiumCount() != 0;

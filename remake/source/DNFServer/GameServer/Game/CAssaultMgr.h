@@ -35,9 +35,21 @@ enum ENUM_ASSAULT_STATE
 {
     ENUM_ASSAULT_STATE_0 = 0
 };
+class CForcedMoveCharacter
+{
+public:
+    int m_field00;        // +0x00（CStaticDisposition::MoveUser 索引源）
+    int m_slotIdx;        // +0x04（CExtraMatrix::MoveUser 索引源）
+    CUser* m_user;        // +0x08
+    int m_destVill;       // +0x0c
+    int m_destArea;       // +0x10
+    int m_x;              // +0x14（矩阵写入）
+    int m_y;              // +0x18
+    int m_dir;            // +0x1c
 
+    void ForcedMove();    // ORIG T 0x82e567c（实现见 ForceMove TU）
+};
 class CAssaultPlace;
-class CForcedMoveCharacter;
 
 // =====================================================================
 // Point2d —— ORIG Point2d::C1 0x82f046a（默认空）/C1Eii 0x82f0472。
@@ -46,6 +58,7 @@ class Point2d
 {
 public:
     Point2d() {}
+    ~Point2d();
     Point2d(int x, int y) : m_x(x), m_y(y) {}
 
     // ORIG operator+= 0x82f04c0：分量相加，返回 *this
@@ -91,7 +104,9 @@ public:
 class CandidatePoint
 {
 public:
-    CandidatePoint() : m_point() {}
+    CandidatePoint();
+    ~CandidatePoint();
+
 
     bool operator<(const CandidatePoint& o) const          // ORIG 0x82f04ea
     {
@@ -108,7 +123,9 @@ public:
 class CExtraMatrix
 {
 public:
-    CExtraMatrix() {}
+    CExtraMatrix();
+    ~CExtraMatrix();
+
 
     void AddPoint(Point2d p);                              // ORIG 0x82e5962
     void MovePoint(const Point2d& delta);                  // ORIG 0x82e597c
@@ -126,8 +143,8 @@ public:
 class CCandidateMatrix
 {
 public:
-    CCandidateMatrix() {}
-    ~CCandidateMatrix() {}
+    CCandidateMatrix();
+    ~CCandidateMatrix();
 
     unsigned int At(unsigned int idx, int& x, int& y);          // ORIG 0x82e590c
     void MakeCandidatePoint(const Point2d& a, const Point2d& b);// ORIG 0x82e5ca8
@@ -205,6 +222,12 @@ private:
     CCandidateMatrix m_matrices[2]; // +0x14、+0x20
 };
 
+// 6 参投影版（ORIG T 0x82e5a0b；定义 owner=CVillageMonsterMgr.cpp，
+// CExtraMatrix::CheckPoint 等以 pvp_assault:: 名调用）
+int IsIncludeVirtualMoveAreas(std::vector<MapArea>* areas,
+                              int x, int y, int& outX, int& outY,
+                              int flag);   // ORIG 0x82e5a0b T：尾 mov $0,%eax → int 返回
+
 }  // namespace pvp_assault
 
 #endif  // DNF_CASSAULTMGR_H
@@ -266,6 +289,8 @@ public:
 
 // =====================================================================
 // CAssaultPlace —— 单场攻击区状态。
+// =====================================================================
+
 // ORIG C1 0x82f0614 / D1 0x82f13b6：
 //   CAssaulter[8]@+0x000（步长 0x20）→ … → m_pos(Point2d)@+0x118 →
 //   PartyInfo[2]@+0x12c（D1 反向清数组）。
@@ -279,16 +304,21 @@ public:
     CAssaulter m_assaulters[8];     // +0x000
     int m_field100;                 // +0x100（GetAssaulterCount 读）
     int m_field104;                 // +0x104（图标包 put_int）
-    char m_pad108[4];               // +0x108
+    int m_authenValue;              // +0x108（GetAuthenValue 读）
     int m_state;                    // +0x10c（GetState）
-    short m_view110;                // +0x110（图标包 put_short）
-    short m_view114;                // +0x114
-    Point2d m_pos;                  // +0x118（IsArea 比较 x/y）
+    Point2d m_posBase;              // +0x110（ORIG ctor 调 Point2d::C1 于 this+0x110；
+                                    //   Reset 以 Point2d(0,0) 写回；图标包 put_short 分量）
+    Point2d m_pos;                  // +0x118（IsArea 比较 x/y；_SendPacketToArea 门槛）
+    char m_teamFlag[2];             // +0x120..+0x121（_DelUser EndPvP flag 按 team 读）
+    int m_winTeam;                  // +0x124（CloseAssault 获胜队比较）
+    char m_pad125[7];               // +0x125..+0x12b
     PartyInfo m_parties[2];         // +0x12c
+    char m_pad134[8];               // +0x134..+0x13b
+    int m_abuseSec;                 // +0x13c（AbuseUser 节流时间戳）
 
     void Reset();                                   // 报告 Reset.md
     bool CheckPlayable();                           // ORIG W 0x82f06ea
-    int GetState();                                 // ORIG W 0x82f06fe
+    int GetState();                                 // ORIG W 0x82f06fe（读 +0x10c）
     bool IsArea(int vill, int area);                // ORIG W 0x82f06ae
     bool ExistUser(CUser* user);                    // ORIG T 0x82e8366
     bool GetTeam(CUser* user, ENUM_ASSAULT_TEAM& team);   // ORIG T 0x82e6cdc
@@ -304,13 +334,91 @@ public:
     bool _CheckPlayable();                          // ORIG T 0x82e9142
     void _GetTeamCount(int* counts);                // ORIG T 0x82e7232（STATE 版签名）
     int _GetUserIndex(CUser* user, bool strict);    // ORIG T 0x82e849a
+
+    // ---- LeaveAssaultPlace 链私有 helper（既有还原保留）----
+    bool _IsGiveupPanalty(bool flag);                     // ORIG T 0x82eacf4
+    void _MakeUserState(PacketGuard* p);                  // ORIG T 0x82e8c5a（包 0x03 全场状态）
+    void _SendUserState();                                // ORIG T 0x82e79f6
+    void _MakeViewAssaultIconPlayer(PacketGuard* p, bool flag); // ORIG T 0x82e8afc
+    void _SendPacketToArea(PacketGuard& packet);          // ORIG T 0x82e6d3a
+    void _DelUser(int index, bool flag);                  // ORIG T 0x82e6e2c
+    void CloseAssault();                                  // ORIG T 0x82e9ad6
+    bool _IsBroadcastRunaway(CUser* user);                // ORIG T 0x82eab1a
+    void _BroadcastRunaway(CUser* user, int index);       // ORIG T 0x82eab7a
+    void _MakeLeaveUser(PacketGuard* p, int index);       // ORIG T 0x82e9046
+    void _MakeCloseAssault(PacketGuard* p, int tick);     // ORIG T 0x82e88d6
+    void _MakeUserState(PacketGuard* p, CUser* user);     // ORIG T 0x82e8d60
+    int  _SendCloseAssault(CUser* user, int tick);        // ORIG T 0x82e7b2a
+
+    void TimeoutConnectP2P();
+    void TimeoutEndAssault();
+    void TimeoutCloseAssault();
+    void TimeoutCompleteLoad();
+    // ---- 访问器（worklist 符号）----
+    int GetAuthenValue();                           // ORIG 0x82f06a0（读 +0x108）
+    int GetAssaultPlaceId();                        // ORIG 0x82f0680（读 +0x104）
+    void SetAssaultPlaceId(unsigned int id);        // ORIG 0x82f068e（写 +0x104）
+    int GetAssaulterCount();                        // ORIG 0x82f06dc（读 +0x100）
+    const char* GetAnotherTeamCharacName(int idx);  // ORIG 0x82eb3ba
+    void AbuseUser(CUser* user);                    // ORIG T 0x82eb5e2
+
+};
+// =====================================================================
+// CAssaultMgr —— 攻击区管理器（保持既有布局与 API）。
+// ORIG ctor 0x8235084：map 默认构造 + 首字节清零；
+//   +0x00 bool（SetAssaultChannel 写入）+0x08 std::map<uint, CAssaultPlace*>。
+// =====================================================================
+class CAssaultMgr
+{
+public:
+    CAssaultMgr() : m_bAssaultChannel(false) {}
+
+    void OnMoveArea(CUser* user);                        // ORIG 0x82ef610
+    void OnLeaveAssaultPlace(CUser* user, bool flag);    // ORIG 0x82ef176
+    void SendPacket(CUser* user, bool flag, PacketGuard* packet);
+                                                         // ORIG 0x82efb54
+    CAssaultPlace* _GetAssaultPlace(unsigned int id);    // ORIG 0x82ed9fe
+    void SetAssaultChannel(bool flag);                   // ORIG W SetAssaultChannelEb
+    void ForcedMoveAtPowerWarPlace(CUser* user);         // ORIG T 0x082ed672
+    static void NotifyGhostTime(CUser* user, int a, int ghostTime);
+                                                         // ORIG T 0x082eff42
+    void OnTimeoutEndAssault(unsigned int a, int b);               // ORIG 0x82efaa8
+    void OnTimeoutCloseAssault(unsigned int a, int b);             // ORIG 0x82efafe
+    void OnTimeoutConnectP2P(unsigned int a, int b);               // ORIG 0x82efa52
+    void OnTimeoutCompleteLoad(unsigned int a, int b);             // ORIG 0x82ef818
+    void OnTimeoutConnectP2PAfterAssault(unsigned int a, int b);   // ORIG 0x82ef9d8
+    void OnTimeoutCompleteLoadAfterAssault(unsigned int a, int b); // ORIG 0x82ef86e
+    void FreeAssaultPlace(int id, CAssaultPlace* place);          // ORIG T 0x82edb6a
+                                                                  // （map 摘除 + Reset + 归还池）
+
+    bool m_bAssaultChannel;                              // +0x00
+    char m_pad01[7];                                     // +0x01..+0x07
+    std::map<unsigned int, CAssaultPlace*> m_places;     // +0x08
+};
+// =====================================================================
+// CAssaultPlaceFactory —— StaticPool 包装。
+// ORIG C1 0x82f0f96 / D1 0x82f0f82：成员即 StaticPool<CAssaultPlace,128>；
+// Acquire 0x82f0f54 / Free 0x82f0f68 直接转发池方法。
+// =====================================================================
+class CAssaultPlaceFactory
+{
+public:
+    CAssaultPlaceFactory();
+    ~CAssaultPlaceFactory();
+
+    CAssaultPlace* AcquireAssaultPlace();                 // ORIG 0x82f0f54
+    void FreeAssaultPlace(CAssaultPlace* place);          // ORIG 0x82f0f68
+
+    StaticPool<CAssaultPlace, 128> m_pool;
 };
 
+CAssaultPlaceFactory* GetInstanceAssaultPlaceFactory();  // ORIG T 0x82f0fa9（guard 单例）
+
+
+CAssaultMgr* GetInstanceAssaultMgr();                    // guard 单例
+
 }  // namespace pvp_assault
 
 #endif  // DNF_CASSAULTMGR_H_PART2
-int GetDirectionByTeam(ENUM_ASSAULT_TEAM team);   // ORIG T 0x82e564c（0→6、1→4、其他→0）
 
-}  // namespace pvp_assault
 
-#endif  // DNF_CASSAULTMGR_H_PART2

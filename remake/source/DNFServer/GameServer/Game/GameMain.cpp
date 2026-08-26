@@ -157,13 +157,6 @@ void CInGameAdvertisementManager::LoadADExposeInfoAtApp()
 {
 }
 
-// Taiwan::AuthGarenaToken::init(char const*) —— ORIG 0x81730d6（0x11b 字节）：
-// param 与空串比较，空则 COpensslRSA::Init()（默认公钥），否则 COpensslRSA::Init(param)。
-// COpensslRSA（全局 0x9404754）未建模 —「推断」骨架：TODO(G2)。
-void Taiwan::AuthGarenaToken::init(char const*)
-{
-}
-
 // 定时器包装类：类型声明已迁至权威头 TimerDispatcher.h（Timer_* 分发器类，
 // 静态 RegistNextTimer/registNextTimer 成员与 ORIG nm 一致）；本 TU 仅保留
 // 其静态成员定义（下方，逐指令转写）。
@@ -1049,31 +1042,6 @@ int check_argv(int argc, char** argv)
 // +8 m_tidCopy，虚表槽0=stop()、槽3=dispatch(void*)，C1 0x8630b38 / begin 0x8630b8a /
 // dispatch_proxy 0x8630c1a / getThreadID 0x82a4218）。
 
-namespace exchange_server
-{
-// ORIG：BeginExchangeServerThread 0x848f2b8 / getExchangeServerThreadID
-// 0x848f2cd / GetInstanceExchangeServerThread 0x8493e8d / CExchangeServerThread::dispatch
-// 0x8493bfe（W）。继承权威 ThreadInterface（线程体 dispatch 未建模，走基类默认空体）。
-class CExchangeServerThread : public ThreadInterface
-{
-};
-static CExchangeServerThread* s_instance = 0;
-
-CExchangeServerThread* GetInstanceExchangeServerThread()
-{
-    if (s_instance == 0)
-        s_instance = new CExchangeServerThread;
-    return s_instance;
-}
-bool BeginExchangeServerThread()
-{
-    return GetInstanceExchangeServerThread()->begin();
-}
-unsigned long getExchangeServerThreadID()
-{
-    return GetInstanceExchangeServerThread()->getThreadID();
-}
-}  // namespace exchange_server
 
 // create_thread() —— ORIG 0x829fd30（0x2f8 字节，逐指令转写）：
 // 依次 begin 七个全局线程并 setCurrentPacketPool 绑定包池；任一失败返回 0；

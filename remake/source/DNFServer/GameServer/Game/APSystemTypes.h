@@ -9,23 +9,31 @@
 class CUser;
 
 // APSystem 共享类型（CActionPointEtcParameter 成员元素 / DB 签名）。
-// ORIG 证据：ClearData 0x088948fc、IsValidTodayRewardItem 0x08894976
-// （_SIG_LOAD_ACTION_POINT16_TodayRewardItemE 嵌套类，单 int 按 4 字节传递）。
 // 由 MoreTypes.h 与 CDataManager.h 共同包含，避免重复定义。
 
 class MSG_CHARAC_SELECT;   // 全局作用域（PacketTypes.h 权威定义；仅引用）
 namespace APSystem
 {
-class _SIG_LOAD_ACTION_POINT
+
+// ============================================================================
+// APSystem::_TodayRewardItem —— 顶层类（ORIG W 0x08895736 C1/C2 同体，
+// memset(this,0,0xe)；D1/D2 0x08897d76 空体）。
+// CActionPointEtcParameter::m_todayRewards 的元素类型；import 段
+// [action point today reward] 栈对象 -0x116 同构（GetTodayRewardAndSendMail
+// 0x08122104 元素偏移 +0/+4/+6/+8/+0xc 实证）。
+// ============================================================================
+class _TodayRewardItem
 {
 public:
-    class _TodayRewardItem
-    {
-    public:
-        int m_itemIdx;  // +0x00
-    };
-    char m_pad[0x100];
-};
+    __attribute__((used)) _TodayRewardItem();   // ORIG W 0x08895736
+    __attribute__((used)) ~_TodayRewardItem();  // ORIG W 0x08897d76
+
+    int m_itemIdx;              // +0x00 today reward 序号 [0..3]
+    unsigned short m_minAp;     // +0x04
+    unsigned short m_maxAp;     // +0x06
+    int m_rewardItemIdx;        // +0x08（find_item 实参）
+    unsigned short m_count;     // +0x0c（邮件附件数量）
+};                              // sizeof 0xe
 
 // APSystem::_ActionPoint —— 行动点 DB 行记录。
 // ORIG W 0x0848f5b4 _ZN8APSystem12_ActionPointC1Ev/C2Ev（ctor 体=memset(this,0,0xb)，
@@ -42,6 +50,33 @@ public:
     int m_groupIndex;            // +0x02（IsValidActionGroupIndex 实参来源）
     unsigned char m_days[5];     // +0x06..+0x0a
 };                               // sizeof 0xb
+
+// ============================================================================
+// _SIG_LOAD_ACTION_POINT —— ORIG W 0x0848f5d8 C1/C2 同体（sizeof 0xcf1 =
+// 0xd 头 + 300×0xb）。SendResult put_binary(sig,0xcf1)、DB_LoadActionPoint::
+// Select、CActionPointManager::Set memcpy(this+8,sig,0xcf1) 多点实证。
+// 嵌套 _TodayRewardItem 为另一类型：IsValidTodayRewardItem
+// (NS_22_SIG_LOAD_ACTION_POINT16_TodayRewardItemE，按值 4 字节；
+// 体仅读 [ebp+8]∈[0,3]，0x08894976 objdump)，无独立生命周期符号。
+// ============================================================================
+class __attribute__((packed)) _SIG_LOAD_ACTION_POINT
+{
+public:
+    class _TodayRewardItem
+    {
+    public:
+        int m_itemIdx;   // +0x00（today 序号 [0..3]，单 int 按 4 字节传）
+    };                   // sizeof 4
+
+    _SIG_LOAD_ACTION_POINT();   // ORIG W 0x0848f5d8 C1/C2 同体
+
+    unsigned int m_characNo;             // +0x00（请求侧角色号；Update where 条件）
+    unsigned int m_apSum;                // +0x04（select ap_sum）
+    unsigned char m_isRewardMedal;       // +0x08
+    unsigned char m_isRewardItem[4];     // +0x09..+0x0c
+    _ActionPoint m_actionPoints[300];    // +0x0d，步长 0xb
+};                                       // sizeof 0xcf1
+typedef char _assert_sig_load_action_point_size[(sizeof(_SIG_LOAD_ACTION_POINT) == 0xcf1) ? 1 : -1];
 
 // 元素布局（importActionPointSystemEtcScript 0x08894996 汇编实证，sizeof 0x30）：
 //   B+0x00 ushort / B+0x02 int(IsValidActionGroupIndex 参数) / B+0x06 byte[5]
@@ -65,9 +100,12 @@ struct CActionPointEx
 };                                   // sizeof 0x30
 
 // 布局（importActionPointSystemEtcScript [action point medal reward] 实证，
-// 栈对象 -0x116..-0x109：ushort/ushort/int/ushort，sizeof 0xc）。
+// 栈对象 -0x116..-0x109：ushort/ushort/int/ushort，sizeof 0xc；
+// ctor 0x08895712=memset(this,0,0xa)，尾 pad 不清零）。
 struct _MedalRewardItem
 {
+    _MedalRewardItem();   // ORIG W 0x08895712
+
     unsigned short m_field00;   // +0x00
     unsigned short m_field02;   // +0x02
     int m_field04;              // +0x04
@@ -85,5 +123,11 @@ public:
     static bool RequestLoadActionPointFromDBAndES(CUser& user, MSG_CHARAC_SELECT& msg);
 };
 }
+
+// ============================================================================
+// zlib 包装全局函数（本批唯一实现属主：APSystemOnlyOrig.cpp；Main 授权）。
+// ORIG T 0x086b2102 uncompress_zip / T 0x086b201f compress_zip（objdump 全文转写）。
+bool uncompress_zip(char* out, unsigned int& outLen, const char* in, unsigned int inLen);
+bool compress_zip(char* out, unsigned int& outLen, const char* in, unsigned int inLen);
 
 #endif  // DNF_GAME_APSYSTEM_TYPES_H_

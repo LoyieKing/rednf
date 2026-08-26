@@ -90,11 +90,7 @@ struct stOccStatisticByAge
 
 namespace pvp_assault
 {
-// 力战区域判定谓词（GameWorld::get_disposition 以 vtable slot 0 调用；
-// 空类仅承载 vtable 指针，无成员语义）。
-class CDisposition
-{
-};
+class CDisposition;   // 力战区域谓词基类；权威定义见 CAssaultMgr.h
 }
 
 class GameWorld

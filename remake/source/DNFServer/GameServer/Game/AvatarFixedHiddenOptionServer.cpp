@@ -331,3 +331,190 @@ int AvatarFixedHiddenOptionServer::Init()
     }
     return 1;
 }
+
+// ============================================================================
+// LinkClosureB.AradServers 追加段：
+//   GetSkillIndex(rarity)       ORIG T 0x0817e1ec（GetSkillIndex.md 转写）
+//   GetSkillIndex(rarity, idx)  ORIG T 0x0817e23e（GetSkillIndex_0817e23e.md）
+//   GetRandomInput              ORIG T 0x0817e334（GetRandomInput.md）
+//   IsVaildSkillIndex           ORIG T 0x0817e392（IsVaildSkillIndex.md）
+//   CheckCondition              ORIG T 0x0817e4c6（CheckCondition.md 全文转写）
+//   ChangeHiddenOption          ORIG T 0x0817e8d6（ChangeHiddenOption.md 全文转写）
+// ============================================================================
+
+#include "CUser.h"
+#include "CUserCharacInfo.h"
+#include "CInventory.h"
+#include "Inven_Item.h"
+#include "CDataManager.h"       // G_CDataManager / find_item
+#include "LogManager.h"
+#include "GlobalData.h"
+#include "MoreTypes.h"          // arad::SigAvatarHiddenOptionChange / SigAradAvatarHiddenOptionSave
+#include "StreamPool.h"
+#include "MsgQueueMgr.h"
+#include "Arad_InternalDispatcher.h"   // DISPATCHER::make_internal_stream_jpn
+
+int AvatarFixedHiddenOptionServer::GetRandomInput(ENUM_RARITY rarity)
+{
+    if (rarity >= 6)
+        return -1;
+    if (m_cumulativeRate[rarity].empty())
+        return -1;
+    return m_cumulativeRate[rarity].back();
+}
+
+bool AvatarFixedHiddenOptionServer::IsVaildSkillIndex(ENUM_RARITY rarity,
+                                                      int idx)
+{
+    if (rarity >= 6)
+        return false;
+    int size = (int)m_script.m_abilities[rarity].size();
+    if (size == 0 || idx >= size)
+        return false;
+    return true;
+}
+
+int AvatarFixedHiddenOptionServer::GetSkillIndex(ENUM_RARITY rarity, int randIdx)
+{
+    std::vector<int>& rates = m_cumulativeRate[rarity];
+    if (rates.empty())
+        return -1;                     // back() 前置保护（ORIG 空桶即 empty->back 未定义；
+                                       // GetRandomInput 已保证非空进入，此处保持一致性）
+    if (!(randIdx < rates.back() && 0 <= randIdx))
+        return -1;
+    std::vector<int>::iterator up =
+        std::upper_bound(rates.begin(), rates.end(), randIdx);
+    return (int)(up - rates.begin()) + 1;
+}
+
+int AvatarFixedHiddenOptionServer::GetSkillIndex(ENUM_RARITY rarity)
+{
+    int total = GetRandomInput(rarity);
+    if (total == -1)
+        return -1;
+    int randIdx = get_rand_int(total);
+    return GetSkillIndex(rarity, randIdx);
+}
+
+bool AvatarFixedHiddenOptionServer::CheckCondition(
+    CUser* user, arad::SigAvatarHiddenOptionChange* sig)
+{
+    CInventory* invW = user->getCurCharacInvenW();
+    // 材料槽（INVEN 1）—— ORIG 以 sret 形式调用 GetInvenSlot（按值返回）
+    Inven_Item material = invW->GetInvenSlot(1, (int)sig->m_materialSlot);
+    if (material.isEmpty())
+    {
+        LogManager::logFormat(
+            1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+            "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+            0x71,
+            "AVATAR HIDDEN OPTION CHANGE : Material GetInvenSlot() failed. [slot:%d] [charac_no:%d]",
+            (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x16);
+        return false;
+    }
+    if (m_script.isMaterialItemIndex((int)material.m_addInfo))
+    {
+        Inven_Item avatar = invW->GetInvenSlot(2, (int)sig->m_avatarSlot);
+        if (avatar.isEmpty())
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+                "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+                0x83,
+                "AVATAR HIDDEN OPTION CHANGE : Avatar GetInvenSlot() failed. [slot:%d] [charac_no:%d]",
+                (int)sig->m_avatarSlot, (unsigned int)user->getCurCharacNo());
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x16);
+            return false;
+        }
+        CItem* item = G_CDataManager()->find_item((int)avatar.m_addInfo);
+        if (item == 0 || !item->IsAvatarItem())
+            return false;
+        if (!item->IsHiddenOption())
+        {
+            LogManager::logFormat(
+                1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+                "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+                0x94,
+                "AVATAR HIDDEN OPTION CHANGE : IsHiddenOption() failed. [index:%d] [charac_no:%d]",
+                (int)avatar.m_addInfo, (unsigned int)user->getCurCharacNo());
+            user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x11);
+            return false;
+        }
+        return true;
+    }
+    LogManager::logFormat(
+        1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+        "bool AvatarFixedHiddenOptionServer::CheckCondition(CUser*, arad::SigAvatarHiddenOptionChange*)",
+        0x78,
+        "AVATAR HIDDEN OPTION CHANGE : isMaterial() failed [index:%d] [charac_no:%d]",
+        (int)material.m_addInfo, (unsigned int)user->getCurCharacNo());
+    user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x11);
+    return false;
+}
+
+bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(
+    CUser* user, arad::SigAvatarHiddenOptionChange* sig)
+{
+    CInventory* invW = user->getCurCharacInvenW();
+    if (invW->delete_item(INVEN_TYPE(1), (int)sig->m_materialSlot, 1,
+                          eItemDelReason(3), true) != 1)
+    {
+        LogManager::logFormat(
+            1, "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp",
+            "bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(CUser*, arad::SigAvatarHiddenOptionChange*)",
+            0xa1,
+            "AVATAR HIDDEN OPTION CHANGE : delete_item() failed. [slot:%d] [charac_no:%d]",
+            (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24c, 0x13);
+        return false;
+    }
+    user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
+                             (int)sig->m_materialSlot);
+    cMyTrace traceDel(
+        "bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(CUser*, arad::SigAvatarHiddenOptionChange*)",
+        0xa6, 0);
+    traceDel("AVATAR HIDDEN OPTION CHANGE : delete_item() success. [slot:%d] "
+             "[charac_no:%d]",
+             (int)sig->m_materialSlot, (unsigned int)user->getCurCharacNo());
+
+    Inven_Item* ref = invW->GetInvenRef(2, (int)sig->m_avatarSlot);
+    if (ref == 0)
+        return false;
+    CItem* item = G_CDataManager()->find_item((int)ref->m_addInfo);
+    if (item == 0)
+        return false;
+    if (!item->IsAvatarItem())
+        return false;
+
+    int skillIdx = GetSkillIndex((ENUM_RARITY)item->get_grade());
+    ref->m_fieldSplit.m_fielddLo = (short)skillIdx;      // +0x0d word 写入
+    sig->m_hiddenOption = (unsigned short)(short)ref->m_fieldSplit.m_fielddLo;
+
+    arad::SigAradAvatarHiddenOptionSave save;             // +0/…清零语义同 ORIG W ctor
+    save.m_field0 = user->get_acc_id();
+    save.m_characNo = (unsigned int)user->getCurCharacR()->m_characNo;
+    save.m_itId = (unsigned int)ref->m_addInfo;
+    save.m_slot = (short)((int)sig->m_avatarSlot + 10);
+    save.m_hiddenOption = (short)ref->m_fieldSplit.m_fielddLo;
+
+    cMyTrace traceOk(
+        "bool AvatarFixedHiddenOptionServer::ChangeHiddenOption(CUser*, arad::SigAvatarHiddenOptionChange*)",
+        0xc2, 0);
+    traceOk("AVATAR HIDDEN OPTION CHANGE : success [slot:%d] [item_id:%d] "
+            "[hidden_option:%d] [charac_no:%d]",
+            (int)((int)sig->m_avatarSlot + 10), save.m_itId,
+            (int)(short)save.m_hiddenOption,
+            (unsigned int)user->getCurCharacNo());
+
+    Stream* stream = GlobalData::s_stream_pool->Acquire(
+        "localjapan/Arad_AvatarFixedHiddenOptionServer.cpp", 0xc6);
+    CStreamGuard guard(stream, true);
+    ARAD::DISPATCHER::make_internal_stream_jpn(
+        guard, (ARAD::ENUM_INTERNALPACKET_JPN)0x2f, -1);
+    guard.put_binary(&save, 0x10);
+    GlobalData::s_msgq_mgr->put(MsgQueueMgr::QUEUE_IDX(2), guard);
+    user->SendUpdateItemList((CUser::eSendTarget)1, (ENUM_ITEMSPACE)1,
+                             (int)sig->m_avatarSlot);
+    return true;
+}

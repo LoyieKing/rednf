@@ -1088,7 +1088,7 @@ int CMailBoxHelper::ReqDBSendNewMail(CUser* user, MSG_MAILBOX_SEND* msg,
 
         if (proto->IsAvatarItem())
         {
-            const WongWork::CAvatarItemMgr* mgr = inven->GetAvatarItemMgrR();
+            WongWork::CAvatarItemMgr* mgr = inven->GetAvatarItemMgrW();  // IsTempKey ORIG 非 const
             if (mgr->IsTempKey(found.m_addInfo2))
                 return 0x11;
             if (mgr->GetExpireDate(found.m_addInfo2) != 0)

@@ -347,6 +347,76 @@ bool AvatarRouletteServer::InitAddCharacSkill()
     return true;
 }
 
+bool AvatarRouletteServer::Pickup(PickedAvatarInfo& picked, int grade, int index)
+{
+    // ORIG 0x0817fb28（报告 AvatarRouletteServer/Pickup.md 全文）。
+    // 档位抽取：randVal<roulette+0x0c 时 band∈{0,1}，否则从
+    // m_avatars[0].size()-2 偏移取 band（内联 size helper 08180760 实证）。
+    int randVal = get_rand_int(m_totalCount);
+    if (randVal < m_pRoulette->m_upperAvatarRate)
+    {
+        picked.m_gradeBand = static_cast<char>(get_rand_int(2));
+    }
+    else
+    {
+        picked.m_gradeBand = static_cast<char>(
+            get_rand_int(static_cast<int>(m_pRoulette->m_avatars[0].size()) - 2) + 2);
+    }
+
+    if (grade < 0 || grade > 10)
+        return false;
+
+    std::vector<std::vector<std::pair<unsigned long, int> > >& outer =
+        m_pRoulette->m_avatars[grade];                 // roulette + grade*0xc + 0x14
+    if (static_cast<unsigned int>(picked.m_gradeBand) >= outer.size())
+        return false;
+    std::vector<std::pair<unsigned long, int> >& inner =
+        outer[static_cast<int>(picked.m_gradeBand)];
+    if (static_cast<unsigned int>(index) >= inner.size())
+        return false;
+
+    std::pair<unsigned long, int>& entry = inner[index];
+    picked.m_itemId = static_cast<unsigned int>(entry.first);   // ORIG 仅写低 dword
+    picked.m_zoneType = static_cast<char>(entry.second);
+
+    CItem* item = G_CDataManager()->find_item(static_cast<int>(picked.m_itemId));
+    if (item == 0)
+        return false;
+    if (!item->IsAvatarItem())                                  // vtable+0x10==1 才继续
+        return false;
+
+    CEquipItem* equip = static_cast<CEquipItem*>(item);
+    picked.m_optionOrSkillIdx =
+        static_cast<char>(get_rand_int(equip->getAvatarOptionSize()));
+
+    if (!(index == 3 && (grade == 9 || grade == 0)))
+    {
+        picked.m_pad9 = 0;
+        return true;
+    }
+
+    // 加成技能选择：ORIG 将 m_addCharacSkillMap[uid] 的 value map 拷贝到栈
+    // （copy ctor 08180ca2 实证），找不到 grade 键时直接返回 false（不写 pad9）。
+    std::map<unsigned long,
+             std::map<int, std::vector<LevelUpSkill> > >::const_iterator it =
+        m_addCharacSkillMap.find(static_cast<unsigned long>(picked.m_itemId));
+    if (it == m_addCharacSkillMap.end())
+        return false;
+
+    std::map<int, std::vector<LevelUpSkill> > skillMap(it->second);
+    std::map<int, std::vector<LevelUpSkill> >::const_iterator sit =
+        skillMap.find(grade);
+    if (sit == skillMap.end())
+        return false;
+
+    std::vector<LevelUpSkill> skillVec(sit->second);
+    picked.m_optionOrSkillIdx =
+        static_cast<char>(skillVec[get_rand_int(skillVec.size())].m_field4);
+
+    picked.m_pad9 = 0;
+    return true;
+}
+
 // ============================================================================
 // CChattingEmoticonList ctor（ORIG 0x0837e418W；声明见 CDataManager.h：
 // map@0/mapVec@0x18/mapInt@0x30 三 map 默认构造，编译器生成）

@@ -2814,7 +2814,7 @@ int g_nElixerAbility[1] = {0};
 CSkillChanger::CSkillChanger() {}
 CSkillChanger::~CSkillChanger() {}
 
-void CSkillChanger::_ResetSkillPoint(CUser* user, int kind)
+void CSkillChanger::_ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
 {
     int level = 1;
     while (true)
@@ -2823,21 +2823,21 @@ void CSkillChanger::_ResetSkillPoint(CUser* user, int kind)
         if (charLevel < level)
             break;
         SkillSlot* slotR = (SkillSlot*)user->getCurCharacSkillR();
-        int sp = slotR->get_remain_sp_at_index((ENUM_SKILL_TREE_KIND)kind);
+        int sp = slotR->get_remain_sp_at_index(kind);
         int spUp = G_CDataManager()->GetSpAtLevelUp(level);
         SkillSlot* slotW = (SkillSlot*)user->getCurCharacSkillW();
-        slotW->set_remain_sp_at_index(sp + spUp, (ENUM_SKILL_TREE_KIND)kind);
+        slotW->set_remain_sp_at_index(sp + spUp, kind);
         level++;
     }
 }
 
-void CSkillChanger::_ResetSFPoint(CUser* user, int kind)
+void CSkillChanger::_ResetSFPoint(CUser* user, ENUM_SKILL_TREE_KIND kind)
 {
     int charLevel = user->get_charac_level();
     if (charLevel > 0x31 && kind > 1)
     {
         SkillSlot* slotW = (SkillSlot*)user->getCurCharacSkillW();
-        slotW->set_remain_sfp_at_index(charLevel - 0x31, (ENUM_SKILL_TREE_KIND)kind);
+        slotW->set_remain_sfp_at_index(charLevel - 0x31, kind);
     }
 }
 
@@ -2894,11 +2894,11 @@ int CSkillChanger::GetCurCharacTotalSP(const CUser* user, bool flag)
 }
 
 // ORIG 0x0860a950 真实空实现（仅 push/mov/pop/ret，无逻辑）。
-void CSkillChanger::_ApplyUserData(CUser* /*user*/, int /*kind*/)
+void CSkillChanger::_ApplyUserData(CUser* /*user*/, ENUM_SKILL_TREE_KIND /*kind*/)
 {
 }
 
-void CSkillChanger::_CountSkillBook(const Inven_Item& item)
+void CSkillChanger::_CountSkillBook(Inven_Item& item)
 {
     int itemIdx = item.m_addInfo;
     int count = item.m_addInfo2;
@@ -2923,43 +2923,43 @@ void CSkillChanger::SkillInitialize(CUser* user, int kind, bool flag)
     m_state.m_reserved91 = 0;
     if (kind == 0)
     {
-        _ResetSkillPoint(user, 0);
-        _ResetSkillPoint(user, 1);
-        _ResetSFPoint(user, 2);
-        _ResetSFPoint(user, 3);
+        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)0);
+        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)1);
+        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)2);
+        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)3);
         _GetUserItemCount(user);
-        _ApplyUserData(user, 0);
-        _ApplyUserData(user, 1);
-        _ApplyUserData(user, 2);
-        _ApplyUserData(user, 3);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)1);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)2);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)3);
     }
     else if (kind == 1)
     {
-        _ResetSkillPoint(user, 0);
-        _ResetSFPoint(user, 2);
+        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)0);
+        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)2);
         _GetUserItemCount(user);
-        _ApplyUserData(user, 0);
-        _ApplyUserData(user, 2);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)2);
     }
     else if (kind == 2)
     {
-        _ResetSkillPoint(user, 1);
-        _ResetSFPoint(user, 3);
+        _ResetSkillPoint(user, (ENUM_SKILL_TREE_KIND)1);
+        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)3);
         _GetUserItemCount(user);
-        _ApplyUserData(user, 1);
-        _ApplyUserData(user, 3);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)1);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)3);
     }
     else if (kind == 3)
     {
-        _ResetSFPoint(user, 2);
+        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)2);
         _GetUserItemCount(user);
-        _ApplyUserData(user, 2);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)2);
     }
     else if (kind == 4)
     {
-        _ResetSFPoint(user, 3);
+        _ResetSFPoint(user, (ENUM_SKILL_TREE_KIND)3);
         _GetUserItemCount(user);
-        _ApplyUserData(user, 3);
+        _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)3);
     }
 }
 }

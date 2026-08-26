@@ -442,7 +442,8 @@ struct SIG_CREATURE_ITEM
     int m_ceraOrderNo;          // +0x60（InsertCreatureItem ← get_cera_item_order_no）
     int m_field64;              // +0x64（RecvMail=4/SendMail=3/InsertCreatureItem=6）
     int m_mapSize;              // +0x68
-    unsigned char m_pad6c[8];   // +0x6c → 总 0x74（ORIG memset 覆盖范围）
+    int m_field6c;              // +0x6c（CDBMsgSender::ChangeOwner p6；DB 域报告待核对）
+    int m_field70;              // +0x70（ChangeOwner p7；同上）→ 总 0x74（ORIG memset 覆盖范围）
 };
 static_assert(sizeof(SIG_CREATURE_ITEM) == 0x74, "SIG_CREATURE_ITEM ABI drift");
 struct SIG_CREATURE_ITEM_LAYOUT_MIRROR
@@ -1653,15 +1654,26 @@ struct SIG_USER_PLAY_TIME_STATISTIC
     char m_pad[0xf4];
 };
 
+// Wave5 AltarProc 批次字段化（sizeof/偏移不变；证据 docs/class_func_reports/
+// CAdvanceAltarLog/incrementEntranceData.md + updateDatabase.md trace 字段序）
 struct STAdvanceAltarEntranceData
 {
-    char m_pad[0x10];
-};
+    unsigned int m_stageIndex;     // +0x00
+    unsigned int m_enterCount;     // +0x04
+    unsigned int m_successCount;   // +0x08
+    unsigned int m_obtainStar;     // +0x0c
+};                                 // 0x10
 
 struct STAdvanceAltarLayerStatData
 {
-    char m_pad[0x10];
-};
+    unsigned short m_itemType;     // +0x00
+    unsigned short m_field2;       // +0x02【名推断】
+    unsigned int m_itemIndex;      // +0x04
+    unsigned short m_itemLevel;    // +0x08
+    unsigned short m_useCount;     // +0x0a
+    unsigned short m_useStar;      // +0x0c
+    unsigned short m_padE;         // +0x0e（补齐至 0x10；自然布局由对齐插入）
+};                                 // 0x10
 
 // STBossDungeonTowerLog 权威定义见 CBossDungeonEntranceLog.h（0x10 POD，
 // 四个 uint 字段；ORIG memset 0x10 + 偏移 +0x0/+0x4/+0x8/+0xc 证据）。

@@ -29,13 +29,16 @@
 #include "Stream.h"
 #include "ThreadInterface.h"
 
-class CACHE_CHARACTER_TYPE;
-template <typename T, int N> class StaticPool;
+template <typename T, int N> class StaticPool;   // 仅指针/引用成员需要；
+class CACHE_CHARACTER_TYPE;  // 前置：CCacheCharacterMgr 接口用；完整类型 CacheCharacterType.h
+                                                // m_sessionPool/m_pool 完整类型由
+#include "StaticPool.h"                         // 包含 TU 隐式实例化使用。
 
 namespace exchange_server
 {
 
 const unsigned int HEADER_SIZE = 0x0d;   // ORIG r data 0x8c79790 = 0x0d
+class IExchangeServer;   // 前置：CSession::exchange_server_ 静态成员用（定义见下）
 
 enum EXCHANGE_SERVER_TYPE
 {
@@ -57,6 +60,7 @@ class CSession : public CNetwork<95000, 450000>
 {
 public:
     CSession();                          // ORIG 0x848ffd0
+    ~CSession();                         // ORIG D1 0x8495662（仅基类析构）
 
     int GetSocket();                     // ORIG 0x8490024 → base get_socket()
     void SetChannelNo(int channelNo);    // ORIG 0x848ffbe（+0x851a4）
@@ -64,16 +68,18 @@ public:
     void SetTriggerSessionEventType(int type);  // ORIG 0x8490038（+0x851a0）
     void AddTriggerSessionEventType(int type);  // ORIG 0x849004a（|= ）
     int GetTriggerSessionEventType();           // ORIG 0x8490066
-
-    int Parsing(int recvLen);            // ORIG 0x8490074（HEADER_SIZE 包解析）
-    void OnRecv();                       // ORIG 0x849030e
-    void OnSend();                       // ORIG 0x8490364
-    void OnError();                      // ORIG 0x84903ee
-    void OnAccept();                     // ORIG 0x849045e
-    void OnConnect();                    // ORIG 0x84905d2
+    static IExchangeServer* exchange_server_;   // ORIG W _ZN15exchange_server8CSession16exchange_server_E
+    CSession* OnAccept();                // ORIG 0x849045e：accept+set_socket 后返回新会话
+    bool OnConnect();                    // ORIG 0x84905d2
+    bool OnRecv();                       // ORIG 0x849030e
+    int OnSend();                        // ORIG 0x8490364（-1=失败）
+    bool OnError();                      // ORIG 0x84903ee
     int Send(PacketGuard& guard);        // ORIG 0x84906d0
-    int Listen(int port, const char* ip);// ORIG 0x8490767
-    int Connect(const char* ip, int port);  // ORIG 0x8490829
+    int Parsing(int recvLen);            // ORIG 0x8490074（HEADER_SIZE 包解析）
+    // ORIG 两函数调用约定未传 this（TryListen/TryConnect 仅压 port/ip），
+    // 实为静态成员；ORIG 返回寄存器承载新分配的 session 指针（0=失败）。
+    static CSession* Listen(int port, const char* ip);   // ORIG 0x8490767
+    static CSession* Connect(const char* ip, int port);  // ORIG 0x8490829
     void Disconnect();                   // ORIG 0x84908f2
 
 private:
@@ -103,8 +109,10 @@ public:
 // CSessionManager<S,P,E> —— 仅基础类派生（ctor/dtor 仅调 E 子对象生命周期；
 //   ORIG 尺寸 == sizeof(E)）。P=PacketGuard 当前未在方法签名外使用。
 // ---------------------------------------------------------------------------
-template <typename SESSION, typename PACKETGUARD, typename EPOLL>
-class CSessionManager : public EPOLL
+template <typename SESSION, typename PACKETGUARD,
+          template <typename> class EPOLL>   // template-template 参数（ORIG mangled
+                                             // 第三实参为无实参模板名，实证）
+class CSessionManager : public EPOLL<SESSION>
 {
 public:
     CSessionManager();
@@ -127,10 +135,12 @@ class IExchangeServer
 {
 public:
     virtual bool DispatchPacket(CSession* session, char* data, int len) = 0;
-    virtual bool UnregisterExchangeServer(int serverType) = 0;
+    virtual void UnregisterExchangeServer(int serverId) = 0;
     virtual CSession* AllocSession() = 0;
     virtual void FreeSession(CSession* session) = 0;
-    virtual bool DispatchMessage(Stream* stream) = 0;
+    // vtable 0x8c7a1d0 第 5 槽实证 = GetServerType（OnRecvPacketServerInfo*
+    // 存在 this->vtable[4]() 无参虚调用）。DispatchMessage 为非虚成员。
+    virtual EXCHANGE_SERVER_TYPE GetServerType() = 0;
 
     IExchangeServer() {}
     ~IExchangeServer() {}                // 非虚空析构（ORIG 无 IES D 符号）
@@ -156,7 +166,7 @@ public:
     virtual ~CExchangeServer();          // ORIG 0x8493b82
 
     void SetServerType(EXCHANGE_SERVER_TYPE type);   // ORIG 0x849103c（+0x68）
-    EXCHANGE_SERVER_TYPE GetServerType();            // ORIG 0x8491030
+    EXCHANGE_SERVER_TYPE GetServerType();            // ORIG 0x8491030（覆盖基类纯虚）
     CSession* AllocSession();                        // ORIG 0x849104a（池 Acquire）
     void FreeSession(CSession* session);             // ORIG 0x8491060
     void Reset();                                    // ORIG 0x849107e
@@ -169,39 +179,41 @@ public:
                                        CSession* session);  // ORIG 0x8491296
     bool RegisterExchangeServer(int serverId,
                                 ExchangeServerInfo& info);  // ORIG 0x849135c
-    void UnregisterExchangeServer(int serverId);    // ORIG 0x849144c
-    void SendRequestCharacInfo(int a, int b, int c, int d,
+    void UnregisterExchangeServer(int serverId);     // ORIG 0x849144c
+    bool SendRequestCharacInfo(int a, int b, int c, int d,
                                void* extra, int extraLen);  // ORIG 0x849152a
-    void SendResponseCharacInfo(int a, int b, void* data, int len,
+    bool SendResponseCharacInfo(int a, int b, void* data, int len,
                                 CSession* session, int f);  // ORIG 0x8491644
-    void SendResponseCharacInfo(int a, int b, void* data, int len);  // 0x849173e
-    void SendResponseCharacInfo_forchina(int a, int b, void* data,
+    bool SendResponseCharacInfo(int a, int b, void* data, int len);  // 0x849173e
+    bool SendResponseCharacInfo_forchina(int a, int b, void* data,
                                          int len);           // ORIG 0x849176e
-    void ReturnCacheCharacter(int a, int b, int c, int d, bool e,
+    bool ReturnCacheCharacter(int a, int b, int c, int d, bool e,
                               CSession* session);           // ORIG 0x84918d8
-    void ForwardRequestCharac_forchina(int a, int b, void* data,
+    bool ForwardRequestCharac_forchina(int a, int b, void* data,
                                        int len);            // ORIG 0x8491ab6
-    void ForwardRequestCharac(int a, int b, void* data, int len);  // 0x8491c32
-    void OnRecvPacketCharacInfo(CSession* session,
-                                PacketGuard& guard);        // ORIG 0x84922ee
-    void OnRecvPacketCharacInfoRet(CSession* session,
-                                   PacketGuard& guard);     // ORIG 0x84925e8
-    void OnRecvPacketServerInfo(CSession* session,
-                                PacketGuard& guard);        // ORIG 0x8492854
-    void OnRecvPacketServerInfoRet(CSession* session,
-                                   PacketGuard& guard);     // ORIG 0x8492c5e
+    bool ForwardRequestCharac(int a, int b, void* data, int len);  // 0x8491c32
+    int OnRecvPacketCharacInfo(CSession* session,
+                               PacketGuard& guard);        // ORIG 0x84922ee
+    int OnRecvPacketCharacInfoRet(CSession* session,
+                                  PacketGuard& guard);     // ORIG 0x84925e8
+    int OnRecvPacketServerInfo(CSession* session,
+                               PacketGuard& guard);        // ORIG 0x8492854
+    int OnRecvPacketServerInfoRet(CSession* session,
+                                  PacketGuard& guard);     // ORIG 0x8492c5e
     bool DispatchPacket(CSession* session, char* data, int len);  // 0x8493002
     void OnRecvMessageServerInfo(Stream* stream, int a, int b);   // 0x84931de
-    void OnRecvMessageCharacInfo(Stream* stream, int a, int b);   // 0x849341c
+    int OnRecvMessageCharacInfo(Stream* stream, int a, int b);    // 0x849341c
     bool DispatchMessage(Stream* stream);                         // 0x8493530
     Stream* GetMessage();                          // ORIG 0x849362a
     void FreeMessage(Stream* stream, int flag);    // ORIG 0x8493648
-    void SendExchangeServerInfo();                 // ORIG 0x84937ba
+    bool SendExchangeServerInfo();                 // ORIG 0x84937ba（dispatch 消费返回值）
     bool PreparePassiveSocket();                   // ORIG 0x8493856
 
 private:
-    char m_pad04[8];                     // +0x04..+0x0b（ORIG 未访问，语义未考证）
-    CSessionManager<CSession, PacketGuard, CEpoll<CSession> >
+    unsigned int m_ip04;                 // +0x04（PreparePassiveSocket/SendExchangeServerInfo 访问）
+    unsigned short m_port08;             // +0x08
+    char m_pad0a[2];                     // 补齐至 +0x0c
+    CSessionManager<CSession, PacketGuard, CEpoll>
                                          m_sessionMgr;    // +0x0c（sizeof 0x2c）
     bool m_flag38;                       // +0x38（SetMaster→1 / SetSlave→0）
     bool m_flag39;                       // +0x39（Reset 清零）
@@ -263,22 +275,25 @@ public:
     int GetCacheLoadFailCount();         // ORIG 0x863bfde
     int GetCacheLoadFailOverflowCount(); // ORIG 0x863bfea
 
-private:
-    unsigned int m_dbLoadCount;          // 计数字段（偏移见实现注释）
-    unsigned int m_cacheLoadCount;
-    unsigned int m_cacheLoadFailCount;
-    unsigned int m_dbLoadOverflowCount;
-    unsigned int m_cacheLoadOverflowCount;
-    unsigned int m_cacheLoadFailOverflowCount;
+    // 六字段 ORIG 偏移序（/tmp/es_disasm.txt:680-867、5591-5632 逐指令核实）：
+    //   +0x00 dbLoad / +0x04 cacheLoad / +0x08 dbLoadOverflow /
+    //   +0x0c cacheLoadOverflow / +0x10 cacheLoadFail / +0x14 cacheLoadFailOverflow
+    // Increment*: 计数自增后若归零(回绕)则对应 Overflow 槽 +1。
+    unsigned int m_dbLoadCount;                 // +0x00
+    unsigned int m_cacheLoadCount;              // +0x04
+    unsigned int m_dbLoadOverflowCount;         // +0x08（对应计数回绕为 0 时自增）
+    unsigned int m_cacheLoadOverflowCount;      // +0x0c
+    unsigned int m_cacheLoadFailCount;          // +0x10
+    unsigned int m_cacheLoadFailOverflowCount;  // +0x14
 };
 
 CExchangeServerHitRate* GetInstanceExchangeServerHitRate();  // ORIG 0x823470f
 
-// ---- 服务线程 ---------------------------------------------------------------
+
 class CExchangeServerThread : public ThreadInterface
 {
 public:
-    CExchangeServerThread();             // ORIG 0x8493e36
+    CExchangeServerThread();             // ORIG C1 0x8493e36
     virtual ~CExchangeServerThread();    // ORIG D1 0x8493db6 / D0 0x8493e18
 
     virtual void dispatch(void* arg);    // ORIG 0x8493bfe（覆盖 ThreadInterface 虚槽）

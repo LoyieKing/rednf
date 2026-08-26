@@ -8,22 +8,23 @@
 // 类权威声明：CSimpleSSO.h（原 GlobalData.cpp 局部类收敛）；ctor/dtor/init 属 GlobalData.cpp。
 
 #include "CSimpleSSO.h"
-#include "GlobalData.h"       // namespace GlobalData s_systemTime_/s_GM_Manager
 #include "MySQL.h"
 #include "CSystemTime.h"
-#include "CGM_Manager.h"      // CGM_Manager::IsGm
-#include "CInventory.h"       // NumberToString(unsigned int, int)
+#include "CGM_Manager.h"     // CGM_Manager::IsGm
 #include "CRijndael.h"
-#include "DNFFunctionLib.h"   // DNFFLib::Binary2Hex
-#include "LogManager.h"       // LogManager::logFormat
-#include "GameTypes.h"        // cMyTrace
+#include "DNFFunctionLib.h"  // DNFFLib::Binary2Hex
+#include "LogManager.h"      // LogManager::logFormat
+#include "GameTypes.h"       // cMyTrace
+
+// 轻量 extern 声明（避免拉入 CUser.h/GlobalData.h 重型共享头）：
+char* NumberToString(unsigned int value, int radix);          // ORIG 0x0810904b
+namespace GlobalData
+{
+extern CSystemTime s_systemTime_;      // 0x0941f714
+extern CGM_Manager* s_GM_Manager;      // 0x0941f75c
+}
 
 
-// MySQL::get_float(int, float&)（ORIG W 0x0844d6d0，_ZN5MySQL9get_floatEiRf）
-// 当前 MySQL.h 未含此声明；以 asm 别名接入既有导出符号，abi 与 thiscall 一致，
-// 后续批次可将其收编进共享 MySQL.h 后移除本桥接声明。
-extern "C" int MySQL_get_float_alias(void* self, int col,
-                                     float& out) __asm__("_ZN5MySQL9get_floatEiRf");
 #include <string.h>
 #include <stdio.h>
 
@@ -129,7 +130,7 @@ bool WongWork::CSimpleSSO::_getGameStartTime(unsigned int mId, long& loginTime,
             return false;
         if (!m_mysql->get_int(col++, *reinterpret_cast<int*>(reinterpret_cast<char*>(&out) + 0x34)))  // school_id
             return false;
-        if (!MySQL_get_float_alias(m_mysql, col++, *reinterpret_cast<float*>(reinterpret_cast<char*>(&out) + 0x38)))  // rating
+        if (!m_mysql->get_float(col++, *reinterpret_cast<float*>(reinterpret_cast<char*>(&out) + 0x38)))  // rating
             return false;
         if (!m_mysql->get_ubyte(col++, *reinterpret_cast<unsigned char*>(reinterpret_cast<char*>(&out) + 0x3c)))  // tutorial_skipable
             return false;

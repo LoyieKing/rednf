@@ -12,11 +12,9 @@
 
 #include "STExpertJobScript.h"
 
-namespace
-{
-// 复刻 ORIG「只清 word 槽」的半字段写法（避免整 int 清零引入多余写宽差）。
-inline void zero_word(void* p) { *static_cast<unsigned short*>(p) = 0; }
-}
+// 复刻 ORIG「只清 word 槽」的半字段写法（-O0 无函数调用，直写 unsigned short）。
+#define ZERO_WORD(p) (*reinterpret_cast<unsigned short*>(p) = 0)
+
 
 // ----------------------------------------------------------------------------
 // stSelfDisjoinMaterialInfo — C1/C2 W 0x0896dc0c range [...dc20]：体仅尾调 clear
@@ -42,7 +40,7 @@ STExpertJobScript::stMonsterCardBindRate::stMonsterCardBindRate()
 // ----------------------------------------------------------------------------
 STExpertJobScript::stMonsterCardBindResult::stMonsterCardBindResult()
 {
-    zero_word(&m_field4);
+    ZERO_WORD(&m_field4);
     m_field0 = 0;
 }
 
@@ -57,7 +55,7 @@ STExpertJobScript::stMonsterCardBindResult::~stMonsterCardBindResult()
 // ----------------------------------------------------------------------------
 STExpertJobScript::stDollControllerResult::stDollControllerResult()
 {
-    zero_word(&m_field8);                       // +8 word = 0
+    ZERO_WORD(&m_field8);                       // +8 word = 0
     m_field6 = m_field8;                        // +6 word = w+8
     m_field4 = m_field6;                        // +4 word = w+6
     m_field0 = static_cast<int>(
@@ -291,40 +289,40 @@ int STExpertJobScript::GetDisjointMachineRepair(int grade, int endurance,
     return endurance / div;
 }
 
-namespace
-{
-// 通用：map<int,unsigned short> 命中返 second、未中返 -1
-// （GetUnsealScrollPossibleLevel 0x0822b262、GetAlchemist/
-//   Enchanter/DollController ExtractionPossibleLevel 0x084a44b6/0x84a452a/
-//   0x84a459e 同构，仅 map 偏移不同——成员直访已表达）。
-inline int map_second_or_minus_one(const std::map<int, unsigned short>& table,
-                                   int key)
-{
-    std::map<int, unsigned short>::const_iterator it = table.find(key);
-    if (it == table.end())
-        return -1;
-    return static_cast<int>(it->second);   // movzwl：仅低 16 位零扩展
-}
-}
-
+// 同构四联（find 命中返 second、未中返 -1；ORIG 为逐调用完整 find/end 展开，
+// 不抽 helper 以保持函数体形态）：
 int STExpertJobScript::GetUnsealScrollPossibleLevel(int level)
 {
-    return map_second_or_minus_one(m_unsealScrollMap, level);
+    std::map<int, unsigned short>::const_iterator it = m_unsealScrollMap.find(level);
+    if (it == m_unsealScrollMap.end())
+        return -1;
+    return static_cast<int>(it->second);
 }
 
 int STExpertJobScript::GetAlchemistExtractionPossibleLevel(int level)
 {
-    return map_second_or_minus_one(m_alchemistExtractInfo, level);
+    std::map<int, unsigned short>::const_iterator it =
+        m_alchemistExtractInfo.find(level);
+    if (it == m_alchemistExtractInfo.end())
+        return -1;
+    return static_cast<int>(it->second);
 }
 
 int STExpertJobScript::GetEnchanterExtractionPossibleLevel(int level)
 {
-    return map_second_or_minus_one(m_enchanterExtractInfo, level);
+    std::map<int, unsigned short>::const_iterator it =
+        m_enchanterExtractInfo.find(level);
+    if (it == m_enchanterExtractInfo.end())
+        return -1;
+    return static_cast<int>(it->second);
 }
 
 int STExpertJobScript::GetDollControllerExtractionPossibleLevel(int level)
 {
-    return map_second_or_minus_one(m_dollExtractInfo, level);
+    std::map<int, unsigned short>::const_iterator it = m_dollExtractInfo.find(level);
+    if (it == m_dollExtractInfo.end())
+        return -1;
+    return static_cast<int>(it->second);
 }
 
 // ResultInfo getter 三连（纯地址返回）

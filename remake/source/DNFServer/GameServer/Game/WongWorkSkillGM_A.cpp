@@ -27,23 +27,12 @@ namespace WongWork
 extern int g_nStatUpItemIdx[];
 extern int g_nElixerAbility[];
 
-// ---- CUser::getUserQuestRewardItem 桥 ------------------------------------
-// ORIG _ZN5CUser22getUserQuestRewardItemEPK5QuestPKS_ @0x0866e914：
-// ORIG 反汇编/反编译显示其返回 quest 内嵌奖励 vector 地址（quest+0xec 已清除 /
-// quest+0xc4 未清除），调用方直接作为 std::vector<RewardItemInfo> const* 使用
-// （随后 begin/end/operator*/operator++/operator!= 全部为标准 const_iterator
-// 弱符号实例，见 nm W 符号）。该静态成员声明归宿为 CUser.h（本批禁改），先以
-// asm 标签桥接，待 CUser 域落地权威声明后可删除此行改直调。
-std::vector<RewardItemInfo> const* bridge_getUserQuestRewardItem(
-    Quest const* quest, CUser const* user)
-    __asm__("_ZN5CUser22getUserQuestRewardItemEPK5QuestPKS_");
-
-// ---- union 无具名区段访问 helper（ORIG 偏移证据见文件头注释） -------------
-inline int* needElixerCountPtr(CSkillChanger* self)   // this+0x48
+static inline int* needElixerCountPtr(CSkillChanger* self)   // this+0x48
 {
     return reinterpret_cast<int*>(reinterpret_cast<char*>(self) + 0x48);
 }
-inline int* needElixerAbilityPtr(CSkillChanger* self) // this+0x6c
+
+static inline int* needElixerAbilityPtr(CSkillChanger* self) // this+0x6c
 {
     return reinterpret_cast<int*>(reinterpret_cast<char*>(self) + 0x6c);
 }
@@ -82,8 +71,8 @@ void CSkillChanger::CountElixer(CUser* user)
     m_state.m_kindState3 = 8;
     m_state.m_initialized = 1;                     // ORIG: this[0x91] = 1
     _GetUserItemCount(user);
-    _ApplyUserData(user, 0);
-    _ApplyUserData(user, 1);
+    _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)0);
+    _ApplyUserData(user, (ENUM_SKILL_TREE_KIND)1);
 }
 
 // ORIG W 0x0869780e GetElixerCount()：返回第一组计数数组（即 this）。
@@ -174,8 +163,8 @@ bool CSkillChanger::_fnEnumQuestClear(unsigned int questIdx, char* args)
     if (quest->m_fieldB8 != 0 && quest->m_fieldB8 != 0x19)
         return true;
 
-    std::vector<RewardItemInfo> const* rewards =
-        bridge_getUserQuestRewardItem(quest, user);
+    std::vector<RewardItemInfo>* rewards =
+        user->getUserQuestRewardItem(quest, user);   // ORIG _ZN5CUser22…PKS_
     for (std::vector<RewardItemInfo>::const_iterator it = rewards->begin();
          it != rewards->end(); ++it)
     {

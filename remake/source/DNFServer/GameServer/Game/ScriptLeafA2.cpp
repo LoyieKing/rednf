@@ -918,14 +918,14 @@ bool CActionPointEtcParameter::importActionPointSystemEtcScript(
         {
             for (;;)
             {
-                _SIG_LOAD_ACTION_POINT::_TodayRewardItem today;
+                APSystem::_TodayRewardItem today;   // Wave5：表行=顶层类(0xe)
                 int raw = ScanInt(&ok);
                 if (!ok)
                 {
                     break;
                 }
                 today.m_itemIdx = raw - 1;
-                if (!IsValidTodayRewardItem(today))
+                if (!IsValidTodayRewardItem(*reinterpret_cast<const _SIG_LOAD_ACTION_POINT::_TodayRewardItem*>(&today)))  // 嵌套形参按值4B,首int同位(顶层0xe表行,ORIG import 五列中间态见 ScriptLeafA2 批)
                 {
                     return false;                       // ORIG 错误码 0xfa
                 }

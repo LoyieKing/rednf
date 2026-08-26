@@ -18,11 +18,14 @@
 #include "SigTypes.h"        // SIG_LOAD_EVENTITEM
 #include "QuestClear.h"      // STClearedQuest（本 TU 产出其 ctor）
 
+// ---- TU 局部外部依赖（全局符号，producer 归属其它 TU/批次）----
+char* NumberToString(unsigned int value, int radix);          // _Z14NumberToStringji
+
 namespace WongWork
 {
 
 // ---- TU 局部外部依赖（producer 归属其它 TU/批次）----
-char* NumberToString(unsigned int value, int radix);          // _Z14NumberToStringji
+
 namespace DBCommon
 {
 unsigned int GetIdentity(MySQL* db);                          // _ZN8WongWork8DBCommon11GetIdentityEP5MySQL
@@ -70,10 +73,9 @@ void EventAlttle::UpdateEventAlttleInfo(unsigned int uid, int itemNo)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
-    char* idStr = NumberToString(uid, 0);
     db->set_query(
         "upDate event_alttle_info set item_check=unix_timestamp(now()) where m_id=%s",
-        idStr);
+        NumberToString(uid, 0));
     db->exec(true);
 }
 
@@ -85,14 +87,12 @@ int EventAlttle::CheckAlreadyGetAlttleItem(unsigned int uid, int itemNo)
 {
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
-    char* idStr = NumberToString(uid, 0);
-    db->set_query("seLect item_check from event_alttle_info where m_id=%s", idStr);
+    db->set_query("seLect item_check from event_alttle_info where m_id=%s", NumberToString(uid, 0));
     if (!db->exec(true))
         return 0;
 
     int check = 0;
-    bool failed = !db->get_int(0, check);
-    return (failed || check == 0) ? 0 : 1;
+    return (!db->get_int(0, check) || check == 0) ? 0 : 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -107,19 +107,17 @@ void EventAlttle::ArrangeAlttleEventItem(unsigned int mid, unsigned int serverId
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
-    char* idStr = NumberToString(mid, 0);
     db->set_query(
         "seLect item_server_id,item_charac_no,item_no,item_check,item_cnt from "
         "event_alttle_info where m_id=%s and occ_check!=0 limit %d",
-        idStr, 10);
+        NumberToString(mid, 0), 10);
     if (!db->exec(true))
     {
-        char* errId = NumberToString(mid, 0);
         cMyTrace trace("void WongWork::EventAlttle::ArrangeAlttleEventItem("
                        "memberIdentificationNumber_t, unsigned int)", 0x21b, 5);
         trace("%s, exec ERROR m_id=%s",
               "void WongWork::EventAlttle::ArrangeAlttleEventItem("
-              "memberIdentificationNumber_t, unsigned int)", errId);
+              "memberIdentificationNumber_t, unsigned int)", NumberToString(mid, 0));
         return;
     }
 
@@ -167,17 +165,15 @@ void EventSigong::UpdateEventSigongInfo(unsigned int id, int itemNo)
     int type = CWebEvent::GetItemType(3, itemNo);
     if (type == 1)
     {
-        char* idStr = NumberToString(id, 0);
         db->set_query(
             "upDate event_sigong_info set item1_check=unix_timestamp(now()) where id=%s",
-            idStr);
+            NumberToString(id, 0));
     }
     else if (type == 2)
     {
-        char* idStr = NumberToString(id, 0);
         db->set_query(
             "upDate event_sigong_info set item2_check=unix_timestamp(now()) where id=%s",
-            idStr);
+            NumberToString(id, 0));
     }
     db->exec(true);
 }
@@ -192,21 +188,18 @@ int EventSigong::CheckAlreadyGetSigongItem(unsigned int id, int itemNo)
     int type = CWebEvent::GetItemType(3, itemNo);
     if (type == 1)
     {
-        char* idStr = NumberToString(id, 0);
-        db->set_query("seLect item1_check from event_sigong_info where id=%s", idStr);
+        db->set_query("seLect item1_check from event_sigong_info where id=%s", NumberToString(id, 0));
     }
     else if (type == 2)
     {
-        char* idStr = NumberToString(id, 0);
-        db->set_query("seLect item2_check from event_sigong_info where id=%s", idStr);
+        db->set_query("seLect item2_check from event_sigong_info where id=%s", NumberToString(id, 0));
     }
 
     if (!db->exec(true))
         return 0;
 
     int check = 0;
-    bool failed = !db->get_int(0, check);
-    return (failed || check == 0) ? 0 : 1;
+    return (!db->get_int(0, check) || check == 0) ? 0 : 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -222,20 +215,18 @@ void EventSigong::ArrangeSigongEventItem(unsigned int mid, unsigned int serverId
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
-    char* idStr = NumberToString(mid, 0);
     db->set_query(
         "seLect id,item1_no,item1_server_id,item1_charac_no,item1_check,"
         "item2_no,item2_server_id,item2_charac_no,item2_check from "
         "event_sigong_info where m_id=%s and occ_check!=0 limit %d",
-        idStr, 10);
+        NumberToString(mid, 0), 10);
     if (!db->exec(true))
     {
-        char* errId = NumberToString(mid, 0);
         cMyTrace trace("void WongWork::EventSigong::ArrangeSigongEventItem("
                        "memberIdentificationNumber_t, unsigned int)", 0x123, 5);
         trace("%s, exec ERROR m_id=%s",
               "void WongWork::EventSigong::ArrangeSigongEventItem("
-              "memberIdentificationNumber_t, unsigned int)", errId);
+              "memberIdentificationNumber_t, unsigned int)", NumberToString(mid, 0));
         return;
     }
 
@@ -298,10 +289,9 @@ void EventEverland::UpdateEventEverlandInfo(unsigned int id, int itemNo)
                                                   (ENUM_SERVER_GROUP)0);
     if (CWebEvent::GetItemType(4, itemNo) == 1)
     {
-        char* idStr = NumberToString(id, 0);
         db->set_query(
             "upDate event_everland_info set coin_check=unix_timestamp(now()) where id=%s",
-            idStr);
+            NumberToString(id, 0));
     }
     db->exec(true);
 }
@@ -315,16 +305,14 @@ int EventEverland::CheckAlreadyGetEverlandItem(unsigned int id, int itemNo)
                                                   (ENUM_SERVER_GROUP)0);
     if (CWebEvent::GetItemType(4, itemNo) == 1)
     {
-        char* idStr = NumberToString(id, 0);
-        db->set_query("seLect coin_check from event_everland_info where id=%s", idStr);
+        db->set_query("seLect coin_check from event_everland_info where id=%s", NumberToString(id, 0));
     }
 
     if (!db->exec(true))
         return 0;
 
     int check = 0;
-    bool failed = !db->get_int(0, check);
-    return (failed || check == 0) ? 0 : 1;
+    return (!db->get_int(0, check) || check == 0) ? 0 : 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -338,19 +326,17 @@ void EventEverland::ArrangeEverlandEventItem(unsigned int mid, unsigned int serv
 
     MySQL* db = GlobalData::s_db_mgr->GetDBHandle((ENUM_DB_HANDLE_IDX)1,
                                                   (ENUM_SERVER_GROUP)0);
-    char* idStr = NumberToString(mid, 0);
     db->set_query(
         "seLect id,server_id,charac_no,coin,coin_check from event_everland_info "
         "where m_id=%s and occ_check!=0 limit %d",
-        idStr, 10);
+        NumberToString(mid, 0), 10);
     if (!db->exec(true))
     {
-        char* errId = NumberToString(mid, 0);
         cMyTrace trace("void WongWork::EventEverland::ArrangeEverlandEventItem("
                        "memberIdentificationNumber_t, unsigned int)", 0x182, 5);
         trace("%s, exec ERROR m_id=%s",
               "void WongWork::EventEverland::ArrangeEverlandEventItem("
-              "memberIdentificationNumber_t, unsigned int)", errId);
+              "memberIdentificationNumber_t, unsigned int)", NumberToString(mid, 0));
         return;
     }
 
@@ -394,14 +380,12 @@ void EventEverland::ArrangeEverlandEventItem(unsigned int mid, unsigned int serv
 int EventFCCombo::CheckAlreadyFCComboEventItem(unsigned int id, int itemNo)
 {
     MySQL* db = GetDBHandle();
-    char* idStr = NumberToString(id, 0);
-    db->set_query("seLect item_check from event_combo_entry where id=%s", idStr);
+    db->set_query("seLect item_check from event_combo_entry where id=%s", NumberToString(id, 0));
     if (!db->exec(true))
         return 0;
 
     int check = 0;
-    bool failed = !db->get_int(0, check);
-    return (failed || check == 0) ? 0 : 1;
+    return (!db->get_int(0, check) || check == 0) ? 0 : 1;
 }
 
 // ----------------------------------------------------------------------------
@@ -410,9 +394,8 @@ int EventFCCombo::CheckAlreadyFCComboEventItem(unsigned int id, int itemNo)
 void EventFCCombo::UpdateFCComboEventInfo(unsigned int id, int itemNo)
 {
     MySQL* db = GetDBHandle();
-    char* idStr = NumberToString(id, 0);
     db->set_query("upDate event_combo_entry set item_check=unix_timestamp(now()) where id=%s",
-                  idStr);
+                  NumberToString(id, 0));
     db->exec(true);
 }
 
@@ -426,19 +409,17 @@ void EventFCCombo::ArrangeFCComboEventItem(unsigned int mid, unsigned int server
     unsigned int entries[MAX_ENTRIES][4];
 
     MySQL* db = GetDBHandle();
-    char* idStr = NumberToString(mid, 0);
     db->set_query(
         "seLect id,item_server_id,item_charac_no,item_no,item_check,item_cnt from "
         "event_combo_entry where m_id=%s and occ_check!=0 limit %d",
-        idStr, 10);
+        NumberToString(mid, 0), 10);
     if (!db->exec(true))
     {
-        char* errId = NumberToString(mid, 0);
         cMyTrace trace("void WongWork::EventFCCombo::ArrangeFCComboEventItem("
                        "memberIdentificationNumber_t, unsigned int)", 0x27a, 5);
         trace("%s, exec ERROR m_id=%s",
               "void WongWork::EventFCCombo::ArrangeFCComboEventItem("
-              "memberIdentificationNumber_t, unsigned int)", errId);
+              "memberIdentificationNumber_t, unsigned int)", NumberToString(mid, 0));
         return;
     }
 
@@ -530,10 +511,9 @@ void EventCommon::LoadCharacEventItem(unsigned int eventId,
     }
     else
     {
-        char* idStr = NumberToString(loadId, 0);
         db->set_query(
             "seLect id,it_id,stack_count,event_code from charac_event_items "
-            "where id=%s and charac_no=%d", idStr, characNo);
+            "where id=%s and charac_no=%d", NumberToString(loadId, 0), characNo);
     }
 
     if (!db->exec(true))
@@ -572,6 +552,27 @@ void EventCommon::LoadCharacEventItem(unsigned int eventId,
     sig->m_itemCount = loaded;                         // +0x08 = 实际行数
 
     GlobalData::s_msgq_mgr->put((MsgQueueMgr::QUEUE_IDX)1, guard);
+}
+
+// ----------------------------------------------------------------------------
+// ORIG 的 stHackInfo_t / HackTypeInfo_t 方法均为 inline（W 弱符号），其产生点
+// 在原 TU 中由实际调用触发；本批头内实现为忠实 inline，此处补 odr-use 以在本
+// TU 产出对应的 W 符号（不改变任何语义/布局）。
+// ----------------------------------------------------------------------------
+namespace
+{
+void EmitHackPodWeakSymbols()
+{
+    WongWork::HackTypeInfo_t infoDefault;   // C1Ev/C2Ev
+    WongWork::HackTypeInfo_t infoFull((WongWork::ENUM_HACKTYPE)1, 0,
+                                      (WongWork::ENUM_HACKTYPE)2, 0, 0, 0, 0);
+                                            // C1(E...)C2
+    infoFull.CopyStruct(infoDefault);       // CopyStruct
+    (void)infoFull;
+
+    WongWork::stHackInfo_t hackInfo;        // D1（作用域结束 complete dtor）
+    hackInfo.~stHackInfo_t();               // D2（base dtor 显式调用）
+}
 }
 
 // ----------------------------------------------------------------------------

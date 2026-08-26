@@ -62,6 +62,17 @@
 class CUser;  // 全局命名空间（ORIG vector<CUser*>）
 class RegenerationROI;  // RandomRentalA2.cpp 的 RegenVer_* 签名引用
 class CDungeon;  // stGenerateRefData_t::m_dungeon（+0x40 指针，仅前置声明）
+class CMonster;                    // _generateMonseterSpecificItem 参数（ORIG
+                                   //   拼写如此；仅指针引用）
+// （stGenerateRefClearReward_t 前向声明见 namespace WongWork 内 CClearReward
+//  之后；ORIG mangled 属 WongWork::，勿在此全局区声明以免 ODR 分裂）
+
+// 全局可见别名（OnlyOrig_CreatureJob 修复插入）：CObjectDrop 等全局作用域类的
+// generateRandomItem/generateSpecificItem 以非限定名引用两结构；权威定义在
+// 下方 namespace WongWork（161/196 行）。using 声明不产生新类型，无 ODR 风险。
+namespace WongWork { struct stGenerateRefData_t; struct stGenerateResult_t; }  // 前置（Wave5 APSystem 批补：定义在本文件下方 ns 内）
+using WongWork::stGenerateRefData_t;
+using WongWork::stGenerateResult_t;
 
 class CLuckPoint
 {
@@ -77,6 +88,15 @@ public:
     // ORIG T 0x08550e50 _ZN10CLuckPoint15GetUserGainItemEi：m_points(+0xc) 按
     // 序号取用户下标再回 m_users；越界/负序号返回 0（LinkKillChain 批次补声明）。
     int GetUserGainItem(int idx);
+    // ORIG T 0x08550b14 _ZN10CLuckPoint12UseLuckPointEiiii：取 m_users 最大幸运
+    // 点用户序号，调静态 UseLuckPoint(user,a,b,c) 成功则 m_points[p4]=序号。
+    bool UseLuckPoint(int itemType, int rarity, int grade, int seq);
+    // ORIG T 0x08550ef0 _ZN10CLuckPoint16sendItemDropRateEPKc：遍历 m_users，
+    // 对 getCurCharacR 非空者经 GetGameMasterCharacter 虚发 sendServerState。
+    void sendItemDropRate(char const* msg);
+    // ORIG T 0x08550954：遍历 m_users 取 GetCurCharacLuckPoint 最大者序号
+    // （空表返回 0；报告 docs/class_func_reports/CLuckPoint/_GetMaxLuckPointUserIndex.md）。
+    unsigned int _GetMaxLuckPointUserIndex();
     std::vector<CUser*> m_users;   // +0x00（vector 0xc；ORIG AddUser 0x08550932
                                    //   push_back 到 this+0 实证）
     // +0x0c：ORIG GetUserGainItem 0x08550e50 以 map<int,int>::size/operator[]
@@ -111,6 +131,8 @@ public:
 
 namespace WongWork
 {
+    struct stGenerateRefClearReward_t;   // 前置：CClearReward 私有签名（573/576）
+                                         //   先于下方完整声明处使用；定义在 CClearReward.cpp
 
 // ---- CGeneratorCommonData（sizeof == 0x648，ORIG 实证）----
 // 证据：getGoldGenTable ORIG T 0x08533424 以 this+level*8 步长取 8 字节表项
@@ -215,6 +237,16 @@ class GenerateRandomUpgrade
 public:
     GenerateRandomUpgrade();
     ~GenerateRandomUpgrade();
+    // ---- WongWorkDrop_B 批次补充（ORIG T 实证；定义 WongWorkDrop_B.cpp）----
+    // ORIG T 0x08533932 _ZN8WongWork21GenerateRandomUpgrade18generateEquipGradeEi
+    //   权重 {1000×5}、等级档 {0x5aa7,0xfa6,0x6a23,0x5df0,0x7270}；比率表 =
+    //   G_CDataManager()+0x540 vector<pair<int,float>>（字段未建模，本批不改
+    //   CDataManager.h），randInt(this->m_rand, &total) 按累计权重落槽。
+    int generateEquipGrade(int levelDelta);
+    // ORIG T 0x08533676 _ZN8WongWork21GenerateRandomUpgrade15generateUpgradeE11ENUM_RARITYi
+    //   按 rarity 键查 G_CDataManager()+0x528 map<int,ItemFarmingData>；
+    //   条目 active(+0xc)==0 或查无 → 0；w[0] 缩放后按累计权重取条目 first。
+    int generateUpgrade(ENUM_RARITY rarity, int levelDelta);
 
     CMTRand* m_rand;  // +0x00（operator new 0x9c8；构造期额外初始化调用未建模，[INFERENCE]）
 };
@@ -320,6 +352,26 @@ private:
 };
 }  // namespace random_option
 
+// ORIG 全局枚举（CSecialIMonsterDropItemGenRateTable::chooseItem 形参，
+// ORIG mangled 为无命名空间限定的 23ENUM_DUNGEON_DIFFICULTY / 27ENUM_ITEM_DROP_
+// DUNGEON_TYPE；WongWorkDrop_B 批补。DNF_ENUM_*_DEFINED 守卫与
+// CBattle_Field_shared.h/CBossPlay.h 同名枚举共用）。
+#ifndef DNF_ENUM_ENUM_DUNGEON_DIFFICULTY_DEFINED
+#define DNF_ENUM_ENUM_DUNGEON_DIFFICULTY_DEFINED
+enum ENUM_DUNGEON_DIFFICULTY
+{
+    ENUM_DUNGEON_DIFFICULTY_0 = 0
+};
+#endif  // DNF_ENUM_ENUM_DUNGEON_DIFFICULTY_DEFINED
+
+#ifndef DNF_ENUM_ENUM_ITEM_DROP_DUNGEON_TYPE_DEFINED
+#define DNF_ENUM_ENUM_ITEM_DROP_DUNGEON_TYPE_DEFINED
+enum ENUM_ITEM_DROP_DUNGEON_TYPE
+{
+    ENUM_ITEM_DROP_DUNGEON_TYPE_0 = 0
+};
+#endif  // DNF_ENUM_ENUM_ITEM_DROP_DUNGEON_TYPE_DEFINED
+
 namespace WongWork
 {
 // ---- 掉落类型（槽址 type*0x7110 下标；chooseItem/onTryGenerateRandomItem 共用） ----
@@ -330,6 +382,7 @@ enum eItemDropType_t
     eItemDropType_2 = 2,
     eItemDropType_3 = 3
 };
+
 
 // ---- CItemGenRateTable（掉落等级累积表宿主；sizeof 0x2356C）-----------------
 class CItemGenRateTable
@@ -363,6 +416,12 @@ public:
     void destroy();
     void generateTable(stGenItemRange_t* range);          // T 0x08534cd0
     bool _itemTypeVerify(int type, const CItem* item) const;
+    // ORIG T 0x08534fce _ZN8WongWork35CSecialIMonsterDropItemGenRateTable10choose
+    // ItemENS_15eItemDropType_tE11ENUM_RARITYi23ENUM_DUNGEON_DIFFICULTY27ENUM_ITEM_
+    // DROP_DUNGEON_TYPE（WongWorkDrop_B._generateRandomItem 消费）。
+    int chooseItem(eItemDropType_t type, ENUM_RARITY rarity, int level,
+                   ENUM_DUNGEON_DIFFICULTY dungeonDiff,
+                   ENUM_ITEM_DROP_DUNGEON_TYPE dropDungeonType);
 
 private:
     DropGenRateBlock_t m_blocks[5][3];           // 15×0x23550 = 0x211FB0
@@ -371,12 +430,9 @@ private:
 };  // sizeof 0x211FCC
 
 // ---- 首领/命名怪首杀权重（W 0x0853a6ae：[+4]=1 后拷回 [+0]）----------------
-struct stFirstMobHuntingWeight_t
-{
-    stFirstMobHuntingWeight_t();
-    int m_weight;      // +0x00
-    int m_field04;     // +0x04
-};
+// ORIG 类型实为 CMonsterDrop 嵌套类型（mangled
+// _ZN8WongWork12CMonsterDrop25stFirstMobHuntingWeight_tC1Ev/C2Ev），定义见
+// 下方 class CMonsterDrop 内；类外保留同型 typedef 维持既有引用。
 
 // ---- CMonsterDrop_Hell（地狱派对掉落；sizeof 0x237C0）-----------------------
 class CMonsterDrop_Hell : public CItemGenerator
@@ -395,6 +451,13 @@ protected:
     char m_padA8[0x18];                          // +0xa8..0xbf（未建模区）
     stGenItemRange_t m_range;               // +0xc0..0x253
     CItemGenRateTable m_table;                   // +0x254..0x237BF
+    // ---- WongWorkDrop_B 批次补充（ORIG T 实证；定义 WongWorkDrop_B.cpp）----
+    void setDropRatio(float ratio);               // ORIG T 0x08535948（虚槽 +0x00）
+    void generateSpecificItem(stGenerateRefData_t const& ref,
+                              stGenerateResult_t& result);  // ORIG T 0x08535726（虚槽 +0x0c）
+    void hellPartySpecificItem(stGenerateRefData_t const& ref,
+                               stGenerateResult_t& result);  // ORIG T 0x08535b08
+    int _getGenItemProbIdx(int value);           // ORIG T 0x08535a88
 };  // sizeof 0x237C0
 
 // ---- CSpecialMonsterDrop（特殊怪物掉落；sizeof 0x21230C）--------------------
@@ -416,7 +479,17 @@ protected:
     float m_monsterTypeBonus[5][4];              // +0x15c
     stGenItemRange_t m_range;               // +0x1ac..0x33f
     CSecialIMonsterDropItemGenRateTable m_table; // +0x340..0x21230B
+
+    // ---- G1 Drop 批次补充 ----
+    void _generateRandomItem(unsigned char type, char role, unsigned char dungeonLv,
+                             unsigned char difficulty, unsigned char partyPos,
+                             int aiIdx, unsigned char hellFlag, int dropRate,
+                             stGenerateResult_t& result, bool& done);
+                                                  // ORIG T 0x08536882
+    void setDropRatio(float ratio);               // ORIG T 0x085359e8（虚槽 +0x00）
+    int _getGenItemProbIdx(int value);            // ORIG T 0x0853736e
 };  // sizeof 0x21230C
+
 
 // 各类 sizeof 与 ORIG operator new 分配尺寸一致（initialize.md 实证：
 // CMonsterDrop/CObjectDrop 0x2593a4、CClearReward 0x23b84、CDungeonDrop 0x18）；
@@ -428,10 +501,41 @@ public:
     int loadScript(char const* path);                          // T 0x08537938（虚槽 +0x04）
     // 非虚三参重载（ORIG T 0x085380fa 直呼；返回错误行，0=成功）。
     int loadScript(char const* path, char const* hell, char const* special);
+    // ---- G1 Drop 批次补充（WongWorkDrop_A.cpp 逐报告转写）----
+    void setDropRatio(float ratio);                            // T 0x08535cf8（虚槽 +0x00）
+    void generateRandomItem(stGenerateRefData_t const& ref,
+                            stGenerateResult_t& result);       // T 0x08536da8（虚槽 +0x08）
+    void generateSpecificItem(stGenerateRefData_t const& ref,
+                              stGenerateResult_t& result);     // T 0x08537070（虚槽 +0x0c）
+
+protected:
+    int _getGenItemProbIdx(int value);                         // T 0x085372ee
+    bool _getBossGoldDrop(unsigned char type, unsigned short& outGold,
+                          unsigned short& outCount);           // T 0x08535dc8
+    void _generateRandomItem(unsigned char type, char role, unsigned char dungeonLv,
+                             unsigned char difficulty, unsigned char partyPos,
+                             int context3c, int dropRate,
+                             stGenerateResult_t& result, bool& done);
+                                                               // T 0x08535ed2
+    void _generateMonseterSpecificItem(CMonster const* monster, char idxType,
+                                       stGenerateResult_t& result);
+                                                               // T 0x08536fce（ORIG 拼写如此）
+
 
 protected:
     struct stGenItemProb_t { int v[7]; };
     struct stConditionPair_t { unsigned short rate; unsigned short value; };
+    // 首领/命名怪首杀权重项（ORIG 嵌套类型；ctor/dtor W 0x0853a6ae，
+    //   mangled _ZN8WongWork12CMonsterDrop25stFirstMobHuntingWeight_tC1Ev/C2Ev；
+    //   实现见 WongWorkDrop_A.cpp）
+public:   // 类外 typedef 需可见（布局零变化，仅访问级别调整）
+    struct stFirstMobHuntingWeight_t
+    {
+        stFirstMobHuntingWeight_t();
+        int m_weight;      // +0x00
+        int m_field04;     // +0x04
+    };
+protected:
 
     std::vector<stGenItemProb_t> m_probs;            // +0x18
     std::vector<stGenItemProb_t> m_probsSub;         // +0x24
@@ -450,6 +554,9 @@ protected:
     unsigned short m_goldQuantity[4];                // +0x259398..0x25939F
     unsigned short m_goldVolume[2];                  // +0x2593a0..0x2593a3
 };  // sizeof 0x2593a4
+// 类外同型 typedef：WarField 等既有非限定名引用保持编译（同一类型，无 ODR
+// 分裂；sizeof 断言沿用 WongWork::stFirstMobHuntingWeight_t 名字）。
+typedef CMonsterDrop::stFirstMobHuntingWeight_t stFirstMobHuntingWeight_t;
 
 // CObjectDrop 以 CMonsterDrop 为基（ORIG ctor 0x0853a7f8 调 CMonsterDropC1 再置
 // vptr 0x08c9a730）；自身覆写虚槽 +0x04（ORIG T 0x08538352）并预置队伍加成 1.0f。
@@ -458,7 +565,24 @@ class CObjectDrop : public CMonsterDrop
 public:
     CObjectDrop(int count);                                    // W 0x0853a7f8
     int loadScript(char const* path);                          // T 0x08538352
+    // 虚槽覆写（G1 Drop 批次；T 0x0853818a / T 0x08538234）
+    void generateRandomItem(stGenerateRefData_t const& ref,
+                            stGenerateResult_t& result);
+    void generateSpecificItem(stGenerateRefData_t const& ref,
+                              stGenerateResult_t& result);
 };
+// ---- 掉落概率档位（ORIG 编码属 namespace WongWork 层：CClearReward 方法
+//      参数以 NS_ 引用，见 _ZN8WongWork12CClearReward18_getGenItemProbIdxEiNS_22eClearRewardDropProb_tE）
+enum eClearRewardDropProb_t
+{
+    eDropProb_default = 0,
+    eDropProb_event = 1,
+    eDropProb_event2 = 2,
+    eDropProb_pcroomDefault = 3,
+    eDropProb_pcroomEvent = 4,
+    eDropProb_pcroomBonus = 5
+};
+
 
 class CClearReward : public CItemGenerator
 {
@@ -467,17 +591,8 @@ public:
     CClearReward(int count);                                   // W 0x0853a968（C1/C2 同址）
     int loadScript(char const* path);                          // T 0x085392c0
 
-    // ---- 掉落概率组（eClearRewardDropProb_t 0..5，见 loadScript [drop prob]） ----
-    enum eClearRewardDropProb_t
-    {
-        eDropProb_default = 0,
-        eDropProb_event = 1,
-        eDropProb_event2 = 2,
-        eDropProb_pcroomDefault = 3,
-        eDropProb_pcroomEvent = 4,
-        eDropProb_pcroomBonus = 5
-    };
-
+    // 同型 typedef：类内名字可见（方法签名/调用方不变；mangled 归 ns 层）。
+    typedef WongWork::eClearRewardDropProb_t eClearRewardDropProb_t;
     // 非虚查询（ORIG T/W 直呼；clear_reward 消费）
     int getGoldCardCommission(int n);                          // T 0x085385b2
     float getGoldCardCreateRate();                             // W 0x085bf000
@@ -528,16 +643,23 @@ protected:
 private:
     // clear_reward 族内部实现（ORIG T；定义 CClearReward.cpp）
     int _getGenItemProbIdx(int value, eClearRewardDropProb_t drop);  // T 0x08538694
-    void _generateRandomItem(stGenerateRefData_t const& refClear, int param,
-                             stGenerateResult_t& result, float dropRate);  // T 0x085387c0
-    void _generateSpecificItem(stGenerateRefData_t const& refClear,
-                               stGenerateResult_t& result);        // T 0x08538bf8
+    void _generateRandomItem(stGenerateRefClearReward_t const& refClear, int param,
+                             stGenerateResult_t& result, float dropRate);
+                                                               // T 0x085387c0
+    void _generateSpecificItem(stGenerateRefClearReward_t const& refClear,
+                               stGenerateResult_t& result);    // T 0x08538bf8
 };  // sizeof 0x23b84
+
 
 class CDungeonDrop : public CItemGenerator
 {
 public:
+    // （stGenerateRefClearReward_t：生成器域前置声明于上方，完整定义在
+    //   CClearReward.cpp；ORIG mangled 属 WongWork::，勿移至全局区。）
     CDungeonDrop(int count);                                   // W 0x0853abc2
+    // 虚槽 +0x0c 覆写（G1 Drop 批次；T 0x08539c3e）
+    void generateSpecificItem(stGenerateRefData_t const& ref,
+                              stGenerateResult_t& result);
 };  // sizeof == 0x18 == ORIG 分配尺寸（ORIG 无 loadScript 覆写符号，虚槽走基类）
 
 class CWorldDrop : public CItemGenerator
@@ -547,7 +669,9 @@ public:
     // 虚槽 +0x04 覆写（vtable _ZTVN8WongWork10CWorldDropE 0x08c9a710；ORIG W
     // 0x0853a81c 空实现 return 0 —— ORIG 即如此，非占位）。
     int loadScript(char const* path);
-    // 非虚双参重载（ORIG T 0x0853855c 直呼）。定义见 StrikerWorldDropB2.cpp。
+    // 虚槽 +0x08 覆写（G1 Drop 批次；T 0x085383b8）
+    void generateRandomItem(stGenerateRefData_t const& ref,
+                            stGenerateResult_t& result);
     int loadScript(char const* path, char const* warArea);
 
     WorldDropInfo m_worldDrop[201];     // +0x18（ctor 循环 WorldDropInfoC1Ev ×0xc8）

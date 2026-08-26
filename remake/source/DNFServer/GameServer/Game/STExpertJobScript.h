@@ -11,7 +11,6 @@
 //
 // ORIG 嵌套类型（Wave5 only_orig 清单实证，mangled _ZN17STExpertJobScript…W）：
 // ctor/clear/dtor 与查询方法定义于 STExpertJobOnlyOrig.cpp（独占 TU）。
-// C1/C2 同体双别名遵循仓库 GNU 弱符号重建模式。
 
 #include <map>
 #include <string>
@@ -106,7 +105,7 @@ public:
         unsigned short m_field0;  // +0x00
         unsigned short m_field2;  // +0x02
     };
-    // 怪物卡绑定结果（stride 0xc）。ctor 0x0896dc20：只清 (int*)+0 与 (word)+4。
+    // 怪物卡绑定结果（stride 0xc）。ctor 0x0896dc20：只清 w+4 后 d+0。
     struct stMonsterCardBindResult
     {
         stMonsterCardBindResult();               // ORIG C1/C2 @0x0896dc20
@@ -140,7 +139,8 @@ public:
     // 绑定信息（GetCommonBindInfo→this+0x84 / GetSpecialBindInfo→this+0xc4 各一；
     // Clear 于 +0x84/+0xc4 各调一次 clear() 实证）。
     // ctor 0x0896dc80：构造 3×vector<stMonsterCardBindResult>@+0x10 后调 clear；
-    // clear 0x0896dc38：i=0..3 { cnt[i]=0; vec[i].clear() }。sizeof 0x34（尾随 12B 至下一 BindInfo）。
+    // clear 0x0896dc38：i=0..3 { cnt[i]=0; vec[i].clear() }。
+    // sizeof 0x40（cnt[4]+vec[3]+尾随 12B 未建模区衔接下一 BindInfo @+0xc4）。
     struct stMonsterCardBindInfo
     {
         stMonsterCardBindInfo();     // ORIG C1/C2 @0x0896dc80
@@ -148,7 +148,8 @@ public:
         void clear();                // ORIG 0x0896dc38
         int                                  m_count[4];  // +0x00..0x0f
         std::vector<stMonsterCardBindResult> m_vec[3];    // +0x10..0x33
-    };                                   // sizeof 0x34
+        char                                 m_tailPad[0xc]; // +0x34..0x3f（ctor/clear/D1 不触）
+    };
     // 炼金提取结果信息（this+0x14c）。cnt[3]@0 + vec<BindResult>[3]@0xc。sizeof 0x30。
     struct stAlchemistExtractionResultInfo
     {
@@ -204,15 +205,15 @@ public:
     stEnchanterExtractionResultInfo* GetEnchanterExtractionResultInfo();  // 0x084a462e
     stDollControllerResultInfo* GetDollControllerExtractionResultInfo();  // 0x084a4620
 
-    // ---- 数据成员（偏移经 Import/Clear 反汇编逐段核实；总大小 0x290）----
+    // ---- 数据成员（偏移经 Import/Clear/查询 getter 反汇编逐段核实；总大小 0x290）----
     std::vector<ExpertJobExp>                   m_expVec;                 // +0x00  [expertness exp]
     std::vector<std::pair<int, int> >           m_growSkillVec;           // +0x0c  [skill]
     std::map<int, unsigned short>               m_portableDisjointMap;    // +0x18  [portable disjoint info]
-    stSelfDisjoinMaterialInfo                   m_selfDisjoin;            // +0x30  [disjoint self service]（3×int 链式清零）
+    stSelfDisjoinMaterialInfo                   m_selfDisjoin;            // +0x30  [disjoint self service]
     std::map<int, unsigned char>                m_shopDollMap;            // +0x3c  [shop doll info]
     std::map<int, unsigned short>               m_unsealScrollMap;        // +0x54  [unseal scroll level limit info]
     std::map<int, stMonsterCardBindRate>        m_monsterCardBindRateMap; // +0x6c  [monstercard bind info]
-    stMonsterCardBindInfo                       m_commonBindInfo;         // +0x84  [monstercard bind list]（cnt[4]+vec[3]，尾 pad 至 0xc4）
+    stMonsterCardBindInfo                       m_commonBindInfo;         // +0x84  [monstercard bind list]
     stMonsterCardBindInfo                       m_specialBindInfo;        // +0xc4  [monstercard bind only]
     std::map<int, unsigned short>               m_alchemistExtractInfo;   // +0x104 [alchemist extraction info]
     std::map<int, unsigned short>               m_enchanterExtractInfo;   // +0x11c [enchanter extraction info]

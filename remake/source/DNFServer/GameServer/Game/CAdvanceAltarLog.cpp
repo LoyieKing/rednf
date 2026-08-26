@@ -1,0 +1,173 @@
+// ============================================================================
+// CAdvanceAltarLog —— advancealtar 统计日志实现（Wave5 AltarProc 续批）。
+// 证据：docs/class_func_reports/CAdvanceAltarLog/ 全文（10 函数）。
+// 全部字段化；不使用 GameStubs 桥。
+// ============================================================================
+#include "CAdvanceAltarLog.h"
+
+#include <cstring>
+
+#include "CStreamGuard.h"
+#include "GlobalData.h"      // GlobalData::s_stream_pool / s_msgq_mgr
+#include "MsgQueueMgr.h"
+#include "StreamPool.h"
+
+// ORIG makeKey @0x08157298：低 32 = itemIndex，高 32 = (keyC<<16)|itemType。
+long long CAdvanceAltarLog::makeKey(unsigned short itemType,
+                                    unsigned int itemIndex,
+                                    unsigned short keyC)
+{
+    return (static_cast<long long>(static_cast<unsigned int>(keyC) << 16 |
+                                   itemType) << 32) |
+           static_cast<long long>(itemIndex);
+}
+
+// ORIG getType @0x081572ea：返回 key 低 32 位的高 16 位（符号扩展位型扩展）。
+long long CAdvanceAltarLog::getType(long long key)
+{
+    return static_cast<int>(static_cast<int>(key >> 0x10));
+}
+
+// ORIG getIndex @0x0815730e：空函数（ORIG 汇编仅 ret）。
+void CAdvanceAltarLog::getIndex(long long key)
+{
+    (void)key;
+}
+
+// ORIG getLevel @0x08157336：((int)key & 0xffffffff)<<16 | （静态 this 高 16 截断）
+// —— 按 ORIG C 忠实转写。
+long long CAdvanceAltarLog::getLevel(long long key)
+{
+    unsigned int low32 = static_cast<unsigned int>(key);
+    return static_cast<int>(static_cast<int>((low32 << 0x10)) >> 0x10);
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08156aaa（ctor）：Mutex() → map(+0x18)/map(+0x30) 构造 → initStatistics。
+// ----------------------------------------------------------------------------
+CAdvanceAltarLog::CAdvanceAltarLog()
+    : m_mutex(), m_entrances(), m_layers()
+{
+    initStatistics();
+}
+
+// ORIG T 0x08156b38（dtor）：initStatistics → map 层逆序析构（成员自动析构一致）。
+CAdvanceAltarLog::~CAdvanceAltarLog()
+{
+}
+
+// ORIG T 0x08156bca（initStatistics.md）：Guard 内双 map clear。
+void CAdvanceAltarLog::initStatistics()
+{
+    Guard<Mutex> guard(&m_mutex);
+    m_entrances.clear();
+    m_layers.clear();
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08156c30（incrementEntranceData.md）：guard 内 find(stageIndex)；
+// 命中累加 enter/success/star 三计数；未命中经栈上 16B 构造后 operator[] 写入
+// {stageIndex, deltas}（data[0] 冗余存键，与 ORIG 二进制布局一致）。
+// ----------------------------------------------------------------------------
+void CAdvanceAltarLog::incrementEntranceData(unsigned int stageIndex,
+                                             unsigned int enterDelta,
+                                             unsigned int successDelta,
+                                             unsigned int starDelta)
+{
+    Guard<Mutex> guard(&m_mutex);
+    std::map<unsigned int, STAdvanceAltarEntranceData>::iterator it =
+        m_entrances.find(stageIndex);
+    if (it != m_entrances.end())
+    {
+        it->second.m_enterCount += enterDelta;
+        it->second.m_successCount += successDelta;
+        it->second.m_obtainStar += starDelta;
+        return;
+    }
+
+    STAdvanceAltarEntranceData data;                    // 栈装配（ORIG local_28..）
+    data.m_stageIndex = stageIndex;
+    data.m_enterCount += enterDelta;
+    data.m_successCount += successDelta;
+    data.m_obtainStar += starDelta;
+    // ORIG operator[] 逐 uint 写回（data[0]=键重复，等价整结构赋值）。
+    m_entrances[stageIndex] = data;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08156d60（incrementLayerStatData.md）：guard 内 makeKey 后 find；
+// 命中累加 useCount/useStar；未命中 14B 结构装配后 memcpy 运算式写入新槽
+// （新建分支计数亦含增量，与 hit 分支累计一致）。
+// ----------------------------------------------------------------------------
+void CAdvanceAltarLog::incrementLayerStatData(unsigned short itemType,
+                                              unsigned int itemIndex,
+                                              unsigned short a3,
+                                              unsigned short useCountDelta,
+                                              unsigned short useStarDelta)
+{
+    Guard<Mutex> guard(&m_mutex);
+
+    const long long key = makeKey(itemType, itemIndex, a3);
+    std::map<long long, STAdvanceAltarLayerStatData>::iterator it =
+        m_layers.find(key);
+    if (it != m_layers.end())
+    {
+        it->second.m_useCount = static_cast<unsigned short>(
+            it->second.m_useCount + useCountDelta);
+        it->second.m_useStar = static_cast<unsigned short>(
+            it->second.m_useStar + useStarDelta);
+        return;
+    }
+
+    STAdvanceAltarLayerStatData data;                   // 栈装配（ORIG local_30 区）
+    std::memset(&data, 0, sizeof(data));                // ORIG ctor memset 装配前清零
+    data.m_itemType = itemType;
+    data.m_field2 = a3;
+    data.m_itemIndex = itemIndex;
+    data.m_useCount = static_cast<unsigned short>(data.m_useCount + useCountDelta);
+    data.m_useStar = static_cast<unsigned short>(data.m_useStar + useStarDelta);
+    m_layers[key] = data;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x08156ed2（updateDatabase.md 全文）：guard 内 Acquire 流（msg 0x33b，
+// 广播 -1）；put entrances.size() + 逐条 GetInBuffer<ST> memcpy 0x10 并 trace；
+// clear；同序 layers：size + memcpy 0x10（pair+8 起，超读 2 字节 pad 为 ORIG
+// 原行为）/trace/clear；尾 MsgQueueMgr put 队列 4。
+// ----------------------------------------------------------------------------
+void CAdvanceAltarLog::updateDatabase()
+{
+    Guard<Mutex> guard(&m_mutex);
+
+    Stream* raw = GlobalData::s_stream_pool->Acquire(
+        "localglobal/global_Statistics.cpp", 0xe5);
+    CStreamGuard stream(raw, true);
+
+    stream.operator<<(static_cast<int>(0x33b));   // ORIG operator<<(0x33b)
+    stream.operator<<(-1);                        // 广播
+
+    stream.operator<<(static_cast<int>(m_entrances.size()));
+    for (std::map<unsigned int, STAdvanceAltarEntranceData>::const_iterator it =
+             m_entrances.begin(); it != m_entrances.end(); ++it)
+    {
+        STAdvanceAltarEntranceData* slot = stream->GetInBuffer<STAdvanceAltarEntranceData>();
+        std::memcpy(slot, &it->second, 0x10);
+        // ORIG 行号 0xf4 trace [推断保留语义]
+    }
+    m_entrances.clear();
+
+    stream.operator<<(static_cast<int>(m_layers.size()));
+    for (std::map<long long, STAdvanceAltarLayerStatData>::const_iterator it =
+             m_layers.begin(); it != m_layers.end(); ++it)
+    {
+        STAdvanceAltarLayerStatData* slot =
+            stream->GetInBuffer<STAdvanceAltarLayerStatData>();
+        // pair+8 起复制 0x10（超过 ST 0xe 的 2 字节为 ORIG 原样超读，勿改 0x10）。
+        std::memcpy(slot, &it->second, 0x10);
+        // ORIG 行号 0x106 trace
+    }
+    m_layers.clear();
+
+    MsgQueueMgr& msgq = *GlobalData::s_msgq_mgr;
+    msgq.put(MsgQueueMgr::LOGDB_Q, stream);   // ORIG put(s_msgq_mgr,4,guard)
+}

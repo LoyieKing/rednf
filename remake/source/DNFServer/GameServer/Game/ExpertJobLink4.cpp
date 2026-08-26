@@ -700,8 +700,6 @@ int CDisjointer::get_disjoint_result(CItem* item, Inven_Item* inventItem,
 // IsAvailableJob（ORIG W 0x849f30c：恒返 1）
 bool CEnchanter::IsAvailableJob() { return true; }
 
-// SetPeerRequestType（ORIG W 0x849f316：写 +0x44）
-void CEnchanter::SetPeerRequestType(int type) { m_peerRequestType = type; }
 
 // Reset（报告 Reset.md，ORIG T 0x0849c71e sz 0x97）：清材料×2 →
 // 清 +0x28..+0x38 五个 dword → SetType(1) → 清 +0x3c/+0x44/+0x40。

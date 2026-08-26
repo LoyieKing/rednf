@@ -1,5 +1,37 @@
 #ifndef GAME_CINVENTORY_H_
 #define GAME_CINVENTORY_H_
+#include <cstddef>
+// SIG_CREATURE_ITEM_DETAIL_INFO 唯一权威定义（pack(1)，0x38；布局证据=CCreature.cpp
+// 局部镜像/CreatureOnlyMgrRest.cpp 镜像交叉锁定，两处局部副本应删除）。
+#ifndef DNF_GAME_SIG_CREATURE_ITEM_DETAIL_INFO_DEFINED
+#define DNF_GAME_SIG_CREATURE_ITEM_DETAIL_INFO_DEFINED
+#pragma pack(push, 1)
+struct SIG_CREATURE_ITEM_DETAIL_INFO
+{
+    int           m_slotNo;           // +0x00（0xee=装备中槽标记）
+    int           m_uid;              // +0x04（RegisterCreatureItem 的 map key）
+    char          m_name[0xc];        // +0x08（memcpy 12 字节，无终止符）
+    unsigned char m_pad14[4];         // +0x14..0x17
+    int           m_stomachValue;     // +0x18
+    unsigned char m_pad1c[4];         // +0x1c..0x1f
+    int           m_exp;              // +0x20
+    unsigned char m_creatureItemType; // +0x24（低字节；Load 以 (signed char) 还原）
+    unsigned char m_pad25;            // +0x25
+    unsigned char m_noCharge;         // +0x26
+    unsigned char m_stat;             // +0x27（兼作删除标记）
+    int           m_expireTime;       // +0x28
+    unsigned char m_pad2c[4];         // +0x2c..0x2f
+    unsigned char m_growExpFlag;      // +0x30
+    unsigned char m_isMaxLevel;       // +0x31
+    unsigned char m_pad32[6];         // +0x32..0x37
+};
+#pragma pack(pop)
+static_assert(sizeof(SIG_CREATURE_ITEM_DETAIL_INFO) == 0x38,
+              "SIG_CREATURE_ITEM_DETAIL_INFO ABI drift");
+static_assert(offsetof(SIG_CREATURE_ITEM_DETAIL_INFO, m_stomachValue) == 0x18,
+              "SIG_CREATURE_ITEM_DETAIL_INFO m_stomachValue offset drift");
+#endif
+struct SIG_POSTAL_CREATURE_TEMP_PERIOD;    // ORIG 全局域；仅证 +0 uid/+4 tempPeriod(-1 空)；指针传递即可
 
 // ============================================================================
 // df_game_r 还原 —— CInventory（第八批 H3 + 第九批 I2 对齐，ORIG 布局）
@@ -198,20 +230,29 @@ public:
 //   +0x18 m_expireTime        （GetRemainDate 0x833f016 读取；Set 0x833ef20 清零）
 // 仅建模本任务所需字段；其余 ORIG 字段以 m_pad 保持尺寸语义。
 // ============================================================================
+// user_creature::CREATURE_ITME_TYPE（拼写 ITME 为 ORIG mangled 原样）：
+//   蛋池=0 / 宠物池=1（GetCreatureEggPoolSize/CCreatureMgr::Hatch 实证）。
+enum CREATURE_ITME_TYPE
+{
+    CREATURE_ITME_TYPE_EGG = 0,
+    CREATURE_ITME_TYPE_CREATURE = 1
+};
+
 class CCreatureItem
 {
 public:
-    CCreatureItem() {}   // ORIG ctor 0x8340c82 写 vtable；此处无 vtable，仅占位
+    CCreatureItem();   // ORIG C1/C2 W 0x08340c82：写 vtable（外联定义 CreatureOnlySimple.cpp）
     int GetRemainDate(int nowSec) const;  // ORIG _ZNK...13GetRemainDateEi 0x833f016（W）
 
     // ---- ORIG W 内联访问器（nm --defined-only 实证，体为单字段读写）----
     int GetItemId() { return m_itemId; }                        // W 0x833efa4
     void SetItemId(int itemId) { m_itemId = itemId; }           // W 0x833efb0
     int GetCreatureItemType();                                  // W 0x833ef98（定义 CCreatureMgr.cpp，ORIG 外联调用形态）
-    void SetCreatureItemType(int type) { m_creatureItemType = type; }  // W 0x833efe2
+    void SetCreatureItemType(CREATURE_ITME_TYPE type);   // ORIG W 0x833efe2（外联 CreatureOnlySimple.cpp；ORIG 无 int 版符号）
     int GetUid() { return m_uid; }                              // W 0x833efbe
     int GetSlotNo() { return m_slotNo; }                        // W 0x833efca
     /// ORIG W 0x833eff0（movzbl）
+    unsigned char GetNoCharge() { return m_noCharge; }   // W 0x833efd6（movzbl +0x14）
     unsigned char GetStat() { return m_stat; }                  // W 0x833eff0（movzbl）
     void SetExpireTime(int expireTime) { m_expireTime = expireTime; }  // W 0x833effc
     int getExpireTime() const { return m_expireTime; }          // W 0x833f00a（_ZNK）
@@ -243,6 +284,7 @@ public:
 class CCreatureMgr
 {
 public:
+    CCreatureMgr();   // ORIG T 0x08339196（map/CArtifact[3] 隐式成员构造）
     void Reset();
     bool CheckDiedCreature();   // ORIG T _ZN13user_creature12CCreatureMgr17CheckDiedCreatureEv 0x08339acc（TimerCreature 调用；定义缺口记报告）
     void SetUser(CUser* user);
@@ -295,6 +337,38 @@ public:
     // ---- ORIG 布局（Reset.md 0x833a45a / InsertCreatureItem.md 0x833b204 反汇编）----
     void RenameCreature(const char* name, int creatureIdx, int slot);  // ORIG _ZN13user_creature12CCreatureMgr14RenameCreatureEPKcii 0x08339b6e
     bool Hatch(int addInfo);                                           // ORIG _ZN13user_creature12CCreatureMgr5HatchEi 0x08339fa0
+
+    // ---- OnlyOrig_CreatureJob 批追加（定义 CreatureOnlyMgrRest.cpp）----
+    void SetStomach(int stomachValue);                                 // ORIG T 0x08339ee0
+    bool ChangeOwner(Inven_Item* item, int slotFrom, int mapSizeHint,  // ORIG T 0x0833ad34
+                     int param_4, int param_5);
+    int ItemEvolute(int itemIdx);                                      // ORIG T 0x0833d6c2
+    bool ChangeSlotNo(Inven_Item* item, int newSlot, int param_3);     // ORIG T 0x0833aedc
+    bool LoadArtifact(int slot, Inven_Item* item);                     // ORIG T 0x0833be7c
+    bool AuctionRegist(Inven_Item* item, int param_2, int param_3);    // ORIG T 0x0833b09c
+    bool DenySwapArtifact(Inven_Item* a, int s1, int s2,               // ORIG T 0x0833989c
+                          Inven_Item* b, int s3, int s4);
+    int GetCreatureIndex();                                            // ORIG T 0x08338f36
+    bool LoadCreatureItem(Inven_Item* item,                            // ORIG T 0x0833b68c
+                          SIG_CREATURE_ITEM_DETAIL_INFO* detail);
+    bool SaveCreatureItem();                                           // ORIG T 0x0833bbbe
+    int SetOverSkillTime(const int& itemIdx);                          // ORIG T 0x0833c41e
+    bool IsSaveCreatureItem();                                         // ORIG T 0x0833ba30
+    bool UnRegistTempPeriod(int uid);                                  // ORIG T 0x0833d962
+    bool EventEvoluteCreature(int creatureId, int minLevel,            // ORIG T 0x0833da1e
+                              int slot);
+    bool SendCreatureItemInfo(SIG_CREATURE_ITEM* sig);                 // ORIG T 0x0833b498
+    bool LoadCreatureTempPeriod(SIG_POSTAL_CREATURE_TEMP_PERIOD* sig); // ORIG T 0x0833d9d8
+    bool SetCreatureItemAddInfo(int slot, int value);                  // ORIG T 0x0833b620
+    bool InsertCreatureItemResult(SIG_CREATURE_ITEM* sig);             // ORIG T 0x0833b38c
+    bool UpdateCreatureItemResult(SIG_CREATURE_ITEM* sig);             // ORIG T 0x0833b592
+    bool Evolute(int creatureId, int minLevel, bool force);            // ORIG T 0x083beb4（W）
+    CCreatureMgr(const CCreatureMgr& src);                             // ORIG W C1/C2 0x86992cc【objdump】
+    int getExpireDate(int uid) const;                                  // ORIG T 0x0833d758
+    int GetCreatureItemSize() const;                                   // ORIG W 0x8531fbe【objdump】
+    bool IsExistedCreatureItem(int slot) const;                        // ORIG T 0x0833a942
+    bool checkMaxCreatureLevel(int itemId, bool growFlag) const;       // ORIG T 0x0833baee
+    bool isGrowCreatureMaxLevel() const;                               // ORIG T 0x0833bbb2
     std::map<int, CCreatureItem*> m_creatureItems;  // +0x00（24B）
     CCreature* m_equippedCreature;                  // +0x18
     CUser* m_user;                                  // +0x1c
@@ -412,8 +486,19 @@ struct stEquipCondition
 {
 };
 
+// stEquipConditionForChronicle —— ORIG 输出布局（0xc 字节）。
+// 写入证据：CInventory::CheckEquipmentItemCondition@085083d0 对 cond 逐偏移
+// 写指令（+0/+1/+2/+4w/+6/+7/+8i）；消费方 WongWorkMiscB_A.cpp 按错误码回读。
 struct stEquipConditionForChronicle
 {
+    unsigned char m_upgrade;        // +0x00 ← Inven_Item::GetUpgrade()
+    unsigned char m_hasAmplify;     // +0x01（识别出强化选项=1）
+    unsigned char m_amplifyType;    // +0x02 ← amp.getAbilityType()
+    unsigned char m_pad3;           // +0x03
+    unsigned short m_amplifyValue;  // +0x04 ← amp.getAbilityValue()
+    unsigned char m_hasField0Item;  // +0x06（Inven_Item 字节0 != 0）
+    unsigned char m_reSealCount;    // +0x07 ← Inven_Item::GetReSealCount()
+    int m_fieldd;                   // +0x08 ← Inven_Item::m_fieldd(+0x0d)
 };
 
 bool CheckEquipable(const Inven_Item& a, const Inven_Item& b);
@@ -504,10 +589,16 @@ public:
     int removeDupliacteEquipItem();
     int CheckNeedItemList(
         const std::vector<std::pair<int, int> >& items) const;
-    int CalBlankSlot(int* out,
-                     const std::vector<std::pair<int, int> >& items) const;
+    // ORIG _ZNK10CInventory27CheckEquipmentItemConditionE10INVEN_TYPEsR28stEquipConditionForChronicle
+    // 返回错误码 int：0=成功、0x11/0x13/0xd8=失败（085083d0 的 eax 直接值；
+    // 调用方 WongWorkMiscB_A.cpp 按 err != 0 → 携码退出消费，非布尔）。
+    int CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
+                                    stEquipConditionForChronicle& cond) const;
     int CalNeedSlot(int* out,
                     const std::vector<std::pair<int, int> >& items) const;
+    int CalBlankSlot(int* out,
+                     const std::vector<std::pair<int, int> >& items) const;
+    // ORIG _ZNK10CInventory12CalBlankSlotEiRKSt6vectorISt4pairIiiESaIS3_EE T 0x08508536
     int check_vilmark_dungeon_item_exist(int itemIdx) const;
     void ShowAllExistItemsForErrorCheck() const;
     void checkEquipmentState(int invenType, int slot, int& a, int& b, int& c,
@@ -515,8 +606,6 @@ public:
     bool CheckEquipmentItemCondition(
         const std::vector<std::pair<int, int> >& items, stEquipCondition& cond,
         Inven_Item& outItem) const;
-    bool CheckEquipmentItemCondition(INVEN_TYPE type, short slot,
-                                     stEquipConditionForChronicle& cond) const;
     int MakeItemList(INVEN_TYPE invenType, void* out) const;
     bool MakeItemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;
     int MakeSecuRewarditemPacket(INVEN_TYPE invenType, int slot, PacketGuard& packet) const;

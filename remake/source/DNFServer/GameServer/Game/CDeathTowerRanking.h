@@ -18,6 +18,9 @@
 #include <map>
 #include <ext/hash_map>
 
+class PacketGuard;   // makeMyBestRecordPacket/makeTopRankerRecordPacket 参数（真实定义
+                     //   在 PacketGuard.h，class；此处必须同为 class 以免 tag 冲突）
+
 namespace WongWork
 {
 class CDeathTowerRanking
@@ -54,6 +57,13 @@ public:
     // ORIG 0x08468552 T（_ZN8WongWork18CDeathTowerRanking15unregistRankingEj，
     // 成员 this=表）：对 5 张 ranking 子表按 characNo erase。
     void unregistRanking(unsigned int characNo);
+    // ORIG 0x08468b8e T（_ZN8WongWork18CDeathTowerRanking22makeMyBestRecordPacketEjjR11PacketGuard）：
+    // 把 key 对应个人最优记录序列化进 packet。
+    void makeMyBestRecordPacket(unsigned int towerIdx, unsigned int key,
+                                PacketGuard& packet);
+    // ORIG 0x08468c68 T（_ZN8WongWork18CDeathTowerRanking25makeTopRankerRecordPacketEjR11PacketGuard）：
+    // 把该塔榜首记录序列化进 packet。
+    void makeTopRankerRecordPacket(unsigned int towerIdx, PacketGuard& packet);
 
     // ---- stBestRecord_t（尺寸 0x98；ctor 0x082a76c0 / operator> 0x08469ce4 /
     // operator== 0x08469d30）----
@@ -101,6 +111,10 @@ public:
         char m_pad0[0x98];           // +0x00 前缀
         stBestRecord_t m_slots[5];   // +0x98..+0x390
     };
+    // ORIG T 0x08468cb6（_ZN8WongWork18CDeathTowerRanking17_makeRecordPacketERKNS0_14stBestRecord_tER11PacketGuard，
+    // 定义 CompoundDeathLCB.cpp）：单条纪录序列化——4 成员名 strlen+put_str、
+    // 各 put_byte(+0x80/+0x84 槽内 flag 对)，末尾 stage(short)/playTime(int)/名次(int)。
+    void _makeRecordPacket(const stBestRecord_t& record, PacketGuard& packet);
 
 private:
     stTowerBlock m_towers[kRankTowerCount];               // +0x0000（0x11d0）

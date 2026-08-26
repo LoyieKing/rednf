@@ -18,10 +18,15 @@
 //   +0x04 ARAD::SCRIPT::AvatarFixedHiddenOption（0x4c：6×vector@+0x00..+0x47、int 材料索引@+0x48）
 //   +0x50 std::vector<int> m_cumulativeRate[6]（Init 把各桶 m_nRate 累加成前缀和，+0x50..+0x97）
 
+namespace arad { struct SigAvatarHiddenOptionChange; }
+
 #include <vector>
+class CUser;
+
 #include <string>
 
 #include "Arad_DataManager.h"   // ARAD::ScriptInterface / Singleton
+#include "CItemAmplifier.h"     // ENUM_RARITY（DNF_ENUM_RARITY_DEFINED 守卫）
 
 // ----------------------------------------------------------------------------
 // AVATAR_HIDDEN_ABILITY_TYPE —— ORIG 枚举嵌套于同名 struct（mangled
@@ -135,6 +140,22 @@ public:
     // m_cumulativeRate[i]（reserve(count-1)，与 ORIG 一致依赖 clearScript 的种子保证非空）。
     // 恒返回 1。
     int Init();
+
+    // ORIG 0x0817e4c6 CheckCondition / 0x0817e8d6 ChangeHiddenOption
+    // （Arad_INTER_kAvatarHiddenOptionChange 派发链调用）。仅声明，定义由
+    // AvatarFixedHiddenOptionServer TU 批次提供。
+    bool CheckCondition(CUser* user, arad::SigAvatarHiddenOptionChange* sig);
+    bool ChangeHiddenOption(CUser* user, arad::SigAvatarHiddenOptionChange* sig);
+    // ---- ORIG T（ChangeHiddenOption 依赖；LinkClosureB.AradServers 定义归
+    //      AvatarFixedHiddenOptionServer.cpp）----
+    // ORIG _ZN29AvatarFixedHiddenOptionServer13GetSkillIndexE11ENUM_RARITY @0x0817e1ec
+    int GetSkillIndex(ENUM_RARITY rarity);
+    // ORIG _ZN29AvatarFixedHiddenOptionServer13GetSkillIndexE11ENUM_RARITYi @0x0817e23e
+    int GetSkillIndex(ENUM_RARITY rarity, int randIdx);
+    // ORIG _ZN29AvatarFixedHiddenOptionServer14GetRandomInputE11ENUM_RARITY @0x0817e334
+    int GetRandomInput(ENUM_RARITY rarity);
+    // ORIG _ZN29AvatarFixedHiddenOptionServer17IsVaildSkillIndexE11ENUM_RARITYi @0x0817e392
+    bool IsVaildSkillIndex(ENUM_RARITY rarity, int idx);
 
     ARAD::SCRIPT::AvatarFixedHiddenOption m_script;  // +0x04
     std::vector<int> m_cumulativeRate[6];            // +0x50..+0x97

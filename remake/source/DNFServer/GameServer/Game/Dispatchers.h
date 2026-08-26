@@ -4,24 +4,12 @@
 #include "PacketDispatcher.h"
 #include "PacketTypes.h"
 
-namespace CMDPacketStruct
-{
-struct STBaseResponse {};
-// ORIG altar dispatcher 家族（advancealtar，Wave5）请求/响应载体：
-// read_packet 以 PacketBuf::get_binary 将请求体整块读入 STBaseRequest；
-// 各类读取长度不同（0xe/0x14/0x18/0x20/0x24/0x30），buffer 取最大并留余。
-struct STBaseRequest { unsigned char m_data[0x40]; };
-
-// ORIG _SetSlotData（N15CMDPacketStruct12_SetSlotDataE）：setSlot/exchangeSlot
-// 域 12 字节块（req+0x18 起整块传递；首 int 为槽类型判别 1/2，
-// 见 advancealtar__Dispatcher_SetSlot/process_packet +0xa4）。
-// 字段名【推断】，权威精化归 CharacAdvanceAltarManager 实现批次。
-struct _SetSlotData { int m_type; int m_field4; int m_field8; };
-
-// ORIG ResetStarType::T（N15CMDPacketStruct13ResetStarType1TE）：resetStar(CUser*,T)
-// 的 opaque 枚举传参；枚举器名不可从二进制恢复【推断】。
-struct ResetStarType { enum T { RS_N0 = 0 }; };
-}
+// ---- CMDPacketStruct 权威头（Exchange 批归口 2026-08-27）：STBaseRequest/
+// STBaseResponse/_SetSlotData/ResetStarType 及 altar _Req/_Res 家族均在此；
+// 本文件不再保留局部 stub（消除与 BattleData.h include 链的 ODR 冲突）。
+// 注意：read_packet 各类读取长度不同（0xe/0x14/0x18/0x20/0x24/0x30），
+// 权威 STBaseRequest:MSG_BASE 布局承载整块 get_binary 读入。
+#include "CMDPacketStruct.h"
 
 namespace advancealtar {
 class Dispatcher_Pause : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
@@ -39,7 +27,6 @@ public:
     int process_packet(CUser* user, CMDPacketStruct::STBaseRequest& req,
                        CMDPacketStruct::STBaseResponse& resp) const;                 // ORIG T 0x08140b3c
 };
-
 class Dispatcher_BuyItem : public IPacketDispatcher<MSG_BASE, ParamBase, ch_state0>
 {
 public:

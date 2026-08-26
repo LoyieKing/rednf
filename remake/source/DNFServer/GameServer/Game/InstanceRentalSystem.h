@@ -12,6 +12,8 @@
 
 class IRentalMachine;
 
+class CUser;   // Rent/CheckRentableItem 形参（前置即可）
+
 class InstanceRentalSystem
 {
 public:
@@ -83,6 +85,7 @@ public:
     IRentalMachine* getMachine(int idx);                     // ORIG T 0x08270348
     bool Ready();                                            // ORIG T 0x082701dc
     bool Rent(CUser&, const RentInput&, RentOutput&);        // ORIG T 0x08270288
+    bool CheckRentableItem(int type, unsigned int itemIdx);   // ORIG T 0x082702dc（EJEnchanter 调用；定义 InstanceRentalSystem.cpp）
 
 
 private:

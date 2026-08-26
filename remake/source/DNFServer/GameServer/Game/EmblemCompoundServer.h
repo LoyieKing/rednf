@@ -65,19 +65,20 @@ public:
     Result* getResult(int grade);       // ORIG 0x88b1a14：未命中 0
     std::vector<unsigned long>* getList(int grade);  // ORIG 0x88b1a7e：&m_list[ret->m_listIdx]，未命中 0
 
-private:
+protected:
+    // ORIG 原为 private；LinkClosureB.AradServers 改 protected 以便 Server 派生类
+    // 按 ORIG 语义直接 map::operator[] 访问（签名/布局不变）。
     std::map<int, int> m_cost;          // +0x00
     std::map<int, Result*> m_result;    // +0x18（本工具链 std::map=0x18，与 ORIG 一致）
     std::vector<unsigned long> m_list[7];   // +0x30（size 合计 0x84）
-
-private:
-    EmblemCompound(const EmblemCompound&);            // non-copyable（ORIG 无拷贝符号）
-    EmblemCompound& operator=(const EmblemCompound&);
 };
 
 }  // namespace SCRIPT
 
 }  // namespace ARAD
+
+namespace arad { struct SigAradEmblemCompound; }
+class CUser;
 
 class EmblemCompoundServer : public ARAD::SCRIPT::EmblemCompound,
                             public ARAD::ScriptInterface
@@ -89,6 +90,22 @@ public:
     virtual bool Load();      // ORIG 0x081915ba：cMyTrace + return loadScript()==0
     virtual void Destroy();   // ORIG 0x0819162c：return 1（基类约定 void）
     void Test();              // ORIG 0x081915b4：空（非虚，vtable 仅 Load/Destroy 两槽）
+
+    // ORIG 0x08191636 CheckCondition / 0x08191afa Process
+    // （Arad_INTER_kEmblemCompound 派发链调用）。仅声明，定义由 EmblemCompound
+    // Server TU 批次提供。
+    bool CheckCondition(CUser* user, arad::SigAradEmblemCompound* sig);
+    bool Process(CUser* user, arad::SigAradEmblemCompound* sig);
+    // ---- ORIG T（CheckCondition/Process 依赖；LinkClosureB.AradServers 定义归
+    //      EmblemCompoundServer.cpp）----
+    // ORIG _ZN20EmblemCompoundServer13GetEmblemInfoEP5CUserPN4arad21SigAradEmblemCompoundEi
+    // @0x08191818：校验第 idx 条目槽位物品（isEmpty/lock/GetItemType()==0x14），
+    // 通过则把 grade/itemIdx 写回 sig[idx*8]。
+    bool GetEmblemInfo(CUser* user, arad::SigAradEmblemCompound* sig, int idx);
+    // ORIG _ZN20EmblemCompoundServer20GetEmblemRandomIndexEit @0x081919e8
+    int GetEmblemRandomIndex(int grade, unsigned short selectIdx);
+    // ORIG _ZN20EmblemCompoundServer18IsResultSelectableEi @0x08191ad6
+    bool IsResultSelectable(int grade);
 
 private:
     EmblemCompoundServer(const EmblemCompoundServer&);

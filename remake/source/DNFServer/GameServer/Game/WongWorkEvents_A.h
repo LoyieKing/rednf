@@ -54,9 +54,10 @@ public:
                    unsigned int limitCnt);
     void CopyStruct(const HackTypeInfo_t& other);
 
-    ENUM_HACKTYPE  m_type1;     // +0x00（按 u16 传递/存储）【推断命名】
+    // ORIG 存储 width 全为 word/dword：hack type 栏以 u16 承载 ENUM_HACKTYPE。
+    unsigned short m_type1;     // +0x00（ENUM_HACKTYPE 截断存储）【推断命名】
     unsigned short m_value1;    // +0x02
-    ENUM_HACKTYPE  m_type2;     // +0x04
+    unsigned short m_type2;     // +0x04
     unsigned short m_value2;    // +0x06
     unsigned short m_value3;    // +0x08
     unsigned short m_value4;    // +0x0a
@@ -65,9 +66,9 @@ public:
 
 inline HackTypeInfo_t::HackTypeInfo_t()
 {
-    m_type1 = (ENUM_HACKTYPE)0;
+    m_type1 = 0;
     m_value1 = 0;
-    m_type2 = (ENUM_HACKTYPE)0;
+    m_type2 = 0;
     m_value2 = 0;
     m_value3 = 0;
     m_value4 = 0;
@@ -79,9 +80,9 @@ inline HackTypeInfo_t::HackTypeInfo_t(ENUM_HACKTYPE type1, unsigned short value1
                                       unsigned short value3, unsigned short value4,
                                       unsigned int limitCnt)
 {
-    m_type1 = type1;
+    m_type1 = (unsigned short)type1;
     m_value1 = value1;
-    m_type2 = type2;
+    m_type2 = (unsigned short)type2;
     m_value2 = value2;
     m_value3 = value3;
     m_value4 = value4;

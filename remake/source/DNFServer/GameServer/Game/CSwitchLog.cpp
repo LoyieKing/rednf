@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstring>
 #include "CLog.h"
+#include "CSwitchLog.h"   // 权威声明（本 TU 唯一实现）
 
 class Mutex;
 
@@ -24,24 +25,7 @@ public:
     ~Guard();
 };
 
-class CSwitchLog
-{
-public:
-    CSwitchLog(const char* name, int line, int level, int flagIndex);
-    void operator()(const char* fmt, ...);
-    static void SetLogWriteFlag(int flag);
-
-private:
-    const char* m_name;    // +0x00
-    int m_line;            // +0x04
-    int m_level;           // +0x08
-    int m_flagIndex;       // +0x0c
-
-    static char log_write_[1];   // ORIG 0x0943df78，1 字节
-};
-
-char CSwitchLog::log_write_[1];
-
+char CSwitchLog::log_write_[1];   // ORIG 0x0943df78，1 字节
 CSwitchLog::CSwitchLog(const char* name, int line, int level, int flagIndex)
 {
     m_name = name;

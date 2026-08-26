@@ -1,0 +1,105 @@
+// ============================================================================
+// LinkClosureA_Misc.cpp — undef_bizA 收口批 A 杂项域
+//
+// 覆盖符号（唯一 owner = 本 TU）：
+//   CItem::getAdvanceAltarNeedGage        W 0x081347ca（报告缺失，objdump 转写）
+//   ::EnableWorld(CItem const*, CItem const*) T 0x0849d768（报告缺失）
+//   GetUserName(IMatch*, char*)           T 0x08563ff7（报告缺失）
+//   GetCurrentResetBaseTime(long, int)    T 0x0810912a
+//     （报告 docs/class_func_reports/_lt_global_gt_/GetCurrentResetBaseTime.md）
+//   advancealtar::Manager::gmTimeSpeed_   D 0x09370094（4 字节 .data 初值 1，
+//     ctor 记录 _GLOBAL__I..gmTimeSpeed_E 0x081343f9 静态初始化实证）
+// ============================================================================
+
+#include <stdio.h>
+#include <time.h>
+
+#include "CItem.h"            // IsEnableWorld 两重载 / m_field68
+#include "MatchRoomList.h"    // IMatch::GetUser 虚槽 +0x10
+#include "CUser.h"            // get_acc_name
+#include "advancealtar.h"
+
+// ---- CItem::getAdvanceAltarNeedGage（ORIG W 0x081347ca 报告缺失）----------
+// ORIG 汇编（objdump 0x81347cd）：push %ebp; mov %esp,%ebp;
+// mov 0x8(%ebp),%eax; mov 0x68(%eax),%eax; pop %ebp; ret —— 直返 +0x68 字段。
+int CItem::getAdvanceAltarNeedGage() const
+{
+    return m_field68;
+}
+
+// ---- EnableWorld（ORIG T 0x0849d768 报告缺失，77 字节 objdump 全文转写）--
+// 两段均为 a->IsEnableWorld(b)（ORIG 0x849d76e 与 0x849d78e 双 call 同参，
+// 第一实参槽=0x8(%ebp)=a 作被调 const 成员的 this；P48 双独立调用形态）：
+// 任一失败返 0，否则返 1。
+bool EnableWorld(const CItem* a, const CItem* b)
+{
+    if (!a->IsEnableWorld(b))           // [objdump 0x849d76e..0x787]
+    {
+        return false;                   // [0x849d780 xor $1; 失败 mov $0]
+    }
+    if (!a->IsEnableWorld(b))           // [0x849d78e 第二次同参调用（P48）]
+    {
+        return false;                   // [0x849d79b..0x7a7]
+    }
+    return true;                        // [0x849d7ae mov $1]
+}
+
+// ---- GetUserName（ORIG T 0x08563ff7 报告缺失，0x159 字节 objdump 转写）---
+// 对 team 3/2/1/0 各两次调用 match->GetUser(team)（虚槽+0x10，P48 双 call），
+// 命中取 user->get_acc_name()，否则回退 "127.0.0.1"；最后
+// sprintf(out, "%s,%s,%s,%s", t0, t1, t2, t3) 且返回 out。
+char* GetUserName(IMatch* match, char* out)
+{
+    const char* n3 = match->GetUser(3) != 0
+                         ? match->GetUser(3)->get_acc_name()
+                         : "127.0.0.1";                     // [edi 槽]
+    const char* n2 = match->GetUser(2) != 0
+                         ? match->GetUser(2)->get_acc_name()
+                         : "127.0.0.1";                     // [esi 槽]
+    const char* n1 = match->GetUser(1) != 0
+                         ? match->GetUser(1)->get_acc_name()
+                         : "127.0.0.1";                     // [ebx 槽]
+    const char* n0 = match->GetUser(0) != 0
+                         ? match->GetUser(0)->get_acc_name()
+                         : "127.0.0.1";                     // [eax 槽]
+    sprintf(out, "%s,%s,%s,%s", n0, n1, n2, n3);
+                                                            // [0x8564132 fmt @0x8ca23b5]
+    return out;
+}
+
+// ---- GetCurrentResetBaseTime（报告全文已读，见头注路径）-------------------
+// ORIG：t2 = t-0x15180；localtime_r(&t) 与 localtime_r(&t2) 双视图；按当前
+// 小时与入参比较把命中视图的时/分/秒改写后 mktime 规范化（无返回值写出）。
+int GetCurrentResetBaseTime(int t, int hour)
+{
+    const time_t now = t;
+    long prevDay = t - 0x15180;                             // [or sub $kNow 全天秒]
+
+    struct tm cur;
+    struct tm* pCur = localtime_r(&now, &cur);
+    struct tm prev;
+    struct tm* pPrev = localtime_r(&prevDay, &prev);
+
+    if (pCur->tm_hour < 0 || hour <= pCur->tm_hour)         // [js / jge 分支]
+    {
+        pCur->tm_hour = hour;
+        pCur->tm_min = 0;
+        pCur->tm_sec = 0;
+        mktime(pCur);
+    }
+    else
+    {
+        pPrev->tm_hour = hour;
+        pPrev->tm_min = 0;
+        pPrev->tm_sec = 0;
+        mktime(pPrev);
+    }
+}
+
+namespace advancealtar
+{
+
+// gmTimeSpeed_ D 符号定义（ORIG .data 初值 1 实证）。
+int Manager::gmTimeSpeed_ = 1;
+
+}  // namespace advancealtar

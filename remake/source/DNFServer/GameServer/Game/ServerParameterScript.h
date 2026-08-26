@@ -456,8 +456,12 @@ public:
     int m_4964;                                                 // +0x4964
     int m_4968;                                                 // +0x4968
     int m_496c;                                                 // +0x496c
-    char m_4970[8];                                             // +0x4970
-    unsigned short m_4978;                                      // +0x4978
+    // 训练印章/公平PvP配置块（ORIG fair_pvp__CFairMatch/GiveTrainingSeal 0x85652c8
+    // 经 CDataManager+0x68 嵌入读 dm+0x49d8..0x49e0 = 本结构 +0x4970..+0x497a）：
+    //   [0]/[1] 1人队 胜/负 场次数；[2]/[3] 1人队 奖励胜/负；
+    //   [4]/[5] 3人队 胜/负；[6]/[7] 3人队 奖励胜/负。
+    unsigned char m_schoolMatchSeal[8];                         // +0x4970（dm+0x49d8）
+    unsigned short m_schoolMatchDailyPlayLimit;                 // +0x4978（dm+0x49e0，每日场次上限）
     std::map<int, int> m_map497c;                               // +0x497c
     std::map<int, int> m_map4994;                               // +0x4994
     std::map<PvPPlayerKey, std::vector<std::pair<int, int> > > m_pvp49ac;  // +0x49ac

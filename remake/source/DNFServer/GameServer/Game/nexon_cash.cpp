@@ -6,6 +6,8 @@
 // ============================================================================
 #include "nexon_cash.h"
 
+#include "GameTypes.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -15,6 +17,7 @@
 #include <ctime>
 #include <map>
 #include <vector>
+#include <cstdlib>
 #include <new>
 #include <string.h>
 #include <wchar.h>
@@ -22,6 +25,13 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
+
+namespace Encryption
+{
+unsigned int Adler32(unsigned char* data, int length);                      // _ZN10Encryption7Adler32EPcj
+void EncodeDressStringWide(const wchar_t* in, wchar_t* out,
+                           unsigned int param);                             // _ZN10Encryption21EncodeDressStringWideEPKwPwm
+}  // namespace Encryption
 
 namespace nexon {
 namespace cash {
@@ -1059,6 +1069,627 @@ unsigned int TransactionManager::getNextTransactionID()
     return ++TransactionManager::tx_id_;
 }
 
+// ===========================================================================
+// 外部计费加密接口。ORIG 中亦为未定义引用：
+//   U _ZN10Encryption7Adler32EPcj / U _ZN10Encryption21EncodeDressStringWideEPKwPwm
+// 由计费库链接期提供，此处仅声明。
+// ===========================================================================
+
+namespace {
+
+// chargeCash 的函数作用域静态工作缓冲（ORIG b 符号实证）：
+//   data@0x09405640 / wide_data@0x9405a40 / enc_data@0x94069e0 / send_data@0x9407980
+struct ChargeCashBuffers
+{
+    char     data_[1000];
+    wchar_t  wideData_[2000];
+    wchar_t  encData_[2000];
+    char     sendData_[1000];
+};
+ChargeCashBuffers& ccBufs()
+{
+    static ChargeCashBuffers bufs;   // 等价 ORIG 四个独立函数级 static
+    return bufs;
+}
+
+
+namespace {
+
+// NCashImpl 内嵌的出包消息子对象 @this+0x248（布局常量，见头注释）。
+inline NCashMessage& outMsgOf(NCashImpl* self)
+{
+    return *reinterpret_cast<NCashMessage*>(
+        reinterpret_cast<char*>(self) + 0x248);
+}
+
+}  // namespace
+
+inline void traceRecvError(int errCode, const char* plain)
+{
+    cMyTrace trace("chargeCash", 0x303, 0);
+    trace("NCashImpl::chargeCash Recv Error!! packet_id:%d, data:%s",
+          errCode, plain);
+}
+
+}  // namespace
+
+// ===========================================================================
+// NCashImpl
+// ===========================================================================
+
+// ORIG 0x081acfdc：子对象构造顺序与字段初始化见头注释。
+NCashImpl::NCashImpl(const char* serverAdrs, short port, unsigned char paramB,
+                     unsigned short fieldC, short fieldD)
+    : m_paramB(paramB), m_pad01(0), m_fieldC(fieldC), m_fieldD(fieldD),
+      m_requestID(0), m_connected(false), m_serverAdrs(), m_port(port),
+      m_socket(), m_inMsg()
+{
+    m_socket.~TCPSocket();
+    new (&m_socket) TCPSocket();
+
+    m_inMsg.~NCashMessage();
+    new (&m_inMsg) NCashMessage();
+
+    // outMsg 子对象 @+0x248（原始布局区间内就地构造）
+    new (reinterpret_cast<char*>(this) + 0x248) NCashMessage();
+
+    m_requestID = 0;
+    memset(m_serverAdrs, 0, sizeof(m_serverAdrs));
+    if (serverAdrs != 0)
+        strcpy(m_serverAdrs, serverAdrs);
+}
+
+void NCashImpl::_increaseRequestID()                 // ORIG 0x081aea32
+{
+    ++m_requestID;
+}
+
+bool NCashImpl::checkCoupon()     { return false; }   // ORIG 0x081aea0a xor eax,eax
+bool NCashImpl::useCoupon()       { return false; }   // ORIG 0x081aea14
+bool NCashImpl::checkCafeCoupon() { return false; }   // ORIG 0x081aea1e
+bool NCashImpl::useCafeCoupon()   { return false; }   // ORIG 0x081aea28
+
+// ORIG 0x081aea46：MSG_WAITALL(0x100) 预读头并解码，随后转 recv_body；
+// 断线/错误时 printf + m_connected=false + close + 返回 2。
+int NCashImpl::recv_msg()
+{
+    unsigned char* buf = m_inMsg.data();
+    int fd = m_socket.getHandle();
+
+    ssize_t n = ::recv(fd, buf, 0x100, 0x100);
+    if (n == 0)
+    {
+        printf("[%s] connection lost: %s\n", "recv_msg",
+               strerror(errno));
+        m_connected = false;
+        m_socket.close();
+        return 2;
+    }
+    if (n < 0)
+    {
+        printf("[%s] recv error: %s\n", "recv_msg", strerror(errno));
+        m_connected = false;
+        m_socket.close();
+        return 2;
+    }
+
+    m_inMsg.decode_header();
+    return recv_body();
+}
+
+// ORIG 0x081aeb3c：按 body_length 继续收 body 区（flags 同 0x100）。
+int NCashImpl::recv_body()
+{
+    unsigned short bodyLen = m_inMsg.body_length();
+    unsigned char* body = m_inMsg.body();
+    int fd = m_socket.getHandle();
+
+    ssize_t n = ::recv(fd, body, bodyLen, 0x100);
+    if (n == 0)
+    {
+        printf("[%s] connection lost: %s\n", "recv_body", strerror(errno));
+        m_connected = false;
+        m_socket.close();
+        return 2;
+    }
+    if (n < 0)
+    {
+        printf("[%s] recv error: %s\n", "recv_body", strerror(errno));
+        m_connected = false;
+        m_socket.close();
+        return 2;
+    }
+    return 0;
+}
+
+// ORIG 0x081aec2c：encode(totalLen) → send(data, length()+3 视图全长, 0x100)；
+// 发送不全则 printf + close + 2。
+int NCashImpl::send_msg(unsigned int totalLen)
+{
+    outMsgOf(this).encode_header(totalLen);
+    unsigned int len = outMsgOf(this).length();
+    unsigned char* buf = outMsgOf(this).data();
+    int fd = m_socket.getHandle();
+
+    ssize_t n = ::send(fd, buf, len, 0x100);
+    if (static_cast<unsigned int>(n) != len)
+    {
+        printf("send error: send bytes: %d, message length: %d, error: %s\n",
+               static_cast<int>(n), static_cast<int>(len), strerror(errno));
+        m_connected = false;
+        m_socket.close();
+        return 2;
+    }
+    return 0;
+}
+
+// ORIG 0x081ad080：未连接则重开重连；返回连接态。
+bool NCashImpl::reconnect()
+{
+    if (!m_connected)
+    {
+        m_socket.close();
+        m_socket.open();
+        m_connected = m_socket.connect(m_serverAdrs,
+                                       static_cast<unsigned short>(m_port));
+    }
+    return m_connected;
+}
+
+// ORIG 0x081ad0e6（sret）：ByteBuffer(out.body(),0x200)<<pid<<flag<<requestID。
+ByteBuffer NCashImpl::set_data_header(unsigned char packetId, unsigned char flag)
+{
+    ByteBuffer out(reinterpret_cast<char*>(outMsgOf(this).body()), 0x200);
+    out << packetId;
+    out << flag;
+    _increaseRequestID();
+    out << m_requestID;
+    return out;
+}
+
+// ORIG 0x081ad168：从入包 body 读 pid/flag/requestId 三元组。
+void NCashImpl::get_data_header(unsigned char& a, unsigned char& b,
+                                unsigned int& c)
+{
+    ByteBuffer in(0, 0);
+    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    in >> a;
+    in >> b;
+    in >> c;
+}
+
+// ORIG 0x081ad1e0：switch(err-5) 跳转表分支（默认 16）。
+int NCashImpl::handle_cash_error(int err)
+{
+    int result = 0x10;
+    switch (err - 5)
+    {
+    case 0:
+        result = 3;
+        printf("[%s] NO REMIN CASH\n", "handle_cash_error");
+        break;
+    case 1:
+        result = 4;
+        printf("[%s] DB error occur\n", "handle_cash_error");
+        break;
+    case 3:
+        result = 5;
+        printf("[%s] E_GIFT_LIMIT_OVER Remain cash\n", "handle_cash_error");
+        break;
+    case 4:
+        result = 6;
+        printf("[%s] E_GIFT_NOT_READY error\n", "handle_cash_error");
+        break;
+    case 5:
+        result = 7;
+        printf("[%s] E_GIFT_UNDER_AGE error\n", "handle_cash_error");
+        break;
+    case 2:      // 与 default 同流（跳转表同项）
+    default:
+        result = 0x10;
+        printf("[%s] Undefined cash error: %u\n", "handle_cash_error",
+               static_cast<unsigned>(err));
+        break;
+    }
+    return result;
+}
+
+// ORIG 0x081ad2c0：0..3 静默；default 打印；恒返回 16。
+int NCashImpl::handle_coupon_error(int err)
+{
+    int result = 0x10;
+    switch (err)
+    {
+    case 0:
+    case 1:
+    case 2:
+    case 3:
+        break;
+    default:
+        printf("[%s] Invalid coupon packet_id: %u\n", "handle_coupon_error",
+               static_cast<unsigned>(err));
+        break;
+    }
+    return result;
+}
+
+// ORIG 0x081ad316：手组包头（不走 set_data_header！仅自增 requestID 不写入）。
+int NCashImpl::checkEntrance(const char* userName, char& outStatus)
+{
+    if (!reconnect())
+        return 2;
+
+    unsigned char typeByte = static_cast<unsigned char>(m_fieldD);
+
+    ByteBuffer out(reinterpret_cast<char*>(outMsgOf(this).body()), 0x200);
+    out << static_cast<unsigned char>(0x03);
+    out << static_cast<unsigned char>(0x01);
+    out << typeByte;
+    out << userName;
+    _increaseRequestID();  // ORIG: 自增但不入包
+
+    int rc = send_msg(out.length());
+    if (rc != 0)
+        return rc;
+
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    ByteBuffer in(0, 0);
+    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    unsigned char ackPid = 0;
+    unsigned char statusByte = 0;
+    in >> ackPid;
+    in >> statusByte;
+    outStatus = static_cast<char>(statusByte);
+    printf("[%s] CheckEntrace: %d\n", "checkEntrance",
+           static_cast<int>(outStatus));  // ORIG 格式串 typo 忠实保留
+    return 0;
+}
+
+// ORIG 0x081ad49e：packet_id=0 应答 err==0 后读余额。
+int NCashImpl::getBalance(const char* userId, int& balanceOut)
+{
+    if (!reconnect())
+        return 2;
+
+    ByteBuffer msg = set_data_header(0x00, 0x00);
+    msg << userId;
+
+    int rc = send_msg(msg.length());
+    if (rc != 0)
+        return rc;
+
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    unsigned char ackPid = 0, errCode = 0;
+    unsigned int reqId = 0;
+    get_data_header(ackPid, errCode, reqId);
+    if (errCode != 0)
+        return handle_cash_error(errCode);
+
+    ByteBuffer in(0, 0);
+    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    in >> balanceOut;
+    printf("[%s] Remain cash: %d\n", "getBalance", balanceOut);
+    return 0;
+}
+
+// ORIG 0x081ad5c2。
+int NCashImpl::purchase(unsigned long long productSeq, int cashType,
+                        int cashAmount, const char* param1, const char* param2,
+                        NXTransaction& trOut)
+{
+    if (!reconnect())
+        return 2;
+
+    ByteBuffer msg = set_data_header(0x00, 0x01);
+    msg << static_cast<short>(m_fieldD);
+    msg << productSeq;
+    msg << cashType;
+    msg << cashAmount;
+    msg << param1;
+    msg << param2;
+    msg << m_paramB;
+    msg << static_cast<short>(m_fieldC);
+
+    int rc = send_msg(msg.length());
+    if (rc != 0)
+        return rc;
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    unsigned char ackPid = 0, errCode = 0;
+    unsigned int reqId = 0;
+    get_data_header(ackPid, errCode, reqId);
+    if (errCode != 2)
+        return handle_cash_error(errCode);
+
+    ByteBuffer in(0, 0);
+    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    in >> trOut.m_type;
+    in >> trOut.m_id;
+    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", "purchase",
+           static_cast<unsigned>(trOut.m_type),
+           trOut.m_id);
+    return 0;
+}
+
+// ORIG 0x081ad7ae：subCmd∈{60,62} 时 streamType 替换为 subCmd，其余同上。
+int NCashImpl::purchase(unsigned long long productSeq, int cashType,
+                        int cashAmount, const char* param1, const char* param2,
+                        NXTransaction& trOut, short subCmd)
+{
+    if (!reconnect())
+        return 2;
+
+    ByteBuffer msg = set_data_header(0x00, 0x01);
+    short streamType;
+    if (subCmd == 0x3c || subCmd == 0x3e)
+        streamType = subCmd;
+    else
+        streamType = static_cast<short>(m_fieldD);
+    msg << streamType;
+    msg << productSeq;
+    msg << cashType;
+    msg << cashAmount;
+    msg << param1;
+    msg << param2;
+    msg << m_paramB;
+    msg << static_cast<short>(m_fieldC);
+
+    int rc = send_msg(msg.length());
+    if (rc != 0)
+        return rc;
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    unsigned char ackPid = 0, errCode = 0;
+    unsigned int reqId = 0;
+    get_data_header(ackPid, errCode, reqId);
+    if (errCode != 2)
+        return handle_cash_error(errCode);
+
+    ByteBuffer in(0, 0);
+    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    in >> trOut.m_type;
+    in >> trOut.m_id;
+    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", "purchase",
+           static_cast<unsigned>(trOut.m_type),
+           trOut.m_id);
+    return 0;
+}
+
+// ORIG 0x081ad9c4：两段附加串位于 m_paramB/m_fieldC 之后。
+int NCashImpl::gift(unsigned long long productSeq, int cashType,
+                    int cashAmount, const char* targetUserId,
+                    const char* message, const char* extra1,
+                    const char* extra2, NXTransaction& trOut)
+{
+    if (!reconnect())
+        return 2;
+
+    ByteBuffer msg = set_data_header(0x00, 0x07);
+    msg << static_cast<short>(m_fieldD);
+    msg << productSeq;
+    msg << cashType;
+    msg << cashAmount;
+    msg << targetUserId;
+    msg << message;
+    msg << m_paramB;
+    msg << static_cast<short>(m_fieldC);
+    msg << extra1;
+    msg << extra2;
+
+    int rc = send_msg(msg.length());
+    if (rc != 0)
+        return rc;
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    unsigned char ackPid = 0, errCode = 0;
+    unsigned int reqId = 0;
+    get_data_header(ackPid, errCode, reqId);
+    if (errCode != 2)
+        return handle_cash_error(errCode);
+
+    ByteBuffer in(0, 0);
+    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    in >> trOut.m_type;
+    in >> trOut.m_id;
+    printf("[%s] PURCHASE OK, db_id: %u, transaction_id: %u\n", "gift",
+           static_cast<unsigned>(trOut.m_type),
+           trOut.m_id);
+    return 0;
+}
+
+// ORIG 0x081adbd4：err!=3 时 handle_cash_error 结果被丢弃仍打印成功行返 0。
+int NCashImpl::confirm(unsigned char trFlag, unsigned int trId)
+{
+    if (trId == 0)
+        return 0;
+    if (!reconnect())
+        return 2;
+
+    ByteBuffer msg = set_data_header(0x00, 0x03);
+    msg << trFlag;
+    msg << trId;
+
+    int rc = send_msg(msg.length());
+    if (rc != 0)
+        return rc;
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    unsigned char ackPid = 0, errCode = 0;
+    unsigned int reqId = 0;
+    get_data_header(ackPid, errCode, reqId);
+    if (errCode != 3)
+        handle_cash_error(errCode);  // ORIG 忽略返回值
+    printf("[%s] E_PURCHASE_CONFIRM\n", "confirm");
+    return 0;
+}
+
+// ORIG 0x081add04：与 confirm 同构，packet_id=4、__FUNCTION__="cancel"。
+int NCashImpl::cancel(unsigned char trFlag, unsigned int trId)
+{
+    if (trId == 0)
+        return 0;
+    if (!reconnect())
+        return 2;
+
+    ByteBuffer msg = set_data_header(0x00, 0x04);
+    msg << trFlag;
+    msg << trId;
+
+    int rc = send_msg(msg.length());
+    if (rc != 0)
+        return rc;
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    unsigned char ackPid = 0, errCode = 0;
+    unsigned int reqId = 0;
+    get_data_header(ackPid, errCode, reqId);
+    if (errCode != 3)
+        handle_cash_error(errCode);  // ORIG 忽略返回值
+    printf("[%s] E_PURCHASE_CONFIRM\n", "cancel");  // 共用格式串
+    return 0;
+}
+
+// ORIG 0x081ade34：无 reconnect 前置；组"%s|%i|%i|%s|%s|%s|%s|%i" 明文 →
+// mbstowcs → Adler32(宽串字节) → EncodeDressStringWide(key=0x1b1bde64) →
+// wcstombs 回 ASCII 密文入包 + 协议键 qword + adler qword。
+// snprintf token-to-slot 错位处标【推断】（见批次报告 artifact://58982 复核指引）。
+int NCashImpl::chargeCash(char* sessionKey, unsigned char h1, unsigned char h2,
+                          int iv, char* pA, char* pB, char* pC, char* pD,
+                          int code, NXTransaction& trOut)
+{
+    ChargeCashBuffers& bufs = ccBufs();
+    memset(bufs.data_, 0, sizeof(bufs.data_));
+    memset(bufs.wideData_, 0, sizeof(bufs.wideData_));
+    memset(bufs.encData_, 0, sizeof(bufs.encData_));
+    memset(bufs.sendData_, 0, sizeof(bufs.sendData_));
+
+    ByteBuffer msg = set_data_header(0x02, 0x01);
+
+    (void)iv;
+    (void)code;  // ORIG varargs 保留区【推断】：token 消费只覆盖前 8 个
+
+    snprintf(bufs.data_, sizeof(bufs.data_),
+             "%s|%i|%i|%s|%s|%s|%s|%i",
+             sessionKey,
+             static_cast<int>(h1),
+             static_cast<int>(h2),
+             reinterpret_cast<char*>(static_cast<size_t>(iv)),
+             pA, pB, pC, pD);
+
+    size_t len = strlen(bufs.data_) + 1;
+    mbstowcs(bufs.wideData_, bufs.data_, len);
+
+    size_t wlen = wcslen(bufs.wideData_);
+    unsigned int adler = Encryption::Adler32(
+        reinterpret_cast<unsigned char*>(bufs.wideData_),
+        static_cast<int>(wlen * 2));
+
+    Encryption::EncodeDressStringWide(bufs.wideData_, bufs.encData_,
+                                      0x1b1bde64u);
+
+    size_t enclenChars = wcslen(bufs.encData_);
+    wcstombs(bufs.sendData_, bufs.encData_, enclenChars);
+
+    msg << bufs.sendData_;
+    msg << 0x00000000F3D8266FULL;         // [-0x28/-0x24] 帧 key【推断】
+    msg << static_cast<unsigned long long>(adler);
+
+    int rc = send_msg(msg.length());
+    if (rc != 0)
+        return rc;
+    rc = recv_msg();
+    if (rc != 0)
+        return rc;
+
+    unsigned char ackPid = 0, errCode = 0;
+    unsigned int reqId = 0;
+    get_data_header(ackPid, errCode, reqId);
+
+    if (errCode != 2)
+    {
+        traceRecvError(static_cast<int>(errCode), bufs.data_);
+        return static_cast<int>(errCode);
+    }
+
+    ByteBuffer in(0, 0);
+    in.wrap(reinterpret_cast<char*>(m_inMsg.body()), m_inMsg.body_length());
+    in >> trOut.m_type;
+    in >> trOut.m_id;
+    printf("[%s] CHARGE_CASH OK, db_id: %u, transaction_id: %u\n", "chargeCash",
+           static_cast<unsigned>(trOut.m_type), trOut.m_id);
+    return 0;
+}
+
+// ===========================================================================
+// NexonCash（薄包装）
+// ===========================================================================
+
+NexonCash::NexonCash(const char* serverAdrs, short port, char paramB,
+                     short fieldC, short fieldD)
+{
+    m_impl = new NCashImpl(serverAdrs, port,
+                           static_cast<unsigned char>(paramB),
+                           static_cast<unsigned short>(fieldC), fieldD);
+}
+
+// ORIG 0x081ae250：free(m_impl)，非 delete —— 忠实保留（ORIG free@plt）。
+NexonCash::~NexonCash()
+{
+    free(m_impl);
+}
+
+int NexonCash::getBalance(const char* adrs, int& balance)
+{ return m_impl->getBalance(adrs, balance); }
+
+int NexonCash::purchase(unsigned long long sn, int a, int b,
+                        const char* c, const char* d, NXTransaction& tx)
+{ return m_impl->purchase(sn, a, b, c, d, tx); }
+
+int NexonCash::purchase(unsigned long long sn, int a, int b,
+                        const char* c, const char* d, NXTransaction& tx,
+                        short extra)
+{ return m_impl->purchase(sn, a, b, c, d, tx, extra); }
+
+int NexonCash::gift(unsigned long long sn, int a, int b, const char* c,
+                    const char* d, const char* e, const char* f,
+                    NXTransaction& tx)
+{ return m_impl->gift(sn, a, b, c, d, e, f, tx); }
+
+int NexonCash::confirm(const NXTransaction& tx)
+{ return m_impl->confirm(tx.m_type, tx.m_id); }
+
+int NexonCash::cancel(const NXTransaction& tx)
+{ return m_impl->cancel(tx.m_type, tx.m_id); }
+
+int NexonCash::checkCoupon()     { return m_impl->checkCoupon(); }
+int NexonCash::useCoupon()       { return m_impl->useCoupon(); }
+int NexonCash::checkCafeCoupon() { return m_impl->checkCafeCoupon(); }
+int NexonCash::useCafeCoupon()   { return m_impl->useCafeCoupon(); }
+
+int NexonCash::charge(char* data, unsigned char a, unsigned char b,
+                      int encLen, char* encData, char* sendBuf, char* wideBuf,
+                      char* more, int count, NXTransaction& tx)
+{ return m_impl->chargeCash(data, a, b, encLen, encData, sendBuf, wideBuf,
+                            more, count, tx); }
+
+int NexonCash::checkEntrance(const char* adrs, char& out)
+{ return m_impl->checkEntrance(adrs, out); }
+
 }  // namespace cash
 }  // namespace nexon
-

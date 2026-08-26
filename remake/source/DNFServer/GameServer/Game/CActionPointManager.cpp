@@ -7,12 +7,7 @@
 namespace APSystem
 {
 
-class _ActionGroupIndex { public: int m_value; };
-class CUserProc {
-public:
-    static void SendActionClear(CUser&, unsigned short, _ActionGroupIndex, bool, ENUM_PACKETCLASS);
-    static void CheckAndSendToMessageAllUser(unsigned int, unsigned int, const char*);
-};
+// _ActionGroupIndex / CUserProc 权威声明见 CUserProc.h（本 TU 本地镜像已删）。
 
 // ORIG 0x8694bfc（W，内联）：mov 0x8(%ebp),%eax; add $0x8,%eax; ret。
 // 返回 this+0x08 数据体首地址。具体元素类型无报告证据（推断标注），

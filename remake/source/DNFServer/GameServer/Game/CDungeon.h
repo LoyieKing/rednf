@@ -260,6 +260,12 @@ public:
     SurvivalRewardData& operator=(const SurvivalRewardData& other);
 
     std::vector<RoundRewardData> m_vec;  // +0x00（ORIG sizeof 0xc，operator= 仅复制 vector）
+    // ORIG T W? 无：_ZNK12advancealtar18SurvivalRewardData18getRoundRewardDataEi
+    // @0x0889aebe（**const** 成员，nm 实证 K 前缀）：遍历 m_vec 首个满足
+    // m_0<=round<=m_4 的 RoundRewardData，命中返回 &元素.m_vec8，未命中返 0。
+    // Wave5 AltarProc 追加声明、AltarMisc 批次实现（原非 const 签名与 ORIG
+    // mangled 不符，2026-08-27 AltarMisc 改正）。
+    std::vector<_RewardItem>* getRoundRewardData(int round) const;
 };
 
 // ---- StageType / StageDifficulty / RewardItemType 字符串枚举解析器 ----

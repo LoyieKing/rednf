@@ -86,6 +86,11 @@ private:
 
 }  // namespace ARAD
 
+namespace arad { struct SigAradAvatarConvert; }
+class CUser;
+class CItem;
+class AvatarRechargeServer;
+
 class AvatarConvertServer : public ARAD::SCRIPT::AvatarConvert,
                            public ARAD::ScriptInterface
 {
@@ -96,6 +101,18 @@ public:
     virtual bool Load();      // ORIG 0x081930ba：cMyTrace + return loadScript()==0
     virtual void Destroy();   // ORIG 0x0819312c：return 1（基类约定 void）
     void Test();              // ORIG 0x0819220c：空（非虚，vtable 仅 Load/Destroy 两槽）
+
+    // ORIG 0x08192212 CheckCondition / 0x081926de Convert
+    // （Arad_INTER_kAvatarConvert 派发链调用）。仅声明，定义由 AvatarConvertServer
+    // TU 批次提供。
+    bool CheckCondition(CUser* user, arad::SigAradAvatarConvert* sig);
+    bool Convert(CUser* user, arad::SigAradAvatarConvert* sig);
+    // ORIG T _ZN19AvatarConvertServer22StatisticsEmblemCreateERKSt6vectorISt4pairIiiESaIS2_EE
+    // @0x081931dc（静态成员；本 TU 实现。Process/Convert 依赖）。
+    static void StatisticsEmblemCreate(
+        const std::vector<std::pair<int, int> >& created);
+    // ORIG T _ZN19AvatarConvertServer24StatisticsAvatarDisjointEPK5CItemi @0x08193136
+    static void StatisticsAvatarDisjoint(const CItem* item, int isRechargeStone);
 
 private:
     AvatarConvertServer(const AvatarConvertServer&);

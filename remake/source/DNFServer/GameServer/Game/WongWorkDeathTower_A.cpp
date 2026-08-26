@@ -1,80 +1,144 @@
+// （见下方注释）须置于全部 include 前：首个带入 CItemGenerator.h 的链
+//   （CDeathTower.h→CParty.h→…）展开时即需这两个名字。
+class CMonster;
+namespace WongWork { struct stGenerateRefClearReward_t; }
+
 // ============================================================================
 // df_game_r 还原 —— WongWork::CDeathTower 嵌套类（G4 批次，WongWorkDeathTower_A）
 //
-// 本 TU 承载 CPacketHandler 全部 make*/append* 包构造（ORIG 0x0845fc6c..0x084605a1）、
-// CDungeonMgr C1/D1（ORIG W 0x082a74b0/0x082a74b6）、CPlayData
-// generateRewardExp/generateRewardItem 与显式空 D1（ORIG T 0x08462538/0x08461fc0 /
-// W 0x082a7572）以及 CPlayData C1 / stRewardItem_t C1（生命周期闭环所需，
-// ORIG W 0x82a7538 / 0x82a7502：逐 Inven_Item()/stRewardItem_t() 子对象构造）。
-// 头声明见 CDeathTower.h（唯一完整定义点；CGameManager.h 仅 include）。
+// 本 TU 承载：
+//   · CPacketHandler 全部包构造族（ORIG T 0x0845fc6c..0x084605a1）及
+//     C1/D1（ORIG W 0x08469a8c / 0x08469aa0，转发 PacketGuard）；
+//   · CDungeonMgr C1/C2、D1/D2（ORIG W 0x082a74b0 / 0x082a74b6：空函数）；
+//   · CPlayData D1/D2（ORIG W 0x82a7572：空函数）、generateRewardExp
+//     （ORIG T 0x08462538）、generateRewardItem（ORIG T 0x08461fc0）；
+//   · 生命周期闭环补件：CPlayData C1（W 0x82a7538）、stRewardItem_t C1
+//     （W 0x82a7502，逐 Inven_Item() 构造）—— 显式定义以匹配 ORIG 弱符号。
+// 类声明见 CDeathTower.h（唯一完整定义点）；CGameManager.h 仅 #include 该头。
 // ============================================================================
+
 #include "CDeathTower.h"
+
+// ORIG fistpll/fistpl 默认控制字（RC=00 就近舍入）。
+static long long roundFpuNearest(double x)
+{
+    return (long long)(x + (x >= 0.0 ? 0.5 : -0.5));
+}
 
 #include "CDungeon.h"
 #include "CMap.h"
-#include "CDataManager.h"          // G_CDataManager / GetChannelScript / getItemList
+
+// CItemGenerator.h 自身顺序缺口的前置（其 _generateMonseterSpecificItem 参数用
+// CMonster、_generateRandom/SpecificItem 私有签名在自身前置声明行之前引用
+// stGenerateRefClearReward_t；完整定义在 CClearReward.cpp，见该头注释）。
+class CMonster;
+namespace WongWork { struct stGenerateRefClearReward_t; }
+#include "CDataManager.h"          // G_CDataManager / GetChannelScript
 #include "GlobalData.h"            // GlobalData::s_event_manager
-#include "CGuildServerProxy.h"     // class CEventManager（GetRepeatEvent）
+#include "CGuildServerProxy.h"     // class CEventManager / class CEventBase
 #include "CBurningFatigueEvent.h"
 #include "CExpDoubleEvent.h"
 #include "CPCRoomBurningEvent.h"
 #include "CServerEvent.h"
-#include "CEnvironment.h"          // G_CEnvironment
+#include "CEnvironment.h"          // G_CEnvironment / get_server_group / get_channel_no
 #include "CItemGeneratorMgr.h"
-#include "QuickParty.h"
+#include "CInventory.h"
+#include "CDeathTowerRanking.h"
+#include "LogManager.h"
 
 namespace {
 
-// ORIG fistpll / fistpl（默认 FPU 控制字 RC=00：就近舍入 ties-to-even）。
-// 本 TU 两处奖励倍率取整均按该语义【推断：就近舍入】。
-inline long long roundFpuNearest(double x)
-{
-    return (long long)(x + (x >= 0.0 ? 0.5 : -0.5));
-}
+static const char kFile_DeathTower[] = "DeathTower.cpp";
+static const char kFunc_generateRewardExp[] =
+    "void WongWork::CDeathTower::CPlayData::generateRewardExp(int, int, unsigned int, "
+    "CParty*, WongWork::CDeathTower::CDungeonMgr&)";
 
 } // namespace
 
 namespace WongWork {
 
-// ---- CPlayData::stRewardItem_t ----------------------------------------------
-// ORIG W 0x82a7502：do-while 构造 10 个 Inven_Item（步长 0x3d），起点 this+4。
-CDeathTower::CPlayData::stRewardItem_t::stRewardItem_t()
+// ---- CDeathTower::stMapMonsterKillChecker_t（ORIG 嵌套版，布局 0x0c）----
+void CDeathTower::stMapMonsterKillChecker_t::init()
 {
-    for (int i = 0; i < 10; ++i)
-        m_items[i].~Inven_Item();  // 定位释放后按 ORIG 形式重建，保持隐式与显式一致
-    for (int i = 0; i < 10; ++i)
-        new (&m_items[i]) Inven_Item();
+    // ORIG 0x0823462a：m_useSkillMaterialTime = m_lastMobDieTime = m_dieCnt = 0
+    m_useSkillMaterialTime = 0;
+    m_lastMobDieTime = 0;
+    m_dieCnt = 0;
 }
-CDeathTower::CPlayData::CPlayData()
-    : m_lastRoutedTurn(0), m_playTime(0), m_lastPlayTime(0),
-      m_startMemberCnt(0)
+
+void CDeathTower::stMapMonsterKillChecker_t::setUseSkillMaterial(unsigned int material)
 {
-    // ORIG W 0x82a7538：仅按序构造 m_rewards[4]（编译器子对象循环）；其余标量无初始化。
+    // ORIG 0x0823464c：写入 +0x00
+    m_useSkillMaterialTime = material;
 }
-CDeathTower::CPlayData::~CPlayData()
+
+unsigned int CDeathTower::stMapMonsterKillChecker_t::getUseSkillMaterialTime()
 {
-    // ORIG W 0x82a7572：push ebp/mov esp,ebp/pop ebp/ret —— 空函数。
-    // m_rewards[4] 内 Inven_Item 为平凡析构，用户空析构体与 ORIG 一致。
+    // ORIG 0x08469cda：读取 +0x00（非 const）
+    return m_useSkillMaterialTime;
+}
+
+void CDeathTower::stMapMonsterKillChecker_t::initMonsterInfo()
+{
+    // ORIG 0x08469c86：仅清零 +0x08
+    m_dieCnt = 0;
+}
+
+unsigned int CDeathTower::stMapMonsterKillChecker_t::dieMonster(unsigned int tick, unsigned int limit)
+{
+    // ORIG 0x08469c96：
+    //   无符号比较 (tick - m_lastMobDieTime) <= limit → ++m_dieCnt；
+    //   否则 m_dieCnt = 0; m_lastMobDieTime = tick；返回 m_dieCnt。
+    if ((unsigned int)(tick - m_lastMobDieTime) > limit)
+    {
+        m_dieCnt = 0;
+        m_lastMobDieTime = tick;
+    }
+    else
+    {
+        ++m_dieCnt;
+    }
+    return m_dieCnt;
 }
 
 // ==============================================================================
-// CDungeonMgr 生命周期（ORIG W 0x082a74b0 C1/C2、0x082a74b6 D1/D2：全为空函数）
+// 生命周期补件（ORIG W）
+// ==============================================================================
+
+// ORIG 0x82a7502：编译器生成 do-while 依次构造 m_items[10]（步长 0x3d，
+// 起点 this+4）。本类字段均为非平凡默认构造成员，空函数体即由编译器逐个调用。
+CDeathTower::CPlayData::stRewardItem_t::stRewardItem_t()
+{
+}
+
+// 其余标量 ORIG 不初始化；仅 m_rewards[4] 调 stRewardItem_t C1（0x82a7538）。
+CDeathTower::CPlayData::CPlayData()
+{
+}
+
+// ORIG 0x82a7572：push ebp/mov esp,ebp/pop ebp/ret —— 空函数（Inven_Item 平凡
+// 析构，编译器不发清理代码，与 ORIG 完全一致）。
+CDeathTower::CPlayData::~CPlayData()
+{
+}
+
+// ==============================================================================
+// CDungeonMgr C1/C2 @0x082a74b0、D1/D2 @0x082a74b6（四符号同址：全空函数）
 // ==============================================================================
 CDeathTower::CDungeonMgr::CDungeonMgr() {}
 CDeathTower::CDungeonMgr::~CDungeonMgr() {}
 
 // ==============================================================================
-// CPacketHandler 生命周期（ORIG W 0x08469a8c C1/C2 → PacketGuard C1；
-//                                    0x08469aa0 D1/D2 → PacketGuard D1）
+// CPacketHandler C1 @0x08469a8c（仅调 PacketGuard C1）/ D1 @0x08469aa0
 // ==============================================================================
 CDeathTower::CPacketHandler::CPacketHandler() {}
 CDeathTower::CPacketHandler::~CPacketHandler() {}
 
 // ==============================================================================
-// CPacketHandler 包构造族（基类 PacketGuard→InterfacePacketBuf 的 put_* 直调）
+// CPacketHandler 包构造族（put_* 为基类 InterfacePacketBuf 直调）
 // ==============================================================================
 
-// ORIG T 0x0845fc6c：put_header(0,0x27); put_short(b); put_short(a)；无 finalize。
+// ORIG T 0x0845fc6c：header(0,0x27)；short(b)；short(a)；不 finalize。
 void CDeathTower::CPacketHandler::makePickupItemHeader(unsigned short a, unsigned short b)
 {
     put_header(0, 0x27);
@@ -82,15 +146,15 @@ void CDeathTower::CPacketHandler::makePickupItemHeader(unsigned short a, unsigne
     put_short((int)a);
 }
 
-// ORIG T 0x0845fcc4：对 4 个队伍槽位逐个写入金钱信息后 finalize(true)。
+// ORIG T 0x0845fcc4：4 队伍槽金钱信息，尾部统一 finalize(true)。
 void CDeathTower::CPacketHandler::appendPickupMoney(int* moneyA, int* moneyB, CParty* party)
 {
     for (int i = 0; i <= 3; ++i)
     {
-        bool validSlot = false;
+        bool slotValid = false;
         if (party->get_user(i) != 0 && party->checkValidUser(i))
-            validSlot = true;
-        if (!validSlot)
+            slotValid = true;
+        if (!slotValid)
         {
             put_byte(0);
             put_int(0);
@@ -106,7 +170,7 @@ void CDeathTower::CPacketHandler::appendPickupMoney(int* moneyA, int* moneyB, CP
     finalize(true);
 }
 
-// ORIG T 0x0845fdc0：4 字节名字符串 + ushort + short + byte 后 finalize(true)。
+// ORIG T 0x0845fdc0：4 字节名 + ushort + short + byte + finalize(true)。
 void CDeathTower::CPacketHandler::appendPickupItem(char* name, unsigned short uid,
                                                    int v3, int v4)
 {
@@ -118,7 +182,7 @@ void CDeathTower::CPacketHandler::appendPickupItem(char* name, unsigned short ui
     finalize(true);
 }
 
-// ORIG T 0x0845fe4c：put_header(1,cmd); put_byte(0); put_byte(err); finalize(true)。
+// ORIG T 0x0845fe4c：header(1,cmd)；byte(0)；byte(err)；finalize(true)。
 void CDeathTower::CPacketHandler::makeCommonError(ENUM_CMDPACKET cmd, ENUM_ERROR err)
 {
     put_header(1, (int)cmd);
@@ -127,8 +191,9 @@ void CDeathTower::CPacketHandler::makeCommonError(ENUM_CMDPACKET cmd, ENUM_ERROR
     finalize(true);
 }
 
-// ORIG T 0x0845fea6：put_header(1,cmd); put_byte(0); put_byte(err); put_byte(slot); finalize(true)。
-void CDeathTower::CPacketHandler::makeDropItemError(ENUM_CMDPACKET cmd, ENUM_ERROR err, char slot)
+// ORIG T 0x0845fea6：header(1,cmd)；byte(0)；byte(err)；byte(slot)；finalize(true)。
+void CDeathTower::CPacketHandler::makeDropItemError(ENUM_CMDPACKET cmd, ENUM_ERROR err,
+                                                    char slot)
 {
     put_header(1, (int)cmd);
     put_byte(0);
@@ -137,14 +202,7 @@ void CDeathTower::CPacketHandler::makeDropItemError(ENUM_CMDPACKET cmd, ENUM_ERR
     finalize(true);
 }
 
-// ORIG T 0x0845ff1a：
-//   header(0,0x28); short uid; short x; short y; short dropIdx;
-//   int item.m_addInfo(+0x12 即 Inven_Item+0x02)；
-//   byte item.GetItemAttr(); int item.get_add_info();
-//   short item.m_fieldb(+0x1b 即 Inven_Item+0x0b endurance);
-//   int item.m_fieldd(+0x1d 即 Inven_Item+0x0d);
-//   byte amp.getAbilityType(); short amp.getAbilityValue();
-//   put_packet(item(+0x10 子对象)); byte(item.m_count==0 ? 1:0); finalize(true)。
+// ORIG T 0x0845ff1a：塔内掉落通知包（字段偏移对应 map_item/Inven_Item 具名成员）。
 void CDeathTower::CPacketHandler::makeDropItemNotify(unsigned short uid, int x, int y,
                                                      unsigned short dropIdx,
                                                      const map_item& item)
@@ -154,19 +212,20 @@ void CDeathTower::CPacketHandler::makeDropItemNotify(unsigned short uid, int x, 
     put_short(x);
     put_short(y);
     put_short((int)dropIdx);
-    put_int(item.m_item.m_addInfo);
-    put_byte((int)item.m_item.GetItemAttr());
-    put_int(item.m_item.get_add_info());
-    put_short((int)item.m_item.m_fieldb);
-    put_int(item.m_item.m_fieldd);
-    put_byte((int)item.m_item.m_amp.getAbilityType());
+    put_int(item.m_item.m_addInfo);                      // map_item+0x12 = Inven_Item+0x02
+    put_byte((int)item.m_item.GetItemAttr());            // Inven_Item::GetItemAttr
+    put_int(item.m_item.get_add_info());                 // Inven_Item::get_add_info
+    put_short((int)item.m_item.m_fieldb);                // map_item+0x1b = Inven_Item+0x0b
+    put_int(item.m_item.m_fieldd);                       // map_item+0x1d = Inven_Item+0x0d
+    put_byte((int)item.m_item.m_amp.getAbilityType());   // map_item+0x21 = Inven_Item+0x11
     put_short((int)item.m_item.m_amp.getAbilityValue());
-    put_packet(item.m_item);
-    put_byte(item.m_count == 0 ? 1 : 0);
+    put_packet(item.m_item);                             // 子对象整体（map_item+0x10）
+    put_byte(item.m_count == 0 ? 1 : 0);                 // byte(*param_5 == 0 ? 1 : 0)
     finalize(true);
 }
 
-// ORIG T 0x084600a6：header(1,0x32); byte 1; byte order; short xy; int key; finalize(true)。
+// ORIG T 0x084600a6：header(1,0x32)；byte(1)；byte(order)；short(xy)；int(key)；
+// finalize(true)。
 void CDeathTower::CPacketHandler::makeDropItem(char order, int xy, int itemKey)
 {
     put_header(1, 0x32);
@@ -177,7 +236,7 @@ void CDeathTower::CPacketHandler::makeDropItem(char order, int xy, int itemKey)
     finalize(true);
 }
 
-// ORIG T 0x0846012c：header(0,0x1e); int 0; finalize(true)。
+// ORIG T 0x0846012c：header(0,0x1e)；int(0)；finalize(true)。
 void CDeathTower::CPacketHandler::makeFinishLoading()
 {
     put_header(0, 0x1e);
@@ -185,7 +244,7 @@ void CDeathTower::CPacketHandler::makeFinishLoading()
     finalize(true);
 }
 
-// ORIG T 0x08460176：header(0,0x20); short uid; byte 0; finalize(true)。
+// ORIG T 0x08460176：header(0,0x20)；short(uid)；byte(0)；finalize(true)。
 void CDeathTower::CPacketHandler::makeDieState(unsigned short uid)
 {
     put_header(0, 0x20);
@@ -194,8 +253,8 @@ void CDeathTower::CPacketHandler::makeDieState(unsigned short uid)
     finalize(true);
 }
 
-// ORIG T 0x084601da：塔排行榜包。clearTime/playTime 在前，随后委托
-// CDeathTowerRanking 写入个人最优 + 榜首记录（各函数以本对象为 PacketGuard&）。
+// ORIG T 0x084601da：排行榜展示包。个人最优/榜首记录段委托给
+// CDeathTowerRanking 的两个 static 表访问 + 记录序列化函数。
 void CDeathTower::CPacketHandler::makeDisplayRangking(unsigned int tableType,
                                                       unsigned int key,
                                                       unsigned int stage,
@@ -205,20 +264,21 @@ void CDeathTower::CPacketHandler::makeDisplayRangking(unsigned int tableType,
                                                       unsigned int playTime)
 {
     put_header(0, 0x90);
-    put_int((int)clearTime);   // ebp+0x18 → param_4
-    put_int((int)stage);       // ebp+0x14 → param_3
-    put_byte(flag ? 1 : 0);    // ebp+0x1c → param_5
-    put_int((int)playTime);    // ebp+0x24 → param_7
+    put_int((int)clearTime);                       // ebp+0x18 → param_4
+    put_int((int)stage);                           // ebp+0x14 → param_3
+    put_byte(flag ? 1 : 0);                        // ebp+0x1c → param_5
+    put_int((int)playTime);                        // ebp+0x24 → param_7
     const unsigned int towerIdx = CDeathTowerRanking::makeDungeonIdx2TowerIdx(dungeonIdx);
     CDeathTowerRanking* table =
         (CDeathTowerRanking*)CDeathTowerRanking::getRankTable(tableType);
-    table->makeMyBestRecordPacket(towerIdx, key, *this);       // ORIG 0x08468b8e
-    table->makeTopRankerRecordPacket(towerIdx, *this);         // ORIG 0x08468c68
+    table->makeMyBestRecordPacket(towerIdx, key, *this);   // ORIG 0x08468b8e
+    table->makeTopRankerRecordPacket(towerIdx, *this);     // ORIG 0x08468c68
     finalize(true);
 }
 
-// ORIG T 0x084602c4：header(0,0x91); int v1; 之后 4 组 [byte cnt; cnt×{int itemIdx;
-// int add_info}]；逐组用 Inven_Item 步长 0x3d 遍历；finalize(true)。
+// ORIG T 0x084602c4：header(0,0x91)；int(v1)；后接 4 组 [byte cnt；cnt×{int
+// m_addInfo(Inven_Item+0x02); int get_add_info()}]，Inven_Item 步长 0x3d 遍历；
+// finalize(true)。
 void CDeathTower::CPacketHandler::makeDisplayReward(int v1,
                                                     int cnt1, const Inven_Item* items1,
                                                     int cnt2, const Inven_Item* items2,
@@ -227,6 +287,7 @@ void CDeathTower::CPacketHandler::makeDisplayReward(int v1,
 {
     put_header(0, 0x91);
     put_int(v1);
+
     put_byte(cnt1);
     for (int i = 0; i < cnt1; ++i)
     {
@@ -254,7 +315,7 @@ void CDeathTower::CPacketHandler::makeDisplayReward(int v1,
     finalize(true);
 }
 
-// ORIG T 0x084604b0：header(0,0x92); byte flag; finalize(true)。
+// ORIG T 0x084604b0：header(0,0x92)；byte(flag)；finalize(true)。
 void CDeathTower::CPacketHandler::makeDisplayEPLP(bool flag)
 {
     put_header(0, 0x92);
@@ -262,27 +323,27 @@ void CDeathTower::CPacketHandler::makeDisplayEPLP(bool flag)
     finalize(true);
 }
 
-// ORIG T 0x0846050e：header(0,0xe); byte space; short 1;
+// ORIG T 0x0846050e：header(0,0xe)；byte(space)；short(1)；
 // inv.MakeItemPacket(GetInvenTypeFromItemSpace(space), slot, *this)；finalize(true)。
-void CDeathTower::CPacketHandler::makeUpdateItemList(CUser* user, ENUM_ITEMSPACE space, int slot)
+void CDeathTower::CPacketHandler::makeUpdateItemList(CUser* user, ENUM_ITEMSPACE space,
+                                                     int slot)
 {
-    // GetInvenTypeFromItemSpace：既有实现返回原值（CDeathTower.cpp 定义）。
-    extern int GetInvenTypeFromItemSpace(int space);
-
+    // GetInvenTypeFromItemSpace：ORIG 全局 _Z26GetInvenTypeFromItemSpace
+    // ENUM_ITEMSPACE；权威声明见 CInventory.h（勿在 WongWork ns 内局部 extern，
+    CInventory* inven = const_cast<CInventory*>(user->getCurCharacInvenR());
     put_header(0, 0xe);
     put_byte((int)space);
     put_short(1);
-    CInventory* inven = user->getCurCharacInvenR();
-    inven->MakeItemPacket((INVEN_TYPE)GetInvenTypeFromItemSpace((int)space), slot, *this);
+    inven->MakeItemPacket((INVEN_TYPE)::GetInvenTypeFromItemSpace(space), slot, *this);
     finalize(true);
 }
 
 // ==============================================================================
 // CPlayData::generateRewardExp（ORIG T 0x08462538）
-// 流程：baseExp=stage×base×DataManager 浮点权重表（tier 按
-// limitOfStackableItemInTower 选 0x1464/0x15f4）→ 各类加成系数收集（纯记录
-// local，最终仅 getClearRewardBonusExp 结果写入 m_rewardExp[memberIdx]，>1100000
-// 记日志并截断）。
+//
+// 权重表：DataManager 基址 +0xc+(stage+tier)*4 的 float 数组（tier 依
+// CDungeon::limitOfStackableItemInTower 取 0x1464 或 0x15f4）；所得 exp 与最终
+// 结算结果 >0x10c8e0(1100000) 时写 BLOOD_LOG 并截断。各加成系数仅进日志参数流。
 // ==============================================================================
 void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
                                                unsigned int baseExp, CParty* party,
@@ -291,99 +352,209 @@ void CDeathTower::CPlayData::generateRewardExp(int memberIdx, int stage,
     CUser* user = party->get_user(memberIdx);
     unsigned int reward = 0;
 
-    CDungeon* dungeon = dungeonMgr.getDungeon();
-    const char stackableLimitFlag = dungeon->limitOfStackableItemInTower();
-    if (stackableLimitFlag == '\0')
+    const char limitFlag = dungeonMgr.getDungeon()->limitOfStackableItemInTower();
     {
-        //DataManager+0xc+(stage+0x15f4)*4 float 表项
+        // DataManager 浮点权重表（tier：有限堆叠副本 0x1464，否则 0x15f4）
+        const unsigned int tier = (limitFlag != '\0') ? 0x1464u : 0x15f4u;
         CDataManager* dm = G_CDataManager();
-        float weight = *(float*)((char*)dm + 0xc +
-                                 ((unsigned int)(stage + 0x15f4)) * 4);
-        double v = (double)((float)((long long)stage * (long long)baseExp) * weight);
-        reward = (unsigned int)roundFpuNearest(v);
-    }
-    else
-    {
-        // DataManager+0xc+(stage+0x1464)*4 float 表项
-        CDataManager* dm = G_CDataManager();
-        float weight = *(float*)((char*)dm + 0xc +
-                                 ((unsigned int)(stage + 0x1464)) * 4);
-        double v = (double)((float)((long long)stage * (long long)baseExp) * weight);
-        reward = (unsigned int)roundFpuNearest(v);
+        const float weight = *(float*)((char*)dm + 0xc +
+                                       ((unsigned int)stage + tier) * 4);
+        // ORIG fildll(stage*base)→float→fmuls weight→fistpll（就近舍入）
+        double scaled = (double)((float)((long long)stage * (long long)baseExp)) *
+                        (double)weight;
+        reward = (unsigned int)roundFpuNearest(scaled);
     }
 
     if (1100000 < reward)
     {
-        float logWeight = *(float*)((char*)G_CDataManager() + 0xc +
-                                    ((unsigned int)(stage + 0x1464)) * 4);
-        LogManager_LogFormatBlood(
+        const float logWeight = *(float*)((char*)G_CDataManager() + 0xc +
+                                          ((unsigned int)stage + 0x1464) * 4);
+        LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x2ff,
             "BLOOD_LOG : EROOR DEATHTOWER REWARD EXP(%u), LAST STAGE(%d), BASE EXP(%u), EXP WEIGHT(%f)\n",
-            0x2ff, reward, stage, baseExp, (double)logWeight);
+            reward, stage, baseExp, (double)logWeight);
     }
 
-    stClearRewardExpParameter_t clearParam;
-    stClearRewardBonusExp_t bonus;
+    stClearRewardExpParameter_t clearParam;   // 栈构造（ORIG ctor 0x0814a8b8）
+    stClearRewardBonusExp_t bonus;            // 栈构造（ORIG ctor 0x0814a800）
 
-    const float avatarBonus = party->getAvatarBonus();
+    const float avatarBonus = (float)party->getAvatarBonus();
+    const float creatureBonus = (float)party->getCreatureBonus(user);
 
-    const float creatureBonus = party->getCreatureBonus(user);
+    float pcRoomRate = 0.0f;
+    {   // 事件 8：PC 房间燃烧（整除 /100 —— imul 0x51eb851f 形态实证）
+        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(8);
+        if (ev != 0 && ev->IsEventing(user))
+            pcRoomRate = (float)(((CPCRoomBurningEvent*)ev)->GetExpFactor() / 100);
+    }
 
-    // 事件 8：PC 房间燃烧加成（整除 /100 —— ORIG imul 0x51eb851f 实证）
-    CEventManager* evPcRoom = GlobalData::s_event_manager->GetRepeatEvent(8);
-    if (evPcRoom != 0 && evPcRoom->IsEventing(user))
-        pcRoomRate_ = 0.0f;  // 占位写入被下方真实赋值覆盖（保持指令序）
-    evPcRoom = GlobalData::s_event_manager->GetRepeatEvent(8);
-    if (evPcRoom != 0 && evPcRoom->IsEventing(user))
-        pcRoomRate_ = (float)((static_cast<CPCRoomBurningEvent*>(evPcRoom)->GetExpFactor()) / 100);
+    float expDoubleRate = 0.0f;
+    {   // 事件 3：双倍经验（浮点 /100.0f，常量 _DAT_08c640b8 = 100.0f）
+        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(3);
+        if (ev != 0 && ev->IsEventing(0))
+            expDoubleRate = (float)((CExpDoubleEvent*)ev)->GetExpFactor() / 100.0f;
+    }
 
-    // 事件 3：双倍经验（浮点除法 /100.0f）
-    CEventManager* evDouble = GlobalData::s_event_manager->GetRepeatEvent(3);
-    if (evDouble != 0 && evDouble->IsEventing(0))
-        expDoubleRate_ = (float)(static_cast<CExpDoubleEvent*>(evDouble)->GetExpFactor()) / 100.0f;
+    int burningBonusExp = 0;
+    {   // 事件 0xf：疲劳燃烧加成（千分率原始值）
+        CEventBase* ev = GlobalData::s_event_manager->GetRepeatEvent(0xf);
+        if (ev != 0 && ev->IsEventing(0))
+            burningBonusExp =
+                ((CBurningFatigueEvent*)ev)->getBonusExpRate(user->getCurCharacUsedFatigue());
+    }
 
-    // 事件 0xf：疲劳燃烧加成
-    CEventManager* evFatigue = GlobalData::s_event_manager->GetRepeatEvent(0xf);
-    if (evFatigue != 0 && evFatigue->IsEventing(0))
-        burningBonusExp_ =
-            static_cast<CBurningFatigueEvent*>(evFatigue)->getBonusExpRate(user->getCurCharacUsedFatigue());
+    // 频道脚本 bonus rate（+0x378 = Server_Envir 组别，参照 CBossPlay 先例走
+    // get_server_group() 访问器替代裸偏移）
+    channel_script_t* channelScript =
+        (channel_script_t*)G_CDataManager()->GetChannelScript();
+    CEnvironment* env = G_CEnvironment();
+    const unsigned int channelNo = (unsigned int)env->get_channel_no();
+    const unsigned int dungeonIdx = (unsigned int)dungeonMgr.getDungeon()->get_index();
+    const float channelRate =
+        channelScript->getBonusRate((unsigned char)env->get_server_group(), channelNo, dungeonIdx);
 
-    // 频道脚本 bonus rate
-    channel_script_t* channelScript = (channel_script_t*)G_CDataManager()->GetChannelScript();
-    unsigned int dungeonIdx = dungeon->get_index();
-    int serverGroup = *(int*)((char*)G_CEnvironment() + 0x378); //m_serverGroup（SPremiumInfo.h 注释实证）
-    unsigned int channelNo = (unsigned int)G_CEnvironment()->get_channel_no();
-    channelBonusRate_ = channelScript->getBonusRate((unsigned char)serverGroup, channelNo, dungeonIdx);
-
-    // 高级会员经验加成
+    float premiumAdvantageRate = 0.0f;
     if (user->IsHavePremiumAdvantage())
-        premiumAdvantageRate_ =
+        premiumAdvantageRate =
             (float)user->GetPremiumInfo()->GetAdvantageExpRate() / 100.0f;
 
-    // 服务端事件经验倍率
-    serverEventExpRate_ = (float)CServerEvent::GetExpRate() / 100.0f;
+    const float serverEventExpRate = (float)CServerEvent::GetExpRate() / 100.0f;
 
-    // 管理奖励
-    manageBonus_ = party->CalcurateManageBonus((ManageBonusType::T)0, user, reward);
+    const float manageBonus = party->CalcurateManageBonus((ManageBonusType::T)0, user, reward);
 
-    // 结算基础通关经验（exp 经引用传入并被内部调整）
+    // 结算基础通关经验（exp 以引用进出）
     unsigned int expInOut = reward;
     reward = party->getClearRewardBonusExp(user, expInOut, clearParam, bonus);
 
     if (1100000 < reward)
     {
-        LogManager_LogFormatBlood(
-            "BLOOD_LOG : EROOR DEATHTOWER CLEAR REWARD EXP(%u)\n", 0x324, reward);
-        LogManager_LogFormatBlood(
+        LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x324,
+            "BLOOD_LOG : EROOR DEATHTOWER CLEAR REWARD EXP(%u)\n", reward);
+        LogManager::logFormat(1, kFile_DeathTower, kFunc_generateRewardExp, 0x32e,
             "BLOOD_LOG : DEATHTOWER EXP PARAMETER : %f, %f, %f, %f, %f, %f, %f, %d\n",
-            0x32e,
-            (double)avatarBonus_, (double)creatureBonus_, (double)pcRoomRate_,
-            (double)expDoubleRate_, (double)channelBonusRate_,
-            (double)premiumAdvantageRate_, (double)serverEventExpRate_,
-            (int)burningBonusExp_);
+            (double)avatarBonus, (double)creatureBonus, (double)pcRoomRate,
+            (double)expDoubleRate, (double)channelRate,
+            (double)premiumAdvantageRate, (double)serverEventExpRate,
+            (int)burningBonusExp);
         reward = 1100000;
     }
 
-    m_rewardExp[memberIdx] = (int)reward;
+    m_rewardExp[memberIdx] = (int)reward;   // ORIG *(uint*)(this+(idx+0x26c)*4+8)
+}
+
+// ==============================================================================
+// CPlayData::generateRewardItem（ORIG T 0x08461fc0）
+//
+// 期望掉落条数写入 m_rewards[memberIdx].m_itemCnt；循环 count 次投掷
+// get_rand_int(1000)：rnd>rate 高阶掉落分支的概率锚点为 DataManager+0x5e20 /
+// +0x5e24（乘 param5 比较），计数率因子 +0x5e2c。随机分支经生成器虚槽 +0x08
+// （generateRandomItem）；受控分支经虚槽 +0x0c（generateSpecificItem，ref 带
+// dungeon/m_rankBonusIndex/goldBase/Factor 上下文）。受控分支额外触发幸运点
+// 扣减（::CLuckPoint::UseLuckPoint）。ref 对象由其 ctor 初始化，上下文区按
+// ORIG 原始偏移写入。
+// ==============================================================================
+void CDeathTower::CPlayData::generateRewardItem(int memberIdx, int count,
+                                                const CDungeonMgr& dungeonMgr,
+                                                unsigned int param4, unsigned int param5,
+                                                CParty* party)
+{
+    m_rewards[memberIdx].m_itemCnt = count;
+
+    CDataManager* dm = G_CDataManager();
+    const int rateHigh = *(int*)((char*)dm + 0x5e20);
+    const int rateLow = *(int*)((char*)dm + 0x5e24);
+    const float rateFactor = *(float*)((char*)dm + 0x5e2c);
+
+    for (int i = 0; i < count; ++i)
+    {
+        stGenerateRefData_t ref;
+        stGenerateResult_t result;
+
+        ::CLuckPoint luck;                  // sizeof 0x24（ORIG -0x88..-0x64 区；全局 CLuckPoint）
+        if (party != 0)
+            party->GetLuckPoint(&luck, false);
+
+        const int roll = get_rand_int(1000);
+        const unsigned int boundHigh = (unsigned int)(rateHigh * (int)param5);
+        if ((roll > (int)boundHigh || boundHigh - (unsigned int)roll == 0))
+        {
+            // ---- 受控特定掉落分支（ORIG +0x2df：vtable+0x0c specific）----
+            if ((unsigned int)roll <= (unsigned int)(rateLow * (int)param5) &&
+                (unsigned int)(rateLow * (int)param5) - (unsigned int)roll != 0)
+            {
+                // ref 上下文区按 ORIG 084622bc..308 原始偏移写入
+                *(char*)((char*)&ref + 0x35) = 0;
+                *(char*)((char*)&ref + 0x34) = (char)param4;
+                *(int*)((char*)&ref + 0x38) = 0x3f800000;      // float 1.0f 位型
+                *(CDungeon**)((char*)&ref + 0x40) = dungeonMgr.getDungeon();
+                *(int*)((char*)&ref + 0x3c) = 0;
+
+                CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
+                CItemGenerator* gen = genMgr->getGenerator(
+                    (WongWork::CItemGeneratorMgr::eGenerateType_t)2);
+                gen->generateSpecificItem(ref, result);        // 虚槽 +0x0c
+
+                const bool dropEmpty = result.m_dropItems.empty();
+                if (!dropEmpty)
+                {
+                    Inven_Item& dst = m_rewards[memberIdx].m_items[i];
+                    dst.setCopy(result.m_dropItems.front());
+
+                    Inven_Item probe;                          // ORIG buf(-0xf5)：整块复核
+                    probe.setCopy(result.m_dropItems.front());
+                    CItemList* itemList = dm->getItemList();   // dm+0xc 具名访问器
+                    CItem* found = itemList->find_item(probe.m_addInfo);
+                    if (found != 0)
+                    {
+                        const int grade = found->get_grade();
+                        const int rarity = found->get_rarity();
+                        ::CLuckPoint::UseLuckPoint(party->get_user(memberIdx),
+                                                 (unsigned char)probe.m_field1,
+                                                 rarity, grade);
+                    }
+                }
+            }
+        }
+        else
+        {
+            // ---- 随机掉落分支（ORIG +0x0f2：vtable+0x08 random）----
+            // ref 上下文区按 ORIG 0846205d..099 原始偏移写入
+            *(char*)((char*)&ref + 0x35) = 0;
+            *(char*)((char*)&ref + 0x34) = (char)param4;
+            *(char*)((char*)&ref + 0x36) = 1;
+            *(int*)((char*)&ref + 0x38) = 1;                   // m_rankBonusIndex
+            *(unsigned short*)((char*)&ref + 0x3c) = 1;        // m_goldBase
+            *(unsigned short*)((char*)&ref + 0x3e) = 1;        // m_goldFactor
+            *(unsigned short*)((char*)&ref + 0x40) = 1;        // m_dungeon 低 16 位（ORIG 原样）
+            *(unsigned short*)((char*)&ref + 0x42) = 1;        // m_dungeon 高 16 位（ORIG 原样）
+
+            stGenerateResult_t randomResult;                   // ORIG -0xb8 独立结果区
+            CItemGeneratorMgr* genMgr = G_CDataManager()->getItemGenerator();
+            CItemGenerator* gen = genMgr->getGenerator(
+                (WongWork::CItemGeneratorMgr::eGenerateType_t)2);
+            gen->generateRandomItem(ref, randomResult);        // 虚槽 +0x08
+
+            if (!randomResult.m_dropItems.empty())
+            {
+                if (party != 0)
+                {
+                    // QuickParty 奖励登记（基础奖励类型 0xb：道具奖励槽）
+                    QuickParty::RewardData_Param rp(party);
+                    rp.m_param4 = dungeonMgr.getDungeon()->get_index();
+                    QuickParty::RewardData_Result rs;
+                    rs.clear();
+                    rs.m_value00 = randomResult.m_dropItems.front().m_addInfo2;
+                    party->set_basic_reward((QuickParty::BasicRewardType)0xb, rp, rs);
+                    randomResult.m_dropItems.front().m_addInfo2 = rs.m_value00;
+                }
+                Inven_Item& dst = m_rewards[memberIdx].m_items[i];
+                dst.setCopy(randomResult.m_dropItems.front());
+                const int addInfo = dst.get_add_info();
+                // ORIG：fildl/flds 0x5e2c/fmuls/fistpl（就近舍入）
+                double boosted = (double)addInfo * (double)rateFactor;
+                dst.set_add_info((int)roundFpuNearest(boosted));
+            }
+        }
+    }
 }
 
 } // namespace WongWork

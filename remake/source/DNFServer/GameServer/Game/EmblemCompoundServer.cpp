@@ -193,3 +193,214 @@ void EmblemCompoundServer::Destroy()
 void EmblemCompoundServer::Test()
 {
 }
+
+// ============================================================================
+// LinkClosureB.AradServers 追加段：
+//   GetEmblemInfo        ORIG T 0x08191818（GetEmblemInfo.md 全文转写）
+//   GetEmblemRandomIndex ORIG T 0x081919e8（GetEmblemRandomIndex.md 全文转写）
+//   IsResultSelectable   ORIG T 0x08191ad6（IsResultSelectable.md 全文转写）
+//   CheckCondition       ORIG T 0x08191636（CheckCondition.md 全文转写）
+//   Process              ORIG T 0x08191afa（Process.md 全文转写）
+// ============================================================================
+
+#include "CUser.h"
+#include "CUserCharacInfo.h"
+#include "CInventory.h"
+#include "MoreTypes.h"          // arad::SigAradEmblemCompound 完整定义
+#include "Inven_Item.h"
+#include "CDataManager.h"       // G_CDataManager / find_item / ENUM_CMDPACKET
+#include "LogManager.h"
+#include "PacketGuard.h"
+#include "CMailBoxHelper.h"     // ReqDBSendNewSystemMail
+#include "RDARScriptStringManager.h"
+#include "CompoundEmblemDeps.h" // getCompoundEmblemStatistic
+#include "AvatarConvertServer.h" // StatisticsEmblemCreate
+
+bool EmblemCompoundServer::GetEmblemInfo(CUser* user,
+                                         arad::SigAradEmblemCompound* sig,
+                                         int idx)
+{
+    unsigned short slot = *reinterpret_cast<const unsigned short*>(
+        reinterpret_cast<const char*>(sig) + idx * 8);
+    const Inven_Item* ref = user->getCurCharacInvenR()->GetInvenRef(1, (int)slot);
+    if ((ref == 0 || ref->isEmpty()))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0x16);
+        ARAD::PRINT_ERROR::isEmpty("EMBLEM COMPOUND", user, slot);
+        return false;
+    }
+    if (user->CheckItemLock(1, (int)slot))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0xd5);
+        ARAD::PRINT_ERROR::CheckItemLock("EMBLEM COMPOUND", user, slot);
+        return false;
+    }
+    CItem* item = G_CDataManager()->find_item((int)ref->m_addInfo);
+    if (item == 0 || item->GetItemType() != 0x14)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0x11);
+        ARAD::PRINT_ERROR::find_item("EMBLEM COMPOUND", user,
+                                     (int)ref->m_addInfo);
+        return false;
+    }
+    // 写回条目 grade(+2)/itemIdx(+4)
+    unsigned short* entryGrade =
+        reinterpret_cast<unsigned short*>(reinterpret_cast<char*>(sig) +
+                                          idx * 8 + 2);
+    int* entryItem = reinterpret_cast<int*>(reinterpret_cast<char*>(sig) +
+                                            idx * 8 + 4);
+    *entryGrade = (unsigned short)item->get_grade();
+    *entryItem = (int)ref->m_addInfo;
+    return true;
+}
+
+int EmblemCompoundServer::GetEmblemRandomIndex(int grade,
+                                               unsigned short selectIdx)
+{
+    ARAD::SCRIPT::EmblemCompound::Result* result = m_result[grade];
+    // ORIG：rand(1000) < elem+2(m_itemIndex) → 取 +0(m_listIdx)，否则 +4(m_itemCount)
+    short listIdx;
+    if (get_rand_int(1000) < (int)(short)result->m_itemIndex)
+        listIdx = result->m_listIdx;
+    else
+        listIdx = result->m_itemCount;
+
+    std::vector<unsigned long>& list = m_list[listIdx];
+    if (list.empty())
+        return 0;
+    if ((int)result->m_selectable == 1)
+        return (int)list[selectIdx];
+    return (int)list[get_rand_int((int)list.size())];
+}
+
+bool EmblemCompoundServer::IsResultSelectable(int grade)
+{
+    ARAD::SCRIPT::EmblemCompound::Result* result = m_result[grade];
+    return result->m_selectable != 0;
+}
+
+bool EmblemCompoundServer::CheckCondition(CUser* user,
+                                          arad::SigAradEmblemCompound* sig)
+{
+    if (!GetEmblemInfo(user, sig, 0))
+        return false;
+    if (!GetEmblemInfo(user, sig, 1))
+        return false;
+    if (!(sig->m_grade1 == sig->m_grade0 && sig->m_grade0 < 7))
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0xd8);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            "bool EmblemCompoundServer::CheckCondition(CUser*, arad::SigAradEmblemCompound*)",
+            0x1e8,
+            "EMBLEM COMPOUND : [grade1:%d] [grade2:%d] [charac_no:%d]",
+            (int)sig->m_grade0, (int)sig->m_grade1,
+            (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    int need = m_cost[sig->m_grade0];      // ORIG map::operator[]（未命中插入 0）
+    int money = user->getCurCharacInvenR()->get_money();
+    if (money < need)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 10);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            "bool EmblemCompoundServer::CheckCondition(CUser*, arad::SigAradEmblemCompound*)",
+            0x1f0,
+            "EMBLEM COMPOUND : [money:%d] [need:%d] [charac_no:%d]",
+            money, m_cost[sig->m_grade0],
+            (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    return true;
+}
+
+bool EmblemCompoundServer::Process(CUser* user,
+                                   arad::SigAradEmblemCompound* sig)
+{
+    int resultIdx = GetEmblemRandomIndex(sig->m_grade0, sig->m_selectIdx);
+    if (resultIdx == 0)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0x13);
+        return false;
+    }
+    CItem* resultItem = G_CDataManager()->find_item(resultIdx);
+    if (resultItem == 0 || resultItem->GetItemType() != 0x14)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 0x16);
+        ARAD::PRINT_ERROR::find_item("EMBLEM COMPOUND", user, resultIdx);
+        return false;
+    }
+
+    int cost = m_cost[sig->m_grade0];      // ORIG map::operator[]
+    CInventory* invW = user->getCurCharacInvenW();
+    if (invW->use_money(cost, eMoneySubReason(0x23), true) != 1)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 10);
+        LogManager::logFormat(
+            1, "localjapan/Arad_EmblemReformServer.cpp",
+            "bool EmblemCompoundServer::Process(CUser*, arad::SigAradEmblemCompound*)",
+            0x24e,
+            "EMBLEM COMPOUND : [money:%d] [need:%d] [charac_no:%d]",
+            user->getCurCharacInvenR()->get_money(), m_cost[sig->m_grade0],
+            (unsigned int)user->getCurCharacNo());
+        return false;
+    }
+    // 删除两张纹章材料（type1 slot0/slot1，reason=8）
+    if (invW->delete_item(INVEN_TYPE(1), (int)sig->m_slot0, 1,
+                          eItemDelReason(8), true) != 1)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 1);
+        ARAD::PRINT_ERROR::delete_item("EMBLEM COMPOUND", user, sig->m_slot0);
+        return false;
+    }
+    if (invW->delete_item(INVEN_TYPE(1), (int)sig->m_slot1, 1,
+                          eItemDelReason(8), true) != 1)
+    {
+        user->SendCmdErrorPacket((ENUM_CMDPACKET)0x24e, 1);
+        ARAD::PRINT_ERROR::delete_item("EMBLEM COMPOUND", user, sig->m_slot1);
+        return false;
+    }
+
+    // 合成结果物品：make_item → set_add_info(1) → insert(reason=9)，失败邮件补偿
+    Inven_Item newItem;
+    resultItem->make_item(newItem);
+    newItem.set_add_info(1);
+    short insertSlot = (short)invW->insertItemIntoInventory(
+        newItem, eItemAddReason(9), true, true);
+    if (insertSlot < 0)
+    {
+        const char* title =
+            g_scriptStringManager_.findString(4, "game_server_msg_122", (bool*)0);
+        const char* body =
+            g_scriptStringManager_.findString(4, "game_server_msg_123", (bool*)0);
+        WongWork::CMailBoxHelper::ReqDBSendNewSystemMail(
+            title, newItem, 0, (unsigned int)user->getCurCharacNo(), body,
+            (unsigned int)std::strlen(body), 0, user->GetServerGroup(),
+            false, false);
+    }
+    sig->m_resultIdx = resultIdx;
+
+    PacketGuard packet;
+    packet.clear();
+    packet.put_header(1, 0x24e);
+    packet.put_byte(1);
+    packet.put_int(user->getCurCharacInvenR()->get_money());
+    packet.put_short(sig->m_slot0);
+    packet.put_short(sig->m_slot1);
+    packet.put_byte(IsResultSelectable(sig->m_grade0) ? 1 : 0);
+    packet.put_int(sig->m_resultIdx);
+    packet.finalize(true);
+    user->Send(packet);
+    if (insertSlot >= 0)
+        user->SendUpdateItem((CUser::eSendTarget)1, (ENUM_ITEMSPACE)0,
+                             (int)insertSlot);
+
+    getCompoundEmblemStatistic()->increaseCount((int)sig->m_grade0);
+
+    std::vector<std::pair<int, int> > created;   // StatisticsEmblemCreate 入参
+    created.push_back(std::make_pair((unsigned long)newItem.m_addInfo,
+                                     (int)newItem.m_addInfo2));
+    AvatarConvertServer::StatisticsEmblemCreate(created);
+    return true;
+}

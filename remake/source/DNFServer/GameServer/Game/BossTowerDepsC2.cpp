@@ -55,28 +55,8 @@ namespace pvp_assault
 // （CAssaultPlace::ForcedMoveAtPowerWarPlace 栈上组装）不调用任何构造函数、
 // 无 vtable 写入证据，故 +0x00..+0x07 未建模。
 // ============================================================================
-class CForcedMoveCharacter
-{
-public:
-    void ForcedMove();   // ORIG T 0x082e567c
-
-    char m_pad0[8];      // +0x00..+0x07（ORIG 栈对象不初始化，未建模）
-    CUser* m_user;       // +0x08（目标玩家）
-    int m_village;       // +0x0c（目标村庄；getCurCharacVill 比较/move_area vill）
-    int m_area;          // +0x10（目标区域；get_area 比较/move_area area/send_to_area）
-    int m_posX;          // +0x14（put_short/set_position x）
-    int m_posY;          // +0x18（put_short/set_position y）
-    int m_direction;     // +0x1c（put_byte/set_position dir/move_area z；
-                         //        PowerWar 组装点未写入——ORIG 即读未初始化栈【忠实转写】）
-};
-
-// ============================================================================
-// CForcedMoveCharacter::ForcedMove —— ORIG T 0x082e567c（报告全文转写）：
-//   user 空 → 返回；(vill==m_village && get_area(false)==m_area) 时原地
-//   set_position(x,y,dir)，否则 move_area(user,vill,area,x,y,dir,false,0,0,0)；
-//   随后广播包 header(0,0x8a){uid, x, y, dir}（finalize(true)），
-//   m_village!=0||m_area!=0 时 send_to_area(m_village,m_area,packet)。
-// ============================================================================
+// pvp_assault::CForcedMoveCharacter 权威完整定义见 CAssaultMgr.h（本 TU 本地镜像已删，
+// 避免与全域权威头 ODR 冲突）。以下 ForcedMove ORIG T 0x082e567c 报告全文转写。
 void CForcedMoveCharacter::ForcedMove()
 {
     if (m_user == 0)
@@ -89,39 +69,39 @@ void CForcedMoveCharacter::ForcedMove()
     // set_position。
     int needMove = 0;
     if (static_cast<int>(static_cast<signed char>(m_user->getCurCharacVill())) !=
-        m_village)
+        m_destVill)
     {
         needMove = 1;
     }
-    else if (m_user->get_area(false) != m_area)
+    else if (m_user->get_area(false) != m_destArea)
     {
         needMove = 1;
     }
 
     if (needMove)
     {
-        G_GameWorld()->move_area(m_user, m_village, m_area, m_posX, m_posY,
-                                 m_direction, false, 0, 0, 0);
+        G_GameWorld()->move_area(m_user, m_destVill, m_destArea, m_x, m_y,
+                                 m_dir, false, 0, 0, 0);
     }
     else
     {
-        m_user->set_position(static_cast<unsigned short>(m_posX),
-                             static_cast<unsigned short>(m_posY),
-                             static_cast<char>(m_direction));
+        m_user->set_position(static_cast<unsigned short>(m_x),
+                             static_cast<unsigned short>(m_y),
+                             static_cast<char>(m_dir));
     }
 
     PacketGuard packet;
     packet.put_header(0, 0x8a);
     packet.put_short(
         static_cast<int>(static_cast<unsigned short>(m_user->get_unique_id())));
-    packet.put_short(m_posX);
-    packet.put_short(m_posY);
-    packet.put_byte(m_direction);
+    packet.put_short(m_x);
+    packet.put_short(m_y);
+    packet.put_byte(m_dir);
     packet.finalize(true);
 
-    if (m_village != 0 || m_area != 0)
+    if (m_destVill != 0 || m_destArea != 0)
     {
-        G_GameWorld()->send_to_area(m_village, m_area, packet);
+        G_GameWorld()->send_to_area(m_destVill, m_destArea, packet);
     }
 }
 
@@ -150,17 +130,17 @@ void CAssaultPlace::ForcedMoveAtPowerWarPlace(CUser* user)
     request.m_user = user;
     if (user->getPowerSide() == 1)
     {
-        request.m_village = 7;
-        request.m_area = 0;
-        request.m_posX = 0x255;
-        request.m_posY = 300;
+        request.m_destVill = 7;
+        request.m_destArea = 0;
+        request.m_x = 0x255;
+        request.m_y = 300;
     }
     else if (user->getPowerSide() == 2)
     {
-        request.m_village = 7;
-        request.m_area = 4;
-        request.m_posX = 0x139;
-        request.m_posY = 0x13a;
+        request.m_destVill = 7;
+        request.m_destArea = 4;
+        request.m_x = 0x139;
+        request.m_y = 0x13a;
     }
     request.ForcedMove();
 }

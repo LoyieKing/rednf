@@ -203,7 +203,9 @@ private:
     int m_field618;                     // +0x618
     unsigned char m_field61c;           // +0x61c
     char m_pad61d[3];                   // +0x61d
+public: // m_relayMgr 由 online_preliminary::COnlinePreliminary::OnConnectP2P 域访问
     CRelayBattleMgr m_relayMgr;         // +0x620
+private:
     CDeathMatchBattleMgr m_deathMatch;  // +0x69c
     CMatchingSystem* m_pMatchingSystem; // +0x6e0
     int m_matching;                     // +0x6e4

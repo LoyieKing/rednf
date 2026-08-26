@@ -361,9 +361,9 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
             itemA = getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, fromSlot);
         }
 
-        // ORIG 以 IsTempKey(m_addInfo2) 判临时键（实现不读 this，仅看符号位）。
-        const WongWork::CAvatarItemMgr* avatarMgr =
-            getCurCharacInvenR()->GetAvatarItemMgrR();
+        // ORIG 以 IsTempKey(m_addInfo2) 判临时键；IsTempKey ORIG 非 const，改 W 访问器。
+        WongWork::CAvatarItemMgr* avatarMgr =
+            getCurCharacInvenW()->GetAvatarItemMgrW();
         if (avatarMgr->IsTempKey((int)itemA.m_addInfo2)
             || avatarMgr->IsTempKey((int)itemB.m_addInfo2))
             return 0x13;
@@ -560,8 +560,8 @@ int CUser::exchange_interspace(int fromSpace, int fromSlot, unsigned long fromIt
                 getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_INVEN, fromSlot);
             Inven_Item avatarSlot =
                 getCurCharacInvenR()->GetInvenSlot(INVEN_TYPE_AVATAR, toSlot);
-            const WongWork::CAvatarItemMgr* avatarMgr =
-                getCurCharacInvenR()->GetAvatarItemMgrR();
+            WongWork::CAvatarItemMgr* avatarMgr =
+                getCurCharacInvenW()->GetAvatarItemMgrW();
             if (avatarMgr->IsTempKey((int)equipSlot.m_addInfo2)
                 || avatarMgr->IsTempKey((int)avatarSlot.m_addInfo2))
                 return 0x13;

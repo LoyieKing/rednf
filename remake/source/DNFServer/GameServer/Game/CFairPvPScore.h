@@ -18,6 +18,11 @@
 
 #include "CBoosterGage.h"  // charac_expand::CData
 
+class PacketGuard;
+class CUser;
+
+#include "CCompoundAvatar.h"  // ENUM_CHARACTERJOB（守卫幂等）
+
 namespace fair_pvp
 {
 
@@ -62,6 +67,7 @@ public:
     void MakePacketSocre(PacketGuard& pkt, int mode) const;          // 0x84a5cc2
 
     void SetGiveItem(int v);                             // 0x8234f74（字节写 +0x5b 后 alter）
+    unsigned char GetGiveItem() const;                   // 0x8234f64（movzbl 直返 +0x5b）
     int  GetDailyPlayCount();                            // 0x8568ec2
     void SetDailyPlayCount(int v);                       // 0x8234f92（负值钳 0 后写 +0x50）
     void SetRemainBonusCount(int v);                     // 0x8234fae（字节 +0x5a）

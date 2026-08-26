@@ -306,6 +306,8 @@ public:
     const std::vector<stGlobalEffect_t>& getGlobalEffectData() const;
     // ORIG 0x822ca28：movzwl 0x2b4(%eax) —— 返回珍宝目标槽位（16 位，单次零扩展）
     unsigned short getJewelTargetSocket() const;
+    // ORIG _ZNK14CStackableItem12get_sub_typeEv W 0x822c9d2：return +0x2bc（m_int2bc）
+    int get_sub_type() const { return m_int2bc; }
 
     int m_int148;                         // +0x148（AradItemInfo 首字段）
     char m_growType;                      // +0x14c

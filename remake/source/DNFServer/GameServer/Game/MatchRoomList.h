@@ -166,13 +166,8 @@ private:
 // ORIG：GetUserName(IMatch*, char*) 0x08563ff7。
 char* GetUserName(IMatch* match, char* out);
 
-namespace fair_pvp
-{
-class CFairMatch
-{
-public:
-    static int GetPlayCountPerOneTeam();   // 0x08562834，恒返 1
-};
-}
+// fair_pvp::CFairMatch 权威完整定义见 CFairMatch.h（OnlyOrig_OnlinePvp 批）；
+// GetPlayCountPerOneTeam 定义在 MatchRoomList.cpp。
+namespace fair_pvp { class CFairMatch; }
 
 #endif  // GAME_MATCHROOMLIST_H_

@@ -96,6 +96,44 @@ dnf_service(game
         ${SVC_DIR}/Dispatcher_UseVendingMachine_impl.cpp
         ${SVC_DIR}/VendingMachine.cpp
         ${SVC_DIR}/TaiwanCash.cpp
+        ${SVC_DIR}/TaiwanQueries.cpp
+        ${SVC_DIR}/WongWorkSecurityCard_A.cpp
+        ${SVC_DIR}/WongWorkDrop_A.cpp
+        ${SVC_DIR}/WongWorkSSO_A.cpp
+        ${SVC_DIR}/WongWorkDeathTower_A.cpp
+        ${SVC_DIR}/WongWorkSkillGM_A.cpp
+        ${SVC_DIR}/WongWorkMisc_A.cpp
+        ${SVC_DIR}/WongWorkMiscB_A.cpp
+        ${SVC_DIR}/WongWorkEvents_A.cpp
+        ${SVC_DIR}/ExpertJobOnlyMgr.cpp
+        ${SVC_DIR}/ExpertJobOnlyMaterial.cpp
+        ${SVC_DIR}/ExpertJobOnlyEnchanter.cpp
+        ${SVC_DIR}/CreatureOnlySimple.cpp
+        ${SVC_DIR}/CreatureOnlyMgrRest.cpp
+        ${SVC_DIR}/APSystemOnlyOrig.cpp
+        ${SVC_DIR}/STExpertJobOnlyOrig.cpp
+        ${SVC_DIR}/CPartyOnlyOrig.cpp
+        ${SVC_DIR}/advancealtar_misc.cpp
+        ${SVC_DIR}/StringResource.cpp
+        ${SVC_DIR}/advancealtar_DB.cpp
+        ${SVC_DIR}/DB_Login.cpp
+        ${SVC_DIR}/CFairMatch.cpp
+        ${SVC_DIR}/CFairMatchRooms.cpp
+        ${SVC_DIR}/OnlinePreliminaryMatch.cpp
+        ${SVC_DIR}/CAdvanceAltarLog.cpp
+        ${SVC_DIR}/MatchRoomLCB.cpp
+        ${SVC_DIR}/MatchRoomList.cpp
+        ${SVC_DIR}/LinkClosureB_Misc.cpp
+        ${SVC_DIR}/WongWorkDrop_B.cpp
+        ${SVC_DIR}/BattleFieldLCB.cpp
+        ${SVC_DIR}/AradPeriodB.cpp
+        ${SVC_DIR}/InventoryLCB.cpp
+        ${SVC_DIR}/CompoundDeathLCB.cpp
+        ${SVC_DIR}/MouseRegisterEJ.cpp
+        ${SVC_DIR}/CmdPacketStructCtors.cpp
+        ${SVC_DIR}/ExchangeServer_Session.cpp
+        ${SVC_DIR}/ExchangeServer_Exchange.cpp
+        ${SVC_DIR}/ExchangeServer_Infra.cpp
         ${SVC_DIR}/ItemVendingMachine_Auction.cpp
         ${SVC_DIR}/Dispatcher_BuyCeraShopItem_impl.cpp
         ${SVC_DIR}/Dispatcher_InvestItemAmplifyOption_impl.cpp
@@ -383,6 +421,11 @@ dnf_service(game
         ${SVC_DIR}/CCompoundAvatar.cpp
         ${SVC_DIR}/CItemUpgrade_Separate.cpp
         ${SVC_DIR}/MonsterIndependentDrop.cpp
+        ${SVC_DIR}/MonsterWrapLCB.cpp
+        ${SVC_DIR}/LinkClosureA_Data.cpp
+        ${SVC_DIR}/LinkClosureA_Misc.cpp
+        ${SVC_DIR}/LinkClosureA_User.cpp
+        ${SVC_DIR}/LibCryptoStatic.cpp
         ${SVC_DIR}/CVillageObjectMgr.cpp
         ${SVC_DIR}/CFatigueBatteryHandle.cpp
         ${SVC_DIR}/CVillageMonsterMgr.cpp
@@ -395,6 +438,8 @@ dnf_service(game
         ${SVC_DIR}/ARAD.cpp
         ${SVC_DIR}/Arad_Dispatcher.cpp
         ${SVC_DIR}/Arad_InternalDispatcher.cpp
+        ${SVC_DIR}/Arad_ServerStateManager.cpp
+        ${SVC_DIR}/Arad_InternalDispatcher_INTER.cpp
         ${SVC_DIR}/BuffInfo.cpp
         ${SVC_DIR}/TileIndexInfo.cpp
         ${SVC_DIR}/CActionPointManager.cpp
@@ -467,6 +512,11 @@ dnf_service(game
         ${SVC_DIR}/ContainerTemplateInstantiations.cpp
         ${SVC_DIR}/QuestClear.cpp
         ${SVC_DIR}/CCreatureMgr.cpp
+        ${SVC_DIR}/CreatureOnlySimple.cpp
+        ${SVC_DIR}/CreatureOnlyMgrRest.cpp
+        ${SVC_DIR}/ExpertJobOnlyMaterial.cpp
+        ${SVC_DIR}/ExpertJobOnlyMgr.cpp
+        ${SVC_DIR}/ExpertJobOnlyEnchanter.cpp
         ${SVC_DIR}/CPacketRespondent.cpp
         ${SVC_DIR}/CArtifact.cpp
         ${SVC_DIR}/CraneMinigameManager.cpp

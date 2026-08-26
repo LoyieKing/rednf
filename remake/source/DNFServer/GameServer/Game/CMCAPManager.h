@@ -37,8 +37,19 @@ static int pointPerHackType_[3900];   // _ZN8WongWork12CMCAPManager17pointPerHac
     int m_field1c;      // +0x1c（0x8e40c GetAutoClientRate）
     char m_pad20[8];         // +0x20..0x27
     char m_pcRoomIp[16];     // +0x28（0x8e418 PC房 IP 字符串；CHades::GetIP @0x84b9774 回退源实证）
-    char m_pad38[0x84 - 0x38];
-    int m_field84;     // +0x84
+    char m_pad38[0x44 - 0x38];   // +0x38..0x43
+    short m_timeChkMinA;         // +0x44（GetItemTimeChecker 窗口 min val1）
+    short m_timeChkMaxA;         // +0x46（max val1）
+    short m_timeChkMinB;         // +0x48（min val2）
+    short m_timeChkMaxB;         // +0x4a（max val2）
+    unsigned int m_timeChkBaseSec; // +0x4c（nowSec 差窗基准）
+    int m_timeChkCount;          // +0x50（命中计数/重置清零）
+    short m_timeChkDiffA;        // +0x54（|maxA-minA|）
+    short m_timeChkDiffB;        // +0x56（|maxB-minB|）
+    char m_pad58[0x80 - 0x58];   // +0x58..0x7f
+    short m_serialLastIdx;       // +0x80（GetItemSerialChecker 序列基准 idx）
+    short m_serialLastVal;       // +0x82（序列基准值）
+    int m_serialHitCount;        // +0x84（连续命中计数）
     char m_pad88[8];   // +0x88..0x8f
     int m_field90;     // +0x90
     char m_pad94[0x544 - 0x94];

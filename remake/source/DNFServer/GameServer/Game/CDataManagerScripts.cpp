@@ -1657,7 +1657,8 @@ ImageCommunicationData::ImageCommunicationData()
 // ---- ARAD::SCRIPT::AradJumping_Script----
 ARAD::SCRIPT::AradJumping_Script::AradJumping_Script()
 {
-    memset(m_pad, 0, sizeof(m_pad));
+    // LinkClosureB.AradServers：m_pad 已字段化为 vector<_AradJumpingRewardItem>，
+    // 默认构造即与 ORIG 空容器一致。
 }
 ARAD::SCRIPT::AradJumping_Script::~AradJumping_Script() {}
 

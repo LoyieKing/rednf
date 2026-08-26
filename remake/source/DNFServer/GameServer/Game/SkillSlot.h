@@ -120,11 +120,11 @@ public:
     CSkillChanger();
     ~CSkillChanger();
     void SkillInitialize(CUser* user, int kind, bool flag);
-    void _ResetSkillPoint(CUser* user, int kind);
-    void _ResetSFPoint(CUser* user, int kind);
+    void _ResetSkillPoint(CUser* user, ENUM_SKILL_TREE_KIND kind);
+    void _ResetSFPoint(CUser* user, ENUM_SKILL_TREE_KIND kind);
     int _GetUserItemCount(const CUser* user);
-    void _ApplyUserData(CUser* user, int kind);
-    void _CountSkillBook(const Inven_Item& item);
+    void _ApplyUserData(CUser* user, ENUM_SKILL_TREE_KIND kind);
+    void _CountSkillBook(Inven_Item& item);
     // ORIG 0x0860a1e6：计算角色总 SP（基础 + 任务点）。
     int GetCurCharacTotalSP(const CUser* user, bool flag);
     int _GetBaseSkillPoint(const CUser* user) const;

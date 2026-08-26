@@ -165,45 +165,6 @@ void AvatarRechargeServer::CalcDurabilityChangeEquip(CUser* user, int equipSlot)
 }
 
 // ---------------------------------------------------------------------------
-// 3. online_preliminary::COnlinePreliminary::CheckUnusableEquipment —— ORIG T
-// 0x08560920（报告 .../CheckUnusableEquipment.md）。统合频道前置校验：
-// 空 item→0；idx==0→1；找不到脚本物品→0；可堆叠→0；装备类型 0→1；
-// ServerParameterScript 两级表命中→1，否则 0。
-// ---------------------------------------------------------------------------
-bool online_preliminary::COnlinePreliminary::CheckUnusableEquipment(
-    const Inven_Item* item)
-{
-    if (item == 0)
-        return false;
-    if (item->m_addInfo == 0)
-        return true;
-
-    CDataManager* dataMgr = G_CDataManager();
-    CItem* found = dataMgr->find_item(item->m_addInfo);
-    if (found == 0)
-        return false;
-    if (found->is_stackable())
-        return false;
-
-    CEquipItem* equip = static_cast<CEquipItem*>(found);
-    if (equip->GetUsableEquipmentType() == 0)
-        return true;
-
-    int usableLevel = found->getUsableLevel();       // esi
-    int equipType = equip->GetUsableEquipmentType(); // ebx
-    if (dataMgr->m_serverParameter.CheckUnusableEquipmentInfo(
-            (ENUM_UNUSABLE_EQUIPMENT_TYPE)equipType, usableLevel))
-    {
-        int index = found->get_index();              // esi
-        int itemType = found->GetItemType();         // vptr+0xc（虚表实证）
-        if (dataMgr->m_serverParameter.CheckUnusableItem(
-                (ENUM_EQUIPMENTTYPE)itemType, (unsigned long)index))
-            return true;
-    }
-    return false;
-}
-
-// ---------------------------------------------------------------------------
 // 4. _checkItemMovable —— ORIG T 0x0865f1e1（报告 _lt_global_gt_/_checkItemMovable.md）
 // exchange_interspace(_expand) 前置校验：源/目标空间为 2 或 0xc 直接放行；
 // 否则按 INVEN_TYPE 取槽内 item idx（5=扩充栏 9 号页 / 6=金库期望清零 /

@@ -24,6 +24,7 @@
 #include "MissionTypes.h"     // PVP_BATTLE_MODE（守卫定义）
 #include "SchoolMatchEnums.h" // ENUM_SCHOOL_MATCH_TEAM / ENUM_ELO_RATING_SYSTEM
 #include "CFairPvPScore.h"    // JobKey（本域共享类型）
+#include "CCompoundAvatar.h"   // ENUM_CHARACTERJOB（守卫幂等）
 
 class CUser;
 class PacketGuard;
@@ -41,7 +42,6 @@ struct PlayerInfoThird
     unsigned char m_flag;      // +0x04（!=0 表示已占用）
     unsigned char m_job;       // +0x05
     unsigned char m_growType;  // +0x06
-    void reset() { m_user = 0; m_flag = 0; m_job = 0; m_growType = 0; m_pvpGrade = 0; m_rating = 0.0f; }
     int           m_pvpGrade;  // +0x08
     float         m_rating;    // +0x0c
 };  // sizeof 0x10
@@ -72,7 +72,6 @@ public:
     ~CFairMatch();                                   // ORIG D1/D2/D0（由报告 dtor 报告实现）
 
     // -- IMatch 覆盖（对应 worklist 符号，地址见注释） --
-    virtual int GetIndentification();                          // 报告缺省由子批核对
     virtual float GetGap(IMatch* other);                       // 0x856491c
     virtual CUser* GetUser(unsigned int idx);                  // 0x8565140
     virtual void GetUserList(void* out);                       // 0x8565184（拷贝第一支队伍 0x48 字节）
@@ -108,14 +107,14 @@ public:
 
     // -- 非 IMatch worklist 方法 --
     static void SetMatchAble(bool able);                     // 0x8562b96（写静态 bMatchable_）
-    int  UpdateScore(PvP_Room* room, PlayerInfoThird& info,
+    void UpdateScore(PvP_Room* room, PlayerInfoThird& info,
                      ENUM_SCHOOL_MATCH_TEAM team, int a, int b, int c);  // 0x8565700
     int  CheckRematch(PvP_Room* room);                       // 0x8565d04
     int  CheckUnusableEquipment(const Inven_Item* item);      // 0x8562bdc
     int  CheckUnusableEquipmentInUser(CUser* user);           // 0x8562cfe
     void GiveTrainingSeal(CUser* user, bool bonus);           // 0x85652c8
-    static unsigned int GetPlayCountPerOneTeam();             // 0x8562834
-    static void SetPlayCountPerOneTeam(unsigned int n);       // 0x8562830
+    int GetPlayCountPerOneTeam();                             // 0x8562834（恒返 1；定义在 MatchRoomLCB.cpp，勿重定义）
+    void SetPlayCountPerOneTeam(unsigned int n);              // 0x8562b90（ORIG 空体 ret）
     void _SetEnterCharacNo(int no);                            // 0x856（报告地址为准）
 
     PvP_Room* _MakeRoom(CUser* user);                         // 0x8563692
@@ -130,17 +129,19 @@ public:
     void _SendMatchStatePacket(int a, int b);                  // 0x856（报告为准）
     int  _GetOppositeTeam(int team);                           // 0x8564f8c
     ENUM_SCHOOL_MATCH_TEAM _GetOtherTeam(ENUM_SCHOOL_MATCH_TEAM t);         // 0x8566476
-    int  _UpdateRating(int diff, ENUM_ELO_RATING_SYSTEM sys);  // 0x8566346?（README 地址为准）
-    PvP_Room** _FindTeam(CUser* user);                        // 0x85663a8?（返回队指针槽）
+    void _UpdateRating(int teamNo, ENUM_ELO_RATING_SYSTEM system);   // ORIG T 0x08562e1e（ORIG 为 void）
+    float _GetRating(ENUM_SCHOOL_MATCH_TEAM team);                   // ORIG W 0x08568966
+    int  _FindTeam(CUser* user);                              // ORIG T 0x085663a8（返回队伍号 0/1，找不到=2）
     void _PullOutRoom(CUser* user, PvP_Room* room, int seat); // 0x85633ce
     int  _PutInRoom(CUser* user, PvP_Room* room, bool observer);  // 0x85634bc
-    void _ReturnTeam(PvP_Room* room, int team, CUser* user);  // 0x8562e10?（README 地址为准）
-    void _PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM team);    // 0x8565d86
+    PvP_Room* _ReturnTeam(PvP_Room* room, int team, CUser* user); // ORIG T 0x08564dea（返回自建房指针）
+    int    _PullOutRoomTeam(PvP_Room* room, ENUM_SCHOOL_MATCH_TEAM team);  // ORIG T 0x08565d86（恒返 1）
     void _MoveRoom(PvP_Room* from, PvP_Room* to, bool flag);  // 0x8563d32
 
 private:
     static CMultiMatchRoomList* pWaitingRoomList_;       // ORIG 全局 0x93xxxx（cpp 定义）
     static int nWaitingRoomListRefCount_;                // 引用计数
+    static int nextAuthValue_;                           // ORIG B 0x0943e150（房间授权自增号）
     static bool bMatchable_;                             // SetMatchAble 写入
 
 public:  // 布局字段（偏移契约固定，勿增删；语义随实现标注在 cpp 注释）

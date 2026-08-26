@@ -50,8 +50,8 @@ struct CPacketHelper
 {
     CPacketHelper(unsigned char* buffer, int size, int startOffset); // ORIG
 
-    int get_offset() const;                            // ORIG 0x086940f2
-    bool padding(const unsigned char* src, int count); // ORIG 0x086940fc
+    int get_offset();                                  // ORIG 0x086940f2
+    bool padding(unsigned char* src, int count);       // ORIG 0x086940fc
     bool scan(unsigned char* dst, int count);          // ORIG 0x08694160
 
     int             m_offset;  // +0x00 当前读写游标

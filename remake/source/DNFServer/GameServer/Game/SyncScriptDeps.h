@@ -36,18 +36,11 @@ public:
 
 namespace advancealtar
 {
-#ifndef DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
-#define DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
-// 同守卫幂等副本另见 AdvanceAltarField.h（CDataManager.h 引用方）。
-namespace AdvanceAltarShopType
-{
-enum T
-{
-    T_0 = 0,
-    T_1 = 1,
-    T_2 = 2
-};
-}  // namespace AdvanceAltarShopType
+#ifndef DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_NS_DEFINED
+#define DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_NS_DEFINED
+// 幂等副本（struct enum-T 权威建模）：主定义见 AdvanceAltarField.h，与
+// advancealtar.h 一致。原 namespace 版为错误建模已删除。
+struct AdvanceAltarShopType { enum T { T_0 = 0, T_1 = 1, T_2 = 2 }; };
 #endif
 
 class BuyShopData;

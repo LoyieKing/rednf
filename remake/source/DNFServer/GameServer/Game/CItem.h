@@ -72,6 +72,7 @@ public:
     bool is_stackable() const;
     int get_index() const;
     int GetCashPrice() const;             // ORIG W 0x822c856：读 this+0x10
+    int getAdvanceAltarNeedGage() const;  // ORIG W 0x081347ca：读 this+0x68（altar 槽物品需耗 gage；OnlyOrig_Altar.AltarMgr 收口批声明，定义归 CItem 域）
     int GetMedalPrice() const;            // ORIG W 0x822c862：读 this+0x14（勋章价）
     int get_grade() const;
     int getItemGroupName() const;

@@ -93,8 +93,9 @@ public:
     explicit Arad_IInterDispatcher(ENUM_INTERNALPACKET_JPN code);  // 0x0819a36a
     virtual ~Arad_IInterDispatcher();                              // D1 0x0819a382 / D0
 
-    // ORIG 基类虚槽 2 为 __cxa_pure_virtual（无默认实现）
-    virtual void dispatch_sig(CUser* user, char* body, int len) = 0;
+    // ORIG 基类虚槽 2 为 __cxa_pure_virtual（无默认实现）。
+    // ORIG 具体派发器均返回错误码（如 LoadServerState 0/0x534，Main 已核准类型字）。
+    virtual int dispatch_sig(CUser* user, char* body, int len) = 0;
 
     int get_code() const { return m_code; }                        // 0x0819a3c6
 
@@ -112,7 +113,7 @@ public:
     virtual ~Arad_IDatabaseDispatcher();                              // D1 0x081867bc / D0
 
     // ORIG 基类虚槽 2 为 __cxa_pure_virtual
-    virtual int dispatch(int code, int uid, Stream* stream) = 0;
+    virtual bool dispatch(int code, int uid, Stream* stream) = 0;
 
     int get_code() const { return m_code; }                           // 0x08186800
 
@@ -165,6 +166,168 @@ public:
 
 private:
     std::map<ENUM_INTERNALPACKET_JPN, Arad_IInterDispatcher*> m_dispatchers;  // +0x00
+};
+
+
+// ---------------------------------------------------------------------------
+// 具体 DB 流派发器（ORIG ctor 反汇编：基类 ctor(enum code)+自身 vptr；析构隐式）
+// ---------------------------------------------------------------------------
+class Arad_DB_kAradEventItemLog : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kAradEventItemLog();                     // 0x08186836
+    ~Arad_DB_kAradEventItemLog();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x081851dc
+};
+
+class Arad_DB_kSetCharacCreateTime : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kSetCharacCreateTime();                  // 0x081868a8
+    ~Arad_DB_kSetCharacCreateTime();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x081853b2
+};
+
+class Arad_DB_kLoadRewardEventItem : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kLoadRewardEventItem();                  // 0x0818691a
+    ~Arad_DB_kLoadRewardEventItem();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x08185574
+};
+
+class Arad_DB_kSaveRewardEventItem : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kSaveRewardEventItem();                  // 0x0818698c
+    ~Arad_DB_kSaveRewardEventItem();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x081858de
+};
+
+class Arad_DB_kLoadServerState : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kLoadServerState();                      // 0x08186a70
+    ~Arad_DB_kLoadServerState();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x08185d20
+};
+
+class Arad_DB_kSaveServerState : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kSaveServerState();                      // 0x081869fe
+    ~Arad_DB_kSaveServerState();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x08185abe
+};
+
+class Arad_DB_kAvatarHiddenOptionSave : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kAvatarHiddenOptionSave();               // 0x08186ae2
+    ~Arad_DB_kAvatarHiddenOptionSave();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x081860f4
+};
+
+class Arad_DB_kAvatarEnduranceSave : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kAvatarEnduranceSave();                  // 0x08186b54
+    ~Arad_DB_kAvatarEnduranceSave();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x081862d0
+};
+
+class Arad_DB_kResetLimitedCreateCharacPerMid : public Arad_IDatabaseDispatcher
+{
+public:
+    Arad_DB_kResetLimitedCreateCharacPerMid();       // 0x08186bc6
+    ~Arad_DB_kResetLimitedCreateCharacPerMid();
+    virtual bool dispatch(int code, int uid, Stream* stream);   // 0x08186492
+};
+
+// ---------------------------------------------------------------------------
+// 具体 INTER 流派发器（override 槽2 dispatch_sig）
+// ---------------------------------------------------------------------------
+class Arad_INTER_kAvatarRoulette : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kAvatarRoulette();                    // 0x0819a3fc
+    ~Arad_INTER_kAvatarRoulette();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kLoadRewardEventItem : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kLoadRewardEventItem();               // 0x0819a46e
+    ~Arad_INTER_kLoadRewardEventItem();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kSaveServerState : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kSaveServerState();                   // 0x0819a4e0
+    ~Arad_INTER_kSaveServerState();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kLoadServerState : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kLoadServerState();                   // 0x0819a552
+    ~Arad_INTER_kLoadServerState();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kDeleteServerState : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kDeleteServerState();                 // 0x0819a5c4
+    ~Arad_INTER_kDeleteServerState();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kAradJumpingCharacter : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kAradJumpingCharacter();              // 0x0819a636
+    ~Arad_INTER_kAradJumpingCharacter();
+    virtual int dispatch_sig(CUser* user, char* body, int len);  // 0x081999f2
+
+    void clearEpicQuest(CUser* user);                // 0x081993c4
+    bool sendHelperBox(CUser* user, unsigned char a, unsigned char b);  // 0x0819973e
+};
+
+class Arad_INTER_kAvatarHiddenOptionChange : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kAvatarHiddenOptionChange();          // 0x0819a6a8
+    ~Arad_INTER_kAvatarHiddenOptionChange();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kUseAvatarRecharge : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kUseAvatarRecharge();                 // 0x0819a71a
+    ~Arad_INTER_kUseAvatarRecharge();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kEmblemCompound : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kEmblemCompound();                    // 0x0819a78c
+    ~Arad_INTER_kEmblemCompound();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
+};
+
+class Arad_INTER_kAvatarConvert : public Arad_IInterDispatcher
+{
+public:
+    Arad_INTER_kAvatarConvert();                     // 0x0819a7fe
+    ~Arad_INTER_kAvatarConvert();
+    virtual int dispatch_sig(CUser* user, char* body, int len);
 };
 
 }  // namespace DISPATCHER

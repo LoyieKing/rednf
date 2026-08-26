@@ -4,6 +4,7 @@
 // docs/class_func_reports/advancealtar__StageControl/ 报告翻译。
 #include "CGameManager.h"
 #include "CInventory.h"  // PacketGuard 完整定义 / CInventory::SendItemLockListInven
+#include "CMap.h"  // CMap::get_index/get_monster_list、_mapMonster（sendMapInfo）
 #include "GameWorld.h"
 #include <cstring>        // std::memset / std::memcpy
 #include <new>            // placement new（StageControl 子对象构造）
@@ -189,9 +190,7 @@ int StageControl::selectStage(CUser* user, int stageId,
     }
 
     sendStageInfo();
-    // [未建模批次] ORIG sendMapInfo(0x081301e0)：依赖 getTimeLine 段循环 +
-    // CharacAdvanceAltarManager::getTowerInfo + addCreatedMapMonster +
-    // _MapMonsterSummary/_PhaseSummary 包体（约 0.6k 行报告子树），本批跳过。
+    sendMapInfo();
     procStage->setNotSurvivalModeFirstRound();
     user->set_state((ch_state)0xd);
     return 0;
@@ -330,22 +329,130 @@ void StageControl::gotoStage(CUser* user)
     user->set_state((ch_state)0xd);
 }
 
+
 // ----------------------------------------------------------------------------
-// [blocker] getCenterCount（ORIG T 0x081307a6）/ sendMapInfo（ORIG T 0x081301e0）
-// 依赖未建模符号，暂不落地定义（声明已入 advancealtar.h）：
-//   - CharacAdvanceAltarManager::getTowerInfo(int,int&,int&) const：CUser.h/CUser.cpp
-//     缺声明与定义（owner TranslateCUserNext 已硬中止，待 Main 重派）
-//   - ProcStage::{getMap,getTimeLine,getCurrentSurvivalRoundNo,getMapBasisLevel}：
-//     ORIG W thunk（0x08134860/0x08134852/0x08134878/0x08134894）头内未声明、
-//     cpp 未定义（ProcStage 域，本批已获授权但属 sendMapInfo 直译配套，随
-//     getTowerInfo 一并落地）
-//   - ProcSummonObjectMs 子树（阻塞 ProcStage ctor/dtor/procTimeLine，进而
-//     阻塞 StageControl 完整 ctor/dtor 与 onTimerStageTick 尾调）
-//   已就绪：_NotiAdvanceAltarMapInfo/_NotiAdvanceAltarEplpState（shared/packet
-//   权威）、_PhaseSummary/TimeLine（advancealtar.h）、CMap::get_index/
-//   get_monster_list/_mapMonster、_MapMonsterSummary/m_createdMapMonsters/
-//   addCreatedMapMonster（advancealtar_ProcStage.h/cpp 本批落地）。
+// ORIG W 0x081307a6（getCenterCount.md 全文）：map/user 判空 → 0；
+ // 遍历 CMap::get_monster_list()（按值返回 list<_mapMonster>），对每只怪
+ // getTowerInfo(monster.m_orderIdx, out, out)（+0x2c），命中即计数。
 // ----------------------------------------------------------------------------
+int StageControl::getCenterCount() const
+{
+    ProcStage* procStage = const_cast<ProcStage*>(
+        reinterpret_cast<const ProcStage*>(m_procStage));
+    CMap* map = procStage->getMap();                    // W thunk 0x08134860
+    if (map == 0)
+    {
+        return 0;
+    }
+    CharacData* characData = const_cast<CharacData*>(
+        reinterpret_cast<const CharacData*>(m_characData));
+    CUser* user = characData->getUser();
+    if (user == 0)
+    {
+        return 0;
+    }
+
+    int count = 0;                                      // -0x14
+    std::list<_mapMonster> monsters = map->get_monster_list();
+    for (std::list<_mapMonster>::const_iterator it = monsters.begin();
+         it != monsters.end(); ++it)
+    {
+        int valueA = 0;                                 // local_88[1]
+        int valueB = 0;                                 // local_88[0]
+        CharacAdvanceAltarManager& cam = user->m_advanceAltar;
+        if (cam.getTowerInfo(it->m_orderIdx, valueA, valueB))
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+// ----------------------------------------------------------------------------
+// ORIG T 0x081301e0（sendMapInfo.md 全文，0416B）：user/map/timeLine 三重判空；
+ // _NotiAdvanceAltarMapInfo(0x14 packed){stageType, clearSurvivalRoundNo,
+ // mapIndex=CMap::get_index, currentPhaseIndex=timeline+0xc, mapBasisLevel}；
+ // put_header(0,0x20a)+put_binary(0x14)；put_int(phaseSummarys.size()) 后逐
+ // _PhaseSummary put_binary(0xc)；生存模式且非首轮：put_int(getCenterCount())
+ // 并遍历怪物表逐只构造 _MapMonsterSummary（仅 getTowerInfo 命中者
+ // addCreatedMapMonster + put_binary(0xd)）；否则 put_int(0)；finalize→Send。
+// ----------------------------------------------------------------------------
+void StageControl::sendMapInfo()
+{
+    CUser* user = getCharacData()->getUser();
+    if (user == 0)
+    {
+        return;
+    }
+    ProcStage* procStage = getProcStage();
+    CMap* map = procStage->getMap();
+    if (map == 0)
+    {
+        return;
+    }
+    TimeLine* timeLine = procStage->getTimeLine();
+    if (timeLine == 0)
+    {
+        return;
+    }
+
+    NOTIPacketStruct::_NotiAdvanceAltarMapInfo body;
+    body.m_stageType = procStage->getStageType();
+    body.m_currentSurvivalRoundNo = procStage->getCurrentSurvivalRoundNo();
+    body.m_mapIndex = map->get_index();
+    body.m_currentPhaseIndex = *reinterpret_cast<const int*>(
+        reinterpret_cast<const char*>(timeLine) + 0xc);   // TimeLineSummary.m_field0
+    body.m_mapBasisLevel = procStage->getMapBasisLevel();
+
+    PacketGuard guard;
+    guard.put_header(0, 0x20a);
+    guard.put_binary(reinterpret_cast<char*>(&body), 0x14);
+    guard.put_int(static_cast<int>(timeLine->m_summary.m_phaseSummarys.size()));
+    for (std::vector<_PhaseSummary>::const_iterator it =
+             timeLine->m_summary.m_phaseSummarys.begin();
+         it != timeLine->m_summary.m_phaseSummarys.end(); ++it)
+    {
+        guard.put_binary(reinterpret_cast<const char*>(&*it), 0xc);
+    }
+
+    const bool sendMonsters = procStage->getStageType() != 1 ||
+                              !procStage->isSurvivalModeFirstRound();
+    if (sendMonsters)
+    {
+        std::list<_mapMonster> monsters = map->get_monster_list();
+        guard.put_int(getCenterCount());
+        CharacAdvanceAltarManager& cam = user->m_advanceAltar;
+        for (std::list<_mapMonster>::const_iterator it = monsters.begin();
+             it != monsters.end(); ++it)
+        {
+            advancealtar::_MapMonsterSummary summary;
+            summary.m_orderIdx = it->m_orderIdx;          // _mapMonster+0x2c
+            summary.m_seq = 0;                            // addCreatedMapMonster 覆写
+            int towerValue = 0;                           // getTowerInfo 出参 1
+            int towerCount = 0;                           // getTowerInfo 出参 2
+            if (cam.getTowerInfo(it->m_orderIdx, towerValue, towerCount))
+            {
+                summary.m_towerRefA =
+                    static_cast<short>(towerValue);       // u16 截断 [+0x06]
+                summary.m_towerRefB =
+                    static_cast<unsigned char>(towerCount);  // 低字节 [+0x08]
+                summary.m_roleType = static_cast<unsigned char>(
+                    it->m_roleType);                      // +0x18 低字节
+                summary.m_posX = static_cast<unsigned char>(
+                    it->m_posX);                          // +0x20 低字节
+                summary.m_champion = it->m_champion;      // +0x1c
+                procStage->addCreatedMapMonster(summary);
+                guard.put_binary(reinterpret_cast<char*>(&summary), 0xd);
+            }
+        }
+    }
+    else
+    {
+        guard.put_int(0);
+    }
+    guard.finalize(true);
+    user->Send(guard);
+}
 
 // ---- TimeLine / Phase / TimeLineSummary（ORIG advancealtar__TimeLine 报告）----
 Phase::Phase()

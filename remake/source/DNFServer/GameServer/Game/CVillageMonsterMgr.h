@@ -50,8 +50,10 @@ struct MapArea
     // ORIG T 0x82f02e6：把 (x,y) 按 margin 裁剪到区域内，结果写 outX/outY；
     // 未发生移动（裁剪后 == 原坐标）返回 1，否则返回 0。
     int include(int x, int y, int& outX, int& outY, int margin);
-};
 
+    // ORIG T 0x82f0298：矩形包含判定（m_x<=x<=m_x+m_w 且 m_y<=y<=m_y+m_h）。
+    int include(int x, int y);
+};
 namespace village_attacked
 {
 

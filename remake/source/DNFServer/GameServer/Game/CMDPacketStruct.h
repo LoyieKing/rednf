@@ -41,6 +41,17 @@ struct STBaseResponse : public ParamBase
 {
 };
 
+// ---- altar 槽位/星级请求域（自 Dispatchers.h 迁入归口 2026-08-27 Altar 批；
+//      _SetSlotData 12B（req+0x18 起整块，首 int 槽类型判别）；ResetStarType
+//      opaque 枚举包装——ORIG mangled N15CMDPacketStruct13ResetStarType1TE，
+//      枚举器名【推断】。advancealtar.h 留同守卫副本）----
+struct _SetSlotData { int m_type; int m_field4; int m_field8; };
+
+#ifndef DNF_GAME_CMDPACKET_RESETSTARTYPE_DEFINED
+#define DNF_GAME_CMDPACKET_RESETSTARTYPE_DEFINED
+struct ResetStarType { enum T { RS_N0 = 0 }; };
+#endif
+
 // ---- advancealtar::Dispatcher_Pause（0xe / 0xc，包号 0x242）----------------
 struct _ReqAdvanceAltarPause : public STBaseRequest
 {

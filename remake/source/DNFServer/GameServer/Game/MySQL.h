@@ -94,6 +94,7 @@ public:
     bool get_ushort(int col, unsigned short& out);  // 0x08116990
     bool get_byte(int col, char& out);          // 0x080fde54
     bool get_ubyte(int col, unsigned char& out);  // 0x080fdeba
+    bool get_float(int col, float& out);        // 0x0844d6d0 (W)
     bool get_char(int col, char& out);          // 0x0815e6a6
     bool get_longlong(int col, long long& out); // 0x085f4214
     bool get_ulonglong(int col, unsigned long long& out);  // 0x081754c8
@@ -318,6 +319,18 @@ inline void MySQL::SetQueryCounter(CQueryCounter* pCounter)
     {
         m_bQueryCounterEnable = true;
     }
+}
+
+// ORIG W 0x0844d6d0：get_float（与其它 get_* 同语义；DB 域批次可改为转发
+// 导出符号，本 inline 为等价实现）。
+inline bool MySQL::get_float(int col, float& out)
+{
+    if (m_row == 0 || !is_valid_col(col))
+    {
+        return false;
+    }
+    out = (float)atof(m_row[col]);
+    return true;
 }
 
 #endif  // DNF_GAME_MYSQL_H_

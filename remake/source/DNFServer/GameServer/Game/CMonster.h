@@ -19,8 +19,15 @@ public:
     void* getMonsterScript() const;
     void generateIndependentItem(const WongWork::stGenerateRefData_t& ref,
                                  std::vector<Inven_Item>& out) const;  // ORIG 0x0834f876
+    // ORIG T 0x0834f8a6 _ZNK8CMonster22generateDropAvatarItemEhhRSt6vectorI10Inven_ItemSaIS1_EE：
+    // 转发 ::generateDropAvatarItem(m_script.m_dropAvatarInfo(this+0xcf8), a, b, out)。
+    void generateDropAvatarItem(unsigned char rarity, unsigned char grade,
+                                std::vector<Inven_Item>& out) const;
+    // ORIG T 0x0834f8e8 _ZNK8CMonster24generateCatchMonsterItemERSt6vectorI10Inven_ItemSaIS1_EE：
+    // 转发 ::generateCatchMonsterItem(getMonsterScript()->m_catchItems(+0x70), out)。
+    void generateCatchMonsterItem(std::vector<Inven_Item>& out) const;
     void set_monster(STMonsterScript& script);
-    unsigned char IsHellMonster() const;
+    unsigned char IsHellMonster() const;   // ORIG W 0x08539df4（m_deathTowerFlag@+0x54）
     int get_weight() const;
     void drop_item_index(unsigned int index) const;
     void drop_item_index(unsigned int index, int randomValue) const;

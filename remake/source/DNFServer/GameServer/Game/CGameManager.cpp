@@ -291,34 +291,7 @@ int StaticPool<T, N>::GetIndex(T* p)
 //   memcpy(+0x3f850, this+0x8d0fd, 0xc) 定总尺寸 0x3f85c）。各成员区以具名 char 数组承载
 //   ORIG 精确尺寸，避免与权威 SIG_LOAD_* 类型尺寸（并发改型中）耦合；CacheCharacterMemory
 //   仍以 char* 偏移算术把子对象指针传给 GetCharacInfo/GetInventoryInfo/GetEtcInfo 等。
-class CACHE_CHARACTER_TYPE
-{
-public:
-    CACHE_CHARACTER_TYPE() {}
-    ~CACHE_CHARACTER_TYPE() {}
-
-    unsigned int getCacheTime() const          // +0x34880
-    { return m_cacheTime; }
-    void setCacheTime(unsigned int t)          // +0x34880
-    { m_cacheTime = t; }
-
-    // ORIG 成员布局（offset 与 GetMemberPosition 返回值逐一对应；size 为该 ENUM 区尺寸）
-    // 全部用 char 数组承载 ORIG 精确尺寸：不依赖 SIG_LOAD_* 类型（并发改型中），
-    // 亦规避 offsetof 在含用户构造函数的类上的不可靠性（仅 sizeof 断言把关）。
-    char m_charac[0x703];        // +0x00000   ENUM 0x07, size 0x703
-    char m_inventory[0x1544c];   // +0x00703   ENUM 0x08, size 0x1544c
-    char m_quest[0x7608];        // +0x15b4f   ENUM 0x0a, size 0x7608
-    char m_ticket[0x19c];        // +0x1d157   ENUM 0x0b, size 0x19c
-    char m_dungeonClear[0x1810]; // +0x1d2f3   ENUM 0x0c, size 0x1810
-    char m_blackList[0x10];      // +0x1eb03   ENUM 0xb3, size 0x10
-    char m_actionPoint[0xcf1];   // +0x1eb13   ENUM 0x11, size 0xcf1
-    char m_altar[0x51c];         // +0x1f804   ENUM 0x19, size 0x51c
-    char m_etc[0x14b60];         // +0x1fd20   ENUM 0x20, size 0x14b60
-    unsigned int m_cacheTime;    // +0x34880   缓存时间戳（AcquireCharacter 写 time(0)）
-    char m_expand[0xafcc];       // +0x34884   ENUM 0x282, size 0xafcc
-    char m_memberFlag[0xc];      // +0x3f850   成员脏标记（GetMemberPosition 按 +0x3f850+i 读）
-};
-static_assert(sizeof(CACHE_CHARACTER_TYPE) == 0x3f85c, "CACHE_CHARACTER_TYPE ABI drift (ORIG 0x3f85c)");
+#include "CacheCharacterType.h"   // CACHE_CHARACTER_TYPE 权威布局（2026-08-27 提取为独立头）
 
 
 

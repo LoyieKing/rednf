@@ -35,7 +35,10 @@ public:
     // G7 分组模式辅助（实现属加密库 TU：CRijndael.cpp）
     void Xor(char* buff, const char* chain);
     void SetMode(int iMode);
-
+    // ORIG 非虚成员（_ZN7IMethod12GetBlockSizeEPj T 0x080b4416 /
+    //   _ZN7IMethod3PadEPciPj T 0x080b44a6；定义在 DBMW/Method.cpp）。
+    int GetBlockSize(unsigned int* outError);
+    int Pad(char* data, int len, unsigned int* outError);
     bool m_bInit;      // +0x04
     int m_blockSize;   // +0x08
     int m_keyLength;   // +0x0c

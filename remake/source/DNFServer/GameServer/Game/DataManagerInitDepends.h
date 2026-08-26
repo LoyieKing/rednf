@@ -288,6 +288,8 @@ public:
     // ---- CheckEnterable 链访问器（定义 BossTowerDepsC2.cpp）----
     int getEnterCount() const;      // ORIG T 0x08643872：*(int*)(this+0x10)
     int getLastClearTime() const;   // ORIG T 0x0864387e：*(int*)(this+0x1c)
+    // ORIG T 0x08643942 const：sret 构造 TOD_Layer(m_lastEnterLayer@+0x16)。
+    TOD_Layer getLastEnterLayer() const;
 
     // ORIG T 0x0864388a（objdump 转写，定义暂寄 CDungeon.cpp）：
     // enterCount/lastEnterLayer 递增、写 lastEnterTime、当日层为 0 时写
@@ -382,11 +384,30 @@ bool importAvatarRouletteList(char* path, AvatarRoulette& out);   // _Z24importA
 class AvatarRouletteServer
 {
 public:
+    // ORIG W ctor _ZN20AvatarRouletteServer16PickedAvatarInfoC1Ev @0x0819a336。
+    // 布局为 Arad_INTER_kAvatarRoulette::dispatch_sig / Pickup 写读字节实证：
+    //   +0x04 unsigned int m_itemId；+0x08 char option/skill idx；+0x09 char pad；
+    //   +0x0a char zoneType（pair.second 低字节）；+0x0b char gradeBand。
+    struct PickedAvatarInfo
+    {
+        PickedAvatarInfo();                          // ORIG W 0x0819a336
+        int m_pad0;                 // +0x00【推断：ORIG 未见读写】
+        unsigned int m_itemId;      // +0x04
+        char m_optionOrSkillIdx;    // +0x08
+        char m_pad9;                // +0x09
+        char m_zoneType;            // +0x0a
+        char m_gradeBand;           // +0x0b
+    };  // sizeof 0x10【推断：dispatch_sig 栈对象占用 ebp-0x54..ebp-0x45】
+
     AvatarRouletteServer();                       // ORIG 0x0817f354 T
     ~AvatarRouletteServer();                      // ORIG 0x0817f372 T
     bool Init(AvatarRoulette* roulette);          // ORIG 0x0817f706 T
     bool InitAddCharacSkill();                    // ORIG 0x0817f386 T
     bool isAvatarPottery(unsigned long itemIdx);  // ORIG 0x0817fb0a T
+    // ORIG 0x0817fb28 T _ZN20AvatarRouletteServer6PickupERNS_16PickedAvatarInfoEii
+    // 定义由 AvatarRouletteServer TU 批次提供。
+    bool Pickup(PickedAvatarInfo& picked, int grade, int index);
+
 
     std::map<unsigned long, std::map<int, std::vector<LevelUpSkill> > >
         m_addCharacSkillMap;   // +0x000

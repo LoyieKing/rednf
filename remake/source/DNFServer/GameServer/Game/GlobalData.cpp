@@ -4,6 +4,7 @@
 // 外部类（后续批次）仅在本 TU 以最小 stub 声明，符号留给 ORIG/后续 TU。
 
 #include "GlobalData.h"
+#include "OnlinePreliminary.h"   // online_preliminary 域权威声明（本 TU 持有 s_onlinePreliminaryTeamMgr 构造）
 #include "CCapchaDataManager.h"
 #include "CExpertJob.h"      // expert_job::CExpertJobMgr/CExpertJobFactory 权威   // WongWork::CCapchaDataManager / MSG_UDP_CAPCHA_CERTIFY 权威
 #include "GameMasterCmd.h"        // game_master::CGameMasterMgr（占位骨架已删，实现在 GmCore/GmRegister）
@@ -35,6 +36,7 @@
 #include "SpecialItemHandler.h"      // ORIG 全局类 SpecialItemHandler 权威声明
 #include "CSyncSlangFilter.h"
 #include "AradServerStateMessage.h"  // ARAD::Arad_ServerStateManager 成员类型
+#include "Arad_ServerStateManager.h"  // ARAD::Arad_ServerStateManager 权威定义（原局部镜像已删除）
 #include "Arad_DataManager.h"  // ARAD::Singleton 唯一权威定义
 #include "CInventory.h"              // CSecu_ProtectionField 权威定义（CInventory.h）
 #include "CMyFileLog.h"              // 租赁 log（RandomRentalA2 批次）
@@ -91,20 +93,7 @@
 typedef std::map<ENUM_DB_HANDLE_IDX, ENUM_SERVER_GROUP> DBGroupMap;
 typedef std::map<ENUM_DB_HANDLE_IDX, STDBConnInfo> DBInfoMap;
 
-namespace ARAD
-{
-class Arad_ServerStateManager
-{
-public:
-    Arad_ServerStateManager();
-private:
-    // ORIG ctor 0x81a922c：bool@+0=0；Mutex@+4；map<ENUM_GLOBAL_EFFECT_ARAD,
-    // AradServerStateMessage>@+0x1c（key 枚举未建模，以 int 等价，推断）。
-    bool m_active;   // +0x00
-    Mutex m_lock;    // +0x04（0x18 字节）
-    std::map<int, AradServerStateMessage> m_stateMap;  // +0x1c
-};
-}
+// ARAD::Arad_ServerStateManager 局部镜像已删除：权威定义在 Arad_ServerStateManager.h。
 
 class PacketPool;
 
@@ -851,32 +840,9 @@ private:
     std::vector<_DailySchedule> m_schedules;  // +0xd8
 };
 
-namespace online_preliminary
-{
-// COnlinePreliminaryTeam 权威定义见 CUserCharacInfo.h（经 CUser.h 引入），此处不再重复。
-
-// CTeamFactory（ORIG ctor 0x08588e2e 直接调 StaticPool<COnlinePreliminaryTeam,600> ctor）。
-class CTeamFactory
-{
-public:
-    CTeamFactory();
-    ~CTeamFactory();
-    StaticPool<COnlinePreliminaryTeam, 600> m_pool;  // +0x00（0x30）
-};
-
-class COnlinePreliminaryTeamMgr
-{
-public:
-    COnlinePreliminaryTeamMgr();
-    ~COnlinePreliminaryTeamMgr();
-    // ORIG T 0x08588be4：data 首 4 字节为 key，命中 m_teamMap 时
-    // 委托 COnlinePreliminaryTeam::loadDataPreliminaryTeamMatchList(data)。
-    void OnLoadTeamInfo(CUser* user, char* data);
-private:
-    CTeamFactory* m_factory;                        // +0x00
-    std::map<int, COnlinePreliminaryTeam*> m_teamMap;  // +0x04
-};
-}
+// online_preliminary 域（CTeamFactory/COnlinePreliminaryTeamMgr）权威声明已迁
+// OnlinePreliminary.h（OnlyOrig_OnlinePvp 批）；本 TU 构造/析构/OnLoadTeamInfo
+// 保留于下方原实现位置，经该头取完整类型。
 
 // game_master 命令体系完整声明见 GameMasterCmd.h（GmCore/GmRegister 等 TU 实现）。
 
@@ -1518,11 +1484,7 @@ AcceptThread::AcceptThread()
 
 // ---- GlobalData::Init 直接 new 的基础对象 ----
 // CTimeGate ctor 现由 CTimeGate.cpp 提供（ORIG 0x8284512，继承 IObject）。
-ARAD::Arad_ServerStateManager::Arad_ServerStateManager()
-    : m_active(false)
-{
-    // ORIG 0x81a922c：bool@0=0；Mutex@+4；map@+0x1c（成员自动构造）。
-}
+// [dedup] Arad_ServerStateManager ctor 权威定义在 Arad_ServerStateManager.cpp
 
 PacketPool::PacketPool()
 {
@@ -5486,4 +5448,15 @@ bool RentalMachineDimension::Rent(CUser& user,
         }
     }
     return false;   // 0=成功
+}
+
+// ORIG _ZN20InstanceRentalSystem17CheckRentableItemEij T 0x082702dc【objdump】：
+// machine = getMachine(type)；machine==0 → 返 1（视为可用）；否则尾调虚槽
+// vptr+0x10 CheckRentableItem(itemIdx)。（OnlyOrig_CreatureJob.EJEnchanter 批补）
+bool InstanceRentalSystem::CheckRentableItem(int type, unsigned int itemIdx)
+{
+    IRentalMachine* machine = getMachine(type);
+    if (machine == 0)
+        return true;
+    return machine->CheckRentableItem(itemIdx);
 }

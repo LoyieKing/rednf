@@ -131,6 +131,59 @@ public:
                   int addRate, int bonusFlag,
                   std::map<int, int>& result);
 
+    // ---- G7 miscB 纯追加 ----
+    // 合成请求上下文（ORIG clear 0x0833424a / C1 0x08334344 / D1 0x08334388；
+    // pack(1)：Inven_Item(0x3d)@+0x0a/+0x4a/+0x92、CItem*@+0x88/+0x8c、
+    // vector<int>@+0xdc；sizeof == 0xe8）。
+#pragma pack(push, 1)
+    struct tagCompoundInfo
+    {
+        tagCompoundInfo();                        // 仅构造三个 Inven_Item 与 vector
+        void clear();                             // 字段复位（见 ORIG W 实现）
+        ~tagCompoundInfo();                       // 仅析构 vector
+
+        int m_field00;                            // +0x00（clear 置 0xb；ProcCompound 取表索引）
+        int m_field04;                            // +0x04
+        unsigned short m_field08;                 // +0x08
+        Inven_Item m_materialA;                   // +0x0a 合成材料①
+        unsigned short m_field48;                 // +0x48
+        Inven_Item m_materialB;                   // +0x4a 合成材料②
+        CItem* m_scriptA;                         // +0x88 材料①脚本
+        CItem* m_scriptB;                         // +0x8c 材料②脚本
+        unsigned short m_field90;                 // +0x90
+        Inven_Item m_avatar;                      // +0x92 待合成头像槽物品
+        int m_fieldD0;                            // +0xd0
+        unsigned short m_slot;                    // +0xd4（clear 置 100）
+        bool m_fieldD6;                           // +0xd6（clear 置 0）
+        bool m_errorFlag;                         // +0xd7（脚本检索失败/不匹配置 1）
+        unsigned short m_resultSlot;              // +0xd8（clear 置 0xffff）
+        std::vector<int> m_results;               // +0xdc 结果 byte/short/int 三元组序列
+        unsigned char m_type;                     // +0xe8（msg->+0x22 合成类型；ORIG
+                                                  //   _MakeCompoundInfo +0x6d9 mov %dl,0xe8 实证；
+                                                  //   分派 m_tailA/B/C/m_cube.m_vec 匹配）
+    };                                            // sizeof == 0xe9（pack(1)）
+#pragma pack(pop)
+
+    // ORIG T 0x083338c2 _ZN8WongWork15CCompoundAvatar12ProcCompoundEP5CUserPK19MSG_COMPOUND_AVATAR
+    // （定义 WongWorkMiscB_A.cpp）：Make→Check→Core，ENUM_ERROR 抛出转 _SendError。
+    void ProcCompound(CUser* user, const MSG_COMPOUND_AVATAR* msg);
+    // ORIG T 0x08333a76：SendCmdErrorPacket(user, 0x66, (unsigned char)err)。
+    void _SendError(CUser* user, ENUM_ERROR err);
+    // ORIG T 0x08333a9c：组 0x66 结果包（见 WongWorkMiscB_A.cpp）。
+    void _SendResult(CUser* user, const tagCompoundInfo& info);
+
+    // ---- ProcCompound 直接依赖（声明先行；定义归后续批次）----
+    tagCompoundInfo _MakeCompoundInfo(const CUser* user,
+                                      const MSG_COMPOUND_AVATAR* msg) const;  // T 0x08331efe
+    int _CheckCondition(const CUser* user, const tagCompoundInfo& info) const;  // T 0x0833260c
+    // ORIG T 0x08333df6 _ZNK8WongWork15CCompoundAvatar14_generateIPGNoEPK5CUserlPc
+    // （定义 CompoundDeathLCB.cpp）：snprintf(buf,0x14,"C%02d%02d%02d%02d%010d",
+    //   G_CEnvironment()+0x1b0,(year+1900)%2000,mon+1,mday,characNo)。
+    char* _generateIPGNo(const CUser* user, int curSec, char* buf) const;
+    int _ProcCompoundCore(CUser* user, tagCompoundInfo& info,
+                          tagCompoundAvatarTable* table);                     // T 0x08332ee8
+    void _SendDisjointAvatarStatistic(tagCompoundInfo& info);                 // T 0x08333ecc
+
     // ---- 布局（ORIG ctor 汇编实证）----
     tagCompoundAvatarTable m_tables[11];             // +0x00..+0x83
     CMTRand* m_rand;                                 // +0x84（new CMTRand(time)）

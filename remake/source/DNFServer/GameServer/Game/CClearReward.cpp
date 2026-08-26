@@ -33,10 +33,29 @@
 #include "CUser.h"
 #include "CUserCharacInfo.h"
 #include "CParty.h"
+#include "GameMasterCmd.h"   // CGameMasterCharacter::sendServerState（sendItemDropRate 虚发）
 #include <math.h>
 
 namespace WongWork
 {
+// ============================================================================
+// stGenerateRefClearReward_t —— generateRandomItem 调用方写入外层 ref+0x34 起
+// 的清关奖励上下文视图。ORIG mangled _ZN8WongWork26stGenerateRefClearReward_tE；
+// 成员偏移全部来自 _generateRandomItem/_generateSpecificItem 反汇编访问：
+//   +0x00 u8 命中基准值 / +0x01 u8 等级档【推断命名，布局实证】
+//   +0x04 float 加成率 / +0x08 int dropProb 组 / +0x0c CDungeon*
+// sizeof == 0x10（m_dungeon 止，ORIG 访问不超过 +0xf 实证）
+// ============================================================================
+struct stGenerateRefClearReward_t
+{
+    unsigned char m_value;      // +0x00
+    unsigned char m_level;      // +0x01
+    char m_pad02[2];            // +0x02..03
+    float m_bonusRate;          // +0x04
+    int m_dropProb;             // +0x08（eClearRewardDropProb_t）
+    CDungeon* m_dungeon;        // +0x0c
+};
+
 
 void CClearReward::setDropRatio(float ratio)
 {
@@ -86,7 +105,7 @@ void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,
     int roll = m_random.generateNumber(1, 10000);
     if (roll < m_dropKindProb[0])
     {
-        _generateRandomItem(*reinterpret_cast<stGenerateRefData_t const*>(
+        _generateRandomItem(*reinterpret_cast<stGenerateRefClearReward_t const*>(
                                 reinterpret_cast<char const*>(&ref) + 0x34),
                             *reinterpret_cast<int const*>(&ref),
                             result,
@@ -95,36 +114,29 @@ void CClearReward::generateRandomItem(stGenerateRefData_t const& ref,
     }
     else
     {
-        _generateSpecificItem(*reinterpret_cast<stGenerateRefData_t const*>(
+        _generateSpecificItem(*reinterpret_cast<stGenerateRefClearReward_t const*>(
                                   reinterpret_cast<char const*>(&ref) + 0x34),
                               result);
     }
 }
-
-void CClearReward::_generateRandomItem(stGenerateRefData_t const& refClear,
+void CClearReward::_generateRandomItem(stGenerateRefClearReward_t const& refClear,
                                        int param, stGenerateResult_t& result,
                                        float dropRate)
 {
-    // 第一参 = refClear 首字节（等级基准）；档位 = *(refClear+8) 的 int（drop 组）。
-    int dropSlot = *reinterpret_cast<int const*>(
-        reinterpret_cast<char const*>(&refClear) + 8);
-    int idx = _getGenItemProbIdx(static_cast<unsigned char>(
-                                     *reinterpret_cast<char const*>(&refClear)),
-                                 static_cast<eClearRewardDropProb_t>(dropSlot));
+    // 第一参 = refClear.m_value（命中基准）；档位 = refClear.m_dropProb。
+    int idx = _getGenItemProbIdx(
+        static_cast<int>(refClear.m_value),
+        static_cast<eClearRewardDropProb_t>(refClear.m_dropProb));
     if (idx < 0)
         return;
 
-    const stGenItemProb_t& e = m_workProbs[dropSlot][idx];
-    float bonusRate = *reinterpret_cast<float const*>(
-        reinterpret_cast<char const*>(&refClear) + 4);
+    const stGenItemProb_t& e = m_workProbs[refClear.m_dropProb][idx];
     int thr = static_cast<int>(
         roundFloat((1.0f - dropRate) *
                    static_cast<float>(
-                       (static_cast<int>(roundFloat(bonusRate * e.v[2])) +
-                        m_dungeonDropBonus[reinterpret_cast<unsigned char const*>(&refClear)[1]]) *
+                       (static_cast<int>(roundFloat(refClear.m_bonusRate * e.v[2])) +
+                        m_dungeonDropBonus[refClear.m_level]) *
                        (param / 100))));
-    if (m_random.generateNumber(0, 10000) >= thr)
-        return;
 
     int dropType = 1;   // 初值（未命中即 1）
     int cum = 0;
@@ -150,7 +162,7 @@ void CClearReward::_generateRandomItem(stGenerateRefData_t const& refClear,
         static_cast<ENUM_RARITY>(rarity));
     int itemIdx = m_table.chooseItem(static_cast<eItemDropType_t>(dropType),
                                      static_cast<ENUM_RARITY>(rarity),
-                                     *reinterpret_cast<unsigned char const*>(&refClear));
+                                     refClear.m_value);
     if (itemIdx == -1)
         return;
     if (G_CDataManager()->m_itemList->find_item(itemIdx) == 0)
@@ -162,7 +174,7 @@ void CClearReward::_generateRandomItem(stGenerateRefData_t const& refClear,
     result.m_dropItems.push_back(inv);
 }
 
-void CClearReward::_generateSpecificItem(stGenerateRefData_t const& refClear,
+void CClearReward::_generateSpecificItem(stGenerateRefClearReward_t const& refClear,
                                          stGenerateResult_t& result)
 {
     int roll = m_random.generateNumber(4, 100);
@@ -367,6 +379,61 @@ void CItemGeneratorMgr::onTryGenerateRandomItem(eGenerateType_t genType,
 }
 
 }  // namespace WongWork
+
+// ORIG T 0x08550954：m_users 按幸运点取最大者下标（空表 0）。
+unsigned int CLuckPoint::_GetMaxLuckPointUserIndex()
+{
+    int maxPoint = 0;
+    unsigned int best = 0;
+    for (unsigned int i = 0; i < m_users.size(); ++i)
+    {
+        if (maxPoint < m_users[i]->GetCurCharacLuckPoint())       // [0x855098d setg]
+        {
+            maxPoint = m_users[i]->GetCurCharacLuckPoint();       // [0x85509ae 双 call P48]
+            best = i;
+        }
+    }
+    return best;
+}
+
+// ORIG T 0x08550b14：最大幸运点用户执行扣点，成功记 m_points[seq]=序号。
+bool CLuckPoint::UseLuckPoint(int itemType, int rarity, int grade, int seq)
+{
+    if (m_users.empty())
+    {
+        return false;                                   // [0x8550925 guard]
+    }
+    unsigned int idx = _GetMaxLuckPointUserIndex();
+    if ((int)idx < 0 || m_users.size() <= idx)          // [js / ja 两段]
+    {
+        return false;
+    }
+    CUser* user = m_users[idx];
+    if (user == 0)
+    {
+        return false;                                   // [0x8550b87]
+    }
+    if (!UseLuckPoint(user, itemType, rarity, grade))   // [0x8550baf xor $1]
+    {
+        return false;
+    }
+    m_points[seq] = static_cast<int>(idx);              // [0x8550bc2 operator[](p4)]
+    return true;
+}
+
+// ORIG T 0x08550ef0：m_users 中 getCurCharacR 非空者经 GM 虚发文本。
+void CLuckPoint::sendItemDropRate(char const* msg)
+{
+    for (unsigned int i = 0; i < m_users.size(); ++i)   // [seta 无符号循环]
+    {
+        CUser* user = m_users[i];
+        if (user != 0 && user->getCurCharacR() != 0)    // [0x8550f16 两判]
+        {
+            CGameMasterCharacter* gm = user->GetGameMasterCharacter();
+            gm->sendServerState(user, msg);             // [0x8550f50 虚槽+0]
+        }
+    }
+}
 
 // ============================================================================
 // 全局 ::CLuckPoint 幸运点修正（ORIG T 0x085509da / 0x08550be4）

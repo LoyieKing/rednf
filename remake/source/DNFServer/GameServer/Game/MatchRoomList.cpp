@@ -20,6 +20,7 @@
 
 #include "MatchRoomList.h"
 #include "CUser.h"
+#include "CFairMatch.h"   // fair_pvp::CFairMatch 完整定义（原嵌套 stub 已迁）
 #include "LogManager.h"
 
 // ---- CSwitchLog（PvP 日志；与 PvP_Room.cpp 同款局部声明） ----
@@ -144,7 +145,9 @@ CMultiMatchRoomList::CMultiMatchRoomList()
 {
     // 按每队人数（1..GetPlayCountPerOneTeam）预建等待列表；
     // GetPlayCountPerOneTeam() 恒返 1，故实际仅插入 key=1。
-    for (int i = 0; i < (fair_pvp::CFairMatch::GetPlayCountPerOneTeam() & 0xff); ++i)
+    // 非静态成员经 NULL this 调用（ORIG 恒返 1，不访问 this），同 MatchRoomLCB.cpp。
+    const int playCount = ((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam() & 0xff;
+    for (int i = 0; i < playCount; ++i)
         m_roomMap.insert(std::make_pair(i + 1, CWaitingRoomList()));
 }
 
@@ -196,17 +199,17 @@ bool CMultiMatchRoomList::Match(IMatch* me, IMatch** out)
     if (m_roomMap.empty())
         return false;
     std::vector<IMatch*> vec;
+    const int perTeam =
+        ((fair_pvp::CFairMatch*)0)->GetPlayCountPerOneTeam();   // 恒返 1
     int myCnt = me->GetPlayerCount();
-    if (myCnt < fair_pvp::CFairMatch::GetPlayCountPerOneTeam()) {
-        if (!GetWaitingRoomCombination(me,
-                fair_pvp::CFairMatch::GetPlayCountPerOneTeam() - myCnt, vec))
+    if (myCnt < perTeam) {
+        if (!GetWaitingRoomCombination(me, perTeam - myCnt, vec))
             return false;
         for (std::vector<IMatch*>::iterator it = vec.begin();
              it != vec.end(); ++it)
             DelRoom(*it);
     }
-    if (GetWaitingRoomCombination(me,
-            fair_pvp::CFairMatch::GetPlayCountPerOneTeam(), vec)) {
+    if (GetWaitingRoomCombination(me, perTeam, vec)) {
         if (!vec.empty()) {
             if (vec.size() == 1) {
                 DelRoom(vec[0]);
@@ -353,27 +356,7 @@ int CMultiMatchRoomList::GetWaitingRoomCombination(IMatch* me, int playCount,
 }
 
 // ============================================================================
-// 自由函数 / 跨类符号
+// fair_pvp::CFairMatch::GetPlayCountPerOneTeam（ORIG 0x08562834 恒返 1）
+// 由 MatchRoomLCB.cpp 唯一定义；GetUserName 及三类房间表方法为
+// MatchRoomList.cpp 唯一 owner（key function → vtable 0x8ca3ba8/0x8ca3bc0）。
 // ============================================================================
-
-char* GetUserName(IMatch* match, char* out)
-{
-    CUser* u3 = match->GetUser(3);
-    const char* n3 = u3 ? u3->get_acc_name() : "";
-    CUser* u2 = match->GetUser(2);
-    const char* n2 = u2 ? u2->get_acc_name() : "";
-    CUser* u1 = match->GetUser(1);
-    const char* n1 = u1 ? u1->get_acc_name() : "";
-    CUser* u0 = match->GetUser(0);
-    const char* n0 = u0 ? u0->get_acc_name() : "";
-    sprintf(out, "%s,%s,%s,%s", n0, n1, n2, n3);
-    return out;
-}
-
-namespace fair_pvp
-{
-int CFairMatch::GetPlayCountPerOneTeam()
-{
-    return 1;
-}
-}

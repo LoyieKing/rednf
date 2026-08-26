@@ -285,6 +285,131 @@ private:
 
     static int tx_id_;                                 // B 0x09407d90
 };
+// ---------------------------------------------------------------------------
+// NCashImpl —— 计费服务端连接实现（内嵌 TCPSocket + 收发消息帧）。
+// 布局（ctor 0x081acfdc）：
+//   +0x00 unsigned char m_paramB      （第3参 unsigned char）
+//   +0x02 unsigned short m_fieldC2    （第4参 unsigned short）
+//   +0x04 short          m_fieldD     （第5参 short）
+//   +0x08 unsigned int   m_requestID  （ctor 置 0，_increaseRequestID ++）
+//   +0x0c bool           m_connected  （ctor false）
+//   +0x0d char           m_serverAdrs[0x11] （strcpy 目标；至多到 +0x1e 前区）
+//   +0x1e unsigned short m_port       （第二参 short 端口原值）
+//   +0x20 TCPSocket
+//   +0x40 NCashMessage   m_inMsg      （区间 0x208：接收缓冲本体自 data()/body() 起）
+//   +0x248 NCashMessage  m_outMsg
+// sizeof == 0x450（NexonCash ctor new(0x450) 实证）。
+// ---------------------------------------------------------------------------
+class NCashImpl
+{
+public:
+    NCashImpl(const char* serverAdrs, short port, unsigned char paramB,
+              unsigned short fieldC, short fieldD);          // ORIG 0x081acfdc
+
+    void _increaseRequestID();                               // ORIG 0x081aea32
+    bool checkCoupon();                                      // ORIG 0x081aea0a（恒 false）
+    bool useCoupon();                                        // ORIG 0x081aea14（恒 false）
+    bool checkCafeCoupon();                                  // ORIG 0x081aea1e（恒 false）
+    bool useCafeCoupon();                                    // ORIG 0x081aea28（恒 false）
+
+    int recv_msg();                                          // ORIG 0x081aea46
+    int recv_body();                                         // ORIG 0x081aeb3c
+    int send_msg(unsigned int bodyLength);                   // ORIG 0x081aec2c
+    bool reconnect();                                        // ORIG 0x081ad080
+
+    ByteBuffer set_data_header(unsigned char packetId, unsigned char flag); // ORIG 0x081ad0e6 (sret 形态，按值返回)
+    void get_data_header(unsigned char& a, unsigned char& b,
+                         unsigned int& c);                   // ORIG 0x081ad168
+    int handle_cash_error(int code);                         // ORIG 0x081ad1e0
+    int handle_coupon_error(int code);                       // ORIG 0x081ad2c0
+
+    int checkEntrance(const char* adrs, char& out);          // ORIG 0x081ad316
+    int getBalance(const char* adrs, int& balance);          // ORIG 0x081ad49e
+    int purchase(unsigned long long sn, int productNo, int count,
+                 const char* idStr, const char* extraId,
+                 NXTransaction& tx);                         // ORIG 0x081ad5c2
+    int purchase(unsigned long long sn, int productNo, int count,
+                 const char* idStr, const char* extraId,
+                 NXTransaction& tx, short category);         // ORIG 0x081ad7ae
+    int gift(unsigned long long sn, int productNo, int count,
+             const char* idStr, const char* extraId,
+             const char* recvName, const char* message,
+             NXTransaction& tx);                             // ORIG 0x081ad9c4
+    int confirm(unsigned char type, unsigned int txId);      // ORIG 0x081adbd4
+    int cancel(unsigned char type, unsigned int txId);       // ORIG 0x081add04
+    int chargeCash(char* data, unsigned char a, unsigned char b,
+                   int encLen, char* encData, char* sendBuf,
+                   char* wideBuf, char* more, int count,
+                   NXTransaction& tx);                     // ORIG 0x081ade34
+
+private:
+    NCashImpl();
+    NCashImpl(const NCashImpl&);
+    NCashImpl& operator=(const NCashImpl&);
+
+public:  // 成员偏移由 ORIG 使用点固定，暴露便于 TU 内访问器同型
+    unsigned char   m_paramB;     // +0x00
+    unsigned char   m_pad01;      // +0x01
+    unsigned short  m_fieldC;     // +0x02
+    short           m_fieldD;     // +0x04
+    unsigned char   m_pad06[2];   // +0x06
+    unsigned int    m_requestID;  // +0x08
+    bool            m_connected;  // +0x0c
+    char            m_serverAdrs[17]; // +0x0d..+0x1d
+    unsigned short  m_port;       // +0x1e
+    TCPSocket       m_socket;     // +0x20
+    NCashMessage    m_inMsg;      // +0x40 （0x208 区间含接收缓冲）
+    // +0x248 outMsg 起始偏移由独立成员表达（见下）。
+private:
+    char m_inBodyPad[0x201];      // 补足 inMsg 实体至 +0x248（见注①）
+};
+
+// 注①：m_inMsg 的 raw 缓冲在 ORIG 中一并占据 +0x47..+0x248 区域；
+// 本重建用独立 pad 表达总量 0x450，语义与布局一致。
+
+// ---------------------------------------------------------------------------
+// NexonCash —— NCashImpl 薄包装。唯一成员 NCashImpl* @+0。
+// ctor new(0x450) 构造；dtor free(m_impl)（ORIG 汇编 free@plt 实证，
+// 非 delete —— 忠实保留）。
+// ---------------------------------------------------------------------------
+class NexonCash
+{
+public:
+    NexonCash(const char* serverAdrs, short port, char paramB,
+              short fieldC, short fieldD);                   // ORIG 0x081ae1b0
+    ~NexonCash();                                            // ORIG 0x081ae242
+
+    int getBalance(const char* adrs, int& balance);          // ORIG 0x081ae258
+    int checkEntrance(const char* adrs, char& out);          // ORIG 0x081ae4ae
+    int purchase(unsigned long long sn, int productNo, int count,
+                 const char* idStr, const char* extraId,
+                 NXTransaction& tx);                         // ORIG 0x081ae27c
+    int purchase(unsigned long long sn, int productNo, int count,
+                 const char* idStr, const char* extraId,
+                 NXTransaction& tx, short category);         // ORIG 0x081ae2ce
+    int gift(unsigned long long sn, int productNo, int count,
+             const char* idStr, const char* extraId,
+             const char* recvName, const char* message,
+             NXTransaction& tx);                             // ORIG 0x081ae330
+    int confirm(const NXTransaction& tx);                    // ORIG 0x081ae390
+    int cancel(const NXTransaction& tx);                     // ORIG 0x081ae3bc
+    int charge(char* data, unsigned char a, unsigned char b,
+               int encLen, char* encData, char* sendBuf,
+               char* wideBuf, char* more, int count,
+               NXTransaction& tx);                           // ORIG 0x081ae440
+    int checkCoupon();                                       // ORIG 0x081ae3e8
+    int useCoupon();                                         // ORIG 0x081ae3fe
+    int checkCafeCoupon();                                   // ORIG 0x081ae414
+    int useCafeCoupon();                                     // ORIG 0x081ae42a
+
+private:
+    NexonCash(const NexonCash&);
+    NexonCash& operator=(const NexonCash&);
+
+private:
+    NCashImpl* m_impl;   // +0x00
+};
+
 }  // namespace cash
 }  // namespace nexon
 

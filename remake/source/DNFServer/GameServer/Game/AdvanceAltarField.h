@@ -6,28 +6,29 @@
 #ifndef DNF_GAME_ADVANCE_ALTAR_FIELD_H_
 #define DNF_GAME_ADVANCE_ALTAR_FIELD_H_
 
+#include <cstring>
 #include <map>
 #include <string>
 #include <vector>
 
 namespace advancealtar
 {
-// ---- AdvanceAltarShopType::T（ORIG mangled NS_20AdvanceAltarShopType1TE）----
-// 权威定义原在 SyncScriptDeps.h；此处同守卫幂等复制（ENUM_ERROR 先例），供
-// CDataManager.h 内 BuyShopData/AdvanceAltarShopParameter 方法签名引用。
-#ifndef DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
-#define DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_DEFINED
-namespace AdvanceAltarShopType
-{
-enum T
-{
-    T_0 = 0,
-    T_1 = 1,
-    T_2 = 2
-};
-}
+// ---- advancealtar::AdvanceAltarShopType::T（ORIG mangled NS_20AdvanceAltarShopType1TE
+// = advancealtar 内 struct 嵌 enum；ns 内 struct 版为唯一 mangled 正确形态）----
+// 与 advancealtar.h 同守卫幂等副本（DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_NS_DEFINED，
+// 2026-08-27 Altar 批统一：原 namespace 版是错误建模，已删除防 redefinition）。
+#ifndef DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_NS_DEFINED
+#define DNF_GAME_ADVANCE_ALTAR_SHOP_TYPE_NS_DEFINED
+struct AdvanceAltarShopType { enum T { T_0 = 0, T_1 = 1, T_2 = 2 }; };
 #endif
 
+// ---- AdvanceAltarSlotType::T（ORIG mangled NS_20AdvanceAltarSlotType1TE；
+// getSlotMap 仅认 1/2——枚举器名【推断】，与 advancealtar.h 同守卫幂等副本，
+// 先例 ENUM_ERROR）----
+#ifndef DNF_GAME_ADVANCE_ALTAR_SLOT_TYPE_DEFINED
+#define DNF_GAME_ADVANCE_ALTAR_SLOT_TYPE_DEFINED
+struct AdvanceAltarSlotType { enum T { SLOT_N1 = 1, SLOT_N2 = 2 }; };
+#endif
 // ---- FieldType::T：ORIG getFieldType(0x88a27a2) 名称→编号全表 ----
 struct FieldType
 {

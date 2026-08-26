@@ -1,3 +1,15 @@
+struct CONTINUOUS_ITEM_INFO;
+struct SIG_LIMIT_ITEM_INFO;
+struct MSG_REQ_TO_PEER;
+struct stEquipCondition;
+struct competition_reward_result;
+struct SIG_LOAD_PREMIUM_LETHE;
+struct SIG_INGAME_EVENT_HISTORY;
+struct MSG_MULTI_MAILBOX_SEND;
+struct SIG_LEVELUP_GIFT_ACCOUNT_ONCE;
+struct SIG_GIVE_GROWTH_CREATURE_EVENT;
+struct SIG_GROWTH_WEAPON_EVENT;
+struct STGuildProxy;   // 仅指针引用（LoadCoolTimeItemInfo）；完整定义归冷却/连用物品域批次
 #ifndef GAME_CUSER_H_
 #define GAME_CUSER_H_
 
@@ -72,6 +84,8 @@
                           // ENUM_HACKTYPE 权威声明点（2026-08-27 自本头迁出）
 struct _Mastered_skill;     // 完整定义见 SkillSlot.h（避免循环包含）
 struct MSG_MONSTER_DIE;     // 完整定义见 Secu_HackLogCheckByParty.h（cUserHistoryLog::KillMonster 引用）
+struct RewardItemInfo;      // 完整定义见 Quest.h:102（getUserQuestRewardItem 返回 vector 视图）
+class Quest;                // 完整定义见 Quest.h
 
 struct stBuySkillInfo;  // forward decl（ORIG stub 传递引用；完整定义见 CEventCharacterHandler.cpp）
 
@@ -286,10 +300,13 @@ enum ENUM_USERINFO { ENUM_USERINFO_0 = 0 };
 enum ENUM_EQUIPSLOT { ENUM_EQUIPSLOT_0 = 0 };
 #endif
 
+#ifndef DNF_ENUM_PEER_REQUEST_TYPE_DEFINED
+#define DNF_ENUM_PEER_REQUEST_TYPE_DEFINED
 enum ENUM_PEER_REQUEST_TYPE
 {
     ENUM_PEER_REQUEST_TYPE_0 = 0
 };
+#endif
 
 enum ENUM_MESSAGE_TYPE
 {
@@ -455,7 +472,9 @@ struct _Charac_info
     unsigned char m_needCheckOverEquipItem;  // +0xe3b（SetNeedCheckOverEquipItem 置 1）
     char m_pad123c[0x1239 - 0xe3c];   // +0xe3c..0x1238
     unsigned char m_field1239;        // +0x1239（MakeTagCharacInfo 技能区选择：-1/0 → SkillW+0x46，否则 +0x1de）
-    char m_pad123a[0x14b7 - 0x123a];  // +0x123a..0x14b6
+    char m_pad123a[0x124f - 0x123a];  // +0x123a..0x124e
+    unsigned char m_linkBonusSetting; // +0x124f（isCharacLinkBonusSetting movzbl 直返）
+    char m_pad1250[0x14b7 - 0x1250];  // +0x1250..0x14b6
     unsigned char m_field14b7;        // +0x14b7（SelectCharac::process 回填 MSG_CHARAC_SELECT+0x12）
     int m_field14b8;                  // +0x14b8（SelectCharac::process 回填 MSG_CHARAC_SELECT+0xe）
     char m_pad14bc[0x14c6 - 0x14bc];  // +0x14bc..0x14c5
@@ -722,7 +741,11 @@ public:
     int GetTotalPremiumCount() const;   // ORIG W 0x0863bd5c：+0x848 + +0x84c
     int GetOverEquipableLevel(ENUM_EQUIPMENTTYPE type) const;
     int GetAdvantageCoin() const;           // 0x0864f8e0（推断实现，见 CUser.cpp）
-    int GetGoldBonus(int level) const;      // ORIG 存在（推断实现，见 CUser.cpp）
+    int GetGoldBonus(int level);            // ORIG W _ZN8WongWork12CUserPremium12GetGoldBonusEi 0x08694a64（非 const；定义 WongWorkMiscB_A.cpp）
+    int GetAddQuestItemDropRate(int level); // ORIG W _ZN8WongWork12CUserPremium23GetAddQuestItemDropRateEi 0x08694a28
+                                            //   level∉[0,0x69]→0，否则 GlobalData::g_SPremiumInfo[level].m_field48
+    int GetAddExpBonus(int type) const;     // ORIG W _ZNK8WongWork12CUserPremium14GetAddExpBonusEi 0x085bf940
+                                            //   type∈[0,0x69]→g_SPremiumInfo[type].m_field44，否则 0（定义 CUserPremium.cpp）
     bool isAffectedUnlimitFatigue() const;  // ORIG 存在（推断实现，见 CUser.cpp）
     _Additioal_info GetAdditionalInfo() const;  // ORIG W 0x8694a88：memcpy(this+0x90f, 0x52)
     // ORIG _ZN8WongWork12CUserPremium15LoadPremiumInfoEPKc（静态：ORIG 调用点
@@ -1171,20 +1194,51 @@ public:
 // （STExpReward.h / advancealtar.h）；CDataManager.h 经 PvPTypes→CUser.h 重入环，
 // 不能作为本头类型可见性的可靠来源。
 
+// ---- APSystem 块依赖叶子头（均为无环自包含头）----
+#include "APSystemTypes.h"   // _SIG_LOAD_ACTION_POINT/_ActionPoint/CActionPointEx
+#include "CUserProc.h"       // APSystem::_ActionGroupIndex 完整类型（按值形参）
+#include "STItemScript.h"    // ENUM_EXPERT_JOB_TYPE（全局枚举，轻量头）
+
 namespace APSystem
 {
 class CActionPointManager
 {
 public:
+    // ORIG 符号 _ZN8APSystem19CActionPointManager10_gmWeekdayE：D 0x0937008c，size 0x8。
+    // 写点 oldGmRoutine 0x08212798/0x08212859（byte 置 flag）与 +0x4 写 weekday int。
+    struct GmWeekdayCtl
+    {
+        unsigned char m_gmOn;         // +0x00
+        unsigned char m_pad1[3];
+        int m_weekday;                // +0x04（SetTodayAction 的 DAT_09370090）
+    };
+
     CActionPointManager() {}
     ~CActionPointManager() {}
 
-    void Reset();
-    unsigned char* GetActionPoint() const;  // ORIG 0x8694bfc（W）：返回 this+0x08 地址
-    void GM_Set(CUser& user, unsigned int point);
+    void Reset();                              // ORIG W 0x08122af4（CActionPointManager.cpp）
+    unsigned char* GetActionPoint() const;     // ORIG 0x8694bfc（W）：返回 this+0x08 地址
+    void GM_Set(CUser& user, unsigned int point);      // ORIG T 0x08121b3e
+    void GM_Reset();                           // ORIG T 0x08121d12
+    void Set(_SIG_LOAD_ACTION_POINT& sig);     // ORIG T 0x08121b0c
+    void ClearAction(CUser& user, _ActionGroupIndex group, int itemIdx,
+                     ENUM_PACKETCLASS packetClass);                    // ORIG T 0x08121dcc
+    bool ClearActionOne(_ActionPoint& action, int itemIdx);            // ORIG T 0x08121f1c
+    void SetTodayAction(int level, unsigned int characNo,
+                        ENUM_EXPERT_JOB_TYPE jobType,
+                        const std::map<unsigned short,
+                                       std::vector<APSystem::CActionPointEx> >& table); // ORIG T 0x0812161c
+    void GetTodayRewardAndSendMail(CUser& user,
+                                   _SIG_LOAD_ACTION_POINT::_TodayRewardItem reward); // ORIG T 0x08122104
 
-    char m_pad[0xcfc];  // +0x00
-};
+    static unsigned char _IsGMOn;    // B 0x093ff07c（1 字节）
+    static GmWeekdayCtl _gmWeekday;  // D 0x0937008c（8 字节）
+
+    unsigned char m_flag00;                 // +0x00（GM_Set/GM_Reset/GetToday… 置 1）
+    unsigned int m_prevApSum;               // +0x04（Set/ClearActionOne 前值暂存）
+    _SIG_LOAD_ACTION_POINT m_sig;           // +0x08（嵌入整包；GetActionPoint 返回此地址）
+};                                          // sizeof 0xcfc（0xcf9 尾对齐到 4）
+typedef char _assert_action_point_manager_size[(sizeof(CActionPointManager) == 0xcfc) ? 1 : -1];
 }
 
 
@@ -1679,8 +1733,8 @@ public:
                      const char* name1, const char* name2);          // ORIG 0x08684d74
     void GuildCargo(ENUM_GUILD_CARGO_HISTORY_REASON reason, int a);  // ORIG 0x086864e6
     void SecuService(ENUM_SECU_SERVICE_TYPE type, ENUM_SECU_SERVICE_ACTION action);  // ORIG 0x0868479c
-    unsigned short getItemXPos() const;                              // ORIG W 0x08696000
-    unsigned short getItemYPos() const;                              // ORIG W 0x0869600c
+    unsigned short getItemXPos();                                    // ORIG W 0x08696000
+    unsigned short getItemYPos();                                    // ORIG W 0x0869600c
     void CashInvenAdd(eCashInvenAddReason reason, unsigned int a, unsigned int b,
                       unsigned long c);                              // ORIG 0x0868683a
     void CashInvenDel(eCashInvenDelReason reason, unsigned int a, unsigned int b,
@@ -1814,9 +1868,11 @@ public:
     char m_pad6effb;                                        // +0x6effb
     CAccountCargo m_accountCargo;                           // +0x6effc
     CGameOption m_gameOption;                               // +0x6fd64
+    int m_multiboxLotteryFailCnt;                           // +0x703bc（inc_multiboxLotteryItemFailCnt）
+    char m_pad703c0[4];                                     // +0x703c0..0x703c3
     STBreakAwayRewards m_breakAway;                         // +0x703c4
     STSkillCommandData::STCommand m_skillCommands[50];      // +0x703db
-    short m_field704a4;                                     // +0x704a4
+    short m_slotIDX;                                        // +0x704a4（GetSlotIDX movzwl 直返）
     short m_field704a6;                                     // +0x704a6
     unsigned short m_field704a8;                            // +0x704a8
     char m_pad704aa[2];                                     // +0x704aa..0x704ab
@@ -1856,6 +1912,8 @@ public:
     charac_expand::CDataMgr m_characExpand;                 // +0x79744
     InventoryMemory m_inventoryMemory;                      // +0x79794
     UserQuest m_quest;                                      // +0x858d4
+    unsigned char m_pcRoomAuth;                             // +0x8cef1（getPcRoomAuth movzbl 直返；占 UserQuest 段尾填充）
+    char m_pad8cef2[2];                                     // +0x8cef2..0x8cef3
     std::vector<unsigned int> m_vec8cef4;                   // +0x8cef4
     int m_field8cf00;                                       // +0x8cf00
     int m_playingDungeonIdx;                                       // +0x8cf04
@@ -1925,10 +1983,10 @@ public:
         void reset() asm("_ZN5CUser5._3795resetEv");
         bool m_field0;     // +0x00
         bool m_field1;     // +0x01
-        char m_pad2[2];
-        int m_field4;      // +0x04
-        int m_field8;      // +0x08
-        unsigned int m_fieldc;  // +0x0c
+        char m_pad2[2];    // +0x02..0x03
+        int m_hackTradeGoldLo; // +0x04（incTotalHackUserTradeGold 低32位）
+        int m_hackTradeGoldHi; // +0x08（高32位）
+        unsigned int m_hackTradeCnt; // +0x0c（getTotalHackUserTradeCnt）
     } m_379;                                            // +0x8d1a8
     std::vector<stLookOuts> m_lookOuts1;                    // +0x8d1b8
     std::vector<stLookOuts> m_lookOuts2;                    // +0x8d1c4
@@ -1947,7 +2005,8 @@ public:
     int m_fatigueGain;                                       // +0x8e08c（FatigueUp 写入）
     int m_debugCommand;                                     // +0x8e090（GetDebugCommand/SetDebugCommand）
     unsigned int m_field8e094;                              // +0x8e094
-    char m_pad8e098[0x54];                                  // +0x8e098..0x8e0eb
+    unsigned char m_childrensDayEventState;                 // +0x8e098（==0xff 判定）
+    char m_pad8e099[0x53];                                  // +0x8e099..0x8e0eb
     char m_capchaCertify[0xa];                              // +0x8e0ec（reqHumanCertify
                                                             //   memcpy 验证码头 0xa 字节）
     char m_pad8e0f6[2];                                     // +0x8e0f6..0x8e0f7
@@ -1996,10 +2055,9 @@ public:
     unsigned char m_pcRoomPlayTimeRewardCnt;                // +0x8eba4（getPcRoomPlayTimeRewardCnt）
     char m_pad8eba5[3];                                     // +0x8eba5..0x8eba7
     int m_field8eba8;                                       // +0x8eba8
-    int m_field8ebac;                                       // +0x8ebac
-    char m_field8ebb0;                                      // +0x8ebb0
-    char m_informNoticeFlag;                                      // +0x8ebb1
-    char m_pad8ebb2[0xf];                                   // 0x8ebb2..0x8ebc0
+    int m_field8ebac;                                       // +0x8ebac（Inc/Get CurCharacUsedGiftFatigueQuantity）
+    unsigned char m_field8ebb0;                             // +0x8ebb0（GetChangedGiftFatigueQuantity movzbl）
+    unsigned char m_informNoticeFlags[16];                  // +0x8ebb1..0x8ebc0（bit 索引访问）
     char m_saveInformNoticeFlag;                                // +0x8ebc1
     char m_pad8ebc2[2];                                     // 0x8ebc2..0x8ebc3
     std::vector<unsigned char> m_vec8ebc4;                  // +0x8ebc4
@@ -2011,7 +2069,7 @@ public:
     GrowthCreatureEvent m_growthCreature;                   // +0x8ebf8
     CharacLevelUpGiftAccountOnce m_levelUpGift;             // +0x8ec04
     int m_field8ec24;                                       // +0x8ec24
-    char m_field8ec28;                                      // +0x8ec28
+    unsigned char m_receivedRequestType;                    // +0x8ec28（GetReceivedRequestType movzbl 直返）
     bool m_field8ec29;                                      // +0x8ec29
     char m_pad8ec2a[2];                                     // 0x8ec2a..0x8ec2b
     int m_field8ec2c;                                       // +0x8ec2c
@@ -2051,6 +2109,7 @@ public:
     int get_guildwar_point_per_pvpplay();
     void* getHades();
     void* GetPVPRoom();
+    void UpdateRating(float rating);   // ORIG W 0x08568e9c _ZN5CUser12UpdateRatingEf（Elo 个人分回写；定义归 CUser 域）
     void* GetSecretShopData();
     void* GetPICSMap();
     char IsPermissionPrivateStore();
@@ -2064,6 +2123,8 @@ public:
     void SetTradeSpace(int idx);
     bool CheckFatigue();
     void gainCurCharacFatigue(int value);   // ORIG 0x0864f7fe
+    bool CheckLimitMiniumAge(int age, int& param);   // ORIG T 0x0864fc3e
+                                                     //   _ZN5CUser19CheckLimitMiniumAgeEiRi（PartyUserLink 批次定义）
     bool has_within_Mission() const;
     bool acceptable_within_mission() const;
     bool isCompetitionMercenary() const;
@@ -2364,6 +2425,11 @@ public:
     void _UpdateUserInfo4Guild();                         // ORIG T 0x0867cd20
     void send_equip(int slot);
     int send_itemspace(int space);
+    // ---- OnlyOrig_CreatureJob 批依赖（声明在此，定义归 OnlyOrig_CUser 域生产；
+    //      EJMaterial/EJEnchanter 调用）----
+    Inven_Item* GetCurCharacInventoryRef(unsigned short area, unsigned short slot);               // ORIG _ZN5CUser24GetCurCharacInventoryRefEtt T 0x08680f2e
+    const Inven_Item* GetCurCharacInventoryRef(unsigned short area, unsigned short slot) const;   // ORIG _ZNK5CUser24GetCurCharacInventoryRefEtt T 0x08680c8a
+    void CalculateExpertJobMaterials(std::vector<std::pair<int, int> >& materials);               // ORIG _ZN5CUser27CalculateExpertJobMaterialsERSt6vectorISt4pairIiiESaIS2_EE T 0x0868ba58
     void sendCharacOption();
     void send_pvp_record();
     void sendEventInfo();
@@ -2423,7 +2489,6 @@ public:
     int GetAccountLastPlayTime();
     ENUM_SERVER_GROUP GetServerGroup() const;
     int GetServerGroupToPvP() const;   // ORIG T 0x0864a97c（定义 CUserDepsB.cpp）
-    bool isBlackUser(unsigned int accId) const;
     Secu_GoldControl* GetGoldControl();
     CDungeonGainedGold* getDungeonGainedGold();
     WongWork::CHackAnalyzer* getHackAnalyzer();
@@ -2449,11 +2514,12 @@ public:
                      int param, bool flag);   // ORIG mangled S0_13eExpAddReason（嵌套枚举）
     void makeGuildSkillMessage(const char* skillName, int count);
     // ---- 高频簇 producers（本批次还原；签名均与 ORIG mangled 一致）----
-    void make_charac_stat(PacketGuard& packet);                       // ORIG T 0x8659faa
-    void Remove_Mission(short kind);                                  // ORIG T 0x866273c
+    std::vector<RewardItemInfo>* getUserQuestRewardItem(
+        const Quest* quest, const CUser* other);           // ORIG _ZN5CUser22getUserQuestRewardItemEPK5QuestPKS_ T 0x0866e914（非 const；LinkClosureA 落 LinkClosureA_User.cpp）
+    void make_charac_stat(PacketGuard& packet);                       // ORIG T 0x8659faa _ZN5CUser16make_charac_statER11PacketGuard
+    void Remove_Mission(short kind);                                  // ORIG T 0x866273c _ZN5CUser14Remove_MissionEs
     void incPlayExpAdd(int v);                                        // ORIG W 0x869729a
-    bool _check_level_up(int exp, int& sp, int& sfp,                  // ORIG T 0x8662aea
-                         CUser::eExpAddReason reason, int param);
+        // （_check_level_up 完整声明见其它区段；截断残句删除）
     void gain_sp(int v);                                              // ORIG T 0x866a9a0
     void gain_sfp(int v);                                             // ORIG T 0x866aad2
     void history_log_sp(int before, int delta, eSPAddReason reason);  // ORIG T 0x866ac0e
@@ -2864,6 +2930,260 @@ public:
     void ProcPremiumFatigue();                                                 // 0x0867cbe4
     bool IsPremiumUser() const;                                                // 0x0867cd20
     int SaveInventory();                                                       // 0x0864fe52
+
+    // ---- OnlyOrig 批次C（35 个 ORIG-only，逐符号见 /tmp/df_batches/OnlyOrig_CUser.md）----
+    unsigned short GetSlotIDX() const;                                       // 0x084ecd42 W
+    unsigned char GetReceivedRequestType() const;                            // 0x082308e8 W
+    unsigned char getPcRoomAuth() const;                                     // 0x0863be54 W
+    bool IsState(ch_state state) const;                                      // 0x082300d0 W
+    bool IsPCRoomUser() const;                                               // 0x084ecb00 W（ORIG 恒 false）
+    bool IsOKChildrensDayEventCondition();                                   // 0x08328220 W
+    bool IsWaitingStateCharac(unsigned int characNo);                        // 0x0822fbe6 W
+    int getTotalHackUserTradeCnt() const;                                    // 0x08532078 区 W
+    long long getTotalHackUserTradeGold() const;                             // 0x08532078 区 W
+    void incTotalHackUserTradeCnt(unsigned int n);                           // 0x086972ee W
+    void incTotalHackUserTradeGold(unsigned long long gold);                 // 0x086972b6 W
+    int inc_multiboxLotteryItemFailCnt();                                    // 0x080fdf56 W
+    void incPcRoomPlayTimeRewardCnt();                                       // 0x08110dd0 W
+    int getLinkCharacNo(char index);                                         // 0x0869736e W
+    bool isCharacLinkBonusSetting(char index);                               // 0x084ecd52 W
+    unsigned short GetPowerWarPartyVictory();                                // 0x0868856c T
+    int getQuestPoint();                                                     // 0x0868ad52 T
+    int getReturnUserLevelKey(int level, int mode);                          // 0x0869230a T
+    CParty* GetUserListByParty(std::vector<CUser*>& out);                    // 0x0868056a T
+    void* GetUserSecretShop();                                               // 0x086885d4 T
+    bool isBlackUser(unsigned int accId);                                    // 0x0867f104 T
+    void handleInformNoticeFlag(unsigned int bitIndex);                      // 0x0868f956 T
+    void loadInformNoticeFlag(char* src);                                    // 0x0868f900 T
+    void getInformNoticeFlagIndex(std::vector<unsigned char>& out);          // 0x0868fa8a T
+    LimitItemUsage* GetItemLimitInfo(int itemIdx);                           // 0x08688d26 T
+    bool IsLimitItemUsable(int itemIdx);                                     // 0x08688c70 T
+    bool is_recipe_items_avatar_type(const std::vector<std::pair<int,int> >& items);
+                                                                             // 0x0868c45e T
+    bool isSuccessCompound(int chance);                                      // 0x08671fde T
+    bool IsOldLotteryItem(unsigned int itemIdx);                             // 0x08673342 T
+    bool IsAddableGuildFund(int amount);                                     // 0x0866c21e T
+    bool LoadCoolTimeItemInfo(CONTINUOUS_ITEM_INFO* info);                   // 0x08658ff6 T
+    int GetItemSerialChecker(unsigned short serialIdx, unsigned short serialVal,
+                             int monsterIdx);                                // 0x0823066a W
+    int GetItemTimeChecker(unsigned int nowSec, unsigned short val1,
+                           unsigned short val2, unsigned int rangeSec);      // 0x082302ac W
+    int isEnableGiveGiftToNPC();                                             // 0x08681160 T
+    void IncrementTradeGold(unsigned int gold, int mode);                     // 0x0864658a T
+    void _CalcItemVectorMultiply(std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, int);
+    bool _check_level_up(int, int&, int&, CUser::eExpAddReason, int);
+    bool _CheckCompoundSkill(const CStackableItem*, bool);
+    int _fnStatQuestClear(unsigned int, char*);
+    CItem* _GetRecipeItem(long unsigned int, bool, int&);
+    bool _IsCompoundResult2MoreEquip(const std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&);
+    void _onChangeGrowType(unsigned char, unsigned char, eChangeGrowTypeReason);
+    void _onCreateCharacter(unsigned int, char*, char);
+    void _onQuestClear(int, int);
+    bool _ProcCompoundCore(const std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, std::vector<int, std::allocator<int> >&, int, bool, PacketGuard*, bool&, short unsigned int, stEquipCondition, CStackableItem*, Inven_Item&);
+    void _processCharacterDayEvent(unsigned int, unsigned int);
+    void _processFatigueBuffEvent(unsigned int, unsigned int);
+    void _processUnlimitChallenge(unsigned int, char);
+    void _saveConditionEventInfo(unsigned int, short int, short int);
+    void _saveProperDungeonClearCount(unsigned int, short int);
+    void _updateSaveOption();
+    void add_matched_list(std::vector<std::pair<int, int>, std::allocator<std::pair<int, int> > >&, int, int);
+    void AddDailyBadge(ENUM_BADGE_TYPE);
+    void AddTicket(int, bool);
+    bool alonePlay_Mode();
+    bool alonePlay_Mode(const MSG_REQ_TO_PEER&);
+    void quest_basic_reward(Quest* q, int& a, int& b, int& c, int& d,
+                            bool flag);                       // 0x0869235a T（定义本批 body_B）
+        // ---- Competition / Mercenary ----
+        void Competition_Mercenary_Charac(unsigned int slot, char modeA, char modeB);   // 0x0868e6c0 T
+        // ---- Reward list / compound ----
+        void complete_reward_list(std::vector<std::pair<int,int> >& needList,
+                                  std::vector<std::pair<int,int> >& gotList);           // 0x08664dce T
+        int compound_item(int itemIdx, bool useSkillCheck, unsigned short count, int subCmd); // 0x0867218c T
+        void compoundGuildMessage(Inven_Item const& item);          // 0x0869304e T
+        void compoundSystemMessage(Inven_Item const& item);         // 0x08692f62 T
+        // ---- Quest reward math ----
+        int compute_level_penalty(int levelDelta);                  // 0x0866e3a8 T
+        int compute_quest_basic_reward_exp(Quest* quest);           // 0x0866e3e2 T
+        int compute_quest_basic_reward_gold(Quest* quest);          // 0x0866e5e6 T
+        // ---- Item helpers ----
+        void copyItemOption(Inven_Item& dst, Inven_Item& src);      // 0x08671eb2 T
+        void count_specific_items(std::vector<int>& ids,
+                                  std::vector<std::pair<int,int> >& out); // 0x0866514a T
+        // ---- Character lifecycle ----
+
+
+        void DeleteCurrentCharacRentalItemInfo(int key);            // 0x08677050 T
+        // ---- Skill command ----
+        int customizingSkillCommand(STSkillCommandData& data);      // 0x08654f74 T
+        bool defaultSkillCommand();                                 // 0x086550ee T
+
+        int findSkillCommandData(int skillId, STSkillCommandData& out, bool flag);  // 0x08654e6a T 重载！
+        // ---- EXP / SP ----
+
+        // ---- Hack money ----
+        void gainMoneyFromHackUser(unsigned int who,
+                                   unsigned long long gold,
+                                   unsigned int cnt,
+                                   unsigned long long totalGold);   // 0x0867fbba T
+        // ---- Event history / misc getters ----
+        void get_ingame_event_history(int key, std::pair<int,int>& out); // 0x0868d50c T（带参版！报告 get_ingame_event_history.md 为无参 Ev 版本）
+        int get_pvp_exp_of_week();                                  // 0x08230100 W
+        int get_skill_count();                                      // 0x0866af86 T
+        int get_SoloPlay_mode();                                    // 0x0868dd44 T
+        int get_SoloPlay_msgType(MSG_REQ_TO_PEER const& msg);       // 0x0868dd76 T
+        int getInDungeonItemSellCount(int invenType, int slotIdx);  // 0x0868b106 T
+        int getInformNoticeFlag(int idx);                           // 0x0868fa76 T
+        int getCharacAntibotSerialNum() const;                      // 0x0823089c W（读 m_field8ec24）
+        // ---- Premium ----
+        int getAddExpRateFromPremium(ENUM_PREMIUM_TYPE type);           // 0x085bfd76 W
+        int getAddQuestItemDropRateFromPremium(ENUM_PREMIUM_TYPE type); // 0x0869733e W
+        unsigned char GetChangedGiftFatigueQuantity() const;        // 0x086975ee W（读 m_field8ebb0）
+        // ---- Childrens Day ----
+        int GetChildrensDayEventTargetItemPeriod(int idx);          // 0x08328262 W
+        int GetChildrensDayEventTargetItemSlot(int idx);            // 0x08328240 W
+        // ---- Compound upgrade roll ----
+        int getCompoundUpgrade(CStackableItem const* item,
+                               stEquipCondition cond) const;        // 0x08682082 T
+        // ---- Inventory ref / cache ----
+        void EnableCharacInfo(CACHE_SECTION section);               // 0x081253f4 W
+        short GetDailyBadge(short* out /*实为 ENUM_BADGE_TYPE 变体共用*/); // 0x8568e0c EPs；另有 0x8568e48 E15ENUM_BADGE_TYPE
+        int GetETC(short key);                                      // 0x08697474 W
+        // ---- Black list / trade punish ----
+        int deleteToBlackList(unsigned int id);                     // 0x0867f040 T
+        void DelTradePunishType(int mask);                          // 0x086898c2 T
+        // ---- Mouse register pad ----
+        void discard_mouse_register();                              // 0x08680bd2 T
+        // ---- Item lock ----
+        void DoItemLock(int a, int b);                              // 0x08646d4a T
+        void DoItemUnlock(int a, int b);                            // 0x08646d82 T
+        void DoItemUnlockCancel(int a, int b);                      // 0x08646dba T
+        // ---- Link message ----
+        void decideCharacLinkMessage();                             // 0x08652a58 T
+        void decideLinkCharacSlotIndexes(char idx, int maxIdx);     // 0x08652b06 T
+        // ---- Event delivery ----
+        void eventDeliveryQuestClear(int a, int b,
+                                     std::vector<std::pair<int,int> >& items,
+                                     int d, int e, int f);          // 0x086645a4 T
+        // ---- Hash ----
+    void getHashCode(unsigned char* digestOut); void LoadMileage();
+    unsigned char lost_ext(int percent, int& actualLost, bool hardMode);
+    int lottery_item(int slot);
+    int multibox_lottery_item(int boxSlot, int keySlot);
+    unsigned int OnItemUnlockWaitTimeout(int expandIdx, int unused);
+    void OnPunishUser();
+    void OnRestrictTrade();
+    void printBlackList();
+    int process_recipe_avatar_items(int mainSlot, bool param2, unsigned short count, int cmdHeader, CStackableItem const* recipe);
+    int process_use_locked_multibox(int boxSlot, int keySlot, std::vector<std::pair<Inven_Item, bool> >& dest);
+    int process_use_unlocked_multibox(int boxSlot, int keySlot, std::vector<std::pair<Inven_Item, bool> >& dest);
+    void processAwakenReward(char stage);
+    void processFatigueCharac(int usedMin);
+    void processGrowTypeEvent(unsigned char p1, unsigned char p2, eChangeGrowTypeReason reason);
+    void processReturnUser();
+    void quest_action(int cmd, int questId, int triggerVal, int opt);
+
+    int quest_reward(int questId, int selectIdx, int repeatN);
+    unsigned int Redeem_Item(int redeemId);
+    unsigned int registerToBlackList(unsigned int accId);
+    unsigned int reqSendMailCertify();
+    void requestCubePremiumInfoIfContracted();
+    void reset_tag_info_to_me(unsigned int tagAccId);
+    void ResetMissionList();
+    void Return_Mercenary_Charac(unsigned int mercUid, competition_reward_result& reward);
+    void rewardExp(int expBase, int& bonusA, int& bonusB, int& spBefore, int& spAfter, eExpAddReason reason, bool triggerGrowth);
+    void SaveBackupSkillInfo(SIG_LOAD_PREMIUM_LETHE* src, ENUM_SKILL_TREE_KIND kind);
+    void saveCharacLinkMessageFlag(bool flag);
+    unsigned int SaveInventoryOnly();
+    unsigned int SaveMercenaryData();
+    void SaveMileage();
+    	                             // select_charac_set_visible_values 已在头(2397)跳过
+    unsigned int SellItemTimeChecker(unsigned int nowSec, unsigned int interval);
+    void send_broadcast_lottery_gold_message(unsigned long itemIdx, int count);
+    void send_charac_visible_data();
+    void Send_SoloPlay_Reject_NotiPack(const char* msg, int mode, int code);
+    void SendCeraShopGiftStatisticLog(unsigned int arg1, unsigned int arg2, unsigned long val64, unsigned int arg4);
+    unsigned int SendCoolTimeItemInfo(unsigned int nowMs);
+        // ---- Send 族（ORIG 地址已核 nm）----
+    void SendEventBringUpInfo(); void SendHasNoGoWithApcQuestInParty(Quest const* quest);
+                                                           // ORIG T 0x0866d972 _ZN5CUser30SendHasNoGoWithApcQuestInPartyEPK5Quest
+        void SendItemMakingSkillInfo();                    // ORIG T 0x0868b00a
+        void SendLimitItemUsageNotiInfo(int a, int b, int c);   // ORIG T 0x08688f02
+        void SendMail(bool certified);                     // ORIG T 0x08689f12（bool 重载；与既有 SendMail(MSG_MAILBOX_SEND*,unsigned) 并存）
+        void SendMultiMail(bool certified);                // ORIG T 0x0868a2dc
+        void SendSecretShopItemList();                     // ORIG T 0x0868860a
+        void SendUnlimitChallengePacket();                 // ORIG T 0x08686f58
+        // ---- set/Set 族 ----
+    void set_charac_guildkey_in_login(unsigned int guildKey, unsigned int characNo);
+                                                           // ORIG T 0x0866c04e
+        void set_fatigue_count_db(int type, int value);    // ORIG T 0x0868d4a2
+        // set_growth_power_exp_reward(int) / reset_ingame_event_history 等已存在。
+    void set_ingame_event_history(int eventType, int v1, int v2); void set_ingame_event_history(SIG_INGAME_EVENT_HISTORY* sig); void set_MailMsgData(MSG_MAILBOX_SEND* msg); void set_MultimailMsgData(MSG_MULTI_MAILBOX_SEND* msg); void set_skill_slot(char* data1, char* data2, int size); void SetAccountCargoDBData(Inven_Item* items, unsigned int money, unsigned int capacity);
+                                                           // ORIG T 0x0867d86e
+        void setAdvanceAltarIndex(short idx);              // ORIG W 0x0813490e
+        void SetAge(unsigned int age);                     // ORIG W 0x082300be
+        void SetBingoData(SIG_LOGIN_DATA& sig);            // ORIG T 0x0869126e
+        void SetBirth(char const* birth);                  // ORIG T 0x0867ecf0
+        void setBreakAwayRewardData(bool flag);            // ORIG W 0x0831d50c
+        // SetCharacInfo(int,char*) 已存在（0x2393 行）。
+    bool setCharacInfoDetail(int slot, unsigned int characNo, CHARAC_DATA* src);
+                                                           // ORIG T 0x0864ac1a _ZN5CUser19setCharacInfoDetailEijP11CHARAC_DATA
+    void setCharacLevelUpGift_AccountOnce(SIG_LEVELUP_GIFT_ACCOUNT_ONCE& sig);
+                                                           // ORIG T 0x08691dca
+    void setCharacLinkBonusSetting(int slot, bool flag); void setCharacLinkMessageFlag(bool flag); void SetCharacMercenaryInfo(int count, CHARAC_LOAD_MERCENARY* infos);
+                                                           // ORIG T 0x0868e544
+    void setCharacSlotCountInfo(unsigned char effectCnt, unsigned char limit);
+                                                           // ORIG T 0x0868b480
+    void setCharacSlotLimit(unsigned char limit); void SetChildrensDayEventValue(int slot, int v1, int v2); void SetCurCharacUsedGiftFatigueQuantity(unsigned int qty); void SetEquipment(int slot, void* invenData, int size, void* outData);
+                                                           // ORIG T 0x0865da4e
+    void SetEventCreateDnfReward(bool flag); void SetGrowthCreatureEventInfo(const SIG_GIVE_GROWTH_CREATURE_EVENT& sig);
+                                                           // ORIG T 0x08691cde
+    void SetGrowthWeaponEventInfo(const SIG_GROWTH_WEAPON_EVENT& sig);
+                                                           // ORIG T 0x08691bae
+    void SetGuildInfoProxy(STGuildProxy& proxy); void setHackUser(unsigned int a, unsigned int b, unsigned int c, unsigned int d, unsigned short type, unsigned int param6);
+                                                           // ORIG T 0x0867f748
+        int  SetInventory(SIG_LOAD_INVENTORY* sig);        // ORIG T 0x0864d160（返回 int；非 void）
+        // SendDungeonClearList/SendEffectItemInfo/sendInformNoticeFlag/
+        // sendReturnUserFirstLogin/SendRevengeDungeon/sendSecuRewardItem/
+        // SendTagCharacInfo/set_acc_info/GetParty 已存在于头。
+        // ---- 全局自由函数（fnEnumDungeonClears 草稿承载；与 ORIG 同名同址）----
+    bool fnEnumDungeonClears(short dungeonIdx, char diff, char* userData);
+                                                           // ORIG T 0x08678166 _Z18fnEnumDungeonClearscPc
+    public:
+        // ---- setters / 记录 ----
+        void SetLimitInfo(SIG_LIMIT_ITEM_INFO* info);                       // _ZN5CUser12SetLimitInfoEP19SIG_LIMIT_ITEM_INFO @0x086888f8
+        void SetMissionParameter(int kind, int value);                      // @0x08662558
+        void setPcRoomPlayTimeData(unsigned int startTime, unsigned int total, unsigned char rewardCnt);  // @0x0868f808
+        void SetPuUser(bool flag);                                          // @0x08692b58
+        int  SetPvpRecord(const PvpResultType& record);                     // @0x0864deea(ORIG 恒返 1)
+        void setQuestPoint(int qp);                                         // @0x0868acfe
+        void SetReceivedRequestType(char type);                             // @0x082308cc W
+        void setRecipeEqiupmentOption(Inven_Item& outItem, stEquipCondition cond, int matUpgrade,
+                                      const CStackableItem* stackable, int invenSpace);   // @0x0867306e
+        void SetServerGroup(ENUM_SERVER_GROUP group);                       // @0x082300ac W
+        bool SetSkill(SIG_LOAD_SKILL* skill, SIG_COMBO_SKILL* combo);       // @0x0864db20(Ghidra undefined4→bool,setne 无规范化风险,调用侧 test %al)
+        void setSkillCommandData(char* data);                               // @0x08654924
+
+        int  setTagCharacInfo(int idx, unsigned int characNo, TAG_CHARAC_DATA* data);   // @0x08690098
+        int  setTagCharacInven(TAG_CHARAC_INVEN_DATA* data);                // @0x08690226
+        void SetTradePunishOverThirtyDays(bool flag);                       // @0x08689850
+        void setUsedBreakAwayLuckPoint(bool flag);                          // @0x086971ee W(isUsedBreakAwayLuckPoint 头已有)
+        // ---- 嵌套类(布局按 ORIG objdump,见下注释) ----
+        // class st_monstorkill {
+        // public:
+        //     st_monstorkill() {}
+        //     bool Check(unsigned int now, unsigned short x1, unsigned short y1,
+        //                unsigned short xLim, unsigned short yLim, unsigned int limit); // @0x0823049c size 0x1cd
+        // private:
+        //     unsigned short m_maxX;      // +0x00 检测窗 maxX
+        //     unsigned short m_minX;      // +0x02
+        //     unsigned short m_maxY;      // +0x04
+        //     unsigned short m_minY;      // +0x06
+        //     unsigned int   m_lastTick;  // +0x08
+        //     int            m_count;     // +0x0c
+        //     short          m_deltaX;    // +0x10 = (short)(minX-maxX)
+        //     short          m_deltaY;    // +0x12 = (short)(minY-maxY)
+        // };  // sizeof 0x14
+
 
 };
 

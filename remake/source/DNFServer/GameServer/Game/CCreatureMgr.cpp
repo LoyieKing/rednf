@@ -1853,7 +1853,8 @@ user_creature::CCreatureItemFactory::~CCreatureItemFactory()
 {
 }
 
-user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatureItem(int type)
+user_creature::CCreatureItem* user_creature::CCreatureItemFactory::AcquireCreatureItem(
+    user_creature::CREATURE_ITME_TYPE type)
 {
     user_creature::CCreatureItem* item = 0;
     if (type == 1)
@@ -1960,7 +1961,9 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
         respondent.SetError(0x11);
         return false;
     }
-    CCreatureItem* newItem = GetInstanceCreatureItemFactory()->AcquireCreatureItem(1);
+    CCreatureItem* newItem =
+        GetInstanceCreatureItemFactory()->AcquireCreatureItem(
+            user_creature::CREATURE_ITME_TYPE_CREATURE);
     if (newItem == 0)
     {
         respondent.SetError(0x16);
@@ -1968,7 +1971,7 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
     }
     newItem->Set(it->second);
     newItem->SetItemId(creatureItemId);
-    newItem->SetCreatureItemType(1);
+    newItem->SetCreatureItemType(user_creature::CREATURE_ITME_TYPE_CREATURE);
     reinterpret_cast<CCreature*>(newItem)->SetStomach(100);
 
     CItem* itemScript = G_CDataManager()->find_item(creatureItemId);
@@ -2026,4 +2029,28 @@ bool user_creature::CCreatureMgr::Hatch(int addInfo)
         respondent.SetError(2);
     }
     return ok;
+}
+
+// ORIG _ZN13user_creature20CCreatureItemFactory7GetSizeENS_18CREATURE_ITME_TYPEE
+// W 0x0833f546：type==1 → m_creaturePool.Size()；type==0 → m_eggPool.Size()；
+// 其余返回 0。
+int user_creature::CCreatureItemFactory::GetSize(user_creature::CREATURE_ITME_TYPE type)
+{
+    if (type == user_creature::CREATURE_ITME_TYPE_CREATURE)
+        return m_creaturePool.Size();
+    if (type == user_creature::CREATURE_ITME_TYPE_EGG)
+        return m_eggPool.Size();
+    return 0;
+}
+
+// ORIG _ZN13user_creature20CCreatureItemFactory13GetRemainSizeENS_18CREATURE_ITME_TYPEE
+// W 0x0833f510：同 GetSize 分派，调 DynamicPool::Remain()。
+int user_creature::CCreatureItemFactory::GetRemainSize(
+    user_creature::CREATURE_ITME_TYPE type)
+{
+    if (type == user_creature::CREATURE_ITME_TYPE_CREATURE)
+        return m_creaturePool.Remain();
+    if (type == user_creature::CREATURE_ITME_TYPE_EGG)
+        return m_eggPool.Remain();
+    return 0;
 }

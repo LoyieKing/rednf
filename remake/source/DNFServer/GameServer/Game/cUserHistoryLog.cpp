@@ -11,6 +11,7 @@
 #include "CEnvironment.h"     // G_CEnvironment / get_server_group（Logout）
 #include "Secu_HackLogCheckByParty.h"  // MSG_MONSTER_DIE 完整定义（KillMonster）
 #include "CInventory.h"      // GetInvenRef / get_money（Login 实际使用完整类型）
+#include "STExpertJobScript.h"  // STExpertJobScript::GetLevel（Login 专家职业等级）
 
 
 #include "ItemGloballyUniqueIdentifierGenerator.h"  // itemGloballyUniqueIdentifier_t
@@ -118,8 +119,8 @@ void cUserHistoryLog::ItemAdd(INVEN_TYPE invenType, int a3, int a4,
                 reseal & 0xff, guid);
         }
         // ORIG：getItemXPos/YPos(m_user + 0x79700)（history 子对象 +0x40/+0x42 网格坐标）。
-        const cUserHistoryLog* posSrc =
-            reinterpret_cast<const cUserHistoryLog*>(
+        cUserHistoryLog* posSrc =
+            reinterpret_cast<cUserHistoryLog*>(
                 *reinterpret_cast<char* const*>(this) + 0x79700);
         unsigned short xPos = posSrc->getItemXPos();
         unsigned short yPos = posSrc->getItemYPos();
@@ -1370,14 +1371,14 @@ void cUserHistoryLog::UseDye(int a, int b, int c, const std::string& dyeName, in
 // ---- 此前 static helper 直读偏移，现改用具名成员 m_itemX/m_itemY。     ----
 
 // ORIG W _ZN15cUserHistoryLog11getItemXPosEv @0x08696000（movzwl 0x40(%eax)）
-unsigned short cUserHistoryLog::getItemXPos() const
+unsigned short cUserHistoryLog::getItemXPos()
 {
     return *reinterpret_cast<const unsigned short*>(
         reinterpret_cast<const char*>(this) + 0x40);
 }
 
 // ORIG W _ZN15cUserHistoryLog11getItemYPosEv @0x0869600c（movzwl 0x42(%eax)）
-unsigned short cUserHistoryLog::getItemYPos() const
+unsigned short cUserHistoryLog::getItemYPos()
 {
     return *reinterpret_cast<const unsigned short*>(
         reinterpret_cast<const char*>(this) + 0x42);

@@ -14,9 +14,6 @@
 //   CancelQuery       ctor T 0x08174ce2 | setQuery 0x08174d08 | getResult 0x08174d60
 //   ChargeQuery       ctor T 0x08174efe | setQuery 0x08174f52 | getResult 0x08174fc6
 //   CeraPointQuery    ctor T 0x081751b6 | setQuery 0x08175224 | getResult 0x081752cc
-#include <stddef.h>
-#include <string>
-#include <vector>
 //   AuthGarenaToken   init() T 0x081730c2 | init(char const*) T 0x081730d6 |
 //                     decrypt(char const*,int,GarenaAuthData&) T 0x081731f2
 //                     openSSLRSA_（静态对象 B 0x09404754）
@@ -39,7 +36,7 @@
 #include "GameTypes.h"  // cMyTrace 声明（真实定义属其它 TU）
 
 class MySQL;
-struct BillTransaction;   // TaiwanCash.h 权威定义（TwCash 批）
+#include "TaiwanCash.h"    // BillTransaction 权威布局（唯一归口；无环）
 class CUser;
 
 namespace Taiwan {
@@ -139,6 +136,9 @@ public:
     bool execQuery(MySQL& db);            // ORIG T 0x0817401c：恒 true
     int getResult(MySQL& db);             // ORIG T 0x08174026：恒 1
 
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
+
 private:
     int m_field0;                         // +0x00（ctor 清零；语义未建模【推断】）
     int m_resultCode;                     // +0x04（@out_code 回传位；ORIG 未实际写入）
@@ -153,6 +153,9 @@ public:
     bool setQuery(MySQL& db);             // ORIG T 0x08174052
     bool execQuery(MySQL& db);            // ORIG T 0x08174076：db.exec(true)
     int getResult(MySQL& db);             // ORIG T 0x08174092
+
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
 
 private:
     const char* m_account;                // +0x00
@@ -169,6 +172,9 @@ public:
     bool setQuery(MySQL& db);             // ORIG T 0x081742bc
     bool execQuery(MySQL& db);            // 与其它 Query 同型 db.exec(true)
     int getResult(MySQL& db);             // ORIG T 0x081742fc
+
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
 
 private:
     const char* m_account;                // +0x00
@@ -187,6 +193,9 @@ public:
     bool setQuery(MySQL& db);             // ORIG T 0x08174866
     bool execQuery(MySQL& db);
     int getResult(MySQL& db);             // ORIG T 0x081748d6
+
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
 
 private:
     const char* m_account;                // +0x00
@@ -209,6 +218,9 @@ public:
     bool execQuery(MySQL& db);
     int getResult(MySQL& db);             // ORIG T 0x08174b44
 
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
+
 private:
     int m_resultCode;                     // +0x00（@out_code）
     BillTransaction m_trans;              // +0x04（trans 拷贝；tranNo 在 +0x08 读）
@@ -223,6 +235,9 @@ public:
     bool setQuery(MySQL& db);             // ORIG T 0x08174d08
     bool execQuery(MySQL& db);
     int getResult(MySQL& db);             // ORIG T 0x08174d60
+
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
 
 private:
     int m_resultCode;                     // +0x00
@@ -239,6 +254,9 @@ public:
     bool setQuery(MySQL& db);             // ORIG T 0x08174f52
     bool execQuery(MySQL& db);
     int getResult(MySQL& db);             // ORIG T 0x08174fc6
+
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
 
 private:
     const char* m_account;                // +0x00
@@ -260,6 +278,9 @@ public:
     bool setQuery(MySQL& db);             // ORIG T 0x08175224
     bool execQuery(MySQL& db);
     int getResult(MySQL& db);             // ORIG T 0x081752cc
+
+
+    friend class TaiwanCash;  // ORIG 同 TU 内联直读字段（TwCash 批）
 
 private:
     const char* m_account;                // +0x00
@@ -295,7 +316,7 @@ class SigLoadGeolocation
 public:
     void init();                          // ORIG W 0x0815de9c
     void set(char* country);              // ORIG W 0x0815decc：strncpy(第 count 条, s, 15)
-    void setData(const SigLoadGeolocation& other);  // ORIG W 0x0815df06
+    void setData(SigLoadGeolocation& other);            // ORIG W 0x0815df06
 
 private:
     int m_count;                                        // +0x00 已写入条目数
@@ -308,7 +329,7 @@ class SigLoadRestrictPolicy
 public:
     void init();                              // ORIG W 0x0815dda8
     void set(int restrictValue, int index, char flag);  // ORIG W 0x0815de02
-    void set(const SigLoadRestrictPolicy& other);       // ORIG W 0x0815de38 全量拷贝
+    void set(SigLoadRestrictPolicy& other);             // ORIG W 0x0815de38 全量拷贝
 
 private:
     int m_restrictValue;                                  // +0x000（getRestrictValue 读）
@@ -361,28 +382,37 @@ void GarenaAuthPCRoom(CUser* user);
 
 // ---------------------------------------------------------------------------
 // Packet_Pcroom_Response —— PCRoom 响应包（ORIG W ctor 0x0822be14：
-// PacketHeader(0xfaf,0x1f) 展开 + 清零）。无权威 PacketHeader 类，字段手工
-// 排布与 ELF _ZN12PacketHeaderC1Ett @0x08110b70 布局一致（type/len/zero 区）。
+// PacketHeader(0xfaf,0x1f) 展开 + 清零）。无权威 PacketHeader 类；本类按
+// ELF _ZN12PacketHeaderC1Ett @0x08110b70 手工排布（type/len/清零区），槽位
+// 偏移全部 ORIG 实测，访问器经 memcpy 保证对齐无关。
 // ---------------------------------------------------------------------------
+#include <string.h>
+
 class Packet_Pcroom_Response
 {
 public:
-    Packet_Pcroom_Response();
+    Packet_Pcroom_Response();             // ORIG W 0x0822be14
 
-    unsigned short m_type;                // +0x00 packet 类型 0xfaf
-    unsigned short m_len;                 // +0x02 包长 0x1f
-    unsigned short m_zero4;               // +0x04 PacketHeader ctor 清零区
-    unsigned int m_zero6;                 // +0x06（覆盖至 +0x09，PacketHeader 尾）
-    unsigned int m_fieldA;                // +0x0a（ctor 清零）
-    unsigned int m_fieldE;                // +0x0e（ctor 清零）
-    unsigned int m_result;                // +0x12（GarenaAuthPCRoom 写 1）
-    unsigned int m_patchTime;             // +0x16（time()+0x93a80）
-    unsigned char m_mobileAuth;           // +0x1a（写 1）
-    unsigned char m_gcaType;              // +0x1b（写 0xb）
-    unsigned char m_pad1c[3];             // +0x1c..+0x1e（+0x1e ctor 清零含于此）
+    void setType(unsigned short t)        { wr16(0x00, t); }
+    void setLen(unsigned short l)         { wr16(0x02, l); }
+    unsigned short getLen() const         { return rd16(0x02); }
+    void clearHeaderTail()                { memset(m_buf + 4, 0, 6);
+                                            wr32(0x0a, 0); wr32(0x0e, 0);
+                                            m_buf[0x1e] = 0; }
+    void setResult(unsigned int v)        { wr32(0x12, v); }
+    void setPatchTime(unsigned int t)     { wr32(0x16, t); }
+    void setMobileAuth(unsigned char c)   { m_buf[0x1a] = c; }
+    void setGcaType(unsigned char c)      { m_buf[0x1b] = c; }
+
+private:
+    unsigned short rd16(int off) const;
+    void wr16(int off, unsigned short v);
+    void wr32(int off, unsigned int v);
+
+    unsigned char m_buf[0x20];            // 总窗（ORIG len 0x1f + 对齐尾）
 };
-static_assert(sizeof(Packet_Pcroom_Response) == 0x20 &&
-                  (offsetof(Packet_Pcroom_Response, m_fieldE) == 0xe),
+
+static_assert(sizeof(Packet_Pcroom_Response) == 0x20,
               "Packet_Pcroom_Response ABI drift");
 
 }  // namespace Taiwan

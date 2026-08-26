@@ -36,9 +36,12 @@ void CHades::ExpUp(unsigned int flag)
 // ORIG 0x084b9718：缓存(m_connSec) 与 proxy 当前连接秒数不一致则重登并同步 cate=3。
 bool CHades::needLogin()
 {
-    int cached = m_connSec;
-    int cur = GlobalData::s_hades_proxy->GetHadesSocketConnSec();
-    if (cached != cur)
+    // ORIG 将缓存值保持在 callee-saved 寄存器（push %ebx）并经 setne/test 判定，
+    // register 限定符诱导相同分配形态。
+    register int cached = m_connSec;
+    register bool differ =
+        (GlobalData::s_hades_proxy->GetHadesSocketConnSec() != cached);
+    if (differ)
     {
         Send_Login();
         StdCateUpdate(3, 0);
@@ -109,9 +112,9 @@ void CHades::Send_UserStatus()
 
     unsigned int status = 0;
 
-    // ORIG 逐次调用 getSecuType（不缓存中间值），内联条件使 movzbl/and/test
-    // 序列与 ORIG 一致；guard 分支三路汇合后统一置位。
-    bool hasSecuGuard = false;
+    // ORIG 逐次调用 getSecuType（不缓存中间值）；guard 经 callee-saved 寄存器
+    // 承载三路判定结果（ORIG mov $1/$0 + jmp 汇合形态），register 诱导分配。
+    register bool hasSecuGuard;
     if ((m_user->getSecuType() & 1) != 0)
     {
         hasSecuGuard = true;
@@ -148,6 +151,9 @@ void CHades::UseFatigue(unsigned int count)
     {
         StdCateUpdate(1, 0);
         m_useFatigueCnt = 0;
+    }
+    else
+    {
         return;
     }
 }

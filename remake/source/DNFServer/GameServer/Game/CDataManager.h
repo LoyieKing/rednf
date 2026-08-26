@@ -1384,14 +1384,19 @@ public:
                                           CActionPointEtcParameter& param);
     // 重建辅助访问器（ORIG 调用方内联直读 +0x18；实现见 SyncScriptDeps.cpp）。
     const std::map<unsigned short, const CActionPointEx*>& getActionPointRefs() const;
+public:
+    // Wave5 APSystem 批：m_medalRewards/m_todayRewards 置于 public（DB_LoadRewardMedal::
+    // Select / GetTodayRewardAndSendMail / Inter_LoadRewardMedal::SendMail 跨 TU 直读；
+    // 布局/偏移不变）。
+    std::vector<_MedalRewardItem> m_medalRewards;                                // +0x60
+    std::vector<APSystem::_TodayRewardItem> m_todayRewards;        // +0x6c
+
 private:
     // ORIG ClearData 0x088948fc 布局（32 位：4×map(0x18) + 2×vector(0xc) = 0x78）
     std::map<unsigned short, std::vector<CActionPointEx> > m_actionPoints;       // +0x00
     std::map<unsigned short, const CActionPointEx*> m_actionPointRefs;           // +0x18
     std::map<unsigned int, std::string> m_rewardMessages;                        // +0x30
     std::map<unsigned int, std::string> m_rewardMessages2;                       // +0x48
-    std::vector<_MedalRewardItem> m_medalRewards;                                // +0x60
-    std::vector<_SIG_LOAD_ACTION_POINT::_TodayRewardItem> m_todayRewards;        // +0x6c
 };
 }
 
@@ -1458,9 +1463,14 @@ struct ActionDefine
     std::vector<_Action> m_actions;  // +0x04
 };                               // sizeof 0x10
 
-// _StarRestFeeByGold（[star reset fee gold] 段元素；布局沿用原 [推断] 存根，
-//   完整字段待 AdvanceAltarShopParameter 批次按报告核实）。
-struct _StarRestFeeByGold { int m_field0; };   // [推断]
+// _StarRestFeeByGold（[star reset fee gold] 段元素；ctor ORIG W 0x88a3760
+//   memset(this,0,4)（AltarMisc 批次 objdump 核实），sizeof 4、仅一个 int。
+//   用户 inline ctor 使默认构造点发射 ORIG 弱符号 _StarRestFeeByGoldC1/C2）。
+struct _StarRestFeeByGold
+{
+    _StarRestFeeByGold() { std::memset(this, 0, sizeof(*this)); }  // ORIG W 0x88a3760
+    int m_field0;                       // +0x00（star 等级 → 金币费用记录值）
+};
 // ORIG BuyUpgradeData D1 0x88a3630：+0x0c string、+0x10 vector<FieldType::T>、
 // +0x1c map<int,map<FieldType::T,FieldData>>（importAdvanceAltarShopParameter
 // 0x88a10cc 的 [list] 段把每行 rowMap 插入该嵌套 map，key=FieldType-0 行的
@@ -1477,6 +1487,21 @@ struct BuyUpgradeData
     // ORIG T 0x088a2e4c：m_listMap.find(level) 未命中→0；再 find(ft) 未命中→0；
     // 命中返回 &fit->second（FieldData*，调用方取 +4 m_value）。
     FieldData* getFieldDataPoint(int level, FieldType::T ft);
+
+    // ---- misc/查询组（docs/class_func_reports/advancealtar__BuyUpgradeData/）----
+    // ORIG W 0x88a5784：+0/+4 int 直拷、+8 仅低 1 字节（ORIG 视其为 bool 型
+    // 字段）、+0xc string 赋值、+0x10 vector<FieldType::T> 赋值、+0x1c
+    // LevelFieldDataMap 赋值；返 *this。
+    BuyUpgradeData& operator=(const BuyUpgradeData& other);   // ORIG W 0x88a5784
+    int getFieldData(int level, FieldType::T ft);             // ORIG T 0x088a2c62
+    int getFieldType(int idx) const;                          // ORIG T 0x088a3012
+    int getMaxLevel() const;                                  // ORIG T 0x088a3322
+    int getMinLevel() const;                                  // ORIG T 0x088a33c0
+    FieldData* getMinLevelFieldDataPoint(FieldType::T ft, int& outLevel);  // ORIG T 0x088a2f1a
+    int getStatFirstPos() const;                              // ORIG T 0x088a2f7a
+    int getStatIconIndex(FieldType::T ft) const;              // ORIG T 0x088a3056
+    std::string getStatStringIndex(FieldType::T ft) const;    // ORIG T 0x088a3106（sret）
+    bool isValidLevel(int level);                             // ORIG T 0x088a345e
 };
 
 // ORIG BuyShopData（reset @ 0x88a1090）：+0x00 int；三 vector<BuyUpgradeData> 于 +0x04/+0x10/+0x1c。
@@ -1490,6 +1515,7 @@ struct BuyShopData
 
     // ORIG T 0x088a105c：type 0/1/2 → &m_vecT0/T1/T2，其它 → 0。
     std::vector<BuyUpgradeData>* getBuyUpgradeDataVec(AdvanceAltarShopType::T type);
+    void reset();  // ORIG T 0x088a1090：+0=0 + 三 vector clear（misc 批次定义）
 };
 
 class StageTimeLineParameter
@@ -1498,6 +1524,11 @@ public:
     StageTimeLineParameter();
     ~StageTimeLineParameter();
     void reset();
+    // ORIG T 0x889a930 / 0x889a032：[time line]/[phase] 段解析与 ActionDefine
+    // 指针回填（AltarMisc 批次定义于 advancealtar_misc.cpp）。
+    int importPhase(TimeLine& timeLine);
+    int checkAndSetActionDefine(TimeLine& timeLine,
+                                const std::map<int, ActionDefine>& defines);
     int importStageTimeLineParameter(const char* path);
     int importSummonObject();   // ORIG _ZN12advancealtar22StageTimeLineParameter18importSummonObjectEv 0x0889a21e T
                                 // （[summon object] 段逐行解析；0=段结束/成功，非 0=错误码）
@@ -1530,6 +1561,10 @@ public:
     // BuyShopData::getBuyUpgradeDataVec(type)。
     std::vector<BuyUpgradeData>* getBuyUpgradeDataVec(int key,
                                                       AdvanceAltarShopType::T type);
+    // ORIG T 0x088a2bc0：遍历 m_starRestMap 取最大 key maxKey（初值 0），
+    // 返回 m_starRestMap[maxKey] 元素值（map<int,_StarRestFeeByGold>::operator[]
+    // 缺省插入保证非空）（AltarMisc 批次实现于 advancealtar_misc.cpp）。
+    int getMaxStarResetGoldFee();
     // ORIG D1 0x88a0fa2：+0x00 map<int,BuyShopData> +0x18
     // map<int,_StarRestFeeByGold>，sizeof 0x30
     std::map<int, BuyShopData> m_buyShopMap;     // +0x00
@@ -1543,6 +1578,14 @@ public:
     ~RewardParameter();
     int importAchievementRewardParameter(const char* path);  // ORIG _ZN12advancealtar15RewardParameter32importAchievementRewardParameterEPKc（0=成功，0x362…=错误码）
     void reset();                                             // ORIG 0x0889af9c T：m_rewardMap.clear()
+    // ORIG T 0x0889b5a8（_ZNK12advancealtar15RewardParameter24getAchievementRewardDataE
+    // NS_15StageDifficulty1TEi）：m_rewardMap 查表命中返回元素指针；Wave5 AltarProc
+    // 批次追加声明（定义归 RewardParameter owner）
+    advancealtar::AchievementRewardData* getAchievementRewardData(
+        advancealtar::StageDifficulty::T diff, int clearCount) const;
+    // ORIG T 0x0889b544（_ZNK12advancealtar15RewardParameter24getAchievementRewardDataEi）：
+    // m_rewardMap.find(type) 命中→元素指针，未命中→0。（AltarMisc 批次）
+    advancealtar::AchievementRewardData* getAchievementRewardData(int type) const;
 
     // ORIG C1 0x889af74 / D1 0x889af88 / reset / import 全部以 this+0 直接作为
     // map<int,AchievementRewardData> 操作（0x889afb0 insert 实证），sizeof 0x18。
@@ -1734,14 +1777,26 @@ private:
 class StageMapList
 {
 public:
-    // vector 元素（loadList 0x0836485c 实证，0xc）：+0 uniqueId、+4 StageData
-    // 首字段、+8 nextId（末元素后继写法见 loadList）。
+    // vector 元素（loadList 0x0836485c 实证，stride 0xc→ORIG 结构 0x10）：+0
+    // uniqueId、+4 StageData 首字段、+8 nextId、+0xc 标志字节（loadList 写 0/1，
+    // getNextStage 0x08364e58 读下一节点该字节；语义【推断】）。
     struct _StageMapSummary
     {
+        _StageMapSummary()                      // ORIG W C1/C2 @0x083748aa：memset(this,0,0x10)
+            : m_uniqueId(0), m_stageId(0), m_nextId(0), m_flags(0), m_pad0d()
+        {
+        }
         int m_uniqueId;   // +0x00（makeStageMapUniqueId）
         int m_stageId;    // +0x04（map 键）
-        int m_nextId;     // +0x08
+        int m_nextId;     // +0x08（链式后继 stageId；末元素由 loadList 决定）
+        unsigned char m_flags;    // +0x0c（loadList 常规=0 / 幕区收尾=1【推断】）
+        unsigned char m_pad0d[3]; // +0x0d..+0x0f（保 sizeof 0x10）
     };
+
+    // ---- LfAltarStage 批追加（advancealtar clearStage/setNextStage 依赖）----
+    bool isExist(int stageIdx) const;          // ORIG T 0x08364df6：m_map.find!=end
+    int getNextStage(int stageIdx, bool& outFlags) const;  // ORIG T 0x08364e58（定义 advancealtar_Manager.cpp）
+    int getFirstStageIndex() const;            // ORIG W 0x081347c0：返 m_firstStageId
 
     StageMapList();
     ~StageMapList();
@@ -1817,6 +1872,13 @@ public:
     std::vector<int> m_vec30;                                // +0x30
     std::map<int, int> m_map3c;                              // +0x3c
     std::map<int, std::vector<pieceQuestRewardStatus> > m_map54;  // +0x54
+
+    // ---- 奖励查询（报告 docs/class_func_reports/QuestParameterScript/）----
+    // ORIG T 0x08a6bd1c：map<char,int> find，未命中返回 100。
+    int getRewardWeight(char level);
+    // ORIG T 0x08a6bd86 / 0x08a6bda6：vector<int>::at 取值（越界抛出）。
+    int getRewardExp(int idx);                             // m_vec24
+    int getRewardGold(int idx);                            // m_vec30
 };
 
 class TrainingQuestScript;
@@ -2332,9 +2394,23 @@ class AradJumping_Script
 {
 public:
     AradJumping_Script();
+    // ORIG _ZNK4ARAD6SCRIPT18AradJumping_Script16getCurRewardItemEiiRm
+    // 0x088b424a（报告 ARAD__SCRIPT__AradJumping_Script/getCurRewardItem.md）：
+    // 线性扫 m_rewardItems，(m_job==job && m_growValue==growValue) → out=m_money。
+    bool getCurRewardItem(int job, int growValue, unsigned long& out) const;
     ~AradJumping_Script();
+
 private:
-    char m_pad[0xc];
+    // ORIG vector 元素 12 字节（getCurRewardItem 汇编 +0/+4/+8 访问实证；
+    // importScript 填充归脚本装载批次）。
+    struct _AradJumpingRewardItem
+    {
+        int m_job;              // +0x00
+        int m_growValue;        // +0x04
+        unsigned long m_money;  // +0x08（ia32 ulong=4B）
+    };
+
+    std::vector<_AradJumpingRewardItem> m_rewardItems;   // vector=0xc 与 ORIG 一致
 };
 }
 }
@@ -2687,6 +2763,20 @@ public:
         unsigned int up, const CItem* itemScript,
         std::vector<std::pair<int, int> >& items,
         const upgrade_table_t& table);                              // T 0x08546938
+    // ---- G7 miscB 纯追加（定义 WongWorkMiscB_A.cpp）----
+    // ORIG T 0x085491d6 _ZN8WongWork12CItemUpgrade20ProcUpgradeChronicleEP5CUsersjsjcRSt6vectorIiSaIiEE
+    int ProcUpgradeChronicle(CUser* user, short slotA, unsigned int a3,
+                             short slotB, unsigned int a5, char chanceGrade,
+                             std::vector<int>& items);
+    // ORIG T 0x08546a96 _getAdditionalDisjointItemEjPK5CItemRSt6vectorISt4pairIiiESaIS6_EERK15upgrade_table_tb（bool 重载版）
+    void _getAdditionalDisjointItem(
+        unsigned int up, const CItem* itemScript,
+        std::vector<std::pair<int, int> >& items,
+        const upgrade_table_t& table, bool flag);
+    // ORIG T 0x0854a916 _ZN8WongWork12CItemUpgrade27find3rdChronicleEnchantDataE21STEnchantSystemMapKeyi
+    // （STEnchantSystemMapKey 完整类型：STStackableScript.h，4 字节）。
+    STEnchantSystemMapData* find3rdChronicleEnchantData(
+        STEnchantSystemMapKey key, int type);
 };
 }
 namespace WongWork { class CItemUpgrade_Separate; }  // ORIG _ZN8WongWork21CItemUpgrade_Separate…（权威声明 CItemUpgrade_Separate.h）
@@ -2863,6 +2953,10 @@ public:
     void SendNotiSetDurability();
     // ORIG T 0x082f89bc _ZN28CAutoMarketConditionsControl21GetGoldDropAmountRateEii
     int GetGoldDropAmountRate(int level, int gold);
+    // ORIG T 0x082f8ae8 / T 0x082f8c8c（LinkClosureB_Misc.cpp 实现；bizB 清单批）
+    float GetItemDropRate(int levelRange);
+    bool ChangeItemRarity(int* itemRarity, int* outItemRarity, int raritySize,
+                          double controlRarity);
 
     int m_field00;              // +0x00（ctor 置 0；非 0 启用折算）
     double m_goldRate[10];      // +0x04 [control of gold drop amount rate]（fstpl 0x4(%eax,%ebx,8)）
@@ -3049,6 +3143,8 @@ public:
     std::vector<stRefillItemInfo::RefillItem>* GetRefillItemInfo() const;  // ORIG W 0x8693f32
     int GetMaxGradePvPChannel();
     int GetPvPChannelType();   // ORIG W 0x85e68a8：返回 m_pvpChannel.m_channelType
+    int GetPvPMode();          // ORIG W 0x844d4ae（fair_pvp/online_preliminary RequestMap 调用；producer 待 CDataManager 域批次，符号暂缺）
+    int GetPvPTeamCount();     // ORIG T 0x08568ce0（online_preliminary GetPlayCountPerOneTeam/TeamInfoSecond::refresh 调用；producer 归 CDataManager 域批次，符号暂缺）
     int GetUpgradeRevisionPvPChannel();
     int IsDBLogItem(unsigned int itemIdx);
     float getUpgradeItemRepairCostRate(int idx, bool flag) const;

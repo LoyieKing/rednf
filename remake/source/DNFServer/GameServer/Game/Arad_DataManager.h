@@ -137,6 +137,10 @@ public:
     static void isEmpty(char* tag, CUser* user, unsigned short slot);
     static void CheckItemLock(char* tag, CUser* user, unsigned short slot);
     static void delete_item(char* tag, CUser* user, unsigned short slot);
+    // ORIG W _ZN4ARAD11PRINT_ERROR9find_itemEPcP5CUseri 0x08197caf：
+    // "%s : find_item() fail [item_id:%d] [charac_no:%d]"（定义归
+    // Game/AradPeriodB.cpp，LinkClosureB.AradServers）。
+    static void find_item(char* tag, CUser* user, int itemId);
 };
 
 

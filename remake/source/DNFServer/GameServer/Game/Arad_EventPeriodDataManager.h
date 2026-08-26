@@ -15,6 +15,8 @@
 
 #include <vector>
 #include <list>
+namespace ARAD { class FnRewardLethe; class FnRewardMomoji; }
+
 
 #include "Arad_DataManager.h"   // ARAD::Arad_InterfaceGameScript
 #include "GameTypes.h"          // Mutex / Guard<Mutex>（ORIG +0x24 锁）
@@ -44,14 +46,24 @@ struct SEventPeriodData
 };
 
 // ARAD::SCRIPT::SRewardPeriodData —— +0x18 vector 元素类型。
-// ORIG nm：SearchEventPeriod::operator()(SRewardPeriodData const&) @0x819a8b4 W，
-// 且 find_if<vector<SRewardPeriodData>> 存在 → +0x18 成员为该 vector（非 int）。
-// 字段布局【推断】与 SEventPeriodData 同构（eventCode/beginTime/endTime）。
+// ORIG 布局由 SRewardPeriodDataC1Eimsjj 0x088b439c 反汇编实证（5 字段）：
+//   C1(int eventCode, unsigned long f4, short f8, unsigned int begin, unsigned int end)
+//   +0x00 int   m_eventCode
+//   +0x04 u32   m_field4（eventReward<Fn> 转发 operator() 第2参 itemIndex）
+//   +0x08 u16   m_field8（转发第3参 count，sw 符号扩展）
+//   +0x0c u32   m_beginTime（eventReward 判 begin<=time）
+//   +0x10 u32   m_endTime（判 time<end）
+// sizeof = 0x14。旧 12 字节三字段【推断】版与 ORIG 不符，已按实证修正。
 struct SRewardPeriodData
 {
-    unsigned int m_eventCode;
-    unsigned int m_beginTime;
-    unsigned int m_endTime;
+    SRewardPeriodData(int eventCode, unsigned long f4, short f8,
+                      unsigned int beginTime, unsigned int endTime);
+
+    int           m_eventCode;    // +0x00
+    unsigned int  m_field4;       // +0x04
+    short         m_field8;       // +0x08（对齐 pad +0x0a..+0x0b）
+    unsigned int  m_beginTime;    // +0x0c
+    unsigned int  m_endTime;      // +0x10
 };
 
 }  // namespace SCRIPT
@@ -86,6 +98,11 @@ public:
     bool operator()(SCRIPT::SEventPeriodData const& data) const
     {
         return data.m_eventCode == m_eventCode;
+    }
+    // ORIG W 0x0819a8b4：SRewardPeriodData 版本（eventReward<F> 的 find_if 使用）。
+    bool operator()(SCRIPT::SRewardPeriodData const& data) const
+    {
+        return data.m_eventCode == (int)m_eventCode;
     }
 
 private:
@@ -122,6 +139,12 @@ public:
     void delUserRewardData(CUser* user);
     // ORIG 0x0819589e：param >= 0 时写入 m_field8（GM 建号回溯天数）。
     void setCreatePeriod_GM(int days);
+    // ORIG 模板成员（W 实例）：0x0819abc8 eventReward<FnRewardLethe>、
+    // 0x0819adb6 eventReward<FnRewardMomoji>。定义（含 FnReward* 函数对象）
+    // 归 Arad_EventPeriodDataManager 生产批次；此处仅声明供派发器调用。
+    template <typename F>
+    bool eventReward(ENUM_REPEAT_EVENT_CODE eventCode, unsigned int time, CUser* user);
+
 
 private:
     int m_field8;                    // +0x08（ctor 置 0；setCreatePeriod_GM 写入）

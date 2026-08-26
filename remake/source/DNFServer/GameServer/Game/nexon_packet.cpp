@@ -1,6 +1,8 @@
 // ============================================================================
 // nexon_packet 域实现。逐符号按 ORIG 反汇编转写（df_game_r）。
 // ============================================================================
+#include "nexon_packet.h"
+
 #include <arpa/inet.h>
 
 #include <string.h>
@@ -17,7 +19,7 @@ CPacketHelper::CPacketHelper(unsigned char* buffer, int size, int startOffset)
 }
 
 // ORIG 0x086940f2 (sz 0xa): return this->m_offset;
-int CPacketHelper::get_offset() const
+int CPacketHelper::get_offset()
 {
     return m_offset;
 }
@@ -26,7 +28,7 @@ int CPacketHelper::get_offset() const
 //   if (m_offset + count >= m_size) return 0;
 //   for (i=0; i<count; ++i) { m_buffer[m_offset++] = src[i]; }
 //   return 1;
-bool CPacketHelper::padding(const unsigned char* src, int count)
+bool CPacketHelper::padding(unsigned char* src, int count)
 {
     if (static_cast<int>(static_cast<unsigned>(m_offset)) + count >= m_size)
         return false;
@@ -110,19 +112,19 @@ stLoginPacket::stLoginPacket(stLogin& login)
 
     CPacketHelper helper(m_body, 0x1000, 0);
 
-    helper.padding(reinterpret_cast<const unsigned char*>(&login.m_type), 1);
-    helper.padding(reinterpret_cast<const unsigned char*>(&login.m_accLen), 1);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_type), 1);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_accLen), 1);
     helper.padding(
-        reinterpret_cast<const unsigned char*>(login.m_account),
+        reinterpret_cast<unsigned char*>(login.m_account),
         static_cast<int>(static_cast<unsigned char>(login.m_accLen)));
-    helper.padding(reinterpret_cast<const unsigned char*>(&login.m_charLen), 1);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_charLen), 1);
     helper.padding(
-        reinterpret_cast<const unsigned char*>(login.m_characName),
+        reinterpret_cast<unsigned char*>(login.m_characName),
         static_cast<int>(static_cast<unsigned char>(login.m_charLen)));
-    helper.padding(reinterpret_cast<const unsigned char*>(&login.m_ip), 4);
-    helper.padding(reinterpret_cast<const unsigned char*>(&login.m_canTry), 1);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_ip), 4);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_canTry), 1);
     // ORIG 一条 padding 长度 8：连续覆盖 userIdx(+0x206..+0x209)+accId(+0x20a..+0x20d)
-    helper.padding(reinterpret_cast<const unsigned char*>(&login.m_userIdx), 8);
+    helper.padding(reinterpret_cast<unsigned char*>(&login.m_userIdx), 8);
 
     SetLength(static_cast<unsigned short>(helper.get_offset() + 1));
     m_cmd = 0x27;

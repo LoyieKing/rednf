@@ -19,6 +19,7 @@
 #include "PvP_Room.h"
 #include "CSystemTime.h"
 #include "InterfacePacketBuf.h"
+#include "PacketGuard.h"
 #include "TimerQueue.h"
 #include "GameWorld.h"
 #include "CDataManager.h"
@@ -38,20 +39,6 @@
 #include "Packet_Server_Match_data.h"
 
 // ============================================================================
-// PacketGuard（ORIG 0xc 字节：InterfacePacketBuf + int + char；
-//      构造/析构由 GameStubs 提供单例定义 _ZN11PacketGuardC1/D1Ev）
-// ============================================================================
-class PacketGuard : public InterfacePacketBuf
-{
-public:
-    PacketGuard();
-    ~PacketGuard();
-
-private:
-    int m_nField4;
-    char m_cField8;
-};
-
 // ============================================================================
 // CSwitchLog（PvP 日志；_ZN10CSwitchLogC1EPKciii / clEPKcz 由 GameStubs 提供）
 // ============================================================================

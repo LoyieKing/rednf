@@ -55,14 +55,7 @@ enum SECURITY_PROTCTION
     SECURITY_PROTCTION_0x16 = 0x16
 };
 #endif
-class CSecu_ProtectionField
-{
-public:
-    int Check(CUser* user, SECURITY_PROTCTION type);
-    int GetCashShopErr(int err);
-private:
-    char m_pad[0x18];
-};
+// CSecu_ProtectionField 权威完整定义见 CInventory.h:400 区（本地最小镜像已删，避免 ODR）。
 
 // private_store：CPrivateStoreMgr 真实符号由 CPrivateStoreMgr.cpp 提供；isDollCreated 无 producer。
 namespace private_store

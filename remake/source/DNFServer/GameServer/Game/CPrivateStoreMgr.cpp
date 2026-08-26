@@ -1699,7 +1699,7 @@ bool CPrivateStore::CheckValidItem(PrivateStoreItem& item, int prevAddInfo2)
 // 槽位有效且非空；type==1 校验装备外数量余量；type==2 仅 avatar 且非临时键、未过期。
 bool CPrivateStore::CheckValidItem(INVEN_TYPE type, int slot, int count)
 {
-    const CInventory* inventory = m_pSeller->getCurCharacInvenR();
+    CInventory* inventory = m_pSeller->getCurCharacInvenW();  // 非 const：IsTempKey ORIG 非 const
     if (!inventory->CheckValidSlot((int)type, slot))
         return false;
 
@@ -1716,8 +1716,7 @@ bool CPrivateStore::CheckValidItem(INVEN_TYPE type, int slot, int count)
     {
         if ((int)item.m_field1 != Inven_Item::ITEM_TYPE_AVATAR)
             return false;
-        const WongWork::CAvatarItemMgr* mgr =
-            inventory->GetAvatarItemMgrR();   // const 重载（CInventory.h:446）
+        WongWork::CAvatarItemMgr* mgr = inventory->GetAvatarItemMgrW();
         if (mgr->IsTempKey((int)item.m_addInfo2))
             return false;
         if (mgr->GetExpireDate((int)item.m_addInfo2) != 0)

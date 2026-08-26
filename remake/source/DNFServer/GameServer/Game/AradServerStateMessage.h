@@ -1,12 +1,23 @@
 // df_game_r Game/ AradServerStateMessage（批3：从 GameStubs.cpp 迁移）。
-// 纯布局结构体（ORIG 仅弱符号构造），插入 ARAD 事件状态 map。
+// 布局升级（ARAD::Arad_ServerStateManager 批）：ORIG 12B packed POD。
+//   ctor _ZN22AradServerStateMessageC1Ev @0x8186652：3×movl $0（+0/+4/+8）+
+//   movw $0（+0）+ movl $0（+2）—— 等价全对象清零。
+// 消费方证据：
+//   checkContinus @0x81a95dc：value word(+0)==1 判生效、dword(+2) 对 curSec 比较；
+//   insertStateNoSync/deleteState/saveServerState/sendEffectPacket：整 12B 拷贝/
+//   put_binary(…,0xc)。
 #ifndef DNF_ARADSERVERSTATEMESSAGE_H
 #define DNF_ARADSERVERSTATEMESSAGE_H
 
-class AradServerStateMessage
+class __attribute__((packed)) AradServerStateMessage
 {
 public:
     AradServerStateMessage();
+    short         m_active;   // +0x00（==1 表示状态生效）
+    unsigned int  m_endSec;   // +0x02（到期秒）
+    unsigned char m_pad06[6]; // +0x06..+0x0b（发送/拷贝覆盖域，未单独访问）
 };
+
+typedef char AradServerStateMessage_size_check[(sizeof(AradServerStateMessage) == 0xc) ? 1 : -1];
 
 #endif  // DNF_ARADSERVERSTATEMESSAGE_H

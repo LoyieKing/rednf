@@ -88,54 +88,6 @@ public:
     static void makeRequest(int uid, unsigned int accId);
 };
 
-namespace exchange_server
-{
-// ORIG W 组 0x0823465a/0x0823468a/0x082346bc/0x082346fc/0x0823470f。
-// 布局按 Increment*/Reset 反汇编实证（6 个计数器）；仅 SelectCharac 命中计数使用，
-// 权威头落地后应整体迁出本 TU。
-class CExchangeServerHitRate
-{
-public:
-    CExchangeServerHitRate() { Reset(); }
-    void Reset()                            // 逐 dword 清零 ×6（0x82346bc）
-    {
-        m_dbLoadCount = 0;
-        m_cacheLoadCount = 0;
-        m_dbLoadOverflowCount = 0;
-        m_cacheLoadOverflowCount = 0;
-        m_cacheLoadFailCount = 0;
-        m_cacheLoadFailOverflowCount = 0;
-    }
-    void IncrementDBLoadCount()             // 回绕时溢出计数 +1（0x823465a）
-    {
-        if (++m_dbLoadCount == 0)
-        {
-            ++m_dbLoadOverflowCount;
-        }
-    }
-    void IncrementCacheLoadCount()          // 同上（0x823468a）
-    {
-        if (++m_cacheLoadCount == 0)
-        {
-            ++m_cacheLoadOverflowCount;
-        }
-    }
-
-private:
-    unsigned int m_dbLoadCount;              // +0x00
-    unsigned int m_cacheLoadCount;           // +0x04
-    unsigned int m_dbLoadOverflowCount;      // +0x08
-    unsigned int m_cacheLoadOverflowCount;   // +0x0c
-    unsigned int m_cacheLoadFailCount;       // +0x10
-    unsigned int m_cacheLoadFailOverflowCount;  // +0x14
-};
-
-inline CExchangeServerHitRate* GetInstanceExchangeServerHitRate()
-{   // ORIG 0x823470f：__cxa_guard 函数局部 static 单例，语义一致
-    static CExchangeServerHitRate s_instance;
-    return &s_instance;
-}
-}  // namespace exchange_server
 
 DisPatcher_CheckConn::DisPatcher_CheckConn() {}
 DisPatcher_CheckConn::~DisPatcher_CheckConn() {}
